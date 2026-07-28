@@ -49,7 +49,7 @@
 ### Task 3: `useReproPrefill` 이관 (순서 보존 주의 — 셋 중 **먼저**)
 
 - **변경 대상**: `src/sidepanel/hooks/useReproPrefill.ts`, `src/sidepanel/tabs/DraftingPanel.tsx`(`getAiCancel` 주입)
-- **작업 내용**: re-adopt 분기를 `readopt()` 호출로, effect cleanup을 `detach(run)`으로 교체. `runRef`·직접 `AbortController`·`userCancelled` 수동 조작·`apply()` 내부 2차 가드를 제거하고 `isActive(run)`으로 통일한다. **`setReproPrefillDone(true)` → `doneRef.current = true` → `begin()` 순서를 그대로 유지한다**(뒤바뀌면 2026-07-16/17 재발). `reproPrefillDone` 래치는 콜사이트에 남는다. `UseReproPrefillArgs`의 `setLoading`·`setAiCancel` DI 시그니처를 유지하고 그대로 `useAiRun` config에 넘긴다. 컨트롤러를 effect deps에 넣는다면 규약 6(참조 안정)에 의존함을 주석 한 줄로 남긴다.
+- **작업 내용**: re-adopt 분기를 `readopt()` 호출로, effect cleanup을 `detach(run)`으로 교체. `runRef`·직접 `AbortController`·`userCancelled` 수동 조작·`apply()` 내부 2차 가드를 제거하고 `isActive(run)`으로 통일한다. **`setReproPrefillDone(true)` → `doneRef.current = true` → `begin()` 순서를 그대로 유지한다**(뒤바뀌면 2026-07-16/17 재발). `reproPrefillDone` 래치는 콜사이트에 남는다. `UseReproPrefillArgs`의 `setLoading`·`setAiCancel` DI 시그니처를 유지하고 그대로 `useAiRun` config에 넘긴다. 컨트롤러를 effect deps에 넣는다면 규약 7(참조 안정)에 의존함을 주석 한 줄로 남긴다.
 - **검증**:
   - [x] 기존 `useReproPrefill.test.tsx` **29개 전부 green**, 특히 "게이트 왕복 cleanup은 in-flight 요청을 abort하지 않는다"·"in-flight 중 게이트가 껐다 켜져도 …이어받는다"·"사용자 중단 … 재발화 없음"·`:582` "AI in-flight 중 sectionEnabled가 꺼지면 취소되더라도 로딩은 풀린다"
   - [x] 아래 **공통 grep** → 0건

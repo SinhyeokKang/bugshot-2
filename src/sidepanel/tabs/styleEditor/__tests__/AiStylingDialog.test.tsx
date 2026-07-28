@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/i18n", () => ({
@@ -7,6 +7,10 @@ vi.mock("@/i18n", () => ({
   t: (key: string) => key,
 }));
 vi.mock("@/sidepanel/lib/llmErrorToast", () => ({ toastLlmError: vi.fn() }));
+vi.mock("@/sidepanel/lib/prompts/promptBudget", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/sidepanel/lib/prompts/promptBudget")>()),
+  isPromptOverBudget: vi.fn(async () => false),
+}));
 vi.mock("@/sidepanel/picker-control", () => ({
   applyStyles: vi.fn(),
   applyClasses: vi.fn(),
@@ -19,32 +23,8 @@ import { AiStylingDialog } from "../AiStylingDialog";
 import { useEditorStore } from "@/store/editor-store";
 import { toastLlmError } from "@/sidepanel/lib/llmErrorToast";
 import { NANO_CAPABILITIES, type AISession } from "@/sidepanel/lib/ai-provider";
-
-// prompt 호출 하나를 붙잡아 두고 테스트가 원할 때 resolve한다 — 중단 시점을 제어해야
-// signal.aborted를 의미 있게 단언할 수 있다.
-function deferred<T>() {
-  let resolve!: (v: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
-  });
-  return { promise, resolve };
-}
-
-function makeSession() {
-  const calls: { input: string; signal?: AbortSignal }[] = [];
-  const pending: ReturnType<typeof deferred<string>>[] = [];
-  const destroy = vi.fn();
-  const session = {
-    prompt: vi.fn((input: string, opts?: { signal?: AbortSignal }) => {
-      calls.push({ input, signal: opts?.signal });
-      const d = deferred<string>();
-      pending.push(d);
-      return d.promise;
-    }),
-    destroy,
-  } as unknown as AISession;
-  return { session, calls, pending, destroy };
-}
+import { makeSession, deferred } from "@/test/ai-session";
+import { isPromptOverBudget } from "@/sidepanel/lib/prompts/promptBudget";
 
 // 실제로 적용되는 응답이어야 "취소하면 적용 안 된다"는 단언이 공허해지지 않는다
 // — 아래 "대조군" 케이스가 이 응답의 적용을 실증한다(POSTMORTEM 2026-07-28).
@@ -203,6 +183,53 @@ describe("AiStylingDialog 취소 레인", () => {
 
     await submit("smaller");
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(2));
+  });
+
+  // sessionRef는 run보다 오래 살고 Styling은 세션을 재사용한다 — await 재개 지점에서
+  // ref를 다시 읽으면 옛 run의 turn이 새 run의 멀티턴 대화에 섞인다.
+  it("예산 확인 await 중 중단·재제출되면 옛 run이 새 run의 세션에 prompt하지 않는다", async () => {
+    const first = makeSession();
+    const second = makeSession();
+    const createSession = vi
+      .fn<() => Promise<AISession>>()
+      .mockResolvedValueOnce(first.session)
+      .mockResolvedValueOnce(second.session);
+
+    const gate = deferred<boolean>();
+    vi.mocked(isPromptOverBudget)
+      .mockReturnValueOnce(gate.promise)
+      .mockResolvedValue(false);
+
+    render(
+      <AiStylingDialog
+        open
+        onOpenChange={vi.fn()}
+        createSession={createSession}
+        capabilities={NANO_CAPABILITIES}
+      />,
+    );
+    await submit("turn A");
+    await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
+
+    useEditorStore.getState().aiCancel!();
+    await submit("turn B");
+    await waitFor(() => expect(second.calls.length).toBe(1));
+    expect(second.calls[0].input).toContain("turn B");
+
+    second.pending[0].resolve(VALID_RESPONSE);
+    await waitFor(() =>
+      expect(useEditorStore.getState().aiStylingLoading).toBe(false),
+    );
+
+    await act(async () => {
+      gate.resolve(false);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(second.calls).toHaveLength(1);
+    // run-local 세션만 되돌려도 red가 되도록 — A가 자기 세션에 prompt하는 것도 막는다.
+    expect(first.calls).toHaveLength(0);
   });
 
   // 규약 1·2 회귀 가드 — end()가 current를 비우지 않거나 begin()이 종료된 run까지

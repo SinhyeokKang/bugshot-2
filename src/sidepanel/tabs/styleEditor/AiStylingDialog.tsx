@@ -131,11 +131,15 @@ export function AiStylingDialog({
 
     try {
       // repick으로 세션이 다른 요소용이면 stale system prompt 폐기 후 재빌드.
-      if (sessionRef.current && sessionKeyRef.current !== targetKey) {
-        sessionRef.current.destroy?.();
+      // 이하 세션은 run-local로 잡는다 — ref를 await 뒤에 다시 읽으면 늦게 재개한 이 run이
+      // 그 사이 시작된 새 run의 세션에 자기 turn을 실어보낸다(멀티턴 대화 오염).
+      let session = sessionRef.current;
+      if (session && sessionKeyRef.current !== targetKey) {
+        session.destroy?.();
         sessionRef.current = null;
+        session = null;
       }
-      if (!sessionRef.current) {
+      if (!session) {
         const systemPrompt = buildAiStylingSystemPrompt(ctx);
         const fewShot = getStylingFewShot(ctx);
         const createdSession = await createSessionRef.current(
@@ -146,6 +150,7 @@ export function AiStylingDialog({
           createdSession.destroy?.();
           return;
         }
+        session = createdSession;
         sessionRef.current = createdSession;
         sessionKeyRef.current = targetKey;
         // 기준선은 원본 specifiedStyles 전체가 아니라 캡 적용 후 실제로 실린 맵이어야 한다.
@@ -188,10 +193,11 @@ export function AiStylingDialog({
         throw new AiContextOverflowError();
       }
 
-      if (await isPromptOverBudget(sessionRef.current, turnInput, responseSchema)) {
+      if (await isPromptOverBudget(session, turnInput, responseSchema)) {
         throw new AiContextOverflowError();
       }
-      const raw = await sessionRef.current
+      if (!aiRun.isActive(run)) return;
+      const raw = await session
         .prompt(turnInput, {
           responseSchema,
           signal: run.signal,

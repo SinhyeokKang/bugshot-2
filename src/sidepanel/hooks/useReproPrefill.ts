@@ -149,7 +149,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     return () => aiRun.detach(run);
     // deps는 발화 판정용 원시 플래그만 — draft/actionLog·locale/url/pageTitle을 넣으면 로딩 중 무관한 변경이 재실행→취소를 유발해 AI 결과 유실·로딩 고착을 만든다(발화 시점 closure로 읽는다).
     // autoReproPrefill도 의도적으로 뺐다 — 위 autoEnabledRef로 진입 시점에 고정한다.
-    // aiRun은 마운트 동안 참조가 안정적이라(useAiRun 규약 6) deps에 두어도 재실행을 만들지 않는다.
+    // aiRun은 마운트 동안 참조가 안정적이라(useAiRun 규약 7) deps에 두어도 재실행을 만들지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     captureMode,

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/i18n", () => ({
@@ -7,35 +7,22 @@ vi.mock("@/i18n", () => ({
   t: (key: string) => key,
 }));
 vi.mock("@/sidepanel/lib/llmErrorToast", () => ({ toastLlmError: vi.fn() }));
+vi.mock("@/sidepanel/lib/prompts/promptBudget", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/sidepanel/lib/prompts/promptBudget")>()),
+  isPromptOverBudget: vi.fn(async () => false),
+}));
+vi.mock("@/sidepanel/lib/resolveInlineImages", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/sidepanel/lib/resolveInlineImages")>()),
+  resolveInlineImagesForSections: vi.fn(async () => []),
+}));
 
 import { AiDraftDialog } from "../AiDraftDialog";
 import { useEditorStore } from "@/store/editor-store";
 import { toastLlmError } from "@/sidepanel/lib/llmErrorToast";
-import { NANO_CAPABILITIES, type AISession } from "@/sidepanel/lib/ai-provider";
-
-function deferred<T>() {
-  let resolve!: (v: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
-  });
-  return { promise, resolve };
-}
-
-function makeSession() {
-  const calls: { input: string; signal?: AbortSignal }[] = [];
-  const pending: ReturnType<typeof deferred<string>>[] = [];
-  const destroy = vi.fn();
-  const session = {
-    prompt: vi.fn((input: string, opts?: { signal?: AbortSignal }) => {
-      calls.push({ input, signal: opts?.signal });
-      const d = deferred<string>();
-      pending.push(d);
-      return d.promise;
-    }),
-    destroy,
-  } as unknown as AISession;
-  return { session, calls, pending, destroy };
-}
+import { NANO_CAPABILITIES, BYOK_CAPABILITIES, type AISession } from "@/sidepanel/lib/ai-provider";
+import { makeSession, deferred } from "@/test/ai-session";
+import { isPromptOverBudget } from "@/sidepanel/lib/prompts/promptBudget";
+import { resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
 
 // 취소하지 않으면 실제로 적용되는 응답 — 아래 대조군이 이를 실증한다.
 const VALID_RESPONSE = JSON.stringify({
@@ -162,6 +149,93 @@ describe("AiDraftDialog 취소 레인", () => {
     await submit("again");
     await waitFor(() => expect(second.calls.length).toBe(1));
     expect(second.calls[0].signal!.aborted).toBe(false);
+  });
+
+  // sessionRef는 run보다 오래 산다 — await 재개 지점에서 ref를 다시 읽으면 옛 run이
+  // 새 run의 세션을 붙잡는다. 중단 후 재제출이 그 공존을 실제로 만든다(Chrome 내장 AI는
+  // abort를 무시해 옛 run이 살아서 재개한다).
+  it("예산 확인 await 중 중단·재제출되면 옛 run이 새 run의 세션에 prompt하지 않는다", async () => {
+    const first = makeSession();
+    const second = makeSession();
+    const createSession = vi
+      .fn<() => Promise<AISession>>()
+      .mockResolvedValueOnce(first.session)
+      .mockResolvedValueOnce(second.session);
+
+    // 첫 예산 확인만 붙잡아 둔다 — 그 사이 run A가 중단되고 run B가 시작된다.
+    const gate = deferred<boolean>();
+    vi.mocked(isPromptOverBudget)
+      .mockReturnValueOnce(gate.promise)
+      .mockResolvedValue(false);
+
+    renderDialog(createSession);
+    await submit("turn A");
+    await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
+
+    useEditorStore.getState().aiCancel!();
+    await submit("turn B");
+    await waitFor(() => expect(second.calls.length).toBe(1));
+    expect(second.calls[0].input).toBe("turn B");
+
+    // B를 정상 종료시켜 두면 sessionRef에는 B의 세션이 남는다.
+    second.pending[0].resolve(VALID_RESPONSE);
+    await waitFor(() =>
+      expect(useEditorStore.getState().aiDraftLoading).toBe(false),
+    );
+
+    // 이제 A가 재개한다 — 가드가 없으면 B의 세션에 "turn A"를 실어보낸다.
+    await act(async () => {
+      gate.resolve(false);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(second.calls).toHaveLength(1);
+    // run-local 세션만 되돌려도 red가 되도록 — A가 자기 세션에 prompt하는 것도 막는다.
+    expect(first.calls).toHaveLength(0);
+  });
+
+  // A는 세션 생성 **전**(인라인 이미지 resolve)에 멈춘다. 그래서 B가 첫 세션을 만들고,
+  // 뒤늦게 재개한 A의 "매 요청마다 세션 재생성" 줄이 B의 살아 있는 세션을 파괴한다.
+  it("인라인 이미지 resolve await 중 중단·재제출되면 옛 run이 새 run의 세션을 destroy하지 않는다", async () => {
+    const sessionB = makeSession();
+    const sessionA = makeSession();
+    const createSession = vi
+      .fn<() => Promise<AISession>>()
+      .mockResolvedValueOnce(sessionB.session)
+      .mockResolvedValueOnce(sessionA.session);
+
+    const gate = deferred<never[]>();
+    vi.mocked(resolveInlineImagesForSections)
+      .mockReturnValueOnce(gate.promise)
+      .mockResolvedValue([]);
+
+    render(
+      <AiDraftDialog
+        open
+        onOpenChange={vi.fn()}
+        createSession={createSession}
+        capabilities={BYOK_CAPABILITIES}
+      />,
+    );
+
+    await submit("turn A");
+    await waitFor(() =>
+      expect(resolveInlineImagesForSections).toHaveBeenCalledTimes(1),
+    );
+    expect(createSession).not.toHaveBeenCalled(); // A는 세션 생성 전에 멈춰 있다
+
+    useEditorStore.getState().aiCancel!();
+    await submit("turn B");
+    await waitFor(() => expect(sessionB.calls.length).toBe(1));
+
+    await act(async () => {
+      gate.resolve([]);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(sessionB.destroy).not.toHaveBeenCalled();
   });
 
   it("언마운트하면 진행 중 요청이 abort되고 로딩이 걷힌다", async () => {

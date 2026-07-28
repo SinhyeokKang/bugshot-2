@@ -231,6 +231,8 @@ export function AiDraftDialog({
       });
 
       // 매 요청마다 최신 선입력으로 세션 재생성 — 재오픈·재생성 시 갱신된 컨텍스트 반영.
+      // sessionRef는 run보다 오래 살아서, 가드 없이 여기 오면 새 run의 세션을 파괴한다.
+      if (!aiRun.isActive(run)) return;
       sessionRef.current?.destroy?.();
       const createdSession = await createSessionRef.current(
         systemPrompt,
@@ -246,10 +248,13 @@ export function AiDraftDialog({
         sectionIds,
         refs.length ? { logRefs: refs } : undefined,
       );
-      if (await isPromptOverBudget(sessionRef.current, msg, responseSchema)) {
+      // 이하 세션은 run-local로 잡는다 — ref를 다시 읽으면 늦게 재개한 이 run이
+      // 그 사이 시작된 새 run의 세션에 자기 turn을 실어보낸다.
+      if (await isPromptOverBudget(createdSession, msg, responseSchema)) {
         throw new AiContextOverflowError();
       }
-      const raw = await sessionRef.current
+      if (!aiRun.isActive(run)) return;
+      const raw = await createdSession
         .prompt(msg, {
           responseSchema,
           images,

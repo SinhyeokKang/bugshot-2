@@ -216,7 +216,7 @@ describe("useAiRun", () => {
     });
   });
 
-  describe("begin()의 교체 규칙 (규약 1·2·3)", () => {
+  describe("begin()의 교체 규칙 (규약 1·2·3·6)", () => {
     // 세션 재사용이 여기 의존한다 — 정상 종료한 run까지 dispose하면
     // AiStylingDialog의 멀티턴 대화가 매 제출마다 소실된다.
     it("end() 후의 begin()은 onDispose를 부르지 않는다", () => {
@@ -257,7 +257,7 @@ describe("useAiRun", () => {
 
     // 계약: run당 최대 1회. canceller가 current를 안 비우므로 중단된 run이 settle하기
     // 전에 재제출하면 교체 경로가 같은 run을 또 dispose하려 든다. 지금 두 콜사이트의
-    // onDispose는 멱등이지만, 비멱등 정리를 붙이는 콜사이트가 생기면 터질 구멍이다.
+    // onDispose는 멱등이지만, 비멱등 정리를 붙이는 콜사이트가 생기면 터질 구멍이다(규약 6).
     it("사용자 중단 후 재제출해도 onDispose는 run당 한 번만 불린다", () => {
       const v = setup("oneshot");
       begin(v);
@@ -352,7 +352,7 @@ describe("useAiRun", () => {
     });
   });
 
-  describe("참조 안정성 (규약 6)", () => {
+  describe("참조 안정성 (규약 7)", () => {
     it("rerender 후에도 컨트롤러와 6개 메서드의 참조가 같다", () => {
       const v = setup("oneshot");
       const before = v.result.current;
