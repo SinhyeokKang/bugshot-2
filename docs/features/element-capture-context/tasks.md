@@ -27,11 +27,12 @@
   - [ ] Task 1의 테스트가 전부 통과
   - [ ] `pnpm typecheck` 통과
   - [ ] 모달 안 `<tr>` 케이스에서 다이얼로그가 아니라 `<tr>`이 반환됨(최근접 우선)
+  - [ ] `form`·landmark·`[role="group"]`·positioned-only 조상은 후보가 아님
 
 ### Task 3: picker 타입 확장
 
 - **변경 대상**: `src/types/picker.ts`
-- **작업 내용**: `PrepareCaptureResponse`에 `contextSelector?: string | null` 추가. `PickerMessage` 유니온의 `picker.prepareCapture`에 `contextSelector?: string` 추가.
+- **작업 내용**: `PrepareCaptureResponse`에 `contextSelector?: string | null` 추가. `PickerMessage` 유니온의 `picker.prepareCapture`와 `picker.prepareCaptureBySelector`에 `contextSelector?: string` 추가.
 - **검증**:
   - [ ] `pnpm typecheck` 통과 (기존 호출부가 optional이라 깨지지 않음)
 
@@ -40,13 +41,15 @@
 - **변경 대상**: `src/content/picker.ts`
 - **작업 내용**:
   - `handlePrepareCapture(msg)`가 메시지를 받도록 시그니처 변경 (`:353`, 호출부 `:241~246`)
-  - `msg.contextSelector`가 있으면 `document.querySelector`로 조상을 찾아 `viewportRectOf`로 재측정. 못 찾으면 폴백 경로로 진행
+  - `msg.contextSelector`가 있으면 `document.querySelector`로 조상을 찾아 현재 대상 포함 여부와 `passesContextGates`를 다시 검증한 뒤 `viewportRectOf`로 재측정. 못 찾거나 다른 노드에 재결합했거나 게이트를 실패하면 폴백
   - 없으면 `findContextAncestor` → `passesContextGates` 순으로 판정. 통과 시 조상 rect + `buildSelector(조상)`(`dom-describe.ts:10`), 미달 시 요소 rect + `null`
   - `handlePrepareCaptureBySelector`(`:369`)도 동일 판정을 적용한다 (StyleChangesDialog 재캡처 경로)
 - **검증**:
   - [ ] `pnpm typecheck` 통과
   - [ ] iframe 경로에서 `respondWithTopRect`가 `contextSelector`를 소실시키지 않음 (`:325` 응답 조립 확인)
+  - [ ] top 변환 성공·offset 실패·뷰포트 비인터섹션 분기의 context 보존/폐기 계약을 단위 테스트로 고정
   - [ ] `contextSelector`가 주어지면 `findContextAncestor`를 호출하지 않음(판정 재실행 없음)
+  - [ ] 저장 selector가 다른 형제에 재결합하면 현재 요소 미포함으로 폴백
 
 ### Task 5: capture.ts 반환 타입 변경 + 0×0 폴백
 
@@ -65,30 +68,36 @@
 - **변경 대상**: `src/store/editor-store.ts`
 - **작업 내용**:
   - `EditorState`에 `captureContext: CaptureContext | null` 추가, 초기값 `null`
+  - `beforeCaptureStatus: "idle" | "capturing" | "ready"` 추가. 요소 선택 직후 capturing, 이미지와 캡처 기준이 모두 확정된 경우에만 ready. 실패 시 기존 안내를 유지하고 진행 차단
   - `setCaptureContext` 액션 추가
   - `BufferedElement`에 `captureContext?: CaptureContext` 추가
   - `bufferCurrentElement(afterImage, context?)`로 시그니처 확장 (`:234`, `:645`)
-  - `reset`·`backToStyling`(`:709`)·요소 재선택 시 `captureContext` 초기화
+  - 새 요소 선택·전체 `reset` 시 `captureContext` 초기화. `backToStyling`(`:709`)에서는 before 이미지와 함께 유지
   - 버퍼 승격 경로(`:580~`)에서 `beforeImage`·`afterImage`와 함께 복원
-  - `IssueRecord` 직렬화(`:855~`)는 **손대지 않는다** — 이미지 자체가 boolean 플래그만 남기는 구조라 컨텍스트도 세션 한정으로 둔다
+  - `IssueRecord`의 현재 요소·buffered element optional 필드에 `captureContext`를 명시적으로 직렬화·복원. 레거시는 `?? null` 폴백하고 persist 버전은 올리지 않음
 - **검증**:
   - [ ] `pnpm typecheck` 통과
   - [ ] 기존 `src/store/__tests__/editor-store.test.ts`가 계속 통과 (`bufferCurrentElement` 인자 추가가 optional이라 기존 호출 유지)
   - [ ] 요소 재선택 후 `captureContext`가 `null`로 초기화됨을 단위 테스트로 확인
+  - [ ] `backToStyling`에서는 기존 context 유지
+  - [ ] draft 저장·복원 후 현재 요소와 버퍼 context 유지, context 없는 레거시는 폴백
 
 ### Task 7: 호출부 연결
 
 - **변경 대상**: `src/sidepanel/hooks/usePickerMessages.ts`, `src/sidepanel/tabs/StyleEditorPanel.tsx`, `src/sidepanel/hooks/useBufferThenSwitch.ts`, `src/sidepanel/tabs/styleEditor/StyleChangesDialog.tsx`
 - **작업 내용**:
   - `usePickerMessages.ts:143` (before) — `result.image`를 `setBeforeImage`에, `result.context`를 `setCaptureContext`에
+  - 요소 선택 직후 `beforeCaptureStatus="capturing"`, 캡처 기준 판정 완료 시 `"ready"`
   - `usePickerMessages.ts:90` `captureElementShot` — **스코프 밖**. `.image`만 꺼내 쓰도록 최소 수정
   - `StyleEditorPanel.tsx:156` (after) — `context: store.captureContext` 전달, `result.image`를 `setAfterImage`에
-  - `useBufferThenSwitch.ts:22` — `context` 전달 + `bufferCurrentElement(after.image, after.context)`
+  - `useBufferThenSwitch.ts:22` — context 전달. 버퍼에는 `after.context`가 아니라 before에서 확정한 `store.captureContext` 저장
   - `StyleChangesDialog.tsx:95` — `group.captureContext` 전달, 재캡처 결과로 `afterImage` patch
 - **검증**:
   - [ ] `pnpm typecheck` 통과
   - [ ] `pnpm test` 전체 통과
   - [ ] `captureElementShot` 경로가 기존과 동일하게 동작(요소 단일 캡처 회귀 없음)
+  - [ ] `beforeCaptureStatus !== "ready"`인 동안 `[다음]`이 기존 `aria-disabled` 패턴으로 비활성화
+  - [ ] before 실패 시 ready로 전환하지 않아 기준 없는 after 캡처를 차단
 
 ### Task 8: e2e spec 작성
 
@@ -107,15 +116,17 @@
 | 케이스 | 기대 |
 |---|---|
 | Radix형 모달: `[role="dialog"]` 안 버튼 | 다이얼로그 반환 |
-| 손수 백드롭: `position:fixed; z-index:50` 부모 + 안쪽 static div + 버튼 | 백드롭 반환 (게이트가 이후 거름) |
+| 손수 백드롭: `position:fixed; z-index:50` 부모 + 안쪽 static div + 버튼 | `null` (positioned-only 후보 제외) |
 | `<table><tr><td>` 안 배지 | `<tr>` 반환 |
 | **모달 안 테이블 셀** | `<tr>` 반환 (다이얼로그 아님 — 최근접 우선) |
 | `<li>` 안 버튼 | `<li>` 반환 |
-| `<form>` 안 input | `<form>` 반환 |
+| `<form>` 안 input | `null` (민감정보 범위 확대 방지) |
 | `[role="tabpanel"]` 안 요소 | tabpanel 반환 |
 | 시맨틱 없는 div 체인 | `null` |
 | 요소 자신이 `<li>`이고 상위에 아무것도 없음 | `null` (자신 제외) |
 | `position:absolute`이지만 `z-index:auto` | 신호로 인정 안 함 |
+| `position:absolute; z-index:50`이지만 시맨틱 없음 | 신호로 인정 안 함 |
+| `section`·`nav`·`aside`·`header`·`footer`·`[role="group"]` | 신호로 인정 안 함 |
 
 **`capture-context.test.ts` (node) — `passesContextGates`**
 
@@ -134,6 +145,16 @@
 - 요소 재선택 시 `captureContext`가 `null`로 초기화된다
 - `bufferCurrentElement(image, context)`가 버퍼 항목에 `captureContext`를 실는다
 - 버퍼 승격 시 `captureContext`가 복원된다
+- `backToStyling`은 before 이미지와 `captureContext`를 함께 유지한다
+- before 캡처 중 `[다음]`이 비활성화되고 판정 완료 후 활성화된다
+- `IssueRecord` 왕복 후 현재 요소·버퍼 context가 복원되고 레거시 context 부재는 안전하게 폴백한다
+
+**picker 통합 테스트**
+
+- 저장 selector가 현재 선택 요소를 포함할 때만 after 컨텍스트로 사용된다
+- DOM 재정렬로 selector가 다른 형제를 가리키면 폴백한다
+- after 재측정 rect가 확정 상한을 넘거나 요소를 자르면 폴백한다
+- iframe top 변환 성공 시 `contextSelector`가 보존되고 실패 분기는 문서 계약대로 처리된다
 
 ### e2e 시나리오
 
@@ -145,6 +166,9 @@
 - 요소를 `display:none`으로 바꾸고 진행하면, after 이미지가 24×24보다 크다
 - 풀스크린 백드롭(`fixed; inset:0`) 안 요소를 편집하면, after 이미지 폭이 뷰포트 폭보다 작다 (과확장 차단)
 - 요소를 편집한 뒤 페이지를 스크롤하고 다음 단계로 진행해도, after 이미지에 편집한 요소가 포함된다
+- before 캡처 응답을 지연시키면 완료 전 `[다음]`이 비활성화되고 완료 후 같은 컨테이너로 진행된다
+- DOM 재정렬로 저장 selector가 다른 형제를 가리켜도 그 형제를 캡처하지 않고 폴백한다
+- 저장한 draft를 재개해 행 초기화 재캡처를 하면 저장된 컨테이너 기준을 사용한다
 
 ### 수동 테스트
 
@@ -157,6 +181,9 @@
 - [ ] 여러 요소를 버퍼에 담고 이슈 본문의 요소별 before/after 표가 각각 올바른 컨테이너로 찍혔는지
 - [ ] `StyleChangesDialog`에서 행 초기화 후 재캡처된 after가 같은 컨테이너인지
 - [ ] 40% 상한이 실제로 적정한지 — 넓은 모니터·좁은 창 양쪽에서 확인 후 필요 시 조정
+- [ ] 약 400px 사이드패널 before/after 표에서 대상 다이얼로그·행을 캡처만 보고 식별 가능한지
+- [ ] 확장 이미지에 인접 개인정보가 불필요하게 포함되지 않는지, 작성 화면에서 제출 전 확인 가능한지
+- [ ] 대표 DOM에서 selector 생성 지연과 finder path 폴백이 진행을 과도하게 막지 않는지
 
 ## 구현 순서 권장
 
