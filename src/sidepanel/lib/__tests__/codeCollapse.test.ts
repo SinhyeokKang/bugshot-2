@@ -235,6 +235,60 @@ describe("pill·block-actions 버튼 관용구 대조", () => {
   });
 });
 
+// 행 번호 gutter는 pre 밖(wrapper 자식)에 absolute로 얹힌다. 그 배치가 세 가지를 동시에 산다:
+// 가로 스크롤 컨테이너가 pre 하나뿐이라 번호 열이 고정되고, top/bottom으로 wrapper에 묶여
+// 접힘 시 pre의 max-height에 맞춰 저절로 잘리며, 복사 경로(pre.textContent)가 안 더러워진다.
+// 셋 중 하나라도 CSS에서 풀리면 조용히 깨지므로 규칙을 직접 읽어 고정한다.
+describe("행 번호 gutter 배치", () => {
+  const componentsDir = join(dirname(fileURLToPath(import.meta.url)), "../../components");
+
+  function rule(file: string, selector: string): string {
+    const css = readFileSync(join(componentsDir, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const body = css.split(`${selector} {`)[1]?.split("}")[0];
+    expect(body, `${selector} 규칙을 ${file}에서 못 찾음`).toBeDefined();
+    return body!;
+  }
+
+  function decl(body: string, prop: string, ctx: string): string {
+    const value = body.match(new RegExp(`(?:^|[^-\\w])${prop}:\\s*([^;]+);`))?.[1]?.trim();
+    expect(value, `${ctx}에 ${prop} 선언이 없음`).toBeDefined();
+    return value!;
+  }
+
+  const gutter = () => rule("code-collapse.css", ".code-collapse-gutter");
+
+  it("wrapper에 붙어 세로 전체를 덮고 넘치는 만큼 잘린다 (접힘 대응)", () => {
+    const g = gutter();
+    expect(decl(g, "position", "gutter")).toBe("absolute");
+    expect(decl(g, "top", "gutter")).toBe("0");
+    expect(decl(g, "bottom", "gutter")).toBe("0");
+    expect(decl(g, "overflow", "gutter")).toBe("hidden");
+  });
+
+  it("번호 줄 높이가 코드 줄 높이와 같은 단일출처를 쓴다 (정렬 전제)", () => {
+    const g = gutter();
+    expect(decl(g, "font-size", "gutter")).toBe("var(--mono-size)");
+    expect(decl(g, "line-height", "gutter")).toBe("var(--mono-leading)");
+  });
+
+  it("드래그 복사에 번호가 섞이지 않는다", () => {
+    expect(decl(gutter(), "user-select", "gutter")).toBe("none");
+  });
+
+  // pre는 셸이 넘긴 --code-gutter-digits로 자기 들여쓰기를 만든다. 두 표면이 같은 식을
+  // 써야 편집 화면과 프리뷰의 코드 시작 위치가 안 갈라진다(pre 규칙 손복사본 2벌과 같은 이유).
+  it("에딧·읽기 두 표면의 pre가 같은 식으로 gutter 폭만큼 들여쓴다", () => {
+    const edit = decl(
+      rule("tiptap-editor.css", ".tiptap-editor .ProseMirror pre"),
+      "padding-left",
+      "edit pre",
+    );
+    const read = decl(rule("doc-section-body.css", ".doc-section-body pre"), "padding-left", "read pre");
+    expect(edit).toBe(read);
+    expect(edit).toContain("--code-gutter-digits");
+  });
+});
+
 describe("countCodeLines + shouldCollapseCode", () => {
   it("정확히 15줄인 블럭은 안 접힌다", () => {
     expect(shouldCollapseCode(countCodeLines(lines(15)))).toBe(false);
