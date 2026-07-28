@@ -8,7 +8,7 @@ e2e 스위트(63 spec / 236 테스트)는 지금 **로컬에서만** 돈다. 확
 
 1. **머신 점유.** 4~5분간 개발 머신이 headed Chrome 창에 잡힌다. `/push`마다 발생한다.
 2. **머신 로컬 신뢰.** `.last-green`은 gitignore라 이 머신 밖에선 존재하지 않는다. 외부 기여 PR에는 e2e가 **전혀 적용되지 않고**, Codex 세션은 CI 결과를 볼 수 없다. CLAUDE.md도 이 한계를 명시하고 "외부 기여를 받기 시작하면 nightly·수동 트리거 e2e 잡을 추가한다"고 남겨뒀다.
-3. **검증 창구 분산.** 같은 green을 로컬 캐시 해시와 CI 두 곳에서 관리하면 어느 쪽이 진실인지 흐려진다.
+3. **이중 게이트 위험.** CI를 추가하면서 로컬 캐시 게이트까지 유지하면 같은 green을 두 곳에서 관리하게 되어 어느 쪽이 진실인지 흐려진다.
 
 이 저장소는 public이라 GitHub Actions 러너가 무료다. headed 제약은 `xvfb`로 해소되고, 직렬 실행 시간은 샤딩으로 나눌 수 있다. CI에서 돌릴 수 없다는 전제 자체가 더 이상 유효하지 않다.
 
@@ -20,6 +20,7 @@ e2e 스위트(63 spec / 236 테스트)는 지금 **로컬에서만** 돈다. 확
 - CI wall-clock이 **10분 이내**다(4샤드 매트릭스 기준 목표 4~6분).
 - 외부 기여자의 fork PR에도 e2e가 동일하게 적용된다 — CI 빌드가 secret에 의존하지 않는다.
 - `/push`가 e2e 때문에 세션을 잡지 않는다(논블로킹).
+- 전환은 두 단계로 진행한다. CI 워크플로를 먼저 올려 `e2e-gate` green을 1회 실증한 뒤 로컬 `.last-green` 게이트를 제거한다.
 
 ## 비목표 (Non-goals)
 
@@ -38,7 +39,7 @@ e2e 스위트(63 spec / 236 테스트)는 지금 **로컬에서만** 돈다. 확
 
 1. 개발자가 `/implement`·`/refactor` 등으로 작업하고 커밋한다.
 2. `/push` 실행 → 문서 신선도 검사 + Codex 미러 게이트 통과 → **e2e 실행 없이** push.
-3. `/push`가 CI run URL을 한 줄 보고하고 종료한다. 머신이 즉시 자유로워진다.
+3. `/push`가 방금 push한 HEAD와 일치하는 CI run URL을 한 줄 보고한다. 아직 run이 등록되지 않았거나 최신 조회 결과가 다른 SHA면 Actions 목록 URL로 폴백하고 종료한다. 머신이 즉시 자유로워진다.
 4. 4~6분 뒤 GitHub이 CI 결과를 알린다. 빨간불이면 개발자가 그때 대응한다.
 
 **변화**: push 전 4~5분 로컬 e2e가 사라진다. 대가로 빨간 커밋이 dev에 일단 올라간다 — dev는 force push가 자유로운 작업 브랜치라 수용 가능한 거래다.
@@ -48,9 +49,10 @@ e2e 스위트(63 spec / 236 테스트)는 지금 **로컬에서만** 돈다. 확
 1. `/merge` 실행 → 커밋 확인.
 2. **e2e 게이트**: dev HEAD 커밋의 CI 결론을 조회한다.
    - `success` → 통과.
-   - `failure` → 중단. main에 빨간 코드를 올리지 않는다.
+   - `failure`를 포함한 완료 상태 중 `success`가 아닌 모든 결론 → 중단. main에 빨간 코드를 올리지 않는다.
    - 아직 진행 중 → 완료까지 대기 후 결론에 따른다.
    - run이 아예 없음(push되지 않은 커밋 등) → 중단하고 원인 보고.
+   - GitHub API 조회 오류나 알 수 없는 상태 → 중단하고 원인과 확인할 Actions URL을 보고한다.
 3. 커버리지 리포트(비차단) → 버전 bump 커밋 → PR 생성.
 4. PR CI(verify + e2e-gate)가 green이 될 때까지 대기 → squash 머지 → `/sync`.
 
@@ -70,21 +72,22 @@ e2e 스위트(63 spec / 236 테스트)는 지금 **로컬에서만** 돈다. 확
 
 ### S5. nightly
 
-매일 03:00 KST에 **main** 기준으로 전체 CI가 돈다(GitHub `schedule` 이벤트는 기본 브랜치에서만 발화). 코드가 그대로여도 Chrome 버전 업데이트·러너 이미지 변경으로 생기는 깨짐을 잡는다. 실패하면 GitHub 알림으로 인지한다.
+매일 03:00 KST에 **main** 기준으로 전체 CI가 돈다(GitHub `schedule` 이벤트는 기본 브랜치에서만 발화). 코드가 그대로여도 Chrome 버전 업데이트·러너 이미지 변경으로 생기는 깨짐을 잡는다. 실패는 메인테이너가 GitHub Actions 기본 알림에서 직접 확인하고 대응한다. 별도 이슈 자동 생성과 대응 SLA는 두지 않는다.
 
 ### 엣지 케이스
 
 - **샤드 하나만 실패** → `fail-fast: false`로 나머지 샤드도 끝까지 돌려 실패 전모를 한 번에 본다. `e2e-gate` 집계 job이 빨간불이 된다.
 - **연속 push** → `concurrency` 그룹(`ci-${{ github.ref }}`)이 이전 런을 취소한다. 기존 동작 유지.
 - **spec에 `.only`가 남음** → `forbidOnly`(CI 한정)로 실패시킨다. 없으면 샤드가 조용히 green이 되어 게이트가 무의미해진다.
-- **실패 원인 조사** → 실패한 샤드가 `playwright-report/`와 trace(`test-results/`)를 artifact로 올린다. `trace: "retain-on-failure"`는 이미 설정돼 있다.
+- **실패 원인 조사** → 실패한 샤드가 `playwright-report/`와 trace(`test-results/`)를 artifact로 올린다. `trace: "retain-on-failure"`는 이미 설정돼 있다. job 자체가 hard timeout되면 후속 업로드 스텝도 실행되지 않을 수 있으므로 이때는 Actions 로그까지만 조사 근거로 쓴다.
+- **전환 중 첫 CI 실패** → 로컬 `.last-green` 게이트는 그대로 유지한다. xvfb·환경 설정을 수정해 `e2e-gate` green을 확인하기 전에는 로컬 게이트 제거 단계로 넘어가지 않는다.
 
 ## 성공 기준
 
 1. dev에 push하면 CI에서 e2e 4샤드가 실행되고, 전체 wall-clock이 **10분 이내**다.
-2. 의도적으로 깨뜨린 spec 하나가 담긴 브랜치를 push하면 `e2e-gate`가 빨간불이 되고, main PR 머지가 프로텍션에 막힌다.
-3. 저장소 어디에도 `e2e/.last-green` 참조가 남지 않는다 — `grep -rn "last-green"`이 0건.
-4. `/push`가 e2e를 실행하지 않고, push 후 즉시 CI run URL을 보고하며 종료한다.
+2. 의도적으로 깨뜨린 spec 하나가 담긴 임시 브랜치를 push하고 main 대상 draft PR을 열면 `e2e-gate`가 빨간불이 되고, main PR 머지가 프로텍션에 막힌다.
+3. 런타임 게이트와 스킬 어디에도 `e2e/.last-green` 참조가 남지 않는다 — `.gitignore`·`.claude/commands/`·`CLAUDE.md`·`AGENTS.md`·`.agents/skills/`·`docs/DIRECTORY.md`·`e2e/README.md` 대상 검색이 0건.
+4. `/push`가 e2e를 실행하지 않고, push 후 즉시 방금 push한 HEAD의 CI run URL 또는 Actions 목록 URL을 보고하며 종료한다.
 5. `/merge`가 dev HEAD의 CI 결론을 조회해 게이트로 쓰고, 빨간불이면 PR을 만들지 않는다.
 6. CI e2e가 `.env.local`·GitHub Secrets 없이 통과한다(커밋된 `.env.ci`만 사용).
 7. 로컬 `pnpm test:e2e`는 지금과 동일하게 동작한다 — `retries: 0`, off-screen 창, `E2E_SHOW=1` 디버그 경로 모두 보존.

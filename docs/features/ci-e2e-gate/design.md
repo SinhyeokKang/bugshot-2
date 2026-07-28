@@ -2,7 +2,7 @@
 
 ## 개요
 
-e2e 실행 위치를 로컬에서 GitHub Actions로 옮긴다. headed 강제라는 유일한 CI 차단 사유는 `xvfb-run`으로 해소하고(가상 디스플레이에서 실제 창을 띄운다), 직렬 실행 시간은 Playwright `--shard`로 4개 러너에 분산한다. 샤드는 각각 독립 job이므로 `workers: 1` 제약을 건드리지 않는다 — 프로세스 내 병렬이 아니라 프로세스 자체를 4개로 늘리는 방식이다. 샤드 결과는 `e2e-gate` 집계 job 하나로 수렴시켜 브랜치 프로텍션의 required check 이름을 샤드 개수와 분리한다. 그 다음 `e2e/.last-green`을 읽고 쓰던 4개 스킬(`/e2e-run`·`/push`·`/merge`·`/ship`)에서 로컬 게이트를 걷어내고, `/merge`만 원격 CI 결론 조회로 대체한다.
+e2e 실행 위치를 로컬에서 GitHub Actions로 옮긴다. headed 강제라는 유일한 CI 차단 사유는 `xvfb-run`으로 해소하고(가상 디스플레이에서 실제 창을 띄운다), 직렬 실행 시간은 Playwright `--shard`로 4개 러너에 분산한다. 샤드는 각각 독립 job이므로 `workers: 1` 제약을 건드리지 않는다 — 프로세스 내 병렬이 아니라 프로세스 자체를 4개로 늘리는 방식이다. 샤드 결과는 `e2e-gate` 집계 job 하나로 수렴시켜 브랜치 프로텍션의 required check 이름을 샤드 개수와 분리한다. 전환은 두 단계다. 먼저 CI 워크플로를 push해 `e2e-gate` green을 1회 실증한다. 그 다음 `e2e/.last-green`을 읽고 쓰던 4개 스킬(`/e2e-run`·`/push`·`/merge`·`/ship`)에서 로컬 게이트를 걷어내고, `/merge`만 원격 CI 결론 조회로 대체한다.
 
 ## 변경 범위
 
@@ -11,6 +11,7 @@ e2e 실행 위치를 로컬에서 GitHub Actions로 옮긴다. headed 강제라�
 **현재**: `verify` job 단일 — checkout → pnpm/node → install → typecheck → sync:agents:check → test → build → check:prearm. 트리거는 dev push · main PR.
 
 **변경**:
+- 워크플로 최상단에 `permissions: contents: read`를 명시해 fork PR의 임의 코드를 실행하는 `GITHUB_TOKEN` 권한을 읽기 전용으로 고정한다.
 - 트리거에 `schedule`(`0 18 * * *` = 03:00 KST)과 `workflow_dispatch` 추가. `schedule`은 GitHub 사양상 기본 브랜치(main)에서만 발화하므로 nightly 대상은 자동으로 main이다.
 - `e2e` job 신설 — `strategy.matrix.shard: [1,2,3,4]`, `fail-fast: false`, `timeout-minutes: 30`.
 - `e2e-gate` job 신설 — `needs: [e2e]`, `if: always()`. `needs.e2e.result != 'success'`면 exit 1.
@@ -54,7 +55,7 @@ export default defineConfig({
   testDir: ".",
   workers: 1,
   // 로컬은 flaky를 숨기지 않는다. CI는 확장 SW 기동·xvfb 환경 flaky를 흡수한다.
-  retries: isCI ? 2 : 0,
+  retries: isCI ? 1 : 0,
   // .only가 남으면 샤드가 조용히 green이 되어 게이트가 무의미해진다.
   forbidOnly: isCI,
   timeout: 60_000,
@@ -106,10 +107,11 @@ frontmatter `description`에서 `.last-green` 문구 제거, 본문에서 green 
 5단계 "e2e 게이트" 전체 삭제. 6단계 "푸시 실행"이 5단계로 당겨지고, push 성공 보고에 CI 안내 한 줄을 추가한다:
 
 ```
-gh run list --branch <branch> --workflow ci.yml --limit 1 --json url,status --jq '.[0].url'
+gh run list --branch <branch> --workflow ci.yml --limit 10 \
+  --json headSha,url,status
 ```
 
-푸시 직후에는 런이 아직 등록되지 않았을 수 있으므로, URL 조회에 실패하면 `https://github.com/<owner>/<repo>/actions` 링크로 폴백하고 **대기하지 않는다**. `/push`는 논블로킹을 유지한다.
+push 직전 HEAD를 저장하고, 조회 결과 중 `headSha`가 그 SHA와 일치할 때만 해당 run URL을 보고한다. 푸시 직후 아직 런이 등록되지 않았거나 최신 결과가 이전 SHA뿐이면 `https://github.com/<owner>/<repo>/actions` 링크로 폴백하고 **대기하지 않는다**. `/push`는 논블로킹을 유지한다.
 
 ### `.claude/commands/merge.md` (수정)
 
@@ -118,16 +120,17 @@ gh run list --branch <branch> --workflow ci.yml --limit 1 --json url,status --jq
 ```
 git rev-parse HEAD                                          # dev HEAD
 gh run list --branch dev --workflow ci.yml --limit 20 \
-  --json headSha,status,conclusion,url                       # HEAD와 headSha 일치 런 탐색
+  --json databaseId,headSha,status,conclusion,url            # HEAD와 headSha 일치 런 탐색
 ```
 
 판정:
 | 상태 | 처리 |
 |---|---|
 | `conclusion: success` | 통과 — 다음 단계 |
-| `conclusion: failure`/`cancelled`/`timed_out` | **중단** (PR 생성 안 함) |
-| `status: in_progress`/`queued` | `gh run watch <id> --exit-status`로 대기 후 결론 판정 |
+| `status: in_progress`/`queued` | `gh run watch <databaseId> --exit-status`로 대기 후 결론 재조회 |
+| 완료됐지만 `conclusion != success` | **중단** (PR 생성 안 함) |
 | 일치 런 없음 | **중단** — "dev HEAD가 push되지 않았거나 CI가 트리거되지 않음" 보고 |
+| API 오류·알 수 없는 상태 | **중단** — 원인과 run 또는 Actions URL 보고 |
 
 `.last-green`이 없어져도 게이트 의미는 보존된다: "머지될 코드 상태가 e2e green이었나"를 로컬 캐시가 아니라 원격 사실로 확인한다.
 
@@ -149,15 +152,16 @@ gh run list --branch dev --workflow ci.yml --limit 20 \
 | `CONTRIBUTING.md` | 51~53행 "isn't in CI and you don't need to run it. I run it locally before merging" → CI에서 자동 실행됨으로 교체 |
 | `.env.example` | 최상단 주석에 `.env.ci`(CI 전용 더미)의 존재와 목적 한 줄 |
 
-`AGENTS.md`·`.agents/skills/`는 `.claude/settings.json` PostToolUse 훅이 자동 재생성한다(`/push`·`/merge`는 sync 스크립트 `EXCLUDE`라 미러 대상이 아니고, `/e2e-run`·`/ship`은 대상).
+`AGENTS.md`·`.agents/skills/`는 Claude Code에서는 `.claude/settings.json` PostToolUse 훅이 자동 재생성한다. Codex에는 이 훅이 없으므로 원본 수정 뒤 `pnpm sync:agents`를 직접 실행해 미러를 함께 커밋한다(`/push`·`/merge`는 sync 스크립트 `EXCLUDE`라 미러 대상이 아니고, `/e2e-run`·`/ship`은 대상).
 
 ### 저장소 설정 (코드 아님)
 
-브랜치 프로텍션의 required status checks에 `e2e-gate` 추가. 현재는 `verify` 하나뿐이다.
+브랜치 프로텍션의 required status checks에 `e2e-gate`만 추가한다. 현재 `verify`와 `strict` 값을 보존하기 위해 required-status-check 전체를 PATCH하지 않고 context 추가 전용 endpoint를 사용한다.
 
 ```
-gh api -X PATCH repos/:owner/:repo/branches/main/protection/required_status_checks \
-  -f 'contexts[]=verify' -f 'contexts[]=e2e-gate'
+gh api -X POST \
+  repos/:owner/:repo/branches/main/protection/required_status_checks/contexts \
+  -f 'contexts[]=e2e-gate'
 ```
 
 ## 데이터 흐름
@@ -190,7 +194,7 @@ git push ──> GitHub Actions (dev push / main PR / nightly / dispatch)
      /merge 10단계 ─gh pr checks --watch─> green ─> gh pr merge --squash
 ```
 
-샤드 간에는 상태를 공유하지 않는다. `ext`는 worker-scope fixture라 샤드마다 자체 persistent context·fixture 서버(ephemeral 포트)·임시 프로필을 새로 만든다. 샤드 분할이 spec 파일 경계가 아니라 test 단위여도 안전한 근거가 이것이다.
+샤드 간에는 상태를 공유하지 않는다. `fullyParallel`을 켜지 않은 현재 설정에서 Playwright는 spec 파일 단위로 샤딩하고, 각 샤드는 자체 worker process를 띄운다. `ext`는 worker-scope fixture라 샤드마다 자체 persistent context·fixture 서버(ephemeral 포트)·임시 프로필을 만든다.
 
 ## 인터페이스 설계
 
@@ -229,7 +233,7 @@ VITE_POSTHOG_KEY*  = 빈 값                        # 집계 no-op 유지
 
 - **빌드는 자동 실행하지 않는다** (CLAUDE.md) — 예외로 `build:e2e`는 e2e 게이트에서 허용된다. CI 워크플로가 `build:e2e`를 돌리는 것은 이 예외 범위 안이고, 배포 산출물 `dist`와 분리된 `dist-e2e`만 만든다.
 - **`dist-e2e`는 테스트 전용** — CI에서도 아티팩트로 배포하지 않는다. 실패 시 올리는 것은 리포트와 trace뿐이다.
-- **Codex 미러 동기화** — `.claude/commands/*.md`와 `CLAUDE.md` 편집은 PostToolUse 훅이 `pnpm sync:agents`를 자동 실행한다. 훅이 안 도는 환경이면 `/push`의 `sync:agents:check` 게이트가 잡는다.
+- **Codex 미러 동기화** — Claude Code는 `.claude/commands/*.md`와 `CLAUDE.md` 편집 시 PostToolUse 훅이 `pnpm sync:agents`를 자동 실행한다. Codex는 훅이 없으므로 원본 변경 직후 직접 `pnpm sync:agents`를 실행하고, `/push`의 `sync:agents:check`를 최종 게이트로 둔다.
 - **문서 신선도** — 이번 변경은 `package.json` scripts를 바꾸지 않지만 워크플로·게이트 구조를 바꾸므로 CLAUDE.md·DIRECTORY.md 갱신이 필수 트리거에 해당한다. `manifest.config.ts`·권한·캡처 동작은 건드리지 않으므로 `docs/privacy.*`·`docs/PERMISSION.md`는 대상이 아니다.
 - **가이드 영향 없음** — 사용자 노출 UX가 아니다.
 - **외과적 변경** — `e2e/*.spec.ts` 63개 파일은 한 줄도 손대지 않는다.
@@ -257,10 +261,13 @@ fork PR에는 secret이 전달되지 않아 외부 기여 PR에서 다시 갈라
 **7. nightly를 dev 대상으로 (명시 checkout) — 기각.**
 dev는 push마다 이미 e2e가 돈다. nightly의 고유 가치는 "코드가 안 변했는데 환경이 변해서 깨지는 것"을 잡는 데 있고, 그 관측 대상으로는 배포된 상태인 main이 맞다.
 
+**8. nightly 실패 이슈 자동 생성 — 기각.**
+현재 단일 메인테이너가 GitHub Actions 기본 실패 알림을 직접 확인한다. 별도 issue 생성 job은 중복 알림과 자동 생성 이슈 정리 비용을 만들므로 추가하지 않고, 대응 SLA도 두지 않는다.
+
 ## 위험 요소
 
 **1. xvfb headed에서 확장 서비스워커가 안 깨어날 가능성 — 최대 위험.**
-"headless에서 SW가 안 깨어난다"는 것은 알려진 사실이고 xvfb는 headless가 아니지만(실제 창 + 가상 디스플레이), 리눅스 환경에서 실증한 적이 없다. 실패하면 `getSw()`의 `waitForEvent("serviceworker")`가 타임아웃하며 **모든 spec이 fixture 단계에서 죽는다** — 증상이 명확해 오진할 여지는 적다. 1차 대응: `--no-sandbox` 추가(dist-e2e는 테스트 전용이라 수용 가능). 2차: `--disable-dev-shm-usage`. 3차: xvfb 대신 `xvfb-run` 없이 러너의 기본 디스플레이 사용 시도.
+"headless에서 SW가 안 깨어난다"는 것은 알려진 사실이고 xvfb는 headless가 아니지만(실제 창 + 가상 디스플레이), 리눅스 환경에서 실증한 적이 없다. 실패하면 `getSw()`의 `waitForEvent("serviceworker")`가 타임아웃하며 **모든 spec이 fixture 단계에서 죽는다** — 증상이 명확해 오진할 여지는 적다. 1차 대응: `--no-sandbox` 추가(dist-e2e는 테스트 전용이라 수용 가능). 2차: `--disable-dev-shm-usage`. 3차: xvfb 대신 `xvfb-run` 없이 러너의 기본 디스플레이 사용 시도. 첫 `e2e-gate` green 전에는 로컬 게이트를 유지해 전환 실패가 검증 공백으로 이어지지 않게 한다.
 
 **2. `.env.ci` 누락 항목으로 인한 spec 실패.**
 grep상 OAuth 연결 버튼을 단언하는 spec은 없고 연동 계정은 전부 `chrome.storage` 직접 주입이지만, 전 스위트를 `.env.local` 없이 돌려 검증한 적은 없다. `.env.ci`가 `.env.example`과 같은 키를 더미로 채우므로 로컬(`.env.local`에 실값)과의 차이는 "값이 실제냐 더미냐"뿐이고, 실제 OAuth 왕복을 하는 spec은 없다. 잔여 위험 낮음.
@@ -269,7 +276,7 @@ grep상 OAuth 연결 버튼을 단언하는 spec은 없고 연동 계정은 전�
 `dependencies` 제거가 이 위험의 대응책이지만, 제거 자체가 로컬 `--project=logview` 단독 실행 흐름을 바꾼다. `e2e/README.md`의 `--no-deps` 안내를 함께 고치지 않으면 문서가 즉시 stale이 된다.
 
 **4. flaky의 성격 변화.**
-`retries: 2`는 환경 flaky를 흡수하지만 **진짜 회귀도 3번 중 1번만 통과하면 green으로 통과시킨다**. Playwright는 재시도로 살아난 테스트를 "flaky"로 리포트하므로, CI 요약에 flaky가 반복적으로 잡히는 spec은 별도로 추적한다(이번 스코프 밖).
+`retries: 1`은 환경 flaky에 한 번의 복구 기회를 주지만 **진짜 회귀도 2번 중 1번만 통과하면 green으로 통과시킨다**. Playwright는 재시도로 살아난 테스트를 "flaky"로 리포트하므로, CI 요약에 flaky가 반복적으로 잡히는 spec은 별도로 추적한다(이번 스코프 밖).
 
 **5. 빨간 커밋이 dev에 올라간다.**
 `/push`·`/ship`이 로컬 e2e를 안 돌리므로 e2e를 깨는 커밋이 원격 dev에 일단 올라간다. dev는 force push가 허용된 작업 브랜치이고 main은 required check로 막히므로 실害는 제한적이지만, 이전과 달라지는 지점이라 인지가 필요하다.
@@ -279,3 +286,6 @@ dev HEAD CI 확인(대개 이미 끝나 있음) + bump 커밋 push 후 PR CI 대
 
 **7. 러너 시간 소비.**
 dev push마다 4러너 × 5~7분 ≈ 25러너분. public 저장소라 무료지만, `concurrency` 취소 설정이 없으면 연속 push 시 누적된다. 기존 설정이 이미 이를 막고 있다.
+
+**9. hard timeout 시 artifact 부재.**
+일반 테스트 실패는 후속 `upload-artifact` 스텝이 report와 trace를 올리지만, job이 `timeout-minutes`에 걸려 강제 종료되면 후속 스텝 자체가 실행되지 않을 수 있다. 이 경우 Actions job 로그와 timeout 결론만 남는 한계를 수용한다.
