@@ -126,7 +126,8 @@ test.describe("behavior", () => {
       networkLog: makeNetworkLog(),
     });
     // 기본 탭 = console(우선순위). badge에 항목 수.
-    await expect(page.getByTestId("logview-tab-console")).toContainText("5");
+    // TEMPORARY: e2e-gate가 실제로 막는지 확인하는 음성 케이스. 실제 값은 5다.
+    await expect(page.getByTestId("logview-tab-console")).toContainText("999");
     await expect(page.getByTestId("logview-tab-network")).toContainText("7");
     await expect(page.getByTestId("logview-tab-action")).toContainText("6");
 
