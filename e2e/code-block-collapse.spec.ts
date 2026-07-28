@@ -167,6 +167,95 @@ test.describe.serial("code block collapse", () => {
     // data-collapsible=false면 CSS가 pill을 display:none으로 끈다.
     await expect(shortWrapper.getByTestId("code-collapse-toggle")).toBeHidden();
   });
+
+  // 행 번호 열의 정확성은 전부 **렌더 기하**에 걸려 있다 — 폭은 자릿수를 1ch로 환산해 나오고,
+  // 정렬은 gutter 패딩과 pre 패딩의 짝에서 나오며, 스크롤 제외는 absolute 배치에서 나온다.
+  // jsdom엔 layout이 없어 이 축들은 원리적으로 단위 테스트로 못 본다(CSS 선언 문자열 대조가
+  // 잡는 건 "값이 그대로인가"지 "그 값이 실제로 맞는가"가 아니다). 여기서만 갈린다.
+  test("행 번호가 코드와 안 겹치고 첫 줄이 정렬된다", async () => {
+    const section = panel.getByTestId("preview-section-description");
+    const wrapper = section
+      .getByTestId("code-collapse")
+      .filter({ has: panel.locator("code", { hasText: "e2e-bigjson-000" }) });
+
+    const gutter = wrapper.getByTestId("code-collapse-gutter");
+    const box = await gutter.boundingBox();
+    const codeBox = await wrapper.locator("code").boundingBox();
+    expect(box).not.toBeNull();
+    expect(codeBox).not.toBeNull();
+
+    // 번호 열 오른쪽 끝이 코드 첫 글자보다 앞 — ch 환산이 어긋나면 코드가 번호 위로 올라온다.
+    expect(box!.x + box!.width).toBeLessThanOrEqual(codeBox!.x);
+
+    // 첫 번호와 코드 첫 줄의 세로 중심이 맞물리는지. 블록(span)과 인라인(code)은 라인박스
+    // 기준점이 달라 top끼리 비교하면 half-leading만큼 상시 어긋나므로 중심으로 본다.
+    // 패딩 짝(16px)이 깨지면 한 줄 높이(18px) 이상 벌어져 확실히 갈린다.
+    const firstNo = gutter.locator("span").first();
+    await expect(firstNo).toHaveText("1");
+    const noBox = await firstNo.boundingBox();
+    const firstLine = await wrapper.locator("code").evaluate((el) => {
+      const range = document.createRange();
+      range.setStart(el, 0);
+      range.setEnd(el, 1);
+      const r = range.getBoundingClientRect();
+      return { top: r.top, height: r.height };
+    });
+    const noCenter = noBox!.y + noBox!.height / 2;
+    const lineCenter = firstLine.top + firstLine.height / 2;
+    expect(Math.abs(noCenter - lineCenter)).toBeLessThanOrEqual(3);
+  });
+
+  test("가로 스크롤을 해도 행 번호는 제자리에 남고 코드에 가려지지 않는다", async () => {
+    const section = panel.getByTestId("preview-section-description");
+    const wrapper = section
+      .getByTestId("code-collapse")
+      .filter({ has: panel.locator("code", { hasText: "e2e-bigjson-000" }) });
+    const gutter = wrapper.getByTestId("code-collapse-gutter");
+    const pre = wrapper.locator("pre");
+
+    // 이 픽스처는 긴 문자열 배열이라 실제로 가로 오버플로가 난다 — 전제가 깨지면 이 테스트가
+    // 아무것도 안 보게 되므로 먼저 단언한다.
+    const overflow = await pre.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(overflow).toBeGreaterThan(0);
+
+    const before = await gutter.boundingBox();
+    await pre.evaluate((el) => {
+      el.scrollLeft = 9999;
+    });
+    await expect.poll(() => pre.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    const after = await gutter.boundingBox();
+
+    // 스크롤 컨테이너가 pre 하나뿐이라 번호 열은 화면상 제자리에 남는다.
+    expect(Math.abs(after!.x - before!.x)).toBeLessThanOrEqual(1);
+
+    // pre의 padding-left는 스크롤 영역의 일부라, 밀려온 코드는 번호 자리까지 들어온다.
+    // 그걸 가리는 건 gutter의 불투명 배경뿐이다 — 투명해지면 글자가 겹쳐 찍힌다.
+    const alpha = await gutter.evaluate((el) => {
+      const bg = getComputedStyle(el).backgroundColor;
+      const m = bg.match(/rgba?\(([^)]+)\)/);
+      if (!m) return 0;
+      const parts = m[1].split(",").map((p) => Number(p.trim()));
+      return parts.length > 3 ? parts[3] : 1;
+    });
+    expect(alpha).toBe(1);
+  });
+
+  test("접힌 블럭은 보이는 줄까지만 번호를 그린다", async () => {
+    const section = panel.getByTestId("preview-section-description");
+    const wrapper = section
+      .getByTestId("code-collapse")
+      .filter({ has: panel.locator("code", { hasText: "e2e-bigjson-000" }) });
+
+    await expect(wrapper).toHaveAttribute("data-collapsed", "true");
+    const collapsed = await wrapper.getByTestId("code-collapse-gutter").locator("span").count();
+    expect(collapsed).toBeLessThanOrEqual(16);
+
+    // 펼치면 전체 줄 수(36)를 채운다 — 상한만 재면 "번호가 아예 안 뜨는" 회귀를 놓친다.
+    await wrapper.hover();
+    await wrapper.getByTestId("code-collapse-toggle").click();
+    await expect(wrapper).toHaveAttribute("data-collapsed", "false");
+    await expect(wrapper.getByTestId("code-collapse-gutter").locator("span")).toHaveCount(36);
+  });
 });
 
 // 접힌 블럭은 readonly다 — 안 보이는 줄에 글자가 들어가면 안 된다.

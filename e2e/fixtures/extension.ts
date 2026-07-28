@@ -41,7 +41,13 @@ function startFixtureServer(): Promise<{ server: Server; port: number }> {
       // 키는 SENSITIVE 목록(token·api_key 등)을 피해야 값이 "***"로 치환되지 않는다.
       // serializeNetworkRequest 기준 헤더 1 + `--- response ---` 1 + JSON 34 = 36줄.
       if (urlPath.startsWith("/e2e-bigjson")) {
-        const items = Array.from({ length: 30 }, (_, i) => `e2e-bigjson-${String(i).padStart(3, "0")}`);
+        // 원소마다 뒤에 패딩을 붙여 **한 줄이 패널 폭을 넘게** 만든다 — 코드블럭의 가로 스크롤
+        // 축(행 번호 열이 스크롤에서 빠지는지)을 판정하려면 실제 오버플로가 나야 한다.
+        // 앞부분 `e2e-bigjson-NNN`은 다른 spec이 무는 마커라 그대로 둔다(줄 수 36도 불변).
+        const items = Array.from(
+          { length: 30 },
+          (_, i) => `e2e-bigjson-${String(i).padStart(3, "0")}-${"x".repeat(120)}`,
+        );
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ items }));
         return;
