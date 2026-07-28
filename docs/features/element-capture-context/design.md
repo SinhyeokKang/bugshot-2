@@ -89,8 +89,8 @@ const STRUCTURE_SELECTOR =
 // 요소 자신은 후보에서 제외한다(확장 실익 0).
 export function findContextAncestor(el: Element): Element | null;
 
-// 확장 허용 여부. contextRect를 뷰포트로 클램프한 뒤 판정한다.
-// 클램프된 rect가 elementRect를 완전히 포함하고, 면적이 상한 이하일 때만 true.
+// 확장 허용 여부. 클램프하지 않는다 — 컨테이너가 화면에 온전히 들어오고,
+// 요소를 완전히 포함하며, 면적이 상한 이하일 때만 true.
 export function passesContextGates(
   elementRect: ViewportRect,
   contextRect: ViewportRect,
@@ -104,16 +104,25 @@ export function passesContextGates(
 `position:absolute|fixed + z-index` 휴리스틱은 개인정보 노출 면적과 오탐 위험 때문에
 후보에서 제외한다. 시맨틱 없는 커스텀 팝오버는 현행 방식으로 폴백한다.
 
-`passesContextGates`는 클램프 후 포함 검사 하나로 두 조건을 흡수한다. 클램프된 rect는 원본의 부분집합이므로, 클램프 후 포함이면 클램프 전에도 포함이다.
+`passesContextGates`는 **클램프하지 않는다.** 컨테이너가 뷰포트를 벗어나면 그 즉시 폴백이다.
+
+클램프 방식(컨테이너를 뷰포트로 잘라 판정)을 쓰지 않는 이유는 둘이다. ① **잘린 컨테이너는 맥락이 불완전하다** — 1000px 컨테이너의 700px만 찍히면 상단이 날아가 "어느 것인지"를 못 보여주면서 이미지 비용은 다 치른다. ② **스크롤 위치가 판정을 바꾼다** — 클램프된 면적은 어디까지 스크롤했느냐에 따라 달라져서, 같은 요소를 골라도 어떤 때는 확장되고 어떤 때는 폴백된다. 사용자가 원인을 알 수 없고 재현도 안 된다.
+
+"컨테이너 전체를 보여줄 수 있을 때만 컨테이너를 보여준다"로 규칙을 좁히면 둘 다 사라지고, 스크롤 위치와 무관하게 결과가 일관된다.
 
 ```ts
 // 개념적 구현
-const clamped = clampToViewport(contextRect, viewport);
-if (!containsRect(clamped, elementRect)) return false;
 const vpArea = viewport.width * viewport.height;
 if (vpArea <= 0) return false;
-return clamped.width * clamped.height <= vpArea * CONTEXT_MAX_VIEWPORT_RATIO;
+// G1: 컨테이너가 뷰포트 안에 완전히 들어온다 (클램프 없음)
+if (!withinViewport(contextRect, viewport)) return false;
+// G2: 컨테이너가 요소를 완전히 포함한다
+if (!containsRect(contextRect, elementRect)) return false;
+// G3: 면적 상한
+return contextRect.width * contextRect.height <= vpArea * CONTEXT_MAX_VIEWPORT_RATIO;
 ```
+
+G1이 들어오면서 확장 대상은 **화면에 온전히 들어오고 화면의 40% 이하인 컨테이너**로 좁혀진다. 뷰포트보다 큰 컨테이너(긴 목록 항목·긴 `article`·모바일 뷰의 세로 긴 다이얼로그)는 면적과 무관하게 전부 폴백이다.
 
 ### `src/types/picker.ts`
 
@@ -243,6 +252,7 @@ before/after 이미지 크기가 항상 같아 나란히 비교가 정확해진�
 - **`buildSelector` 안정성**: `dom-describe.ts:10`이 만든 selector가 after 시점에도 같은 요소를 가리켜야 한다. 동적 클래스(CSS-in-JS 해시 등)가 리렌더로 바뀌면 `querySelector`가 실패할 수 있다. 실패 시 폴백 경로로 전환되므로 **깨지지 않고 현행 동작으로 돌아간다** — 단, 그 경우 요소가 `display:none`이면 0×0 폴백에 의존하게 된다.
 - **시맨틱 후보의 오탐 가능성**: 강한 태그·role도 제품 맥락 단위를 완전히 보장하지는 않는다. 중첩 후보와 반복 row/listitem에서 최근접 선택·현재 요소 포함·면적 게이트를 테스트하고, 작성 화면의 사용자 검토를 마지막 안전망으로 둔다.
 - **초기 40% 상한**: 큰 모달은 폴백되고 넓은 컨테이너는 400px 비교표에서 작게 보일 수 있다. 대표 fixture의 식별성과 개인정보 노출 면적을 함께 수동 검증해 출시 전 값을 확정한다.
+- **G1(뷰포트 완전 포함)으로 인한 커버리지 축소**: 뷰포트보다 큰 컨테이너가 전부 폴백된다. 세로로 긴 다이얼로그, 항목이 많은 `<li>`, 긴 `<article>`, 작은 창·모바일 에뮬레이션이 여기 해당해 **확장이 실제로 걸리는 빈도가 눈에 띄게 낮아질 수 있다.** 확장이 안 걸려도 현행 동작이라 정확도 위험은 없지만, 기능 체감이 약해질 수 있으므로 대표 fixture에서 발동률을 함께 측정한다.
 - **`captureElementSnapshot` 반환 타입 변경**: 호출부 5곳이 모두 영향받는다. 스코프 밖인 `captureElementShot`(`usePickerMessages.ts:90`)도 수정이 필요하며, 여기서 실수하면 요소 단일 캡처가 깨진다.
 - **`display:none` + 폴백 + 컨텍스트 없음**: before 캡처가 실패해 `captureContext`가 저장되지 않은 상태에서 요소를 `display:none`으로 만들면 0×0 폴백 대상이 없어 캡처 실패(null)가 된다. 현행도 무의미한 이미지를 만들 뿐이므로 회귀는 아니지만, 이미지가 아예 없는 쪽으로 바뀐다.
 - **폴백 rect + 스크롤**: 요소가 `display:none`이면 after 좌표를 재측정할 수 없다. before와 viewport/스크롤 기준이 달라졌으면 stale rect를 쓰지 않고 after 이미지 없음으로 처리한다.
