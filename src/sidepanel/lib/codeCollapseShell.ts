@@ -45,6 +45,15 @@ export function createCodeCollapseShell(
 
   if (!pre.id) pre.id = `code-collapse-pre-${++preIdSeq}`;
 
+  // 번호는 pre **밖**에 산다 — 안에 넣으면 복사(pre.textContent)와 마크다운 직렬화에 섞인다.
+  // 그 대가로 정렬을 CSS가 떠맡는데, absolute라 가로 스크롤(pre 전용)에서 빠지고 접힘
+  // max-height에도 wrapper 높이로 묶여 따라 잘린다 — 두 동작을 공짜로 얻는 자리다.
+  const gutter = document.createElement("div");
+  gutter.className = "code-collapse-gutter font-mono";
+  gutter.setAttribute("data-testid", "code-collapse-gutter");
+  gutter.setAttribute("aria-hidden", "true");
+  gutter.setAttribute("contenteditable", "false");
+
   const fade = document.createElement("div");
   fade.className = "code-collapse-fade";
   fade.setAttribute("aria-hidden", "true");
@@ -75,7 +84,7 @@ export function createCodeCollapseShell(
     ...extraActions,
   ]);
 
-  wrapper.append(pre, fade, toggle, actions.el);
+  wrapper.append(pre, gutter, fade, toggle, actions.el);
 
   let lineCount = 1;
   let expanded = false;
@@ -87,8 +96,14 @@ export function createCodeCollapseShell(
     wrapper.setAttribute("data-collapsed", String(!expanded));
     // 접힌 블럭은 readonly — 브라우저가 잘린 영역에 caret을 놓지 못하게 막는다(에디터 한정
     // 의미. preview엔 편집 가능 조상이 없어 무해). 펼치면 .ProseMirror의 true를 되물려받는다.
-    if (isReadonly()) pre.setAttribute("contenteditable", "false");
-    else pre.removeAttribute("contenteditable");
+    if (isReadonly()) {
+      pre.setAttribute("contenteditable", "false");
+      // gutter는 wrapper 기준 absolute라 pre의 세로 스크롤을 안 따라간다 — scrollTop이 0이 아닌
+      // 채로 접히면 번호가 실제 줄과 어긋난다. setExpanded(pill 경로)만 보정하던 자리라,
+      // readonly로 들어오는 나머지 진입로(줄이 늘어 임계 돌파·붙여넣기)도 같이 태운다.
+      pre.scrollTop = 0;
+    } else pre.removeAttribute("contenteditable");
+    renderGutter();
     toggle.setAttribute("data-lines", String(lineCount));
     toggle.setAttribute("aria-expanded", String(expanded));
     // 라벨은 텍스트 노드로만 넣는다(innerHTML 금지) — 아이콘만 상수 SVG다.
@@ -97,6 +112,24 @@ export function createCodeCollapseShell(
       document.createTextNode(expanded ? labels.collapse : labels.expand(lineCount)),
     );
     renderActions();
+  }
+
+  // 에디터는 키 입력마다 update()를 부른다 — 전량 재생성 대신 꼬리만 붙이고 뗀다.
+  // 자릿수는 CSS로 셀 수 없어 여기서 넘긴다(pre의 padding-left가 이 값으로 자리를 비운다).
+  function renderGutter() {
+    // 접힌 블럭은 임계값+1줄까지만 보인다 — 그 아래 번호는 overflow에 잘려 안 보이는 DOM일
+    // 뿐이라 만들지 않는다(삽입 로그는 수천 줄까지 간다). 폭은 전체 줄 수 자릿수로 잡아
+    // 펼칠 때 코드 시작선이 옆으로 튀지 않게 한다.
+    const rows = isReadonly()
+      ? Math.min(lineCount, CODE_COLLAPSE_LINE_THRESHOLD + 1)
+      : lineCount;
+    for (let n = gutter.childElementCount; n < rows; n++) {
+      const row = document.createElement("span");
+      row.textContent = String(n + 1);
+      gutter.append(row);
+    }
+    while (gutter.childElementCount > rows) gutter.lastElementChild!.remove();
+    wrapper.style.setProperty("--code-gutter-digits", String(String(lineCount).length));
   }
 
   // 라벨을 매번 다시 읽는다 — getter로 주면 locale 전환이 그대로 따라온다.

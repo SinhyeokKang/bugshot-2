@@ -1,5 +1,45 @@
 .code-collapse {
   position: relative;
+  /* 번호 열 폭. 셸이 넘긴 자릿수 × 1ch(mono라 글자 폭과 정확히 같다) + 왼쪽 여백.
+     pre가 이 값으로 padding-left를 만들어 코드가 번호 아래로 파고들지 않게 한다 —
+     두 소비처가 같은 변수를 봐야 번호 열과 코드 시작선이 안 갈라진다. */
+  --code-gutter-width: calc(var(--code-gutter-digits, 1) * 1ch + 12px);
+}
+
+/* pre 밖에 얹는 행 번호 열. absolute라 가로 스크롤 컨테이너(pre)에서 빠져 번호가 제자리에
+   남고, top/bottom으로 wrapper에 묶여 접힘 max-height에도 함께 잘린다(잘림 규칙 복제 불필요).
+   fade와 같은 "pre 테두리 안쪽" 관용구(1px)를 쓰고, padding-top은 pre의 padding과 짝이라
+   첫 줄이 정렬된다 — codeCollapse.test.ts가 두 값을 대조한다.
+   pointer-events: none이라 접힌 블럭의 "통째로 펼치기" 클릭이 번호 위에서도 wrapper에 닿는다. */
+.code-collapse-gutter {
+  position: absolute;
+  left: 1px;
+  top: 1px;
+  bottom: 1px;
+  width: var(--code-gutter-width);
+  padding-top: 16px;
+  overflow: hidden;
+  /* 배경이 없으면 안 된다 — pre의 padding-left는 스크롤 영역의 일부라 가로 스크롤이 걸리면
+     코드 글리프가 번호가 앉은 자리까지 밀려 들어와 겹쳐 찍힌다(로그·JSON 블럭에선 기본값).
+     pre와 같은 토큰이라 다크모드는 자동. 왼쪽 모서리는 fade와 같은 안쪽 반경(-5px) 관용구 —
+     안 주면 불투명 사각형이 pre의 둥근 모서리를 메워 각져 보인다.
+     하단 가로 스크롤바 밴드의 좌측 일부를 덮는 건 fade가 이미 수용한 것과 같은 트레이드오프다
+     (pointer-events: none이라 조작은 되고, bottom을 올리면 스크롤바 없는 다수 블럭에 띠가 생긴다). */
+  background: hsl(var(--muted));
+  border-radius: calc(var(--radius) - 5px) 0 0 calc(var(--radius) - 5px);
+  font-size: var(--mono-size);
+  line-height: var(--mono-leading);
+  text-align: right;
+  /* --muted-foreground를 그대로 쓰면 --background가 아니라 코드블럭의 --muted 위에 앉는 탓에
+     라이트가 4.34:1로 AA 미달이다(CssCodeMirror의 gutter는 투명 배경이라 통과한다 — 색만
+     베끼면 배경 차이만큼 내려앉는다). --foreground를 옅게 깔면 양 테마 모두 AA를 넘으면서
+     코드 본문보다는 확실히 약하다. 하한은 styles/__tests__/tokens.test.ts가 계산해 지킨다. */
+  color: hsl(var(--foreground) / 0.6);
+  user-select: none;
+  pointer-events: none;
+}
+.code-collapse-gutter > span {
+  display: block;
 }
 
 /* 접힘 높이 = 임계값 줄 + 위 패딩 + 테두리 + 다음 줄 절반("더 있다"를 드러내는 몫).

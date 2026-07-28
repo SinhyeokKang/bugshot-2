@@ -266,4 +266,43 @@ describe("디자인 토큰 표", () => {
       expect(contrastRatio(light.destructive, light.background)).toBeGreaterThanOrEqual(4.5);
     });
   });
+
+  // 코드블럭 행 번호는 --background가 아니라 코드블럭의 --muted 위에 앉는다. 같은 회색을
+  // --background 위에서 쓰던 표면(CssCodeMirror gutter)에서 색만 베껴오면 배경이 밝아진 만큼
+  // 대비가 내려간다 — 실제로 --muted-foreground를 그대로 썼다가 라이트에서 4.34:1로 미달했다.
+  describe("코드블럭 행 번호 대비", () => {
+    const GUTTER = resolve(__dirname, "../../sidepanel/components/code-collapse.css");
+
+    // color: hsl(var(--<token>) / <alpha>) → 토큰 이름과 알파. 알파 없으면 1.
+    function gutterColor(): { token: string; alpha: number } {
+      const { decls } = parseRule(GUTTER, ".code-collapse-gutter");
+      const m = decls.color?.match(/hsl\(\s*var\(--([\w-]+)\)\s*(?:\/\s*([\d.]+))?\s*\)/);
+      if (!m) throw new Error(`gutter color를 못 읽음: ${decls.color}`);
+      return { token: m[1], alpha: m[2] ? Number(m[2]) : 1 };
+    }
+
+    // 알파가 걸린 글자색의 실효 대비는 배경과 섞인 뒤에야 나온다.
+    function blended(fg: string, bg: string, alpha: number): string {
+      const f = hsl(fg);
+      const b = hsl(bg);
+      const mix = (a: number, c: number) => a * alpha + c * (1 - alpha);
+      // 두 토큰의 채도가 다르면 선형 보간이 부정확해지지만, base 팔레트는 라이트=같은 계열
+      // 틴트 / 다크=무채색이라 이 근사가 유효하다(tokens 표 자체가 그 불변식을 지킨다).
+      return `${mix(f.h, b.h)} ${mix(f.s, b.s)}% ${mix(f.l, b.l)}%`;
+    }
+
+    for (const [label, selector] of [
+      ["라이트", ":root"],
+      ["다크", ".dark"],
+    ] as const) {
+      it(`${label}에서 행 번호가 코드블럭 배경 대비 WCAG AA(4.5:1)를 넘는다`, () => {
+        const tokens = parseTokens(GLOBALS, selector);
+        const { token, alpha } = gutterColor();
+        expect(tokens[token], `globals.css ${selector}에 --${token}이 없다`).toBeDefined();
+        expect(
+          contrastRatio(blended(tokens[token], tokens.muted, alpha), tokens.muted),
+        ).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+  });
 });

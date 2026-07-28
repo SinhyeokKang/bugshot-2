@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
+import { useAiRun } from "@/sidepanel/hooks/useAiRun";
+import { getAiCancel } from "@/sidepanel/lib/aiCancelSlot";
 import {
   applyStyles,
   applyClasses,
@@ -56,10 +58,6 @@ export function AiStylingDialog({
   const tabId = useBoundTabId();
   const [input, setInput] = useState("");
   const sessionRef = useRef<AISession | null>(null);
-  const activeRunRef = useRef<{
-    cancelled: boolean;
-    controller: AbortController;
-  } | null>(null);
   // 세션이 어느 요소(selector+frameId)용으로 빌드됐는지 — repick 시 stale system prompt 재빌드 판정.
   const sessionKeyRef = useRef<string | null>(null);
   // 멀티턴 delta의 기준선 = 직전에 모델이 실제로 본 스타일 맵. 세션 생성 직후 한 곳에서만
@@ -71,21 +69,29 @@ export function AiStylingDialog({
   const createSessionRef = useRef(createSession);
   createSessionRef.current = createSession;
 
+  const aiRun = useAiRun({
+    kind: "oneshot",
+    setLoading: useEditorStore.getState().setAiStylingLoading,
+    setAiCancel: useEditorStore.getState().setAiCancel,
+    getAiCancel,
+    // sessionKeyRef까지 비워야 다음 실행이 새 system prompt를 만든다 — 빠뜨리면
+    // repick 후 stale 프롬프트로 요청이 나간다.
+    onDispose: () => {
+      sessionRef.current?.destroy?.();
+      sessionRef.current = null;
+      sessionKeyRef.current = null;
+    },
+  });
+
+  // provider 교체·언마운트 — run 정리는 disposeCurrent가, run과 무관한 세션 정리는 여기가.
   useEffect(() => {
     return () => {
-      const run = activeRunRef.current;
-      if (run) {
-        run.cancelled = true;
-        run.controller.abort();
-        activeRunRef.current = null;
-        useEditorStore.getState().setAiStylingLoading(false);
-        useEditorStore.getState().setAiCancel(null);
-      }
+      aiRun.disposeCurrent();
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
       sessionKeyRef.current = null;
     };
-  }, [createSession]);
+  }, [createSession, aiRun]);
 
   const buildContext = useCallback((): AiStylingContext | null => {
     const s = useEditorStore.getState();
@@ -119,37 +125,32 @@ export function AiStylingDialog({
 
     setInput("");
     onOpenChange(false);
-    useEditorStore.getState().setAiStylingLoading(true);
 
     // 중단 시 BYOK 요청·retry를 abort하고 Chrome 세션은 destroy한 뒤 결과를 폐기한다.
-    const run = { cancelled: false, controller: new AbortController() };
-    activeRunRef.current = run;
-    useEditorStore.getState().setAiCancel(() => {
-      run.cancelled = true;
-      run.controller.abort();
-      sessionRef.current?.destroy?.();
-      sessionRef.current = null;
-      sessionKeyRef.current = null;
-      useEditorStore.getState().setAiStylingLoading(false);
-    });
+    const run = aiRun.begin();
 
     try {
       // repick으로 세션이 다른 요소용이면 stale system prompt 폐기 후 재빌드.
-      if (sessionRef.current && sessionKeyRef.current !== targetKey) {
-        sessionRef.current.destroy?.();
+      // 이하 세션은 run-local로 잡는다 — ref를 await 뒤에 다시 읽으면 늦게 재개한 이 run이
+      // 그 사이 시작된 새 run의 세션에 자기 turn을 실어보낸다(멀티턴 대화 오염).
+      let session = sessionRef.current;
+      if (session && sessionKeyRef.current !== targetKey) {
+        session.destroy?.();
         sessionRef.current = null;
+        session = null;
       }
-      if (!sessionRef.current) {
+      if (!session) {
         const systemPrompt = buildAiStylingSystemPrompt(ctx);
         const fewShot = getStylingFewShot(ctx);
         const createdSession = await createSessionRef.current(
           systemPrompt,
           fewShot,
         );
-        if (run.cancelled || activeRunRef.current !== run) {
+        if (!aiRun.isActive(run)) {
           createdSession.destroy?.();
           return;
         }
+        session = createdSession;
         sessionRef.current = createdSession;
         sessionKeyRef.current = targetKey;
         // 기준선은 원본 specifiedStyles 전체가 아니라 캡 적용 후 실제로 실린 맵이어야 한다.
@@ -192,16 +193,17 @@ export function AiStylingDialog({
         throw new AiContextOverflowError();
       }
 
-      if (await isPromptOverBudget(sessionRef.current, turnInput, responseSchema)) {
+      if (await isPromptOverBudget(session, turnInput, responseSchema)) {
         throw new AiContextOverflowError();
       }
-      const raw = await sessionRef.current
+      if (!aiRun.isActive(run)) return;
+      const raw = await session
         .prompt(turnInput, {
           responseSchema,
-          signal: run.controller.signal,
+          signal: run.signal,
         })
         .catch(mapQuotaError);
-      if (run.cancelled) return; // 사용자 중단 — 결과 폐기(로딩은 canceller가 이미 내렸다).
+      if (!aiRun.isActive(run)) return; // 중단·교체 — 결과 폐기(로딩은 canceller가 이미 내렸다).
       lastSentStylesRef.current = currentSent;
       lastSentClassesRef.current = ctx.classList;
       conversationCharsRef.current += turnInput.length + raw.length;
@@ -263,20 +265,17 @@ export function AiStylingDialog({
           void applyClasses(tabId, frameId, merged.classList);
       }
     } catch (err) {
-      if (run.cancelled) return; // 사용자 중단 후 배경 호출 실패(또는 세션 null-deref)의 오탐 토스트 방지.
+      if (!aiRun.isActive(run)) return; // 중단·교체 후 배경 호출 실패(또는 세션 null-deref)의 오탐 토스트 방지.
       console.error("[AI Styling] error:", err);
       toastLlmError(err, t, "aiStyling.error");
+      // 에러 경로의 세션 정리는 콜사이트에 남는다 — 취소가 아니라 onDispose가 안 닿는다.
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
       sessionKeyRef.current = null;
     } finally {
-      if (activeRunRef.current === run) {
-        activeRunRef.current = null;
-        useEditorStore.getState().setAiCancel(null);
-        useEditorStore.getState().setAiStylingLoading(false);
-      }
+      aiRun.end(run);
     }
-  }, [input, tabId, buildContext, onOpenChange, t]);
+  }, [input, tabId, buildContext, onOpenChange, t, aiRun]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {

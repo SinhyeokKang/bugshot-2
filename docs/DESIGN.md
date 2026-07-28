@@ -39,6 +39,7 @@ UI 컴포넌트는 직접 스타일링하기보다 shadcn/ui를 우선 쓰고, �
 | `border` / `input` / `ring` | 테두리 · 입력 테두리 · 포커스 링 |
 
 - ⚠ **`--accent` == `--secondary` == `--muted`가 라이트·다크 모두 같은 값이다**(라이트 `210 40% 96.1%` / 다크 `0 0% 14.9%` — `globals.css`). 위 표의 "용도"는 **의미 구분이지 시각 구분이 아니다.** 귀결: **`muted`·`secondary` 표면 위에 얹은 컨트롤에는 `hover:bg-accent`가 무효**다(hover 피드백 0). 다크에선 `--border`·`--input`·`--ring`까지 같은 `0 0% 14.9%`라 **테두리·포커스 링도 그 표면 위에선 사라진다**. shadcn `outline` 버튼의 `bg-background → hover:bg-accent`는 **`background` 표면 위를 전제한 관용구**라, muted 표면으로 옮기면 방향이 뒤집힌다. 그런 자리의 hover는 배경이 아니라 **등장(opacity)·글자색·그림자**로 낸다 — 선례 `src/sidepanel/components/code-collapse.css`(코드블럭 pill이 `--muted` 배경 위라 hover 배경 변경을 포기하고 등장으로 대체). (§9의 `--ring`==`--border` 경고와 같은 뿌리다.)
+- ⚠ **글자색의 대비는 토큰 이름이 아니라 "무슨 표면 위냐"가 정한다.** 같은 `--muted-foreground`라도 `--background`(흰색) 위에선 4.76:1로 AA를 넘지만 `--muted`(코드블럭) 위에선 **4.34:1로 미달**한다. 실제로 코드블럭 행 번호가 CSS 코드 뷰의 gutter에서 색만 베껴왔다가 이걸 밟았다(그쪽은 배경이 투명이라 통과한다). **`muted` 표면 위 글자엔 `--muted-foreground`를 반사적으로 쓰지 말 것** — 옅게 깐 `--foreground`(예: `/ 0.6`)가 양 테마 AA를 넘으면서도 본문보다 약하다. 하한은 `styles/__tests__/tokens.test.ts`가 CSS에서 알파를 읽어 blend 대비를 계산해 지킨다(토큰 이름을 믿지 않는다).
 
 - 커스텀 raw 색(`text-blue-600` 등)은 semantic 토큰으로 표현 못 하는 **상태/기능 색**에만 쓰고, 가능하면 `dark:` 짝을 함께 둔다. 현재 사용처:
   - 상태 배지 팔레트: `src/sidepanel/tabs/statusBadges/constants.ts` (new=무색, done=green, deleted=red … `bg`/`text`/`dark:bg`/`dark:text` 묶음). **`new`만 테마별 스케일이 갈린다**(`bg-slate-100`/`dark:bg-neutral-500/15`) — 기능색과 달리 base 팔레트를 따라가므로 위 §2 비대칭이 그대로 적용된다.
@@ -78,6 +79,7 @@ UI 컴포넌트는 직접 스타일링하기보다 shadcn/ui를 우선 쓰고, �
 | DOM 트리 · 콘솔 본문/스택/인라인 요약/출처 URL · 액션 로그 행·값 칩 · LogSeekChip 2 · 네트워크 본문 · JSON 트리 · WS 프레임 프리뷰/본문 · 마커 툴팁 | Tailwind `fontSize.mono` 토큰 → **`text-mono`** 유틸(과거 `text-xs`) |
 | CSS 코드 뷰 본문 · CM 자동완성 리스트 행 | `CssCodeMirror.tsx` 인라인 theme의 `var(--mono-size)`/`var(--mono-leading)` |
 | Tiptap `pre`·인라인 `code` · 프리뷰 `pre`·인라인 `code` | `tiptap-editor.css`·`doc-section-body.css`의 `var(--mono-*)` |
+| 코드블럭 **행 번호 열** | `code-collapse.css`의 `var(--mono-*)` + 셸이 DOM에 붙이는 `font-mono` 클래스 |
 
 - **`text-[13px]`가 아니라 `text-mono`를 쓴다** — 이전엔 `text-xs`(12px에 `line-height: 16px` 동반)와 코드블럭 CSS 1.5(=18px)로 행간이 **두 그룹으로 갈렸으나**, 이제 전 표면이 `--mono-leading: 18px` 단일값으로 **수렴**했다. `text-mono`는 그 13px/18px을 토큰 하나로 실어 로그 표면이 임의값·행간 드리프트 없이 단일 출처를 따른다.
 - **`text-mono`는 `cn()`의 twMerge에 font-size 그룹으로 등록돼 있다**(`src/lib/utils.ts`의 `extendTailwindMerge`). 안 하면 twMerge가 커스텀 `text-*`를 **text-color로 오분류**해, `Kbd` 같은 `cn()` 경유 컴포넌트에서 `text-foreground`와 만나면 `text-mono`를 조용히 제거하고 base `text-xs`와도 dedupe되지 않는다(액션 로그 값 칩이 이 함정을 밟았다).
@@ -90,7 +92,7 @@ UI 컴포넌트는 직접 스타일링하기보다 shadcn/ui를 우선 쓰고, �
 1. **진입 경로 2개** — `.font-mono` 유틸(CSS 뷰·DOM 트리·로그 12곳: 콘솔 본문·스택·인라인 요약·출처 URL, 액션 행, LogSeekChip 2, 네트워크 raw body, WS 프레임 프리뷰·본문, JSON 트리, 마커 툴팁)과 **Tailwind preflight**(`pre`/`code` — Tiptap·프리뷰). 만나는 지점이 없다. 전자는 `text-mono` 토큰, 후자는 CSS의 `var(--mono-*)`로 **같은 두 변수**에 묶인다. mono 전역 규칙(`globals.css @layer base`의 `font-variant-ligatures: none`)은 두 경로를 한 셀렉터 리스트로 묶어 준다.
 2. **클론 파일 2개** — `tiptap-editor.css`(에디터)와 `doc-section-body.css`(프리뷰)의 `code`·`pre` 규칙은 `var(--mono-*)` 참조까지 **바이트 동일**하고, `pre`는 에디터 쪽에만 **`white-space: pre` 한 줄이 더 있다**(@tiptap/core가 런타임 주입하는 `.ProseMirror pre { white-space: pre-wrap }`을 특이도로 이기려는 것 — 프리뷰엔 그 주입이 없어 불필요. 의도된 발산이다). 나머지는 같은 마크다운의 편집 화면/프리뷰라 **항상 함께** 움직인다.
 3. **log-viewer는 `globals.css`를 안 받는다**(별도 빌드) — `log-viewer/styles.css`의 `:root`에 `--mono-size`/`--mono-leading` **손복사본**이 있다. `App.tsx`가 사이드패널 컴포넌트를 import해 mono 표면이 실재하므로 필요하다. `__tests__/tokens.test.ts`가 두 `:root` 표(변수 포함)의 완전 일치를 강제한다.
-4. **`code-collapse.css`가 그 `pre`의 행간·패딩에 묶인다** — 코드블럭 접기 높이 `max-height` calc가 줄 높이로 **`var(--mono-leading)`을 직접 참조**하고(과거 `1.5em` 하드코딩), 패딩·테두리 상수에도 침묵으로 묶여 있다. 행간을 바꾸면(=변수를 바꾸면) 접힘 클램프가 함께 따라오지만, 패딩·테두리를 손대면 어긋난다. `sidepanel/lib/__tests__/codeCollapse.test.ts`가 **세 파일을 읽어**(변수를 px로 resolve해) 접힘이 임계값+1줄을 실제로 자르는지 대조해 red로 잡는다.
+4. **`code-collapse.css`와 `pre`는 이제 서로를 읽는다(양방향)** — 접힘 높이 `max-height` calc가 줄 높이로 `var(--mono-leading)`을 직접 참조하고 패딩·테두리 상수에도 침묵으로 묶이는 게 한 방향이고(아래), **반대로 `pre`의 `padding-left`가 `code-collapse.css`의 `--code-gutter-width`를 읽어** 행 번호 열만큼 코드 시작선을 민다. 결합 방향을 한쪽으로만 기억하면 gutter 폭을 바꿀 때 두 표면 `pre`를 안 따라가게 된다. 원래 한 방향 서술은 이렇다: **`code-collapse.css`가 그 `pre`의 행간·패딩에 묶인다** — 코드블럭 접기 높이 `max-height` calc가 줄 높이로 **`var(--mono-leading)`을 직접 참조**하고(과거 `1.5em` 하드코딩), 패딩·테두리 상수에도 침묵으로 묶여 있다. 행간을 바꾸면(=변수를 바꾸면) 접힘 클램프가 함께 따라오지만, 패딩·테두리를 손대면 어긋난다. `sidepanel/lib/__tests__/codeCollapse.test.ts`가 **세 파일을 읽어**(변수를 px로 resolve해) 접힘이 임계값+1줄을 실제로 자르는지 대조해 red로 잡는다.
 
 - **리거처는 반드시 끈다** — Geist Mono의 `liga`에 `hyphen + hyphen → hyphen_hyphen.liga`가 있고 브라우저 기본 ON이라, `--`가 **2셀에서 1셀로 붕괴**한다(advance 600). CSS 커스텀 프로퍼티가 전부 이걸 밟는다. `font-feature-settings`가 아니라 **`font-variant-ligatures: none`**을 쓴다 — 전자는 가산이 아니라 통째로 덮어써서 다른 feature를 날린다.
 - 코드블럭·인라인 코드가 부모(`text-sm`) 변화를 **안 따라간다** — `em`이 아니라 `--mono-size` 절대값을 쓰기 때문. 전 표면 단일값이 불변식이라 의도한 트레이드오프다(부모에 묶으면 선언 위치가 값을 바꾼다).

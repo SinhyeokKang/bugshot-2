@@ -18,6 +18,7 @@ import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
 import { useReproPrefill } from "@/sidepanel/hooks/useReproPrefill";
+import { getAiCancel } from "@/sidepanel/lib/aiCancelSlot";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
 import { cancelAreaSelect, clearPicker, startInlineAreaCapture } from "@/sidepanel/picker-control";
 import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
@@ -149,6 +150,7 @@ export function DraftingPanel() {
     setReproPrefillDone,
     setLoading: setReproPrefillLoading,
     setAiCancel,
+    getAiCancel,
   });
 
   if (!draft) return null;
