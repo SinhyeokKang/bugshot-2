@@ -100,7 +100,7 @@ src/
 vite.log-viewer.config.ts# 로그 뷰어 전용 Vite 빌드 설정 (viteSingleFile → dist-log-viewer/index.html 단일 파일, @/i18n alias redirect)
 tsconfig.e2e.json        # e2e/ 전용 tsconfig — 루트 references 편입으로 pnpm typecheck가 spec·fixture 타입을 검사 (Playwright는 transpile만 함)
 .env.ci                  # **커밋되는 유일한 .env** (gitignore에 `!.env.ci` 예외). CI e2e 빌드용 더미 값 — 워크플로가 .env.local로 복사해 쓴다. OAuth client ID가 비면 isConfigured()가 false가 되어 연동 탭 UI가 로컬과 갈리므로 그 판정만 통과시키는 가짜 문자열이고, 실 크레덴셜이 아니다. PostHog 키는 비워 집계 no-op 유지. 키 집합은 .env.example과 동기
-e2e/                     # Playwright e2e 스위트 (@playwright/test, BUGSHOT_E2E_BUILD=1 산출물 dist-e2e/ 로드. .last-green은 /e2e-run이 기록하는 green 커밋 해시 — gitignore). **커버리지·수동 잔여는 e2e/COVERAGE.md, 함정은 e2e/GOTCHAS.md, 개요·실행·헬퍼는 e2e/README.md**
+e2e/                     # Playwright e2e 스위트 (@playwright/test, BUGSHOT_E2E_BUILD=1 산출물 dist-e2e/ 로드. 차단 게이트는 CI의 e2e-gate 단독 — 로컬 실행은 미리 보기용). **커버리지·수동 잔여는 e2e/COVERAGE.md, 함정은 e2e/GOTCHAS.md, 개요·실행·헬퍼는 e2e/README.md**
 ├── README.md            # 개요 · 실행법 · project 구성 · 헬퍼/fixture 빠른 참조 (커버리지·함정은 아래 분리 문서) — /e2e-write가 함께 갱신
 ├── COVERAGE.md          # 커버리지 맵(spec별 시나리오) · 수동 잔여(자동화 못 한 것 + 이유)
 ├── GOTCHAS.md           # 실전 함정 누적 — 새 spec 쓰기 전 필독

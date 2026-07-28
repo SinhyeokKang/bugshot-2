@@ -10,8 +10,8 @@
 Claude Code에만 있는 자동 안전망이 Codex 세션에는 없다. 아래는 **직접** 챙긴다.
 
 - **스킬 호출 매핑** — 본문이 `/<name>`으로 부르는 스킬은 Codex에선 `source-command-<name>` 스킬로 로드한다.
-- **미제공 스킬 (역할 분담)** — `/push`·`/merge`·`/deploy`·`/sync`는 미러하지 않는다. **Codex는 작업 → 커밋까지, 원격으로 나가는 건 Claude Code**가 단일 창구로 맡는다 — 릴리스 파이프라인 게이트(`e2e/.last-green`의 HEAD 해시 캐시, `/merge`의 버전 bump, `/deploy`의 tag)가 두 창구에서 경쟁하면 깨지기 때문이다. 이 스킬들이 필요해지면 사용자에게 Claude Code 세션에서 실행하라고 안내하고 멈춘다.
-- **`/ship`은 12단계까지** — `source-command-ship`은 미러돼 있고 `/tdd`~`/e2e-run`(12단계)까지 전부 돈다. 13·14단계(`/push`·`/build`)는 **수행하지 않고** "push 대기 — Claude Code에서 `/push` 실행"을 리포트에 남기고 종료한다. 12단계 green이 `e2e/.last-green`에 HEAD를 기록해두므로 이어지는 `/push`의 e2e 게이트는 재실행 없이 통과한다. 상세는 스킬 본문의 "push 권한 / 런타임별 종착점".
+- **미제공 스킬 (역할 분담)** — `/push`·`/merge`·`/deploy`·`/sync`는 미러하지 않는다. **Codex는 작업 → 커밋까지, 원격으로 나가는 건 Claude Code**가 단일 창구로 맡는다 — 릴리스 파이프라인 게이트(`/merge`의 원격 CI 결론 조회·버전 bump, `/deploy`의 tag)가 두 창구에서 경쟁하면 깨지기 때문이다. 이 스킬들이 필요해지면 사용자에게 Claude Code 세션에서 실행하라고 안내하고 멈춘다.
+- **`/ship`은 11단계까지** — `source-command-ship`은 미러돼 있고 `/tdd`~커밋 #4(11단계)까지 전부 돈다. 12·13단계(`/push`·`/build`)는 **수행하지 않고** "push 대기 — Claude Code에서 `/push` 실행"을 리포트에 남기고 종료한다. e2e 차단 게이트는 push 이후 CI(`e2e-gate`)가 맡으므로 Codex 쪽에서 미리 돌려둘 게이트가 없다 — 필요하면 `/e2e-run`을 수동 호출할 수는 있지만 게이트는 아니다. 상세는 스킬 본문의 "push 권한 / 런타임별 종착점".
 - **i18n ko/en 대칭 훅 없음** — Claude Code는 `.claude/settings.json`의 PostToolUse 훅이 `src/i18n/` 편집 시 대칭 검사를 자동 실행해 불일치를 차단한다. Codex엔 이 훅이 없으니 `src/i18n/` 또는 `src/log-viewer/i18n.ts`(복제 사전)를 건드렸으면 손으로 돌린다:
   `pnpm test --run src/i18n/__tests__/locales.test.ts src/log-viewer/__tests__/i18n.test.ts`
 - **미러 sync 훅 없음** — Claude Code는 `CLAUDE.md`·`.claude/commands/*.md` 편집 시 훅이 `sync:agents`를 자동 실행한다. Codex엔 없다. 애초에 **Codex는 원본을 편집하지 않는 게 규칙**이고, 부득이 고쳤으면 `pnpm sync:agents`를 직접 돌려 미러를 함께 커밋한다.

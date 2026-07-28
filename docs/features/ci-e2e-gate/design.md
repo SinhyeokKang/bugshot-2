@@ -166,7 +166,7 @@ gh api -X POST \
   -f 'contexts[]=e2e-gate'
 ```
 
-한 가지 손실을 감수한다: 현재 `verify`는 `checks: [{app_id: 15368, context: "verify"}]`로 **app_id 바인딩**돼 있는데(GitHub Actions만 이 체크를 보고할 수 있다), contexts 전용 endpoint로 추가한 `e2e-gate`는 바인딩 없이 들어가 어떤 앱이든 보고할 수 있다. 단일 메인테이너 저장소에서 실질 위험은 없다. 바인딩까지 맞추려면 PATCH로 `checks` 배열 전체를 다시 써야 하고, 그러면 Codex가 지적한 `strict` 보존 문제가 되살아난다 — 그때는 아래처럼 현재 값을 명시적으로 함께 넘긴다.
+**실행 결과(2026-07-28)**: `strict: false`가 보존됐고, `e2e-gate`도 `{app_id: 15368, context: "e2e-gate"}`로 들어갔다 — GitHub이 직전 체크 보고자(GitHub Actions)에서 app을 추론한다. 사전에 "contexts 전용 endpoint는 app_id 바인딩 없이 들어간다"고 우려했으나 그렇지 않았고, 아래 PATCH 폴백은 쓸 일이 없었다. 남겨두는 건 POST가 실패할 때의 대안으로서다.
 
 ```
 gh api -X PATCH repos/:owner/:repo/branches/main/protection/required_status_checks \

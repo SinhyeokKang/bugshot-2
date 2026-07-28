@@ -51,8 +51,9 @@ anything that needs a real DOM. Logic changes should come with a test.
 The Playwright suite (`pnpm test:e2e`) is headed-only — the extension's service
 worker doesn't wake up in headless Chrome — but CI runs it anyway under `xvfb`,
 split across four sharded runners. It needs no secrets: the build reads a
-committed dummy `.env.ci`, so it works on pull requests from forks too. You
-don't need to run it locally, though you can (`pnpm build:e2e` first).
+committed dummy `.env.ci`, so it works on pull requests from forks too. The
+aggregated result lands as the `e2e-gate` check, which is required to merge.
+You don't need to run it locally, though you can (`pnpm build:e2e` first).
 
 ## Generated files
 

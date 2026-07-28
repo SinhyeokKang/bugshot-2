@@ -60,7 +60,9 @@ bugshot-2: Chrome MV3 Side Panel 버그 리포팅 확장. 웹 페이지의 버�
 
 - **`verify`** — typecheck → sync:agents:check → test → build → check:prearm. 브라우저·시크릿 없이 결정적.
 - **`e2e`** — Playwright 전 스위트(63 spec / 242 테스트)를 `--shard=N/4` 매트릭스로 4개 러너에 분산. 확장 SW가 headless에서 안 깨어나 `headless: false`가 강제라(`e2e/fixtures/extension.ts`) `xvfb-run`으로 돌린다 — **가상 스크린 깊이 24는 필수**(기본 8비트인 배포판이 있고 캡처 spec이 픽셀 색을 직접 판정한다). `fail-fast: false`라 한 샤드가 깨져도 나머지를 완주하고, 실패 샤드는 report·trace를 artifact로 올린다.
-- **`e2e-gate`** — 4샤드 결과를 단일 이름으로 수렴시키는 집계 job. 브랜치 프로텍션의 required status check가 이걸 가리키므로 샤드 개수를 바꿔도 설정을 다시 건드릴 필요가 없다.
+- **`e2e-gate`** — 4샤드 결과를 단일 이름으로 수렴시키는 집계 job. main의 **required status check는 `verify` + `e2e-gate` 둘**이고, 샤드 개수를 바꿔도 이 이름은 안 변하므로 프로텍션 설정을 다시 건드릴 필요가 없다.
+
+**e2e 차단 게이트는 CI 단독이다.** 로컬 `e2e/.last-green` 캐시 게이트는 폐기했다 — gitignore라 머신 로컬이었고, 그래서 외부 PR에 적용되지 않았으며 같은 green을 두 창구가 관리했다. `/push`는 e2e를 돌리지 않고 run URL만 안내한다(논블로킹). `/merge`는 dev HEAD의 CI 결론을 `gh run list`로 조회해 게이트로 쓰고, PR 머지 직전엔 `gh pr checks --watch`로 required check를 기다린다. `/e2e-run`은 게이트에서 빠져 **CI를 안 기다리고 미리 볼 때 쓰는 로컬 도구**로 남는다.
 
 `e2e` job은 `verify`와 **병렬**로 돈다(`needs` 없음) — public 저장소라 러너가 무료다. CI 빌드는 **secret에 의존하지 않는다**: 커밋된 더미 `.env.ci`를 `.env.local`로 복사해 쓴다(OAuth client ID가 비면 `isConfigured()`가 false가 되어 연동 탭 UI가 로컬과 갈리므로, 그 판정만 통과시키는 가짜 값이다. PostHog 키는 비워 집계 no-op 유지). 덕분에 secret이 전달되지 않는 **fork PR에도 e2e가 그대로 적용된다.**
 
@@ -118,7 +120,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /tdd            → 테스트만 작성 (구현·픽스·커밋 안 함). interface 모드(신규 헬퍼 시그니처) / regression 모드(리뷰 발견 회귀 테스트)
 /implement      → tasks/테스트 기반 구현 (메인 단일) → 영역별 4관점 자체 검증 → CTO 최종 게이트 → 🔴🟡 자체 수정. 빌드·커밋 안 함 (보고에 "가이드 영향"·"e2e 영향" 플래그)
 /e2e-write      → e2e 시나리오 → spec 작성 + build:e2e + 실행-수정 루프(최대 8회) → green + 1회 재실행. src 수정은 data-testid 추가만
-/e2e-run        → build:e2e + test:e2e 실행 + 리포트 전용 (fix 금지). green & 클린 트리면 e2e/.last-green에 해시 기록
+/e2e-run        → build:e2e + test:e2e 로컬 실행 + 리포트 전용 (fix 금지). 게이트가 아니다 — CI를 안 기다리고 미리 볼 때 쓴다
 /pull           → dev 최신 받고 작업 맥락 브리핑
 /build          → pnpm build + 테스트 체크리스트 (작업 중 검증)
 /code-review    → 변경 코드를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 리뷰 (선택 호출 가능). 리포트 전용
@@ -128,14 +130,14 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /postmortem     → 직전에 잡은 버그/회귀를 docs/POSTMORTEM.md에 회고 항목으로 추가 (비자명 함정만, 재발방지 grep/전수 대상 명시 + 영역·계열·그물 태그 → postmortem:check 통과). 코드·빌드·커밋 안 함
 /guide          → guide/ko·en 사용자 가이드 작성·갱신. AUTHORING.md 규칙 로드 → 코드 대조 stale 탐지 → ko/en 동시 갱신 + 검증. 빌드·커밋 안 함
 /doc-check      → 8개 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMISSION/privacy/AUTHORING)를 문서별 전담 에이전트가 병렬로 diff 무관 코드 양방향 대조(Pass1 문서→코드 사실오류 + Pass2 코드→문서 누락 커버리지) → 통합 리포트 → 항목별 확인 → 수정. /push 신선도 검사보다 깊다(diff에 안 걸린 누적 stale·섹션 내부 누락까지). guide/ko·en 본문은 제외(/guide 전담, AUTHORING은 검사). 빌드 안 함
-/push           → dev push (main에서 호출 차단) + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.{md,ko.md}/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide(+AUTHORING.md) 신선도 검사 + Codex 미러 게이트(sync:agents:check — 드리프트면 재생성 커밋) + e2e 게이트(.last-green == HEAD면 스킵 / 빨강이면 푸시 중단)
+/push           → dev push (main에서 호출 차단) + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.{md,ko.md}/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide(+AUTHORING.md) 신선도 검사 + Codex 미러 게이트(sync:agents:check — 드리프트면 재생성 커밋). e2e는 안 돌린다 — push 후 CI run URL만 안내하고 종료(논블로킹)
 /merge          → dev에서 e2e 게이트 교차(통상 /push 기록 해시로 스킵 / 빨강이면 중단) → 커버리지 리포트(로직 스코프 vs 베이스라인, 비차단 — 회귀 경고만·개선 시 baseline 자동 래칫 커밋) → 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
 /deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
 /sync           → dev를 origin/main으로 hard reset + force push (배포/머지 후)
 /ship           → 작은·외과적 변경 하나를 /tdd→커밋→/implement→커밋→/code-review→/refactor→(/e2e-write)→(/guide)→(/doc-check)→(/postmortem)→/e2e-run→/push→/build로 자동 오케스트레이션. 단계별 게이트 통과 시 진행, 하드 실패·사용자 결정 지점(회귀위험·doc stale·e2e red)에선 즉시 중단+리포트. guide·doc-check은 영향 플래그 게이팅. 호출이 곧 push 지시. 테스트 커밋(1.5단계)은 red 상태로 무조건 선행. 큰·다영역·신규기능(feature 문서 필요)은 스코프 가드로 거부 — 단 `/ship bypass`는 그 판정만 건너뛰고(게이트·push·build는 전부 유지) feature 문서의 tasks.md를 계획 원본으로 쓴다. Codex 런타임은 /e2e-run까지만 돌고 /push·/build를 Claude Code에 인계
 ```
 
-권장 흐름: `/feature` → `/feature-review` → `/tdd interface` → `/implement` → `/e2e-write` → `/code-review` → `/tdd regression` → `/refactor` → `/push`(e2e 게이트) → `/merge`(게이트 교차). 사용자 노출 UX·기능을 건드렸으면 `/push` 전에 `/guide`로 ko/en 가이드를 맞춘다(`/implement` 보고의 "가이드 영향" 플래그가 신호). e2e 시나리오가 추가·변경됐으면 `/e2e-write`로 spec을 green까지(`/implement` 보고의 "e2e 영향" 플래그가 신호). `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK. **회귀·버그를 잡아 고쳤으면 `/postmortem`으로 `docs/POSTMORTEM.md`에 회고를 남긴다**(같은 함정 재발 방지 — 실패 사후분석 회로). 역으로 `/implement`·`/refactor`·`/code-review`는 **착수 전 변경 영역으로 `docs/POSTMORTEM.md`를 grep**해 과거 함정을 소환한다(쓰기만 하고 안 읽으면 죽은 로그 — 소환 회로로 루프를 닫는다).
+권장 흐름: `/feature` → `/feature-review` → `/tdd interface` → `/implement` → `/e2e-write` → `/code-review` → `/tdd regression` → `/refactor` → `/push`(논블로킹 — e2e는 CI가 검증) → `/merge`(dev HEAD의 CI 결론 확인 → PR CI 대기 → 머지). 사용자 노출 UX·기능을 건드렸으면 `/push` 전에 `/guide`로 ko/en 가이드를 맞춘다(`/implement` 보고의 "가이드 영향" 플래그가 신호). e2e 시나리오가 추가·변경됐으면 `/e2e-write`로 spec을 green까지(`/implement` 보고의 "e2e 영향" 플래그가 신호). `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK. **회귀·버그를 잡아 고쳤으면 `/postmortem`으로 `docs/POSTMORTEM.md`에 회고를 남긴다**(같은 함정 재발 방지 — 실패 사후분석 회로). 역으로 `/implement`·`/refactor`·`/code-review`는 **착수 전 변경 영역으로 `docs/POSTMORTEM.md`를 grep**해 과거 함정을 소환한다(쓰기만 하고 안 읽으면 죽은 로그 — 소환 회로로 루프를 닫는다).
 
 각 단계 게이트는 `.claude/commands/` 스킬 정의에 명시.
 
@@ -191,7 +193,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 - `docs/PERMISSION.md` — Chrome 권한 전체 레퍼런스 (activeTab 라이프사이클, OAuth 토큰 흐름, optional permission 등)
 - `AGENTS.md` · `.agents/skills/` — CLAUDE.md·`.claude/commands/`의 **Codex 호환 미러**. `scripts/sync-agents.mjs`(`pnpm sync:agents`)가 만드는 **순수 생성물이라 손으로 편집하지 않는다** — 고칠 건 원본에서 고친다. 본문은 치환 없이 그대로 복제하므로 미러가 `CLAUDE.md`·`.claude/commands/`를 가리켜도 그 경로가 맞다. Codex 런타임 차이(훅 부재·미제공 스킬·커밋 트레일러)만 `.agents/PREAMBLE.md`에 손으로 관리해 AGENTS.md 상단에 붙는다.
-  - **역할 분담**: Codex는 **작업 → 커밋까지**, 원격으로 나가는 건 Claude Code 단일 창구. `/push`·`/merge`·`/deploy`·`/sync`는 미러하지 않는다(스크립트 `EXCLUDE`) — 릴리스 게이트(`e2e/.last-green` HEAD 해시 캐시, 버전 bump, tag)가 두 창구에서 경쟁하면 깨지기 때문. 나머지 16개가 미러 대상이고, 원본이 없어진 미러 디렉터리는 sync가 지운다. `/ship`은 미러하되 **Codex에선 12단계(`/e2e-run`)까지만** 돌고 13·14단계(`/push`·`/build`)를 인계한다 — 이 분기는 `ship.md` 본문("push 권한 / 런타임별 종착점")에 박혀 있어 미러에 그대로 따라간다.
+  - **역할 분담**: Codex는 **작업 → 커밋까지**, 원격으로 나가는 건 Claude Code 단일 창구. `/push`·`/merge`·`/deploy`·`/sync`는 미러하지 않는다(스크립트 `EXCLUDE`) — 릴리스 게이트(원격 CI 결론 조회, 버전 bump, tag)가 두 창구에서 경쟁하면 깨지기 때문. 나머지 16개가 미러 대상이고, 원본이 없어진 미러 디렉터리는 sync가 지운다. `/ship`은 미러하되 **Codex에선 11단계(마지막 커밋)까지만** 돌고 12·13단계(`/push`·`/build`)를 인계한다 — 이 분기는 `ship.md` 본문("push 권한 / 런타임별 종착점")에 박혀 있어 미러에 그대로 따라간다.
   - **드리프트 방지 2단**: ① `.claude/settings.json`의 PostToolUse 훅이 `CLAUDE.md`·`.claude/commands/*.md`·`.agents/PREAMBLE.md` 편집 시 sync를 자동 실행 ② `/push`가 `pnpm sync:agents:check`로 최종 차단. **훅은 Claude Code 전용이라 Codex 세션에선 안 돈다** — Codex가 원본을 고쳤으면 `pnpm sync:agents`를 손으로 돌린다.
 - `docs/POSTMORTEM.md` — 회귀·버그 사후분석 회고 누적 (git 공유). `/postmortem` 스킬이 픽스마다 비자명 함정·재발방지를 한 항목씩 추가. 항목엔 **영역·계열·그물 3축 태그**가 붙고 `pnpm postmortem:report`가 반복 함정을 집계한다(vocab 단일 출처 `scripts/postmortem-report.mjs`) — 기록만 하고 안 세면 개별 회고에서 끝나므로 집계까지가 한 회로다
 - `docs/privacy.ko.md` · `docs/privacy.en.md` — 개인정보처리방침 (ko 원본 + en 번역, 항상 동기화). bug-shot.com/{ko,en}/privacy로 서빙
