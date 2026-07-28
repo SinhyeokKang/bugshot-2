@@ -41,7 +41,9 @@ pnpm test
 pnpm build
 ```
 
-CI runs those plus `pnpm sync:agents:check` and `pnpm check:prearm`.
+CI runs those plus `pnpm sync:agents:check` and `pnpm check:prearm`, on the Node
+version in `.nvmrc` — worth matching locally, since that is the version the gate
+actually judges you on.
 
 Tests live in a `__tests__/` directory next to the code they cover, and there are
 two tracks: `*.test.ts` runs in Node and is for pure functions and helpers,

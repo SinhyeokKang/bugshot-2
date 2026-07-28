@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
 
       # lockfile 고정 — pnpm-workspace.yaml의 minimumReleaseAge는 신규 resolve에만
@@ -81,7 +81,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -105,11 +105,18 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
 
-      # 캐시 미스에서만 돈다. 느린 건 브라우저 다운로드가 아니라 `--with-deps`의 apt다
-      # (첫 런에서 한 샤드가 이 스텝에만 9분 넘게 잡혔다). 캐시 히트면 apt까지 통째로
-      # 건너뛰는데, 러너 이미지가 Chrome·Firefox를 이미 품고 있어 공유 라이브러리가
-      # 깔려 있기 때문이다. 그 전제가 깨지면 브라우저 기동 실패로 전 spec이 즉시 죽어
-      # 조용히 넘어가지 않는다. timeout은 apt가 매달릴 때 30분을 다 태우지 않게 한다.
+      # 캐시 미스에서만 돈다. 캐시 히트면 `--with-deps`의 apt까지 통째로 건너뛰는데,
+      # 러너 이미지가 Chrome·Firefox를 이미 품고 있어 공유 라이브러리가 깔려 있기
+      # 때문이다. 그 전제가 깨지면 브라우저 기동 실패로 전 spec이 즉시 죽어 조용히
+      # 넘어가지 않는다.
+      #
+      # apt는 보통 20~45초지만 **가끔 10분으로 튄다**(실측: 한 샤드가 10분 31초, 같은
+      # 런의 나머지 셋은 1분 미만). timeout이 그 편차를 잘라 job의 30분을 다 태우지
+      # 않게 한다 — 캐시는 그 창을 아예 안 만나게 하는 쪽이다.
+      #
+      # 캐시는 같은 런 안에서도 공유된다: 먼저 끝난 샤드가 저장하면 늦게 시작한 샤드가
+      # 그걸 히트한다(실측). 4샤드가 동시에 출발하면 전부 미스라 중복 설치하지만,
+      # 시차가 생기면 뒤 샤드가 무임승차한다.
       - name: Install Chromium
         if: steps.pw-cache.outputs.cache-hit != 'true'
         timeout-minutes: 6
