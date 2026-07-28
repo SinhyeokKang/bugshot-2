@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-07-28 — 취소 레인을 훅 하나로 단일화했더니, run보다 오래 사는 두 축(cleanup deps의 의미·sessionRef 소유권)이 남아 각각 회귀를 만들었다
+
+- **영역**: `AI`
+- **계열**: `취소래치`, `미검증단언`
+- **그물**: `jsdom`
+- **증상**: 둘 다 **에러도 토스트도 없이** 품질만 떨어지는 종류라 육안으로 안 잡힌다. ① AI 진행 중 provider(BYOK/모델)를 바꾸면 세션은 죽는데 로딩 오버레이와 `중단` 버튼이 요청이 settle될 때까지 남는다 — Chrome 내장 AI는 abort를 무시해 그 지연이 수 초다. ② 스타일링을 중단하고 곧바로 재제출하면, 먼저 시작한 run이 뒤늦게 깨어나 **새 run의 멀티턴 세션에 자기 turn을 실어보내거나**(대화 오염) 그 세션을 destroy한다. 사용자에겐 "AI가 방금 지시를 잊은 것"으로만 보인다.
+- **근본 원인**: 리팩터가 `isActive` 술어 하나로 취소 판정을 통일했지만, **run 수명과 무관하게 살아 있는 축 두 개**를 그대로 남겼다. ① **cleanup effect의 deps가 `[createSession]`이라 그 effect의 의미는 "언마운트"가 아니라 "provider 교체"다.** run 정리를 헬퍼의 언마운트 effect로 옮겼는데 그쪽 deps는 안정 참조라 provider 교체에서 발화하지 않는다 — 두 경로가 같아 보여서 `design.md` "통일되는 미세 차이" 표가 이 행을 **"동작 변경: 없음(경로만 이동)"으로 단언**했고, 그 단언이 검증 없이 구현으로 내려갔다. ② **`sessionRef`는 컴포넌트 소유라 run보다 오래 산다.** `await isPromptOverBudget(...)`·`await resolveInlineImagesForSections(...)`에서 재개한 뒤 `sessionRef.current`를 **다시 읽으면** 그건 이미 다음 run의 세션이다. 취소 레인은 "이 run이 유효한가"를 통일했을 뿐 "이 세션이 내 것인가"는 다루지 않는다 — 두 질문이 다르다는 게 안 보였다.
+- **재발 방지**: (1) **effect cleanup의 deps가 `[]`가 아니면 그 cleanup은 언마운트 전용이 아니다.** 정리 로직을 훅으로 옮길 때 deps에 실린 값의 의미(여기선 provider identity)가 함께 옮겨지는지 확인한다 — 전수: `grep -rn "return () =>" src/sidepanel --include=*.tsx -A0 -B8 | grep -n "}, \[.\+\]"`로 비어 있지 않은 deps를 가진 cleanup을 뽑고, 각각 "이게 언제 도는가"를 답한다. 헬퍼로 옮겼다면 그 경로를 덮는 테스트는 **언마운트가 아니라 prop만 바꾼 rerender**여야 한다(`AiDraftDialog.test.tsx`의 "provider가 교체되면 …" 케이스가 선례 — 언마운트 케이스는 이 회귀를 통과시킨다). (2) **await 재개 지점에서 ref를 다시 읽지 않는다** — 비동기 작업이 잡은 리소스는 시작 시점에 **지역 변수**로 고정한다. 전수: `grep -n "await" src/sidepanel/tabs/AiDraftDialog.tsx src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx`로 재개 지점을 뽑고, 그 아래에서 `Ref.current`를 읽는 자리가 있는지 본다. "취소 가드가 있으니 안전"은 답이 아니다 — 가드는 *결과 적용*을 막을 뿐, 가드 이전에 ref를 만지는 부수효과(세션 destroy 등)는 못 막는다. (3) **설계 문서의 "동작 변경 없음" 셀은 단언이지 사실이 아니다.** 리팩터 표에 그렇게 적힌 행은 구현 전에 각각 "그럼 이 경로에서는?"을 한 번씩 물어야 한다 — 이번엔 세 검증 관점이 **독립적으로 같은 행**을 지목해서야 드러났다. (4) 두 픽스 모두 **뮤테이션으로 그물을 확인**했다(가드만 되돌려 red 확인 후 복구) — 취소 계열은 "테스트가 green이니 됐다"가 반복해서 거짓이었으므로(2026-07-28 signal mock 항목) 그물의 비공허성을 증명한 뒤에만 닫는다.
+- **관련**: `src/sidepanel/hooks/useAiRun.ts`(`disposeCurrent` — 언마운트와 provider 교체가 공유하는 단일 정리 경로), `src/sidepanel/tabs/AiDraftDialog.tsx`·`src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx`(run-local 세션 + 예산 확인 뒤 가드, `[createSession]` cleanup에서 `disposeCurrent()` 호출), 가드 `src/sidepanel/tabs/__tests__/AiDraftDialog.test.tsx`·`src/sidepanel/tabs/styleEditor/__tests__/AiStylingDialog.test.tsx`(provider 교체 rerender · 중단 후 재제출 2종), 설계 `docs/features/ai-run-lane/design.md`(규약 7개 — 이번 항목으로 규약 6·7 추가). 선행 회고: **2026-07-28**(같은 리팩터가 겨냥한 원 함정)·**2026-07-21**(3콜사이트 복제).
+
 ## 2026-07-28 — 리뷰가 "abort 누락"이라 부른 것이 re-adopt의 생명줄이었고, signal을 무시하는 mock이 그 회귀를 green으로 통과시켰다
 
 - **영역**: `AI`
