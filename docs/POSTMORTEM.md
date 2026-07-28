@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-07-28 — 값을 다른 표면으로 옮기면 전제가 따라오지 않는다: `pre`의 `padding-left`는 스크롤 영역이라 가로 스크롤이 코드를 행 번호 위로 밀어 올렸다
+
+- **영역**: `에디터`, `디자인`, `e2e`
+- **계열**: `라이브러리전제`, `미검증단언`
+- **그물**: `e2e`
+- **증상**: 코드블럭 행 번호 열을 붙인 뒤, 가로로 긴 줄(로그·JSON 블럭에선 기본값)을 오른쪽으로 스크롤하면 **코드 글자와 번호가 같은 픽셀에 겹쳐 찍혀** 둘 다 못 읽는다. 스크롤 전에는 멀쩡해 보이고, `pnpm test`·typecheck·기존 e2e 전부 green이었다. 부수로, 번호 색이 라이트 테마에서 코드블럭 배경 대비 4.34:1로 **AA(4.5) 미달**이었다.
+- **근본 원인**: 셋 다 "이 값이 저기서 잘 돌았으니 여기서도 잘 돌 것"이라는 **표면 이전 전제**가 깨진 것이다. ① 번호 열을 `pre` **밖**에 absolute로 얹고 `pre`의 `padding-left`로 자리를 비웠는데, **`padding-left`는 스크롤 포트가 아니라 스크롤 영역의 일부**다 — `scrollLeft > 0`이면 그 패딩이 왼쪽으로 밀려나면서 코드가 번호가 앉은 x 구간까지 들어온다. 배치(`position: absolute`)는 번호를 **제자리에 남기는** 것까지만 하고, 밀려온 코드를 **가리는** 건 별도로 배경이 해야 하는데 그 한 줄이 없었다. 같은 파일의 `.code-collapse-fade`가 이미 `hsl(var(--muted))`로 같은 문제를 푸는 관용구를 갖고 있었는데도 놓쳤다. ② 색은 CSS 코드 뷰의 gutter(`CssCodeMirror`)에서 `--muted-foreground`를 그대로 베껴왔는데, **그쪽 배경은 투명(=`--background`)이고 이쪽은 `--muted`다** — 대비는 토큰 이름이 아니라 **밑에 깔린 표면**이 정한다(4.76:1 → 4.34:1). ③ 그 겹침을 잡으려고 쓴 e2e가 하마터면 아무것도 증명 못 할 뻔했다: 픽스처(`/e2e-bigjson`) 원소가 15자라 **실제로는 가로 오버플로가 안 나** `scrollLeft`가 0에 머물렀고, "스크롤해도 번호가 안 움직였다"가 **vacuous green**이 된다.
+- **재발 방지**: (1) **`overflow-x: auto`인 요소의 패딩으로 자리를 비우고 그 위에 무언가를 얹었으면, 그 얹은 것은 반드시 불투명 배경을 가져야 한다** — 패딩은 스크롤과 함께 움직이기 때문이다. `grep -n "overflow-x: auto" src/**/*.css`로 스크롤 컨테이너를 세고, 각각에 absolute 형제가 얹혀 있으면 `background` 선언 유무를 대조한다. (2) **CSS 값을 다른 셀렉터로 복사할 때는 그 값이 무엇을 전제했는지 함께 옮긴다** — 특히 글자색은 배경 토큰과 쌍이다. `--muted` 표면 위에 `--muted-foreground`를 얹는 조합은 AA 미달이므로 옅은 `--foreground`를 쓴다. 하한은 `styles/__tests__/tokens.test.ts`가 CSS에서 알파를 읽어 blend 대비를 **계산**해 지킨다(토큰 이름 매칭이 아니라 값 계산이라 색을 바꿔도 따라온다). (3) **레이아웃 축 e2e는 "전제 자체"를 첫 줄에서 단언한다** — `expect(pre.scrollWidth - pre.clientWidth).toBeGreaterThan(0)`처럼. 전제가 깨지면 조용한 green이 아니라 그 자리에서 red가 나야 한다. 그리고 새 가드는 **mutation으로 이름표를 확정한다**(배경을 `transparent`로 바꿔 그 테스트만 red가 되는지 실측 — 2026-07-17·07-18에서 이미 두 번 처방된 절차인데, 이번엔 CSS 선언을 대상으로 적용했다). (4) 이 축은 **jsdom으로 원리상 불가**다(layout이 없어 `ch` 환산·정렬·클리핑을 못 본다). CSS 선언 문자열 대조 테스트가 잡는 건 "값이 그대로인가"지 "그 값이 실제로 맞는가"가 아니라는 걸 혼동하지 말 것.
+- **관련**: `src/sidepanel/components/code-collapse.css:.code-collapse-gutter`(`background`·`color`·안쪽 반경), `src/sidepanel/lib/codeCollapseShell.ts:renderGutter`(자릿수 → `--code-gutter-digits`), `src/sidepanel/components/doc-section-body.css`·`tiptap-editor.css`(`pre`의 `padding-left`가 `--code-gutter-width`를 읽는 역방향 결합), 그물 `e2e/code-block-collapse.spec.ts`(겹침·정렬·스크롤 기하 3건 + 오버플로 전제 단언)·`src/styles/__tests__/tokens.test.ts`(blend 대비 계산)·`e2e/fixtures/extension.ts`(`/e2e-bigjson` 원소 패딩). 계열: **2026-07-17**(`--accent`==`--muted` — 관용구를 다른 표면으로 옮기며 방향이 뒤집힘), **2026-07-18**(가드의 이름표는 mutation으로 정한다).
+
 ## 2026-07-28 — 취소 레인을 훅 하나로 단일화했더니, run보다 오래 사는 두 축(cleanup deps의 의미·sessionRef 소유권)이 남아 각각 회귀를 만들었다
 
 - **영역**: `AI`
