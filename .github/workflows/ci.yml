@@ -92,7 +92,27 @@ jobs:
       - name: Load CI env
         run: cp .env.ci .env.local
 
+      # Playwright 버전이 바뀌면 브라우저 빌드도 바뀌므로 캐시 키에 넣는다.
+      # lockfile이 아니라 실제 설치된 패키지에서 읽어 resolve 결과와 어긋나지 않게 한다.
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      # 캐시 미스에서만 돈다. 느린 건 브라우저 다운로드가 아니라 `--with-deps`의 apt다
+      # (첫 런에서 한 샤드가 이 스텝에만 9분 넘게 잡혔다). 캐시 히트면 apt까지 통째로
+      # 건너뛰는데, 러너 이미지가 Chrome·Firefox를 이미 품고 있어 공유 라이브러리가
+      # 깔려 있기 때문이다. 그 전제가 깨지면 브라우저 기동 실패로 전 spec이 즉시 죽어
+      # 조용히 넘어가지 않는다. timeout은 apt가 매달릴 때 30분을 다 태우지 않게 한다.
       - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 6
         run: pnpm exec playwright install --with-deps chromium
 
       - run: pnpm build:e2e
