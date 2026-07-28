@@ -6,6 +6,8 @@ dist-*
 .env
 .env.*
 !.env.example
+# CI e2e 빌드용 더미 값 — 실 크레덴셜 아님(워크플로가 .env.local로 복사해 쓴다).
+!.env.ci
 .vite
 *.tsbuildinfo
 .claude/settings.local.json

@@ -11,13 +11,14 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 
 ## 실행
 
-- 빌드/실행: `pnpm build:e2e` → `pnpm test:e2e` (단일 spec: `pnpm test:e2e -- <이름 일부>`). dist-e2e는 **테스트 전용**(`<all_urls>` 포함, 수동 로드·스토어 업로드 금지).
+- **CI에서 자동으로 돈다** — `.github/workflows/ci.yml`의 `e2e` job이 dev push · main PR · nightly에서 전 스위트를 `--shard=N/4` 매트릭스(러너 4대)로 돌린다. headed 강제라 `xvfb-run`(가상 스크린 1920×1080×**24**) 경유고, 더미 `.env.ci`만 쓰므로 secret 없이 fork PR에서도 동작한다. 아래 로컬 실행은 CI를 기다리지 않고 미리 확인할 때 쓴다.
+- 빌드/실행: `pnpm build:e2e` → `pnpm test:e2e` (단일 spec: `pnpm test:e2e -- <이름 일부>`, 샤드 재현: `pnpm test:e2e -- --shard=1/4`). dist-e2e는 **테스트 전용**(`<all_urls>` 포함, 수동 로드·스토어 업로드 금지).
 - **두 project**(`playwright.config.ts`):
-  - `sidepanel` — 확장 구동 메인 게이트(`retries:0`, 결정적).
-  - `logview` — 확장 없이 `dist-log-viewer/index.html`을 합성 데이터로 직접 여는 standalone(`e2e/logview/*.spec.ts`, viewport 1280×800).
-  - `logview`는 `dependencies:["sidepanel"]`(사이드패널 green 후 실행). 단독: `pnpm test:e2e --project=logview --no-deps`(dist-log-viewer는 `build:log-viewer`/`build:e2e`가 생성).
+  - `sidepanel` — 확장 구동 메인 게이트.
+  - `logview` — 확장 없이 `dist-log-viewer/index.html`을 합성 데이터로 직접 여는 standalone(`e2e/logview/*.spec.ts`, viewport 1280×800). 단독 실행: `pnpm test:e2e --project=logview`(dist-log-viewer는 `build:log-viewer`/`build:e2e`가 생성). **`dependencies:["sidepanel"]`는 없다** — 실제 의존이 아니었고, `--shard` 사용 시 의존 project가 샤드마다 전량 실행돼 샤딩 효과를 지운다.
   - **30s Replay 캡처 spec(replay-action-log·replay-trim·replay-trim-logs·action-log-coverage·drag-action)은 제거됨** — `captureVisibleTab` cold-start/extension-global quota로 환경 flaky가 심해 게이트를 신뢰 불가하게 만들어 의도적으로 뺐다(트림/액션/드래그 로직은 단위 테스트로 커버, 캡처 경로는 수동 잔여). GOTCHAS 참조.
-- **창 깜빡임**: 확장 SW가 headless에선 안 깨어나 headed로만 돈다. 대신 브라우저 창을 화면 밖으로 보내 기본적으로 안 보인다. 디버깅으로 창을 직접 보려면 `E2E_SHOW=1 pnpm test:e2e`.
+- **`retries`는 로컬 0 / CI 1** (`process.env.CI` 분기). 로컬은 flaky를 숨기지 않고, CI는 xvfb·SW 기동 환경 flaky에 복구 기회를 한 번만 준다. `forbidOnly`도 CI 한정 — `.only`가 남으면 샤드가 조용히 green이 된다.
+- **창 깜빡임**: 확장 SW가 headless에선 안 깨어나 headed로만 돈다. 대신 브라우저 창을 화면 밖으로 보내 기본적으로 안 보인다. 디버깅으로 창을 직접 보려면 `E2E_SHOW=1 pnpm test:e2e`. **CI에선 이 이동을 생략한다** — xvfb엔 가릴 화면이 없고, 가상 스크린 밖으로 밀면 렌더가 클립될 수 있다.
 
 ## 헬퍼 · fixture 빠른 참조
 

@@ -76,11 +76,17 @@ bugshot-2: Chrome MV3 Side Panel 버그 리포팅 확장. 웹 페이지의 버�
 
 ### CI (GitHub Actions)
 
-`.github/workflows/ci.yml` — dev push · main PR에서 **typecheck → sync:agents:check → test → build → check:prearm** 순으로 돈다. 전부 브라우저·시크릿 없이 결정적이다.
+`.github/workflows/ci.yml` — **dev push · main PR · nightly(03:00 KST) · 수동(`workflow_dispatch`)** 에서 돈다. `schedule`은 GitHub 사양상 기본 브랜치에서만 발화하므로 nightly 대상은 main이다(코드가 그대로여도 Chrome 버전·러너 이미지 변경으로 깨지는 걸 잡는 게 목적). job은 셋:
 
-**e2e는 CI에서 안 돈다.** 확장 SW가 headless에서 안 깨어나 `headless: false`가 강제고(`e2e/fixtures/extension.ts`), `workers: 1`·`retries: 0`이라 63개 spec(테스트 236개)을 직렬로 돌리면서 환경 flaky 하나가 곧바로 빨간 배지가 된다. 로컬 게이트(`/e2e-run` → `e2e/.last-green` → `/push` 검사)가 그 역할을 한다 — 단 **`.last-green`은 gitignore라 머신 로컬**이므로 외부 PR에는 적용되지 않는다. 외부 기여를 받기 시작하면 nightly·수동 트리거 e2e 잡을 추가한다.
+- **`verify`** — typecheck → sync:agents:check → test → build → check:prearm. 브라우저·시크릿 없이 결정적.
+- **`e2e`** — Playwright 전 스위트(63 spec / 239 테스트)를 `--shard=N/4` 매트릭스로 4개 러너에 분산. 확장 SW가 headless에서 안 깨어나 `headless: false`가 강제라(`e2e/fixtures/extension.ts`) `xvfb-run`으로 돌린다 — **가상 스크린 깊이 24는 필수**(기본 8비트인 배포판이 있고 캡처 spec이 픽셀 색을 직접 판정한다). `fail-fast: false`라 한 샤드가 깨져도 나머지를 완주하고, 실패 샤드는 report·trace를 artifact로 올린다.
+- **`e2e-gate`** — 4샤드 결과를 단일 이름으로 수렴시키는 집계 job. 브랜치 프로텍션의 required status check가 이걸 가리키므로 샤드 개수를 바꿔도 설정을 다시 건드릴 필요가 없다.
 
-`build` + `check:prearm` 스텝이 CI에 있는 이유: `recorders-entry`가 async loader로 강등되는 회귀는 typecheck도 유닛도 못 잡고, 유일한 행동 검증(`e2e/logs-prearm.spec.ts`)이 CI에 없다. `scripts/check-prearm-chunk.mjs`가 manifest의 `world`/`run_at`·loader 여부·IIFE 시작·잔여 static import를 대조해 구조만 확인한다.
+`e2e` job은 `verify`와 **병렬**로 돈다(`needs` 없음) — public 저장소라 러너가 무료다. CI 빌드는 **secret에 의존하지 않는다**: 커밋된 더미 `.env.ci`를 `.env.local`로 복사해 쓴다(OAuth client ID가 비면 `isConfigured()`가 false가 되어 연동 탭 UI가 로컬과 갈리므로, 그 판정만 통과시키는 가짜 값이다. PostHog 키는 비워 집계 no-op 유지). 덕분에 secret이 전달되지 않는 **fork PR에도 e2e가 그대로 적용된다.**
+
+CI에서의 `retries`는 1, 로컬은 0이다(`process.env.CI` 분기). `forbidOnly`도 CI 한정 — `.only`가 남으면 샤드가 조용히 green이 되어 게이트가 무의미해진다.
+
+`build` + `check:prearm` 스텝이 `verify`에 있는 이유: `recorders-entry`가 async loader로 강등되는 회귀는 typecheck도 유닛도 못 잡는다. 행동 검증(`e2e/logs-prearm.spec.ts`)은 이제 `e2e` job이 맡지만, `scripts/check-prearm-chunk.mjs`는 manifest의 `world`/`run_at`·loader 여부·IIFE 시작·잔여 static import를 몇 초 만에 대조하는 **1차 그물**이라 e2e green을 기다리지 않고 형태 회귀를 먼저 알린다.
 
 **빌드는 자동 실행하지 않는다.** 사용자가 명시적으로 요청하거나 `/build` 스킬을 실행할 때만 돌린다. 타입 확인이 필요하면 `pnpm typecheck` 선호. 예외: `build:e2e`(dist-e2e)는 `/e2e-write`·`/e2e-run`·`/push`/`/merge` e2e 게이트에서 실행 허용 — 배포 산출물(dist)과 분리돼 있다.
 

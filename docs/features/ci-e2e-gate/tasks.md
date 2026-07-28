@@ -16,11 +16,11 @@
   - `.env.ci`를 `.env.example`과 **동일한 키 순서**로 만들고, 8개 `VITE_*_CLIENT_ID`와 `VITE_OAUTH_PROXY_URL`에 더미 값을 넣는다(예: `VITE_ATLASSIAN_CLIENT_ID=e2e-dummy-atlassian`, `VITE_OAUTH_PROXY_URL=https://e2e.invalid`). `VITE_GITHUB_CLIENT_ID_PROD`와 `VITE_POSTHOG_KEY*`는 **빈 값 유지**(store 빌드 전용 / 집계 no-op).
   - 파일 상단에 목적 주석: CI 전용, 실값 아님, `isConfigured()` 통과용.
   - `.gitignore`의 `!.env.example` 다음 줄에 `!.env.ci` 추가.
-  - `.gitignore`에서 `e2e/.last-green` 줄 삭제.
   - `.env.example` 상단 주석에 `.env.ci`의 존재·목적 한 줄 추가.
+  - **`.gitignore`의 `e2e/.last-green` 줄은 여기서 지우지 않는다** — 1차 단계에선 로컬 게이트가 살아 있어 `/e2e-run`·`/push`가 계속 그 파일을 쓴다. 무시 규칙을 먼저 걷으면 untracked 노이즈가 되고 실수로 커밋될 수 있다. 삭제는 Task 6(파일 `rm`과 같은 단계)에서.
 - **검증**:
-  - [ ] `git check-ignore -v .env.ci`가 아무것도 출력하지 않음(추적 대상)
-  - [ ] `git check-ignore -v .env.local`은 여전히 무시됨
+  - [ ] `git check-ignore -q .env.ci`의 exit code가 `1`(=무시 안 됨). **`-v`는 negation 규칙도 "매칭"으로 출력하고 exit 0을 주므로 판정에 쓰면 안 된다** — `git status --porcelain`에 `?? .env.ci`가 뜨는지로 교차 확인
+  - [ ] `git check-ignore -q .env.local`의 exit code가 `0`(여전히 무시됨)
   - [ ] `.env.ci`와 `.env.example`의 키 집합이 동일 — `grep -o '^VITE_[A-Z0-9_]*' .env.ci | sort` == `.env.example` 동일 명령 결과
   - [ ] `grep -n POSTHOG .env.ci`의 값이 전부 빈 문자열
 
@@ -82,6 +82,7 @@
   - [ ] `rg -n "last-green" .gitignore .claude/commands CLAUDE.md AGENTS.md .agents/skills docs/DIRECTORY.md e2e/README.md`가 0건(feature 설계 문서의 역사 설명은 검사 대상 제외)
   - [ ] `ship.md`의 단계 번호가 0~14로 연속, 중복·누락 없음
   - [ ] Codex에서는 원본 수정 뒤 `pnpm sync:agents` 직접 실행. 이어서 `pnpm sync:agents:check` 통과 (`ship`·`e2e-run` 미러 반영됨, `merge`는 EXCLUDE)
+  - [ ] `.gitignore`에서 `e2e/.last-green` 줄 삭제 (Task 1에서 미룬 항목)
   - [ ] `e2e/.last-green` 파일 삭제 (`rm -f e2e/.last-green` — gitignore였으므로 git 상태 무관)
 
 ### Task 7a: 문서 갱신 — CI 실행 사실 (1차 커밋에 포함)

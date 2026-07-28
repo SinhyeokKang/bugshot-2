@@ -49,8 +49,10 @@ two tracks: `*.test.ts` runs in Node and is for pure functions and helpers,
 anything that needs a real DOM. Logic changes should come with a test.
 
 The Playwright suite (`pnpm test:e2e`) is headed-only — the extension's service
-worker doesn't wake up in headless Chrome — so it isn't in CI and you don't need
-to run it. I run it locally before merging.
+worker doesn't wake up in headless Chrome — but CI runs it anyway under `xvfb`,
+split across four sharded runners. It needs no secrets: the build reads a
+committed dummy `.env.ci`, so it works on pull requests from forks too. You
+don't need to run it locally, though you can (`pnpm build:e2e` first).
 
 ## Generated files
 

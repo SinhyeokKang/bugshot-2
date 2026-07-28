@@ -5,11 +5,20 @@ on:
     branches: [dev]
   pull_request:
     branches: [main]
+  # nightly. schedule은 GitHub 사양상 기본 브랜치(main)에서만 발화하므로 대상은 main —
+  # 코드가 그대로여도 Chrome 버전·러너 이미지 변경으로 깨지는 걸 잡는 게 목적이다.
+  schedule:
+    - cron: "0 18 * * *" # 03:00 KST
+  workflow_dispatch:
 
 # 같은 ref로 연달아 푸시하면 이전 런은 취소 — 러너 시간 절약.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
+# fork PR의 임의 코드가 이 워크플로에서 돈다 — GITHUB_TOKEN은 읽기 전용으로 고정.
+permissions:
+  contents: read
 
 jobs:
   verify:
@@ -44,12 +53,75 @@ jobs:
       - name: Unit + DOM tests
         run: pnpm test
 
-      # e2e는 여기서 안 돈다(확장 SW가 headless에서 안 깨어나 headed 강제 + workers:1,
-      # retries:0). 대신 pre-arm의 **구조적** 전제만 빌드 산출물로 검증한다 —
-      # recorders-entry가 async loader로 강등되면 로드 초반 로그가 조용히 사라지는데,
-      # typecheck도 유닛도 그걸 못 잡고 행동 검증(e2e/logs-prearm.spec.ts)은 여기 없다.
+      # pre-arm의 **구조적** 전제를 빌드 산출물로 검증한다 — recorders-entry가 async
+      # loader로 강등되면 로드 초반 로그가 조용히 사라지는데 typecheck도 유닛도 못 잡는다.
+      # 행동 검증(e2e/logs-prearm.spec.ts)은 아래 e2e job이 맡고, 이건 몇 초 만에 끝나는
+      # 1차 그물이다(e2e green을 기다리지 않고 형태 회귀를 먼저 알린다).
       - name: Build
         run: pnpm build
 
       - name: Pre-arm chunk shape
         run: node scripts/check-prearm-chunk.mjs dist
+
+  e2e:
+    runs-on: ubuntu-latest
+    # 샤드당 테스트 ~3분 + 셋업 ~2분. 걸리면 hard kill이라 후속 artifact 업로드가
+    # 안 돌 수 있으니 넉넉히 잡는다.
+    timeout-minutes: 30
+    strategy:
+      # 한 샤드가 깨져도 나머지를 끝까지 돌려 실패 전모를 한 번에 본다.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # OAuth client ID가 비면 isConfigured()가 false가 되어 연동 탭 OAuth 버튼이 사라진다.
+      # .env.ci는 그 판정만 통과시키는 더미다(실 크레덴셜 아님). Vite의 loadEnv는
+      # .env/.env.local/.env.[mode]만 읽어 .env.ci를 자동으로 집지 않으므로 복사한다.
+      - name: Load CI env
+        run: cp .env.ci .env.local
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - run: pnpm build:e2e
+
+      # 확장 SW가 headless에선 안 깨어나 headed 강제 — xvfb 가상 디스플레이로 우회한다.
+      # 깊이 24는 필수: xvfb-run 기본이 8비트인 배포판이 있고, 캡처 spec이 스티칭 결과의
+      # 픽셀 색을 직접 판정한다(fixtures/pages/scroll-capture.html의 자홍 sticky).
+      - name: e2e (shard ${{ matrix.shard }}/4)
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm test:e2e -- --shard=${{ matrix.shard }}/4
+
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-shard${{ matrix.shard }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # 샤드 개수와 무관한 단일 이름으로 결과를 수렴시킨다 — 브랜치 프로텍션의 required
+  # status check는 이 job을 가리키므로 매트릭스를 늘려도 설정을 다시 건드릴 필요가 없다.
+  e2e-gate:
+    needs: [e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Aggregate shard results
+        run: |
+          echo "e2e shards: ${{ needs.e2e.result }}"
+          [ "${{ needs.e2e.result }}" = "success" ] || exit 1
