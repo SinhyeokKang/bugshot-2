@@ -94,8 +94,11 @@ describe("codeCollapseShell 행 번호 gutter", () => {
   // 삽입 로그는 수천 줄까지 가므로 만들지 않는다.
   it("접힌 블럭은 보이는 줄까지만 번호를 만든다", () => {
     const { shell } = makeBare(2000);
-    expect(gutterOf(shell).childElementCount).toBeLessThanOrEqual(
-      CODE_COLLAPSE_LINE_THRESHOLD + 1,
+    // 개수를 상한으로만 재면 "번호가 하나도 안 뜨는" 회귀도 통과한다 — 값까지 고정해
+    // 접힌 상태에서 1부터 시작하는지(오프셋이 안 밀렸는지)도 함께 잡는다.
+    const visible = CODE_COLLAPSE_LINE_THRESHOLD + 1;
+    expect(numbers(gutterOf(shell))).toEqual(
+      Array.from({ length: visible }, (_, i) => String(i + 1)),
     );
     shell.setExpanded(true);
     expect(gutterOf(shell).childElementCount).toBe(2000);

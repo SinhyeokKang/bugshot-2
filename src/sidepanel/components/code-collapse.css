@@ -30,7 +30,11 @@
   font-size: var(--mono-size);
   line-height: var(--mono-leading);
   text-align: right;
-  color: hsl(var(--muted-foreground));
+  /* --muted-foreground를 그대로 쓰면 --background가 아니라 코드블럭의 --muted 위에 앉는 탓에
+     라이트가 4.34:1로 AA 미달이다(CssCodeMirror의 gutter는 투명 배경이라 통과한다 — 색만
+     베끼면 배경 차이만큼 내려앉는다). --foreground를 옅게 깔면 양 테마 모두 AA를 넘으면서
+     코드 본문보다는 확실히 약하다. 하한은 styles/__tests__/tokens.test.ts가 계산해 지킨다. */
+  color: hsl(var(--foreground) / 0.6);
   user-select: none;
   pointer-events: none;
 }
