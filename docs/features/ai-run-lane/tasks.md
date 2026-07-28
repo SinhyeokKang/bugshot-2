@@ -4,7 +4,7 @@
 
 - 권한·env·의존성 추가 없음. 순수 내부 리팩터다.
 - 착수 전 `docs/POSTMORTEM.md`에서 `취소래치` 항목 5건을 읽는다(2026-07-08/16/17/21/28). 특히 **2026-07-16·17**은 래치와 취소의 순서 문제라 Task 4의 순서 보존 요구가 거기서 나온다.
-- 착수 전 `design.md`의 **"규약"** 6개를 읽는다. 이번 구현의 실질이 거기 있고, 각 항에 어기면 나는 회귀가 붙어 있다.
+- 착수 전 `design.md`의 **"규약"** 7개를 읽는다. 이번 구현의 실질이 거기 있고, 각 항에 어기면 나는 회귀가 붙어 있다.
 - 기준 상태: `pnpm test` green, `pnpm typecheck` 통과.
 
 ## 태스크
@@ -24,54 +24,56 @@
   - `resumable`에서 `detach` 후 `readopt()`가 같은 run을 반환하고 재개 가능하다.
   - canceller로 중단한 뒤 `readopt()`는 `null`(`userCancelled`는 되살리지 않는다).
   - **`end(run)` 후의 두 번째 `begin()`은 `onDispose`를 부르지 않는다**(규약 1·2 — 세션 재사용이 여기 의존한다).
-  - **미종료 run이 있는 상태의 두 번째 `begin()`은** 첫 run에 대해 `onDispose`를 정확히 1회 부르고, 첫 run의 `signal.aborted`가 kind별 기대값이며, 새 canceller가 `setAiCancel`에 등록된다.
+  - **미종료 run이 있는 상태의 두 번째 `begin()`은** 첫 run에 대해 `onDispose`를 정확히 1회 부르고, 첫 run의 `signal.aborted`가 **kind와 무관하게 `true`**이며(`kind` 축은 cleanup 전용이고, 교체된 run은 `readopt()` 대상도 아니라 아무도 이어받지 않는다), 새 canceller가 `setAiCancel`에 등록된다.
   - **교체 경로에서 첫 run이 `readopt()` 대상이 되지 않는다**(규약 3 — 사용자가 누르지 않은 run에 `userCancelled`가 서지 않아야 하되, 외부에 노출되지 않으므로 `readopt()` 동작으로 관찰한다).
   - **`begin()`이 이미 `true`인 로딩을 `false→true`로 토글하지 않는다**(design.md 위험 요소 — `StyleCssView`가 하강 에지를 읽어 2026-07-08이 재발한다).
   - **`end()`는 슬롯이 자기 canceller일 때만 `setAiCancel(null)`을 부른다**(규약 5 — 슬롯을 제3자 값으로 바꾼 뒤 `end()`를 불러 `null`이 안 나가는 것을 확인).
-  - **rerender 후 컨트롤러와 5개 메서드의 참조가 동일**하다(규약 6).
+  - **rerender 후 컨트롤러와 6개 메서드의 참조가 동일**하다(규약 7).
+  - **`disposeCurrent()`**: oneshot은 abort + `onDispose` + 슬롯 해제 + 로딩 off까지 / resumable은 no-op(store 무접촉) / 진행 중 run이 없으면 no-op.
+  - **사용자 중단 후 재제출해도 `onDispose`는 run당 한 번만** 불린다(규약 6).
   - **`oneshot` 언마운트** → `signal.aborted === true` + `setLoading(false)` + 슬롯 해제 + `onDispose`. **`resumable` 언마운트** → abort하지 않는다.
 - **검증**:
-  - [ ] `pnpm test --run src/sidepanel/hooks/__tests__/useAiRun.test.tsx` → import 실패로 red
-  - [ ] 케이스 목록에 `signal.aborted` 직접 단언이 최소 5개(oneshot detach / resumable detach / canceller / begin 교체 / 언마운트)
+  - [x] `pnpm test --run src/sidepanel/hooks/__tests__/useAiRun.test.tsx` → import 실패로 red
+  - [x] 케이스 목록에 `signal.aborted` 직접 단언이 최소 5개(oneshot detach / resumable detach / canceller / begin 교체 / 언마운트)
 
 ### Task 2: `useAiRun` 구현 (green 전환)
 
-- **변경 대상**: `src/sidepanel/hooks/useAiRun.ts` (신규)
-- **작업 내용**: `design.md`의 인터페이스와 **규약 6개**대로 구현. run은 `useRef`로만 보유하고 store에 올리지 않는다(대안 D 기각 사유). `begin()`은 **미종료** 직전 run이 있을 때만 취소·`onDispose` 후 교체한다. `end()`는 현재 run일 때만 로딩을 끄고 **자기 canceller일 때만** 슬롯을 비우며 current를 `null`로 만든다. `detach()`는 `cancelled`만 세우고 store·current를 건드리지 않으며 `kind`가 abort를 결정한다. `readopt()`는 `userCancelled`면 `null`. 언마운트 effect는 `oneshot`만 정리한다. 컨트롤러는 `useMemo`/`useRef`로 안정화한다.
+- **변경 대상**: `src/sidepanel/hooks/useAiRun.ts` (신규), `src/sidepanel/lib/aiCancelSlot.ts` (신규 — `getAiCancel` 라이브 리더 단일 출처)
+- **작업 내용**: `design.md`의 인터페이스와 **규약 7개**대로 구현. run은 `useRef`로만 보유하고 store에 올리지 않는다(대안 D 기각 사유). `begin()`은 **미종료** 직전 run이 있을 때만 취소·`onDispose` 후 교체한다. `end()`는 현재 run일 때만 로딩을 끄고 **자기 canceller일 때만** 슬롯을 비우며 current를 `null`로 만든다. `detach()`는 `cancelled`만 세우고 store·current를 건드리지 않으며 `kind`가 abort를 결정한다. `readopt()`는 `userCancelled`면 `null`. `disposeCurrent()`는 oneshot만 정리하고(abort + `onDispose` + 슬롯 해제 + 로딩 off), 헬퍼의 언마운트 effect와 콜사이트의 provider 교체 cleanup이 이걸 공유한다. `onDispose`는 `disposed` 플래그로 run당 1회를 보장한다. 컨트롤러는 `useMemo`/`useRef`로 안정화한다.
 - **검증**:
-  - [ ] Task 1 테스트 전부 green
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `useAiRun.ts`가 `AISession`·`ai-provider`를 import하지 않는다 — `test -f src/sidepanel/hooks/useAiRun.ts && grep -c "ai-provider\|AISession" src/sidepanel/hooks/useAiRun.ts` → **파일 존재 + 0건**(파일 부재의 exit 2와 구분할 것)
-  - [ ] `useAiRun.ts`가 `editor-store`를 import하지 않는다(setter는 전부 주입 — `grep -c "editor-store" src/sidepanel/hooks/useAiRun.ts` → 0건)
+  - [x] Task 1 테스트 전부 green
+  - [x] `pnpm typecheck` 통과
+  - [x] `useAiRun.ts`가 `AISession`·`ai-provider`를 import하지 않는다 — `test -f src/sidepanel/hooks/useAiRun.ts && grep -c "ai-provider\|AISession" src/sidepanel/hooks/useAiRun.ts` → **파일 존재 + 0건**(파일 부재의 exit 2와 구분할 것)
+  - [x] `useAiRun.ts`가 `editor-store`를 import하지 않는다(setter는 전부 주입 — `grep -c "editor-store" src/sidepanel/hooks/useAiRun.ts` → 0건)
 
 ### Task 3: `useReproPrefill` 이관 (순서 보존 주의 — 셋 중 **먼저**)
 
-- **변경 대상**: `src/sidepanel/hooks/useReproPrefill.ts`
+- **변경 대상**: `src/sidepanel/hooks/useReproPrefill.ts`, `src/sidepanel/tabs/DraftingPanel.tsx`(`getAiCancel` 주입)
 - **작업 내용**: re-adopt 분기를 `readopt()` 호출로, effect cleanup을 `detach(run)`으로 교체. `runRef`·직접 `AbortController`·`userCancelled` 수동 조작·`apply()` 내부 2차 가드를 제거하고 `isActive(run)`으로 통일한다. **`setReproPrefillDone(true)` → `doneRef.current = true` → `begin()` 순서를 그대로 유지한다**(뒤바뀌면 2026-07-16/17 재발). `reproPrefillDone` 래치는 콜사이트에 남는다. `UseReproPrefillArgs`의 `setLoading`·`setAiCancel` DI 시그니처를 유지하고 그대로 `useAiRun` config에 넘긴다. 컨트롤러를 effect deps에 넣는다면 규약 6(참조 안정)에 의존함을 주석 한 줄로 남긴다.
 - **검증**:
-  - [ ] 기존 `useReproPrefill.test.tsx` **29개 전부 green**, 특히 "게이트 왕복 cleanup은 in-flight 요청을 abort하지 않는다"·"in-flight 중 게이트가 껐다 켜져도 …이어받는다"·"사용자 중단 … 재발화 없음"·`:582` "AI in-flight 중 sectionEnabled가 꺼지면 취소되더라도 로딩은 풀린다"
-  - [ ] 아래 **공통 grep** → 0건
-  - [ ] 래치 3줄의 순서가 유지됐는지 diff로 직접 확인
+  - [x] 기존 `useReproPrefill.test.tsx` **29개 전부 green**, 특히 "게이트 왕복 cleanup은 in-flight 요청을 abort하지 않는다"·"in-flight 중 게이트가 껐다 켜져도 …이어받는다"·"사용자 중단 … 재발화 없음"·`:582` "AI in-flight 중 sectionEnabled가 꺼지면 취소되더라도 로딩은 풀린다"
+  - [x] 아래 **공통 grep** → 0건
+  - [x] 래치 3줄의 순서가 유지됐는지 diff로 직접 확인
 
 ### Task 4: `AiDraftDialog` 이관
 
 - **변경 대상**: `src/sidepanel/tabs/AiDraftDialog.tsx`
-- **작업 내용**: `activeRunRef` 선언·`new AbortController()`·canceller 본문·언마운트 cleanup의 **run 처리**·`finally` 정리 블록을 `useAiRun({ kind: "oneshot" })`로 교체. 세션 생성 후 가드와 prompt 후 가드를 `isActive(run)`으로 통일하고, `prompt`에 `run.signal`을 넘긴다. `sessionRef` destroy는 `onDispose`로 이동. **catch의 세션 정리는 잔류**시키고, **`deps: [createSession]`인 provider 교체 cleanup effect도 세션 destroy만 남긴 채 유지**한다(그 deps의 의미는 언마운트가 아니라 provider 교체다).
+- **작업 내용**: `activeRunRef` 선언·`new AbortController()`·canceller 본문·언마운트 cleanup의 **run 처리**·`finally` 정리 블록을 `useAiRun({ kind: "oneshot" })`로 교체. 세션 생성 후 가드와 prompt 후 가드를 `isActive(run)`으로 통일하고, `prompt`에 `run.signal`을 넘긴다. `sessionRef` destroy는 `onDispose`로 이동. **catch의 세션 정리는 잔류**시키고, **`deps: [createSession]`인 provider 교체 cleanup effect는 `aiRun.disposeCurrent()` + 세션 destroy 둘 다** 하도록 유지한다(그 deps의 의미는 언마운트가 아니라 provider 교체이고, 헬퍼의 언마운트 effect는 안정 참조 deps라 이 경로에서 발화하지 않는다).
 - **검증**:
-  - [ ] 아래 **공통 grep** → 0건
-  - [ ] `grep -n "createSession\]" src/sidepanel/tabs/AiDraftDialog.tsx` → provider 교체 cleanup effect가 남아 있다
-  - [ ] catch 블록에 `sessionRef.current = null`이 남아 있다
-  - [ ] `pnpm typecheck` 통과
+  - [x] 아래 **공통 grep** → 0건
+  - [x] `grep -n "createSession\]" src/sidepanel/tabs/AiDraftDialog.tsx` → provider 교체 cleanup effect가 남아 있다
+  - [x] catch 블록에 `sessionRef.current = null`이 남아 있다
+  - [x] `pnpm typecheck` 통과
 
 ### Task 5: `AiStylingDialog` 이관
 
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx`
 - **작업 내용**: Task 4와 동일. `onDispose`가 `sessionRef`와 **`sessionKeyRef`를 함께** 비운다(빠뜨리면 repick 후 stale system prompt로 요청이 나간다). **세션 재사용 분기(`sessionKeyRef.current !== targetKey` 비교)와 repick 소유권 가드(`:209-216`)·`lastSentStylesRef`·`lastSentClassesRef`·`conversationCharsRef`는 취소 레인이 아니므로 건드리지 않는다.**
 - **검증**:
-  - [ ] 아래 **공통 grep** → 0건
-  - [ ] `grep -c "sessionKeyRef.current = null" src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx` → **3건 이상**(onDispose / 세션 교체 / catch)
-  - [ ] `grep -n "targetSelector\|targetFrameId" src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx` → repick 가드 존치
-  - [ ] `pnpm test --run` 전체 green
+  - [x] 아래 **공통 grep** → 0건
+  - [x] `grep -c "sessionKeyRef.current = null" src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx` → **3건 이상**(onDispose / 세션 교체 / catch)
+  - [x] `grep -n "targetSelector\|targetFrameId" src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx` → repick 가드 존치
+  - [x] `pnpm test --run` 전체 green
 
 **공통 grep (Task 3·4·5 동일 — PRD 성공 기준과 같은 명령)**
 
@@ -90,9 +92,9 @@ grep -nE "run\.cancelled|userCancelled|new AbortController|activeRunRef|runRef" 
 - **작업 내용**: **두 다이얼로그는 현재 단위 테스트가 0건**이다(`tabs/__tests__/`의 6개 파일 중 `AiDraftDialog`를 렌더하는 것이 없고, `styleEditor/__tests__/`의 13개는 전부 순수 함수 `.ts`다). 이번 리팩터가 건드리는 코드의 60%가 그물 밖이므로 취소 경로 렌더 테스트를 신설한다. 세 콜사이트 공통으로 **넘겨받은 signal을 실제로 쓰는지** 단언한다 — mock이 `options.signal`(다이얼로그는 `AISession.prompt`, repro는 `generateReproStepsWithAI({signal})`)을 보관하고, 취소 시 `aborted === true` / 게이트 왕복 시 `aborted === false`를 확인한다. 결과값만 보는 단언은 이 함정을 못 잡는다(2026-07-28).
   - 최소 케이스: **중단 시 `signal.aborted === true` + 결과 미적용 + 에러 토스트 없음**, **중단 후 재실행이 새 세션을 만든다**(Styling은 `sessionKeyRef` 리셋 확인), **정상 종료 후 재제출이 세션을 재사용한다**(규약 1·2 — 멀티턴 회귀 가드).
 - **검증**:
-  - [ ] `pnpm test` 전체 green
-  - [ ] **뮤테이션 확인**: `useAiRun.ts`의 `detach`에서 `kind` 분기를 지워 항상 `controller.abort()`하도록 1줄 바꾼 뒤 `pnpm test --run src/sidepanel/hooks/__tests__/useReproPrefill.test.tsx`가 "게이트 왕복 cleanup은 in-flight 요청을 abort하지 않는다"에서 red가 되는지 확인 → `git checkout -- src/sidepanel/hooks/useAiRun.ts`로 복구. **되돌린 상태를 커밋하지 않는다.**
-  - [ ] **뮤테이션 확인 2**: `end()`에서 current를 `null`로 비우는 줄을 지우면 Task 6의 "정상 종료 후 세션 재사용" 테스트가 red가 되는지 확인 후 복구(규약 1의 그물 증명)
+  - [x] `pnpm test` 전체 green
+  - [x] **뮤테이션 확인**: `useAiRun.ts`의 `detach`에서 `kind` 분기를 지워 항상 `controller.abort()`하도록 1줄 바꾼 뒤 `pnpm test --run src/sidepanel/hooks/__tests__/useReproPrefill.test.tsx`가 "게이트 왕복 cleanup은 in-flight 요청을 abort하지 않는다"에서 red가 되는지 확인 → `git checkout -- src/sidepanel/hooks/useAiRun.ts`로 복구. **되돌린 상태를 커밋하지 않는다.**
+  - [x] **뮤테이션 확인 2**: `end()`에서 current를 `null`로 비우는 줄을 지우면 Task 6의 "정상 종료 후 세션 재사용" 테스트가 red가 되는지 확인 후 복구(규약 1의 그물 증명)
 
 ## 테스트 계획
 

@@ -255,6 +255,20 @@ describe("useAiRun", () => {
       },
     );
 
+    // 계약: run당 최대 1회. canceller가 current를 안 비우므로 중단된 run이 settle하기
+    // 전에 재제출하면 교체 경로가 같은 run을 또 dispose하려 든다. 지금 두 콜사이트의
+    // onDispose는 멱등이지만, 비멱등 정리를 붙이는 콜사이트가 생기면 터질 구멍이다.
+    it("사용자 중단 후 재제출해도 onDispose는 run당 한 번만 불린다", () => {
+      const v = setup("oneshot");
+      begin(v);
+      act(() => v.slotRef.current!());
+      expect(v.onDispose).toHaveBeenCalledTimes(1);
+
+      begin(v);
+
+      expect(v.onDispose).toHaveBeenCalledTimes(1);
+    });
+
     // StyleCssView가 aiStylingLoading의 true→false 하강 에지를 "AI 턴 종료"로
     // 읽어 CodeMirror doc을 강행 재동기화한다 — 교체가 그 에지를 만들면
     // 포커스 중 에디터가 덮어써진다(2026-07-08).
@@ -295,8 +309,51 @@ describe("useAiRun", () => {
     });
   });
 
+  // provider 교체 cleanup처럼 run 핸들이 없는 자리에서 쓴다. 뒤늦은 end()가
+  // 정리하러 오지 않을 수도 있는 자리라 store까지 여기서 닫아야 한다.
+  describe("disposeCurrent", () => {
+    it("oneshot은 abort + onDispose + 슬롯 해제 + 로딩 off까지 한다", () => {
+      const v = setup("oneshot");
+      const run = begin(v);
+      v.setLoading.mockClear();
+
+      act(() => v.result.current.disposeCurrent());
+
+      expect(run.signal.aborted).toBe(true);
+      expect(v.result.current.isActive(run)).toBe(false);
+      expect(v.onDispose).toHaveBeenCalledTimes(1);
+      expect(v.setLoading).toHaveBeenCalledWith(false);
+      expect(v.slotRef.current).toBeNull();
+    });
+
+    it("resumable에서는 abort하지 않고 store도 안 건드린다", () => {
+      const v = setup("resumable");
+      const run = begin(v);
+      v.setLoading.mockClear();
+      v.setAiCancel.mockClear();
+
+      act(() => v.result.current.disposeCurrent());
+
+      expect(run.signal.aborted).toBe(false);
+      expect(v.setLoading).not.toHaveBeenCalled();
+      expect(v.setAiCancel).not.toHaveBeenCalled();
+    });
+
+    it("진행 중 run이 없으면 no-op이다", () => {
+      const v = setup("oneshot");
+      v.setLoading.mockClear();
+      v.setAiCancel.mockClear();
+
+      act(() => v.result.current.disposeCurrent());
+
+      expect(v.setLoading).not.toHaveBeenCalled();
+      expect(v.setAiCancel).not.toHaveBeenCalled();
+      expect(v.onDispose).not.toHaveBeenCalled();
+    });
+  });
+
   describe("참조 안정성 (규약 6)", () => {
-    it("rerender 후에도 컨트롤러와 5개 메서드의 참조가 같다", () => {
+    it("rerender 후에도 컨트롤러와 6개 메서드의 참조가 같다", () => {
       const v = setup("oneshot");
       const before = v.result.current;
 
@@ -309,6 +366,7 @@ describe("useAiRun", () => {
       expect(after.end).toBe(before.end);
       expect(after.readopt).toBe(before.readopt);
       expect(after.detach).toBe(before.detach);
+      expect(after.disposeCurrent).toBe(before.disposeCurrent);
     });
   });
 

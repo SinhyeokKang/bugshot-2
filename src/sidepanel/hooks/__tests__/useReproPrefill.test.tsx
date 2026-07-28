@@ -38,7 +38,13 @@ function actionLog(captured = 2): ActionLog {
 
 // 발화 조건을 전부 만족하는 baseline. over로 개별 게이트를 뒤집는다.
 function baseArgs(over: Record<string, unknown> = {}) {
+  // aiCancel 슬롯을 store처럼 흉내낸다 — 훅이 "슬롯이 아직 내 것인가"를 읽어 판정한다.
+  let slot: (() => void) | null = null;
   return {
+    setAiCancel: vi.fn((fn: (() => void) | null) => {
+      slot = fn;
+    }),
+    getAiCancel: () => slot,
     captureMode: "video",
     actionLog: actionLog(),
     draft: { title: "", sections: {} },
@@ -55,7 +61,6 @@ function baseArgs(over: Record<string, unknown> = {}) {
     autoReproPrefill: true,
     reproPrefillDone: false,
     setReproPrefillDone: vi.fn(),
-    setAiCancel: vi.fn(),
     ...over,
   };
 }
@@ -309,11 +314,13 @@ describe("useReproPrefill", () => {
     // 소프트 취소: 진짜 abort가 아니라 결과-폐기 가드. done은 이미 래치돼 재발화하지 않는다
     // (사용자 명시 중단 = 영구 포기 — reproPrefillDone "결과무관 1회" 설계와 일치, POSTMORTEM 2026-07-16/17).
     let resolveFn: (v: unknown) => void = () => {};
-    vi.mocked(generateReproStepsWithAI).mockReturnValue(
-      new Promise((res) => {
+    let signal: AbortSignal | undefined;
+    vi.mocked(generateReproStepsWithAI).mockImplementation((input: any) => {
+      signal = input.signal;
+      return new Promise((res) => {
         resolveFn = res;
-      }) as any,
-    );
+      }) as any;
+    });
     const setDraft = vi.fn();
     const setLoading = vi.fn();
     let cancelFn: (() => void) | null = null;
@@ -324,10 +331,13 @@ describe("useReproPrefill", () => {
     await flush();
     expect(generateReproStepsWithAI).toHaveBeenCalledTimes(1);
     expect(cancelFn).toBeTypeOf("function");
+    expect(signal?.aborted).toBe(false);
 
     // 사용자가 중단을 누른다 — in-flight 응답 도착 전.
     act(() => cancelFn!());
     expect(setLoading).toHaveBeenLastCalledWith(false);
+    // 소프트 취소가 아니라 실제 abort — 결과값만 보는 단언은 이 회귀를 못 잡는다(2026-07-28).
+    expect(signal?.aborted).toBe(true);
 
     // 늦게 도착한 결과는 폐기된다(취소 가드).
     await act(async () => {

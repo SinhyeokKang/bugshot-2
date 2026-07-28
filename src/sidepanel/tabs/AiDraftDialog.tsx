@@ -61,6 +61,8 @@ import {
   isTextOverBudget,
 } from "@/sidepanel/lib/prompts/promptBudget";
 import { defaultTitle } from "./DraftingPanel";
+import { useAiRun } from "@/sidepanel/hooks/useAiRun";
+import { getAiCancel } from "@/sidepanel/lib/aiCancelSlot";
 
 export function AiDraftDialog({
   open,
@@ -79,27 +81,28 @@ export function AiDraftDialog({
   const [input, setInput] = useState("");
   const captureMode = useEditorStore((s) => s.captureMode);
   const sessionRef = useRef<AISession | null>(null);
-  const activeRunRef = useRef<{
-    cancelled: boolean;
-    controller: AbortController;
-  } | null>(null);
   const createSessionRef = useRef(createSession);
   createSessionRef.current = createSession;
 
+  const aiRun = useAiRun({
+    kind: "oneshot",
+    setLoading: useEditorStore.getState().setAiDraftLoading,
+    setAiCancel: useEditorStore.getState().setAiCancel,
+    getAiCancel,
+    onDispose: () => {
+      sessionRef.current?.destroy?.();
+      sessionRef.current = null;
+    },
+  });
+
+  // provider 교체·언마운트 — run 정리는 disposeCurrent가, run과 무관한 세션 정리는 여기가.
   useEffect(() => {
     return () => {
-      const run = activeRunRef.current;
-      if (run) {
-        run.cancelled = true;
-        run.controller.abort();
-        activeRunRef.current = null;
-        useEditorStore.getState().setAiDraftLoading(false);
-        useEditorStore.getState().setAiCancel(null);
-      }
+      aiRun.disposeCurrent();
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
     };
-  }, [createSession]);
+  }, [createSession, aiRun]);
 
   const handleSubmit = useCallback(async () => {
     const msg = input.trim();
@@ -107,18 +110,9 @@ export function AiDraftDialog({
 
     setInput("");
     onOpenChange(false);
-    useEditorStore.getState().setAiDraftLoading(true);
 
     // 중단 시 BYOK 요청·retry를 abort하고 Chrome 세션은 destroy한 뒤 결과를 폐기한다.
-    const run = { cancelled: false, controller: new AbortController() };
-    activeRunRef.current = run;
-    useEditorStore.getState().setAiCancel(() => {
-      run.cancelled = true;
-      run.controller.abort();
-      sessionRef.current?.destroy?.();
-      sessionRef.current = null;
-      useEditorStore.getState().setAiDraftLoading(false);
-    });
+    const run = aiRun.begin();
 
     try {
       const store = useEditorStore.getState();
@@ -242,7 +236,7 @@ export function AiDraftDialog({
         systemPrompt,
         fewShot,
       );
-      if (run.cancelled || activeRunRef.current !== run) {
+      if (!aiRun.isActive(run)) {
         createdSession.destroy?.();
         return;
       }
@@ -259,10 +253,10 @@ export function AiDraftDialog({
         .prompt(msg, {
           responseSchema,
           images,
-          signal: run.controller.signal,
+          signal: run.signal,
         })
         .catch(mapQuotaError);
-      if (run.cancelled) return; // 사용자 중단 — 결과 폐기(로딩은 canceller가 이미 내렸다).
+      if (!aiRun.isActive(run)) return; // 중단·교체 — 결과 폐기(로딩은 canceller가 이미 내렸다).
 
       const parsed = parseAiDraftResponse(raw, sectionIds);
       if (parsed) {
@@ -314,19 +308,16 @@ export function AiDraftDialog({
         toast.error(t("draft.aiParseError"));
       }
     } catch (err) {
-      if (run.cancelled) return; // 사용자 중단 후 배경 호출 실패(또는 세션 null-deref)의 오탐 토스트 방지.
+      if (!aiRun.isActive(run)) return; // 중단·교체 후 배경 호출 실패(또는 세션 null-deref)의 오탐 토스트 방지.
       console.error("[AI Draft] error:", err);
       toastLlmError(err, t, "draft.aiError");
+      // 에러 경로의 세션 정리는 콜사이트에 남는다 — 취소가 아니라 onDispose가 안 닿는다.
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
     } finally {
-      if (activeRunRef.current === run) {
-        activeRunRef.current = null;
-        useEditorStore.getState().setAiCancel(null);
-        useEditorStore.getState().setAiDraftLoading(false);
-      }
+      aiRun.end(run);
     }
-  }, [input, captureMode, capabilities, elementStyleElements, onOpenChange, t]);
+  }, [input, captureMode, capabilities, elementStyleElements, onOpenChange, t, aiRun]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {

@@ -10,6 +10,8 @@
 
 **`src/sidepanel/hooks/useAiRun.ts`** — 취소 레인 단일 출처. run 생성·재개·가드·종료 정리와 `aiCancel` 등록/해제, **oneshot의 언마운트 정리**를 담당한다. 세션 destroy 같은 콜사이트 고유 정리는 `onDispose` 콜백으로 위임한다(헬퍼가 `AISession`을 알 필요가 없다).
 
+**`src/sidepanel/lib/aiCancelSlot.ts`** — `getAiCancel` 라이브 리더 한 줄. 규약 5의 슬롯 소유권 판정에는 슬롯을 **읽어야** 하는데, 헬퍼가 store를 알면 안 되므로 콜사이트가 주입한다. 세 콜사이트가 같은 한 줄을 복제하지 않도록 여기 단일화한다.
+
 **`src/sidepanel/hooks/__tests__/useAiRun.test.tsx`** — 훅 단위 테스트(jsdom·`renderHook`).
 
 ### 변경 파일
@@ -21,14 +23,14 @@
 → 동일하게 교체. `onDispose`가 `sessionRef`와 `sessionKeyRef`를 함께 비운다. **세션 재사용(`sessionKeyRef` 일치 시 멀티턴)과 repick 가드(`:209-216`)는 취소 레인이 아니므로 그대로 잔류.**
 
 **`src/sidepanel/hooks/useReproPrefill.ts`** (현재: 재현 단계 자동 채움. `runRef`·re-adopt 분기·cleanup abort 금지 주석 보유)
-→ `useAiRun({ kind: "resumable", ... })`로 교체. re-adopt 분기가 `readopt()` 호출로, cleanup이 `detach(run)`으로 축약된다. `reproPrefillDone` 래치는 그대로 콜사이트에 남는다(헬퍼는 래치를 모른다). `setLoading`·`setAiCancel`을 인자로 받는 **기존 DI 시그니처(`UseReproPrefillArgs`)는 유지**하고, 그대로 `useAiRun` config에 흘려보낸다.
+→ `useAiRun({ kind: "resumable", ... })`로 교체. re-adopt 분기가 `readopt()` 호출로, cleanup이 `detach(run)`으로 축약된다. `reproPrefillDone` 래치는 그대로 콜사이트에 남는다(헬퍼는 래치를 모른다). `setLoading`·`setAiCancel`을 인자로 받는 **기존 DI 시그니처(`UseReproPrefillArgs`)는 유지**하고, 규약 5용 `getAiCancel`을 **필수 필드로 하나 추가**해(주입처 `DraftingPanel`) 셋 다 `useAiRun` config에 흘려보낸다.
 
 ### 콜사이트에 잔류하는 것 (헬퍼가 가져가지 않는다)
 
 세 가지를 명시적으로 남긴다 — 옮기면 회귀한다.
 
 1. **catch 경로의 세션 정리.** 현재 두 다이얼로그의 catch는 토스트 뒤에 세션을 destroy하고 Styling은 `sessionKeyRef`까지 비운다(`AiDraftDialog.tsx:316-321`, `AiStylingDialog.tsx:265-271`). 이건 취소가 아니라 **에러** 경로라 `onDispose`도 `end()`도 커버하지 않는다. 빠뜨리면 `AiContextOverflowError`·auth 에러 후 **망가진 세션과 stale `sessionKeyRef`가 영구 재사용**된다(`sessionKeyRef`가 살아 있어 재생성 분기도 통과 못 한다).
-2. **provider 교체용 cleanup.** 두 다이얼로그의 cleanup effect deps는 `[]`가 아니라 `[createSession]`이라 provider 설정 변경 시에도 발화해 세션을 destroy한다. run 처리만 헬퍼로 가고, **run 유무와 무관한 세션 destroy는 이 effect에 남는다**.
+2. **provider 교체용 cleanup.** 두 다이얼로그의 cleanup effect deps는 `[]`가 아니라 `[createSession]`이라 provider 설정 변경 시에도 발화한다. 이 effect는 **두 가지**를 한다 — `aiRun.disposeCurrent()`(run 정리)와, **run 유무와 무관한 세션 destroy**(`sessionRef`가 run보다 오래 살아 `onDispose`로 접을 수 없다). 헬퍼의 언마운트 effect는 deps가 안정 참조라 provider 교체에서 발화하지 않으므로, 이 한 줄이 없으면 **세션은 죽고 run은 살아남아** 로딩·슬롯이 요청 settle까지 방치된다.
 3. **repick 소유권 가드.** `AiStylingDialog.tsx:209-216`의 selection identity 체크는 취소 레인과 별개 메커니즘이다. `lastSentStylesRef`·`lastSentClassesRef`·`conversationCharsRef`도 마찬가지.
 
 ### 변경 없음
@@ -106,6 +108,12 @@ export interface AiRunController {
   readopt(): AiRun | null;
   /** effect cleanup. cancelled만 세우고 store는 건드리지 않는다. kind가 abort 여부를 결정한다. */
   detach(run: AiRun): void;
+  /**
+   * run 핸들 없이 정리해야 하는 자리용. oneshot은 abort + onDispose + 슬롯 해제 +
+   * 로딩 off까지 하고, resumable은 no-op다(콜사이트 detach가 담당).
+   * 헬퍼의 언마운트 effect와 콜사이트의 provider 교체 cleanup이 **같은 함수를 공유**한다.
+   */
+  disposeCurrent(): void;
 }
 
 export function useAiRun(config: {
@@ -114,32 +122,37 @@ export function useAiRun(config: {
   setLoading: (loading: boolean) => void;
   /** editor-store의 aiCancel 슬롯 setter. 주입받는다(store 직접 접근 아님). */
   setAiCancel: (fn: (() => void) | null) => void;
-  /** 취소·교체 시 콜사이트 고유 정리(세션 destroy 등). */
+  /** 슬롯 라이브 리더. 규약 5의 소유권 비교에 필수 — setter만으로는 판정할 수 없다. */
+  getAiCancel: () => (() => void) | null;
+  /** 취소·교체 시 콜사이트 고유 정리(세션 destroy 등). **run당 최대 1회** 보장. */
   onDispose?: (run: AiRun) => void;
 }): AiRunController;
 ```
 
 ### 규약 (구현이 지켜야 하는 것)
 
-이 6개가 이번 설계의 실질이다. 어긋나면 아래 각 항에 적힌 회귀가 난다.
+이 7개가 이번 설계의 실질이다. 어긋나면 아래 각 항에 적힌 회귀가 난다.
 
 1. **`end(run)`은 current 포인터를 `null`로 비운다.** 안 비우면 다음 `begin()`이 정상 종료한 run을 "직전 run"으로 보고 `onDispose`를 불러, **`AiStylingDialog`의 멀티턴 세션이 두 번째 제출부터 매번 파괴**된다(에러 없이 "AI가 직전 지시를 잊는" 품질 저하로만 나타난다).
 2. **`begin()`의 `onDispose`는 미종료 run에만.** 위 1의 뒷면이다. 정상 종료 뒤의 `begin()`은 `onDispose`를 부르지 않는다 — **세션 재사용이 이에 의존한다.**
 3. **`begin()`의 교체 경로는 `userCancelled`를 세우지 않는다.** 사용자가 누른 적 없는 run에 그 플래그가 서면 이름과 의미가 어긋나 이후 디버깅에서 오독을 낳는다(회고 5건이 전부 "이름과 실제가 어긋난 자리"에서 났다).
 4. **`detach(run)`은 store를 절대 건드리지 않고 current 포인터도 유지한다.** store를 건드리면 게이트 왕복 한 번에 `setAiCancel(null)`+`setLoading(false)`가 나가 **in-flight 요청은 살아 있는데 중단 수단이 사라지고 오버레이가 걷힌다**(시나리오 4·5 동시 파괴). 반대로 current를 비우면 그 run의 `end()`가 no-op이 되어 **스피너가 영구 고착**된다 — 게이트 OFF 후 `begin()`이 다시 안 불리는 경로에서 `end()`가 유일한 로딩 해제자이기 때문이다(기존 테스트 `useReproPrefill.test.tsx:582`가 이를 고정 중).
 5. **`end()`의 슬롯 해제는 "자기가 등록한 canceller일 때만".** 등록한 함수 참조와 현재 슬롯 값을 비교한다. `current === run` 가드만으로는 부족하다 — 뒤늦게 settle한 run이 다른 surface가 방금 등록한 canceller를 덮는 crossover가 실재한다(PRD 목표 5).
-6. **컨트롤러 객체와 5개 메서드는 마운트 동안 참조가 안정적이다**(`useMemo`/`useRef`). `useReproPrefill`의 effect deps 배열에 들어가므로, 매 렌더 새 객체면 **재실행→cleanup→readopt 루프**가 된다 — 정확히 2026-07-16/17 지형이다. 저장소의 다른 훅들은 반환 객체를 안정화하지 않으므로 이건 관례가 아니라 **이 훅의 명시 규약**이다.
+6. **`onDispose`는 run당 최대 1회 불린다.** canceller가 current를 비우지 않으므로, 중단된 run이 settle하기 전에 재제출하면 `begin()`의 교체 경로가 같은 run을 또 dispose하려 든다. 현재 두 콜사이트의 `onDispose`는 멱등이라 오늘은 무해하지만, 세션 카운터·analytics 같은 **비멱등 정리를 붙이는 네 번째 콜사이트에서 터질 계약 구멍**이라 `disposed` 플래그로 닫는다.
+7. **컨트롤러 객체와 6개 메서드는 마운트 동안 참조가 안정적이다**(`useMemo`/`useRef`). `useReproPrefill`의 effect deps 배열에 들어가므로, 매 렌더 새 객체면 **재실행→cleanup→readopt 루프**가 된다 — 정확히 2026-07-16/17 지형이다. 저장소의 다른 훅들은 반환 객체를 안정화하지 않으므로 이건 관례가 아니라 **이 훅의 명시 규약**이다.
 
 ### `readopt()`의 유효 범위
 
 `readopt()`는 **같은 훅 인스턴스 안에서만** 유효하다. run을 훅 내부 `useRef`로 보유하므로 진짜 언마운트-재마운트 시 ref가 비고 `readopt()`는 `null`을 반환한다 — 이때 `reproPrefillDone`은 store 영속이라 `true`로 남아 그 세션 동안 prefill은 재발화하지 않는다. **이건 현행 `useReproPrefill`과 동일한 동작이며 의도된 것이다.** re-adopt가 실제로 작동하는 범위는 동일 인스턴스의 게이트 왕복과 StrictMode 이중 effect뿐이다. 이 문장이 없으면 구현자가 "개선"이라며 run을 module scope나 store로 올릴 유인이 생긴다 — 대안 (D) 기각 사유 위반이다.
 
-### 언마운트 처리
+### 언마운트 · provider 교체 처리
 
-`useAiRun` 내부에 언마운트 effect를 둔다.
+둘은 **같은 함수(`disposeCurrent`)를 공유**한다 — 둘 다 "이 run은 끝났고 뒤늦은 `end()`가 정리하러 오지 않을 수도 있다"는 자리다.
 
-- `oneshot`: 진행 중 run이 있으면 abort + `onDispose` + `setLoading(false)` + 슬롯 해제.
+- `oneshot`: 진행 중 run이 있으면 abort + `onDispose` + 슬롯 해제 + `setLoading(false)`.
 - `resumable`: 무동작. 콜사이트 effect의 `detach`가 이미 처리하고, 여기서 abort하면 2026-07-28이 재발한다.
+
+호출자는 둘이다 — 헬퍼 **내부**의 언마운트 effect, 그리고 **콜사이트**의 `[createSession]` cleanup(provider 교체). 후자를 콜사이트가 불러야 하는 이유는 헬퍼의 언마운트 effect가 안정 참조 deps라 provider 교체에서 발화하지 않기 때문이다.
 
 `oneshot`의 로딩 해제를 `finally`가 대신할 수 없다는 점이 중요하다 — cleanup이 current를 비운 뒤라 `finally`의 `end(run)`이 가드에 걸려 스킵된다. 이 경로가 빠지면 "초안 실행 중 패널 닫기 → 재오픈 시 스피너 고착"이 재발한다.
 
@@ -173,11 +186,12 @@ const handleSubmit = useCallback(async () => {
   }
 }, [...]);
 
-// provider 교체·언마운트 시 세션 정리는 콜사이트에 남는다(run 처리는 헬퍼가 한다)
+// provider 교체·언마운트 — run 정리는 disposeCurrent가, run과 무관한 세션 정리는 여기가.
 useEffect(() => () => {
+  aiRun.disposeCurrent();
   sessionRef.current?.destroy?.();
   sessionRef.current = null;
-}, [createSession]);
+}, [createSession, aiRun]);
 ```
 
 ```ts
@@ -215,8 +229,8 @@ useEffect(() => {
 | `AbortController` 위치 | Draft/Styling은 run 객체 안, repro는 밖 | run 객체 안(`run.signal`) | 없음 |
 | `setAiCancel(null)` 시점 | repro는 canceller 안 + finally, 둘은 finally만 | `end()` 한 곳 | 없음 |
 | `setAiCancel(null)` **가드** | 자기 `runRef` 비교 (슬롯 정체성 아님) | **등록한 canceller 참조 비교** | **있음 — crossover 버그 수정**. 뒤늦게 settle한 run이 다른 surface의 중단 버튼을 무음으로 죽이던 경로가 닫힌다(PRD 목표 5) |
-| cleanup의 store 정리 | **Draft/Styling은 `setLoading(false)`+`setAiCancel(null)` 수행, repro는 미수행** | `detach`는 store 무접촉. oneshot의 store 정리는 헬퍼 언마운트 effect가 담당 | 없음(경로만 이동) |
-| cleanup effect deps | Draft/Styling `[createSession]`(provider 교체 시에도 발화), repro는 별도 cleanup effect 없음 | 세션 destroy는 콜사이트 effect에 잔류(deps 유지), run 처리만 헬퍼로 | 없음 |
+| cleanup의 store 정리 | **Draft/Styling은 `setLoading(false)`+`setAiCancel(null)` 수행, repro는 미수행** | `detach`는 store 무접촉. oneshot의 store 정리는 `disposeCurrent`가 담당(언마운트 + provider 교체 양쪽) | 없음(경로만 이동) |
+| cleanup effect deps | Draft/Styling `[createSession]`(provider 교체 시에도 발화), repro는 별도 cleanup effect 없음 | 콜사이트 effect가 `disposeCurrent()` + 세션 destroy를 하고 deps는 그대로 | 없음 |
 | run 없는 세션 destroy | Draft/Styling cleanup은 `if (run)` **밖**에서 세션 destroy | 콜사이트 effect에 잔류 | 없음 |
 | `setLoading(false)` 조건 | Draft/Styling은 현재 run일 때만, repro는 무조건 | 현재 run일 때만 | repro만 해당. 래치로 run이 하나뿐이라 실질 동일하고, stale run이 새 run의 로딩을 끄는 잠재 버그가 닫힌다. **단 규약 4(detach가 current 유지)를 지켜야 등가다** |
 | 재개 지점 가드 | `run.cancelled` / `run.cancelled \|\| activeRef !== run` 혼재 | `isActive(run)` 단일 | **있음** — Draft/Styling의 prompt 후 가드가 현재-run 판정까지 하게 되어 더 엄격해진다(시나리오 7) |
@@ -229,7 +243,7 @@ useEffect(() => {
 ## 기존 패턴 준수
 
 - **`aiCancel` 단일 슬롯**(`editor-store.ts:189`·`:505`) — 비영속, `EditorSnapshot` Pick 제외. 헬퍼가 등록·해제만 하고 슬롯 구조는 그대로.
-- **setter 주입(DI)** — `useReproPrefill`은 store를 import하지 않고 `setLoading`·`setAiCancel`을 인자로 받는다(`useReproPrefill.ts:30-32`, 주입처 `DraftingPanel.tsx:151`). 기존 테스트가 바로 그 주입으로 canceller를 낚아채므로(`useReproPrefill.test.tsx:320`·`:353`), `useAiRun`도 **둘 다 config로 받는다**. store 직접 접근으로 가면 무관한 테스트 재작성이 딸려온다.
+- **setter 주입(DI)** — `useReproPrefill`은 store를 import하지 않고 `setLoading`·`setAiCancel`을 인자로 받는다(`useReproPrefill.ts:30-32`, 주입처 `DraftingPanel.tsx:151`). 기존 테스트가 바로 그 주입으로 canceller를 낚아채므로(`useReproPrefill.test.tsx:320`·`:353`), `useAiRun`도 **셋 다 config로 받는다**(`setLoading`·`setAiCancel`·`getAiCancel`). store 직접 접근으로 가면 무관한 테스트 재작성이 딸려온다.
 - **소프트 취소 3짝**(2026-07-21 회고) — canceller 등록 / 결과 폐기 가드 / **catch 최상단 가드**. 세 짝이 전부 헬퍼 API로 표현되어 콜사이트가 하나를 빠뜨릴 수 없게 된다.
 - **`store`는 `sidepanel/tabs`를 import하지 않는다** — 헬퍼는 `hooks/`에 두고 store를 import하는 방향만 유지(역방향 없음).
 - **테스트 2트랙** — 훅이므로 `*.test.tsx`(jsdom + `renderHook`). `src/test/setup-dom.ts`가 cleanup·폴리필을 제공한다.
@@ -244,7 +258,7 @@ useEffect(() => {
 
 **(D) run 상태를 zustand store로 승격.** 2026-07-17이 "zustand 전이와 React state가 다른 레인이라 한 렌더가 샌다"였다. 레인을 늘리는 방향이라 기각. run은 ref로만 산다.
 
-**(E) 훅이 아닌 순수 팩토리(`createAiRunLane`).** 헬퍼의 상태는 ref 하나뿐이고 React API가 필요한 곳이 없다 — 팩토리면 컨트롤러 identity 안정성 문제(규약 6)가 소멸하고, `renderHook` 없이 node 트랙 `*.test.ts`로 테스트되며, 기존 setter 주입 패턴과 결이 같다. 그러나 **언마운트 정리를 콜사이트가 1줄씩 붙여야 한다** — "cleanup에서 뭘 할지"가 다시 콜사이트 판단이 되므로 대안 (C)와 같은 실수다. `oneshot` 언마운트 로직을 헬퍼 안에 가두는 것이 이번 목표 3의 실질이라 기각. identity는 규약 6으로 명시해 해결한다.
+**(E) 훅이 아닌 순수 팩토리(`createAiRunLane`).** 헬퍼의 상태는 ref 하나뿐이고 React API가 필요한 곳이 없다 — 팩토리면 컨트롤러 identity 안정성 문제(규약 6)가 소멸하고, `renderHook` 없이 node 트랙 `*.test.ts`로 테스트되며, 기존 setter 주입 패턴과 결이 같다. 그러나 **언마운트 정리를 콜사이트가 1줄씩 붙여야 한다** — "cleanup에서 뭘 할지"가 다시 콜사이트 판단이 되므로 대안 (C)와 같은 실수다. `oneshot` 언마운트 로직을 헬퍼 안에 가두는 것이 이번 목표 3의 실질이라 기각. identity는 규약 7로 명시해 해결한다. *(단서: 구현 결과 provider 교체 때문에 콜사이트가 `disposeCurrent()` 1줄을 붙이게 됐다 — 이 기각 근거의 전제가 부분적으로 약해졌다. 다만 **무엇을 할지는 여전히 `kind`가 결정**하고 헬퍼의 언마운트 effect가 안전망으로 남아, "cleanup 판단이 콜사이트로 되돌아간다"는 핵심 우려는 성립하지 않는다.)*
 
 ## 위험 요소
 
