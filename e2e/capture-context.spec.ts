@@ -15,8 +15,11 @@ const MARGIN = 24;
 // captureVisibleTab이 실제 backing store 해상도로 찍은 값인데, Playwright는 페이지의
 // devicePixelRatio를 1로 고정하므로 페이지에서 읽은 DPR로는 배율을 복원할 수 없다.
 // 종횡비는 배율이 약분돼 사라지므로 "어느 rect로 잘랐나"를 배율 없이 판정한다.
-async function afterImageAspect(panel: Page): Promise<number> {
-  const img = panel.getByTestId("snapshot-after");
+async function snapshotAspect(
+  panel: Page,
+  which: "before" | "after",
+): Promise<number> {
+  const img = panel.getByTestId(`snapshot-${which}`);
   await expect(img).toBeVisible();
   return img.evaluate(async (el) => {
     const image = el as HTMLImageElement;
@@ -80,6 +83,17 @@ async function assertGatesSatisfied(
   expect(gates.areaRatio).toBeLessThanOrEqual(0.4);
 }
 
+// pick 직후 발행되는 **before 캡처**가 background 직렬 큐에서 빠져나올 때까지 fixture를 앞에 둔다.
+// 이걸 안 하면 typeStyleValue가 패널을 앞으로 가져오고, 큐가 그 캡처에 도달했을 때
+// captureOwnedTab의 tab.active 재확인에서 거부된다 — before 기준이 저장되지 않아 after만
+// 요소 bbox로 폴백하고, 증상은 "확장이 안 걸림"으로만 보인다. after 캡처와 달리 before는
+// 재시도 지점이 없어서 여기서 한 번 놓치면 그대로 끝난다.
+// 대기는 timeout 늘리기가 아니라 캡처 큐·quota 주기(~500ms 간격 + 백오프)에 맞춘 간격이다.
+async function settleBeforeCapture(fixture: Page): Promise<void> {
+  await fixture.bringToFront();
+  await fixture.waitForTimeout(1500);
+}
+
 // [다음]은 aria-disabled+클릭 가드라 actionability가 막지 않는다 — 부재 단언이 필수.
 // 캡처 관문(captureOwnedTab)이 tab.active를 재확인하므로 fixture를 앞에 두고 evaluate 클릭한다.
 async function proceedToDrafting(panel: Page, fixture: Page): Promise<void> {
@@ -108,6 +122,7 @@ test.describe("element 캡처 컨텍스트 확장", () => {
 
     await assertGatesSatisfied(fixture, "#modal", "#modal-btn");
     await enterDebugAndPick(fixture, panel, "#modal-btn");
+    await settleBeforeCapture(fixture);
     await typeStyleValue(panel, "color", "#ff0000");
     await expect(fixture.locator("#modal-btn")).toHaveCSS("color", "rgb(255, 0, 0)");
 
@@ -115,7 +130,10 @@ test.describe("element 캡처 컨텍스트 확장", () => {
 
     // 확장이 걸리면 크롭 기준이 버튼이 아니라 다이얼로그다.
     const { container } = await assertHypothesesSeparable(fixture, "#modal", "#modal-btn");
-    expect(await afterImageAspect(panel)).toBeCloseTo(container, 1);
+    // before까지 본다 — before가 유실되면 after는 조용히 요소 bbox로 떨어지므로,
+    // 이 단언이 없으면 "구현 회귀"와 "before 캡처 실패"가 같은 실패로 보인다.
+    expect(await snapshotAspect(panel, "before")).toBeCloseTo(container, 1);
+    expect(await snapshotAspect(panel, "after")).toBeCloseTo(container, 1);
 
     await panel.close();
     await fixture.close();
@@ -130,6 +148,7 @@ test.describe("element 캡처 컨텍스트 확장", () => {
     const panel = await ext.openPanel(tabId);
 
     await enterDebugAndPick(fixture, panel, "#plain-btn");
+    await settleBeforeCapture(fixture);
     await typeStyleValue(panel, "color", "#ff0000");
     await expect(fixture.locator("#plain-btn")).toHaveCSS("color", "rgb(255, 0, 0)");
 
@@ -138,7 +157,8 @@ test.describe("element 캡처 컨텍스트 확장", () => {
     // div 체인은 후보가 아니므로 요소 bbox + 사방 마진에 머문다.
     // 대조군은 같은 페이지의 모달 — 확장이 잘못 걸렸다면 그쪽 종횡비가 나온다.
     const { element } = await assertHypothesesSeparable(fixture, "#modal", "#plain-btn");
-    expect(await afterImageAspect(panel)).toBeCloseTo(element, 1);
+    expect(await snapshotAspect(panel, "before")).toBeCloseTo(element, 1);
+    expect(await snapshotAspect(panel, "after")).toBeCloseTo(element, 1);
 
     await panel.close();
     await fixture.close();
@@ -197,7 +217,8 @@ test.describe("element 캡처 컨텍스트 확장", () => {
 
     // before가 확정한 기준(다이얼로그)으로 after도 찍힌다.
     const { container } = await assertHypothesesSeparable(fixture, "#modal", "#modal-btn");
-    expect(await afterImageAspect(panel)).toBeCloseTo(container, 1);
+    expect(await snapshotAspect(panel, "before")).toBeCloseTo(container, 1);
+    expect(await snapshotAspect(panel, "after")).toBeCloseTo(container, 1);
 
     await panel.close();
     await fixture.close();
