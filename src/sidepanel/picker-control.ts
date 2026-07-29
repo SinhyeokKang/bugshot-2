@@ -475,7 +475,9 @@ export async function rebindStylingSession(tabId: number): Promise<void> {
   if (!sel) return;
   // 승격 경로 재사용: 현재 요소를 버퍼에 넣고 재선택하면 onElementSelected가
   // styleEdits·snapshot baseline·before/after 이미지를 그대로 복원한다.
-  useEditorStore.getState().bufferCurrentElement(state.afterImage);
+  useEditorStore
+    .getState()
+    .bufferCurrentElement(state.afterImage, state.captureContext ?? undefined);
   await selectByPath(tabId, selFrameId, sel.selector);
 }
 
@@ -492,11 +494,16 @@ async function armFrameOffsetIfIframe(
 export async function prepareCapture(
   tabId: number,
   frameId: number,
+  options: { expandContext?: boolean; contextSelector?: string } = {},
 ): Promise<PrepareCaptureResponse | null> {
   await armFrameOffsetIfIframe(tabId, frameId);
   const res = await send<PrepareCaptureResponse>(
     tabId,
-    { type: "picker.prepareCapture" },
+    {
+      type: "picker.prepareCapture",
+      expandContext: options.expandContext,
+      contextSelector: options.contextSelector,
+    },
     frameId,
   );
   return res ?? null;

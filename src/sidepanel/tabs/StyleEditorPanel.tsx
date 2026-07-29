@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Code2, Crosshair, Paintbrush, RotateCcw, Sparkles } from "lucide-react";
+import { Code2, Crosshair, Loader2, Paintbrush, RotateCcw, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { useBufferThenSwitch } from "@/sidepanel/hooks/useBufferThenSwitch";
 import { hasStyleChange } from "@/sidepanel/lib/hasStyleChange";
 import { sectionDefaultOpen } from "@/sidepanel/lib/sectionDefaultOpen";
 import { captureElementSnapshot } from "@/sidepanel/capture";
+import { shouldExpandAfter } from "@/sidepanel/lib/capture-basis";
 import {
   applyClasses,
   applyText,
@@ -130,6 +131,7 @@ export function SelectedPanel() {
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const bufferedElements = useEditorStore((s) => s.bufferedElements);
   const setAfterImage = useEditorStore((s) => s.setAfterImage);
+  const beforeCapturePending = useEditorStore((s) => s.beforeCapturePending);
   const confirmStyles = useEditorStore((s) => s.confirmStyles);
   const reset = useEditorStore((s) => s.reset);
   const styleEditorView = useSettingsUiStore((s) => s.styleEditorView);
@@ -153,10 +155,14 @@ export function SelectedPanel() {
     try {
       // 현재 element에 변경이 있을 때만 after 스냅샷 캡처(없으면 버퍼만 들고 진행).
       if (hasChange) {
-        const img = await captureElementSnapshot(tabId, {
+        // await 전에 떠 둔다 — 캡처 창 동안 선택이 바뀌면 기준이 갈린다.
+        const context = useEditorStore.getState().captureContext;
+        const result = await captureElementSnapshot(tabId, {
           frameId: selection?.frameId ?? 0,
+          expandContext: shouldExpandAfter(context),
+          context: context ?? undefined,
         });
-        setAfterImage(img);
+        setAfterImage(result?.image ?? null);
       } else {
         // 버퍼 승격으로 복원된 afterImage가 diff 0건인 채 저장되는 것 방지.
         setAfterImage(null);
@@ -167,10 +173,17 @@ export function SelectedPanel() {
     }
   };
 
-  const nextDisabled = proceeding || !canProceed;
+  // before 캡처가 날아가는 동안 after를 찍으면 둘이 다른 기준을 쓴다. 잠금이 의미를 갖는 건
+  // 사용자가 원래 진행할 수 있었을 때뿐 — canProceed를 안 보면 편집 전 선택 직후에도 스피너가 돈다.
+  const nextBusy = proceeding || (beforeCapturePending && canProceed);
+  const nextDisabled = nextBusy || !canProceed;
   const nextButton = (
     <Button
-      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+      // 스피너를 든 동안만 opacity-50을 뺀다 — diff 0건 비활성은 흐려야 눌리지 않음이 읽힌다.
+      className={cn(
+        "aria-disabled:cursor-not-allowed",
+        !nextBusy && "aria-disabled:opacity-50",
+      )}
       aria-disabled={nextDisabled}
       data-testid="next-step"
       onClick={() => {
@@ -178,6 +191,7 @@ export function SelectedPanel() {
         void handleNext();
       }}
     >
+      {nextBusy && <Loader2 className="animate-spin" />}
       {t("common.next")}
     </Button>
   );

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { PlatformId } from "@/types/platform";
 import type { EnvironmentRow } from "@/types/environment";
+import type { CaptureContext } from "@/types/picker";
 import { migrateIssueToV4 } from "./issues-migrations";
 import { failClosedLocalStorage } from "./chrome-storage";
 import { useEditorStore, type CaptureMode } from "./editor-store";
@@ -175,6 +176,9 @@ export interface IssueBufferedElement {
   selectionSnapshot: IssueSelectionSnapshot;
   hasBefore: boolean;
   hasAfter: boolean;
+  // 적재 시점의 캡처 기준. 아직 읽는 곳이 없다 — IssueRecord → editor-store 복원 경로가
+  // 코드베이스에 없어서, 그 경로가 생길 때 쓰라고 저장만 해 둔다.
+  captureContext?: CaptureContext;
 }
 
 export interface IssueRecord {
@@ -199,6 +203,8 @@ export interface IssueRecord {
   draft: IssueDraftContent;
   styleEdits?: IssueStyleEdits;
   snapshot: IssueSnapshot;
+  // 현재 element의 캡처 기준. 위 IssueBufferedElement와 같은 이유로 아직 읽는 곳이 없다.
+  captureContext?: CaptureContext;
 
   // 초안 재제출을 위한 풀 컨텍스트. 구 초안은 없을 수 있음 (optional).
   selectionSnapshot?: IssueSelectionSnapshot;

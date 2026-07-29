@@ -18,9 +18,9 @@
   - `.test.tsx` (jsdom) — `findContextAncestor` DOM 탐색 + `resolveContextRect` after 재검증
   - `findContextAncestor`는 computed style을 읽지 않으므로 **인라인 스타일 지정이 불필요**하다. "셀렉터 목록에 없는 태그·role은 후보가 아니다"를 검증하는 형태로 쓴다.
 - **검증**:
-  - [ ] `pnpm test` 실행 시 두 파일이 "함수 없음"으로 실패한다(red 확인)
-  - [ ] 아래 테스트 계획의 케이스가 모두 포함돼 있다
-  - [ ] 대조군 확인 — `STRUCTURE_SELECTOR`에 `div`를 임시로 추가하면 "시맨틱 없는 div 체인" 케이스가 red가 된다(가드를 무력화해 red를 확인)
+  - [x] `pnpm test` 실행 시 두 파일이 "함수 없음"으로 실패한다(red 확인)
+  - [x] 아래 테스트 계획의 케이스가 모두 포함돼 있다
+  - [x] 대조군 확인 — `STRUCTURE_SELECTOR`에 `div`를 임시로 추가하면 "시맨틱 없는 div 체인" 케이스가 red가 된다(가드를 무력화해 red를 확인)
 
 ### Task 2: `capture-context.ts` 구현 (green)
 
@@ -28,11 +28,11 @@
 - **작업 내용**: `CONTEXT_MAX_VIEWPORT_RATIO`(=0.4), `OVERLAY_SELECTOR`, `STRUCTURE_SELECTOR`, `findContextAncestor`, `passesContextGates`, `resolveContextRect`를 design.md 시그니처대로 구현. rect 측정·DOM 조회는 하지 않는다(인자로 받는다).
   - G2는 `elementRect`가 0×0이면 생략한다(`display:none`·detach). DOM 포함 검증은 `resolveContextRect`가 `found.contains(target)`으로 맡는다.
 - **검증**:
-  - [ ] Task 1의 테스트가 전부 통과
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 모달 안 `<tr>` 케이스에서 다이얼로그가 아니라 `<tr>`이 반환됨(최근접 우선)
-  - [ ] `form`·landmark·`[role="group"]`·시맨틱 없는 div는 후보가 아님
-  - [ ] `elementRect` 0×0이면 G2를 건너뛰고 G1·G3만 적용
+  - [x] Task 1의 테스트가 전부 통과
+  - [x] `pnpm typecheck` 통과
+  - [x] 모달 안 `<tr>` 케이스에서 다이얼로그가 아니라 `<tr>`이 반환됨(최근접 우선)
+  - [x] `form`·landmark·`[role="group"]`·시맨틱 없는 div는 후보가 아님
+  - [x] `elementRect` 0×0이면 G2를 건너뛰고 G1·G3만 적용
 
 ### Task 3: picker 타입 확장
 
@@ -42,8 +42,8 @@
   - `PrepareCaptureResponse`에 `scrollX`·`scrollY` 추가, `contextSelector?: string | null` 추가
   - `PickerMessage` 유니온의 `picker.prepareCapture`에 `expandContext?: boolean`·`contextSelector?: string` 추가. **`prepareCaptureBySelector`에는 추가하지 않는다**(확장 미적용 경로)
 - **검증**:
-  - [ ] `pnpm typecheck` 통과 (기존 호출부가 optional이라 깨지지 않음)
-  - [ ] `PickerMessage`에 `| null` 필드를 넣지 않았다 — 호출부에서 `?? undefined` 변환
+  - [x] `pnpm typecheck` 통과 (기존 호출부가 optional이라 깨지지 않음)
+  - [x] `PickerMessage`에 `| null` 필드를 넣지 않았다 — 호출부에서 `?? undefined` 변환
 
 ### Task 4: picker.ts에 확장 판정 통합
 
@@ -58,11 +58,11 @@
   - `handlePrepareCaptureBySelector`(`:369`)는 **손대지 않는다** — 확장 미적용. `scrollX`·`scrollY` 추가만
   - `respondWithTopRect`(`:325~346`)의 응답 조립 4경로 중 3개(`:335`·`:342`·`:345`)가 객체를 새로 만들므로 새 필드를 각각 명시적으로 넣는다
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] iframe 경로에서 확장 판정이 호출되지 않음
-  - [ ] `respondWithTopRect`의 3개 조립 분기 모두 `scrollX`·`scrollY`를 실음
-  - [ ] `expandContext`가 없으면 `findContextAncestor`를 호출하지 않음
-  - [ ] `contextSelector`가 주어지면 `findContextAncestor`를 호출하지 않음(판정 재실행 없음)
+  - [x] `pnpm typecheck` 통과
+  - [x] iframe 경로에서 확장 판정이 호출되지 않음
+  - [x] `respondWithTopRect`의 3개 조립 분기 모두 `scrollX`·`scrollY`를 실음
+  - [x] `expandContext`가 없으면 `findContextAncestor`를 호출하지 않음
+  - [x] `contextSelector`가 주어지면 `findContextAncestor`를 호출하지 않음(판정 재실행 없음)
 
 ### Task 5: capture.ts 반환 타입 변경 + 0×0 폴백
 
@@ -74,9 +74,9 @@
   - `prepareCapture` 호출 시 `expandContext`·`contextSelector` 전달 (`picker-control.ts:492` 시그니처 확장). `prepareCaptureBySelector`(`:505`)는 시그니처 변경 없음
   - `captureWithPrep`에서 rect가 0×0이면 `context`의 **viewport·scrollX·scrollY가 전부 일치할 때만** `context.rect`로 대체. 하나라도 다르면 null 반환(이미지 없음)
 - **검증**:
-  - [ ] `pnpm typecheck`가 호출부 5곳에서 타입 에러를 낸다(다음 태스크가 고칠 지점 확인)
-  - [ ] **0×0 대체 시 rect만 바꾸고 viewport는 `prep.viewport`를 쓴다** — `cropImage`의 `scale = naturalWidth / viewport.width`에서 `img`는 지금 찍은 캡처이므로 배율은 현재 뷰포트로 유도해야 한다. `context.viewport`를 쓰면 배율이 어긋난다
-  - [ ] scroll·viewport 불일치 시 stale rect를 쓰지 않고 null로 간다
+  - [x] `pnpm typecheck`가 호출부 5곳에서 타입 에러를 낸다(다음 태스크가 고칠 지점 확인)
+  - [x] **0×0 대체 시 rect만 바꾸고 viewport는 `prep.viewport`를 쓴다** — `cropImage`의 `scale = naturalWidth / viewport.width`에서 `img`는 지금 찍은 캡처이므로 배율은 현재 뷰포트로 유도해야 한다. `context.viewport`를 쓰면 배율이 어긋난다
+  - [x] scroll·viewport 불일치 시 stale rect를 쓰지 않고 null로 간다
 
 ### Task 6: store에 캡처 컨텍스트 저장
 
@@ -95,13 +95,13 @@
   - `issues-store.ts`의 `IssueRecord`(`:180`)·`IssueBufferedElement`(`:166~`)에 `captureContext?` 추가
   - `IssueRecord` 직렬화(`editor-store.ts:852~`, buffered 매핑 `:888~911`)에서 명시적으로 직렬화·복원. 레거시는 `?? null` 폴백하고 persist 버전은 올리지 않음
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 기존 `src/store/__tests__/editor-store.test.ts` 111개 테스트가 계속 통과 (`bufferCurrentElement` 호출 20곳이 전부 1-arg — optional 인자라 무영향)
-  - [ ] 요소 재선택 후 `captureContext`가 `null`로 초기화됨
-  - [ ] `backToStyling`에서는 기존 context 유지
-  - [ ] 세션 스냅샷 왕복(`snapshotFromState` → `hydrate`) 후 `captureContext` 유지
-  - [ ] `toLiteSnapshot`(quota 폴백)에서 이미지가 null이 되어도 `captureContext`는 살아남음
-  - [ ] draft 저장·복원 후 현재 요소와 버퍼 context 유지, context 없는 레거시는 폴백
+  - [x] `pnpm typecheck` 통과
+  - [x] 기존 `src/store/__tests__/editor-store.test.ts` 111개 테스트가 계속 통과 (`bufferCurrentElement` 호출 20곳이 전부 1-arg — optional 인자라 무영향)
+  - [x] 요소 재선택 후 `captureContext`가 `null`로 초기화됨
+  - [x] `backToStyling`에서는 기존 context 유지
+  - [x] 세션 스냅샷 왕복(`snapshotFromState` → `hydrate`) 후 `captureContext` 유지
+  - [x] `toLiteSnapshot`(quota 폴백)에서 이미지가 null이 되어도 `captureContext`는 살아남음
+  - [x] draft 저장·복원 후 현재 요소와 버퍼 context 유지, context 없는 레거시는 폴백
 
 ### Task 7: 호출부 연결
 
@@ -113,19 +113,19 @@
   - `StyleEditorPanel.tsx:156` (after) — **`await` 전에** `getState().captureContext`를 떠서 `context`로 전달, `expandContext: true`. `result.image`를 `setAfterImage`에
   - `StyleEditorPanel.tsx` `[다음]` 버튼 — in-flight면 `aria-disabled` + `Loader2 animate-spin`, `aria-disabled:opacity-50` 제외 (`docs/DESIGN.md:293`)
   - `useBufferThenSwitch.ts:22` — **`await` 전에** context를 떠서 전달(`usePickerMessages.ts:129~133`의 `sameSelection()` 방어와 같은 이유). 버퍼에는 `after.context`가 아니라 before에서 확정한 `captureContext` 저장
-  - `styleChangeGroups.ts:15~26` — `ChangeGroup`에 `captureContext` 필드 추가 + `buildChangeGroups`에서 통과
+  - ~~`styleChangeGroups.ts:15~26` — `ChangeGroup`에 `captureContext` 필드 추가~~ **미적용**: `ChangeGroup`을 소비하는 건 `StyleChangesDialog`/`StyleChangesTable`뿐인데 그 경로는 확장을 적용하지 않기로 확정돼(design.md 대안 7) 읽는 쪽이 영영 없다. 죽은 필드를 영속 인접 타입에 심지 않는다
   - `StyleChangesDialog.tsx:95` — 반환 타입 변경만 흡수(`.image`). **`expandContext`를 켜지 않는다**
   - `picker-control.ts:478` `rebindStylingSession` — `bufferCurrentElement(state.afterImage, state.captureContext ?? undefined)`로 2-arg 호출
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `pnpm test` 전체 통과
-  - [ ] `captureElementShot`이 `<tr>` 안 요소에서도 요소 bbox만 찍는다(확장 미적용)
-  - [ ] `StyleChangesDialog` 재캡처가 확장 없이 현행과 동일하게 동작
-  - [ ] `wasBuffered` 재선택 시 `[다음]`이 즉시 활성 (잠금 미진입)
-  - [ ] `backToStyling` 후 `[다음]`이 활성
-  - [ ] before 캡처 실패 시에도 `[다음]`이 활성 — 현행(before 없이 진행) 무회귀
-  - [ ] 패널 닫았다 열기(rebind) 후 before/after가 같은 기준을 쓴다
-  - [ ] `next-step`을 쓰는 기존 e2e spec 5개(`style-edit-flow`·`log-insert`·`action-log-scope`·`body-composition-reorder`·`style-code-view`) 무회귀
+  - [x] `pnpm typecheck` 통과
+  - [x] `pnpm test` 전체 통과
+  - [x] `captureElementShot`이 `<tr>` 안 요소에서도 요소 bbox만 찍는다(확장 미적용)
+  - [x] `StyleChangesDialog` 재캡처가 확장 없이 현행과 동일하게 동작
+  - [x] `wasBuffered` 재선택 시 `[다음]`이 즉시 활성 (잠금 미진입)
+  - [x] `backToStyling` 후 `[다음]`이 활성
+  - [x] before 캡처 실패 시에도 `[다음]`이 활성 — 현행(before 없이 진행) 무회귀
+  - [x] 패널 닫았다 열기(rebind) 후 before/after가 같은 기준을 쓴다
+  - [x] `next-step`을 쓰는 기존 e2e spec 5개(`style-edit-flow`·`log-insert`·`action-log-scope`·`body-composition-reorder`·`style-code-view`) 무회귀
 
 ### Task 8: e2e spec 작성
 

@@ -77,6 +77,7 @@ function snapshotFromState(): EditorSnapshot {
     tokens: s.tokens,
     beforeImage: s.beforeImage,
     afterImage: s.afterImage,
+    captureContext: s.captureContext,
     bufferedElements: s.bufferedElements,
     screenshotRaw: s.screenshotRaw,
     screenshotAnnotated: s.screenshotAnnotated,

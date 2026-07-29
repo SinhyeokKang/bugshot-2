@@ -92,12 +92,13 @@ export function StyleChangesDialog() {
     });
     // 잔여 diff가 있고 DOM이 실제 원복된 경우만 after 스냅샷 재캡처(미원복은 모순 이미지 방지).
     if (remaining.length > 0 && found) {
-      const img = await captureElementSnapshotBySelector(tabId, group.selector, {
+      // 확장을 켜지 않는다 — live 참조가 없어 "현재 요소 포함" 재검증이 성립하지 않는다.
+      const result = await captureElementSnapshotBySelector(tabId, group.selector, {
         frameId: group.frameId,
       });
-      if (img) {
+      if (result) {
         useEditorStore.getState().patchBufferedElement(group.selector, group.frameId, {
-          afterImage: img,
+          afterImage: result.image,
         });
       }
     }

@@ -26,9 +26,25 @@ export interface ViewportRect {
   height: number;
 }
 
+// before에서 확정한 캡처 기준. after가 같은 대상을 다시 측정하는 데 쓴다.
+export interface CaptureContext {
+  // 확장 성공 시 조상 selector. null이면 폴백 경로.
+  contextSelector: string | null;
+  // 폴백 경로에서 요소 rect가 0×0이 됐을 때 재사용할 before 시점 rect.
+  rect: ViewportRect;
+  viewport: { width: number; height: number };
+  // before 시점의 스크롤. 0×0 폴백에서 좌표 신뢰 여부를 판정한다.
+  scrollX: number;
+  scrollY: number;
+}
+
 export interface PrepareCaptureResponse {
   rect: ViewportRect | null;
   viewport: { width: number; height: number };
+  scrollX: number;
+  scrollY: number;
+  // 확장이 적용됐으면 그 조상의 selector. null이면 폴백(요소 bbox) 경로.
+  contextSelector?: string | null;
 }
 
 export interface PageMetrics {
@@ -97,7 +113,10 @@ export type PickerMessage =
   | { type: "picker.previewClear" }
   | { type: "picker.selectByPath"; selector: string }
   | { type: "picker.applyEditsBySelector"; selector: string; classList: string[]; inlineStyle: Record<string, string>; text: string | null }
-  | { type: "picker.prepareCapture" }
+  // expandContext: element mode before/after만 켠다. contextSelector는 before가 확정한
+  // 조상 — after가 같은 대상을 다시 측정한다(유니온에 `| null` 선례가 없어 undefined로 싣는다).
+  | { type: "picker.prepareCapture"; expandContext?: boolean; contextSelector?: string }
+  // 이 경로는 확장을 적용하지 않으므로 확장 관련 필드가 없다.
   | { type: "picker.prepareCaptureBySelector"; selector: string }
   // iframe 캡처 직전 top(frame 0)에 전송 — offset 응답기를 1회성 arm. 페이지가 위조할 수
   // 없는 chrome 메시지 경로라 무인증 postMessage 요청의 top 부작용(overlay 숨김)을 차단.

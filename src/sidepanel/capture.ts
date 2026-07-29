@@ -1,6 +1,11 @@
 import { sendBg } from "@/types/messages";
 import { clampCropRect } from "@/sidepanel/lib/crop-rect";
-import type { PrepareCaptureResponse, ViewportRect } from "@/types/picker";
+import { resolveCaptureRect } from "@/sidepanel/lib/capture-basis";
+import type {
+  CaptureContext,
+  PrepareCaptureResponse,
+  ViewportRect,
+} from "@/types/picker";
 import {
   endCapture,
   maybeSurfacePermissionExpired,
@@ -10,13 +15,29 @@ import {
 
 const DEFAULT_MARGIN = 24;
 
+export interface CaptureResult {
+  image: string;
+  context: CaptureContext;
+}
+
+interface CaptureOptions {
+  margin?: number;
+  frameId?: number;
+  // 확장 판정 opt-in. 기본 false — element mode before/after만 켠다.
+  expandContext?: boolean;
+  context?: CaptureContext;
+}
+
 export async function captureElementSnapshot(
   tabId: number,
-  options: { margin?: number; frameId?: number } = {},
-): Promise<string | null> {
+  options: CaptureOptions = {},
+): Promise<CaptureResult | null> {
   return captureWithPrep(
     tabId,
-    await prepareCapture(tabId, options.frameId ?? 0),
+    await prepareCapture(tabId, options.frameId ?? 0, {
+      expandContext: options.expandContext,
+      contextSelector: options.context?.contextSelector ?? undefined,
+    }),
     options,
   );
 }
@@ -25,7 +46,7 @@ export async function captureElementSnapshotBySelector(
   tabId: number,
   selector: string,
   options: { margin?: number; frameId?: number } = {},
-): Promise<string | null> {
+): Promise<CaptureResult | null> {
   return captureWithPrep(
     tabId,
     await prepareCaptureBySelector(tabId, options.frameId ?? 0, selector),
@@ -36,17 +57,40 @@ export async function captureElementSnapshotBySelector(
 async function captureWithPrep(
   tabId: number,
   prep: PrepareCaptureResponse | null,
-  options: { margin?: number; frameId?: number },
-): Promise<string | null> {
+  options: CaptureOptions,
+): Promise<CaptureResult | null> {
   const margin = options.margin ?? DEFAULT_MARGIN;
   const frameId = options.frameId ?? 0;
   if (!prep?.rect) {
     await endCapture(tabId, frameId);
     return null;
   }
+  const usable = resolveCaptureRect({
+    rect: prep.rect,
+    viewport: prep.viewport,
+    scrollX: prep.scrollX,
+    scrollY: prep.scrollY,
+    context: options.context,
+    frameId,
+  });
+  if (!usable) {
+    await endCapture(tabId, frameId);
+    return null;
+  }
   try {
     const dataUrl = await sendBg<string>({ type: "captureVisibleTab", tabId });
-    return await cropImage(dataUrl, prep.rect, prep.viewport, margin);
+    // 배율은 지금 찍은 캡처 기준이라 viewport는 항상 현재 prep.viewport를 쓴다.
+    const image = await cropImage(dataUrl, usable, prep.viewport, margin);
+    return {
+      image,
+      context: {
+        contextSelector: prep.contextSelector ?? null,
+        rect: usable,
+        viewport: prep.viewport,
+        scrollX: prep.scrollX,
+        scrollY: prep.scrollY,
+      },
+    };
   } catch (err) {
     if (!maybeSurfacePermissionExpired(err)) {
       console.error("[bugshot] snapshot failed", err);

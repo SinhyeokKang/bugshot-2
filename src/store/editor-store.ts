@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { sameElementKey } from "@/lib/element-key";
-import type { Token } from "@/types/picker";
+import type { CaptureContext, Token } from "@/types/picker";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import type { ActionLog } from "@/types/action";
@@ -91,6 +91,8 @@ export interface BufferedElement {
   styleEdits: EditorStyleEdits;
   beforeImage: string | null;
   afterImage: string | null;
+  // 버퍼 적재 시점의 캡처 기준. 구버전 스냅샷엔 없다 — 소비 시점 ?? null 폴백.
+  captureContext?: CaptureContext;
 }
 
 // 요소 캡처(screenshot 세부 모드)의 경량 selector 보관 — EditorSelection(스타일 메타)은 재사용 안 함.
@@ -141,6 +143,8 @@ interface EditorState {
   tokens: Token[];
   beforeImage: string | null;
   afterImage: string | null;
+  // 현재 선택 요소의 캡처 기준. before 캡처가 확정하고 after가 재사용한다.
+  captureContext: CaptureContext | null;
   bufferedElements: BufferedElement[];
   draft: EditorDraft | null;
   issueFields: EditorIssueFields;
@@ -179,6 +183,9 @@ interface EditorState {
   reproPrefillDone: boolean;
   attachments: UserAttachmentMeta[];
   aiStylingLoading: boolean;
+  // before 캡처가 실제로 날아가는 동안만 true. before/after가 서로 다른 판정을 쓰는 경쟁을
+  // 막는 in-flight 가드다(캡처를 발행하지 않는 경로는 애초에 세우지 않는다). 비영속.
+  beforeCapturePending: boolean;
   aiDraftLoading: boolean;
   // 재현 단계 자동 채움 로딩. AI draft 오버레이(App.tsx)를 공유해 패널 전체를 덮는다. 비영속(전환 상태).
   reproPrefillLoading: boolean;
@@ -231,11 +238,18 @@ interface EditorState {
   setTokens: (tokens: Token[]) => void;
   setBeforeImage: (img: string | null) => void;
   setAfterImage: (img: string | null) => void;
-  bufferCurrentElement: (afterImage: string | null) => void;
+  setCaptureContext: (context: CaptureContext | null) => void;
+  setBeforeCapturePending: (pending: boolean) => void;
+  bufferCurrentElement: (
+    afterImage: string | null,
+    context?: CaptureContext,
+  ) => void;
   patchBufferedElement: (
     selector: string,
     frameId: number,
-    patch: Partial<Pick<BufferedElement, "styleEdits" | "afterImage">>,
+    patch: Partial<
+      Pick<BufferedElement, "styleEdits" | "afterImage" | "captureContext">
+    >,
   ) => void;
   removeBufferedElement: (selector: string, frameId: number) => void;
   confirmStyles: () => void;
@@ -278,6 +292,7 @@ export type EditorSnapshot = Pick<
   | "tokens"
   | "beforeImage"
   | "afterImage"
+  | "captureContext"
   | "bufferedElements"
   | "screenshotRaw"
   | "screenshotAnnotated"
@@ -317,6 +332,7 @@ const initial = {
   tokens: [] as Token[],
   beforeImage: null,
   afterImage: null,
+  captureContext: null as CaptureContext | null,
   bufferedElements: [] as BufferedElement[],
   screenshotRaw: null as string | null,
   screenshotAnnotated: null as string | null,
@@ -344,6 +360,7 @@ const initial = {
   issueFields: {} as EditorIssueFields,
   currentIssueId: null as string | null,
   aiStylingLoading: false,
+  beforeCapturePending: false,
   aiDraftLoading: false,
   reproPrefillLoading: false,
   aiCancel: null as (() => void) | null,
@@ -597,6 +614,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           },
           beforeImage: buffered.beforeImage,
           afterImage: buffered.afterImage,
+          captureContext: buffered.captureContext ?? null,
           // 현재 요소로 승격 — 중복 카드 방지.
           bufferedElements: s.bufferedElements.filter(
             (b) => !sameElementKey(b, selection),
@@ -614,6 +632,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         },
         beforeImage: null,
         afterImage: null,
+        captureContext: null,
         aiStylingLoading: false,
       };
     }),
@@ -642,7 +661,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setAfterImage: (afterImage) => set({ afterImage }),
 
-  bufferCurrentElement: (afterImage) =>
+  setCaptureContext: (captureContext) => set({ captureContext }),
+
+  setBeforeCapturePending: (beforeCapturePending) => set({ beforeCapturePending }),
+
+  bufferCurrentElement: (afterImage, context) =>
     set((s) => {
       const sel = s.selection;
       if (!sel) return {};
@@ -667,12 +690,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         },
         beforeImage: s.beforeImage,
         afterImage,
+        captureContext: context,
       };
       const idx = s.bufferedElements.findIndex((b) => sameElementKey(b, sel));
       if (idx >= 0) {
         // 같은 selector 재편집: 최초 before 유지, 나머지는 최신으로 갱신.
+        // captureContext는 before와 짝이므로 before와 함께 최초 값을 유지한다.
         const updated = [...s.bufferedElements];
-        updated[idx] = { ...entry, beforeImage: s.bufferedElements[idx].beforeImage };
+        const prev = s.bufferedElements[idx];
+        updated[idx] = {
+          ...entry,
+          beforeImage: prev.beforeImage,
+          captureContext: prev.captureContext,
+        };
         return { bufferedElements: updated };
       }
       return { bufferedElements: [...s.bufferedElements, entry] };
@@ -872,6 +902,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           before: !!state.beforeImage,
           after: !!state.afterImage,
         },
+        captureContext: state.captureContext ?? undefined,
         selectionSnapshot: {
           classList: [...state.selection.classList],
           specifiedStyles: { ...state.selection.specifiedStyles },
@@ -907,6 +938,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 },
                 hasBefore: !!b.beforeImage,
                 hasAfter: !!b.afterImage,
+                captureContext: b.captureContext,
               }))
             : undefined,
       });
@@ -1032,7 +1064,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   setTargetPlatform: (platform) => set({ targetPlatform: platform }),
 
-  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, bufferedElements: [], screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null, attachments: [] }),
+  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, captureContext: null, bufferedElements: [], screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null, attachments: [] }),
 
   reset: () => set({ ...initial }),
 
