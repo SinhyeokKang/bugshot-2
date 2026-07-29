@@ -20,15 +20,13 @@ export function useBufferThenSwitch(): (
       const { selection, styleEdits, bufferCurrentElement, captureContext } =
         useEditorStore.getState();
       if (selection && hasStyleChange(selection, styleEdits)) {
-        // await 전에 떠 둔다 — 캡처 창 동안 선택이 바뀌면 기준이 갈린다.
-        const context = captureContext;
         const after = await captureElementSnapshot(tabId, {
           frameId: selection.frameId ?? 0,
-          expandContext: shouldExpandAfter(context),
-          context: context ?? undefined,
+          expandContext: shouldExpandAfter(captureContext),
+          context: captureContext ?? undefined,
         });
         // 버퍼에는 after 재측정 결과가 아니라 before에서 확정한 기준을 저장한다.
-        bufferCurrentElement(after?.image ?? null, context ?? undefined);
+        bufferCurrentElement(after?.image ?? null, captureContext ?? undefined);
       }
       await switchAction();
     } finally {

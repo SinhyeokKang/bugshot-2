@@ -47,8 +47,10 @@ describe("passesContextGates", () => {
 
   it("요소 rect가 0×0이면 G2를 생략하고 통과 (display:none)", () => {
     // 기하 포함 검사가 무의미하므로 건너뛴다 — DOM 포함 검증은 호출부가 맡는다.
+    // 컨테이너를 원점에서 떼어놔야 이 단언이 실효를 갖는다: 원점 컨테이너는
+    // containsRect((0,0,…),(0,0,0,0))가 그냥 true라 G2 생략 여부와 무관하게 통과한다.
     expect(
-      passesContextGates(rect(0, 0, 0, 0), rect(0, 0, 600, 400), VIEWPORT),
+      passesContextGates(rect(0, 0, 0, 0), rect(100, 100, 600, 400), VIEWPORT),
     ).toBe(true);
   });
 
@@ -65,8 +67,9 @@ describe("passesContextGates", () => {
     ).toBe(false);
   });
 
-  it("뷰포트보다 큰 컨테이너는 잘라내면 40% 이하여도 거부 — G1이 면적보다 먼저", () => {
-    // 1200×300: 뷰포트로 자르면 1000×300 = 300,000 (37.5%)라 G3만 보면 통과한다.
+  it("뷰포트보다 큰 컨테이너는 거부한다 — 클램프해서 재판정하지 않는다", () => {
+    // 1200×300을 뷰포트로 자르면 1000×300 = 300,000 (37.5%)라 클램프 방식이었으면
+    // 통과했을 크기다. 자르지 않으므로 G1에서 떨어지고, 면적도 360,000이라 어차피 초과.
     expect(
       passesContextGates(rect(10, 10, 100, 50), rect(-100, 0, 1200, 300), VIEWPORT),
     ).toBe(false);

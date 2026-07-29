@@ -105,7 +105,7 @@ const OVERLAY_SELECTOR =
 
 // 일반 페이지의 강한 구조 단위. 후보여도 산술 게이트와 after 재검증을 거친다.
 const STRUCTURE_SELECTOR =
-  'tr,li,fieldset,article,figure,' +
+  'tr,li,article,figure,' +
   '[role="row"],[role="listitem"],[role="tabpanel"],' +
   '[role="option"],[role="menuitem"],[role="treeitem"],[role="alert"],[role="status"]';
 
@@ -133,10 +133,16 @@ export function resolveContextRect(args: {
 
 `findContextAncestor`는 요소 자신을 제외하고
 `el.parentElement?.closest(OVERLAY_SELECTOR + "," + STRUCTURE_SELECTOR)`로 가장 가까운
-강한 시맨틱 조상만 반환한다. `form`·광범위 landmark·`[role="group"]`와
+강한 시맨틱 조상만 반환한다. `form`·`fieldset`·광범위 landmark·`[role="group"]`와
 `position:absolute|fixed + z-index` 휴리스틱은 개인정보 노출 면적과 오탐 위험 때문에
 후보에서 제외한다. **computed style을 읽지 않는다** — 셀렉터 목록에 없는 태그·role은
 그 자체로 후보가 아니다.
+
+> `fieldset`은 초안에서 후보에 있었으나 구현 리뷰에서 뺐다. `form`을 제외한 근거가
+> "개인정보 노출 면적"인데 `fieldset`은 **form의 한 섹션 통째**라 결제 카드번호·주소
+> 입력 묶음을 그대로 캡처에 끌어들인다 — 같은 사유가 같은 강도로 적용된다. 전형적인
+> 결제 fieldset(600×300 등)은 40% 면적 게이트를 여유롭게 통과해 게이트가 제동을 못 건다.
+> 커버리지 손실은 P1이 명시한 수용 비용이다.
 
 `resolveContextRect`는 `found`가 없거나 `found.contains(target)`이 false거나
 `passesContextGates`가 false면 `{ rect: elementRect, contextSelector: null }`을 반환한다.
@@ -339,3 +345,5 @@ before/after 이미지 크기가 항상 같아 나란히 비교가 정확해진�
 - **`display:none` + 폴백 + 컨텍스트 없음**: before 캡처가 실패해 `captureContext`가 저장되지 않은 상태에서 요소를 `display:none`으로 만들면 0×0 폴백 대상이 없어 캡처 실패(null)가 된다. 현행도 무의미한 이미지를 만들 뿐이므로 회귀는 아니지만, 이미지가 아예 없는 쪽으로 바뀐다.
 - **"이미지 없음"의 표면**: after가 null이면 before/after 표의 해당 칸이 비고 이슈 본문에도 파일이 안 붙는다. 수신자에게 "변화 없음"으로 읽힐 수 있으나, 잘못된 이미지를 넣는 것보다 낫다는 판단(P1)이다. 사유 표기는 i18n 키가 필요해 이번 스코프 밖이다.
 - **`respondWithTopRect` 응답 조립**: 4경로 중 3개가 응답 객체를 새로 만든다. 새 필드(`scrollX`·`scrollY`·`contextSelector`)를 각 분기에 명시적으로 넣지 않으면 조용히 유실된다.
+- **행 초기화 재캡처의 before/after 기준 desync**: `StyleChangesDialog`가 확장을 켜지 않으므로(대안 7), 확장된 `beforeImage`를 가진 버퍼 항목의 행을 초기화하면 **after만 요소 bbox로 강등**돼 두 이미지의 기준이 갈린다. 대안 7이 by-selector 확장을 배제한 필연적 귀결이라 코드로는 못 고친다 — live 참조가 없어 "현재 요소 포함" 재검증이 성립하지 않기 때문. 잘못된 확장보다 기준이 다른 두 이미지가 낫다는 P1 판단을 유지하고, 수동 검증 항목으로 남긴다.
+- **잠금이 `[다음]`에만 걸린다**: `useBufferThenSwitch`(repick·DOM 트리 이동)는 두 번째 after 캡처 진입점인데 `beforeCapturePending`을 보지 않는다. before 캡처 중 편집 후 전환하면 그 버퍼 항목은 (before 없음 + 비확장 after)가 되는데, 이는 **이 기능 이전의 before-image 경쟁과 동일한 결과**라 회귀가 아니다. `shouldExpandAfter`가 `null` context에서 false를 반환해 기준 불일치가 아니라 균일한 폴백으로 떨어지는 것이 안전판이다.

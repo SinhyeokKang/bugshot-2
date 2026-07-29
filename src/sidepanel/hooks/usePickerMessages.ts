@@ -142,9 +142,8 @@ export function usePickerMessages(myTabId: number | null): void {
             });
           }
           if (!wasBuffered && !useEditorStore.getState().beforeImage) {
-            // 캡처를 실제로 발행하는 이 지점에서만 잠근다 — 발행하지 않는 경로(버퍼
-            // 재선택·beforeImage 존재·rebind)는 자동으로 통과한다. DOM 트리 이동을 연타하면
-            // 선택마다 캡처가 발행돼 겹치므로, boolean이면 먼저 끝난 쪽이 잠금을 미리 푼다.
+            // DOM 트리 이동을 연타하면 선택마다 캡처가 발행돼 겹친다 — boolean이면
+            // 먼저 끝난 쪽이 아직 진행 중인 캡처의 잠금을 미리 푼다.
             beforeCaptureInflight += 1;
             useEditorStore.getState().setBeforeCapturePending(true);
             void captureElementSnapshot(tabId, { frameId, expandContext: true })

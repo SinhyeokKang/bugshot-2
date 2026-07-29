@@ -1,6 +1,5 @@
 import type { ViewportRect } from "@/types/picker";
 
-// 확장 rect가 뷰포트 면적에서 차지할 수 있는 상한.
 export const CONTEXT_MAX_VIEWPORT_RATIO = 0.4;
 
 // 떠 있는 UI — 시맨틱 속성만으로 확정된다.
@@ -8,8 +7,10 @@ const OVERLAY_SELECTOR =
   'dialog,[popover],[role="dialog"],[role="alertdialog"],[aria-modal="true"]';
 
 // 일반 페이지의 강한 구조 단위. 후보여도 산술 게이트와 after 재검증을 거친다.
+// form과 fieldset은 뺐다 — fieldset은 form의 한 섹션이라 결제·주소 입력 묶음을
+// 통째로 캡처에 끌어들인다(같은 사유, 같은 노출 면적).
 const STRUCTURE_SELECTOR =
-  "tr,li,fieldset,article,figure," +
+  "tr,li,article,figure," +
   '[role="row"],[role="listitem"],[role="tabpanel"],' +
   '[role="option"],[role="menuitem"],[role="treeitem"],[role="alert"],[role="status"]';
 
@@ -38,7 +39,7 @@ export function passesContextGates(
 ): boolean {
   const vpArea = viewport.width * viewport.height;
   if (vpArea <= 0) return false;
-  // G1: 컨테이너가 뷰포트 안에 완전히 들어온다.
+  // G1
   if (
     contextRect.x < 0 ||
     contextRect.y < 0 ||
@@ -51,7 +52,7 @@ export function passesContextGates(
   // 호출부가 ancestor.contains(el)로 대체 검증한다.
   const elHidden = elementRect.width === 0 && elementRect.height === 0;
   if (!elHidden && !containsRect(contextRect, elementRect)) return false;
-  // G3: 면적 상한.
+  // G3
   return (
     contextRect.width * contextRect.height <= vpArea * CONTEXT_MAX_VIEWPORT_RATIO
   );

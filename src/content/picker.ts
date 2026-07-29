@@ -335,8 +335,7 @@ async function respondWithTopRect(
     sendResponse(prep);
     return;
   }
-  // 조립 3경로 모두 응답 객체를 새로 만든다 — scroll은 명시적으로 이어 싣는다(iframe은
-  // 확장을 하지 않으므로 contextSelector는 항상 null이다).
+  // iframe은 확장 판정을 하지 않으므로 contextSelector는 항상 null이고 scroll만 이어 싣는다.
   const scroll = { scrollX: prep.scrollX, scrollY: prep.scrollY };
   const offset = await requestFrameOffset();
   if (!offset) {

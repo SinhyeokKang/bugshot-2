@@ -17,7 +17,9 @@ function contextWith(overrides: Partial<CaptureContext> = {}): CaptureContext {
   };
 }
 
-function args(overrides: Parameters<typeof resolveCaptureRect>[0] | object = {}) {
+function args(
+  overrides: Partial<Parameters<typeof resolveCaptureRect>[0]> = {},
+) {
   return {
     rect: { x: 0, y: 0, width: 0, height: 0 },
     viewport: VIEWPORT,
@@ -26,7 +28,7 @@ function args(overrides: Parameters<typeof resolveCaptureRect>[0] | object = {})
     context: contextWith(),
     frameId: 0,
     ...overrides,
-  } as Parameters<typeof resolveCaptureRect>[0];
+  };
 }
 
 describe("resolveCaptureRect", () => {
@@ -62,9 +64,14 @@ describe("resolveCaptureRect", () => {
     expect(resolveCaptureRect(args({ rect, context: undefined }))).toEqual(rect);
   });
 
-  it("높이만 0인 rect는 정상 취급 — 완전히 0×0일 때만 폴백한다", () => {
+  it("한 변만 0이어도 폴백한다 — height:0 편집이 마진 조각으로 저장되면 안 된다", () => {
     const rect = { x: 10, y: 10, width: 120, height: 0 };
-    expect(resolveCaptureRect(args({ rect }))).toEqual(rect);
+    expect(resolveCaptureRect(args({ rect }))).toEqual(BEFORE_RECT);
+  });
+
+  it("한 변만 0인데 좌표를 못 믿으면 null", () => {
+    const rect = { x: 10, y: 10, width: 120, height: 0 };
+    expect(resolveCaptureRect(args({ rect, scrollY: 400 }))).toBeNull();
   });
 });
 

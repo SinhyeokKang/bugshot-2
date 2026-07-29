@@ -43,7 +43,6 @@ export interface PrepareCaptureResponse {
   viewport: { width: number; height: number };
   scrollX: number;
   scrollY: number;
-  // 확장이 적용됐으면 그 조상의 selector. null이면 폴백(요소 bbox) 경로.
   contextSelector?: string | null;
 }
 
@@ -116,7 +115,6 @@ export type PickerMessage =
   // expandContext: element mode before/after만 켠다. contextSelector는 before가 확정한
   // 조상 — after가 같은 대상을 다시 측정한다(유니온에 `| null` 선례가 없어 undefined로 싣는다).
   | { type: "picker.prepareCapture"; expandContext?: boolean; contextSelector?: string }
-  // 이 경로는 확장을 적용하지 않으므로 확장 관련 필드가 없다.
   | { type: "picker.prepareCaptureBySelector"; selector: string }
   // iframe 캡처 직전 top(frame 0)에 전송 — offset 응답기를 1회성 arm. 페이지가 위조할 수
   // 없는 chrome 메시지 경로라 무인증 postMessage 요청의 top 부작용(overlay 숨김)을 차단.

@@ -79,6 +79,19 @@ describe("findContextAncestor", () => {
     expect(findContextAncestor($("#target"))).toBeNull();
   });
 
+  it("fieldset 안 input도 null — form의 한 섹션이라 같은 사유로 제외", () => {
+    mount(`
+      <form>
+        <fieldset id="fs">
+          <legend>결제 수단</legend>
+          <input id="target" />
+        </fieldset>
+      </form>
+    `);
+
+    expect(findContextAncestor($("#target"))).toBeNull();
+  });
+
   it("시맨틱 없는 div 체인이면 null", () => {
     mount(`
       <div><div><div><button id="target">전송</button></div></div></div>
@@ -123,9 +136,10 @@ describe("findContextAncestor", () => {
 
 describe("resolveContextRect", () => {
   const VIEWPORT = { width: 1000, height: 800 };
-  const ELEMENT_RECT = { x: 20, y: 20, width: 100, height: 50 };
-  // 600×400 = 240,000 = 뷰포트의 30% — 게이트 통과 크기.
-  const OK_CONTEXT_RECT = { x: 0, y: 0, width: 600, height: 400 };
+  const ELEMENT_RECT = { x: 120, y: 120, width: 100, height: 50 };
+  // 600×400 = 240,000 = 뷰포트의 30% — 게이트 통과 크기. 원점을 피해야 0×0 target
+  // 케이스에서 G2 생략이 실제로 검증된다(원점이면 포함 검사가 그냥 통과한다).
+  const OK_CONTEXT_RECT = { x: 100, y: 100, width: 600, height: 400 };
 
   function fixture() {
     mount(`
