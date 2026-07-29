@@ -28,6 +28,7 @@ bugshot-2: Chrome MV3 Side Panel 버그 리포팅 확장. 웹 페이지의 버�
 - 요소 스타일 CSS 코드 뷰: CodeMirror 6 (`@uiw/react-codemirror` + `@codemirror/lang-css` + `@codemirror/autocomplete` + `@codemirror/language` + `@lezer/highlight`, 사이드패널 전용 lazy 청크) — 편집/CSS 세그먼트 토글의 CSS 뷰
 - 영상: 탭 녹화(`tabCapture`+MediaRecorder) / 화면 녹화(`getDisplayMedia` — 웹 표준, 추가 manifest 권한 불필요·user gesture만 요구) / 30s Replay(`captureVisibleTab` 폴링 프레임 → WebCodecs `VideoEncoder`+`mp4-muxer` H.264 MP4). 캡처 모드(`CaptureMode`): element/screenshot/video/freeform + 30s replay. 탭 녹화·화면 녹화는 둘 다 `video` 모드이고 `RecordingSource`(tab/screen) 축으로 갈린다. **정지 후 구간 자르기는 3경로 공용** — 같은 오버레이(`ReplayTrimDialog`)와 같은 로그 경계 헬퍼를 쓰고 `TrimSource`(frames=리플레이 프레임축 / recording=녹화 벽시계축)로만 갈린다. 녹화를 자르면 `30s-replay/encode-range.ts`가 `<video>` 배속 재생 + `requestVideoFrameCallback`으로 재디코드해 선택 구간만 WebCodecs로 재인코딩한다(전체 구간이면 원본 blob 유지). 상세는 [ARCHITECTURE.md](./docs/ARCHITECTURE.md) "트리밍" 참조
 - 스크린샷 캡처 방식 3축(영역/화면/페이지 전체): `CaptureMode`와 **직교** — 셋 다 `captureMode: "screenshot"`으로 수렴하고(종착점 `onAreaCaptured`) 방식 자체는 union 타입도 영속화도 없다. `capturing` phase 하단 툴바에서 고른다. 페이지 전체 캡처는 사이드패널 오케스트레이터(`sidepanel/scroll-capture.ts`)가 content executor(`content/scroll-capture.ts`)를 스크롤시키며 타일을 background `captureVisibleTab` 관문으로 찍어 canvas 스티칭(캡: 20타일·캔버스 32000px·출력 4M px). 첫 타일 이후 반복되는 `fixed`와 이미 전부 노출된 뒤 붙은 `sticky`를 `visibility`로 숨기고, 캡처 중 추가·position 변경된 후보도 추적한 뒤 원래 스타일·스크롤을 복원한다. 상세·불변식은 [ARCHITECTURE.md](./docs/ARCHITECTURE.md) "캡처 3축" 참조
+- element 모드 before/after 캡처 범위: 요소 bbox+24px가 기본이고, 요소를 감싼 **의미 단위 조상 컨테이너**(다이얼로그·`tr`·`li`·`article` 등)가 게이트 3개(뷰포트 완전 포함 / 요소 포함 / 뷰포트 면적 40% 이하)를 전부 통과할 때만 그쪽으로 넓혀 찍는다. 위 캡처 3축과 **직교**한다(3축은 screenshot 모드의 *방식* 축). 판정은 `content/capture-context.ts`·`sidepanel/lib/capture-basis.ts` 순수 함수 2벌 — picker/capture가 coverage 로직 스코프 제외라 거기 남기면 테스트로 못 고정한다. `form`·`fieldset`은 개인정보 노출 면적 때문에 후보 제외이고 이 범위는 docs/privacy에 공개돼 있다. 상세·불변식은 [ARCHITECTURE.md](./docs/ARCHITECTURE.md) 동명 섹션
 - AI: Chrome Built-in AI 폴백 + BYOK OpenAI-compatible/Anthropic endpoint. AI 초안·재현 단계 자동채움·스타일링 요청에 필요한 컨텍스트만 사용자가 선택한 provider로 직접 전송
 - 사용자 파일 첨부: 기본 off. IndexedDB에 pending tab owner로 저장 후 이슈 owner로 rekey, 최대 10개·합계 50MB, 플랫폼별 업로드
 - 분석: PostHog (익명 이슈 제출·연동 집계 — `src/background/analytics.ts`. store는 `VITE_POSTHOG_KEY_PROD`, 비-store는 `VITE_POSTHOG_KEY`; 선택된 키가 없으면 no-op)
@@ -59,7 +60,7 @@ bugshot-2: Chrome MV3 Side Panel 버그 리포팅 확장. 웹 페이지의 버�
 `.github/workflows/ci.yml` — **dev push · main PR · nightly(03:00 KST) · 수동(`workflow_dispatch`)** 에서 돈다. `schedule`은 GitHub 사양상 기본 브랜치에서만 발화하므로 nightly 대상은 main이다(코드가 그대로여도 Chrome 버전·러너 이미지 변경으로 깨지는 걸 잡는 게 목적). job은 셋:
 
 - **`verify`** — typecheck → sync:agents:check → test → build → check:prearm. 브라우저·시크릿 없이 결정적.
-- **`e2e`** — Playwright 전 스위트(63 spec / 242 테스트)를 `--shard=N/4` 매트릭스로 4개 러너에 분산. 확장 SW가 headless에서 안 깨어나 `headless: false`가 강제라(`e2e/fixtures/extension.ts`) `xvfb-run`으로 돌린다 — **가상 스크린 깊이 24는 필수**(기본 8비트인 배포판이 있고 캡처 spec이 픽셀 색을 직접 판정한다). `fail-fast: false`라 한 샤드가 깨져도 나머지를 완주하고, 실패 샤드는 report·trace를 artifact로 올린다.
+- **`e2e`** — Playwright 전 스위트(64 spec / 245 테스트)를 `--shard=N/4` 매트릭스로 4개 러너에 분산. 확장 SW가 headless에서 안 깨어나 `headless: false`가 강제라(`e2e/fixtures/extension.ts`) `xvfb-run`으로 돌린다 — **가상 스크린 깊이 24는 필수**(기본 8비트인 배포판이 있고 캡처 spec이 픽셀 색을 직접 판정한다). `fail-fast: false`라 한 샤드가 깨져도 나머지를 완주하고, 실패 샤드는 report·trace를 artifact로 올린다.
 - **`e2e-gate`** — 4샤드 결과를 단일 이름으로 수렴시키는 집계 job. main의 **required status check는 `verify` + `e2e-gate` 둘**이고, 샤드 개수를 바꿔도 이 이름은 안 변하므로 프로텍션 설정을 다시 건드릴 필요가 없다.
 
 **e2e 차단 게이트는 CI 단독이다.** 로컬 `e2e/.last-green` 캐시 게이트는 폐기했다 — gitignore라 머신 로컬이었고, 그래서 외부 PR에 적용되지 않았으며 같은 green을 두 창구가 관리했다. `/push`는 e2e를 돌리지 않고 run URL만 안내한다(논블로킹). `/merge`는 dev HEAD의 CI 결론을 `gh run list`로 조회해 게이트로 쓰고, PR 머지 직전엔 `gh pr checks --watch`로 required check를 기다린다. `/e2e-run`은 게이트에서 빠져 **CI를 안 기다리고 미리 볼 때 쓰는 로컬 도구**로 남는다.
@@ -70,7 +71,7 @@ CI에서의 `retries`는 1, 로컬은 0이다(`process.env.CI` 분기). `forbidO
 
 `build` + `check:prearm` 스텝이 `verify`에 있는 이유: `recorders-entry`가 async loader로 강등되는 회귀는 typecheck도 유닛도 못 잡는다. 행동 검증(`e2e/logs-prearm.spec.ts`)은 이제 `e2e` job이 맡지만, `scripts/check-prearm-chunk.mjs`는 manifest의 `world`/`run_at`·loader 여부·IIFE 시작·잔여 static import를 몇 초 만에 대조하는 **1차 그물**이라 e2e green을 기다리지 않고 형태 회귀를 먼저 알린다.
 
-**빌드는 자동 실행하지 않는다.** 사용자가 명시적으로 요청하거나 `/build` 스킬을 실행할 때만 돌린다. 타입 확인이 필요하면 `pnpm typecheck` 선호. 예외: `build:e2e`(dist-e2e)는 `/e2e-write`·`/e2e-run`·`/push`/`/merge` e2e 게이트에서 실행 허용 — 배포 산출물(dist)과 분리돼 있다.
+**빌드는 자동 실행하지 않는다.** 사용자가 명시적으로 요청하거나 `/build` 스킬을 실행할 때만 돌린다. 타입 확인이 필요하면 `pnpm typecheck` 선호. 예외: `build:e2e`(dist-e2e)는 `/e2e-write`·`/e2e-run`에서 실행 허용 — 배포 산출물(dist)과 분리돼 있다.
 
 `build:store`는 `BUGSHOT_STORE_BUILD=1`을 세팅해 `manifest.config.ts`에서 dev용 `key`를 생략한다. 로컬 dev/로드 언팩 시에는 `key`가 있어야 OAuth redirect URI(`chrome-extension://<ID>/...`)가 고정되므로 **기본 `pnpm build` 유지**.
 
@@ -131,10 +132,10 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /guide          → guide/ko·en 사용자 가이드 작성·갱신. AUTHORING.md 규칙 로드 → 코드 대조 stale 탐지 → ko/en 동시 갱신 + 검증. 빌드·커밋 안 함
 /doc-check      → 8개 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMISSION/privacy/AUTHORING)를 문서별 전담 에이전트가 병렬로 diff 무관 코드 양방향 대조(Pass1 문서→코드 사실오류 + Pass2 코드→문서 누락 커버리지) → 통합 리포트 → 항목별 확인 → 수정. /push 신선도 검사보다 깊다(diff에 안 걸린 누적 stale·섹션 내부 누락까지). guide/ko·en 본문은 제외(/guide 전담, AUTHORING은 검사). 빌드 안 함
 /push           → dev push (main에서 호출 차단) + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.{md,ko.md}/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide(+AUTHORING.md) 신선도 검사 + Codex 미러 게이트(sync:agents:check — 드리프트면 재생성 커밋). e2e는 안 돌린다 — push 후 CI run URL만 안내하고 종료(논블로킹)
-/merge          → dev에서 e2e 게이트 교차(통상 /push 기록 해시로 스킵 / 빨강이면 중단) → 커버리지 리포트(로직 스코프 vs 베이스라인, 비차단 — 회귀 경고만·개선 시 baseline 자동 래칫 커밋) → 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
+/merge          → dev HEAD의 CI 결론 조회(gh run list — 빨강이면 중단) → 커버리지 리포트(로직 스코프 vs 베이스라인, 비차단 — 회귀 경고만·개선 시 baseline 자동 래칫 커밋) → 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
 /deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
 /sync           → dev를 origin/main으로 hard reset + force push (배포/머지 후)
-/ship           → 작은·외과적 변경 하나를 /tdd→커밋→/implement→커밋→/code-review→/refactor→(/e2e-write)→(/guide)→(/doc-check)→(/postmortem)→/e2e-run→/push→/build로 자동 오케스트레이션. 단계별 게이트 통과 시 진행, 하드 실패·사용자 결정 지점(회귀위험·doc stale·e2e red)에선 즉시 중단+리포트. guide·doc-check은 영향 플래그 게이팅. 호출이 곧 push 지시. 테스트 커밋(1.5단계)은 red 상태로 무조건 선행. 큰·다영역·신규기능(feature 문서 필요)은 스코프 가드로 거부 — 단 `/ship bypass`는 그 판정만 건너뛰고(게이트·push·build는 전부 유지) feature 문서의 tasks.md를 계획 원본으로 쓴다. Codex 런타임은 /e2e-run까지만 돌고 /push·/build를 Claude Code에 인계
+/ship           → 작은·외과적 변경 하나를 /tdd→커밋→/implement→커밋→/code-review→/refactor→(/e2e-write)→(/guide)→(/doc-check)→(/postmortem)→/push→/build로 자동 오케스트레이션. 단계별 게이트 통과 시 진행, 하드 실패·사용자 결정 지점(회귀위험·doc stale·e2e red)에선 즉시 중단+리포트. guide·doc-check은 영향 플래그 게이팅. 호출이 곧 push 지시. 테스트 커밋(1.5단계)은 red 상태로 무조건 선행. 큰·다영역·신규기능(feature 문서 필요)은 스코프 가드로 거부 — 단 `/ship bypass`는 그 판정만 건너뛰고(게이트·push·build는 전부 유지) feature 문서의 tasks.md를 계획 원본으로 쓴다. Codex 런타임은 마지막 커밋(11단계)까지만 돌고 /push·/build를 Claude Code에 인계
 ```
 
 권장 흐름: `/feature` → `/feature-review` → `/tdd interface` → `/implement` → `/e2e-write` → `/code-review` → `/tdd regression` → `/refactor` → `/push`(논블로킹 — e2e는 CI가 검증) → `/merge`(dev HEAD의 CI 결론 확인 → PR CI 대기 → 머지). 사용자 노출 UX·기능을 건드렸으면 `/push` 전에 `/guide`로 ko/en 가이드를 맞춘다(`/implement` 보고의 "가이드 영향" 플래그가 신호). e2e 시나리오가 추가·변경됐으면 `/e2e-write`로 spec을 green까지(`/implement` 보고의 "e2e 영향" 플래그가 신호). `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK. **회귀·버그를 잡아 고쳤으면 `/postmortem`으로 `docs/POSTMORTEM.md`에 회고를 남긴다**(같은 함정 재발 방지 — 실패 사후분석 회로). 역으로 `/implement`·`/refactor`·`/code-review`는 **착수 전 변경 영역으로 `docs/POSTMORTEM.md`를 grep**해 과거 함정을 소환한다(쓰기만 하고 안 읽으면 죽은 로그 — 소환 회로로 루프를 닫는다).
@@ -187,7 +188,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - `BUGSHOT_STORE_BUILD=1`: 스토어 업로드용 빌드 (manifest `key` 제거)
 - `BUGSHOT_E2E_BUILD=1`: e2e 전용 빌드 — `dist-e2e/` 분리 산출. dev `key` 유지. (`<all_urls>`는 이제 prod·e2e 공통 required라 e2e 빌드가 권한을 별도 추가하지 않음 — 분리 이유는 outDir 격리뿐.) **dist-e2e는 테스트 전용 — Chrome 수동 로드·스토어 업로드 금지.** 배포 산출물(dist)은 무오염(분리 outDir)
 - **store는 `sidepanel/tabs`를 import하지 않는다** — store가 컴포넌트 그래프를 끌어들이면 순환·번들 오염이 생긴다. store가 필요로 하는 순수 로직은 `sidepanel/lib/`으로 승격한다. 사례: `initialJiraFields`(Jira 필드 prefill 단일 출처 — `editor-store.confirmDraft`가 쓰므로 `tabs/jiraFields/`가 아니라 `lib/`에 둔다. 다른 플랫폼의 `initial*Fields`는 store가 안 써서 각 `*IssueFields.tsx`에 콜로케이션).
-- `chrome.scripting.executeScript({world:"MAIN", func})`: 직렬화·재평가라 클로저가 안 살아남는다. 주입 함수는 self-contained(헬퍼는 nested로 inline). **func 직렬화 형태**의 현재 사용처 `github-upload.ts:pageBatchUploadFn`(유일한 `world:"MAIN"`)·`picker-control.ts:getTopViewport`(`world` 미지정이라 ISOLATED — 직렬화 규칙은 world와 무관하게 걸린다. 인라인 화살표라 클로저 없음 — 규칙 준수)(같은 파일의 `files:` 형태 주입 `picker-control.ts:ensureMainWorldRecorders`는 규칙 무관) — 리팩터 시 실제 탭 회귀 필수. 상세: docs/ARCHITECTURE.md 동명 섹션.
+- `chrome.scripting.executeScript({world:"MAIN", func})`: 직렬화·재평가라 클로저가 안 살아남는다. 주입 함수는 self-contained(헬퍼는 nested로 inline). **func 직렬화 형태**의 현재 사용처 `github-upload.ts:pageBatchUploadFn`(유일한 `world:"MAIN"`)·`picker-control.ts:getTopViewport`(`world` 미지정이라 ISOLATED — 직렬화 규칙은 world와 무관하게 걸린다. 인라인 화살표라 클로저 없음 — 규칙 준수)(같은 파일의 `files:` 형태 주입 3개 — `ensureContentScript`·`ensureRecorderBridge`·`ensureMainWorldRecorders` — 는 규칙 무관) — 리팩터 시 실제 탭 회귀 필수. 상세: docs/ARCHITECTURE.md 동명 섹션.
 
 ## 메모리 & 참고 문서
 
