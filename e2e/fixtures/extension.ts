@@ -177,7 +177,8 @@ export const test = base.extend<object, { ext: ExtContext }>({
         viewport: { width: 480, height: 720 },
         // 확장 SW가 headless에선 안 깨어나므로 headed 유지. 대신 창을 화면 밖으로
         // 보내 깜빡임·포커스 탈취를 없앤다(완전 백그라운드는 불가). 디버깅으로 창을
-        // 보려면 E2E_SHOW=1.
+        // 보려면 E2E_SHOW=1. CI(xvfb 가상 디스플레이)에선 가릴 화면이 없고, 오히려
+        // 가상 스크린 밖으로 밀면 렌더가 클립될 수 있어 이동시키지 않는다.
         headless: false,
         args: [
           `--disable-extensions-except=${DIST_E2E}`,
@@ -185,7 +186,7 @@ export const test = base.extend<object, { ext: ExtContext }>({
           "--lang=ko",
           "--no-first-run",
           "--no-default-browser-check",
-          ...(process.env.E2E_SHOW === "1"
+          ...(process.env.E2E_SHOW === "1" || process.env.CI
             ? []
             : ["--window-position=-10000,-10000"]),
         ],

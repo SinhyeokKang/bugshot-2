@@ -63,10 +63,10 @@ export function StyleChangesTable({
             {t("styleTable.snapshot")}
           </td>
           <td className={docTableCell}>
-            <SnapshotCell image={beforeImage} />
+            <SnapshotCell image={beforeImage} testId="snapshot-before" />
           </td>
           <td className={docTableCell}>
-            <SnapshotCell image={afterImage} />
+            <SnapshotCell image={afterImage} testId="snapshot-after" />
           </td>
         </tr>
         {diffs.length === 0 ? (
@@ -96,12 +96,13 @@ export function StyleChangesTable({
   );
 }
 
-function SnapshotCell({ image }: { image: string | null }) {
+function SnapshotCell({ image, testId }: { image: string | null; testId?: string }) {
   const t = useT();
   if (!image) return null;
   return (
     <Card className="flex items-center justify-center bg-muted/30 p-1">
       <img
+        data-testid={testId}
         src={image}
         alt={t("alt.capturedImage")}
         className="max-h-40 w-auto max-w-full object-contain"

@@ -36,6 +36,36 @@
 
 ---
 
+## 2026-07-29 — `?? undefined`가 "판정이 거부함"과 "판정한 적 없음"을 뭉개, before는 폴백인데 after만 확장됐다
+
+- **영역**: `content`, `lib`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: element 스타일 편집의 before/after 이미지가 **서로 다른 기준으로** 잘린다 — before는 요소 bbox인데 after만 감싼 다이얼로그까지 확장돼, 두 이미지를 나란히 놓으면 무엇이 바뀐 건지 읽을 수 없다. 유닛·타입체크 전부 green.
+- **근본 원인**: before 캡처가 확장 게이트에서 떨어지면 `contextSelector: null`(= **판정했고 거부함**)을 저장한다. 그런데 after 호출부가 이걸 `ctx?.contextSelector ?? undefined`로 변환해 메시지에 실었고, picker 쪽에서 `undefined`는 "**저장된 판정이 없음**"과 완전히 같은 값이 된다. 그래서 `if (msg.contextSelector)` 분기를 못 타고 `findContextAncestor`부터 **판정을 처음부터 새로 돌려**, before 시점과 다른 화면 상태(리플로우로 면적이 40% 아래로 내려갔거나, 사용자가 스크롤해 뷰포트 포함 판정이 뒤집힘)에서 이번엔 게이트를 통과해버린다. 지켜야 할 불변식("before/after는 같은 기준을 쓴다")을 in-flight 잠금으로 한쪽 문에서만 막고 있었고, 잠금이 볼 수 없는 **다른 문**으로 같은 불변식이 뚫렸다. 설계 문서의 데이터 흐름도 after에 `expandContext: true`를 무조건 싣고 있어서, 구현은 설계의 구멍을 충실히 옮긴 것이었다 — 코드 리뷰가 아니라 설계 검토에서 걸렸어야 했다.
+- **재발 방지**: (1) **`null`과 `undefined`가 서로 다른 것을 뜻하는 값을 `??`로 변환하지 말 것.** `grep -rn '?? undefined' src/`로 변환 지점을 훑고, 각각에 대해 "받는 쪽이 이 둘을 구별해야 하는가"를 묻는다. 구별해야 하면 필드를 쪼개거나(`expandContext` 같은 별도 플래그) 유니온에 `| null`을 허용한다 — 여기선 "before가 확장에 성공했을 때만 after도 확장한다"를 `shouldExpandAfter(ctx) === (ctx?.contextSelector != null)` 순수 함수로 못 박아 해결했다. (2) **"A와 B가 같은 기준을 써야 한다"류 불변식은 그 기준을 실제로 정하는 지점을 전수로 세라** — 잠금·가드 하나로 지켜지는 것처럼 보여도, 기준을 읽는 경로가 2개면 문 2개다. `grep -rn 'expandContext' src/`가 그 전수 목록이고 현재 3곳(before 1·after 2)이다. (3) **설계 문서의 데이터 흐름도에 "같은 값을 두 번 쓰는" 구간이 있으면 두 번째 사용처가 첫 번째의 *결과*를 보는지 확인**한다 — design.md는 after 흐름을 before와 독립적으로 그려놨고 그게 그대로 버그가 됐다.
+- **관련**: `src/sidepanel/lib/capture-basis.ts:shouldExpandAfter`(해법·순수 함수), 호출부 `src/sidepanel/tabs/StyleEditorPanel.tsx:handleNext`·`src/sidepanel/hooks/useBufferThenSwitch.ts`, 판정 `src/content/picker.ts:handlePrepareCapture`·`src/content/capture-context.ts:resolveContextRect`, 그물 `src/sidepanel/lib/__tests__/capture-basis.test.ts`, 설계 `docs/features/element-capture-context/design.md`.
+
+## 2026-07-29 — 폴백이 정상 동작인 기능은 테스트 실패가 "구현 회귀"인지 "전제 붕괴"인지 구별되지 않는다
+
+- **영역**: `e2e`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: 캡처 컨텍스트 확장 spec이 "after 이미지가 다이얼로그 크기여야 한다"에서 계속 실패했다. 관측값은 정확히 **요소 bbox 크기** — 즉 제품이 확장을 안 걸고 폴백했다. 구현을 몇 번이나 다시 읽었지만 무결했고, 실제 원인은 **픽스처**였다: 모달 높이를 `12vw`로 잡았더니 내용보다 작아 버튼이 모달 박스 **밖으로 밀려나** G2(컨테이너가 요소를 완전히 포함)가 깨져 있었다.
+- **근본 원인**: 이 기능은 게이트 3개를 전부 통과할 때만 확장하고 **하나라도 어긋나면 조용히 현행 동작으로 폴백**한다 — 폴백이 설계상 정상이라 에러도 경고도 없다. 그래서 "확장이 안 걸림"이라는 관측 하나에 원인 후보가 둘(구현 회귀 / 전제 붕괴) 붙는데, spec은 결과만 단언해 둘을 가르지 못했다. 같은 뿌리에서 두 번째 함정도 나왔다: 픽스처를 `vh`로 잡으면 창 비율에 따라 "컨테이너로 잘랐을 때"와 "요소로 잘랐을 때"의 종횡비가 0.02까지 붙어, 단언이 **통과해도 아무것도 증명하지 않는** 상태가 된다.
+- **재발 방지**: (1) **게이트·임계값이 걸린 기능의 테스트는 결과 전에 전제를 단언한다.** 픽스처가 게이트를 실제로 만족하는지(`assertGatesSatisfied` — 뷰포트 포함·요소 포함·면적비를 페이지에서 직접 재서 검사) 먼저 통과시켜야, 실패 메시지가 "구현이 틀렸다"와 "픽스처가 무너졌다"를 갈라준다. (2) **두 가설이 관측값에서 실제로 갈리는지도 단언한다**(`assertHypothesesSeparable`) — 이 가드가 실제로 `vh` 함정을 잡았고, 없었으면 조용한 green이었다. (3) **뷰포트 비율에 의존하는 픽스처 치수는 한 축으로 통일**한다(여기선 폭·높이 둘 다 `vw`) — `vw`/`vh`를 섞으면 창 비율이 도형을 바꾼다. `grep -rn 'vh;' e2e/fixtures/pages/`가 점검 지점. (4) 곁가지지만 같은 계열: **캡처 픽셀 폭을 CSS px로 환산하지 말 것** — `captureVisibleTab`은 실제 backing store 해상도로 찍는데 Playwright는 페이지 `devicePixelRatio`를 1로 고정해 환산이 성립하지 않고(기대 252 → 실측 500), 크롭 조각이라 이미지에서 배율을 유도할 수도 없다. **종횡비로 판정하면 배율이 약분돼 사라진다.**
+- **관련**: `e2e/capture-context.spec.ts:assertGatesSatisfied`·`assertHypothesesSeparable`·`afterImageAspect`, 픽스처 `e2e/fixtures/pages/capture-context.html`, 게이트 본체 `src/content/capture-context.ts:passesContextGates`, `e2e/GOTCHAS.md`(3항목 추가).
+
+## 2026-07-29 — 배포될 명령과 **다른 형태**로 검증하고 통과로 읽었다: `pnpm test:e2e -- --shard=`의 `--`가 플래그를 positional 필터로 만들어 CI 4샤드가 전멸
+
+- **영역**: `툴체인`, `e2e`
+- **계열**: `미검증단언`, `복제본`
+- **그물**: `없음`
+- **증상**: e2e를 CI로 옮긴 첫 런에서 **4개 샤드가 전부** `Error: No tests found`로 죽었다. `verify` job은 통과했고, 로컬 `pnpm test:e2e`는 242개 전량 green이었다. 증상만 보면 xvfb·확장 SW 미기동·`.env.ci` 미적용 같은 **환경 가설**이 먼저 떠오르는데(설계 문서가 그 셋을 위험으로 꼽고 폴백까지 준비해뒀다) 전부 무관했다. 테스트가 한 개도 실행되지 않아 그 가설들은 검증 지점에 도달조차 못 했다.
+- **근본 원인**: 워크플로가 `pnpm test:e2e -- --shard=N/4`로 불렀다. **pnpm은 `--`를 리터럴로 하위 명령에 넘기고, Playwright CLI는 `--` 뒤를 전부 positional 인자(=테스트 파일 필터 정규식)로 읽는다.** 그래서 `--shard=N/4`는 플래그가 아니라 파일명 패턴이 되어 매칭 0건이 됐다. 헷갈리는 건 **같은 `--`가 이름 필터에선 정상 동작한다**는 것이다 — `pnpm test:e2e -- onboarding`은 `onboarding`이 유효한 positional이라 잘 돌고, 그 형태가 이미 `e2e/README.md`에 문서화돼 있었다. 그래서 "`--`는 인자 전달용"이라는 일반화가 성립하는 것처럼 보였다. 진짜 실패는 그 앞이다: 샤드 분배가 맞는지 확인할 때 나는 `pnpm exec playwright test --config e2e/playwright.config.ts --shard=1/4`로 **직접 호출**해 60/63/57/59라는 그럴듯한 숫자를 얻고 통과로 판정했다. 워크플로가 실행할 명령은 그게 아니었다. **검증한 명령과 배포된 명령이 달랐고, 숫자가 맞게 나왔다는 사실이 그 차이를 덮었다.** 게다가 같은 깨진 형태를 `e2e/README.md`의 "샤드 재현" 안내와 feature 문서 2곳에도 그대로 적어, 고치지 않았으면 문서가 오답을 전파했을 것이다.
+- **재발 방지**: (1) **워크플로·스크립트가 실행할 명령은 그 문자열 자체를 실행해 검증한다.** 손으로 "동등하다고 생각하는" 명령을 대신 돌리지 않는다. 이번엔 YAML에서 명령을 파싱해 matrix 값만 치환한 뒤 그대로 실행하는 식으로 다시 검증했다 — `ruby -ryaml -e '...steps.find{...}["run"]'` → `sub("${{ matrix.shard }}", "1")` → 실행. (2) **npm/pnpm 스크립트에 인자를 넘길 땐 `--`가 플래그를 죽인다**: `grep -rn 'pnpm .* -- --' .github/ *.md docs/`로 전수하고, 플래그(`--shard`·`--project`·`--list`)는 `--` 없이, 이름 필터만 `--` 뒤에 둔다. 이 구분을 `e2e/README.md`에 규칙으로 박았다. (3) **"숫자가 그럴듯하다"는 통과 근거가 아니다** — 검증 대상이 실물과 같은지를 먼저 확인한다. 2026-07-28 항목의 vacuous green(픽스처가 오버플로를 안 내 스크롤 단언이 공허했던 건)과 같은 계열이다: 그쪽은 *전제*가 성립 안 했고 이쪽은 *대상*이 달랐다. (4) 이 축은 저장소 안의 자동 그물로는 못 잡는다 — 유닛·typecheck·로컬 e2e가 전부 green이었고 CI 런 자체가 유일한 검출기였다. 그래서 CI 워크플로를 바꿀 땐 **첫 런을 반드시 관측**하고, 관측 전에 후속 단계(로컬 게이트 제거·브랜치 프로텍션)를 진행하지 않는 2단계 전환을 지켰다.
+- **관련**: `.github/workflows/ci.yml`(`e2e` job의 shard 스텝 — `--` 제거 + 사유 주석), `e2e/README.md`(실행 섹션 — `--`는 이름 필터에만), `e2e/playwright.config.ts`(샤딩 대상 config). 계열: **2026-07-28**(vacuous green — 검증이 실제로 무는지), **2026-07-16**(미검증 단언이 설계에 박힘).
+
 ## 2026-07-28 — 값을 다른 표면으로 옮기면 전제가 따라오지 않는다: `pre`의 `padding-left`는 스크롤 영역이라 가로 스크롤이 코드를 행 번호 위로 밀어 올렸다
 
 - **영역**: `에디터`, `디자인`, `e2e`

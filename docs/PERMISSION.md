@@ -64,7 +64,7 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 |---|---|
 | 툴바 아이콘 클릭 | `tab-bindings.ts:253` — `chrome.action.onClicked → activateTab()` |
 | `Cmd+Shift+E` 단축키 | `_execute_action` → 아이콘 클릭과 동일하게 `action.onClicked` 발화 |
-| 컨텍스트 메뉴 "BugShot" 클릭 | `background/index.ts:79` — `contextMenus.onClicked → activateTab()` |
+| 컨텍스트 메뉴 "BugShot" 클릭 | `background/index.ts:80` — `contextMenus.onClicked → activateTab()` |
 
 ### 의존 API
 
@@ -110,7 +110,7 @@ capture-error.ts:isActiveTabPermissionError()
 ```
 
 - `picker-control.ts:195` — `maybeSurfacePermissionExpired()`: captureVisibleTab 실패 시 호출
-- `capture.ts:51` — 요소 스냅샷 실패
+- `capture.ts:96` — 요소 스냅샷 실패
 - `usePickerMessages.ts:364·392` — 영역 캡처·인라인 캡처 실패 분기
 
 #### 3단계: tabCapture 에러 매칭 (영상 녹화)
@@ -122,7 +122,7 @@ video-capture.ts:isTabCaptureUnavailable()
 └── "activetab"
 ```
 
-- `video-capture.ts:110` — `isTabCaptureUnavailable()` 정의(호출부 `:41`, `startTabStream` 실패 분기)
+- `video-capture.ts:154` — `isTabCaptureUnavailable()` 정의(호출부 `:41`, `startTabStream` 실패 분기)
 
 ### 만료 시 동작
 
@@ -168,7 +168,7 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 | Recorder bridge 재주입 | ISOLATED | `picker-control.ts:75` | `recorder-bridge.ts` (sentinel 수신·중계)를 `allFrames:true`로 재주입 |
 | Recorder entry 재주입 | MAIN | `picker-control.ts:92` | `recorders-entry.ts` (network/console/action 후크) 재주입 (MAIN world, `allFrames` 미지정 → top 한정) |
 | 뷰포트 측정 | ISOLATED | `picker-control.ts` | Freeform 진입·iframe 요소 선택 시 top 프레임 `innerWidth/Height` 읽기 (`getTopViewport` — world 미지정 → 기본 ISOLATED) |
-| GitHub 업로드 | MAIN | `background/github-upload.ts:154` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수) |
+| GitHub 업로드 | MAIN | `background/github-upload.ts:154` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수). 업로드마다 **전용 비활성 탭을 새로 열고 끝나면 닫는다** — 기존 github.com 탭에 붙으면 다른 확장의 MAIN world 후크가 base64 미디어와 `asset_upload_authenticity_token`을 가져갈 수 있다. 사용자가 연 탭이 아니라 `activeTab`이 아닌 `<all_urls>`에 의존 |
 
 ### 주입 실패 시
 
@@ -241,7 +241,7 @@ video-capture.ts:startVideoCapture(tabId)
 ### 전역 비활성화 패턴
 
 ```
-background/index.ts:31 — disableGlobalSidePanel()
+background/index.ts:32 — disableGlobalSidePanel()
 ├── chrome.runtime.onInstalled → 호출
 └── chrome.runtime.onStartup  → 호출
 ```
@@ -252,7 +252,7 @@ background/index.ts:31 — disableGlobalSidePanel()
 
 | 함수 | 위치 | 동작 |
 |---|---|---|
-| `activateTab()` | `tab-bindings.ts:215` | user gesture → `setOptions({enabled:true})` + `sidePanel.open()` + 활성화 URL 저장(`sidePanel:url:{tabId}`, `tab.url`을 읽을 수 있을 때만). **URL 지원 여부를 보지 않는다** — 미지원 페이지에서도 열고 패널이 안내를 그린다 |
+| `activateTab()` | `tab-bindings.ts:253` | user gesture → `setOptions({enabled:true})` + `sidePanel.open()` + 활성화 URL 저장(`sidePanel:url:{tabId}`, `tab.url`을 읽을 수 있을 때만). **URL 지원 여부를 보지 않는다** — 미지원 페이지에서도 열고 패널이 안내를 그린다 |
 | `apply()` | `tab-bindings.ts:40` | 탭 전환·URL 변경 시 — **activated면** path 재등록, 아니면 비활성화. 지원 여부는 보지 않는다(보면 방금 연 패널을 다음 `onActivated`가 닫는다) |
 | `deactivatePanelIfCrossOrigin()` | `tab-bindings.ts` | origin 비교 → same-origin 유지, cross-origin은 커버 URL(http/https, 파일 접근 토글 ON인 file:)이면 유지·판독된 미지원 URL이면 유지(세션만 제거)·비커버 지원 URL(토글 OFF인 file:)이면 닫기/deferred |
 
@@ -287,7 +287,7 @@ tab-bindings.ts:227 — activateTab() 내부
 
 ### 세션 보존 규칙
 
-`shouldPreserveSession()` (`tab-bindings.ts:70`): 네비게이션 중에도 패널을 유지할 captureMode/phase 조합.
+`shouldPreserveSession()` (`tab-bindings.ts:72`): 네비게이션 중에도 패널을 유지할 captureMode/phase 조합.
 
 | captureMode | phase | 보존 여부 |
 |---|---|---|
@@ -323,7 +323,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 | 키 | 데이터 | 사용처 |
 |---|---|---|
 | `sidePanel:activated` | `number[]` (tab ID 목록) | `tab-bindings.ts:13` — 패널 활성화 탭 추적. **미지원 탭도 들어온다**(`activateTab`이 URL을 보지 않으므로). `onRemoved`가 무조건 정리 |
-| `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:166` — idle 상태 origin 비교 fallback. `chrome://` 등 `tab.url`을 못 읽는 탭에서는 **기록되지 않고**, 그 부재가 `deactivatePanelIfCrossOrigin`의 조기 return으로 이어져 패널이 유지된다 |
+| `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:14` — idle 상태 origin 비교 fallback. `chrome://` 등 `tab.url`을 못 읽는 탭에서는 **기록되지 않고**, 그 부재가 `deactivatePanelIfCrossOrigin`의 조기 return으로 이어져 패널이 유지된다 |
 | `editor:{tabId}` | `EditorSnapshot` 전체 에디터 상태 | `useEditorSessionSync.ts` — 300ms 디바운스 저장·수화 |
 | `pendingPrunedAt` | `number` (timestamp) | `pending-log-prune.ts:93` — 브라우저 세션당 1회 정리 가드 |
 
@@ -376,7 +376,7 @@ bg service worker에서 직접 읽기/쓰기:
 
 | 플랫폼 | Pre-refresh 임계값 | 401 재시도 | 갱신 중복 방지 |
 |---|---|---|---|
-| Jira | 60초 (`jira-api.ts:71`) | O (`authedFetch`) | `refreshInFlight` Promise 중복 제거 |
+| Jira | 60초 (`jira-api.ts:73`) | O (`authedFetch`) | `refreshInFlight` Promise 중복 제거 |
 | GitHub | 60초 (`github-api.ts:97` → `background/lib/createRefreshRunner.ts`) | O (`authedFetch`) | `refreshOnceWithLock` 훅 주입 |
 | Linear | 60초 (`linear-api.ts:52`) | O (`authedGraphQL`) | `refreshOnceWithLock` 훅 주입 |
 | Notion | — | 401 시 `OAuthError` throw → 재인증 안내 | — |
@@ -387,8 +387,9 @@ bg service worker에서 직접 읽기/쓰기:
 
 ### OAuth 에러 처리
 
-- `OAuthError` (`oauth/errors.ts` — `oauth.ts`가 re-export): `cancelled`, `platform` 필드 포함
+- `OAuthError` (`oauth/errors.ts` — `oauth.ts`가 re-export): `cancelled`, `platform`, `notConfigured` 필드 포함
 - bg에서 시리얼라이즈: `body.oauthCancelled` 또는 `body.oauthRefreshFailed` 플래그 (`background/oauth.ts:26` `serializeOAuthError` — `background/index.ts`에서 호출)
+- `notConfigured`(env 미설정)는 401이 아니라 **400 + `oauthNotConfigured`**로 직렬화한다 — 401로 내면 연동한 적도 없는 사용자에게 재로그인 프롬프트가 뜬다
 - `onOAuthExpired` 이벤트 (`types/messages.ts`): refresh 실패 시 발화 → 재인증 UI 표시
 - 사용자 취소 코드: `access_denied` (전 플랫폼), `user_cancelled_login`/`user_cancelled_authorize` (Jira), `user_denied` (Notion)
 
@@ -449,7 +450,7 @@ API Key/PAT 모드는 OAuth 인프라(refresh, proxy, identity API)를 일절 �
 ### 설정
 
 ```
-background/index.ts:48 — setupContextMenu()
+background/index.ts:49 — setupContextMenu()
 ├── runtime.onInstalled → 호출
 ├── runtime.onStartup  → 호출
 └── 직렬화 Promise 체인으로 중복 ID 방지
@@ -460,7 +461,7 @@ background/index.ts:48 — setupContextMenu()
 ### 클릭 핸들러
 
 ```
-background/index.ts:79 — contextMenus.onClicked
+background/index.ts:80 — contextMenus.onClicked
   → activateTab(tab) — 사이드 패널 활성화 (user gesture 제공)
 ```
 
@@ -473,10 +474,10 @@ background/index.ts:79 — contextMenus.onClicked
 #### onBeforeNavigate — 로그 꼬리 보존
 
 ```
-background/index.ts:115 — webNavigation.onBeforeNavigate
+background/index.ts:122 — webNavigation.onBeforeNavigate
 ├── frameId !== 0 → 무시 (메인 프레임만)
+├── 현재 tab.url을 navUrlPromise Map에 저장 (onCommitted에서 사용 — 세션 검사보다 먼저, 무조건)
 ├── editor:{tabId} 세션 없음 → 무시 (패널 미바인딩 탭)
-├── 현재 tab.url을 navUrlPromise Map에 저장 (onCommitted에서 사용)
 └── networkRecorder.sync + consoleRecorder.sync + actionRecorder.sync 메시지 전송
 ```
 
@@ -495,7 +496,8 @@ background/index.ts:136 — webNavigation.onCommitted
 │   ├── reload → true (DevTools UX — 새로고침 시 리셋)
 │   └── same-origin 내부 이동 → false (멀티페이지 디버깅용 보존)
 ├── editor:{tabId} 세션 없음 → 무시
-└── logClear 메시지 전송 → 사이드패널 clearNetworkLog/clearConsoleLog
+└── logClear 메시지 전송 → 사이드패널 clearNetworkLog/clearConsoleLog/clearActionLog
+    (`shouldPreserveBackgroundLogs` 구간 — recording + drafting/previewing/done — 에서는 무시)
     (frozen phase에서는 무시)
 ```
 
@@ -515,7 +517,7 @@ background/index.ts:136 — webNavigation.onCommitted
 | Jira 발급 media/CDN URL | 첨부 업로드 후 redirect를 따라 byte-range GET/HEAD로 media ID 판별(고정 host 아님) | `jira-api.ts` — `getMediaFileId` |
 | `auth.atlassian.com` | Jira OAuth authorize (launchWebAuthFlow — host_permission 불요) | `oauth.ts` — `launchWebAuthFlow` URL |
 | `api.github.com` | GitHub REST API | `github-api.ts` — repos, issues, users |
-| `github.com` | GitHub 파일 업로드 page injection + 에셋 업로드 정책(`github.com/upload/policies/assets`) | `github-upload.ts` — `executeScript({world:"MAIN"})` |
+| `github.com` | GitHub 파일 업로드 page injection + 에셋 업로드 정책(`github.com/upload/policies/assets`) | `github-upload.ts` — 전용 비활성 탭을 열어 `executeScript({world:"MAIN"})` |
 | GitHub 발급 S3 업로드 URL | 정책 응답의 동적 `policy.upload_url`로 실제 바이트 PUT (고정 host 아님) | `github-upload.ts` — `policy.upload_url` |
 | `api.linear.app` | Linear GraphQL + OAuth token | `linear-api.ts`, `linear-oauth.ts` |
 | Linear 발급 업로드 URL | `requestFileUpload`가 반환하는 pre-signed URL로 첨부 바이트 PUT (고정 host 아님) | `linear-api.ts` — `uploadUrl` |
@@ -524,7 +526,7 @@ background/index.ts:136 — webNavigation.onCommitted
 | `gitlab.com` | GitLab REST + OAuth token (gitlab.com 한정) | `gitlab-api.ts`, `gitlab-oauth.ts` |
 | `app.asana.com` | Asana REST + OAuth authorize (token 교환은 proxy) | `asana-api.ts`, `asana-oauth.ts` |
 | `api.clickup.com` | ClickUp REST (task 생성·첨부 업로드·본문 갱신) | `clickup-api.ts`, `clickup-oauth.ts` |
-| `slack.com` | Slack Web API (메시지 전송·채널/DM·멤버 조회·files 2-step 업로드) + OAuth authorize. files PUT은 Slack이 런타임 반환하는 `upload_url`(`*.slack.com` 등)도 `<all_urls>` 커버 | `slack-api.ts`, `slack-oauth.ts` |
+| `slack.com` | Slack Web API (메시지 전송·채널/DM·멤버 조회·files 2-step 업로드) + OAuth authorize. files 업로드 2단계의 multipart POST는 Slack이 런타임 반환하는 `upload_url`(`*.slack.com` 등)로 나가고 이것도 `<all_urls>` 커버 | `slack-api.ts`, `slack-oauth.ts` |
 | `us.i.posthog.com` (또는 `VITE_POSTHOG_HOST`) | 익명 분석 — 이슈 제출·연동 집계(`$ip:"0.0.0.0"`·geoip 비활성·person profile 미생성) | `background/analytics.ts` — `/capture/` fetch |
 | OAuth proxy origin | OAuth proxy (client_secret 은닉) | `oauth.ts`, `github-oauth.ts`, `notion-oauth.ts`, `asana-oauth.ts`, `clickup-oauth.ts`, `slack-oauth.ts` |
 

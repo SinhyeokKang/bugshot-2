@@ -18,6 +18,11 @@ import {
   type TokenLookup,
 } from "./css-resolve";
 import {
+  findContextAncestor,
+  passesContextGates,
+  resolveContextRect,
+} from "./capture-context";
+import {
   buildSelector,
   buildInitialTree,
   buildChildrenResponse,
@@ -240,10 +245,10 @@ function handlePickerMessage(
         return;
       case "picker.prepareCapture":
         if (window !== window.top) {
-          void respondWithTopRect(handlePrepareCapture(), sendResponse);
+          void respondWithTopRect(handlePrepareCapture(msg), sendResponse);
           return true;
         }
-        sendResponse(handlePrepareCapture());
+        sendResponse(handlePrepareCapture(msg));
         return;
       case "picker.prepareCaptureBySelector":
         handlePrepareCaptureBySelector(
@@ -330,19 +335,21 @@ async function respondWithTopRect(
     sendResponse(prep);
     return;
   }
+  // iframe은 확장 판정을 하지 않으므로 contextSelector는 항상 null이고 scroll만 이어 싣는다.
+  const scroll = { scrollX: prep.scrollX, scrollY: prep.scrollY };
   const offset = await requestFrameOffset();
   if (!offset) {
-    sendResponse({ rect: null, viewport: prep.viewport });
+    sendResponse({ rect: null, viewport: prep.viewport, ...scroll });
     return;
   }
   const rect = composeTopRect(prep.rect, offset);
   // iframe 자체가 top 뷰포트 밖으로 스크롤된 상태 — 크롭이 빈 화면 조각(1px clamp)으로
   // 유효 이미지처럼 저장되는 것을 막고 캡처 실패(rect null) 경로로 폴백.
   if (!rectIntersectsViewport(rect, offset.topViewport)) {
-    sendResponse({ rect: null, viewport: offset.topViewport });
+    sendResponse({ rect: null, viewport: offset.topViewport, ...scroll });
     return;
   }
-  sendResponse({ rect, viewport: offset.topViewport });
+  sendResponse({ rect, viewport: offset.topViewport, ...scroll });
 }
 
 function viewportRectOf(el: Element): ViewportRect {
@@ -350,10 +357,46 @@ function viewportRectOf(el: Element): ViewportRect {
   return { x: r.left, y: r.top, width: r.width, height: r.height };
 }
 
-function handlePrepareCapture(): PrepareCaptureResponse {
+function handlePrepareCapture(
+  msg: Extract<PickerMessage, { type: "picker.prepareCapture" }>,
+): PrepareCaptureResponse {
   const viewport = beginCapturePrep();
-  if (!selectedEl) return { rect: null, viewport };
-  return { rect: viewportRectOf(selectedEl), viewport };
+  const base = { viewport, scrollX: window.scrollX, scrollY: window.scrollY };
+  if (!selectedEl) return { ...base, rect: null };
+  const el = selectedEl;
+  const elementRect = viewportRectOf(el);
+  // iframe은 게이트가 자기 뷰포트 기준이라 top 좌표에서의 완전 포함을 보장할 수 없다 —
+  // 확장 판정 자체를 하지 않는다(폴백이 곧 현행 동작).
+  if (!msg.expandContext || window !== window.top) {
+    return { ...base, rect: elementRect, contextSelector: null };
+  }
+  if (msg.contextSelector) {
+    let found: Element | null = null;
+    try {
+      found = document.querySelector(msg.contextSelector);
+    } catch {
+      found = null;
+    }
+    return {
+      ...base,
+      ...resolveContextRect({
+        saved: msg.contextSelector,
+        found,
+        target: el,
+        contextRect: found ? viewportRectOf(found) : null,
+        elementRect,
+        viewport,
+      }),
+    };
+  }
+  const ancestor = findContextAncestor(el);
+  if (ancestor) {
+    const contextRect = viewportRectOf(ancestor);
+    if (passesContextGates(elementRect, contextRect, viewport)) {
+      return { ...base, rect: contextRect, contextSelector: buildSelector(ancestor) };
+    }
+  }
+  return { ...base, rect: elementRect, contextSelector: null };
 }
 
 // selector 기반 캡처 준비에서 scrollIntoView 직전의 스크롤 위치. endCapture에서 복원.
@@ -378,7 +421,7 @@ function handlePrepareCaptureBySelector(
     el = null;
   }
   if (!el) {
-    sendResponse({ rect: null, viewport });
+    sendResponse({ rect: null, viewport, scrollX: window.scrollX, scrollY: window.scrollY });
     return;
   }
   const rect = viewportRectOf(el);
@@ -388,7 +431,7 @@ function handlePrepareCaptureBySelector(
     rect.y + rect.height > window.innerHeight ||
     rect.x + rect.width > window.innerWidth;
   if (!outside) {
-    sendResponse({ rect, viewport });
+    sendResponse({ rect, viewport, scrollX: window.scrollX, scrollY: window.scrollY });
     return;
   }
   if (!capturedScroll) capturedScroll = { x: window.scrollX, y: window.scrollY };
@@ -401,6 +444,8 @@ function handlePrepareCaptureBySelector(
     sendResponse({
       rect: r,
       viewport: { width: window.innerWidth, height: window.innerHeight },
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
     });
   };
   requestAnimationFrame(() => {

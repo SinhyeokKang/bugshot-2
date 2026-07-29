@@ -11,13 +11,15 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 
 ## 실행
 
-- 빌드/실행: `pnpm build:e2e` → `pnpm test:e2e` (단일 spec: `pnpm test:e2e -- <이름 일부>`). dist-e2e는 **테스트 전용**(`<all_urls>` 포함, 수동 로드·스토어 업로드 금지).
+- **CI에서 자동으로 돈다** — `.github/workflows/ci.yml`의 `e2e` job이 dev push · main PR · nightly에서 전 스위트를 `--shard=N/4` 매트릭스(러너 4대)로 돌린다. headed 강제라 `xvfb-run`(가상 스크린 1920×1080×**24**) 경유고, 더미 `.env.ci`만 쓰므로 secret 없이 fork PR에서도 동작한다. 아래 로컬 실행은 CI를 기다리지 않고 미리 확인할 때 쓴다.
+- 빌드/실행: `pnpm build:e2e` → `pnpm test:e2e` (단일 spec: `pnpm test:e2e -- <이름 일부>`, 샤드 재현: `pnpm test:e2e --shard=1/4`). dist-e2e는 **테스트 전용**(`<all_urls>` 포함, 수동 로드·스토어 업로드 금지).
+  - **`--`는 이름 필터에만 붙인다.** pnpm이 `--`를 리터럴로 넘기고 playwright는 그 뒤를 전부 **positional 파일 필터**로 읽으므로, `pnpm test:e2e -- --shard=1/4`처럼 플래그에 붙이면 플래그로 인식되지 않고 `No tests found`로 죽는다. 플래그(`--shard`·`--project`·`--list` 등)는 `--` 없이 그대로 준다.
 - **두 project**(`playwright.config.ts`):
-  - `sidepanel` — 확장 구동 메인 게이트(`retries:0`, 결정적).
-  - `logview` — 확장 없이 `dist-log-viewer/index.html`을 합성 데이터로 직접 여는 standalone(`e2e/logview/*.spec.ts`, viewport 1280×800).
-  - `logview`는 `dependencies:["sidepanel"]`(사이드패널 green 후 실행). 단독: `pnpm test:e2e --project=logview --no-deps`(dist-log-viewer는 `build:log-viewer`/`build:e2e`가 생성).
+  - `sidepanel` — 확장 구동 메인 게이트.
+  - `logview` — 확장 없이 `dist-log-viewer/index.html`을 합성 데이터로 직접 여는 standalone(`e2e/logview/*.spec.ts`, viewport 1280×800). 단독 실행: `pnpm test:e2e --project=logview`(dist-log-viewer는 `build:log-viewer`/`build:e2e`가 생성). **`dependencies:["sidepanel"]`는 없다** — 실제 의존이 아니었고, `--shard` 사용 시 의존 project가 샤드마다 전량 실행돼 샤딩 효과를 지운다.
   - **30s Replay 캡처 spec(replay-action-log·replay-trim·replay-trim-logs·action-log-coverage·drag-action)은 제거됨** — `captureVisibleTab` cold-start/extension-global quota로 환경 flaky가 심해 게이트를 신뢰 불가하게 만들어 의도적으로 뺐다(트림/액션/드래그 로직은 단위 테스트로 커버, 캡처 경로는 수동 잔여). GOTCHAS 참조.
-- **창 깜빡임**: 확장 SW가 headless에선 안 깨어나 headed로만 돈다. 대신 브라우저 창을 화면 밖으로 보내 기본적으로 안 보인다. 디버깅으로 창을 직접 보려면 `E2E_SHOW=1 pnpm test:e2e`.
+- **`retries`는 로컬 0 / CI 1** (`process.env.CI` 분기). 로컬은 flaky를 숨기지 않고, CI는 xvfb·SW 기동 환경 flaky에 복구 기회를 한 번만 준다. `forbidOnly`도 CI 한정 — `.only`가 남으면 샤드가 조용히 green이 된다.
+- **창 깜빡임**: 확장 SW가 headless에선 안 깨어나 headed로만 돈다. 대신 브라우저 창을 화면 밖으로 보내 기본적으로 안 보인다. 디버깅으로 창을 직접 보려면 `E2E_SHOW=1 pnpm test:e2e`. **CI에선 이 이동을 생략한다** — xvfb엔 가릴 화면이 없고, 가상 스크린 밖으로 밀면 렌더가 클립될 수 있다.
 
 ## 헬퍼 · fixture 빠른 참조
 
@@ -52,6 +54,7 @@ fixture 페이지(`fixtures/pages/`):
 - **서버 엔드포인트** `/e2e-json*` (정적 파일 아님 — `fixtures/extension.ts` 서버 분기): `application/json` 본문 `{"note":"zqxbodyneedle"}`을 준다. 마커가 URL엔 없고 본문에만 있어 네트워크 로그 **본문 검색**(`network-body-search.spec`)을 판정. allowlist content-type이라 레코더가 string variant로 캡처. 코드블럭으로 직렬화하면 헤더 포함 **5줄**이라 접기 임계값(15) 아래 — `code-block-collapse.spec`의 음성 케이스도 겸한다.
 - **서버 엔드포인트** `/e2e-bigjson*`: 문자열 30개 배열(`{"items":[...]}`) — 코드블럭 직렬화 시 **36줄**로 접기 임계값을 넘는 양성 케이스(`code-block-collapse.spec`). 각 원소는 마커(`e2e-bigjson-NNN`) 뒤에 `x` 120자를 달아 **한 줄이 패널 폭을 넘는다** — 행 번호 열이 가로 스크롤에서 빠지는지 판정하려면 실제 오버플로가 나야 한다(짧으면 그 축이 조용히 공허해진다). 본문 설계 제약(SENSITIVE 키 회피·중첩 대신 배열)은 GOTCHAS 참조.
 - `scroll-capture.html` — 스크롤 캡처용. `#bar`(`position: fixed`) + `#sticky`(`position: sticky`, 자홍 픽셀 판정) 헤더는 첫 타일 이후 숨김 대상. `#tall`은 150vh라 타일 2장 고정(captureVisibleTab quota 최소화).
+- `capture-context.html` — element 캡처 컨텍스트 확장용. `#modal`(`role=dialog` + `aria-modal`, `position:fixed` 60vw×80px — 확장 게이트 G1/G2/G3를 전부 만족하도록 크기를 잡았다) 안의 `#modal-btn`(40×40 정사각 — 크롭 종횡비가 모달과 확실히 갈린다), 그리고 시맨틱 조상이 없는 `.plain-wrap > div > #plain-btn`(폴백 확인용). **`inset:0` 백드롭을 두지 않는다** — 전면 오버레이는 picker 클릭을 가로챈다. 모달 높이를 `vh`/`vw`로 잡으면 창 비율에 따라 크롭이 정사각형이 되거나 버튼이 박스 밖으로 밀려 게이트가 깨진다(GOTCHAS 참조).
 - `iframe.html` — top frame + `#frame` iframe(src=basic.html, picker iframe 내부 선택·iframe 로그 캡처용).
 - `iframe-nested.html` — `#outer`(src=iframe-child.html, 1-depth 등록 대상) + `#inert`(srcdoc — 미주입·거부 대상). `iframe-child.html`은 그 안에 `#inner`(2-depth, 거부 대상) 보유. picker 거부 게이트용.
 - `cross-origin.html` — `http://localhost:<port>/basic.html` iframe을 JS로 주입(동적 포트). 서버는 전 인터페이스 바인딩이라 localhost로도 접속돼 127.0.0.1 top과 origin이 갈라진다 — origin 필터용.

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>capture context fixture</title>
+    <style>
+      /* 페이지가 스크롤되면 좌표가 흔들리므로 문서를 뷰포트 안에 가둔다. */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        font-family: system-ui, sans-serif;
+      }
+
+      /* 시나리오 1: role=dialog 컨테이너. 확장 게이트 셋을 전부 만족해야 한다.
+         - G1(뷰포트 완전 포함): left 8vw ~ right 68vw, 높이는 고정 80px.
+         - G2(요소 완전 포함): 높이가 내용보다 작으면 버튼이 박스 밖으로 나가 G2가 깨진다.
+           padding 16 + 버튼 40 + padding 16 + border 4 = 76 ≤ 80 이어야 한다.
+         - G3(면적 40% 이하): 0.6W × 80px는 어떤 창에서도 한참 아래.
+         높이를 vh/vw로 잡지 않는 이유: 창 비율에 따라 크롭이 정사각형이 되면 "다이얼로그로
+         잘렸나 버튼으로 잘렸나"를 종횡비로 구분할 수 없어 spec 단언이 공허해진다.
+         inset:0 백드롭을 두지 않는다 — 전면 오버레이는 picker 클릭을 가로챈다. */
+      #modal {
+        position: fixed;
+        left: 8vw;
+        top: 8vh;
+        width: 60vw;
+        height: 80px;
+        box-sizing: border-box;
+        padding: 16px;
+        border: 2px solid #334155;
+        background: #e2e8f0;
+      }
+
+      /* 정사각형이라 크롭 종횡비가 1에 수렴한다 — 가로로 긴 모달과 확실히 갈린다. */
+      #modal-btn,
+      #plain-btn {
+        display: block;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+      }
+
+      /* 시나리오 2: 시맨틱 조상이 없는 div 체인 — 확장 후보가 아니라 요소 bbox로 폴백한다.
+         모달과 겹치지 않게 아래에 둔다. */
+      .plain-wrap {
+        position: absolute;
+        left: 8vw;
+        top: 60vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="modal" role="dialog" aria-modal="true">
+      <button id="modal-btn">x</button>
+    </div>
+
+    <div class="plain-wrap">
+      <div>
+        <button id="plain-btn">y</button>
+      </div>
+    </div>
+  </body>
+</html>

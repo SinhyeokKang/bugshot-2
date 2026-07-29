@@ -85,7 +85,13 @@ vi.mock("@/types/messages", () => ({
 }));
 
 import type { ActionLog } from "@/types/action";
-import { useEditorStore, mergeSelectionStyles, selectAttachedLogs } from "../editor-store";
+import type { CaptureContext } from "@/types/picker";
+import {
+  useEditorStore,
+  mergeSelectionStyles,
+  selectAttachedLogs,
+  type EditorSnapshot,
+} from "../editor-store";
 
 /* ------------------------------------------------------------------ */
 /*  Fixtures                                                           */
@@ -1972,5 +1978,183 @@ describe("selectAttachedLogs — 단일 logsAttach 통짜 게이트", () => {
       consoleLog: fakeConsoleLog,
       actionLog: null,
     });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  captureContext — before가 확정한 캡처 기준의 수명                    */
+/* ------------------------------------------------------------------ */
+
+describe("captureContext — 캡처 기준 보존", () => {
+  const ctx: CaptureContext = {
+    contextSelector: '[role="dialog"]#dlg',
+    rect: { x: 0, y: 0, width: 600, height: 400 },
+    viewport: { width: 1440, height: 900 },
+    scrollX: 0,
+    scrollY: 120,
+  };
+
+  function selectionFor(selector: string) {
+    return {
+      selector,
+      tagName: "button",
+      classList: ["cta"],
+      computedStyles: { color: "#000000" },
+      specifiedStyles: {},
+      propSources: {},
+      hasParent: true,
+      hasChild: false,
+      text: null,
+      viewport: { width: 1440, height: 900 },
+      capturedAt: 1700000000000,
+    };
+  }
+
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("초기값은 null이고 setCaptureContext로 갱신된다", () => {
+    expect(useEditorStore.getState().captureContext).toBeNull();
+
+    useEditorStore.getState().setCaptureContext(ctx);
+
+    expect(useEditorStore.getState().captureContext).toEqual(ctx);
+  });
+
+  it("새 요소를 선택하면 captureContext가 null로 초기화된다", () => {
+    useEditorStore.setState({ captureContext: ctx });
+
+    useEditorStore.getState().onElementSelected(selectionFor("#other") as never);
+
+    expect(useEditorStore.getState().captureContext).toBeNull();
+  });
+
+  it("reset이 captureContext를 청소한다", () => {
+    useEditorStore.setState({ captureContext: ctx });
+
+    useEditorStore.getState().reset();
+
+    expect(useEditorStore.getState().captureContext).toBeNull();
+  });
+
+  it("backToStyling은 before 이미지와 captureContext를 함께 유지한다", () => {
+    useEditorStore.setState({
+      phase: "previewing",
+      beforeImage: "data:before",
+      captureContext: ctx,
+    });
+
+    useEditorStore.getState().backToStyling();
+
+    const s = useEditorStore.getState();
+    expect(s.beforeImage).toBe("data:before");
+    expect(s.captureContext).toEqual(ctx);
+  });
+
+  it("bufferCurrentElement(image, context)가 버퍼 항목에 captureContext를 싣는다", () => {
+    useEditorStore.setState({
+      selection: selectionFor("button.cta") as never,
+      beforeImage: "data:before",
+    });
+
+    useEditorStore.getState().bufferCurrentElement("data:after", ctx);
+
+    expect(useEditorStore.getState().bufferedElements[0].captureContext).toEqual(ctx);
+  });
+
+  it("같은 selector 재편집 병합에서 beforeImage와 captureContext가 함께 유지된다", () => {
+    useEditorStore.setState({
+      selection: selectionFor("button.cta") as never,
+      beforeImage: "data:before-1",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after-1", ctx);
+
+    // 재편집: before는 새로 캡처됐지만 버퍼는 최초 before와 그 짝인 context를 유지해야 한다.
+    const restyled: CaptureContext = { ...ctx, contextSelector: "#stale", scrollY: 999 };
+    useEditorStore.setState({
+      selection: selectionFor("button.cta") as never,
+      beforeImage: "data:before-2",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after-2", restyled);
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf).toHaveLength(1);
+    expect(buf[0].beforeImage).toBe("data:before-1");
+    expect(buf[0].captureContext).toEqual(ctx);
+    expect(buf[0].afterImage).toBe("data:after-2");
+  });
+
+  it("버퍼된 요소를 재선택하면 captureContext가 현재 요소로 복원된다", () => {
+    useEditorStore.setState({
+      selection: selectionFor("button.cta") as never,
+      beforeImage: "data:before",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after", ctx);
+    useEditorStore.setState({ captureContext: null });
+
+    useEditorStore.getState().onElementSelected(selectionFor("button.cta") as never);
+
+    expect(useEditorStore.getState().captureContext).toEqual(ctx);
+  });
+
+  it("captureContext 없이 버퍼된 레거시 항목을 재선택하면 null로 폴백한다", () => {
+    useEditorStore.setState({
+      selection: selectionFor("button.cta") as never,
+      beforeImage: "data:before",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after");
+    useEditorStore.setState({ captureContext: ctx });
+
+    useEditorStore.getState().onElementSelected(selectionFor("button.cta") as never);
+
+    expect(useEditorStore.getState().captureContext).toBeNull();
+  });
+
+  it("patchBufferedElement가 captureContext를 갱신할 수 있다 (화이트리스트)", () => {
+    useEditorStore.setState({
+      selection: selectionFor("button.cta") as never,
+      beforeImage: "data:before",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after");
+
+    useEditorStore
+      .getState()
+      .patchBufferedElement("button.cta", 0, { captureContext: ctx });
+
+    expect(useEditorStore.getState().bufferedElements[0].captureContext).toEqual(ctx);
+  });
+
+  it("EditorSnapshot 왕복(hydrate) 후 captureContext가 복원된다", () => {
+    // Pick 목록에 captureContext가 없으면 이 객체 리터럴이 타입 에러를 낸다.
+    const snapshot: Pick<EditorSnapshot, "phase" | "captureContext"> = {
+      phase: "styling",
+      captureContext: ctx,
+    };
+
+    useEditorStore.getState().hydrate(snapshot as EditorSnapshot);
+
+    expect(useEditorStore.getState().captureContext).toEqual(ctx);
+  });
+
+  it("confirmDraft가 현재 요소와 버퍼 항목의 captureContext를 draft에 직렬화한다", () => {
+    useEditorStore.setState({
+      captureMode: "element",
+      target: { tabId: 1, url: "https://e.com", title: "T" },
+      selection: selectionFor("button.cta") as never,
+      beforeImage: "data:before",
+      draft: { title: "제목", body: "본문" } as never,
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after", ctx);
+    useEditorStore.setState({
+      selection: selectionFor("#current") as never,
+      captureContext: ctx,
+    });
+
+    useEditorStore.getState().confirmDraft();
+
+    const record = mockSaveDraft.mock.calls.at(-1)?.[0];
+    expect(record.captureContext).toEqual(ctx);
+    expect(record.bufferedElements[0].captureContext).toEqual(ctx);
   });
 });

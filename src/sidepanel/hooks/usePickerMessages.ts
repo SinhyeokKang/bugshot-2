@@ -25,6 +25,8 @@ import {
 
 let deferredActiveTabExpiry = false;
 let lastLogClearAt = 0;
+// 진행 중인 before 캡처 수. 겹치는 캡처가 서로의 잠금을 조기에 풀지 않도록 카운터로 센다.
+let beforeCaptureInflight = 0;
 
 // 레코더 자동 flush(~200ms)로 *.data 수신 빈도가 올라도 IndexedDB write는 ~1s로 묶는다.
 // store set은 매번(메모리), save만 가드. 30s replay trim 경로(use-30s-replay)가 discard로 stale 쓰기를 비운다.
@@ -140,13 +142,29 @@ export function usePickerMessages(myTabId: number | null): void {
             });
           }
           if (!wasBuffered && !useEditorStore.getState().beforeImage) {
-            void captureElementSnapshot(tabId, { frameId })
-              .then((img) => {
+            // DOM 트리 이동을 연타하면 선택마다 캡처가 발행돼 겹친다 — boolean이면
+            // 먼저 끝난 쪽이 아직 진행 중인 캡처의 잠금을 미리 푼다.
+            beforeCaptureInflight += 1;
+            useEditorStore.getState().setBeforeCapturePending(true);
+            void captureElementSnapshot(tabId, { frameId, expandContext: true })
+              .then((result) => {
                 const s = useEditorStore.getState();
-                if (!img || !sameSelection() || s.beforeImage) return;
-                s.setBeforeImage(img);
+                if (!result || !sameSelection() || s.beforeImage) return;
+                s.setBeforeImage(result.image);
+                s.setCaptureContext(result.context);
               })
-              .catch((err) => console.warn("[bugshot] before-image capture failed", err));
+              .catch((err) => {
+                console.warn("[bugshot] before-image capture failed", err);
+                // 실패 시 기준을 비우고 before 없이 진행하는 현행 동작을 유지한다.
+                // 늦게 도착한 이전 선택의 실패가 현재 기준을 지우지 않도록 동일성 재확인.
+                if (sameSelection()) useEditorStore.getState().setCaptureContext(null);
+              })
+              .finally(() => {
+                beforeCaptureInflight -= 1;
+                if (beforeCaptureInflight === 0) {
+                  useEditorStore.getState().setBeforeCapturePending(false);
+                }
+              });
           }
         }
       } else if (message.type === "picker.selectionUpdated") {
@@ -326,7 +344,9 @@ async function captureElementShot(
   // styling 분기와 대칭 — 캡처 전 타 프레임 hover 유령(배너·blocker) 종료해 크롭 오염 방지.
   await stopHoverAllFrames(tabId);
   // captureElementSnapshot은 권한 만료/캡처 실패 시 내부에서 안내 후 null 반환 → 빈 drafting 진입 금지.
-  const img = await captureElementSnapshot(tabId, { frameId });
+  // 요소 단일 캡처는 스코프 밖 — expandContext를 켜지 않는다(현행 요소 bbox 유지).
+  const shot = await captureElementSnapshot(tabId, { frameId });
+  const img = shot?.image ?? null;
   if (!img) {
     // 실패 시에도 전 프레임 정리 — 미정리 시 hover blocker가 페이지 클릭을 계속 삼킨다.
     void clearPicker(tabId);

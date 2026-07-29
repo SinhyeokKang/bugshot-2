@@ -20,12 +20,27 @@ description: dev → main PR 생성 + 커버리지 리포트(비차단) + 버전
 
 3. **머지될 커밋이 없으면** "main에 머지할 새 커밋 없음" 알리고 종료.
 
-4. **e2e 게이트** (`/push` 게이트와 교차 검증 — 통상 해시 일치로 스킵):
-   1. `cat e2e/.last-green`이 `git rev-parse HEAD`와 일치하면 → "직전 green (해시)" 한 줄로 통과.
-   2. 불일치(또는 파일 없음) → `/e2e-run` 절차 수행 (`pnpm build:e2e` → `pnpm test:e2e` → 리포트).
-   3. **빨강 → 실패 리포트 후 중단 (푸시·PR 생성 안 함).** 사용자가 "skip e2e"로 명시 우회 요청한 경우에만 생략하고 보고에 우회 사실 기록.
+4. **e2e 게이트 (원격 CI 결론 조회).** dev HEAD 커밋의 CI 결론을 조회한다 — 로컬에서 e2e를 돌리지 않는다.
+   ```
+   git rev-parse HEAD
+   gh run list --branch dev --workflow ci.yml --limit 20 \
+     --json databaseId,headSha,status,conclusion,url
+   ```
+   `headSha`가 dev HEAD와 일치하는 run을 찾아 판정한다:
 
-   푸시 전·bump 전에 두는 이유: 빨강 커밋을 원격에 올리지 않고, bump 커밋은 메타데이터만 바꾸므로 코드 상태 기준 green을 그대로 인정 — bump 후 재실행하면 해시 불일치로 항상 중복 실행된다.
+   | 상태 | 처리 |
+   |---|---|
+   | `conclusion: success` | 통과 — 다음 단계 |
+   | `status: in_progress`/`queued` | `gh run watch <databaseId> --exit-status`로 대기 후 결론 재조회 |
+   | 완료됐지만 `conclusion != success` | **중단** (PR 생성 안 함) |
+   | 일치 run 없음 | **중단** — "dev HEAD가 push되지 않았거나 CI가 트리거되지 않음" 보고 |
+   | API 오류·알 수 없는 상태 | **중단** — 원인과 run 또는 Actions URL 보고 |
+
+   중단 시 원인과 확인할 URL을 함께 보고한다. 사용자가 "skip e2e"로 명시 우회 요청한 경우에만 생략하고 보고에 우회 사실 기록.
+
+   **bump 전에 두는 이유**: 빨강 코드로 PR을 만들지 않기 위해서다. bump 커밋은 메타데이터만 바꾸므로 **여기서 확인한 green이 곧 머지될 코드의 green**이다(bump 후 CI가 다시 도는 건 required check 충족용이고, 10단계가 그걸 기다린다).
+
+   `/push`는 더 이상 e2e를 돌리지 않으므로 이 조회가 로컬 캐시 교차검증이 아니라 **유일한 사전 확인**이다.
 
 5. **커버리지 리포트 (비차단).** e2e 통과 후 `pnpm test:coverage` → `pnpm coverage:report`로 로직 스코프 라인 %를 베이스라인 대비 리포트한다(`/coverage` 스킬과 동일 경로). main에 들어가는 코드 기준 커버리지 스냅샷 — dev→main 경계가 래칫의 자연스러운 측정점이다.
    - **막지 않는다.** 회귀(하락 로직 파일)가 보여도 경고로 요약에 남기고 머지는 계속 진행.
@@ -60,11 +75,18 @@ description: dev → main PR 생성 + 커버리지 리포트(비차단) + 버전
 
 9. **머지 직전 요약.** PR 번호, 제목, 머지될 커밋 목록(버전 bump 커밋 포함)을 짧게 보여주고 **별도 승인 없이 바로 머지로 진행**한다.
 
-10. **머지 실행.**
+10. **머지 실행.** PR CI가 green이 될 때까지 기다린 뒤 머지한다.
    ```
+   gh pr checks <number> --watch --fail-fast
    gh pr merge <number> --squash
    ```
+   **대기가 필요한 이유**: `verify`와 `e2e-gate`가 required status check라, PR 생성 직후 바로 `gh pr merge`를 부르면 미충족으로 거부된다. bump 커밋이 새 SHA를 만들었으므로 4단계에서 본 run과는 별개의 run이 돈다(≈5분).
+
+   `--watch`가 빨강으로 끝나면 **중단하고 리포트** — `--admin`으로 우회하지 않는다.
+
    `--delete-branch`는 기본 OFF (dev 브랜치 살려둠). 머지 결과 출력에서 핵심 줄만 보고.
+
+   `/push`(논블로킹)와 달리 여기서 기다리는 건 의도적이다 — `/merge`는 드물게 일어나는 종착 액션이고, 11단계 `/sync`가 실제 머지 완료를 전제로 이어진다.
 
 11. **dev 동기화 자동 실행.** main 머지가 성공하면 곧바로 `/sync` 절차를 이어서 실행해 dev를 origin/main 상태로 맞추고 origin/dev에 force push한다. (유실 여부는 `/sync`가 diff 검증으로 자체 판단 — dev 전용 커밋이 실제 미반영 작업을 담고 있으면 `/sync`가 중단하니 그 판단을 그대로 따른다.) 안 하면 다음 PR diff가 지저분해질 수 있음. 이어서 배포할 거면 `git checkout main && git pull` 후 `/deploy`로.
 

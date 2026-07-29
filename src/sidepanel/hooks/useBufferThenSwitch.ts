@@ -1,6 +1,7 @@
 import { useEditorStore } from "@/store/editor-store";
 import { hasStyleChange } from "@/sidepanel/lib/hasStyleChange";
 import { captureElementSnapshot } from "@/sidepanel/capture";
+import { shouldExpandAfter } from "@/sidepanel/lib/capture-basis";
 
 // 전환 진입점(RepickButton·DomNavButton)은 각기 다른 컴포넌트로 마운트되므로, 캡처 await 창
 // 동안 서로 다른 버튼의 중복 클릭까지 막으려면 busy 가드를 모듈 전역으로 공유해야 한다.
@@ -16,13 +17,16 @@ export function useBufferThenSwitch(): (
     if (switchBusy) return;
     switchBusy = true;
     try {
-      const { selection, styleEdits, bufferCurrentElement } =
+      const { selection, styleEdits, bufferCurrentElement, captureContext } =
         useEditorStore.getState();
       if (selection && hasStyleChange(selection, styleEdits)) {
         const after = await captureElementSnapshot(tabId, {
           frameId: selection.frameId ?? 0,
+          expandContext: shouldExpandAfter(captureContext),
+          context: captureContext ?? undefined,
         });
-        bufferCurrentElement(after);
+        // 버퍼에는 after 재측정 결과가 아니라 before에서 확정한 기준을 저장한다.
+        bufferCurrentElement(after?.image ?? null, captureContext ?? undefined);
       }
       await switchAction();
     } finally {

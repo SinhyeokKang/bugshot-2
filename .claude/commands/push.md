@@ -22,7 +22,7 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/docs/DIRECTORY.md/docs/
 4. **문서 신선도 검사 (트라이아지 → 정밀).** 검사 대상이 6개라 무겁게 느껴지지만, 본질은 **diff를 한 번 읽고 트리거에 걸리는 문서만 골라내는 것**이다. 문서 수만큼 비용이 늘지 않는다.
 
    **4a. 트라이아지 (1회, 가볍게).** 푸시될 커밋들의 diff(`git diff @{u}..HEAD`)를 **한 번** 훑어, 아래 트리거에 걸리는 문서를 **후보 목록**으로 매핑한다. 이 단계에서는 문서를 읽지 않는다 — diff와 트리거만 본다.
-   - **후보가 0개면 검사 종료하고 바로 5단계(e2e 게이트)로 간다.** 대부분의 push가 여기서 통과한다.
+   - **후보가 0개면 검사 종료하고 바로 5단계(푸시)로 간다.** 대부분의 push가 여기서 통과한다.
    - 후보가 1개 이상이면 4b로 진행하되, **걸린 문서만** 다룬다.
 
    트리거:
@@ -62,15 +62,20 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/docs/DIRECTORY.md/docs/
    - 드리프트 검출 → `pnpm sync:agents`로 재생성하고 `docs(AGENTS): sync codex mirror` 커밋을 얹은 뒤 계속 진행(확인 불필요 — 순수 생성물이다).
    - 스크립트가 **에러**로 죽으면(치환 assert 실패 등) 중단하고 원인을 보고한다. 미러는 `CLAUDE.md`·`.claude/commands/`의 생성물이므로 원본을 고치는 게 정답이고, `AGENTS.md`·`.agents/skills/`를 직접 편집해 맞추지 않는다.
 
-5. **e2e 게이트.** 문서 신선도 검사 후, 푸시 직전에 수행:
-   1. `cat e2e/.last-green`이 `git rev-parse HEAD`와 일치하면 → "직전 green (해시)" 한 줄로 통과.
-   2. 불일치(또는 파일 없음) → `/e2e-run` 절차 수행 (`pnpm build:e2e` → `pnpm test:e2e` → 리포트).
-   3. **빨강 → 실패 리포트 후 중단 (푸시 안 함).** 사용자가 "skip e2e"로 명시 우회한 경우에만 생략하고 보고에 우회 사실 기록.
-   4. green → 워킹 트리 클린일 때만 `git rev-parse HEAD > e2e/.last-green` 기록(dirty면 생략을 보고에 명시) 후 푸시로 진행. 통상 이 기록으로 `/merge` 게이트가 스킵된다(캐시 priming).
-
-6. **푸시 실행.** 확인 없이 바로 푸시한다:
+5. **푸시 실행.** 확인 없이 바로 푸시한다:
+   - 푸시 **직전** `git rev-parse HEAD`를 기억해둔다 (6단계에서 run을 특정하는 데 쓴다).
    - `git push` (upstream 없으면 `git push -u origin <branch>`)
    - 출력에서 결과 줄만 발췌해 보고
+
+   **e2e는 여기서 돌리지 않는다.** 차단 게이트는 CI가 단독으로 맡는다(`e2e-gate` required check). 로컬에서 미리 보고 싶으면 사용자가 `/e2e-run`을 따로 호출한다.
+
+6. **CI run 안내 (논블로킹).** 푸시 성공 후 한 줄만 덧붙이고 **종료한다. 기다리지 않는다.**
+   ```
+   gh run list --branch <branch> --workflow ci.yml --limit 10 --json headSha,url,status
+   ```
+   - `headSha`가 5단계에서 기억한 HEAD와 **일치하는** run이 있으면 그 URL을 보고.
+   - 푸시 직후라 아직 등록 전이거나 일치하는 run이 없으면 `https://github.com/<owner>/<repo>/actions`로 폴백. **최신 run을 그냥 집지 않는다** — 이전 커밋의 run URL을 보고하면 오보가 된다.
+   - 결과 확인은 사용자 몫이다. `gh run watch`로 대기하지 않는다 — 세션을 잡지 않는 게 CI 이관의 목적이다.
 
 ## 금지 사항
 
