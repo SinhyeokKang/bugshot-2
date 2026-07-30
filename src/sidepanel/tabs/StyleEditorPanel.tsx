@@ -23,7 +23,7 @@ import { useBufferThenSwitch } from "@/sidepanel/hooks/useBufferThenSwitch";
 import { hasStyleChange } from "@/sidepanel/lib/hasStyleChange";
 import { sectionDefaultOpen } from "@/sidepanel/lib/sectionDefaultOpen";
 import { captureElementSnapshot } from "@/sidepanel/capture";
-import { shouldExpandAfter } from "@/sidepanel/lib/capture-basis";
+import { sameCaptureBasis } from "@/sidepanel/lib/capture-basis";
 import {
   applyClasses,
   applyText,
@@ -159,10 +159,14 @@ export function SelectedPanel() {
         const context = useEditorStore.getState().captureContext;
         const result = await captureElementSnapshot(tabId, {
           frameId: selection?.frameId ?? 0,
-          expandContext: shouldExpandAfter(context),
           context: context ?? undefined,
         });
-        setAfterImage(result?.image ?? null);
+        // 다른 커밋 지점과 같은 규율 — 이 창에서 기준이 갈렸으면(늦게 착지한 before, 또는
+        // Repick·DOM 이동으로 선택이 바뀌어 기준이 비워짐) 낡은 기준의 after는 버린다.
+        const landed = useEditorStore.getState().captureContext;
+        setAfterImage(
+          sameCaptureBasis(context, landed) ? result?.image ?? null : null,
+        );
       } else {
         // 버퍼 승격으로 복원된 afterImage가 diff 0건인 채 저장되는 것 방지.
         setAfterImage(null);
@@ -173,9 +177,8 @@ export function SelectedPanel() {
     }
   };
 
-  // before 캡처가 날아가는 동안 after를 찍으면 둘이 다른 기준을 쓴다. 잠금이 의미를 갖는 건
-  // 사용자가 원래 진행할 수 있었을 때뿐 — canProceed를 안 보면 편집 전 선택 직후에도 스피너가 돈다.
-  const nextBusy = proceeding || (beforeCapturePending && canProceed);
+  // after를 찍는 건 hasChange일 때뿐이라(handleNext) 잠금도 그때만 의미가 있다.
+  const nextBusy = proceeding || (beforeCapturePending && hasChange);
   const nextDisabled = nextBusy || !canProceed;
   const nextButton = (
     <Button

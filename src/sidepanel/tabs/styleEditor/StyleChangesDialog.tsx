@@ -30,6 +30,7 @@ import { originHostLabel, originKey, UNKNOWN_ORIGIN } from "@/sidepanel/lib/logO
 import { useEditorStore, type EditorStyleEdits } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { captureElementSnapshotBySelector } from "@/sidepanel/capture";
+import { sameCaptureBasis } from "@/sidepanel/lib/capture-basis";
 import {
   buildStyleDiff,
   DiffValue,
@@ -92,13 +93,18 @@ export function StyleChangesDialog() {
     });
     // 잔여 diff가 있고 DOM이 실제 원복된 경우만 after 스냅샷 재캡처(미원복은 모순 이미지 방지).
     if (remaining.length > 0 && found) {
-      // 확장을 켜지 않는다 — live 참조가 없어 "현재 요소 포함" 재검증이 성립하지 않는다.
+      // before가 확장으로 찍혔으면 같은 조상 기준으로 재캡처한다 — 요소 bbox로 찍으면
+      // 확장 before와 짝이 갈린다. 게이트 재실패는 기존 폴백(요소 bbox)으로 강등.
       const result = await captureElementSnapshotBySelector(tabId, group.selector, {
         frameId: group.frameId,
+        context: group.captureContext,
       });
       if (result) {
+        // 재검증이 게이트에서 떨어져 요소 bbox로 강등됐으면 그 이미지는 버퍼의 확장 before와
+        // 짝이 갈린다 — 기준이 다른 두 이미지 대신 after 없음으로 남긴다(다른 커밋 지점과 동일 규율).
+        const sameBasis = sameCaptureBasis(group.captureContext, result.context);
         useEditorStore.getState().patchBufferedElement(group.selector, group.frameId, {
-          afterImage: result.image,
+          afterImage: sameBasis ? result.image : null,
         });
       }
     }

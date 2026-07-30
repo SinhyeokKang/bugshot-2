@@ -196,7 +196,7 @@ test.describe("element 캡처 컨텍스트 확장", () => {
     await typeStyleValue(panel, "color", "#ff0000");
     await expect(fixture.locator("#modal-btn")).toHaveCSS("color", "rgb(255, 0, 0)");
 
-    // 편집이 끝나 canProceed는 참인데 before 캡처가 아직 in-flight — 잠겨 있어야 한다.
+    // 편집이 끝나 hasChange는 참인데 before 캡처가 아직 in-flight — 잠겨 있어야 한다.
     const next = panel.getByTestId("next-step");
     await expect(next).toHaveAttribute("aria-disabled", "true");
 

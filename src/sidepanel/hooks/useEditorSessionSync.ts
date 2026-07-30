@@ -50,6 +50,8 @@ function toLiteSnapshot(snap: EditorSnapshot): EditorSnapshot {
     ...snap,
     beforeImage: null,
     afterImage: null,
+    // captureContext는 남긴다 — 기준이 사라지면 resolveCaptureRect의 0×0 가드(요소 소실 시
+    // 마진 조각 대신 이미지 없음)가 함께 풀린다. 짝 없는 기준보다 그 가드가 값이 크다.
     // bufferedElements는 배열 안 base64라 얕은 스프레드로는 안 비워짐 → 명시 변환.
     bufferedElements: snap.bufferedElements.map((e) => ({
       ...e,

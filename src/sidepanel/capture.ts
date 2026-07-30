@@ -1,6 +1,9 @@
 import { sendBg } from "@/types/messages";
 import { clampCropRect } from "@/sidepanel/lib/crop-rect";
-import { resolveCaptureRect } from "@/sidepanel/lib/capture-basis";
+import {
+  resolveCaptureRect,
+  resolveExpandRequest,
+} from "@/sidepanel/lib/capture-basis";
 import type {
   CaptureContext,
   PrepareCaptureResponse,
@@ -23,7 +26,8 @@ export interface CaptureResult {
 interface CaptureOptions {
   margin?: number;
   frameId?: number;
-  // 확장 판정 opt-in. 기본 false — element mode before/after만 켠다.
+  // 확장 판정 opt-in. 기본 false이고 켜는 곳은 before 캡처 하나뿐 — after 경로는 context를
+  // 넘겨 판정을 파생시킨다. 둘을 함께 넘기면 context가 이긴다(resolveExpandRequest).
   expandContext?: boolean;
   context?: CaptureContext;
 }
@@ -34,10 +38,11 @@ export async function captureElementSnapshot(
 ): Promise<CaptureResult | null> {
   return captureWithPrep(
     tabId,
-    await prepareCapture(tabId, options.frameId ?? 0, {
-      expandContext: options.expandContext,
-      contextSelector: options.context?.contextSelector ?? undefined,
-    }),
+    await prepareCapture(
+      tabId,
+      options.frameId ?? 0,
+      resolveExpandRequest(options),
+    ),
     options,
   );
 }
@@ -45,12 +50,20 @@ export async function captureElementSnapshot(
 export async function captureElementSnapshotBySelector(
   tabId: number,
   selector: string,
-  options: { margin?: number; frameId?: number } = {},
+  options: { margin?: number; frameId?: number; context?: CaptureContext } = {},
 ): Promise<CaptureResult | null> {
+  const { context, ...rest } = options;
   return captureWithPrep(
     tabId,
-    await prepareCaptureBySelector(tabId, options.frameId ?? 0, selector),
-    options,
+    await prepareCaptureBySelector(
+      tabId,
+      rest.frameId ?? 0,
+      selector,
+      resolveExpandRequest({ context }),
+    ),
+    // context를 rest에서 뺀다 — 0×0 폴백(before rect 재사용)은 live 참조로 찍은
+    // before/after 짝에만 성립하는 스코프라 by-selector 재캡처는 현행 동작을 유지한다.
+    rest,
   );
 }
 

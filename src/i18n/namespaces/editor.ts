@@ -106,6 +106,7 @@ const ko = {
   "styleTable.asIs": "변경 전",
   "styleTable.toBe": "변경 후",
   "styleTable.unset": "미설정",
+  "styleTable.noSnapshot": "스냅샷 없음",
 
   "annotation.cancel": "취소",
   "annotation.done": "주석 완료",
@@ -270,6 +271,7 @@ const en = {
   "styleTable.asIs": "As is",
   "styleTable.toBe": "To be",
   "styleTable.unset": "Unset",
+  "styleTable.noSnapshot": "No snapshot",
 
   "annotation.cancel": "Cancel",
   "annotation.done": "Done",

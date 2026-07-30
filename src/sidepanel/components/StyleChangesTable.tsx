@@ -98,7 +98,17 @@ export function StyleChangesTable({
 
 function SnapshotCell({ image, testId }: { image: string | null; testId?: string }) {
   const t = useT();
-  if (!image) return null;
+  // 캡처가 생략된 칸(좌표 불신·요소 소실·기준 강등)을 빈 셀로 두면 오류와 구별되지 않는다.
+  if (!image) {
+    return (
+      <span
+        data-testid={testId ? `${testId}-empty` : undefined}
+        className="text-muted-foreground/60"
+      >
+        {t("styleTable.noSnapshot")}
+      </span>
+    );
+  }
   return (
     <Card className="flex items-center justify-center bg-muted/30 p-1">
       <img

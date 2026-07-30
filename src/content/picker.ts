@@ -252,7 +252,7 @@ function handlePickerMessage(
         return;
       case "picker.prepareCaptureBySelector":
         handlePrepareCaptureBySelector(
-          msg.selector,
+          msg,
           window === window.top
             ? sendResponse
             : (res) => void respondWithTopRect(res, sendResponse),
@@ -329,7 +329,7 @@ function beginCapturePrep(): { width: number; height: number } {
 // 기준이라 top 크기로 교체. 실패(중첩·타임아웃)면 rect null — 캡처 실패 경로 폴백.
 async function respondWithTopRect(
   prep: PrepareCaptureResponse,
-  sendResponse: (res?: unknown) => void,
+  sendResponse: (res: PrepareCaptureResponse) => void,
 ): Promise<void> {
   if (!prep.rect) {
     sendResponse(prep);
@@ -370,17 +370,20 @@ function handlePrepareCapture(
   if (!msg.expandContext || window !== window.top) {
     return { ...base, rect: elementRect, contextSelector: null };
   }
-  if (msg.contextSelector) {
+  // != null — 빈 문자열을 "판정한 적 없음"으로 뭉개면 before가 확장에 성공했는데도
+  // after가 판정을 처음부터 다시 돌린다(POSTMORTEM 2026-07-29).
+  if (msg.contextSelector != null) {
+    const saved = msg.contextSelector;
     let found: Element | null = null;
     try {
-      found = document.querySelector(msg.contextSelector);
+      found = document.querySelector(saved);
     } catch {
       found = null;
     }
     return {
       ...base,
       ...resolveContextRect({
-        saved: msg.contextSelector,
+        saved,
         found,
         target: el,
         contextRect: found ? viewportRectOf(found) : null,
@@ -410,13 +413,13 @@ let captureInflight = 0;
 let frameOffsetArmCount = 0;
 
 function handlePrepareCaptureBySelector(
-  selector: string,
+  msg: Extract<PickerMessage, { type: "picker.prepareCaptureBySelector" }>,
   sendResponse: (res: PrepareCaptureResponse) => void,
 ): void {
   const viewport = beginCapturePrep();
   let el: Element | null = null;
   try {
-    el = document.querySelector(selector);
+    el = document.querySelector(msg.selector);
   } catch {
     el = null;
   }
@@ -424,35 +427,71 @@ function handlePrepareCaptureBySelector(
     sendResponse({ rect: null, viewport, scrollX: window.scrollX, scrollY: window.scrollY });
     return;
   }
-  const rect = viewportRectOf(el);
+  const target = el;
+  // 확장 판정은 live 참조 없이도 성립한다 — selector로 찾은 요소가 곧 포함 검증의 target이다.
+  // iframe은 handlePrepareCapture와 같은 이유(게이트가 자기 뷰포트 기준)로 확장하지 않는다.
+  const saved = msg.contextSelector;
+  let container: Element | null = null;
+  if (msg.expandContext && saved != null && window === window.top) {
+    try {
+      container = document.querySelector(saved);
+    } catch {
+      container = null;
+    }
+  }
+  const basisOf = (
+    vp: { width: number; height: number },
+  ): { rect: ViewportRect; contextSelector: string | null } => {
+    const elementRect = viewportRectOf(target);
+    if (saved == null || !container) {
+      return { rect: elementRect, contextSelector: null };
+    }
+    return resolveContextRect({
+      saved,
+      found: container,
+      target,
+      contextRect: viewportRectOf(container),
+      elementRect,
+      viewport: vp,
+    });
+  };
+  // 스크롤·화면밖 판정은 확장 대상 기준으로 한다 — 요소만 중앙에 놓으면 컨테이너가 뷰포트를
+  // 벗어나 G1에서 떨어지고, 이 경로에서 확장이 사실상 안 걸린다.
+  const anchor = container ?? el;
+  const rect = viewportRectOf(anchor);
   const outside =
     rect.y < 0 ||
     rect.x < 0 ||
     rect.y + rect.height > window.innerHeight ||
     rect.x + rect.width > window.innerWidth;
   if (!outside) {
-    sendResponse({ rect, viewport, scrollX: window.scrollX, scrollY: window.scrollY });
-    return;
-  }
-  if (!capturedScroll) capturedScroll = { x: window.scrollX, y: window.scrollY };
-  el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
-  const target = el;
-  let responded = false;
-  const respond = (r: ViewportRect | null) => {
-    if (responded) return;
-    responded = true;
     sendResponse({
-      rect: r,
-      viewport: { width: window.innerWidth, height: window.innerHeight },
+      ...basisOf(viewport),
+      viewport,
       scrollX: window.scrollX,
       scrollY: window.scrollY,
     });
+    return;
+  }
+  if (!capturedScroll) capturedScroll = { x: window.scrollX, y: window.scrollY };
+  anchor.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+  let responded = false;
+  const respond = (measured: boolean) => {
+    if (responded) return;
+    responded = true;
+    const vp = { width: window.innerWidth, height: window.innerHeight };
+    const base = { viewport: vp, scrollX: window.scrollX, scrollY: window.scrollY };
+    sendResponse(
+      measured
+        ? { ...base, ...basisOf(vp) }
+        : { ...base, rect: null, contextSelector: null },
+    );
   };
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => respond(viewportRectOf(target)));
+    requestAnimationFrame(() => respond(true));
   });
   // hidden 탭에서는 rAF가 발화하지 않아 응답이 매달림 — 캡처 실패(rect null) 경로로 폴백.
-  setTimeout(() => respond(null), 500);
+  setTimeout(() => respond(false), 500);
 }
 
 // cleanup=true는 iframe 캡처 종료 시 사이드패널이 frame 0에 보내는 정리 신호.
