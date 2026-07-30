@@ -1,4 +1,5 @@
 import { t } from "@/i18n";
+import type { TranslationKey } from "@/i18n/ko";
 import type { JiraOAuthAuth, JiraSite } from "@/types/jira";
 import type { PlatformId } from "@/types/platform";
 import { writeStoredOAuthTokens } from "@/lib/settings-storage";
@@ -23,6 +24,8 @@ const SCOPES = [
 
 // BgError body로 직렬화하는 단일 출처. messages.ts의 isOAuthCancelled /
 // isOAuthRefreshFailed / getOAuthErrorPlatform 판독부와 짝을 이룬다(드리프트 방지).
+// oauthNotConfigured·oauthLaunchFailed는 401 레인을 벗어나기 위한 마커라 판독부가 없다 —
+// 대칭이 안 맞아 보인다고 판독 함수를 늘리지 말 것(소비처 없는 reader가 된다).
 export function serializeOAuthError(error: OAuthError): {
   status: number | undefined;
   body: Record<string, unknown>;
@@ -35,6 +38,10 @@ export function serializeOAuthError(error: OAuthError): {
   if (error.notConfigured) {
     return { status: 400, body: { oauthNotConfigured: true, platform: error.platform } };
   }
+  // 인증 창 자체가 못 뜬 것도 만료가 아니다 — 같은 이유로 401 레인에서 뺀다.
+  if (error.launchFailed) {
+    return { status: 400, body: { oauthLaunchFailed: true, platform: error.platform } };
+  }
   return { status: 401, body: { oauthRefreshFailed: true, platform: error.platform } };
 }
 
@@ -45,6 +52,32 @@ export function base64url(buffer: ArrayBuffer): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+// Promise 형태의 launchWebAuthFlow는 창을 닫아도 resolve(undefined)가 아니라 reject한다
+// (각 start*OAuth의 `if (!redirect)` 취소 분기는 그래서 도달하지 않는다). 문자열 출처는
+// Chromium chrome/browser/extensions/api/identity/identity_constants.h.
+// kPageLoadTimedOut은 빠져 있다 — web_auth_flow.cc의 MaybeStartTimeout이 SILENT 모드에서만
+// 타이머를 걸고 우리는 항상 interactive: true라 도달하지 않는다.
+interface LaunchFlowError {
+  match: RegExp;
+  key: TranslationKey;
+  cancelled: boolean;
+}
+
+// 상호 배타적이라 순서는 무관하다 — 항목을 추가할 땐 겹치지 않는지 확인할 것.
+const LAUNCH_FLOW_ERRORS: readonly LaunchFlowError[] = [
+  { match: /did not approve access/i, key: "oauth.error.cancelled", cancelled: true },
+  { match: /page could not be loaded/i, key: "oauth.error.authorizationPageFailed", cancelled: false },
+  { match: /create a browser window/i, key: "oauth.error.windowCreateFailed", cancelled: false },
+  // 프로필이 파괴돼야 나오는데 그러면 사이드패널도 같이 죽어 이 문구는 표시되지 않는다.
+  // 집계도 미분류일 때와 같은 failed다 — 관측 가능한 효과는 없고 테이블 완전성으로 남긴다.
+  { match: /browser context has been shut down/i, key: "oauth.error.browserContextShutDown", cancelled: false },
+  { match: /one web auth flow is allowed/i, key: "oauth.error.flowAlreadyInProgress", cancelled: false },
+];
+
+export function classifyLaunchFlowError(message: string): LaunchFlowError | null {
+  return LAUNCH_FLOW_ERRORS.find((entry) => entry.match.test(message)) ?? null;
+}
+
 export async function launchOAuthWebFlow(
   url: string,
   platform: PlatformId,
@@ -53,9 +86,12 @@ export async function launchOAuthWebFlow(
     return await chrome.identity.launchWebAuthFlow({ url, interactive: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (/could not be loaded/i.test(message)) {
-      throw new OAuthError(t("oauth.error.authorizationPageFailed"), {
+    const classified = classifyLaunchFlowError(message);
+    if (classified) {
+      throw new OAuthError(t(classified.key), {
         platform,
+        cancelled: classified.cancelled,
+        launchFailed: !classified.cancelled,
       });
     }
     throw err;

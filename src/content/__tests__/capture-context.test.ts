@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import {
-  CONTEXT_MAX_VIEWPORT_RATIO,
-  passesContextGates,
-} from "../capture-context";
+import { passesContextGates } from "../capture-context";
 
 // 1000×800 = 800,000px². 40% 상한 = 320,000px².
 const VIEWPORT = { width: 1000, height: 800 };
@@ -13,10 +10,6 @@ function rect(x: number, y: number, width: number, height: number) {
 }
 
 describe("passesContextGates", () => {
-  it("상한 상수는 뷰포트 면적의 40%다", () => {
-    expect(CONTEXT_MAX_VIEWPORT_RATIO).toBe(0.4);
-  });
-
   it("뷰포트 안 + 요소 완전 포함 + 면적 30%면 통과", () => {
     // 600×400 = 240,000 = 30%
     expect(
@@ -36,6 +29,15 @@ describe("passesContextGates", () => {
     expect(
       passesContextGates(rect(10, 10, 100, 50), rect(0, 0, 800, 400), VIEWPORT),
     ).toBe(true);
+  });
+
+  // 위 40% 통과와 짝지어 상한을 정확히 0.4로 못 박는다 — 이 둘이 없으면 상수가 0.45로
+  // 바뀌어도 green이고, 40%는 docs/privacy.{ko,en}.md가 공개한 값이다.
+  it("40%를 아주 조금이라도 넘으면 거부", () => {
+    // 800×400.5 = 320,400 > 320,000
+    expect(
+      passesContextGates(rect(10, 10, 100, 50), rect(0, 0, 800, 400.5), VIEWPORT),
+    ).toBe(false);
   });
 
   it("요소가 컨테이너 밖으로 삐져나가면 거부 (G2)", () => {
@@ -72,6 +74,20 @@ describe("passesContextGates", () => {
     // 통과했을 크기다. 자르지 않으므로 G1에서 떨어지고, 면적도 360,000이라 어차피 초과.
     expect(
       passesContextGates(rect(10, 10, 100, 50), rect(-100, 0, 1200, 300), VIEWPORT),
+    ).toBe(false);
+  });
+
+  // 요소가 0×0이면 G2를 생략하는데, 컨테이너까지 0면적이면 G1·G3가 산술로 통과해
+  // "확장 성공"이 된다 — 마진(24px)만 남은 조각이 contextSelector와 함께 before로 굳는다.
+  it("컨테이너가 0면적이면 거부 — 요소도 0×0이라 G2가 생략되는 경로", () => {
+    expect(
+      passesContextGates(rect(0, 0, 0, 0), rect(100, 100, 0, 0), VIEWPORT),
+    ).toBe(false);
+  });
+
+  it("컨테이너의 한 변만 0이어도 거부", () => {
+    expect(
+      passesContextGates(rect(0, 0, 0, 0), rect(100, 100, 600, 0), VIEWPORT),
     ).toBe(false);
   });
 

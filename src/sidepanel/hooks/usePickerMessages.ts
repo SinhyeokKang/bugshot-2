@@ -150,15 +150,16 @@ export function usePickerMessages(myTabId: number | null): void {
               .then((result) => {
                 const s = useEditorStore.getState();
                 if (!result || !sameSelection() || s.beforeImage) return;
+                // styling을 이미 떠났으면(diff 0건으로 [다음]을 눌러 진행) 이 before는 짝이
+                // 없다 — 채택하면 초안에 짝 없는 스냅샷 플래그·blob만 남는다.
+                if (s.phase !== "styling") return;
                 s.setBeforeImage(result.image);
                 s.setCaptureContext(result.context);
               })
-              .catch((err) => {
-                console.warn("[bugshot] before-image capture failed", err);
-                // 실패 시 기준을 비우고 before 없이 진행하는 현행 동작을 유지한다.
-                // 늦게 도착한 이전 선택의 실패가 현재 기준을 지우지 않도록 동일성 재확인.
-                if (sameSelection()) useEditorStore.getState().setCaptureContext(null);
-              })
+              // 캡처 실패는 null 반환으로 흐른다(위 `!result`) — 여기는 예기치 못한 throw만.
+              .catch((err) =>
+                console.warn("[bugshot] before-image capture failed", err),
+              )
               .finally(() => {
                 beforeCaptureInflight -= 1;
                 if (beforeCaptureInflight === 0) {

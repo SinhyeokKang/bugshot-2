@@ -1,14 +1,13 @@
 import type { ViewportRect } from "@/types/picker";
 
-export const CONTEXT_MAX_VIEWPORT_RATIO = 0.4;
+// docs/privacy.{ko,en}.md가 이 40%를 공개한다 — 값 자체는 경계 테스트가 행동으로 고정한다.
+const CONTEXT_MAX_VIEWPORT_RATIO = 0.4;
 
 // 떠 있는 UI — 시맨틱 속성만으로 확정된다.
 const OVERLAY_SELECTOR =
   'dialog,[popover],[role="dialog"],[role="alertdialog"],[aria-modal="true"]';
 
-// 일반 페이지의 강한 구조 단위. 후보여도 산술 게이트와 after 재검증을 거친다.
-// form과 fieldset은 뺐다 — fieldset은 form의 한 섹션이라 결제·주소 입력 묶음을
-// 통째로 캡처에 끌어들인다(같은 사유, 같은 노출 면적).
+// form·fieldset은 뺐다 — 결제·주소 입력 묶음을 통째로 캡처에 끌어들인다.
 const STRUCTURE_SELECTOR =
   "tr,li,article,figure," +
   '[role="row"],[role="listitem"],[role="tabpanel"],' +
@@ -39,12 +38,15 @@ export function passesContextGates(
 ): boolean {
   const vpArea = viewport.width * viewport.height;
   if (vpArea <= 0) return false;
+  // 컨테이너가 한 변이라도 0이면 확장해도 마진만 남는다 — 요소가 0×0일 때 G2가 생략되는
+  // 탓에 G1·G3만으로는 이 조각이 "확장 성공"으로 통과한다.
+  if (contextRect.width <= 0 || contextRect.height <= 0) return false;
   // G1
   if (
-    contextRect.x < 0 ||
-    contextRect.y < 0 ||
-    contextRect.x + contextRect.width > viewport.width ||
-    contextRect.y + contextRect.height > viewport.height
+    !containsRect(
+      { x: 0, y: 0, width: viewport.width, height: viewport.height },
+      contextRect,
+    )
   ) {
     return false;
   }
@@ -60,7 +62,7 @@ export function passesContextGates(
 
 // after 재검증. DOM 조회·rect 측정은 호출부(picker.ts)가 하고 판정만 여기서 한다.
 export function resolveContextRect(args: {
-  saved: string | null;
+  saved: string;
   found: Element | null;
   target: Element;
   contextRect: ViewportRect | null;
@@ -69,7 +71,7 @@ export function resolveContextRect(args: {
 }): { rect: ViewportRect; contextSelector: string | null } {
   const { saved, found, target, contextRect, elementRect, viewport } = args;
   const fallback = { rect: elementRect, contextSelector: null };
-  if (!saved || !found || !contextRect) return fallback;
+  if (!found || !contextRect) return fallback;
   if (!found.contains(target)) return fallback;
   if (!passesContextGates(elementRect, contextRect, viewport)) return fallback;
   return { rect: contextRect, contextSelector: saved };

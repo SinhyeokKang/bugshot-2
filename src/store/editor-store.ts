@@ -183,8 +183,7 @@ interface EditorState {
   reproPrefillDone: boolean;
   attachments: UserAttachmentMeta[];
   aiStylingLoading: boolean;
-  // before 캡처가 실제로 날아가는 동안만 true. before/after가 서로 다른 판정을 쓰는 경쟁을
-  // 막는 in-flight 가드다(캡처를 발행하지 않는 경로는 애초에 세우지 않는다). 비영속.
+  // 캡처를 실제로 발행하는 동안만 true — before/after 기준 경쟁 가드. 비영속.
   beforeCapturePending: boolean;
   aiDraftLoading: boolean;
   // 재현 단계 자동 채움 로딩. AI draft 오버레이(App.tsx)를 공유해 패널 전체를 덮는다. 비영속(전환 상태).
@@ -247,9 +246,7 @@ interface EditorState {
   patchBufferedElement: (
     selector: string,
     frameId: number,
-    patch: Partial<
-      Pick<BufferedElement, "styleEdits" | "afterImage" | "captureContext">
-    >,
+    patch: Partial<Pick<BufferedElement, "styleEdits" | "afterImage">>,
   ) => void;
   removeBufferedElement: (selector: string, frameId: number) => void;
   confirmStyles: () => void;
@@ -902,7 +899,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           before: !!state.beforeImage,
           after: !!state.afterImage,
         },
-        captureContext: state.captureContext ?? undefined,
         selectionSnapshot: {
           classList: [...state.selection.classList],
           specifiedStyles: { ...state.selection.specifiedStyles },
@@ -938,7 +934,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 },
                 hasBefore: !!b.beforeImage,
                 hasAfter: !!b.afterImage,
-                captureContext: b.captureContext,
               }))
             : undefined,
       });

@@ -79,6 +79,22 @@ describe("serializeOAuthError ↔ messages 판독부 round-trip", () => {
     expect(isOAuthNotConfigured(err)).toBe(false);
   });
 
+  // 인증 창을 못 띄운 것도 "만료"가 아니다. 401로 내리면 최초 연결 시도에서
+  // onOAuthExpired가 발화해 연결한 적 없는 사용자에게 재로그인 안내가 뜬다.
+  it("인증 창 실패 → status 400, 만료로 오분류하지 않는다", () => {
+    const { status, body } = serializeOAuthError(
+      new OAuthError("authorization window failed", {
+        platform: "linear",
+        launchFailed: true,
+      }),
+    );
+    expect(status).toBe(400);
+    const err = new BgError("authorization window failed", status, body);
+    expect(isOAuthRefreshFailed(err)).toBe(false);
+    expect(isOAuthCancelled(err)).toBe(false);
+    expect(getOAuthErrorPlatform(err)).toBe("linear");
+  });
+
   it("refresh 실패 → isOAuthRefreshFailed + status 401 + platform 일치", () => {
     const { status, body } = serializeOAuthError(
       new OAuthError("expired", { platform: "notion" }),

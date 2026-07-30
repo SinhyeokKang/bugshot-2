@@ -2111,20 +2111,6 @@ describe("captureContext — 캡처 기준 보존", () => {
     expect(useEditorStore.getState().captureContext).toBeNull();
   });
 
-  it("patchBufferedElement가 captureContext를 갱신할 수 있다 (화이트리스트)", () => {
-    useEditorStore.setState({
-      selection: selectionFor("button.cta") as never,
-      beforeImage: "data:before",
-    });
-    useEditorStore.getState().bufferCurrentElement("data:after");
-
-    useEditorStore
-      .getState()
-      .patchBufferedElement("button.cta", 0, { captureContext: ctx });
-
-    expect(useEditorStore.getState().bufferedElements[0].captureContext).toEqual(ctx);
-  });
-
   it("EditorSnapshot 왕복(hydrate) 후 captureContext가 복원된다", () => {
     // Pick 목록에 captureContext가 없으면 이 객체 리터럴이 타입 에러를 낸다.
     const snapshot: Pick<EditorSnapshot, "phase" | "captureContext"> = {
@@ -2137,7 +2123,9 @@ describe("captureContext — 캡처 기준 보존", () => {
     expect(useEditorStore.getState().captureContext).toEqual(ctx);
   });
 
-  it("confirmDraft가 현재 요소와 버퍼 항목의 captureContext를 draft에 직렬화한다", () => {
+  // 세션 스냅샷과 달리 draft 레코드에는 싣지 않는다 — 읽는 경로(draft → editor-store 복원)가
+  // 없어 optional 필드로 되살려도 타입체크가 안 잡는다.
+  it("confirmDraft는 captureContext를 draft 레코드에 싣지 않는다", () => {
     useEditorStore.setState({
       captureMode: "element",
       target: { tabId: 1, url: "https://e.com", title: "T" },
@@ -2154,7 +2142,31 @@ describe("captureContext — 캡처 기준 보존", () => {
     useEditorStore.getState().confirmDraft();
 
     const record = mockSaveDraft.mock.calls.at(-1)?.[0];
-    expect(record.captureContext).toEqual(ctx);
-    expect(record.bufferedElements[0].captureContext).toEqual(ctx);
+    expect(record).not.toHaveProperty("captureContext");
+    expect(record.bufferedElements[0]).not.toHaveProperty("captureContext");
+  });
+});
+
+describe("beforeCapturePending — before 캡처 in-flight 가드", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("초기값은 false다", () => {
+    expect(useEditorStore.getState().beforeCapturePending).toBe(false);
+  });
+
+  it("setBeforeCapturePending이 플래그를 세운다", () => {
+    useEditorStore.getState().setBeforeCapturePending(true);
+
+    expect(useEditorStore.getState().beforeCapturePending).toBe(true);
+  });
+
+  it("reset이 플래그를 청소한다 — 잠금이 다음 세션으로 새면 [다음]이 영구 잠긴다", () => {
+    useEditorStore.getState().setBeforeCapturePending(true);
+
+    useEditorStore.getState().reset();
+
+    expect(useEditorStore.getState().beforeCapturePending).toBe(false);
   });
 });

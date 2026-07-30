@@ -26,9 +26,26 @@ export function resolveCaptureRect(args: {
   return trustable ? context.rect : null;
 }
 
-// after 캡처가 확장 판정을 다시 돌릴지. before가 확장에 성공했을 때만 같은 조상을 재측정한다 —
-// before가 게이트에서 떨어졌는데 after만 확장하면(리플로우로 면적이 줄어드는 경우 등)
-// 두 이미지가 서로 다른 기준을 쓴다.
-export function shouldExpandAfter(context: CaptureContext | null): boolean {
-  return context?.contextSelector != null;
+// 확장 요청 파생 단일 출처. context를 넘긴 경로(after)는 before가 확정한 판정만 따르므로
+// 호출부 opt-in을 무시한다 — 호출부가 판정하면 기준을 정하는 문이 호출부마다 생긴다.
+// before가 게이트에서 떨어졌는데 after만 확장하면 두 이미지가 서로 다른 기준을 쓴다.
+export function resolveExpandRequest(args: {
+  expandContext?: boolean;
+  context?: CaptureContext | null;
+}): { expandContext: boolean; contextSelector?: string } {
+  const saved = args.context?.contextSelector;
+  if (args.context) {
+    return saved != null
+      ? { expandContext: true, contextSelector: saved }
+      : { expandContext: false };
+  }
+  return { expandContext: !!args.expandContext };
+}
+
+// 두 기준이 같은 크롭 범위를 뜻하는지 — 확장 거부와 기준 없음은 둘 다 요소 bbox라 같다.
+export function sameCaptureBasis(
+  a: CaptureContext | null | undefined,
+  b: CaptureContext | null | undefined,
+): boolean {
+  return (a?.contextSelector ?? null) === (b?.contextSelector ?? null);
 }

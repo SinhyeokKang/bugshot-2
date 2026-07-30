@@ -10,6 +10,9 @@ dist-*
 !.env.ci
 .vite
 *.tsbuildinfo
+# pnpm 저장소 — npm lockfile이 tracked로 남으면 보안 스캐너가 그걸 진실로 읽어
+# pnpm-workspace.yaml의 minimumReleaseAge 정책을 우회한다.
+package-lock.json
 .claude/settings.local.json
 .claude/projects/
 test-results

@@ -3,6 +3,7 @@ import { pageKeyOf } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
 import { onPickerPermissionExpired, onPickerUnavailable } from "@/types/messages";
 import { isActiveTabPermissionError } from "./lib/capture-error";
+import { sameCaptureBasis } from "./lib/capture-basis";
 import type {
   DescribeChildrenResponse,
   DescribeInitialResponse,
@@ -475,9 +476,13 @@ export async function rebindStylingSession(tabId: number): Promise<void> {
   if (!sel) return;
   // 승격 경로 재사용: 현재 요소를 버퍼에 넣고 재선택하면 onElementSelected가
   // styleEdits·snapshot baseline·before/after 이미지를 그대로 복원한다.
-  useEditorStore
-    .getState()
-    .bufferCurrentElement(state.afterImage, state.captureContext ?? undefined);
+  // 위 await들 사이에 before가 착지해 기준이 갈렸으면 낡은 기준의 after는 버린다.
+  const now = useEditorStore.getState();
+  const stale = !sameCaptureBasis(state.captureContext, now.captureContext);
+  now.bufferCurrentElement(
+    stale ? null : state.afterImage,
+    now.captureContext ?? undefined,
+  );
   await selectByPath(tabId, selFrameId, sel.selector);
 }
 
@@ -513,11 +518,17 @@ export async function prepareCaptureBySelector(
   tabId: number,
   frameId: number,
   selector: string,
+  options: { expandContext?: boolean; contextSelector?: string } = {},
 ): Promise<PrepareCaptureResponse | null> {
   await armFrameOffsetIfIframe(tabId, frameId);
   const res = await send<PrepareCaptureResponse>(
     tabId,
-    { type: "picker.prepareCaptureBySelector", selector },
+    {
+      type: "picker.prepareCaptureBySelector",
+      selector,
+      expandContext: options.expandContext,
+      contextSelector: options.contextSelector,
+    },
     frameId,
   );
   return res ?? null;

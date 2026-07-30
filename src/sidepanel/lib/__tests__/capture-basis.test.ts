@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 
-import { resolveCaptureRect, shouldExpandAfter } from "../capture-basis";
+import {
+  resolveCaptureRect,
+  resolveExpandRequest,
+  sameCaptureBasis,
+} from "../capture-basis";
 import type { CaptureContext } from "@/types/picker";
 
 const VIEWPORT = { width: 1000, height: 800 };
@@ -75,16 +79,66 @@ describe("resolveCaptureRect", () => {
   });
 });
 
-describe("shouldExpandAfter", () => {
-  it("before가 확장에 성공했으면 after도 확장 판정을 돌린다", () => {
-    expect(shouldExpandAfter(contextWith())).toBe(true);
+describe("resolveExpandRequest", () => {
+  it("context가 없으면 호출부 opt-in을 그대로 쓴다 (before 경로)", () => {
+    expect(resolveExpandRequest({ expandContext: true })).toEqual({
+      expandContext: true,
+    });
   });
 
-  it("before가 게이트에서 떨어졌으면 after도 확장하지 않는다", () => {
-    expect(shouldExpandAfter(contextWith({ contextSelector: null }))).toBe(false);
+  it("opt-in도 context도 없으면 확장하지 않는다", () => {
+    expect(resolveExpandRequest({})).toEqual({ expandContext: false });
   });
 
-  it("before 기준 자체가 없으면 확장하지 않는다", () => {
-    expect(shouldExpandAfter(null)).toBe(false);
+  it("context가 확장 성공이면 그 조상 selector를 실어 확장을 켠다", () => {
+    expect(resolveExpandRequest({ context: contextWith() })).toEqual({
+      expandContext: true,
+      contextSelector: '[role="dialog"]#dlg',
+    });
+  });
+
+  it("context가 확장 거부(null selector)면 확장하지 않는다", () => {
+    expect(
+      resolveExpandRequest({ context: contextWith({ contextSelector: null }) }),
+    ).toEqual({ expandContext: false });
+  });
+
+  // 모순 조합 차단: 호출부가 expandContext를 켜도 before의 판정이 이긴다. 이게 성립하지
+  // 않으면 판정 지점이 호출부마다 하나씩 생겨 문이 여러 개가 된다.
+  it("context가 확장을 거부했으면 호출부 opt-in을 무시한다", () => {
+    expect(
+      resolveExpandRequest({
+        expandContext: true,
+        context: contextWith({ contextSelector: null }),
+      }),
+    ).toEqual({ expandContext: false });
+  });
+});
+
+describe("sameCaptureBasis", () => {
+  it("같은 조상으로 확장한 두 기준은 같다 — rect·scroll 차이는 무관", () => {
+    expect(
+      sameCaptureBasis(
+        contextWith(),
+        contextWith({ scrollY: 999, rect: { x: 1, y: 2, width: 3, height: 4 } }),
+      ),
+    ).toBe(true);
+  });
+
+  it("확장 대상 조상이 다르면 다른 기준이다", () => {
+    expect(
+      sameCaptureBasis(contextWith(), contextWith({ contextSelector: "#other" })),
+    ).toBe(false);
+  });
+
+  it("확장 거부와 기준 없음은 같은 기준이다 — 둘 다 요소 bbox로 찍힌다", () => {
+    expect(sameCaptureBasis(contextWith({ contextSelector: null }), null)).toBe(
+      true,
+    );
+    expect(sameCaptureBasis(undefined, null)).toBe(true);
+  });
+
+  it("확장 성공과 기준 없음은 다르다", () => {
+    expect(sameCaptureBasis(contextWith(), null)).toBe(false);
   });
 });

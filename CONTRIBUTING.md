@@ -13,8 +13,8 @@ issue first so we don't both spend an evening on incompatible ideas.
 
 ## Setup
 
-Node 22 and pnpm (the version is pinned in `package.json`'s `packageManager`
-field, so `corepack enable` picks it up for you).
+The Node version in `.nvmrc` and pnpm (the version is pinned in `package.json`'s
+`packageManager` field, so `corepack enable` picks it up for you).
 
 ```bash
 pnpm install

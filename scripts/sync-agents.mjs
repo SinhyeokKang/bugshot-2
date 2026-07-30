@@ -16,7 +16,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CHECK = process.argv.includes("--check");
 
 // 원격·릴리스 상태를 바꾸는 스킬은 Codex 런타임에서 쓰지 않으므로 미러하지 않는다.
-// (릴리스 파이프라인 게이트는 단일 창구여야 한다 — e2e/.last-green 해시·버전 bump·tag가 경쟁하면 깨진다.)
+// (릴리스 파이프라인 게이트는 단일 창구여야 한다 — 원격 CI 결론 조회·버전 bump·tag가 경쟁하면 깨진다.)
 // (`ship`은 미러한다 — 12단계 `/e2e-run`까지가 전부 로컬이고, 13·14단계 중단 규칙은 스킬 본문에 박혀 있다.)
 const EXCLUDE = new Set(["push", "merge", "deploy", "sync"]);
 

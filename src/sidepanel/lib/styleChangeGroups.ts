@@ -11,6 +11,7 @@ import type {
   EditorStyleEdits,
 } from "@/store/editor-store";
 import { sameElementKey } from "@/lib/element-key";
+import type { CaptureContext } from "@/types/picker";
 
 export interface ChangeGroup {
   source: "current" | "buffered";
@@ -23,6 +24,9 @@ export interface ChangeGroup {
   snapshot: StyleDiffSelection;
   edits: StyleDiffEdits;
   rows: StyleDiffRow[];
+  // buffered 그룹의 before 캡처 기준 — 행 초기화 후 after 재캡처가 같은 기준으로 찍어야
+  // before/after 짝이 유지된다. current 그룹은 재캡처 경로가 없어 싣지 않는다.
+  captureContext?: CaptureContext;
 }
 
 export function buildChangeGroups(
@@ -75,6 +79,7 @@ export function buildChangeGroups(
       snapshot: b.selectionSnapshot,
       edits: b.styleEdits,
       rows: buildStyleDiff(b.selectionSnapshot, b.styleEdits),
+      captureContext: b.captureContext,
     }))
     .filter((g) => g.rows.length > 0);
 
