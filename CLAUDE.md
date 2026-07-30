@@ -69,11 +69,12 @@ bugshot-2: Chrome MV3 Side Panel 버그 리포팅 확장. 웹 페이지의 버�
 
 ### CI (GitHub Actions)
 
-`.github/workflows/ci.yml` — **dev push · main PR · nightly(03:00 KST) · 수동(`workflow_dispatch`)** 에서 돈다. `schedule`은 GitHub 사양상 기본 브랜치에서만 발화하므로 nightly 대상은 main이다(코드가 그대로여도 Chrome 버전·러너 이미지 변경으로 깨지는 걸 잡는 게 목적). job은 셋:
+`.github/workflows/ci.yml` — **dev push · main PR · nightly(03:00 KST) · 수동(`workflow_dispatch`)** 에서 돈다. `schedule`은 GitHub 사양상 기본 브랜치에서만 발화하므로 nightly 대상은 main이다(코드가 그대로여도 Chrome 버전·러너 이미지 변경으로 깨지는 걸 잡는 게 목적). job은 넷:
 
 - **`verify`** — typecheck → sync:agents:check → test → build → check:prearm. 브라우저·시크릿 없이 결정적.
 - **`e2e`** — Playwright 전 스위트(64 spec / 245 테스트)를 `--shard=N/4` 매트릭스로 4개 러너에 분산. 확장 SW가 headless에서 안 깨어나 `headless: false`가 강제라(`e2e/fixtures/extension.ts`) `xvfb-run`으로 돌린다 — **가상 스크린 깊이 24는 필수**(기본 8비트인 배포판이 있고 캡처 spec이 픽셀 색을 직접 판정한다). `fail-fast: false`라 한 샤드가 깨져도 나머지를 완주하고, 실패 샤드는 report·trace를 artifact로 올린다.
 - **`e2e-gate`** — 4샤드 결과를 단일 이름으로 수렴시키는 집계 job. main의 **required status check는 `verify` + `e2e-gate` 둘**이고, 샤드 개수를 바꿔도 이 이름은 안 변하므로 프로텍션 설정을 다시 건드릴 필요가 없다.
+- **`notify`** — nightly 배치 결과를 Slack Incoming Webhook으로 보낸다(`SLACK_WEBHOOK_URL` secret, 없으면 warning 남기고 skip). **`schedule`·`workflow_dispatch`에서만** 돌아 dev push·PR 결과로 채널을 어지럽히지 않고, fork PR은 이 조건에 걸릴 수 없어 secret 노출 경로가 없다. 성공/실패를 **항상** 보내는 게 요점 — 실패만 보내면 GitHub가 60일 무활동으로 `schedule`을 끈 상태와 green을 구분할 수 없다(매일 1건이 부재 감지를 겸한다). 커밋 메시지는 payload에 넣지 않는다(임의 문자열이 JSON을 깬다) — sha·ref_name·run URL만.
 
 **e2e 차단 게이트는 CI 단독이다.** 로컬 `e2e/.last-green` 캐시 게이트는 폐기했다 — gitignore라 머신 로컬이었고, 그래서 외부 PR에 적용되지 않았으며 같은 green을 두 창구가 관리했다. `/push`는 e2e를 돌리지 않고 run URL만 안내한다(논블로킹). `/merge`는 dev HEAD의 CI 결론을 `gh run list`로 조회해 게이트로 쓰고, PR 머지 직전엔 `gh pr checks --watch`로 required check를 기다린다. `/e2e-run`은 게이트에서 빠져 **CI를 안 기다리고 미리 볼 때 쓰는 로컬 도구**로 남는다.
 

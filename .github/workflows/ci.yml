@@ -156,3 +156,68 @@ jobs:
         run: |
           echo "e2e shards: ${{ needs.e2e.result }}"
           [ "${{ needs.e2e.result }}" = "success" ] || exit 1
+
+  # nightly 배치 결과를 Slack으로 흘린다. 성공/실패를 **항상** 보내는 게 요점 —
+  # 실패만 보내면 워크플로가 조용히 비활성화됐을 때(60일 무활동 시 GitHub가 schedule을
+  # 끈다)와 green을 구분할 수 없다. 매일 1건이 부재 감지 신호를 겸한다.
+  #
+  # schedule 외에 workflow_dispatch도 허용하는 건 03:00을 기다리지 않고 알림 경로를
+  # 검증하기 위한 것이다. dev push·main PR은 제외 — 채널이 시끄러워지고 PR 결과는
+  # GitHub UI에 이미 보인다. fork PR은 이 조건에 걸릴 수 없으므로 webhook secret이
+  # 노출되는 경로가 없다.
+  #
+  # needs는 e2e-gate가 아니라 e2e를 본다: gate는 이름을 고정하는 껍데기라 결론이 같고,
+  # 여기서 한 단계 줄이면 gate 실패 원인과 알림이 어긋나지 않는다.
+  notify:
+    needs: [verify, e2e]
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # secrets 컨텍스트는 job 레벨 if에서 못 쓴다 — env로 올려 step if에서 판정한다.
+    env:
+      WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - name: Compose result
+        id: r
+        run: |
+          if [ "${{ needs.verify.result }}" = "success" ] && [ "${{ needs.e2e.result }}" = "success" ]; then
+            echo "emoji=✅" >> "$GITHUB_OUTPUT"
+            echo "headline=nightly CI passed" >> "$GITHUB_OUTPUT"
+          else
+            echo "emoji=🔴" >> "$GITHUB_OUTPUT"
+            echo "headline=nightly CI failed" >> "$GITHUB_OUTPUT"
+          fi
+          echo "sha=$(echo '${{ github.sha }}' | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
+      - name: Warn on missing webhook
+        if: env.WEBHOOK == ''
+        run: echo "::warning::SLACK_WEBHOOK_URL secret이 없어 알림을 건너뜁니다."
+
+      # 커밋 메시지는 payload에 넣지 않는다 — 임의 문자열이 JSON에 그대로 박히면
+      # 따옴표 하나로 payload가 깨진다. sha·ref_name만 쓰면 그 위험이 없다.
+      - name: Notify Slack
+        if: env.WEBHOOK != ''
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "${{ steps.r.outputs.emoji }} BugShot ${{ steps.r.outputs.headline }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*${{ steps.r.outputs.emoji }} BugShot ${{ steps.r.outputs.headline }}*\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}> · `${{ github.ref_name }}` · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ steps.r.outputs.sha }}>"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    { "type": "mrkdwn", "text": "*verify*\n${{ needs.verify.result }}" },
+                    { "type": "mrkdwn", "text": "*e2e (4 shards)*\n${{ needs.e2e.result }}" }
+                  ]
+                }
+              ]
+            }
