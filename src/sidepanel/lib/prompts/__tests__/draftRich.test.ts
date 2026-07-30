@@ -114,9 +114,9 @@ describe("buildCompactDraftPrompt — compact 불변식", () => {
 });
 
 // 실사례 회귀: 자동 생성 제목이 "…403 오류 발생 및 **성공** 알림 표시"로 나왔다.
-// 실패 응답 *이전*에 기록된 성공 토스트를 결과로 읽은 것. 사람이 지라에서 "실패 알림"으로
-// 고쳐야 했다 — 시점 앵커가 프롬프트에 없으면 재발한다.
-describe("제목 결과 판정의 시점 앵커", () => {
+// 성공 토스트를 실패 동작의 결과라고 연결할 근거가 없는데도 결과로 읽은 것. 사람이 지라에서
+// "실패 알림"으로 고쳐야 했다 — 명시 연결 조건이 없으면 재발한다.
+describe("제목 결과 판정의 성공 신호 연결 조건", () => {
   const withNetError = {
     networkLogSummary: {
       captured: 1,
@@ -127,23 +127,27 @@ describe("제목 결과 판정의 시점 앵커", () => {
     },
   };
 
-  it("rich: 실패 응답 이후 관측만 결과로 판정하라는 지시가 있다", () => {
-    expect(buildRichDraftPrompt(ctx(withNetError))).toContain("after the failing response");
+  it("rich: 실패 동작과 명시적으로 연결된 성공 신호만 결과로 판정한다", () => {
+    expect(buildRichDraftPrompt(ctx(withNetError))).toContain(
+      "only when the provided context explicitly connects it to the failed operation",
+    );
   });
 
   // 스코프는 일부러 다르다 — rich는 Rules 블록(전 섹션), compact은 title 줄 접합(토큰 최소).
   it("compact: 같은 문구를 싣는다", () => {
     expect(
       buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES, ...withNetError })),
-    ).toContain("after the failing response");
+    ).toContain(
+      "only when the provided context explicitly connects it to the failed operation",
+    );
   });
 
-  // 앵커는 인쇄된 실패 응답을 기준점으로 지목한다. 후보가 0건이면(예산 절삭 level≥1이
+  // 앵커는 인쇄된 실패 동작을 기준점으로 지목한다. 후보가 0건이면(예산 절삭 level≥1이
   // 요약을 전부 떨구는 경로 포함) 존재하지 않는 것을 가리키는 dangling 지시가 된다.
   it("실패 응답 후보가 없으면 양쪽 모두 앵커를 붙이지 않는다", () => {
-    expect(buildRichDraftPrompt(ctx())).not.toContain("after the failing response");
+    expect(buildRichDraftPrompt(ctx())).not.toContain("failed operation");
     expect(buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES }))).not.toContain(
-      "after the failing response",
+      "failed operation",
     );
   });
 });

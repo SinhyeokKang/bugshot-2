@@ -32,7 +32,7 @@ export function markdownToMrkdwn(md: string): string {
   const out: string[] = [];
   let inFence = false;
 
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
     // 들여쓰기 ≤3만 fence — CommonMark 규칙. trim으로 판정하면 코드블럭 본문의
     // 무해화된(4칸 들여쓴) 백틱 런이 fence를 조기 종료시켜 나머지 본문이 변환된다.
     if (/^ {0,3}```/.test(line)) {
@@ -45,17 +45,20 @@ export function markdownToMrkdwn(md: string): string {
       continue;
     }
 
-    const heading = line.match(/^#{1,6}\s+(.*)$/);
+    const trailingBackslashes = line.match(/\\+$/)?.[0].length ?? 0;
+    const hasHardBreak = index < lines.length - 1 && trailingBackslashes % 2 === 1;
+    const contentLine = hasHardBreak ? line.slice(0, -1) : line;
+    const heading = contentLine.match(/^#{1,6}\s+(.*)$/);
     if (heading) {
       out.push(`*${convertInline(heading[1])}*`);
       continue;
     }
-    const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+    const bullet = contentLine.match(/^\s*[-*]\s+(.*)$/);
     if (bullet) {
       out.push(`• ${convertInline(bullet[1])}`);
       continue;
     }
-    out.push(convertInline(line));
+    out.push(convertInline(contentLine));
   }
 
   return out.join("\n");

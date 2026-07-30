@@ -235,10 +235,10 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
       '- For any "m*" request you cite in logRefs, you must explain in the description prose why that OK-looking response is the actual cause (e.g. a field is missing or empty). A 200 with no visible error reads as normal otherwise.',
     );
   }
-  // 실사례: 실패 *이전*에 기록된 성공 토스트를 결과로 읽어 제목이 뒤집혔다.
+  // 시간축이 없는 요약에서 성공 신호를 실패 동작의 결과로 임의 연결하지 못하게 한다.
   if (cand.network.length > 0) {
     lines.push(
-      "- Judge the outcome from what was observed after the failing response. A success notice recorded before it may belong to a previous attempt.",
+      "- Treat a success notice as the outcome only when the provided context explicitly connects it to the failed operation.",
     );
   }
   lines.push("- The description states only the current problem (as-is). Put any expected or desired behavior in expectedResult, never in description.");
