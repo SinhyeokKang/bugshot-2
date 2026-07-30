@@ -47,10 +47,8 @@ const MODE_HINTS: Record<CaptureMode, Record<LocaleMode, Partial<Record<TextSect
   },
 };
 
-// 실사례: "정상 동작 + 실패 시 오류 메시지"가 한 문장에 뭉쳐 API만 고쳐진 채 티켓이 닫혔다.
-// 실패 동작이 얽힐 수 있는 모드에만 붙인다 — element는 스타일 diff라 실패 경로가 없다.
-// 삼항(mode !== "element")이 아니라 Record인 이유: 새 CaptureMode가 조용히 한쪽으로
-// 흘러가지 않고 여기서 컴파일 에러로 결정을 요구한다.
+// 실사례: 기대 결과가 "정상 동작 + 실패 시 오류 메시지"를 한 문장에 뭉쳐 API만 고쳐진 채
+// 티켓이 닫혔다. element는 스타일 diff라 실패 경로가 없어 제외한다.
 const HAS_FAILURE_PATH: Record<CaptureMode, boolean> = {
   element: false,
   screenshot: true,
@@ -237,12 +235,10 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
       '- For any "m*" request you cite in logRefs, you must explain in the description prose why that OK-looking response is the actual cause (e.g. a field is missing or empty). A 200 with no visible error reads as normal otherwise.',
     );
   }
-  // 인쇄된 실패 응답이 있을 때만 — 기준점이 없으면 dangling 지시가 된다.
-  // 형태 축(HAS_FAILURE_PATH)과 달리 이 앵커는 인쇄된 산출물을 지목하므로 데이터 축이다.
+  // 실사례: 실패 *이전*에 기록된 성공 토스트를 결과로 읽어 제목이 뒤집혔다.
   if (cand.network.length > 0) {
-    // 실사례: 실패 *이전*에 기록된 성공 토스트를 결과로 읽어 제목이 뒤집혔다.
     lines.push(
-      "- Judge the outcome from what was observed after the failing response. A success notice recorded before it belongs to a previous attempt.",
+      "- Judge the outcome from what was observed after the failing response. A success notice recorded before it may belong to a previous attempt.",
     );
   }
   lines.push("- The description states only the current problem (as-is). Put any expected or desired behavior in expectedResult, never in description.");

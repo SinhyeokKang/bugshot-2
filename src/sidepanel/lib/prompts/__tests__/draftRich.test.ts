@@ -131,7 +131,8 @@ describe("제목 결과 판정의 시점 앵커", () => {
     expect(buildRichDraftPrompt(ctx(withNetError))).toContain("after the failing response");
   });
 
-  it("compact: 같은 앵커를 싣는다 (스타일 간 대칭)", () => {
+  // 스코프는 일부러 다르다 — rich는 Rules 블록(전 섹션), compact은 title 줄 접합(토큰 최소).
+  it("compact: 같은 문구를 싣는다", () => {
     expect(
       buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES, ...withNetError })),
     ).toContain("after the failing response");
@@ -157,11 +158,7 @@ describe("expectedResult 요구 분리 지시", () => {
     );
   }
 
-  it("ko: 정상 동작과 실패 시 오류 안내를 별도 줄로 쓰라고 지시한다", () => {
-    expect(withExpected({ locale: "ko" })).toContain("각각 별도 줄로");
-  });
-
-  it("en: 같은 지시를 영문 로케일에서도 싣는다", () => {
+  it("en 로케일에서도 싣는다", () => {
     expect(withExpected({ locale: "en" })).toContain("on separate lines");
   });
 
@@ -173,27 +170,26 @@ describe("expectedResult 요구 분리 지시", () => {
     video: true,
     freeform: true,
   };
+  const MODES = Object.entries(EXPECT_SPLIT) as [
+    AiDraftSessionContext["captureMode"],
+    boolean,
+  ][];
 
-  for (const [mode, expected] of Object.entries(EXPECT_SPLIT)) {
+  for (const [mode, expected] of MODES) {
     it(`${mode} 모드: 분리 지시 ${expected ? "붙는다" : "안 붙는다"}`, () => {
-      const p = withExpected({
-        locale: "ko",
-        captureMode: mode as AiDraftSessionContext["captureMode"],
-      });
-      expect(p.includes("각각 별도 줄로")).toBe(expected);
+      expect(withExpected({ locale: "ko", captureMode: mode }).includes("각각 별도 줄로")).toBe(
+        expected,
+      );
     });
   }
 
-  // element는 스타일 diff 리포트라 실패 경로도 오류 UX도 없다. 분리 지시가 새면 없는
-  // 요구를 짓게 유도한다("Never invent details not given"과 충돌). desired suffix만 남는다.
   it("element 모드: 분리 지시가 빠져도 기존 desired suffix는 유지된다", () => {
     expect(withExpected({ locale: "ko", captureMode: "element" })).toContain(
       "desired 값 기준으로 작성",
     );
   });
 
-  // 수용된 비대칭: compact의 SECTION_DESC는 소형 모델용 단문 유지가 의도라 대책이 없다.
-  // 주석으로만 남기면 나중에 "대칭 맞추기"로 조용히 유입된다.
+  // compact 제외를 주석으로만 남기면 나중에 "대칭 맞추기"로 조용히 유입된다.
   it("compact: 분리 지시를 싣지 않는다 (의도된 비대칭)", () => {
     const p = buildCompactDraftPrompt(
       ctx({ caps: NANO_CAPABILITIES, enabledSections: [{ id: "expectedResult" }] }),
