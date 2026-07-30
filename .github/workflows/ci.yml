@@ -8,7 +8,7 @@ on:
   # nightly. schedule은 GitHub 사양상 기본 브랜치(main)에서만 발화하므로 대상은 main —
   # 코드가 그대로여도 Chrome 버전·러너 이미지 변경으로 깨지는 걸 잡는 게 목적이다.
   schedule:
-    - cron: "0 18 * * *" # 03:00 KST
+    - cron: "0 23 * * *" # 08:00 KST (UTC 기준 전날 23:00)
   workflow_dispatch:
 
 # 같은 ref로 연달아 푸시하면 이전 런은 취소 — 러너 시간 절약.
