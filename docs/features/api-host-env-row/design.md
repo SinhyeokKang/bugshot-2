@@ -12,6 +12,11 @@
 앞"이라는 순서 정책은 대상이 없다. 결과적 배치는 readonly 6행 직후이고, 그건 파생값 그룹에
 인접하므로 그대로 둔다.
 
+삭제 미부활 래치(`apiHostsDismissed`)와 마지막 파생값(`apiHostsDerived`)은 **editor-store
+persist 필드 2개**로 유지한다(`reproPrefillDone` 동형) — 컴포넌트 로컬에 두면 미리보기
+왕복(`backToDraft`)·패널 재오픈에서 `DraftingPanel`이 언마운트돼 래치가 증발하고 삭제한 행이
+부활한다. 동기화 판정 자체는 순수 리듀서 `syncApiHostsRow`가 맡아 단위 트랙에서 테스트한다.
+
 ## 왜 이 구조인가 (선행 조사 결과)
 
 2026-07-30 이전 시도는 `MarkdownContext.apiOrigin` 필드를 추가해 9개 소비 지점을 개별 수정하는
@@ -27,7 +32,7 @@
 | 마크다운 emitter | `buildIssueMarkdown.ts:247` | `for (const row of filterEnvironmentRows(ctx.environment))` |
 | HTML emitter | `buildIssueMarkdown.ts:346` | 동일 |
 | ADF·Notion·Linear·Asana·ClickUp·Slack·GFM 빌더 | 각 빌더 | 동일 패턴 (github/gitlab은 `buildMarkdownIssueBody` 위임) |
-| AI 메타 주석 | `buildIssueMarkdown.ts:437` | `meta.environment = Object.fromEntries(envRows.map(...))` |
+| AI 메타 주석 | `buildIssueMarkdown.ts:439` | `meta.environment = Object.fromEntries(envRows.map(...))` |
 | `logs.html` Report 탭 | `buildReportData.ts:28` | `rows.push(...filterEnvironmentRows(ctx.environment))` |
 | 저장 이슈 상세 | `DraftDetailDialog.tsx:1232` | `rows.push(...filterEnvironmentRows(issue.draft.environment ?? []))` |
 | 저장 이슈 재제출 ctx | `DraftDetailDialog.tsx:351` | `environment: issue.draft.environment ?? []` |
@@ -57,7 +62,7 @@ previewing/done에서 로그 갱신을 멈춘다. 다만 세션 hydrate와 tail 
 
 ### 새 파일
 
-**`src/sidepanel/lib/apiHostRow.ts`** — 순수 함수 3개 + 상수. 의존성은 타입 import과
+**`src/sidepanel/lib/apiHostRow.ts`** — 순수 함수 4개 + 상수. 의존성은 타입 import과
 `captureLogSupport`뿐.
 
 ### 수정 파일
@@ -67,21 +72,49 @@ previewing/done에서 로그 갱신을 멈춘다. 다만 세션 hydrate와 tail 
   메타데이터이며, 로그 토글 off·지연 로그 도착·사용자 삭제를 일반 커스텀 행과 구분하는 데 쓴다.
   선택 필드라 기존 저장 데이터 마이그레이션은 없다.
 
+**`src/store/editor-store.ts` · `src/sidepanel/hooks/useEditorSessionSync.ts`**
+- `apiHostsDismissed: boolean`(삭제 래치) · `apiHostsDerived: string | null`(마지막 파생값)
+  2개 필드를 `reproPrefillDone` 동형으로 추가한다 — 선언·initial·setter·`EditorSnapshot`
+  pick(`editor-store.ts`) + 세션 pick(`useEditorSessionSync.ts:98` 인접). ARCHITECTURE.md의
+  함정대로 **`EditorSnapshot` Pick 목록과 `snapshotFromState()` 두 곳을 함께** 손대지 않으면
+  조용히 초기값으로 리셋된다. draft 뮤테이터·본문 경로는 계속 무수정이다.
+
 **`src/sidepanel/tabs/DraftingPanel.tsx`** — 네 곳:
 
 1. **draft 자동 행 동기화 `useEffect`** — `apiHostRowFor({ captureMode, logsAttach, networkLog,
-   pageUrl: target?.url })` 결과를 `source === "api-hosts"` 행에 반영한다.
-   draft보다 로그가 늦게 도착하면 최초 1회 주입하고, 로그 첨부를 끄면 자동 행을 제거한다.
-   사용자가 행을 삭제한 뒤 로그 첨부를 다시 켜도 되살리지 않도록 draft 생명주기 동안
-   `apiHostsDismissed`를 유지한다.
-   **selector 추가는 필요 없다** — `captureMode`(`:63`)·`networkLog`(`:79`)·`logsAttach`(`:82`)·
-   `target`(`:88`) 전부 이미 구독 중이고 `supportsConsoleNetworkLog`도 이미 import돼 있다(`:42`).
+   pageUrl: target?.url })` 결과를 `syncApiHostsRow` 리듀서에 넘겨 `source === "api-hosts"` 행을
+   주입·갱신·제거한다. effect는 배선만 하고 판정은 전부 리듀서(순수 함수)에 있다:
+   - **등가 short-circuit**: 리듀서가 변화 없으면 `rows` 참조를 그대로 반환하고, effect는 그때
+     write를 생략한다. 유일한 draft 뮤테이터 `setDraft`(`editor-store.ts:738`)가 전체 교체라
+     무조건 write하면 draft identity가 매번 바뀌어 **무한 루프**다.
+   - **write 시점 `getState().draft` 읽기**: stale closure로 쓰면 `useReproPrefill.ts:107-115`의
+     비동기 AI prefill `setDraft`와 last-write-wins 경합으로 prefill된 sections를 조용히 지운다.
+     deps 규율은 `useReproPrefill.ts:150-153` 주석("deps는 발화 판정용 원시 값만")을 따른다.
+   - **삭제 래치는 추론하지 않는다**: 행 부재로 삭제를 감지하는 대신, 커스텀 행 삭제 버튼
+     핸들러가 `source === "api-hosts"` 행일 때 `apiHostsDismissed`를 직접 세운다. 로그 첨부
+     off로 리듀서가 행을 제거한 경우와 구분할 필요가 없어진다.
+   - 로그 첨부 off → 자동 행 제거. 다시 on(캡처 시 off였던 경우 포함) → **재주입한다** —
+     사용자가 능동적으로 첨부를 켠 상황이라 파생값도 함께 제공한다. 미부활은 명시 삭제
+     래치에만 걸린다.
+   selector 추가는 래치 2개(`apiHostsDismissed`·`apiHostsDerived`)뿐이다 — `captureMode`(`:63`)·
+   `networkLog`(`:79`)·`logsAttach`(`:82`)·`target`(`:88`)은 이미 구독 중이고
+   `supportsConsoleNetworkLog`도 이미 import돼 있다(`:42`).
 2. draft 최초 생성은 빈 environment로 시작할 수 있으며 위 동기화가 현재 또는 지연 도착 로그를
-   반영한다. 자동 행 source는 사용자가 값을 수정한 뒤에도 유지한다.
-3. 재현 환경 섹션의 최초 `defaultOpen`을 자동 행 존재 여부로 고정한다. 행 삭제 뒤 prop 변화로
-   섹션이 즉시 접히지 않도록 최초 값을 ref로 유지한다.
-4. 값 `Input`에 `min-w-0`을 추가하고 Radix Tooltip으로 감싸 hover·focus 모두에서 전문을
-   보여준다. `<input>`은 `truncate` ellipsis가 안 되고, 이 행은 "행 추가" 버튼이
+   반영한다. 자동 행 source는 사용자가 값을 수정한 뒤에도 유지하되, **사용자가 고친 행(값 ≠
+   `apiHostsDerived`)은 이후 파생 결과로 덮지 않는다**(목표 2 — 리듀서 규칙 참조).
+3. 재현 환경 섹션을 controlled `open`/`onOpenChange`로 전환하고, 자동 행을 **주입하는 시점**에
+   `setOpen(true)`한다 — 같은 파일 `SectionTextarea`(`:679`)의 "삽입 전 먼저 펼침" 선례.
+   defaultOpen을 ref로 고정하는 방식은 주입이 useEffect(최초 렌더 이후)라 접힌 채 굳고, 지연
+   주입(freeform — 위험 2)에서 성공 기준(펼쳐진 채 표시)을 깬다. controlled 전환은 `Section`의
+   defaultOpen→state 재동기화가 사용자 수동 조작을 덮는 함정도 회피한다. 펼침은 스크롤 위치까지
+   보장하지 않는다 — 섹션이 뷰포트 밖이면 스크롤 도달 시 보이는 것으로 수용한다(자동
+   scrollIntoView는 과잉).
+4. 값 `Input`에 `min-w-0`을 추가하고 **모든 커스텀 행**의 값 Input을 Radix Tooltip으로 감싸
+   hover·focus 모두에서 전문을 보여준다. 값이 비면 `TooltipContent`를 렌더하지 않는다
+   (`IssueTab.tsx:368-389` 조건부 렌더 선례). Provider는 전역이 아니라 컴포넌트 로컬로 둔다
+   (`TooltipIconButton.tsx` 관례 — `delayDuration` 지정). 긴 값이 패널을 뚫지 않도록
+   `TooltipContent`에 `max-w-*` + `break-all`을 건다(`StyleEditorPanel.tsx:535-542`의
+   `max-w-60` 선례). `<input>`은 `truncate` ellipsis가 안 되고, 이 행은 "행 추가" 버튼이
    인라인으로 붙는 마지막 행이라(`:652`) 값 가용폭이 400px 패널에서 ≈152px(21~23자)까지 좁아진다.
    PRD 예시 origin은 46자로 **꼬리(`.qa.skillflo.io` — 이 기능이 전달하려는 환경 식별자)가 잘린다.**
    Tooltip이 전문 확인 경로를 만들고, `min-w-0`이 좁은 폭에서 행이 컨테이너를 넘겨 가로
@@ -110,8 +143,10 @@ previewing/done에서 로그 갱신을 멈춘다. 다만 세션 hydrate와 tail 
 `buildLinearIssueBody.ts` · `buildAsanaIssueBody.ts` · `buildClickupIssueBody.ts` ·
 `buildMarkdownIssueBody.ts` · `buildSlackBody.ts` · `buildEditorCapture.ts` ·
 `buildMarkdownContext.ts` · `buildReportData.ts` · `PreviewPanel.tsx` ·
-`DraftDetailDialog.tsx` · `environmentRows.ts` · `editor-store.ts` · `issues-store.ts`
+`DraftDetailDialog.tsx` · `environmentRows.ts` · `issues-store.ts`
 — 전부 `draft.environment`를 흘려보내므로 무수정. **여기를 고치고 있으면 설계에서 이탈한 것이다.**
+(`editor-store.ts`는 래치 필드 2개 추가에 한정해 수정 대상이다 — draft 뮤테이터·본문 경로를
+고치고 있으면 마찬가지로 이탈.)
 
 ## 데이터 흐름
 
@@ -130,7 +165,7 @@ DraftingPanel 자동 행 동기화 useEffect
             ├ hostname별 요청 수 집계 → count 내림차순, 첫 등장 순 tie-break
             ├ hostname을 `, `로 연결
             └ 후보 0개 → null
-  └ source === "api-hosts" 행 주입·갱신·제거
+  └ syncApiHostsRow(rows, apiRow, dismissed, lastDerived) — 행 주입·갱신·제거·보존 판정
        │
        ▼
 draft.environment ──┬─→ ReproEnvironmentSection (편집·삭제 UI, 행 있으면 펼쳐서 열림)
@@ -138,7 +173,7 @@ draft.environment ──┬─→ ReproEnvironmentSection (편집·삭제 UI, �
                     ├─→ buildEditorMarkdownContext → 8개 플랫폼 submit 본문
                     ├─→ buildMarkdownContext ×4 → 마크다운 복사
                     ├─→ deriveContextEnvRows → logs.html Report 탭
-                    ├─→ bugshot-meta-for-ai 주석 (buildIssueMarkdown:437)
+                    ├─→ bugshot-meta-for-ai 주석 (buildIssueMarkdown:439)
                     └─→ IssueRecord.draft.environment (영속)
                           └─→ DraftDetailDialog EnvBlock + buildCtxForSubmit
 ```
@@ -176,7 +211,28 @@ export function apiHostRowFor(input: {
   networkLog: NetworkLog | null;
   pageUrl: string | undefined;
 }): EnvironmentRow | null;
+
+// 자동 행 동기화 판정 — effect는 반환 rows가 입력과 참조 동일하면 write를 생략한다.
+// dismissed 전이는 여기서 하지 않는다(삭제 버튼 핸들러가 직접 세움).
+export function syncApiHostsRow(input: {
+  rows: readonly EnvironmentRow[];
+  apiRow: EnvironmentRow | null;   // apiHostRowFor 결과
+  dismissed: boolean;              // apiHostsDismissed (store persist)
+  lastDerived: string | null;      // apiHostsDerived (store persist)
+}): { rows: readonly EnvironmentRow[]; lastDerived: string | null };
 ```
+
+### `syncApiHostsRow` 규칙
+
+```
+apiRow == null                                  → source 행 제거(있으면), lastDerived = null
+apiRow != null ∧ 행 없음 ∧ dismissed             → 무변화
+apiRow != null ∧ 행 없음 ∧ !dismissed            → 주입, lastDerived = apiRow.value
+apiRow != null ∧ 행 있음 ∧ 행 값 == lastDerived  → 값 갱신 (사용자 미수정)
+apiRow != null ∧ 행 있음 ∧ 행 값 != lastDerived  → 무변화 (사용자 수정 보존 — 목표 2)
+```
+
+무변화 분기는 입력 `rows` 참조를 그대로 반환한다 — 호출부 short-circuit의 근거.
 
 ### `registrableDomain` 규칙
 
@@ -214,7 +270,9 @@ API.Acme.com.         → acme.com        (정규화)
 2. 각 요청 URL을 `new URL()`로 파싱, 실패하면 건너뛴다. `protocol`이 `http:`/`https:`가
    아니면 건너뛴다.
 3. 후보 조건: `hostname !== pageHostname` **그리고**
-   `registrableDomain(reqHostname) === registrableDomain(pageHostname)`.
+   `registrableDomain(reqHostname) === registrableDomain(pageHostname)`. 비교 전 양쪽
+   hostname을 소문자화 + 트레일링 닷 제거로 정규화한다 — `new URL().hostname`은 트레일링
+   닷을 보존하므로 raw 비교면 `app.acme.com.` 요청이 자기 페이지인데도 후보로 재포함된다.
 4. 후보 hostname별 요청 수를 세어 count 내림차순으로 정렬한다. 동률이면 배열에서 먼저 등장한
    hostname 순서를 유지한다.
 5. `{ label: API_HOSTS_LABEL, value: hostnames.join(", "), source: "api-hosts" }` 반환.
@@ -263,10 +321,14 @@ launch args에 `--host-resolver-rules`가 없다. 기존 cross-origin 선례는 
 `http://app.bugshot.test:PORT` / 요청 `http://api.bugshot.test:PORT/...`가 둘 다
 `bugshot.test`로 동족이 된다(`.test`는 예약 TLD라 `TWO_LEVEL_SUFFIXES` 무관, Node http 서버는
 Host 헤더를 검사하지 않는다). 공용 픽스처 변경이라 CI 4샤드 전체에 영향이 가고, 기존
-`127.0.0.1`/`localhost` spec은 규칙에 안 걸려 무변경이다.
+`127.0.0.1`/`localhost` spec은 규칙에 안 걸려 무변경이다. **함정**: `fixtureTabId`의 기본
+매치 패턴이 `http://127.0.0.1/*`라 `bugshot.test` 페이지는 **명시 패턴을 넘기지 않으면 탭
+식별이 실패한다** — spec에서 match 패턴을 전달할 것.
 
 판정은 **미리보기 화면 기준**으로 한다 — 작성 화면 재현 환경 UI에는 `data-testid`가 0개인데
 `IssuePreviewView.tsx:113-114`에 `data-testid="env-row"` + `data-env-label`이 이미 있다.
+작성 화면의 "섹션이 펼쳐진다" 단언은 `Section`에 `testId` 부착(`DraftingPanel.tsx:575`에서
+prop 미전달 — `/e2e-write`가 부착)이 **선행돼야** 스크립트 판정이 가능하다.
 `--lang=ko`가 워커별로 비결정적이라는 기존 함정(`e2e/GOTCHAS.md`) 때문에 placeholder 기반
 locator는 쓰지 않는다.
 
@@ -276,20 +338,25 @@ locator는 쓰지 않는다.
   쓴다. 새 판정식을 만들지 않는다. 이 축을 빼면 `editor-store.preserveLogs`가 element 진입 시
   로그를 보존하는 경로에서 이전 세션 로그 파생값이 element 이슈에 실려,
   `guide/*/logs/README.md`가 문서화한 "요소 스타일 편집은 로그 미첨부" 약속을 깬다. 실보존
-  경로는 `cancelRecording`·`cancelPicking`·`startPicking`·`startElementShot`이다 —
-  `reset()`을 타는 취소는 `networkLog`를 `null`로 만들어 게이트를 exercise하지 못한다.
-- **테스트 우선**: 신규 순수 함수 3개는 `/tdd interface`로 테스트를 먼저 박는다
+  경로는 6곳(`startPicking`·`cancelPicking`·`startCapturing`·`startFreeform`·
+  `startElementShot`·`cancelRecording`)이고, element 누출을 exercise하는 경로는
+  `startPicking`(기본 `captureMode: "element"`)이다 — `startElementShot`은
+  `captureMode: "screenshot"`을 세팅하므로 게이트 검증에 못 쓴다. `reset()`을 타는 취소는
+  `networkLog`를 `null`로 만들어 역시 게이트를 exercise하지 못한다.
+- **테스트 우선**: 신규 순수 함수 4개(`registrableDomain`·`deriveApiHostsRow`·`apiHostRowFor`·
+  `syncApiHostsRow`)는 `/tdd interface`로 테스트를 먼저 박는다
   (`src/sidepanel/lib/__tests__/apiHostRow.test.ts`).
 - **라벨 하드코딩 영문**: 기존 env 라벨 6종(OS/Browser/Page/DOM/Viewport/Captured)이 전부
   i18n 미사용 하드코딩 영문이다(`environmentRows.ts` · `PreviewPanel.tsx` ·
-  `DraftDetailDialog.tsx` · `buildReportData.ts` 4곳 중복). `API Hosts`도 같게 둬 본문 라벨이
+  `DraftDetailDialog.tsx` · `buildReportData.ts` · `buildIssueAdf.ts` 5곳 중복). `API Hosts`도 같게 둬 본문 라벨이
   작성자 로케일에 따라 갈리지 않게 한다. 사용자가 라벨을 `API 호스트`로 고치면 그 값이 그대로
   본문에 나가고 되살아나지 않는다 — 커스텀 행의 기존 동작이다. `src/i18n/` 키 추가가 0개이므로
   i18n PostToolUse 훅·`src/log-viewer/i18n.ts` 복제 사전 대조 대상이 아니다.
 - **자동 주입임을 UI에 마킹하지 않는다**: 자동 주입 행은 사용자가 직접 추가한 행과 시각적으로
-  동일하다(readonly 행만 `bg-muted`로 구분된다). 마킹을 넣지 않는 이유는 `EnvironmentRow`에
-  자동/커스텀 구분 필드가 없어(label·value뿐) 타입 확장이 필요하고, 그 확장이 영속·마이그레이션
-  으로 번지기 때문이다. 파생 출처 설명은 가이드(Task 4)가 맡는다.
+  동일하다(readonly 행만 `bg-muted`로 구분된다). `source` 필드는 이 설계가 이미 추가하지만
+  **동기화용 내부 메타데이터로만** 쓴다 — UI 마킹까지 하려면 배지·아이콘 등 시각 언어를 새로
+  정의해야 하는데, 기존 커스텀 행과 동일 취급이 학습 비용 0이고 파생 출처 설명은 가이드(Task 4)가
+  맡는다.
 - **store가 컴포넌트 그래프를 안 끌어들인다**: `apiHostRow.ts`는 `sidepanel/lib/`에 두고
   store에서 import하지 않는다(호출은 컴포넌트에서).
 
@@ -349,25 +416,31 @@ draft 주입 방식이 이 둘을 동시에 해결한다.
    사라진다(의도된 동작 — 잘린 구간의 요청은 리포트 범위 밖).
 
 5. **사용자가 지운 뒤 되살아나는 경로.** draft가 `null`로 리셋되는 흐름(새 캡처 시작·세션
-   초기화)에서는 다시 주입된다. 같은 draft 안에서는 되살아나지 않는다.
+   초기화)에서는 `...initial`이 래치도 리셋해 다시 주입된다 — 의도된 동작. 같은 draft
+   안에서는 래치가 store persist라 미리보기 왕복(`backToDraft`의 `DraftingPanel` 언마운트)·
+   사이드패널 재오픈에도 되살아나지 않는다.
 
 6. **`filterEnvironmentRows`의 빈 값 제거.** 사용자가 값을 지워 빈 문자열로 만들면 화면엔
    빈 행이 남고 본문에선 제외된다 — 기존 커스텀 행과 동일한 동작이라 새 위험은 아니다.
 
-7. **중복 `API Hosts` 라벨.** `filterEnvironmentRows`는 dedupe를 하지 않고(trim + 빈 값 제거만),
-   라벨 입력에도 유일성 검증이 없다. 사용자가 `API Hosts` 라벨 행을 직접 더하면 본문에 두 줄이
-   찍힌다(기존 커스텀 행과 동일한 기존 동작). 더 조용한 쪽은 `buildIssueMarkdown.ts:437`의
-   `bugshot-meta-for-ai` 주석 — `Object.fromEntries`라 **중복 라벨이 last-wins로 붕괴한다.**
-   이 기능이 `API Hosts`를 사실상 예약 라벨로 만든다는 점만 수용하고 검증은 넣지 않는다.
+7. **중복 `API Hosts` 라벨.** `filterEnvironmentRows`는 dedupe를 하지 않고(trim·빈 값 제거·
+   값 개행→공백 치환만, `environmentRows.ts:15-22`), 라벨 입력에도 유일성 검증이 없다. 사용자가
+   `API Hosts` 라벨 행을 직접 더하면 본문에 두 줄이 찍힌다(기존 커스텀 행과 동일한 기존 동작).
+   더 조용한 쪽은 `buildIssueMarkdown.ts:439`의 `bugshot-meta-for-ai` 주석 —
+   `Object.fromEntries`라 **중복 라벨이 last-wins로 붕괴한다.** 이 기능이 `API Hosts`를 사실상
+   예약 라벨로 만든다는 점만 수용하고 검증은 넣지 않는다. (참고: 이 함수는 행을
+   `{label, value}`로 재조립하므로 `source`는 모든 출력에서 벗겨진다 — 내부 메타데이터 의도와
+   부합. 역으로 `source`를 출력·필터에 쓰는 확장은 이 함수 확장이 선행돼야 한다.)
 
-8. **본문 평문 노출 면적.** `logsDropped`(`background/messages.ts:786-814`) 경로에서 용량 캡으로
-   `logs.html`이 빠져도 본문의 `API Hosts` 줄은 남는다. Slack은 채널 메시지 본문이라 첨부를 열지
-   않는 멤버에게도 내부 QA/스테이징 호스트명이 보인다. hostname에는 토큰이 없어 `MASKED_QUERY_KEYS`
-   관련 위험은 없다. privacy 문안에 "첨부가 아니라 본문 텍스트에 실린다"를 명시한다(Task 5).
+8. **본문 평문 노출 면적.** `logsDropped`(`background/messages.ts:786-814`)는 **첨부 업로드
+   실패**(`uploadAttachment` catch) 시 세팅된다 — 그렇게 `logs.html`이 빠진 리포트에도 본문의
+   `API Hosts` 줄은 남는다. Slack은 채널 메시지 본문이라 첨부를 열지 않는 멤버에게도 내부
+   QA/스테이징 호스트명이 보인다. hostname에는 토큰이 없어 `MASKED_QUERY_KEYS` 관련 위험은
+   없다. privacy 문안에 "첨부가 아니라 본문 텍스트에 실린다"를 명시한다(Task 5).
 
 9. **privacy 문서 갱신 누락.** 로그 파생값이 본문에 새로 실리므로 manifest diff가 0이어도
    `docs/privacy.{ko,en}.md` 대조가 필수다. 30s Replay가 같은 검사를 빠져나가 웹스토어 심사에
-   탈락한 전례가 있다(`docs/POSTMORTEM.md`).
+   탈락한 전례가 있다(CLAUDE.md "문서 신선도" 절에 기록).
 
 10. **삭제 버튼 `aria-label`이 행을 식별하지 않는다 — 범위 밖으로 확정.**
 
@@ -385,7 +458,7 @@ draft 주입 방식이 이 둘을 동시에 해결한다.
     그럼에도 범위 밖인 이유는 셋이다:
 
     - **이 기능이 만드는 상태에서는 모호성이 발생하지 않는다.** readonly 6개는 `disabled`
-      (`:611`)라 포커스를 받지 않고, 자동 주입 직후 커스텀 행은 1개다 — 즉 스크린 리더
+      (`:610`)라 포커스를 받지 않고, 자동 주입 직후 커스텀 행은 1개다 — 즉 스크린 리더
       사용자가 탭으로 만나는 **활성 삭제 버튼이 정확히 하나**다. "휴리스틱 값을 지운다"는
       경로는 이 기능이 만드는 상태에서 온전히 작동한다.
     - **깨지는 조건은 사용자가 직접 행을 추가한 뒤**이고, 그건 이 기능과 무관하게 오늘도
