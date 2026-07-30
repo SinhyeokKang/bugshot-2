@@ -83,13 +83,13 @@ describe("serializeOAuthError ↔ messages 판독부 round-trip", () => {
   // onOAuthExpired가 발화해 연결한 적 없는 사용자에게 재로그인 안내가 뜬다.
   it("인증 창 실패 → status 400, 만료로 오분류하지 않는다", () => {
     const { status, body } = serializeOAuthError(
-      new OAuthError("page load timed out", {
+      new OAuthError("authorization window failed", {
         platform: "linear",
         launchFailed: true,
       }),
     );
     expect(status).toBe(400);
-    const err = new BgError("page load timed out", status, body);
+    const err = new BgError("authorization window failed", status, body);
     expect(isOAuthRefreshFailed(err)).toBe(false);
     expect(isOAuthCancelled(err)).toBe(false);
     expect(getOAuthErrorPlatform(err)).toBe("linear");

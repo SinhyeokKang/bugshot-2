@@ -55,6 +55,8 @@ export function base64url(buffer: ArrayBuffer): string {
 // Promise 형태의 launchWebAuthFlow는 창을 닫아도 resolve(undefined)가 아니라 reject한다
 // (각 start*OAuth의 `if (!redirect)` 취소 분기는 그래서 도달하지 않는다). 문자열 출처는
 // Chromium chrome/browser/extensions/api/identity/identity_constants.h.
+// kPageLoadTimedOut은 빠져 있다 — web_auth_flow.cc의 MaybeStartTimeout이 SILENT 모드에서만
+// 타이머를 걸고 우리는 항상 interactive: true라 도달하지 않는다.
 interface LaunchFlowError {
   match: RegExp;
   key: TranslationKey;
@@ -65,8 +67,9 @@ interface LaunchFlowError {
 const LAUNCH_FLOW_ERRORS: readonly LaunchFlowError[] = [
   { match: /did not approve access/i, key: "oauth.error.cancelled", cancelled: true },
   { match: /page could not be loaded/i, key: "oauth.error.authorizationPageFailed", cancelled: false },
-  { match: /page load timed out/i, key: "oauth.error.authorizationPageTimeout", cancelled: false },
   { match: /create a browser window/i, key: "oauth.error.windowCreateFailed", cancelled: false },
+  // 프로필이 파괴돼야 나오는데 그러면 사이드패널도 같이 죽어 이 문구는 표시되지 않는다.
+  // 집계도 미분류일 때와 같은 failed다 — 관측 가능한 효과는 없고 테이블 완전성으로 남긴다.
   { match: /browser context has been shut down/i, key: "oauth.error.browserContextShutDown", cancelled: false },
   { match: /one web auth flow is allowed/i, key: "oauth.error.flowAlreadyInProgress", cancelled: false },
 ];

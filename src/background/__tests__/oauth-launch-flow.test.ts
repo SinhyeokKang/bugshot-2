@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { t } from "@/i18n";
 import { OAuthError, classifyLaunchFlowError, launchOAuthWebFlow } from "../oauth";
 
 // PostHog `platform_connect: failed` 과다 집계의 회귀 테스트.
@@ -28,12 +29,6 @@ describe("classifyLaunchFlowError", () => {
     const result = classifyLaunchFlowError("Authorization page could not be loaded.");
     expect(result?.cancelled).toBe(false);
     expect(result?.key).toBe("oauth.error.authorizationPageFailed");
-  });
-
-  it("인증 페이지 타임아웃 → 취소 아님", () => {
-    const result = classifyLaunchFlowError("Authorization page load timed out.");
-    expect(result?.cancelled).toBe(false);
-    expect(result?.key).toBe("oauth.error.authorizationPageTimeout");
   });
 
   it("인증 창 생성 실패 → 취소 아님", () => {
@@ -107,7 +102,9 @@ describe("launchOAuthWebFlow", () => {
   // 최초 연결 시도라 만료될 토큰이 없다. launchFailed 없이 던지면 serializeOAuthError가
   // 401 + oauthRefreshFailed로 내려 "세션이 만료되었습니다" 다이얼로그를 오발화한다.
   it("창을 못 띄운 실패는 launchFailed를 세운다", async () => {
-    launchMock.mockRejectedValue(new Error("Authorization page load timed out."));
+    launchMock.mockRejectedValue(
+      new Error("Couldn't create a browser window to display an authorization page."),
+    );
 
     const err = await launchOAuthWebFlow("https://auth.example", "github").catch(
       (e: unknown) => e,
@@ -129,6 +126,9 @@ describe("launchOAuthWebFlow", () => {
     expect(err).toBeInstanceOf(OAuthError);
     expect((err as OAuthError).cancelled).toBe(false);
     expect((err as OAuthError).platform).toBe("linear");
+    // 이 레인의 message는 8개 폼이 toast로 그대로 노출한다 — t()를 빠뜨리면
+    // 사용자에게 "oauth.error.flowAlreadyInProgress" 키가 그대로 뜬다.
+    expect((err as OAuthError).message).toBe(t("oauth.error.flowAlreadyInProgress"));
   });
 
   it("분류 밖 에러는 원본을 그대로 rethrow한다", async () => {
