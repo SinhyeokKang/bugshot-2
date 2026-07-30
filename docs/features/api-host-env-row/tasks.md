@@ -2,7 +2,8 @@
 
 ## 선행 조건
 
-- 권한·env·외부 API 추가 없음. 새 의존성 없음(`pnpm-workspace.yaml` 정책 무관).
+- 권한·env·외부 API 추가 없음. 새 의존성은 `tldts@7.4.8` 1개(PSL 판정 — `design.md` 대안 D).
+  `minimumReleaseAge` 통과·빌드 스크립트 없음이라 `pnpm-workspace.yaml` 정책에 걸리지 않는다.
 - 착수 전 `docs/POSTMORTEM.md:39`을 읽는다 — 이 작업이 정확히 그 함정 위에 있다.
   - "프롬프트 지시가 가리키는 대상을 인쇄된 컨텍스트로 검증하지 않으면, 예산 절삭이 기준점을
     지우고 인쇄 순서가 '이후'를 반대로 뒤집는다" (2026-07-30) — **문서가 주장하는 코드 사실을
@@ -116,7 +117,10 @@
 `registrableDomain`:
 - `api.acme.com` → `acme.com` / `acme.com` → `acme.com`
 - `api.acme.co.kr` → `acme.co.kr` (2단 접미사)
-- `co.kr` → `co.kr` (레이블 2개 — 3레이블 규칙의 미정의 분기 방어)
+- `co.kr` → `co.kr` (접미사 자체 — 도메인 부분이 없는 입력)
+- `cs.snu.ac.kr` → `snu.ac.kr` (PSL 위임이라 하드코딩 없이 처리되는지)
+- `me.github.io` → `me.github.io` / `myapp.vercel.app` → `myapp.vercel.app`
+  (PSL private 접미사 — 형제 배포가 동족으로 안 잡히는 근거)
 - `o1.ingest.sentry.io` → `sentry.io`
 - `localhost` → `localhost` / `127.0.0.1` → `127.0.0.1` / `[::1]` → `[::1]`
 - `API.Acme.com.` → `acme.com` (대문자 + 트레일링 닷 정규화)

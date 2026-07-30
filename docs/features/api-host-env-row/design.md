@@ -189,13 +189,8 @@ import { supportsConsoleNetworkLog } from "@/sidepanel/lib/captureLogSupport";
 
 export const API_HOSTS_LABEL = "API Hosts";
 
-// 마지막 2레이블을 registrable domain으로 보되, 여기 걸리면 3레이블.
-// public suffix list 전량을 번들하지 않는 근사 — 미등재 다단 접미사(github.io 등)는
-// 서로 다른 주체의 도메인을 동족으로 **과대포함**한다(위험 1). 반대로 접미사를
-// 과다 등록하면 정상 후보가 탈락한다. 둘 다 사용자 수정으로 흡수되는 대가다.
-const TWO_LEVEL_SUFFIXES: ReadonlySet<string>;
-
-// hostname → registrable domain. 판정 불가·IP·2레이블 이하는 정규화만 해 그대로 반환.
+// hostname → registrable domain. PSL 판정은 tldts에 위임한다(대안 D 참조).
+// IP·판정 불가는 정규화만 해 그대로 반환.
 export function registrableDomain(hostname: string): string;
 
 // 네트워크 요청에서 동족 hostname 목록을 파생해 환경 행으로. 후보 없으면 null.
@@ -238,26 +233,29 @@ apiRow != null ∧ 행 있음 ∧ 행 값 != lastDerived  → 무변화 (사용�
 
 ```
 1. 소문자화 + 트레일링 닷 제거
-2. IPv4 형태 / 대괄호 IPv6 / 레이블 2개 이하 → 그대로 반환
-3. 마지막 2레이블이 TWO_LEVEL_SUFFIXES에 있으면 마지막 3레이블 (레이블이 3개 미만이면 그대로)
-4. 그 외 마지막 2레이블
+2. 빈 문자열 / IPv4 형태 / 대괄호 IPv6 → 그대로 반환 (PSL 대상이 아니다)
+3. 그 외 tldts의 getDomain(host, { allowPrivateDomains: true }) — 실패하면 입력 그대로
 ```
 
-```
-api.acme.com          → acme.com
-acme.com              → acme.com
-api.acme.co.kr        → acme.co.kr      (co.kr ∈ TWO_LEVEL_SUFFIXES)
-co.kr                 → co.kr           (레이블 2개 — 규칙 2)
-o1.ingest.sentry.io   → sentry.io
-localhost             → localhost       (단일 레이블 그대로)
-127.0.0.1             → 127.0.0.1       (IPv4 형태면 그대로)
-[::1]                 → [::1]
-API.Acme.com.         → acme.com        (정규화)
-```
+`allowPrivateDomains`가 핵심이다. PSL private 섹션을 접미사로 인정해야 `me.github.io`·
+`myapp.vercel.app`·`my-bucket.s3.amazonaws.com`이 **각각 자기 자신**을 도메인으로 갖고,
+그래서 형제 배포·남의 버킷이 동족 판정에서 자동으로 탈락한다.
 
-`TWO_LEVEL_SUFFIXES` 초안(19개, 실사용 빈도순):
-`co.kr` `or.kr` `ne.kr` `co.jp` `ne.jp` `or.jp` `co.uk` `org.uk` `com.au` `com.br`
-`com.cn` `com.tw` `com.hk` `com.sg` `co.in` `co.nz` `co.za` `com.mx` `com.tr`
+```
+api.acme.com                → acme.com
+acme.com                    → acme.com
+api.acme.co.kr              → acme.co.kr
+co.kr                       → co.kr                      (접미사 자체)
+cs.snu.ac.kr                → snu.ac.kr                   (ac.kr — 하드코딩 없이)
+o1.ingest.sentry.io         → sentry.io
+me.github.io                → me.github.io                (private 접미사)
+myapp.vercel.app            → myapp.vercel.app            (private 접미사)
+my-bucket.s3.amazonaws.com  → my-bucket.s3.amazonaws.com  (private 접미사)
+localhost                   → localhost
+127.0.0.1                   → 127.0.0.1                   (규칙 2)
+[::1]                       → [::1]                       (규칙 2)
+API.Acme.com.               → acme.com                    (정규화)
+```
 
 ### `deriveApiHostsRow` 규칙
 
@@ -319,8 +317,8 @@ launch args에 `--host-resolver-rules`가 없다. 기존 cross-origin 선례는 
 
 `--host-resolver-rules=MAP *.bugshot.test 127.0.0.1`을 추가하면 페이지
 `http://app.bugshot.test:PORT` / 요청 `http://api.bugshot.test:PORT/...`가 둘 다
-`bugshot.test`로 동족이 된다(`.test`는 예약 TLD라 `TWO_LEVEL_SUFFIXES` 무관, Node http 서버는
-Host 헤더를 검사하지 않는다). 공용 픽스처 변경이라 CI 4샤드 전체에 영향이 가고, 기존
+`bugshot.test`로 동족이 된다(`.test`는 PSL에 등재된 예약 TLD라 `tldts`가 `bugshot.test`를
+registrable domain으로 돌려준다 — 실측 확인. Node http 서버는 Host 헤더를 검사하지 않는다). 공용 픽스처 변경이라 CI 4샤드 전체에 영향이 가고, 기존
 `127.0.0.1`/`localhost` spec은 규칙에 안 걸려 무변경이다. **함정**: `fixtureTabId`의 기본
 매치 패턴이 `http://127.0.0.1/*`라 `bugshot.test` 페이지는 **명시 패턴을 넘기지 않으면 탭
 식별이 실패한다** — spec에서 match 패턴을 전달할 것.
@@ -381,20 +379,30 @@ draft 주입 방식이 이 둘을 동시에 해결한다.
 안 뜨고, 실사례의 질문("어느 URL에서 확인하냐")에 답하지 못한다. 실패 축은 API 호스트 식별과
 직교한다.
 
-### 대안 D — `tldts` 등 public suffix 라이브러리 도입
+### 대안 D — `tldts` public suffix 라이브러리 도입 (**채택**)
 
-정확한 eTLD+1을 얻지만 번들에 수백 KB의 suffix 테이블이 들어오고, `pnpm-workspace.yaml`의
-`minimumReleaseAge` 정책 대상이 되며, 사이드패널 초기 로드에 부담이다. 오판정의 대가가
-"행이 하나 안 뜬다" 수준이라 근사로 충분하다.
+초안은 이걸 기각했다. 사유는 "번들 부담 vs 오판정의 대가가 '행이 하나 안 뜬다' 수준"이었는데,
+**그 대가 산정이 틀렸다.** 근사가 틀리는 방향은 부재가 아니라 **과대포함**이다 — `a.github.io`
+페이지에서 `b.github.io`가, `my-bucket.s3.amazonaws.com`에서 남의 버킷이 동족으로 잡히면
+**남의 조직 hostname이 이슈 본문과 Slack 채널 메시지에 실린다.** 유출 방향 실패를 "사용자가
+지우면 된다"로 흡수할 수 없다(이미 제출했으면 늦다).
+
+그래서 `tldts@7.4.8`을 도입하고 `registrableDomain`을 `getDomain(host, { allowPrivateDomains: true })`
+위임으로 바꿨다. `allowPrivateDomains`가 PSL private 섹션(`github.io`·`vercel.app`·`s3.amazonaws.com`
+등)을 접미사로 인정하므로, 하드코딩 목록 두 벌(`TWO_LEVEL_SUFFIXES` 19개 + 호스팅 도메인 가드)이
+통째로 사라진다. IPv4·대괄호 IPv6·빈 문자열은 여전히 앞단에서 그대로 반환한다.
+
+대가는 **사이드패널 엔트리 청크 +122 kB(gzip +45 kB, 1,711→1,834 kB)**. background·picker·
+pre-arm 청크는 무영향이다. 정책 위반 없음 — 2018년 패키지라 `minimumReleaseAge` 통과, 빌드
+스크립트가 없어 `onlyBuiltDependencies` 무관, 정확한 버전으로 핀.
 
 ## 위험 요소
 
-1. **`registrableDomain` 근사의 과대포함.** 미등재 다단 접미사(`github.io`, `vercel.app`,
-   `pages.dev`)에서 `a.github.io`와 `b.github.io`가 동족으로 판정된다. 서로 다른 주체의
-   hostname이 API Hosts 목록에 뜰 수 있다(실패 방향은 "행이 안 뜬다"가 아니라
-   **"틀린 hostname이 포함된다"**다).
-   완화: 값이 커스텀 행이라 사용자가 지울 수 있다. `TWO_LEVEL_SUFFIXES`에 플랫폼 도메인을 넣지
-   않는 이유는, 넣으면 오히려 자사 서비스가 그런 호스팅에 있을 때 정상 후보가 탈락하기 때문이다.
+1. **~~`registrableDomain` 근사의 과대포함~~ — 해소됨(대안 D 채택).** 하드코딩 접미사 목록이
+   미등재 다단 접미사에서 남의 조직 hostname을 동족으로 끌어오던 문제(실패 방향이 "행이 안
+   뜬다"가 아니라 **"틀린 hostname이 포함된다"**였다)는 `tldts` PSL 위임으로 사라졌다.
+   잔여 위험은 PSL 자체의 지연뿐이다 — 갓 등록된 private 접미사는 다음 `tldts` 릴리스까지
+   반영되지 않는다. 그 창에서는 값이 커스텀 행이라 사용자가 지울 수 있다는 기존 완화가 남는다.
 
 2. **draft 생성 시점의 `networkLog` 미도착.** `useEditorSessionSync.ts:144`의 tail sync가
    비동기로 늦게 `setNetworkLog`를 호출할 수 있다. `superseded()` 가드가 보는
