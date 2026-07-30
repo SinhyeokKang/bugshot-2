@@ -14,6 +14,16 @@ const TWO_LEVEL_SUFFIXES: ReadonlySet<string> = new Set([
   "co.nz", "co.za", "com.mx", "com.tr",
 ]);
 
+// 여기 걸리는 registrable domain은 조직 경계가 아니라 호스팅 업체 경계다 — 동족으로 묶으면
+// 남의 배포·남의 버킷 hostname이 내 이슈 본문·Slack에 실린다. 접미사 목록을 늘리는 대신
+// "그룹 자체가 조직이 아니면 아예 나열하지 않는다"로 fail-closed 한다.
+const HOSTING_DOMAINS: ReadonlySet<string> = new Set([
+  "vercel.app", "netlify.app", "github.io", "pages.dev", "web.app",
+  "firebaseapp.com", "herokuapp.com", "workers.dev", "azurewebsites.net",
+  "amazonaws.com", "cloudfront.net", "myshopify.com", "windows.net",
+  "ngrok.io", "ngrok-free.app", "onrender.com", "fly.dev", "surge.sh",
+]);
+
 const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
 
 function normalizeHostname(hostname: string): string {
@@ -53,6 +63,7 @@ export function deriveApiHostsRow(
   const pageHostname = httpHostname(pageUrl);
   if (pageHostname === null) return null;
   const pageDomain = registrableDomain(pageHostname);
+  if (HOSTING_DOMAINS.has(pageDomain)) return null;
 
   const counts = new Map<string, number>();
   for (const req of requests) {
@@ -84,6 +95,30 @@ export function apiHostRowFor(input: {
   return deriveApiHostsRow(input.networkLog.requests, input.pageUrl);
 }
 
+// "로그가 아직 안 왔다"와 "로그가 없다"를 가른다. hydrate는 draft를 동기 복원하지만 networkLog는
+// 뒤따르는 IDB promise로 오므로, 그 구간을 후자로 읽으면 복원된 행을 지웠다가 되살리게 된다.
+export function isApiHostsUndetermined(input: {
+  captureMode: CaptureMode;
+  logsAttach: boolean;
+  networkLog: NetworkLog | null;
+}): boolean {
+  return (
+    supportsConsoleNetworkLog(input.captureMode) &&
+    input.logsAttach &&
+    input.networkLog === null
+  );
+}
+
+// 제출 본문 조립 직전의 2차 방어 — 행 주입은 컴포넌트가 마운트돼 있을 때만 도는데,
+// 본문 빌더는 environment를 게이트 없이 흘린다.
+export function stripApiHostsRows(
+  rows: readonly EnvironmentRow[],
+): readonly EnvironmentRow[] {
+  return rows.some((r) => r.source === "api-hosts")
+    ? rows.filter((r) => r.source !== "api-hosts")
+    : rows;
+}
+
 // 자동 행 동기화 판정. 변화가 없으면 입력 rows 참조를 그대로 돌려주고, 호출부는 그때 write를
 // 생략한다 — setDraft가 전체 교체라 무조건 write하면 draft identity가 매번 바뀌어 루프가 된다.
 // dismissed 전이는 여기서 하지 않는다(삭제 버튼 핸들러가 직접 세운다).
@@ -98,6 +133,9 @@ export function syncApiHostsRow(input: {
 
   if (!apiRow) {
     if (idx === -1) return { rows, lastDerived: null };
+    // 사용자가 타이핑한 문자열은 파생 부재로 지우지 않는다 — 로그 첨부 off든 hydrate 지연이든
+    // 무관한 컨트롤 하나로 손으로 쓴 값이 사라지면 목표 2가 깨진다.
+    if (rows[idx].value !== lastDerived) return { rows, lastDerived };
     return { rows: rows.filter((_, i) => i !== idx), lastDerived: null };
   }
 

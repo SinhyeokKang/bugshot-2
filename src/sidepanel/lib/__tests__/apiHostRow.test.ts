@@ -9,6 +9,8 @@ import {
   deriveApiHostsRow,
   apiHostRowFor,
   syncApiHostsRow,
+  isApiHostsUndetermined,
+  stripApiHostsRows,
 } from "../apiHostRow";
 
 const PAGE = "https://app.acme.com/orders/42";
@@ -196,6 +198,76 @@ describe("deriveApiHostsRow", () => {
       deriveApiHostsRow(reqs("https://api.acme.co.kr/orders"), "https://app.other.co.kr/p"),
     ).toBeNull();
   });
+
+  // 호스팅형 접미사는 그룹 자체가 조직 경계가 아니다 — 남의 배포·남의 버킷이 동족으로 잡히면
+  // 내 이슈·Slack에 남의 조직 hostname이 실린다. 못 넣는 불편 < 잘못 넣는 유출.
+  it("vercel.app 페이지는 null — 남의 배포 호스트를 동족으로 끌어오지 않는다", () => {
+    expect(
+      deriveApiHostsRow(reqs("https://other-team.vercel.app/api"), "https://myapp.vercel.app/p"),
+    ).toBeNull();
+  });
+
+  it("github.io 페이지는 null", () => {
+    expect(
+      deriveApiHostsRow(reqs("https://someone.github.io/api"), "https://me.github.io/p"),
+    ).toBeNull();
+  });
+
+  it("S3 버킷 호스트는 null — 다른 버킷이 동족으로 잡히지 않는다", () => {
+    expect(
+      deriveApiHostsRow(
+        reqs("https://other-bucket.s3.amazonaws.com/x"),
+        "https://my-bucket.s3.amazonaws.com/p",
+      ),
+    ).toBeNull();
+  });
+
+  it("호스팅형 접미사가 아닌 일반 도메인은 영향 없다", () => {
+    expect(deriveApiHostsRow(reqs("https://api.acme.com/x"), PAGE)?.value).toBe("api.acme.com");
+  });
+});
+
+describe("isApiHostsUndetermined", () => {
+  it("지원 모드 + 첨부 on 인데 networkLog가 아직 null이면 판정 불가", () => {
+    expect(
+      isApiHostsUndetermined({ captureMode: "screenshot", logsAttach: true, networkLog: null }),
+    ).toBe(true);
+  });
+
+  it("networkLog가 도착했으면 판정 가능", () => {
+    expect(
+      isApiHostsUndetermined({
+        captureMode: "screenshot",
+        logsAttach: true,
+        networkLog: netLog([]),
+      }),
+    ).toBe(false);
+  });
+
+  it("로그 첨부가 off면 판정 가능 (제거가 정답)", () => {
+    expect(
+      isApiHostsUndetermined({ captureMode: "screenshot", logsAttach: false, networkLog: null }),
+    ).toBe(false);
+  });
+
+  it("element 모드는 판정 가능 (행이 없는 게 정답)", () => {
+    expect(
+      isApiHostsUndetermined({ captureMode: "element", logsAttach: true, networkLog: null }),
+    ).toBe(false);
+  });
+});
+
+describe("stripApiHostsRows", () => {
+  it("자동 행만 걷어내고 사용자 행은 남긴다", () => {
+    const user = { label: "Locale", value: "ko-KR" };
+    const auto = { label: API_HOSTS_LABEL, value: "api.acme.com", source: "api-hosts" as const };
+    expect(stripApiHostsRows([user, auto])).toEqual([user]);
+  });
+
+  it("자동 행이 없으면 입력 참조를 그대로 반환", () => {
+    const rows = [{ label: "Locale", value: "ko-KR" }];
+    expect(stripApiHostsRows(rows)).toBe(rows);
+  });
 });
 
 describe("apiHostRowFor", () => {
@@ -290,7 +362,7 @@ describe("syncApiHostsRow", () => {
     expect(out.rows).toBe(rows);
   });
 
-  it("apiRow가 null이면 자동 행을 제거하고 lastDerived를 비운다", () => {
+  it("apiRow가 null이면 미수정 자동 행을 제거하고 lastDerived를 비운다", () => {
     const out = syncApiHostsRow({
       rows: [userRow, apiRow],
       apiRow: null,
@@ -301,10 +373,59 @@ describe("syncApiHostsRow", () => {
     expect(out.lastDerived).toBeNull();
   });
 
-  it("apiRow가 null이고 자동 행도 없으면 rows 참조를 그대로 반환", () => {
-    const rows = [userRow];
-    const out = syncApiHostsRow({ rows, apiRow: null, dismissed: false, lastDerived: null });
+  // 로그 첨부 off·hydrate 지연 어느 쪽이든, 사용자가 타이핑한 문자열을 파생 부재로 지우지 않는다.
+  it("apiRow가 null이어도 사용자가 고친 자동 행은 지우지 않는다", () => {
+    const edited: EnvironmentRow = {
+      label: API_HOSTS_LABEL,
+      value: "내가-고친.acme.com",
+      source: "api-hosts",
+    };
+    const rows = [userRow, edited];
+    const out = syncApiHostsRow({
+      rows,
+      apiRow: null,
+      dismissed: false,
+      lastDerived: "api.acme.com",
+    });
     expect(out.rows).toBe(rows);
+    expect(out.lastDerived).toBe("api.acme.com");
+  });
+
+  it("apiRow가 null이고 자동 행도 없으면 rows 참조 유지 + lastDerived 초기화", () => {
+    const rows = [userRow];
+    const out = syncApiHostsRow({
+      rows,
+      apiRow: null,
+      dismissed: false,
+      lastDerived: "api.acme.com",
+    });
+    expect(out.rows).toBe(rows);
+    expect(out.lastDerived).toBeNull();
+  });
+
+  // 이 가드가 죽으면 로그 배치마다 setDraft 전체 교체가 일어나 입력 중인 draft를 덮어쓴다.
+  it("값·파생값이 모두 같으면 rows 참조를 그대로 반환한다 (setDraft 루프 가드)", () => {
+    const rows = [apiRow];
+    const out = syncApiHostsRow({
+      rows,
+      apiRow: { ...apiRow },
+      dismissed: false,
+      lastDerived: "api.acme.com",
+    });
+    expect(out.rows).toBe(rows);
+  });
+
+  // source 표식이 자동 행을 가르는 유일한 축이다 — label로 찾으면 사용자가 직접 만든
+  // 같은 이름 행을 자동 행으로 오인해 덮어쓴다.
+  it("label만 같고 source가 없는 사용자 행은 자동 행으로 취급하지 않는다", () => {
+    const handWritten: EnvironmentRow = { label: API_HOSTS_LABEL, value: "손으로 쓴 값" };
+    const out = syncApiHostsRow({
+      rows: [handWritten],
+      apiRow,
+      dismissed: false,
+      lastDerived: null,
+    });
+    expect(out.rows).toEqual([handWritten, apiRow]);
   });
 
   it("제거 후 로그 첨부를 다시 켜면 재주입한다 (명시 삭제만 미부활)", () => {

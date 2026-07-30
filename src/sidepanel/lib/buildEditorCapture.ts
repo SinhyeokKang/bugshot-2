@@ -3,7 +3,8 @@ import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
 import { mergeStyleElements, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
-import { supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
+import { supportsActionLog, supportsConsoleNetworkLog } from "@/sidepanel/lib/captureLogSupport";
+import { stripApiHostsRows } from "@/sidepanel/lib/apiHostRow";
 import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
 import { parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
@@ -49,7 +50,13 @@ export function buildEditorMarkdownContext(): MarkdownContext | null {
     sections: draft.sections,
     sectionConfig,
     url: target.url,
-    environment: draft.environment ?? [],
+    // 자동 파생 행은 로그 게이트에 묶인다. 행 제거는 DraftingPanel이 마운트돼 있을 때만 도는데
+    // 본문 빌더는 environment를 게이트 없이 흘리므로, 제출 ctx에서 한 번 더 막는다.
+    environment: [
+      ...(supportsConsoleNetworkLog(captureMode) && logsAttach
+        ? draft.environment ?? []
+        : stripApiHostsRows(draft.environment ?? [])),
+    ],
   };
 
   if (captureMode === "freeform") {
