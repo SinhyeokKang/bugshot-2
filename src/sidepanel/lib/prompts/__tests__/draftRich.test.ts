@@ -127,28 +127,38 @@ describe("제목 결과 판정의 성공 신호 연결 조건", () => {
     },
   };
 
+  // 앵커에만 있는 부분열로 잰다. `failed operation`은 EXPECTED_SPLIT_HINT.en에도 있어
+  // en 로케일 + expectedResult ON이면 앵커가 없어도 걸린다(음성 가드가 무력화). 첫 글자
+  // 대소문자는 빌더별로 다르므로(rich `Treat`, compact `treat`) 그 뒤부터 자른다.
+  const ANCHOR =
+    "a success notice as the outcome only when the provided context explicitly connects it to the failed operation";
+
   it("rich: 실패 동작과 명시적으로 연결된 성공 신호만 결과로 판정한다", () => {
-    expect(buildRichDraftPrompt(ctx(withNetError))).toContain(
-      "only when the provided context explicitly connects it to the failed operation",
-    );
+    expect(buildRichDraftPrompt(ctx(withNetError))).toContain(ANCHOR);
   });
 
   // 스코프는 일부러 다르다 — rich는 Rules 블록(전 섹션), compact은 title 줄 접합(토큰 최소).
   it("compact: 같은 문구를 싣는다", () => {
     expect(
       buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES, ...withNetError })),
-    ).toContain(
-      "only when the provided context explicitly connects it to the failed operation",
-    );
+    ).toContain(ANCHOR);
   });
 
   // 앵커는 인쇄된 실패 동작을 기준점으로 지목한다. 후보가 0건이면(예산 절삭 level≥1이
   // 요약을 전부 떨구는 경로 포함) 존재하지 않는 것을 가리키는 dangling 지시가 된다.
   it("실패 응답 후보가 없으면 양쪽 모두 앵커를 붙이지 않는다", () => {
-    expect(buildRichDraftPrompt(ctx())).not.toContain("failed operation");
-    expect(buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES }))).not.toContain(
-      "failed operation",
-    );
+    expect(buildRichDraftPrompt(ctx())).not.toContain(ANCHOR);
+    expect(buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES }))).not.toContain(ANCHOR);
+  });
+
+  // 위 음성 가드가 `failed operation`을 재던 시절엔 이 조합에서만 오탐이 났다 —
+  // 픽스처가 ko·description ON이라 우연히 green이었을 뿐이다.
+  it("en 로케일 + expectedResult ON에서도 후보 0건이면 앵커가 없다", () => {
+    expect(
+      buildRichDraftPrompt(
+        ctx({ locale: "en", enabledSections: [{ id: "description" }, { id: "expectedResult" }] }),
+      ),
+    ).not.toContain(ANCHOR);
   });
 });
 
