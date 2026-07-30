@@ -271,23 +271,27 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 요소 bbox + 24px만 찍으면 다이얼로그 안 버튼 하나가 빈 화면 위의 버튼으로 도착해 "어느 다이얼로그의, 어느 행의" 문제인지 알 수 없다. 그래서 **의미 단위 조상 컨테이너**로 크롭을 넓히되, 확신이 없으면 넓히지 않는다 — 폴백이 곧 현행 동작이라 커버리지 손실에는 정확도 비용이 없다.
 
-**판정은 순수 함수 2벌로 분리한다.** `content/capture-context.ts`(`findContextAncestor`·`passesContextGates`·`resolveContextRect`)와 `sidepanel/lib/capture-basis.ts`(`resolveCaptureRect`·`shouldExpandAfter`). `picker.ts`·`capture.ts`가 둘 다 `BROWSER_BOUND_EXACT` 등재라(`scripts/coverage-report.mjs`) 판정이 그 안에 남으면 **테스트로 고정할 수 없다** — picker에는 DOM 조회와 `viewportRectOf` 측정만 남긴다.
+**판정은 순수 함수 2벌로 분리한다.** `content/capture-context.ts`(`findContextAncestor`·`passesContextGates`·`resolveContextRect`)와 `sidepanel/lib/capture-basis.ts`(`resolveCaptureRect`·`resolveExpandRequest`·`sameCaptureBasis`). `picker.ts`·`capture.ts`가 둘 다 `BROWSER_BOUND_EXACT` 등재라(`scripts/coverage-report.mjs`) 판정이 그 안에 남으면 **테스트로 고정할 수 없다** — picker에는 DOM 조회와 `viewportRectOf` 측정만 남긴다.
 
-**게이트 3개, 클램프 없음.** G1 컨테이너가 뷰포트에 완전히 들어옴 / G2 컨테이너가 요소를 완전히 포함(요소 rect가 0×0이면 기하 검사가 무의미하므로 생략하고 호출부의 `contains()`가 대체) / G3 면적 ≤ `CONTEXT_MAX_VIEWPORT_RATIO`(0.4). **클램프를 안 쓰는 게 핵심**이다 — 컨테이너를 뷰포트로 잘라 판정하면 캡처 면적이 스크롤 픽셀마다 달라져 설명할 수 없고, 잘린 컨테이너는 맥락도 불완전하다. 자르지 않으면 판정이 **확장/폴백 두 값**으로 떨어져 사용자가 눈으로 확인할 수 있는 규칙이 된다.
+**게이트 3개, 클램프 없음.** G1 컨테이너가 뷰포트에 완전히 들어옴 / G2 컨테이너가 요소를 완전히 포함(요소 rect가 0×0이면 기하 검사가 무의미하므로 생략하고 호출부의 `contains()`가 대체) / G3 면적 ≤ `CONTEXT_MAX_VIEWPORT_RATIO`(0.4). 그 앞에 **컨테이너 자체의 양의 면적**을 먼저 본다 — 요소가 0×0이라 G2가 생략되는 경로에서 컨테이너까지 0면적이면 G1·G3가 산술로 통과해 마진만 남은 조각이 "확장 성공"으로 굳는다. **클램프를 안 쓰는 게 핵심**이다 — 컨테이너를 뷰포트로 잘라 판정하면 캡처 면적이 스크롤 픽셀마다 달라져 설명할 수 없고, 잘린 컨테이너는 맥락도 불완전하다. 자르지 않으면 판정이 **확장/폴백 두 값**으로 떨어져 사용자가 눈으로 확인할 수 있는 규칙이 된다.
 
 **후보는 시맨틱 셀렉터 닫힌 집합**이고 computed style을 읽지 않는다. `form`·`fieldset`은 **의도적으로 뺐다** — 결제·주소 입력 묶음을 통째로 끌어들이는데 전형적 결제 fieldset은 40% 게이트를 여유롭게 통과해 제동이 안 걸린다(개인정보 노출 면적. `docs/privacy.{ko,en}.md`가 이 범위를 공개한다).
 
-**확장은 opt-in이고 켜는 곳은 3곳뿐**이다 — before(`usePickerMessages`), after(`StyleEditorPanel`·`useBufferThenSwitch`). 요소 단일 캡처와 `StyleChangesDialog` by-selector 재캡처는 안 켠다: 후자는 **live 참조가 없어** "현재 요소를 포함하는가" 재검증이 성립하지 않는다. **귀결로 남는 한계** — 확장된 before를 가진 버퍼 행을 초기화하면 after만 요소 bbox로 강등돼 두 이미지 기준이 갈린다(코드로 못 고침, 수용).
+**확장 판정 지점은 `resolveExpandRequest` 하나다.** 호출부는 `context`(before가 확정한 기준)를 넘길 뿐이고, 확장 여부·대상 selector는 이 순수 함수가 파생한다 — `expandContext`를 호출부마다 계산하면 기준을 정하는 문이 호출부 수만큼 생긴다. `{expandContext:true, context:{contextSelector:null}}` 같은 모순 조합은 타입으로는 여전히 구성 가능하지만(두 필드가 `CaptureOptions`에 남아 있다) **효과가 없다** — context가 있으면 그 판정이 이긴다. `context` 없이 `expandContext`만 넘기는 경로는 before 캡처(`usePickerMessages`) 하나뿐이고, 요소 단일 캡처는 둘 다 안 넘겨 폴백한다.
 
-**before가 기준을 정하고 after는 재검증만 한다.** `shouldExpandAfter(ctx) === (ctx?.contextSelector != null)` — before가 게이트에서 떨어졌는데 after만 확장하면(리플로우로 면적이 줄어든 경우 등) 두 이미지가 서로 다른 기준을 쓴다. after는 저장된 selector로 조상을 재조회해 `found.contains(target)` + 게이트를 다시 통과할 때만 채택하고, 실패하면 요소 bbox로 강등한다.
+**`StyleChangesDialog` by-selector 재캡처도 같은 기준으로 확장한다.** 버퍼 행의 `captureContext`를 그대로 넘겨 picker가 저장된 selector로 조상을 재조회한다 — "live 참조가 없어 재검증이 불가능하다"는 전제는 틀렸다. **selector로 찾은 요소가 곧 `contains()` 검증의 target**이기 때문이다. 다만 이 경로는 `scrollIntoView({block:"center"})`가 **요소**를 화면 중앙에 놓고 게이트를 돌리므로, 컨테이너가 요소보다 크면 G1에서 떨어지는 빈도가 before/after 경로보다 높다. 강등되면 아래 규칙대로 after를 버린다. 이 분기는 `picker.ts`가 `BROWSER_BOUND_EXACT`라 **유닛 그물이 없다** — 회귀는 실제 탭 조작으로만 잡힌다.
+
+**before가 기준을 정하고 after는 재검증만 한다.** before가 게이트에서 떨어졌는데 after만 확장하면(리플로우로 면적이 줄어든 경우 등) 두 이미지가 서로 다른 기준을 쓴다. after는 저장된 selector로 조상을 재조회해 `found.contains(target)` + 게이트를 다시 통과할 때만 채택하고, 실패하면 요소 bbox로 강등한다.
 
 **top frame 한정.** iframe은 게이트가 자기 뷰포트 기준이라 top 좌표에서의 완전 포함을 보장할 수 없어 판정 자체를 생략한다. 이때 **`respondWithTopRect`의 조립 3분기가 `scrollX`/`scrollY`를 각각 명시적으로 실어야 한다** — spread가 아니라 응답 객체를 새로 만들기 때문에 빠뜨리면 조용히 유실된다.
 
 **0×0 폴백의 신뢰 규칙.** 요소를 `display:none`으로 만들면 rect의 한 변 이상이 0이 되는데, 그대로 크롭하면 마진만 남은 조각이 stale한 좌표에 앵커된 채 유효 이미지처럼 저장된다. 그래서 `viewport`·`scrollX`·`scrollY`가 **전부** 일치하고 `frameId === 0`일 때만 before rect를 재사용하고, 하나라도 다르면 **이미지 없음**으로 간다(잘못된 영역보다 낫다). 그리고 **viewport는 항상 현재 `prep.viewport`** — `cropImage`의 `scale = naturalWidth / viewport.width`가 지금 찍은 캡처에서 유도되므로 `ctx.viewport`를 쓰면 배율이 어긋난다.
 
-**in-flight 잠금.** 비영속 `beforeCapturePending` + 모듈 카운터 `beforeCaptureInflight`(`usePickerMessages`). **캡처를 실제로 발행할 때만** 세운다 — 버퍼 재선택·`beforeImage` 존재·`rebindStylingSession` 3경로가 미진입이라 `[다음]` 영구 비활성(데드락)이 구조적으로 불가능하다. boolean이면 DOM 트리 이동 연타로 겹친 캡처가 서로의 잠금을 먼저 풀어버려 카운터가 필요하다. 잠금은 `[다음]`에만 걸리고 `useBufferThenSwitch`는 보지 않는다(수용 — null context에서 `shouldExpandAfter`가 false라 기준 불일치가 아니라 균일 폴백으로 떨어진다).
+**in-flight 잠금.** 비영속 `beforeCapturePending` + 모듈 카운터 `beforeCaptureInflight`(`usePickerMessages`). **캡처를 실제로 발행할 때만** 세운다 — 버퍼 재선택·`beforeImage` 존재·`rebindStylingSession` 3경로가 미진입이라 `[다음]` 영구 비활성(데드락)이 구조적으로 불가능하다. boolean이면 DOM 트리 이동 연타로 겹친 캡처가 서로의 잠금을 먼저 풀어버려 카운터가 필요하다. 잠금은 `[다음]`에만 걸리고 `hasChange`일 때만 의미가 있다(after를 찍는 조건이 그것뿐).
 
-**영속 이중 장부.** `captureContext`는 `EditorSnapshot` Pick 목록과 `snapshotFromState()` **양쪽**에 있어야 한다 — `hydrate`가 `set(snapshot)` 한 줄이라 한쪽을 빠뜨리면 타입 에러도 런타임 에러도 없이 조용히 초기값이 된다. `toLiteSnapshot`은 스프레드 기반이라 자동 보존되고, quota 폴백으로 이미지가 날아가도 기준은 살아남는 것이 의도다. 버퍼 재편집 병합은 `beforeImage`와 `captureContext`를 **함께** 최초 값으로 유지한다(짝이라서). `IssueRecord`·`IssueBufferedElement`의 `captureContext`는 현재 **쓰기 전용**이다 — draft → editor-store 복원 경로가 코드베이스에 없어 그 경로가 생길 때 쓰라고 저장만 해 둔 상태다.
+**기준이 갈리면 after를 버린다 — 잠금이 못 막는 문의 처리.** `useBufferThenSwitch`(repick·DOM 트리 이동)와 `picker-control`의 승격 경로는 `beforeCapturePending`을 보지 않는다. 이 창에서 in-flight였던 before가 확장본으로 착지하면 after는 이미 낡은 기준으로 찍혔고, 버퍼 커밋 시점의 `beforeImage`는 **fresh read**라 확장본이 들어간다 — 한 카드 안에서 기준이 갈린다. 그래서 두 호출부는 커밋 직전에 `sameCaptureBasis(찍을 때 기준, 지금 기준)`를 대조해 다르면 `afterImage`를 버리고 store의 `(beforeImage, captureContext)` 짝만 남긴다. **세 번째 커밋 지점인 `StyleChangesDialog` 재캡처도 같은 대조를 쓴다** — 거기서는 "지금 기준"이 `CaptureResult.context`(after가 실제로 달성한 기준)이고, 게이트 재실패로 bbox로 강등됐으면 `afterImage: null`을 패치한다. `beforeCapturePending` 잠금은 `[다음]`에서 `hasChange`일 때만 걸리므로, styling을 떠난 뒤 착지한 before는 `usePickerMessages`의 `phase !== "styling"` 가드가 버린다(짝 없는 스냅샷 플래그·blob 방지). **잠금(한 문)이 아니라 커밋 지점의 데이터 대조(모든 문)로 불변식을 지킨다** — 잠금 하나로 지키려던 게 정확히 `?? undefined` 회귀(POSTMORTEM 2026-07-29)의 형태였다.
+
+**영속 이중 장부.** `captureContext`는 `EditorSnapshot` Pick 목록과 `snapshotFromState()` **양쪽**에 있어야 한다 — `hydrate`가 `set(snapshot)` 한 줄이라 한쪽을 빠뜨리면 타입 에러도 런타임 에러도 없이 조용히 초기값이 된다. `toLiteSnapshot`은 이미지만 비우고 **기준은 남긴다** — 기준이 사라지면 아래 0×0 가드가 함께 풀려(요소 소실 시 마진 조각이 유효 이미지처럼 저장) 짝 없는 기준보다 손실이 크다. 버퍼 재편집 병합은 `beforeImage`와 `captureContext`를 **함께** 최초 값으로 유지한다(짝이라서). `IssueRecord`·`IssueBufferedElement`에는 `captureContext`를 싣지 않는다 — draft → editor-store 복원 경로가 없어 읽는 곳이 0이었고, 그 경로가 생기는 시점에 넣는다.
 
 ## 스크린샷 주석 에디터 (Konva)
 

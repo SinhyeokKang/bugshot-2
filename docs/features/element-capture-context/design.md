@@ -6,7 +6,7 @@
 
 **확장은 명시적 opt-in이다.** `captureElementSnapshot`의 `expandContext` 옵션이 기본 `false`이고, element mode의 before/after 경로만 이를 켠다. 요소 단일 캡처(`captureElementShot`)와 앞으로 추가될 호출부는 별도 조치 없이 현행 동작을 유지한다.
 
-before 캡처가 확장에 성공하면 그 조상의 selector를 사이드패널이 보관하고, after 캡처 시 selector를 되돌려 보내 **같은 조상을 다시 측정·재검증**한다. 재조회한 조상이 현재 요소를 포함하고 게이트를 다시 통과할 때만 사용한다. 실패하면 ① 저장된 before rect 재사용(scroll·viewport가 모두 동일할 때만) ② 요소 bbox 폴백 순으로 강등한다.
+before 캡처가 확장에 성공하면 그 조상의 selector를 사이드패널이 보관하고, after 캡처 시 selector를 되돌려 보내 **같은 조상을 다시 측정·재검증**한다. 재조회한 조상이 현재 요소를 포함하고 게이트를 다시 통과할 때만 사용한다. 실패하면 **요소 bbox로 강등**한다. 저장된 before rect 재사용은 이 강등 사다리의 한 칸이 아니라 **요소가 사라진 경우(rect의 한 변 이상이 0)** 전용 경로다 — 요소 rect가 유효한데 게이트만 재실패한 경우에는 그 rect가 곧 정답이므로 before rect를 끌어올 이유가 없다(scroll·viewport 완전 일치 조건도 그 전용 경로에만 걸린다).
 
 before 캡처가 날아가는 동안에는 `[다음]`을 잠가 before/after가 서로 다른 판정을 쓰는 경쟁을 막는다. **캡처를 발행하지 않는 경로**(버퍼 재선택·`beforeImage` 존재·세션 rebind)는 이 잠금에 진입하지 않고, **캡처가 실패한 경우**에는 캡처 기준을 비우고 잠금을 해제해 before 없이 진행하는 현행 동작을 유지한다.
 
@@ -346,4 +346,14 @@ before/after 이미지 크기가 항상 같아 나란히 비교가 정확해진�
 - **"이미지 없음"의 표면**: after가 null이면 before/after 표의 해당 칸이 비고 이슈 본문에도 파일이 안 붙는다. 수신자에게 "변화 없음"으로 읽힐 수 있으나, 잘못된 이미지를 넣는 것보다 낫다는 판단(P1)이다. 사유 표기는 i18n 키가 필요해 이번 스코프 밖이다.
 - **`respondWithTopRect` 응답 조립**: 4경로 중 3개가 응답 객체를 새로 만든다. 새 필드(`scrollX`·`scrollY`·`contextSelector`)를 각 분기에 명시적으로 넣지 않으면 조용히 유실된다.
 - **행 초기화 재캡처의 before/after 기준 desync**: `StyleChangesDialog`가 확장을 켜지 않으므로(대안 7), 확장된 `beforeImage`를 가진 버퍼 항목의 행을 초기화하면 **after만 요소 bbox로 강등**돼 두 이미지의 기준이 갈린다. 대안 7이 by-selector 확장을 배제한 필연적 귀결이라 코드로는 못 고친다 — live 참조가 없어 "현재 요소 포함" 재검증이 성립하지 않기 때문. 잘못된 확장보다 기준이 다른 두 이미지가 낫다는 P1 판단을 유지하고, 수동 검증 항목으로 남긴다.
-- **잠금이 `[다음]`에만 걸린다**: `useBufferThenSwitch`(repick·DOM 트리 이동)는 두 번째 after 캡처 진입점인데 `beforeCapturePending`을 보지 않는다. before 캡처 중 편집 후 전환하면 그 버퍼 항목은 (before 없음 + 비확장 after)가 되는데, 이는 **이 기능 이전의 before-image 경쟁과 동일한 결과**라 회귀가 아니다. `shouldExpandAfter`가 `null` context에서 false를 반환해 기준 불일치가 아니라 균일한 폴백으로 떨어지는 것이 안전판이다.
+- **잠금이 `[다음]`에만 걸린다**: `useBufferThenSwitch`(repick·DOM 트리 이동)는 두 번째 after 캡처 진입점인데 `beforeCapturePending`을 보지 않는다. before 캡처 중 편집 후 전환하면 그 버퍼 항목은 (before 없음 + 비확장 after)가 되는데, 이는 **이 기능 이전의 before-image 경쟁과 동일한 결과**라 회귀가 아니다. `shouldExpandAfter`(당시 심볼 — 현재는 삭제, `resolveExpandRequest`가 대체)가 `null` context에서 false를 반환해 기준 불일치가 아니라 균일한 폴백으로 떨어지는 것이 안전판이다.
+
+## 구현 후 변경 (code-review 리팩터)
+
+구현·리뷰를 거쳐 아래 4개 설계 판단이 뒤집혔다. 위 본문의 해당 서술은 이 절이 대체한다 —
+살아있는 서술은 [ARCHITECTURE.md](../../ARCHITECTURE.md) "Element 캡처 컨텍스트 확장"이다.
+
+- **by-selector 재캡처도 확장한다** (위 "적용 범위 제외 3곳"·"대안 7"·위험 요소 "기준 desync" 무효). 배제 근거였던 "live 참조가 없어 재검증이 성립하지 않는다"가 틀렸다 — **selector로 찾은 요소가 곧 `contains()` 검증의 target**이다. 행 삽입·삭제로 selector가 밀리는 위험은 남지만 그건 before/after 경로에도 이미 있는 `buildSelector` 안정성 위험이고, 확장을 끄면 대신 **확장 before와 bbox after가 짝을 이루는 확실한 오류**를 만든다.
+- **확장 판정은 `resolveExpandRequest` 하나로 파생한다.** `expandContext`를 호출부가 계산하던 구조에서는 `{expandContext:true, context:{contextSelector:null}}` 같은 모순 조합이 타입상 허용되고, 판정하는 문이 호출부 수만큼 생겼다(POSTMORTEM 2026-07-29가 지목한 그 형태).
+- **잠금이 아니라 커밋 지점 대조로 불변식을 지킨다** (위험 요소 "잠금이 `[다음]`에만 걸린다" 무효). `useBufferThenSwitch`가 before 없음 + 비확장 after로 균일 폴백된다는 전제가 **코드에서 성립하지 않았다** — `bufferCurrentElement`가 `beforeImage`를 fresh read하므로 캡처 창 안에 착지한 확장 before가 그대로 들어간다. 이제 after를 커밋하는 네 지점(`useBufferThenSwitch`·`picker-control` 승격·`StyleEditorPanel.handleNext`·`StyleChangesDialog` 재캡처)이 전부 `sameCaptureBasis`로 대조해 기준이 갈리면 after를 버린다.
+- **"이미지 없음"에 사유를 표기한다** (위험 요소 "이미지 없음의 표면"의 보류 해제). `styleTable.noSnapshot` ko/en 키를 추가해 빈 칸 대신 "스냅샷 없음"을 렌더한다 — 빈 셀은 오류와 구별되지 않는다.
