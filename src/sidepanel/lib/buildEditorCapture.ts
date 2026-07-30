@@ -55,7 +55,7 @@ export function buildEditorMarkdownContext(): MarkdownContext | null {
     environment: [
       ...(supportsConsoleNetworkLog(captureMode) && logsAttach
         ? draft.environment ?? []
-        : stripApiHostsRows(draft.environment ?? [])),
+        : stripApiHostsRows(draft.environment ?? [], s.apiHostsDerived)),
     ],
   };
 

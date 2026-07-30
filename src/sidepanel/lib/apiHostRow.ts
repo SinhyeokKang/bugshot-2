@@ -1,28 +1,11 @@
-import type { CaptureMode } from "./buildCaptureFiles";
+import { getDomain } from "tldts";
+
 import type { EnvironmentRow } from "@/types/environment";
 import type { NetworkLog, NetworkRequest } from "@/types/network";
+import type { CaptureMode } from "./buildCaptureFiles";
 import { supportsConsoleNetworkLog } from "./captureLogSupport";
 
 export const API_HOSTS_LABEL = "API Hosts";
-
-// 마지막 2레이블을 registrable domain으로 보되, 여기 걸리면 3레이블.
-// public suffix list 전량을 번들하지 않는 근사 — 미등재 다단 접미사(github.io 등)는 서로 다른
-// 주체의 도메인을 동족으로 과대포함한다. 사용자가 행을 고칠 수 있다는 것이 그 대가의 완화책.
-const TWO_LEVEL_SUFFIXES: ReadonlySet<string> = new Set([
-  "co.kr", "or.kr", "ne.kr", "co.jp", "ne.jp", "or.jp", "co.uk", "org.uk",
-  "com.au", "com.br", "com.cn", "com.tw", "com.hk", "com.sg", "co.in",
-  "co.nz", "co.za", "com.mx", "com.tr",
-]);
-
-// 여기 걸리는 registrable domain은 조직 경계가 아니라 호스팅 업체 경계다 — 동족으로 묶으면
-// 남의 배포·남의 버킷 hostname이 내 이슈 본문·Slack에 실린다. 접미사 목록을 늘리는 대신
-// "그룹 자체가 조직이 아니면 아예 나열하지 않는다"로 fail-closed 한다.
-const HOSTING_DOMAINS: ReadonlySet<string> = new Set([
-  "vercel.app", "netlify.app", "github.io", "pages.dev", "web.app",
-  "firebaseapp.com", "herokuapp.com", "workers.dev", "azurewebsites.net",
-  "amazonaws.com", "cloudfront.net", "myshopify.com", "windows.net",
-  "ngrok.io", "ngrok-free.app", "onrender.com", "fly.dev", "surge.sh",
-]);
 
 const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
 
@@ -33,13 +16,7 @@ function normalizeHostname(hostname: string): string {
 export function registrableDomain(hostname: string): string {
   const host = normalizeHostname(hostname);
   if (host === "" || IPV4_RE.test(host) || host.startsWith("[")) return host;
-
-  const labels = host.split(".");
-  if (labels.length <= 2) return host;
-
-  const lastTwo = labels.slice(-2).join(".");
-  const take = TWO_LEVEL_SUFFIXES.has(lastTwo) ? 3 : 2;
-  return labels.slice(-take).join(".");
+  return getDomain(host, { allowPrivateDomains: true }) ?? host;
 }
 
 function httpHostname(url: string): string | null {
@@ -63,7 +40,6 @@ export function deriveApiHostsRow(
   const pageHostname = httpHostname(pageUrl);
   if (pageHostname === null) return null;
   const pageDomain = registrableDomain(pageHostname);
-  if (HOSTING_DOMAINS.has(pageDomain)) return null;
 
   const counts = new Map<string, number>();
   for (const req of requests) {
@@ -113,9 +89,14 @@ export function isApiHostsUndetermined(input: {
 // 본문 빌더는 environment를 게이트 없이 흘린다.
 export function stripApiHostsRows(
   rows: readonly EnvironmentRow[],
+  lastDerived: string | null,
 ): readonly EnvironmentRow[] {
-  return rows.some((r) => r.source === "api-hosts")
-    ? rows.filter((r) => r.source !== "api-hosts")
+  const isUnmodified = (row: EnvironmentRow): boolean =>
+    row.source === "api-hosts" &&
+    row.label === API_HOSTS_LABEL &&
+    row.value === lastDerived;
+  return rows.some(isUnmodified)
+    ? rows.filter((r) => !isUnmodified(r))
     : rows;
 }
 
@@ -127,28 +108,45 @@ export function syncApiHostsRow(input: {
   apiRow: EnvironmentRow | null;
   dismissed: boolean;
   lastDerived: string | null;
-}): { rows: readonly EnvironmentRow[]; lastDerived: string | null } {
+}): {
+  rows: readonly EnvironmentRow[];
+  lastDerived: string | null;
+  dismissed: boolean;
+} {
   const { rows, apiRow, dismissed, lastDerived } = input;
   const idx = rows.findIndex((r) => r.source === "api-hosts");
+  const promoteEditedRow = (): {
+    rows: readonly EnvironmentRow[];
+    lastDerived: null;
+    dismissed: true;
+  } => {
+    const next = [...rows];
+    next[idx] = { label: next[idx].label, value: next[idx].value };
+    return { rows: next, lastDerived: null, dismissed: true };
+  };
 
   if (!apiRow) {
-    if (idx === -1) return { rows, lastDerived: null };
+    if (idx === -1) return { rows, lastDerived: null, dismissed };
     // 사용자가 타이핑한 문자열은 파생 부재로 지우지 않는다 — 로그 첨부 off든 hydrate 지연이든
     // 무관한 컨트롤 하나로 손으로 쓴 값이 사라지면 목표 2가 깨진다.
-    if (rows[idx].value !== lastDerived) return { rows, lastDerived };
-    return { rows: rows.filter((_, i) => i !== idx), lastDerived: null };
+    if (rows[idx].label !== API_HOSTS_LABEL || rows[idx].value !== lastDerived) {
+      return promoteEditedRow();
+    }
+    return { rows: rows.filter((_, i) => i !== idx), lastDerived: null, dismissed };
   }
 
   if (idx === -1) {
-    if (dismissed) return { rows, lastDerived };
-    return { rows: [...rows, apiRow], lastDerived: apiRow.value };
+    if (dismissed) return { rows, lastDerived, dismissed };
+    return { rows: [...rows, apiRow], lastDerived: apiRow.value, dismissed };
   }
 
   // 사용자가 고친 행은 파생 결과로 덮지 않는다 — 고친 값이 되돌아오면 "고칠 수 있다"가 깨진다.
-  if (rows[idx].value !== lastDerived) return { rows, lastDerived };
-  if (rows[idx].value === apiRow.value) return { rows, lastDerived };
+  if (rows[idx].label !== API_HOSTS_LABEL || rows[idx].value !== lastDerived) {
+    return promoteEditedRow();
+  }
+  if (rows[idx].value === apiRow.value) return { rows, lastDerived, dismissed };
 
   const next = [...rows];
   next[idx] = { ...next[idx], value: apiRow.value };
-  return { rows: next, lastDerived: apiRow.value };
+  return { rows: next, lastDerived: apiRow.value, dismissed };
 }

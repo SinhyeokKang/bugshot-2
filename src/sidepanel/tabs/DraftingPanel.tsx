@@ -556,7 +556,15 @@ function ReproEnvironmentSection() {
       if (next.rows.some((r) => r.source === "api-hosts")) setOpen(true);
     }
     if (next.lastDerived !== apiHostsDerived) setApiHostsDerived(next.lastDerived);
-  }, [apiRow, undetermined, apiHostsDismissed, apiHostsDerived, setApiHostsDerived]);
+    if (next.dismissed !== apiHostsDismissed) setApiHostsDismissed(next.dismissed);
+  }, [
+    apiRow,
+    undetermined,
+    apiHostsDismissed,
+    apiHostsDerived,
+    setApiHostsDerived,
+    setApiHostsDismissed,
+  ]);
 
   // element 모드 DOM 줄: 버퍼+현재 머지 결과의 selector를 쉼표로 나열(이미지는 selector에
   // 무관하므로 null). 본문 마크다운과 동일 규칙.
@@ -690,7 +698,7 @@ function ReproEnvironmentSection() {
               variant="outline"
               className="h-9 w-9 shrink-0 hover:text-destructive"
               title={t("common.delete")}
-              aria-label={t("common.delete")}
+              aria-label={`${row.label || t("draft.envLabelPlaceholder")}: ${t("common.delete")}`}
               onClick={() => {
                 // 자동 행의 명시 삭제만 미부활 래치를 세운다(로그 토글 off로 사라지는 건 제외).
                 if (row.source === "api-hosts") setApiHostsDismissed(true);

@@ -222,6 +222,15 @@ describe("deriveApiHostsRow", () => {
     ).toBeNull();
   });
 
+  it("PSL private section의 미등재 호스팅 도메인도 다른 tenant를 포함하지 않는다", () => {
+    expect(
+      deriveApiHostsRow(
+        reqs("https://other.appspot.com/api"),
+        "https://mine.appspot.com/page",
+      ),
+    ).toBeNull();
+  });
+
   it("호스팅형 접미사가 아닌 일반 도메인은 영향 없다", () => {
     expect(deriveApiHostsRow(reqs("https://api.acme.com/x"), PAGE)?.value).toBe("api.acme.com");
   });
@@ -261,12 +270,21 @@ describe("stripApiHostsRows", () => {
   it("자동 행만 걷어내고 사용자 행은 남긴다", () => {
     const user = { label: "Locale", value: "ko-KR" };
     const auto = { label: API_HOSTS_LABEL, value: "api.acme.com", source: "api-hosts" as const };
-    expect(stripApiHostsRows([user, auto])).toEqual([user]);
+    expect(stripApiHostsRows([user, auto], "api.acme.com")).toEqual([user]);
+  });
+
+  it("사용자가 수정한 자동 행은 제출 직전에도 남긴다", () => {
+    const edited = {
+      label: API_HOSTS_LABEL,
+      value: "내가-고친.acme.com",
+      source: "api-hosts" as const,
+    };
+    expect(stripApiHostsRows([edited], "api.acme.com")).toEqual([edited]);
   });
 
   it("자동 행이 없으면 입력 참조를 그대로 반환", () => {
     const rows = [{ label: "Locale", value: "ko-KR" }];
-    expect(stripApiHostsRows(rows)).toBe(rows);
+    expect(stripApiHostsRows(rows, null)).toBe(rows);
   });
 });
 
@@ -359,7 +377,26 @@ describe("syncApiHostsRow", () => {
       dismissed: false,
       lastDerived: "api.acme.com",
     });
-    expect(out.rows).toBe(rows);
+    expect(out.rows).toEqual([
+      { label: API_HOSTS_LABEL, value: "내가-고친.acme.com" },
+    ]);
+    expect(out.lastDerived).toBeNull();
+  });
+
+  it("사용자가 고친 label도 일반 커스텀 행으로 승격한다", () => {
+    const edited: EnvironmentRow = {
+      label: "API 호스트",
+      value: "api.acme.com",
+      source: "api-hosts",
+    };
+    const out = syncApiHostsRow({
+      rows: [edited],
+      apiRow: { ...apiRow, value: "api.acme.com, auth.acme.com" },
+      dismissed: false,
+      lastDerived: "api.acme.com",
+    });
+    expect(out.rows).toEqual([{ label: "API 호스트", value: "api.acme.com" }]);
+    expect(out.lastDerived).toBeNull();
   });
 
   it("apiRow가 null이면 미수정 자동 행을 제거하고 lastDerived를 비운다", () => {
@@ -387,8 +424,30 @@ describe("syncApiHostsRow", () => {
       dismissed: false,
       lastDerived: "api.acme.com",
     });
-    expect(out.rows).toBe(rows);
-    expect(out.lastDerived).toBe("api.acme.com");
+    expect(out.rows).toEqual([
+      userRow,
+      { label: API_HOSTS_LABEL, value: "내가-고친.acme.com" },
+    ]);
+    expect(out.lastDerived).toBeNull();
+  });
+
+  it("apiRow가 null이어도 label을 고친 자동 행은 커스텀 행으로 남긴다", () => {
+    const edited: EnvironmentRow = {
+      label: "API 호스트",
+      value: "api.acme.com",
+      source: "api-hosts",
+    };
+    const out = syncApiHostsRow({
+      rows: [userRow, edited],
+      apiRow: null,
+      dismissed: false,
+      lastDerived: "api.acme.com",
+    });
+    expect(out.rows).toEqual([
+      userRow,
+      { label: "API 호스트", value: "api.acme.com" },
+    ]);
+    expect(out.lastDerived).toBeNull();
   });
 
   it("apiRow가 null이고 자동 행도 없으면 rows 참조 유지 + lastDerived 초기화", () => {
