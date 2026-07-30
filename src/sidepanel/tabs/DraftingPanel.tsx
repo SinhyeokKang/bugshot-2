@@ -636,6 +636,7 @@ function ReproEnvironmentSection() {
         </>
       }
       collapsible
+      testId="section-repro-env"
       open={open}
       onOpenChange={setOpen}
     >
@@ -669,7 +670,13 @@ function ReproEnvironmentSection() {
           </div>
         ))}
         {customRows.map((row, idx) => (
-          <div key={idx} className="flex items-center gap-1">
+          <div
+            key={idx}
+            className="flex items-center gap-1"
+            data-testid="env-custom-row"
+            data-env-label={row.label}
+            data-env-source={row.source ?? ""}
+          >
             <Input
               className="w-24 shrink-0 text-sm"
               placeholder={t("draft.envLabelPlaceholder")}
@@ -697,6 +704,7 @@ function ReproEnvironmentSection() {
               size="icon"
               variant="outline"
               className="h-9 w-9 shrink-0 hover:text-destructive"
+              data-testid="env-row-delete"
               title={t("common.delete")}
               aria-label={`${row.label || t("draft.envLabelPlaceholder")}: ${t("common.delete")}`}
               onClick={() => {
