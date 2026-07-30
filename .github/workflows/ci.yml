@@ -12,8 +12,12 @@ on:
   workflow_dispatch:
 
 # 같은 ref로 연달아 푸시하면 이전 런은 취소 — 러너 시간 절약.
+# nightly는 **그룹을 분리한다**: 같은 그룹에 두면 main의 workflow_dispatch가 진행 중 nightly를
+# 취소하고, 취소된 런은 notify가 발화하지 않아 "매일 1건" 부재 감지 신호가 그날 빈다.
+# `cancel-in-progress`를 event로 분기하는 건 해법이 아니다 — 이 값은 **취소하는 쪽**(새로 큐에
+# 든 런)의 설정을 읽으므로 dispatch가 여전히 nightly를 걷어낸다.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name == 'schedule' && 'nightly' || 'std' }}
   cancel-in-progress: true
 
 # fork PR의 임의 코드가 이 워크플로에서 돈다 — GITHUB_TOKEN은 읽기 전용으로 고정.
@@ -40,6 +44,12 @@ jobs:
       # lockfile 고정 — pnpm-workspace.yaml의 minimumReleaseAge는 신규 resolve에만
       # 걸리므로 frozen 설치에는 영향이 없다.
       - run: pnpm install --frozen-lockfile
+
+      # e2e job과 같은 더미 env로 돌린다 — 배포 설정과 다른 좌표에서 빌드하면 check:prearm이
+      # 검사하는 산출물이 실물과 갈린다. typecheck·test보다 앞에 둬서 유닛도 같은 env를 본다
+      # (vitest도 .env.local을 로드한다). 상세는 e2e job의 동명 스텝.
+      - name: Load CI env
+        run: cp .env.ci .env.local
 
       - name: Typecheck
         run: pnpm typecheck
@@ -161,7 +171,7 @@ jobs:
   # 실패만 보내면 워크플로가 조용히 비활성화됐을 때(60일 무활동 시 GitHub가 schedule을
   # 끈다)와 green을 구분할 수 없다. 매일 1건이 부재 감지 신호를 겸한다.
   #
-  # schedule 외에 workflow_dispatch도 허용하는 건 03:00을 기다리지 않고 알림 경로를
+  # schedule 외에 workflow_dispatch도 허용하는 건 08:00을 기다리지 않고 알림 경로를
   # 검증하기 위한 것이다. dev push·main PR은 제외 — 채널이 시끄러워지고 PR 결과는
   # GitHub UI에 이미 보인다. fork PR은 이 조건에 걸릴 수 없으므로 webhook secret이
   # 노출되는 경로가 없다.
@@ -173,12 +183,13 @@ jobs:
     if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # secrets 컨텍스트는 job 레벨 if에서 못 쓴다 — env로 올려 step if에서 판정한다.
-    env:
-      WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
+      # secrets 컨텍스트는 job 레벨 if에서 못 쓴다 — 존재 여부만 output으로 내려
+      # step if에서 판정한다. secret 자체는 이 스텝과 Notify에만 노출된다.
       - name: Compose result
         id: r
+        env:
+          WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           if [ "${{ needs.verify.result }}" = "success" ] && [ "${{ needs.e2e.result }}" = "success" ]; then
             echo "emoji=✅" >> "$GITHUB_OUTPUT"
@@ -187,17 +198,24 @@ jobs:
             echo "emoji=🔴" >> "$GITHUB_OUTPUT"
             echo "headline=nightly CI failed" >> "$GITHUB_OUTPUT"
           fi
-          echo "sha=$(echo '${{ github.sha }}' | cut -c1-7)" >> "$GITHUB_OUTPUT"
+          # `[ … ] && echo`로 쓰면 webhook 미설정 시 이 줄이 블록 끝으로 밀리는 편집 한 번에
+          # bash -e에서 스텝이 exit 1로 죽는다.
+          if [ -n "$WEBHOOK" ]; then echo "has_webhook=1" >> "$GITHUB_OUTPUT"; fi
+          echo "sha=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          # git은 ref 이름에 `"`를 허용한다 — payload JSON 문자열을 깨뜨리므로 벗긴다.
+          printf 'ref=%s\n' "${GITHUB_REF_NAME//\"/}" >> "$GITHUB_OUTPUT"
 
       - name: Warn on missing webhook
-        if: env.WEBHOOK == ''
+        if: steps.r.outputs.has_webhook != '1'
         run: echo "::warning::SLACK_WEBHOOK_URL secret이 없어 알림을 건너뜁니다."
 
       # 커밋 메시지는 payload에 넣지 않는다 — 임의 문자열이 JSON에 그대로 박히면
-      # 따옴표 하나로 payload가 깨진다. sha·ref_name만 쓰면 그 위험이 없다.
+      # 따옴표 하나로 payload가 깨진다. sha·ref는 위에서 정제해 싣는다.
+      # 이 액션만 full SHA 핀 — webhook secret을 쥔 유일한 스텝이라 mutable 태그면 그 코드가
+      # 조용히 바뀐다. secret을 못 보는 setup 액션들은 major 태그를 유지한다.
       - name: Notify Slack
-        if: env.WEBHOOK != ''
-        uses: slackapi/slack-github-action@v2
+        if: steps.r.outputs.has_webhook == '1'
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
@@ -209,7 +227,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*${{ steps.r.outputs.emoji }} BugShot ${{ steps.r.outputs.headline }}*\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}> · `${{ github.ref_name }}` · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ steps.r.outputs.sha }}>"
+                    "text": "*${{ steps.r.outputs.emoji }} BugShot ${{ steps.r.outputs.headline }}*\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}> · `${{ steps.r.outputs.ref }}` · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ steps.r.outputs.sha }}>"
                   }
                 },
                 {

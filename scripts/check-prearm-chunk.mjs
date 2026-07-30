@@ -7,8 +7,9 @@
 // crxjs는 async loader(`*-loader-*.js`)로 되돌아가고, **pre-arm이 조용히 죽는다** —
 // 빌드는 성공하고 typecheck·유닛 테스트도 전부 통과한다.
 //
-// 행동 검증은 `e2e/logs-prearm.spec.ts`가 하지만 e2e는 CI에서 안 돈다(headed 강제).
-// 그래서 구조 검증만 브라우저 없이 여기서 한다.
+// 행동 검증은 `e2e/logs-prearm.spec.ts`가 CI의 e2e job(xvfb로 headed)에서 맡는다.
+// 이건 브라우저 없이 몇 초로 끝나는 1차 그물이라, e2e green을 기다리지 않고 형태 회귀를
+// 먼저 알린다(`verify` job).
 //
 // 사용: pnpm build (또는 build:e2e) 후 `node scripts/check-prearm-chunk.mjs [outDir]`
 

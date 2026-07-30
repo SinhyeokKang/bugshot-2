@@ -59,13 +59,13 @@ description: dev → main PR 생성 + 커버리지 리포트(비차단) + 버전
    `skip`이 아니면:
    ```
    pnpm version <level> --no-git-tag-version
-   git add package.json package-lock.json pnpm-lock.yaml
+   git add package.json pnpm-lock.yaml
    git commit -m "v<new-version>"
    git push
    ```
    `--no-git-tag-version`은 자동 commit/tag 둘 다 막는다. 직접 commit해서 메시지를 통제하고, tag는 절대 만들지 않는다 (squash로 가리켜도 의미 없는 dev HEAD를 가리키게 되므로).
 
-   **lockfile도 반드시 같이 stage한다.** `pnpm version`은 `package.json`뿐 아니라 lockfile(`package-lock.json` / `pnpm-lock.yaml`) 안의 `version` 필드도 같이 업데이트한다. lockfile을 빠뜨리면 main에 머지된 후 `package.json`(새 버전)과 lockfile(이전 버전)이 mismatch 상태가 되고, 다음 install 시 lockfile이 다시 갱신돼 추가 PR이 필요해진다. `git status`로 변경된 lockfile만 추가하면 된다 (이 프로젝트엔 둘 다 트래킹됨 — 없는 건 자동으로 무시됨).
+   **lockfile도 반드시 같이 stage한다.** `pnpm version`은 `package.json`뿐 아니라 `pnpm-lock.yaml` 안의 `version` 필드도 같이 업데이트한다. lockfile을 빠뜨리면 main에 머지된 후 `package.json`(새 버전)과 lockfile(이전 버전)이 mismatch 상태가 되고, 다음 install 시 lockfile이 다시 갱신돼 추가 PR이 필요해진다. 이 저장소의 lockfile은 `pnpm-lock.yaml` 하나다 — npm `package-lock.json`은 트래킹하지 않으므로(gitignore) `git add`에 넘기면 pathspec 에러로 죽는다.
 
 8. **PR 준비.**
    - 기존 PR이 있으면 재사용. 번호와 URL을 보여준다.
