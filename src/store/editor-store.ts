@@ -181,6 +181,11 @@ interface EditorState {
   logsAttach: boolean;
   // drafting 진입 시 재현 단계 자동 채움을 세션 1회로 제한하는 가드(persist — 삭제 후 재개 시 부활 방지).
   reproPrefillDone: boolean;
+  // API Hosts 자동 행을 사용자가 명시 삭제했다는 래치(persist — 미리보기 왕복·패널 재오픈에서
+  // DraftingPanel이 언마운트되므로 컴포넌트 로컬이면 삭제한 행이 부활한다).
+  apiHostsDismissed: boolean;
+  // 그 행에 마지막으로 주입한 파생값(persist). 현재 값과 다르면 사용자가 고친 것이라 덮지 않는다.
+  apiHostsDerived: string | null;
   attachments: UserAttachmentMeta[];
   aiStylingLoading: boolean;
   // 캡처를 실제로 발행하는 동안만 true — before/after 기준 경쟁 가드. 비영속.
@@ -263,6 +268,8 @@ interface EditorState {
   setActionLog: (log: ActionLog) => void;
   setLogsAttach: (on: boolean) => void;
   setReproPrefillDone: (done: boolean) => void;
+  setApiHostsDismissed: (dismissed: boolean) => void;
+  setApiHostsDerived: (derived: string | null) => void;
   setAnnotationTool: (tool: RecordingPenTool | null) => void;
   setAnnotationColor: (color: string) => void;
   setAnnotationThickness: (thickness: ThicknessKey) => void;
@@ -306,6 +313,8 @@ export type EditorSnapshot = Pick<
   | "freeformCapturedAt"
   | "logsAttach"
   | "reproPrefillDone"
+  | "apiHostsDismissed"
+  | "apiHostsDerived"
   | "attachments"
   | "draft"
   | "issueFields"
@@ -351,6 +360,8 @@ const initial = {
   actionLog: null as ActionLog | null,
   logsAttach: false,
   reproPrefillDone: false,
+  apiHostsDismissed: false,
+  apiHostsDerived: null as string | null,
   attachments: [] as UserAttachmentMeta[],
   draft: null,
   inlineCaptureTarget: null as string | null,
@@ -566,10 +577,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       shotSelector: shot,
     }),
   startRecording: (target, source) => set({ ...initial, captureMode: "video", recordingSource: source, phase: "recording", target }),
-  // trim은 drafting 전이와 원자적이어야 한다(replayTrim 선언부 참조). reproPrefillDone은
-  // 리플레이가 startRecording(...initial)을 안 거쳐 drafting에 직행하므로 여기서 리셋한다.
+  // trim은 drafting 전이와 원자적이어야 한다(replayTrim 선언부 참조). reproPrefillDone·
+  // apiHosts* 래치는 리플레이가 startRecording(...initial)을 안 거쳐 drafting에 직행하므로
+  // 여기서 리셋한다 — 안 하면 직전 세션의 삭제 래치가 새 리포트의 주입을 막는다.
   onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt, trim = null) => {
-    set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, videoTrimSource: null, replayTrim: trim, reproPrefillDone: false, logsAttach: true, annotationTool: null });
+    set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, videoTrimSource: null, replayTrim: trim, reproPrefillDone: false, apiHostsDismissed: false, apiHostsDerived: null, logsAttach: true, annotationTool: null });
     // drafting 중 패널을 닫아도 영상이 살아남도록 로그와 동일하게 pending:${tabId}에 미러링(hydrate가 복원).
     const tabId = get().target?.tabId;
     if (tabId != null) void saveVideoBlob(pendingKey(tabId), blob);
@@ -998,6 +1010,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setActionLog: (log) => set({ actionLog: log }),
   setLogsAttach: (on) => set({ logsAttach: on }),
   setReproPrefillDone: (done) => set({ reproPrefillDone: done }),
+  setApiHostsDismissed: (dismissed) => set({ apiHostsDismissed: dismissed }),
+  setApiHostsDerived: (derived) => set({ apiHostsDerived: derived }),
   clearNetworkLog: (tabId) => {
     set({ networkLog: null });
     if (tabId != null) {

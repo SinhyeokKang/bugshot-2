@@ -28,6 +28,12 @@ import { LogPreviewDialog } from "@/sidepanel/components/LogPreviewDialog";
 import { LogInsertDialog } from "@/sidepanel/components/LogInsertDialog";
 import { TooltipIconButton } from "@/sidepanel/components/TooltipIconButton";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   PageFooter,
   PageScroll,
   PageShell,
@@ -40,6 +46,7 @@ import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIss
 import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
 import { downloadEditorLogsHtml } from "@/sidepanel/lib/buildEditorCapture";
 import { supportsActionLog, supportsConsoleNetworkLog } from "@/sidepanel/lib/captureLogSupport";
+import { apiHostRowFor, syncApiHostsRow } from "@/sidepanel/lib/apiHostRow";
 import { isReproSectionEnabled } from "@/sidepanel/lib/reproSectionEnabled";
 import {
   deriveReadonlyEnvRows,
@@ -514,6 +521,39 @@ function ReproEnvironmentSection() {
   const freeformCapturedAt = useEditorStore((s) => s.freeformCapturedAt);
   const draft = useEditorStore((s) => s.draft);
   const setDraft = useEditorStore((s) => s.setDraft);
+  const networkLog = useEditorStore((s) => s.networkLog);
+  const logsAttach = useEditorStore((s) => s.logsAttach);
+  const apiHostsDismissed = useEditorStore((s) => s.apiHostsDismissed);
+  const apiHostsDerived = useEditorStore((s) => s.apiHostsDerived);
+  const setApiHostsDismissed = useEditorStore((s) => s.setApiHostsDismissed);
+  const setApiHostsDerived = useEditorStore((s) => s.setApiHostsDerived);
+  // 자동 행 주입 시점에 펼친다 — 사용자가 못 본 값은 고칠 수 없다(휴리스틱 완화의 전제).
+  const [open, setOpen] = useState(false);
+
+  const apiRow = useMemo(
+    () => apiHostRowFor({ captureMode, logsAttach, networkLog, pageUrl: target?.url }),
+    [captureMode, logsAttach, networkLog, target?.url],
+  );
+
+  // 판정은 전부 syncApiHostsRow(순수)에 있고 여기는 배선만 한다. draft는 write 시점에
+  // getState로 읽는다 — stale closure로 쓰면 useReproPrefill의 비동기 setDraft와 경합해
+  // 자동 채운 재현 단계를 조용히 지운다.
+  useEffect(() => {
+    const current = useEditorStore.getState().draft;
+    if (!current) return;
+    const rows = current.environment ?? [];
+    const next = syncApiHostsRow({
+      rows,
+      apiRow,
+      dismissed: apiHostsDismissed,
+      lastDerived: apiHostsDerived,
+    });
+    if (next.rows !== rows) {
+      useEditorStore.getState().setDraft({ ...current, environment: [...next.rows] });
+      if (next.rows.length > rows.length) setOpen(true);
+    }
+    if (next.lastDerived !== apiHostsDerived) setApiHostsDerived(next.lastDerived);
+  }, [apiRow, apiHostsDismissed, apiHostsDerived, setApiHostsDerived]);
 
   // element 모드 DOM 줄: 버퍼+현재 머지 결과의 selector를 쉼표로 나열(이미지는 selector에
   // 무관하므로 null). 본문 마크다운과 동일 규칙.
@@ -585,7 +625,8 @@ function ReproEnvironmentSection() {
         </>
       }
       collapsible
-      defaultOpen={false}
+      open={open}
+      onOpenChange={setOpen}
     >
       <div className="flex flex-col gap-2">
         {readonlyRows.map((r, i) => (
@@ -628,16 +669,29 @@ function ReproEnvironmentSection() {
                 updateRows(next);
               }}
             />
-            <Input
-              className="flex-1 text-sm"
-              placeholder={t("draft.envValuePlaceholder")}
-              value={row.value}
-              onChange={(e) => {
-                const next = [...customRows];
-                next[idx] = { ...next[idx], value: e.target.value };
-                updateRows(next);
-              }}
-            />
+            {/* 값 칸은 400px 패널에서 ≈152px까지 좁아지고 <input>은 truncate가 안 걸린다.
+                min-w-0이 가로 스크롤을 막고, 툴팁이 잘린 전문의 확인 경로가 된다. */}
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Input
+                    className="min-w-0 flex-1 text-sm"
+                    placeholder={t("draft.envValuePlaceholder")}
+                    value={row.value}
+                    onChange={(e) => {
+                      const next = [...customRows];
+                      next[idx] = { ...next[idx], value: e.target.value };
+                      updateRows(next);
+                    }}
+                  />
+                </TooltipTrigger>
+                {row.value.trim() ? (
+                  <TooltipContent className="max-w-60 break-all">
+                    {row.value}
+                  </TooltipContent>
+                ) : null}
+              </Tooltip>
+            </TooltipProvider>
             <Button
               type="button"
               size="icon"
@@ -645,7 +699,11 @@ function ReproEnvironmentSection() {
               className="h-9 w-9 shrink-0 hover:text-destructive"
               title={t("common.delete")}
               aria-label={t("common.delete")}
-              onClick={() => updateRows(customRows.filter((_, i) => i !== idx))}
+              onClick={() => {
+                // 자동 행의 명시 삭제만 미부활 래치를 세운다(로그 토글 off로 사라지는 건 제외).
+                if (row.source === "api-hosts") setApiHostsDismissed(true);
+                updateRows(customRows.filter((_, i) => i !== idx));
+              }}
             >
               <Trash2 />
             </Button>
