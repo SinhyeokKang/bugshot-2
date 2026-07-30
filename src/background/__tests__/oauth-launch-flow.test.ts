@@ -100,6 +100,21 @@ describe("launchOAuthWebFlow", () => {
     expect(err).toBeInstanceOf(OAuthError);
     expect((err as OAuthError).cancelled).toBe(true);
     expect((err as OAuthError).platform).toBe("slack");
+    // 취소는 launch 실패가 아니다 — 두 축이 동시에 서면 안 된다.
+    expect((err as OAuthError).launchFailed).toBe(false);
+  });
+
+  // 최초 연결 시도라 만료될 토큰이 없다. launchFailed 없이 던지면 serializeOAuthError가
+  // 401 + oauthRefreshFailed로 내려 "세션이 만료되었습니다" 다이얼로그를 오발화한다.
+  it("창을 못 띄운 실패는 launchFailed를 세운다", async () => {
+    launchMock.mockRejectedValue(new Error("Authorization page load timed out."));
+
+    const err = await launchOAuthWebFlow("https://auth.example", "github").catch(
+      (e: unknown) => e,
+    );
+
+    expect((err as OAuthError).launchFailed).toBe(true);
+    expect((err as OAuthError).cancelled).toBe(false);
   });
 
   it("동시 flow reject → cancelled 아닌 OAuthError + platform", async () => {
