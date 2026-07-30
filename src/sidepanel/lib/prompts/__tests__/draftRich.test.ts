@@ -112,3 +112,45 @@ describe("buildCompactDraftPrompt — compact 불변식", () => {
     expect(buildCompactDraftPrompt(c)).not.toBe(buildRichDraftPrompt(c));
   });
 });
+
+// 실사례 회귀: 자동 생성 제목이 "…403 오류 발생 및 **성공** 알림 표시"로 나왔다.
+// actionLog에 남은 실패 응답 *이전*의 성공 토스트를 결과로 읽은 것. 사람이 지라에서
+// "실패 알림"으로 고쳐야 했다 — 시점 앵커가 프롬프트에 없으면 재발한다.
+describe("제목 결과 판정의 시점 앵커", () => {
+  it("rich: 실패 응답 이후 관측만 결과로 판정하라는 지시가 있다", () => {
+    expect(buildRichDraftPrompt(ctx())).toContain("after the failing response");
+  });
+
+  it("compact: 같은 앵커를 싣는다 (스타일 간 대칭)", () => {
+    expect(buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES }))).toContain(
+      "after the failing response",
+    );
+  });
+});
+
+// 실사례 회귀: expectedResult가 "정상 동작 + 실패 시 오류 메시지"를 한 문장에 뭉쳐서
+// API만 고쳐지고 FE 오류 UX는 미처리인 채 티켓이 닫혔다. 두 요구를 별도 줄로 분리시킨다.
+// compact은 대상이 아니다 — 소형 모델용 SECTION_DESC는 의도적으로 짧게 유지한다.
+describe("expectedResult 요구 분리 지시", () => {
+  function withExpected(overrides: Partial<AiDraftSessionContext> = {}) {
+    return buildRichDraftPrompt(
+      ctx({ enabledSections: [{ id: "expectedResult" }], ...overrides }),
+    );
+  }
+
+  it("ko: 정상 동작과 실패 시 오류 안내를 별도 줄로 쓰라고 지시한다", () => {
+    expect(withExpected({ locale: "ko" })).toContain("각각 별도 줄로");
+  });
+
+  it("en: 같은 지시를 영문 로케일에서도 싣는다", () => {
+    expect(withExpected({ locale: "en" })).toContain("on separate lines");
+  });
+
+  // MODE_HINTS가 expectedResult 뒤에 " (desired 값 기준으로 작성)"을 붙인다.
+  // base 문장이 길어져도 suffix가 밀려나거나 잘리지 않아야 한다.
+  it("element 모드: desired suffix와 분리 지시가 공존한다", () => {
+    const p = withExpected({ locale: "ko", captureMode: "element" });
+    expect(p).toContain("각각 별도 줄로");
+    expect(p).toContain("desired 값 기준으로 작성");
+  });
+});
