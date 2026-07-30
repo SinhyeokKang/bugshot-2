@@ -2,8 +2,8 @@
 
 ## 개요
 
-새 순수 함수가 네트워크 로그에서 API 호스트 origin 하나를 파생하고, **draft 최초 생성 시점에
-`draft.environment` 배열의 단독 원소로 주입**한다. `draft.environment`는 이미 재현 환경의
+새 순수 함수가 네트워크 로그에서 동족 API hostname 목록을 파생하고, 요청 횟수 내림차순으로
+`, ` 연결해 `draft.environment`에 자동 행 하나로 주입한다. `draft.environment`는 이미 재현 환경의
 "사용자 커스텀 행" 배열이고, **화면 2곳 · 본문 빌더 8벌(소비 지점 9곳) · 저장 이슈 상세 ·
 `logs.html` Report 탭이 전부 이 배열 하나를 흘려보내므로 배선 수정이 0곳**이다.
 `MarkdownContext`에 필드를 추가하지 않고, `IssueRecord` 스키마도 건드리지 않는다.
@@ -44,9 +44,10 @@
 `environment: [{ label: "Locale", value: "ko-KR" }]`로 커스텀 행을 넣어 62개 스냅샷 전수를
 봉인 중이다. 커스텀 행이 전 소비 지점에 나온다는 사실은 이미 테스트로 고정돼 있다.
 
-**타이밍도 안전하다:** `usePickerMessages.ts:245`의 `isLogFrozen(phase)`(정의는
+**대부분의 캡처 타이밍은 안전하다:** `usePickerMessages.ts:245`의 `isLogFrozen(phase)`(정의는
 `sidepanel/lib/log-merge.ts:133`, `FROZEN_PHASES`는 `lib/session-keys.ts:37`)가 drafting/
-previewing/done에서 로그 갱신을 멈춘다. drafting 진입 시점에 `networkLog`는 이미 확정 상태다.
+previewing/done에서 로그 갱신을 멈춘다. 다만 세션 hydrate와 tail sync는 drafting 뒤에도 로그가
+도착할 수 있으므로 자동 행 동기화가 그 지연을 흡수한다.
 
 **오라벨 리스크가 구조적으로 완화된다:** 커스텀 행은 값 수정·행 삭제가 가능하다. readonly 축은
 삭제 버튼이 disabled라 틀린 값을 사용자가 못 지운다. 단, **이 완화는 사용자가 값을 본다는 전제
@@ -61,26 +62,33 @@ previewing/done에서 로그 갱신을 멈춘다. drafting 진입 시점에 `net
 
 ### 수정 파일
 
-**`src/sidepanel/tabs/DraftingPanel.tsx`** — 세 곳:
+**`src/types/environment.ts`**
+- `EnvironmentRow`에 선택적 `source: "api-hosts"`를 추가한다. 화면에는 표시하지 않는 내부
+  메타데이터이며, 로그 토글 off·지연 로그 도착·사용자 삭제를 일반 커스텀 행과 구분하는 데 쓴다.
+  선택 필드라 기존 저장 데이터 마이그레이션은 없다.
 
-1. **`:123-133` draft 생성 `useEffect`** — `environment: []`를 `environment: apiRow ? [apiRow] : []`로.
-   `apiRow`는 `apiHostRowFor({ captureMode, logsAttach, networkLog, pageUrl: target?.url })`.
+**`src/sidepanel/tabs/DraftingPanel.tsx`** — 네 곳:
+
+1. **draft 자동 행 동기화 `useEffect`** — `apiHostRowFor({ captureMode, logsAttach, networkLog,
+   pageUrl: target?.url })` 결과를 `source === "api-hosts"` 행에 반영한다.
+   draft보다 로그가 늦게 도착하면 최초 1회 주입하고, 로그 첨부를 끄면 자동 행을 제거한다.
+   사용자가 행을 삭제한 뒤 로그 첨부를 다시 켜도 되살리지 않도록 draft 생명주기 동안
+   `apiHostsDismissed`를 유지한다.
    **selector 추가는 필요 없다** — `captureMode`(`:63`)·`networkLog`(`:79`)·`logsAttach`(`:82`)·
    `target`(`:88`) 전부 이미 구독 중이고 `supportsConsoleNetworkLog`도 이미 import돼 있다(`:42`).
-   실질 변경은 import 1줄 + `apiRow` 계산 + deps 3개 추가.
-2. **`:588` `defaultOpen={false}` → `defaultOpen={customRows.length > 0}`** — `ReproEnvironmentSection`
-   안이고 `customRows`는 `:555`에 이미 있다. 자동 주입 행이 있으면 섹션이 펼쳐져 열린다(사용자가
-   직접 추가한 행이 있을 때도 펼쳐지는데, 그쪽도 원하는 동작이다). 이 한 줄이 없으면 PRD 목표 2가
-   무력해진다 — 사용자는 Badge 카운트 변화만 보고 값의 존재를 모른 채 제출한다.
-3. **`:631-634` 값 `Input`** — `className="flex-1 text-sm"` → `"min-w-0 flex-1 text-sm"` +
-   `title={row.value}`. `<input>`은 `truncate` ellipsis가 안 되고, 이 행은 "행 추가" 버튼이
+2. draft 최초 생성은 빈 environment로 시작할 수 있으며 위 동기화가 현재 또는 지연 도착 로그를
+   반영한다. 자동 행 source는 사용자가 값을 수정한 뒤에도 유지한다.
+3. 재현 환경 섹션의 최초 `defaultOpen`을 자동 행 존재 여부로 고정한다. 행 삭제 뒤 prop 변화로
+   섹션이 즉시 접히지 않도록 최초 값을 ref로 유지한다.
+4. 값 `Input`에 `min-w-0`을 추가하고 Radix Tooltip으로 감싸 hover·focus 모두에서 전문을
+   보여준다. `<input>`은 `truncate` ellipsis가 안 되고, 이 행은 "행 추가" 버튼이
    인라인으로 붙는 마지막 행이라(`:652`) 값 가용폭이 400px 패널에서 ≈152px(21~23자)까지 좁아진다.
    PRD 예시 origin은 46자로 **꼬리(`.qa.skillflo.io` — 이 기능이 전달하려는 환경 식별자)가 잘린다.**
-   `title`이 hover 전문 확인 경로를 만들고, `min-w-0`이 좁은 폭에서 행이 컨테이너를 넘겨 가로
+   Tooltip이 전문 확인 경로를 만들고, `min-w-0`이 좁은 폭에서 행이 컨테이너를 넘겨 가로
    스크롤을 만드는 것을 막는다(`docs/DESIGN.md:219`). 전체 커스텀 행이 함께 이득을 본다.
 
 **`guide/ko/screenshot/issue.md` · `guide/ko/video/issue.md` · `guide/en/...` (4개 파일)**
-- 재현 환경 자동 채움 설명에 API Host 설명 추가 + **"안 나오는 경우"**(자기 origin으로만 요청 /
+- 재현 환경 자동 채움 설명에 API Hosts 설명 추가 + **"안 나오는 경우"**(자기 hostname으로만 요청 /
   로그 첨부 off / 요소 스타일 편집 모드). 부재 조건이 전부 "행 없음"으로 관측이 동일해 사용자가
   정상/실패를 구분할 수 없으므로 가이드가 그 역할을 맡는다. element는 제외(게이트 대상).
 - `/guide` 스킬로 처리(`guide/AUTHORING.md` 규칙 준수).
@@ -88,7 +96,7 @@ previewing/done에서 로그 갱신을 멈춘다. drafting 진입 시점에 `net
 **`docs/privacy.ko.md` · `docs/privacy.en.md`**
 - 네트워크 로그 파생값이 **이슈 본문 평문**에 새로 실린다 → 대조·갱신. `:82`(로그 첨부 기본 on)·
   `:84`(로그 1건 본문 삽입) 문단 계열에 붙인다. 첨부가 아니라 본문이라는 점, 로그 첨부가 켜진
-  상태로 캡처한 screenshot/video/freeform에 한정된다는 점을 함께 적는다.
+  screenshot/video/freeform draft에 한정되고 토글 off 시 자동 행도 제거된다는 점을 함께 적는다.
 
 **`docs/DIRECTORY.md`**
 - `:87`이 `src/sidepanel/lib/` 파일을 개별 열거하므로 새 파일 추가는 `/push` 신선도 검사 트리거다.
@@ -111,17 +119,18 @@ previewing/done에서 로그 갱신을 멈춘다. drafting 진입 시점에 `net
 캡처 종료 (phase → drafting)
   └ isLogFrozen(phase) → networkLog 확정
        │
-DraftingPanel useEffect (draft === null일 때 1회)
+DraftingPanel 자동 행 동기화 useEffect
   └ apiHostRowFor({ captureMode, logsAttach, networkLog, pageUrl })
        ├ 게이트: supportsConsoleNetworkLog(captureMode) && logsAttach && networkLog
-       └ deriveApiHostRow(networkLog.requests, pageUrl)
+       └ deriveApiHostsRow(networkLog.requests, pageUrl)
             ├ pageUrl 1회 파싱 → http(s)가 아니면 null
             ├ 페이지 hostname의 registrable domain 계산
             ├ 요청 URL 파싱 (실패 skip), http(s)만
-            ├ 후보 조건: { 페이지 origin ≠ } ∧ { registrable 동족 }
-            ├ origin별 요청 수 집계 → 최다 1개 (동률이면 먼저 나온 것)
+            ├ 후보 조건: { 페이지 hostname ≠ } ∧ { registrable 동족 }
+            ├ hostname별 요청 수 집계 → count 내림차순, 첫 등장 순 tie-break
+            ├ hostname을 `, `로 연결
             └ 후보 0개 → null
-  └ setDraft({ title, sections: {}, environment: row ? [row] : [] })
+  └ source === "api-hosts" 행 주입·갱신·제거
        │
        ▼
 draft.environment ──┬─→ ReproEnvironmentSection (편집·삭제 UI, 행 있으면 펼쳐서 열림)
@@ -143,7 +152,7 @@ import type { EnvironmentRow } from "@/types/environment";
 import type { NetworkLog, NetworkRequest } from "@/types/network";
 import { supportsConsoleNetworkLog } from "@/sidepanel/lib/captureLogSupport";
 
-export const API_HOST_LABEL = "API Host";
+export const API_HOSTS_LABEL = "API Hosts";
 
 // 마지막 2레이블을 registrable domain으로 보되, 여기 걸리면 3레이블.
 // public suffix list 전량을 번들하지 않는 근사 — 미등재 다단 접미사(github.io 등)는
@@ -154,8 +163,8 @@ const TWO_LEVEL_SUFFIXES: ReadonlySet<string>;
 // hostname → registrable domain. 판정 불가·IP·2레이블 이하는 정규화만 해 그대로 반환.
 export function registrableDomain(hostname: string): string;
 
-// 네트워크 요청에서 대표 API origin을 파생해 환경 행으로. 후보 없으면 null.
-export function deriveApiHostRow(
+// 네트워크 요청에서 동족 hostname 목록을 파생해 환경 행으로. 후보 없으면 null.
+export function deriveApiHostsRow(
   requests: readonly Pick<NetworkRequest, "url">[],
   pageUrl: string | undefined,
 ): EnvironmentRow | null;
@@ -194,7 +203,7 @@ API.Acme.com.         → acme.com        (정규화)
 `co.kr` `or.kr` `ne.kr` `co.jp` `ne.jp` `or.jp` `co.uk` `org.uk` `com.au` `com.br`
 `com.cn` `com.tw` `com.hk` `com.sg` `co.in` `co.nz` `co.za` `com.mx` `com.tr`
 
-### `deriveApiHostRow` 규칙
+### `deriveApiHostsRow` 규칙
 
 1. `pageUrl`을 `new URL()`로 **1회** 파싱한다. throw하거나 `protocol`이 `http:`/`https:`가
    아니면 `null`. `originOf`(`@/lib/session-keys.ts:43`)를 쓰지 않는 이유가 둘이다: ① origin만
@@ -204,31 +213,31 @@ API.Acme.com.         → acme.com        (정규화)
    (`about:blank`·`data:` 동일).
 2. 각 요청 URL을 `new URL()`로 파싱, 실패하면 건너뛴다. `protocol`이 `http:`/`https:`가
    아니면 건너뛴다.
-3. 후보 조건: `origin !== pageOrigin` **그리고**
+3. 후보 조건: `hostname !== pageHostname` **그리고**
    `registrableDomain(reqHostname) === registrableDomain(pageHostname)`.
-4. 후보 origin별 요청 수를 세어 최다 1개 선택. 동률이면 배열에서 먼저 등장한 origin.
-5. `{ label: API_HOST_LABEL, value: origin }` 반환. 값은 origin 문자열
-   (`https://api.acme.com` — 포트가 있으면 포함). 라벨이 `Host`인데 값이 origin인 건 의도다 —
-   스킴·포트가 있어야 "붙여서 바로 열 수 있는 값"이 된다.
+4. 후보 hostname별 요청 수를 세어 count 내림차순으로 정렬한다. 동률이면 배열에서 먼저 등장한
+   hostname 순서를 유지한다.
+5. `{ label: API_HOSTS_LABEL, value: hostnames.join(", "), source: "api-hosts" }` 반환.
+   hostname만 실어 scheme·port·path·query를 제외하고 내부 환경 식별에 필요한 면적만 노출한다.
 
 **포함/제외 판단이 없는 축(의도적 단순화):** status·phase(실패 여부)를 보지 않는다. 실사례가
 물은 것은 "이 화면이 어느 API를 보는가"이지 "무엇이 실패했나"가 아니었다. `preArm` 엔트리는
 포함한다.
 
 **WebSocket 제외:** `wss://api.acme.com`은 `https://api.acme.com`과 **다른 origin**이라 같은
-호스트의 REST 요청과 별개로 집계돼 표를 쪼개고, 본문에 `API Host: wss://…`가 찍힌다. 규칙 2의
+호스트의 REST 요청과 별개로 집계돼 표를 쪼개므로 규칙 2의
 스킴 필터가 ws/wss를 걷어낸다. WS-only 백엔드는 이 기능 범위 밖이다.
 
 ### `apiHostRowFor` 규칙
 
 ```
 supportsConsoleNetworkLog(captureMode) && logsAttach && networkLog
-  ? deriveApiHostRow(networkLog.requests, pageUrl)
+  ? deriveApiHostsRow(networkLog.requests, pageUrl)
   : null
 ```
 
 `networkLog.captured > 0`을 게이트에 넣지 않는다 — `captured`는 `requests.length`와 별개
-카운터(캡 트림 시 갈린다)이고, `deriveApiHostRow([])`가 이미 `null`이라 방어가 아니라
+카운터(캡 트림 시 갈린다)이고, `deriveApiHostsRow([])`가 이미 `null`이라 방어가 아니라
 미검증 분기를 하나 더할 뿐이다.
 
 게이트를 컴포넌트에 인라인하지 않고 이 함수로 내리는 이유: `DraftingPanel`에는 테스트 파일이
@@ -238,13 +247,9 @@ supportsConsoleNetworkLog(captureMode) && logsAttach && networkLog
 ### 호출부
 
 ```tsx
-// DraftingPanel.tsx — 기존 useEffect 내부
+// DraftingPanel.tsx — 자동 행 동기화 effect 내부
 const apiRow = apiHostRowFor({ captureMode, logsAttach, networkLog, pageUrl: target?.url });
-setDraft({
-  title: defaultTitle(titlePrefix),
-  sections: {},
-  environment: apiRow ? [apiRow] : [],
-});
+syncAutoApiHostsRow(apiRow);
 ```
 
 ## e2e 인프라
@@ -277,7 +282,7 @@ locator는 쓰지 않는다.
   (`src/sidepanel/lib/__tests__/apiHostRow.test.ts`).
 - **라벨 하드코딩 영문**: 기존 env 라벨 6종(OS/Browser/Page/DOM/Viewport/Captured)이 전부
   i18n 미사용 하드코딩 영문이다(`environmentRows.ts` · `PreviewPanel.tsx` ·
-  `DraftDetailDialog.tsx` · `buildReportData.ts` 4곳 중복). `API Host`도 같게 둬 본문 라벨이
+  `DraftDetailDialog.tsx` · `buildReportData.ts` 4곳 중복). `API Hosts`도 같게 둬 본문 라벨이
   작성자 로케일에 따라 갈리지 않게 한다. 사용자가 라벨을 `API 호스트`로 고치면 그 값이 그대로
   본문에 나가고 되살아나지 않는다 — 커스텀 행의 기존 동작이다. `src/i18n/` 키 추가가 0개이므로
   i18n PostToolUse 훅·`src/log-viewer/i18n.ts` 복제 사전 대조 대상이 아니다.
@@ -319,21 +324,22 @@ draft 주입 방식이 이 둘을 동시에 해결한다.
 
 1. **`registrableDomain` 근사의 과대포함.** 미등재 다단 접미사(`github.io`, `vercel.app`,
    `pages.dev`)에서 `a.github.io`와 `b.github.io`가 동족으로 판정된다. 서로 다른 주체의
-   origin이 API 호스트로 뜰 수 있다(실패 방향은 "행이 안 뜬다"가 아니라 **"틀린 행이 뜬다"**다).
+   hostname이 API Hosts 목록에 뜰 수 있다(실패 방향은 "행이 안 뜬다"가 아니라
+   **"틀린 hostname이 포함된다"**다).
    완화: 값이 커스텀 행이라 사용자가 지울 수 있다. `TWO_LEVEL_SUFFIXES`에 플랫폼 도메인을 넣지
    않는 이유는, 넣으면 오히려 자사 서비스가 그런 호스팅에 있을 때 정상 후보가 탈락하기 때문이다.
 
 2. **draft 생성 시점의 `networkLog` 미도착.** `useEditorSessionSync.ts:144`의 tail sync가
    비동기로 늦게 `setNetworkLog`를 호출할 수 있다. `superseded()` 가드가 보는
    `ACTIVE_CAPTURE_PHASES`는 `{picking, capturing, recording}`뿐이라 **`drafting`에서 통과한다.**
-   그 경우 draft가 먼저 만들어져 행이 비고, draft는 1회만 생성되므로 되메우지 않는다.
    `startFreeform`이 `draft=null` + `phase:"drafting"`을 한 커밋에 세팅해 useEffect가 즉시
-   발화하므로 **freeform이 이 레이스에 가장 취약하다** — 수동 검증 대상(Task 3 체크리스트).
+   발화하므로 **freeform이 이 레이스에 가장 취약하다.** 자동 행 동기화는 늦게 도착한 로그를
+   최초 1회 반영해야 하며, 비어 있으면 성공 기준 실패다.
 
-3. **cross-page 누적 로그가 대표 origin을 오염시킨다.** 로그는 `webNavigation` tail sync +
+3. **cross-page 누적 로그가 hostname 목록을 오염시킨다.** 로그는 `webNavigation` tail sync +
    `mergeLogItems`로 페이지를 넘어 누적되고 `preArm` 엔트리도 포함된다. 즉 `networkLog.requests`에
-   **직전 페이지의 요청**이 섞이고, 그것이 동족이면 요청 수 집계에 들어가 대표 origin을 뒤집을 수
-   있다. `req.pageUrl` 필터를 넣지 않는 이유는 캡처 중 이동한 페이지의 요청도 리포트 범위 안이라고
+   **직전 페이지의 요청**이 섞이고, 그것이 동족이면 hostname 목록과 정렬에 들어갈 수 있다.
+   `req.pageUrl` 필터를 넣지 않는 이유는 캡처 중 이동한 페이지의 요청도 리포트 범위 안이라고
    보기 때문이다(로그 자체가 그 전제로 누적된다). 사용자 수정으로 흡수한다.
 
 4. **영상 트리밍과의 순서.** `sidepanel/30s-replay/apply-trim.ts:77`·
@@ -348,15 +354,15 @@ draft 주입 방식이 이 둘을 동시에 해결한다.
 6. **`filterEnvironmentRows`의 빈 값 제거.** 사용자가 값을 지워 빈 문자열로 만들면 화면엔
    빈 행이 남고 본문에선 제외된다 — 기존 커스텀 행과 동일한 동작이라 새 위험은 아니다.
 
-7. **중복 `API Host` 라벨.** `filterEnvironmentRows`는 dedupe를 하지 않고(trim + 빈 값 제거만),
-   라벨 입력에도 유일성 검증이 없다. 사용자가 `API Host` 라벨 행을 직접 더하면 본문에 두 줄이
+7. **중복 `API Hosts` 라벨.** `filterEnvironmentRows`는 dedupe를 하지 않고(trim + 빈 값 제거만),
+   라벨 입력에도 유일성 검증이 없다. 사용자가 `API Hosts` 라벨 행을 직접 더하면 본문에 두 줄이
    찍힌다(기존 커스텀 행과 동일한 기존 동작). 더 조용한 쪽은 `buildIssueMarkdown.ts:437`의
    `bugshot-meta-for-ai` 주석 — `Object.fromEntries`라 **중복 라벨이 last-wins로 붕괴한다.**
-   이 기능이 `API Host`를 사실상 예약 라벨로 만든다는 점만 수용하고 검증은 넣지 않는다.
+   이 기능이 `API Hosts`를 사실상 예약 라벨로 만든다는 점만 수용하고 검증은 넣지 않는다.
 
 8. **본문 평문 노출 면적.** `logsDropped`(`background/messages.ts:786-814`) 경로에서 용량 캡으로
-   `logs.html`이 빠져도 본문의 `API Host` 줄은 남는다. Slack은 채널 메시지 본문이라 첨부를 열지
-   않는 멤버에게도 내부 QA/스테이징 호스트명이 보인다. origin에는 토큰이 없어 `MASKED_QUERY_KEYS`
+   `logs.html`이 빠져도 본문의 `API Hosts` 줄은 남는다. Slack은 채널 메시지 본문이라 첨부를 열지
+   않는 멤버에게도 내부 QA/스테이징 호스트명이 보인다. hostname에는 토큰이 없어 `MASKED_QUERY_KEYS`
    관련 위험은 없다. privacy 문안에 "첨부가 아니라 본문 텍스트에 실린다"를 명시한다(Task 5).
 
 9. **privacy 문서 갱신 누락.** 로그 파생값이 본문에 새로 실리므로 manifest diff가 0이어도
