@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-08-01 — `visibility="hidden"`을 세팅한 같은 태스크에서 응답하면 캡처는 아직 오버레이가 보이는 프레임을 찍는다 — 그리고 그 대기를 한 곳에 넣으면 다른 렌더러는 안 덮인다
+
+- **영역**: `content`
+- **계열**: `미검증단언`, `cross-origin`
+- **그물**: `시각`
+- **증상**: element·영역 캡처 스크린샷에 **확장 자신의 UI가 이따금 찍혔다** — picker의 파란 outline·selector badge·상단 뷰포트 배너(`1920 × 1080` pill), area-select의 dim·선택 사각형·크기 라벨. 매번이 아니라 간헐적이라 "가끔 그러네"로 넘기기 쉬웠고, 실패 토스트도 없이 결과물 품질만 떨어진다.
+- **근본 원인**: `beginCapturePrep`이 `hostEl.style.visibility = "hidden"`을 세팅한 뒤 **같은 태스크에서 `sendResponse`** 했고, 사이드패널이 그 응답을 받자마자 `captureVisibleTab`을 호출했다. DOM 속성 세팅은 즉시지만 화면 반영은 다음 합성 커밋이라, 그 사이에 캡처가 끼면 숨기기 전 프레임이 찍힌다 — **"숨겼다"와 "안 보인다"가 다른 레이어**인데 동기 코드가 그 둘을 같은 것으로 취급했다. 픽스 자체도 두 번 어긋났다. (1) 대기(`afterPaint`)를 자식 프레임의 응답 직전 한 곳에 넣었더니 **iframe 경로는 안 고쳐졌다** — top 오버레이 숨김은 offset 응답기(top realm)에서 일어나는데 cross-origin iframe은 **별도 렌더러 프로세스**라 자식의 rAF 2틱이 부모의 커밋을 보증하지 못한다. "대기를 넣었다"와 "그 대기가 문제의 프레임을 덮는다"가 다르다. (2) 응답을 비동기로 미루자 `handlePickerMessage`의 try/catch **밖으로 나가** throw 시 사이드패널의 `await send()`가 영구 매달렸다 — 동기→비동기 전환이 에러 회수 경로를 조용히 끊었다. (3) 확정을 지연시키자 없던 취소·재진입 창이 생겼다(대기 중 `cancelAreaSelect`가 오면 취소한 영역이 캡처됨, `areaHandle`이 2프레임 좀비로 남아 새 세션을 덮어씀).
+- **재발 방지**: (1) **화면 상태를 바꾼 뒤 캡처를 트리거하는 코드는 그 사이에 프레임 커밋을 끼운다** — 전수: `grep -rn 'visibility = "hidden"\|style.display = "none"' src/content`로 은폐 지점을 뽑고, 각각이 `captureVisibleTab`으로 이어지는 경로에 `afterPaint()`(또는 자체 rAF×2)가 있는지 본다. `grep -rn "captureVisibleTab" src/sidepanel`로 호출 직전 경로를 역추적하면 짝이 맞는다. (2) **여러 realm이 관여하는 은폐는 "누가 숨기는가"와 "누가 기다리는가"가 같은 realm인지 확인한다** — cross-origin iframe·worker처럼 렌더러가 갈리면 남의 커밋을 대신 기다릴 수 없다. 전수: `grep -n "onChildCapturePrep\|beginCapturePrep" src/content`로 은폐 훅의 호출 realm을 확인. (3) **동기 응답을 비동기로 바꿀 땐 감싸던 try/catch가 따라오는지 본다** — `sendResponse`가 `.then()` 안으로 들어가면 핸들러 catch 밖이다. `.catch()`를 붙이지 않으면 상대편 `await`가 영원히 안 풀린다. (4) **지연 자체가 새 상태 공간을 만든다** — 확정을 N프레임 미루면 그 창에 도착하는 취소·재진입을 전부 열거해야 한다(`_cancelled`는 **모든** 취소 경로가 세팅해야 하고, 핸들 슬롯은 덮어쓰기 전에 취소해야 한다). (5) **그물이 없다는 걸 알고 넘긴다** — `picker.ts`·`area-select.ts`는 coverage 로직 스코프 제외라 유닛이 없고, `e2e/capture.spec.ts`에도 "결과 픽셀에 dim/outline이 없다"는 단언이 없어 **배선을 통째로 되돌려도 green**이다. 순수 헬퍼(`afterPaint`)만 유닛으로 고정돼 있다.
+- **관련**: `src/content/after-paint.ts:afterPaint`(rAF×2 + 500ms 폴백 — 폴백은 실패가 아니라 진행), `src/content/picker.ts:beginCapturePrep`·`respondAfterPaint`·`respondWithTopRect`·`handleStartAreaSelect`, `src/content/frame-geometry.ts:installFrameOffsetResponder`(top realm 대기), `src/content/area-select.ts:settleAfterPaint`(`_cancelled`/`_settling`), 소비처 `src/sidepanel/capture.ts:captureWithPrep`, 그물 `src/content/__tests__/after-paint.test.ts`·`src/content/__tests__/frame-geometry.test.ts`.
+
 ## 2026-07-31 — "앞선 값을 밀어낸다"를 도입하니 "앞뒤·중요도 무관하게 항상 이긴다"가 됐다 — 밀어낼 대상을 열거하지 않은 덮어쓰기는 회귀를 2라운드 낳는다
 
 - **영역**: `스타일해석`, `content`
