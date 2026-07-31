@@ -2,6 +2,7 @@ import { formatElementName } from "@/lib/element-label";
 
 import {
   createBlockerPassthrough,
+  isScrollIntent,
   type BlockerPassthrough,
 } from "./blocker-state";
 
@@ -30,7 +31,10 @@ interface OverlayInternal extends OverlayHandle {
 }
 
 export const HOST_ID = "__bugshot_picker_host";
-// 마지막 휠로부터 이 시간 안의 마우스 이동은 스크롤의 일부로 본다(양보 타이머 120ms보다 짧게).
+// 휠 뒤 blocker가 스크롤에 양보하는 시간.
+const SCROLL_YIELD_MS = 120;
+// 마지막 휠로부터 이 시간 안의 마우스 이동은 스크롤의 일부로 본다. **`SCROLL_YIELD_MS`보다
+// 짧아야 한다** — 같거나 길면 회수 경로가 통째로 죽는다(회수할 양보가 이미 만료).
 const SCROLL_INTENT_MS = 60;
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -242,7 +246,7 @@ export function createOverlay(): OverlayHandle {
     scrollTimer = setTimeout(() => {
       scrollTimer = null;
       setScrollYield(false);
-    }, 120);
+    }, SCROLL_YIELD_MS);
   }
   // 양보가 꺼진 동안(스크롤 캡처)은 기본 동작까지 막아야 페이지가 안 밀린다 — pointerEvents만
   // 유지하면 wheel이 document로 체이닝돼 그대로 스크롤된다. 그래서 passive:false 리스너를 따로 둔다.
@@ -340,11 +344,8 @@ export function createOverlay(): OverlayHandle {
       scrollYieldEnabled = enabled;
       if (!enabled) setScrollYield(false);
     },
-    // 스크롤 직후의 마우스 이동은 스크롤의 일부다 — 브라우저가 hover 재계산용으로 쏘는
-    // 것이든(좌표 동일) 매직마우스·트랙패드처럼 스크롤과 이동이 한 제스처든, 그걸 포인팅
-    // 의도로 읽으면 매 틱 양보가 닫혀 커서 밑 스크롤 컨테이너가 안 밀린다.
     _cancelScrollYield: () => {
-      if (performance.now() - lastWheelAt < SCROLL_INTENT_MS) return;
+      if (isScrollIntent(performance.now(), lastWheelAt, SCROLL_INTENT_MS)) return;
       setScrollYield(false);
     },
     _passthrough: passthrough,
@@ -389,7 +390,7 @@ export function setBlockerVisible(
   h.blockerEl.style.display = visible ? "" : "none";
   if (visible) {
     // 모드 전환은 새 세션이다 — 이전 모드의 투과 이유(양보·핸드오프)를 이월하지 않는다.
-    // 양보는 타이머까지 함께 걷어야 소유권이 갈리지 않는다.
+    // 직전 휠 직후면 양보 타이머는 살아남지만, 깨어나 하는 일이 이미 끝난 해제뿐이라 무해하다.
     o._cancelScrollYield();
     o._passthrough.clearReasons();
     if (cursor) h.blockerEl.style.cursor = cursor;

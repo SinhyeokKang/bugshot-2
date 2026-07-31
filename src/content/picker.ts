@@ -935,7 +935,7 @@ function addHoverListeners(): void {
   window.addEventListener("mousemove", onMouseMove, true);
   // blocker가 hit target을 가져가도 이벤트는 document까지 버블한다 — 위임 mousemove·mouseover로
   // 만든 페이지의 hover UI(툴팁·메가메뉴·커스텀 커서)가 picking 중 계속 반응하는 통로다.
-  window.addEventListener("mouseover", onHoverProbe, true);
+  window.addEventListener("mouseover", stopHoverPropagation, true);
   window.addEventListener("mouseout", onMouseOut, true);
   window.addEventListener("keydown", onKeyDown, true);
   if (overlay) {
@@ -946,14 +946,27 @@ function addHoverListeners(): void {
     // 버블만 끊어 페이지의 위임 핸들러(드래그 시작·메뉴 개폐)를 막는다. preventDefault는
     // 안 붙인다 — blocker가 target이라 페이지 쪽 포커스·선택이 어차피 시작되지 않고,
     // 취소가 필요한 기본동작(컨텍스트 메뉴·중클릭)은 suppressEvent가 이미 맡는다.
-    overlay.blockerEl.addEventListener("mousedown", stopPropagationOnly);
-    overlay.blockerEl.addEventListener("mouseup", stopPropagationOnly);
+    // pointer 계열은 window capture로 끊으면 안 된다 — action-recorder가 document capture로
+    // 듣고 있어 picking 중 사용자 액션 로그가 통째로 빈다. blocker 버블에서만 막는다.
+    for (const type of PAGE_HANDLER_EVENTS) {
+      overlay.blockerEl.addEventListener(type, stopHoverPropagation);
+    }
   }
 }
 
+// blocker가 hit target이어도 페이지의 document/window 위임 핸들러까지는 도달하는 이벤트들.
+const PAGE_HANDLER_EVENTS = [
+  "mousedown",
+  "mouseup",
+  "pointerdown",
+  "pointerup",
+  "pointermove",
+  "pointerover",
+] as const;
+
 function removeHoverListeners(): void {
   window.removeEventListener("mousemove", onMouseMove, true);
-  window.removeEventListener("mouseover", onHoverProbe, true);
+  window.removeEventListener("mouseover", stopHoverPropagation, true);
   window.removeEventListener("mouseout", onMouseOut, true);
   window.removeEventListener("keydown", onKeyDown, true);
   if (overlay) {
@@ -961,8 +974,9 @@ function removeHoverListeners(): void {
     overlay.blockerEl.removeEventListener("contextmenu", suppressEvent);
     overlay.blockerEl.removeEventListener("auxclick", suppressEvent);
     overlay.blockerEl.removeEventListener("dblclick", suppressEvent);
-    overlay.blockerEl.removeEventListener("mousedown", stopPropagationOnly);
-    overlay.blockerEl.removeEventListener("mouseup", stopPropagationOnly);
+    for (const type of PAGE_HANDLER_EVENTS) {
+      overlay.blockerEl.removeEventListener(type, stopHoverPropagation);
+    }
   }
 }
 
@@ -971,12 +985,7 @@ function suppressEvent(e: Event): void {
   e.stopPropagation();
 }
 
-function stopPropagationOnly(e: Event): void {
-  if (mode !== "hover") return;
-  e.stopPropagation();
-}
-
-function onHoverProbe(e: Event): void {
+function stopHoverPropagation(e: Event): void {
   if (mode !== "hover") return;
   e.stopPropagation();
 }

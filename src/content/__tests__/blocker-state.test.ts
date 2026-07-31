@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createBlockerPassthrough } from "../blocker-state";
+import { createBlockerPassthrough, isScrollIntent } from "../blocker-state";
 
 function setup() {
   const apply = vi.fn((_value: "auto" | "none") => {});
@@ -81,5 +81,24 @@ describe("blocker passthrough", () => {
     state.clearReasons();
     state.withHitTest(() => null);
     expect(apply).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe("isScrollIntent", () => {
+  it("휠 직후의 이동은 스크롤의 일부로 본다", () => {
+    expect(isScrollIntent(1030, 1000, 60)).toBe(true);
+  });
+
+  it("창을 벗어난 이동은 포인팅으로 본다", () => {
+    expect(isScrollIntent(1060, 1000, 60)).toBe(false);
+  });
+
+  it("경계값은 포인팅으로 본다 (양보 타이머보다 먼저 닫혀야 한다)", () => {
+    expect(isScrollIntent(1059, 1000, 60)).toBe(true);
+    expect(isScrollIntent(1060, 1000, 60)).toBe(false);
+  });
+
+  it("휠이 없었으면(초기값 0) 포인팅으로 본다", () => {
+    expect(isScrollIntent(1000, 0, 60)).toBe(false);
   });
 });
