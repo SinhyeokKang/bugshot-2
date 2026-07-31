@@ -5,7 +5,7 @@ import { originOf, pendingKey } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, cropImage } from "@/sidepanel/capture";
-import { clearPicker, collectTokens, getTopViewport, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
+import { clearPicker, collectTokens, getTopViewport, isCurrentPickerSession, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import { shouldPreserveBackgroundLogs } from "@/sidepanel/hooks/useBackgroundRecorder";
@@ -65,6 +65,9 @@ export function usePickerMessages(myTabId: number | null): void {
   }, []);
 
   useEffect(() => {
+    const currentFrameDocuments = new Map<number, string>();
+    const acceptedSelectionSessions = new Set<string>();
+
     function handler(
       message: PickerMessage | BgInternalMessage | { type: string },
       sender: chrome.runtime.MessageSender,
@@ -78,9 +81,23 @@ export function usePickerMessages(myTabId: number | null): void {
       // sender.tab은 content script에서 온 경우만 존재 — 미존재 시(side panel/background 내부
       // 통신) 통과시킨다. tabId 미해소 구간도 드롭(fail-closed) — tab-scope 참조.
       if (isForeignTabMessage(myTabId, sender.tab?.id)) return;
+      const isStalePickerDocument = () => {
+        const currentDocumentId = currentFrameDocuments.get(sender.frameId ?? 0);
+        return !!(
+          currentDocumentId &&
+          sender.documentId &&
+          currentDocumentId !== sender.documentId
+        );
+      };
 
       if (message.type === "picker.selected") {
         const msg = message as Extract<PickerMessage, { type: "picker.selected" }>;
+        if (myTabId == null || !isCurrentPickerSession(myTabId, msg.sessionId)) return;
+        if (isStalePickerDocument()) return;
+        if (msg.source === "pick") {
+          if (acceptedSelectionSessions.has(msg.sessionId)) return;
+          acceptedSelectionSessions.add(msg.sessionId);
+        }
         // content script 메시지에 표준 제공 — 어느 프레임의 선택인지 추적(위조 방지로
         // payload가 아니라 sender에서 얻는다). top이면 0. origin(출처 배지 노출)도 동일하게
         // sender에서 파생 — opaque origin(sandbox)은 "null" 문자열로 온다.
@@ -170,6 +187,8 @@ export function usePickerMessages(myTabId: number | null): void {
         }
       } else if (message.type === "picker.selectionUpdated") {
         const msg = message as Extract<PickerMessage, { type: "picker.selectionUpdated" }>;
+        if (myTabId == null || !isCurrentPickerSession(myTabId, msg.sessionId)) return;
+        if (isStalePickerDocument()) return;
         useEditorStore.getState().updateSelectionStyles({
           selector: msg.payload.selector,
           frameId: sender.frameId ?? 0,
@@ -186,6 +205,9 @@ export function usePickerMessages(myTabId: number | null): void {
           void captureAndCrop(msg.rect, msg.viewport);
         }
       } else if (message.type === "picker.cancelled") {
+        const msg = message as Extract<PickerMessage, { type: "picker.cancelled" }>;
+        if (myTabId == null || !isCurrentPickerSession(myTabId, msg.sessionId)) return;
+        if (isStalePickerDocument()) return;
         const { inlineCaptureTarget } = useEditorStore.getState();
         if (inlineCaptureTarget) {
           useEditorStore.getState().cancelInlineCapture();
@@ -204,6 +226,9 @@ export function usePickerMessages(myTabId: number | null): void {
         // 페이지에서 Esc로 펜을 끈 경우 사이드패널 툴바 상태 동기화.
         useEditorStore.getState().setAnnotationTool(null);
       } else if (message.type === "picker.iframeUnsupported") {
+        const msg = message as Extract<PickerMessage, { type: "picker.iframeUnsupported" }>;
+        if (myTabId == null || !isCurrentPickerSession(myTabId, msg.sessionId)) return;
+        if (isStalePickerDocument()) return;
         const { target } = useEditorStore.getState();
         if (!resumeAfterRepickCancel()) {
           useEditorStore.getState().cancelPicking();
@@ -218,6 +243,7 @@ export function usePickerMessages(myTabId: number | null): void {
         // 캡처 시작 이후 커밋된 iframe에 보유 sentinel 재발행 → dormant 레코더 활성화.
         const msg = message as Extract<BgInternalMessage, { type: "frameCommitted" }>;
         if (isForeignTabMessage(myTabId, msg.tabId)) return;
+        if (msg.documentId) currentFrameDocuments.set(msg.frameId, msg.documentId);
         rebroadcastSentinelsToFrame(msg.tabId, msg.frameId);
         // picking 중 네비게이션된 iframe의 새 picker는 idle — 재시작하지 않으면 stale
         // registry 핸드오프로 클릭이 선택 없이 iframe 페이지에 유실된다.

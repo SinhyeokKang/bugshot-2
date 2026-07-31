@@ -109,7 +109,6 @@ const BG_REQUEST_TYPE_MAP: Record<BgRequest["type"], true> = {
   "slack.uploadFiles": true,
   "slack.getPermalink": true,
   "analytics.capture": true,
-  "css.fetchSheets": true,
 };
 
 export const BG_REQUEST_TYPES: ReadonlySet<string> = new Set(

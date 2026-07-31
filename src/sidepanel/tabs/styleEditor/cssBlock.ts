@@ -1,4 +1,8 @@
-import { parseInlineStyle, serializeInlineStyle } from "./inlineCssText";
+import {
+  parseInlineStyleDraft,
+  serializeInlineStyle,
+  type InlineStyleDraft,
+} from "./inlineCssText";
 
 export function serializeCssBlock(
   selector: string,
@@ -12,11 +16,16 @@ export function serializeCssBlock(
 }
 
 export function parseCssBlock(text: string): Record<string, string> {
+  return parseCssBlockDraft(text).declarations;
+}
+
+export function parseCssBlockDraft(text: string): InlineStyleDraft {
   const open = text.indexOf("{");
-  if (open === -1) return parseInlineStyle(text);
+  if (open === -1) return parseInlineStyleDraft(text);
   const close = text.lastIndexOf("}");
   const body = close > open ? text.slice(open + 1, close) : text.slice(open + 1);
-  return parseInlineStyle(body);
+  const parsed = parseInlineStyleDraft(body);
+  return { ...parsed, valid: parsed.valid && close > open, raw: text };
 }
 
 // TRBL(4면) shorthand ↔ longhand 그룹. 값-순서는 [top,right,bottom,left] /
@@ -147,8 +156,8 @@ export function isCompleteDeclarationLine(lineText: string): boolean {
   return value.length > 0;
 }
 
-// specified 대비 diff. 값이 다르거나 새로 추가된 prop만 오버라이드로 남기고,
-// specified에 있었으나 edited에서 빠진 prop은 `initial` 원복으로 방출(삭제=원복).
+// specified 대비 diff. 값이 다르거나 새로 추가된 prop만 오버라이드로 남긴다.
+// edited에서 빠진 prop은 overlay를 만들지 않아 원래 cascade가 다시 드러난다.
 export function computeOverrides(
   edited: Record<string, string>,
   specified: Record<string, string>,
@@ -156,9 +165,6 @@ export function computeOverrides(
   const result: Record<string, string> = {};
   for (const [prop, value] of Object.entries(edited)) {
     if (specified[prop] !== value) result[prop] = value;
-  }
-  for (const prop of Object.keys(specified)) {
-    if (!(prop in edited)) result[prop] = "initial";
   }
   return result;
 }

@@ -43,7 +43,7 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 ### host_permissions (설치 시 부여)
 
 ```
-<all_urls>   — 유일 항목. 모든 페이지 picker·로그 레코더 주입 + captureVisibleTab(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강, SSRF 가드) + 8개 플랫폼 REST/OAuth host + OAuth proxy origin fetch까지 전부 커버
+<all_urls>   — 유일 항목. 모든 페이지 picker·로그 레코더 주입 + captureVisibleTab(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM·GitLab self-managed 임의 origin fetch + 8개 플랫폼 REST/OAuth host + OAuth proxy origin fetch까지 전부 커버
 ```
 
 `<all_urls>`가 상위집합이라 플랫폼별 REST/OAuth host(`*.atlassian.net`·`api.github.com`·`github.com`(에셋 업로드 정책)+GitHub 발급 S3 업로드 URL·`api.linear.app`·`api.notion.com`·`gitlab.com`·`app.asana.com`·`api.clickup.com`·`api.atlassian.com`·`slack.com`)와 OAuth proxy origin(`VITE_OAUTH_PROXY_URL`)을 **manifest에 따로 나열하지 않는다** — 전부 `<all_urls>`로 동작한다. OAuth authorize endpoint(`auth.atlassian.com`·`app.clickup.com`·`slack.com/oauth/v2/authorize` 등)는 `launchWebAuthFlow`가 Chrome 관리 팝업에서 처리하므로 host_permission 자체가 불요. 어느 플랫폼·proxy로 트래픽이 나가는지(데이터 전송 대상)는 §11과 docs/privacy.ko.md의 전송 표 참조.
@@ -516,7 +516,7 @@ background/index.ts:136 — webNavigation.onCommitted
 
 | 호스트 (트래픽 대상) | 사용 기능 | API 호출 위치 |
 |---|---|---|
-| 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM 동봉 프리셋 7종(OpenAI·Anthropic·Gemini·Groq·Together·OpenRouter·Ollama(localhost))·사용자 임의 baseUrl·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강) | `picker.ts`, `recorder-bridge.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab·fetchCssSheets), `ai-provider.ts` |
+| 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM 동봉 프리셋 7종(OpenAI·Anthropic·Gemini·Groq·Together·OpenRouter·Ollama(localhost))·사용자 임의 baseUrl·GitLab self-managed 임의 origin fetch | `picker.ts`, `recorder-bridge.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab), `ai-provider.ts` |
 | `*.atlassian.net` | Jira REST API (API Key 모드) | `jira-api.ts` — `${baseUrl}/rest/api/3/*` |
 | `api.atlassian.com` | Jira OAuth API + accessible-resources | `jira-api.ts`, `oauth.ts` |
 | Jira 발급 media/CDN URL | 첨부 업로드 후 redirect를 따라 byte-range GET/HEAD로 media ID 판별(고정 host 아님) | `jira-api.ts` — `getMediaFileId` |
@@ -565,8 +565,7 @@ Linear·GitLab은 PKCE 지원으로 proxy 불필요 — 각각 `api.linear.app/o
 | `tab-bindings.ts` (`deactivatePanelIfCrossOrigin`) | cross-origin 커버 URL(http/https) 이동 시 패널 유지 — `broadGranted=true` 고정(§ 패널 종료/유지 정책 분기표) |
 | `LlmConnectDialog.tsx` (`ai-provider.ts:requestHostPermission` 경유) | BYOK LLM 프로바이더 연결 — 임의 baseUrl origin 요청이 `<all_urls>`에 포섭돼 **즉시 grant**(프롬프트 없음) |
 | `GitlabConnectForm.tsx` | GitLab self-managed 인스턴스 PAT 연결 — `requestHostPermission` 공유, 동일하게 즉시 grant |
-| `content/css-source-cache.ts` | **content(페이지 컨텍스트) stylesheet fetch** — same-origin·CORS 허용 `<link rel=stylesheet>` 원문을 `fetch(href, {credentials:"omit"})`로 직접 읽는다. **`isFetchableSheetUrl` SSRF 가드는 아래 background 경로 전용이라 여기엔 안 걸린다** — 페이지 자신의 권한으로 나가는 요청이라 확장 권한 상승이 없고(브라우저 CORS가 경계), background 경로는 그 경계를 우회하므로 가드가 거기 붙는다 |
-| `background/messages.ts` (`fetchCssSheets`) | cross-origin stylesheet 원문 fetch — content가 보낸 page-controlled href를 CORS 우회로 읽어 스타일 specified 값 보강. http(s) 공개 호스트 한정(SSRF 가드 `lib/ssrf-guard.ts` `isFetchableSheetUrl` — loopback·사설·link-local 차단), `credentials:omit` · `redirect:manual` · CSS content-type · 2MB 캡 |
+| `content/css-source-cache.ts` | **content(페이지 컨텍스트) stylesheet fetch** — same-origin·CORS 허용 `<link rel=stylesheet>` 원문만 `fetch(href, {credentials:"omit"})`로 읽는다. cross-origin은 privileged background 재-fetch 없이 computed fallback을 쓴다 |
 
 ### requestHostPermission 잔존 호출
 

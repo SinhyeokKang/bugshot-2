@@ -11,6 +11,7 @@ import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
 import { initialJiraFields } from "@/sidepanel/lib/initialJiraFields";
+import { filterValidCssDeclarations } from "@/sidepanel/lib/cssDeclaration";
 import { saveVideoBlob, deleteVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
 import { takeWithinLimits, type TakeWithinLimitsResult } from "@/sidepanel/lib/attachmentLimits";
 import { DEFAULT_COLOR, DEFAULT_THICKNESS, type ThicknessKey } from "@/sidepanel/components/annotation/presets";
@@ -68,6 +69,7 @@ export interface EditorStyleEdits {
   classList: string[];
   inlineStyle: Record<string, string>;
   text: string;
+  cssText?: string | null;
 }
 
 // 한 element의 스타일 변경 컨텍스트 한 묶음(복수 element 버퍼 항목). 본문 직렬화는
@@ -334,6 +336,7 @@ const initial = {
     classList: [] as string[],
     inlineStyle: {} as Record<string, string>,
     text: "",
+    cssText: null as string | null,
   },
   tokens: [] as Token[],
   beforeImage: null,
@@ -620,6 +623,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             classList: [...buffered.styleEdits.classList],
             inlineStyle: { ...buffered.styleEdits.inlineStyle },
             text: buffered.styleEdits.text,
+            ...(buffered.styleEdits.cssText
+              ? { cssText: buffered.styleEdits.cssText }
+              : {}),
           },
           beforeImage: buffered.beforeImage,
           afterImage: buffered.afterImage,
@@ -638,6 +644,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           classList: [...selection.classList],
           inlineStyle: {},
           text: selection.text ?? "",
+          cssText: null,
         },
         beforeImage: null,
         afterImage: null,
@@ -662,7 +669,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   setStyleEdits: (patch) =>
-    set((s) => ({ styleEdits: { ...s.styleEdits, ...patch } })),
+    set((s) => ({
+      styleEdits: {
+        ...s.styleEdits,
+        ...patch,
+        ...(patch.inlineStyle
+          ? { inlineStyle: filterValidCssDeclarations(patch.inlineStyle) }
+          : {}),
+        ...(patch.inlineStyle && patch.cssText === undefined ? { cssText: null } : {}),
+      },
+    })),
 
   setTokens: (tokens) => set({ tokens }),
 
@@ -696,10 +712,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           classList: [...s.styleEdits.classList],
           inlineStyle: { ...s.styleEdits.inlineStyle },
           text: s.styleEdits.text,
+          ...(s.styleEdits.cssText ? { cssText: s.styleEdits.cssText } : {}),
         },
         beforeImage: s.beforeImage,
         afterImage,
-        captureContext: context,
+        ...(context ? { captureContext: context } : {}),
       };
       const idx = s.bufferedElements.findIndex((b) => sameElementKey(b, sel));
       if (idx >= 0) {
@@ -740,6 +757,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             classList: [...s.selection.classList],
             inlineStyle: {},
             text: s.selection.text ?? "",
+            cssText: null,
           }
         : s.styleEdits,
       bufferedElements: [],

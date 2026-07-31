@@ -3,8 +3,6 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("../css-source-cache", () => ({
   getMatchingRules: () => [],
   getRawDeclarationsFor: () => null,
-  getMatchingCrossOriginRules: () => [],
-  getCrossOriginCustomProps: () => ({}),
 }));
 
 import {
@@ -18,14 +16,14 @@ import {
   shouldRestoreEditable,
   splitTrblValue,
   splitCssTokens,
-  mergeCrossOriginDecls,
-  mergeCrossOriginTokens,
+  hydrateReferencedCustomProps,
   collectReferencedTokenNames,
   parseBorderShorthand,
   expandShorthands,
   extractVarPropsFromMap,
   shouldOverwriteSpecified,
   newClaimState,
+  noteClaim,
   normalizePositionOffsets,
   type EditableHandle,
 } from "../css-resolve";
@@ -736,6 +734,38 @@ describe("extractVarPropsFromMap — 중요도·파생 표시", () => {
 
 // 규칙 순회에서 specified를 덮을지 판정하는 단일 출처. author가 직접 쓴 var()는 보호하되,
 // shorthand에서 파생된 값은 뒤 규칙의 직접 선언(리터럴 포함)에 자리를 내줘야 한다.
+describe("noteClaim", () => {
+  it("확정된 important winner를 뒤의 일반 선언이 uncertain으로 강등하지 않음", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", true, "#target");
+    noteClaim(claims, "color", "blue", false, ".target");
+    noteClaim(claims, "color", "green", false, "div");
+
+    expect(claims.candidates.get("color")?.value).toBe("red");
+    expect(claims.uncertain.has("color")).toBe(false);
+  });
+
+  it("동일 값 inline winner가 기존 ambiguity를 해소", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ".a");
+    noteClaim(claims, "color", "blue", false, ".b");
+    noteClaim(claims, "color", "blue", false, "[inline]");
+
+    expect(claims.candidates.get("color")?.origin).toBe("[inline]");
+    expect(claims.uncertain.has("color")).toBe(false);
+  });
+
+  it("동일 값 important 선언이 winner metadata를 승격", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "blue", false, ".a");
+    noteClaim(claims, "color", "blue", true, ".b");
+    noteClaim(claims, "color", "green", false, ".c");
+
+    expect(claims.candidates.get("color")?.important).toBe(true);
+    expect(claims.uncertain.has("color")).toBe(false);
+  });
+});
+
 describe("shouldOverwriteSpecified", () => {
   it("author var() 값은 뒤따르는 리터럴로부터 보호된다", () => {
     expect(shouldOverwriteSpecified("var(--c)", "red", false)).toBe(false);
@@ -1111,208 +1141,28 @@ describe("shouldRestoreEditable", () => {
   });
 });
 
-describe("mergeCrossOriginDecls", () => {
-  const co = (selectorText: string, decls: Record<string, string>) => ({
-    selectorText,
-    decls: new Map(Object.entries(decls)),
-  });
-
-  it("빈 prop을 cross-origin 값으로 채우고 source는 selectorText", () => {
-    const out: Record<string, string> = {};
-    const sources: Record<string, string> = {};
-    mergeCrossOriginDecls(out, sources, {}, [co(".card", { padding: "12px" })], {});
-    expect(out.padding).toBe("12px");
-    expect(sources.padding).toBe(".card");
-  });
-
-  it("same-origin이 이미 채운 prop은 보존 (cross-origin이 덮지 않음)", () => {
-    const out: Record<string, string> = { color: "green" };
-    const sources: Record<string, string> = { color: ".same" };
-    mergeCrossOriginDecls(out, sources, {}, [co(".x", { color: "red" })], {});
-    expect(out.color).toBe("green");
-    expect(sources.color).toBe(".same");
-  });
-
-  it("아직 안 펼쳐진 same-origin shorthand의 longhand는 cross-origin이 못 덮음 (split 방지)", () => {
-    // collectRulesForElement는 expandShorthands 전에 merge하므로 out엔 shorthand만 있다.
-    const out: Record<string, string> = { padding: "10px" };
-    const sources: Record<string, string> = { padding: ".same" };
-    mergeCrossOriginDecls(
-      out,
-      sources,
-      {},
-      [co(".card", { "padding-left": "3px" })],
-      {},
-    );
-    expect(out["padding-left"]).toBeUndefined();
-  });
-
-  it("same-origin shorthand 없는 longhand는 cross-origin이 정상 보강", () => {
-    const out: Record<string, string> = {};
-    const sources: Record<string, string> = {};
-    mergeCrossOriginDecls(
-      out,
-      sources,
-      {},
-      [co(".card", { "padding-left": "3px" })],
-      {},
-    );
-    expect(out["padding-left"]).toBe("3px");
-  });
-
-  it("cross-origin 규칙끼리는 뒤(seq 큰) 규칙이 override", () => {
-    const out: Record<string, string> = {};
-    const sources: Record<string, string> = {};
-    // 호출부가 seq 오름차순으로 정렬해 전달
-    mergeCrossOriginDecls(
-      out,
-      sources,
-      {},
-      [co(".a", { color: "red" }), co(".b", { color: "blue" })],
-      {},
-    );
-    expect(out.color).toBe("blue");
-    expect(sources.color).toBe(".b");
-  });
-
-  it("same-origin border shorthand의 per-side longhand는 cross-origin이 못 덮음", () => {
-    // collectRulesForElement는 expandShorthands 전에 merge하므로 out엔 border만 있다.
-    const out: Record<string, string> = { border: "1px solid blue" };
-    const sources: Record<string, string> = { border: ".same" };
-    mergeCrossOriginDecls(
-      out,
-      sources,
-      {},
-      [co(".card", { "border-top-color": "red" })],
-      {},
-    );
-    expect(out["border-top-color"]).toBeUndefined();
-  });
-
-  it("same-origin border-bottom의 longhand도 cross-origin이 못 덮음", () => {
-    const out: Record<string, string> = { "border-bottom": "2px dashed green" };
-    const sources: Record<string, string> = { "border-bottom": ".same" };
-    mergeCrossOriginDecls(
-      out,
-      sources,
-      {},
-      [co(".x", { "border-bottom-width": "9px" })],
-      {},
-    );
-    expect(out["border-bottom-width"]).toBeUndefined();
-  });
-
-  it("이른 var(토큰)을 나중 cross-origin literal이 덮지 않음 (token 강등 회귀 방지)", () => {
-    // naver <a>: 테마 규칙 color: var(--fg)을 뒤따르는 일반 a { color: #333 } 리셋이
-    // 클로버해 토큰이 computed로 강등되던 버그. background-color는 단일 선언이라 멀쩡.
-    const out: Record<string, string> = {};
-    const sources: Record<string, string> = {};
-    mergeCrossOriginDecls(
-      out,
-      sources,
-      {},
-      [
-        co(".themed", {
-          color: "var(--fg)",
-          "background-color": "var(--bg)",
-          "border-color": "var(--line)",
-        }),
-        co("a", { color: "#333", "border-color": "gray" }),
-      ],
-      {},
-    );
-    expect(out.color).toBe("var(--fg)");
-    expect(sources.color).toBe(".themed");
-    expect(out["border-color"]).toBe("var(--line)");
-    expect(out["background-color"]).toBe("var(--bg)");
-  });
-
-  it("나중 var는 이른 cross-origin literal을 정상 덮음 (token 승격 유지)", () => {
-    const out: Record<string, string> = {};
-    const sources: Record<string, string> = {};
-    mergeCrossOriginDecls(
-      out,
-      sources,
-      {},
-      [co("a", { color: "#333" }), co(".themed", { color: "var(--fg)" })],
-      {},
-    );
-    expect(out.color).toBe("var(--fg)");
-    expect(sources.color).toBe(".themed");
-  });
-
-  it("--*를 customProps에 보충해 기존 규칙(private --_)으로 var() 해석", () => {
-    const customProps: Record<string, string> = {};
-    mergeCrossOriginDecls(
-      {},
-      {},
+describe("hydrateReferencedCustomProps", () => {
+  it("브라우저가 계산한 실제 custom property winner로 raw 수집값을 덮음", () => {
+    const customProps = { "--_color": "red" };
+    hydrateReferencedCustomProps(
+      ["var(--_color)"],
+      { getPropertyValue: (name) => (name === "--_color" ? "blue" : "") },
       customProps,
-      [co(".card", { color: "var(--_brand)" })],
-      { "--_brand": "#06c" },
     );
-    expect(customProps["--_brand"]).toBe("#06c");
-    // resolveVarChain은 same-origin과 동일하게 private --_ 변수만 펼친다.
-    expect(resolveVarChain("var(--_brand)", customProps)).toBe("#06c");
+    expect(customProps).toEqual({ "--_color": "blue" });
   });
 
-  it("이미 있는 customProps 키는 cross-origin이 덮지 않음", () => {
-    const customProps: Record<string, string> = { "--_brand": "#000" };
-    mergeCrossOriginDecls({}, {}, customProps, [], { "--_brand": "#fff" });
-    expect(customProps["--_brand"]).toBe("#000");
-  });
-
-  it("wantedProps 지정 시 그 외 prop은 무시", () => {
-    const out: Record<string, string> = {};
-    mergeCrossOriginDecls(
-      out,
-      {},
-      {},
-      [co(".x", { color: "red", padding: "8px" })],
-      {},
-      new Set(["color"]),
+  it("computed alias가 참조하는 다음 custom property도 고정점까지 수집", () => {
+    const customProps: Record<string, string> = {};
+    hydrateReferencedCustomProps(
+      ["var(--_a)"],
+      {
+        getPropertyValue: (name) =>
+          name === "--_a" ? "var(--_b)" : name === "--_b" ? "12px" : "",
+      },
+      customProps,
     );
-    expect(out.color).toBe("red");
-    expect(out.padding).toBeUndefined();
-  });
-});
-
-describe("mergeCrossOriginTokens", () => {
-  it("빈 seen에 cross-origin custom prop을 토큰 후보로 추가", () => {
-    // naver: --color-primary-background-default가 cross-origin :root에만 있어
-    // collectTokens의 same-origin/inline 수집에 안 잡히던 것 — swatch 누락 원인.
-    const seen = new Map<string, string>();
-    mergeCrossOriginTokens(seen, {
-      "--color-primary-background-default": "#03c75a",
-    });
-    expect(seen.get("--color-primary-background-default")).toBe("#03c75a");
-    expect(seen.size).toBe(1);
-  });
-
-  it("이미 있는 이름은 cross-origin이 덮지 않음 (same-origin 우선·빈칸 채우기)", () => {
-    const seen = new Map<string, string>([["--brand", "#000"]]);
-    mergeCrossOriginTokens(seen, { "--brand": "#fff" });
-    expect(seen.get("--brand")).toBe("#000");
-  });
-
-  it("일부만 충돌 — 충돌은 유지, 신규는 추가", () => {
-    const seen = new Map<string, string>([["--a", "red"]]);
-    mergeCrossOriginTokens(seen, { "--a": "blue", "--b": "green" });
-    expect(seen.get("--a")).toBe("red");
-    expect(seen.get("--b")).toBe("green");
-  });
-
-  it("빈 crossProps면 seen 불변", () => {
-    const seen = new Map<string, string>([["--x", "1px"]]);
-    mergeCrossOriginTokens(seen, {});
-    expect(seen.size).toBe(1);
-    expect(seen.get("--x")).toBe("1px");
-  });
-
-  it("-- 접두 아닌 키는 무시 (방어)", () => {
-    const seen = new Map<string, string>();
-    mergeCrossOriginTokens(seen, { color: "red", "--ok": "#fff" });
-    expect(seen.has("color")).toBe(false);
-    expect(seen.get("--ok")).toBe("#fff");
+    expect(customProps).toEqual({ "--_a": "var(--_b)", "--_b": "12px" });
   });
 });
 

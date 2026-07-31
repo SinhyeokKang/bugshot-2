@@ -2,9 +2,10 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { applyStyles } from "@/sidepanel/picker-control";
+import { filterValidCssDeclarations } from "@/sidepanel/lib/cssDeclaration";
 import {
   serializeCssBlock,
-  parseCssBlock,
+  parseCssBlockDraft,
   computeOverrides,
   collapseTrbl,
   expandTrbl,
@@ -16,6 +17,7 @@ const CssCodeMirror = lazy(() => import("./CssCodeMirror"));
 export function StyleCssView() {
   const selection = useEditorStore((s) => s.selection);
   const inlineStyle = useEditorStore((s) => s.styleEdits.inlineStyle);
+  const savedCssText = useEditorStore((s) => s.styleEdits.cssText);
   const setStyleEdits = useEditorStore((s) => s.setStyleEdits);
   const tokens = useEditorStore((s) => s.tokens);
   const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
@@ -29,10 +31,10 @@ export function StyleCssView() {
   const buildDoc = (overrides: Record<string, string>) =>
     serializeCssBlock(selector, collapseTrbl({ ...specifiedLong, ...overrides }));
 
-  const [value, setValue] = useState(() => buildDoc(inlineStyle));
+  const [value, setValue] = useState(() => savedCssText ?? buildDoc(inlineStyle));
   // 재동기화 판별 기준은 사용자가 친 raw가 아니라 재구성(collapse) 문자열 — store는
   // 오버라이드만 갖고 doc은 병합·축약 재구성이라 raw로는 자기입력 판별이 어긋난다.
-  const lastCommittedRef = useRef(value);
+  const lastCommittedRef = useRef(buildDoc(inlineStyle));
   // 에디터 포커스 중엔 외부 재동기화로 doc를 통째 교체하지 않는다 — cross-origin 늦은
   // specified 보강이 타이핑 중 커서를 튀게 하는 것을 막고, blur 시 흡수한다.
   const focusedRef = useRef(false);
@@ -63,12 +65,25 @@ export function StyleCssView() {
 
   const handleChange = (next: string) => {
     setValue(next);
+    const parsed = parseCssBlockDraft(next);
+    if (!parsed.valid) {
+      setStyleEdits({ cssText: next });
+      return;
+    }
+    const validDeclarations = filterValidCssDeclarations(parsed.declarations);
+    if (
+      Object.keys(validDeclarations).length !==
+      Object.keys(parsed.declarations).length
+    ) {
+      setStyleEdits({ cssText: next });
+      return;
+    }
     const overrides = computeOverrides(
-      expandTrbl(parseCssBlock(next)),
+      expandTrbl(validDeclarations),
       specifiedLong,
     );
     lastCommittedRef.current = buildDoc(overrides);
-    setStyleEdits({ inlineStyle: overrides });
+    setStyleEdits({ inlineStyle: overrides, cssText: next });
     const frameId = useEditorStore.getState().selection?.frameId ?? 0;
     if (tabId) void applyStyles(tabId, frameId, overrides);
   };

@@ -7,7 +7,6 @@ import { injectLogsLink } from "./lib/adf-logs-link";
 import { injectSnapshotRows } from "./injectSnapshotRows";
 import { captureOwnedTab, captureThrottle } from "./capture-throttle";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
-import { isFetchableSheetUrl } from "@/lib/ssrf-guard";
 import type { JiraAttachmentInput, JiraAuth, JiraCreateIssuePayload, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
 import type { BgRequest } from "@/types/messages";
@@ -691,80 +690,12 @@ export async function handleMessage(
     case "analytics.capture":
       return captureEvent(message.event, message.properties);
 
-    case "css.fetchSheets":
-      return { sheets: await fetchCssSheets(message.urls) };
 
     default: {
       const _exhaustive: never = message;
       throw new Error(`unknown message: ${JSON.stringify(_exhaustive)}`);
     }
   }
-}
-
-// cross-origin 스타일 보강용. page-controlled href를 SSRF 가드로 거른 뒤 <all_urls> CORS 우회로 fetch.
-// redirect:"manual" — 가드 통과 url이 내부망으로 302 우회하는 SSRF 차단(opaqueredirect는 res.ok=false라 drop).
-const MAX_SHEET_BYTES = 2_000_000;
-const SHEET_FETCH_TIMEOUT_MS = 8_000;
-// 비정상적으로 많은 cross-origin <link>를 가진 페이지가 SW 메모리·동시 fetch를 폭증시키는 걸 차단.
-const MAX_SHEETS = 50;
-async function fetchCssSheets(
-  urls: string[],
-): Promise<Array<{ url: string; text: string }>> {
-  const allowed = urls.filter(isFetchableSheetUrl).slice(0, MAX_SHEETS);
-  const settled = await Promise.allSettled(
-    allowed.map(async (url) => {
-      const res = await fetch(url, {
-        credentials: "omit",
-        redirect: "manual",
-        signal: AbortSignal.timeout(SHEET_FETCH_TIMEOUT_MS),
-      });
-      if (!res.ok) return null;
-      const type = res.headers.get("content-type") ?? "";
-      // 빈 content-type도 reject — CSS임을 확증할 수 없는 응답 차단(하드닝).
-      if (!type.toLowerCase().includes("css")) return null;
-      const len = Number(res.headers.get("content-length"));
-      if (Number.isFinite(len) && len > MAX_SHEET_BYTES) return null;
-      const text = await readCappedText(res, MAX_SHEET_BYTES);
-      if (text == null) return null;
-      return { url, text };
-    }),
-  );
-  const sheets: Array<{ url: string; text: string }> = [];
-  for (const r of settled) {
-    if (r.status === "fulfilled" && r.value) sheets.push(r.value);
-  }
-  return sheets;
-}
-
-// content-length 누락 시에도 maxBytes 초과분을 버퍼링 전에 끊어 SW OOM을 막는다.
-async function readCappedText(
-  res: Response,
-  maxBytes: number,
-): Promise<string | null> {
-  if (!res.body) {
-    const text = await res.text();
-    return text.length > maxBytes ? null : text;
-  }
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  const merged = new Uint8Array(total);
-  let offset = 0;
-  for (const c of chunks) {
-    merged.set(c, offset);
-    offset += c.byteLength;
-  }
-  return new TextDecoder().decode(merged);
 }
 
 async function submitIssue(
