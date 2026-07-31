@@ -55,7 +55,6 @@ async function areaCaptureUntilDrafting(fixture: Page, panel: Page): Promise<voi
       await fixture.mouse.down();
       await fixture.mouse.move(300, 220, { steps: 10 });
       await fixture.mouse.up();
-      await panel.bringToFront();
     }
     await expect(drafting).toBeVisible({ timeout: 2500 });
   }).toPass({ intervals: [1000, 1500, 2000, 2500], timeout: 25_000 });

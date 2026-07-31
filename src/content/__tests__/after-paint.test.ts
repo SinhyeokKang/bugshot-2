@@ -23,6 +23,7 @@ describe("afterPaint", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     stubRaf();
+    vi.stubGlobal("document", { visibilityState: "visible" });
   });
 
   afterEach(() => {
@@ -74,13 +75,13 @@ describe("afterPaint", () => {
     expect(settled).toBe(true);
   });
 
-  it("timeoutMs 기본값은 500ms다", async () => {
+  it("timeoutMs 기본값은 150ms다", async () => {
     let settled = false;
     const p = afterPaint().then(() => {
       settled = true;
     });
 
-    vi.advanceTimersByTime(499);
+    vi.advanceTimersByTime(149);
     await Promise.resolve();
     expect(settled).toBe(false);
 
@@ -107,6 +108,19 @@ describe("afterPaint", () => {
     await p;
 
     expect(() => vi.advanceTimersByTime(1000)).not.toThrow();
+  });
+
+  // 화면에 없는 문서는 프레임을 커밋하지 않는다 — 기다리면 그 지연이 캡처마다 얹힌다.
+  it("문서가 hidden이면 기다리지 않는다", async () => {
+    vi.stubGlobal("document", { visibilityState: "hidden" });
+    let settled = false;
+    const p = afterPaint().then(() => {
+      settled = true;
+    });
+
+    await p;
+    expect(settled).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("requestAnimationFrame이 없는 환경에서도 timeoutMs로 resolve한다", async () => {

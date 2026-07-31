@@ -263,13 +263,15 @@ picking 중 페이지가 hover에 반응하면 안 된다(드롭다운이 열리
 
 ## 캡처 프레임 커밋 대기 (`content/after-paint.ts`)
 
-캡처 직전 확장은 자기 오버레이를 감춘다 — picker는 `beginCapturePrep`이 shadow host를 `visibility:hidden`으로, area-select는 dim·사각형·라벨을 DOM에서 걷는다. **DOM을 고친 것과 화면에 반영된 것은 다른 시점**이라, 같은 태스크에서 응답·확정을 보내면 `captureVisibleTab`이 아직 오버레이가 살아있는 프레임을 찍는다(간헐적이라 "가끔 그러네"로 지나가기 쉽다). `afterPaint()`가 rAF 2회로 그 커밋을 기다리고, rAF가 영영 안 오는 hidden 탭은 500ms 폴백으로 **진행**한다 — 이 타임아웃은 실패가 아니다(캡처를 죽이지 않는다).
+캡처 직전 확장은 자기 오버레이를 감춘다 — picker는 `beginCapturePrep`이 shadow host를 `visibility:hidden`으로, area-select는 dim·사각형·라벨을 DOM에서 걷는다. **DOM을 고친 것과 화면에 반영된 것은 다른 시점**이라, 같은 태스크에서 응답·확정을 보내면 `captureVisibleTab`이 아직 오버레이가 살아있는 프레임을 찍는다(간헐적이라 "가끔 그러네"로 지나가기 쉽다). `afterPaint()`가 rAF 2회로 그 커밋을 기다리고, rAF가 영영 안 오는 hidden·occluded 탭은 150ms 폴백으로 **진행**한다 — 이 타임아웃은 실패가 아니다(캡처를 죽이지 않는다). 폴백을 길게 잡으면 그런 환경의 **캡처마다** 그대로 얹혀 상위 타임아웃을 깬다(500ms일 때 화면 밖 창으로 도는 e2e가 캡처→작성 화면 예산을 넘겨 죽었다). rAF가 도는 환경이면 두 번째 프레임이 ~32ms에 오므로 이 값은 "안 도는 환경에서 얼마나 버릴지"만 정한다.
 
 불변식 셋:
 
 - **대기는 "캡처가 뒤따르는 응답" 직전에 정확히 1회.** `rect: null`(캡처 실패 폴백) 응답은 대기하지 않는다 — 어차피 안 찍고, hidden 탭에서 폴백 지연만 겹친다. top frame은 `respondAfterPaint`, iframe은 `respondWithTopRect`가 그 자리다. `prepareCaptureBySelector`의 off-screen 분기는 `scrollIntoView` 정착용 rAF 2회가 이미 그 역할을 하므로 **거기에 또 얹지 않는다**(측정과 응답 사이 간격만 2배가 된다).
 - **숨긴 realm이 기다린다.** top overlay 숨김은 offset 응답기(top realm)에서 일어나므로 대기도 거기서 한다. cross-origin iframe은 렌더러가 갈려 자식이 부모 커밋을 대신 기다릴 수 없다.
 - **지연은 새 상태 공간을 만든다.** 확정을 미루면 그 창에 도착하는 취소·재진입을 전부 열거해야 한다 — area-select는 모든 취소 경로가 `_cancelled`를 세우고(대기 중 취소면 확정 폐기), `_settling`으로 재진입을 1회만 통과시키며, `handleStartAreaSelect`는 핸들 슬롯을 덮기 전에 이전 세션을 취소한다. 응답을 `.then()`으로 미루면 메시지 핸들러의 try/catch **밖**이므로 `.catch()`를 붙인다(삼키면 사이드패널 `await`가 영구히 안 풀린다).
+
+**대기는 캡처 창을 좁힌다.** `captureVisibleTab`은 관문(`captureOwnedTab`)에서 대상 탭이 여전히 활성인지 재확인하므로, 대기가 길어질수록 그 사이 탭이 바뀌어 캡처가 통째로 거부될 여지도 커진다. e2e가 이걸 먼저 밟았다 — 드래그 직후 `panel.bringToFront()`로 패널을 앞에 가져오면 **fixture 탭이 비활성**이 되어 `tab is no longer the active tab`으로 거부된다(실제 브라우저에서 사이드패널을 클릭해도 탭은 활성이라, 이 전환은 제품 동작이 아니라 자동화가 만든 부작용이다). 그래서 캡처로 이어지는 e2e 경로는 `keepFixtureActive`로 fixture를 앞에 유지한다.
 
 그물은 순수 헬퍼(`after-paint.test.ts`)뿐이다 — `picker.ts`·`area-select.ts`는 로직 스코프 제외라 배선을 되돌려도 유닛은 green이고, e2e에도 결과 픽셀 단언이 없다.
 

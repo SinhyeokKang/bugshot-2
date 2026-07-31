@@ -268,9 +268,9 @@ export async function pickElement(
   fixture: Page,
   panel: Page,
   selector: string,
-  opts: { expectSelection?: boolean; frame?: string } = {},
+  opts: { expectSelection?: boolean; frame?: string; keepFixtureActive?: boolean } = {},
 ): Promise<void> {
-  const { expectSelection = true, frame } = opts;
+  const { expectSelection = true, frame, keepFixtureActive = false } = opts;
   await fixture.bringToFront();
   const target = frame
     ? fixture.frameLocator(frame).locator(selector)
@@ -288,9 +288,13 @@ export async function pickElement(
     await fixture.mouse.click(cx, cy);
   };
 
+  // keepFixtureActive: 선택이 곧바로 캡처로 이어지는 경로(element shot)에서는 패널을 앞으로
+  // 가져오지 않는다 — bringToFront가 fixture 탭을 비활성으로 만들어 captureVisibleTab이
+  // "no longer the active tab"으로 거부된다. 실제 브라우저에서 사이드패널을 클릭해도 탭은
+  // 활성으로 남으므로, 이 전환은 제품 동작이 아니라 자동화가 만든 부작용이다.
   if (!expectSelection) {
     await clickOnce();
-    await panel.bringToFront();
+    if (!keepFixtureActive) await panel.bringToFront();
     return;
   }
 
@@ -300,7 +304,7 @@ export async function pickElement(
     await clickOnce();
     await expect(panel.getByTestId("repick")).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 15000 });
-  await panel.bringToFront();
+  if (!keepFixtureActive) await panel.bringToFront();
 }
 
 // 디버그 탭 진입까지 — 연동 0개여도 debug가 기본 탭이라 보통 클릭 한 번이면 끝난다.
@@ -321,10 +325,11 @@ export async function enterDebugAndPick(
   fixture: Page,
   panel: Page,
   selector: string,
+  opts: { keepFixtureActive?: boolean } = {},
 ): Promise<void> {
   await enterDebug(panel);
   await panel.getByTestId("mode-element").click();
-  await pickElement(fixture, panel, selector);
+  await pickElement(fixture, panel, selector, opts);
   await expect(panel.getByTestId("repick")).toBeVisible();
 }
 

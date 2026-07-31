@@ -121,7 +121,7 @@ test.describe("element 캡처 컨텍스트 확장", () => {
     const panel = await ext.openPanel(tabId);
 
     await assertGatesSatisfied(fixture, "#modal", "#modal-btn");
-    await enterDebugAndPick(fixture, panel, "#modal-btn");
+    await enterDebugAndPick(fixture, panel, "#modal-btn", { keepFixtureActive: true });
     await settleBeforeCapture(fixture);
     await typeStyleValue(panel, "color", "#ff0000");
     await expect(fixture.locator("#modal-btn")).toHaveCSS("color", "rgb(255, 0, 0)");
@@ -147,7 +147,7 @@ test.describe("element 캡처 컨텍스트 확장", () => {
     const tabId = await ext.fixtureTabId(FIXTURE_URL);
     const panel = await ext.openPanel(tabId);
 
-    await enterDebugAndPick(fixture, panel, "#plain-btn");
+    await enterDebugAndPick(fixture, panel, "#plain-btn", { keepFixtureActive: true });
     await settleBeforeCapture(fixture);
     await typeStyleValue(panel, "color", "#ff0000");
     await expect(fixture.locator("#plain-btn")).toHaveCSS("color", "rgb(255, 0, 0)");
@@ -192,7 +192,7 @@ test.describe("element 캡처 컨텍스트 확장", () => {
     }, 6000);
 
     await assertGatesSatisfied(fixture, "#modal", "#modal-btn");
-    await enterDebugAndPick(fixture, panel, "#modal-btn");
+    await enterDebugAndPick(fixture, panel, "#modal-btn", { keepFixtureActive: true });
     await typeStyleValue(panel, "color", "#ff0000");
     await expect(fixture.locator("#modal-btn")).toHaveCSS("color", "rgb(255, 0, 0)");
 
