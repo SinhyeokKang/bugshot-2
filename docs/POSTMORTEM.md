@@ -36,6 +36,26 @@
 
 ---
 
+## 2026-07-31 — 다단 게이트의 "안 생긴다" 테스트는 앞 게이트가 이미 잘라서 통과한다 — 게이트를 하나씩 지워 red를 확인해야 이름표가 정해진다
+
+- **영역**: `e2e`, `store`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: 재현 환경 `API Hosts` 자동 행의 **element 모드 누출 방지**를 검증하는 e2e가 green이었는데, `apiHostRowFor`에서 `supportsConsoleNetworkLog` 모드 게이트를 **통째로 지워도 계속 green**이었다. 즉 "모드 게이트 회귀 가드"라는 이름표를 단 테스트가 그 게이트를 전혀 물지 않았다. 출하 전 mutation 검사로만 드러났다.
+- **근본 원인**: `apiHostRowFor`는 `supportsConsoleNetworkLog(mode) && logsAttach && networkLog` **3단 게이트**인데, spec이 만든 상태에서는 **두 번째 항이 먼저 잘랐다**. `logsAttach`의 initial이 `false`(`editor-store.ts`)고 `startPicking`(element 진입)은 `preserveLogs`로 **넘기기만** 하지 켜지 않는다 — idle에서 로그만 적재하고 element로 들어가면 `logsAttach === false`라 모드 게이트에 도달조차 못 한다. 그래서 앞 항이 죽어도 뒤 항이 같은 답(`null`)을 내 테스트가 통과한다. `logsAttach: true`를 세팅하는 진입은 `startCapturing`·`startFreeform`·`startElementShot`·`onRecordingComplete` 넷뿐인데, 그중 하나로 켠 뒤 **취소 경로를 잘못 고르면 또 공전한다** — `mode-screenshot`의 취소는 `cancelAreaCapture` → **`reset()`**이라 `networkLog`·`logsAttach`를 통째로 날려 이번엔 세 번째 항이 대신 자른다. 실제로 통과하는 조합은 `mode-element-shot`(logsAttach 켬) → `picking-cancel`(`stopPicker` → `cancelPicking` = `preserveLogs`) → `mode-element` 하나뿐이었다. `design.md`가 "`reset()`을 타는 취소는 게이트를 exercise하지 못한다"고 경고해 뒀는데, 경고한 축(networkLog)이 아니라 **옆 축(logsAttach)으로 같은 공전이 재발**했다.
+- **재발 방지**: (1) **음성 단언(`toHaveCount(0)`·`not.toBeVisible`)에는 이름표를 붙이기 전에 mutation을 돌린다** — 전수: `grep -rn "toHaveCount(0)\|not\.toBeVisible\|toBeNull()" e2e/*.spec.ts`로 뽑고, 각 단언이 지킨다고 주장하는 가드를 **하나씩 무력화해 red를 확인**한다. red가 안 나오면 원인이 셋이고 구분해야 한다 — 이름표가 틀렸거나 / 테스트가 공허하거나 / **시나리오가 그 코드 경로를 애초에 안 탄다**(이번은 셋째). 2026-07-18 항목이 같은 처방을 코드 가드에 냈는데, 이번엔 **다단 게이트의 개별 항**으로 변주됐다. (2) **`&&` 체인 게이트를 테스트할 땐 "내가 만든 상태에서 몇 번째 항이 자르고 있나"를 먼저 답한다** — 전수: `grep -rn "return null;" src/sidepanel/lib/*.ts -B3 | grep "&&"`로 다단 게이트를 뽑고, 각 항을 참으로 만드는 진입 경로가 spec에 실제로 있는지 대조한다. (3) **상태를 켜는 액션과 보존하는 액션을 혼동하지 않는다** — 전수: `grep -n "logsAttach: true" src/store/editor-store.ts`(켜는 곳)와 `grep -n "preserveLogs\|\.\.\.initial" src/store/editor-store.ts`(넘기는 곳/지우는 곳)를 나란히 놓고, 테스트 진입 경로가 어느 쪽인지 확인한다. `...initial`을 타면 켜둔 게 사라진다.
+- **관련**: `src/sidepanel/lib/apiHostRow.ts:apiHostRowFor`(3단 게이트), `src/store/editor-store.ts:preserveLogs`·`startPicking`·`startElementShot`(logsAttach 세팅 유무), `src/sidepanel/picker-control.ts:cancelAreaCapture`(`reset()`)·`stopPicker`(`cancelPicking`), 그물 `e2e/api-hosts-env-row.spec.ts`("element 모드는 로그가 보존돼 있어도 …"), 경고 원문 `docs/features/api-host-env-row/design.md`("기존 패턴 준수" 절).
+
+## 2026-07-31 — 근사의 실패 방향을 "덜 잡힌다"로 오판해 정확한 라이브러리를 기각했다 — 실제 방향은 과대포함이라 유출이었다
+
+- **영역**: `lib`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 재현 환경 `API Hosts` 행이 **남의 조직 hostname을 실을 수 있는** 상태로 설계가 확정됐다. `a.github.io` 페이지에서 `b.github.io`(남의 GitHub Pages), `my-bucket.s3.amazonaws.com`에서 다른 테넌트의 버킷, `snu.ac.kr`에서 다른 대학의 `*.ac.kr`이 전부 "같은 조직"으로 판정돼 이슈 본문·Slack 채널 메시지에 나갈 수 있었다. 코드 리뷰에서야 드러났다.
+- **근본 원인**: `design.md`의 대안 검토가 `tldts`(public suffix list) 도입을 기각하면서 사유를 *"오판정의 대가가 '행이 하나 안 뜬다' 수준이라 근사로 충분하다"*로 적었다. **대가 산정의 방향이 반대였다.** 하드코딩 접미사 목록(`TWO_LEVEL_SUFFIXES` 19개)의 근사가 틀리는 방향은 부재(false negative)가 아니라 **과대포함(false positive)** 이다 — 목록에 없는 다단 접미사에서 registrable domain이 실제보다 짧게 잡혀 형제 hostname이 동족으로 묶인다. 부재는 "정보가 하나 덜 나온다"라 사용자 수정으로 흡수되지만, 과대포함은 **이미 제출한 이슈에서 남의 조직 hostname이 노출된 것**이라 "사용자가 지우면 된다"로 흡수되지 않는다. 기각 사유의 전제가 틀렸으므로 결론도 뒤집혀야 했는데, 그 문장이 검증 없이 구현까지 내려갔다. 뒤늦게 붙인 `HOSTING_DOMAINS` 하드 가드도 같은 계열의 땜질이었다(그룹 전체를 버려서 Vercel same-host API가 침묵하는 새 결함을 만들었다). 최종 해법은 `getDomain(host, {allowPrivateDomains:true})` 위임 — PSL private 섹션이 `github.io`·`vercel.app`·`s3.amazonaws.com`을 접미사로 인정해 형제가 **자동으로** 갈린다.
+- **재발 방지**: (1) **설계 문서가 대안을 기각할 때 쓴 "대가는 X 수준" 문장은 단언이지 사실이 아니다** — 구현 전에 X의 **방향**(정보 부재 vs 잘못된 정보 포함)을 한 번 묻는다. 방향이 "잘못된 정보가 나간다"면 사용자 수정으로 흡수된다는 완화가 **성립하지 않는다**(제출 후엔 늦다). 전수: `grep -rn "채택하지 않\|기각\|충분하다" docs/features/*/design.md`로 기각 사유를 뽑고 각각 방향을 판정. 2026-07-18의 *"design.md 위험표의 '완화' 칸은 구현 전 가설"* 처방을 **대안 기각 사유 칸까지** 확장한다. (2) **도메인·경로·식별자 근사를 손으로 만들 땐 반례를 먼저 테스트로 박는다** — 목록 기반 판정(`SUFFIXES`·`ALLOWLIST` 등)은 목록에 **없는** 입력이 어떻게 떨어지는지가 본체다. 전수: `grep -rn "ReadonlySet<string>\|Set(\[" src/ --include=*.ts`로 목록 상수를 뽑고, 각각 "미등재 입력이 안전 방향으로 떨어지는가"를 단위 테스트로 고정. (3) **외부로 나가는 값의 오판정은 fail-closed가 기본** — 못 넣는 건 불편이고 잘못 넣는 건 유출이다.
+- **관련**: `src/sidepanel/lib/apiHostRow.ts:registrableDomain`(tldts 위임)·`deriveApiHostsRow`, 그물 `src/sidepanel/lib/__tests__/apiHostRow.test.ts`(github.io·vercel.app·s3 형제 케이스), 결정 기록 `docs/features/api-host-env-row/design.md`("대안 D — 채택").
+
 ## 2026-07-30 — 프롬프트 지시가 가리키는 대상을 인쇄된 컨텍스트로 검증하지 않으면, 예산 절삭이 기준점을 지우고 인쇄 순서가 "이후"를 반대로 뒤집는다
 
 - **영역**: `AI`, `lib`
