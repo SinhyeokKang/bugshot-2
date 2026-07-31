@@ -1,3 +1,5 @@
+import { afterPaint } from "./after-paint";
+
 import type { ViewportRect } from "@/types/picker";
 
 // iframe picker와 부모 프레임 사이의 postMessage 핸드셰이크.
@@ -158,10 +160,14 @@ export function installFrameOffsetResponder(hooks: {
         y: rect.top + iframe.clientTop,
         topViewport,
       };
-      iframe.contentWindow.postMessage(
-        { type: OFFSET_RES_TYPE, token: data.token, offset },
-        "*",
-      );
+      // top overlay 숨김은 이 프레임(top realm)에서 커밋돼야 한다 — 자식의 대기는 별도
+      // 렌더러(cross-origin OOPIF)일 수 있어 top 커밋을 보장하지 못한다.
+      void afterPaint().then(() => {
+        iframe.contentWindow?.postMessage(
+          { type: OFFSET_RES_TYPE, token: data.token, offset },
+          "*",
+        );
+      });
     }
   });
 }

@@ -1,3 +1,5 @@
+import { afterPaint } from "./after-paint";
+
 import type { ViewportRect } from "@/types/picker";
 
 export interface AreaSelectDeps {
@@ -21,6 +23,24 @@ export interface AreaSelectHandle {
   _onMouseUp: (e: MouseEvent) => void;
   _onKeyDown: (e: KeyboardEvent) => void;
   _blockerEl: HTMLDivElement | null;
+  _cancelled: boolean;
+  _settling: boolean;
+}
+
+// 오버레이(dim·사각형·크기 라벨)를 걷은 프레임이 커밋된 뒤에 확정을 알린다 — 즉시 알리면
+// 캡처가 걷히기 직전 프레임을 찍는다. 대기 중 취소가 오면 확정을 버리고, 대기 창 동안
+// 남아있는 handle로 확정이 다시 들어와도(전체 뷰포트 연타) 한 번만 통과시킨다.
+function settleAfterPaint(h: AreaSelectHandle, notify: () => void): void {
+  if (h._settling || h._cancelled) return;
+  h._settling = true;
+  void afterPaint()
+    .then(() => {
+      if (h._cancelled) return;
+      notify();
+    })
+    // 확정이 마이크로태스크로 빠져 호출부 try/catch 밖이다 — 삼키면 오버레이·스타일 원복이
+    // 통째로 걸러진 채 조용히 끝난다.
+    .catch((err) => console.error("[bugshot] area select settle failed", err));
 }
 
 export function startAreaSelect(deps: AreaSelectDeps): AreaSelectHandle {
@@ -61,6 +81,8 @@ export function startAreaSelect(deps: AreaSelectDeps): AreaSelectHandle {
     _onMouseUp: (e) => onMouseUp(handle, e),
     _onKeyDown: (e) => onKeyDown(handle, e),
     _blockerEl: null,
+    _cancelled: false,
+    _settling: false,
   };
 
   showDimming(handle, null);
@@ -77,6 +99,7 @@ export function attachAreaBlockerListener(handle: AreaSelectHandle, blockerEl: H
 }
 
 export function cancelAreaSelect(handle: AreaSelectHandle): void {
+  handle._cancelled = true;
   removeListeners(handle);
   cleanupElements(handle);
   handle._deps.onBlockerRequest("hide");
@@ -89,7 +112,9 @@ export function selectFullViewport(handle: AreaSelectHandle): void {
   cleanupElements(handle);
   handle._deps.onBlockerRequest("hide");
   const viewport = { width: window.innerWidth, height: window.innerHeight };
-  handle._deps.onSelected({ x: 0, y: 0, ...viewport }, viewport);
+  settleAfterPaint(handle, () =>
+    handle._deps.onSelected({ x: 0, y: 0, ...viewport }, viewport),
+  );
 }
 
 /* ── internal ────────────────────────────────────── */
@@ -187,13 +212,16 @@ function onMouseUp(h: AreaSelectHandle, e: MouseEvent): void {
   cleanupElements(h);
   h._deps.onBlockerRequest("hide");
   const rect: ViewportRect = { x, y, width: w, height: hh };
-  h._deps.onSelected(rect, { width: window.innerWidth, height: window.innerHeight });
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  settleAfterPaint(h, () => h._deps.onSelected(rect, viewport));
 }
 
 function onKeyDown(h: AreaSelectHandle, e: KeyboardEvent): void {
   if (e.key !== "Escape") return;
   e.preventDefault();
   e.stopPropagation();
+  // 취소는 곧 _cancelled — 확정 대기 창에 ESC가 닿을 수 없는 현재 구조에 기대지 않는다.
+  h._cancelled = true;
   removeListeners(h);
   cleanupElements(h);
   h._deps.onBlockerRequest("hide");

@@ -48,7 +48,10 @@ import {
   updateBanner,
   hideBanner,
   setBlockerScrollYield,
+  setBlockerHandoff,
   setBlockerVisible,
+  cancelBlockerScrollYield,
+  withBlockerHitTest,
   renderPreview,
   clearPreview,
   type OverlayHandle,
@@ -71,6 +74,7 @@ import {
   hideAnnotation,
   setAnnotationTool,
 } from "./annotation";
+import { afterPaint } from "./after-paint";
 import { PICKER_PORT_NAME } from "@/lib/session-keys";
 import { postToRuntime } from "./post-to-runtime";
 import {
@@ -259,13 +263,19 @@ function handlePickerMessage(
       case "picker.applyEditsBySelector":
         sendResponse(handleApplyEditsBySelector(msg));
         return;
-      case "picker.prepareCapture":
+      // 측정은 동기로 먼저(오버레이 숨김은 레이아웃을 바꾸지 않는다), 응답만 숨김 프레임이
+      // 커밋된 뒤로 미룬다 — 즉답하면 캡처가 오버레이가 남은 프레임을 찍는다. iframe은
+      // top 오버레이 숨김이 offset 왕복 안에서 일어나므로 respondWithTopRect가 대기를 맡는다.
+      case "picker.prepareCapture": {
+        const prep = handlePrepareCapture(msg);
         if (window !== window.top) {
-          void respondWithTopRect(handlePrepareCapture(msg), sendResponse);
+          void respondWithTopRect(prep, sendResponse);
           return true;
         }
-        sendResponse(handlePrepareCapture(msg));
-        return;
+        respondAfterPaint(prep, sendResponse);
+        return true;
+      }
+      // 이 경로는 분기마다 대기 지점이 달라(스크롤 정착 rAF를 재사용) 대기를 내부가 맡는다.
       case "picker.prepareCaptureBySelector":
         handlePrepareCaptureBySelector(
           msg,
@@ -341,6 +351,22 @@ function beginCapturePrep(): { width: number; height: number } {
   return { width: window.innerWidth, height: window.innerHeight };
 }
 
+// 캡처가 뒤따르는 응답만 숨김 프레임 커밋을 기다린다 — rect null은 캡처 실패 폴백이라
+// 대기가 무의미하고, hidden 탭에서 폴백 지연만 이중으로 얹힌다.
+function respondAfterPaint(
+  res: PrepareCaptureResponse,
+  sendResponse: (r: PrepareCaptureResponse) => void,
+): void {
+  if (!res.rect) {
+    sendResponse(res);
+    return;
+  }
+  void afterPaint()
+    .then(() => sendResponse(res))
+    // 응답이 핸들러 try/catch 밖으로 나갔다 — 삼키면 사이드패널의 await가 매달린다.
+    .catch((err) => console.error("[bugshot] capture prep response failed", err));
+}
+
 // iframe 프레임 캡처: inner rect(자기 뷰포트 기준)를 top 좌표로 변환해 응답한다.
 // offset 요청이 top overlay 숨김(beginCapturePrep)을 겸하고, viewport는 크롭 scale
 // 기준이라 top 크기로 교체. 실패(중첩·타임아웃)면 rect null — 캡처 실패 경로 폴백.
@@ -366,6 +392,9 @@ async function respondWithTopRect(
     sendResponse({ rect: null, viewport: offset.topViewport, ...scroll });
     return;
   }
+  // 자기 프레임 오버레이 숨김 커밋 대기. top 오버레이 쪽은 offset 응답기가 top realm에서
+  // 따로 기다린다 — cross-origin iframe은 렌더러가 갈려 여기서 대신 기다릴 수 없다.
+  await afterPaint();
   sendResponse({ rect, viewport: offset.topViewport, ...scroll });
 }
 
@@ -482,12 +511,17 @@ function handlePrepareCaptureBySelector(
     rect.y + rect.height > window.innerHeight ||
     rect.x + rect.width > window.innerWidth;
   if (!outside) {
-    sendResponse({
+    const res = {
       ...basisOf(viewport),
       viewport,
       scrollX: window.scrollX,
       scrollY: window.scrollY,
-    });
+    };
+    void afterPaint()
+      .then(() => sendResponse(res))
+      .catch((err) =>
+        console.error("[bugshot] capture prep response failed", err),
+      );
     return;
   }
   if (!capturedScroll) capturedScroll = { x: window.scrollX, y: window.scrollY };
@@ -899,6 +933,9 @@ function render(): void {
 
 function addHoverListeners(): void {
   window.addEventListener("mousemove", onMouseMove, true);
+  // blocker가 hit target을 가져가도 이벤트는 document까지 버블한다 — 위임 mousemove·mouseover로
+  // 만든 페이지의 hover UI(툴팁·메가메뉴·커스텀 커서)가 picking 중 계속 반응하는 통로다.
+  window.addEventListener("mouseover", stopHoverPropagation, true);
   window.addEventListener("mouseout", onMouseOut, true);
   window.addEventListener("keydown", onKeyDown, true);
   if (overlay) {
@@ -906,11 +943,30 @@ function addHoverListeners(): void {
     overlay.blockerEl.addEventListener("contextmenu", suppressEvent);
     overlay.blockerEl.addEventListener("auxclick", suppressEvent);
     overlay.blockerEl.addEventListener("dblclick", suppressEvent);
+    // 버블만 끊어 페이지의 위임 핸들러(드래그 시작·메뉴 개폐)를 막는다. preventDefault는
+    // 안 붙인다 — blocker가 target이라 페이지 쪽 포커스·선택이 어차피 시작되지 않고,
+    // 취소가 필요한 기본동작(컨텍스트 메뉴·중클릭)은 suppressEvent가 이미 맡는다.
+    // pointer 계열은 window capture로 끊으면 안 된다 — action-recorder가 document capture로
+    // 듣고 있어 picking 중 사용자 액션 로그가 통째로 빈다. blocker 버블에서만 막는다.
+    for (const type of PAGE_HANDLER_EVENTS) {
+      overlay.blockerEl.addEventListener(type, stopHoverPropagation);
+    }
   }
 }
 
+// blocker가 hit target이어도 페이지의 document/window 위임 핸들러까지는 도달하는 이벤트들.
+const PAGE_HANDLER_EVENTS = [
+  "mousedown",
+  "mouseup",
+  "pointerdown",
+  "pointerup",
+  "pointermove",
+  "pointerover",
+] as const;
+
 function removeHoverListeners(): void {
   window.removeEventListener("mousemove", onMouseMove, true);
+  window.removeEventListener("mouseover", stopHoverPropagation, true);
   window.removeEventListener("mouseout", onMouseOut, true);
   window.removeEventListener("keydown", onKeyDown, true);
   if (overlay) {
@@ -918,11 +974,19 @@ function removeHoverListeners(): void {
     overlay.blockerEl.removeEventListener("contextmenu", suppressEvent);
     overlay.blockerEl.removeEventListener("auxclick", suppressEvent);
     overlay.blockerEl.removeEventListener("dblclick", suppressEvent);
+    for (const type of PAGE_HANDLER_EVENTS) {
+      overlay.blockerEl.removeEventListener(type, stopHoverPropagation);
+    }
   }
 }
 
 function suppressEvent(e: Event): void {
   e.preventDefault();
+  e.stopPropagation();
+}
+
+function stopHoverPropagation(e: Event): void {
+  if (mode !== "hover") return;
   e.stopPropagation();
 }
 
@@ -946,10 +1010,7 @@ function onViewportChange(): void {
 
 function elementAtPoint(x: number, y: number): Element | null {
   if (!overlay) return document.elementFromPoint(x, y);
-  overlay.blockerEl.style.pointerEvents = "none";
-  const el = document.elementFromPoint(x, y);
-  overlay.blockerEl.style.pointerEvents = "auto";
-  return el;
+  return withBlockerHitTest(overlay, () => document.elementFromPoint(x, y));
 }
 
 function isOwnUi(el: Element | null): boolean {
@@ -961,18 +1022,21 @@ function isOwnUi(el: Element | null): boolean {
 
 function onMouseMove(e: MouseEvent): void {
   if (mode !== "hover") return;
+  e.stopPropagation();
+  // 포인팅으로 읽히는 이동이면 스크롤 양보를 회수한다 — 양보 창이 열려 있는 동안은 커서 밑
+  // 페이지 요소가 진짜 :hover를 받는다. 직전 휠 직후인지는 overlay가 판정한다.
+  if (overlay) cancelBlockerScrollYield(overlay);
   const target = elementAtPoint(e.clientX, e.clientY);
   if (isOwnUi(target) || target === lastHover) return;
   lastHover = target;
   // 등록된 자식 iframe 위에서는 blocker를 투과시켜 안쪽 picker가 이벤트를 받게 한다
-  // (핸드오프). 미등록(sandbox·중첩)은 auto 유지 → 클릭이 onClickCommit 거부 경로로.
-  // elementAtPoint가 매 호출 끝에 auto 복원하므로 토글은 호출 이후 + hover 변경 시만.
+  // (핸드오프). 미등록(sandbox·중첩)은 유지 → 클릭이 onClickCommit 거부 경로로.
   const handoff =
     !!target &&
     target.tagName === "IFRAME" &&
     isRegisteredChildFrame(target);
   if (overlay) {
-    overlay.blockerEl.style.pointerEvents = handoff ? "none" : "auto";
+    setBlockerHandoff(overlay, handoff);
     if (handoff) {
       // 안쪽 picker가 hover를 그린다 — 부모 outline은 숨겨 이중 표시 방지.
       hideOutline(overlay);
@@ -1162,6 +1226,12 @@ function restoreSelected(): void {
 }
 
 function handleStartAreaSelect(restoreAfter?: boolean): void {
+  // 확정 대기(afterPaint) 창에 새 세션이 시작되면 낡은 handle의 settle이 새 세션을 지우고
+  // stale areaSelected를 쏜다 — 덮어쓰기 전에 취소해 대기 중 확정을 무효화한다.
+  if (areaHandle) {
+    cancelAreaSelect(areaHandle);
+    areaHandle = null;
+  }
   if (!overlay) {
     removeOrphanOverlay();
     overlay = createOverlay();

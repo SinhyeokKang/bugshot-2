@@ -183,7 +183,9 @@ export function ValueCombobox({
         <button
           type="button"
           className={cn(
-            "flex h-9 w-full items-center rounded-md border px-2 text-sm outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring",
+            // min-w-0: grid item(FieldRow/quad 4-col)의 automatic minimum size를 풀어야
+            // 안쪽 TokenChip의 truncate가 살아난다 — 없으면 버튼이 트랙을 뚫는다.
+            "flex h-9 w-full min-w-0 items-center rounded-md border px-2 text-sm outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring",
             compact && "px-1.5 gap-1",
           )}
           title={buildTriggerTitle({
