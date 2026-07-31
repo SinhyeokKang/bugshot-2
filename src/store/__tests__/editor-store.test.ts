@@ -249,6 +249,26 @@ describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
     expect(useEditorStore.getState().reproPrefillDone).toBe(false);
   });
 
+  it("리플레이 경로에서도 apiHosts 래치를 리셋한다(직전 세션 삭제 래치 상속 차단)", () => {
+    useEditorStore.getState().setApiHostsDismissed(true);
+    useEditorStore.getState().setApiHostsDerived("api.acme.com");
+
+    useEditorStore.getState().onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000);
+
+    expect(useEditorStore.getState().apiHostsDismissed).toBe(false);
+    expect(useEditorStore.getState().apiHostsDerived).toBeNull();
+  });
+
+  it("reset은 apiHosts 래치를 청소한다", () => {
+    useEditorStore.getState().setApiHostsDismissed(true);
+    useEditorStore.getState().setApiHostsDerived("api.acme.com");
+
+    useEditorStore.getState().reset();
+
+    expect(useEditorStore.getState().apiHostsDismissed).toBe(false);
+    expect(useEditorStore.getState().apiHostsDerived).toBeNull();
+  });
+
   // 인자를 생략한 호출의 계약만 규정한다. 탭/화면 녹화 경로는 이제 길이와 무관하게
   // 항상 trim 인자를 넘기므로(video-recorder.ts onstop), "녹화 = 생략"이 아니다.
   it("trim 인자를 생략하면 replayTrim은 null이다", () => {

@@ -70,10 +70,15 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 
 | API | 용도 | 사용 위치 |
 |---|---|---|
-| `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:204` (bg handler — 모든 호출이 `capture-throttle` 직렬 큐 경유). 호출처: `capture.ts:48`(요소), `usePickerMessages.ts`(영역·인라인), `scroll-capture.ts:43`(페이지 전체 타일 루프), `use-30s-replay.ts:71` |
+| `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:204` (bg handler — 모든 호출이 `capture-throttle` 직렬 큐 경유). 호출처: `sidepanel/capture.ts:captureElementSnapshot`(요소), `usePickerMessages.ts`(영역·인라인), `sidepanel/scroll-capture.ts`(페이지 전체 타일 루프), `30s-replay/use-30s-replay.ts`(폴링 프레임) |
 | `chrome.tabCapture.getMediaStreamId()` | 수동 영상 녹화 스트림 (실패 시 `getDisplayMedia` 폴백) | `video-recorder.ts:startTabStream` |
-| `chrome.tabs.get() → tab.url` | 탭 URL 읽기 | `tab-bindings.ts`, `picker-control.ts,212,446(pageKeyOf),573`, `video-capture.ts`, `video-recorder.ts`, `use-30s-replay.ts:68,149` |
+| `chrome.tabs.get() → tab.url` | 탭 URL 읽기 | `tab-bindings.ts`, `picker-control.ts`(`pageKeyOf` 등), `video-capture.ts`, `video-recorder.ts`, `30s-replay/use-30s-replay.ts` |
 | `chrome.scripting.executeScript()` | content script 재주입(picker·recorder-bridge는 `allFrames:true`)·뷰포트 측정 | `picker-control.ts` (`ensureMainWorldRecorders`·`getTopViewport` 등) |
+| `chrome.tabs.create()` / `chrome.tabs.remove()` | ① GitHub 업로드용 비활성 탭 생성·정리(`background/github-upload.ts`) ② 외부 링크 열기 — 등록된 이슈 URL·가이드·스토어 리뷰·플랫폼 토큰 발급 페이지(`IssueTab`·`SettingsFooter`·`SubmitSuccessView`·`IssueRow`) | 권한 불요(확장 기본 제공) |
+| `chrome.tabs.query({})` | **전 창 전 탭 열거** — pending 로그 GC가 "살아있는 탭"을 계산하는 유일한 경로(fail-closed: 조회 실패 시 prune 전체 스킵) | `lib/pending-log-prune.ts`. URL을 읽지만 `activeTab`과 무관하게 `<all_urls>`가 커버한다 |
+| `chrome.runtime.onConnect` (port disconnect) | 사이드패널이 닫히면 port가 끊기는 것을 세션 teardown 신호로 사용 — 레코더 정지(`stopRecorders`) | `background/index.ts` |
+| `chrome.windows.onRemoved` | 창이 닫힐 때 그 창에 속한 탭의 활성화 상태 정리 | `background/tab-bindings.ts` |
+| `chrome.i18n.getMessage()` | manifest `default_locale` + `__MSG_*` 치환(확장 이름·설명) | `background/index.ts` |
 
 ### 만료 조건
 
@@ -166,7 +171,7 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 |---|---|---|---|
 | Picker 재주입 | ISOLATED | `picker-control.ts:39` | `ping` 실패 시 `manifest.content_scripts[0].js`를 `allFrames:true`(top+iframe)로 재주입 (`ensureContentScript` — iframe picker 자가복구) |
 | Recorder bridge 재주입 | ISOLATED | `picker-control.ts:75` | `recorder-bridge.ts` (sentinel 수신·중계)를 `allFrames:true`로 재주입 |
-| Recorder entry 재주입 | MAIN | `picker-control.ts:92` | `recorders-entry.ts` (network/console/action 후크) 재주입 (MAIN world, `allFrames` 미지정 → top 한정) |
+| Recorder entry 재주입 | MAIN | `picker-control.ts:ensureMainWorldRecorders` | `recorders-entry.ts` (network/console/action 후크) 재주입 (MAIN world). **정적 엔트리는 `all_frames: true`로 전 프레임 주입**이고, 여기 프로그래매틱 재주입만 `allFrames` 미지정이라 top 한정이다 |
 | 뷰포트 측정 | ISOLATED | `picker-control.ts` | Freeform 진입·iframe 요소 선택 시 top 프레임 `innerWidth/Height` 읽기 (`getTopViewport` — world 미지정 → 기본 ISOLATED) |
 | GitHub 업로드 | MAIN | `background/github-upload.ts:154` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수). 업로드마다 **전용 비활성 탭을 새로 열고 끝나면 닫는다** — 기존 github.com 탭에 붙으면 다른 확장의 MAIN world 후크가 base64 미디어와 `asset_upload_authenticity_token`을 가져갈 수 있다. 사용자가 연 탭이 아니라 `activeTab`이 아닌 `<all_urls>`에 의존 |
 
@@ -527,7 +532,7 @@ background/index.ts:136 — webNavigation.onCommitted
 | `app.asana.com` | Asana REST + OAuth authorize (token 교환은 proxy) | `asana-api.ts`, `asana-oauth.ts` |
 | `api.clickup.com` | ClickUp REST (task 생성·첨부 업로드·본문 갱신) | `clickup-api.ts`, `clickup-oauth.ts` |
 | `slack.com` | Slack Web API (메시지 전송·채널/DM·멤버 조회·files 2-step 업로드) + OAuth authorize. files 업로드 2단계의 multipart POST는 Slack이 런타임 반환하는 `upload_url`(`*.slack.com` 등)로 나가고 이것도 `<all_urls>` 커버 | `slack-api.ts`, `slack-oauth.ts` |
-| `us.i.posthog.com` (또는 `VITE_POSTHOG_HOST`) | 익명 분석 — 이슈 제출·연동 집계(`$ip:"0.0.0.0"`·geoip 비활성·person profile 미생성) | `background/analytics.ts` — `/capture/` fetch |
+| `us.i.posthog.com` (또는 `VITE_POSTHOG_HOST`) | 익명 분석 — 이슈 제출·연동 해제·설치(`extension_installed`, 확장 버전 동봉)·패널 열기(`sidepanel_opened`, `page_supported` 동봉) 집계(`$ip:"0.0.0.0"`·geoip 비활성·person profile 미생성) | `background/analytics.ts` — `/capture/` fetch |
 | OAuth proxy origin | OAuth proxy (client_secret 은닉) | `oauth.ts`, `github-oauth.ts`, `notion-oauth.ts`, `asana-oauth.ts`, `clickup-oauth.ts`, `slack-oauth.ts` |
 
 ### OAuth Proxy 엔드포인트
@@ -560,6 +565,7 @@ Linear·GitLab은 PKCE 지원으로 proxy 불필요 — 각각 `api.linear.app/o
 | `tab-bindings.ts` (`deactivatePanelIfCrossOrigin`) | cross-origin 커버 URL(http/https) 이동 시 패널 유지 — `broadGranted=true` 고정(§ 패널 종료/유지 정책 분기표) |
 | `LlmConnectDialog.tsx` (`ai-provider.ts:requestHostPermission` 경유) | BYOK LLM 프로바이더 연결 — 임의 baseUrl origin 요청이 `<all_urls>`에 포섭돼 **즉시 grant**(프롬프트 없음) |
 | `GitlabConnectForm.tsx` | GitLab self-managed 인스턴스 PAT 연결 — `requestHostPermission` 공유, 동일하게 즉시 grant |
+| `content/css-source-cache.ts` | **content(페이지 컨텍스트) stylesheet fetch** — same-origin·CORS 허용 `<link rel=stylesheet>` 원문을 `fetch(href, {credentials:"omit"})`로 직접 읽는다. **`isFetchableSheetUrl` SSRF 가드는 아래 background 경로 전용이라 여기엔 안 걸린다** — 페이지 자신의 권한으로 나가는 요청이라 확장 권한 상승이 없고(브라우저 CORS가 경계), background 경로는 그 경계를 우회하므로 가드가 거기 붙는다 |
 | `background/messages.ts` (`fetchCssSheets`) | cross-origin stylesheet 원문 fetch — content가 보낸 page-controlled href를 CORS 우회로 읽어 스타일 specified 값 보강. http(s) 공개 호스트 한정(SSRF 가드 `lib/ssrf-guard.ts` `isFetchableSheetUrl` — loopback·사설·link-local 차단), `credentials:omit` · `redirect:manual` · CSS content-type · 2MB 캡 |
 
 ### requestHostPermission 잔존 호출

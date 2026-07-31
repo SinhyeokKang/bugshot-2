@@ -125,7 +125,11 @@ export function buildCompactDraftPrompt(ctx: AiDraftSessionContext): string {
 
   lines.push("");
   lines.push("Sections:");
-  lines.push(`- title: one short line, at most ${MAX_TITLE_LENGTH} characters`);
+  // 인쇄된 실패 동작이 있을 때만 — 기준점이 없으면 dangling 지시가 된다.
+  const outcomeAnchor = cand.network.length > 0
+    ? "; treat a success notice as the outcome only when the provided context explicitly connects it to the failed operation"
+    : "";
+  lines.push(`- title: one short line, at most ${MAX_TITLE_LENGTH} characters${outcomeAnchor}`);
   for (const sec of ctx.enabledSections) {
     lines.push(`- ${sec.id}: ${desc[sec.id]}`);
   }

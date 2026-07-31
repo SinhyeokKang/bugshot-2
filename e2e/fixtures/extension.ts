@@ -21,6 +21,11 @@ export interface ExtContext {
   context: BrowserContext;
   extensionId: string;
   fixtureUrl: (page: string) => string;
+  // 같은 fixture 서버를 임의 호스트명으로 접근한다. launch args의
+  // --host-resolver-rules가 *.bugshot.test를 127.0.0.1로 매핑하므로
+  // app/api/auth 서브도메인이 하나의 registrable domain(bugshot.test)으로 묶인다.
+  // 127.0.0.1↔localhost 조합으로는 안 되는 이유: 서로 비동족이라 API Hosts 행이 안 생긴다.
+  fixtureHostUrl: (host: string, page: string) => string;
   fixtureTabId: (urlPattern?: string) => Promise<number>;
   openPanel: (tabId: number) => Promise<Page>;
   // chrome.* API를 확장 컨텍스트에서 평가한다. Playwright의 worker.evaluate는 crxjs
@@ -184,6 +189,10 @@ export const test = base.extend<object, { ext: ExtContext }>({
           `--disable-extensions-except=${DIST_E2E}`,
           `--load-extension=${DIST_E2E}`,
           "--lang=ko",
+          // *.bugshot.test를 fixture 서버로 보낸다 — 서브도메인이 갈리는 동족 호스트를
+          // 만들 유일한 수단(기존 127.0.0.1/localhost는 registrable domain이 서로 달라
+          // API Hosts 파생의 동족 조건을 못 만든다). 기존 spec은 이 규칙에 안 걸려 무변경.
+          "--host-resolver-rules=MAP *.bugshot.test 127.0.0.1",
           "--no-first-run",
           "--no-default-browser-check",
           ...(process.env.E2E_SHOW === "1" || process.env.CI
@@ -212,6 +221,7 @@ export const test = base.extend<object, { ext: ExtContext }>({
         context,
         extensionId,
         fixtureUrl: (page) => `http://127.0.0.1:${port}/${page}`,
+        fixtureHostUrl: (host, page) => `http://${host}:${port}/${page}`,
         evalInExt: async (fn, arg) => {
           const host = await getEvalHost();
           return host.evaluate(fn, arg as never);

@@ -69,7 +69,11 @@ export function LogAttachmentCards({
       </div>
       {!readOnly && (
         <span {...hoverGuard} onClick={(e) => e.stopPropagation()}>
-          <Switch checked={logsAttach} onCheckedChange={onToggle} />
+          <Switch
+            data-testid="logs-attach-switch"
+            checked={logsAttach}
+            onCheckedChange={onToggle}
+          />
         </span>
       )}
     </Card>

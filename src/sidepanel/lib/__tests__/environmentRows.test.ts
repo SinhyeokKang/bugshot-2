@@ -54,6 +54,16 @@ describe("filterEnvironmentRows", () => {
     ).toEqual([{ label: "Browser", value: "Chrome 140" }]);
   });
 
+  // 자동 파생 행의 source는 9개 출력 표면(빌더 8벌·logs.html·저장 이슈) 어디에도 나가면 안 된다.
+  // 타입으로는 강제할 수 없어(optional + spread는 excess property check 면제) 여기서 고정한다.
+  it("자동 행의 source 표식은 출력에서 벗겨진다", () => {
+    expect(
+      filterEnvironmentRows([
+        { label: "API Hosts", value: "api.acme.com", source: "api-hosts" },
+      ]),
+    ).toEqual([{ label: "API Hosts", value: "api.acme.com" }]);
+  });
+
   it("value의 개행은 공백으로 치환된다", () => {
     expect(
       filterEnvironmentRows([{ label: "OS", value: "macOS\n15" }]),

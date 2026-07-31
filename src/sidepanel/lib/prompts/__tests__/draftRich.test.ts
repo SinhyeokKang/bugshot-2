@@ -112,3 +112,103 @@ describe("buildCompactDraftPrompt — compact 불변식", () => {
     expect(buildCompactDraftPrompt(c)).not.toBe(buildRichDraftPrompt(c));
   });
 });
+
+// 실사례 회귀: 자동 생성 제목이 "…403 오류 발생 및 **성공** 알림 표시"로 나왔다.
+// 성공 토스트를 실패 동작의 결과라고 연결할 근거가 없는데도 결과로 읽은 것. 사람이 지라에서
+// "실패 알림"으로 고쳐야 했다 — 명시 연결 조건이 없으면 재발한다.
+describe("제목 결과 판정의 성공 신호 연결 조건", () => {
+  const withNetError = {
+    networkLogSummary: {
+      captured: 1,
+      errorCount: 1,
+      errors: [
+        { id: "e1", method: "PATCH", path: "/api/posts/10886", status: 403, statusText: "Forbidden" },
+      ],
+    },
+  };
+
+  // 앵커에만 있는 부분열로 잰다. `failed operation`은 EXPECTED_SPLIT_HINT.en에도 있어
+  // en 로케일 + expectedResult ON이면 앵커가 없어도 걸린다(음성 가드가 무력화). 첫 글자
+  // 대소문자는 빌더별로 다르므로(rich `Treat`, compact `treat`) 그 뒤부터 자른다.
+  const ANCHOR =
+    "a success notice as the outcome only when the provided context explicitly connects it to the failed operation";
+
+  it("rich: 실패 동작과 명시적으로 연결된 성공 신호만 결과로 판정한다", () => {
+    expect(buildRichDraftPrompt(ctx(withNetError))).toContain(ANCHOR);
+  });
+
+  // 스코프는 일부러 다르다 — rich는 Rules 블록(전 섹션), compact은 title 줄 접합(토큰 최소).
+  it("compact: 같은 문구를 싣는다", () => {
+    expect(
+      buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES, ...withNetError })),
+    ).toContain(ANCHOR);
+  });
+
+  // 앵커는 인쇄된 실패 동작을 기준점으로 지목한다. 후보가 0건이면(예산 절삭 level≥1이
+  // 요약을 전부 떨구는 경로 포함) 존재하지 않는 것을 가리키는 dangling 지시가 된다.
+  it("실패 응답 후보가 없으면 양쪽 모두 앵커를 붙이지 않는다", () => {
+    expect(buildRichDraftPrompt(ctx())).not.toContain(ANCHOR);
+    expect(buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES }))).not.toContain(ANCHOR);
+  });
+
+  // 위 음성 가드가 `failed operation`을 재던 시절엔 이 조합에서만 오탐이 났다 —
+  // 픽스처가 ko·description ON이라 우연히 green이었을 뿐이다.
+  it("en 로케일 + expectedResult ON에서도 후보 0건이면 앵커가 없다", () => {
+    expect(
+      buildRichDraftPrompt(
+        ctx({ locale: "en", enabledSections: [{ id: "description" }, { id: "expectedResult" }] }),
+      ),
+    ).not.toContain(ANCHOR);
+  });
+});
+
+// 실사례 회귀: expectedResult가 "정상 동작 + 실패 시 오류 메시지"를 한 문장에 뭉쳐서
+// API만 고쳐지고 FE 오류 UX는 미처리인 채 티켓이 닫혔다. 두 요구를 별도 줄로 분리시킨다.
+// compact은 대상이 아니다 — 소형 모델용 SECTION_DESC는 의도적으로 짧게 유지한다.
+describe("expectedResult 요구 분리 지시", () => {
+  function withExpected(overrides: Partial<AiDraftSessionContext> = {}) {
+    return buildRichDraftPrompt(
+      ctx({ enabledSections: [{ id: "expectedResult" }], ...overrides }),
+    );
+  }
+
+  it("en 로케일에서도 싣는다", () => {
+    expect(withExpected({ locale: "en" })).toContain("on separate lines");
+  });
+
+  // 모드 전수 — 한 모드에서 hint가 빠져도 green이 되는 구멍을 막는다. 새 CaptureMode를
+  // 추가하면 이 표가 컴파일 에러로 결정을 요구한다(HAS_FAILURE_PATH와 짝).
+  const EXPECT_SPLIT: Record<AiDraftSessionContext["captureMode"], boolean> = {
+    element: false,
+    screenshot: true,
+    video: true,
+    freeform: true,
+  };
+  const MODES = Object.entries(EXPECT_SPLIT) as [
+    AiDraftSessionContext["captureMode"],
+    boolean,
+  ][];
+
+  for (const [mode, expected] of MODES) {
+    it(`${mode} 모드: 분리 지시 ${expected ? "붙는다" : "안 붙는다"}`, () => {
+      expect(withExpected({ locale: "ko", captureMode: mode }).includes("각각 별도 줄로")).toBe(
+        expected,
+      );
+    });
+  }
+
+  it("element 모드: 분리 지시가 빠져도 기존 desired suffix는 유지된다", () => {
+    expect(withExpected({ locale: "ko", captureMode: "element" })).toContain(
+      "desired 값 기준으로 작성",
+    );
+  });
+
+  // compact 제외를 주석으로만 남기면 나중에 "대칭 맞추기"로 조용히 유입된다.
+  it("compact: 분리 지시를 싣지 않는다 (의도된 비대칭)", () => {
+    const p = buildCompactDraftPrompt(
+      ctx({ caps: NANO_CAPABILITIES, enabledSections: [{ id: "expectedResult" }] }),
+    );
+    expect(p).not.toContain("각각 별도 줄로");
+    expect(p).not.toContain("on separate lines");
+  });
+});

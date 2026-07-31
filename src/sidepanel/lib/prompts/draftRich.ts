@@ -47,6 +47,22 @@ const MODE_HINTS: Record<CaptureMode, Record<LocaleMode, Partial<Record<TextSect
   },
 };
 
+// 실사례: 기대 결과가 "정상 동작 + 실패 시 오류 메시지"를 한 문장에 뭉쳐 API만 고쳐진 채
+// 티켓이 닫혔다. element는 스타일 diff라 실패 경로가 없어 제외한다.
+const HAS_FAILURE_PATH: Record<CaptureMode, boolean> = {
+  element: false,
+  screenshot: true,
+  video: true,
+  freeform: true,
+};
+
+// 로그가 0건인 리포트(레이아웃 깨짐 등)에도 붙으므로 조건형이다 — 명령형이면 없는
+// 오류 UX를 짓게 유도해 "Never invent details not given"과 경합한다.
+const EXPECTED_SPLIT_HINT: Record<LocaleMode, string> = {
+  ko: " (정상 동작을 쓰고, 실패 동작이 얽혀 있으면 그때 사용자에게 보여야 할 오류 안내까지 각각 별도 줄로 분리)",
+  en: " (put the intended behavior and, when a failed operation is involved, the failure-path UX the user should get on separate lines)",
+};
+
 function getSectionDesc(
   locale: LocaleMode,
   mode: CaptureMode,
@@ -55,6 +71,9 @@ function getSectionDesc(
   const hints = MODE_HINTS[mode]?.[locale] ?? {};
   for (const [key, suffix] of Object.entries(hints)) {
     base[key as TextSectionId] += suffix;
+  }
+  if (HAS_FAILURE_PATH[mode]) {
+    base.expectedResult += EXPECTED_SPLIT_HINT[locale];
   }
   return base;
 }
@@ -214,6 +233,12 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
   if (hasLogRefs && cand.matched.length > 0) {
     lines.push(
       '- For any "m*" request you cite in logRefs, you must explain in the description prose why that OK-looking response is the actual cause (e.g. a field is missing or empty). A 200 with no visible error reads as normal otherwise.',
+    );
+  }
+  // 시간축이 없는 요약에서 성공 신호를 실패 동작의 결과로 임의 연결하지 못하게 한다.
+  if (cand.network.length > 0) {
+    lines.push(
+      "- Treat a success notice as the outcome only when the provided context explicitly connects it to the failed operation.",
     );
   }
   lines.push("- The description states only the current problem (as-is). Put any expected or desired behavior in expectedResult, never in description.");

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>api hosts fixture</title>
+    <style>
+      body { margin: 0; font: 14px system-ui; }
+      #box { width: 320px; height: 200px; margin: 24px; background: #eef; }
+    </style>
+  </head>
+  <body>
+    <div id="box">api hosts fixture</div>
+    <script>
+      // 레코더는 fetch 후크의 `capturing` 게이트가 켜진 뒤 발생한 요청만 잡는다(WebSocket과 동일
+      // 계열). 그래서 로드 시 자동으로 쏘지 않고 spec이 arm 확인 후 호출한다.
+      // 호스트는 페이지(app.bugshot.test)와 같은 registrable domain(bugshot.test)이라 동족이고,
+      // api 2건 / auth 1건으로 요청 수 내림차순 정렬까지 판정 가능하게 둔다.
+      window.__fetchApis = async (port) => {
+        const hit = (host, path) =>
+          fetch(`http://${host}:${port}${path}`).then(
+            (r) => r.text(),
+            () => "",
+          );
+        // 경로에 마커를 넣는다 — 네트워크 로그 행은 `networkLogPath`(pathname만)를 그리므로
+        // hostname도 쿼리도 화면에 안 나온다. 서버는 `/e2e-json` prefix로 라우팅한다.
+        await Promise.all([
+          hit("api.bugshot.test", "/e2e-json-api-a"),
+          hit("api.bugshot.test", "/e2e-json-api-b"),
+          hit("auth.bugshot.test", "/e2e-json-auth"),
+        ]);
+        return true;
+      };
+    </script>
+  </body>
+</html>

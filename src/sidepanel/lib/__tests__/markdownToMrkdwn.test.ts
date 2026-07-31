@@ -70,6 +70,20 @@ describe("markdownToMrkdwn — 엣지", () => {
   it("일반 텍스트는 변경 없음", () => {
     expect(markdownToMrkdwn("hello world")).toBe("hello world");
   });
+
+  it("CommonMark hard break의 백슬래시는 Slack 본문에 노출하지 않는다", () => {
+    expect(markdownToMrkdwn("정상 동작\\\n실패 시 오류 안내")).toBe(
+      "정상 동작\n실패 시 오류 안내",
+    );
+  });
+
+  it("줄 끝의 짝수 개 백슬래시는 리터럴로 보존한다", () => {
+    expect(markdownToMrkdwn("경로 C:\\\\\n다음 줄")).toBe("경로 C:\\\\\n다음 줄");
+  });
+
+  it("문서 끝의 백슬래시는 hard break가 아니므로 보존한다", () => {
+    expect(markdownToMrkdwn("경로 C:\\")).toBe("경로 C:\\");
+  });
 });
 
 describe("escapeMrkdwn — 특수문자 이스케이프", () => {

@@ -25,7 +25,8 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 
 전부 `fixtures/extension.ts`. 새 헬퍼를 추가하면 여기와 `docs/DIRECTORY.md`에 반영한다.
 
-- `ext` worker fixture — `fixtureUrl(page)` / `fixtureTabId(urlPattern?)` / `openPanel(tabId)` / `context`.
+- `ext` worker fixture — `fixtureUrl(page)` / `fixtureHostUrl(host, page)` / `fixtureTabId(urlPattern?)` / `openPanel(tabId)` / `context`.
+  - `fixtureHostUrl(host, page)` — 같은 fixture 서버를 임의 호스트명으로 연다. launch args의 `--host-resolver-rules=MAP *.bugshot.test 127.0.0.1` 덕에 `app`/`api`/`auth.bugshot.test`가 하나의 registrable domain으로 묶인다(동족 hostname이 필요한 `api-hosts-env-row` 전용 — GOTCHAS 참조). **`fixtureTabId`엔 패턴을 명시**해야 한다.
 - `enterDebug(panel)` — 디버그 탭 진입(active 폴링).
 - `enterDebugAndPick(fixture, panel, selector)` — 디버그 → element 모드 → 요소 선택 → `repick` 확인까지.
 - `pickElement(fixture, panel, selector, opts?)` — bbox 중심 클릭(double rAF hover). 기본(`expectSelection:true`)은 **repick 노출까지 클릭 재시도**(재arm 레이스로 인한 유실 클릭 방어). repick이 안 뜨는 픽(element-shot 캡처·iframe 미지원)은 `{ expectSelection: false }`로 1회만. `{ frame: "#sel" }`로 **iframe 내부 요소 선택**(frameLocator bbox — 메인 프레임 뷰포트 기준 좌표).
@@ -55,6 +56,7 @@ fixture 페이지(`fixtures/pages/`):
 - **서버 엔드포인트** `/e2e-bigjson*`: 문자열 30개 배열(`{"items":[...]}`) — 코드블럭 직렬화 시 **36줄**로 접기 임계값을 넘는 양성 케이스(`code-block-collapse.spec`). 각 원소는 마커(`e2e-bigjson-NNN`) 뒤에 `x` 120자를 달아 **한 줄이 패널 폭을 넘는다** — 행 번호 열이 가로 스크롤에서 빠지는지 판정하려면 실제 오버플로가 나야 한다(짧으면 그 축이 조용히 공허해진다). 본문 설계 제약(SENSITIVE 키 회피·중첩 대신 배열)은 GOTCHAS 참조.
 - `scroll-capture.html` — 스크롤 캡처용. `#bar`(`position: fixed`) + `#sticky`(`position: sticky`, 자홍 픽셀 판정) 헤더는 첫 타일 이후 숨김 대상. `#tall`은 150vh라 타일 2장 고정(captureVisibleTab quota 최소화).
 - `capture-context.html` — element 캡처 컨텍스트 확장용. `#modal`(`role=dialog` + `aria-modal`, `position:fixed` 60vw×80px — 확장 게이트 G1/G2/G3를 전부 만족하도록 크기를 잡았다) 안의 `#modal-btn`(40×40 정사각 — 크롭 종횡비가 모달과 확실히 갈린다), 그리고 시맨틱 조상이 없는 `.plain-wrap > div > #plain-btn`(폴백 확인용). **`inset:0` 백드롭을 두지 않는다** — 전면 오버레이는 picker 클릭을 가로챈다. 모달 높이를 `vh`/`vw`로 잡으면 창 비율에 따라 크롭이 정사각형이 되거나 버튼이 박스 밖으로 밀려 게이트가 깨진다(GOTCHAS 참조).
+- `api-hosts.html` — 재현 환경 `API Hosts` 자동 행용. `#box`(320×200, element 픽 대상)와 `__fetchApis(port)`(spec이 arm 확인 후 호출 — `api.bugshot.test` 2건 + `auth.bugshot.test` 1건을 `/e2e-json-*` 경로로 요청해 요청 수 내림차순 정렬까지 판정 가능하게 둔다). 로드 시 자동 발사하지 않는 이유는 레코더 fetch 후크의 `capturing` 게이트(websocket.html과 같은 계열).
 - `iframe.html` — top frame + `#frame` iframe(src=basic.html, picker iframe 내부 선택·iframe 로그 캡처용).
 - `iframe-nested.html` — `#outer`(src=iframe-child.html, 1-depth 등록 대상) + `#inert`(srcdoc — 미주입·거부 대상). `iframe-child.html`은 그 안에 `#inner`(2-depth, 거부 대상) 보유. picker 거부 게이트용.
 - `cross-origin.html` — `http://localhost:<port>/basic.html` iframe을 JS로 주입(동적 포트). 서버는 전 인터페이스 바인딩이라 localhost로도 접속돼 127.0.0.1 top과 origin이 갈라진다 — origin 필터용.

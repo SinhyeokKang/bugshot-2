@@ -443,6 +443,19 @@ draft 모델: `{ title, sections: Record<string, string>, environment?: Environm
 
 **재현 환경**: `ReproEnvironmentSection`이 모드별 메타를 readonly 표시 + `draft.environment` 사용자 정의 row 편집. 순수 헬퍼: `filterEnvironmentRows`(빈 row 제거) / `deriveReadonlyEnvRows`(모드별 파생).
 
+**API Hosts 자동 행**(`sidepanel/lib/apiHostRow.ts`): 캡처된 네트워크 로그에서 **페이지와 같은 registrable domain을 쓰는 다른 hostname**을 요청 수 내림차순으로 파생해 `draft.environment`에 커스텀 행 1개로 주입한다. 배선 수정이 0곳인 게 설계의 핵심 — `draft.environment`는 이미 화면 2곳·본문 빌더 8벌·저장 이슈 상세·`logs.html` Report 탭이 전부 흘려보내는 배열이라, 여기 행을 넣으면 나머지가 자동으로 출력한다(`MarkdownContext` 필드 추가·`IssueRecord` 스키마 확장 불필요). registrable domain 판정은 `tldts`의 `getDomain(host, {allowPrivateDomains:true})`에 위임한다 — private 접미사를 인정해야 `me.github.io`·`myapp.vercel.app`·`my-bucket.s3.amazonaws.com`이 **각각 자기 자신**을 도메인으로 갖고, 그래서 형제 배포·남의 버킷이 동족 판정에서 자동 탈락한다(하드코딩 접미사 목록은 이 방향으로 틀리면 남의 조직 hostname이 본문에 실려 유출이 된다).
+
+되돌리기 쉬운 불변식이 여섯이다:
+
+- **게이트는 컴포넌트가 아니라 `apiHostRowFor` 안에 있다**(`supportsConsoleNetworkLog(captureMode)` + `logsAttach` + `networkLog` 3단). `DraftingPanel`엔 테스트 파일이 없어, 게이트를 거기 두면 element 누출·`logsAttach` 무시가 typecheck·유닛·골든 스냅샷 **전부 green으로 통과한다**.
+- **제출 ctx에 2차 방어 `stripApiHostsRows`**(`buildEditorCapture.ts`). 행 제거는 `ReproEnvironmentSection`이 마운트돼 있을 때만 도는데 본문 빌더는 `environment`를 게이트 없이 흘린다. 제거는 **보수적** — `source`·`label`·`value === apiHostsDerived` 셋이 전부 맞을 때만 걷어내므로 **사용자가 손댄 행은 로그 첨부를 꺼도 살아남는다**(privacy 문서가 이 비대칭을 명시한다).
+- **`EnvironmentRow.source?: "api-hosts"`는 내부 메타데이터**다. `IssueRecord.draft.environment`에 영속되지만 `filterEnvironmentRows`가 `{label,value}`로 재조립해 **모든 출력에서 벗긴다** — 9개 소비 지점이 공유하는 단일 초크포인트라, `source`를 출력·필터에 쓰려면 그 함수 확장이 선행돼야 한다.
+- **영속 래치 2개의 역할이 다르다**: `apiHostsDismissed`는 **명시 삭제**(행 삭제 버튼)만 세우는 미부활 래치고, `logsAttach` off로 행이 사라질 땐 안 세운다(그래서 다시 켜면 재주입된다). `apiHostsDerived`는 마지막 파생값으로, 현재 값과 다르면 "사용자가 고쳤다"의 판정 기준이 된다. 둘 다 `EditorSnapshot` Pick + `snapshotFromState()` 양쪽에 등재해야 세션 왕복을 견딘다(위 "새 상태를 세션에 실으려면 두 곳을 함께" 참조). `...initial`을 안 거치는 replay→drafting 직행 경로는 `onRecordingComplete`에서 명시 리셋한다.
+- **`isApiHostsUndetermined`가 "로그 미도착"과 "로그 없음"을 가른다.** hydrate는 draft를 동기 복원하지만 `networkLog`는 뒤따르는 IDB promise로 온다 — 그 구간을 후자로 읽으면 복원된 행을 지웠다가 로그 도착 후 되살려 **사용자가 고친 값을 원시 파생값으로 덮는다**.
+- **`syncApiHostsRow`는 참조 동일성이 계약이다.** 변화가 없으면 입력 `rows` 참조를 그대로 반환하고 호출부는 그때 write를 생략한다 — `setDraft`가 draft 전체 교체라 무조건 write하면 identity가 매번 바뀌어 effect가 무한 루프한다.
+
+hostname 목록엔 **개수 캡이 없다**(다른 서브시스템과 달리 — 타일 20·`MAX_LOG_REFS` 3·`VALUE_CAP` 500 등). 정렬은 요청 수 내림차순이라 폴링·텔레메트리 호스트가 상위를 먹을 수 있다.
+
 **자동 메타 위치**: media/styleChanges + 로그 요약 클러스터는 `issueSections` 배열의 **`id: "media"` 엔트리 자리**에 emit된다 — 위치가 데이터라 사용자가 설정에서 드래그로 옮길 수 있다(스위치 없음: 위치만 관장하고 emit 여부는 캡처 데이터 유무가 정한다). 순서 규칙의 단일 출처는 순수 함수 **`bodyBlocks(sections)`**(`src/sidepanel/lib/bodyBlocks.ts`) — `enabled` 섹션 + media(enabled 무관 항상 포함, 중복이면 첫 자리 **1개만**)를 `{kind:"section"} | {kind:"meta"}` 순열로 내보내고, **8개 플랫폼 빌더**(GitHub·GitLab은 `buildMarkdownIssueBody` 공용이라 모듈은 7개) + 클립보드 `buildIssueMarkdown`/`buildIssueHtml` + DraftingPanel + DraftDetailDialog가 모두 이 결과를 순회해 `kind === "meta"`에서 메타를 emit한다(v8까지 11곳에 복제돼 있던 `POST_MEDIA_SECTION_IDS` 앵커 규칙은 삭제). env는 루프 앞, 사용자 첨부는 루프 뒤 고정. 각 빌더 말미의 `emitMedia()` 1회 호출은 media 엔트리가 없는 레거시 `sectionConfig` 방어이고 `mediaEmitted` 가드로 중복되지 않는다. PreviewPanel·log-viewer Report 탭 프리뷰는 순수 헬퍼 `composePreviewLayout`(sectionIds의 `"media"` 자리에 media→logCards 슬롯 삽입)로 같은 순서를 재현한다(`IssuePreviewView` 공용 컴포넌트, `layoutSectionIds` prop).
 
 > media 엔트리는 **순서 배열에만** 산다 — `issueSections`를 *텍스트 섹션*으로 소비하는 경로(`AiDraftDialog` 프롬프트 스키마, `buildReportData`의 logs.html Report 탭)는 반드시 걸러야 한다. AI 경로는 `TextSectionId = Exclude<IssueSectionId,"media">`로 **타입이 차단**한다(`AiDraftSessionContext.enabledSections`·`buildAiDraftSchema`·`parseAiDraftResponse`). 배열 무결성은 `normalizeSections`(media 정확히 1개 — backfill + dedupe + `enabled:true` 강제, 멱등)가 persist migrate(v9)와 rehydrate `merge` 양쪽에서 보장한다.

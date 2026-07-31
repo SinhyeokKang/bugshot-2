@@ -40,6 +40,7 @@ import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIss
 import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
 import { downloadEditorLogsHtml } from "@/sidepanel/lib/buildEditorCapture";
 import { supportsActionLog, supportsConsoleNetworkLog } from "@/sidepanel/lib/captureLogSupport";
+import { apiHostRowFor, isApiHostsUndetermined, syncApiHostsRow } from "@/sidepanel/lib/apiHostRow";
 import { isReproSectionEnabled } from "@/sidepanel/lib/reproSectionEnabled";
 import {
   deriveReadonlyEnvRows,
@@ -514,6 +515,56 @@ function ReproEnvironmentSection() {
   const freeformCapturedAt = useEditorStore((s) => s.freeformCapturedAt);
   const draft = useEditorStore((s) => s.draft);
   const setDraft = useEditorStore((s) => s.setDraft);
+  const networkLog = useEditorStore((s) => s.networkLog);
+  const logsAttach = useEditorStore((s) => s.logsAttach);
+  const apiHostsDismissed = useEditorStore((s) => s.apiHostsDismissed);
+  const apiHostsDerived = useEditorStore((s) => s.apiHostsDerived);
+  const setApiHostsDismissed = useEditorStore((s) => s.setApiHostsDismissed);
+  const setApiHostsDerived = useEditorStore((s) => s.setApiHostsDerived);
+  // 자동 행이 있으면 펼친 채로 연다 — 사용자가 못 본 값은 고칠 수 없다(휴리스틱 완화의 전제).
+  // 초깃값을 행 존재로 파생해야 미리보기 왕복·인라인 캡처·패널 재오픈 뒤에도 유지된다.
+  const [open, setOpen] = useState(() =>
+    (useEditorStore.getState().draft?.environment ?? []).some((r) => r.source === "api-hosts"),
+  );
+
+  const apiRow = useMemo(
+    () => apiHostRowFor({ captureMode, logsAttach, networkLog, pageUrl: target?.url }),
+    [captureMode, logsAttach, networkLog, target?.url],
+  );
+  const undetermined = isApiHostsUndetermined({ captureMode, logsAttach, networkLog });
+
+  // 판정은 전부 syncApiHostsRow(순수)에 있고 여기는 배선만 한다. draft는 write 시점에
+  // getState로 읽는다 — stale closure로 쓰면 useReproPrefill의 비동기 setDraft와 경합해
+  // 자동 채운 재현 단계를 조용히 지운다.
+  useEffect(() => {
+    // 로그 미도착 구간은 "로그 없음"이 아니다 — 여기서 판정하면 hydrate가 복원한 행을
+    // 지웠다가 로그 도착 후 되살려, 사용자가 고친 값이 원시 파생값으로 덮인다.
+    if (undetermined) return;
+    const current = useEditorStore.getState().draft;
+    if (!current) return;
+    const rows = current.environment ?? [];
+    const next = syncApiHostsRow({
+      rows,
+      apiRow,
+      dismissed: apiHostsDismissed,
+      lastDerived: apiHostsDerived,
+    });
+    if (next.rows !== rows) {
+      useEditorStore.getState().setDraft({ ...current, environment: [...next.rows] });
+      // 주입뿐 아니라 in-place 갱신에서도 펼친다 — 검토한 값과 제출되는 값이 갈리면 안 된다.
+      // 제거는 보여줄 게 없으므로 제외.
+      if (next.rows.some((r) => r.source === "api-hosts")) setOpen(true);
+    }
+    if (next.lastDerived !== apiHostsDerived) setApiHostsDerived(next.lastDerived);
+    if (next.dismissed !== apiHostsDismissed) setApiHostsDismissed(next.dismissed);
+  }, [
+    apiRow,
+    undetermined,
+    apiHostsDismissed,
+    apiHostsDerived,
+    setApiHostsDerived,
+    setApiHostsDismissed,
+  ]);
 
   // element 모드 DOM 줄: 버퍼+현재 머지 결과의 selector를 쉼표로 나열(이미지는 selector에
   // 무관하므로 null). 본문 마크다운과 동일 규칙.
@@ -585,7 +636,9 @@ function ReproEnvironmentSection() {
         </>
       }
       collapsible
-      defaultOpen={false}
+      testId="section-repro-env"
+      open={open}
+      onOpenChange={setOpen}
     >
       <div className="flex flex-col gap-2">
         {readonlyRows.map((r, i) => (
@@ -596,7 +649,7 @@ function ReproEnvironmentSection() {
               readOnly
             />
             <Input
-              className="flex-1 text-sm text-muted-foreground bg-muted"
+              className="min-w-0 flex-1 text-sm text-muted-foreground bg-muted"
               value={r.value}
               readOnly
             />
@@ -617,7 +670,13 @@ function ReproEnvironmentSection() {
           </div>
         ))}
         {customRows.map((row, idx) => (
-          <div key={idx} className="flex items-center gap-1">
+          <div
+            key={idx}
+            className="flex items-center gap-1"
+            data-testid="env-custom-row"
+            data-env-label={row.label}
+            data-env-source={row.source ?? ""}
+          >
             <Input
               className="w-24 shrink-0 text-sm"
               placeholder={t("draft.envLabelPlaceholder")}
@@ -628,8 +687,10 @@ function ReproEnvironmentSection() {
                 updateRows(next);
               }}
             />
+            {/* min-w-0이 없으면 <input> 내장 최소폭이 400px 패널에서 행을 넘겨 가로 스크롤을
+                만든다. 잘린 값은 입력칸 안에서 커서로 훑어 읽는다(툴팁을 두지 않는다). */}
             <Input
-              className="flex-1 text-sm"
+              className="min-w-0 flex-1 text-sm"
               placeholder={t("draft.envValuePlaceholder")}
               value={row.value}
               onChange={(e) => {
@@ -643,9 +704,14 @@ function ReproEnvironmentSection() {
               size="icon"
               variant="outline"
               className="h-9 w-9 shrink-0 hover:text-destructive"
+              data-testid="env-row-delete"
               title={t("common.delete")}
-              aria-label={t("common.delete")}
-              onClick={() => updateRows(customRows.filter((_, i) => i !== idx))}
+              aria-label={`${row.label || t("draft.envLabelPlaceholder")}: ${t("common.delete")}`}
+              onClick={() => {
+                // 자동 행의 명시 삭제만 미부활 래치를 세운다(로그 토글 off로 사라지는 건 제외).
+                if (row.source === "api-hosts") setApiHostsDismissed(true);
+                updateRows(customRows.filter((_, i) => i !== idx));
+              }}
             >
               <Trash2 />
             </Button>

@@ -96,6 +96,8 @@ function snapshotFromState(): EditorSnapshot {
     freeformCapturedAt: s.freeformCapturedAt,
     logsAttach: s.logsAttach,
     reproPrefillDone: s.reproPrefillDone,
+    apiHostsDismissed: s.apiHostsDismissed,
+    apiHostsDerived: s.apiHostsDerived,
     attachments: s.attachments,
     draft: s.draft,
     issueFields: s.issueFields,
