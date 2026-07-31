@@ -12,6 +12,10 @@ Your configured title prefix (e.g. `[QA] `) is pre-filled. Type the rest of the 
 
 OS, browser, page URL, viewport size, and capture time fill in **on their own** (read-only). Want to add more context? Just drop in a variable row yourself.
 
+When the capture ships logs along with it, you may see one more row: **`API Hosts`**. We read the captured network log and pull out the API servers that share a domain with the page (the label stays in English on screen). Think of it as a ready-made answer to "so which server should I be looking at?" Whenever this row gets filled in, the Environment section opens **already expanded**, so give the value a quick look. It's filled in automatically, but it's still just a regular row — edit it or delete it outright if it's not what you want, and once you change the value it stays the way you wrote it.
+
+> **No row? Nothing is broken.** It won't show up when the page only talked to its own address, when you turned log attachment off, or when you captured in Edit element style mode.
+
 ## 3. Media — video
 
 ![Video attached](../assets/video-issue-2.jpg)
