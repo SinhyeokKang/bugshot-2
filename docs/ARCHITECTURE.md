@@ -158,6 +158,18 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **한계**: 2-depth 이상 중첩·sandbox 프레임은 미지원(거부 경로). same-URL reload는 chrome이 iframe frameId를 재발급해 옛 frameId send가 조용히 실패한다(결말은 요소 소실과 동일 — sessionExpired/ghost 카드). picking 중 네비게이션된 iframe은 `frameCommitted` 수신 시 `restartPickerInFrame`로 재시작해 stale 핸드오프(클릭 유실)를 복구한다.
 
+## blocker 투과 소유권 (picking 중 hover 차단)
+
+picking 중 페이지가 hover에 반응하면 안 된다(드롭다운이 열리고 툴팁이 뜨면 고르려던 요소를 덮는다). 막는 수단은 blocker 하나인데 **뚫리는 자리가 두 종류**다.
+
+**① pointer-events가 꺼지는 창.** blocker의 `pointer-events`를 끄는 이유가 셋이다 — 휠 스크롤 양보(`yieldToScroll`), 등록 iframe 핸드오프, `elementFromPoint` hit-test 프로브. 각자 스타일을 직접 쓰면 마지막 쓰기가 남의 투과를 무단 취소한다(프로브가 매번 `auto`로 복원해 진행 중인 스크롤 양보를 끄던 게 실제 회귀였다). 그래서 `content/blocker-state.ts` 컨트롤러가 **이유 집합 + 진행 중 hit-test에서 값을 파생하고 적용까지 맡는다**(호출부가 apply를 빠뜨릴 수 없다). `scroll-yield`는 이유와 120ms 타이머를 함께 걷어야 하므로 overlay 내부가 독점하고 밖으로는 `cancelBlockerScrollYield`만 연다. 포인터가 움직이면 양보를 회수하되 **마지막 휠로부터 60ms 안의 이동은 스크롤의 일부로 본다**(`isScrollIntent`) — 브라우저가 스크롤 뒤 쏘는 hover 재계산용 mousemove나 매직마우스처럼 이동과 스크롤이 한 제스처인 입력을 포인팅으로 읽으면, 매 틱 양보가 닫혀 커서 밑 스크롤 컨테이너가 안 밀린다. 이 두 상수의 대소 관계(`SCROLL_INTENT_MS < SCROLL_YIELD_MS`)가 깨지면 회수 경로가 통째로 죽는다.
+
+**② blocker가 hit target이어도 이벤트는 document까지 간다.** 페이지가 `document.addEventListener("mousemove"/"mouseover")`로 hover UI를 만들었으면 blocker와 무관하게 계속 반응한다. hover 모드는 이 둘을 **window capture**에서 끊고, `mousedown`/`mouseup`/`pointerdown`/`pointerup`/`pointermove`/`pointerover`는 **blocker 자신의 버블**에서만 끊는다 — pointer 계열을 window capture에서 끊으면 `action-recorder`(document capture)가 picking 중 사용자 액션을 하나도 기록하지 못한다. `preventDefault`는 붙이지 않는다(blocker가 target이라 페이지 포커스·선택이 어차피 시작되지 않고, 취소가 필요한 기본동작은 `suppressEvent`가 맡는다).
+
+**남는 누출**(수용): 스크롤 양보 창에서 포인터가 멈춰 있으면 커서 밑 요소가 CSS `:hover`를 받고, 그 창의 클릭은 blocker를 지나 페이지로 간다(링크면 네비게이션). top layer(`dialog.showModal()`·popover·fullscreen)는 z-index와 무관하게 blocker 위에 깔려 그 안의 hover·클릭을 못 막는다. 셋 다 blocker 아키텍처를 바꿔야 닫히므로 알려진 한계로 둔다.
+
+그물은 컨트롤러·`isScrollIntent` 유닛뿐이다 — 전파 차단과 hit-test는 `picker.ts`·`overlay.ts`가 로직 스코프 제외라 유닛으로 못 잡고, e2e에도 위임 핸들러 카운터 단언이 없어 **stopPropagation을 지워도 green**이다.
+
 ## 백그라운드 로그 캡처 (Network / Console / Action)
 
 `src/content/recorders-entry.ts`를 MAIN world `document_start`로 등록해 fetch/XHR/sendBeacon/WebSocket/console/사용자 액션을 자동 wrap. 페이지 스크립트보다 먼저 실행되므로 Sentry 등이 `originalFetch` 캐싱 전에 wrap 설치. **선행 전제 — 동기 IIFE emit**: 이 "먼저 실행"은 recorders-entry 청크가 crxjs에 의해 동기 IIFE로 emit돼야 성립한다(crxjs 조건: 청크의 static import·dynamic import·export가 0인 self-contained). 청크가 외부 import를 끌어들이면 crxjs가 async-import loader로 되돌려 후크가 페이지 인라인 스크립트보다 늦게 깔리고 pre-arm(아래 활성 게이트)이 무력화된다 — 그래서 레코더는 `content/log-throttle.ts`를, 사이드패널 수신부는 복제본 `sidepanel/lib/trailing-throttle.ts`를 쓰도록 의도적으로 분리한다(`log-persist-guard`가 `@/content/log-throttle`을 import하면 공유 청크화). 리팩터 시 청크에 외부 static import 유입 금지(회귀).
@@ -278,7 +290,7 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 - **탭 소유권 3중 검사**: 타일 루프가 스크롤 전·**캡처 직후** 두 번 `tab.active`를 재확인한다 — ack와 실제 캡처 사이에 캡처 큐 대기(≥500ms)가 있어 그 사이 탭이 바뀌면 남의 탭 화면이 스티치에 섞인다. 사이드패널은 `AbortController`를 소유권 토큰으로 써(`isCurrent()`) 늦게 끝난 run이 새 세션에 유령 drafting을 만들지 못하게 막고, `usePickerMessages:captureAndCrop`도 `phase==="capturing" && target.tabId` 일치를 재확인한다.
 - **복원 2중 안전망**: `finally`의 `picker.endScrollCapture`(성공·실패·abort 공통) + content 자가 복원(`handleClear` = picker port disconnect 종착점). 패널이 죽어도 숨긴 고정 요소·스크롤이 잔류하지 않는다. `beginScrollCapture`도 try 안에서 보내고, content가 throw하면 `{ok:false}`(truthy)라 **`metrics` 유무로 판정**한다.
 - **반복 positioned 요소만 은폐**: `fixed`는 첫 타일 이후 숨긴다. `sticky`는 실제 top/bottom inset에 붙었고 원래 흐름 위치를 지났으며 이전 타일까지 요소 전체가 노출된 경우만 숨긴다 — 아직 첫 등장하지 않았거나 뷰포트보다 긴 sticky는 콘텐츠 유실을 막기 위해 보존한다. `display:none`이 아니라 **`visibility:hidden !important`**(레이아웃이 바뀌면 타일 좌표가 어긋난다), 원값·priority 저장 후 복원. 첫 후속 타일에서 전체 후보를 수집하고, 캡처 중 `class`/`style` 변경·DOM 추가는 `MutationObserver`가 바뀐 subtree만 다음 settle에 증분 탐색해 늦게 fixed/sticky가 된 요소도 합류시킨다. 종료 시 observer·후보 상태도 정리한다. `html`·`body` 자신은 제외(iOS 스크롤락 관용구 → 백지 타일). shadow DOM·iframe 내부 positioned 요소는 미탐(한계).
-- **blocker 휠 차단**: 평상시 blocker는 wheel/touchmove에서 pointerEvents를 120ms 양보(`yieldToScroll`)하지만, 캡처 중엔 `setBlockerScrollYield(false)`로 양보를 끄고 `passive:false` 리스너가 `preventDefault`까지 건다 — pointerEvents만으론 wheel이 document로 체이닝돼 페이지가 밀리고, 그 타일이 어긋난 오프셋으로 스티칭된다(검출 수단 없음).
+- **blocker 휠 차단**: 평상시 blocker는 wheel/touchmove에서 pointerEvents를 120ms 양보(`yieldToScroll` — 그 사이 포인터가 움직이면 조기 회수, 아래 "blocker 투과 소유권" 참조)하지만, 캡처 중엔 `setBlockerScrollYield(false)`로 양보를 끄고 `passive:false` 리스너가 `preventDefault`까지 건다 — pointerEvents만으론 wheel이 document로 체이닝돼 페이지가 밀리고, 그 타일이 어긋난 오프셋으로 스티칭된다(검출 수단 없음).
 - **출력 픽셀 상한의 진짜 이유**: 스티치 결과는 `chrome.storage.session`(10MB 쿼터)에 dataURL로 직렬화된다. 넘치면 lite 스냅샷(`screenshotRaw: null`)으로 조용히 강등돼 **패널 재오픈 시 캡처만 사라진다**.
 - **스티칭 반올림**: `tilePixelRect`가 시작·끝 경계를 **각각** 반올림한다(높이를 따로 반올림하면 분수 배율에서 타일마다 ±1px 틈). `stitchGeometry`는 캔버스 높이를 마지막 타일 dest 끝과 **같은 식**으로 산출한다(곱셈 결합 순서가 갈리면 하단에 1px 띠). 캡처 중 타일 폭이 바뀌면(리사이즈·스크롤바) 즉시 throw — 조용히 가로로 늘어나는 것보다 낫다.
 - **크롭 배율 단일 구현**: `capture.ts:cropImage`가 영역·인라인·요소 캡처 공용이고 `scale = img.naturalWidth / viewport.width`로 유도한다 — **사이드패널의 `devicePixelRatio`는 페이지 줌을 모른다**(줌 150%면 크롭이 통째로 어긋나던 회귀). `stitchGeometry`의 `srcScale`도 같은 식.
