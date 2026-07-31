@@ -11,7 +11,6 @@ import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
 import { initialJiraFields } from "@/sidepanel/lib/initialJiraFields";
-import { filterValidCssDeclarations } from "@/sidepanel/lib/cssDeclaration";
 import { saveVideoBlob, deleteVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
 import { takeWithinLimits, type TakeWithinLimitsResult } from "@/sidepanel/lib/attachmentLimits";
 import { DEFAULT_COLOR, DEFAULT_THICKNESS, type ThicknessKey } from "@/sidepanel/components/annotation/presets";
@@ -668,14 +667,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
 
+  // 무효 값을 여기서 걸러내지 않는다: 폼 필드는 타이핑 중인 값을 그대로 담고 blur 때
+  // finalizeValue가 정규화하므로(`abc` → `#aabbcc`), 중간 상태를 지우면 확장할 값 자체가
+  // 사라진다. 브라우저는 무효 선언을 알아서 무시하고, CSS 뷰 경로는 evaluateCssDraft가
+  // 커밋 전에 이미 filterValidCssDeclarations로 거른다.
   setStyleEdits: (patch) =>
     set((s) => ({
       styleEdits: {
         ...s.styleEdits,
         ...patch,
-        ...(patch.inlineStyle
-          ? { inlineStyle: filterValidCssDeclarations(patch.inlineStyle) }
-          : {}),
         ...(patch.inlineStyle && patch.cssText === undefined ? { cssText: null } : {}),
       },
     })),

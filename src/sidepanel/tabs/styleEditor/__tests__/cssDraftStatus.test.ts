@@ -28,15 +28,15 @@ describe("evaluateCssDraft", () => {
     ).toMatchObject({ status: "unapplied" });
   });
 
-  it("baseline 행 삭제는 원복 후 canonical 재표시", () => {
+  it("baseline 행 삭제는 initial 원복으로 canonical 재표시", () => {
     const result = evaluateCssDraft(
       `${selector} {\nmargin-left: 5px;\n}`,
       specified,
     );
     expect(result).toEqual({
       status: "applied",
-      overrides: {},
-      cssText: `${selector} {\ncolor: red;\nmargin-left: 5px;\n}`,
+      overrides: { color: "initial" },
+      cssText: `${selector} {\ncolor: initial;\nmargin-left: 5px;\n}`,
       canonicalized: true,
     });
   });
@@ -62,13 +62,13 @@ describe("evaluateCssDraft", () => {
   it("마지막 줄만 미완성이면(타이핑 중) 경고하지 않는다", () => {
     expect(
       isCssDraftUnapplied(
-        `${selector} {\ncolor: blue;\nbackground\n}`,
+        `${selector} {\ncolor: blue;\nmargin-left: 5px;\nbackground\n}`,
         specified,
         { color: "blue" },
       ),
     ).toBe(false);
     expect(
-      isCssDraftUnapplied(`${selector} {\ncolor: blue;\nbackground:\n}`, specified, {
+      isCssDraftUnapplied(`${selector} {\ncolor: blue;\nmargin-left: 5px;\nbackground:\n}`, specified, {
         color: "blue",
       }),
     ).toBe(false);
@@ -77,7 +77,7 @@ describe("evaluateCssDraft", () => {
   it("앞선 줄이 미완성이면 여전히 경고한다", () => {
     expect(
       isCssDraftUnapplied(
-        `${selector} {\nbackground\ncolor: blue;\n}`,
+        `${selector} {\nbackground\ncolor: blue;\nmargin-left: 5px;\n}`,
         specified,
         { color: "blue" },
       ),

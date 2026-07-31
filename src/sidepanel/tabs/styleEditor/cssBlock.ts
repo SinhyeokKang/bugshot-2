@@ -24,8 +24,11 @@ export function parseCssBlockDraft(text: string): InlineStyleDraft {
   if (open === -1) return parseInlineStyleDraft(text);
   const close = text.lastIndexOf("}");
   const body = close > open ? text.slice(open + 1, close) : text.slice(open + 1);
+  // 닫는 `}`가 없어도 미완성으로 치지 않는다 — selectorLock이 1행(선택자+`{`)만 보호하므로
+  // 본문 전체 삭제(select-all+Delete)는 `}`까지 함께 지운다. 그 상태를 invalid로 막으면
+  // "삭제=원복"(ARCHITECTURE) 경로가 통째로 죽는다. 값 레벨 미완성은 parseInlineStyleDraft가 본다.
   const parsed = parseInlineStyleDraft(body);
-  return { ...parsed, valid: parsed.valid && close > open, raw: text };
+  return { ...parsed, raw: text };
 }
 
 // TRBL(4면) shorthand ↔ longhand 그룹. 값-순서는 [top,right,bottom,left] /
@@ -156,8 +159,8 @@ export function isCompleteDeclarationLine(lineText: string): boolean {
   return value.length > 0;
 }
 
-// specified 대비 diff. 값이 다르거나 새로 추가된 prop만 오버라이드로 남긴다.
-// edited에서 빠진 prop은 overlay를 만들지 않아 원래 cascade가 다시 드러난다.
+// specified 대비 diff. 값이 다르거나 새로 추가된 prop만 오버라이드로 남기고,
+// specified에 있었으나 edited에서 빠진 prop은 `initial` 원복으로 방출(삭제=원복).
 export function computeOverrides(
   edited: Record<string, string>,
   specified: Record<string, string>,
@@ -165,6 +168,9 @@ export function computeOverrides(
   const result: Record<string, string> = {};
   for (const [prop, value] of Object.entries(edited)) {
     if (specified[prop] !== value) result[prop] = value;
+  }
+  for (const prop of Object.keys(specified)) {
+    if (!(prop in edited)) result[prop] = "initial";
   }
   return result;
 }

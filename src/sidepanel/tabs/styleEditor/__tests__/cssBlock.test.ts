@@ -109,10 +109,10 @@ describe("computeOverrides", () => {
     ).toEqual({});
   });
 
-  it("삭제=원복: specified에 있던 prop이 edited에서 빠지면 overlay를 제거", () => {
+  it("삭제=원복: specified에 있던 prop이 edited에서 빠지면 initial 방출", () => {
     expect(
       computeOverrides({ color: "red" }, { color: "red", padding: "8px" }),
-    ).toEqual({});
+    ).toEqual({ padding: "initial" });
   });
 
   it("변경·추가·삭제 혼합", () => {
@@ -121,7 +121,7 @@ describe("computeOverrides", () => {
         { color: "blue", margin: "0" },
         { color: "red", padding: "8px" },
       ),
-    ).toEqual({ color: "blue", margin: "0" });
+    ).toEqual({ color: "blue", margin: "0", padding: "initial" });
   });
 
   it("무편집 불변식: 실제 getComputedStyle 형태 값에서도 빈 맵(phantom diff 없음)", () => {
@@ -135,8 +135,11 @@ describe("computeOverrides", () => {
     ).toEqual({});
   });
 
-  it("모두 삭제하면 overlay가 비어 원래 cascade가 다시 드러남", () => {
-    expect(computeOverrides({}, { color: "red", padding: "8px" })).toEqual({});
+  it("모두 삭제하면 전 specified prop이 initial 원복", () => {
+    expect(computeOverrides({}, { color: "red", padding: "8px" })).toEqual({
+      color: "initial",
+      padding: "initial",
+    });
   });
 });
 
