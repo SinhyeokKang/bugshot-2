@@ -33,10 +33,14 @@ export interface AreaSelectHandle {
 function settleAfterPaint(h: AreaSelectHandle, notify: () => void): void {
   if (h._settling || h._cancelled) return;
   h._settling = true;
-  void afterPaint().then(() => {
-    if (h._cancelled) return;
-    notify();
-  });
+  void afterPaint()
+    .then(() => {
+      if (h._cancelled) return;
+      notify();
+    })
+    // 확정이 마이크로태스크로 빠져 호출부 try/catch 밖이다 — 삼키면 오버레이·스타일 원복이
+    // 통째로 걸러진 채 조용히 끝난다.
+    .catch((err) => console.error("[bugshot] area select settle failed", err));
 }
 
 export function startAreaSelect(deps: AreaSelectDeps): AreaSelectHandle {

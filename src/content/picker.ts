@@ -272,11 +272,12 @@ function handlePickerMessage(
         respondAfterPaint(prep, sendResponse);
         return true;
       }
+      // 이 경로는 분기마다 대기 지점이 달라(스크롤 정착 rAF를 재사용) 대기를 내부가 맡는다.
       case "picker.prepareCaptureBySelector":
         handlePrepareCaptureBySelector(
           msg,
           window === window.top
-            ? (res) => respondAfterPaint(res, sendResponse)
+            ? sendResponse
             : (res) => void respondWithTopRect(res, sendResponse),
         );
         return true;
@@ -347,9 +348,6 @@ function beginCapturePrep(): { width: number; height: number } {
   return { width: window.innerWidth, height: window.innerHeight };
 }
 
-// iframe 프레임 캡처: inner rect(자기 뷰포트 기준)를 top 좌표로 변환해 응답한다.
-// offset 요청이 top overlay 숨김(beginCapturePrep)을 겸하고, viewport는 크롭 scale
-// 기준이라 top 크기로 교체. 실패(중첩·타임아웃)면 rect null — 캡처 실패 경로 폴백.
 // 캡처가 뒤따르는 응답만 숨김 프레임 커밋을 기다린다 — rect null은 캡처 실패 폴백이라
 // 대기가 무의미하고, hidden 탭에서 폴백 지연만 이중으로 얹힌다.
 function respondAfterPaint(
@@ -360,9 +358,15 @@ function respondAfterPaint(
     sendResponse(res);
     return;
   }
-  void afterPaint().then(() => sendResponse(res));
+  void afterPaint()
+    .then(() => sendResponse(res))
+    // 응답이 핸들러 try/catch 밖으로 나갔다 — 삼키면 사이드패널의 await가 매달린다.
+    .catch((err) => console.error("[bugshot] capture prep response failed", err));
 }
 
+// iframe 프레임 캡처: inner rect(자기 뷰포트 기준)를 top 좌표로 변환해 응답한다.
+// offset 요청이 top overlay 숨김(beginCapturePrep)을 겸하고, viewport는 크롭 scale
+// 기준이라 top 크기로 교체. 실패(중첩·타임아웃)면 rect null — 캡처 실패 경로 폴백.
 async function respondWithTopRect(
   prep: PrepareCaptureResponse,
   sendResponse: (res: PrepareCaptureResponse) => void,
@@ -385,8 +389,8 @@ async function respondWithTopRect(
     sendResponse({ rect: null, viewport: offset.topViewport, ...scroll });
     return;
   }
-  // offset 요청이 top 오버레이 숨김(beginCapturePrep)을 겸하므로 그 프레임이 커밋된 뒤에
-  // 응답한다 — 자식 프레임 자신의 숨김도 이 대기에 함께 실린다.
+  // 자기 프레임 오버레이 숨김 커밋 대기. top 오버레이 쪽은 offset 응답기가 top realm에서
+  // 따로 기다린다 — cross-origin iframe은 렌더러가 갈려 여기서 대신 기다릴 수 없다.
   await afterPaint();
   sendResponse({ rect, viewport: offset.topViewport, ...scroll });
 }
@@ -504,12 +508,17 @@ function handlePrepareCaptureBySelector(
     rect.y + rect.height > window.innerHeight ||
     rect.x + rect.width > window.innerWidth;
   if (!outside) {
-    sendResponse({
+    const res = {
       ...basisOf(viewport),
       viewport,
       scrollX: window.scrollX,
       scrollY: window.scrollY,
-    });
+    };
+    void afterPaint()
+      .then(() => sendResponse(res))
+      .catch((err) =>
+        console.error("[bugshot] capture prep response failed", err),
+      );
     return;
   }
   if (!capturedScroll) capturedScroll = { x: window.scrollX, y: window.scrollY };

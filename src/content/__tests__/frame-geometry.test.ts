@@ -250,7 +250,13 @@ describe("installFrameOffsetResponder — 부모(top) 측 arm 게이트", () => 
     expect(prep).not.toHaveBeenCalled();
   });
 
-  it("arm이 소비될 때만 offset 응답 + prep 호출 (border 보정·topViewport 포함)", () => {
+  // 응답은 top overlay 숨김 프레임이 커밋된 뒤에 나간다(afterPaint) — rAF를 즉시 실행으로
+  // 스텁해 그 대기를 통과시킨다.
+  it("arm이 소비될 때만 offset 응답 + prep 호출 (border 보정·topViewport 포함)", async () => {
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
     let armed = true;
     installFrameOffsetResponder({
       onChildCapturePrep: () => ({ width: 1200, height: 800 }),
@@ -272,7 +278,9 @@ describe("installFrameOffsetResponder — 부모(top) 측 arm 게이트", () => 
       data: { type: "__bugshot_frame_offset_req__", token: "t2", frameToken: "session-token" },
     });
 
-    expect(childWindow.postMessage).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() =>
+      expect(childWindow.postMessage).toHaveBeenCalledTimes(1),
+    );
     expect(childWindow.postMessage).toHaveBeenCalledWith(
       {
         type: "__bugshot_frame_offset_res__",
