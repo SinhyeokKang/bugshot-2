@@ -71,6 +71,7 @@ import {
   hideAnnotation,
   setAnnotationTool,
 } from "./annotation";
+import { afterPaint } from "./after-paint";
 import { PICKER_PORT_NAME } from "@/lib/session-keys";
 import { postToRuntime } from "./post-to-runtime";
 import {
@@ -259,18 +260,23 @@ function handlePickerMessage(
       case "picker.applyEditsBySelector":
         sendResponse(handleApplyEditsBySelector(msg));
         return;
-      case "picker.prepareCapture":
+      // 측정은 동기로 먼저(오버레이 숨김은 레이아웃을 바꾸지 않는다), 응답만 숨김 프레임이
+      // 커밋된 뒤로 미룬다 — 즉답하면 캡처가 오버레이가 남은 프레임을 찍는다. iframe은
+      // top 오버레이 숨김이 offset 왕복 안에서 일어나므로 respondWithTopRect가 대기를 맡는다.
+      case "picker.prepareCapture": {
+        const prep = handlePrepareCapture(msg);
         if (window !== window.top) {
-          void respondWithTopRect(handlePrepareCapture(msg), sendResponse);
+          void respondWithTopRect(prep, sendResponse);
           return true;
         }
-        sendResponse(handlePrepareCapture(msg));
-        return;
+        respondAfterPaint(prep, sendResponse);
+        return true;
+      }
       case "picker.prepareCaptureBySelector":
         handlePrepareCaptureBySelector(
           msg,
           window === window.top
-            ? sendResponse
+            ? (res) => respondAfterPaint(res, sendResponse)
             : (res) => void respondWithTopRect(res, sendResponse),
         );
         return true;
@@ -344,6 +350,19 @@ function beginCapturePrep(): { width: number; height: number } {
 // iframe 프레임 캡처: inner rect(자기 뷰포트 기준)를 top 좌표로 변환해 응답한다.
 // offset 요청이 top overlay 숨김(beginCapturePrep)을 겸하고, viewport는 크롭 scale
 // 기준이라 top 크기로 교체. 실패(중첩·타임아웃)면 rect null — 캡처 실패 경로 폴백.
+// 캡처가 뒤따르는 응답만 숨김 프레임 커밋을 기다린다 — rect null은 캡처 실패 폴백이라
+// 대기가 무의미하고, hidden 탭에서 폴백 지연만 이중으로 얹힌다.
+function respondAfterPaint(
+  res: PrepareCaptureResponse,
+  sendResponse: (r: PrepareCaptureResponse) => void,
+): void {
+  if (!res.rect) {
+    sendResponse(res);
+    return;
+  }
+  void afterPaint().then(() => sendResponse(res));
+}
+
 async function respondWithTopRect(
   prep: PrepareCaptureResponse,
   sendResponse: (res: PrepareCaptureResponse) => void,
@@ -366,6 +385,9 @@ async function respondWithTopRect(
     sendResponse({ rect: null, viewport: offset.topViewport, ...scroll });
     return;
   }
+  // offset 요청이 top 오버레이 숨김(beginCapturePrep)을 겸하므로 그 프레임이 커밋된 뒤에
+  // 응답한다 — 자식 프레임 자신의 숨김도 이 대기에 함께 실린다.
+  await afterPaint();
   sendResponse({ rect, viewport: offset.topViewport, ...scroll });
 }
 
@@ -1162,6 +1184,12 @@ function restoreSelected(): void {
 }
 
 function handleStartAreaSelect(restoreAfter?: boolean): void {
+  // 확정 대기(afterPaint) 창에 새 세션이 시작되면 낡은 handle의 settle이 새 세션을 지우고
+  // stale areaSelected를 쏜다 — 덮어쓰기 전에 취소해 대기 중 확정을 무효화한다.
+  if (areaHandle) {
+    cancelAreaSelect(areaHandle);
+    areaHandle = null;
+  }
   if (!overlay) {
     removeOrphanOverlay();
     overlay = createOverlay();
