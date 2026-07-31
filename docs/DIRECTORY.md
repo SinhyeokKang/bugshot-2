@@ -119,6 +119,7 @@ docs/                    # 프로젝트 레퍼런스 문서 (루트엔 CLAUDE.md
 ├── ARCHITECTURE.md  # 설계 상세 (탭 스코프·인증·어댑터·토큰 체인·CSSOM 캐시·마이그레이션 등)
 ├── DESIGN.md        # 디자인 시스템·UI 컨벤션 (토큰·레이아웃·합성 컴포넌트·상태 표현)
 ├── PERMISSION.md    # Chrome 권한 전체 레퍼런스 (activeTab·OAuth 토큰 흐름 등)
+├── CI.md            # GitHub Actions 구성·게이트·함정 (job 4개·샤딩·xvfb depth 24·nightly notify). CI 수정·실패 진단 시 먼저 읽는다
 ├── POSTMORTEM.md    # 회귀·버그 사후분석 회고 누적 (/postmortem)
 ├── privacy.ko.md   # 개인정보처리방침 ko 원본 (bug-shot.com/ko/privacy 서빙 소스)
 ├── privacy.en.md   # 개인정보처리방침 en 번역 (ko와 항상 동기화)

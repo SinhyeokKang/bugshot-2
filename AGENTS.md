@@ -59,7 +59,7 @@ bugshot-2: Chrome MV3 Side Panel 버그 리포팅 확장. 웹 페이지의 버�
 - 스크린샷 어노테이션: Konva + react-konva 캔버스(사이드패널 lazy 청크). 도형은 natural 좌표, 표시 배율은 CSS transform. 줌·팬 계산은 `sidepanel/components/annotation/viewport.ts` 순수 함수 단일 출처(fit-width 진입 / 전체 조망 / 사용자 배율을 `ZoomLevel`로 **의도 저장**). 드래그는 **window 리스너**로 구동 — pointer capture를 쓰지 않는다(상세·함정은 [ARCHITECTURE.md](./docs/ARCHITECTURE.md))
 - 요소 스타일 CSS 코드 뷰: CodeMirror 6 (`@uiw/react-codemirror` + `@codemirror/lang-css` + `@codemirror/autocomplete` + `@codemirror/language` + `@lezer/highlight`, 사이드패널 전용 lazy 청크) — 편집/CSS 세그먼트 토글의 CSS 뷰
 - 영상: 탭 녹화(`tabCapture`+MediaRecorder) / 화면 녹화(`getDisplayMedia` — 웹 표준, 추가 manifest 권한 불필요·user gesture만 요구) / 30s Replay(`captureVisibleTab` 폴링 프레임 → WebCodecs `VideoEncoder`+`mp4-muxer` H.264 MP4). 캡처 모드(`CaptureMode`): element/screenshot/video/freeform + 30s replay. 탭 녹화·화면 녹화는 둘 다 `video` 모드이고 `RecordingSource`(tab/screen) 축으로 갈린다. **정지 후 구간 자르기는 3경로 공용** — 같은 오버레이(`ReplayTrimDialog`)와 같은 로그 경계 헬퍼를 쓰고 `TrimSource`(frames=리플레이 프레임축 / recording=녹화 벽시계축)로만 갈린다. 녹화를 자르면 `30s-replay/encode-range.ts`가 `<video>` 배속 재생 + `requestVideoFrameCallback`으로 재디코드해 선택 구간만 WebCodecs로 재인코딩한다(전체 구간이면 원본 blob 유지). 상세는 [ARCHITECTURE.md](./docs/ARCHITECTURE.md) "트리밍" 참조
-- 재현 환경 `API Hosts` 자동 행: 캡처된 네트워크 로그에서 페이지와 같은 registrable domain(`tldts` PSL — `allowPrivateDomains`로 `vercel.app`·`github.io` 같은 호스팅 도메인을 서로 다른 조직으로 가른다)의 hostname을 파생해 `draft.environment`에 커스텀 행으로 주입한다. 게이트는 `supportsConsoleNetworkLog`+`logsAttach` 단일 진입점(`sidepanel/lib/apiHostRow.ts` — 컴포넌트에 두면 element 누출이 green으로 통과한다), 제출 직전 2차 방어는 `stripApiHostsRows`. 배선 수정 0곳(`draft.environment`가 이미 전 소비 지점을 관통). 상세·불변식은 [ARCHITECTURE.md](./docs/ARCHITECTURE.md) "API Hosts 자동 행" 참조
+- 재현 환경 `API Hosts` 자동 행: 네트워크 로그에서 페이지와 같은 registrable domain(`tldts` PSL)의 hostname을 파생해 `draft.environment`에 주입. 게이트는 `supportsConsoleNetworkLog`+`logsAttach` 단일 진입점(`sidepanel/lib/apiHostRow.ts` — **컴포넌트에 두면 element 누출이 green으로 통과한다**), 제출 직전 2차 방어는 `stripApiHostsRows`. 상세·불변식은 [ARCHITECTURE.md](./docs/ARCHITECTURE.md) "API Hosts 자동 행"
 - 스크린샷 캡처 방식 3축(영역/화면/페이지 전체): `CaptureMode`와 **직교** — 셋 다 `captureMode: "screenshot"`으로 수렴하고(종착점 `onAreaCaptured`) 방식 자체는 union 타입도 영속화도 없다. `capturing` phase 하단 툴바에서 고른다. 페이지 전체 캡처는 사이드패널 오케스트레이터(`sidepanel/scroll-capture.ts`)가 content executor(`content/scroll-capture.ts`)를 스크롤시키며 타일을 background `captureVisibleTab` 관문으로 찍어 canvas 스티칭(캡: 20타일·캔버스 32000px·출력 4M px). 첫 타일 이후 반복되는 `fixed`와 이미 전부 노출된 뒤 붙은 `sticky`를 `visibility`로 숨기고, 캡처 중 추가·position 변경된 후보도 추적한 뒤 원래 스타일·스크롤을 복원한다. 상세·불변식은 [ARCHITECTURE.md](./docs/ARCHITECTURE.md) "캡처 3축" 참조
 - element 모드 before/after 캡처 범위: 요소 bbox+24px가 기본이고, 요소를 감싼 **의미 단위 조상 컨테이너**(다이얼로그·`tr`·`li`·`article` 등)가 게이트 3개(뷰포트 완전 포함 / 요소 포함 / 뷰포트 면적 40% 이하)를 전부 통과할 때만 그쪽으로 넓혀 찍는다. 위 캡처 3축과 **직교**한다(3축은 screenshot 모드의 *방식* 축). 판정은 `content/capture-context.ts`·`sidepanel/lib/capture-basis.ts` 순수 함수 2벌 — picker/capture가 coverage 로직 스코프 제외라 거기 남기면 테스트로 못 고정한다. `form`·`fieldset`은 개인정보 노출 면적 때문에 후보 제외이고 이 범위는 docs/privacy에 공개돼 있다. 상세·불변식은 [ARCHITECTURE.md](./docs/ARCHITECTURE.md) 동명 섹션
 - AI: Chrome Built-in AI 폴백 + BYOK OpenAI-compatible/Anthropic endpoint. AI 초안·재현 단계 자동채움·스타일링 요청에 필요한 컨텍스트만 사용자가 선택한 provider로 직접 전송
@@ -90,20 +90,7 @@ bugshot-2: Chrome MV3 Side Panel 버그 리포팅 확장. 웹 페이지의 버�
 
 ### CI (GitHub Actions)
 
-`.github/workflows/ci.yml` — **dev push · main PR · nightly(08:00 KST) · 수동(`workflow_dispatch`)** 에서 돈다. `schedule`은 GitHub 사양상 기본 브랜치에서만 발화하므로 nightly 대상은 main이다(코드가 그대로여도 Chrome 버전·러너 이미지 변경으로 깨지는 걸 잡는 게 목적). job은 넷:
-
-- **`verify`** — typecheck → sync:agents:check → test → build → check:prearm. 브라우저·시크릿 없이 결정적.
-- **`e2e`** — Playwright 전 스위트(65 spec / 248 테스트)를 `--shard=N/4` 매트릭스로 4개 러너에 분산. 확장 SW가 headless에서 안 깨어나 `headless: false`가 강제라(`e2e/fixtures/extension.ts`) `xvfb-run`으로 돌린다 — **가상 스크린 깊이 24는 필수**(기본 8비트인 배포판이 있고 캡처 spec이 픽셀 색을 직접 판정한다). `fail-fast: false`라 한 샤드가 깨져도 나머지를 완주하고, 실패 샤드는 report·trace를 artifact로 올린다. launch args의 `--host-resolver-rules=MAP *.bugshot.test 127.0.0.1`도 전제다 — 서브도메인이 갈리는 **동족 origin**을 만드는 유일한 수단이라(127.0.0.1↔localhost는 registrable domain이 서로 다르다) 이게 없으면 `api-hosts-env-row` spec이 통째로 무의미해진다.
-- **`e2e-gate`** — 4샤드 결과를 단일 이름으로 수렴시키는 집계 job. main의 **required status check는 `verify` + `e2e-gate` 둘**이고, 샤드 개수를 바꿔도 이 이름은 안 변하므로 프로텍션 설정을 다시 건드릴 필요가 없다.
-- **`notify`** — nightly 배치 결과를 Slack Incoming Webhook으로 보낸다(`SLACK_WEBHOOK_URL` secret, 없으면 warning 남기고 skip). **`schedule`·`workflow_dispatch`에서만** 돌아 dev push·PR 결과로 채널을 어지럽히지 않고, fork PR은 이 조건에 걸릴 수 없어 secret 노출 경로가 없다. 성공/실패를 **항상** 보내는 게 요점 — 실패만 보내면 GitHub가 60일 무활동으로 `schedule`을 끈 상태와 green을 구분할 수 없다(매일 1건이 부재 감지를 겸한다). 그래서 nightly는 **concurrency group을 분리**한다 — 같은 그룹이면 `workflow_dispatch`가 진행 중 nightly를 취소하고, 취소된 런은 `notify`가 발화하지 않아 그날 신호가 빈다(`cancel-in-progress`를 event로 분기하는 건 해법이 아니다 — 그 값은 취소하는 쪽 런의 설정을 읽는다). 커밋 메시지는 payload에 넣지 않는다(임의 문자열이 JSON을 깬다) — sha·ref·run URL만이고, **ref도 그냥 싣지 않는다**: git이 ref 이름에 `"`를 허용해 payload JSON이 깨지므로 `Compose result`에서 벗겨 output으로 내린다. webhook secret을 쥔 스텝은 액션을 full SHA로 핀한다.
-
-**e2e 차단 게이트는 CI 단독이다.** 로컬 `e2e/.last-green` 캐시 게이트는 폐기했다 — gitignore라 머신 로컬이었고, 그래서 외부 PR에 적용되지 않았으며 같은 green을 두 창구가 관리했다. `/push`는 e2e를 돌리지 않고 run URL만 안내한다(논블로킹). `/merge`는 dev HEAD의 CI 결론을 `gh run list`로 조회해 게이트로 쓰고, PR 머지 직전엔 `gh pr checks --watch`로 required check를 기다린다. `/e2e-run`은 게이트에서 빠져 **CI를 안 기다리고 미리 볼 때 쓰는 로컬 도구**로 남는다.
-
-`e2e` job은 `verify`와 **병렬**로 돈다(`needs` 없음) — public 저장소라 러너가 무료다. CI 빌드는 **secret에 의존하지 않는다**: 커밋된 더미 `.env.ci`를 `.env.local`로 복사해 쓴다(OAuth client ID가 비면 `isConfigured()`가 false가 되어 연동 탭 UI가 로컬과 갈리므로, 그 판정만 통과시키는 가짜 값이다. PostHog 키는 비워 집계 no-op 유지). 덕분에 secret이 전달되지 않는 **fork PR에도 e2e가 그대로 적용된다.**
-
-CI에서의 `retries`는 1, 로컬은 0이다(`process.env.CI` 분기). `forbidOnly`도 CI 한정 — `.only`가 남으면 샤드가 조용히 green이 되어 게이트가 무의미해진다.
-
-`build` + `check:prearm` 스텝이 `verify`에 있는 이유: `recorders-entry`가 async loader로 강등되는 회귀는 typecheck도 유닛도 못 잡는다. 행동 검증(`e2e/logs-prearm.spec.ts`)은 이제 `e2e` job이 맡지만, `scripts/check-prearm-chunk.mjs`는 manifest의 `world`/`run_at`·loader 여부·IIFE 시작·잔여 static import를 몇 초 만에 대조하는 **1차 그물**이라 e2e green을 기다리지 않고 형태 회귀를 먼저 알린다.
+구성·게이트·함정은 **[docs/CI.md](./docs/CI.md)** 참조 — **CI 워크플로우를 수정하거나 CI 실패를 진단할 때는 그 문서를 먼저 읽는다.** job은 `verify`·`e2e`(4샤드)·`e2e-gate`·`notify` 넷이고, main의 required status check는 **`verify` + `e2e-gate` 둘**이다. **e2e 차단 게이트는 CI 단독** — `/push`는 e2e를 안 돌리고 run URL만 안내하며(논블로킹), `/merge`가 dev HEAD의 CI 결론을 게이트로 쓴다.
 
 **빌드는 자동 실행하지 않는다.** 사용자가 명시적으로 요청하거나 `/build` 스킬을 실행할 때만 돌린다. 타입 확인이 필요하면 `pnpm typecheck` 선호. 예외: `build:e2e`(dist-e2e)는 `/e2e-write`·`/e2e-run`에서 실행 허용 — 배포 산출물(dist)과 분리돼 있다.
 
@@ -149,48 +136,17 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 ### 워크플로우 (스킬 라인업)
 
-```
-/feature        → 기능 아이디어 → PRD·기술 설계·태스크 문서 산출 (코딩 안 함)
-/feature-review → feature 산출물을 CPO·CDO·CTO·QA 4명이 병렬 검수 (선택 호출 가능) → 피드백 수렴 → 문서 수정
-/tdd            → 테스트만 작성 (구현·픽스·커밋 안 함). interface 모드(신규 헬퍼 시그니처) / regression 모드(리뷰 발견 회귀 테스트)
-/implement      → tasks/테스트 기반 구현 (메인 단일) → 영역별 4관점 자체 검증 → CTO 최종 게이트 → 🔴🟡 자체 수정. 빌드·커밋 안 함 (보고에 "가이드 영향"·"e2e 영향" 플래그)
-/e2e-write      → e2e 시나리오 → spec 작성 + build:e2e + 실행-수정 루프(최대 8회) → green + 1회 재실행. src 수정은 data-testid 추가만
-/e2e-run        → build:e2e + test:e2e 로컬 실행 + 리포트 전용 (fix 금지). 게이트가 아니다 — CI를 안 기다리고 미리 볼 때 쓴다
-/pull           → dev 최신 받고 작업 맥락 브리핑
-/build          → pnpm build + 테스트 체크리스트 (작업 중 검증)
-/code-review    → 변경 코드를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 리뷰 (선택 호출 가능). 리포트 전용
-/audit          → 코드베이스 전체를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 감사 (선택 호출 가능). 리포트 전용
-/coverage       → pnpm test:coverage → 로직 스코프(브라우저/UI 코드 제외) 라인 % 를 주 지표로 베이스라인 대비 이전→지금 비교 + 회귀 래칫 경고 + 개선 후보 랭킹. 개선 시 baseline 갱신 제안. fix·빌드·커밋 안 함
-/refactor       → audit·code-review 리포트의 지정 항목 수정 (메인 단일). 회귀 재현 테스트 먼저(TDD red) → 수정으로 green → 4관점 자체 검증 → CTO 게이트. 회귀 위험 항목은 강행 전 확인. 빌드·커밋 안 함
-/postmortem     → 직전에 잡은 버그/회귀를 docs/POSTMORTEM.md에 회고 항목으로 추가 (비자명 함정만, 재발방지 grep/전수 대상 명시 + 영역·계열·그물 태그 → postmortem:check 통과). 코드·빌드·커밋 안 함
-/guide          → guide/ko·en 사용자 가이드 작성·갱신. AUTHORING.md 규칙 로드 → 코드 대조 stale 탐지 → ko/en 동시 갱신 + 검증. 빌드·커밋 안 함
-/doc-check      → 8개 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMISSION/privacy/AUTHORING)를 문서별 전담 에이전트가 병렬로 diff 무관 코드 양방향 대조(Pass1 문서→코드 사실오류 + Pass2 코드→문서 누락 커버리지) → 통합 리포트 → 항목별 확인 → 수정. /push 신선도 검사보다 깊다(diff에 안 걸린 누적 stale·섹션 내부 누락까지). guide/ko·en 본문은 제외(/guide 전담, AUTHORING은 검사). 빌드 안 함
-/push           → dev push (main에서 호출 차단) + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.{md,ko.md}/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide(+AUTHORING.md) 신선도 검사 + Codex 미러 게이트(sync:agents:check — 드리프트면 재생성 커밋). e2e는 안 돌린다 — push 후 CI run URL만 안내하고 종료(논블로킹)
-/merge          → dev HEAD의 CI 결론 조회(gh run list — 빨강이면 중단) → 커버리지 리포트(로직 스코프 vs 베이스라인, 비차단 — 회귀 경고만·개선 시 baseline 자동 래칫 커밋) → 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
-/deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
-/sync           → dev를 origin/main으로 hard reset + force push (배포/머지 후)
-/ship           → 작은·외과적 변경 하나를 /tdd→커밋→/implement→커밋→/code-review→/refactor→(/e2e-write)→(/guide)→(/doc-check)→(/postmortem)→/push→/build로 자동 오케스트레이션. 단계별 게이트 통과 시 진행, 하드 실패·사용자 결정 지점(회귀위험·doc stale·e2e red)에선 즉시 중단+리포트. guide·doc-check은 영향 플래그 게이팅. 호출이 곧 push 지시. 테스트 커밋(1.5단계)은 red 상태로 무조건 선행. 큰·다영역·신규기능(feature 문서 필요)은 스코프 가드로 거부 — 단 `/ship bypass`는 그 판정만 건너뛰고(게이트·push·build는 전부 유지) feature 문서의 tasks.md를 계획 원본으로 쓴다. Codex 런타임은 마지막 커밋(11단계)까지만 돌고 /push·/build를 Claude Code에 인계
-```
+스킬 20개의 역할·단계별 게이트는 `.claude/commands/<name>.md`에 정의돼 있고(한 줄 설명은 세션 스킬 목록에 상시 노출된다), Codex 미러는 `.agents/skills/source-command-<name>/SKILL.md`다.
 
 권장 흐름: `/feature` → `/feature-review` → `/tdd interface` → `/implement` → `/e2e-write` → `/code-review` → `/tdd regression` → `/refactor` → `/push`(논블로킹 — e2e는 CI가 검증) → `/merge`(dev HEAD의 CI 결론 확인 → PR CI 대기 → 머지). 사용자 노출 UX·기능을 건드렸으면 `/push` 전에 `/guide`로 ko/en 가이드를 맞춘다(`/implement` 보고의 "가이드 영향" 플래그가 신호). e2e 시나리오가 추가·변경됐으면 `/e2e-write`로 spec을 green까지(`/implement` 보고의 "e2e 영향" 플래그가 신호). `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK. **회귀·버그를 잡아 고쳤으면 `/postmortem`으로 `docs/POSTMORTEM.md`에 회고를 남긴다**(같은 함정 재발 방지 — 실패 사후분석 회로). 역으로 `/implement`·`/refactor`·`/code-review`는 **착수 전 변경 영역으로 `docs/POSTMORTEM.md`를 grep**해 과거 함정을 소환한다(쓰기만 하고 안 읽으면 죽은 로그 — 소환 회로로 루프를 닫는다).
 
-각 단계 게이트는 `.claude/commands/` 스킬 정의에 명시.
-
 ### 문서 신선도
 
-`/push`는 항상 CLAUDE.md / docs/DIRECTORY.md / docs/ARCHITECTURE.md / README.{md,ko.md} / docs/PERMISSION.md / docs/privacy.{ko,en}.md / guide/ (`guide/AUTHORING.md` 포함) 신선도 검사를 거친다 — 단, **푸시될 diff에 걸린 문서만** 트라이아지하는 2차 안전망이다. diff와 무관하게 누적된 stale(예: 오래 방치된 docs/ARCHITECTURE.md 섹션)을 잡으려면 `/doc-check`로 8개 문서 전문을 코드와 직접 대조한다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...`)으로 묶어 함께 푸시:
+`/push`가 **푸시될 diff에 걸린 문서만** 트라이아지한다 — 대상 목록·트리거·문서별 확인 항목은 `.claude/commands/push.md` 4단계. diff와 무관하게 누적된 stale은 `/doc-check`가 9개 문서 전문을 코드와 양방향 대조해 잡는다. 갱신은 문서별 별도 커밋(`docs(CLAUDE): ...` / `docs(ARCHITECTURE): ...` / `docs(privacy): ...` …)으로 묶는다. **아래 3개는 `/push` 미러가 없는 Codex 세션에서도 지켜야 하므로 여기 남긴다:**
 
-- 새 디렉터리·파일 추가/삭제 (특히 `src/` 하위 구조 변화)
-- `package.json` scripts 변경
-- `manifest.config.ts` 변경 (권한·명령어·스킴)
-- 새 하위 시스템·아키텍처 핵심 파일 큰 변경
-- 새 컨벤션·게이트웨이 도입
-- 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남 → **`README.md`(en 원본)와 `README.ko.md`(ko 번역)는 항상 같은 내용을 담아야 하므로 양쪽을 같은 커밋에서 함께 갱신**한다(한쪽만 고치면 즉시 stale). 섹션 구성도 대칭 유지. ko가 링크를 한국어 리소스(`docs/privacy.ko.md`·`bug-shot.com/ko/…`·`guide/ko/assets/`)로 돌리는 것은 의도된 로케일 차이다.
-- 사용자 노출 UX·기능 추가/변경 → `guide/ko`·`guide/en`(사용 가이드, ko/en 양쪽) 대조·갱신 (`docs(guide): ...`). **가이드 작성·수정 전 `guide/AUTHORING.md`를 먼저 읽고 그 규칙(IA·톤·UI 라벨·footer·검증)대로 한다 — 가이드 작업의 단일 출처.**
-- 가이드 작성 기준 자체(IA·운영 방식·톤·UI 라벨 규칙·사실 스냅샷·플랫폼 표·지원 플랫폼)가 바뀜 → `guide/AUTHORING.md` 대조·갱신 (`docs(guide): ...`). 새 플랫폼 연동·단축키/로그 정책/본문 섹션 변경·새 페이지 추가가 트리거.
-- 워크플로우/스킬 라인업 변경
-- `manifest.config.ts`의 permissions·host_permissions 변경, 또는 새 플랫폼/연동·데이터 수집·외부 API 엔드포인트 추가
-- **docs/privacy.{ko,en}.md는 권한 문자열이 아니라 실제 동작에 묶인다**: 새 기능이 *기존* 권한(광역 `https://*/*`·`activeTab`·`tabCapture`·`scripting` 등)을 새 목적으로 쓰거나 새 캡처·수집·저장·전송 동작을 추가하면 **manifest diff가 0이어도** privacy를 대조·갱신한다. **ko가 원본, en은 그 번역이라 항상 같은 내용을 담아야 하므로 ko/en 양쪽 본문과 상단 시행일을 함께 갱신**한다(한쪽만 고치면 즉시 stale). diff에 `chrome.permissions.request`/`captureVisibleTab`/`tabCapture`/`chrome.scripting`/신규 외부 `fetch`/`chrome.storage`·IndexedDB write가 보이면 트리거. (30s Replay가 기존 optional 권한 재사용으로 이 검사를 빠져나가 심사 탈락한 전례 있음)
+- **`README.md`(en 원본) ↔ `README.ko.md`(ko 번역)** 는 항상 같은 내용이라 **한쪽을 고치면 같은 커밋에서 양쪽을 함께** 갱신한다(섹션 구성도 대칭 유지). ko가 링크를 한국어 리소스(`docs/privacy.ko.md`·`bug-shot.com/ko/…`·`guide/ko/assets/`)로 돌리는 건 의도된 로케일 차이다.
+- **docs/privacy.{ko,en}.md는 권한 문자열이 아니라 실제 동작에 묶인다**: 새 기능이 *기존* 권한(`<all_urls>`·`activeTab`·`tabCapture`·`scripting` 등)을 새 목적으로 쓰거나 새 캡처·수집·저장·전송 동작을 추가하면 **manifest diff가 0이어도** 대조·갱신한다. diff에 `chrome.permissions.request`/`captureVisibleTab`/`tabCapture`/`chrome.scripting`/신규 외부 `fetch`/`chrome.storage`·IndexedDB write가 보이면 트리거. **ko가 원본, en은 번역이라 ko/en 양쪽 본문과 상단 시행일을 함께 갱신**한다. (30s Replay가 기존 optional 권한 재사용으로 이 검사를 빠져나가 심사 탈락한 전례 있음)
+- 가이드(`guide/ko`·`guide/en`)를 쓰기 전 **`guide/AUTHORING.md`를 먼저 읽는다** — IA·톤·UI 라벨·footer·검증 규칙의 단일 출처. 가이드 작성 기준 자체(사실 스냅샷·플랫폼 표·지원 플랫폼)가 바뀌면 AUTHORING.md도 함께 갱신.
 
 ## 코드 컨벤션
 
@@ -215,18 +171,19 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - pre-arm 버퍼링 (동기 IIFE 빌드 제약): `recorders-entry`는 self-contained 청크(외부 static import 0)여야 crxjs가 **동기 IIFE**로 emit → document_start 후크가 페이지 인라인 스크립트보다 먼저 깔린다. 그래야 `recorder-prearm.ts`의 sessionStorage 플래그(`__bugshot_recorder_active__`)를 읽어 active origin(한 번이라도 armed된 origin)이면 sentinel 도착 **전**부터 로그를 버퍼 적재(적재 게이트 `capturing` vs dispatch 게이트 `recording` 분리, sentinel 없으면 전송 no-op). 레코더는 `content/log-throttle.ts`, 사이드패널 수신부는 복제본 `sidepanel/lib/trailing-throttle.ts`를 쓰는 분리가 이 제약 때문 — 청크에 외부 static import가 유입되면 async loader로 되돌아가 pre-arm이 무력화된다(리팩터 시 회귀 주의).
 - 단축키: `_execute_action`(`Cmd/Ctrl+Shift+E`, 사이드패널 토글) 1개만 등록. Chrome이 `action.onClicked`로 내부 처리하므로 별도 `onCommand` 리스너 불필요. (캡처 단축키 3개는 제거됨 — manifest 전용이라 영속 데이터·마이그레이션 없이 무손실. 캡처는 진입 화면 버튼으로만.)
 - permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`, `tabCapture`, `webNavigation` (메인 프레임 네비게이션 커밋 직전 로그 꼬리 sync — cross-page 로그 누적)
-- host_permissions: **`<all_urls>` 단일** (required). 모든 페이지 picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay, cross-origin 네비게이션에서 activeTab 회수돼도 캡처 유지) + BYOK LLM·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(`css.fetchSheets` — 스타일 값 보강, SSRF 가드 경유) + **8개 플랫폼 REST/OAuth host + OAuth proxy origin fetch**까지 전부 `<all_urls>`가 커버한다. 설치 시 "모든 사이트" 경고 상시, 런타임 권한 프롬프트 없음. (과거엔 `*.atlassian.net`·`api.github.com`·`gitlab.com`·`VITE_OAUTH_PROXY_URL` origin 등 구체 host를 함께 나열했으나 전부 `<all_urls>` 중복이라 제거 — 코드에 host별 `permissions.contains` 체크 없고 OAuth authorize는 launchWebAuthFlow라 host 불요. 어느 플랫폼·proxy로 트래픽이 나가는지는 docs/PERMISSION.md·docs/privacy.ko.md 참조.)
+- host_permissions: **`<all_urls>` 단일** (required) — picker·로그 레코더 주입, `captureVisibleTab`(cross-origin 네비게이션에서 activeTab 회수돼도 캡처 유지), cross-origin stylesheet 원문 fetch(`css.fetchSheets` — 스타일 값 보강, SSRF 가드 경유), BYOK LLM·GitLab self-managed·8개 플랫폼 REST/OAuth·OAuth proxy fetch를 전부 커버한다. 설치 시 "모든 사이트" 경고 상시, 런타임 권한 프롬프트 없음(코드에 host별 `permissions.contains` 체크 없음). 사용처 전수·라이프사이클은 [PERMISSION.md](./docs/PERMISSION.md) §11–13, 트래픽 대상은 [privacy.ko.md](./docs/privacy.ko.md)
 - (`<all_urls>`는 required — 과거 optional + 런타임 `chrome.permissions.request()` 모델은 폐기. BYOK/GitLab의 `requestHostPermission` 호출은 코드에 남아있으나 이미 보유라 즉시 grant, 프롬프트 없음)
 - OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID` (dev), `VITE_GITHUB_CLIENT_ID_PROD` (store build 시 치환), `VITE_LINEAR_CLIENT_ID` (단일 client — dev/store redirect URI 둘 다 한 앱에 등록), `VITE_NOTION_CLIENT_ID`, `VITE_GITLAB_CLIENT_ID`, `VITE_ASANA_CLIENT_ID` (단일 client — dev/store redirect URI 둘 다 한 앱에 등록), `VITE_CLICKUP_CLIENT_ID` (단일 client — dev/store redirect URI 둘 다 한 앱에 등록), `VITE_SLACK_CLIENT_ID` (단일 client — OAuth 전용, dev/store redirect URI 둘 다 한 앱에 등록), `VITE_OAUTH_PROXY_URL` — 누락 시 해당 플랫폼 OAuth UI 자동 비활성화 (`background/oauth/config.ts`의 `OAUTH_CONFIG` 테이블 + `isConfigured()` 판정 — messages.ts `*.oauth.available` 단일 경로)
 - 분석 env: `VITE_POSTHOG_KEY` (dev), `VITE_POSTHOG_KEY_PROD` (store build 시 치환), `VITE_POSTHOG_HOST` (기본 `us.i.posthog.com`) — 누락 시 PostHog 집계 no-op
 - `BUGSHOT_STORE_BUILD=1`: 스토어 업로드용 빌드 (manifest `key` 제거)
 - `BUGSHOT_E2E_BUILD=1`: e2e 전용 빌드 — `dist-e2e/` 분리 산출. dev `key` 유지. (`<all_urls>`는 이제 prod·e2e 공통 required라 e2e 빌드가 권한을 별도 추가하지 않음 — 분리 이유는 outDir 격리뿐.) **dist-e2e는 테스트 전용 — Chrome 수동 로드·스토어 업로드 금지.** 배포 산출물(dist)은 무오염(분리 outDir)
 - **store는 `sidepanel/tabs`를 import하지 않는다** — store가 컴포넌트 그래프를 끌어들이면 순환·번들 오염이 생긴다. store가 필요로 하는 순수 로직은 `sidepanel/lib/`으로 승격한다. 사례: `initialJiraFields`(Jira 필드 prefill 단일 출처 — `editor-store.confirmDraft`가 쓰므로 `tabs/jiraFields/`가 아니라 `lib/`에 둔다. 다른 플랫폼의 `initial*Fields`는 store가 안 써서 각 `*IssueFields.tsx`에 콜로케이션).
-- `chrome.scripting.executeScript({world:"MAIN", func})`: 직렬화·재평가라 클로저가 안 살아남는다. 주입 함수는 self-contained(헬퍼는 nested로 inline). **func 직렬화 형태**의 현재 사용처 `github-upload.ts:pageBatchUploadFn`(유일한 `world:"MAIN"`)·`picker-control.ts:getTopViewport`(`world` 미지정이라 ISOLATED — 직렬화 규칙은 world와 무관하게 걸린다. 인라인 화살표라 클로저 없음 — 규칙 준수)(같은 파일의 `files:` 형태 주입 3개 — `ensureContentScript`·`ensureRecorderBridge`·`ensureMainWorldRecorders` — 는 규칙 무관) — 리팩터 시 실제 탭 회귀 필수. 상세: docs/ARCHITECTURE.md 동명 섹션.
+- `chrome.scripting.executeScript({..., func})`: 직렬화·재평가라 **클로저가 안 살아남는다**(world와 무관 — `files:` 형태 주입은 규칙 무관). 주입 함수는 self-contained, 헬퍼는 nested로 inline. `func` 형태 사용처는 `github-upload.ts:pageBatchUploadFn`·`picker-control.ts:getTopViewport` 둘뿐이고 **리팩터 시 실제 탭 회귀 필수**. 상세: [ARCHITECTURE.md](./docs/ARCHITECTURE.md) 동명 섹션
 
 ## 메모리 & 참고 문서
 
 - `docs/PERMISSION.md` — Chrome 권한 전체 레퍼런스 (activeTab 라이프사이클, OAuth 토큰 흐름, optional permission 등)
+- `docs/CI.md` — GitHub Actions 구성·게이트·함정 (job 4개·e2e 샤딩·xvfb depth 24·nightly notify). **CI 워크플로우를 수정하거나 CI 실패를 진단할 때 먼저 읽는다.** `/doc-check ci`가 `.github/workflows/ci.yml`과 대조
 - `AGENTS.md` · `.agents/skills/` — CLAUDE.md·`.claude/commands/`의 **Codex 호환 미러**. `scripts/sync-agents.mjs`(`pnpm sync:agents`)가 만드는 **순수 생성물이라 손으로 편집하지 않는다** — 고칠 건 원본에서 고친다. 본문은 치환 없이 그대로 복제하므로 미러가 `CLAUDE.md`·`.claude/commands/`를 가리켜도 그 경로가 맞다. Codex 런타임 차이(훅 부재·미제공 스킬·커밋 트레일러)만 `.agents/PREAMBLE.md`에 손으로 관리해 AGENTS.md 상단에 붙는다.
   - **역할 분담**: Codex는 **작업 → 커밋까지**, 원격으로 나가는 건 Claude Code 단일 창구. `/push`·`/merge`·`/deploy`·`/sync`는 미러하지 않는다(스크립트 `EXCLUDE`) — 릴리스 게이트(원격 CI 결론 조회, 버전 bump, tag)가 두 창구에서 경쟁하면 깨지기 때문. 나머지 16개가 미러 대상이고, 원본이 없어진 미러 디렉터리는 sync가 지운다. `/ship`은 미러하되 **Codex에선 11단계(마지막 커밋)까지만** 돌고 12·13단계(`/push`·`/build`)를 인계한다 — 이 분기는 `ship.md` 본문("push 권한 / 런타임별 종착점")에 박혀 있어 미러에 그대로 따라간다.
   - **드리프트 방지 2단**: ① `.claude/settings.json`의 PostToolUse 훅이 `CLAUDE.md`·`.claude/commands/*.md`·`.agents/PREAMBLE.md` 편집 시 sync를 자동 실행 ② `/push`가 `pnpm sync:agents:check`로 최종 차단. **훅은 Claude Code 전용이라 Codex 세션에선 안 돈다** — Codex가 원본을 고쳤으면 `pnpm sync:agents`를 손으로 돌린다.
