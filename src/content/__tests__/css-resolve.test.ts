@@ -23,6 +23,7 @@ import {
   collectReferencedTokenNames,
   parseBorderShorthand,
   expandShorthands,
+  extractVarPropsFromMap,
   normalizePositionOffsets,
   type EditableHandle,
 } from "../css-resolve";
@@ -107,6 +108,12 @@ describe("INTERESTING_PROPS", () => {
 
   it("충분한 수의 속성", () => {
     expect(INTERESTING_PROPS.length).toBeGreaterThanOrEqual(30);
+  });
+
+  // var()가 낀 `transition`은 CSSOM longhand가 전부 빈 문자열이라(Chrome 실측) longhand
+  // 4개만으로는 author 값이 통째 누락된다 — shorthand 자체를 수집해 값·토큰을 살린다.
+  it("transition shorthand 포함", () => {
+    expect(INTERESTING_PROPS).toContain("transition");
   });
 });
 
@@ -312,6 +319,194 @@ describe("expandShorthands — background shorthand → background-color 가드"
     };
     expandShorthands(all, {});
     expect(all["background-color"]).toBe("var(--bg)");
+  });
+});
+
+// var()가 낀 shorthand는 Chrome CSSOM이 longhand를 전부 빈 문자열로 돌려주므로(실측)
+// 이 수동 전개가 유일한 출처가 된다 — 2값 shorthand를 통째 복사하면 longhand가 오염된다.
+describe("expandShorthands — 2값 shorthand 분해", () => {
+  it("gap 2값 → row-gap/column-gap 분리", () => {
+    const all: Record<string, string> = { gap: "var(--gy) var(--gx)" };
+    const sources: Record<string, string> = { gap: ".grid" };
+    expandShorthands(all, sources);
+    expect(all["row-gap"]).toBe("var(--gy)");
+    expect(all["column-gap"]).toBe("var(--gx)");
+    expect(sources["row-gap"]).toBe(".grid");
+  });
+
+  it("gap 1값 → 두 축 모두 같은 값", () => {
+    const all: Record<string, string> = { gap: "8px" };
+    expandShorthands(all, {});
+    expect(all["row-gap"]).toBe("8px");
+    expect(all["column-gap"]).toBe("8px");
+  });
+
+  it("overflow 2값 → overflow-x/overflow-y 분리", () => {
+    const all: Record<string, string> = { overflow: "hidden var(--oy)" };
+    expandShorthands(all, {});
+    expect(all["overflow-x"]).toBe("hidden");
+    expect(all["overflow-y"]).toBe("var(--oy)");
+  });
+
+  // 논리 속성은 var()가 없어도 Chrome이 물리 longhand로 explode하지 않는다(실측) —
+  // 항상 이 경로만 남으므로 2값 오염이 상시 발동한다.
+  it("padding-inline 2값 → padding-left/right 분리 (var 없어도)", () => {
+    const all: Record<string, string> = { "padding-inline": "4px 8px" };
+    expandShorthands(all, {});
+    expect(all["padding-left"]).toBe("4px");
+    expect(all["padding-right"]).toBe("8px");
+  });
+
+  it("margin-block 2값 → margin-top/bottom 분리", () => {
+    const all: Record<string, string> = { "margin-block": "var(--a) var(--b)" };
+    expandShorthands(all, {});
+    expect(all["margin-top"]).toBe("var(--a)");
+    expect(all["margin-bottom"]).toBe("var(--b)");
+  });
+
+  it("논리 속성 1값 → 두 변 모두 같은 값", () => {
+    const all: Record<string, string> = { "padding-inline": "var(--p)" };
+    expandShorthands(all, {});
+    expect(all["padding-left"]).toBe("var(--p)");
+    expect(all["padding-right"]).toBe("var(--p)");
+  });
+
+  it("2값 shorthand도 기존 longhand는 안 덮음 (fill-if-absent)", () => {
+    const all: Record<string, string> = {
+      gap: "4px 8px",
+      "row-gap": "var(--gy)",
+    };
+    expandShorthands(all, {});
+    expect(all["row-gap"]).toBe("var(--gy)");
+    expect(all["column-gap"]).toBe("8px");
+  });
+});
+
+// 문법이 복합·가변인 shorthand(font·transition·elliptical radius)는 토큰 위치를 신뢰할 수
+// 없다 — 값을 통째 복사하면 longhand가 쓰레기 문자열로 오염된다. 누락이 오염보다 낫다.
+describe("expandShorthands — 파싱 불가 shorthand는 longhand 미오염", () => {
+  it("font shorthand는 longhand를 채우지 않음", () => {
+    const all: Record<string, string> = { font: "bold var(--fs)/1.5 Arial" };
+    expandShorthands(all, {});
+    expect(all["font-size"]).toBeUndefined();
+    expect(all["font-family"]).toBeUndefined();
+    expect(all["font-weight"]).toBeUndefined();
+    expect(all["line-height"]).toBeUndefined();
+    expect(all["letter-spacing"]).toBeUndefined();
+  });
+
+  it("transition shorthand는 longhand를 채우지 않음", () => {
+    const all: Record<string, string> = { transition: "all var(--dur) ease" };
+    expandShorthands(all, {});
+    expect(all["transition-property"]).toBeUndefined();
+    expect(all["transition-duration"]).toBeUndefined();
+    expect(all["transition-timing-function"]).toBeUndefined();
+    expect(all["transition-delay"]).toBeUndefined();
+  });
+
+  it("elliptical border-radius(`/`)는 코너를 채우지 않음", () => {
+    const all: Record<string, string> = { "border-radius": "var(--r) / 20px" };
+    expandShorthands(all, {});
+    expect(all["border-top-left-radius"]).toBeUndefined();
+    expect(all["border-bottom-right-radius"]).toBeUndefined();
+  });
+
+  it("5토큰 이상 TRBL 값도 채우지 않음", () => {
+    const all: Record<string, string> = { padding: "1px 2px 3px 4px 5px" };
+    expandShorthands(all, {});
+    expect(all["padding-top"]).toBeUndefined();
+  });
+});
+
+// 규칙 순회 중(순서를 아는 유일한 지점) border shorthand가 앞선 규칙이 채운 longhand의
+// 소유권을 가져와야 한다. expandShorthands는 flat map이라 순서를 복원할 수 없다.
+describe("extractVarPropsFromMap — border shorthand longhand 소유권", () => {
+  it("앞선 리셋(`*{border:0}`)이 채운 비-var longhand를 덮는다", () => {
+    // Chrome CSSOM은 `border: 0` 규칙을 0px/none/currentcolor로 explode한다(실측).
+    const out: Record<string, string> = {};
+    const sources: Record<string, string> = {};
+    for (const side of ["top", "right", "bottom", "left"]) {
+      out[`border-${side}-width`] = "0px";
+      out[`border-${side}-style`] = "none";
+      out[`border-${side}-color`] = "currentcolor";
+      sources[`border-${side}-width`] = "*";
+    }
+    extractVarPropsFromMap(
+      new Map([["border", "0.1rem solid var(--divider)"]]),
+      out,
+      sources,
+      {},
+      ".card",
+    );
+    for (const side of ["top", "right", "bottom", "left"]) {
+      expect(out[`border-${side}-width`]).toBe("0.1rem");
+      expect(out[`border-${side}-style`]).toBe("solid");
+      expect(out[`border-${side}-color`]).toBe("var(--divider)");
+      expect(sources[`border-${side}-width`]).toBe(".card");
+    }
+    expect(out.border).toBe("0.1rem solid var(--divider)");
+  });
+
+  it("이미 잡힌 var() longhand는 보존 (토큰 강등 방지)", () => {
+    const out: Record<string, string> = {
+      "border-top-color": "var(--accent)",
+      "border-top-width": "0px",
+    };
+    extractVarPropsFromMap(
+      new Map([["border", "1px solid var(--divider)"]]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-top-color"]).toBe("var(--accent)");
+    expect(out["border-top-width"]).toBe("1px");
+  });
+
+  it("border-{side} shorthand는 해당 변만 덮는다", () => {
+    const out: Record<string, string> = {
+      "border-top-color": "currentcolor",
+      "border-left-color": "currentcolor",
+    };
+    extractVarPropsFromMap(
+      new Map([["border-top", "2px dashed var(--c)"]]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-top-color"]).toBe("var(--c)");
+    expect(out["border-left-color"]).toBe("currentcolor");
+  });
+
+  it("같은 규칙에 명시된 longhand가 border shorthand보다 우선", () => {
+    const out: Record<string, string> = {};
+    extractVarPropsFromMap(
+      new Map([
+        ["border", "1px solid var(--divider)"],
+        ["border-top-color", "var(--accent)"],
+      ]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-top-color"]).toBe("var(--accent)");
+    expect(out["border-right-color"]).toBe("var(--divider)");
+  });
+
+  it("wantedProps 필터를 존중한다 (inspector 경로)", () => {
+    const out: Record<string, string> = {};
+    extractVarPropsFromMap(
+      new Map([["border", "1px solid var(--divider)"]]),
+      out,
+      {},
+      {},
+      ".card",
+      new Set(["color"]),
+    );
+    expect(out["border-top-color"]).toBeUndefined();
+    expect(out.border).toBeUndefined();
   });
 });
 
