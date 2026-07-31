@@ -152,7 +152,7 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 > ⚠️ **`frameToken`은 비밀이 아니다.** 사이드패널→프레임 전달은 chrome 경로지만, 자식이 `announceFrameToParent()`에서 `postMessage(..., "*")`로 부모에 보내는 순간 **부모의 MAIN world(페이지 스크립트)도 그 값을 읽는다.** 즉 이 검증은 "픽커 없는 iframe이 무인증으로 끼어드는" 사고를 막을 뿐 **악의적 페이지에 대한 인증이 아니다.** 토큰 회전·해싱·targetOrigin 조이기는 전부 같은 이유로 착시다(수신 window의 페이지 스크립트가 여전히 읽는다). 더구나 picker는 `all_frames: true`라 **페이지가 만든 iframe에도 진짜 picker가 주입돼 정상 announce로 등록된다** — 토큰 유출의 실제 증분 위험은 "picker가 없는 iframe(sandbox·2-depth+)을 등록시켜 blocker 핸드오프를 여는 것"에 한정된다. registry는 인증이 아니라 **힌트**로 읽어야 하고, 여기에 보안 판단을 새로 얹지 않는다. 근본 해결에는 chrome 경로 challenge-response(사이드패널이 전 프레임에 1회성 nonce를 내리고 자식이 그걸 제시) 같은 프로토콜 신설이 필요하며, iframe picker는 회귀 밀집 구간이라 **수용된 잔여 위험으로 보류**한다(감사 A-04). cross-origin은 별도 렌더러라 자식 announce가 top의 token 설정보다 **선착**할 수 있어, 미일치 announce는 `pendingPresents`에 보류했다가 token 도착 시 재평가한다(도착순서 비보장 대비).
 
-**캡처 좌표 변환**: iframe 내부 요소 캡처는 자식이 자기 뷰포트 기준 rect를 재고, `requestFrameOffset()`로 부모에게 offset을 요청해 `composeTopRect`로 top-frame 좌표로 합성한다. 크롭 scale 기준 viewport도 **top 크기**로 교체한다(iframe 크기를 쓰면 `captureVisibleTab` 스크린샷과 어긋남). offset 응답은 사이드패널이 `picker.armFrameOffset`(chrome 경로)로 연 **1회성 arm(카운터)**을 소비할 때만 나가고 registry 등록 프레임으로 한정 — 임의 iframe의 top overlay 임의 숨김·geometry 유출·arm 선점을 막는다. 응답 수신 측은 부모 origin(`ancestorOrigins`)·offset 숫자(`isValidOffset`)를 검증하고 500ms 타임아웃 폴백(hidden 탭 대비). 합성 rect가 top 뷰포트와 안 겹치면(iframe이 화면 밖 스크롤) 캡처 실패(rect null)로 폴백해 1px 쓰레기 크롭을 막는다. iframe 캡처는 top overlay도 숨겨야(안 그러면 스크린샷에 찍힘) `onChildCapturePrep`이 겸하고, 종료 시 `endCapture`가 캡처 프레임 + frame 0을 좁혀 보내되 top에는 `cleanup` 표시를 실어 미소비 arm이 진행 중인 다른 캡처의 inflight를 조기에 깎지 않게 한다(인터리브 오염 방지).
+**캡처 좌표 변환**: iframe 내부 요소 캡처는 자식이 자기 뷰포트 기준 rect를 재고, `requestFrameOffset()`로 부모에게 offset을 요청해 `composeTopRect`로 top-frame 좌표로 합성한다. 크롭 scale 기준 viewport도 **top 크기**로 교체한다(iframe 크기를 쓰면 `captureVisibleTab` 스크린샷과 어긋남). offset 응답은 사이드패널이 `picker.armFrameOffset`(chrome 경로)로 연 **1회성 arm(카운터)**을 소비할 때만 나가고 registry 등록 프레임으로 한정 — 임의 iframe의 top overlay 임의 숨김·geometry 유출·arm 선점을 막는다. 응답 수신 측은 부모 origin(`ancestorOrigins`)·offset 숫자(`isValidOffset`)를 검증하고 500ms 타임아웃 폴백(hidden 탭 대비). 합성 rect가 top 뷰포트와 안 겹치면(iframe이 화면 밖 스크롤) 캡처 실패(rect null)로 폴백해 1px 쓰레기 크롭을 막는다. iframe 캡처는 top overlay도 숨겨야(안 그러면 스크린샷에 찍힘) `onChildCapturePrep`이 겸하는데, **그 숨김이 합성에 커밋될 때까지 기다렸다가 offset을 돌려준다**(`afterPaint`) — 대기를 자식이 대신할 수 없다. cross-origin iframe은 렌더러 프로세스가 갈려 자식의 rAF 2틱이 부모의 커밋과 무관하기 때문이다(아래 "캡처 프레임 커밋 대기"). 종료 시 `endCapture`가 캡처 프레임 + frame 0을 좁혀 보내되 top에는 `cleanup` 표시를 실어 미소비 arm이 진행 중인 다른 캡처의 inflight를 조기에 깎지 않게 한다(인터리브 오염 방지).
 
 요소 캡처의 **컨텍스트 확장 판정은 top frame 한정**이라 iframe 응답의 `contextSelector`는 항상 null이고, `respondWithTopRect`의 조립 3분기는 `scrollX`/`scrollY`를 각각 명시적으로 실어야 한다(아래 "Element 캡처 컨텍스트 확장" 참조).
 
@@ -249,13 +249,25 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **정리**: `shouldPreserveBackgroundLogs(phase)` = recording/drafting/previewing/done. idle 전환 시 레코더 재주입+새 sentinel. pending IDB는 탭 종료·이슈 저장·고아 정리(`pruneOrphanPendingLogsOncePerSession` — SW 부트 세션당 1회)에서 회수. clear→setSentinel은 sequential await 강제(fire-and-forget 시 Chrome 메시지 큐 순서 미보장으로 race).
 
+## 캡처 프레임 커밋 대기 (`content/after-paint.ts`)
+
+캡처 직전 확장은 자기 오버레이를 감춘다 — picker는 `beginCapturePrep`이 shadow host를 `visibility:hidden`으로, area-select는 dim·사각형·라벨을 DOM에서 걷는다. **DOM을 고친 것과 화면에 반영된 것은 다른 시점**이라, 같은 태스크에서 응답·확정을 보내면 `captureVisibleTab`이 아직 오버레이가 살아있는 프레임을 찍는다(간헐적이라 "가끔 그러네"로 지나가기 쉽다). `afterPaint()`가 rAF 2회로 그 커밋을 기다리고, rAF가 영영 안 오는 hidden 탭은 500ms 폴백으로 **진행**한다 — 이 타임아웃은 실패가 아니다(캡처를 죽이지 않는다).
+
+불변식 셋:
+
+- **대기는 "캡처가 뒤따르는 응답" 직전에 정확히 1회.** `rect: null`(캡처 실패 폴백) 응답은 대기하지 않는다 — 어차피 안 찍고, hidden 탭에서 폴백 지연만 겹친다. top frame은 `respondAfterPaint`, iframe은 `respondWithTopRect`가 그 자리다. `prepareCaptureBySelector`의 off-screen 분기는 `scrollIntoView` 정착용 rAF 2회가 이미 그 역할을 하므로 **거기에 또 얹지 않는다**(측정과 응답 사이 간격만 2배가 된다).
+- **숨긴 realm이 기다린다.** top overlay 숨김은 offset 응답기(top realm)에서 일어나므로 대기도 거기서 한다. cross-origin iframe은 렌더러가 갈려 자식이 부모 커밋을 대신 기다릴 수 없다.
+- **지연은 새 상태 공간을 만든다.** 확정을 미루면 그 창에 도착하는 취소·재진입을 전부 열거해야 한다 — area-select는 모든 취소 경로가 `_cancelled`를 세우고(대기 중 취소면 확정 폐기), `_settling`으로 재진입을 1회만 통과시키며, `handleStartAreaSelect`는 핸들 슬롯을 덮기 전에 이전 세션을 취소한다. 응답을 `.then()`으로 미루면 메시지 핸들러의 try/catch **밖**이므로 `.catch()`를 붙인다(삼키면 사이드패널 `await`가 영구히 안 풀린다).
+
+그물은 순수 헬퍼(`after-paint.test.ts`)뿐이다 — `picker.ts`·`area-select.ts`는 로직 스코프 제외라 배선을 되돌려도 유닛은 green이고, e2e에도 결과 픽셀 단언이 없다.
+
 ## 캡처 3축 (영역 · 화면 · 페이지 전체)
 
 **`freeform`은 이 3축과 별개인 4번째 `CaptureMode`다** — 캡처 산출물 없이 바로 작성만 하는 모드로, `startFreeform`이 phase를 `capturing`을 건너뛰고 **`drafting`으로 직행**시키며 `logsAttach: true`를 강제한다. 진입 즉시 로그 머지가 동결되므로 `picker-control.ts`가 `syncAndSettleLogs`를 먼저 await한 뒤 `freeformViewport`/`freeformCapturedAt`을 별도 setState로 채운다 — 뷰포트는 캡처 시점이 아니라 **진입 시점 실측**이다. 제출 시 `snapshot:{before:false, after:false}`.
 
 스크린샷 모드는 별개 phase가 아니라 **`capturing` phase 하나 안의 하단 툴바 3버튼**이다(`IssueTab.tsx:CapturingState` — `capture-method-area|viewport|fullpage`). `captureMode`는 셋 다 `"screenshot"`이고 종착점도 전부 `onAreaCaptured(dataUrl, viewport)` — **새 캡처 모드가 아니므로 로그 정책 매트릭스·첨부 토글 규칙이 그대로 적용된다**. `viewport` 인자는 스티치 높이가 아니라 **실제 브라우저 뷰포트**를 넘긴다(리포트 메타 "뷰포트 크기"용).
 
-**화면 캡처 = 드래그 완료 경로 재사용**: `area-select.ts:selectFullViewport`가 `removeListeners → cleanupElements → blocker hide → onSelected` 순서를 드래그(`onMouseUp`)와 **공유**한다 — 오버레이 정리가 캡처 요청보다 먼저 끝나야 dim·선택 사각형이 스크린샷에 안 찍힌다. `picker.ts:handleSelectFullViewport`는 `selectFullViewport` 호출만 하고 `areaSelected` 발화·정리를 **중복 작성하지 않는다**(기존 `onSelected` 콜백이 처리).
+**화면 캡처 = 드래그 완료 경로 재사용**: `area-select.ts:selectFullViewport`가 `removeListeners → cleanupElements → blocker hide → onSelected` 순서를 드래그(`onMouseUp`)와 **공유**한다 — 오버레이 정리가 캡처 요청보다 먼저 끝나야 dim·선택 사각형이 스크린샷에 안 찍힌다 — **정리만으로는 부족하고 그 프레임이 커밋될 때까지 기다린 뒤에 확정을 알린다**(`settleAfterPaint`, 아래 "캡처 프레임 커밋 대기"). `picker.ts:handleSelectFullViewport`는 `selectFullViewport` 호출만 하고 `areaSelected` 발화·정리를 **중복 작성하지 않는다**(기존 `onSelected` 콜백이 처리).
 
 **페이지 전체 캡처**: 사이드패널이 오케스트레이터(`sidepanel/scroll-capture.ts:runScrollCapture`), content는 얇은 executor(`content/scroll-capture.ts`). 메시지 3종(`picker.beginScrollCapture` → `scrollCaptureTo{y,hideFixed}` × N → `endScrollCapture`)로 스크롤을 제어하고, 타일마다 background `captureVisibleTab`을 호출해 canvas로 세로 스티칭한다. 순수부는 `sidepanel/lib/scroll-capture-plan.ts`(`planScrollCapture`·`tileDrawRect`·`tilePixelRect`·`stitchGeometry`, 캡 `MAX_SCROLL_TILES=20`·`MAX_CANVAS_HEIGHT_PX=32000`·`MAX_OUTPUT_PIXELS=4M`).
 
