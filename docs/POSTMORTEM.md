@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-08-01 — blocker가 hit target이어도 이벤트는 document까지 간다 — "가린다"와 "안 닿는다"를 같은 것으로 읽어 picking 중 페이지 hover가 살아 있었다
+
+- **영역**: `content`
+- **계열**: `미검증단언`, `복제본`
+- **그물**: `수동`
+- **증상**: element picking 중인데 페이지가 hover에 반응했다 — 드롭다운이 열리고 툴팁이 떠서 고르려던 요소를 덮었다. 전체 화면을 덮는 blocker가 있는데도 그랬다.
+- **근본 원인**: 두 갈래가 겹쳤고 둘 다 "blocker가 있으니 안 닿는다"는 전제에서 왔다. (1) **blocker가 hit target이어도 이벤트는 document까지 버블한다** — 페이지가 `document.addEventListener("mousemove"/"mouseover"/"pointermove")`로 만든 위임 hover UI는 blocker와 무관하게 계속 반응한다. 가리는 것과 도달을 막는 것은 다른 얘기다. (2) **blocker의 `pointer-events`를 끄는 주체가 넷인데 각자 자기가 유일한 소유자인 줄 알았다** — 휠 양보 타이머·iframe 핸드오프·`elementFromPoint` hit-test 프로브·visibility 전환. 프로브가 매 호출 끝에 **무조건 `auto`로 복원**해 진행 중인 스크롤 양보를 무단 취소했고(그래서 스크롤이 안 먹었다), 반대로 양보 창(120ms) 동안은 커서 밑 페이지 요소가 진짜 `:hover`를 받았다. 픽스에도 함정이 둘 더 있었다. 양보 회수를 "mousemove가 오면"으로 걸었더니 **스크롤 뒤 브라우저가 hover 재계산용으로 쏘는 mousemove**와 매직마우스처럼 이동·스크롤이 한 제스처인 입력까지 포인팅으로 읽혀 매 틱 양보가 닫혔고(커서 밑 스크롤 컨테이너가 안 밀린다), pointer 계열을 mouse 계열과 똑같이 window capture에서 끊으려다 **`action-recorder`가 document capture로 듣고 있어** picking 중 사용자 액션 로그가 통째로 빌 뻔했다.
+- **재발 방지**: (1) **"오버레이로 덮었다"는 입력 차단의 증거가 아니다** — 덮개는 hit target만 가져간다. 차단이 목적이면 `document`/`window` 위임까지 끊었는지 별도로 확인한다. 전수: `grep -rn "addEventListener(\"mouse\|addEventListener(\"pointer" src/content`로 차단 지점을 뽑고, 페이지가 같은 이벤트를 위임으로 듣는 경우를 상정한다. (2) **확장 전체가 같은 DOM 이벤트 경로를 공유한다 — 전파를 끊기 전에 우리 리스너의 등록 단계를 먼저 센다.** `action-recorder`(document capture, MAIN world)·`area-select`(window capture)·`annotation`(window capture)이 각각 무엇을 듣는지 확인하고, window capture에서 끊으면 document capture가 죽는다는 순서를 계산한다. 같은 노드 리스너는 `stopPropagation`으로 안 죽지만(그건 `stopImmediatePropagation`), **더 뒤 단계의 리스너는 죽는다**. (3) **한 스타일 속성을 여러 이유가 켜고 끄면 이유 집합에서 파생시킨다** — 직접 쓰기는 last-writer-wins라 남의 이유를 무단 취소한다. 적용까지 상태가 맡게 해서 호출부가 apply를 빠뜨릴 수 없게 한다. 전수: `grep -rn "style.pointerEvents" src/content`로 직접 쓰기가 재출현하는지 감시(현재 `annotation.ts`에 같은 형태의 결함이 남아 있다 — pen ON이 진행 중 양보를 무단 취소). (4) **"입력이 왔다 = 사용자 의도다"가 아니다** — 브라우저가 스크롤·레이아웃 변경 후 hover 재계산용으로 합성 입력을 쏜다. 시간 창(마지막 휠로부터 60ms)처럼 **다른 축의 신호**로 가른다. 좌표 비교는 합성 입력만 걸러 실제 이동이 섞이는 입력장치를 놓친다. (5) **이 부류는 유닛·jsdom으로 못 잡는다** — 전파·hit-test·스크롤 체이닝은 실제 브라우저 동작이고, `picker.ts`·`overlay.ts`는 커버리지 로직 스코프 제외라 배선을 지워도 green이다. 순수 판정(`isScrollIntent`·투과 컨트롤러)만 유닛으로 내리고 나머지는 실탭 수동 확인으로 남긴다.
+- **관련**: `src/content/blocker-state.ts:createBlockerPassthrough`·`isScrollIntent`, `src/content/overlay.ts:setScrollYield`·`_cancelScrollYield`·`SCROLL_YIELD_MS`/`SCROLL_INTENT_MS`(대소 관계가 깨지면 회수 경로 사망)·`setBlockerHandoff`·`withBlockerHitTest`, `src/content/picker.ts:stopHoverPropagation`·`PAGE_HANDLER_EVENTS`·`onMouseMove`·`elementAtPoint`, 공존 리스너 `src/content/action-recorder.ts`(document capture pointer 계열)·`src/content/area-select.ts`, 그물 `src/content/__tests__/blocker-state.test.ts`, 문서 `docs/ARCHITECTURE.md`("blocker 투과 소유권").
+
 ## 2026-08-01 — `visibility="hidden"`을 세팅한 같은 태스크에서 응답하면 캡처는 아직 오버레이가 보이는 프레임을 찍는다 — 그리고 그 대기를 한 곳에 넣으면 다른 렌더러는 안 덮인다
 
 - **영역**: `content`
