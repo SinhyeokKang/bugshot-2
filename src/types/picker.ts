@@ -132,6 +132,7 @@ export type PickerMessage =
   | { type: "picker.selectionUpdated"; sessionId: string; payload: PickerSelectionUpdatePayload }
   | { type: "picker.cancelled"; sessionId: string }
   | { type: "picker.iframeUnsupported"; sessionId: string }
+  | { type: "picker.selectionDetached"; sessionId: string }
   | { type: "picker.areaSelected"; rect: ViewportRect; viewport: { width: number; height: number } }
   | { type: "networkRecorder.setSentinel"; sentinel: string }
   | { type: "networkRecorder.stop" }

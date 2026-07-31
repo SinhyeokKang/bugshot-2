@@ -2,19 +2,15 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { applyStyles } from "@/sidepanel/picker-control";
-import { filterValidCssDeclarations } from "@/sidepanel/lib/cssDeclaration";
-import {
-  serializeCssBlock,
-  parseCssBlockDraft,
-  computeOverrides,
-  collapseTrbl,
-  expandTrbl,
-} from "./cssBlock";
+import { serializeCssBlock, collapseTrbl, expandTrbl } from "./cssBlock";
 import { shouldResyncDoc } from "./docSync";
+import { evaluateCssDraft, isCssDraftUnapplied } from "./cssDraftStatus";
+import { useT } from "@/i18n";
 
 const CssCodeMirror = lazy(() => import("./CssCodeMirror"));
 
 export function StyleCssView() {
+  const t = useT();
   const selection = useEditorStore((s) => s.selection);
   const inlineStyle = useEditorStore((s) => s.styleEdits.inlineStyle);
   const savedCssText = useEditorStore((s) => s.styleEdits.cssText);
@@ -22,6 +18,11 @@ export function StyleCssView() {
   const tokens = useEditorStore((s) => s.tokens);
   const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
   const tabId = useBoundTabId();
+  const draftUnapplied = isCssDraftUnapplied(
+    savedCssText,
+    selection?.specifiedStyles ?? {},
+    inlineStyle,
+  );
 
   const selector = selection?.selector ?? "";
   // specified·오버라이드 모두 longhand 기준으로 diff하고, 표시만 shorthand로 병합한다
@@ -65,25 +66,18 @@ export function StyleCssView() {
 
   const handleChange = (next: string) => {
     setValue(next);
-    const parsed = parseCssBlockDraft(next);
-    if (!parsed.valid) {
-      setStyleEdits({ cssText: next });
-      return;
-    }
-    const validDeclarations = filterValidCssDeclarations(parsed.declarations);
-    if (
-      Object.keys(validDeclarations).length !==
-      Object.keys(parsed.declarations).length
-    ) {
-      setStyleEdits({ cssText: next });
-      return;
-    }
-    const overrides = computeOverrides(
-      expandTrbl(validDeclarations),
-      specifiedLong,
+    const evaluation = evaluateCssDraft(
+      next,
+      selection.specifiedStyles,
     );
+    if (evaluation.status === "unapplied") {
+      setStyleEdits({ cssText: next });
+      return;
+    }
+    const { overrides } = evaluation;
+    if (evaluation.canonicalized) setValue(evaluation.cssText);
     lastCommittedRef.current = buildDoc(overrides);
-    setStyleEdits({ inlineStyle: overrides, cssText: next });
+    setStyleEdits({ inlineStyle: overrides, cssText: evaluation.cssText });
     const frameId = useEditorStore.getState().selection?.frameId ?? 0;
     if (tabId) void applyStyles(tabId, frameId, overrides);
   };
@@ -109,6 +103,15 @@ export function StyleCssView() {
           }}
         />
       </Suspense>
+      {draftUnapplied && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="border-t border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          {t("editor.cssDraftUnapplied")}
+        </p>
+      )}
     </div>
   );
 }

@@ -25,6 +25,10 @@ import { sectionDefaultOpen } from "@/sidepanel/lib/sectionDefaultOpen";
 import { captureElementSnapshot } from "@/sidepanel/capture";
 import { sameCaptureBasis } from "@/sidepanel/lib/capture-basis";
 import {
+  hasUnappliedCssDrafts,
+  isCssDraftUnapplied,
+} from "./styleEditor/cssDraftStatus";
+import {
   applyClasses,
   applyText,
   clearPicker,
@@ -146,8 +150,23 @@ export function SelectedPanel() {
     sectionDefaultOpen(props, selection.specifiedStyles, selection.computedStyles);
 
   const hasChange = hasStyleChange(selection, styleEdits);
+  const cssDraftUnapplied = isCssDraftUnapplied(
+    styleEdits.cssText,
+    selection.specifiedStyles,
+    styleEdits.inlineStyle,
+  );
+  const bufferedCssDraftUnapplied = hasUnappliedCssDrafts(
+    bufferedElements.map((entry) => ({
+      cssText: entry.styleEdits.cssText,
+      specifiedStyles: entry.selectionSnapshot.specifiedStyles,
+      inlineStyle: entry.styleEdits.inlineStyle,
+    })),
+  );
+  const anyCssDraftUnapplied =
+    cssDraftUnapplied || bufferedCssDraftUnapplied;
   // 현재 element에 diff가 없어도 버퍼에 담긴 element가 있으면 진행 가능.
-  const canProceed = hasChange || bufferedElements.length > 0;
+  const canProceed =
+    !anyCssDraftUnapplied && (hasChange || bufferedElements.length > 0);
 
   const handleNext = async () => {
     if (!tabId || proceeding || !canProceed) return;
@@ -538,7 +557,11 @@ export function SelectedPanel() {
                 <Tooltip>
                   <TooltipTrigger asChild>{nextButton}</TooltipTrigger>
                   <TooltipContent className="max-w-60">
-                    {t("editor.noChangeHint")}
+                    {t(
+                      anyCssDraftUnapplied
+                        ? "editor.cssDraftUnapplied"
+                        : "editor.noChangeHint",
+                    )}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

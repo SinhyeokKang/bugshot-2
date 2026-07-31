@@ -440,31 +440,31 @@ export async function applyEditsBySelector(
 // 페이지가 바뀌었거나 현재 요소가 사라졌으면 기존 cross-page 정책과 동일하게 sessionExpired.
 // 한계: same-URL reload는 pageKey가 같아 rebind를 진행하지만 chrome이 iframe frameId를
 // 재발급하므로 옛 frameId send가 조용히 실패한다 — 결말은 요소 소실과 동일(sessionExpired/ghost 카드).
+export async function expireStylingSession(tabId: number): Promise<void> {
+  await clearPicker(tabId).catch(() => {});
+  useEditorStore.setState({
+    sessionExpired: true,
+    selection: null,
+    bufferedElements: [],
+    styleEdits: { classList: [], inlineStyle: {}, text: "", cssText: null },
+    beforeImage: null,
+    afterImage: null,
+    captureContext: null,
+  });
+}
+
 export async function rebindStylingSession(tabId: number): Promise<void> {
-  // 기존 expiry 경로(useEditorSessionSync)와 동일하게 만료와 페이지 정리를 쌍으로 수행.
-  const expire = async () => {
-    await clearPicker(tabId).catch(() => {});
-    useEditorStore.setState({
-      sessionExpired: true,
-      selection: null,
-      bufferedElements: [],
-      styleEdits: { classList: [], inlineStyle: {}, text: "", cssText: null },
-      beforeImage: null,
-      afterImage: null,
-      captureContext: null,
-    });
-  };
   try {
     await ensureContentScript(tabId);
   } catch {
-    await expire();
+    await expireStylingSession(tabId);
     return;
   }
   const state = useEditorStore.getState();
   const prevKey = pageKeyOf(state.target?.url);
   const newKey = pageKeyOf(await getPageUrl(tabId));
   if (!prevKey || !newKey || prevKey !== newKey) {
-    await expire();
+    await expireStylingSession(tabId);
     return;
   }
   // 현재 요소 존재 확인 겸 편집 재적용을 버퍼보다 먼저 — 실패(만료) 시 DOM에 아무것도
@@ -478,7 +478,7 @@ export async function rebindStylingSession(tabId: number): Promise<void> {
       text: sel.text === null ? null : state.styleEdits.text,
     }).catch(() => false);
     if (!found) {
-      await expire();
+      await expireStylingSession(tabId);
       return;
     }
   }
@@ -489,7 +489,7 @@ export async function rebindStylingSession(tabId: number): Promise<void> {
       text: b.selectionSnapshot.text === null ? null : b.styleEdits.text,
     }).catch(() => false);
     if (!found) {
-      await expire();
+      await expireStylingSession(tabId);
       return;
     }
   }

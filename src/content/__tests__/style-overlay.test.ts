@@ -74,4 +74,18 @@ describe("style overlay", () => {
 
     expect(el.style.color).toBe("green");
   });
+
+  it("페이지의 관찰 가능한 동일값 style write를 cleanup이 되돌리지 않음", () => {
+    const el = document.createElement("div");
+    document.body.append(el);
+    el.style.color = "red";
+    const state = createStyleOverlayState();
+
+    applyStyleOverlay(el, state, { color: "blue" });
+    el.setAttribute("style", el.getAttribute("style")!);
+    restoreStyleOverlay(el, state);
+
+    expect(el.style.color).toBe("blue");
+    el.remove();
+  });
 });

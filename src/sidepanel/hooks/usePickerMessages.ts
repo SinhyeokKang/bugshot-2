@@ -5,7 +5,7 @@ import { originOf, pendingKey } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, cropImage } from "@/sidepanel/capture";
-import { clearPicker, collectTokens, getTopViewport, isCurrentPickerSession, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
+import { clearPicker, collectTokens, expireStylingSession, getTopViewport, isCurrentPickerSession, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import { shouldPreserveBackgroundLogs } from "@/sidepanel/hooks/useBackgroundRecorder";
@@ -67,6 +67,7 @@ export function usePickerMessages(myTabId: number | null): void {
   useEffect(() => {
     const currentFrameDocuments = new Map<number, string>();
     const acceptedSelectionSessions = new Set<string>();
+    let selectionGeneration = 0;
 
     function handler(
       message: PickerMessage | BgInternalMessage | { type: string },
@@ -98,6 +99,7 @@ export function usePickerMessages(myTabId: number | null): void {
           if (acceptedSelectionSessions.has(msg.sessionId)) return;
           acceptedSelectionSessions.add(msg.sessionId);
         }
+        const generation = ++selectionGeneration;
         // content script 메시지에 표준 제공 — 어느 프레임의 선택인지 추적(위조 방지로
         // payload가 아니라 sender에서 얻는다). top이면 0. origin(출처 배지 노출)도 동일하게
         // sender에서 파생 — opaque origin(sandbox)은 "null" 문자열로 온다.
@@ -140,7 +142,12 @@ export function usePickerMessages(myTabId: number | null): void {
           const selector = msg.payload.selector;
           const sameSelection = () => {
             const sel = useEditorStore.getState().selection;
-            return !!sel && sameElementKey(sel, { selector, frameId });
+            return (
+              generation === selectionGeneration &&
+              isCurrentPickerSession(tabId, msg.sessionId) &&
+              !!sel &&
+              sameElementKey(sel, { selector, frameId })
+            );
           };
           void collectTokens(tabId, frameId)
             .then((tokens) => {
@@ -208,6 +215,7 @@ export function usePickerMessages(myTabId: number | null): void {
         const msg = message as Extract<PickerMessage, { type: "picker.cancelled" }>;
         if (myTabId == null || !isCurrentPickerSession(myTabId, msg.sessionId)) return;
         if (isStalePickerDocument()) return;
+        selectionGeneration += 1;
         const { inlineCaptureTarget } = useEditorStore.getState();
         if (inlineCaptureTarget) {
           useEditorStore.getState().cancelInlineCapture();
@@ -229,12 +237,19 @@ export function usePickerMessages(myTabId: number | null): void {
         const msg = message as Extract<PickerMessage, { type: "picker.iframeUnsupported" }>;
         if (myTabId == null || !isCurrentPickerSession(myTabId, msg.sessionId)) return;
         if (isStalePickerDocument()) return;
+        selectionGeneration += 1;
         const { target } = useEditorStore.getState();
         if (!resumeAfterRepickCancel()) {
           useEditorStore.getState().cancelPicking();
           if (target) void clearPicker(target.tabId);
         }
         onPickerIframeUnsupported.fire();
+      } else if (message.type === "picker.selectionDetached") {
+        const msg = message as Extract<PickerMessage, { type: "picker.selectionDetached" }>;
+        if (myTabId == null || !isCurrentPickerSession(myTabId, msg.sessionId)) return;
+        if (isStalePickerDocument()) return;
+        selectionGeneration += 1;
+        void expireStylingSession(myTabId);
       } else if (message.type === "activeTabExpiredDeferred") {
         const msg = message as Extract<BgInternalMessage, { type: "activeTabExpiredDeferred" }>;
         if (isForeignTabMessage(myTabId, msg.tabId)) return;

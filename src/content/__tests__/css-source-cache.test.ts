@@ -6,8 +6,38 @@ import {
   parseStylesheet,
   splitSelectorList,
   normalizeSelector,
+  readCappedText,
   stripComments,
 } from "../css-source-cache";
+
+describe("readCappedText", () => {
+  it("stream body가 byte cap을 넘으면 null", async () => {
+    const response = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("1234"));
+          controller.enqueue(new TextEncoder().encode("5678"));
+          controller.close();
+        },
+      }),
+    );
+    await expect(readCappedText(response, 7)).resolves.toBeNull();
+  });
+
+  it("UTF-8 chunk를 cap 안에서 무손실 decode", async () => {
+    const text = "가나다";
+    await expect(
+      readCappedText(new Response(text), new TextEncoder().encode(text).length),
+    ).resolves.toBe(text);
+  });
+
+  it("content-length 초과를 body read 전에 거부", async () => {
+    const response = new Response("x", {
+      headers: { "content-length": "100" },
+    });
+    await expect(readCappedText(response, 10)).resolves.toBeNull();
+  });
+});
 
 describe("normalizeSelector — CSSOM 표기 정렬", () => {
   it("top-level 결합자(> + ~) 둘레 간격을 통일", () => {
