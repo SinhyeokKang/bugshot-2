@@ -1,84 +1,85 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {
-  clearPassthroughReasons,
-  createPassthrough,
-  pointerEventsOf,
-  setHitTest,
-  setPassthroughReason,
-} from "../blocker-state";
+import { createBlockerPassthrough } from "../blocker-state";
 
-describe("blocker passthrough 상태", () => {
-  it("이유가 없으면 blocker가 이벤트를 잡는다", () => {
-    expect(pointerEventsOf(createPassthrough())).toBe("auto");
-  });
+function setup() {
+  const apply = vi.fn((_value: "auto" | "none") => {});
+  const state = createBlockerPassthrough(apply);
+  const current = () => apply.mock.calls.at(-1)?.[0];
+  return { apply, state, current };
+}
 
-  it("스크롤 양보 중에는 투과시킨다", () => {
-    const s = createPassthrough();
-    setPassthroughReason(s, "scroll-yield", true);
-    expect(pointerEventsOf(s)).toBe("none");
-  });
-
-  it("iframe 핸드오프 중에는 투과시킨다", () => {
-    const s = createPassthrough();
-    setPassthroughReason(s, "handoff", true);
-    expect(pointerEventsOf(s)).toBe("none");
-  });
-
-  it("이유를 해제하면 다시 잡는다", () => {
-    const s = createPassthrough();
-    setPassthroughReason(s, "scroll-yield", true);
-    setPassthroughReason(s, "scroll-yield", false);
-    expect(pointerEventsOf(s)).toBe("auto");
+describe("blocker passthrough", () => {
+  it("이유를 켜면 투과, 끄면 다시 잡는다", () => {
+    const { state, current } = setup();
+    state.setReason("scroll-yield", true);
+    expect(current()).toBe("none");
+    state.setReason("scroll-yield", false);
+    expect(current()).toBe("auto");
   });
 
   // 소유권이 갈려 있으면 한쪽 해제가 다른 쪽 투과를 무단 취소한다 — 이 저장소에서 실제로
   // hit-test가 스크롤 양보를 되돌려 스크롤이 안 먹던 자리다.
   it("이유가 둘이면 하나만 해제해도 투과를 유지한다", () => {
-    const s = createPassthrough();
-    setPassthroughReason(s, "scroll-yield", true);
-    setPassthroughReason(s, "handoff", true);
-    setPassthroughReason(s, "handoff", false);
-    expect(pointerEventsOf(s)).toBe("none");
-  });
-
-  it("같은 이유를 두 번 켜도 한 번 해제하면 풀린다", () => {
-    const s = createPassthrough();
-    setPassthroughReason(s, "handoff", true);
-    setPassthroughReason(s, "handoff", true);
-    setPassthroughReason(s, "handoff", false);
-    expect(pointerEventsOf(s)).toBe("auto");
+    const { state, current } = setup();
+    state.setReason("scroll-yield", true);
+    state.setReason("handoff", true);
+    state.setReason("handoff", false);
+    expect(current()).toBe("none");
   });
 
   it("hit-test 동안 투과시키고 끝나면 되돌린다", () => {
-    const s = createPassthrough();
-    setHitTest(s, true);
-    expect(pointerEventsOf(s)).toBe("none");
-    setHitTest(s, false);
-    expect(pointerEventsOf(s)).toBe("auto");
+    const { state, current } = setup();
+    const seen: (string | undefined)[] = [];
+    const el = state.withHitTest(() => {
+      seen.push(current());
+      return "el";
+    });
+    expect(seen).toEqual(["none"]);
+    expect(el).toBe("el");
+    expect(current()).toBe("auto");
   });
 
   it("hit-test가 끝나도 남아있는 이유의 투과는 되돌리지 않는다", () => {
-    const s = createPassthrough();
-    setPassthroughReason(s, "scroll-yield", true);
-    setHitTest(s, true);
-    setHitTest(s, false);
-    expect(pointerEventsOf(s)).toBe("none");
+    const { state, current } = setup();
+    state.setReason("scroll-yield", true);
+    state.withHitTest(() => null);
+    expect(current()).toBe("none");
+  });
+
+  it("hit-test가 던져도 투과 상태를 복원한다", () => {
+    const { state, current } = setup();
+    expect(() =>
+      state.withHitTest(() => {
+        throw new Error("boom");
+      }),
+    ).toThrow("boom");
+    expect(current()).toBe("auto");
   });
 
   it("이유를 전부 비우면 잡는다", () => {
-    const s = createPassthrough();
-    setPassthroughReason(s, "scroll-yield", true);
-    setPassthroughReason(s, "handoff", true);
-    clearPassthroughReasons(s);
-    expect(pointerEventsOf(s)).toBe("auto");
+    const { state, current } = setup();
+    state.setReason("scroll-yield", true);
+    state.setReason("handoff", true);
+    state.clearReasons();
+    expect(current()).toBe("auto");
   });
 
   it("이유를 비워도 진행 중인 hit-test 투과는 유지한다", () => {
-    const s = createPassthrough();
-    setHitTest(s, true);
-    setPassthroughReason(s, "handoff", true);
-    clearPassthroughReasons(s);
-    expect(pointerEventsOf(s)).toBe("none");
+    const { state, current } = setup();
+    state.withHitTest(() => {
+      state.setReason("handoff", true);
+      state.clearReasons();
+      expect(current()).toBe("none");
+      return null;
+    });
+  });
+
+  it("상태가 바뀔 때마다 적용을 호출한다 (누락 방지)", () => {
+    const { apply, state } = setup();
+    state.setReason("handoff", true);
+    state.clearReasons();
+    state.withHitTest(() => null);
+    expect(apply).toHaveBeenCalledTimes(4);
   });
 });

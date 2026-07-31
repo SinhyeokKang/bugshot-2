@@ -1,5 +1,10 @@
 import { formatElementName } from "@/lib/element-label";
 
+import {
+  createBlockerPassthrough,
+  type BlockerPassthrough,
+} from "./blocker-state";
+
 import type { InspectorInfo } from "./css-resolve";
 
 export interface OverlayHandle {
@@ -18,11 +23,15 @@ interface OverlayInternal extends OverlayHandle {
   borderEl: SVGRectElement;
   previewEl: SVGRectElement;
   _setScrollYield: (enabled: boolean) => void;
+  _cancelScrollYield: () => void;
+  _passthrough: BlockerPassthrough;
   _onResize: () => void;
   _cleanup: () => void;
 }
 
 export const HOST_ID = "__bugshot_picker_host";
+// 마지막 휠로부터 이 시간 안의 마우스 이동은 스크롤의 일부로 본다(양보 타이머 120ms보다 짧게).
+const SCROLL_INTENT_MS = 60;
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const OVERLAY_CSS = `
@@ -210,15 +219,29 @@ export function createOverlay(): OverlayHandle {
 
   let scrollTimer: ReturnType<typeof setTimeout> | null = null;
   let scrollYieldEnabled = true;
+  let lastWheelAt = 0;
+  const passthrough = createBlockerPassthrough((value) => {
+    blockerEl.style.pointerEvents = value;
+  });
+  // scroll-yield는 이유와 타이머를 함께 소유한다 — 이유만 끄면 타이머가 살아남아 소유권이
+  // 다시 갈린다. 그래서 이 이유는 밖으로 열지 않고 이 함수로만 만진다.
+  function setScrollYield(on: boolean) {
+    if (!on && scrollTimer) {
+      clearTimeout(scrollTimer);
+      scrollTimer = null;
+    }
+    passthrough.setReason("scroll-yield", on);
+  }
   function yieldToScroll() {
     // 스크롤 캡처 중에는 양보하지 않는다 — 휠이 페이지로 새면 캡처 큐 대기(≥500ms) 사이에
     // 스크롤이 밀려 해당 타일이 어긋난 오프셋으로 스티칭된다(검출 수단 없음).
     if (!scrollYieldEnabled) return;
-    blockerEl.style.pointerEvents = "none";
+    lastWheelAt = performance.now();
+    setScrollYield(true);
     if (scrollTimer) clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
-      blockerEl.style.pointerEvents = "auto";
       scrollTimer = null;
+      setScrollYield(false);
     }, 120);
   }
   // 양보가 꺼진 동안(스크롤 캡처)은 기본 동작까지 막아야 페이지가 안 밀린다 — pointerEvents만
@@ -315,8 +338,16 @@ export function createOverlay(): OverlayHandle {
     previewEl,
     _setScrollYield: (enabled: boolean) => {
       scrollYieldEnabled = enabled;
-      if (!enabled) blockerEl.style.pointerEvents = "auto";
+      if (!enabled) setScrollYield(false);
     },
+    // 스크롤 직후의 마우스 이동은 스크롤의 일부다 — 브라우저가 hover 재계산용으로 쏘는
+    // 것이든(좌표 동일) 매직마우스·트랙패드처럼 스크롤과 이동이 한 제스처든, 그걸 포인팅
+    // 의도로 읽으면 매 틱 양보가 닫혀 커서 밑 스크롤 컨테이너가 안 밀린다.
+    _cancelScrollYield: () => {
+      if (performance.now() - lastWheelAt < SCROLL_INTENT_MS) return;
+      setScrollYield(false);
+    },
+    _passthrough: passthrough,
     _onResize: () => updateBanner(handle),
     _cleanup: cleanupBlockerListeners,
   };
@@ -354,11 +385,29 @@ export function setBlockerVisible(
   visible: boolean,
   cursor?: string,
 ): void {
+  const o = h as OverlayInternal;
   h.blockerEl.style.display = visible ? "" : "none";
   if (visible) {
-    h.blockerEl.style.pointerEvents = "auto";
+    // 모드 전환은 새 세션이다 — 이전 모드의 투과 이유(양보·핸드오프)를 이월하지 않는다.
+    // 양보는 타이머까지 함께 걷어야 소유권이 갈리지 않는다.
+    o._cancelScrollYield();
+    o._passthrough.clearReasons();
     if (cursor) h.blockerEl.style.cursor = cursor;
   }
+}
+
+// 등록 iframe 위에서 blocker를 투과시켜 안쪽 picker가 이벤트를 받게 한다.
+export function setBlockerHandoff(h: OverlayHandle, on: boolean): void {
+  (h as OverlayInternal)._passthrough.setReason("handoff", on);
+}
+
+// 진행 중인 스크롤 양보를 회수한다(이유 + 타이머 함께).
+export function cancelBlockerScrollYield(h: OverlayHandle): void {
+  (h as OverlayInternal)._cancelScrollYield();
+}
+
+export function withBlockerHitTest<T>(h: OverlayHandle, fn: () => T): T {
+  return (h as OverlayInternal)._passthrough.withHitTest(fn);
 }
 
 export function renderOutline(

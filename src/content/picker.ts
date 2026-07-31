@@ -48,7 +48,10 @@ import {
   updateBanner,
   hideBanner,
   setBlockerScrollYield,
+  setBlockerHandoff,
   setBlockerVisible,
+  cancelBlockerScrollYield,
+  withBlockerHitTest,
   renderPreview,
   clearPreview,
   type OverlayHandle,
@@ -930,6 +933,9 @@ function render(): void {
 
 function addHoverListeners(): void {
   window.addEventListener("mousemove", onMouseMove, true);
+  // blocker가 hit target을 가져가도 이벤트는 document까지 버블한다 — 위임 mousemove·mouseover로
+  // 만든 페이지의 hover UI(툴팁·메가메뉴·커스텀 커서)가 picking 중 계속 반응하는 통로다.
+  window.addEventListener("mouseover", onHoverProbe, true);
   window.addEventListener("mouseout", onMouseOut, true);
   window.addEventListener("keydown", onKeyDown, true);
   if (overlay) {
@@ -937,11 +943,17 @@ function addHoverListeners(): void {
     overlay.blockerEl.addEventListener("contextmenu", suppressEvent);
     overlay.blockerEl.addEventListener("auxclick", suppressEvent);
     overlay.blockerEl.addEventListener("dblclick", suppressEvent);
+    // 버블만 끊어 페이지의 위임 핸들러(드래그 시작·메뉴 개폐)를 막는다. preventDefault는
+    // 안 붙인다 — blocker가 target이라 페이지 쪽 포커스·선택이 어차피 시작되지 않고,
+    // 취소가 필요한 기본동작(컨텍스트 메뉴·중클릭)은 suppressEvent가 이미 맡는다.
+    overlay.blockerEl.addEventListener("mousedown", stopPropagationOnly);
+    overlay.blockerEl.addEventListener("mouseup", stopPropagationOnly);
   }
 }
 
 function removeHoverListeners(): void {
   window.removeEventListener("mousemove", onMouseMove, true);
+  window.removeEventListener("mouseover", onHoverProbe, true);
   window.removeEventListener("mouseout", onMouseOut, true);
   window.removeEventListener("keydown", onKeyDown, true);
   if (overlay) {
@@ -949,11 +961,23 @@ function removeHoverListeners(): void {
     overlay.blockerEl.removeEventListener("contextmenu", suppressEvent);
     overlay.blockerEl.removeEventListener("auxclick", suppressEvent);
     overlay.blockerEl.removeEventListener("dblclick", suppressEvent);
+    overlay.blockerEl.removeEventListener("mousedown", stopPropagationOnly);
+    overlay.blockerEl.removeEventListener("mouseup", stopPropagationOnly);
   }
 }
 
 function suppressEvent(e: Event): void {
   e.preventDefault();
+  e.stopPropagation();
+}
+
+function stopPropagationOnly(e: Event): void {
+  if (mode !== "hover") return;
+  e.stopPropagation();
+}
+
+function onHoverProbe(e: Event): void {
+  if (mode !== "hover") return;
   e.stopPropagation();
 }
 
@@ -977,10 +1001,7 @@ function onViewportChange(): void {
 
 function elementAtPoint(x: number, y: number): Element | null {
   if (!overlay) return document.elementFromPoint(x, y);
-  overlay.blockerEl.style.pointerEvents = "none";
-  const el = document.elementFromPoint(x, y);
-  overlay.blockerEl.style.pointerEvents = "auto";
-  return el;
+  return withBlockerHitTest(overlay, () => document.elementFromPoint(x, y));
 }
 
 function isOwnUi(el: Element | null): boolean {
@@ -992,18 +1013,21 @@ function isOwnUi(el: Element | null): boolean {
 
 function onMouseMove(e: MouseEvent): void {
   if (mode !== "hover") return;
+  e.stopPropagation();
+  // 포인팅으로 읽히는 이동이면 스크롤 양보를 회수한다 — 양보 창이 열려 있는 동안은 커서 밑
+  // 페이지 요소가 진짜 :hover를 받는다. 직전 휠 직후인지는 overlay가 판정한다.
+  if (overlay) cancelBlockerScrollYield(overlay);
   const target = elementAtPoint(e.clientX, e.clientY);
   if (isOwnUi(target) || target === lastHover) return;
   lastHover = target;
   // 등록된 자식 iframe 위에서는 blocker를 투과시켜 안쪽 picker가 이벤트를 받게 한다
-  // (핸드오프). 미등록(sandbox·중첩)은 auto 유지 → 클릭이 onClickCommit 거부 경로로.
-  // elementAtPoint가 매 호출 끝에 auto 복원하므로 토글은 호출 이후 + hover 변경 시만.
+  // (핸드오프). 미등록(sandbox·중첩)은 유지 → 클릭이 onClickCommit 거부 경로로.
   const handoff =
     !!target &&
     target.tagName === "IFRAME" &&
     isRegisteredChildFrame(target);
   if (overlay) {
-    overlay.blockerEl.style.pointerEvents = handoff ? "none" : "auto";
+    setBlockerHandoff(overlay, handoff);
     if (handoff) {
       // 안쪽 picker가 hover를 그린다 — 부모 outline은 숨겨 이중 표시 방지.
       hideOutline(overlay);
