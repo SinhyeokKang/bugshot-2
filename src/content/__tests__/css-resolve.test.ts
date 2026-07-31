@@ -324,6 +324,33 @@ describe("expandShorthands — background shorthand → background-color 가드"
 
 // var()가 낀 shorthand는 Chrome CSSOM이 longhand를 전부 빈 문자열로 돌려주므로(실측)
 // 이 수동 전개가 유일한 출처가 된다 — 2값 shorthand를 통째 복사하면 longhand가 오염된다.
+// 분해 테이블(TRBL/PAIR)과 전개 대상 목록(SHORTHAND_MAP)이 갈리면 값이 조용히 뒤바뀐다 —
+// expandShorthands가 값은 분해 테이블 순서로 쪼개고 자리는 SHORTHAND_MAP 순서로 채우기 때문.
+describe("shorthand 테이블 정합성", () => {
+  const CASES: Array<[string, string[]]> = [
+    ["padding", ["padding-top", "padding-right", "padding-bottom", "padding-left"]],
+    ["margin", ["margin-top", "margin-right", "margin-bottom", "margin-left"]],
+    ["inset", ["top", "right", "bottom", "left"]],
+    ["gap", ["row-gap", "column-gap"]],
+    ["overflow", ["overflow-x", "overflow-y"]],
+    ["padding-inline", ["padding-left", "padding-right"]],
+    ["padding-block", ["padding-top", "padding-bottom"]],
+    ["margin-inline", ["margin-left", "margin-right"]],
+    ["margin-block", ["margin-top", "margin-bottom"]],
+    ["inset-inline", ["left", "right"]],
+    ["inset-block", ["top", "bottom"]],
+  ];
+
+  it.each(CASES)("%s는 선언 순서대로 각 longhand에 배분된다", (shorthand, longhands) => {
+    const value = longhands.map((_, i) => `${i + 1}px`).join(" ");
+    const all: Record<string, string> = { [shorthand]: value };
+    expandShorthands(all, {});
+    longhands.forEach((lh, i) => {
+      expect(all[lh]).toBe(`${i + 1}px`);
+    });
+  });
+});
+
 describe("expandShorthands — 2값 shorthand 분해", () => {
   it("gap 2값 → row-gap/column-gap 분리", () => {
     const all: Record<string, string> = { gap: "var(--gy) var(--gx)" };
@@ -362,6 +389,18 @@ describe("expandShorthands — 2값 shorthand 분해", () => {
     expandShorthands(all, {});
     expect(all["margin-top"]).toBe("var(--a)");
     expect(all["margin-bottom"]).toBe("var(--b)");
+  });
+
+  it("inset-inline/inset-block → 물리 오프셋 분리", () => {
+    const all: Record<string, string> = {
+      "inset-inline": "var(--l) 8px",
+      "inset-block": "4px",
+    };
+    expandShorthands(all, {});
+    expect(all.left).toBe("var(--l)");
+    expect(all.right).toBe("8px");
+    expect(all.top).toBe("4px");
+    expect(all.bottom).toBe("4px");
   });
 
   it("논리 속성 1값 → 두 변 모두 같은 값", () => {
@@ -493,6 +532,53 @@ describe("extractVarPropsFromMap — border shorthand longhand 소유권", () =>
     );
     expect(out["border-top-color"]).toBe("var(--accent)");
     expect(out["border-right-color"]).toBe("var(--divider)");
+  });
+
+  // 같은 규칙 안에선 뒤에 선언된 쪽이 이긴다 — 앞선 축에 양보하면 토큰을 잃는다.
+  it("border shorthand보다 앞에 선언된 축은 덮는다", () => {
+    const out: Record<string, string> = {};
+    extractVarPropsFromMap(
+      new Map([
+        ["border-color", "#ddd"],
+        ["border", "1px solid var(--divider)"],
+      ]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-top-color"]).toBe("var(--divider)");
+  });
+
+  // 4면 요약 키는 INTERESTING_PROPS에 실려 그대로 노출되므로(border-style), per-side만
+  // 덮으면 리셋이 남긴 요약과 모순된 채 나간다.
+  it("4면 요약 키(border-style)도 함께 덮는다", () => {
+    const out: Record<string, string> = {
+      "border-style": "none",
+      "border-top-style": "none",
+    };
+    extractVarPropsFromMap(
+      new Map([["border", "1px solid var(--divider)"]]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-style"]).toBe("solid");
+    expect(out["border-top-style"]).toBe("solid");
+  });
+
+  it("border-{side} shorthand는 4면 요약 키를 건드리지 않는다", () => {
+    const out: Record<string, string> = { "border-style": "none" };
+    extractVarPropsFromMap(
+      new Map([["border-top", "1px solid var(--c)"]]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-style"]).toBe("none");
+    expect(out["border-top-style"]).toBe("solid");
   });
 
   it("wantedProps 필터를 존중한다 (inspector 경로)", () => {

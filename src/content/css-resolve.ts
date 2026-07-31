@@ -81,6 +81,8 @@ export const INTERESTING_PROPS = [
   "filter",
   "backdrop-filter",
   "mix-blend-mode",
+  // var()가 낀 transition은 CSSOM longhand가 전부 빈 문자열이라 shorthand로만 살아남는다.
+  "transition",
   "transition-property",
   "transition-duration",
   "transition-timing-function",
@@ -103,14 +105,10 @@ const INHERITED_PROPS = new Set([
   "letter-spacing",
 ]);
 
+// shorthand → 전개 대상 longhand. 값 분해 규칙은 아래 TRBL/PAIR 테이블이 정하고, 어느
+// 쪽에도 없는 shorthand는 전개하지 않는다(`splitShorthandValue`). `font`처럼 문법이 가변인
+// shorthand를 여기 등록하면 값이 longhand에 통째 복사돼 오염된다 — 누락이 오염보다 낫다.
 const SHORTHAND_MAP: Record<string, string[]> = {
-  font: [
-    "font-family",
-    "font-size",
-    "font-weight",
-    "line-height",
-    "letter-spacing",
-  ],
   background: ["background-color"],
   padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
   "padding-inline": ["padding-left", "padding-right"],
@@ -144,7 +142,11 @@ const SHORTHAND_MAP: Record<string, string[]> = {
     "border-left-style",
   ],
   overflow: ["overflow-x", "overflow-y"],
+  // 물리 shorthand를 논리 짝보다 앞에 둔다 — 전개는 fill-if-absent라 순서가 곧 우선순위이고,
+  // padding/margin이 이미 물리 우선이라 inset만 뒤집히면 축마다 규칙이 갈린다.
   inset: ["top", "right", "bottom", "left"],
+  "inset-inline": ["left", "right"],
+  "inset-block": ["top", "bottom"],
 };
 
 const TRBL_SHORTHANDS: Record<string, [string, string, string, string]> = {
@@ -186,6 +188,24 @@ const TRBL_SHORTHANDS: Record<string, [string, string, string, string]> = {
     "border-left-style",
   ],
 };
+
+// 2값 shorthand → [첫값, 둘째값] longhand. 1값이면 둘 다 같은 값. 논리 속성(inline/block)은
+// Chrome이 var() 유무와 무관하게 물리 longhand로 explode하지 않아 이 전개가 유일한 출처다.
+// 논리→물리 매핑은 LTR 고정(`inline`=left/right) — `direction: rtl`에선 좌우가 뒤집힌다.
+// SHORTHAND_MAP과 longhand 순서가 어긋나면 값이 조용히 뒤바뀌므로 양쪽을 함께 고친다.
+const PAIR_SHORTHANDS: Record<string, [string, string]> = {
+  gap: ["row-gap", "column-gap"],
+  overflow: ["overflow-x", "overflow-y"],
+  "padding-inline": ["padding-left", "padding-right"],
+  "padding-block": ["padding-top", "padding-bottom"],
+  "margin-inline": ["margin-left", "margin-right"],
+  "margin-block": ["margin-top", "margin-bottom"],
+  "inset-inline": ["left", "right"],
+  "inset-block": ["top", "bottom"],
+};
+
+const BORDER_AXES = ["width", "style", "color"] as const;
+type BorderAxis = (typeof BORDER_AXES)[number];
 
 const BORDER_STYLE_KEYWORDS = new Set([
   "none",
@@ -343,7 +363,6 @@ const INSPECTOR_WANTED = new Set([
   "border-top-right-radius",
   "border-bottom-right-radius",
   "border-bottom-left-radius",
-  "font",
   "font-size",
   "font-weight",
   "font-family",
@@ -919,7 +938,10 @@ function extractVarPropsFromCssText(
   extractVarPropsFromMap(declared, out, sources, customProps, origin, wantedProps);
 }
 
-function extractVarPropsFromMap(
+// 규칙 순회 중에 호출되는 유일한 전개 지점이라 **소스 순서를 안다** — 여기서 채운 longhand는
+// 앞선 규칙(리셋 등)이 남긴 비-var 값을 덮는다. `expandShorthands`는 flat map이라 순서를
+// 복원할 수 없어 fill-if-absent만 가능하다.
+export function extractVarPropsFromMap(
   declared: Map<string, string>,
   out: Record<string, string>,
   sources: Record<string, string>,
@@ -938,20 +960,64 @@ function extractVarPropsFromMap(
       out[prop] = val;
       sources[prop] = origin;
     }
+    // border/border-{side}는 width|style|color 혼합이라 SHORTHAND_MAP 밖 — 토큰 분류로 분해.
+    const sides = BORDER_SHORTHAND_SIDES[prop];
+    if (Array.isArray(sides)) {
+      const parts = parseBorderShorthand(val);
+      const later = declaredAfter(declared, prop);
+      for (const axis of BORDER_AXES) {
+        for (const side of sides) {
+          claimBorderProp(later, out, sources, origin, side, axis, parts[axis]);
+        }
+        // `border`는 네 변을 한꺼번에 정하므로 4면 요약 키(`border-style` 등)도 갱신한다 —
+        // 안 하면 앞선 리셋이 남긴 요약이 per-side longhand와 모순된 채 specified에 실린다.
+        if (sides.length === 4) {
+          claimBorderProp(later, out, sources, origin, null, axis, parts[axis]);
+        }
+      }
+      continue;
+    }
     const longhands = SHORTHAND_MAP[prop];
     if (!longhands) continue;
-    const trbl = TRBL_SHORTHANDS[prop];
-    const split = trbl ? splitTrblValue(val) : null;
+    const split = splitShorthandValue(prop, val, longhands);
+    if (!split) continue;
     for (let j = 0; j < longhands.length; j++) {
       const lh = longhands[j];
       if (declared.has(lh)) continue;
-      const lhVal = split ? split[j] : val;
       if (!out[lh] || !out[lh].includes("var(")) {
-        out[lh] = lhVal;
+        out[lh] = split[j];
         sources[lh] = origin;
       }
     }
   }
+}
+
+// 같은 규칙에서 `prop` **뒤에** 선언된 속성 이름들. 같은 규칙 안에선 뒤가 이기므로, 앞에
+// 선언된 축은 shorthand가 덮어야 한다 — has()만 보면 `border-color: #ddd; border: … var(--c)`
+// 에서 이미 진 축에 양보해 토큰을 잃는다.
+function declaredAfter(declared: Map<string, string>, prop: string): Set<string> {
+  const keys = [...declared.keys()];
+  return new Set(keys.slice(keys.indexOf(prop) + 1));
+}
+
+// side가 null이면 4면 요약 키(`border-color`), 아니면 변별 longhand(`border-top-color`).
+// 뒤에 더 구체적으로 선언된 축이 있으면 양보하고, 이미 잡힌 var() 토큰은 보존한다(강등 방지).
+function claimBorderProp(
+  later: Set<string>,
+  out: Record<string, string>,
+  sources: Record<string, string>,
+  origin: string,
+  side: string | null,
+  axis: BorderAxis,
+  value: string | undefined,
+): void {
+  if (value === undefined) return;
+  const prop = side ? `border-${side}-${axis}` : `border-${axis}`;
+  if (later.has(prop) || later.has(`border-${axis}`)) return;
+  if (side && later.has(`border-${side}`)) return;
+  if (out[prop]?.includes("var(")) return;
+  out[prop] = value;
+  sources[prop] = origin;
 }
 
 // getComputedStyle은 absolute/fixed 요소의 미지정 오프셋을 auto가 아니라 containing block
@@ -980,6 +1046,28 @@ function isBareBackgroundColor(value: string): boolean {
   return categorizeToken(v) !== "image";
 }
 
+// shorthand 값 → longhands 각 자리의 값. 분해 규칙을 모르는 값(문법 가변·elliptical `/`·
+// 토큰 과다)은 null을 돌려 전개를 포기시킨다 — 값을 통째 복사하면 longhand가 오염된다.
+function splitShorthandValue(
+  shorthand: string,
+  value: string,
+  longhands: string[],
+): string[] | null {
+  if (TRBL_SHORTHANDS[shorthand]) return splitTrblValue(value);
+  if (PAIR_SHORTHANDS[shorthand]) return splitPairValue(value);
+  if (shorthand === "background")
+    return isBareBackgroundColor(value) ? longhands.map(() => value) : null;
+  return null;
+}
+
+function splitPairValue(value: string): [string, string] | null {
+  if (value.includes("/")) return null;
+  const parts = splitCssTokens(value);
+  if (parts.length === 0 || parts.length > 2) return null;
+  const [a, b = a] = parts;
+  return [a, b];
+}
+
 export function expandShorthands(
   all: Record<string, string>,
   sources: Record<string, string>,
@@ -988,22 +1076,12 @@ export function expandShorthands(
     if (!(shorthand in all)) continue;
     const value = all[shorthand];
     const origin = sources[shorthand];
-    const trbl = TRBL_SHORTHANDS[shorthand];
-    const split = trbl ? splitTrblValue(value) : null;
-    if (split) {
-      for (let i = 0; i < trbl.length; i++) {
-        const lh = trbl[i];
-        if (!(lh in all)) {
-          all[lh] = split[i];
-          if (origin) sources[lh] = origin;
-        }
-      }
-      continue;
-    }
-    if (shorthand === "background" && !isBareBackgroundColor(value)) continue;
-    for (const lh of longhands) {
+    const split = splitShorthandValue(shorthand, value, longhands);
+    if (!split) continue;
+    for (let i = 0; i < longhands.length; i++) {
+      const lh = longhands[i];
       if (!(lh in all)) {
-        all[lh] = value;
+        all[lh] = split[i];
         if (origin) sources[lh] = origin;
       }
     }
