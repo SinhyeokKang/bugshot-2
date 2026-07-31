@@ -318,9 +318,6 @@ export function EmptyState({ onStartElement, onStartElementShot, onStartScreensh
               <Crosshair />
               {t("issue.mode.element")}
             </Button>
-            <p className="px-1 text-xs text-muted-foreground">
-              {t("issue.mode.elementLimit")}
-            </p>
             <ButtonGroup className="w-full">
               <Button variant="outline" className="min-w-0 flex-1" onClick={onStartElementShot} data-testid="mode-element-shot">
                 <ScanEye />
