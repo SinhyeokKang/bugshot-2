@@ -83,6 +83,7 @@ import {
   setFrameToken,
 } from "./frame-geometry";
 import {
+  ensureCrossOriginLoaded,
   ensureLoaded as ensureCssCacheLoaded,
   invalidate as invalidateCssCache,
   isCacheReady as isCssCacheReady,
@@ -231,6 +232,7 @@ function handlePickerMessage(
         void (async () => {
           try {
             await ensureCssCacheLoaded();
+            await ensureCrossOriginLoaded();
             sendResponse({ tokens: collectTokens(selectedEl ?? undefined) });
           } catch (err) {
             console.error("[bugshot] collectTokens error", err);
@@ -1082,6 +1084,10 @@ function emitSelected(
       if (selectedEl !== el) return;
       postSelectionUpdate(el);
     }
+    // cross-origin author 보강은 background fetch라 더 늦게 도착 — 2차 selectionUpdated.
+    await ensureCrossOriginLoaded();
+    if (selectedEl !== el) return;
+    postSelectionUpdate(el);
   })();
 }
 
@@ -1109,6 +1115,9 @@ function scheduleSelectionUpdate(): void {
     const target = selectedEl!;
     void (async () => {
       await ensureCssCacheLoaded();
+      if (selectedEl !== target || !ensureSelectedConnected()) return;
+      postSelectionUpdate(target);
+      await ensureCrossOriginLoaded();
       if (selectedEl !== target || !ensureSelectedConnected()) return;
       postSelectionUpdate(target);
     })();

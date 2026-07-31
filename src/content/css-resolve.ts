@@ -4,8 +4,11 @@ import type {
   TokenCategory,
 } from "@/types/picker";
 import {
+  getCrossOriginCustomProps,
   getMatchingRules,
+  getMatchingCrossOriginRules,
   getRawDeclarationsFor,
+  type CrossOriginRule,
 } from "./css-source-cache";
 import { NAMED_COLORS } from "@/lib/named-colors";
 
@@ -424,6 +427,7 @@ export function collectTokens(el?: Element): Token[] {
     collectInlineTokens(el, seen);
     collectReferencedTokenNames(collectSpecifiedStylesWithSources(el).styles, seen);
   }
+  mergeCrossOriginTokens(seen, getCrossOriginCustomProps());
   const rootStyle = getComputedStyle(document.documentElement);
   const elStyle = el ? getComputedStyle(el) : null;
   const tokens: Token[] = [];
@@ -820,7 +824,61 @@ function collectRulesForElement(
     extractVarPropsFromCssText(style.cssText, out, sources, customProps, "[inline]", wantedProps, claims, importantProps(style));
     applyDeclarations(style, out, sources, customProps, "[inline]", wantedProps, claims);
   }
+  // cross-origin author 규칙은 same-origin·inline이 채운 뒤 빈 prop만 보강한다.
+  mergeCrossOriginDecls(
+    out,
+    sources,
+    customProps,
+    getMatchingCrossOriginRules(el),
+    getCrossOriginCustomProps(),
+    wantedProps,
+  );
   return claims.uncertain;
+}
+
+// 순수: same-origin이 이미 채운 prop은 보존하고(빈 prop만 채움), cross-origin 규칙끼리는
+// seq 큰 게 override. --*는 customProps에 보충(없는 키만). var() 해석은 호출부에서 별도.
+export function mergeCrossOriginDecls(
+  out: Record<string, string>,
+  sources: Record<string, string>,
+  customProps: Record<string, string>,
+  rules: CrossOriginRule[],
+  crossCustomProps: Record<string, string>,
+  wantedProps?: Set<string>,
+): void {
+  const sameOriginKeys = new Set(Object.keys(out));
+  // same-origin shorthand(padding 등)이 점유한 longhand도 claimed 처리 — 아직 안 펼쳐진
+  // shorthand를 cross-origin longhand가 우회해 덮어쓰는 split(same-origin wins 위반) 방지.
+  for (const key of [...sameOriginKeys]) {
+    const longhands = SHORTHAND_MAP[key];
+    if (longhands) for (const lh of longhands) sameOriginKeys.add(lh);
+    // border/border-{side}는 SHORTHAND_MAP 밖(width|style|color 혼합)이라 별도 claim —
+    // same-origin border가 cross-origin border-{side}-color에 split당하는 것 방지.
+    const sides = BORDER_SHORTHAND_SIDES[key];
+    if (Array.isArray(sides))
+      for (const side of sides)
+        for (const axis of BORDER_AXES) sameOriginKeys.add(`border-${side}-${axis}`);
+  }
+  for (const rule of rules) {
+    for (const [name, val] of rule.decls) {
+      if (!val) continue;
+      if (name.startsWith("--")) {
+        if (!customProps[name]) customProps[name] = val.trim();
+        continue;
+      }
+      if (wantedProps && !wantedProps.has(name)) continue;
+      if (sameOriginKeys.has(name)) continue;
+      // same-origin 경로와 **같은 판정 함수**를 쓴다 — 가드를 손으로 복제하면 한쪽만
+      // 고쳐져 드리프트한다(docs/POSTMORTEM.md 2026-06-28). cross-origin은 gap-fill이라
+      // 파생·중요도 축이 없으므로 기본값으로 호출한다.
+      if (!shouldOverwriteSpecified(out[name], val, false)) continue;
+      out[name] = val;
+      sources[name] = rule.selectorText;
+    }
+  }
+  for (const name in crossCustomProps) {
+    if (!customProps[name]) customProps[name] = crossCustomProps[name];
+  }
 }
 
 // CSSOM 선언 블록(매치된 규칙 또는 inline)을 specified에 반영. 규칙과 inline이 같은 규율을
@@ -1427,9 +1485,21 @@ function collectInlineTokens(el: Element, seen: Map<string, string>): void {
   }
 }
 
+// cross-origin :root/html/* custom props를 토큰 후보로 보충. same-origin·inline 수집
+// 뒤에 호출해 빈칸만 채운다(!seen.has) — same-origin이 우선. cross-origin sheet는 CSSOM
+// 열거가 막혀 collectFromRules가 못 잡으므로, 이게 빠지면 그 변수는 swatch가 누락된다.
+export function mergeCrossOriginTokens(
+  seen: Map<string, string>,
+  crossProps: Record<string, string>,
+): void {
+  for (const [name, val] of Object.entries(crossProps)) {
+    if (name.startsWith("--") && !seen.has(name)) seen.set(name, val);
+  }
+}
+
 // 요소가 specified 값에서 실제 참조하는 var() 이름을 빈 값으로 등록. 정의가 cross-origin
-// stylesheet에만 있어 CSSOM 열거가 막혀도 값은 collectTokens의 resolve 루프가
-// getComputedStyle로 채운다(출처·스코프 무관 해석).
+// 스코프 셀렉터(:root 아님)에 있어 mergeCrossOriginTokens도 못 잡는 변수까지 커버 —
+// 값은 collectTokens의 resolve 루프가 getComputedStyle로 채운다(출처·스코프 무관 해석).
 export function collectReferencedTokenNames(
   styles: Record<string, string>,
   seen: Map<string, string>,
