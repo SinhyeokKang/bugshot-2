@@ -5,7 +5,7 @@ import { originOf, pendingKey } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, cropImage } from "@/sidepanel/capture";
-import { clearPicker, collectTokens, expireStylingSession, getTopViewport, isCurrentPickerSession, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
+import { clearPicker, collectTokens, getTopViewport, isCurrentPickerSession, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, releaseDetachedSelection, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import { shouldPreserveBackgroundLogs } from "@/sidepanel/hooks/useBackgroundRecorder";
@@ -249,7 +249,7 @@ export function usePickerMessages(myTabId: number | null): void {
         if (myTabId == null || !isCurrentPickerSession(myTabId, msg.sessionId)) return;
         if (isStalePickerDocument()) return;
         selectionGeneration += 1;
-        void expireStylingSession(myTabId);
+        void releaseDetachedSelection(myTabId);
       } else if (message.type === "activeTabExpiredDeferred") {
         const msg = message as Extract<BgInternalMessage, { type: "activeTabExpiredDeferred" }>;
         if (isForeignTabMessage(myTabId, msg.tabId)) return;

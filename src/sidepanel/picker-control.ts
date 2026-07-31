@@ -440,6 +440,20 @@ export async function applyEditsBySelector(
 // 페이지가 바뀌었거나 현재 요소가 사라졌으면 기존 cross-page 정책과 동일하게 sessionExpired.
 // 한계: same-URL reload는 pageKey가 같아 rebind를 진행하지만 chrome이 iframe frameId를
 // 재발급하므로 옛 frameId send가 조용히 실패한다 — 결말은 요소 소실과 동일(sessionExpired/ghost 카드).
+// 선택 노드만 DOM에서 빠진 경우(SPA 리렌더·key 교체) — 페이지가 바뀐 게 아니므로 버퍼에
+// 쌓아둔 요소별 편집과 캡처는 살리고 현재 선택만 놓는다. sessionExpired는 cross-page 신호라
+// 여기서 세우지 않는다: 세우면 다이얼로그가 뜨고 확인 시 reset이라 버퍼가 통째로 사라진다.
+export async function releaseDetachedSelection(tabId: number): Promise<void> {
+  await clearPicker(tabId).catch(() => {});
+  useEditorStore.setState({
+    selection: null,
+    styleEdits: { classList: [], inlineStyle: {}, text: "", cssText: null },
+    beforeImage: null,
+    afterImage: null,
+    captureContext: null,
+  });
+}
+
 export async function expireStylingSession(tabId: number): Promise<void> {
   await clearPicker(tabId).catch(() => {});
   useEditorStore.setState({
@@ -483,15 +497,13 @@ export async function rebindStylingSession(tabId: number): Promise<void> {
     }
   }
   for (const b of state.bufferedElements) {
-    const found = await applyEditsBySelector(tabId, b.frameId ?? 0, b.selector, {
+    // 요소 소실(found=false)은 ghost 카드로 유지 — 다이얼로그 행 초기화의 기존 한계와 동일.
+    // 하나가 안 붙었다고 세션을 파기하면 나머지 버퍼의 편집·before/after까지 같이 날아간다.
+    await applyEditsBySelector(tabId, b.frameId ?? 0, b.selector, {
       classList: b.styleEdits.classList,
       inlineStyle: b.styleEdits.inlineStyle,
       text: b.selectionSnapshot.text === null ? null : b.styleEdits.text,
     }).catch(() => false);
-    if (!found) {
-      await expireStylingSession(tabId);
-      return;
-    }
   }
   if (!sel) return;
   // 승격 경로 재사용: 현재 요소를 버퍼에 넣고 재선택하면 onElementSelected가

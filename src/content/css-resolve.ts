@@ -306,16 +306,10 @@ export function collectSpecifiedStylesWithSources(el: Element): {
   for (const prop of Object.keys(all)) {
     all[prop] = resolveVarChain(all[prop], customProps);
   }
-  for (const prop of uncertain) {
-    const computed = window.getComputedStyle(el).getPropertyValue(prop).trim();
-    if (computed) {
-      all[prop] = computed;
-      sources[prop] = "[computed]";
-    } else {
-      delete all[prop];
-      delete sources[prop];
-    }
-  }
+  const uncertainComputed = window.getComputedStyle(el);
+  resolveUncertainSpecified(all, sources, uncertain, (prop) =>
+    uncertainComputed.getPropertyValue(prop).trim(),
+  );
 
   const filtered: Record<string, string> = {};
   const filteredSources: Record<string, string> = {};
@@ -1003,6 +997,30 @@ export function newClaimState(): ClaimState {
     candidates: new Map(),
     uncertain: new Set(),
   };
+}
+
+// 규칙 둘이 같은 prop을 다른 값으로 선언하면 specificity를 모르므로(getMatchingRules는
+// 문서 순서만 안다) 브라우저가 계산한 값으로 회피한다. 단 author가 var() 토큰을 썼으면
+// 이름을 유지한다 — computed는 토큰을 이미 해석해 버려서, 덮으면 토큰 칩·swatch가 사라지고
+// (`collectReferencedTokenNames`가 이름을 못 모은다) CSS 뷰가 리터럴 덤프가 된다.
+// 근사 두 개 중 "값이 덜 정확하다"를 택하고 "토큰을 잃는다"를 버린 것.
+export function resolveUncertainSpecified(
+  all: Record<string, string>,
+  sources: Record<string, string>,
+  uncertain: Set<string>,
+  computedOf: (prop: string) => string,
+): void {
+  for (const prop of uncertain) {
+    if (all[prop]?.includes("var(")) continue;
+    const computed = computedOf(prop);
+    if (computed) {
+      all[prop] = computed;
+      sources[prop] = "[computed]";
+    } else {
+      delete all[prop];
+      delete sources[prop];
+    }
+  }
 }
 
 export function noteClaim(

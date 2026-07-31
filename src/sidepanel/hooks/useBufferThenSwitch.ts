@@ -1,3 +1,5 @@
+import { toast } from "sonner";
+import { t } from "@/i18n";
 import { useEditorStore } from "@/store/editor-store";
 import { hasStyleChange } from "@/sidepanel/lib/hasStyleChange";
 import { captureElementSnapshot } from "@/sidepanel/capture";
@@ -20,6 +22,9 @@ export function useBufferThenSwitch(): (
     try {
       const { selection, styleEdits, bufferCurrentElement, captureContext } =
         useEditorStore.getState();
+      // 미적용 draft로 전환하면 그 편집이 조용히 사라진다. 다만 막기만 하면 버튼이
+      // 아무 반응 없이 죽어 "안 눌린다"로 보이므로(DESIGN.md §14 — 잠금엔 이유를 함께
+      // 준다) 사유를 토스트로 알린다. [다음] 버튼은 같은 사유를 툴팁으로 노출한다.
       if (
         selection &&
         isCssDraftUnapplied(
@@ -27,7 +32,10 @@ export function useBufferThenSwitch(): (
           selection.specifiedStyles,
           styleEdits.inlineStyle,
         )
-      ) return;
+      ) {
+        toast.error(t("editor.cssDraftUnapplied"));
+        return;
+      }
       if (selection && hasStyleChange(selection, styleEdits)) {
         const after = await captureElementSnapshot(tabId, {
           frameId: selection.frameId ?? 0,

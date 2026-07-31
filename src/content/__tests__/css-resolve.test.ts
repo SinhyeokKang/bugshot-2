@@ -26,6 +26,7 @@ import {
   shouldOverwriteSpecified,
   newClaimState,
   noteClaim,
+  resolveUncertainSpecified,
   normalizePositionOffsets,
   type EditableHandle,
 } from "../css-resolve";
@@ -765,6 +766,40 @@ describe("noteClaim", () => {
 
     expect(claims.candidates.get("color")?.important).toBe(true);
     expect(claims.uncertain.has("color")).toBe(false);
+  });
+});
+
+// 규칙 둘이 같은 prop을 다르게 선언하면(specificity를 모르므로) computed로 회피하는데,
+// author가 토큰을 썼으면 이름을 잃어선 안 된다 — computed는 var()를 이미 해석해 버린다.
+describe("resolveUncertainSpecified", () => {
+  it("var() 토큰은 computed로 강등하지 않는다", () => {
+    const all: Record<string, string> = { color: "var(--fg)" };
+    const sources: Record<string, string> = { color: ".theme a" };
+    resolveUncertainSpecified(all, sources, new Set(["color"]), () => "rgb(51, 51, 51)");
+    expect(all.color).toBe("var(--fg)");
+    expect(sources.color).toBe(".theme a");
+  });
+
+  it("리터럴끼리 충돌하면 computed로 회피한다", () => {
+    const all: Record<string, string> = { color: "#333" };
+    const sources: Record<string, string> = { color: "a" };
+    resolveUncertainSpecified(all, sources, new Set(["color"]), () => "rgb(0, 102, 204)");
+    expect(all.color).toBe("rgb(0, 102, 204)");
+    expect(sources.color).toBe("[computed]");
+  });
+
+  it("computed가 비면 specified에서 제거한다", () => {
+    const all: Record<string, string> = { font: "bold 12px Arial" };
+    const sources: Record<string, string> = { font: ".x" };
+    resolveUncertainSpecified(all, sources, new Set(["font"]), () => "");
+    expect("font" in all).toBe(false);
+    expect("font" in sources).toBe(false);
+  });
+
+  it("uncertain이 아닌 prop은 건드리지 않는다", () => {
+    const all: Record<string, string> = { color: "#333", padding: "8px" };
+    resolveUncertainSpecified(all, {}, new Set(["color"]), () => "rgb(1, 2, 3)");
+    expect(all.padding).toBe("8px");
   });
 });
 
