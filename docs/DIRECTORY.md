@@ -35,7 +35,7 @@ src/
 │   └── messages.ts      # 메시지 핸들러 디스패치 (jira.* / github.* / linear.* / notion.* / gitlab.* / asana.* / clickup.* / slack.* / analytics.capture / css.fetchSheets(cross-origin stylesheet 위임 fetch, SSRF 가드) namespace)
 ├── content/
 │   ├── picker.ts          # DOM picker 메인 (메시지 라우터 + 모드 FSM + hover/select 이벤트)
-│   ├── css-resolve.ts     # CSS 스타일 수집·토큰 resolve (resolveVarChain, collectSelection, collectTokens)
+│   ├── css-resolve.ts     # CSS 스타일 수집·토큰 resolve (resolveVarChain, collectSelection, collectTokens) + shorthand 전개·소유권 판정(expandShorthands/extractVarPropsFromMap/shouldOverwriteSpecified — var()가 끼면 CSSOM longhand가 비어 이 전개가 specified의 유일한 출처. ARCHITECTURE "CSSOM shorthand 한계 우회" 참조)
 │   ├── css-source-cache.ts# raw CSS 텍스트 캐시 (CSSOM shorthand explode 우회, fetch + 경량 파서 + MutationObserver). cross-origin sheet는 직접 fetch 불가라 background css.fetchSheets에 위임(crossOriginRules·indexCrossOriginRules·getMatchingCrossOriginRules)
 │   ├── dom-describe.ts    # DOM 트리 직렬화 (buildSelector, buildInitialTree, buildChildrenResponse)
 │   ├── capture-context.ts # element 캡처 컨텍스트 확장 판정(순수) — findContextAncestor(최근접 시맨틱 조상, form·fieldset은 개인정보 노출 면적 때문에 후보 제외)·passesContextGates(G1 뷰포트 완전 포함 / G2 요소 포함, 요소 0×0이면 생략 / G3 면적 ≤ CONTEXT_MAX_VIEWPORT_RATIO=0.4 — 클램프 없음)·resolveContextRect(after 재검증: 재조회 조상이 현재 요소를 DOM 포함하고 게이트를 다시 통과할 때만 채택). picker.ts가 BROWSER_BOUND_EXACT라 판정을 여기로 내려야 테스트로 고정된다

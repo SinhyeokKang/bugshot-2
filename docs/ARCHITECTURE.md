@@ -124,9 +124,15 @@ Connect 폼에서 **상위 값을 바꾸면 하위 assignee·label defaults를 �
 
 ## CSSOM shorthand 한계 우회 (Raw CSS Cache)
 
-shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrome이 shorthand를 explode하며 **원본 var()를 빈 문자열로 대체**. CSSOM만으로 복구 불가.
+**`var()`가 낀 shorthand는 그 longhand가 CSSOM에서 전부 빈 문자열이다**(pending-substitution — longhand override가 없어도 그렇다. `border: 1px solid var(--c)` 하나만으로 `border-top-width`…12개가 `""`). 원본 값은 shorthand 키에만 남고 CSSOM만으로는 longhand를 복구할 수 없다. `!important` 여부는 이때도 `getPropertyPriority()`가 정확히 돌려준다 — 값이 비어 있어도 중요도는 읽힌다.
 
-**대응**: `src/content/css-source-cache.ts`가 raw CSS를 별도 확보해 룰별 매핑.
+**대응 2단**:
+1. `src/content/css-source-cache.ts`가 raw CSS를 별도 확보해 룰별 매핑(원본 shorthand 문자열 복구).
+2. `css-resolve.ts`가 그 shorthand를 직접 longhand로 전개한다 — 즉 **var()가 끼는 순간 이 수동 전개가 specified의 유일한 출처**가 된다. 분해 규칙은 `TRBL_SHORTHANDS`(4값)·`PAIR_SHORTHANDS`(2값, 논리 속성 포함)가 정하고 longhand 이름·순서의 단일 출처는 `SHORTHAND_MAP`이다. 문법이 가변인 shorthand(`font`·`transition`·elliptical `border-radius`)는 **전개하지 않는다** — 값을 통째 복사하면 longhand가 오염되므로 누락을 택한다(`transition`은 대신 shorthand 자체가 `INTERESTING_PROPS`에 있다). 논리 속성(`padding-inline` 등)은 var() 유무와 무관하게 Chrome이 물리 longhand로 explode하지 않아 **항상** 이 경로만 남는다.
+
+**소유권 판정**: `border`/`border-{side}`는 width|style|color 혼합이라 `SHORTHAND_MAP` 밖이고 `parseBorderShorthand`로 분해한다. 전개가 앞선 규칙(리셋 `*{border:0}` — 이건 CSSOM이 `0px/none/currentcolor`로 explode한다)의 값을 밀어내야 하므로, 규칙 순회 중인 `extractVarPropsFromMap`에서만 덮어쓴다(**소스 순서를 아는 유일한 지점** — `expandShorthands`는 flat map이라 fill-if-absent만 가능). 덮을지 말지는 `shouldOverwriteSpecified` 하나가 정한다: `!important`가 일반 선언을 이기고, 같은 중요도면 뒤가 이기고, author가 쓴 `var()` 토큰은 뒤따르는 **리터럴**로부터만 보호된다(var→var는 last-wins). shorthand가 파생시킨 값은 `ClaimState.derived`로 표시돼 뒤 규칙의 직접 선언에 자리를 내준다. specificity는 여전히 무시하는 의도된 근사다(`getMatchingRules`가 문서 순서로만 정렬).
+
+이 전제들은 실제 브라우저 동작이라 유닛으로 못 고정한다 — `e2e/style-shorthand-var.spec.ts`가 유일한 회귀 그물이다.
 
 수집: `<style>` → `ownerNode.textContent`, `<link>` → `fetch(href)` (same-origin/CORS만), `adoptedStyleSheets` → `cssText` 직렬화. 픽커 활성화 시 `ensureLoaded()` + `MutationObserver`로 변경 감지, 비활성화 시 drop.
 
