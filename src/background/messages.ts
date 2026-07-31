@@ -724,7 +724,7 @@ async function fetchCssSheets(
       if (!type.toLowerCase().includes("css")) return null;
       const len = Number(res.headers.get("content-length"));
       if (Number.isFinite(len) && len > MAX_SHEET_BYTES) return null;
-      const text = await readCappedText(res, MAX_SHEET_BYTES);
+      const text = await readCappedSheetText(res, MAX_SHEET_BYTES);
       if (text == null) return null;
       return { url, text };
     }),
@@ -737,7 +737,7 @@ async function fetchCssSheets(
 }
 
 // content-length 누락 시에도 maxBytes 초과분을 버퍼링 전에 끊어 SW OOM을 막는다.
-async function readCappedText(
+async function readCappedSheetText(
   res: Response,
   maxBytes: number,
 ): Promise<string | null> {

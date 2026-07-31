@@ -3,8 +3,6 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("../css-source-cache", () => ({
   getMatchingRules: () => [],
   getRawDeclarationsFor: () => null,
-  getMatchingCrossOriginRules: () => [],
-  getCrossOriginCustomProps: () => ({}),
 }));
 
 import {
@@ -18,11 +16,17 @@ import {
   shouldRestoreEditable,
   splitTrblValue,
   splitCssTokens,
+  hydrateReferencedCustomProps,
+  collectReferencedTokenNames,
   mergeCrossOriginDecls,
   mergeCrossOriginTokens,
-  collectReferencedTokenNames,
   parseBorderShorthand,
   expandShorthands,
+  extractVarPropsFromMap,
+  shouldOverwriteSpecified,
+  newClaimState,
+  noteClaim,
+  resolveUncertainSpecified,
   normalizePositionOffsets,
   type EditableHandle,
 } from "../css-resolve";
@@ -107,6 +111,12 @@ describe("INTERESTING_PROPS", () => {
 
   it("충분한 수의 속성", () => {
     expect(INTERESTING_PROPS.length).toBeGreaterThanOrEqual(30);
+  });
+
+  // var()가 낀 `transition`은 CSSOM longhand가 전부 빈 문자열이라(Chrome 실측) longhand
+  // 4개만으로는 author 값이 통째 누락된다 — shorthand 자체를 수집해 값·토큰을 살린다.
+  it("transition shorthand 포함", () => {
+    expect(INTERESTING_PROPS).toContain("transition");
   });
 });
 
@@ -312,6 +322,512 @@ describe("expandShorthands — background shorthand → background-color 가드"
     };
     expandShorthands(all, {});
     expect(all["background-color"]).toBe("var(--bg)");
+  });
+});
+
+// var()가 낀 shorthand는 Chrome CSSOM이 longhand를 전부 빈 문자열로 돌려주므로(실측)
+// 이 수동 전개가 유일한 출처가 된다 — 2값 shorthand를 통째 복사하면 longhand가 오염된다.
+// longhand 이름·순서의 단일 출처는 SHORTHAND_MAP이고, TRBL/PAIR는 값을 몇 조각으로
+// 쪼갤지만 정한다. 이 표는 세 가지를 한꺼번에 고정한다 — arity 불일치(자리 하나가
+// undefined로 샘), SHORTHAND_MAP 내부 순서(논리 속성 LTR 매핑 역전), split 테이블 등록
+// 누락(둘 중 어디에도 없으면 splitShorthandValue가 null → 조용한 무전개).
+describe("shorthand 테이블 정합성", () => {
+  const CASES: Array<[string, string[]]> = [
+    ["padding", ["padding-top", "padding-right", "padding-bottom", "padding-left"]],
+    ["margin", ["margin-top", "margin-right", "margin-bottom", "margin-left"]],
+    ["inset", ["top", "right", "bottom", "left"]],
+    ["border-radius", [
+      "border-top-left-radius",
+      "border-top-right-radius",
+      "border-bottom-right-radius",
+      "border-bottom-left-radius",
+    ]],
+    ["border-width", [
+      "border-top-width",
+      "border-right-width",
+      "border-bottom-width",
+      "border-left-width",
+    ]],
+    ["border-color", [
+      "border-top-color",
+      "border-right-color",
+      "border-bottom-color",
+      "border-left-color",
+    ]],
+    ["gap", ["row-gap", "column-gap"]],
+    ["overflow", ["overflow-x", "overflow-y"]],
+    ["padding-inline", ["padding-left", "padding-right"]],
+    ["padding-block", ["padding-top", "padding-bottom"]],
+    ["margin-inline", ["margin-left", "margin-right"]],
+    ["margin-block", ["margin-top", "margin-bottom"]],
+    ["inset-inline", ["left", "right"]],
+    ["inset-block", ["top", "bottom"]],
+  ];
+
+  it.each(CASES)("%s는 선언 순서대로 각 longhand에 배분된다", (shorthand, longhands) => {
+    const value = longhands.map((_, i) => `${i + 1}px`).join(" ");
+    const all: Record<string, string> = { [shorthand]: value };
+    expandShorthands(all, {});
+    longhands.forEach((lh, i) => {
+      expect(all[lh]).toBe(`${i + 1}px`);
+    });
+  });
+
+  it("전개된 자리에 undefined가 새지 않는다", () => {
+    for (const [shorthand, value] of [
+      ["padding", "1px 2px 3px 4px"],
+      ["gap", "1px 2px"],
+      ["inset-inline", "1px 2px"],
+      ["overflow", "hidden auto"],
+      ["border-radius", "1px 2px 3px 4px"],
+    ] as const) {
+      const all: Record<string, string> = { [shorthand]: value };
+      expandShorthands(all, {});
+      expect(Object.values(all).every((v) => typeof v === "string")).toBe(true);
+    }
+  });
+});
+
+describe("expandShorthands — 2값 shorthand 분해", () => {
+  it("gap 2값 → row-gap/column-gap 분리", () => {
+    const all: Record<string, string> = { gap: "var(--gy) var(--gx)" };
+    const sources: Record<string, string> = { gap: ".grid" };
+    expandShorthands(all, sources);
+    expect(all["row-gap"]).toBe("var(--gy)");
+    expect(all["column-gap"]).toBe("var(--gx)");
+    expect(sources["row-gap"]).toBe(".grid");
+  });
+
+  it("gap 1값 → 두 축 모두 같은 값", () => {
+    const all: Record<string, string> = { gap: "8px" };
+    expandShorthands(all, {});
+    expect(all["row-gap"]).toBe("8px");
+    expect(all["column-gap"]).toBe("8px");
+  });
+
+  it("overflow 2값 → overflow-x/overflow-y 분리", () => {
+    const all: Record<string, string> = { overflow: "hidden var(--oy)" };
+    expandShorthands(all, {});
+    expect(all["overflow-x"]).toBe("hidden");
+    expect(all["overflow-y"]).toBe("var(--oy)");
+  });
+
+  // 논리 속성은 var()가 없어도 Chrome이 물리 longhand로 explode하지 않는다(실측) —
+  // 항상 이 경로만 남으므로 2값 오염이 상시 발동한다.
+  it("padding-inline 2값 → padding-left/right 분리 (var 없어도)", () => {
+    const all: Record<string, string> = { "padding-inline": "4px 8px" };
+    expandShorthands(all, {});
+    expect(all["padding-left"]).toBe("4px");
+    expect(all["padding-right"]).toBe("8px");
+  });
+
+  it("margin-block 2값 → margin-top/bottom 분리", () => {
+    const all: Record<string, string> = { "margin-block": "var(--a) var(--b)" };
+    expandShorthands(all, {});
+    expect(all["margin-top"]).toBe("var(--a)");
+    expect(all["margin-bottom"]).toBe("var(--b)");
+  });
+
+  it("inset-inline/inset-block → 물리 오프셋 분리", () => {
+    const all: Record<string, string> = {
+      "inset-inline": "var(--l) 8px",
+      "inset-block": "4px",
+    };
+    expandShorthands(all, {});
+    expect(all.left).toBe("var(--l)");
+    expect(all.right).toBe("8px");
+    expect(all.top).toBe("4px");
+    expect(all.bottom).toBe("4px");
+  });
+
+  it("논리 속성 1값 → 두 변 모두 같은 값", () => {
+    const all: Record<string, string> = { "padding-inline": "var(--p)" };
+    expandShorthands(all, {});
+    expect(all["padding-left"]).toBe("var(--p)");
+    expect(all["padding-right"]).toBe("var(--p)");
+  });
+
+  it("2값 shorthand도 기존 longhand는 안 덮음 (fill-if-absent)", () => {
+    const all: Record<string, string> = {
+      gap: "4px 8px",
+      "row-gap": "var(--gy)",
+    };
+    expandShorthands(all, {});
+    expect(all["row-gap"]).toBe("var(--gy)");
+    expect(all["column-gap"]).toBe("8px");
+  });
+});
+
+// 문법이 복합·가변인 shorthand(font·transition·elliptical radius)는 토큰 위치를 신뢰할 수
+// 없다 — 값을 통째 복사하면 longhand가 쓰레기 문자열로 오염된다. 누락이 오염보다 낫다.
+describe("expandShorthands — 파싱 불가 shorthand는 longhand 미오염", () => {
+  it("font shorthand는 longhand를 채우지 않음", () => {
+    const all: Record<string, string> = { font: "bold var(--fs)/1.5 Arial" };
+    expandShorthands(all, {});
+    expect(all["font-size"]).toBeUndefined();
+    expect(all["font-family"]).toBeUndefined();
+    expect(all["font-weight"]).toBeUndefined();
+    expect(all["line-height"]).toBeUndefined();
+    expect(all["letter-spacing"]).toBeUndefined();
+  });
+
+  it("transition shorthand는 longhand를 채우지 않음", () => {
+    const all: Record<string, string> = { transition: "all var(--dur) ease" };
+    expandShorthands(all, {});
+    expect(all["transition-property"]).toBeUndefined();
+    expect(all["transition-duration"]).toBeUndefined();
+    expect(all["transition-timing-function"]).toBeUndefined();
+    expect(all["transition-delay"]).toBeUndefined();
+  });
+
+  // `/` 검사가 문자열 전체를 훑으면 calc 안의 나눗셈까지 전개를 막아, author가 쓴 값이
+  // 통째로 사라지고 소비처가 computed px로 폴백한다.
+  it("calc 안의 나눗셈은 전개를 막지 않음", () => {
+    const all: Record<string, string> = { padding: "calc(100% / 3)" };
+    expandShorthands(all, {});
+    expect(all["padding-top"]).toBe("calc(100% / 3)");
+    expect(all["padding-left"]).toBe("calc(100% / 3)");
+
+    const gap: Record<string, string> = { gap: "calc(var(--gutter) / 2)" };
+    expandShorthands(gap, {});
+    expect(gap["row-gap"]).toBe("calc(var(--gutter) / 2)");
+    expect(gap["column-gap"]).toBe("calc(var(--gutter) / 2)");
+  });
+
+  it("elliptical border-radius(`/`)는 코너를 채우지 않음", () => {
+    const all: Record<string, string> = { "border-radius": "var(--r) / 20px" };
+    expandShorthands(all, {});
+    expect(all["border-top-left-radius"]).toBeUndefined();
+    expect(all["border-bottom-right-radius"]).toBeUndefined();
+  });
+
+  it("5토큰 이상 TRBL 값도 채우지 않음", () => {
+    const all: Record<string, string> = { padding: "1px 2px 3px 4px 5px" };
+    expandShorthands(all, {});
+    expect(all["padding-top"]).toBeUndefined();
+  });
+});
+
+// 규칙 순회 중(순서를 아는 유일한 지점) border shorthand가 앞선 규칙이 채운 longhand의
+// 소유권을 가져와야 한다. expandShorthands는 flat map이라 순서를 복원할 수 없다.
+describe("extractVarPropsFromMap — border shorthand longhand 소유권", () => {
+  it("앞선 리셋(`*{border:0}`)이 채운 비-var longhand를 덮는다", () => {
+    // Chrome CSSOM은 `border: 0` 규칙을 0px/none/currentcolor로 explode한다(실측).
+    const out: Record<string, string> = {};
+    const sources: Record<string, string> = {};
+    for (const side of ["top", "right", "bottom", "left"]) {
+      out[`border-${side}-width`] = "0px";
+      out[`border-${side}-style`] = "none";
+      out[`border-${side}-color`] = "currentcolor";
+      sources[`border-${side}-width`] = "*";
+    }
+    extractVarPropsFromMap(
+      new Map([["border", "0.1rem solid var(--divider)"]]),
+      out,
+      sources,
+      {},
+      ".card",
+    );
+    for (const side of ["top", "right", "bottom", "left"]) {
+      expect(out[`border-${side}-width`]).toBe("0.1rem");
+      expect(out[`border-${side}-style`]).toBe("solid");
+      expect(out[`border-${side}-color`]).toBe("var(--divider)");
+      expect(sources[`border-${side}-width`]).toBe(".card");
+    }
+    expect(out.border).toBe("0.1rem solid var(--divider)");
+  });
+
+  // 토큰 강등 방지는 var()→리터럴 방향에만 걸린다. var()→var()는 뒤 규칙이 이겨야
+  // 한다 — 앞선 토큰을 동결하면 `.card` + `.card--danger`처럼 두 규칙이 각각 토큰
+  // border를 선언할 때 축마다 출처가 갈려 자기모순이 된다.
+  it("앞선 var() longhand는 나중 shorthand의 var()에 자리를 내준다", () => {
+    const out: Record<string, string> = {
+      "border-top-color": "var(--accent)",
+      "border-top-width": "0px",
+    };
+    extractVarPropsFromMap(
+      new Map([["border", "1px solid var(--divider)"]]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-top-color"]).toBe("var(--divider)");
+    expect(out["border-top-width"]).toBe("1px");
+  });
+
+  it("var() 토큰은 나중 리터럴로 강등되지 않는다", () => {
+    expect(shouldOverwriteSpecified("var(--accent)", "#333", false)).toBe(false);
+  });
+
+  it("border-{side} shorthand는 해당 변만 덮는다", () => {
+    const out: Record<string, string> = {
+      "border-top-color": "currentcolor",
+      "border-left-color": "currentcolor",
+    };
+    extractVarPropsFromMap(
+      new Map([["border-top", "2px dashed var(--c)"]]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-top-color"]).toBe("var(--c)");
+    expect(out["border-left-color"]).toBe("currentcolor");
+  });
+
+  it("같은 규칙에 명시된 longhand가 border shorthand보다 우선", () => {
+    const out: Record<string, string> = {};
+    extractVarPropsFromMap(
+      new Map([
+        ["border", "1px solid var(--divider)"],
+        ["border-top-color", "var(--accent)"],
+      ]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-top-color"]).toBe("var(--accent)");
+    expect(out["border-right-color"]).toBe("var(--divider)");
+  });
+
+  // 같은 규칙 안에선 뒤에 선언된 쪽이 이긴다 — 앞선 축에 양보하면 토큰을 잃는다.
+  it("border shorthand보다 앞에 선언된 축은 덮는다", () => {
+    const out: Record<string, string> = {};
+    extractVarPropsFromMap(
+      new Map([
+        ["border-color", "#ddd"],
+        ["border", "1px solid var(--divider)"],
+      ]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-top-color"]).toBe("var(--divider)");
+  });
+
+  // 4면 요약 키는 INTERESTING_PROPS에 실려 그대로 노출되므로(border-style), per-side만
+  // 덮으면 리셋이 남긴 요약과 모순된 채 나간다.
+  it("4면 요약 키(border-style)도 함께 덮는다", () => {
+    const out: Record<string, string> = {
+      "border-style": "none",
+      "border-top-style": "none",
+    };
+    extractVarPropsFromMap(
+      new Map([["border", "1px solid var(--divider)"]]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-style"]).toBe("solid");
+    expect(out["border-top-style"]).toBe("solid");
+  });
+
+  it("border-{side} shorthand는 4면 요약 키를 건드리지 않는다", () => {
+    const out: Record<string, string> = { "border-style": "none" };
+    extractVarPropsFromMap(
+      new Map([["border-top", "1px solid var(--c)"]]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-style"]).toBe("none");
+    expect(out["border-top-style"]).toBe("solid");
+  });
+
+  it("wantedProps 필터를 존중한다 (inspector 경로)", () => {
+    const out: Record<string, string> = {};
+    extractVarPropsFromMap(
+      new Map([["border", "1px solid var(--divider)"]]),
+      out,
+      {},
+      {},
+      ".card",
+      new Set(["color"]),
+    );
+    expect(out["border-top-color"]).toBeUndefined();
+    expect(out.border).toBeUndefined();
+  });
+});
+
+// border shorthand 전개는 "앞선 리셋을 밀어낸다"가 목적인데, 중요도·후속 직접 선언을
+// 모르면 "앞뒤 무관하게 항상 이긴다"가 되어 실제 캐스케이드와 어긋난다.
+describe("extractVarPropsFromMap — 중요도·파생 표시", () => {
+  it("!important로 확정된 축은 border shorthand가 덮지 않는다", () => {
+    const claims = newClaimState();
+    claims.important.add("border-top-color");
+    const out: Record<string, string> = { "border-top-color": "red" };
+    extractVarPropsFromMap(
+      new Map([["border", "1px solid var(--c)"]]),
+      out,
+      {},
+      {},
+      ".b",
+      undefined,
+      claims,
+    );
+    expect(out["border-top-color"]).toBe("red");
+    expect(out["border-top-width"]).toBe("1px");
+  });
+
+  // 같은 중요도끼리는 문서 순서상 뒤가 이긴다 — important를 "영구 잠금"으로 다루면
+  // 나중 규칙의 !important shorthand가 앞선 !important longhand에 진다.
+  it("현재 규칙도 !important면 앞선 !important를 이긴다", () => {
+    const claims = newClaimState();
+    claims.important.add("border-top-color");
+    const out: Record<string, string> = { "border-top-color": "red" };
+    extractVarPropsFromMap(
+      new Map([["border", "1px solid var(--c)"]]),
+      out,
+      {},
+      {},
+      ".b",
+      undefined,
+      claims,
+      new Set(["border-top-color"]),
+    );
+    expect(out["border-top-color"]).toBe("var(--c)");
+  });
+
+  it("shorthand가 채운 축은 파생으로 표시된다", () => {
+    const claims = newClaimState();
+    extractVarPropsFromMap(
+      new Map([["border", "1px solid var(--c)"]]),
+      {},
+      {},
+      {},
+      ".c1",
+      undefined,
+      claims,
+    );
+    expect(claims.derived.has("border-top-color")).toBe(true);
+    expect(claims.derived.has("border-style")).toBe(true);
+  });
+
+  // `border: var(--bd)`처럼 축을 알 수 없는 값은 color 슬롯에 통째로 들어가면 안 된다.
+  it("단일 var()/CSS-wide 키워드는 슬롯 배정을 포기한다", () => {
+    expect(parseBorderShorthand("var(--bd)")).toEqual({});
+    expect(parseBorderShorthand("inherit")).toEqual({});
+    expect(parseBorderShorthand("unset")).toEqual({});
+    // 축이 분명한 단일 토큰은 그대로 분류.
+    expect(parseBorderShorthand("red")).toEqual({ color: "red" });
+    expect(parseBorderShorthand("none")).toEqual({ style: "none" });
+  });
+
+  it("축을 모르는 shorthand 토큰은 앞선 값을 오염시키지 않는다", () => {
+    const out: Record<string, string> = {
+      "border-top-color": "currentcolor",
+      "border-top-width": "0px",
+    };
+    extractVarPropsFromMap(
+      new Map([["border", "var(--bd)"]]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-top-color"]).toBe("currentcolor");
+    expect(out["border-top-width"]).toBe("0px");
+  });
+});
+
+// 규칙 순회에서 specified를 덮을지 판정하는 단일 출처. author가 직접 쓴 var()는 보호하되,
+// shorthand에서 파생된 값은 뒤 규칙의 직접 선언(리터럴 포함)에 자리를 내줘야 한다.
+describe("noteClaim", () => {
+  it("확정된 important winner를 뒤의 일반 선언이 uncertain으로 강등하지 않음", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", true, "#target");
+    noteClaim(claims, "color", "blue", false, ".target");
+    noteClaim(claims, "color", "green", false, "div");
+
+    expect(claims.candidates.get("color")?.value).toBe("red");
+    expect(claims.uncertain.has("color")).toBe(false);
+  });
+
+  it("동일 값 inline winner가 기존 ambiguity를 해소", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ".a");
+    noteClaim(claims, "color", "blue", false, ".b");
+    noteClaim(claims, "color", "blue", false, "[inline]");
+
+    expect(claims.candidates.get("color")?.origin).toBe("[inline]");
+    expect(claims.uncertain.has("color")).toBe(false);
+  });
+
+  it("동일 값 important 선언이 winner metadata를 승격", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "blue", false, ".a");
+    noteClaim(claims, "color", "blue", true, ".b");
+    noteClaim(claims, "color", "green", false, ".c");
+
+    expect(claims.candidates.get("color")?.important).toBe(true);
+    expect(claims.uncertain.has("color")).toBe(false);
+  });
+});
+
+// 규칙 둘이 같은 prop을 다르게 선언하면(specificity를 모르므로) computed로 회피하는데,
+// author가 토큰을 썼으면 이름을 잃어선 안 된다 — computed는 var()를 이미 해석해 버린다.
+describe("resolveUncertainSpecified", () => {
+  it("var() 토큰은 computed로 강등하지 않는다", () => {
+    const all: Record<string, string> = { color: "var(--fg)" };
+    const sources: Record<string, string> = { color: ".theme a" };
+    resolveUncertainSpecified(all, sources, new Set(["color"]), () => "rgb(51, 51, 51)");
+    expect(all.color).toBe("var(--fg)");
+    expect(sources.color).toBe(".theme a");
+  });
+
+  it("리터럴끼리 충돌하면 computed로 회피한다", () => {
+    const all: Record<string, string> = { color: "#333" };
+    const sources: Record<string, string> = { color: "a" };
+    resolveUncertainSpecified(all, sources, new Set(["color"]), () => "rgb(0, 102, 204)");
+    expect(all.color).toBe("rgb(0, 102, 204)");
+    expect(sources.color).toBe("[computed]");
+  });
+
+  it("computed가 비면 specified에서 제거한다", () => {
+    const all: Record<string, string> = { font: "bold 12px Arial" };
+    const sources: Record<string, string> = { font: ".x" };
+    resolveUncertainSpecified(all, sources, new Set(["font"]), () => "");
+    expect("font" in all).toBe(false);
+    expect("font" in sources).toBe(false);
+  });
+
+  it("uncertain이 아닌 prop은 건드리지 않는다", () => {
+    const all: Record<string, string> = { color: "#333", padding: "8px" };
+    resolveUncertainSpecified(all, {}, new Set(["color"]), () => "rgb(1, 2, 3)");
+    expect(all.padding).toBe("8px");
+  });
+});
+
+describe("shouldOverwriteSpecified", () => {
+  it("author var() 값은 뒤따르는 리터럴로부터 보호된다", () => {
+    expect(shouldOverwriteSpecified("var(--c)", "red", false)).toBe(false);
+  });
+
+  // !important는 specificity보다 상위 규칙이라, 뒤에 오는 일반 선언이 이길 수 없다.
+  it("!important로 확정된 자리는 일반 선언이 못 덮는다", () => {
+    expect(shouldOverwriteSpecified("red", "blue", false, true, false)).toBe(false);
+  });
+
+  it("!important끼리는 뒤가 이긴다", () => {
+    expect(shouldOverwriteSpecified("red", "blue", false, true, true)).toBe(true);
+  });
+
+  it("파생된 var() 값은 뒤 규칙의 리터럴에 자리를 내준다", () => {
+    expect(shouldOverwriteSpecified("var(--c)", "red", true)).toBe(true);
+  });
+
+  it("var() → var() 와 리터럴 → 리터럴은 last-wins", () => {
+    expect(shouldOverwriteSpecified("var(--a)", "var(--b)", false)).toBe(true);
+    expect(shouldOverwriteSpecified("red", "blue", false)).toBe(true);
+  });
+
+  it("빈 자리는 항상 채운다", () => {
+    expect(shouldOverwriteSpecified(undefined, "red", false)).toBe(true);
   });
 });
 
@@ -662,6 +1178,73 @@ describe("shouldRestoreEditable", () => {
   });
 });
 
+describe("hydrateReferencedCustomProps", () => {
+  it("브라우저가 계산한 실제 custom property winner로 raw 수집값을 덮음", () => {
+    const customProps = { "--_color": "red" };
+    hydrateReferencedCustomProps(
+      ["var(--_color)"],
+      { getPropertyValue: (name) => (name === "--_color" ? "blue" : "") },
+      customProps,
+    );
+    expect(customProps).toEqual({ "--_color": "blue" });
+  });
+
+  it("computed alias가 참조하는 다음 custom property도 고정점까지 수집", () => {
+    const customProps: Record<string, string> = {};
+    hydrateReferencedCustomProps(
+      ["var(--_a)"],
+      {
+        getPropertyValue: (name) =>
+          name === "--_a" ? "var(--_b)" : name === "--_b" ? "12px" : "",
+      },
+      customProps,
+    );
+    expect(customProps).toEqual({ "--_a": "var(--_b)", "--_b": "12px" });
+  });
+});
+
+describe("collectReferencedTokenNames", () => {
+  it("specified 값의 var() 참조 이름을 빈 값으로 seen에 추가", () => {
+    // naver: 정의는 CORS 시트라 못 읽지만 background-color: var(--…) 참조는 specified에
+    // 남는다. 이름만 넣으면 resolve 루프가 getComputedStyle로 실제 색을 채워 swatch가 뜬다.
+    const seen = new Map<string, string>();
+    collectReferencedTokenNames(
+      { "background-color": "var(--color-primary-background-default)" },
+      seen,
+    );
+    expect(seen.has("--color-primary-background-default")).toBe(true);
+    expect(seen.get("--color-primary-background-default")).toBe("");
+  });
+
+  it("여러 prop·여러 참조 모두 수집", () => {
+    const seen = new Map<string, string>();
+    collectReferencedTokenNames(
+      { color: "var(--fg)", border: "1px solid var(--line)" },
+      seen,
+    );
+    expect(seen.has("--fg")).toBe(true);
+    expect(seen.has("--line")).toBe(true);
+  });
+
+  it("fallback 있는 var()도 이름 추출", () => {
+    const seen = new Map<string, string>();
+    collectReferencedTokenNames({ color: "var(--fg, #fff)" }, seen);
+    expect(seen.has("--fg")).toBe(true);
+  });
+
+  it("이미 있는 이름은 덮지 않음 (definition 값 우선)", () => {
+    const seen = new Map<string, string>([["--fg", "#03A94D"]]);
+    collectReferencedTokenNames({ color: "var(--fg)" }, seen);
+    expect(seen.get("--fg")).toBe("#03A94D");
+  });
+
+  it("var() 없는 값은 무시", () => {
+    const seen = new Map<string, string>();
+    collectReferencedTokenNames({ color: "#333", padding: "8px" }, seen);
+    expect(seen.size).toBe(0);
+  });
+});
+
 describe("mergeCrossOriginDecls", () => {
   const co = (selectorText: string, decls: Record<string, string>) => ({
     selectorText,
@@ -867,44 +1450,3 @@ describe("mergeCrossOriginTokens", () => {
   });
 });
 
-describe("collectReferencedTokenNames", () => {
-  it("specified 값의 var() 참조 이름을 빈 값으로 seen에 추가", () => {
-    // naver: 정의는 CORS 시트라 못 읽지만 background-color: var(--…) 참조는 specified에
-    // 남는다. 이름만 넣으면 resolve 루프가 getComputedStyle로 실제 색을 채워 swatch가 뜬다.
-    const seen = new Map<string, string>();
-    collectReferencedTokenNames(
-      { "background-color": "var(--color-primary-background-default)" },
-      seen,
-    );
-    expect(seen.has("--color-primary-background-default")).toBe(true);
-    expect(seen.get("--color-primary-background-default")).toBe("");
-  });
-
-  it("여러 prop·여러 참조 모두 수집", () => {
-    const seen = new Map<string, string>();
-    collectReferencedTokenNames(
-      { color: "var(--fg)", border: "1px solid var(--line)" },
-      seen,
-    );
-    expect(seen.has("--fg")).toBe(true);
-    expect(seen.has("--line")).toBe(true);
-  });
-
-  it("fallback 있는 var()도 이름 추출", () => {
-    const seen = new Map<string, string>();
-    collectReferencedTokenNames({ color: "var(--fg, #fff)" }, seen);
-    expect(seen.has("--fg")).toBe(true);
-  });
-
-  it("이미 있는 이름은 덮지 않음 (definition 값 우선)", () => {
-    const seen = new Map<string, string>([["--fg", "#03A94D"]]);
-    collectReferencedTokenNames({ color: "var(--fg)" }, seen);
-    expect(seen.get("--fg")).toBe("#03A94D");
-  });
-
-  it("var() 없는 값은 무시", () => {
-    const seen = new Map<string, string>();
-    collectReferencedTokenNames({ color: "#333", padding: "8px" }, seen);
-    expect(seen.size).toBe(0);
-  });
-});

@@ -1,6 +1,6 @@
 ---
 name: "source-command-doc-check"
-description: "저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMISSION/privacy/AUTHORING)를 문서별 전담 에이전트가 병렬로 코드베이스와 양방향 대조(사실오류 + 누락 커버리지)해 stale 탐지 → 통합 리포트 → 항목별 확인 → 수정. guide/ko·en 본문은 제외(/guide 전담). 빌드 안 함."
+description: "저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMISSION/privacy/CI/AUTHORING)를 문서별 전담 에이전트가 병렬로 코드베이스와 양방향 대조(사실오류 + 누락 커버리지)해 stale 탐지 → 통합 리포트 → 항목별 확인 → 수정. guide/ko·en 본문은 제외(/guide 전담). 빌드 안 함."
 ---
 
 # source-command-doc-check
@@ -21,13 +21,13 @@ Use this skill when the user asks to run the migrated source command `doc-check`
 
 ## 사용
 
-- `/doc-check` — 8개 문서 전부 병렬 검사.
-- `/doc-check <doc> [doc...]` — 지정 문서만. 키워드: `claude`, `directory`, `architecture`, `design`, `readme`, `permission`, `privacy`, `authoring`.
+- `/doc-check` — 9개 문서 전부 병렬 검사.
+- `/doc-check <doc> [doc...]` — 지정 문서만. 키워드: `claude`, `directory`, `architecture`, `design`, `readme`, `permission`, `privacy`, `ci`, `authoring`.
 
 예시:
 
 ```
-/doc-check                       → 8개 전부
+/doc-check                       → 9개 전부
 /doc-check architecture          → docs/ARCHITECTURE.md만
 /doc-check architecture claude   → docs/ARCHITECTURE.md + CLAUDE.md
 /doc-check design                → docs/DESIGN.md만
@@ -44,13 +44,14 @@ Use this skill when the user asks to run the migrated source command `doc-check`
 | `readme` | **README.md** | 기능 목록·설치/사용법·스크린샷 설명·지원 플랫폼이 현재 코드와 맞는지 |
 | `permission` | **docs/PERMISSION.md** | activeTab 라이프사이클·OAuth 토큰 흐름·optional permission 등 권한 레퍼런스가 현재 `manifest.config.ts`·코드 사용처와 일치하는지 |
 | `privacy` | **docs/privacy.ko.md · docs/privacy.en.md** | 권한·host_permissions·수집 정보·외부 전송 대상·저장 방식이 현재 매니페스트뿐 아니라 **실제 코드 동작**(캡처/수집/전송)과 일치하는지 + **ko(원본)↔en(번역) 내용 동기화** 여부 |
+| `ci` | **docs/CI.md** | job 구성(`verify`·`e2e` 샤드 수·`e2e-gate`·`notify`)·트리거 이벤트·required status check·xvfb/launch args 전제·secret 비의존(`.env.ci`)·`retries`/`forbidOnly` 분기가 현재 `.github/workflows/ci.yml`·`playwright.config.ts`·`e2e/fixtures/extension.ts`와 일치하는지. spec/테스트 개수처럼 자주 변하는 수치도 대조 |
 | `authoring` | **guide/AUTHORING.md** | 가이드 작성 매뉴얼의 사실 스냅샷(플랫폼 표·단축키·로그 정책·현재 기능 목록·파일 트리·footer·검증 체크리스트)이 현재 코드/구조와 어긋났는지. **guide 본문 페이지는 검사하지 않고, 작성 기준인 이 매뉴얼만** 코드 대조 |
 
 ## 절차
 
 ### 1. 대상 결정
 
-인자가 있으면 해당 키워드 문서만, 없으면 8개 전부. 존재하지 않는 키워드는 무시하고 보고에 명시. `guide`(ko/en 본문)는 의도적 비대상 — 들어오면 "guide 본문은 `/guide` 전담"으로 안내(`authoring`은 검사 대상이니 별개).
+인자가 있으면 해당 키워드 문서만, 없으면 9개 전부. 존재하지 않는 키워드는 무시하고 보고에 명시. `guide`(ko/en 본문)는 의도적 비대상 — 들어오면 "guide 본문은 `/guide` 전담"으로 안내(`authoring`은 검사 대상이니 별개).
 
 ### 2. 공통 컨텍스트 로드 (메인, 1회)
 
@@ -121,7 +122,7 @@ stale이 없으면 "발견 0 — Pass1 N개 단언·Pass2 K개 주제 모두 일
 ### 6. 커밋
 
 수정된 문서를 **문서별 별도 커밋**으로 묶는다 (영문):
-`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(DESIGN): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...` (AUTHORING.md)
+`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(DESIGN): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(CI): ...` / `docs(guide): ...` (AUTHORING.md)
 
 수정 없으면 커밋 없이 "변경 불필요" 보고.
 

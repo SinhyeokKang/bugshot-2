@@ -246,7 +246,7 @@ export type BgRequest =
 export type BgInternalMessage =
   | { type: "logClear"; tabId: number }
   | { type: "activeTabExpiredDeferred"; tabId: number }
-  | { type: "frameCommitted"; tabId: number; frameId: number };
+  | { type: "frameCommitted"; tabId: number; frameId: number; documentId?: string };
 
 export type BgResponse<T = unknown> =
   | { ok: true; result: T }

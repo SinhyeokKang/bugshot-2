@@ -18,6 +18,13 @@ import {
   type TokenLookup,
 } from "./css-resolve";
 import {
+  applyStyleOverlay,
+  createStyleOverlayState,
+  disconnectStyleOverlay,
+  restoreStyleOverlay,
+  type StyleOverlayState,
+} from "./style-overlay";
+import {
   findContextAncestor,
   passesContextGates,
   resolveContextRect,
@@ -88,18 +95,26 @@ import {
 type Mode = "idle" | "hover" | "selected" | "area-select";
 
 let mode: Mode = "idle";
+let activePickerSessionId: string | null = null;
 let selectedEl: Element | null = null;
+let selectionDetachedNotified = false;
 let lastHover: Element | null = null;
 // 전역 캐시 = 현재 selectedEl 원본(applyStyles/applyText가 리셋 기준으로 참조).
-let originalStyle: string | null = null;
 let editableHandle: EditableHandle | null = null;
 let rafHandle: number | null = null;
 
 interface OriginalState {
   className: string | null;
+  classAdded: Set<string>;
+  classRemoved: Set<string>;
   style: string | null;
+  styleOverlay: StyleOverlayState;
   editable: EditableHandle | null;
   text: string | null;
+  lastAppliedText: string | null;
+  ownershipObserver: MutationObserver;
+  externalClassMutations: Set<string>;
+  externalTextMutation: boolean;
 }
 // 변경이 가해질 수 있는 모든 element의 원본 추적(누적 프리뷰). element 전환 시 복원하지
 // 않고 유지하며, cleanup(handleClear→restoreAll)에서만 일괄 원복. 순회 필요 → WeakMap 불가.
@@ -238,6 +253,7 @@ function handlePickerMessage(
         if (overlay) clearPreview(overlay);
         break;
       case "picker.selectByPath":
+        if (msg.sessionId) activePickerSessionId = msg.sessionId;
         sendResponse(handleSelectByPath(msg.selector));
         return;
       case "picker.applyEditsBySelector":
@@ -268,6 +284,7 @@ function handlePickerMessage(
         handleEndCapture(msg.cleanup === true);
         break;
       case "picker.startAreaSelect":
+        activePickerSessionId = msg.sessionId;
         handleStartAreaSelect(msg.restoreAfter);
         break;
       case "picker.cancelAreaSelect":
@@ -362,8 +379,8 @@ function handlePrepareCapture(
 ): PrepareCaptureResponse {
   const viewport = beginCapturePrep();
   const base = { viewport, scrollX: window.scrollX, scrollY: window.scrollY };
-  if (!selectedEl) return { ...base, rect: null };
-  const el = selectedEl;
+  if (!ensureSelectedConnected()) return { ...base, rect: null };
+  const el = selectedEl!;
   const elementRect = viewportRectOf(el);
   // iframe은 게이트가 자기 뷰포트 기준이라 top 좌표에서의 완전 포함을 보장할 수 없다 —
   // 확장 판정 자체를 하지 않는다(폴백이 곧 현행 동작).
@@ -519,6 +536,8 @@ function handleStart(frameToken?: string): void {
   // 사이드패널이 chrome 경로로 broadcast한 token — top은 PRESENT 등록 검증에, 자식은
   // announce에 쓴다(무인증 postMessage 위조 등록 차단).
   setFrameToken(frameToken ?? null);
+  activePickerSessionId = frameToken ?? null;
+  selectionDetachedNotified = false;
   // iframe이면 부모 registry에 등록 — 부모 blocker가 이 프레임 위에서 핸드오프한다.
   if (window !== window.top) announceFrameToParent();
   if (!overlay) {
@@ -561,6 +580,8 @@ function handleClear(): void {
   selectedEl = null;
   lastHover = null;
   mode = "idle";
+  activePickerSessionId = null;
+  selectionDetachedNotified = false;
   if (rafHandle != null) {
     cancelAnimationFrame(rafHandle);
     rafHandle = null;
@@ -585,55 +606,64 @@ function handleClear(): void {
 }
 
 function handleNavigate(direction: "parent" | "child"): void {
-  if (!selectedEl) return;
+  if (!ensureSelectedConnected()) return;
   const next =
-    direction === "parent" ? parentOf(selectedEl) : firstChildOf(selectedEl);
+    direction === "parent" ? parentOf(selectedEl!) : firstChildOf(selectedEl!);
   if (!next) return;
   leaveCurrent();
   selectedEl = next;
   captureOriginal(next);
   render();
-  emitSelected(next);
+  emitSelected(next, "navigate");
 }
 
 function handleApplyClasses(classList: string[]): void {
-  if (!selectedEl) return;
-  captureOriginal(selectedEl);
+  if (!ensureSelectedConnected()) return;
+  captureOriginal(selectedEl!);
   const el = selectedEl as HTMLElement;
-  el.className = classList.join(" ");
+  const state = editedEls.get(selectedEl!);
+  if (!state) return;
+  applyClassOverlay(el, state, classList);
   inspectorCache.delete(el);
   render();
   scheduleSelectionUpdate();
 }
 
-// 값 끝 !important를 분리해 priority 인자로 적용 — 2-arg setProperty는
-// "red !important"를 무효값으로 조용히 드롭한다. 접미사 없는 값은 기존 경로 그대로.
-function applyInlineStyle(
+function applyClassOverlay(
   el: HTMLElement,
-  inlineStyle: Record<string, string>,
+  state: OriginalState,
+  classList: string[],
 ): void {
-  for (const [prop, value] of Object.entries(inlineStyle)) {
-    if (!value) continue;
-    const base = value.replace(/\s*!\s*important\s*$/i, "");
-    if (base !== value) {
-      // 값이 !important뿐이면 base가 빈 문자열 — setProperty(prop,"")는 removeProperty라 skip.
-      if (base) el.style.setProperty(prop, base, "important");
-    } else {
-      el.style.setProperty(prop, value);
+  for (const cls of state.classAdded) el.classList.remove(cls);
+  for (const cls of state.classRemoved) el.classList.add(cls);
+  state.classAdded.clear();
+  state.classRemoved.clear();
+  const original = new Set((state.className ?? "").split(/\s+/).filter(Boolean));
+  const desired = new Set(classList);
+  for (const cls of original) {
+    if (!desired.has(cls)) {
+      el.classList.remove(cls);
+      state.classRemoved.add(cls);
     }
   }
+  for (const cls of desired) {
+    if (!original.has(cls)) {
+      el.classList.add(cls);
+      state.classAdded.add(cls);
+    }
+  }
+  state.ownershipObserver.takeRecords();
 }
 
+// 값 끝 !important를 분리해 priority 인자로 적용 — 2-arg setProperty는
+// "red !important"를 무효값으로 조용히 드롭한다. 접미사 없는 값은 기존 경로 그대로.
 function handleApplyStyles(inlineStyle: Record<string, string>): void {
-  if (!selectedEl) return;
-  captureOriginal(selectedEl);
+  if (!ensureSelectedConnected()) return;
+  captureOriginal(selectedEl!);
   const el = selectedEl as HTMLElement;
-  if (originalStyle === null) {
-    el.removeAttribute("style");
-  } else {
-    el.setAttribute("style", originalStyle);
-  }
-  applyInlineStyle(el, inlineStyle);
+  const state = editedEls.get(selectedEl!);
+  if (!state) return;
+  applyStyleOverlay(el, state.styleOverlay, inlineStyle);
   inspectorCache.delete(el);
   render();
   // 인라인 편집을 되돌린 직후(키 제거) 직전에 예약된 stale 재수집이 baseline을 오염시킬 수
@@ -661,11 +691,8 @@ function handleApplyEditsBySelector(msg: {
 
   restoreElState(el, state);
   const h = el as HTMLElement;
-  const nextClass = msg.classList.join(" ");
-  if ((h.getAttribute("class") ?? "") !== nextClass) {
-    h.className = nextClass;
-  }
-  applyInlineStyle(h, msg.inlineStyle);
+  applyClassOverlay(h, state, msg.classList);
+  applyStyleOverlay(h, state.styleOverlay, msg.inlineStyle);
   if (
     msg.text !== null &&
     state.editable &&
@@ -673,8 +700,12 @@ function handleApplyEditsBySelector(msg: {
     msg.text !== state.text
   ) {
     writeEditableText(state.editable, msg.text);
+    state.lastAppliedText = msg.text;
+    state.ownershipObserver.takeRecords();
   }
   if (isElementClean(el, state)) {
+    state.ownershipObserver.disconnect();
+    disconnectStyleOverlay(state.styleOverlay);
     editedEls.delete(el);
   }
   inspectorCache.delete(el);
@@ -699,10 +730,28 @@ function registerOriginal(el: Element): OriginalState {
     const editable = captureEditable(el);
     state = {
       className: h.getAttribute("class"),
+      classAdded: new Set(),
+      classRemoved: new Set(),
       style: h.getAttribute("style"),
+      styleOverlay: createStyleOverlayState(),
       editable,
       text: editable ? readEditableText(editable) : null,
+      lastAppliedText: null,
+      ownershipObserver: null as unknown as MutationObserver,
+      externalClassMutations: new Set(),
+      externalTextMutation: false,
     };
+    state.ownershipObserver = new MutationObserver((records) => {
+      markExternalOwnershipMutations(state!, records);
+    });
+    state.ownershipObserver.observe(h, {
+      attributes: true,
+      attributeFilter: ["class"],
+      attributeOldValue: true,
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
     editedEls.set(el, state);
   }
   return state;
@@ -711,36 +760,71 @@ function registerOriginal(el: Element): OriginalState {
 // 원본 기록 + 전역 캐시를 현재 element 원본으로 채움.
 function captureOriginal(el: Element): void {
   const state = registerOriginal(el);
-  originalStyle = state.style;
   editableHandle = state.editable;
 }
 
 function restoreElState(el: Element, state: OriginalState): void {
   const h = el as HTMLElement;
-  if (state.className === null) {
-    h.removeAttribute("class");
-  } else {
-    h.setAttribute("class", state.className);
+  markExternalOwnershipMutations(
+    state,
+    state.ownershipObserver.takeRecords(),
+  );
+  for (const cls of state.classAdded) {
+    if (!state.externalClassMutations.has(cls)) h.classList.remove(cls);
   }
-  if (state.style === null) {
-    h.removeAttribute("style");
-  } else {
-    h.setAttribute("style", state.style);
+  for (const cls of state.classRemoved) {
+    if (!state.externalClassMutations.has(cls)) h.classList.add(cls);
   }
+  state.classAdded.clear();
+  state.classRemoved.clear();
+  restoreStyleOverlay(h, state.styleOverlay);
   if (
     state.editable &&
     state.text !== null &&
+    !state.externalTextMutation &&
+    state.lastAppliedText !== null &&
+    readEditableText(state.editable) === state.lastAppliedText &&
     shouldRestoreEditable(state.editable, state.text)
   ) {
     restoreEditable(state.editable, state.text);
+  }
+  state.lastAppliedText = null;
+  state.externalClassMutations.clear();
+  state.externalTextMutation = false;
+  state.ownershipObserver.takeRecords();
+}
+
+function markExternalOwnershipMutations(
+  state: OriginalState,
+  records: MutationRecord[],
+): void {
+  for (const record of records) {
+    if (record.type === "attributes") {
+      const before = new Set((record.oldValue ?? "").split(/\s+/).filter(Boolean));
+      const target = record.target as Element;
+      const after = new Set(Array.from(target.classList));
+      const changed = [...new Set([...before, ...after])].filter(
+        (cls) => before.has(cls) !== after.has(cls),
+      );
+      if (changed.length === 0) {
+        for (const cls of [...state.classAdded, ...state.classRemoved]) {
+          state.externalClassMutations.add(cls);
+        }
+      } else {
+        for (const cls of changed) state.externalClassMutations.add(cls);
+      }
+    } else state.externalTextMutation = true;
   }
 }
 
 // 모든 편집 element 일괄 원복 + 레지스트리·캐시 정리(cleanup 종착점 handleClear에서 호출).
 function restoreAll(): void {
-  for (const [el, state] of editedEls) restoreElState(el, state);
+  for (const [el, state] of editedEls) {
+    restoreElState(el, state);
+    state.ownershipObserver.disconnect();
+    disconnectStyleOverlay(state.styleOverlay);
+  }
   editedEls.clear();
-  originalStyle = null;
   editableHandle = null;
 }
 
@@ -759,15 +843,20 @@ function leaveCurrent(): void {
   if (!selectedEl) return;
   const state = editedEls.get(selectedEl);
   if (state && isElementClean(selectedEl, state)) {
+    state.ownershipObserver.disconnect();
+    disconnectStyleOverlay(state.styleOverlay);
     editedEls.delete(selectedEl);
   }
 }
 
 function handleApplyText(text: string): void {
-  if (!selectedEl) return;
-  captureOriginal(selectedEl);
+  if (!ensureSelectedConnected()) return;
+  captureOriginal(selectedEl!);
   if (!editableHandle) return;
   writeEditableText(editableHandle, text);
+  const state = editedEls.get(selectedEl!);
+  if (state) state.lastAppliedText = text;
+  state?.ownershipObserver.takeRecords();
   render();
 }
 
@@ -919,7 +1008,12 @@ function onClickCommit(e: MouseEvent): void {
     selectedEl = null;
     lastHover = null;
     setMode("idle");
-    postToRuntime({ type: "picker.iframeUnsupported" });
+    if (activePickerSessionId) {
+      postToRuntime({
+        type: "picker.iframeUnsupported",
+        sessionId: activePickerSessionId,
+      });
+    }
     return;
   }
   leaveCurrent();
@@ -928,7 +1022,7 @@ function onClickCommit(e: MouseEvent): void {
   lastHover = null;
   removeHoverListeners();
   setMode("selected");
-  emitSelected(target);
+  emitSelected(target, "pick");
 }
 
 function onKeyDown(e: KeyboardEvent): void {
@@ -941,10 +1035,13 @@ function onKeyDown(e: KeyboardEvent): void {
   selectedEl = null;
   lastHover = null;
   setMode("idle");
-  postToRuntime({ type: "picker.cancelled" });
+  if (activePickerSessionId) {
+    postToRuntime({ type: "picker.cancelled", sessionId: activePickerSessionId });
+  }
 }
 
 function postSelectionUpdate(el: Element): void {
+  if (!activePickerSessionId) return;
   const payload = collectSelection(
     el,
     buildSelector,
@@ -953,6 +1050,7 @@ function postSelectionUpdate(el: Element): void {
   );
   postToRuntime({
     type: "picker.selectionUpdated",
+    sessionId: activePickerSessionId,
     payload: {
       selector: payload.selector,
       specifiedStyles: payload.specifiedStyles,
@@ -962,14 +1060,24 @@ function postSelectionUpdate(el: Element): void {
   });
 }
 
-function emitSelected(el: Element): void {
+function emitSelected(
+  el: Element,
+  source: "pick" | "navigate" | "rebind",
+): void {
+  if (!activePickerSessionId) return;
+  selectionDetachedNotified = false;
   const payload = collectSelection(
     el,
     buildSelector,
     parentOf(el) !== null,
     firstChildOf(el) !== null,
   );
-  postToRuntime({ type: "picker.selected", payload });
+  postToRuntime({
+    type: "picker.selected",
+    sessionId: activePickerSessionId,
+    source,
+    payload,
+  });
   void (async () => {
     if (!isCssCacheReady()) {
       await ensureCssCacheLoaded();
@@ -985,20 +1093,32 @@ function emitSelected(el: Element): void {
 
 let selectionUpdateTimer: number | null = null;
 
+function ensureSelectedConnected(): boolean {
+  if (selectedEl?.isConnected && selectedEl.ownerDocument === document) return true;
+  if (selectedEl && activePickerSessionId && !selectionDetachedNotified) {
+    selectionDetachedNotified = true;
+    postToRuntime({
+      type: "picker.selectionDetached",
+      sessionId: activePickerSessionId,
+    });
+  }
+  return false;
+}
+
 function scheduleSelectionUpdate(): void {
   if (selectionUpdateTimer != null) {
     clearTimeout(selectionUpdateTimer);
   }
   selectionUpdateTimer = window.setTimeout(() => {
     selectionUpdateTimer = null;
-    if (!selectedEl) return;
-    const target = selectedEl;
+    if (!ensureSelectedConnected()) return;
+    const target = selectedEl!;
     void (async () => {
       await ensureCssCacheLoaded();
-      if (selectedEl !== target) return;
+      if (selectedEl !== target || !ensureSelectedConnected()) return;
       postSelectionUpdate(target);
       await ensureCrossOriginLoaded();
-      if (selectedEl !== target) return;
+      if (selectedEl !== target || !ensureSelectedConnected()) return;
       postSelectionUpdate(target);
     })();
   }, 120);
@@ -1026,7 +1146,7 @@ function handleSelectByPath(selector: string): { found: boolean } {
   removeHoverListeners();
   if (overlay) clearPreview(overlay);
   setMode("selected");
-  emitSelected(target);
+  emitSelected(target, "rebind");
   return { found: true };
 }
 
@@ -1065,7 +1185,12 @@ function handleStartAreaSelect(restoreAfter?: boolean): void {
     },
     onSelected(rect, viewport) {
       areaHandle = null;
-      postToRuntime({ type: "picker.areaSelected", rect, viewport });
+      postToRuntime({
+        type: "picker.areaSelected",
+        rect,
+        viewport,
+        sessionId: activePickerSessionId ?? undefined,
+      });
       if (shouldRestore) {
         restoreSelected();
       } else {
@@ -1075,7 +1200,9 @@ function handleStartAreaSelect(restoreAfter?: boolean): void {
     },
     onCancelled() {
       areaHandle = null;
-      postToRuntime({ type: "picker.cancelled" });
+      if (activePickerSessionId) {
+        postToRuntime({ type: "picker.cancelled", sessionId: activePickerSessionId });
+      }
       if (shouldRestore) {
         restoreSelected();
       } else {

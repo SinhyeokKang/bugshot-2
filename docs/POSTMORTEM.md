@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-07-31 — "앞선 값을 밀어낸다"를 도입하니 "앞뒤·중요도 무관하게 항상 이긴다"가 됐다 — 밀어낼 대상을 열거하지 않은 덮어쓰기는 회귀를 2라운드 낳는다
+
+- **영역**: `스타일해석`, `content`
+- **계열**: `미검증단언`, `복제본`
+- **그물**: `e2e`
+- **증상**: 편집 탭 Border 섹션이 `border-width: 0px` / `border-color: currentcolor` / `border-style: none`을 보여주는데, 같은 화면의 CSS 코드 뷰와 개발자 도구에는 `border: 0.1rem solid var(--color-semantic-divider-medium)`이 있었다. shorthand와 longhand가 한 화면에서 자기모순. 이걸 고치자 이번엔 **`!important`가 무시되고**(`.a{border-color:red !important}` 뒤 `.b{border:… var(--c)}` → var가 이김), **뒤 규칙의 리터럴 longhand가 앞 규칙에 지고**(`.c2{border-top-color:red}`가 무시됨), **`padding: calc(100% / 3)`이 통째로 사라졌다**. 그 1차 수정이 또 3차 회귀를 만들었다 — 둘 다 `!important`일 때 문서 순서상 뒤가 이겨야 하는데 앞이 이겼다.
+- **근본 원인**: `var()`가 낀 shorthand는 Chrome CSSOM에서 **longhand가 전부 빈 문자열**이다(pending-substitution). ARCHITECTURE와 코드 주석은 이 조건을 *"shorthand + 같은 shorthand의 longhand override 조합"*으로 좁게 적어놨지만 실측하면 override가 없어도 그렇다 — 이 좁은 기술이 "그럼 대부분은 CSSOM이 채워주겠지"라는 전제를 만들어, 수동 전개가 **유일한 출처**라는 사실이 가려져 있었다. 그래서 `border`(`SHORTHAND_MAP` 밖 — width|style|color 혼합)는 longhand를 아예 전개하지 못했고, 앞서 순회된 리셋 `*{border:0}`(var가 없어 CSSOM이 `0px/none/currentcolor`로 정상 explode)이 자리를 선점한 채 남았다. 2값 shorthand(`gap`·`overflow`·논리 속성)는 값을 두 longhand에 통째 복사했는데, **논리 속성은 var 없이도 Chrome이 물리 longhand로 explode하지 않아 상시 발동**이었다. 픽스의 회귀는 별개 축이다: "리셋을 밀어낸다"는 목적으로 덮어쓰기를 넣으면서 **밀어내면 안 될 대상을 열거하지 않았다** — `!important`(raw 파서가 값에서 벗겨내 정보가 도달 못 함), 뒤 규칙의 직접 선언(원래 `border` 키 하나에만 걸린 "토큰 보존" 가드가 12개 longhand로 확대), author가 쓴 var 토큰이 각각 **다른 이유로** 보호 대상인데 한 덩어리로 취급됐다. 3차 회귀는 그 보호를 "영구 잠금"으로 구현한 탓(중요도는 순서와 곱해져야 하는데 순서를 버렸다).
+- **재발 방지**: (1) **CSSOM 동작 가정은 실측하고 e2e로 고정한다** — 이 파일의 유닛은 `all`/`declared` 맵을 손으로 만들어 넣으므로 "브라우저가 무엇을 돌려주는가"를 **원리상** 검증하지 못한다. `e2e/style-shorthand-var.spec.ts`가 그물이고 mutation(수정 전 파일로 되돌려 red 확인)까지 거쳤다. 이때 `build:e2e`가 typecheck를 먼저 돌리므로 **테스트 파일도 함께 되돌려야** 한다 — 안 그러면 빌드가 죽고 직전 `dist-e2e`로 실행돼 green이 나와 mutation이 통과한 것처럼 보인다(실제로 한 번 속았다). (2) **"앞선 값을 밀어낸다"류 덮어쓰기는 밀어낼 대상과 보호할 대상을 먼저 열거한다** — 전수: `grep -rn "out\[.*\] = " src/content/css-resolve.ts`로 쓰기 경로를 뽑고 각각 중요도·후속 직접 선언·author 토큰 세 축에 어떻게 답하는지 대조. 판정은 `shouldOverwriteSpecified`/`claimSpecified` **단일 출처**를 거쳐야 한다(`grep -n 'shouldOverwriteSpecified\|claimSpecified' src/content/css-resolve.ts`). (3) **가드를 쓰기 경로마다 복제하지 말 것 — 이 파일에서 두 번째다**(2026-06-28 cross-origin 가드 누락이 같은 함정). 감시: `grep -n 'includes("var(")' src/content/css-resolve.ts`에 복제본이 재출현하는지. (4) **문서가 브라우저 동작의 발동 조건을 적을 땐 조건을 좁히지 말 것** — 좁게 적힌 조건은 "나머지는 안전하다"는 반대 전제를 만든다.
+- **관련**: `src/content/css-resolve.ts:shouldOverwriteSpecified`·`claimSpecified`(판정 단일 출처)·`claimBorderProp`·`declaredAfter`·`importantProps`(CSSOM `getPropertyPriority` — 값이 빈 pending longhand에서도 중요도는 정확히 나온다)·`splitShorthandValue`·`hasTopLevelSlash`, 그물 `e2e/style-shorthand-var.spec.ts` + 픽스처 `e2e/fixtures/pages/shorthand-var.html`, 단위 `src/content/__tests__/css-resolve.test.ts`, 문서 `docs/ARCHITECTURE.md`("CSSOM shorthand 한계 우회").
+
 ## 2026-07-31 — 다단 게이트의 "안 생긴다" 테스트는 앞 게이트가 이미 잘라서 통과한다 — 게이트를 하나씩 지워 red를 확인해야 이름표가 정해진다
 
 - **영역**: `e2e`, `store`

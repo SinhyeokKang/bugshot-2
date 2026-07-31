@@ -1,4 +1,8 @@
-import { parseInlineStyle, serializeInlineStyle } from "./inlineCssText";
+import {
+  parseInlineStyleDraft,
+  serializeInlineStyle,
+  type InlineStyleDraft,
+} from "./inlineCssText";
 
 export function serializeCssBlock(
   selector: string,
@@ -12,11 +16,19 @@ export function serializeCssBlock(
 }
 
 export function parseCssBlock(text: string): Record<string, string> {
+  return parseCssBlockDraft(text).declarations;
+}
+
+export function parseCssBlockDraft(text: string): InlineStyleDraft {
   const open = text.indexOf("{");
-  if (open === -1) return parseInlineStyle(text);
+  if (open === -1) return parseInlineStyleDraft(text);
   const close = text.lastIndexOf("}");
   const body = close > open ? text.slice(open + 1, close) : text.slice(open + 1);
-  return parseInlineStyle(body);
+  // 닫는 `}`가 없어도 미완성으로 치지 않는다 — selectorLock이 1행(선택자+`{`)만 보호하므로
+  // 본문 전체 삭제(select-all+Delete)는 `}`까지 함께 지운다. 그 상태를 invalid로 막으면
+  // "삭제=원복"(ARCHITECTURE) 경로가 통째로 죽는다. 값 레벨 미완성은 parseInlineStyleDraft가 본다.
+  const parsed = parseInlineStyleDraft(body);
+  return { ...parsed, raw: text };
 }
 
 // TRBL(4면) shorthand ↔ longhand 그룹. 값-순서는 [top,right,bottom,left] /

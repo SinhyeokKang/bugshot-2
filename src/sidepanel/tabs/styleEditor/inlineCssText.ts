@@ -7,31 +7,79 @@ export function serializeInlineStyle(
 }
 
 export function parseInlineStyle(text: string): Record<string, string> {
+  return parseInlineStyleDraft(text).declarations;
+}
+
+export type InlineStyleDraft =
+  | { valid: true; declarations: Record<string, string>; raw: string }
+  | { valid: false; declarations: Record<string, string>; raw: string };
+
+export function parseInlineStyleDraft(text: string): InlineStyleDraft {
   const result: Record<string, string> = {};
-  for (const decl of splitTopLevel(text)) {
+  const split = splitTopLevel(text);
+  let hasDuplicateDeclaration = false;
+  for (const decl of split.parts) {
     const colon = decl.indexOf(":");
     if (colon === -1) continue;
-    const rawProp = decl.slice(0, colon).trim();
+    const rawProp = stripComments(decl.slice(0, colon)).trim();
     // 커스텀 프로퍼티(--*)는 케이스 민감 — lowercase 정규화에서 제외.
     const prop = rawProp.startsWith("--") ? rawProp : rawProp.toLowerCase();
     const value = decl.slice(colon + 1).trim();
     if (!prop || !value) continue;
+    if (prop in result) hasDuplicateDeclaration = true;
     result[prop] = value;
   }
-  return result;
+  const hasIncompleteDeclaration = split.parts.some((decl) => {
+    const clean = stripComments(decl).trim();
+    if (!clean) return false;
+    const colon = clean.indexOf(":");
+    return colon === -1 || !clean.slice(colon + 1).trim();
+  });
+  return {
+    // Record 기반 DOM overlay는 fallback 중복 선언의 순서를 표현할 수 없다. 조용히
+    // last-write로 축약하지 않고 raw draft로 보존해 DOM/store commit을 막는다.
+    valid: split.complete && !hasIncompleteDeclaration && !hasDuplicateDeclaration,
+    declarations: result,
+    raw: text,
+  };
 }
 
 // top-level `;`·개행만 선언 구분자로 취급 — 괄호(url(data:...;base64))·따옴표(content: "a;b")
 // 내부는 값의 일부로 보존.
-function splitTopLevel(text: string): string[] {
+function splitTopLevel(text: string): { parts: string[]; complete: boolean } {
   const parts: string[] = [];
   let current = "";
   let depth = 0;
   let quote: '"' | "'" | null = null;
-  for (const ch of text) {
+  let escaped = false;
+  let comment = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    const next = text[i + 1];
+    if (comment) {
+      current += ch;
+      if (ch === "*" && next === "/") {
+        current += next;
+        i++;
+        comment = false;
+      }
+      continue;
+    }
     if (quote) {
       current += ch;
-      if (ch === quote) quote = null;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (ch === "/" && next === "*") {
+      current += `${ch}${next}`;
+      i++;
+      comment = true;
       continue;
     }
     if (ch === '"' || ch === "'") {
@@ -49,5 +97,9 @@ function splitTopLevel(text: string): string[] {
     current += ch;
   }
   parts.push(current);
-  return parts;
+  return { parts, complete: !quote && !comment && depth === 0 };
+}
+
+function stripComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, " ");
 }

@@ -81,6 +81,8 @@ export const INTERESTING_PROPS = [
   "filter",
   "backdrop-filter",
   "mix-blend-mode",
+  // var()가 낀 transition은 CSSOM longhand가 전부 빈 문자열이라 shorthand로만 살아남는다.
+  "transition",
   "transition-property",
   "transition-duration",
   "transition-timing-function",
@@ -103,14 +105,10 @@ const INHERITED_PROPS = new Set([
   "letter-spacing",
 ]);
 
+// shorthand → 전개 대상 longhand. 값 분해 규칙은 아래 TRBL/PAIR 테이블이 정하고, 어느
+// 쪽에도 없는 shorthand는 전개하지 않는다(`splitShorthandValue`). `font`처럼 문법이 가변인
+// shorthand를 여기 등록하면 값이 longhand에 통째 복사돼 오염된다 — 누락이 오염보다 낫다.
 const SHORTHAND_MAP: Record<string, string[]> = {
-  font: [
-    "font-family",
-    "font-size",
-    "font-weight",
-    "line-height",
-    "letter-spacing",
-  ],
   background: ["background-color"],
   padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
   "padding-inline": ["padding-left", "padding-right"],
@@ -144,48 +142,41 @@ const SHORTHAND_MAP: Record<string, string[]> = {
     "border-left-style",
   ],
   overflow: ["overflow-x", "overflow-y"],
+  // 물리 shorthand를 논리 짝보다 앞에 둔다 — 전개는 fill-if-absent라 순서가 곧 우선순위이고,
+  // padding/margin이 이미 물리 우선이라 inset만 뒤집히면 축마다 규칙이 갈린다.
   inset: ["top", "right", "bottom", "left"],
+  "inset-inline": ["left", "right"],
+  "inset-block": ["top", "bottom"],
 };
 
-const TRBL_SHORTHANDS: Record<string, [string, string, string, string]> = {
-  inset: ["top", "right", "bottom", "left"],
-  padding: [
-    "padding-top",
-    "padding-right",
-    "padding-bottom",
-    "padding-left",
-  ],
-  margin: [
-    "margin-top",
-    "margin-right",
-    "margin-bottom",
-    "margin-left",
-  ],
-  "border-radius": [
-    "border-top-left-radius",
-    "border-top-right-radius",
-    "border-bottom-right-radius",
-    "border-bottom-left-radius",
-  ],
-  "border-width": [
-    "border-top-width",
-    "border-right-width",
-    "border-bottom-width",
-    "border-left-width",
-  ],
-  "border-color": [
-    "border-top-color",
-    "border-right-color",
-    "border-bottom-color",
-    "border-left-color",
-  ],
-  "border-style": [
-    "border-top-style",
-    "border-right-style",
-    "border-bottom-style",
-    "border-left-style",
-  ],
-};
+// 아래 두 집합은 **값을 몇 조각으로 쪼갤지**만 정한다. longhand 이름·순서의 단일 출처는
+// SHORTHAND_MAP이다 — 이름을 여기 중복해 두면 두 곳이 갈릴 때 값이 조용히 뒤바뀐다.
+const TRBL_SHORTHANDS = new Set([
+  "inset",
+  "padding",
+  "margin",
+  "border-radius",
+  "border-width",
+  "border-color",
+  "border-style",
+]);
+
+// 2값 shorthand(1값이면 둘 다 같은 값). 논리 속성(inline/block)은 Chrome이 var() 유무와
+// 무관하게 물리 longhand로 explode하지 않아 이 전개가 유일한 출처다. SHORTHAND_MAP의
+// 논리→물리 매핑은 LTR 고정 — `direction: rtl`에선 좌우가 뒤집힌다.
+const PAIR_SHORTHANDS = new Set([
+  "gap",
+  "overflow",
+  "padding-inline",
+  "padding-block",
+  "margin-inline",
+  "margin-block",
+  "inset-inline",
+  "inset-block",
+]);
+
+const BORDER_AXES = ["width", "style", "color"] as const;
+type BorderAxis = (typeof BORDER_AXES)[number];
 
 const BORDER_STYLE_KEYWORDS = new Set([
   "none",
@@ -265,7 +256,7 @@ export function collectSpecifiedStylesWithSources(el: Element): {
   const all: Record<string, string> = {};
   const sources: Record<string, string> = {};
   const customProps: Record<string, string> = {};
-  collectRulesForElement(el, all, sources, customProps);
+  const uncertain = collectRulesForElement(el, all, sources, customProps);
   expandShorthands(all, sources);
 
   const missing = [...INHERITED_PROPS].filter((p) => !(p in all));
@@ -274,11 +265,23 @@ export function collectSpecifiedStylesWithSources(el: Element): {
     while (cur && missing.length > 0) {
       const parentAll: Record<string, string> = {};
       const parentSources: Record<string, string> = {};
-      collectRulesForElement(cur, parentAll, parentSources, customProps);
+      const parentUncertain = collectRulesForElement(
+        cur,
+        parentAll,
+        parentSources,
+        customProps,
+      );
       expandShorthands(parentAll, parentSources);
       for (let i = missing.length - 1; i >= 0; i--) {
         const p = missing[i];
         if (p in parentAll) {
+          if (parentUncertain.has(p)) {
+            // 이 조상에서 실제 winner를 확정할 수 없으면 더 먼 조상을 찾지 않는다.
+            // 선택 요소의 computed 값이 상속 결과의 단일 출처다.
+            uncertain.add(p);
+            missing.splice(i, 1);
+            continue;
+          }
           all[p] = parentAll[p];
           if (parentSources[p]) sources[p] = `${parentSources[p]} ↑`;
           missing.splice(i, 1);
@@ -294,10 +297,19 @@ export function collectSpecifiedStylesWithSources(el: Element): {
   if (docEl && docEl !== el) {
     collectRulesForElement(docEl, {}, {}, customProps);
   }
+  hydrateReferencedCustomProps(
+    Object.values(all),
+    window.getComputedStyle(el),
+    customProps,
+  );
 
   for (const prop of Object.keys(all)) {
     all[prop] = resolveVarChain(all[prop], customProps);
   }
+  const uncertainComputed = window.getComputedStyle(el);
+  resolveUncertainSpecified(all, sources, uncertain, (prop) =>
+    uncertainComputed.getPropertyValue(prop).trim(),
+  );
 
   const filtered: Record<string, string> = {};
   const filteredSources: Record<string, string> = {};
@@ -343,7 +355,6 @@ const INSPECTOR_WANTED = new Set([
   "border-top-right-radius",
   "border-bottom-right-radius",
   "border-bottom-left-radius",
-  "font",
   "font-size",
   "font-weight",
   "font-family",
@@ -785,65 +796,27 @@ function collectRulesForElement(
   sources: Record<string, string>,
   customProps: Record<string, string>,
   wantedProps?: Set<string>,
-): void {
+): Set<string> {
+  const claims = newClaimState();
   const matched = getMatchingRules(el);
   for (const rule of matched) {
     const decl = rule.style;
     const ruleSelector = rule.selectorText;
     const raw = getRawDeclarationsFor(rule);
+    // raw 파서는 `!important`를 값에서 벗겨내므로 이 규칙 자신의 중요도는 CSSOM에서만
+    // 읽을 수 있다. 이게 없으면 나중 규칙의 `!important` shorthand가 앞선 것에 진다.
+    const selfImportant = importantProps(decl);
     if (raw) {
-      extractVarPropsFromMap(raw, out, sources, customProps, ruleSelector, wantedProps);
+      extractVarPropsFromMap(raw, out, sources, customProps, ruleSelector, wantedProps, claims, selfImportant);
     } else {
-      extractVarPropsFromCssText(decl.cssText, out, sources, customProps, ruleSelector, wantedProps);
+      extractVarPropsFromCssText(decl.cssText, out, sources, customProps, ruleSelector, wantedProps, claims, selfImportant);
     }
-    for (let i = 0; i < decl.length; i++) {
-      const name = decl.item(i);
-      const val = decl.getPropertyValue(name);
-      if (!val) continue;
-      if (name.startsWith("--")) {
-        if (!customProps[name]) customProps[name] = val.trim();
-        continue;
-      }
-      if (wantedProps && !wantedProps.has(name)) continue;
-      if (!(out[name]?.includes("var(") && !val.includes("var("))) {
-        out[name] = val;
-        sources[name] = ruleSelector;
-      }
-    }
-    for (const shorthand of Object.keys(SHORTHAND_MAP)) {
-      if (wantedProps && !wantedProps.has(shorthand)) continue;
-      const val = decl.getPropertyValue(shorthand);
-      if (val && !(out[shorthand]?.includes("var(") && !val.includes("var("))) {
-        out[shorthand] = val;
-        sources[shorthand] = ruleSelector;
-      }
-    }
+    applyDeclarations(decl, out, sources, customProps, ruleSelector, wantedProps, claims);
   }
   if (el instanceof HTMLElement) {
     const style = el.style;
-    extractVarPropsFromCssText(style.cssText, out, sources, customProps, "[inline]", wantedProps);
-    for (let i = 0; i < style.length; i++) {
-      const name = style.item(i);
-      const val = style.getPropertyValue(name);
-      if (!val) continue;
-      if (name.startsWith("--")) {
-        if (!customProps[name]) customProps[name] = val.trim();
-        continue;
-      }
-      if (wantedProps && !wantedProps.has(name)) continue;
-      if (!(out[name]?.includes("var(") && !val.includes("var("))) {
-        out[name] = val;
-        sources[name] = "[inline]";
-      }
-    }
-    for (const shorthand of Object.keys(SHORTHAND_MAP)) {
-      if (wantedProps && !wantedProps.has(shorthand)) continue;
-      const val = style.getPropertyValue(shorthand);
-      if (val && !(out[shorthand]?.includes("var(") && !val.includes("var("))) {
-        out[shorthand] = val;
-        sources[shorthand] = "[inline]";
-      }
-    }
+    extractVarPropsFromCssText(style.cssText, out, sources, customProps, "[inline]", wantedProps, claims, importantProps(style));
+    applyDeclarations(style, out, sources, customProps, "[inline]", wantedProps, claims);
   }
   // cross-origin author 규칙은 same-origin·inline이 채운 뒤 빈 prop만 보강한다.
   mergeCrossOriginDecls(
@@ -854,6 +827,7 @@ function collectRulesForElement(
     getCrossOriginCustomProps(),
     wantedProps,
   );
+  return claims.uncertain;
 }
 
 // 순수: same-origin이 이미 채운 prop은 보존하고(빈 prop만 채움), cross-origin 규칙끼리는
@@ -875,10 +849,9 @@ export function mergeCrossOriginDecls(
     // border/border-{side}는 SHORTHAND_MAP 밖(width|style|color 혼합)이라 별도 claim —
     // same-origin border가 cross-origin border-{side}-color에 split당하는 것 방지.
     const sides = BORDER_SHORTHAND_SIDES[key];
-    if (sides)
+    if (Array.isArray(sides))
       for (const side of sides)
-        for (const prop of ["width", "style", "color"])
-          sameOriginKeys.add(`border-${side}-${prop}`);
+        for (const axis of BORDER_AXES) sameOriginKeys.add(`border-${side}-${axis}`);
   }
   for (const rule of rules) {
     for (const [name, val] of rule.decls) {
@@ -889,10 +862,10 @@ export function mergeCrossOriginDecls(
       }
       if (wantedProps && !wantedProps.has(name)) continue;
       if (sameOriginKeys.has(name)) continue;
-      // same-origin 경로와 동일: 이미 잡은 var(토큰)을 나중 cross-origin literal이 덮지
-      // 않게 보존 — 한 prop이 여러 규칙에서 재선언될 때(예: <a> color) 토큰이 computed로
-      // 강등되는 것 방지. literal→var, var→var는 통과(last-wins).
-      if (out[name]?.includes("var(") && !val.includes("var(")) continue;
+      // same-origin 경로와 **같은 판정 함수**를 쓴다 — 가드를 손으로 복제하면 한쪽만
+      // 고쳐져 드리프트한다(docs/POSTMORTEM.md 2026-06-28). cross-origin은 gap-fill이라
+      // 파생·중요도 축이 없으므로 기본값으로 호출한다.
+      if (!shouldOverwriteSpecified(out[name], val, false)) continue;
       out[name] = val;
       sources[name] = rule.selectorText;
     }
@@ -902,6 +875,93 @@ export function mergeCrossOriginDecls(
   }
 }
 
+// CSSOM 선언 블록(매치된 규칙 또는 inline)을 specified에 반영. 규칙과 inline이 같은 규율을
+//쓰도록 한 곳에 모은다 — `!important`는 CSSOM에서만 읽을 수 있고(raw 파서는 값에서 벗겨낸다),
+// var()가 낀 shorthand의 pending longhand에서도 priority는 정확히 나온다.
+function applyDeclarations(
+  decl: CSSStyleDeclaration,
+  out: Record<string, string>,
+  sources: Record<string, string>,
+  customProps: Record<string, string>,
+  origin: string,
+  wantedProps: Set<string> | undefined,
+  claims: ClaimState,
+): void {
+  for (let i = 0; i < decl.length; i++) {
+    const name = decl.item(i);
+    const val = decl.getPropertyValue(name);
+    const important = decl.getPropertyPriority(name) === "important";
+    if (!val) {
+      // var()가 낀 shorthand의 longhand는 값이 비어도 priority는 정확히 나온다 —
+      // 여기서 기록해 두지 않으면 그 규칙의 중요도를 영영 알 수 없다.
+      if (important) claims.important.add(name);
+      continue;
+    }
+    if (name.startsWith("--")) {
+      if (!customProps[name]) customProps[name] = val.trim();
+      continue;
+    }
+    if (wantedProps && !wantedProps.has(name)) continue;
+    noteClaim(claims, name, val, important, origin);
+    if (
+      shouldOverwriteSpecified(
+        out[name],
+        val,
+        claims.derived.has(name),
+        claims.important.has(name),
+        important,
+      )
+    ) {
+      out[name] = val;
+      sources[name] = origin;
+      claims.derived.delete(name);
+    }
+    if (important) claims.important.add(name);
+  }
+  for (const shorthand of Object.keys(SHORTHAND_MAP)) {
+    if (wantedProps && !wantedProps.has(shorthand)) continue;
+    const val = decl.getPropertyValue(shorthand);
+    const important = decl.getPropertyPriority(shorthand) === "important";
+    if (!val) continue;
+    noteClaim(claims, shorthand, val, important, origin);
+    if (
+      shouldOverwriteSpecified(
+        out[shorthand],
+        val,
+        claims.derived.has(shorthand),
+        claims.important.has(shorthand),
+        important,
+      )
+    ) {
+      out[shorthand] = val;
+      sources[shorthand] = origin;
+      claims.derived.delete(shorthand);
+    }
+    if (important) claims.important.add(shorthand);
+  }
+}
+
+// 이 선언 블록이 !important로 선언한 prop. raw 파서는 `!important`를 값에서 벗겨내므로
+// CSSOM이 유일한 출처다. item() 열거는 longhand만 주고 shorthand 키(`border-style`·
+// `padding`)는 빠지므로 그것들은 이름으로 직접 조회한다 — 조회 자체는 값이 pending인
+// var() shorthand에서도 priority를 정확히 돌려준다.
+const IMPORTANT_SHORTHAND_KEYS = [
+  ...Object.keys(SHORTHAND_MAP),
+  ...Object.keys(BORDER_SHORTHAND_SIDES),
+];
+
+function importantProps(decl: CSSStyleDeclaration): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i < decl.length; i++) {
+    const name = decl.item(i);
+    if (decl.getPropertyPriority(name) === "important") out.add(name);
+  }
+  for (const key of IMPORTANT_SHORTHAND_KEYS) {
+    if (decl.getPropertyPriority(key) === "important") out.add(key);
+  }
+  return out;
+}
+
 function extractVarPropsFromCssText(
   cssText: string,
   out: Record<string, string>,
@@ -909,6 +969,8 @@ function extractVarPropsFromCssText(
   customProps: Record<string, string>,
   origin: string,
   wantedProps?: Set<string>,
+  claims?: ClaimState,
+  selfImportant?: Set<string>,
 ): void {
   const declared = new Map<string, string>();
   CSS_DECL_RE.lastIndex = 0;
@@ -916,16 +978,115 @@ function extractVarPropsFromCssText(
   while ((m = CSS_DECL_RE.exec(cssText)) !== null) {
     declared.set(m[1], m[2].replace(/\s*!\s*important\s*$/i, "").trim());
   }
-  extractVarPropsFromMap(declared, out, sources, customProps, origin, wantedProps);
+  extractVarPropsFromMap(declared, out, sources, customProps, origin, wantedProps, claims, selfImportant);
 }
 
-function extractVarPropsFromMap(
+// 규칙 순회 전체에 걸쳐 누적되는 판정 재료. specified 맵은 값만 갖고 있어서, 그 값이
+// !important로 확정된 것인지 shorthand에서 파생된 것인지 구분할 수 없다.
+export interface ClaimState {
+  important: Set<string>;
+  derived: Set<string>;
+  candidates: Map<string, { value: string; important: boolean; origin: string }>;
+  uncertain: Set<string>;
+}
+
+export function newClaimState(): ClaimState {
+  return {
+    important: new Set(),
+    derived: new Set(),
+    candidates: new Map(),
+    uncertain: new Set(),
+  };
+}
+
+// 규칙 둘이 같은 prop을 다른 값으로 선언하면 specificity를 모르므로(getMatchingRules는
+// 문서 순서만 안다) 브라우저가 계산한 값으로 회피한다. 단 author가 var() 토큰을 썼으면
+// 이름을 유지한다 — computed는 토큰을 이미 해석해 버려서, 덮으면 토큰 칩·swatch가 사라지고
+// (`collectReferencedTokenNames`가 이름을 못 모은다) CSS 뷰가 리터럴 덤프가 된다.
+// 근사 두 개 중 "값이 덜 정확하다"를 택하고 "토큰을 잃는다"를 버린 것.
+export function resolveUncertainSpecified(
+  all: Record<string, string>,
+  sources: Record<string, string>,
+  uncertain: Set<string>,
+  computedOf: (prop: string) => string,
+): void {
+  for (const prop of uncertain) {
+    if (all[prop]?.includes("var(")) continue;
+    const computed = computedOf(prop);
+    if (computed) {
+      all[prop] = computed;
+      sources[prop] = "[computed]";
+    } else {
+      delete all[prop];
+      delete sources[prop];
+    }
+  }
+}
+
+export function noteClaim(
+  claims: ClaimState,
+  property: string,
+  value: string,
+  important: boolean,
+  origin: string,
+): void {
+  const previous = claims.candidates.get(property);
+  const next = { value, important, origin };
+  if (!previous) {
+    claims.candidates.set(property, next);
+    return;
+  }
+  if (previous.value === value) {
+    if (origin === "[inline]" || (important && !previous.important)) {
+      claims.candidates.set(property, next);
+      claims.uncertain.delete(property);
+    }
+    return;
+  }
+  if (previous.important && !important) return;
+  if (!previous.important && important) {
+    claims.candidates.set(property, next);
+    claims.uncertain.delete(property);
+    return;
+  }
+  if (origin === "[inline]") {
+    claims.candidates.set(property, next);
+    claims.uncertain.delete(property);
+    return;
+  }
+  if (previous.origin === "[inline]") return;
+  claims.candidates.set(property, next);
+  claims.uncertain.add(property);
+}
+
+// specified 자리를 덮을지 판정하는 단일 출처. !important는 specificity보다 상위라 일반
+// 선언이 못 이기고, 같은 중요도끼리는 문서 순서상 뒤가 이긴다. author가 직접 쓴 var()
+// 토큰은 뒤따르는 리터럴로부터 보호하되(토큰 강등 방지), shorthand에서 파생된 값은 뒤
+// 규칙의 직접 선언에 자리를 내준다 — 파생값까지 보호하면 longhand override가 무시된다.
+export function shouldOverwriteSpecified(
+  current: string | undefined,
+  next: string,
+  derived: boolean,
+  currentImportant = false,
+  nextImportant = false,
+): boolean {
+  if (currentImportant && !nextImportant) return false;
+  if (derived) return true;
+  return !(current?.includes("var(") && !next.includes("var("));
+}
+
+// 규칙 순회 중에 호출되는 유일한 전개 지점이라 **소스 순서를 안다** — 여기서 채운 longhand는
+// 앞선 규칙(리셋 등)이 남긴 비-var 값을 덮는다. `expandShorthands`는 flat map이라 순서를
+// 복원할 수 없어 fill-if-absent만 가능하다.
+export function extractVarPropsFromMap(
   declared: Map<string, string>,
   out: Record<string, string>,
   sources: Record<string, string>,
   customProps: Record<string, string>,
   origin: string,
   wantedProps?: Set<string>,
+  claims?: ClaimState,
+  selfImportant?: Set<string>,
 ): void {
   for (const [prop, val] of declared) {
     if (prop.startsWith("--")) {
@@ -934,24 +1095,100 @@ function extractVarPropsFromMap(
     }
     if (wantedProps && !wantedProps.has(prop)) continue;
     if (!val.includes("var(")) continue;
-    if (!out[prop] || !out[prop].includes("var(")) {
-      out[prop] = val;
-      sources[prop] = origin;
+    if (claimSpecified(out, sources, origin, prop, val, claims, selfImportant)) {
+      // shorthand 키 자체는 author가 직접 쓴 값이라 파생이 아니다.
+      claims?.derived.delete(prop);
+    }
+    // border/border-{side}는 width|style|color 혼합이라 SHORTHAND_MAP 밖 — 토큰 분류로 분해.
+    const sides = BORDER_SHORTHAND_SIDES[prop];
+    if (Array.isArray(sides)) {
+      const parts = parseBorderShorthand(val);
+      const later = declaredAfter(declared, prop);
+      for (const axis of BORDER_AXES) {
+        for (const side of sides) {
+          claimBorderProp(later, out, sources, origin, side, axis, parts[axis], claims, selfImportant);
+        }
+        // `border`는 네 변을 한꺼번에 정하므로 4면 요약 키(`border-style` 등)도 갱신한다 —
+        // 안 하면 앞선 리셋이 남긴 요약이 per-side longhand와 모순된 채 specified에 실린다.
+        if (sides.length === 4) {
+          claimBorderProp(later, out, sources, origin, null, axis, parts[axis], claims, selfImportant);
+        }
+      }
+      continue;
     }
     const longhands = SHORTHAND_MAP[prop];
     if (!longhands) continue;
-    const trbl = TRBL_SHORTHANDS[prop];
-    const split = trbl ? splitTrblValue(val) : null;
+    const split = splitShorthandValue(prop, val, longhands);
+    if (!split) continue;
     for (let j = 0; j < longhands.length; j++) {
       const lh = longhands[j];
       if (declared.has(lh)) continue;
-      const lhVal = split ? split[j] : val;
-      if (!out[lh] || !out[lh].includes("var(")) {
-        out[lh] = lhVal;
-        sources[lh] = origin;
+      if (claimSpecified(out, sources, origin, lh, split[j], claims, selfImportant)) {
+        claims?.derived.add(lh);
       }
     }
   }
+}
+
+// 같은 규칙에서 `prop` **뒤에** 선언된 속성 이름들. 같은 규칙 안에선 뒤가 이기므로, 앞에
+// 선언된 축은 shorthand가 덮어야 한다 — has()만 보면 `border-color: #ddd; border: … var(--c)`
+// 에서 이미 진 축에 양보해 토큰을 잃는다.
+function declaredAfter(declared: Map<string, string>, prop: string): Set<string> {
+  const keys = [...declared.keys()];
+  return new Set(keys.slice(keys.indexOf(prop) + 1));
+}
+
+// side가 null이면 4면 요약 키(`border-color`), 아니면 변별 longhand(`border-top-color`).
+// 뒤에 더 구체적으로 선언된 축이 있으면 양보하고, !important로 확정된 축과 이미 잡힌 var()
+// 토큰은 보존한다(중요도 위반·토큰 강등 방지).
+function claimBorderProp(
+  later: Set<string>,
+  out: Record<string, string>,
+  sources: Record<string, string>,
+  origin: string,
+  side: string | null,
+  axis: BorderAxis,
+  value: string | undefined,
+  claims?: ClaimState,
+  selfImportant?: Set<string>,
+): void {
+  if (value === undefined) return;
+  const prop = side ? `border-${side}-${axis}` : `border-${axis}`;
+  if (later.has(prop) || later.has(`border-${axis}`)) return;
+  if (side && later.has(`border-${side}`)) return;
+  if (claimSpecified(out, sources, origin, prop, value, claims, selfImportant)) {
+    claims?.derived.add(prop);
+  }
+}
+
+// specified 한 자리를 이 규칙 값으로 claim. 덮었으면 true. 캐스케이드 판정은
+// `shouldOverwriteSpecified` 하나가 내리고, 중요도 기록은 여기서 한 번에 한다 —
+// 쓰기 경로마다 가드를 손으로 복제하면 한쪽만 고쳐져 드리프트한다.
+function claimSpecified(
+  out: Record<string, string>,
+  sources: Record<string, string>,
+  origin: string,
+  prop: string,
+  value: string,
+  claims?: ClaimState,
+  selfImportant?: Set<string>,
+): boolean {
+  const important = selfImportant?.has(prop) ?? false;
+  if (
+    !shouldOverwriteSpecified(
+      out[prop],
+      value,
+      claims?.derived.has(prop) ?? false,
+      claims?.important.has(prop) ?? false,
+      important,
+    )
+  ) {
+    return false;
+  }
+  out[prop] = value;
+  sources[prop] = origin;
+  if (important) claims?.important.add(prop);
+  return true;
 }
 
 // getComputedStyle은 absolute/fixed 요소의 미지정 오프셋을 auto가 아니라 containing block
@@ -980,6 +1217,40 @@ function isBareBackgroundColor(value: string): boolean {
   return categorizeToken(v) !== "image";
 }
 
+// shorthand 값 → longhands 각 자리의 값. 분해 규칙을 모르는 값(문법 가변·elliptical `/`·
+// 토큰 과다)은 null을 돌려 전개를 포기시킨다 — 값을 통째 복사하면 longhand가 오염된다.
+function splitShorthandValue(
+  shorthand: string,
+  value: string,
+  longhands: string[],
+): string[] | null {
+  if (TRBL_SHORTHANDS.has(shorthand)) return splitTrblValue(value);
+  if (PAIR_SHORTHANDS.has(shorthand)) return splitPairValue(value);
+  if (shorthand === "background")
+    return isBareBackgroundColor(value) ? longhands.map(() => value) : null;
+  return null;
+}
+
+function splitPairValue(value: string): [string, string] | null {
+  if (hasTopLevelSlash(value)) return null;
+  const parts = splitCssTokens(value);
+  if (parts.length === 0 || parts.length > 2) return null;
+  const [a, b = a] = parts;
+  return [a, b];
+}
+
+// `/`는 elliptical radius처럼 값을 두 벌로 가르는 구분자일 때만 전개를 막아야 한다 —
+// `calc(100% / 3)`의 나눗셈까지 막으면 author 값이 통째로 사라지고 computed로 폴백한다.
+function hasTopLevelSlash(value: string): boolean {
+  let depth = 0;
+  for (const ch of value) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth = Math.max(0, depth - 1);
+    else if (ch === "/" && depth === 0) return true;
+  }
+  return false;
+}
+
 export function expandShorthands(
   all: Record<string, string>,
   sources: Record<string, string>,
@@ -988,22 +1259,12 @@ export function expandShorthands(
     if (!(shorthand in all)) continue;
     const value = all[shorthand];
     const origin = sources[shorthand];
-    const trbl = TRBL_SHORTHANDS[shorthand];
-    const split = trbl ? splitTrblValue(value) : null;
-    if (split) {
-      for (let i = 0; i < trbl.length; i++) {
-        const lh = trbl[i];
-        if (!(lh in all)) {
-          all[lh] = split[i];
-          if (origin) sources[lh] = origin;
-        }
-      }
-      continue;
-    }
-    if (shorthand === "background" && !isBareBackgroundColor(value)) continue;
-    for (const lh of longhands) {
+    const split = splitShorthandValue(shorthand, value, longhands);
+    if (!split) continue;
+    for (let i = 0; i < longhands.length; i++) {
+      const lh = longhands[i];
       if (!(lh in all)) {
-        all[lh] = value;
+        all[lh] = split[i];
         if (origin) sources[lh] = origin;
       }
     }
@@ -1034,6 +1295,19 @@ function fillIfAbsent(
   if (origin) sources[prop] = origin;
 }
 
+const CSS_WIDE_KEYWORDS = new Set([
+  "inherit",
+  "initial",
+  "unset",
+  "revert",
+  "revert-layer",
+]);
+
+function isUnassignableBorderToken(tok: string): boolean {
+  const lower = tok.toLowerCase();
+  return CSS_WIDE_KEYWORDS.has(lower) || lower.startsWith("var(");
+}
+
 function isBorderWidthToken(tok: string): boolean {
   if (tok === "thin" || tok === "medium" || tok === "thick") return true;
   if (BORDER_WIDTH_NUM_RE.test(tok)) return true;
@@ -1048,7 +1322,13 @@ export function parseBorderShorthand(value: string): {
   color?: string;
 } {
   const out: { width?: string; style?: string; color?: string } = {};
-  for (const tok of splitCssTokens(value.trim())) {
+  const tokens = splitCssTokens(value.trim());
+  // 축을 특정할 수 없는 단일 토큰(`border: var(--bd)` — 토큰이 shorthand 전체를 담을 수
+  // 있다, `border: inherit`)은 배정을 포기한다. color로 떨어뜨리면 색 슬롯에 `1px solid
+  // #eee` 같은 값이 들어가 앞선 규칙의 올바른 축까지 덮는다. 대가로 그 입력에선 리셋 값이
+  // 남지만, 누락이 오염보다 낫다.
+  if (tokens.length === 1 && isUnassignableBorderToken(tokens[0])) return out;
+  for (const tok of tokens) {
     if (!tok) continue;
     const lower = tok.toLowerCase();
     if (BORDER_STYLE_KEYWORDS.has(lower)) {
@@ -1065,7 +1345,7 @@ export function parseBorderShorthand(value: string): {
 export function splitTrblValue(
   value: string,
 ): [string, string, string, string] | null {
-  if (value.includes("/")) return null;
+  if (hasTopLevelSlash(value)) return null;
   const parts = splitCssTokens(value);
   if (parts.length === 0 || parts.length > 4) return null;
   const [a, b = a, c = a, d = b] = parts;
@@ -1245,6 +1525,27 @@ export function collectReferencedTokenNames(
   for (const value of Object.values(styles)) {
     for (const m of value.matchAll(VAR_REF_RE)) {
       if (!seen.has(m[1])) seen.set(m[1], "");
+    }
+  }
+}
+
+export function hydrateReferencedCustomProps(
+  values: string[],
+  computed: Pick<CSSStyleDeclaration, "getPropertyValue">,
+  customProps: Record<string, string>,
+): void {
+  const queue = [...values];
+  const seen = new Set<string>();
+  for (let i = 0; i < queue.length && i < 100; i++) {
+    const value = queue[i];
+    for (const match of value.matchAll(VAR_REF_RE)) {
+      const name = match[1];
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const effective = computed.getPropertyValue(name).trim();
+      if (!effective) continue;
+      customProps[name] = effective;
+      if (effective.includes("var(")) queue.push(effective);
     }
   }
 }

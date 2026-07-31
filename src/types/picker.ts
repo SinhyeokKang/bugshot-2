@@ -110,7 +110,7 @@ export type PickerMessage =
   | { type: "picker.describeChildren"; selector: string }
   | { type: "picker.previewHover"; selector: string }
   | { type: "picker.previewClear" }
-  | { type: "picker.selectByPath"; selector: string }
+  | { type: "picker.selectByPath"; selector: string; sessionId?: string }
   | { type: "picker.applyEditsBySelector"; selector: string; classList: string[]; inlineStyle: Record<string, string>; text: string | null }
   // contextSelector는 before가 확정한 조상 — after가 같은 대상을 다시 측정한다.
   | { type: "picker.prepareCapture"; expandContext?: boolean; contextSelector?: string }
@@ -122,17 +122,18 @@ export type PickerMessage =
   // cleanup: iframe 캡처 종료 시 frame 0에 보내는 정리 신호 — 미소비 arm이면 top이
   // inflight를 깎지 않는다(인터리브 중 진행 캡처의 overlay 조기 복원 방지).
   | { type: "picker.endCapture"; cleanup?: boolean }
-  | { type: "picker.startAreaSelect"; restoreAfter?: boolean }
+  | { type: "picker.startAreaSelect"; restoreAfter?: boolean; sessionId: string }
   | { type: "picker.cancelAreaSelect" }
   | { type: "picker.selectFullViewport" }
   | { type: "picker.beginScrollCapture" }
   | { type: "picker.scrollCaptureTo"; y: number; hideFixed: boolean }
   | { type: "picker.endScrollCapture" }
-  | { type: "picker.selected"; payload: PickerSelectionPayload }
-  | { type: "picker.selectionUpdated"; payload: PickerSelectionUpdatePayload }
-  | { type: "picker.cancelled" }
-  | { type: "picker.iframeUnsupported" }
-  | { type: "picker.areaSelected"; rect: ViewportRect; viewport: { width: number; height: number } }
+  | { type: "picker.selected"; sessionId: string; source: "pick" | "navigate" | "rebind"; payload: PickerSelectionPayload }
+  | { type: "picker.selectionUpdated"; sessionId: string; payload: PickerSelectionUpdatePayload }
+  | { type: "picker.cancelled"; sessionId: string }
+  | { type: "picker.iframeUnsupported"; sessionId: string }
+  | { type: "picker.selectionDetached"; sessionId: string }
+  | { type: "picker.areaSelected"; rect: ViewportRect; viewport: { width: number; height: number }; sessionId?: string }
   | { type: "networkRecorder.setSentinel"; sentinel: string }
   | { type: "networkRecorder.stop" }
   | { type: "networkRecorder.sync" }

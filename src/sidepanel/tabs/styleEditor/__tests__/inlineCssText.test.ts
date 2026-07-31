@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { serializeInlineStyle, parseInlineStyle } from "../inlineCssText";
+import {
+  parseInlineStyle,
+  parseInlineStyleDraft,
+  serializeInlineStyle,
+} from "../inlineCssText";
 
 describe("serializeInlineStyle", () => {
   it("맵을 'prop: value;' 줄로 직렬화하고 삽입 순서를 유지", () => {
@@ -83,6 +87,39 @@ describe("parseInlineStyle", () => {
 
   it("빈 문자열은 빈 맵", () => {
     expect(parseInlineStyle("")).toEqual({});
+  });
+
+  it("주석을 선언 이름에 섞지 않고 무시", () => {
+    expect(parseInlineStyle("/* fallback */ color: red;")).toEqual({
+      color: "red",
+    });
+  });
+
+  it("escaped quote 뒤 세미콜론을 값 내부로 보존", () => {
+    expect(parseInlineStyle('content: "a\\\";b"; color: red;')).toEqual({
+      content: '"a\\\";b"',
+      color: "red",
+    });
+  });
+});
+
+describe("parseInlineStyleDraft", () => {
+  it.each([
+    "color:",
+    'content: "open',
+    "width: calc(100% - 2px",
+    "/* open",
+  ])("불완전 입력은 commit 불가로 분류: %s", (text) => {
+    expect(parseInlineStyleDraft(text)).toMatchObject({ valid: false });
+  });
+
+  it("중복 선언은 fallback 순서를 축약하지 않고 invalid raw로 보존", () => {
+    const raw = "/* fallback */ display: -webkit-box; display: flex;";
+    expect(parseInlineStyleDraft(raw)).toEqual({
+      valid: false,
+      declarations: { display: "flex" },
+      raw,
+    });
   });
 });
 

@@ -19,10 +19,11 @@ let loadPromise: Promise<void> | null = null;
 let isReady = false;
 let observer: MutationObserver | null = null;
 let observerDebounce: number | null = null;
-// 진행 중인 로드는 취소할 수 없다. invalidate가 에폭을 올리면 그 전에 시작한 로드는 늦게
-// 도착하더라도 결과를 버린다 — 안 그러면 비워진 캐시 위에 isReady만 켜지거나(패널 열기→즉시
-// 닫기→재오픈에서 raw 캐시가 빈 채 확정), cross-origin seq가 0부터 중복 발급돼 last-wins가 깨진다.
+let loadAbortController: AbortController | null = null;
 let epoch = 0;
+const MAX_SHEETS = 50;
+const MAX_SHEET_BYTES = 2_000_000;
+const SHEET_FETCH_TIMEOUT_MS = 8_000;
 
 interface IndexedRule {
   rule: CSSStyleRule;
@@ -55,7 +56,9 @@ function dlog(...args: unknown[]): void {
 export function ensureLoaded(): Promise<void> {
   if (loadPromise) return loadPromise;
   const started = epoch;
-  loadPromise = loadAll(started).then(() => {
+  const controller = new AbortController();
+  loadAbortController = controller;
+  loadPromise = loadAll(started, controller.signal).then(() => {
     if (isStaleLoad(started)) return;
     isReady = true;
   });
@@ -78,6 +81,8 @@ export function getRawDeclarationsFor(
 }
 
 export function invalidate(): void {
+  loadAbortController?.abort();
+  loadAbortController = null;
   epoch++;
   ruleToRaw.clear();
   loadPromise = null;
@@ -397,12 +402,12 @@ function isRelevant(muts: MutationRecord[]): boolean {
 
 /* ── load ────────────────────────────────────────── */
 
-async function loadAll(startedEpoch: number): Promise<void> {
-  const sheets = collectAllSheets();
+async function loadAll(startedEpoch: number, signal: AbortSignal): Promise<void> {
+  const sheets = collectAllSheets().slice(0, MAX_SHEETS);
   dlog("loadAll start", { sheetCount: sheets.length });
   await Promise.all(
     sheets.map((sheet, i) =>
-      loadSheet(sheet, startedEpoch).catch((err) => dlog("loadSheet error", { i, err })),
+      loadSheet(sheet, startedEpoch, signal).catch((err) => dlog("loadSheet error", { i, err })),
     ),
   );
   dlog("loadAll done", { mappedRules: ruleToRaw.size });
@@ -416,7 +421,11 @@ function collectAllSheets(): CSSStyleSheet[] {
   return [...regular, ...adopted];
 }
 
-async function loadSheet(sheet: CSSStyleSheet, startedEpoch: number): Promise<void> {
+async function loadSheet(
+  sheet: CSSStyleSheet,
+  startedEpoch: number,
+  signal: AbortSignal,
+): Promise<void> {
   const owner = sheet.ownerNode;
   let text: string | null = null;
   let kind = "unknown";
@@ -424,7 +433,7 @@ async function loadSheet(sheet: CSSStyleSheet, startedEpoch: number): Promise<vo
     text = owner.textContent ?? "";
     kind = "inline";
   } else if (owner instanceof HTMLLinkElement && sheet.href) {
-    text = await fetchSheetText(sheet.href);
+    text = await fetchSheetText(sheet.href, signal);
     kind = "external";
     dlog("fetched", { href: sheet.href, ok: text != null, len: text?.length ?? 0 });
   } else if (!owner) {
@@ -442,19 +451,59 @@ async function loadSheet(sheet: CSSStyleSheet, startedEpoch: number): Promise<vo
   alignAndStore(sheet, text, kind);
 }
 
-async function fetchSheetText(href: string): Promise<string | null> {
+async function fetchSheetText(
+  href: string,
+  parentSignal: AbortSignal,
+): Promise<string | null> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  parentSignal.addEventListener("abort", abort, { once: true });
+  const timer = window.setTimeout(abort, SHEET_FETCH_TIMEOUT_MS);
   try {
     const url = new URL(href, location.href);
     if (url.origin !== location.origin) {
       dlog("skip cross-origin", { href });
       return null;
     }
-    const res = await fetch(href, { credentials: "omit" });
+    const res = await fetch(href, {
+      credentials: "omit",
+      signal: controller.signal,
+    });
     if (!res.ok) return null;
-    return await res.text();
+    return await readCappedText(res, MAX_SHEET_BYTES);
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
+    parentSignal.removeEventListener("abort", abort);
   }
+}
+
+export async function readCappedText(
+  response: Response,
+  maxBytes: number,
+): Promise<string | null> {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await response.body?.cancel();
+    return null;
+  }
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let total = 0;
+  let text = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  return text + decoder.decode();
 }
 
 function serializeAdoptedSheet(sheet: CSSStyleSheet): string | null {
@@ -819,7 +868,6 @@ function parseDeclBlock(text: string, out: Map<string, string>): void {
     i = valueEnd + 1;
   }
 }
-
 /* ── cross-origin author rules ───────────────────── */
 
 export interface CrossOriginRule {

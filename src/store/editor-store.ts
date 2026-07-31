@@ -68,6 +68,7 @@ export interface EditorStyleEdits {
   classList: string[];
   inlineStyle: Record<string, string>;
   text: string;
+  cssText?: string | null;
 }
 
 // 한 element의 스타일 변경 컨텍스트 한 묶음(복수 element 버퍼 항목). 본문 직렬화는
@@ -334,6 +335,7 @@ const initial = {
     classList: [] as string[],
     inlineStyle: {} as Record<string, string>,
     text: "",
+    cssText: null as string | null,
   },
   tokens: [] as Token[],
   beforeImage: null,
@@ -620,6 +622,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             classList: [...buffered.styleEdits.classList],
             inlineStyle: { ...buffered.styleEdits.inlineStyle },
             text: buffered.styleEdits.text,
+            ...(buffered.styleEdits.cssText
+              ? { cssText: buffered.styleEdits.cssText }
+              : {}),
           },
           beforeImage: buffered.beforeImage,
           afterImage: buffered.afterImage,
@@ -638,6 +643,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           classList: [...selection.classList],
           inlineStyle: {},
           text: selection.text ?? "",
+          cssText: null,
         },
         beforeImage: null,
         afterImage: null,
@@ -661,8 +667,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
 
+  // 무효 값을 여기서 걸러내지 않는다: 폼 필드는 타이핑 중인 값을 그대로 담고 blur 때
+  // finalizeValue가 정규화하므로(`abc` → `#aabbcc`), 중간 상태를 지우면 확장할 값 자체가
+  // 사라진다. 브라우저는 무효 선언을 알아서 무시하고, CSS 뷰 경로는 evaluateCssDraft가
+  // 커밋 전에 이미 filterValidCssDeclarations로 거른다.
   setStyleEdits: (patch) =>
-    set((s) => ({ styleEdits: { ...s.styleEdits, ...patch } })),
+    set((s) => ({
+      styleEdits: {
+        ...s.styleEdits,
+        ...patch,
+        ...(patch.inlineStyle && patch.cssText === undefined ? { cssText: null } : {}),
+      },
+    })),
 
   setTokens: (tokens) => set({ tokens }),
 
@@ -696,10 +712,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           classList: [...s.styleEdits.classList],
           inlineStyle: { ...s.styleEdits.inlineStyle },
           text: s.styleEdits.text,
+          ...(s.styleEdits.cssText ? { cssText: s.styleEdits.cssText } : {}),
         },
         beforeImage: s.beforeImage,
         afterImage,
-        captureContext: context,
+        ...(context ? { captureContext: context } : {}),
       };
       const idx = s.bufferedElements.findIndex((b) => sameElementKey(b, sel));
       if (idx >= 0) {
@@ -740,6 +757,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             classList: [...s.selection.classList],
             inlineStyle: {},
             text: s.selection.text ?? "",
+            cssText: null,
           }
         : s.styleEdits,
       bufferedElements: [],

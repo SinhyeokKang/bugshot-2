@@ -154,12 +154,23 @@ chrome.webNavigation.onCommitted.addListener((details) => {
             type: "frameCommitted",
             tabId: details.tabId,
             frameId: details.frameId,
+            documentId: details.documentId,
           } satisfies BgInternalMessage)
           .catch(() => {});
       })
       .catch(() => {});
     return;
   }
+  // top navigation도 이전 document에서 큐잉된 picker lifecycle을 documentId gate로
+  // 차단해야 한다. storage 조회를 기다리지 않고 commit 순서대로 먼저 알린다.
+  chrome.runtime
+    .sendMessage({
+      type: "frameCommitted",
+      tabId: details.tabId,
+      frameId: 0,
+      documentId: details.documentId,
+    } satisfies BgInternalMessage)
+    .catch(() => {});
   const urlPromise = navUrlPromise.get(details.tabId);
   navUrlPromise.delete(details.tabId);
   void Promise.all([

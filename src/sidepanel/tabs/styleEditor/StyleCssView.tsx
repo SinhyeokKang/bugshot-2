@@ -2,24 +2,27 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { applyStyles } from "@/sidepanel/picker-control";
-import {
-  serializeCssBlock,
-  parseCssBlock,
-  computeOverrides,
-  collapseTrbl,
-  expandTrbl,
-} from "./cssBlock";
+import { serializeCssBlock, collapseTrbl, expandTrbl } from "./cssBlock";
 import { shouldResyncDoc } from "./docSync";
+import { evaluateCssDraft, isCssDraftUnapplied } from "./cssDraftStatus";
+import { useT } from "@/i18n";
 
 const CssCodeMirror = lazy(() => import("./CssCodeMirror"));
 
 export function StyleCssView() {
+  const t = useT();
   const selection = useEditorStore((s) => s.selection);
   const inlineStyle = useEditorStore((s) => s.styleEdits.inlineStyle);
+  const savedCssText = useEditorStore((s) => s.styleEdits.cssText);
   const setStyleEdits = useEditorStore((s) => s.setStyleEdits);
   const tokens = useEditorStore((s) => s.tokens);
   const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
   const tabId = useBoundTabId();
+  const draftUnapplied = isCssDraftUnapplied(
+    savedCssText,
+    selection?.specifiedStyles ?? {},
+    inlineStyle,
+  );
 
   const selector = selection?.selector ?? "";
   // specified·오버라이드 모두 longhand 기준으로 diff하고, 표시만 shorthand로 병합한다
@@ -29,10 +32,10 @@ export function StyleCssView() {
   const buildDoc = (overrides: Record<string, string>) =>
     serializeCssBlock(selector, collapseTrbl({ ...specifiedLong, ...overrides }));
 
-  const [value, setValue] = useState(() => buildDoc(inlineStyle));
+  const [value, setValue] = useState(() => savedCssText ?? buildDoc(inlineStyle));
   // 재동기화 판별 기준은 사용자가 친 raw가 아니라 재구성(collapse) 문자열 — store는
   // 오버라이드만 갖고 doc은 병합·축약 재구성이라 raw로는 자기입력 판별이 어긋난다.
-  const lastCommittedRef = useRef(value);
+  const lastCommittedRef = useRef(buildDoc(inlineStyle));
   // 에디터 포커스 중엔 외부 재동기화로 doc를 통째 교체하지 않는다 — cross-origin 늦은
   // specified 보강이 타이핑 중 커서를 튀게 하는 것을 막고, blur 시 흡수한다.
   const focusedRef = useRef(false);
@@ -63,12 +66,18 @@ export function StyleCssView() {
 
   const handleChange = (next: string) => {
     setValue(next);
-    const overrides = computeOverrides(
-      expandTrbl(parseCssBlock(next)),
-      specifiedLong,
+    const evaluation = evaluateCssDraft(
+      next,
+      selection.specifiedStyles,
     );
+    if (evaluation.status === "unapplied") {
+      setStyleEdits({ cssText: next });
+      return;
+    }
+    const { overrides } = evaluation;
+    if (evaluation.canonicalized) setValue(evaluation.cssText);
     lastCommittedRef.current = buildDoc(overrides);
-    setStyleEdits({ inlineStyle: overrides });
+    setStyleEdits({ inlineStyle: overrides, cssText: evaluation.cssText });
     const frameId = useEditorStore.getState().selection?.frameId ?? 0;
     if (tabId) void applyStyles(tabId, frameId, overrides);
   };
@@ -94,6 +103,15 @@ export function StyleCssView() {
           }}
         />
       </Suspense>
+      {draftUnapplied && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="border-t border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+        >
+          {t("editor.cssDraftUnapplied")}
+        </p>
+      )}
     </div>
   );
 }

@@ -132,10 +132,18 @@ async function sendAll<R = void>(
 // token을 실어야 top registry 검증을 통과한다(tabSentinels와 동형의 탭별 보유).
 const tabFrameTokens = new Map<number, string>();
 
+export function isCurrentPickerSession(tabId: number, sessionId: string): boolean {
+  return tabFrameTokens.get(tabId) === sessionId;
+}
+
 function newFrameToken(tabId: number): string {
   const token = crypto.randomUUID();
   tabFrameTokens.set(tabId, token);
   return token;
+}
+
+function currentOrNewFrameToken(tabId: number): string {
+  return tabFrameTokens.get(tabId) ?? newFrameToken(tabId);
 }
 
 // 활성 sentinel 보유 — 캡처 시작 이후 커밋된 iframe에 재발행하기 위해 탭별로 최신값을 기억한다.
@@ -392,10 +400,11 @@ export async function selectByPath(
   tabId: number,
   frameId: number,
   selector: string,
+  sessionId?: string,
 ): Promise<boolean> {
   const res = await send<{ found: boolean }>(
     tabId,
-    { type: "picker.selectByPath", selector },
+    { type: "picker.selectByPath", selector, sessionId },
     frameId,
   );
   return res?.found ?? false;
@@ -431,23 +440,45 @@ export async function applyEditsBySelector(
 // 페이지가 바뀌었거나 현재 요소가 사라졌으면 기존 cross-page 정책과 동일하게 sessionExpired.
 // 한계: same-URL reload는 pageKey가 같아 rebind를 진행하지만 chrome이 iframe frameId를
 // 재발급하므로 옛 frameId send가 조용히 실패한다 — 결말은 요소 소실과 동일(sessionExpired/ghost 카드).
+// 선택 노드만 DOM에서 빠진 경우(SPA 리렌더·key 교체) — 페이지가 바뀐 게 아니므로 버퍼에
+// 쌓아둔 요소별 편집과 캡처는 살리고 현재 선택만 놓는다. sessionExpired는 cross-page 신호라
+// 여기서 세우지 않는다: 세우면 다이얼로그가 뜨고 확인 시 reset이라 버퍼가 통째로 사라진다.
+export async function releaseDetachedSelection(tabId: number): Promise<void> {
+  await clearPicker(tabId).catch(() => {});
+  useEditorStore.setState({
+    selection: null,
+    styleEdits: { classList: [], inlineStyle: {}, text: "", cssText: null },
+    beforeImage: null,
+    afterImage: null,
+    captureContext: null,
+  });
+}
+
+export async function expireStylingSession(tabId: number): Promise<void> {
+  await clearPicker(tabId).catch(() => {});
+  useEditorStore.setState({
+    sessionExpired: true,
+    selection: null,
+    bufferedElements: [],
+    styleEdits: { classList: [], inlineStyle: {}, text: "", cssText: null },
+    beforeImage: null,
+    afterImage: null,
+    captureContext: null,
+  });
+}
+
 export async function rebindStylingSession(tabId: number): Promise<void> {
-  // 기존 expiry 경로(useEditorSessionSync)와 동일하게 만료와 페이지 정리를 쌍으로 수행.
-  const expire = async () => {
-    useEditorStore.setState({ sessionExpired: true });
-    await clearPicker(tabId).catch(() => {});
-  };
   try {
     await ensureContentScript(tabId);
   } catch {
-    await expire();
+    await expireStylingSession(tabId);
     return;
   }
   const state = useEditorStore.getState();
   const prevKey = pageKeyOf(state.target?.url);
   const newKey = pageKeyOf(await getPageUrl(tabId));
   if (!prevKey || !newKey || prevKey !== newKey) {
-    await expire();
+    await expireStylingSession(tabId);
     return;
   }
   // 현재 요소 존재 확인 겸 편집 재적용을 버퍼보다 먼저 — 실패(만료) 시 DOM에 아무것도
@@ -459,19 +490,20 @@ export async function rebindStylingSession(tabId: number): Promise<void> {
       classList: state.styleEdits.classList,
       inlineStyle: state.styleEdits.inlineStyle,
       text: sel.text === null ? null : state.styleEdits.text,
-    });
+    }).catch(() => false);
     if (!found) {
-      await expire();
+      await expireStylingSession(tabId);
       return;
     }
   }
   for (const b of state.bufferedElements) {
     // 요소 소실(found=false)은 ghost 카드로 유지 — 다이얼로그 행 초기화의 기존 한계와 동일.
+    // 하나가 안 붙었다고 세션을 파기하면 나머지 버퍼의 편집·before/after까지 같이 날아간다.
     await applyEditsBySelector(tabId, b.frameId ?? 0, b.selector, {
       classList: b.styleEdits.classList,
       inlineStyle: b.styleEdits.inlineStyle,
       text: b.selectionSnapshot.text === null ? null : b.styleEdits.text,
-    });
+    }).catch(() => false);
   }
   if (!sel) return;
   // 승격 경로 재사용: 현재 요소를 버퍼에 넣고 재선택하면 onElementSelected가
@@ -483,7 +515,7 @@ export async function rebindStylingSession(tabId: number): Promise<void> {
     stale ? null : state.afterImage,
     now.captureContext ?? undefined,
   );
-  await selectByPath(tabId, selFrameId, sel.selector);
+  await selectByPath(tabId, selFrameId, sel.selector, newFrameToken(tabId));
 }
 
 // iframe 캡처는 자식의 offset 요청 전에 top 응답기를 1회성 arm — 무인증 postMessage
@@ -564,7 +596,7 @@ export async function startAreaCapture(tabId: number): Promise<void> {
     // top blocker가 iframe 영역 위 드래그도 가로채므로 top 좌표만으로 충분(기존 동작 유지).
     await chrome.tabs.sendMessage<PickerMessage>(
       tabId,
-      { type: "picker.startAreaSelect" },
+      { type: "picker.startAreaSelect", sessionId: newFrameToken(tabId) },
       { frameId: 0 },
     );
   } catch (err) {
@@ -624,7 +656,14 @@ export async function startInlineAreaCapture(tabId: number): Promise<void> {
     await ensureContentScript(tabId);
     await chrome.tabs.sendMessage<PickerMessage>(
       tabId,
-      { type: "picker.startAreaSelect", restoreAfter: captureMode === "element" },
+      {
+        type: "picker.startAreaSelect",
+        restoreAfter: captureMode === "element",
+        sessionId:
+          captureMode === "element"
+            ? currentOrNewFrameToken(tabId)
+            : newFrameToken(tabId),
+      },
       { frameId: 0 },
     );
   } catch (err) {

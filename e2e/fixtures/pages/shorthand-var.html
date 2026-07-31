@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>shorthand var fixture</title>
+    <style>
+      /* var()가 낀 shorthand는 Chrome CSSOM이 longhand를 전부 빈 문자열로 돌려준다.
+         그 순간 확장의 수동 전개가 specified의 유일한 출처가 되므로, 아래 각 요소는
+         그 전개의 한 축씩을 실제 브라우저에서 고정한다. */
+      :root {
+        --divider: #3366cc;
+        --dur: 0.3s;
+        --space-lg: 32px;
+      }
+
+      /* 리셋이 먼저 온다 — CSSOM은 이걸 0px/none/currentcolor로 explode하므로,
+         뒤따르는 var() border가 longhand 소유권을 되찾지 못하면 그 값이 남는다. */
+      * {
+        border: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+        font: 14px system-ui, sans-serif;
+      }
+
+      div {
+        width: 240px;
+        height: 60px;
+        margin-bottom: 16px;
+        background: #f4f4f5;
+      }
+
+      #tokened {
+        border: 0.1rem solid var(--divider);
+      }
+
+      /* 논리 속성은 var() 유무와 무관하게 물리 longhand로 explode되지 않는다. */
+      #logical {
+        padding-inline: 4px 8px;
+      }
+
+      #trans {
+        transition: color var(--dur);
+      }
+
+      /* 괄호 안 나눗셈 — elliptical radius 구분자와 달리 전개를 막으면 안 된다. */
+      #calcgap {
+        display: flex;
+        gap: calc(var(--space-lg) / 2);
+      }
+
+      /* !important가 먼저, 일반 border shorthand가 나중. 캐스케이드상 red가 이긴다. */
+      #important {
+        border-color: red !important;
+      }
+
+      #important {
+        border: 1px solid var(--divider);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="tokened">tokened border</div>
+    <div id="logical">logical padding</div>
+    <div id="trans">transition</div>
+    <div id="calcgap"><span>a</span><span>b</span></div>
+    <div id="important">important border-color</div>
+  </body>
+</html>
