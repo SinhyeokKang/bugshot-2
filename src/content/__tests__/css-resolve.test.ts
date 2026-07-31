@@ -24,6 +24,8 @@ import {
   parseBorderShorthand,
   expandShorthands,
   extractVarPropsFromMap,
+  shouldOverwriteSpecified,
+  newClaimState,
   normalizePositionOffsets,
   type EditableHandle,
 } from "../css-resolve";
@@ -324,13 +326,33 @@ describe("expandShorthands — background shorthand → background-color 가드"
 
 // var()가 낀 shorthand는 Chrome CSSOM이 longhand를 전부 빈 문자열로 돌려주므로(실측)
 // 이 수동 전개가 유일한 출처가 된다 — 2값 shorthand를 통째 복사하면 longhand가 오염된다.
-// 분해 테이블(TRBL/PAIR)과 전개 대상 목록(SHORTHAND_MAP)이 갈리면 값이 조용히 뒤바뀐다 —
-// expandShorthands가 값은 분해 테이블 순서로 쪼개고 자리는 SHORTHAND_MAP 순서로 채우기 때문.
+// longhand 이름·순서의 단일 출처는 SHORTHAND_MAP이고, TRBL/PAIR는 값을 몇 조각으로
+// 쪼갤지만 정한다. 이 표는 세 가지를 한꺼번에 고정한다 — arity 불일치(자리 하나가
+// undefined로 샘), SHORTHAND_MAP 내부 순서(논리 속성 LTR 매핑 역전), split 테이블 등록
+// 누락(둘 중 어디에도 없으면 splitShorthandValue가 null → 조용한 무전개).
 describe("shorthand 테이블 정합성", () => {
   const CASES: Array<[string, string[]]> = [
     ["padding", ["padding-top", "padding-right", "padding-bottom", "padding-left"]],
     ["margin", ["margin-top", "margin-right", "margin-bottom", "margin-left"]],
     ["inset", ["top", "right", "bottom", "left"]],
+    ["border-radius", [
+      "border-top-left-radius",
+      "border-top-right-radius",
+      "border-bottom-right-radius",
+      "border-bottom-left-radius",
+    ]],
+    ["border-width", [
+      "border-top-width",
+      "border-right-width",
+      "border-bottom-width",
+      "border-left-width",
+    ]],
+    ["border-color", [
+      "border-top-color",
+      "border-right-color",
+      "border-bottom-color",
+      "border-left-color",
+    ]],
     ["gap", ["row-gap", "column-gap"]],
     ["overflow", ["overflow-x", "overflow-y"]],
     ["padding-inline", ["padding-left", "padding-right"]],
@@ -348,6 +370,20 @@ describe("shorthand 테이블 정합성", () => {
     longhands.forEach((lh, i) => {
       expect(all[lh]).toBe(`${i + 1}px`);
     });
+  });
+
+  it("전개된 자리에 undefined가 새지 않는다", () => {
+    for (const [shorthand, value] of [
+      ["padding", "1px 2px 3px 4px"],
+      ["gap", "1px 2px"],
+      ["inset-inline", "1px 2px"],
+      ["overflow", "hidden auto"],
+      ["border-radius", "1px 2px 3px 4px"],
+    ] as const) {
+      const all: Record<string, string> = { [shorthand]: value };
+      expandShorthands(all, {});
+      expect(Object.values(all).every((v) => typeof v === "string")).toBe(true);
+    }
   });
 });
 
@@ -443,6 +479,20 @@ describe("expandShorthands — 파싱 불가 shorthand는 longhand 미오염", (
     expect(all["transition-delay"]).toBeUndefined();
   });
 
+  // `/` 검사가 문자열 전체를 훑으면 calc 안의 나눗셈까지 전개를 막아, author가 쓴 값이
+  // 통째로 사라지고 소비처가 computed px로 폴백한다.
+  it("calc 안의 나눗셈은 전개를 막지 않음", () => {
+    const all: Record<string, string> = { padding: "calc(100% / 3)" };
+    expandShorthands(all, {});
+    expect(all["padding-top"]).toBe("calc(100% / 3)");
+    expect(all["padding-left"]).toBe("calc(100% / 3)");
+
+    const gap: Record<string, string> = { gap: "calc(var(--gutter) / 2)" };
+    expandShorthands(gap, {});
+    expect(gap["row-gap"]).toBe("calc(var(--gutter) / 2)");
+    expect(gap["column-gap"]).toBe("calc(var(--gutter) / 2)");
+  });
+
   it("elliptical border-radius(`/`)는 코너를 채우지 않음", () => {
     const all: Record<string, string> = { "border-radius": "var(--r) / 20px" };
     expandShorthands(all, {});
@@ -486,7 +536,10 @@ describe("extractVarPropsFromMap — border shorthand longhand 소유권", () =>
     expect(out.border).toBe("0.1rem solid var(--divider)");
   });
 
-  it("이미 잡힌 var() longhand는 보존 (토큰 강등 방지)", () => {
+  // 토큰 강등 방지는 var()→리터럴 방향에만 걸린다. var()→var()는 뒤 규칙이 이겨야
+  // 한다 — 앞선 토큰을 동결하면 `.card` + `.card--danger`처럼 두 규칙이 각각 토큰
+  // border를 선언할 때 축마다 출처가 갈려 자기모순이 된다.
+  it("앞선 var() longhand는 나중 shorthand의 var()에 자리를 내준다", () => {
     const out: Record<string, string> = {
       "border-top-color": "var(--accent)",
       "border-top-width": "0px",
@@ -498,8 +551,12 @@ describe("extractVarPropsFromMap — border shorthand longhand 소유권", () =>
       {},
       ".card",
     );
-    expect(out["border-top-color"]).toBe("var(--accent)");
+    expect(out["border-top-color"]).toBe("var(--divider)");
     expect(out["border-top-width"]).toBe("1px");
+  });
+
+  it("var() 토큰은 나중 리터럴로 강등되지 않는다", () => {
+    expect(shouldOverwriteSpecified("var(--accent)", "#333", false)).toBe(false);
   });
 
   it("border-{side} shorthand는 해당 변만 덮는다", () => {
@@ -593,6 +650,117 @@ describe("extractVarPropsFromMap — border shorthand longhand 소유권", () =>
     );
     expect(out["border-top-color"]).toBeUndefined();
     expect(out.border).toBeUndefined();
+  });
+});
+
+// border shorthand 전개는 "앞선 리셋을 밀어낸다"가 목적인데, 중요도·후속 직접 선언을
+// 모르면 "앞뒤 무관하게 항상 이긴다"가 되어 실제 캐스케이드와 어긋난다.
+describe("extractVarPropsFromMap — 중요도·파생 표시", () => {
+  it("!important로 확정된 축은 border shorthand가 덮지 않는다", () => {
+    const claims = newClaimState();
+    claims.important.add("border-top-color");
+    const out: Record<string, string> = { "border-top-color": "red" };
+    extractVarPropsFromMap(
+      new Map([["border", "1px solid var(--c)"]]),
+      out,
+      {},
+      {},
+      ".b",
+      undefined,
+      claims,
+    );
+    expect(out["border-top-color"]).toBe("red");
+    expect(out["border-top-width"]).toBe("1px");
+  });
+
+  // 같은 중요도끼리는 문서 순서상 뒤가 이긴다 — important를 "영구 잠금"으로 다루면
+  // 나중 규칙의 !important shorthand가 앞선 !important longhand에 진다.
+  it("현재 규칙도 !important면 앞선 !important를 이긴다", () => {
+    const claims = newClaimState();
+    claims.important.add("border-top-color");
+    const out: Record<string, string> = { "border-top-color": "red" };
+    extractVarPropsFromMap(
+      new Map([["border", "1px solid var(--c)"]]),
+      out,
+      {},
+      {},
+      ".b",
+      undefined,
+      claims,
+      new Set(["border-top-color"]),
+    );
+    expect(out["border-top-color"]).toBe("var(--c)");
+  });
+
+  it("shorthand가 채운 축은 파생으로 표시된다", () => {
+    const claims = newClaimState();
+    extractVarPropsFromMap(
+      new Map([["border", "1px solid var(--c)"]]),
+      {},
+      {},
+      {},
+      ".c1",
+      undefined,
+      claims,
+    );
+    expect(claims.derived.has("border-top-color")).toBe(true);
+    expect(claims.derived.has("border-style")).toBe(true);
+  });
+
+  // `border: var(--bd)`처럼 축을 알 수 없는 값은 color 슬롯에 통째로 들어가면 안 된다.
+  it("단일 var()/CSS-wide 키워드는 슬롯 배정을 포기한다", () => {
+    expect(parseBorderShorthand("var(--bd)")).toEqual({});
+    expect(parseBorderShorthand("inherit")).toEqual({});
+    expect(parseBorderShorthand("unset")).toEqual({});
+    // 축이 분명한 단일 토큰은 그대로 분류.
+    expect(parseBorderShorthand("red")).toEqual({ color: "red" });
+    expect(parseBorderShorthand("none")).toEqual({ style: "none" });
+  });
+
+  it("축을 모르는 shorthand 토큰은 앞선 값을 오염시키지 않는다", () => {
+    const out: Record<string, string> = {
+      "border-top-color": "currentcolor",
+      "border-top-width": "0px",
+    };
+    extractVarPropsFromMap(
+      new Map([["border", "var(--bd)"]]),
+      out,
+      {},
+      {},
+      ".card",
+    );
+    expect(out["border-top-color"]).toBe("currentcolor");
+    expect(out["border-top-width"]).toBe("0px");
+  });
+});
+
+// 규칙 순회에서 specified를 덮을지 판정하는 단일 출처. author가 직접 쓴 var()는 보호하되,
+// shorthand에서 파생된 값은 뒤 규칙의 직접 선언(리터럴 포함)에 자리를 내줘야 한다.
+describe("shouldOverwriteSpecified", () => {
+  it("author var() 값은 뒤따르는 리터럴로부터 보호된다", () => {
+    expect(shouldOverwriteSpecified("var(--c)", "red", false)).toBe(false);
+  });
+
+  // !important는 specificity보다 상위 규칙이라, 뒤에 오는 일반 선언이 이길 수 없다.
+  it("!important로 확정된 자리는 일반 선언이 못 덮는다", () => {
+    expect(shouldOverwriteSpecified("red", "blue", false, true, false)).toBe(false);
+  });
+
+  it("!important끼리는 뒤가 이긴다", () => {
+    expect(shouldOverwriteSpecified("red", "blue", false, true, true)).toBe(true);
+  });
+
+  it("파생된 var() 값은 뒤 규칙의 리터럴에 자리를 내준다", () => {
+    expect(shouldOverwriteSpecified("var(--c)", "red", true)).toBe(true);
+  });
+
+  it("var() → var() 와 리터럴 → 리터럴은 last-wins", () => {
+    expect(shouldOverwriteSpecified("var(--a)", "var(--b)", false)).toBe(true);
+    expect(shouldOverwriteSpecified("red", "blue", false)).toBe(true);
+  });
+
+  it("빈 자리는 항상 채운다", () => {
+    expect(shouldOverwriteSpecified(undefined, "red", false)).toBe(true);
   });
 });
 
