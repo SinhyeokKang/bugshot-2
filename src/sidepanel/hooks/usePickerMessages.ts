@@ -205,6 +205,16 @@ export function usePickerMessages(myTabId: number | null): void {
         });
       } else if (message.type === "picker.areaSelected") {
         const msg = message as Extract<PickerMessage, { type: "picker.areaSelected" }>;
+        // 취소(picker.cancelled)와 같은 게이트를 태운다 — 성공만 무방비면 죽은 document의
+        // 영역 선택이 캡처를 발화시킨다. sessionId는 optional이라(구버전 content) 있을
+        // 때만 세션을 대조하고, document 게이트는 항상 건다.
+        if (
+          msg.sessionId &&
+          (myTabId == null || !isCurrentPickerSession(myTabId, msg.sessionId))
+        ) {
+          return;
+        }
+        if (isStalePickerDocument()) return;
         const { inlineCaptureTarget } = useEditorStore.getState();
         if (inlineCaptureTarget) {
           void captureAndInsertInline(inlineCaptureTarget, msg.rect, msg.viewport);

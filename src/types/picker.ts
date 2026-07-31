@@ -133,7 +133,7 @@ export type PickerMessage =
   | { type: "picker.cancelled"; sessionId: string }
   | { type: "picker.iframeUnsupported"; sessionId: string }
   | { type: "picker.selectionDetached"; sessionId: string }
-  | { type: "picker.areaSelected"; rect: ViewportRect; viewport: { width: number; height: number } }
+  | { type: "picker.areaSelected"; rect: ViewportRect; viewport: { width: number; height: number }; sessionId?: string }
   | { type: "networkRecorder.setSentinel"; sentinel: string }
   | { type: "networkRecorder.stop" }
   | { type: "networkRecorder.sync" }

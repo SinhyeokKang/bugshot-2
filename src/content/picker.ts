@@ -1185,7 +1185,12 @@ function handleStartAreaSelect(restoreAfter?: boolean): void {
     },
     onSelected(rect, viewport) {
       areaHandle = null;
-      postToRuntime({ type: "picker.areaSelected", rect, viewport });
+      postToRuntime({
+        type: "picker.areaSelected",
+        rect,
+        viewport,
+        sessionId: activePickerSessionId ?? undefined,
+      });
       if (shouldRestore) {
         restoreSelected();
       } else {
