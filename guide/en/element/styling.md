@@ -45,7 +45,8 @@ The CSS tab really shines in two cases:
 
 - Changing a value applies it to the page **immediately**.
 - Each section can revert just its inline changes, and there are buttons to revert Class or Text to the original — so feel free to experiment.
-- To **turn off a style the site itself applies**, pick **`unset`** from a dropdown. Where reverting only cancels your own edit, `unset` says "this style should not apply." For example, when ellipsis (`text-overflow`) is clipping text where it shouldn't, `unset` turns it off so you can show the fixed version.
+- When you type a value yourself, press **Enter** to commit it right away. To pick a token from the list instead, move to it with the arrow keys and then press Enter.
+- To **turn off a style the site itself applies**, pick **`unset`** from a dropdown (while you are typing a value, `unset` and the revert entry are hidden for the moment — clear the input and they come back). Where reverting only cancels your own edit, `unset` says "this style should not apply." For example, when ellipsis (`text-overflow`) is clipping text where it shouldn't, `unset` turns it off so you can show the fixed version.
 
 ## Edit four sides together — or separately
 
