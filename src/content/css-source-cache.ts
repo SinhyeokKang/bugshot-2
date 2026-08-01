@@ -71,6 +71,11 @@ function isStaleLoad(startedEpoch: number): boolean {
   return startedEpoch !== epoch;
 }
 
+// 캐시 세대. 무효화되면 증가한다 — 소비처가 epoch 단위 memo를 무효화하는 데 쓴다.
+export function getCacheEpoch(): number {
+  return epoch;
+}
+
 export function isCacheReady(): boolean {
   return isReady;
 }

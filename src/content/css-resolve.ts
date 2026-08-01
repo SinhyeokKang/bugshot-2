@@ -8,6 +8,7 @@ import {
   getMatchingRules,
   getMatchingCrossOriginRules,
   getRawDeclarationsFor,
+  getCacheEpoch,
   flattenSheets,
   type CrossOriginRule,
 } from "./css-source-cache";
@@ -1611,9 +1612,24 @@ function finalizeCustomProps(
 ): void {
   const docEl = el.ownerDocument?.documentElement;
   if (docEl && docEl !== el) {
-    collectRulesForElement(docEl, {}, {}, customProps);
+    for (const [name, value] of Object.entries(docElementCustomProps(docEl))) {
+      if (!(name in customProps)) customProps[name] = value;
+    }
   }
   hydrateReferencedCustomProps(values, computed, customProps);
+}
+
+// :root/html 기여분은 **요소와 무관**하다 — hover는 지나치는 요소마다 이 경로를 타므로
+// (picker 툴팁은 요소당 1회 계산) 매번 전체 규칙을 다시 순회하면 토큰이 수백 개인 :root에서
+// CSSOM 접근이 수천 번 반복된다. 캐시 세대(epoch)가 바뀔 때만 다시 모은다.
+let docElPropsCache: { epoch: number; props: Record<string, string> } | null = null;
+function docElementCustomProps(docEl: Element): Record<string, string> {
+  const epoch = getCacheEpoch();
+  if (docElPropsCache?.epoch === epoch) return docElPropsCache.props;
+  const props: Record<string, string> = {};
+  collectRulesForElement(docEl, {}, {}, props);
+  docElPropsCache = { epoch, props };
+  return props;
 }
 
 // 값 안의 var() 참조 이름 — 중첩 fallback(`var(--a, var(--b))`)까지 판다. 정규식(VAR_REF_RE)은

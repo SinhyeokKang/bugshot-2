@@ -4,6 +4,7 @@ vi.mock("../css-source-cache", () => ({
   getMatchingRules: () => [],
   getRawDeclarationsFor: () => null,
   flattenSheets: (sheets: unknown[]) => sheets,
+  getCacheEpoch: () => 0,
 }));
 
 import {
