@@ -5,26 +5,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const matchRules = vi.hoisted(() =>
   vi.fn((_el: Element) => [] as unknown[]),
 );
-// docEl 기여분 memo는 캐시 세대로 무효화된다 — 케이스마다 세대를 올려 격리한다.
-const epoch = vi.hoisted(() => {
-  let n = 0;
-  const fn = () => n;
-  fn.bump = () => { n += 1; };
-  return fn;
-});
 vi.mock("../css-source-cache", () => ({
   getMatchingRules: (el: Element) => matchRules(el),
   getRawDeclarationsFor: () => null,
   getCrossOriginCustomProps: () => ({}),
   getMatchingCrossOriginRules: () => [],
   flattenSheets: (sheets: unknown[]) => sheets,
-  getCacheEpoch: () => epoch(),
 }));
 
-import {
-  clearCustomPropsCache,
-  collectInspectorSpecRefs,
-} from "../css-resolve";
+import { collectInspectorSpecRefs } from "../css-resolve";
 
 function sheet(css: string): CSSStyleRule[] {
   const style = document.createElement("style");
@@ -38,7 +27,6 @@ beforeEach(() => {
   document.head.innerHTML = "";
   document.body.innerHTML = "";
   matchRules.mockReset();
-  epoch.bump();
 });
 
 // 툴팁(collectInspectorSpecRefs)과 편집/CSS 뷰는 수집기가 갈라져 있어, 한쪽만 :root 보강·
@@ -94,7 +82,7 @@ describe("collectInspectorSpecRefs — 편집 경로와 같은 전처리", () =>
     expect(refs.color).toBe("var(--color-brand)");
   });
 
-  it("우리가 조상 클래스를 바꾸면 memo를 버린다 (캐시 세대는 안 오른다)", () => {
+  it("조상 스코프가 바뀌면 다음 조회에 바로 반영된다 (편집·테마 토글)", () => {
     // 스타일 편집은 클래스·인라인을 라이브로 바꾸지만 CSS 캐시 세대는 그대로다 —
     // 조상 custom property memo가 남으면 편집 후 토큰 이름이 옛 스코프로 굳는다.
     const [themeRule] = sheet("[data-theme] { --_text: var(--color-brand); }");
@@ -118,9 +106,23 @@ describe("collectInspectorSpecRefs — 편집 경로와 같은 전처리", () =>
     expect(collectInspectorSpecRefs(el, computed).color).toBe("#fff");
 
     host.setAttribute("data-theme", "dark");
-    clearCustomPropsCache();
 
     expect(collectInspectorSpecRefs(el, computed).color).toBe("var(--color-brand)");
+  });
+
+  it("var()를 안 쓰는 요소는 조상 체인을 훑지 않는다", () => {
+    const [elRule] = sheet(".btn { color: #fff; font-size: 12px; font-weight: 400; }");
+    const host = document.createElement("div");
+    const el = document.createElement("button");
+    el.className = "btn";
+    host.appendChild(el);
+    document.body.appendChild(host);
+    matchRules.mockImplementation((target: Element) => (target === el ? [elRule] : []));
+
+    collectInspectorSpecRefs(el, { getPropertyValue: () => "" });
+
+    // 요소 자신 1회뿐 — custom property를 해석할 일이 없으면 순회 자체가 낭비다.
+    expect(matchRules.mock.calls.map(([t]) => t)).toEqual([el]);
   });
 
   it("shadow·detached라 부모 체인이 끊겨도 :root 토큰은 본다", () => {

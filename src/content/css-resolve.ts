@@ -8,7 +8,6 @@ import {
   getMatchingRules,
   getMatchingCrossOriginRules,
   getRawDeclarationsFor,
-  getCacheEpoch,
   flattenSheets,
   type CrossOriginRule,
 } from "./css-source-cache";
@@ -1610,36 +1609,36 @@ function finalizeCustomProps(
   computed: Pick<CSSStyleDeclaration, "getPropertyValue">,
   customProps: Record<string, string>,
 ): void {
+  // 해석할 var()가 없으면 조상 수집도 hydrate도 전부 no-op다 — custom property를 안 쓰는
+  // 요소(대다수)에서 체인 순회를 통째로 건너뛴다.
+  if (!values.some((v) => v.includes("var("))) return;
+
   let last: Element | null = null;
   for (let cur = el.parentElement; cur; cur = cur.parentElement) {
-    gapFill(customProps, elementCustomProps(cur));
+    gapFill(customProps, collectCustomPropsFor(cur));
     last = cur;
   }
   // shadow 경계·detached 요소는 부모 체인이 documentElement에 닿지 않는다 — :root 토큰을
   // 통째로 잃으므로 마지막에 보정한다(체인이 이미 닿았으면 memo 조회 1회로 끝난다).
   const docEl = el.ownerDocument?.documentElement;
   if (docEl && docEl !== el && docEl !== last) {
-    gapFill(customProps, elementCustomProps(docEl));
+    gapFill(customProps, collectCustomPropsFor(docEl));
   }
   hydrateReferencedCustomProps(values, computed, customProps);
 }
 
-// 조상 체인의 custom property를 가까운 쪽부터 gap-fill한다. **상속 prop을 채우는 조상 순회와
-// 분리한 이유**: 그 순회는 목적을 달성하면 멈추므로(INHERITED_PROPS가 다 차면 중단),
-// `body`·`[data-theme]`·`:root`에 별칭을 둔 사이트의 원문을 통째로 놓쳤다 — 그러면
-// resolveVarChain이 펼칠 곳이 없어 토큰 이름이 리터럴로 무너진다.
-// 요소별 기여분은 캐시 세대(epoch) 안에서 불변이라 memo한다 — hover는 지나치는 요소마다 이
-// 경로를 타고, 형제들이 같은 조상 체인을 공유하므로 적중률이 높다.
-let customPropsCache = new WeakMap<Element, { epoch: number; props: Record<string, string> }>();
-function elementCustomProps(el: Element): Record<string, string> {
-  const epoch = getCacheEpoch();
-  const hit = customPropsCache.get(el);
-  if (hit?.epoch === epoch) return hit.props;
+// 한 요소가 선언하는 custom property. **상속 prop을 채우는 조상 순회와 분리한 이유**: 그
+// 순회는 목적을 달성하면 멈추므로(INHERITED_PROPS가 다 차면 중단) `body`·`[data-theme]`·
+// `:root`에 별칭을 둔 사이트의 원문을 통째로 놓쳤고, 그러면 resolveVarChain이 펼칠 곳이 없어
+// 토큰 이름이 리터럴로 무너진다.
+// **memo하지 않는다** — 클래스 토글·우리 인라인 편집·cross-origin 시트의 늦은 도착은 캐시
+// 세대를 올리지 않아서, 캐싱하면 무효화 계약이 호출부로 새고 그 계약이 새는 순간 같은 증상이
+// 재발한다. 위 var() 게이트가 대다수 요소를 걸러내므로 캐시가 벌 몫도 작다.
+function collectCustomPropsFor(el: Element): Record<string, string> {
   const props: Record<string, string> = {};
   // wantedProps를 비워 일반 prop 작업을 건너뛴다 — `--*`는 그 필터 앞에서 처리되므로
   // 수집 규칙(순서·first-write-wins·cross-origin 보강)은 본 경로와 동일하다.
   collectRulesForElement(el, {}, {}, props, NO_WANTED_PROPS);
-  customPropsCache.set(el, { epoch, props });
   return props;
 }
 const NO_WANTED_PROPS = new Set<string>();
@@ -1648,13 +1647,6 @@ function gapFill(target: Record<string, string>, source: Record<string, string>)
   for (const name in source) {
     if (!(name in target)) target[name] = source[name];
   }
-}
-
-// 스타일 편집은 클래스·인라인을 라이브로 바꾸지만 CSS 캐시 세대(epoch)는 그대로다 —
-// 그 편집이 어느 조상의 custom property를 바꿀 수 있으므로 memo를 통째로 버린다
-// (요소 하나만 지우면 그 요소를 조상으로 읽는 자손 memo가 남는다).
-export function clearCustomPropsCache(): void {
-  customPropsCache = new WeakMap();
 }
 
 // 값 안의 var() 참조 이름 — 중첩 fallback(`var(--a, var(--b))`)까지 판다. 정규식(VAR_REF_RE)은

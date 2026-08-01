@@ -71,11 +71,6 @@ function isStaleLoad(startedEpoch: number): boolean {
   return startedEpoch !== epoch;
 }
 
-// 캐시 세대. 무효화되면 증가한다 — 소비처가 epoch 단위 memo를 무효화하는 데 쓴다.
-export function getCacheEpoch(): number {
-  return epoch;
-}
-
 export function isCacheReady(): boolean {
   return isReady;
 }
@@ -1065,7 +1060,9 @@ function collectCrossOriginHrefs(): string[] {
   return hrefs;
 }
 
-// 인덱스 없이 선형 스캔 — 보강은 디바운스된 selection에서만 돌고 sheet 캡도 있어 인덱스는 과설계.
+// 인덱스 없이 선형 스캔. 원래 "보강은 디바운스된 selection에서만 돈다"가 전제였으나 지금은
+// custom property 수집이 조상 체인을 타므로 **요소당 체인 깊이만큼** 불린다(hover 포함) —
+// cross-origin 규칙이 많은 사이트에서 여기가 지배항이다. 인덱싱은 미조치(별도 과제).
 // el.matches throw(비표준 selector)는 해당 rule만 skip.
 export function getMatchingCrossOriginRules(el: Element): CrossOriginRule[] {
   const matched = crossOriginRules.filter((r) => {
