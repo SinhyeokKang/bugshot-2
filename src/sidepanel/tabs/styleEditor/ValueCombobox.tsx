@@ -326,7 +326,7 @@ export function ValueCombobox({
             onValueChange={(v) => {
               if (!openRef.current) return;
               setDraft(v);
-              setTyping(true);
+              setTyping(v.trim().length > 0);
               navigatedRef.current = false;
               // 라이브 적용은 finalizeLiveValue — color 단축 hex는 blur 전까지 확장하지
               // 않아 입력 중 깜빡임을 막는다(commit/blur는 finalize로 확장).
@@ -339,18 +339,26 @@ export function ValueCombobox({
             icon={<PenLine className="mr-2 h-4 w-4 shrink-0 opacity-50" />}
             className="h-9"
             onKeyDown={(e) => {
-              if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") {
+              if (
+                e.key === "ArrowUp" ||
+                e.key === "ArrowDown" ||
+                e.key === "Home" ||
+                e.key === "End"
+              ) {
                 navigatedRef.current = true;
                 return;
               }
               if (e.key !== "Enter") return;
+              if (
+                e.nativeEvent.isComposing ||
+                e.nativeEvent.keyCode === 229
+              ) return;
               // cmdk의 Enter는 "하이라이트 항목 선택"인데, 그 하이라이트는 항목 집합이 바뀌는
-              // 타이밍에 좌우된다(cmdk 1.1.1의 Command value는 초기값·통보용이라 밖에서 못 잡는다).
+              // 타이밍에 좌우되고 controlled value와도 역통보 경합이 생긴다.
               // 자유입력 확정은 결정적이어야 하므로 여기서 직접 처리하고 cmdk로 넘기지 않는다.
               if (navigatedRef.current) return; // 방향키로 고른 항목 → cmdk에 위임
               e.preventDefault();
               e.stopPropagation(); // 막지 않으면 cmdk가 하이라이트 항목을 한 번 더 실행한다
-              if (e.nativeEvent.isComposing) return; // IME 조합 확정용 Enter
               const raw = draft.trim();
               if (raw) commit(raw);
             }}
@@ -471,4 +479,3 @@ function buildTriggerTitle({
   const body = `${main}${tail}`;
   return iconTitle ? `${iconTitle} · ${body}` : body;
 }
-

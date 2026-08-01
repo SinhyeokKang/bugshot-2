@@ -73,14 +73,24 @@ describe("ValueCombobox 토큰 chip 폭 봉쇄", () => {
 describe("ValueCombobox 자유입력 Enter 확정", () => {
   // controlled set은 store를 갱신해 value로 되돌아온다 — mock으로 끊으면 draft가 매 글자
   // 리셋돼(자기 변경 재싱크 가드) 실제와 다른 경로를 테스트하게 된다.
-  function Harness({ initial, prop, set }: { initial: string; prop: string; set: (v: string) => void }) {
+  function Harness({
+    initial,
+    prop,
+    placeholder = "",
+    set,
+  }: {
+    initial: string;
+    prop: string;
+    placeholder?: string;
+    set: (v: string) => void;
+  }) {
     const [value, setValue] = useState(initial);
     return (
       <ValueCombobox
         prop={prop}
         controlled={{
           value,
-          placeholder: "",
+          placeholder,
           set: (v) => {
             set(v);
             setValue(v);
@@ -90,9 +100,16 @@ describe("ValueCombobox 자유입력 Enter 확정", () => {
     );
   }
 
-  function openWith(value: string, prop = "padding-top") {
+  function openWith(value: string, prop = "padding-top", placeholder = "") {
     const set = vi.fn();
-    render(<Harness initial={value} prop={prop} set={set} />);
+    render(
+      <Harness
+        initial={value}
+        prop={prop}
+        placeholder={placeholder}
+        set={set}
+      />,
+    );
     return { set, user: userEvent.setup() };
   }
 
@@ -130,6 +147,17 @@ describe("ValueCombobox 자유입력 Enter 확정", () => {
     expect(set).toHaveBeenLastCalledWith(`var(${LONG_TOKEN})`);
   });
 
+  it("ArrowLeft로 입력 커서를 옮긴 뒤 Enter해도 현재 입력을 확정한다", async () => {
+    const { set, user } = openWith("", "background-color");
+    await user.click(screen.getByRole("button"));
+    await user.type(input(), "col");
+    await user.hover(screen.getByText(LONG_TOKEN));
+    set.mockClear();
+    await user.keyboard("{ArrowLeft}{Enter}");
+    expect(set).not.toHaveBeenCalledWith(`var(${LONG_TOKEN})`);
+    expect(set).toHaveBeenLastCalledWith("col");
+  });
+
   it("미정의 토큰 참조(var(--unknown))도 자유입력으로 확정된다", async () => {
     const { set, user } = openWith("");
     await user.click(screen.getByRole("button"));
@@ -158,12 +186,21 @@ describe("ValueCombobox 자유입력 Enter 확정", () => {
   });
 
   it("입력 중에는 초기화·unset을 감춰 하이라이트와 Enter 결과가 어긋나지 않는다", async () => {
-    const { user } = openWith("10px");
+    const { user } = openWith("10px", "padding-top", "8px");
     await user.click(screen.getByRole("button"));
     expect(screen.queryByText("value.reset")).toBeTruthy();
     await user.type(input(), "9");
     expect(screen.queryByText("value.reset")).toBeNull();
     expect(screen.queryByText("value.unset")).toBeNull();
+  });
+
+  it("입력을 비우면 unset을 다시 표시한다", async () => {
+    const { user } = openWith("10px", "padding-top", "8px");
+    await user.click(screen.getByRole("button"));
+    await user.type(input(), "9");
+    await user.clear(input());
+    expect(screen.queryByText("value.reset")).toBeNull();
+    expect(screen.queryByText("value.unset")).toBeTruthy();
   });
 
   it("IME 조합 중 Enter는 확정하지 않는다", async () => {
@@ -174,5 +211,18 @@ describe("ValueCombobox 자유입력 Enter 확정", () => {
     fireEvent.keyDown(input(), { key: "Enter", isComposing: true, keyCode: 229 });
     expect(set).not.toHaveBeenCalled();
     expect(input()).toBeTruthy();
+  });
+
+  it("IME 조합 중 Enter의 브라우저 기본 동작은 취소하지 않는다", async () => {
+    const { user } = openWith("");
+    await user.click(screen.getByRole("button"));
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+      isComposing: true,
+    });
+    fireEvent(input(), event);
+    expect(event.defaultPrevented).toBe(false);
   });
 });
