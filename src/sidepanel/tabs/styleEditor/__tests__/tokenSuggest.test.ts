@@ -6,6 +6,7 @@ import {
   groupTokensByFamily,
   flattenTokenGroups,
   matchRange,
+  tokenCompletionQuery,
 } from "../tokenSuggest";
 
 const tk = (name: string, value: string, category: Token["category"]): Token => ({
@@ -102,6 +103,45 @@ describe("groupTokensByFamily", () => {
     const g = groupTokensByFamily(TOKENS, undefined, []);
     expect(g.primary).toHaveLength(TOKENS.length);
     expect(g.extra).toEqual([]);
+  });
+
+  it("접두가 중첩된 family 여러 개여도 같은 토큰이 두 그룹에 안 뜬다", () => {
+    // 활성 토큰이 --color-blue-500·--color-red-500이면 접두가 --color-blue-/--color-로
+    // 겹친다 — dedup이 없으면 blue 토큰이 두 그룹에 중복 노출된다.
+    const g = groupTokensByFamily(TOKENS, "color", ["--color-blue-", "--color-"]);
+    expect(g.familyGroups[0].tokens.map((t) => t.name)).toEqual([
+      "--color-blue-500",
+      "--color-blue-700",
+    ]);
+    expect(g.familyGroups[1].tokens.map((t) => t.name)).toEqual([
+      "--color-red-500",
+    ]);
+    expect(g.primary).toEqual([]);
+    const flat = flattenTokenGroups(g).map((t) => t.name);
+    expect(new Set(flat).size).toBe(flat.length);
+  });
+});
+
+describe("tokenCompletionQuery — CodeMirror var() 자동완성 검색어", () => {
+  it("기존 토큰 이름과 정확히 일치하면 검색어를 비운다 (family 전체 노출)", () => {
+    // 기존 var(--color-blue-500) 끝에서 열면 prefix가 이름 전체라, 그대로 필터하면
+    // sibling(--color-blue-700)이 사라진다. ValueCombobox는 이때 검색어를 비운다.
+    expect(
+      tokenCompletionQuery("--color-blue-500", "--color-blue-500", TOKENS),
+    ).toBe("");
+  });
+
+  it("이름 중간에 커서를 둬도(=기존 토큰) 검색어를 비운다", () => {
+    expect(tokenCompletionQuery("--color-blue-500", "--color-b", TOKENS)).toBe("");
+  });
+
+  it("아직 없는 이름을 타이핑 중이면 커서 앞 prefix로 좁힌다", () => {
+    expect(tokenCompletionQuery("--col", "--col", TOKENS)).toBe("--col");
+    expect(tokenCompletionQuery("--space", "--sp", TOKENS)).toBe("--sp");
+  });
+
+  it("빈 이름이면 빈 검색어", () => {
+    expect(tokenCompletionQuery("", "", TOKENS)).toBe("");
   });
 });
 

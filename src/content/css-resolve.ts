@@ -424,13 +424,21 @@ export function collectTokens(el?: Element): Token[] {
   mergeCrossOriginTokens(seen, getCrossOriginCustomProps());
   const rootStyle = getComputedStyle(document.documentElement);
   const elStyle = el ? getComputedStyle(el) : null;
-  const tokens: Token[] = [];
+  // 1패스: computed 우선(출처·스코프 무관 해석) → 없으면 원문. 2패스에서 이 맵으로
+  // 남은 var() 체인을 값까지 편다 — 스코프 밖 정의라 computed가 비는 토큰이 alias면
+  // 값이 var(…)로 남아 category=unknown이 되기 때문.
+  const resolvedProps: Record<string, string> = {};
   for (const [name, raw] of seen) {
     let resolved = (elStyle || rootStyle).getPropertyValue(name).trim() || raw;
     if (resolved.startsWith("var(")) {
       resolved = rootStyle.getPropertyValue(name).trim() || raw;
     }
-    tokens.push({ name, value: resolved, category: categorizeToken(resolved) });
+    resolvedProps[name] = resolved;
+  }
+  const tokens: Token[] = [];
+  for (const [name, resolved] of Object.entries(resolvedProps)) {
+    const value = resolveTokenValue(resolved, resolvedProps, 0, new Set([name]));
+    tokens.push({ name, value, category: categorizeToken(value) });
   }
   tokens.sort((a, b) => {
     const ai = a.name.lastIndexOf("-");
@@ -1488,6 +1496,44 @@ export function resolveVarChain(
   return changed ? next : value;
 }
 
+// 토큰 목록의 값·category 판정용 완전 해석. resolveVarChain과 갈리는 지점은 하나 —
+// public 토큰 이름도 펼친다. 이름 보존은 specified **표기**의 규칙이고, 여기서 필요한 건
+// 실제 값이다(`--color-primary: var(--blue-500)`이 var(…)로 남으면 category=unknown이 돼
+// ValueCombobox·CodeMirror의 base/extra에서 통째로 빠진다).
+export function resolveTokenValue(
+  value: string,
+  props: Record<string, string>,
+  depth = 0,
+  chain?: Set<string>,
+): string {
+  if (depth > 5 || !value.includes("var(")) return value;
+  const seen = chain ?? new Set<string>();
+  return replaceVarRefs(value, (name, fallback, match) => {
+    const replacement = props[name];
+    if (replacement === undefined) {
+      return fallback ? resolveTokenValue(fallback, props, depth + 1, seen) : match;
+    }
+    if (seen.has(name)) return match;
+    const next = new Set(seen);
+    next.add(name);
+    return resolveTokenValue(replacement, props, depth + 1, next);
+  });
+}
+
+// 규칙 아래로 내려갈 하위 규칙. @import 시트는 document.styleSheets에 안 잡히고
+// CSSImportRule.styleSheet 아래에만 있어, 여기서 한 단계 더 내려가지 않으면 통째로 누락된다
+// (cross-origin @import는 접근이 throw → skip).
+export function nestedRulesOf(rule: CSSRule): CSSRuleList | undefined {
+  try {
+    const direct = (rule as { cssRules?: CSSRuleList }).cssRules;
+    if (direct) return direct;
+    return (rule as { styleSheet?: { cssRules?: CSSRuleList } }).styleSheet
+      ?.cssRules;
+  } catch {
+    return undefined;
+  }
+}
+
 function collectInlineTokens(el: Element, seen: Map<string, string>): void {
   let cur: Element | null = el;
   while (cur) {
@@ -1561,7 +1607,7 @@ function collectFromRules(rules: CSSRuleList, seen: Map<string, string>): void {
         }
       }
     } else {
-      const nested = (rule as { cssRules?: CSSRuleList }).cssRules;
+      const nested = nestedRulesOf(rule);
       if (nested) collectFromRules(nested, seen);
     }
   }

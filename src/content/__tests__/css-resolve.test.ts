@@ -28,6 +28,8 @@ import {
   noteClaim,
   resolveUncertainSpecified,
   normalizePositionOffsets,
+  resolveTokenValue,
+  nestedRulesOf,
   type EditableHandle,
 } from "../css-resolve";
 
@@ -1447,6 +1449,80 @@ describe("mergeCrossOriginTokens", () => {
     mergeCrossOriginTokens(seen, { color: "red", "--ok": "#fff" });
     expect(seen.has("color")).toBe(false);
     expect(seen.get("--ok")).toBe("#fff");
+  });
+});
+
+describe("resolveTokenValue — 토큰 목록의 값/category 판정용 완전 해석", () => {
+  it("public alias도 값까지 펼친다 (resolveVarChain은 이름을 보존해 var(…)로 남는다)", () => {
+    const props = { "--blue-500": "#06f", "--color-primary": "var(--blue-500)" };
+    // 이름 보존 규칙(specified 표기)은 그대로 — 값 판정 경로만 갈린다.
+    expect(resolveVarChain("var(--color-primary)", props)).toBe("var(--color-primary)");
+    expect(resolveTokenValue("var(--blue-500)", props)).toBe("#06f");
+  });
+
+  it("2단 체인도 끝까지 해석", () => {
+    const props = {
+      "--blue-500": "#06f",
+      "--color-primary": "var(--blue-500)",
+      "--color-brand": "var(--color-primary)",
+    };
+    expect(resolveTokenValue("var(--color-brand)", props)).toBe("#06f");
+  });
+
+  it("사이클은 멈춘다 (원본 참조 유지)", () => {
+    const props = { "--a": "var(--b)", "--b": "var(--a)" };
+    expect(resolveTokenValue("var(--a)", props, 0, new Set(["--a"]))).toBe("var(--a)");
+  });
+
+  it("미정의 이름은 fallback으로 해석", () => {
+    expect(resolveTokenValue("var(--nope, 8px)", {})).toBe("8px");
+    expect(resolveTokenValue("var(--nope, var(--gap))", { "--gap": "16px" })).toBe("16px");
+  });
+
+  it("fallback도 없으면 원문 유지 / var 없으면 그대로", () => {
+    expect(resolveTokenValue("var(--nope)", {})).toBe("var(--nope)");
+    expect(resolveTokenValue("#fff", {})).toBe("#fff");
+    expect(resolveTokenValue("", {})).toBe("");
+  });
+
+  it("값 일부에 섞인 참조도 치환 (shorthand)", () => {
+    const props = { "--sp": "4px", "--c": "red" };
+    expect(resolveTokenValue("1px solid var(--c)", props)).toBe("1px solid red");
+    expect(resolveTokenValue("var(--sp) var(--sp)", props)).toBe("4px 4px");
+  });
+
+  it("해석된 값이 category 판정으로 이어진다", () => {
+    const props = { "--blue-500": "#06f", "--color-primary": "var(--blue-500)" };
+    expect(categorizeToken(resolveTokenValue("var(--blue-500)", props))).toBe("color");
+    expect(categorizeToken("var(--blue-500)")).toBe("unknown");
+  });
+});
+
+describe("nestedRulesOf — @import 시트 하강", () => {
+  const list = [] as unknown as CSSRuleList;
+
+  it("cssRules를 가진 규칙(media·supports)은 그대로 돌려준다", () => {
+    expect(nestedRulesOf({ cssRules: list } as unknown as CSSRule)).toBe(list);
+  });
+
+  it("CSSImportRule은 styleSheet.cssRules로 한 단계 더 내려간다", () => {
+    // @import 시트는 document.styleSheets에 안 잡혀, 여기서 안 내려가면 통째로 누락된다.
+    expect(
+      nestedRulesOf({ styleSheet: { cssRules: list } } as unknown as CSSRule),
+    ).toBe(list);
+  });
+
+  it("cross-origin @import는 접근이 throw → undefined (skip)", () => {
+    const rule = {
+      get styleSheet() {
+        throw new Error("SecurityError");
+      },
+    } as unknown as CSSRule;
+    expect(nestedRulesOf(rule)).toBeUndefined();
+  });
+
+  it("둘 다 없으면 undefined", () => {
+    expect(nestedRulesOf({} as unknown as CSSRule)).toBeUndefined();
   });
 });
 

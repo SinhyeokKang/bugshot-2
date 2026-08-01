@@ -48,13 +48,16 @@ export function groupTokensByFamily(
     : [];
   if (familyPrefixes.length === 0)
     return { familyGroups: [], primary: base, extra };
-  const familyGroups = familyPrefixes.map((prefix) => ({
-    prefix,
-    tokens: base.filter((t) => t.name.startsWith(prefix)),
-  }));
-  const familySet = new Set(
-    familyGroups.flatMap((g) => g.tokens.map((t) => t.name)),
-  );
+  // 접두가 중첩되면(--color-blue- ⊂ --color-) 같은 토큰이 여러 그룹에 걸린다 — 앞선
+  // 그룹이 가져간 토큰은 뒤 그룹에서 뺀다(그룹 간 dedup, primary 제외와 같은 기준).
+  const familySet = new Set<string>();
+  const familyGroups = familyPrefixes.map((prefix) => {
+    const tokens = base.filter(
+      (t) => t.name.startsWith(prefix) && !familySet.has(t.name),
+    );
+    for (const t of tokens) familySet.add(t.name);
+    return { prefix, tokens };
+  });
   return {
     familyGroups,
     primary: base.filter((t) => !familySet.has(t.name)),
@@ -65,6 +68,18 @@ export function groupTokensByFamily(
 // family → primary → extra 순으로 평탄화(CodeMirror 옵션처럼 단일 정렬 리스트가 필요할 때).
 export function flattenTokenGroups(g: TokenGroups): Token[] {
   return [...g.familyGroups.flatMap((x) => x.tokens), ...g.primary, ...g.extra];
+}
+
+// CodeMirror var() 자동완성의 검색어. 커서가 걸친 이름이 **이미 존재하는 토큰**이면
+// (= 교체하려고 연 것) 검색어를 비워 family 전체를 보여준다 — 그대로 필터하면 이름 전체가
+// query가 돼 sibling이 사라진다. ValueCombobox가 draft가 var(…)면 검색어를 비우는 것과 같은 규칙.
+export function tokenCompletionQuery(
+  fullName: string,
+  prefix: string,
+  tokens: Token[],
+): string {
+  if (fullName && tokens.some((t) => t.name === fullName)) return "";
+  return prefix;
 }
 
 // label 안에서 query(대소문자 무시)가 처음 매칭되는 [start, end] 범위. 없거나 빈 query면 [].
