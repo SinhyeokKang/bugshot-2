@@ -1579,10 +1579,60 @@ export function hydrateReferencedCustomProps(
       seen.add(name);
       const effective = computed.getPropertyValue(name).trim();
       if (!effective) continue;
+      // computed는 캐스케이드 승자지만 Chrome이 custom property를 **완전 치환**해 주므로
+      // 그대로 덮으면 토큰 이름이 사라진다(`--_text: var(--color-x)` → `#fff`). 수집한 원문이
+      // 같은 값으로 풀리면 그 원문이 곧 승자이므로 이름을 남긴다 — 다르면(=stale raw) 덮는다.
+      const raw = customProps[name];
+      if (raw !== undefined && raw.includes("var(")) {
+        const substituted = substituteFromComputed(raw, computed);
+        if (substituted !== null && sameResolvedValue(substituted, effective)) {
+          queue.push(raw);
+          continue;
+        }
+      }
       customProps[name] = effective;
       if (effective.includes("var(")) queue.push(effective);
     }
   }
+}
+
+// raw 원문의 var() 참조를 computed 값으로 치환. 이름 하나라도 computed에 없으면 null —
+// "원문이 승자와 같은가"를 검증할 수 없다는 뜻이라 호출부가 computed 채택으로 되돌아간다.
+function substituteFromComputed(
+  value: string,
+  computed: Pick<CSSStyleDeclaration, "getPropertyValue">,
+  depth = 0,
+): string | null {
+  if (!value.includes("var(")) return value;
+  if (depth > 5) return null;
+  let failed = false;
+  const out = replaceVarRefs(value, (name, fallback, match) => {
+    const v = computed.getPropertyValue(name).trim();
+    if (!v) {
+      if (fallback) {
+        const f = substituteFromComputed(fallback, computed, depth + 1);
+        if (f !== null) return f;
+      }
+      failed = true;
+      return match;
+    }
+    const nested = substituteFromComputed(v, computed, depth + 1);
+    if (nested === null) {
+      failed = true;
+      return match;
+    }
+    return nested;
+  });
+  return failed ? null : out;
+}
+
+// 같은 값의 다른 표기(색 표기법·대소문자·공백)를 흡수한 비교 — 역참조 조회와 같은 정규화.
+function sameResolvedValue(a: string, b: string): boolean {
+  const norm = (v: string) =>
+    normalizeForLookup(
+      v.toLowerCase().replace(/\s*([,/])\s*/g, "$1").replace(/\s+/g, " ").trim(),
+    );
+  return norm(a) === norm(b);
 }
 
 function collectFromRules(rules: CSSRuleList, seen: Map<string, string>): void {
