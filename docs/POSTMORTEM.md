@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-08-01 — 이름 보존 규칙을 값 판정에 재사용해 alias 토큰이 목록에서 사라졌고, 시트 열거가 모듈마다 갈려 `@import` 토큰은 제안에만 뜰 뻔했다
+
+- **영역**: `스타일해석`, `store`
+- **계열**: `복제본`, `미검증단언`
+- **그물**: `unit`
+- **증상**: 디자인 토큰을 alias로 쓰는 페이지(`--color-primary: var(--blue-500)`)에서 그 토큰이 편집 탭 콤보박스·CSS 뷰 자동완성 **양쪽 목록에서 통째로 빠졌다**. 이름은 값 문자열에서 뽑히니 CSS 뷰엔 보이는데 고를 수는 없는 상태. 별개로 요소를 연달아 고르면 **직전 요소의 토큰 목록이 남아 있어** 새 요소에 그대로 적용할 수 있었고, `@import`로 토큰 파일을 나눠 놓은 페이지는 토큰이 아예 안 잡혔다.
+- **근본 원인**: 셋 다 "한 곳에서 잘 도는 규칙을 그 옆에서도 쓴다"에서 왔다. ① `resolveVarChain`은 **specified 표기**용 규칙이라 public 토큰을 만나면 이름에서 멈춘다(디자인 토큰 이름 노출이 목적). 그런데 토큰 목록의 값도 이 결과를 그대로 썼다 — 값이 `var(--blue-500)`로 남으면 `categorizeToken`이 `unknown`을 내고, `groupTokensByFamily`가 base(=category 일치)와 extra(=`unknown` 제외) **둘 다에서** 그 토큰을 떨어뜨린다. 표기 규칙과 값 판정 규칙이 다르다는 걸 함수 하나가 가리고 있었다. ② 선택 전환의 stale 가드(`sameElementKey`)는 **늦게 도착한 응답의 덮어쓰기**만 막는다 — 그 사이 낡은 데이터의 *소비*는 못 막는다. 가드가 있다는 사실이 "그 창이 안전하다"로 읽혔다. ③ 시트 열거가 `css-resolve.allStyleSheets`와 `css-source-cache.collectAllSheets` **두 복제본**이었고 둘 다 `document.styleSheets`만 봤다 — `@import` 시트는 거기 안 잡히고 부모의 `CSSImportRule.styleSheet` 아래에만 있다. 한쪽(토큰 수집)만 하강시키면 "제안 목록엔 뜨는데 specified엔 안 잡히는" 비대칭이 생긴다. 평탄화로 통합하자 파생 전제가 둘 더 딸려왔다 — `@import`의 `media`/`supports` 조건(비활성 import까지 펴면 안 쓰는 토큰이 섞인다)과 raw 로드의 `MAX_SHEETS=50` 캡(import가 슬롯을 먹어 **부모 시트의 pending-substitution 복구가 탈락**한다).
+- **재발 방지**: (1) **"이름을 보존한다"와 "값을 판정한다"는 다른 규칙이다 — 소비처가 무엇을 필요로 하는지로 갈라라.** `grep -rn "resolveVarChain" src`로 소비처를 전수하고, 각각이 표기(사용자에게 보일 문자열)인지 판정(category·매칭·swatch)인지 표시한다. 판정 경로는 `resolveTokenValue`(public도 끝까지 펼침)를 쓴다. (2) **`category === "unknown"`은 필터에서 조용히 사라지는 값이다** — `grep -n 'unknown' src/sidepanel/tabs/styleEditor/tokenSuggest.ts`로 제외 지점을 확인하고, 새 값 경로를 만들면 unknown이 나오는 조건을 먼저 센다. (3) **stale 가드는 "쓰기"만 막는다 — 읽는 쪽도 막고 싶으면 상태를 스코프로 비운다.** 비동기 재수집이 뒤따르는 store 필드는 선택 전환 시 초기화하고, "빈 값"이 그 도메인의 정상 상태인지(여기선 토큰 미사용 페이지와 동형) 확인해 로딩 게이트 도입 여부를 정한다 — 정상 상태와 동형이면 게이트는 새 실패 모드만 만든다. (4) **같은 질문("이 문서의 시트는 무엇인가")에 답이 둘이면 하나를 지운다** — `grep -rn "document.styleSheets" src/content`가 2건 이상이면 경계가 갈라진 것이다. 그리고 **열거 대상을 넓히면 그 열거에 걸린 캡·조건을 전수한다**(`MAX_SHEETS` slice, media/supports 활성 판정 — `walkRulesForIndex`가 이미 조건을 보고 있다는 게 신호였다). (5) **그룹 분배에서 선점(첫 매칭 승)은 입력 순서에 의존한다** — 접두가 중첩되는 분류는 "가장 구체적인 것"처럼 순서 무관 기준으로 귀속한다.
+- **관련**: `src/content/css-resolve.ts:resolveTokenValue`(신규 — 값 판정 전용)·`collectTokens`(1패스 맵 → 2패스 해석)·`allStyleSheets`, `src/content/css-source-cache.ts:flattenSheets`·`isActiveImport`·`selectSheetsForRawLoad`·`loadSheet`(imported 분기), `src/sidepanel/tabs/styleEditor/tokenSuggest.ts:groupTokensByFamily`·`tokenCompletionQuery`, `src/store/editor-store.ts:onElementSelected`(두 분기 모두 `tokens: []`), 그물 `src/content/__tests__/css-resolve.test.ts`·`css-source-cache.test.ts`·`src/sidepanel/tabs/styleEditor/__tests__/tokenSuggest.test.ts`·`src/store/__tests__/editor-store.test.ts`, 문서 `docs/ARCHITECTURE.md`("토큰 체인 resolve 룰"). 수용 한계는 그 문서의 토큰 수집 경계 문단 — cross-origin 스코프 정의·cross-origin `@import`·정확한 cascade layer 우선순위.
+
 ## 2026-08-01 — blocker가 hit target이어도 이벤트는 document까지 간다 — "가린다"와 "안 닿는다"를 같은 것으로 읽어 picking 중 페이지 hover가 살아 있었다
 
 - **영역**: `content`
