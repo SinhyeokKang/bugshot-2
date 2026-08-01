@@ -65,6 +65,32 @@ describe("collectInspectorSpecRefs — 편집 경로와 같은 전처리", () =>
     expect(refs.color).toBe("var(--color-brand)");
   });
 
+  it("body·테마 스코프의 별칭도 본다 (상속 prop이 다 차 조상 순회가 멈춰도)", () => {
+    // 조상 순회는 상속 prop을 채우는 게 목적이라 다 차면 멈춘다 — custom property 수집이
+    // 거기 얹혀 있으면 body·[data-theme]에 별칭을 둔 사이트에서 원문을 통째로 놓친다.
+    const [themeRule] = sheet("[data-theme] { --_text: var(--color-brand); }");
+    const [elRule] = sheet(
+      ".btn { color: var(--_text); font-size: 12px; font-weight: 400; }",
+    );
+    const host = document.createElement("div");
+    host.setAttribute("data-theme", "dark");
+    const el = document.createElement("button");
+    el.className = "btn";
+    host.appendChild(el);
+    document.body.appendChild(host);
+
+    matchRules.mockImplementation((target: Element) =>
+      target === el ? [elRule] : target === host ? [themeRule] : [],
+    );
+
+    const refs = collectInspectorSpecRefs(el, {
+      getPropertyValue: (name) =>
+        name === "--_text" || name === "--color-brand" ? "#fff" : "",
+    });
+
+    expect(refs.color).toBe("var(--color-brand)");
+  });
+
   it("주입한 computed로 hydrate한다 (편집 경로와 같은 승자 판정)", () => {
     const [elRule] = sheet(".btn { color: var(--_text); }");
     const el = document.createElement("button");
