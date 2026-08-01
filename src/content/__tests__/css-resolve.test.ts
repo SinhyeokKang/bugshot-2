@@ -1297,6 +1297,27 @@ describe("hydrateReferencedCustomProps", () => {
   });
 });
 
+describe("resolveUncertainSpecified — 토큰 보존 트레이드오프의 적용 면적", () => {
+  it("private alias가 원문으로 남으면 uncertain이어도 computed로 교정하지 않는다", () => {
+    // hydrate가 원문(토큰 이름)을 보존하게 되면서, 예전엔 리터럴로 붕괴해 computed 교정을
+    // 받던 alias 경유 값이 이제 var()로 끝나 skip 경로로 간다 — 값 정확도보다 토큰 이름을
+    // 택한다는 이 함수의 선언된 트레이드오프가 alias 체인 전체로 넓어진 것이다.
+    const all: Record<string, string> = { color: "var(--color-x)" };
+    const sources: Record<string, string> = { color: ".a" };
+    resolveUncertainSpecified(all, sources, new Set(["color"]), () => "rgb(255, 0, 0)");
+    expect(all.color).toBe("var(--color-x)");
+    expect(sources.color).toBe(".a");
+  });
+
+  it("var()가 없으면 종전대로 computed 승자로 교정한다", () => {
+    const all: Record<string, string> = { color: "#fff" };
+    const sources: Record<string, string> = { color: ".a" };
+    resolveUncertainSpecified(all, sources, new Set(["color"]), () => "rgb(255, 0, 0)");
+    expect(all.color).toBe("rgb(255, 0, 0)");
+    expect(sources.color).toBe("[computed]");
+  });
+});
+
 describe("collectReferencedTokenNames", () => {
   it("specified 값의 var() 참조 이름을 빈 값으로 seen에 추가", () => {
     // naver: 정의는 CORS 시트라 못 읽지만 background-color: var(--…) 참조는 specified에
