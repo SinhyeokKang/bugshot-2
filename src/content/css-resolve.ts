@@ -7,6 +7,7 @@ import {
   getCrossOriginCustomProps,
   getMatchingRules,
   getMatchingCrossOriginRules,
+  getMatchingCrossOriginCustomPropRules,
   getRawDeclarationsFor,
   flattenSheets,
   type CrossOriginRule,
@@ -257,7 +258,8 @@ export function collectSpecifiedStylesWithSources(el: Element): {
   const all: Record<string, string> = {};
   const sources: Record<string, string> = {};
   const customProps: Record<string, string> = {};
-  const uncertain = collectRulesForElement(el, all, sources, customProps);
+  const candidates: CustomPropCandidates = new Map();
+  const uncertain = collectRulesForElement(el, all, sources, customProps, undefined, false, candidates);
   expandShorthands(all, sources);
 
   const missing = [...INHERITED_PROPS].filter((p) => !(p in all));
@@ -271,6 +273,9 @@ export function collectSpecifiedStylesWithSources(el: Element): {
         parentAll,
         parentSources,
         customProps,
+        undefined,
+        false,
+        candidates,
       );
       expandShorthands(parentAll, parentSources);
       for (let i = missing.length - 1; i >= 0; i--) {
@@ -292,17 +297,7 @@ export function collectSpecifiedStylesWithSources(el: Element): {
     }
   }
 
-  // :root/html의 커스텀 프로퍼티(디자인 토큰·private alias)는 위 조상 순회가 상속 prop을
-  // 다 채우고 documentElement 전에 멈추면 누락된다 — resolve 전에 항상 보강 수집한다.
-  const docEl = el.ownerDocument?.documentElement;
-  if (docEl && docEl !== el) {
-    collectRulesForElement(docEl, {}, {}, customProps);
-  }
-  hydrateReferencedCustomProps(
-    Object.values(all),
-    window.getComputedStyle(el),
-    customProps,
-  );
+  finalizeCustomProps(el, Object.values(all), window.getComputedStyle(el), customProps, candidates);
 
   for (const prop of Object.keys(all)) {
     all[prop] = resolveVarChain(all[prop], customProps);
@@ -363,11 +358,15 @@ const INSPECTOR_WANTED = new Set([
   "letter-spacing",
 ]);
 
-export function collectInspectorSpecRefs(el: Element): InspectorSpecRefs {
+export function collectInspectorSpecRefs(
+  el: Element,
+  computed?: Pick<CSSStyleDeclaration, "getPropertyValue">,
+): InspectorSpecRefs {
   const all: Record<string, string> = {};
   const sources: Record<string, string> = {};
   const customProps: Record<string, string> = {};
-  collectRulesForElement(el, all, sources, customProps, INSPECTOR_WANTED);
+  const candidates: CustomPropCandidates = new Map();
+  collectRulesForElement(el, all, sources, customProps, INSPECTOR_WANTED, false, candidates);
   expandShorthands(all, sources);
 
   const missing = INSPECTOR_INHERITED.filter((p) => !(p in all));
@@ -376,7 +375,7 @@ export function collectInspectorSpecRefs(el: Element): InspectorSpecRefs {
     while (cur && missing.length > 0) {
       const parentAll: Record<string, string> = {};
       const parentSources: Record<string, string> = {};
-      collectRulesForElement(cur, parentAll, parentSources, customProps, INSPECTOR_WANTED);
+      collectRulesForElement(cur, parentAll, parentSources, customProps, INSPECTOR_WANTED, false, candidates);
       expandShorthands(parentAll, parentSources);
       for (let i = missing.length - 1; i >= 0; i--) {
         const p = missing[i];
@@ -388,6 +387,16 @@ export function collectInspectorSpecRefs(el: Element): InspectorSpecRefs {
       cur = cur.parentElement;
     }
   }
+
+  // 편집/CSS 뷰(collectSpecifiedStylesWithSources)와 **같은** 전처리를 태운다 — 갈리면 같은
+  // 요소의 툴팁과 편집 탭이 서로 다른 토큰 이름을 보여준다(POSTMORTEM 2026-08-01).
+  finalizeCustomProps(
+    el,
+    Object.values(all),
+    computed ?? window.getComputedStyle(el),
+    customProps,
+    candidates,
+  );
 
   const get = (k: string): string | undefined =>
     all[k] ? resolveVarChain(all[k], customProps) : undefined;
@@ -501,7 +510,7 @@ export function collectInspectorInfo(
   const classes = allClasses.slice(0, 3);
   const classOverflow = Math.max(0, allClasses.length - 3);
 
-  const refs = collectInspectorSpecRefs(el);
+  const refs = collectInspectorSpecRefs(el, cs);
 
   const colorValue = formatColor(cs.color) ?? cs.color;
   const color =
@@ -807,37 +816,52 @@ function collectRulesForElement(
   sources: Record<string, string>,
   customProps: Record<string, string>,
   wantedProps?: Set<string>,
+  customPropsOnly = false,
+  candidates: CustomPropCandidates = new Map(),
 ): Set<string> {
   const claims = newClaimState();
+  // custom property 충돌은 **한 스코프(요소)에 매칭된 규칙들 사이**의 개념이다. 규칙 단위로
+  // 모았다가 스코프로 올려야 ① 같은 규칙을 raw 파서와 CSSOM이 각각 읽는 걸 자기 충돌로 세지
+  // 않고 ② 가까운 조상이 먼 조상을 가리는 정상 섀도잉을 충돌로 오인하지 않는다.
+  const scopeProps: Record<string, string> = {};
   const matched = getMatchingRules(el);
   for (const rule of matched) {
     const decl = rule.style;
     const ruleSelector = rule.selectorText;
     const raw = getRawDeclarationsFor(rule);
+    const ruleProps: Record<string, string> = {};
     // raw 파서는 `!important`를 값에서 벗겨내므로 이 규칙 자신의 중요도는 CSSOM에서만
     // 읽을 수 있다. 이게 없으면 나중 규칙의 `!important` shorthand가 앞선 것에 진다.
     const selfImportant = importantProps(decl);
     if (raw) {
-      extractVarPropsFromMap(raw, out, sources, customProps, ruleSelector, wantedProps, claims, selfImportant);
+      extractVarPropsFromMap(raw, out, sources, ruleProps, ruleSelector, wantedProps, claims, selfImportant);
     } else {
-      extractVarPropsFromCssText(decl.cssText, out, sources, customProps, ruleSelector, wantedProps, claims, selfImportant);
+      extractVarPropsFromCssText(decl.cssText, out, sources, ruleProps, ruleSelector, wantedProps, claims, selfImportant);
     }
-    applyDeclarations(decl, out, sources, customProps, ruleSelector, wantedProps, claims);
+    applyDeclarations(decl, out, sources, ruleProps, ruleSelector, wantedProps, claims);
+    mergeIntoScope(scopeProps, candidates, ruleProps);
   }
   if (el instanceof HTMLElement) {
     const style = el.style;
-    extractVarPropsFromCssText(style.cssText, out, sources, customProps, "[inline]", wantedProps, claims, importantProps(style));
-    applyDeclarations(style, out, sources, customProps, "[inline]", wantedProps, claims);
+    const inlineProps: Record<string, string> = {};
+    extractVarPropsFromCssText(style.cssText, out, sources, inlineProps, "[inline]", wantedProps, claims, importantProps(style));
+    applyDeclarations(style, out, sources, inlineProps, "[inline]", wantedProps, claims);
+    mergeIntoScope(scopeProps, candidates, inlineProps);
   }
   // cross-origin author 규칙은 same-origin·inline이 채운 뒤 빈 prop만 보강한다.
+  const crossProps: Record<string, string> = {};
   mergeCrossOriginDecls(
     out,
     sources,
-    customProps,
-    getMatchingCrossOriginRules(el),
+    crossProps,
+    customPropsOnly
+      ? getMatchingCrossOriginCustomPropRules(el)
+      : getMatchingCrossOriginRules(el),
     getCrossOriginCustomProps(),
     wantedProps,
   );
+  mergeIntoScope(scopeProps, candidates, crossProps);
+  gapFill(customProps, scopeProps);
   return claims.uncertain;
 }
 
@@ -1101,7 +1125,7 @@ export function extractVarPropsFromMap(
 ): void {
   for (const [prop, val] of declared) {
     if (prop.startsWith("--")) {
-      if (!customProps[prop]) customProps[prop] = val;
+      if (!customProps[prop]) customProps[prop] = val.trim();
       continue;
     }
     if (wantedProps && !wantedProps.has(prop)) continue;
@@ -1568,21 +1592,176 @@ export function hydrateReferencedCustomProps(
   values: string[],
   computed: Pick<CSSStyleDeclaration, "getPropertyValue">,
   customProps: Record<string, string>,
+  candidates: CustomPropCandidates = new Map(),
 ): void {
   const queue = [...values];
   const seen = new Set<string>();
-  for (let i = 0; i < queue.length && i < 100; i++) {
-    const value = queue[i];
-    for (const match of value.matchAll(VAR_REF_RE)) {
-      const name = match[1];
+  // 캡은 초기 값 개수와 분리한다 — 합쳐 세면 prop이 많은 페이지에서 큐에 실은 참조가
+  // 한 번도 처리되지 않고 굶는다(그 이름은 검증 안 된 수집 raw로 펼쳐진다).
+  const limit = values.length + 100;
+  for (let i = 0; i < queue.length && i < limit; i++) {
+    for (const name of varRefNames(queue[i])) {
       if (seen.has(name)) continue;
       seen.add(name);
       const effective = computed.getPropertyValue(name).trim();
       if (!effective) continue;
+      // computed는 캐스케이드 승자지만 Chrome이 custom property를 **완전 치환**해 주므로
+      // 그대로 덮으면 토큰 이름이 사라진다(`--_text: var(--color-x)` → `#fff`). 수집한 원문이
+      // 같은 값으로 풀리면 그 원문이 곧 승자이므로 이름을 남긴다 — 다르면(=stale raw) 덮는다.
+      // 후보가 여럿이면 승자와 일치하는 것이 **하나뿐일 때만** 그 원문을 쓴다 — 둘 이상이
+      // 일치하면 어느 선언이 이겼는지 판별할 수 없으므로 이름을 포기한다.
+      const pool = candidates.get(name);
+      const raws = pool ? [...pool] : [customProps[name]];
+      const matches = raws.filter((raw) => {
+        if (raw === undefined || !raw.includes("var(")) return false;
+        const substituted = substituteFromComputed(raw, computed);
+        return substituted !== null && sameResolvedValue(substituted, effective);
+      });
+      if (matches.length === 1) {
+        customProps[name] = matches[0];
+        queue.push(matches[0]);
+        continue;
+      }
       customProps[name] = effective;
       if (effective.includes("var(")) queue.push(effective);
     }
   }
+}
+
+// specified 값을 resolve하기 전 customProps를 마감하는 공통 전처리. 두 수집 경로(편집/CSS 뷰,
+// 피커 툴팁)가 이걸 공유해야 같은 요소에서 같은 토큰 이름이 나온다.
+// ① 조상 체인 전체의 custom property를 가까운 쪽부터 보강하고(상속 prop 순회와 독립 — 그건
+// 목적을 달성하면 멈춘다), ② computed 승자로 hydrate한다(원문 검증은 그 안에서).
+function finalizeCustomProps(
+  el: Element,
+  values: string[],
+  computed: Pick<CSSStyleDeclaration, "getPropertyValue">,
+  customProps: Record<string, string>,
+  candidates: CustomPropCandidates = new Map(),
+): void {
+  // 해석할 var()가 없으면 조상 수집도 hydrate도 전부 no-op다 — custom property를 안 쓰는
+  // 요소(대다수)에서 체인 순회를 통째로 건너뛴다.
+  if (!values.some((v) => v.includes("var("))) return;
+
+  let last: Element | null = null;
+  for (let cur = el.parentElement; cur; cur = cur.parentElement) {
+    gapFill(customProps, collectCustomPropsFor(cur, candidates));
+    last = cur;
+  }
+  // shadow 경계·detached 요소는 부모 체인이 documentElement에 닿지 않는다 — :root 토큰을
+  // 통째로 잃으므로 마지막에 보정한다(체인이 이미 닿았으면 memo 조회 1회로 끝난다).
+  const docEl = el.ownerDocument?.documentElement;
+  if (docEl && docEl !== el && docEl !== last) {
+    gapFill(customProps, collectCustomPropsFor(docEl, candidates));
+  }
+  hydrateReferencedCustomProps(values, computed, customProps, candidates);
+}
+
+// 수집은 first-write-wins(문서 순서)라 캐스케이드 승자를 보장하지 못한다. 한 스코프의 다른
+// 규칙이 같은 이름을 **다른 값**으로 선언했으면 그 후보들을 들고 있다가, hydrate가 computed
+// 승자와 대조해 판별한다 — 후보를 버리고 이름만 포기하면 first-write가 실제 승자인 흔한 경우
+// (id 규칙·!important·layer 순서)까지 토큰 이름을 잃는다.
+export type CustomPropCandidates = Map<string, Set<string>>;
+
+function mergeIntoScope(
+  scopeProps: Record<string, string>,
+  candidates: CustomPropCandidates,
+  ruleProps: Record<string, string>,
+): void {
+  for (const name in ruleProps) {
+    const value = ruleProps[name];
+    const prev = scopeProps[name];
+    if (prev === undefined) {
+      scopeProps[name] = value;
+      continue;
+    }
+    if (prev === value) continue;
+    const set = candidates.get(name) ?? new Set([prev]);
+    set.add(value);
+    candidates.set(name, set);
+  }
+}
+
+// 스코프 결과를 상위 맵으로 올린다 — 값은 gap-fill(가까운 스코프 우선). 스코프 **간** 재정의는
+// 섀도잉이라 후보가 아니고, 스코프 **안**의 후보만 candidates에 이미 쌓여 있다.
+function gapFill(
+  target: Record<string, string>,
+  source: Record<string, string>,
+): void {
+  for (const name in source) {
+    if (!(name in target)) target[name] = source[name];
+  }
+}
+
+// 한 요소가 선언하는 custom property. **상속 prop을 채우는 조상 순회와 분리한 이유**: 그
+// 순회는 목적을 달성하면 멈추므로(INHERITED_PROPS가 다 차면 중단) `body`·`[data-theme]`·
+// `:root`에 별칭을 둔 사이트의 원문을 통째로 놓쳤고, 그러면 resolveVarChain이 펼칠 곳이 없어
+// 토큰 이름이 리터럴로 무너진다.
+// **memo하지 않는다** — 클래스 토글·우리 인라인 편집·cross-origin 시트의 늦은 도착은 캐시
+// 세대를 올리지 않아서, 캐싱하면 무효화 계약이 호출부로 새고 그 계약이 새는 순간 같은 증상이
+// 재발한다. 위 var() 게이트가 대다수 요소를 걸러내므로 캐시가 벌 몫도 작다.
+function collectCustomPropsFor(
+  el: Element,
+  candidates: CustomPropCandidates,
+): Record<string, string> {
+  const props: Record<string, string> = {};
+  // wantedProps를 비워 일반 prop 작업을 건너뛴다 — `--*`는 그 필터 앞에서 처리되므로
+  // 수집 규칙(순서·first-write-wins·cross-origin 보강)은 본 경로와 동일하다.
+  collectRulesForElement(el, {}, {}, props, NO_WANTED_PROPS, true, candidates);
+  return props;
+}
+const NO_WANTED_PROPS = new Set<string>();
+
+// 값 안의 var() 참조 이름 — 중첩 fallback(`var(--a, var(--b))`)까지 판다. 정규식(VAR_REF_RE)은
+// fallback의 `)`에서 끊겨 안쪽 이름을 놓치므로 괄호 균형 스캐너를 쓴다.
+function varRefNames(value: string): string[] {
+  if (!value.includes("var(")) return [];
+  const names: string[] = [];
+  replaceVarRefs(value, (name, fallback, match) => {
+    names.push(name);
+    if (fallback) names.push(...varRefNames(fallback));
+    return match;
+  });
+  return names;
+}
+
+// raw 원문의 var() 참조를 computed 값으로 치환. 이름 하나라도 computed에 없으면 null —
+// "원문이 승자와 같은가"를 검증할 수 없다는 뜻이라 호출부가 computed 채택으로 되돌아간다.
+function substituteFromComputed(
+  value: string,
+  computed: Pick<CSSStyleDeclaration, "getPropertyValue">,
+  depth = 0,
+): string | null {
+  if (!value.includes("var(")) return value;
+  if (depth > 5) return null;
+  let failed = false;
+  const out = replaceVarRefs(value, (name, fallback, match) => {
+    const v = computed.getPropertyValue(name).trim();
+    if (!v) {
+      if (fallback) {
+        const f = substituteFromComputed(fallback, computed, depth + 1);
+        if (f !== null) return f;
+      }
+      failed = true;
+      return match;
+    }
+    const nested = substituteFromComputed(v, computed, depth + 1);
+    if (nested === null) {
+      failed = true;
+      return match;
+    }
+    return nested;
+  });
+  return failed ? null : out;
+}
+
+// 같은 값의 다른 표기(색 표기법·대소문자·공백)를 흡수한 비교 — 역참조 조회와 같은 정규화.
+function sameResolvedValue(a: string, b: string): boolean {
+  const norm = (v: string) =>
+    normalizeForLookup(
+      v.toLowerCase().replace(/\s*([,/])\s*/g, "$1").replace(/\s+/g, " ").trim(),
+    );
+  return norm(a) === norm(b);
 }
 
 function collectFromRules(rules: CSSRuleList, seen: Map<string, string>): void {

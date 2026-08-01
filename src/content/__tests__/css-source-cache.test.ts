@@ -276,6 +276,24 @@ describe("indexCrossOriginRules", () => {
     expect(customProps["--local"]).toBeUndefined();
   });
 
+  it("--*를 선언한 규칙만 따로 모은다 (조상 체인 스캔 대상 축소)", () => {
+    // 조상 체인 custom property 수집은 요소당 체인 깊이만큼 cross-origin 규칙을 훑는다 —
+    // 전수 스캔이면 hover 프레임을 먹는다. 선언이 있는 규칙만 후보로 남긴다.
+    const parsed = [
+      rule(".a", { color: "red" }),
+      rule("[data-theme]", { "--_text": "var(--brand)" }),
+      rule(".b", { padding: "4px" }),
+      rule("body", { "--gap": "8px", color: "blue" }),
+    ];
+    const { customPropRules } = indexCrossOriginRules(parsed, 0);
+    expect(customPropRules.map((r) => r.selectorText)).toEqual([
+      "[data-theme]",
+      "body",
+    ]);
+    // seq는 원 규칙과 같은 축을 쓴다(last-wins 정렬 유지).
+    expect(customPropRules.map((r) => r.seq)).toEqual([1, 3]);
+  });
+
   it("빈 입력 → 빈 rules·customProps", () => {
     const { rules, customProps } = indexCrossOriginRules([], 0);
     expect(rules).toEqual([]);

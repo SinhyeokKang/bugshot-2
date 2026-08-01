@@ -90,6 +90,7 @@ export function invalidate(): void {
   isReady = false;
   ruleIndex = null;
   crossOriginRules = [];
+  crossOriginCustomPropRules = [];
   crossOriginCustomProps = {};
   crossLoadPromise = null;
 }
@@ -974,6 +975,7 @@ function hasGlobalCustomPropSelector(selectorText: string): boolean {
 }
 
 let crossOriginRules: CrossOriginIndexedRule[] = [];
+let crossOriginCustomPropRules: CrossOriginIndexedRule[] = [];
 let crossOriginCustomProps: Record<string, string> = {};
 let crossLoadPromise: Promise<void> | null = null;
 
@@ -981,21 +983,30 @@ let crossLoadPromise: Promise<void> | null = null;
 export function indexCrossOriginRules(
   parsed: ParsedRule[],
   startSeq: number,
-): { rules: CrossOriginIndexedRule[]; customProps: Record<string, string> } {
+): {
+  rules: CrossOriginIndexedRule[];
+  customPropRules: CrossOriginIndexedRule[];
+  customProps: Record<string, string>;
+} {
   const rules: CrossOriginIndexedRule[] = [];
+  // 조상 체인 custom property 수집은 요소당 체인 깊이만큼 이 규칙들을 훑는다(hover 포함) —
+  // 선언이 있는 것만 남겨 스캔 대상을 줄인다. seq는 원 규칙과 같은 축이라 정렬이 유지된다.
+  const customPropRules: CrossOriginIndexedRule[] = [];
   const customProps: Record<string, string> = {};
   let seq = startSeq;
   for (const p of parsed) {
-    rules.push({ selectorText: p.selectorText, decls: p.decls, seq: seq++ });
-    if (hasGlobalCustomPropSelector(p.selectorText)) {
-      for (const [name, val] of p.decls) {
-        if (name.startsWith("--") && !(name in customProps)) {
-          customProps[name] = val;
-        }
-      }
+    const indexed = { selectorText: p.selectorText, decls: p.decls, seq: seq++ };
+    rules.push(indexed);
+    const global = hasGlobalCustomPropSelector(p.selectorText);
+    let declaresCustomProp = false;
+    for (const [name, val] of p.decls) {
+      if (!name.startsWith("--")) continue;
+      declaresCustomProp = true;
+      if (global && !(name in customProps)) customProps[name] = val;
     }
+    if (declaresCustomProp) customPropRules.push(indexed);
   }
-  return { rules, customProps };
+  return { rules, customPropRules, customProps };
 }
 
 // content(ISOLATED)는 cross-origin sheet fetch 불가 → background 위임. 멱등(픽커 세션 1회 배치).
@@ -1025,9 +1036,10 @@ async function loadCrossOrigin(startedEpoch: number): Promise<void> {
   for (const sheet of sheets) {
     const parsed: ParsedRule[] = [];
     parseStylesheet(sheet.text, parsed);
-    const { rules, customProps } = indexCrossOriginRules(parsed, seq);
+    const { rules, customPropRules, customProps } = indexCrossOriginRules(parsed, seq);
     seq += rules.length;
     crossOriginRules.push(...rules);
+    crossOriginCustomPropRules.push(...customPropRules);
     for (const name in customProps) {
       if (!(name in crossOriginCustomProps)) {
         crossOriginCustomProps[name] = customProps[name];
@@ -1060,10 +1072,26 @@ function collectCrossOriginHrefs(): string[] {
   return hrefs;
 }
 
-// 인덱스 없이 선형 스캔 — 보강은 디바운스된 selection에서만 돌고 sheet 캡도 있어 인덱스는 과설계.
+// 인덱스 없이 선형 스캔. 이 스캔은 요소당 한 번이 아니라 **조상 순회 깊이만큼** 불린다
+// (custom property 체인 + 상속 prop 순회, hover 경로 포함). custom property 전용 경로는
+// `--*`를 선언한 규칙만 담은 서브셋(`crossOriginCustomPropRules`)으로 대상을 줄이지만,
+// 값 해석용 순회는 전체를 봐야 해 그대로다 — cross-origin 규칙이 많은 사이트에서 남은 비용은
+// 여기이고 tag/class 인덱스는 미조치(별도 과제).
 // el.matches throw(비표준 selector)는 해당 rule만 skip.
+// custom property만 필요한 호출부(조상 체인 수집)는 선언이 있는 규칙만 본다.
+export function getMatchingCrossOriginCustomPropRules(el: Element): CrossOriginRule[] {
+  return matchCrossOriginRules(el, crossOriginCustomPropRules);
+}
+
 export function getMatchingCrossOriginRules(el: Element): CrossOriginRule[] {
-  const matched = crossOriginRules.filter((r) => {
+  return matchCrossOriginRules(el, crossOriginRules);
+}
+
+function matchCrossOriginRules(
+  el: Element,
+  source: CrossOriginIndexedRule[],
+): CrossOriginRule[] {
+  const matched = source.filter((r) => {
     try {
       return el.matches(r.selectorText);
     } catch {

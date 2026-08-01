@@ -1191,6 +1191,153 @@ describe("hydrateReferencedCustomProps", () => {
     expect(customProps).toEqual({ "--_color": "blue" });
   });
 
+  it("raw 원문이 computed 승자와 같은 값으로 풀리면 원문(토큰 이름)을 보존", () => {
+    // 실사이트(course-chatbot): 인라인 `--_text: var(--color-semantic-informative-label)`.
+    // Chrome computed는 custom property를 완전 치환해 `#fff`를 주므로, 무조건 덮으면
+    // private alias를 펼칠 때 도착지가 리터럴이라 편집 탭·CSS 뷰에서 토큰 이름이 사라진다.
+    const customProps: Record<string, string> = {
+      "--_text": "var(--color-semantic-informative-label)",
+      "--color-semantic-informative-label": "#fff",
+    };
+    hydrateReferencedCustomProps(
+      ["var(--_text)"],
+      {
+        getPropertyValue: (name) =>
+          name === "--_text" || name === "--color-semantic-informative-label"
+            ? "#fff"
+            : "",
+      },
+      customProps,
+    );
+    expect(customProps["--_text"]).toBe("var(--color-semantic-informative-label)");
+  });
+
+  it("표기 차이(대소문자·공백)만 다르면 같은 값으로 보고 원문 유지", () => {
+    const customProps: Record<string, string> = {
+      "--_bg": "var(--brand)",
+      "--brand": "rgb(0, 0, 0)",
+    };
+    hydrateReferencedCustomProps(
+      ["var(--_bg)"],
+      {
+        getPropertyValue: (name) =>
+          name === "--_bg" ? "rgb(0,0,0)" : name === "--brand" ? "RGB(0, 0, 0)" : "",
+      },
+      customProps,
+    );
+    expect(customProps["--_bg"]).toBe("var(--brand)");
+  });
+
+  it("후보가 여럿이어도 승자와 일치하는 게 하나뿐이면 그 이름을 보존한다", () => {
+    // 후보를 버리지 않고 들고 있으면 판별이 된다 — first-write가 실제 승자인 경우
+    // (id 규칙·!important·layer 순서)까지 이름을 잃을 이유가 없다.
+    const customProps: Record<string, string> = {
+      "--_text": "var(--token-a)",
+      "--token-a": "#111",
+      "--token-b": "#222",
+    };
+    hydrateReferencedCustomProps(
+      ["var(--_text)"],
+      {
+        getPropertyValue: (name) =>
+          name === "--_text" || name === "--token-a"
+            ? "#111"
+            : name === "--token-b"
+              ? "#222"
+              : "",
+      },
+      customProps,
+      new Map([["--_text", new Set(["var(--token-a)", "var(--token-b)"])]]),
+    );
+    expect(customProps["--_text"]).toBe("var(--token-a)");
+  });
+
+  it("같은 이름을 여러 선언이 다르게 정의했으면 이름을 포기하고 computed를 쓴다", () => {
+    // 값이 같다는 건 그 원문이 **승자 선언**이라는 증명이 아니다 — 서로 다른 토큰이 지금 같은
+    // 값이면(둘 다 #fff) first-write-wins로 잡힌 패자 이름을 그대로 노출하게 된다.
+    const customProps: Record<string, string> = {
+      "--_text": "var(--token-a)",
+      "--token-a": "#fff",
+      "--token-b": "#fff",
+    };
+    hydrateReferencedCustomProps(
+      ["var(--_text)"],
+      { getPropertyValue: () => "#fff" },
+      customProps,
+      new Map([["--_text", new Set(["var(--token-a)", "var(--token-b)"])]]),
+    );
+    expect(customProps["--_text"]).toBe("#fff");
+  });
+
+  it("충돌이 없으면 종전대로 원문을 보존한다", () => {
+    const customProps: Record<string, string> = {
+      "--_text": "var(--token-a)",
+      "--token-a": "#fff",
+    };
+    hydrateReferencedCustomProps(
+      ["var(--_text)"],
+      { getPropertyValue: () => "#fff" },
+      customProps,
+      new Map(),
+    );
+    expect(customProps["--_text"]).toBe("var(--token-a)");
+  });
+
+  it("raw가 승자와 다른 값으로 풀리면 computed로 덮는다 (승자 판정 유지)", () => {
+    const customProps: Record<string, string> = {
+      "--_text": "var(--stale)",
+      "--stale": "red",
+    };
+    hydrateReferencedCustomProps(
+      ["var(--_text)"],
+      {
+        getPropertyValue: (name) =>
+          name === "--_text" ? "blue" : name === "--stale" ? "red" : "",
+      },
+      customProps,
+    );
+    expect(customProps["--_text"]).toBe("blue");
+  });
+
+  it("raw가 가리키는 이름의 값을 모르면 덮는다 (검증 불가)", () => {
+    const customProps: Record<string, string> = { "--_text": "var(--unknown)" };
+    hydrateReferencedCustomProps(
+      ["var(--_text)"],
+      { getPropertyValue: (name) => (name === "--_text" ? "#fff" : "") },
+      customProps,
+    );
+    expect(customProps["--_text"]).toBe("#fff");
+  });
+
+  it("중첩 fallback 안의 이름도 수집한다", () => {
+    // 원문을 유지하면 그 원문이 참조하는 이름들이 큐에 실려야 한다 — 정규식은 첫 `)`에서
+    // 끊겨 `var(--miss, var(--inner))`의 --inner를 놓치고, 그러면 검증 없이 수집된 raw가
+    // 그대로 펼쳐진다.
+    const customProps: Record<string, string> = {};
+    hydrateReferencedCustomProps(
+      ["var(--miss, var(--inner))"],
+      { getPropertyValue: (name) => (name === "--inner" ? "8px" : "") },
+      customProps,
+    );
+    expect(customProps["--inner"]).toBe("8px");
+  });
+
+  it("초기 값이 많아도 원문 유지로 큐에 실린 이름을 처리한다", () => {
+    // 캡이 초기 values 길이에 잡아먹히면 push된 항목이 한 번도 처리되지 않는다.
+    const filler = Array.from({ length: 120 }, (_, i) => `var(--f${i})`);
+    const customProps: Record<string, string> = { "--_a": "var(--brand)" };
+    hydrateReferencedCustomProps(
+      [...filler, "var(--_a)"],
+      {
+        getPropertyValue: (name) =>
+          name === "--_a" || name === "--brand" ? "#fff" : "",
+      },
+      customProps,
+    );
+    expect(customProps["--_a"]).toBe("var(--brand)");
+    expect(customProps["--brand"]).toBe("#fff");
+  });
+
   it("computed alias가 참조하는 다음 custom property도 고정점까지 수집", () => {
     const customProps: Record<string, string> = {};
     hydrateReferencedCustomProps(
@@ -1202,6 +1349,27 @@ describe("hydrateReferencedCustomProps", () => {
       customProps,
     );
     expect(customProps).toEqual({ "--_a": "var(--_b)", "--_b": "12px" });
+  });
+});
+
+describe("resolveUncertainSpecified — 토큰 보존 트레이드오프의 적용 면적", () => {
+  it("private alias가 원문으로 남으면 uncertain이어도 computed로 교정하지 않는다", () => {
+    // hydrate가 원문(토큰 이름)을 보존하게 되면서, 예전엔 리터럴로 붕괴해 computed 교정을
+    // 받던 alias 경유 값이 이제 var()로 끝나 skip 경로로 간다 — 값 정확도보다 토큰 이름을
+    // 택한다는 이 함수의 선언된 트레이드오프가 alias 체인 전체로 넓어진 것이다.
+    const all: Record<string, string> = { color: "var(--color-x)" };
+    const sources: Record<string, string> = { color: ".a" };
+    resolveUncertainSpecified(all, sources, new Set(["color"]), () => "rgb(255, 0, 0)");
+    expect(all.color).toBe("var(--color-x)");
+    expect(sources.color).toBe(".a");
+  });
+
+  it("var()가 없으면 종전대로 computed 승자로 교정한다", () => {
+    const all: Record<string, string> = { color: "#fff" };
+    const sources: Record<string, string> = { color: ".a" };
+    resolveUncertainSpecified(all, sources, new Set(["color"]), () => "rgb(255, 0, 0)");
+    expect(all.color).toBe("rgb(255, 0, 0)");
+    expect(sources.color).toBe("[computed]");
   });
 });
 
