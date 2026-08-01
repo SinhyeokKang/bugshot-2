@@ -1610,27 +1610,33 @@ function finalizeCustomProps(
   computed: Pick<CSSStyleDeclaration, "getPropertyValue">,
   customProps: Record<string, string>,
 ): void {
-  const docEl = el.ownerDocument?.documentElement;
-  if (docEl && docEl !== el) {
-    for (const [name, value] of Object.entries(docElementCustomProps(docEl))) {
+  for (let cur = el.parentElement; cur; cur = cur.parentElement) {
+    for (const [name, value] of Object.entries(elementCustomProps(cur))) {
       if (!(name in customProps)) customProps[name] = value;
     }
   }
   hydrateReferencedCustomProps(values, computed, customProps);
 }
 
-// :root/html 기여분은 **요소와 무관**하다 — hover는 지나치는 요소마다 이 경로를 타므로
-// (picker 툴팁은 요소당 1회 계산) 매번 전체 규칙을 다시 순회하면 토큰이 수백 개인 :root에서
-// CSSOM 접근이 수천 번 반복된다. 캐시 세대(epoch)가 바뀔 때만 다시 모은다.
-let docElPropsCache: { epoch: number; props: Record<string, string> } | null = null;
-function docElementCustomProps(docEl: Element): Record<string, string> {
+// 조상 체인의 custom property를 가까운 쪽부터 gap-fill한다. **상속 prop을 채우는 조상 순회와
+// 분리한 이유**: 그 순회는 목적을 달성하면 멈추므로(INHERITED_PROPS가 다 차면 중단),
+// `body`·`[data-theme]`·`:root`에 별칭을 둔 사이트의 원문을 통째로 놓쳤다 — 그러면
+// resolveVarChain이 펼칠 곳이 없어 토큰 이름이 리터럴로 무너진다.
+// 요소별 기여분은 캐시 세대(epoch) 안에서 불변이라 memo한다 — hover는 지나치는 요소마다 이
+// 경로를 타고, 형제들이 같은 조상 체인을 공유하므로 적중률이 높다.
+const customPropsCache = new WeakMap<Element, { epoch: number; props: Record<string, string> }>();
+function elementCustomProps(el: Element): Record<string, string> {
   const epoch = getCacheEpoch();
-  if (docElPropsCache?.epoch === epoch) return docElPropsCache.props;
+  const hit = customPropsCache.get(el);
+  if (hit?.epoch === epoch) return hit.props;
   const props: Record<string, string> = {};
-  collectRulesForElement(docEl, {}, {}, props);
-  docElPropsCache = { epoch, props };
+  // wantedProps를 비워 일반 prop 작업을 건너뛴다 — `--*`는 그 필터 앞에서 처리되므로
+  // 수집 규칙(순서·first-write-wins·cross-origin 보강)은 본 경로와 동일하다.
+  collectRulesForElement(el, {}, {}, props, NO_WANTED_PROPS);
+  customPropsCache.set(el, { epoch, props });
   return props;
 }
+const NO_WANTED_PROPS = new Set<string>();
 
 // 값 안의 var() 참조 이름 — 중첩 fallback(`var(--a, var(--b))`)까지 판다. 정규식(VAR_REF_RE)은
 // fallback의 `)`에서 끊겨 안쪽 이름을 놓치므로 괄호 균형 스캐너를 쓴다.
