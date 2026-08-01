@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("../css-source-cache", () => ({
   getMatchingRules: () => [],
   getRawDeclarationsFor: () => null,
+  flattenSheets: (sheets: unknown[]) => sheets,
 }));
 
 import {
@@ -29,7 +30,6 @@ import {
   resolveUncertainSpecified,
   normalizePositionOffsets,
   resolveTokenValue,
-  nestedRulesOf,
   type EditableHandle,
 } from "../css-resolve";
 
@@ -1498,31 +1498,4 @@ describe("resolveTokenValue — 토큰 목록의 값/category 판정용 완전 �
   });
 });
 
-describe("nestedRulesOf — @import 시트 하강", () => {
-  const list = [] as unknown as CSSRuleList;
-
-  it("cssRules를 가진 규칙(media·supports)은 그대로 돌려준다", () => {
-    expect(nestedRulesOf({ cssRules: list } as unknown as CSSRule)).toBe(list);
-  });
-
-  it("CSSImportRule은 styleSheet.cssRules로 한 단계 더 내려간다", () => {
-    // @import 시트는 document.styleSheets에 안 잡혀, 여기서 안 내려가면 통째로 누락된다.
-    expect(
-      nestedRulesOf({ styleSheet: { cssRules: list } } as unknown as CSSRule),
-    ).toBe(list);
-  });
-
-  it("cross-origin @import는 접근이 throw → undefined (skip)", () => {
-    const rule = {
-      get styleSheet() {
-        throw new Error("SecurityError");
-      },
-    } as unknown as CSSRule;
-    expect(nestedRulesOf(rule)).toBeUndefined();
-  });
-
-  it("둘 다 없으면 undefined", () => {
-    expect(nestedRulesOf({} as unknown as CSSRule)).toBeUndefined();
-  });
-});
 

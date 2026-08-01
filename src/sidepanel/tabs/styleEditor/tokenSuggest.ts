@@ -48,16 +48,24 @@ export function groupTokensByFamily(
     : [];
   if (familyPrefixes.length === 0)
     return { familyGroups: [], primary: base, extra };
-  // 접두가 중첩되면(--color-blue- ⊂ --color-) 같은 토큰이 여러 그룹에 걸린다 — 앞선
-  // 그룹이 가져간 토큰은 뒤 그룹에서 뺀다(그룹 간 dedup, primary 제외와 같은 기준).
+  // 접두가 중첩되면(--color-blue- ⊂ --color-) 같은 토큰이 여러 그룹에 걸린다 — 각 토큰을
+  // **가장 구체적인(긴) 접두** 한 곳에만 넣는다. 선점 방식이면 목록 순서에 따라 broad가
+  // narrow를 통째로 삼켜 선택된 family가 그룹으로 안 뜬다. 그룹 표시 순서는 입력 순서 유지.
   const familySet = new Set<string>();
-  const familyGroups = familyPrefixes.map((prefix) => {
-    const tokens = base.filter(
-      (t) => t.name.startsWith(prefix) && !familySet.has(t.name),
-    );
-    for (const t of tokens) familySet.add(t.name);
-    return { prefix, tokens };
-  });
+  const familyGroups = familyPrefixes.map((prefix) => ({
+    prefix,
+    tokens: [] as Token[],
+  }));
+  for (const t of base) {
+    let best = -1;
+    for (let i = 0; i < familyPrefixes.length; i++) {
+      if (!t.name.startsWith(familyPrefixes[i])) continue;
+      if (best < 0 || familyPrefixes[i].length > familyPrefixes[best].length) best = i;
+    }
+    if (best < 0) continue;
+    familyGroups[best].tokens.push(t);
+    familySet.add(t.name);
+  }
   return {
     familyGroups,
     primary: base.filter((t) => !familySet.has(t.name)),

@@ -120,6 +120,24 @@ describe("groupTokensByFamily", () => {
     const flat = flattenTokenGroups(g).map((t) => t.name);
     expect(new Set(flat).size).toBe(flat.length);
   });
+
+  it("broad 접두가 먼저 와도 토큰은 가장 구체적인 family에 귀속 (순서 무관)", () => {
+    // 활성 토큰 순서에 따라 --color-가 --color-blue-보다 먼저 올 수 있다. 선점 방식이면
+    // broad가 blue를 다 가져가 narrow 그룹이 비고, 선택된 family가 그룹으로 안 뜬다.
+    const g = groupTokensByFamily(TOKENS, "color", ["--color-", "--color-blue-"]);
+    expect(g.familyGroups.map((x) => x.prefix)).toEqual([
+      "--color-",
+      "--color-blue-",
+    ]);
+    expect(g.familyGroups[0].tokens.map((t) => t.name)).toEqual([
+      "--color-red-500",
+    ]);
+    expect(g.familyGroups[1].tokens.map((t) => t.name)).toEqual([
+      "--color-blue-500",
+      "--color-blue-700",
+    ]);
+    expect(g.primary).toEqual([]);
+  });
 });
 
 describe("tokenCompletionQuery — CodeMirror var() 자동완성 검색어", () => {

@@ -8,6 +8,7 @@ import {
   getMatchingRules,
   getMatchingCrossOriginRules,
   getRawDeclarationsFor,
+  flattenSheets,
   type CrossOriginRule,
 } from "./css-source-cache";
 import { NAMED_COLORS } from "@/lib/named-colors";
@@ -790,12 +791,14 @@ export function shouldRestoreEditable(
 
 /* ── internal ────────────────────────────────────── */
 
+// 시트 열거 단일 출처(`flattenSheets`) — @import 하강까지 css-source-cache의 rule index와
+// 같은 경계를 쓴다. 갈리면 제안엔 뜨는데 specified엔 안 잡히는 비대칭이 생긴다.
 function allStyleSheets(): readonly CSSStyleSheet[] {
   const regular = Array.from(document.styleSheets) as CSSStyleSheet[];
   const adopted = document.adoptedStyleSheets
     ? Array.from(document.adoptedStyleSheets)
     : [];
-  return [...regular, ...adopted];
+  return flattenSheets([...regular, ...adopted]);
 }
 
 function collectRulesForElement(
@@ -1520,20 +1523,6 @@ export function resolveTokenValue(
   });
 }
 
-// 규칙 아래로 내려갈 하위 규칙. @import 시트는 document.styleSheets에 안 잡히고
-// CSSImportRule.styleSheet 아래에만 있어, 여기서 한 단계 더 내려가지 않으면 통째로 누락된다
-// (cross-origin @import는 접근이 throw → skip).
-export function nestedRulesOf(rule: CSSRule): CSSRuleList | undefined {
-  try {
-    const direct = (rule as { cssRules?: CSSRuleList }).cssRules;
-    if (direct) return direct;
-    return (rule as { styleSheet?: { cssRules?: CSSRuleList } }).styleSheet
-      ?.cssRules;
-  } catch {
-    return undefined;
-  }
-}
-
 function collectInlineTokens(el: Element, seen: Map<string, string>): void {
   let cur: Element | null = el;
   while (cur) {
@@ -1607,7 +1596,7 @@ function collectFromRules(rules: CSSRuleList, seen: Map<string, string>): void {
         }
       }
     } else {
-      const nested = nestedRulesOf(rule);
+      const nested = (rule as { cssRules?: CSSRuleList }).cssRules;
       if (nested) collectFromRules(nested, seen);
     }
   }
