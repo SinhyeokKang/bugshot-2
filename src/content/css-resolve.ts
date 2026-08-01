@@ -1571,10 +1571,11 @@ export function hydrateReferencedCustomProps(
 ): void {
   const queue = [...values];
   const seen = new Set<string>();
-  for (let i = 0; i < queue.length && i < 100; i++) {
-    const value = queue[i];
-    for (const match of value.matchAll(VAR_REF_RE)) {
-      const name = match[1];
+  // 캡은 초기 값 개수와 분리한다 — 합쳐 세면 prop이 많은 페이지에서 큐에 실은 참조가
+  // 한 번도 처리되지 않고 굶는다(그 이름은 검증 안 된 수집 raw로 펼쳐진다).
+  const limit = values.length + 100;
+  for (let i = 0; i < queue.length && i < limit; i++) {
+    for (const name of varRefNames(queue[i])) {
       if (seen.has(name)) continue;
       seen.add(name);
       const effective = computed.getPropertyValue(name).trim();
@@ -1594,6 +1595,19 @@ export function hydrateReferencedCustomProps(
       if (effective.includes("var(")) queue.push(effective);
     }
   }
+}
+
+// 값 안의 var() 참조 이름 — 중첩 fallback(`var(--a, var(--b))`)까지 판다. 정규식(VAR_REF_RE)은
+// fallback의 `)`에서 끊겨 안쪽 이름을 놓치므로 괄호 균형 스캐너를 쓴다.
+function varRefNames(value: string): string[] {
+  if (!value.includes("var(")) return [];
+  const names: string[] = [];
+  replaceVarRefs(value, (name, fallback, match) => {
+    names.push(name);
+    if (fallback) names.push(...varRefNames(fallback));
+    return match;
+  });
+  return names;
 }
 
 // raw 원문의 var() 참조를 computed 값으로 치환. 이름 하나라도 computed에 없으면 null —

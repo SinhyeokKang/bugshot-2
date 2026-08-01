@@ -1254,6 +1254,35 @@ describe("hydrateReferencedCustomProps", () => {
     expect(customProps["--_text"]).toBe("#fff");
   });
 
+  it("중첩 fallback 안의 이름도 수집한다", () => {
+    // 원문을 유지하면 그 원문이 참조하는 이름들이 큐에 실려야 한다 — 정규식은 첫 `)`에서
+    // 끊겨 `var(--miss, var(--inner))`의 --inner를 놓치고, 그러면 검증 없이 수집된 raw가
+    // 그대로 펼쳐진다.
+    const customProps: Record<string, string> = {};
+    hydrateReferencedCustomProps(
+      ["var(--miss, var(--inner))"],
+      { getPropertyValue: (name) => (name === "--inner" ? "8px" : "") },
+      customProps,
+    );
+    expect(customProps["--inner"]).toBe("8px");
+  });
+
+  it("초기 값이 많아도 원문 유지로 큐에 실린 이름을 처리한다", () => {
+    // 캡이 초기 values 길이에 잡아먹히면 push된 항목이 한 번도 처리되지 않는다.
+    const filler = Array.from({ length: 120 }, (_, i) => `var(--f${i})`);
+    const customProps: Record<string, string> = { "--_a": "var(--brand)" };
+    hydrateReferencedCustomProps(
+      [...filler, "var(--_a)"],
+      {
+        getPropertyValue: (name) =>
+          name === "--_a" || name === "--brand" ? "#fff" : "",
+      },
+      customProps,
+    );
+    expect(customProps["--_a"]).toBe("var(--brand)");
+    expect(customProps["--brand"]).toBe("#fff");
+  });
+
   it("computed alias가 참조하는 다음 custom property도 고정점까지 수집", () => {
     const customProps: Record<string, string> = {};
     hydrateReferencedCustomProps(
