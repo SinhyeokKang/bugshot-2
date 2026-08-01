@@ -404,7 +404,7 @@ function isRelevant(muts: MutationRecord[]): boolean {
 /* ── load ────────────────────────────────────────── */
 
 async function loadAll(startedEpoch: number, signal: AbortSignal): Promise<void> {
-  const sheets = collectAllSheets().slice(0, MAX_SHEETS);
+  const sheets = selectSheetsForRawLoad(collectRootSheets(), MAX_SHEETS);
   dlog("loadAll start", { sheetCount: sheets.length });
   await Promise.all(
     sheets.map((sheet, i) =>
@@ -415,11 +415,15 @@ async function loadAll(startedEpoch: number, signal: AbortSignal): Promise<void>
 }
 
 function collectAllSheets(): CSSStyleSheet[] {
+  return flattenSheets(collectRootSheets());
+}
+
+function collectRootSheets(): CSSStyleSheet[] {
   const regular = Array.from(document.styleSheets) as CSSStyleSheet[];
   const adopted = document.adoptedStyleSheets
     ? Array.from(document.adoptedStyleSheets)
     : [];
-  return flattenSheets([...regular, ...adopted]);
+  return [...regular, ...adopted];
 }
 
 // @import 시트는 document.styleSheets에 안 잡히고 부모의 `CSSImportRule.styleSheet` 아래에만
@@ -445,9 +449,13 @@ export function flattenSheets(
         const rule = rules[i] as unknown as {
           styleSheet?: CSSStyleSheet | null;
           selectorText?: string;
+          media?: { mediaText?: string };
+          supportsText?: string | null;
         };
         if (rule.styleSheet) {
-          visit(rule.styleSheet, depth + 1);
+          if (isActiveImport(rule)) {
+            visit(rule.styleSheet, depth + 1);
+          }
           continue;
         }
         if (rule.selectorText) break;
@@ -457,6 +465,38 @@ export function flattenSheets(
   };
   for (const sheet of sheets) visit(sheet, 0);
   return out;
+}
+
+function isActiveImport(rule: {
+  media?: { mediaText?: string };
+  supportsText?: string | null;
+}): boolean {
+  const media = rule.media?.mediaText?.trim();
+  if (media && media !== "all") {
+    if (typeof window === "undefined" || !window.matchMedia?.(media).matches) {
+      return false;
+    }
+  }
+  const supports = rule.supportsText?.trim();
+  if (supports) {
+    if (typeof CSS === "undefined" || !CSS.supports(supports)) return false;
+  }
+  return true;
+}
+
+export function selectSheetsForRawLoad(
+  roots: readonly CSSStyleSheet[],
+  limit: number,
+): CSSStyleSheet[] {
+  const selectedRoots = roots.slice(0, limit);
+  const rootSet = new Set(selectedRoots);
+  const imports = flattenSheets(selectedRoots).filter(
+    (sheet) => !rootSet.has(sheet),
+  );
+  return [
+    ...selectedRoots,
+    ...imports.slice(0, Math.max(0, limit - selectedRoots.length)),
+  ];
 }
 
 async function loadSheet(

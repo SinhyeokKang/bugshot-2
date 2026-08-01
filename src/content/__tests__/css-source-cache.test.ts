@@ -10,6 +10,7 @@ import {
   indexCrossOriginRules,
   stripComments,
   flattenSheets,
+  selectSheetsForRawLoad,
 } from "../css-source-cache";
 
 describe("readCappedText", () => {
@@ -332,5 +333,45 @@ describe("flattenSheets — @import 시트 평탄화", () => {
     const a = sheet([styleRule(".a")]);
     const b = sheet([styleRule(".b")]);
     expect(flattenSheets([a, b])).toEqual([a, b]);
+  });
+
+  it("비활성 media·supports import는 평탄화하지 않는다", () => {
+    const imported = sheet([styleRule(".imported")]);
+    const media = {
+      styleSheet: imported,
+      media: { mediaText: "print" },
+    };
+    const supports = {
+      styleSheet: imported,
+      supportsText: "(unknown-property: value)",
+    };
+    const parent = sheet([media, supports, styleRule(".parent")]);
+    expect(flattenSheets([parent])).toEqual([parent]);
+  });
+
+  it("활성 layer import도 기존 layer source-order 근사와 같이 포함한다", () => {
+    const imported = sheet([styleRule(".imported")]);
+    const parent = sheet([
+      { styleSheet: imported, layerName: "theme" },
+      styleRule(".parent"),
+    ]);
+    expect(flattenSheets([parent])).toEqual([
+      imported,
+      parent,
+    ]);
+  });
+
+  it("raw cache cap은 top-level 부모를 import보다 먼저 보존한다", () => {
+    const imports = Array.from({ length: 50 }, (_, i) =>
+      sheet([styleRule(`.import-${i}`)]),
+    );
+    const parent = sheet([
+      ...imports.map(importRule),
+      styleRule(".parent"),
+    ]);
+    const selected = selectSheetsForRawLoad([parent], 50);
+    expect(selected).toHaveLength(50);
+    expect(selected[0]).toBe(parent);
+    expect(selected.slice(1)).toEqual(imports.slice(0, 49));
   });
 });
