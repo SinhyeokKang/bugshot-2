@@ -339,11 +339,15 @@ export function ValueCombobox({
             icon={<PenLine className="mr-2 h-4 w-4 shrink-0 opacity-50" />}
             className="h-9"
             onKeyDown={(e) => {
+              // cmdk가 실제로 목록 이동에 쓰는 키만 래치한다 — Left/Right는 캐럿 이동이라
+              // 래치하면 자유입력 확정이 막히고, vim 바인딩(기본 on)인 Ctrl+N/P/J/K를 빼면
+              // 그 경로로 고른 토큰이 자유입력으로 덮인다.
               if (
                 e.key === "ArrowUp" ||
                 e.key === "ArrowDown" ||
                 e.key === "Home" ||
-                e.key === "End"
+                e.key === "End" ||
+                (e.ctrlKey && ["n", "p", "j", "k"].includes(e.key.toLowerCase()))
               ) {
                 navigatedRef.current = true;
                 return;
@@ -358,7 +362,9 @@ export function ValueCombobox({
               // 자유입력 확정은 결정적이어야 하므로 여기서 직접 처리하고 cmdk로 넘기지 않는다.
               if (navigatedRef.current) return; // 방향키로 고른 항목 → cmdk에 위임
               e.preventDefault();
-              e.stopPropagation(); // 막지 않으면 cmdk가 하이라이트 항목을 한 번 더 실행한다
+              // cmdk root는 defaultPrevented면 스스로 건너뛴다 — stopPropagation은 상위
+              // 핸들러까지 끊는 이중 방어다(팝오버 바깥이 Enter를 잡는 경우 대비).
+              e.stopPropagation();
               const raw = draft.trim();
               if (raw) commit(raw);
             }}

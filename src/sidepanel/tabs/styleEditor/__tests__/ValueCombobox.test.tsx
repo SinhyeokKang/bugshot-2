@@ -158,6 +158,17 @@ describe("ValueCombobox 자유입력 Enter 확정", () => {
     expect(set).toHaveBeenLastCalledWith("col");
   });
 
+  it("cmdk의 vim 바인딩(Ctrl+N)으로 옮긴 뒤 Enter도 토큰을 확정한다", async () => {
+    // cmdk는 vimBindings 기본값이 켜져 있어 Ctrl+N/P/J/K로도 목록을 옮긴다 —
+    // 방향키만 래치하면 그 경로가 자유입력 확정으로 새어 엉뚱한 값이 들어간다.
+    const { set, user } = openWith("", "background-color");
+    await user.click(screen.getByRole("button"));
+    await user.type(input(), "col");
+    set.mockClear();
+    await user.keyboard("{Control>}n{/Control}{Enter}");
+    expect(set).toHaveBeenLastCalledWith(`var(${LONG_TOKEN})`);
+  });
+
   it("미정의 토큰 참조(var(--unknown))도 자유입력으로 확정된다", async () => {
     const { set, user } = openWith("");
     await user.click(screen.getByRole("button"));
