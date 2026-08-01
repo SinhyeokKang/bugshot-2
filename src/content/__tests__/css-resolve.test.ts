@@ -1191,6 +1191,69 @@ describe("hydrateReferencedCustomProps", () => {
     expect(customProps).toEqual({ "--_color": "blue" });
   });
 
+  it("raw 원문이 computed 승자와 같은 값으로 풀리면 원문(토큰 이름)을 보존", () => {
+    // 실사이트(course-chatbot): 인라인 `--_text: var(--color-semantic-informative-label)`.
+    // Chrome computed는 custom property를 완전 치환해 `#fff`를 주므로, 무조건 덮으면
+    // private alias를 펼칠 때 도착지가 리터럴이라 편집 탭·CSS 뷰에서 토큰 이름이 사라진다.
+    const customProps: Record<string, string> = {
+      "--_text": "var(--color-semantic-informative-label)",
+      "--color-semantic-informative-label": "#fff",
+    };
+    hydrateReferencedCustomProps(
+      ["var(--_text)"],
+      {
+        getPropertyValue: (name) =>
+          name === "--_text" || name === "--color-semantic-informative-label"
+            ? "#fff"
+            : "",
+      },
+      customProps,
+    );
+    expect(customProps["--_text"]).toBe("var(--color-semantic-informative-label)");
+  });
+
+  it("표기 차이(대소문자·공백)만 다르면 같은 값으로 보고 원문 유지", () => {
+    const customProps: Record<string, string> = {
+      "--_bg": "var(--brand)",
+      "--brand": "rgb(0, 0, 0)",
+    };
+    hydrateReferencedCustomProps(
+      ["var(--_bg)"],
+      {
+        getPropertyValue: (name) =>
+          name === "--_bg" ? "rgb(0,0,0)" : name === "--brand" ? "RGB(0, 0, 0)" : "",
+      },
+      customProps,
+    );
+    expect(customProps["--_bg"]).toBe("var(--brand)");
+  });
+
+  it("raw가 승자와 다른 값으로 풀리면 computed로 덮는다 (승자 판정 유지)", () => {
+    const customProps: Record<string, string> = {
+      "--_text": "var(--stale)",
+      "--stale": "red",
+    };
+    hydrateReferencedCustomProps(
+      ["var(--_text)"],
+      {
+        getPropertyValue: (name) =>
+          name === "--_text" ? "blue" : name === "--stale" ? "red" : "",
+      },
+      customProps,
+    );
+    expect(customProps["--_text"]).toBe("blue");
+  });
+
+  it("raw가 가리키는 이름의 값을 모르면 덮는다 (검증 불가)", () => {
+    const customProps: Record<string, string> = { "--_text": "var(--unknown)" };
+    hydrateReferencedCustomProps(
+      ["var(--_text)"],
+      { getPropertyValue: (name) => (name === "--_text" ? "#fff" : "") },
+      customProps,
+    );
+    expect(customProps["--_text"]).toBe("#fff");
+  });
+
   it("computed alias가 참조하는 다음 custom property도 고정점까지 수집", () => {
     const customProps: Record<string, string> = {};
     hydrateReferencedCustomProps(
