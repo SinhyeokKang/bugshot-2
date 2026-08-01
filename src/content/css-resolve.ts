@@ -292,17 +292,7 @@ export function collectSpecifiedStylesWithSources(el: Element): {
     }
   }
 
-  // :root/html의 커스텀 프로퍼티(디자인 토큰·private alias)는 위 조상 순회가 상속 prop을
-  // 다 채우고 documentElement 전에 멈추면 누락된다 — resolve 전에 항상 보강 수집한다.
-  const docEl = el.ownerDocument?.documentElement;
-  if (docEl && docEl !== el) {
-    collectRulesForElement(docEl, {}, {}, customProps);
-  }
-  hydrateReferencedCustomProps(
-    Object.values(all),
-    window.getComputedStyle(el),
-    customProps,
-  );
+  finalizeCustomProps(el, Object.values(all), window.getComputedStyle(el), customProps);
 
   for (const prop of Object.keys(all)) {
     all[prop] = resolveVarChain(all[prop], customProps);
@@ -363,7 +353,10 @@ const INSPECTOR_WANTED = new Set([
   "letter-spacing",
 ]);
 
-export function collectInspectorSpecRefs(el: Element): InspectorSpecRefs {
+export function collectInspectorSpecRefs(
+  el: Element,
+  computed?: Pick<CSSStyleDeclaration, "getPropertyValue">,
+): InspectorSpecRefs {
   const all: Record<string, string> = {};
   const sources: Record<string, string> = {};
   const customProps: Record<string, string> = {};
@@ -388,6 +381,15 @@ export function collectInspectorSpecRefs(el: Element): InspectorSpecRefs {
       cur = cur.parentElement;
     }
   }
+
+  // 편집/CSS 뷰(collectSpecifiedStylesWithSources)와 **같은** 전처리를 태운다 — 갈리면 같은
+  // 요소의 툴팁과 편집 탭이 서로 다른 토큰 이름을 보여준다(POSTMORTEM 2026-08-01).
+  finalizeCustomProps(
+    el,
+    Object.values(all),
+    computed ?? window.getComputedStyle(el),
+    customProps,
+  );
 
   const get = (k: string): string | undefined =>
     all[k] ? resolveVarChain(all[k], customProps) : undefined;
@@ -501,7 +503,7 @@ export function collectInspectorInfo(
   const classes = allClasses.slice(0, 3);
   const classOverflow = Math.max(0, allClasses.length - 3);
 
-  const refs = collectInspectorSpecRefs(el);
+  const refs = collectInspectorSpecRefs(el, cs);
 
   const colorValue = formatColor(cs.color) ?? cs.color;
   const color =
@@ -1595,6 +1597,23 @@ export function hydrateReferencedCustomProps(
       if (effective.includes("var(")) queue.push(effective);
     }
   }
+}
+
+// specified 값을 resolve하기 전 customProps를 마감하는 공통 전처리. 두 수집 경로(편집/CSS 뷰,
+// 피커 툴팁)가 이걸 공유해야 같은 요소에서 같은 토큰 이름이 나온다.
+// ① :root/html의 custom property는 조상 순회가 상속 prop을 다 채우고 documentElement 전에
+// 멈추면 누락되므로 항상 보강하고, ② computed 승자로 hydrate한다(원문 검증은 그 안에서).
+function finalizeCustomProps(
+  el: Element,
+  values: string[],
+  computed: Pick<CSSStyleDeclaration, "getPropertyValue">,
+  customProps: Record<string, string>,
+): void {
+  const docEl = el.ownerDocument?.documentElement;
+  if (docEl && docEl !== el) {
+    collectRulesForElement(docEl, {}, {}, customProps);
+  }
+  hydrateReferencedCustomProps(values, computed, customProps);
 }
 
 // 값 안의 var() 참조 이름 — 중첩 fallback(`var(--a, var(--b))`)까지 판다. 정규식(VAR_REF_RE)은
