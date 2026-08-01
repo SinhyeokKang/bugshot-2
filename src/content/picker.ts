@@ -7,6 +7,7 @@ import type {
 import {
   buildTokenLookup,
   captureEditable,
+  clearCustomPropsCache,
   collectInspectorInfo,
   collectSelection,
   collectTokens,
@@ -659,6 +660,7 @@ function handleApplyClasses(classList: string[]): void {
   if (!state) return;
   applyClassOverlay(el, state, classList);
   inspectorCache.delete(el);
+  clearCustomPropsCache();
   render();
   scheduleSelectionUpdate();
 }
@@ -699,6 +701,7 @@ function handleApplyStyles(inlineStyle: Record<string, string>): void {
   if (!state) return;
   applyStyleOverlay(el, state.styleOverlay, inlineStyle);
   inspectorCache.delete(el);
+  clearCustomPropsCache();
   render();
   // 인라인 편집을 되돌린 직후(키 제거) 직전에 예약된 stale 재수집이 baseline을 오염시킬 수
   // 있다(120ms 디바운스 레이스) — 적용 후 재수집을 다시 예약해 최신 DOM으로 자가치유한다.
@@ -743,6 +746,7 @@ function handleApplyEditsBySelector(msg: {
     editedEls.delete(el);
   }
   inspectorCache.delete(el);
+  clearCustomPropsCache();
   render();
   return { found: true };
 }

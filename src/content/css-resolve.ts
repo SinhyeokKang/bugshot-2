@@ -1602,18 +1602,24 @@ export function hydrateReferencedCustomProps(
 
 // specified 값을 resolve하기 전 customProps를 마감하는 공통 전처리. 두 수집 경로(편집/CSS 뷰,
 // 피커 툴팁)가 이걸 공유해야 같은 요소에서 같은 토큰 이름이 나온다.
-// ① :root/html의 custom property는 조상 순회가 상속 prop을 다 채우고 documentElement 전에
-// 멈추면 누락되므로 항상 보강하고, ② computed 승자로 hydrate한다(원문 검증은 그 안에서).
+// ① 조상 체인 전체의 custom property를 가까운 쪽부터 보강하고(상속 prop 순회와 독립 — 그건
+// 목적을 달성하면 멈춘다), ② computed 승자로 hydrate한다(원문 검증은 그 안에서).
 function finalizeCustomProps(
   el: Element,
   values: string[],
   computed: Pick<CSSStyleDeclaration, "getPropertyValue">,
   customProps: Record<string, string>,
 ): void {
+  let last: Element | null = null;
   for (let cur = el.parentElement; cur; cur = cur.parentElement) {
-    for (const [name, value] of Object.entries(elementCustomProps(cur))) {
-      if (!(name in customProps)) customProps[name] = value;
-    }
+    gapFill(customProps, elementCustomProps(cur));
+    last = cur;
+  }
+  // shadow 경계·detached 요소는 부모 체인이 documentElement에 닿지 않는다 — :root 토큰을
+  // 통째로 잃으므로 마지막에 보정한다(체인이 이미 닿았으면 memo 조회 1회로 끝난다).
+  const docEl = el.ownerDocument?.documentElement;
+  if (docEl && docEl !== el && docEl !== last) {
+    gapFill(customProps, elementCustomProps(docEl));
   }
   hydrateReferencedCustomProps(values, computed, customProps);
 }
@@ -1624,7 +1630,7 @@ function finalizeCustomProps(
 // resolveVarChain이 펼칠 곳이 없어 토큰 이름이 리터럴로 무너진다.
 // 요소별 기여분은 캐시 세대(epoch) 안에서 불변이라 memo한다 — hover는 지나치는 요소마다 이
 // 경로를 타고, 형제들이 같은 조상 체인을 공유하므로 적중률이 높다.
-const customPropsCache = new WeakMap<Element, { epoch: number; props: Record<string, string> }>();
+let customPropsCache = new WeakMap<Element, { epoch: number; props: Record<string, string> }>();
 function elementCustomProps(el: Element): Record<string, string> {
   const epoch = getCacheEpoch();
   const hit = customPropsCache.get(el);
@@ -1637,6 +1643,19 @@ function elementCustomProps(el: Element): Record<string, string> {
   return props;
 }
 const NO_WANTED_PROPS = new Set<string>();
+
+function gapFill(target: Record<string, string>, source: Record<string, string>): void {
+  for (const name in source) {
+    if (!(name in target)) target[name] = source[name];
+  }
+}
+
+// 스타일 편집은 클래스·인라인을 라이브로 바꾸지만 CSS 캐시 세대(epoch)는 그대로다 —
+// 그 편집이 어느 조상의 custom property를 바꿀 수 있으므로 memo를 통째로 버린다
+// (요소 하나만 지우면 그 요소를 조상으로 읽는 자손 memo가 남는다).
+export function clearCustomPropsCache(): void {
+  customPropsCache = new WeakMap();
+}
 
 // 값 안의 var() 참조 이름 — 중첩 fallback(`var(--a, var(--b))`)까지 판다. 정규식(VAR_REF_RE)은
 // fallback의 `)`에서 끊겨 안쪽 이름을 놓치므로 괄호 균형 스캐너를 쓴다.

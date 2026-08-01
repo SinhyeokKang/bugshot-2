@@ -21,7 +21,10 @@ vi.mock("../css-source-cache", () => ({
   getCacheEpoch: () => epoch(),
 }));
 
-import { collectInspectorSpecRefs } from "../css-resolve";
+import {
+  clearCustomPropsCache,
+  collectInspectorSpecRefs,
+} from "../css-resolve";
 
 function sheet(css: string): CSSStyleRule[] {
   const style = document.createElement("style");
@@ -81,6 +84,55 @@ describe("collectInspectorSpecRefs — 편집 경로와 같은 전처리", () =>
 
     matchRules.mockImplementation((target: Element) =>
       target === el ? [elRule] : target === host ? [themeRule] : [],
+    );
+
+    const refs = collectInspectorSpecRefs(el, {
+      getPropertyValue: (name) =>
+        name === "--_text" || name === "--color-brand" ? "#fff" : "",
+    });
+
+    expect(refs.color).toBe("var(--color-brand)");
+  });
+
+  it("우리가 조상 클래스를 바꾸면 memo를 버린다 (캐시 세대는 안 오른다)", () => {
+    // 스타일 편집은 클래스·인라인을 라이브로 바꾸지만 CSS 캐시 세대는 그대로다 —
+    // 조상 custom property memo가 남으면 편집 후 토큰 이름이 옛 스코프로 굳는다.
+    const [themeRule] = sheet("[data-theme] { --_text: var(--color-brand); }");
+    const [elRule] = sheet(
+      ".btn { color: var(--_text); font-size: 12px; font-weight: 400; }",
+    );
+    const host = document.createElement("div");
+    const el = document.createElement("button");
+    el.className = "btn";
+    host.appendChild(el);
+    document.body.appendChild(host);
+    matchRules.mockImplementation((target: Element) =>
+      target === el ? [elRule] : target === host && target.matches("[data-theme]") ? [themeRule] : [],
+    );
+    const computed = {
+      getPropertyValue: (name: string) =>
+        name === "--_text" || name === "--color-brand" ? "#fff" : "",
+    };
+
+    // 아직 테마 속성이 없어 별칭 원문을 못 본다 → memo에 "없음"이 박힌다.
+    expect(collectInspectorSpecRefs(el, computed).color).toBe("#fff");
+
+    host.setAttribute("data-theme", "dark");
+    clearCustomPropsCache();
+
+    expect(collectInspectorSpecRefs(el, computed).color).toBe("var(--color-brand)");
+  });
+
+  it("shadow·detached라 부모 체인이 끊겨도 :root 토큰은 본다", () => {
+    const [rootRule] = sheet(":root { --_text: var(--color-brand); }");
+    const [elRule] = sheet(
+      ".btn { color: var(--_text); font-size: 12px; font-weight: 400; }",
+    );
+    // 문서에 붙이지 않는다 — parentElement 체인이 documentElement에 닿지 않는다.
+    const el = document.createElement("button");
+    el.className = "btn";
+    matchRules.mockImplementation((target: Element) =>
+      target === el ? [elRule] : target === document.documentElement ? [rootRule] : [],
     );
 
     const refs = collectInspectorSpecRefs(el, {
