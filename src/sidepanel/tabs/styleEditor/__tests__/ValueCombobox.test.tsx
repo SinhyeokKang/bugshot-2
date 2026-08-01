@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useState } from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -70,11 +71,28 @@ describe("ValueCombobox 토큰 chip 폭 봉쇄", () => {
 // Enter는 cmdk의 "하이라이트 항목 선택"이라, 무엇이 하이라이트냐가 곧 Enter의 의미다.
 // 현재는 Enter를 통째로 preventDefault해 자유입력을 확정할 수단이 없다(Esc·바깥 클릭뿐).
 describe("ValueCombobox 자유입력 Enter 확정", () => {
+  // controlled set은 store를 갱신해 value로 되돌아온다 — mock으로 끊으면 draft가 매 글자
+  // 리셋돼(자기 변경 재싱크 가드) 실제와 다른 경로를 테스트하게 된다.
+  function Harness({ initial, prop, set }: { initial: string; prop: string; set: (v: string) => void }) {
+    const [value, setValue] = useState(initial);
+    return (
+      <ValueCombobox
+        prop={prop}
+        controlled={{
+          value,
+          placeholder: "",
+          set: (v) => {
+            set(v);
+            setValue(v);
+          },
+        }}
+      />
+    );
+  }
+
   function openWith(value: string, prop = "padding-top") {
     const set = vi.fn();
-    render(
-      <ValueCombobox prop={prop} controlled={{ value, placeholder: "", set }} />,
-    );
+    render(<Harness initial={value} prop={prop} set={set} />);
     return { set, user: userEvent.setup() };
   }
 
@@ -137,6 +155,15 @@ describe("ValueCombobox 자유입력 Enter 확정", () => {
     set.mockClear();
     await user.keyboard("{Enter}");
     expect(set).toHaveBeenLastCalledWith("12px");
+  });
+
+  it("입력 중에는 초기화·unset을 감춰 하이라이트와 Enter 결과가 어긋나지 않는다", async () => {
+    const { user } = openWith("10px");
+    await user.click(screen.getByRole("button"));
+    expect(screen.queryByText("value.reset")).toBeTruthy();
+    await user.type(input(), "9");
+    expect(screen.queryByText("value.reset")).toBeNull();
+    expect(screen.queryByText("value.unset")).toBeNull();
   });
 
   it("IME 조합 중 Enter는 확정하지 않는다", async () => {
