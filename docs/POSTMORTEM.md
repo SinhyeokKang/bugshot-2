@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-08-01 — cmdk의 `Command value`는 controlled가 아니었고, 팝오버가 닫힐 때 입력이 내뱉는 빈 문자열이 방금 커밋한 값을 덮었다
+
+- **영역**: `컴포넌트`, `에디터`
+- **계열**: `라이브러리전제`
+- **그물**: `jsdom`
+- **증상**: 스타일 편집 탭 값 콤보박스에서 값을 직접 타이핑한 뒤 Enter를 눌러도 **아무 일도 일어나지 않았다**(팝오버조차 안 닫힘). 확정 수단은 Esc·바깥 클릭뿐. 고치려고 Enter를 열자 이번엔 하이라이트가 "초기화"에 있어 **값이 지워졌다**.
+- **근본 원인**: 셋이 겹쳤다. ① Enter를 무조건 `preventDefault`한 방어가 원인 표기 없이 최초 도입부터 있었다 — cmdk는 리스트 첫 항목을 자동 선택하고 그 첫 그룹이 초기화/unset이라, 그걸 안 막으면 Enter가 값 삭제였다. 방어는 옳았지만 **확정 수단을 대신 마련하지 않아** 자유입력이 갇혔다. ② 하이라이트를 밖에서 잡으려고 `Command`에 `value`/`onValueChange`를 controlled로 물렸는데 **cmdk 1.1.1의 `value`는 controlled가 아니다** — 초기 state와 변경 통보용이고 내부 `state.value`가 진짜 소스라, prop을 바꿔도 반영되지 않고 오히려 cmdk의 "항목 집합이 바뀌면 첫 항목 선택" 통보가 `onValueChange`로 되돌아와 우리 state를 덮었다(그래서 하이라이트가 계속 초기화로 돌아갔다). ③ 항목 선택으로 팝오버가 닫히면 **cmdk Input이 언마운트되며 검색어를 `""`로 리셋**하고, 입력을 controlled로 쓰는 우리 쪽엔 그게 `onValueChange("")`로 도착해 **라이브 적용 경로를 타고 방금 커밋한 토큰 값을 빈 값으로 덮었다**(2026-07-14 "콤보박스 검색어 state 수명 불일치"와 같은 가족 — 그때는 리셋이 *안* 와서 깨졌고 이번엔 리셋이 *와서* 깨졌다).
+- **재발 방지**: (1) **라이브러리의 `value` prop이 controlled인지 문서가 아니라 소스로 확인한다** — `grep -o 'setState("value"[^)]*' node_modules/.pnpm/cmdk@*/node_modules/cmdk/dist/index.mjs`처럼 dist를 직접 열어 "prop 변경을 store에 반영하는 effect가 있는지"를 본다. 없으면 controlled가 아니라 **초기값+통보**다. 밖에서 못 잡는 상태에 UI 의미(Enter가 무엇을 하나)를 걸지 않는다 — 이번 해법은 Enter를 컴포넌트가 직접 처리하고 `stopPropagation`으로 라이브러리 기본 동작을 끊는 것. (2) **팝오버 안 controlled 입력은 언마운트 리셋이 콜백으로 되돌아온다** — 그 콜백이 부수효과(라이브 적용·저장)를 태우면 닫는 순간 값이 날아간다. `grep -rn "onValueChange" src/sidepanel`로 콜백 안에 쓰기가 있는 곳을 전수하고, **열림 상태 ref로 게이트**한다(state로는 못 막는다 — 리셋이 닫기와 같은 커밋에서 온다). (3) **키 입력 방어를 넣을 땐 그 키의 정당한 용도를 대신 제공했는지 확인한다** — `preventDefault`만 남기면 사용자는 그 키가 고장 났다고 느낀다. (4) 이 부류는 순수 함수 테스트로 안 잡힌다 — jsdom + user-event로 "타이핑→Enter", "방향키→Enter", "IME Enter"를 각각 고정한다. 검증 하네스에서 **controlled `set`을 `vi.fn()`으로만 두면 value가 되돌아오지 않아** 실제와 다른 경로(draft가 매 글자 리셋)를 테스트하게 되니, store 왕복을 흉내내는 래퍼로 감싼다.
+- **관련**: `src/sidepanel/tabs/styleEditor/ValueCombobox.tsx`(`onKeyDown` 직접 처리·`navigatedRef`·`openRef`·`typing`·`showRawItem`), `src/sidepanel/tabs/styleEditor/__tests__/ValueCombobox.test.tsx`(Harness + Enter 7케이스), 같은 가족 회고 2026-07-14(콤보박스 검색어 수명), 최초 도입 커밋 `56f32d5f`(Enter 차단 유입).
+
+---
+
 ## 2026-08-01 — 이름 보존 규칙을 값 판정에 재사용해 alias 토큰이 목록에서 사라졌고, 시트 열거가 모듈마다 갈려 `@import` 토큰은 제안에만 뜰 뻔했다
 
 - **영역**: `스타일해석`, `store`
