@@ -1147,6 +1147,56 @@ describe("onElementSelected — 버퍼된 요소 재선택 시 편집 복원", (
   });
 });
 
+describe("onElementSelected — 토큰은 새 선택마다 비운다", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  const payload = (selector: string, frameId = 0) => ({
+    selector,
+    tagName: "div",
+    classList: [],
+    computedStyles: {},
+    specifiedStyles: {},
+    propSources: {},
+    hasParent: true,
+    hasChild: false,
+    text: null,
+    viewport: { width: 1440, height: 900 },
+    capturedAt: 1700000000000,
+    frameId,
+  });
+
+  it("다른 요소를 고르면 직전 토큰이 남지 않는다 (async collect 대기 중 오적용 방지)", () => {
+    useEditorStore.getState().onElementSelected(payload("#a"));
+    useEditorStore.getState().setTokens([
+      { name: "--card-bg", value: "#fff", category: "color" },
+    ]);
+    useEditorStore.getState().onElementSelected(payload("#b"));
+    expect(useEditorStore.getState().tokens).toEqual([]);
+  });
+
+  it("다른 프레임의 같은 selector도 별개 요소 — 토큰을 비운다", () => {
+    useEditorStore.getState().onElementSelected(payload("#a"));
+    useEditorStore.getState().setTokens([
+      { name: "--x", value: "8px", category: "length" },
+    ]);
+    useEditorStore.getState().onElementSelected(payload("#a", 3));
+    expect(useEditorStore.getState().tokens).toEqual([]);
+  });
+
+  it("버퍼된 요소 재선택도 마찬가지로 비운다 (재수집이 뒤따른다)", () => {
+    useEditorStore.getState().onElementSelected(payload("#a"));
+    useEditorStore.getState().bufferCurrentElement("data:after-a");
+    useEditorStore.getState().onElementSelected(payload("#b"));
+    useEditorStore.getState().setTokens([
+      { name: "--y", value: "1rem", category: "length" },
+    ]);
+    useEditorStore.getState().onElementSelected(payload("#a"));
+    expect(useEditorStore.getState().tokens).toEqual([]);
+  });
+});
+
 describe("patchBufferedElement / removeBufferedElement", () => {
   beforeEach(() => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);

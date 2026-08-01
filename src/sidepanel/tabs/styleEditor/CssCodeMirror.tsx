@@ -36,6 +36,7 @@ import {
   flattenTokenGroups,
   groupTokensByFamily,
   matchRange,
+  tokenCompletionQuery,
   tokenFamilyPrefixes,
 } from "./tokenSuggest";
 import { swatchColorFor } from "./cssSwatch";
@@ -175,14 +176,15 @@ function makeTokenCompletion(tokens: Token[]) {
       const ordered = flattenTokenGroups(
         groupTokensByFamily(usable, PROP_CATEGORY[prop], prefixes),
       );
-      const filtered = filterTokensByQuery(ordered, prefix);
+      const query = tokenCompletionQuery(fullName, prefix, usable);
+      const filtered = filterTokensByQuery(ordered, query);
       if (!filtered.length) return null;
       return {
         // 이름 전체(nameStart..nameEnd)를 교체 대상으로 → 기존 토큰 클릭 후 선택 시 통째로 바뀐다.
         from: line.from + nameStartRel,
         to: line.from + nameEndRel,
         filter: false,
-        getMatch: (c: Completion) => matchRange(c.label, prefix),
+        getMatch: (c: Completion) => matchRange(c.label, query),
         options: filtered.map((tk) => ({
           label: tk.name,
           detail: tk.value,

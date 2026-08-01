@@ -135,9 +135,23 @@ export function ValueCombobox({
     [category, prop],
   );
 
+  // 팝오버가 닫히면 cmdk Input이 언마운트되며 검색어를 ""로 리셋하고, controlled 입력이라
+  // 그 리셋이 onValueChange로 되돌아온다 — 라이브 적용에 태우면 방금 커밋한 값이 빈 값으로
+  // 덮인다(POSTMORTEM 2026-07-14 계열: 팝오버 내부 입력과 바깥 state의 수명 불일치).
+  // state가 아니라 ref인 이유: 리셋 콜백이 닫기와 같은 커밋에서 와 렌더 값으로는 못 막는다.
+  const openRef = useRef(false);
+  // 방향키로 항목을 옮겼는지 — Enter를 우리가 확정할지(자유입력) cmdk 선택에 맡길지 가른다.
+  const navigatedRef = useRef(false);
+  // 열자마자의 draft(=현재 값 prefill)와 사용자가 친 입력을 가른다.
+  const [typing, setTyping] = useState(false);
+  const setPopoverOpen = (next: boolean) => {
+    openRef.current = next;
+    setOpen(next);
+  };
+
   const commit = (next: string) => {
     set(finalize(next));
-    setOpen(false);
+    setPopoverOpen(false);
   };
 
   const onTokenSelect = commit;
@@ -145,6 +159,8 @@ export function ValueCombobox({
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
       setDraft(tokenNames.length > 0 ? "" : value);
+      navigatedRef.current = false;
+      setTyping(false);
       setShowAll(false);
       setPinnedPrefixes(liveFamilyPrefixes);
     } else {
@@ -152,10 +168,14 @@ export function ValueCombobox({
       const finalized = finalize(draft.trim());
       if (finalized && finalized !== value) set(finalized);
     }
-    setOpen(nextOpen);
+    setPopoverOpen(nextOpen);
   };
 
-  const showRawItem = draft.trim().length > 0 && !draftLooksLikeToken;
+  // var(…) 자유입력(미정의 토큰·타이핑 중간)도 확정 수단이 있어야 한다 — 토큰 검색 모드
+  // (draftLooksLikeToken)는 목록 필터에만 관여하고 직접 입력 항목을 가리지 않는다.
+  // 타이핑 중에는 초기화/unset을 감춘다 — cmdk 하이라이트가 그쪽에 남으면 화면과 Enter 결과가
+  // 어긋나고(방향키로 내려가면 값이 지워진다), 지우고 싶으면 입력을 비우면 다시 나온다.
+  const showRawItem = draft.trim().length > 0;
   const effectiveShowAll = showAll || draft.trim().length > 0;
 
   const valueTokenHint = rightHintText(
@@ -304,7 +324,10 @@ export function ValueCombobox({
             placeholder={t("value.placeholder")}
             value={draft}
             onValueChange={(v) => {
+              if (!openRef.current) return;
               setDraft(v);
+              setTyping(v.trim().length > 0);
+              navigatedRef.current = false;
               // 라이브 적용은 finalizeLiveValue — color 단축 hex는 blur 전까지 확장하지
               // 않아 입력 중 깜빡임을 막는다(commit/blur는 finalize로 확장).
               const normalized = finalizeLiveValue(category, v.trim(), prop);
@@ -316,11 +339,52 @@ export function ValueCombobox({
             icon={<PenLine className="mr-2 h-4 w-4 shrink-0 opacity-50" />}
             className="h-9"
             onKeyDown={(e) => {
-              if (e.key === "Enter") e.preventDefault();
+              // cmdk가 실제로 목록 이동에 쓰는 키만 래치한다 — Left/Right는 캐럿 이동이라
+              // 래치하면 자유입력 확정이 막히고, vim 바인딩(기본 on)인 Ctrl+N/P/J/K를 빼면
+              // 그 경로로 고른 토큰이 자유입력으로 덮인다.
+              if (
+                e.key === "ArrowUp" ||
+                e.key === "ArrowDown" ||
+                e.key === "Home" ||
+                e.key === "End" ||
+                (e.ctrlKey && ["n", "p", "j", "k"].includes(e.key.toLowerCase()))
+              ) {
+                navigatedRef.current = true;
+                return;
+              }
+              if (e.key !== "Enter") return;
+              if (
+                e.nativeEvent.isComposing ||
+                e.nativeEvent.keyCode === 229
+              ) return;
+              // cmdk의 Enter는 "하이라이트 항목 선택"인데, 그 하이라이트는 항목 집합이 바뀌는
+              // 타이밍에 좌우되고 controlled value와도 역통보 경합이 생긴다.
+              // 자유입력 확정은 결정적이어야 하므로 여기서 직접 처리하고 cmdk로 넘기지 않는다.
+              if (navigatedRef.current) return; // 방향키로 고른 항목 → cmdk에 위임
+              e.preventDefault();
+              // cmdk root는 defaultPrevented면 스스로 건너뛴다 — stopPropagation은 상위
+              // 핸들러까지 끊는 이중 방어다(팝오버 바깥이 Enter를 잡는 경우 대비).
+              e.stopPropagation();
+              const raw = draft.trim();
+              if (raw) commit(raw);
             }}
           />
           <CommandList>
-            {value || placeholder ? (
+            {showRawItem ? (
+              <CommandGroup heading={t("value.manualInput")}>
+                <CommandItem
+                  value={`__raw__${finalize(draft.trim())}`}
+                  onSelect={() => commit(draft.trim())}
+                >
+                  {category === "color" &&
+                  isRenderableColorLiteral(finalize(draft.trim())) ? (
+                    <ColorSwatch color={finalize(draft.trim())} />
+                  ) : null}
+                  <span className="text-sm">{finalize(draft.trim())}</span>
+                </CommandItem>
+              </CommandGroup>
+            ) : null}
+            {!typing && (value || placeholder) ? (
               <CommandGroup heading={t("common.actions")}>
                 {value ? (
                   <CommandItem value="__clear__" onSelect={() => commit("")}>
@@ -334,20 +398,6 @@ export function ValueCombobox({
                     <span className="text-xs">{t("value.unset")}</span>
                   </CommandItem>
                 ) : null}
-              </CommandGroup>
-            ) : null}
-            {showRawItem ? (
-              <CommandGroup heading={t("value.manualInput")}>
-                <CommandItem
-                  value={`__raw__${finalize(draft.trim())}`}
-                  onSelect={() => commit(draft.trim())}
-                >
-                  {category === "color" &&
-                  isRenderableColorLiteral(finalize(draft.trim())) ? (
-                    <ColorSwatch color={finalize(draft.trim())} />
-                  ) : null}
-                  <span className="text-sm">{finalize(draft.trim())}</span>
-                </CommandItem>
               </CommandGroup>
             ) : null}
             {familyGroupsFiltered.map((g) => (
@@ -435,4 +485,3 @@ function buildTriggerTitle({
   const body = `${main}${tail}`;
   return iconTitle ? `${iconTitle} · ${body}` : body;
 }
-

@@ -122,6 +122,12 @@ Connect 폼에서 **상위 값을 바꾸면 하위 assignee·label defaults를 �
 - **private alias** (`--_xxx` 언더스코어 prefix): 리터럴까지 끝까지 펼침.
 - fallback `var(--x, var(--y))` — primary 미정의면 fallback 이름으로 resolve, 규칙 동일.
 
+**단 토큰 목록(`collectTokens`)의 값은 다른 규칙을 쓴다** — `resolveTokenValue`가 public 토큰 이름까지 **값으로 끝까지 편다**. 이름 보존은 specified *표기*의 규칙이고, 목록에 필요한 건 실제 값이기 때문: `--color-primary: var(--blue-500)`이 `var(…)`로 남으면 `categorizeToken`이 `unknown`을 내고 그 토큰이 `ValueCombobox`·CodeMirror 제안의 base/extra에서 통째로 빠진다. 해석 재료는 `collectTokens`가 1패스에서 만든 name→값 맵(computed 우선, 없으면 원문)이라 스코프 밖 정의의 alias도 값에 도달한다.
+
+**시트 열거는 `flattenSheets`(`css-source-cache.ts`)가 맡는다** — `document.styleSheets` + `adoptedStyleSheets`에 활성 `@import` 시트를 부모 앞에 펼친다(import 시트는 `document.styleSheets`에 안 잡히고 부모의 `CSSImportRule.styleSheet` 아래에만 있다. cascade상 `@import`는 최상단 전용이라 첫 style rule에서 스캔을 끊는다). `media`·`supportsText`가 비활성이면 제외하고, layered import는 root `CSSLayerBlockRule`과 같은 기존 source-order 근사로 포함한다(정확한 cascade layer 우선순위는 resolver 전체의 수용 한계). cross-origin import는 `cssRules` 접근이 throw → 자신만 남는다. 토큰 수집·specified rule index는 같은 평탄 경계를 쓰고, raw 원문은 기존 50-sheet cap을 유지하되 `selectSheetsForRawLoad`가 top-level 부모를 먼저 보존하고 남는 슬롯에 import를 넣어 import가 부모의 pending-substitution 복구를 밀어내지 못하게 한다.
+
+**토큰 수집 경계**(전수 수집이 아니다 — 의도된 범위): same-origin CSSOM 전 규칙(위 `@import` 포함) + 조상 인라인 `--*` + cross-origin **전역**(`:root`/`html`/`*`) 정의 + **요소가 실제 참조하는 이름**(`collectReferencedTokenNames` → 값은 computed가 채움). 빠지는 건 cross-origin 시트의 **스코프 정의 중 선택 요소가 참조하지 않는 것**(`.card{--card-bg}`를 `.button` 선택 중에는 못 본다)과 cross-origin 시트 안의 `@import` 대상이다. 전자를 다 담으려면 선택 요소에 적용되지도 않는(=적용 시 무효인) 토큰을 제안하게 되고, 후자는 시트 fetch를 재귀로 늘린다 — 둘 다 이득보다 비용이 커 수용된 한계다(POSTMORTEM 2026-06-28 "cross-origin 전용 custom prop 토큰": 정의 수집은 부분해, 실해법은 참조 수집 + computed).
+
 ## CSSOM shorthand 한계 우회 (Raw CSS Cache)
 
 **`var()`가 낀 shorthand는 그 longhand가 CSSOM에서 전부 빈 문자열이다**(pending-substitution — longhand override가 없어도 그렇다. `border: 1px solid var(--c)` 하나만으로 `border-top-width`…12개가 `""`). 원본 값은 shorthand 키에만 남고 CSSOM만으로는 longhand를 복구할 수 없다. `!important` 여부는 이때도 `getPropertyPriority()`가 정확히 돌려준다 — 값이 비어 있어도 중요도는 읽힌다.

@@ -609,6 +609,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (buffered) {
         return {
           phase: "styling",
+          // 토큰은 선택 요소·프레임 스코프다 — 비동기 재수집이 끝나기 전까지 직전 요소의
+          // 토큰이 남아 있으면 콤보박스·CodeMirror에서 새 요소에 적용할 수 있다.
+          tokens: [],
           // diff baseline(전값)은 인라인이 새어든 재캡처 specified가 아니라 버퍼 원본 snapshot을 쓴다.
           selection: {
             ...selection,
@@ -639,6 +642,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return {
         phase: "styling",
         selection,
+        tokens: [],
         styleEdits: {
           classList: [...selection.classList],
           inlineStyle: {},

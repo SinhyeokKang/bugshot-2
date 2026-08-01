@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("../css-source-cache", () => ({
   getMatchingRules: () => [],
   getRawDeclarationsFor: () => null,
+  flattenSheets: (sheets: unknown[]) => sheets,
 }));
 
 import {
@@ -28,6 +29,7 @@ import {
   noteClaim,
   resolveUncertainSpecified,
   normalizePositionOffsets,
+  resolveTokenValue,
   type EditableHandle,
 } from "../css-resolve";
 
@@ -1449,4 +1451,51 @@ describe("mergeCrossOriginTokens", () => {
     expect(seen.get("--ok")).toBe("#fff");
   });
 });
+
+describe("resolveTokenValue — 토큰 목록의 값/category 판정용 완전 해석", () => {
+  it("public alias도 값까지 펼친다 (resolveVarChain은 이름을 보존해 var(…)로 남는다)", () => {
+    const props = { "--blue-500": "#06f", "--color-primary": "var(--blue-500)" };
+    // 이름 보존 규칙(specified 표기)은 그대로 — 값 판정 경로만 갈린다.
+    expect(resolveVarChain("var(--color-primary)", props)).toBe("var(--color-primary)");
+    expect(resolveTokenValue("var(--blue-500)", props)).toBe("#06f");
+  });
+
+  it("2단 체인도 끝까지 해석", () => {
+    const props = {
+      "--blue-500": "#06f",
+      "--color-primary": "var(--blue-500)",
+      "--color-brand": "var(--color-primary)",
+    };
+    expect(resolveTokenValue("var(--color-brand)", props)).toBe("#06f");
+  });
+
+  it("사이클은 멈춘다 (원본 참조 유지)", () => {
+    const props = { "--a": "var(--b)", "--b": "var(--a)" };
+    expect(resolveTokenValue("var(--a)", props, 0, new Set(["--a"]))).toBe("var(--a)");
+  });
+
+  it("미정의 이름은 fallback으로 해석", () => {
+    expect(resolveTokenValue("var(--nope, 8px)", {})).toBe("8px");
+    expect(resolveTokenValue("var(--nope, var(--gap))", { "--gap": "16px" })).toBe("16px");
+  });
+
+  it("fallback도 없으면 원문 유지 / var 없으면 그대로", () => {
+    expect(resolveTokenValue("var(--nope)", {})).toBe("var(--nope)");
+    expect(resolveTokenValue("#fff", {})).toBe("#fff");
+    expect(resolveTokenValue("", {})).toBe("");
+  });
+
+  it("값 일부에 섞인 참조도 치환 (shorthand)", () => {
+    const props = { "--sp": "4px", "--c": "red" };
+    expect(resolveTokenValue("1px solid var(--c)", props)).toBe("1px solid red");
+    expect(resolveTokenValue("var(--sp) var(--sp)", props)).toBe("4px 4px");
+  });
+
+  it("해석된 값이 category 판정으로 이어진다", () => {
+    const props = { "--blue-500": "#06f", "--color-primary": "var(--blue-500)" };
+    expect(categorizeToken(resolveTokenValue("var(--blue-500)", props))).toBe("color");
+    expect(categorizeToken("var(--blue-500)")).toBe("unknown");
+  });
+});
+
 

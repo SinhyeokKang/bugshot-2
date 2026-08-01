@@ -22,6 +22,7 @@ let observerDebounce: number | null = null;
 let loadAbortController: AbortController | null = null;
 let epoch = 0;
 const MAX_SHEETS = 50;
+const MAX_IMPORT_DEPTH = 5;
 const MAX_SHEET_BYTES = 2_000_000;
 const SHEET_FETCH_TIMEOUT_MS = 8_000;
 
@@ -403,7 +404,7 @@ function isRelevant(muts: MutationRecord[]): boolean {
 /* ── load ────────────────────────────────────────── */
 
 async function loadAll(startedEpoch: number, signal: AbortSignal): Promise<void> {
-  const sheets = collectAllSheets().slice(0, MAX_SHEETS);
+  const sheets = selectSheetsForRawLoad(collectRootSheets(), MAX_SHEETS);
   dlog("loadAll start", { sheetCount: sheets.length });
   await Promise.all(
     sheets.map((sheet, i) =>
@@ -414,11 +415,88 @@ async function loadAll(startedEpoch: number, signal: AbortSignal): Promise<void>
 }
 
 function collectAllSheets(): CSSStyleSheet[] {
+  return flattenSheets(collectRootSheets());
+}
+
+function collectRootSheets(): CSSStyleSheet[] {
   const regular = Array.from(document.styleSheets) as CSSStyleSheet[];
   const adopted = document.adoptedStyleSheets
     ? Array.from(document.adoptedStyleSheets)
     : [];
   return [...regular, ...adopted];
+}
+
+// @import 시트는 document.styleSheets에 안 잡히고 부모의 `CSSImportRule.styleSheet` 아래에만
+// 있다 — 여기서 펴지 않으면 rule index(specified 해석)·raw 원문·토큰 수집이 통째로 놓친다.
+// cascade상 @import는 시트 최상단에만 오므로 부모보다 **앞**에 놓고, 첫 style rule을 만나면
+// 스캔을 끊는다(큰 시트 전수 순회 방지). cross-origin import는 cssRules 접근이 throw → 자신만 남는다.
+export function flattenSheets(
+  sheets: readonly CSSStyleSheet[],
+): CSSStyleSheet[] {
+  const out: CSSStyleSheet[] = [];
+  const seen = new Set<CSSStyleSheet>();
+  const visit = (sheet: CSSStyleSheet, depth: number): void => {
+    if (!sheet || seen.has(sheet)) return;
+    seen.add(sheet);
+    if (depth < MAX_IMPORT_DEPTH) {
+      let rules: CSSRuleList | null = null;
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        rules = null;
+      }
+      for (let i = 0; rules && i < rules.length; i++) {
+        const rule = rules[i] as unknown as {
+          styleSheet?: CSSStyleSheet | null;
+          selectorText?: string;
+          media?: { mediaText?: string };
+          supportsText?: string | null;
+        };
+        if (rule.styleSheet) {
+          if (isActiveImport(rule)) {
+            visit(rule.styleSheet, depth + 1);
+          }
+          continue;
+        }
+        if (rule.selectorText) break;
+      }
+    }
+    out.push(sheet);
+  };
+  for (const sheet of sheets) visit(sheet, 0);
+  return out;
+}
+
+function isActiveImport(rule: {
+  media?: { mediaText?: string };
+  supportsText?: string | null;
+}): boolean {
+  const media = rule.media?.mediaText?.trim();
+  if (media && media !== "all") {
+    if (typeof window === "undefined" || !window.matchMedia?.(media).matches) {
+      return false;
+    }
+  }
+  const supports = rule.supportsText?.trim();
+  if (supports) {
+    if (typeof CSS === "undefined" || !CSS.supports(supports)) return false;
+  }
+  return true;
+}
+
+export function selectSheetsForRawLoad(
+  roots: readonly CSSStyleSheet[],
+  limit: number,
+): CSSStyleSheet[] {
+  const selectedRoots = roots.slice(0, limit);
+  const rootSet = new Set(selectedRoots);
+  const imports = flattenSheets(selectedRoots).filter(
+    (sheet) => !rootSet.has(sheet),
+  );
+  return [
+    ...selectedRoots,
+    ...imports.slice(0, Math.max(0, limit - selectedRoots.length)),
+  ];
 }
 
 async function loadSheet(
@@ -437,8 +515,16 @@ async function loadSheet(
     kind = "external";
     dlog("fetched", { href: sheet.href, ok: text != null, len: text?.length ?? 0 });
   } else if (!owner) {
-    text = serializeAdoptedSheet(sheet);
-    kind = "adopted";
+    // @import 시트는 ownerNode 없이 href만 있다 — 외부 시트와 같은 경로로 원문을 받고
+    // (same-origin만), 실패하면 adopted처럼 CSSOM 직렬화로 폴백.
+    if (sheet.href) {
+      text = await fetchSheetText(sheet.href, signal);
+      kind = "imported";
+    }
+    if (text == null) {
+      text = serializeAdoptedSheet(sheet);
+      kind = sheet.href ? "imported-serialized" : "adopted";
+    }
   }
   if (text == null) {
     dlog("skip — no text", { kind, href: sheet.href });
