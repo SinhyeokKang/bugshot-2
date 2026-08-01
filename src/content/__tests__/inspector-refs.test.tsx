@@ -10,6 +10,7 @@ vi.mock("../css-source-cache", () => ({
   getRawDeclarationsFor: () => null,
   getCrossOriginCustomProps: () => ({}),
   getMatchingCrossOriginRules: () => [],
+  getMatchingCrossOriginCustomPropRules: () => [],
   flattenSheets: (sheets: unknown[]) => sheets,
 }));
 
@@ -108,6 +109,84 @@ describe("collectInspectorSpecRefs — 편집 경로와 같은 전처리", () =>
     host.setAttribute("data-theme", "dark");
 
     expect(collectInspectorSpecRefs(el, computed).color).toBe("var(--color-brand)");
+  });
+
+  it("한 스코프의 두 규칙이 같은 별칭을 다르게 정의하면 이름을 포기한다", () => {
+    // 어느 쪽이 이겼는지 모른 채 first-write 원문을 보존하면 패자 토큰 이름을 노출한다.
+    const rules = sheet(
+      "[data-theme] { --_text: var(--token-a); }" +
+        "[data-theme] { --_text: var(--token-b); }",
+    );
+    const [elRule] = sheet(
+      ".btn { color: var(--_text); font-size: 12px; font-weight: 400; }",
+    );
+    const host = document.createElement("div");
+    host.setAttribute("data-theme", "dark");
+    const el = document.createElement("button");
+    el.className = "btn";
+    host.appendChild(el);
+    document.body.appendChild(host);
+    matchRules.mockImplementation((target: Element) =>
+      target === el ? [elRule] : target === host ? rules : [],
+    );
+
+    const refs = collectInspectorSpecRefs(el, {
+      getPropertyValue: (name) => (name.startsWith("--") ? "#fff" : ""),
+    });
+
+    expect(refs.color).toBe("#fff");
+  });
+
+  it("가까운 스코프가 먼 스코프를 가리는 건 충돌이 아니다 (이름 보존)", () => {
+    // :root와 [data-theme]가 같은 별칭을 정의하는 건 정상 섀도잉 — 가까운 쪽이 이긴다.
+    const [rootRule] = sheet(":root { --_text: var(--token-far); }");
+    const [themeRule] = sheet("[data-theme] { --_text: var(--token-near); }");
+    const [elRule] = sheet(
+      ".btn { color: var(--_text); font-size: 12px; font-weight: 400; }",
+    );
+    const host = document.createElement("div");
+    host.setAttribute("data-theme", "dark");
+    const el = document.createElement("button");
+    el.className = "btn";
+    host.appendChild(el);
+    document.body.appendChild(host);
+    matchRules.mockImplementation((target: Element) =>
+      target === el
+        ? [elRule]
+        : target === host
+          ? [themeRule]
+          : target === document.documentElement
+            ? [rootRule]
+            : [],
+    );
+
+    const refs = collectInspectorSpecRefs(el, {
+      getPropertyValue: (name) => (name.startsWith("--") ? "#fff" : ""),
+    });
+
+    expect(refs.color).toBe("var(--token-near)");
+  });
+
+  it("상속 prop을 찾아 조상을 올라도 요소 자신의 별칭이 이긴다 (섀도잉 오인 금지)", () => {
+    // 이 경로는 조상 순회가 customProps를 공유한다 — 스코프 간 재정의를 충돌로 세면
+    // 멀쩡한 토큰 이름이 리터럴로 무너진다.
+    const [elRule] = sheet(".btn { --_text: var(--token-own); color: var(--_text); }");
+    const [hostRule] = sheet(".host { --_text: var(--token-far); font-size: 12px; }");
+    const host = document.createElement("div");
+    host.className = "host";
+    const el = document.createElement("button");
+    el.className = "btn";
+    host.appendChild(el);
+    document.body.appendChild(host);
+    matchRules.mockImplementation((target: Element) =>
+      target === el ? [elRule] : target === host ? [hostRule] : [],
+    );
+
+    const refs = collectInspectorSpecRefs(el, {
+      getPropertyValue: (name) => (name.startsWith("--") ? "#fff" : ""),
+    });
+
+    expect(refs.color).toBe("var(--token-own)");
   });
 
   it("var()를 안 쓰는 요소는 조상 체인을 훑지 않는다", () => {

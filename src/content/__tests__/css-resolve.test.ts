@@ -1228,6 +1228,61 @@ describe("hydrateReferencedCustomProps", () => {
     expect(customProps["--_bg"]).toBe("var(--brand)");
   });
 
+  it("후보가 여럿이어도 승자와 일치하는 게 하나뿐이면 그 이름을 보존한다", () => {
+    // 후보를 버리지 않고 들고 있으면 판별이 된다 — first-write가 실제 승자인 경우
+    // (id 규칙·!important·layer 순서)까지 이름을 잃을 이유가 없다.
+    const customProps: Record<string, string> = {
+      "--_text": "var(--token-a)",
+      "--token-a": "#111",
+      "--token-b": "#222",
+    };
+    hydrateReferencedCustomProps(
+      ["var(--_text)"],
+      {
+        getPropertyValue: (name) =>
+          name === "--_text" || name === "--token-a"
+            ? "#111"
+            : name === "--token-b"
+              ? "#222"
+              : "",
+      },
+      customProps,
+      new Map([["--_text", new Set(["var(--token-a)", "var(--token-b)"])]]),
+    );
+    expect(customProps["--_text"]).toBe("var(--token-a)");
+  });
+
+  it("같은 이름을 여러 선언이 다르게 정의했으면 이름을 포기하고 computed를 쓴다", () => {
+    // 값이 같다는 건 그 원문이 **승자 선언**이라는 증명이 아니다 — 서로 다른 토큰이 지금 같은
+    // 값이면(둘 다 #fff) first-write-wins로 잡힌 패자 이름을 그대로 노출하게 된다.
+    const customProps: Record<string, string> = {
+      "--_text": "var(--token-a)",
+      "--token-a": "#fff",
+      "--token-b": "#fff",
+    };
+    hydrateReferencedCustomProps(
+      ["var(--_text)"],
+      { getPropertyValue: () => "#fff" },
+      customProps,
+      new Map([["--_text", new Set(["var(--token-a)", "var(--token-b)"])]]),
+    );
+    expect(customProps["--_text"]).toBe("#fff");
+  });
+
+  it("충돌이 없으면 종전대로 원문을 보존한다", () => {
+    const customProps: Record<string, string> = {
+      "--_text": "var(--token-a)",
+      "--token-a": "#fff",
+    };
+    hydrateReferencedCustomProps(
+      ["var(--_text)"],
+      { getPropertyValue: () => "#fff" },
+      customProps,
+      new Map(),
+    );
+    expect(customProps["--_text"]).toBe("var(--token-a)");
+  });
+
   it("raw가 승자와 다른 값으로 풀리면 computed로 덮는다 (승자 판정 유지)", () => {
     const customProps: Record<string, string> = {
       "--_text": "var(--stale)",
