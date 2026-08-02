@@ -67,7 +67,7 @@ Your browser ──────────────────────�
      │
      ├── OAuth exchange only ────────→ BugShot OAuth proxy
      │
-     └── anonymous usage events ─────→ The configured PostHog host
+     └── anonymous usage events ─────→ PostHog (via a proxy domain we own)
 ```
 
 Screenshots, recordings, logs, CSS changes, attachments, and report bodies are
@@ -75,7 +75,10 @@ assembled in the extension and sent directly to the destination you connected.
 For Jira, GitHub, Notion, Asana, ClickUp, and Slack, the BugShot-operated OAuth
 proxy relays authorization-code exchanges and token refreshes; Linear and
 GitLab exchange tokens directly via PKCE. Capture data never goes through the
-proxy. Anonymous analytics contain no capture or report content.
+proxy. Anonymous analytics contain no capture or report content. Those events
+leave through `in.bug-shot.com`, a domain we own whose DNS record points
+straight at PostHog Cloud — it exists so ad and DNS blockers don't silently
+drop the numbers, and no BugShot server sits on that path either.
 
 This has deliberate trade-offs: there is no BugShot account, team workspace,
 cloud sync, or server-side capture processing. The project is open source so
