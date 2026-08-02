@@ -171,6 +171,7 @@ describe("postCapture", () => {
       "application/json",
     );
     expect(init.body).toBe(JSON.stringify(body));
+    expect(init.keepalive).toBe(true);
   });
 
   it("fetch가 reject해도 throw하지 않음", async () => {

@@ -79,6 +79,10 @@ export async function postCapture(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      // extension_installed는 onInstalled 리스너가 동기 반환한 뒤 fire-and-forget으로 나가므로
+      // MV3가 그 사이 SW를 종료하면 요청이 통째로 사라진다. keepalive면 SW가 죽어도 브라우저가
+      // 전송을 완주시킨다(64KB 제한 — payload는 수백 바이트).
+      keepalive: true,
     });
   } catch (err) {
     console.warn("[bugshot] analytics capture failed", err);
