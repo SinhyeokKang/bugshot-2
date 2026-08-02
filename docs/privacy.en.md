@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: July 31, 2026
+**Effective date**: August 2, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -147,7 +147,7 @@ The extension transmits data only to the services below.
 | OAuth proxy server | OAuth authorization code, token refresh requests (refresh token) | Token exchange (Jira, GitHub, Notion, Asana, ClickUp, Slack) |
 | User-specified LLM provider (AI draft) | Issue body draft, page URL/title, selector/tag name/frame id/style information for **multiple elements edited in styling mode**, design tokens for single-element reports, screenshots, before/after images for those elements, and inline images placed in the body (optional), debug log summary (optional), **the shape digest of a bug-related successful (2xx) response body** (top-level key names and value types only, **values excluded**; key names are not masked, but email-, UUID-, and map-shaped record keys are redacted) (optional), the **HTTP method, URL path, status code and the search term that matched** for that request (optional), the user action log summary (optional — may contain unmasked typed and selected values), the extra instructions you type, and any draft you have already written | AI draft generation |
 | User-specified LLM provider (AI styling) | Selected element's tag, CSS selector, class list, current specified styles, design tokens, computed layout styles (display, position, width, margin, etc.), browser viewport size, and the instruction you type | CSS change suggestion |
-| PostHog host configured at build time (default `us.i.posthog.com`) | Anonymous aggregate events (install, panel open, platform connect/disconnect, issue submission) | Anonymous usage analytics |
+| Anonymous analytics host (`in.bug-shot.com`) — a BugShot-owned domain that is a reverse proxy pointing via DNS CNAME straight to PostHog Cloud; PostHog is the party that receives and stores these events (no BugShot server sits on this path) | Anonymous aggregate events (install, panel open, platform connect/disconnect, issue submission) | Anonymous usage analytics |
 
 The OAuth proxy server only relays the token exchange and does not store or log request contents (authorization codes, tokens, or issue data). To prevent abuse it does keep **a per-IP request count over a rolling 60-second window**; that count contains no request contents and disappears once the window passes. Linear and GitLab exchange tokens directly via PKCE without a proxy.
 
