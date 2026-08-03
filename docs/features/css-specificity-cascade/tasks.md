@@ -27,8 +27,8 @@
     b 정상 카운트(대괄호 스킵에 흡수)
   - 이스케이프: `.a\:b`(`[0,1,0]` — `\:`가 pseudo로 안 세짐)
 - **검증**:
-  - [ ] 신규 describe green, `pnpm test` 전체 green
-  - [ ] null 반환 조건마다 WHY 주석 존재(보수적 uncertain 처리 판단 — 스펙 요구)
+  - [x] 신규 describe green, `pnpm test` 전체 green
+  - [x] null 반환 조건마다 WHY 주석 존재(보수적 uncertain 처리 판단 — 스펙 요구)
 
 ### Task 2: `matchedSpecificity` + `hasOpaqueCascadeContext` (TDD)
 
@@ -40,8 +40,8 @@
   `globalThis.CSSLayerBlockRule`/`CSSScopeRule` 스텁 클래스로 parentRule 체인,
   `CSSImportRule.layerName`(`""` 포함) 케이스를 고정.
 - **검증**:
-  - [ ] 신규 describe green
-  - [ ] 두 CSS rule 전역 모두 `typeof` 가드 존재(node 환경에서 ReferenceError 없음)
+  - [x] 신규 describe green
+  - [x] 두 CSS rule 전역 모두 `typeof` 가드 존재(node 환경에서 ReferenceError 없음)
 
 ### Task 3: `noteClaim` specificity 편입 + verdict 반환 (TDD)
 
@@ -68,7 +68,7 @@
     막힘, 승자 리터럴 유지(토큰 소멸이 의도임을 고정)
   - 기존 `noteClaim` 테스트(742행~) 무수정 green(하위호환 확인)
 - **검증**:
-  - [ ] 위 시나리오 red→green, 기존 테스트 무수정 green — 단 `css-resolve.test.ts:790`
+  - [x] 위 시나리오 red→green, 기존 테스트 무수정 green — 단 `css-resolve.test.ts:790`
     ·`:1372`의 `[computed]` 단언은 픽스처 충돌이 known-spec이면 새 판정에서 승자
     확정으로 red 전환될 수 있다. 해당 시 픽스처를 null-spec 셀렉터로 조정하거나
     단언을 새 의도로 갱신(예외 허용 — 이유를 커밋에 남길 것)
@@ -108,12 +108,12 @@
      - 검증 prop은 `INTERESTING_PROPS` 내(`background-color` 등)로 — 반환 직전
        필터(:312)에 걸리면 out 검증이 헛빈다
      검증 항목:
-     - [ ] `styles[prop]` = 높은 spec 규칙 원문값 (패자 값이 안 덮음)
-     - [ ] uncertain 없음 → `[computed]` 대체가 일어나지 않음
+     - [x] `styles[prop]` = 높은 spec 규칙 원문값 (패자 값이 안 덮음)
+     - [x] uncertain 없음 → `[computed]` 대체가 일어나지 않음
      - 대조군: 한쪽 spec `null`이면 기존대로 uncertain → `[computed]` 대체
-     - [ ] **3규칙 교차(desync 방지)**: 높은 spec 직접 `border-top-color` → 낮은
+     - [x] **3규칙 교차(desync 방지)**: 높은 spec 직접 `border-top-color` → 낮은
        spec `border` shorthand → 더 낮은 spec 직접 — 파생 스킵으로 out=승자 원문
-     - [ ] **var 신규 uncertain 대조**: var vs var 충돌(null spec)이 새로 uncertain
+     - [x] **var 신규 uncertain 대조**: var vs var 충돌(null spec)이 새로 uncertain
        되는 케이스 — out이 var로 남는 한 `:1049` 가드로 `[computed]` 대체가 없음을
        고정(리터럴이 out을 점유하는 조합이 존재하면 대조 테스트로 의도 명시)
   5. `noteClaim`·`shouldOverwriteSpecified`·`resolveUncertainSpecified` 인접 주석을
@@ -123,11 +123,11 @@
      갱신**(직접 선언 경로에선 거짓이 되고 파생 경로만 참으로 남는다 — /push
      트라이아지에 맡기지 말고 이 태스크에서 처리).
 - **검증**:
-  - [ ] `pnpm test` 전체 green + `pnpm typecheck` 통과
-  - [ ] `shouldOverwriteSpecified`·`resolveUncertainSpecified` 시그니처·동작 무변경
+  - [x] `pnpm test` 전체 green + `pnpm typecheck` 통과
+  - [x] `shouldOverwriteSpecified`·`resolveUncertainSpecified` 시그니처·동작 무변경
     (git diff로 확인 — 스코프 밖 명시 항목)
-  - [ ] cross-origin 경로(`mergeCrossOriginDecls`) diff 없음(design.md 확인 결과대로)
-  - [ ] 부기 3지점(954·975·932행 상당)이 verdict 게이트 밖에 있음(코드 리뷰 항목)
+  - [x] cross-origin 경로(`mergeCrossOriginDecls`) diff 없음(design.md 확인 결과대로)
+  - [x] 부기 3지점(954·975·932행 상당)이 verdict 게이트 밖에 있음(코드 리뷰 항목)
   - [ ] 기존 e2e green — 로컬 전수 실행 대신 push 후 CI 결론으로 확인(`e2e/style-*.spec.ts`
     14개가 specified 값 단정을 포함 — uncertain 감소로 값 표기가 바뀌면 여기서 잡힌다)
 
