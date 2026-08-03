@@ -6,7 +6,7 @@ specified 수집의 유일한 규칙 순회 지점인 `collectRulesForElement()`
 에서 규칙당 specificity를 1회 계산해 `noteClaim()`까지 내려보낸다. `noteClaim`은
 후보 비교에 specificity를 편입해 승자를 확정하고, **승자 verdict를 반환**해 쓰기
 경로(`applyDeclarations`·`claimSpecified`)가 패자 값의 out 덮어쓰기를 막게 한다.
-specificity를 신뢰할 수 없는 규칙(`:is()` 등 미지원 셀렉터·`@layer` 소속·`el.matches()`
+specificity를 신뢰할 수 없는 규칙(`:is()` 등 미지원 셀렉터·`@layer`/`@scope` 소속·`el.matches()`
 throw)은 `null`로 전달돼 기존 uncertain 경로를 그대로 탄다.
 
 두 소비 경로(`collectSpecifiedStylesWithSources` = 편집/CSS 뷰, `collectInspectorSpecRefs`
@@ -14,28 +14,34 @@ throw)은 `null`로 전달돼 기존 uncertain 경로를 그대로 탄다.
 회피) 통합 지점은 하나다. 조상 순회(상속 prop)도 같은 함수를 요소만 바꿔 호출하므로
 자동으로 같은 판정을 탄다.
 
+인스펙터는 `uncertain`을 computed로 치환하지 않고 색상·토큰 참조만 소비한다. 따라서
+known-specificity 충돌에서는 verdict가 승자 값·출처를 바로잡고, `null` 충돌에서는 기존
+근사 동작을 유지한다. 편집/CSS 뷰의 `[computed]` 폴백과 동일하다고 표현하지 않는다.
+
 ## 변경 범위
 
 ### `src/content/css-resolve.ts` (수정)
 
-- **`selectorSpecificity(selector: string): number | null`** (신규 export, 순수):
-  단일 셀렉터(콤마 없음) → `a * 1_000_000 + b * 1_000 + c` 스칼라
-  (버킷당 `Math.min(n, 999)` 캡 — 진짜 셀렉터는 세 자리를 넘지 않고, 캡이 있어야
-  버킷 오버플로가 상위 버킷을 오염하지 않는다). 판정 불가면 `null`.
-- **`matchedSpecificity(el, selectorText): number | null`** (신규 export):
+- **`Specificity = readonly [number, number, number]`** (신규 export): ID·class/attribute/
+  pseudo-class·type/pseudo-element 성분을 보존한다. `compareSpecificity()`가 사전식으로
+  비교해 임의 cap이나 스칼라 충돌을 만들지 않는다.
+- **`selectorSpecificity(selector: string): Specificity | null`** (신규 export, 순수):
+  단일 셀렉터(콤마 없음)의 specificity 튜플. 판정 불가면 `null`.
+- **`matchedSpecificity(el, selectorText): Specificity | null`** (신규 export):
   `splitSelectorList()`로 나눈 뒤 `el.matches()`로 실제 매치되는 파트 중 최고
   specificity(CSS 사양과 동일). `el`은 `matches(sel: string): boolean`만 요구하는
   구조적 타입으로 받아 node 테스트에서 스텁 주입 가능하게 한다.
-- **`isRuleLayered(rule: CSSStyleRule): boolean`** (신규, 내부): `@layer` 소속 판정.
-- **`ClaimState.candidates`** 항목에 `specificity: number | null` 추가.
-- **`noteClaim()`**: `specificity: number | null = null` 파라미터 추가 + **boolean
+- **`hasOpaqueCascadeContext(rule: CSSStyleRule): boolean`** (신규, 내부): 정확한 승자
+  판정을 별도 구현하지 않는 `@layer` 또는 `@scope` 소속 판정.
+- **`ClaimState.candidates`** 항목에 `specificity: Specificity | null` 추가.
+- **`noteClaim()`**: `specificity: Specificity | null = null` 파라미터 추가 + **boolean
   반환**(이 선언이 현재 승자인가). 기존 호출부(테스트 포함)는 기본값·반환 무시로
   컴파일 유지.
 - **`applyDeclarations()`·`extractVarPropsFromCssText()`·`extractVarPropsFromMap()`**:
   `specificity` 파라미터 스레딩. `applyDeclarations`의 두 쓰기 지점은
   `noteClaim` verdict && `shouldOverwriteSpecified` 둘 다 통과해야 쓴다.
 - **`collectRulesForElement()`**: 규칙당
-  `isRuleLayered(rule) ? null : matchedSpecificity(el, rule.selectorText)` 1회 계산 후
+  `hasOpaqueCascadeContext(rule) ? null : matchedSpecificity(el, rule.selectorText)` 1회 계산 후
   세 호출(`extractVarPropsFromMap`/`FromCssText`, `applyDeclarations`)에 전달.
   inline 패스는 `null` 전달(inline은 origin `"[inline]"` 분기가 이미 처리).
 - `shouldOverwriteSpecified()`·`resolveUncertainSpecified()`·`claimBorderProp()`·
@@ -53,7 +59,7 @@ import 중).
 
 ## specificity 계산 사양
 
-`selectorSpecificity` 는 한 패스 토크나이저로 계산한다:
+`selectorSpecificity` 는 한 패스 토크나이저로 `[a, b, c]`를 계산한다:
 
 | 토큰 | 기여 |
 |---|---|
@@ -80,28 +86,33 @@ import 중).
 - 매치된 파트 중 하나라도 specificity `null` → 전체 `null`(그 파트가 최고일 수 있다).
 - 매치 파트 0개(인덱스 손상 등 비정상) → `null`.
 
-`isRuleLayered`:
+`hasOpaqueCascadeContext`:
 
 - `rule.parentRule` 체인에 `CSSLayerBlockRule`(`typeof` 가드 — jsdom 부재 대비) 존재,
   또는 `rule.parentStyleSheet`의 `ownerRule` 체인에 `layerName != null`인
   `CSSImportRule`(익명 layer는 `""`라 `!= null` 판정) 존재 시 true.
+- `rule.parentRule` 체인에 `CSSScopeRule`(`typeof` 가드) 존재 시 true. scope proximity는
+  specificity 뒤·source order 앞의 별도 캐스케이드 축이라 현재 모델로 확정하지 않는다.
 
 ## noteClaim 판정 순서 (변경 후)
 
-기존 분기(1–5) 유지, 6을 신설. 반환값은 "이 선언이 현재 승자로 남았는가":
+반환값은 "이 선언이 현재 승자로 남았는가":
 
 1. 첫 후보 → 채택, `true`.
-2. 같은 값 → 기존대로 inline/important 승격만, `true`.
-3. `previous.important && !important` → 유지, `false`.
-4. `!previous.important && important` → 채택 + `uncertain.delete`, `true`.
-5. inline 교차(기존) → 각각 `true`/`false`.
-6. **(신설)** `previous.specificity != null && specificity != null`:
-   - `specificity >= previous.specificity` → 채택(동률은 문서순 뒤 승 — 순회가
+2. important 교차 → important 선언을 채택하고 각각 `true`/`false`.
+3. inline 교차 → inline 선언을 채택하고 각각 `true`/`false`.
+4. `previous.specificity != null && specificity != null`:
+   - `compareSpecificity(specificity, previous.specificity) >= 0` → 채택(동률은 문서순 뒤 승 — 순회가
      `seq` 오름차순임을 `getMatchingRules`가 보장), `true`. **uncertain 추가 안 함.**
    - `<` → 이전 승자 유지, `false`. **`uncertain.delete` 하지 않는다** — 이 prop이
      앞서 null-spec 후보와의 충돌로 이미 uncertain이면 그 판정 불가 이력은 유효하다
      (candidates는 마지막 승자 1개만 기억하므로 삭제하면 이력을 잃는다). 보수 유지.
-7. 폴백(어느 한쪽 `null`) → 기존대로 채택 + `uncertain.add`, `true`.
+5. 같은 값 + 어느 한쪽 `null` → 값 자체는 확정이므로 uncertain을 늘리지 않고 이전
+   후보를 유지, `false`. 출처를 알 수 없는데 뒤 선언을 승자로 단정하지 않는다.
+6. 다른 값 + 어느 한쪽 `null` → 기존대로 채택 + `uncertain.add`, `true`.
+
+같은 값도 2–4의 승자 비교를 먼저 탄다. 그렇지 않으면 낮은 specificity·일반 선언이
+`true`를 받아 `sources[prop]`를 패자 셀렉터로 덮는 회귀가 생긴다.
 
 ## 역할 분리 (쓰기 게이트)
 
@@ -121,8 +132,8 @@ specificity 승자가 리터럴이고 현재 값이 author var()면 여전히 �
 
 var 경로(`extractVarPropsFromMap`)의 **직접 선언 prop**(shorthand 키 자체·var 낀
 longhand)도 `claims`가 있으면 `noteClaim`을 먼저 태워 같은 verdict 게이트를 적용한다.
-CSSOM 패스(`applyDeclarations`)가 같은 선언을 중복 등록해도 같은 값+같은 origin이라
-분기 2(같은 값)로 무해하다. **파생 longhand claim(`claimBorderProp`·split 전개)은
+CSSOM 패스(`applyDeclarations`)가 같은 선언을 중복 등록해도 같은 값·origin·specificity라
+동률 뒤 선언 분기로 무해하다. **파생 longhand claim(`claimBorderProp`·split 전개)은
 `noteClaim`을 태우지 않는다(현행 유지)** — 파생값을 후보로 등록하면 직접 선언과의
 교차에서 지금 없던 uncertain이 새로 생겨 computed 폴백이 늘어난다(회귀). 파생-직접
 간 specificity 무시는 기존의 수용된 근사다(POSTMORTEM 2026-06-28 "의도된 근사").
@@ -132,7 +143,7 @@ CSSOM 패스(`applyDeclarations`)가 같은 선언을 중복 등록해도 같은
 ```
 collectRulesForElement(el, …)
   └ for rule of getMatchingRules(el)          // seq 오름차순 = 문서 순서
-      spec = isRuleLayered(rule) ? null : matchedSpecificity(el, rule.selectorText)
+      spec = hasOpaqueCascadeContext(rule) ? null : matchedSpecificity(el, rule.selectorText)
       ├ extractVarPropsFromMap/FromCssText(…, spec)   // 직접 prop: noteClaim verdict → claimSpecified
       └ applyDeclarations(decl, …, spec)              // noteClaim verdict && shouldOverwriteSpecified → out 쓰기
   └ inline 패스: applyDeclarations(style, …, "[inline]", null)
@@ -143,21 +154,25 @@ collectRulesForElement(el, …)
 ## 인터페이스 설계
 
 ```typescript
-// 단일 셀렉터(콤마 없음)의 specificity. a*1e6 + b*1e3 + c 스칼라, 판정 불가면 null.
-export function selectorSpecificity(selector: string): number | null;
+export type Specificity = readonly [number, number, number];
+
+// 단일 셀렉터(콤마 없음)의 specificity 튜플. 판정 불가면 null.
+export function selectorSpecificity(selector: string): Specificity | null;
+
+export function compareSpecificity(a: Specificity, b: Specificity): -1 | 0 | 1;
 
 // selector list에서 el에 실제 매치되는 파트 중 최고 specificity. el은 구조적 타입.
 export function matchedSpecificity(
   el: { matches(selectors: string): boolean },
   selectorText: string,
-): number | null;
+): Specificity | null;
 
 export interface ClaimState {
   important: Set<string>;
   derived: Set<string>;
   candidates: Map<
     string,
-    { value: string; important: boolean; origin: string; specificity: number | null }
+    { value: string; important: boolean; origin: string; specificity: Specificity | null }
   >;
   uncertain: Set<string>;
 }
@@ -169,7 +184,7 @@ export function noteClaim(
   value: string,
   important: boolean,
   origin: string,
-  specificity?: number | null, // default null — 기존 호출부 하위호환
+  specificity?: Specificity | null, // default null — 기존 호출부 하위호환
 ): boolean;
 ```
 
@@ -196,8 +211,8 @@ last-wins 근사는 POSTMORTEM 2026-06-28에 "의도된 근사"로 이미 수용
 
 1. **`@layer` 순서까지 재현해 layer 규칙도 확정** — 기각. layer 트리 순서·중첩·
    `revert-layer`까지 필요해 스코프 대비 과대. 스펙이 명시적으로 제외.
-2. **specificity를 `[a,b,c]` 튜플로 반환** — 기각. 비교·저장이 스칼라가 단순하고
-   버킷 캡(999)이면 충돌 없음. 스펙이 양쪽 허용.
+2. **specificity를 cap 적용 스칼라로 반환** — 기각. CSS는 성분별 사전식 비교이고
+   각 성분에 규격상 상한이 없어 cap 충돌이 가능하다. `[a,b,c]` 튜플로 정확히 비교한다.
 3. **`shouldOverwriteSpecified`에 specificity 파라미터를 직접 추가** — 기각.
    candidates(이전 승자의 specificity)를 모르는 함수라 호출부마다 조회 코드가 복제돼
    POSTMORTEM의 "가드 복제 드리프트" 함정을 재현한다. verdict 반환으로 판정을
@@ -217,8 +232,8 @@ last-wins 근사는 POSTMORTEM 2026-06-28에 "의도된 근사"로 이미 수용
 - **테스트 시그니처 결합**: 기존 `noteClaim` 테스트가 positional 인자라 파라미터를
   중간에 끼우면 전부 깨진다 — 반드시 **마지막 optional**로 추가.
 - **serialization 차이로 인한 자기 충돌**: 같은 규칙을 raw 파서와 CSSOM이 다른
-  표기로 읽으면(공백 등) 분기 2(같은 값)를 빠져나갈 수 있다. var 경로는 var() 값만
+  표기로 읽으면(공백 등) 동일 값 경로를 빠져나갈 수 있다. var 경로는 var() 값만
   다루고 `resolveUncertainSpecified`가 var() 값은 computed로 대체하지 않으므로
   (`css-resolve.ts:1049`) 실해 없음 — 주석으로 남긴다.
-- **jsdom에 `CSSLayerBlockRule` 부재**: `typeof` 가드 필수. 단위 테스트는
-  `globalThis`에 동명 클래스를 세워 스텁한다.
+- **node/jsdom에 `CSSLayerBlockRule`/`CSSScopeRule` 부재**: `typeof` 가드 필수.
+  단위 테스트는 `globalThis`에 동명 클래스를 세워 스텁한다.
