@@ -34,7 +34,8 @@ tag 5, `nth-of-type` 10이라 안정적인 `data-e2e` 조상보다 전역에서 
 1. 선택 요소와 조상에서 안정성 높은 앵커를 우선 사용하되, 완성 selector가 현재
    frame document에서 선택 요소 하나만 가리킨다는 런타임 계약을 유지한다.
 2. `data-testid`·`data-e2e`·`data-cy` 같은 테스트 계약 속성을 생성 ID·해시 클래스·
-   임의 `data-*`보다 우선한다. 위치 표현은 다른 유일한 후보가 없을 때만 사용한다.
+   임의 `data-*`보다 우선한다. 선택 요소에서 사용자가 편집할 수 있는 class는 안정 후보에서
+   제외하고, 위치 표현은 다른 유일한 후보가 없을 때만 사용한다.
 3. 요소 스타일 편집 이슈의 `DOM` 행을 selector 나열에서 번호가 붙은 짧은 식별 목록으로
    바꾼다. 각 항목은 안정적 앵커와 대상 태그만 표시하며 선택 요소의 text는 포함하지 않는다.
 4. 각 스타일 변경 섹션을 같은 요소 번호로 연결하고, 실행 가능한 전체 selector는 그
@@ -106,8 +107,8 @@ tag 5, `nth-of-type` 10이라 안정적인 `data-e2e` 조상보다 전역에서 
 
 1. 사용자가 1-depth iframe 안의 요소를 수정한다.
 2. selector 유일성은 해당 frame document 안에서 검증한다.
-3. DOM 요약과 Style changes 섹션에 frame origin을 조건부로 표시해 top document의 같은
-   selector와 구분한다. top frame에는 origin을 반복 표시하지 않는다.
+3. DOM 요약의 iframe 항목에만 frame origin host를 조건부로 표시해 top document의 같은
+   selector와 구분한다. Style changes는 같은 Element 번호로 연결하고 origin을 반복하지 않는다.
 
 ### 저장 초안과 구버전 초안
 
@@ -121,6 +122,9 @@ tag 5, `nth-of-type` 10이라 안정적인 `data-e2e` 조상보다 전역에서 
 - 예시 DOM에서 전역 유일 조건이 충족되면 `data-e2e` 앵커를 포함한 selector가 클래스+
   `nth-of-type` 후보보다 먼저 선택된다.
 - 동적 ID·해시 클래스·상태/순서 `data-*`가 안정 앵커로 승격되지 않는 테스트가 있다.
+- 선택 요소에서 편집 가능한 class는 안정 class 후보에 쓰지 않으며, class 삭제·교체 뒤에도
+  현재 편집·버퍼 승격·재선택·패널 재오픈·캡처가 같은 요소를 유지하거나 기존 best-effort
+  fallback으로 명시적으로 처리된다.
 - 생성된 selector는 항상 현재 frame document에서 정확히 선택 요소 하나만 매치한다.
 - finder timeout·후보 부재 때 기존 위치 fallback이 유지되고 선택·재선택·편집 적용·캡처가
   동작한다.
@@ -130,6 +134,8 @@ tag 5, `nth-of-type` 10이라 안정적인 `data-e2e` 조상보다 전역에서 
 - Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack, 클립보드 HTML/Markdown,
   미리보기, 저장 초안 상세이 동일한 정보를 보존한다.
 - top frame의 같은 selector와 iframe selector가 origin 표기로 구분된다.
+- picker의 안정 locator 생성은 선택 요소 1개에만 적용되며 DOM Tree의 기존 로딩 비용을
+  증가시키지 않는다. locator 탐색은 전체 500ms/2000 path check 상한 안에서 끝난다.
 - 새 권한·env·OAuth·외부 API·서버 전송 경로가 없다. 캡처 데이터는 기존처럼 브라우저에서
   사용자가 선택한 플랫폼으로 직접 전송된다.
 - 관련 단위 테스트와 `pnpm test`, `pnpm typecheck`가 통과한다. 빌드는 실행하지 않는다.

@@ -25,9 +25,10 @@ EditorSelection → BufferedElement/IssueRecord → StyleElementContext까지 �
 
 ### `src/content/dom-describe.ts` (수정)
 
-- `buildSelector(el)`을 `buildElementLocator(el).selector`의 얇은 호환 wrapper로 변경.
-- 기존 `pathSelector`는 `element-locator.ts`의 최후 fallback으로 이동하거나 export 없이
-  위임한다.
+- DOM Tree의 `buildSelector(el)`은 기존 단일 finder 경량 경로를 유지한다. ancestor와 lazy
+  child마다 안정 locator 탐색을 반복하지 않는다.
+- 기존 `pathSelector`는 안정 locator의 최후 fallback에서도 재사용하되 DOM Tree 경로와
+  선택 요소 locator 경로의 비용 계약을 분리한다.
 - DOM Tree의 `TreeNode.selector` 계약은 유지한다.
 
 ### `src/content/css-resolve.ts`·`src/content/picker.ts` (수정)
@@ -46,7 +47,7 @@ EditorSelection → BufferedElement/IssueRecord → StyleElementContext까지 �
 ### `src/store/editor-store.ts`·`src/store/issues-store.ts` (수정)
 
 - `EditorSelection.locator`, `BufferedElement.locator` 전달.
-- `IssueRecord.locator?`, `IssueBufferedElement.locator?` optional 영속화.
+- `IssueRecord.locator?`, `IssueRecord.origin?`, `IssueBufferedElement.locator?` optional 영속화.
 - `confirmDraft`가 현재 요소와 버퍼 요소 locator를 저장한다. `saveDraft` 병합에서 빈 버퍼가
   되살아나는 기존 함정을 피하도록 `bufferedElements` 키를 현행처럼 명시적으로 쓴다.
 - locator는 문자열·작은 enum뿐이며 blob 저장소를 사용하지 않는다. 스키마 버전 bump 없이
@@ -81,8 +82,12 @@ EditorSelection → BufferedElement/IssueRecord → StyleElementContext까지 �
 
 ### 미리보기·저장 초안 UI (수정)
 
-- `src/sidepanel/tabs/DraftingPanel.tsx`, `PreviewPanel.tsx`, `DraftDetailDialog.tsx`가 공용
-  formatter 결과를 사용한다.
+- `src/sidepanel/tabs/DraftingPanel.tsx`, `PreviewPanel.tsx`, `DraftDetailDialog.tsx`가 DOM
+  전용 structured row와 공용 `<ol>` 렌더러를 사용한다. 기존 `{label,value:string}` 행에
+  개행 문자열을 밀어 넣지 않는다.
+- 400px에서는 고정 라벨 옆 목록을 `min-w-0`으로 두고 anchor/tag는 code 조각, Selector 행은
+  선택 가능한 mono `<code>` + `overflow-wrap:anywhere`로 렌더한다. 별도 복사 버튼은 추가하지 않는다.
+- Style changes React key는 공용 `selector+frameId` element key를 사용한다.
 - `src/sidepanel/lib/resolveDraftStyleElements.ts`가 저장 locator/origin을 라이브
   `StyleElementContext`로 복원한다.
 
@@ -98,9 +103,9 @@ EditorSelection → BufferedElement/IssueRecord → StyleElementContext까지 �
 - `docs/ARCHITECTURE.md`: selector 생성 우선순위, 실행 selector/표시 locator 역할 분리,
   복수 요소 번호 파생, iframe scope를 기록.
 - `docs/DIRECTORY.md`: 신규 `element-locator.ts`·`elementLocatorFormat.ts` 역할 추가.
-- `docs/privacy.ko.md`·`docs/privacy.en.md`: 새 text 수집은 없고 기존 “요소 selector” 범주
-  안이지만, 조상 test attribute가 사람이 읽는 DOM 요약으로 제출된다는 점을 양쪽에서
-  대조한다. 기존 설명이 이를 포괄하지 않으면 ko 원본·en 번역과 시행일을 함께 갱신한다.
+- `docs/privacy.ko.md`·`docs/privacy.en.md`: 새 text 수집은 없지만 실행 selector에 없을 수
+  있는 조상 test attribute 값이 별도 저장·전송된다. ko 원본·en 번역 본문과 시행일을
+  반드시 함께 갱신한다.
 - `guide/ko/element/issue.md`·`guide/en/element/issue.md`: 복수 요소 DOM 번호 목록과 각
   Style changes의 selector 위치를 설명한다.
 
@@ -108,13 +113,13 @@ EditorSelection → BufferedElement/IssueRecord → StyleElementContext까지 �
 
 ```text
 사용자 요소 선택 (해당 frame document)
-  → buildElementLocator(element)
+  → collectSelection에서 buildElementLocator(element) 1회
       ├─ 단계별 finder 후보 최대 4개
       ├─ document 유일성 + target 동일성 검증
       └─ 실패 시 pathSelector fallback
   → picker.selected { payload.locator, selector=locator.selector }
   → EditorSelection.locator
-      ├─ 현재 요소 → IssueRecord.locator?
+      ├─ 현재 요소 → IssueRecord.locator? + IssueRecord.origin?
       └─ bufferCurrentElement → BufferedElement.locator
                               → IssueBufferedElement.locator?
   → mergeStyleElements(buffered, current)
@@ -148,15 +153,13 @@ export interface ElementLocator {
   anchor?: ElementLocatorAnchor;
   // 선택 요소 tagName lowercase. text와 accessible name은 넣지 않는다.
   targetTag: string;
-  // iframe일 때만 sender.origin에서 사이드패널이 보강. payload 값은 신뢰하지 않는다.
-  frameOrigin?: string;
   // 위치 fallback 포함 여부. 표시하지 않고 테스트·메타 진단에 사용.
   usesPosition: boolean;
 }
 
 export interface PickerSelectionPayload {
   selector: string; // locator.selector와 동일 — 기존 소비처 호환
-  locator: Omit<ElementLocator, "frameOrigin">;
+  locator: ElementLocator;
   // ...기존 필드
 }
 
@@ -177,10 +180,11 @@ export function formatElementLocators(
 ): ElementLocatorDisplay[];
 ```
 
-`frameOrigin`은 content payload에서 받지 않는다. 기존 보안 경계대로
-`usePickerMessages`가 `sender.frameId`·`sender.origin`에서 얻어 locator에 합친다.
-`frameId === 0`이면 표시하지 않고, iframe에서 origin이 비거나 opaque면 기존 origin
-표기 관례와 같은 localized fallback을 사용한다.
+origin은 content payload에서 받지 않는다. 기존 보안 경계대로 `usePickerMessages`가
+`sender.frameId`·`sender.origin`에서 얻어 `EditorSelection.origin`에 합치고, 저장 시
+`IssueRecord.origin?`과 `IssueBufferedElement.origin?`에 대칭으로 보존한다. `frameId === 0`이면
+표시하지 않는다. iframe은 기존 `originHostLabel` 규칙의 host Badge를 DOM 목록에만 표시하고
+전체 origin은 tooltip, opaque/빈 origin은 localized unknown을 사용한다.
 
 ## selector 후보 및 스코어링
 
@@ -195,7 +199,8 @@ export function formatElementLocators(
 1. **test contract**: tag + 신뢰 test attribute만 허용. ID·class·기타 attribute 제외.
 2. **stable identity**: 1단계 + 안정성 휴리스틱을 통과한 ID + `name`, `for`,
    `aria-label`, `role` 같은 finder 기존 semantic attribute.
-3. **stable class**: 2단계 + 안정성 휴리스틱을 통과한 class.
+3. **stable class**: 2단계 + 안정성 휴리스틱을 통과한 조상 class. 선택 요소 자체의 class는
+   사용자가 편집·삭제할 수 있으므로 안정 후보에서 제외한다.
 4. **compatibility fallback**: finder 현행 기본 필터. 기존 사이트 호환과 후보 부재 방어.
 
 각 단계 출력과 `pathSelector`를 후보 목록에 넣되 중복 문자열은 제거한다. finder가 timeout
@@ -239,7 +244,7 @@ test attribute를 포함한 ID·class·attribute 값에 다음 중 하나가 맞
 
 ```typescript
 type SelectorScore = readonly [
-  riskTier: 0 | 1 | 2 | 3 | 4 | 5,
+  riskTier: 0 | 1 | 2 | 3 | 4 | 5 | 6,
   positionalCount: number,
   baseStabilityTier: 0 | 1 | 2 | 3,
   unstableTokenCount: number,
@@ -252,10 +257,13 @@ type SelectorScore = readonly [
 - base tier 1: 안정 ID/semantic attribute 포함
 - base tier 2: 안정 class만으로 구성
 - base tier 3: 안정 token 없는 호환 fallback
-- risk tier 0~2: 위치 표현·불안정 token 없는 base tier를 그대로 사용
-- risk tier 3: 안정 token으로 만들었지만 위치 표현이 필요한 후보
-- risk tier 4: 동적/임의 attribute 등 불안정 token이 든 호환 후보
-- risk tier 5: `pathSelector` 최후 fallback
+- risk tier 0: 위치 표현 없는 신뢰 test attribute 후보
+- risk tier 1: 위치 표현 없는 안정 ID/semantic attribute 후보
+- risk tier 2: 위치 표현 없는 안정 조상 class 후보
+- risk tier 3: 안정 token 없는 위치 비사용 tag-only 후보
+- risk tier 4: 안정 token으로 만들었지만 위치 표현이 필요한 후보
+- risk tier 5: 동적/임의 attribute 등 불안정 token이 든 호환 후보
+- risk tier 6: `pathSelector` 최후 fallback
 - `:nth-child(`와 `:nth-of-type(` 각각 positionalCount 1 증가
 - 동적 거부 패턴과 임의 `data-*`는 unstableTokenCount 증가
 - 같은 risk 안에서 위치 표현 수 → base 안정성 → 불안정 token 수 → compound 수 → 문자열
@@ -281,6 +289,8 @@ anchor로 승격하지 않는다.
 - class별 `querySelectorAll` 반복이나 DOM 전체 대비 비율 계산은 하지 않는다.
 - 전체 finder 예산은 기존 500ms/2000 path check를 넘기지 않는다. 예산 소진 즉시
   `pathSelector`로 끝낸다.
+- 이 예산은 `collectSelection`의 선택 요소 1개에만 적용한다. DOM Tree의 ancestor·형제·lazy
+  child selector는 기존 단일 finder 경량 경로를 유지한다.
 
 ## 본문 출력 계약
 
@@ -302,7 +312,8 @@ anchor로 승격하지 않는다.
 
 - text/accessibility name은 출력하지 않는다.
 - anchor가 없으면 tag만 출력한다.
-- iframe origin은 non-top element에만 마지막 part로 출력한다.
+- iframe origin은 non-top element의 DOM 항목에만 기존 host Badge/동등 텍스트로 출력한다.
+  Style changes에는 origin을 반복하지 않고 Element 번호로 연결한다.
 - 전체 selector는 각 Style changes 섹션에 정확히 한 번만 출력한다.
 - selector를 heading에 넣지 않는다. 긴 selector로 Jira/Notion heading이 비대해지는 것을
   막고 Element 번호를 before/after 이미지·변경 표의 공통 참조로 쓴다.
@@ -358,12 +369,18 @@ anchor로 승격하지 않는다.
   anchor도 실행 가능한 compound를 그대로 재사용해 별도 escaping 경로를 만들지 않는다.
 - **저장 초안 누락**: locator를 라이브 타입에만 추가하면 저장 후 selector 나열로 회귀한다.
   current·buffered 양쪽 IssueRecord 경로와 `resolveDraftStyleElements` 테스트가 필요하다.
+  current iframe origin은 `IssueRecord.origin?`에서 복원한다.
 - **복수 소비처 드리프트**: Markdown만 고치면 Jira ADF·Notion·Slack·초안 상세이 갈린다.
   공용 display model을 만들고 플랫폼 테스트를 전수 갱신한다.
 - **AI meta 회귀**: 사람이 보는 heading에서 selector를 빼도 `bugshot-meta-for-ai`의 기존
   selector와 elements[]를 삭제하면 안 된다. locator는 추가 정보이고 레거시 필드는 유지한다.
 - **개인정보**: 임의 속성·text를 별도 snapshot으로 저장하지 않는다. test attribute 값도
-  사용자/세션 식별자가 될 수 있으므로 100자 cap과 동적값 거부를 적용하고 privacy 문구를
-  구현 시 재검토한다.
+  이메일·tenant slug 등 휴리스틱에 걸리지 않는 식별자일 수 있으므로 100자 cap과 동적값
+  거부만으로 안전을 단정하지 않고 privacy ko/en에 수집·저장·전송을 명시한다.
+- **편집으로 인한 selector 무효화**: 선택 요소 자체의 class는 안정 class 후보에서 제외한다.
+  compatibility fallback에서 불가피하게 target class를 쓴 경우는 기존 best-effort로 남기고,
+  class 삭제·교체 뒤 재바인딩·버퍼·캡처 경로를 회귀 테스트한다.
+- **DOM 교체 race**: locator 생성 직전 `isConnected`를 확인하고 실패를 기존
+  `selection-detached` 세션 만료 경로로 변환해 uncaught rejection을 막는다.
 - **CSS 편집기 표시**: CSS CodeMirror 1행은 `selection.selector`를 사용한다. selector
   생성 결과가 바뀌어도 selector lock·parse 왕복 계약이 깨지지 않는지 확인한다.

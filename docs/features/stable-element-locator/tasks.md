@@ -21,8 +21,9 @@
     `data-automation-id`, `data-pw`만 test contract tier로 분류
   - [ ] 임의 `data-user-id`, `data-index`, `data-selected`는 최고 tier로 승격되지 않음
   - [ ] UUID·긴 숫자·hex/hash·React useId·framework 생성 ID/class 거부
-  - [ ] BEM/semantic class는 안정 class로 남음
-  - [ ] score가 안정·비위치 후보 → 안정+위치 후보 → 불안정 후보 → path fallback 순이며,
+  - [ ] 조상 BEM/semantic class는 안정 class로 남고 선택 요소 자체 class는 안정 후보에서 제외
+  - [ ] score가 test → ID/semantic → 조상 class → tag-only → 안정+위치 → 불안정 → path
+    fallback 순이며,
     같은 risk에서는 위치 수 → base 안정성 → 불안정 token → compound 수 → 길이로 비교
 
 ### Task 2: 유일 selector 후보 생성과 fallback (TDD)
@@ -31,7 +32,9 @@
   `src/content/element-locator.ts`, `src/content/dom-describe.ts`
 - **작업 내용**: jsdom DOM에서 finder 단계별 후보를 만들고 document 유일성+target identity
   hard gate 후 최적 후보를 선택한다. 전체 500ms/2000 path check 예산, 조상 12단계,
-  후보 4개 상한을 구현한다. 기존 `pathSelector` fallback과 `buildSelector` wrapper를 연결한다.
+  후보 4개 상한을 구현한다. 기존 `pathSelector` fallback을 재사용하되 DOM Tree의
+  `buildSelector`는 기존 단일 finder 경량 경로를 유지한다. finder 호출은 주입 가능한 seam으로
+  두어 fake clock/mock으로 단계별 남은 예산을 검증한다.
 - **검증**:
   - [ ] 예시 DOM에서 유일하면 `[data-e2e="enrollment-card"]` 포함 후보가 nth/class 후보보다 우선
   - [ ] 반복 `data-e2e`만으로 비유일한 후보는 채택하지 않음
@@ -40,8 +43,11 @@
   - [ ] 모든 후보가 실패하거나 finder가 throw/timeout이면 path fallback 반환
   - [ ] 특수문자 ID/class/attribute가 `CSS.escape` 후 query 가능
   - [ ] `html`, body 직계 자식, SVG element 방어
-  - [ ] disconnected element는 유일성 계약을 가장하지 않고 명시적 에러; picker의 기존
-    selection-detached 경로가 이를 세션 만료로 처리
+  - [ ] disconnected element는 유일성 계약을 가장하지 않고, 호출 전 `isConnected` 확인과
+    예외 매핑으로 기존 selection-detached 세션 만료 경로가 처리
+  - [ ] mock finder에 전달된 timeout은 공용 500ms deadline의 남은 값이고 path check 합계는
+    400+500+500+600=2000; deadline 소진 뒤 후속 finder 미호출
+  - [ ] DOM Tree 초기/자식 확장은 안정 locator 다회 탐색을 호출하지 않아 기존 비용 계약 유지
   - [ ] 기존 `buildInitialTree`·`buildChildrenResponse` selector 소비 테스트 green
 
 ### Task 3: picker payload와 live store에 locator 전달
@@ -56,8 +62,10 @@
 - **검증**:
   - [ ] picker payload의 selector와 locator.selector 동일
   - [ ] `picker.selectionUpdated`가 locator를 덮어쓰거나 다른 요소에 적용하지 않음
-  - [ ] top frame은 frameOrigin 미설정, iframe은 sender.origin 사용(payload 위조값 없음)
+  - [ ] top frame은 origin 미설정, iframe은 sender.origin 사용(payload 위조값 없음)
   - [ ] bufferCurrentElement·기존 버퍼 재선택·patch 경로가 locator 보존
+  - [ ] 선택 요소 class 삭제·교체 뒤 현재 편집·버퍼 승격·재선택·패널 재오픈 rebind·캡처가
+    같은 요소를 유지하거나 compatibility fallback 실패를 명시적으로 처리
   - [ ] `sameElementKey`는 selector+frameId 그대로이며 locator/번호를 키로 사용하지 않음
   - [ ] styling session rebind·applyEditsBySelector·prepareCaptureBySelector 기존 테스트 green
 
@@ -65,11 +73,13 @@
 
 - **변경 대상**: `src/store/issues-store.ts`, `src/store/editor-store.ts`,
   `src/sidepanel/lib/resolveDraftStyleElements.ts`, 각 `__tests__/`
-- **작업 내용**: `IssueRecord.locator?`, `IssueBufferedElement.locator?`를 저장·복원한다.
+- **작업 내용**: `IssueRecord.locator?`, `IssueRecord.origin?`,
+  `IssueBufferedElement.locator?`를 저장·복원한다.
   current와 buffered 양쪽을 빠짐없이 직렬화하고 구버전 optional 누락을 허용한다.
 - **검증**:
   - [ ] 단일 현재 요소 locator 저장·복원
   - [ ] 복수 buffer locator와 iframe origin 저장·복원
+  - [ ] iframe의 단일 current draft가 `IssueRecord.origin?`을 거쳐 저장·재열기 후 host를 복원
   - [ ] locator 없는 구버전 IssueRecord가 tagName/selector fallback으로 렌더 가능
   - [ ] 버퍼를 모두 지운 뒤 재확정해도 locator/버퍼가 되살아나지 않음
   - [ ] 초안 삭제·blob 정리 동작 불변, 스키마 마이그레이션 불필요
@@ -81,7 +91,7 @@
   `src/sidepanel/lib/buildIssueMarkdown.ts`
 - **작업 내용**: `StyleElementContext[]`에서 `ElementLocatorDisplay[]`를 만드는 순수 formatter를
   구현한다. `mergeStyleElements`가 locator/origin을 보존하고 최종 배열 순서로 연속 번호를
-  부여한다.
+  부여한다. DOM 전용 structured row와 공용 `<ol>` 렌더 모델을 제공한다.
 - **검증**:
   - [ ] 단일 요소가 Element 1
   - [ ] 복수 요소가 최종 merge 순서대로 Element 1..N
@@ -89,6 +99,7 @@
   - [ ] anchor 있음 → `anchor › tag`, 없음 → tag만
   - [ ] text·accessible name·class 전체 목록이 summary에 포함되지 않음
   - [ ] non-top frame만 origin 표시, 같은 selector의 다른 frame은 별도 항목
+  - [ ] origin은 host Badge/동등 텍스트, 전체 origin tooltip, opaque는 localized unknown
   - [ ] 구버전 locator/tag 누락 fallback이 throw하지 않음
   - [ ] `bugshot-meta-for-ai`의 기존 top-level selector와 elements[].selector 보존
 
@@ -109,6 +120,8 @@
   - [ ] 단일/복수, buffer-only+현재 no-diff, 같은 selector+다른 frame 케이스 green
   - [ ] Markdown·HTML escape(`[]`, quotes, backticks, `<>&`) 안전
   - [ ] Drafting/Preview/DraftDetail DOM 표기가 제출 본문과 동일
+  - [ ] 세 화면의 DOM은 공용 `<ol>` 렌더러를 쓰고 Style changes key는 selector+frameId
+  - [ ] 400px에서 Selector mono code가 잘리지 않고 anywhere wrap되며 텍스트 선택 가능
   - [ ] screenshot 요소 캡처의 기존 단일 `ShotSelector` DOM 행은 불변
 
 ### Task 7: Jira ADF·Notion 구조화 본문 적용 (TDD)
@@ -129,16 +142,16 @@
 ### Task 8: i18n 대칭과 문서 갱신
 
 - **변경 대상**: `src/i18n/namespaces/logs.ts`, `src/log-viewer/i18n.ts`,
-  `docs/ARCHITECTURE.md`, `docs/DIRECTORY.md`, 조건부 `docs/privacy.ko.md`·
+  `docs/ARCHITECTURE.md`, `docs/DIRECTORY.md`, `docs/privacy.ko.md`·
   `docs/privacy.en.md`, `guide/ko/element/issue.md`, `guide/en/element/issue.md`
 - **작업 내용**: Element/Selector 라벨을 ko/en에 추가하고 복제 사전을 맞춘다. 아키텍처와
-  디렉터리 문서를 실제 구현에 맞춰 갱신한다. privacy 양쪽은 기존 selector 설명이 조상
-  test attribute 요약 제출을 포괄하는지 대조해 부족할 때만 시행일과 본문을 함께 수정한다.
+  디렉터리 문서를 실제 구현에 맞춰 갱신한다. privacy 양쪽은 조상 test attribute 요약의
+  별도 수집·저장·전송을 ko/en 본문에 명시하고 시행일을 함께 수정한다.
   가이드는 `guide/AUTHORING.md` 규칙에 따라 ko 원본·en 번역을 같은 변경에서 갱신한다.
 - **검증**:
   - [ ] `pnpm test --run src/i18n/__tests__/locales.test.ts src/log-viewer/__tests__/i18n.test.ts`
   - [ ] guide ko/en 섹션 구조·사실 대칭
-  - [ ] privacy 수정 시 ko/en 본문과 시행일 동시 갱신
+  - [ ] privacy ko/en 본문과 시행일 동시 갱신
   - [ ] `pnpm sync:agents:check` 통과(원본 CLAUDE/command 미수정 확인)
 
 ### Task 9: 전체 회귀 검증
@@ -181,12 +194,17 @@
    남고 iframe 항목만 origin이 표시된다.”
 4. “복수 요소 초안을 저장해 다시 열면 Element 번호·앵커·Selector가 저장 전과 같다.”
 
+fixture에는 고유/반복 `data-e2e`, top/iframe 동일 selector, 선택 요소 class 삭제 케이스를
+둔다. Drafting/Preview/DraftDetail의 DOM 목록·Element 번호·Selector 행에는 공용
+`data-testid` 계약을 추가하고, 저장 시나리오는 저장 → 이슈 목록 → 상세 재열기 경로로 판정한다.
+
 실제 picker/content script·iframe 메시지와 미리보기 렌더를 검증하므로 구현 보고에서
 e2e 영향 `있음`으로 표시하고 `/e2e-write`로 반영한다.
 
 ### 수동 테스트
 
-- [ ] 큰 상용 페이지에서 요소 hover→선택 반응이 기존 대비 체감 지연되지 않음
+- [ ] 큰 상용 페이지에서 선택 locator 생성이 500ms 상한 안에 끝나고, DOM Tree 초기·자식
+  확장 시간이 변경 전 기준보다 유의하게 증가하지 않음
 - [ ] 카드 순서를 바꾼 뒤 저장된 selector를 참고했을 때 test anchor가 개발자에게 유용한
   컴포넌트 검색 단서로 남음(장기 동일성 보증 테스트가 아니라 사람 판독 확인)
 - [ ] selector가 매우 긴 요소 5개를 담아도 DOM 목록은 한 요소 한 줄이고 Style changes
