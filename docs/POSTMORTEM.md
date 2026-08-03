@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-08-03 — 툴팁만 cross-origin을 안 기다렸고, 그 공백을 메우던 "값이 같으면 그 토큰"이 엉뚱한 토큰 이름을 확신 있게 보여줬다
+
+- **영역**: `스타일해석`, `content`
+- **계열**: `복제본`, `미검증단언`, `cross-origin`
+- **그물**: `수동`
+- **증상**: naver.com(cross-origin 시트)에서 로그인 버튼을 호버하면 툴팁 `bg-color`가 `#03A94D` hex인데, 같은 요소를 사이드패널 스타일 편집에서 보면 `--color-primary-background-default` 토큰이었다. 패널에서 **재선택한 뒤** 다시 호버하면 툴팁도 토큰으로 정상 출력 — "같은 요소, 같은 prop, 두 화면이 다른 답"이다. 같은 툴팁에 `color: --normal-bg`(초록 버튼 위 흰 글자색에 **배경** 토큰), `padding: 17px --toast-svg-margin-end`(상하만 리터럴), `radius: --toast-icon-margin-end`(radius에 **마진** 토큰)도 함께 찍혔다.
+- **근본 원인**: 두 겹이다. ① `ensureCrossOriginLoaded()` 호출부가 저장소 전체에 셋뿐인데 **전부 선택·패널 경로**였다(`picker.ts`의 `collectTokens` 핸들러·`postSelectionUpdate`·`scheduleSelectionUpdate`). 호버 렌더는 `collectInspectorInfo`를 **동기로** 부르고 그 로드를 트리거하지도 기다리지도 않아, 선택을 한 번도 안 한 세션에서는 `getMatchingCrossOriginRules`가 빈 배열 → `refs`가 비고 → computed hex로 폴백했다. 재선택이 고친 게 아니라, 선택이 그제야 fetch를 깨운 것이다. ② 그 공백을 `buildTokenLookup`의 **값→이름 역참조**가 메우고 있었는데, 이건 `!map.has(key)` first-write-wins라 같은 값을 가진 토큰이 여럿이면 먼저 걸린 이름이 그 값을 독점한다. **2026-08-01 회고가 "값 일치는 선언 identity의 증명이 아니다 — 승자와 일치하는 후보가 정확히 하나일 때만 이름을 쓴다"를 이미 못박았지만, 그 교훈은 `substituteFromComputed`에만 적용되고 같은 파일의 이 함수는 그대로 남아 있었다.** 결정적으로 `matchToken`은 `firstVarName(refs)`가 실패했을 때만 발화하는데, 그 경우는 "author가 `var()`를 안 썼다"(→ 토큰 이름은 항상 거짓) 아니면 "refs가 비었다"(→ 그게 ①)뿐이라, **②는 ①의 우회책이었고 ①을 닫자 존재 이유를 잃었다**(순감 ~40줄).
+- **재발 방지**: (1) **비동기 보강을 소비하는 화면이 둘이면 "둘 다 그 보강을 기다리는가"를 호출부 전수로 확인한다** — `grep -n 'ensureCrossOriginLoaded\|ensureCssCacheLoaded' src/content/picker.ts`로 세고, **호버·선택 두 진입점 모두에 있는지** 본다. 한쪽만 있으면 그 화면은 항상 폴백을 본다. 2026-08-01의 "화면 간 불일치는 경로가 갈렸다는 신호"의 **타이밍 판**이다 — 수집기가 같아도 *대기*가 갈리면 같은 증상이 난다. (2) **회고가 세운 규칙은 그 규칙이 적용될 수 있는 함수를 전수로 훑어 적용한다** — 이번엔 같은 파일 안에서조차 한 함수만 고쳐졌다. 값→이름 역참조를 새로 쓸 때 `grep -n 'normalizeForLookup' src/content/css-resolve.ts`로 identity 증명 없이 이름을 붙이는 자리가 또 생겼는지 본다. (3) **폴백이 상위 결함을 가리고 있는지 의심하라** — "이 폴백은 언제 발화하나"를 적어 보면 발화 조건 전체가 다른 버그의 증상일 수 있고, 그러면 폴백을 고칠 게 아니라 지워야 한다. (4) **외부 요청 트리거 시점이 당겨지면 privacy 문서를 갱신한다** — 전송 대상·성격이 그대로여도 *언제 나가는가*는 사용자 관측 대상이다(cross-origin 시트 fetch가 "첫 선택"에서 "picker 시작"으로 이동 → `docs/privacy.{ko,en}.md` 본문·시행일 갱신). manifest diff 0을 이유로 건너뛰지 말 것.
+- **관련**: `src/content/picker.ts:scheduleInspectorRefresh`(구 `scheduleTokenBuild` — same-origin·cross-origin 2-phase 무효화+재렌더)·`render`(호버 분기), `src/content/css-resolve.ts:collectInspectorInfo`(`tokens` 파라미터 제거)·`resolveBoxLabel`·삭제된 `buildTokenLookup`/`matchToken`/`TokenLookup`(`normalizeForLookup`은 `sameResolvedValue`가 써서 잔존), 그물 `src/content/__tests__/inspector-refs.test.tsx`(시그니처 고정 + 값 충돌 픽스처에서 이름 미표시 — 내부 역참조 재도입 mutation으로 red 확인), 문서 `docs/privacy.{ko,en}.md`. **자동 그물 한계**: ①의 양성 종단은 e2e 불가 — `e2e/GOTCHAS.md`의 SSRF 가드 항목대로 loopback cross-origin 보강이 항상 inert라 naver 수동이 유일하다.
+
 ## 2026-08-03 — 판정을 정밀화하면 안전망이 함께 사라진다: opaque 문맥을 **열거**한 순간 "나머지는 안전하다"가 됐고, 그 목록은 다른 파일이 정하고 있었다
 
 - **영역**: `스타일해석`, `content`, `e2e`
