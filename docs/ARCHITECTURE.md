@@ -166,9 +166,13 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **한계**: 2-depth 이상 중첩·sandbox 프레임은 미지원(거부 경로). same-URL reload는 chrome이 iframe frameId를 재발급해 옛 frameId send가 조용히 실패한다(결말은 요소 소실과 동일 — sessionExpired/ghost 카드). picking 중 네비게이션된 iframe은 `frameCommitted` 수신 시 `restartPickerInFrame`로 재시작해 stale 핸드오프(클릭 유실)를 복구한다.
 
-## blocker 투과 소유권 (picking 중 hover 차단)
+## hover 차단 (picking 중 + 선택 커밋·캡처 구간)
 
-picking 중 페이지가 hover에 반응하면 안 된다(드롭다운이 열리고 툴팁이 뜨면 고르려던 요소를 덮는다). 막는 수단은 blocker 하나인데 **뚫리는 자리가 두 종류**다.
+페이지가 hover에 반응하면 안 되는 구간이 둘이다. **picking 중**(드롭다운이 열리고 툴팁이 뜨면 고르려던 요소를 덮는다)과 **선택 커밋~캡처**(커서 밑 요소가 hover 상태로 스냅샷에 굳는다). 앞은 blocker가, 뒤는 hover 방패가 맡는다 — **둘은 같은 shadow root의 hit target을 시간축으로 나눠 갖는다.**
+
+### blocker 투과 소유권 (picking 중)
+
+막는 수단은 blocker 하나인데 **뚫리는 자리가 두 종류**다.
 
 **① pointer-events가 꺼지는 창.** blocker의 `pointer-events`를 끄는 이유가 셋이다 — 휠 스크롤 양보(`yieldToScroll`), 등록 iframe 핸드오프, `elementFromPoint` hit-test 프로브. 각자 스타일을 직접 쓰면 마지막 쓰기가 남의 투과를 무단 취소한다(프로브가 매번 `auto`로 복원해 진행 중인 스크롤 양보를 끄던 게 실제 회귀였다). 그래서 `content/blocker-state.ts` 컨트롤러가 **이유 집합 + 진행 중 hit-test에서 값을 파생하고 적용까지 맡는다**(호출부가 apply를 빠뜨릴 수 없다). `scroll-yield`는 이유와 120ms 타이머를 함께 걷어야 하므로 overlay 내부가 독점하고 밖으로는 `cancelBlockerScrollYield`만 연다. 포인터가 움직이면 양보를 회수하되 **마지막 휠로부터 60ms 안의 이동은 스크롤의 일부로 본다**(`isScrollIntent`) — 브라우저가 스크롤 뒤 쏘는 hover 재계산용 mousemove나 매직마우스처럼 이동과 스크롤이 한 제스처인 입력을 포인팅으로 읽으면, 매 틱 양보가 닫혀 커서 밑 스크롤 컨테이너가 안 밀린다. 이 두 상수의 대소 관계(`SCROLL_INTENT_MS < SCROLL_YIELD_MS`)가 깨지면 회수 경로가 통째로 죽는다.
 
@@ -177,6 +181,21 @@ picking 중 페이지가 hover에 반응하면 안 된다(드롭다운이 열리
 **남는 누출**(수용): 스크롤 양보 창에서 포인터가 멈춰 있으면 커서 밑 요소가 CSS `:hover`를 받고, 그 창의 클릭은 blocker를 지나 페이지로 간다(링크면 네비게이션). top layer(`dialog.showModal()`·popover·fullscreen)는 z-index와 무관하게 blocker 위에 깔려 그 안의 hover·클릭을 못 막는다. 셋 다 blocker 아키텍처를 바꿔야 닫히므로 알려진 한계로 둔다.
 
 그물은 컨트롤러·`isScrollIntent` 유닛뿐이다 — 전파 차단과 hit-test는 `picker.ts`·`overlay.ts`가 로직 스코프 제외라 유닛으로 못 잡고, e2e에도 위임 핸들러 카운터 단언이 없어 **stopPropagation을 지워도 green**이다.
+
+### hover 방패 (선택 커밋 ~ 캡처)
+
+위 blocker 방어는 **blocker가 서 있는 동안에만** 유효하다. 그런데 blocker가 물러나는 순간이 둘 있고, 둘 다 캡처 직전이다 — `setMode("selected")`의 `display:none`과 `beginCapturePrep`의 `hostEl.style.visibility = "hidden"`. 후자가 특히 함정이다: **캡처를 깨끗이 찍으려고 오버레이를 숨기는 그 동작이 곧 hit target 포기**다(`visibility:hidden`은 그리지 않을 뿐 아니라 hit-test에서도 빠진다). 커밋과 캡처 사이엔 사이드패널 왕복(`picker.selected` → `prepareCapture`)이 끼어 수십~수백 ms가 비고, 그 동안 커서는 방금 클릭한 요소 위에 그대로 있다.
+
+그래서 `.hover-shield` — 전체 뷰포트·완전 투명(페인트 0이라 스크린샷에 안 찍힌다)·`pointer-events:auto`·**`visibility:visible` 명시**(host가 숨어도 이 레이어만 hit target으로 남는다)·z-index는 blocker보다 한 단 아래(둘 다 서 있으면 blocker가 이겨 picking 동작이 그대로 산다). `content/hover-shield.ts`가 blocker-state와 같은 규율로 이유 집합에서 표시를 파생한다.
+
+- **이유 둘**: `selection-commit`(`onClickCommit`에서 세움 — 전파 차단 해제·blocker 철거보다 **먼저**) / `capture-prep`(`beginCapturePrep`에서 세움 — host 숨김보다 **먼저**).
+- **인계**: `beginCapturePrep`이 `capture-prep`을 켜면서 `selection-commit`을 끈다. `handleEndCapture`는 `capture-prep`만 내린다 — 무차별로 비우면 캡처가 겹친 사이 새로 커밋된 선택의 방패까지 걷힌다.
+- **폴백 3경로**: 사이드패널이 before 캡처를 건너뛰면(이미 `beforeImage` 보유) `endCapture`가 영영 안 오므로 `selection-commit`은 만료 타이머(1.5s)를 이유와 함께 소유한다. 휠이 방패에 닿으면 즉시 포기하고(스크롤은 hover를 어차피 무효화하고, 뒤이을 캡처는 `capture-prep`이 지킨다), `destroyOverlay`가 이유·타이머·리스너를 회수한다. `capture-prep`엔 만료가 없다 — 잔류 실패 모드가 두 회수 경로(패널 닫힘 → `handleClear`, 재픽 → `setBlockerVisible(true)`)로 덮인다.
+- **전파 축도 같이 막는다**: hit target을 가져오는 건 CSS `:hover`만 닫는다. 방패 수명 동안 `mouseover`/`mouseout`/`mousemove`를 **window capture**에서, `pointerover`/`pointerout`/`pointermove`를 **방패 자신의 버블**에서 끊는다(pointer 계열을 window capture에서 끊으면 `action-recorder`가 죽는다 — 위 ②와 같은 이유).
+
+**두 컨트롤러가 서로를 아는 지점이 둘**이고, 여기가 리팩터로 조용히 깨지는 자리다. ① `withBlockerHitTest`는 blocker와 방패를 **함께** 비켜세운다 — blocker만 내리면 `elementFromPoint`가 방패(=우리 host)를 돌려주고 호출부가 그걸 "내 UI"로 읽어 조기 return한다(에러 없이 picking이 죽는다). ② `setBlockerVisible(h, true)`는 방패 이유를 전부 비운다 — blocker가 hit target을 되찾는 모드에 방패가 남으면 안 된다. 둘은 서로 이중 방어라 **하나만 지워도 다른 하나가 막는다**(뮤턴트도 둘을 동시에 지워야 red).
+
+**남는 누출**(수용): top layer(`dialog.showModal()`·popover)는 방패·blocker 둘 다 위에 깔려 그 안 요소는 여전히 `:hover`를 받는다. capture 단계로 등록된 페이지 위임 핸들러도 안 막힌다(action-recorder를 살리려는 트레이드오프). 그물은 `hover-shield.test.ts`(이유 집합) + `e2e/hover-shield.spec.ts`(hit target·picking 생존) — 배선 자체는 로직 스코프 밖이라 e2e가 유일하다.
 
 ## 백그라운드 로그 캡처 (Network / Console / Action)
 
