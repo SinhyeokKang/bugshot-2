@@ -72,6 +72,17 @@ describe("hover shield", () => {
     expect(current()).toBe(true);
   });
 
+  // 연속 커밋이면 두 번째 무장이 첫 타이머를 물려받아야 한다 — 안 죽이면 첫 타이머가
+  // 만료하며 두 번째 선택의 방패를 걷는다.
+  it("selection-commit을 다시 무장하면 만료를 처음부터 다시 센다", () => {
+    const { shield, current } = setup();
+    shield.setReason("selection-commit", true);
+    vi.advanceTimersByTime(EXPIRE_MS - 100);
+    shield.setReason("selection-commit", true);
+    vi.advanceTimersByTime(100);
+    expect(current()).toBe(true);
+  });
+
   it("clearReasons도 타이머를 정리한다", () => {
     const { shield, current } = setup();
     shield.setReason("selection-commit", true);

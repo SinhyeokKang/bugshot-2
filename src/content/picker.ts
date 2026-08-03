@@ -49,6 +49,7 @@ import {
   setBlockerHandoff,
   setBlockerVisible,
   cancelBlockerScrollYield,
+  setHoverShield,
   withBlockerHitTest,
   renderPreview,
   clearPreview,
@@ -347,7 +348,14 @@ function handlePickerMessage(
 
 function beginCapturePrep(): { width: number; height: number } {
   captureInflight += 1;
-  if (overlay) overlay.hostEl.style.visibility = "hidden";
+  if (overlay) {
+    // 숨기기 **전에** 세운다 — visibility:hidden은 hit target에서도 빠지므로, 방패 없이
+    // 숨기면 캡처 직전 프레임에서 커서 밑 요소가 :hover를 받아 그대로 찍힌다.
+    setHoverShield(overlay, "capture-prep", true);
+    // 커밋 이유는 여기까지가 임무다 — 캡처가 이어받았으니 넘기고 만료 타이머도 끈다.
+    setHoverShield(overlay, "selection-commit", false);
+    overlay.hostEl.style.visibility = "hidden";
+  }
   return { width: window.innerWidth, height: window.innerHeight };
 }
 
@@ -559,7 +567,11 @@ function handleEndCapture(cleanupOnly: boolean): void {
   }
   captureInflight = Math.max(0, captureInflight - 1);
   if (captureInflight > 0) return;
-  if (overlay) overlay.hostEl.style.visibility = "";
+  if (overlay) {
+    overlay.hostEl.style.visibility = "";
+    // 이 캡처의 이유만 내린다 — 캡처가 겹친 사이 새 선택이 커밋됐으면 그쪽 방패는 살아야 한다.
+    setHoverShield(overlay, "capture-prep", false);
+  }
   if (capturedScroll) {
     window.scrollTo(capturedScroll.x, capturedScroll.y);
     capturedScroll = null;
@@ -1081,6 +1093,10 @@ function onClickCommit(e: MouseEvent): void {
   selectedEl = target;
   captureOriginal(target);
   lastHover = null;
+  // 전파 차단(removeHoverListeners)과 blocker 철거(setMode) **양쪽보다 먼저** 세운다 —
+  // 사이드패널의 before 캡처가 도착할 때까지 커서는 방금 클릭한 요소 위에 그대로 있어서,
+  // 한 프레임만 열려도 그 hover가 스냅샷에 굳는다. 인계는 beginCapturePrep, 폴백은 만료 타이머.
+  if (overlay) setHoverShield(overlay, "selection-commit", true);
   removeHoverListeners();
   setMode("selected");
   emitSelected(target, "pick");
