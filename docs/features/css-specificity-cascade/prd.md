@@ -25,6 +25,8 @@
 ## 비목표 (Non-goals)
 
 - `@layer` 순서 재현 — layer 소속 규칙 간 충돌은 기존 uncertain 경로 유지.
+- `:is()`/`:not()`/`:has()` 인자 specificity 정확 재현, `@scope` proximity 판정 —
+  보수적으로 판정 불가(`null`) 처리해 기존 uncertain 경로로 보낸다(design.md 사양).
 - `chrome.debugger`/CDP 사용.
 - computed 폴백 표시값의 hex 정규화 (별도 작업).
 - `resolveUncertainSpecified()` 동작 변경.
@@ -38,19 +40,26 @@
    구체 규칙 `.gNO89b`)를 선택한다.
 2. 편집 패널·CSS 뷰에 `background-color`가 computed `rgb(…)`가 아니라 author가 쓴
    원문(`#f8f9fa`)으로 표시된다.
-3. 인스펙터 툴팁도 같은 승자 판정을 공유해 색상·토큰 출처가 실제 승자 규칙을 따른다.
+3. 인스펙터 툴팁의 색·표시값은 computed 직접 읽기라 변화가 없다. specified에서
+   취하는 var() 토큰 **이름**만 승자 판정을 따르게 된다 — var vs var 충돌에서
+   문서순이 specificity와 역전된 케이스의 토큰 이름 교정(의도된 부수 개선).
 4. `:is()`/`:not()`/`@layer`/`@scope` 등 판정 불가 캐스케이드가 충돌에 끼면 기존대로 computed
    값이 표시된다(폴백 유지 — 회귀 아님).
+
+## 표시 트레이드오프 (수용 결정)
+
+승자 원문 전환으로 일부 케이스에서 시각 정보가 줄어든다 — `currentColor`·`color-mix()`
+원문은 스와치 렌더 불가, `0`·`black` 원문은 기본값 디밍 매칭 실패, 리포트 as-is가
+`calc()` 등 계산 전 원문으로 표기. **원문 우선이 이 기능의 목적이므로 수용**하고
+(computed는 별도 표시 유지), 표기 보강(colorLiteral·KNOWN_DEFAULTS)은 후속 작업
+후보로 남긴다. 상세는 design.md "다운스트림 영향".
 
 ## 성공 기준
 
 - `pnpm test` + `pnpm typecheck` 통과, 기존 테스트 전부 green.
 - specificity 역전·동률+문서순서·`!important` 교차·inline 교차·uncertain 잔존
   시나리오가 단위 테스트로 고정된다.
-- 편집 탭·CSS 뷰·인스펙터 툴팁이 높은 specificity 규칙의 원문과 출처를 공통으로
-  사용한다.
+- `collectSpecifiedStylesWithSources` 결과가 승자 원문을 담고 출처가 `[computed]`가
+  아니다(Task 4 수용 테스트). 인스펙터는 var vs var 충돌 픽스처에서 `refs`가 승자
+  토큰 이름을 반환한다.
 - 빌드는 돌리지 않는다.
-
-## 가이드 영향: 없음
-
-내부 판정 정밀화 — 레이아웃·라벨·조작 흐름은 불변이고 표시 값·출처의 정확도만 개선.
