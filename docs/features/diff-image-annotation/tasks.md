@@ -25,31 +25,34 @@
 - **작업 내용**:
   - `EditorState`에 `beforeAnnotated`/`afterAnnotated`, `BufferedElement`에 optional 동명 2필드.
   - 액션 `setBeforeAnnotated`/`setAfterAnnotated`.
-  - **after 폐기를 액션 안에 넣는다**: `setAfterImage`는 `afterAnnotated: null`을 함께 set, `backToStyling`도 함께 null, `patchBufferedElement`는 patch에 `afterImage` 키가 있으면 `afterAnnotated: null`을 강제. 호출부가 잊을 수 없어야 한다.
+  - **after 폐기를 새 이미지 확정 액션 안에 넣는다**: `setAfterImage`는 `afterAnnotated: null`을 함께 set하고, `patchBufferedElement`는 patch에 `afterImage` 키가 있으면 `afterAnnotated: null`을 강제한다. `backToStyling`은 실제 새 이미지가 없으므로 annotated를 보존한다.
   - `bufferCurrentElement`가 현재 요소를 버퍼로 승격할 때 `beforeAnnotated`/`afterAnnotated`도 함께 옮긴다(안 옮기면 버퍼링 순간 주석이 증발한다).
+  - `onElementSelected`가 버퍼 요소를 재선택하면 두 annotated 필드를 top-level로 함께 복원하고, 신규 요소 선택이면 둘 다 null로 초기화한다.
   - `onSubmitted`·`reset` 계열의 초기화 목록에 두 필드 추가.
-  - `confirmDraft`의 `saveImageBlob` 4곳이 `resolveAnnotated`를 거치게 한다.
+  - `confirmDraft`는 resolve 결과를 blob 저장 조건, `snapshot.before/after`, 버퍼 `hasBefore/hasAfter`, `saveImageBlob` 4곳에 동일하게 사용한다.
 - **검증**:
   - [ ] `setAfterImage(x)` 후 `afterAnnotated === null`
-  - [ ] `backToStyling()` 후 `afterAnnotated === null`
+  - [ ] `backToStyling()` 후 `afterAnnotated`가 보존된다
   - [ ] `patchBufferedElement(sel, fid, { afterImage: x })` 후 그 항목의 `afterAnnotated === null`
   - [ ] `patchBufferedElement(sel, fid, { styleEdits })`(afterImage 없는 patch)는 `afterAnnotated`를 **보존**
   - [ ] `bufferCurrentElement`가 두 annotated 필드를 승격 항목에 싣는다
+  - [ ] 버퍼 요소 재선택은 두 annotated 필드를 복원하고, 신규 요소 선택은 직전 annotated를 null로 초기화한다
   - [ ] `setBeforeAnnotated(x)`는 `beforeImage`를 안 건드린다
+  - [ ] raw가 null이고 annotated만 있어도 snapshot·버퍼 존재 플래그와 blob 저장이 모두 유지된다
 
 ### Task 3: 세션 영속화
 
-- **변경 대상**: `src/store/editor-store.ts`(`EditorSnapshot` Pick 목록), `src/sidepanel/hooks/useEditorSessionSync.ts`
-- **작업 내용**: `snapshotFromState()`에 top-level 2필드 추가, `toLiteSnapshot`의 top-level·`bufferedElements` map 양쪽에서 두 필드를 null로.
+- **변경 대상**: `src/store/editor-store.ts`(`EditorSnapshot` Pick 목록), `src/sidepanel/hooks/useEditorSessionSync.ts`, 세션 스냅샷 순수 헬퍼 모듈·테스트(신규)
+- **작업 내용**: `snapshotFromState`·`toLiteSnapshot`을 순수 헬퍼 모듈로 분리한다. 전자는 top-level 2필드를 포함하고, 후자는 top-level·`bufferedElements` map 양쪽에서 두 필드를 null로 만든다.
 - **검증**:
   - [ ] 주석 후 패널 닫았다 열면 주석본이 복원된다(수동 또는 e2e)
   - [ ] `toLiteSnapshot` 결과에 annotated 계열이 남지 않는다(단위)
-  - [ ] `EditorSnapshot` 타입에 추가했는데 `snapshotFromState`에 안 넣으면 타입 에러가 나는지 확인 — 안 나면 저장 누락이 조용해지므로 테스트로 고정
+  - [ ] `snapshotFromState` 결과가 top-level annotated 두 필드를 값까지 보존한다
 
 ### Task 4: `ImageActions` 컴포넌트
 
 - **변경 대상**: `src/sidepanel/components/ImageActions.tsx`(신규), `src/sidepanel/components/__tests__/ImageActions.test.tsx`(신규)
-- **작업 내용**: `ButtonGroup` + `Button variant="outline" size="icon" className="h-8 w-8"`. `onReset`이 있을 때만 `[RotateCcw]`를 **조건부 렌더**(hidden 속성 금지). 아이콘 순서는 인라인 이미지와 동일하게 `[초기화][연필]`. 래퍼는 `absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100`.
+- **작업 내용**: `ButtonGroup` + `TooltipIconButton variant="outline" size="icon" className="h-8 w-8"`. `onReset`이 있을 때만 `[RotateCcw]`를 **조건부 렌더**(hidden 속성 금지). 아이콘 순서는 인라인 이미지와 동일하게 `[초기화][연필]`. 래퍼는 `absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100`이고 기존 block action의 hover/표면 처리를 맞춘다.
 - **검증**:
   - [ ] `onReset` 없으면 버튼 1개, 있으면 2개
   - [ ] 각 버튼 클릭이 해당 핸들러를 1회 호출
@@ -79,10 +82,11 @@
 ### Task 7: 제출 경로 resolve
 
 - **변경 대상**: `src/sidepanel/lib/buildEditorCapture.ts`, `src/sidepanel/lib/__tests__/buildEditorCapture.test.ts`
-- **작업 내용**: `beforeImages`/`afterImages` 매핑을 `resolveAnnotated`로.
+- **작업 내용**: `buildEditorMarkdownContext`가 top-level annotated 두 필드를 `mergeStyleElements`의 current 입력에 전달하고, `beforeImages`/`afterImages` 매핑을 `resolveAnnotated`로 접는다.
 - **검증**:
   - [ ] 주석이 있으면 `beforeImages[i]`가 주석본
   - [ ] 없으면 원본
+  - [ ] 현재+버퍼 혼합 제출에서 각 annotated가 같은 인덱스의 이미지로 들어간다
   - [ ] `buildCaptureFiles` 파일명·인덱스는 불변(`before-0.webp` …)
 
 ### Task 8: `DraftingPanel` 배선 + 오버레이
@@ -93,13 +97,17 @@
   - `StyleChangesTable`에 `beforeAnnotated`/`afterAnnotated`/`onAnnotate`/`onReset` 전달(element 모드 diff table 렌더 지점만).
   - `onAnnotate(slot)` → `resolveAnnotated`로 배경 이미지를 정해 state set. `onReset(slot)` → 해당 annotated를 null로.
   - 쓰기 라우팅: `sameElementKey({ selector, frameId }, selection)`이면 store 액션, 아니면 `patchBufferedElement`.
+  - diff section의 React key는 selector 단독이 아니라 `elementKey(el)`을 사용.
   - 오버레이는 기존 스크린샷 주석 블록 옆에 같은 `Suspense` 관례로 마운트. `onComplete`에서 라우팅 후 state를 null로, `onCancel`은 state만 null.
+  - 공용 `AnnotationOverlay`에 dialog role/label, Escape 취소, 닫힌 뒤 실행 버튼 포커스 복귀를 추가한다.
   - `[다음]`·취소 시 `setAnnotatingDiff(null)`(기존 `setAnnotating(false)`와 같은 자리).
 - **검증**:
   - [ ] before/after 각각 오버레이가 열리고 완료 시 해당 칸만 바뀐다
   - [ ] 버퍼 요소 카드의 주석이 현재 요소 카드에 안 붙는다
   - [ ] 재주석이 주석본 위에서 시작한다
   - [ ] 초기화 후 원본으로 돌아가고 버튼이 1개로 준다
+  - [ ] cancel은 어느 슬롯도 변경하지 않고, 종료 후 포커스가 실행 버튼으로 돌아간다
+  - [ ] 동일 selector·서로 다른 frameId 카드의 key와 쓰기 대상이 충돌하지 않는다
 
 ## 테스트 계획
 
@@ -109,6 +117,7 @@
 - `editor-store.test.ts` — Task 2의 폐기·승격·보존 6케이스. 특히 **"afterImage 없는 patch는 annotated를 보존"** 케이스가 폐기 규율의 과잉 적용을 막는다.
 - `buildIssueMarkdown.test.ts` / `buildEditorCapture.test.ts` — Task 6·7.
 - `useEditorSessionSync`의 `toLiteSnapshot` — Task 3.
+- `DraftingPanel` 배선 또는 추출한 순수 라우팅 헬퍼 — 현재/버퍼, before/after, cancel 무변경을 고정.
 - **jsdom(`*.test.tsx`)**: `ImageActions`(버튼 개수·핸들러), `StyleChangesTable`(핸들러 없으면 버튼 없음 — 읽기 전용 화면 보호가 이 테스트의 본체).
 
 ### e2e 시나리오
@@ -119,6 +128,7 @@
 - 주석 완료 후 diff table의 before `img src`가 바뀌고 초기화 버튼이 생긴다.
 - 초기화를 누르면 `img src`가 주석 전 값으로 돌아가고 초기화 버튼이 사라진다.
 - 요소 2개(버퍼 1 + 현재 1)에서 버퍼 카드에 주석하면 현재 카드의 이미지는 안 바뀐다.
+- 동일 selector·서로 다른 frameId인 두 카드에서 한쪽 주석이 다른 쪽에 붙지 않는다.
 - 주석 후 스타일 값을 다시 고쳐 after가 재캡처되면 after 초기화 버튼이 사라진다(폐기).
 - `to-preview`로 넘어간 preview 화면의 diff table에는 주석 버튼이 없다.
 - 패널을 닫았다 다시 열면 주석본이 유지된다.
@@ -129,7 +139,8 @@
 
 - 작은 캡처(요소 bbox+24px)에서 버튼 2개가 이미지를 얼마나 덮는지 — 위험 5.
 - 다크모드에서 버튼 대비.
-- 요소 3~4개 + 각 before/after 주석 후 **세션 스냅샷 쿼터** — DevTools에서 `chrome.storage.session` 사용량을 재고, lite 강등이 얼마나 빨리 오는지 확인(위험 1). 강등되면 패널 재오픈 시 이미지가 전부 빈다.
+- 요소 2개 + 각 before/after 주석 후 **세션 스냅샷 쿼터** — DevTools에서 `chrome.storage.session` 사용량을 재고, lite 강등 없이 패널 재오픈 후 네 주석본이 모두 복원되는지 확인한다. 실패하면 구현 승인 불가이며 압축·다운스케일 대안을 다시 검토한다(위험 1).
+- 요소 3~4개에서도 같은 사용량을 측정해 보장선 밖의 강등 시점을 참고값으로 기록한다.
 - 제출까지 완주해 실제 이슈의 `before-0.webp`가 주석본인지 육안 확인.
 
 ## 구현 순서 권장
