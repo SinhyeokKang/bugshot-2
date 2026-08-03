@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, expectTypeOf, vi, beforeEach } from "vitest";
 
 // 규칙 매칭은 css-source-cache 인덱스가 담당한다 — 여기선 jsdom CSSOM으로 만든 진짜
 // CSSStyleRule을 셀렉터로 골라 돌려준다(인덱스 자체는 이 파일의 검증 대상이 아니다).
@@ -26,7 +26,7 @@ vi.mock("../css-source-cache", async (importOriginal) => {
   };
 });
 
-import { collectInspectorSpecRefs } from "../css-resolve";
+import { collectInspectorInfo, collectInspectorSpecRefs } from "../css-resolve";
 
 function sheet(css: string): CSSStyleRule[] {
   const style = document.createElement("style");
@@ -40,6 +40,48 @@ beforeEach(() => {
   document.head.innerHTML = "";
   document.body.innerHTML = "";
   matchRules.mockReset();
+});
+
+describe("collectInspectorInfo — token identity", () => {
+  it("값→토큰 lookup을 주입할 인자를 두지 않는다", () => {
+    expectTypeOf(collectInspectorInfo).parameters.toEqualTypeOf<[Element]>();
+  });
+
+  it("author literal에 값만 같은 토큰 이름을 붙이지 않는다", () => {
+    sheet(
+      ":root { --normal-bg: #fff; --toast-svg-margin-end: 17px; --toast-icon-margin-end: 8px; }",
+    );
+    const [elRule] = sheet(
+      ".btn { color: #fff; font-size: 17px; font-weight: 400; padding: 17px; border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom-right-radius: 8px; border-bottom-left-radius: 8px; }",
+    );
+    const el = document.createElement("button");
+    el.className = "btn";
+    document.body.appendChild(el);
+    matchRules.mockImplementation((target: Element) =>
+      target === el ? [elRule] : [],
+    );
+
+    const info = collectInspectorInfo(el);
+
+    expect(info.color).toBe("#FFFFFF");
+    expect(info.padding).toBe("17px");
+    expect(info.borderRadius).toBe("8px");
+  });
+
+  it("author가 쓴 var() 참조는 토큰 이름을 보존한다", () => {
+    const [elRule] = sheet(
+      ".btn { color: var(--text); font-size: 17px; font-weight: 400; }",
+    );
+    const el = document.createElement("button");
+    el.className = "btn";
+    el.style.setProperty("--text", "#fff");
+    document.body.appendChild(el);
+    matchRules.mockImplementation((target: Element) =>
+      target === el ? [elRule] : [],
+    );
+
+    expect(collectInspectorInfo(el).color).toBe("--text");
+  });
 });
 
 // 툴팁(collectInspectorSpecRefs)과 편집/CSS 뷰는 수집기가 갈라져 있어, 한쪽만 :root 보강·

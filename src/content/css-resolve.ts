@@ -487,22 +487,7 @@ export interface InspectorInfo {
   borderRadius?: string;
 }
 
-export type TokenLookup = Map<string, string>;
-
-export function buildTokenLookup(el?: Element): TokenLookup {
-  const tokens = collectTokens(el);
-  const map: TokenLookup = new Map();
-  for (const t of tokens) {
-    const key = normalizeForLookup(t.value);
-    if (key && !map.has(key)) map.set(key, t.name);
-  }
-  return map;
-}
-
-export function collectInspectorInfo(
-  el: Element,
-  tokens?: TokenLookup,
-): InspectorInfo {
+export function collectInspectorInfo(el: Element): InspectorInfo {
   const cs = window.getComputedStyle(el);
   const rect = el.getBoundingClientRect();
 
@@ -514,24 +499,17 @@ export function collectInspectorInfo(
   const refs = collectInspectorSpecRefs(el, cs);
 
   const colorValue = formatColor(cs.color) ?? cs.color;
-  const color =
-    firstVarName(refs.color) ?? matchToken(colorValue, tokens) ?? colorValue;
+  const color = firstVarName(refs.color) ?? colorValue;
 
   const bgValue = formatColor(cs.backgroundColor);
   const backgroundColor = bgValue
-    ? (firstVarName(refs.backgroundColor) ??
-      matchToken(bgValue, tokens) ??
-      bgValue)
+    ? (firstVarName(refs.backgroundColor) ?? bgValue)
     : undefined;
   const backgroundColorValue = bgValue;
 
   const family = parseFirstFontFamily(cs.fontFamily);
-  const fontSize =
-    firstVarName(refs.fontSize) ?? matchToken(cs.fontSize, tokens) ?? cs.fontSize;
-  const fontWeight =
-    firstVarName(refs.fontWeight) ??
-    matchToken(cs.fontWeight, tokens) ??
-    cs.fontWeight;
+  const fontSize = firstVarName(refs.fontSize) ?? cs.fontSize;
+  const fontWeight = firstVarName(refs.fontWeight) ?? cs.fontWeight;
 
   return {
     tag,
@@ -549,7 +527,6 @@ export function collectInspectorInfo(
     padding: resolveBoxLabel(
       [refs.paddingTop, refs.paddingRight, refs.paddingBottom, refs.paddingLeft],
       [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft],
-      tokens,
     ),
     borderRadius: resolveBoxLabel(
       [
@@ -564,7 +541,6 @@ export function collectInspectorInfo(
         cs.borderBottomRightRadius,
         cs.borderBottomLeftRadius,
       ],
-      tokens,
     ),
   };
 }
@@ -572,14 +548,13 @@ export function collectInspectorInfo(
 function resolveBoxLabel(
   refs: [string?, string?, string?, string?],
   computed: [string, string, string, string],
-  tokens?: TokenLookup,
 ): string | undefined {
   if (computed.every((v) => parseFloat(v) === 0)) return undefined;
   const labels: [string, string, string, string] = [
-    firstVarName(refs[0]) ?? matchToken(computed[0], tokens) ?? computed[0],
-    firstVarName(refs[1]) ?? matchToken(computed[1], tokens) ?? computed[1],
-    firstVarName(refs[2]) ?? matchToken(computed[2], tokens) ?? computed[2],
-    firstVarName(refs[3]) ?? matchToken(computed[3], tokens) ?? computed[3],
+    firstVarName(refs[0]) ?? computed[0],
+    firstVarName(refs[1]) ?? computed[1],
+    firstVarName(refs[2]) ?? computed[2],
+    firstVarName(refs[3]) ?? computed[3],
   ];
   const [t, r, b, l] = labels;
   if (t === r && r === b && b === l) return t;
@@ -594,12 +569,6 @@ function firstVarName(value: string | undefined): string | undefined {
   const name = m[1];
   if (name.startsWith("--_") || name.startsWith("--tw-")) return undefined;
   return name;
-}
-
-function matchToken(value: string, tokens?: TokenLookup): string | undefined {
-  if (!tokens || !value) return undefined;
-  const key = normalizeForLookup(value);
-  return key ? tokens.get(key) : undefined;
 }
 
 function normalizeForLookup(value: string): string {

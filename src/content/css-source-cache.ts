@@ -352,7 +352,7 @@ function skipBracket(s: string, i: number): number {
   return i;
 }
 
-// 재로드는 raw 캐시만 갱신한다. 그 위에 얹힌 소비처 캐시(picker의 tokenLookup·inspectorCache)는
+// 재로드는 raw 캐시만 갱신한다. 그 위에 얹힌 picker inspectorCache는
 // 여전히 주입 이전 시트로 굳어 있으므로 재로드 완료를 알려 함께 무효화시킨다.
 let onReloaded: (() => void) | null = null;
 
