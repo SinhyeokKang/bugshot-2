@@ -349,8 +349,11 @@ function handlePickerMessage(
 function beginCapturePrep(): { width: number; height: number } {
   captureInflight += 1;
   if (overlay) {
-    // 숨기기 **전에** 세운다 — visibility:hidden은 hit target에서도 빠지므로, 방패 없이
-    // 숨기면 캡처 직전 프레임에서 커서 밑 요소가 :hover를 받아 그대로 찍힌다.
+    // 숨기기 **전에** 세운다 — visibility:hidden은 hit target에서도 빠진다. 이 이유엔
+    // 만료가 없다: endCapture가 유실돼도 회수 경로가 둘이라(패널 닫힘 → port disconnect →
+    // handleClear, 재픽 → setBlockerVisible(true) → 이유 비움) 타이머는 기계만 늘린다.
+    // 단 잔류 시엔 옛 실패(오버레이만 안 보임)와 달리 페이지 입력이 통째로 죽으므로,
+    // 저 두 경로 중 하나라도 끊기면 만료를 붙일 것.
     setHoverShield(overlay, "capture-prep", true);
     // 커밋 이유는 여기까지가 임무다 — 캡처가 이어받았으니 넘기고 만료 타이머도 끈다.
     setHoverShield(overlay, "selection-commit", false);
@@ -1094,8 +1097,8 @@ function onClickCommit(e: MouseEvent): void {
   captureOriginal(target);
   lastHover = null;
   // 전파 차단(removeHoverListeners)과 blocker 철거(setMode) **양쪽보다 먼저** 세운다 —
-  // 사이드패널의 before 캡처가 도착할 때까지 커서는 방금 클릭한 요소 위에 그대로 있어서,
-  // 한 프레임만 열려도 그 hover가 스냅샷에 굳는다. 인계는 beginCapturePrep, 폴백은 만료 타이머.
+  // 사이드패널의 before 캡처가 도착하기까지 한 프레임만 열려도 hover가 스냅샷에 굳는다.
+  // 내리는 경로는 셋: beginCapturePrep 인계 / 휠(overlay.releaseOnWheel) / 만료 타이머.
   if (overlay) setHoverShield(overlay, "selection-commit", true);
   removeHoverListeners();
   setMode("selected");

@@ -31,7 +31,6 @@ interface OverlayInternal extends OverlayHandle {
   _setScrollYield: (enabled: boolean) => void;
   _cancelScrollYield: () => void;
   _passthrough: BlockerPassthrough;
-  _shieldEl: HTMLDivElement;
   _hoverShield: HoverShield;
   _onResize: () => void;
   _cleanup: () => void;
@@ -47,10 +46,17 @@ const SCROLL_INTENT_MS = 60;
 // prepareCapture)보다 넉넉하되, 캡처가 아예 안 오는 경로에서 페이지를 붙잡고 있는
 // 시간이므로 짧게 잡는다.
 const HOVER_SHIELD_EXPIRE_MS = 1500;
-// 방패가 서 있는 동안 페이지의 위임 핸들러까지 끊을 hover 계열. mouse 계열만 담는다.
-const SHIELDED_HOVER_EVENTS = ["mouseover", "mouseout", "mousemove"] as const;
+// 방패가 서 있는 동안 window capture에서 끊을 hover 계열. **mouse 계열만** 담는다 —
+// action-recorder는 pointer·click·drag·key만 document capture로 듣고 mouse 이동 계열은
+// 안 들으므로 여기서 끊어도 액션 로그가 비지 않는다(POSTMORTEM 2026-08-01 (2)).
+const SHIELDED_WINDOW_EVENTS = ["mouseover", "mouseout", "mousemove"] as const;
+// 방패 자신의 버블에서 끊을 pointer 계열. window capture로 끊으면 그보다 뒤 단계인
+// action-recorder의 document capture가 죽는다 — 버블은 그쪽이 이미 지난 뒤라 안전하다.
+const SHIELDED_BUBBLE_EVENTS = ["pointerover", "pointerout", "pointermove"] as const;
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+// createHoverShield의 apply가 매 상태 변화마다 호출되므로 add/remove가 짝을 맞추려면
+// 리스너 참조가 안정적이어야 한다 — 인라인 화살표로 바꾸면 리스너가 무한 누적된다.
 function stopEventPropagation(e: Event): void {
   e.stopPropagation();
 }
@@ -86,13 +92,12 @@ const OVERLAY_CSS = `
     width: 100vw;
     height: 100vh;
     /* blocker(2147483646)보다 한 단 아래 — 둘 다 서 있으면 blocker가 hit target을 가져가야
-       picking 중 휠 양보·클릭 커밋이 그대로 산다. 방패는 blocker가 빠진 자리만 메운다. */
+       picking 중 휠 양보·클릭 커밋이 그대로 산다. */
     z-index: 2147483645;
     pointer-events: auto;
     background: transparent;
-    /* 캡처 준비가 host를 visibility:hidden으로 숨겨도 이 레이어만은 hit target으로 남아야
-       한다 — 안 그러면 캡처 직전에 커서 밑 페이지 요소가 :hover를 되찾는다. 완전 투명이라
-       살아남아도 스크린샷에는 찍히지 않는다. */
+    /* host가 캡처 직전 visibility:hidden으로 숨어도 이 레이어만은 hit target으로 남는다.
+       완전 투명이라 살아남아도 스크린샷에는 찍히지 않는다. */
     visibility: visible;
   }
   .picker-label {
@@ -255,15 +260,23 @@ export function createOverlay(): OverlayHandle {
   shadow.appendChild(shieldEl);
   const hoverShield = createHoverShield((on) => {
     shieldEl.style.display = on ? "" : "none";
-    // hit target을 가져오는 것만으론 CSS `:hover`밖에 못 막는다 — 페이지가 document 위임으로
-    // 만든 hover UI(툴팁·메가메뉴)는 방패와 무관하게 계속 반응해 그 상태로 캡처에 굳는다.
-    // pointer 계열은 끊지 않는다: action-recorder가 document capture로 듣고 있어 사용자
-    // 액션 로그가 통째로 빈다(POSTMORTEM 2026-08-01). mouse 계열은 그쪽이 안 듣는다.
-    for (const type of SHIELDED_HOVER_EVENTS) {
+    // hit target을 가져오는 것만으론 CSS `:hover`밖에 못 막는다 — 페이지가 위임으로 만든
+    // hover UI(툴팁·메가메뉴)는 방패와 무관하게 반응해 그 상태로 캡처에 굳는다.
+    for (const type of SHIELDED_WINDOW_EVENTS) {
       if (on) window.addEventListener(type, stopEventPropagation, true);
       else window.removeEventListener(type, stopEventPropagation, true);
     }
   }, HOVER_SHIELD_EXPIRE_MS);
+  for (const type of SHIELDED_BUBBLE_EVENTS) {
+    shieldEl.addEventListener(type, stopEventPropagation);
+  }
+  // blocker의 휠 양보와 같은 문제 — 전면 레이어는 커서 밑 스크롤 컨테이너를 가린다. 다만
+  // 커밋 방패는 양보가 아니라 포기다: 스크롤하면 hover는 어차피 무효가 되고, 뒤이을 캡처는
+  // capture-prep이 따로 지킨다. 진행 중인 캡처(capture-prep)는 건드리지 않는다.
+  function releaseOnWheel() {
+    hoverShield.setReason("selection-commit", false);
+  }
+  shieldEl.addEventListener("wheel", releaseOnWheel, { passive: true });
 
   const blockerEl = document.createElement("div");
   blockerEl.className = "interaction-blocker";
@@ -316,6 +329,11 @@ export function createOverlay(): OverlayHandle {
       clearTimeout(scrollTimer);
       scrollTimer = null;
     }
+    for (const type of SHIELDED_BUBBLE_EVENTS) {
+      shieldEl.removeEventListener(type, stopEventPropagation);
+    }
+    shieldEl.removeEventListener("wheel", releaseOnWheel);
+    // 이유를 비우며 window 리스너와 만료 타이머까지 회수한다.
     hoverShield.clearReasons();
   }
 
@@ -399,7 +417,6 @@ export function createOverlay(): OverlayHandle {
       setScrollYield(false);
     },
     _passthrough: passthrough,
-    _shieldEl: shieldEl,
     _hoverShield: hoverShield,
     _onResize: () => updateBanner(handle),
     _cleanup: cleanupOverlay,
@@ -472,17 +489,12 @@ export function setHoverShield(
   (h as OverlayInternal)._hoverShield.setReason(reason, on);
 }
 
+// 두 레이어를 함께 비켜세운다 — blocker만 내리면 서 있는 방패가 hit target을 가져가
+// elementFromPoint가 우리 host를 돌려주고, 호출부는 그걸 "내 UI"로 읽어 조기 return한다
+// (=picking이 조용히 죽는다).
 export function withBlockerHitTest<T>(h: OverlayHandle, fn: () => T): T {
   const o = h as OverlayInternal;
-  // 방패도 함께 비켜세운다 — blocker만 내리면 서 있는 방패가 hit target을 가져가
-  // elementFromPoint가 우리 host를 돌려주고, 호출부는 그걸 "내 UI"로 읽어 조기 return한다
-  // (=picking이 조용히 죽는다). 이 속성을 만지는 주체는 이 프로브뿐이라 이유 집합은 없다.
-  o._shieldEl.style.pointerEvents = "none";
-  try {
-    return o._passthrough.withHitTest(fn);
-  } finally {
-    o._shieldEl.style.pointerEvents = "";
-  }
+  return o._hoverShield.withHitTest(() => o._passthrough.withHitTest(fn));
 }
 
 export function renderOutline(

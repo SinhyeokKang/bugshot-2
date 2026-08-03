@@ -61,15 +61,25 @@ describe("hover shield", () => {
     expect(current()).toBe(true);
   });
 
-  // 타이머를 이유와 함께 소유하지 않으면 죽은 타이머가 나중에 켠 이유를 무단 취소한다.
-  it("selection-commit을 명시 해제하면 타이머도 취소한다", () => {
+  // 다른 이유가 만료 타이머를 건드리면(가드 누락) 캡처가 끝나는 순간 커밋 방패의 수명이
+  // 통째로 늘어나거나 사라진다 — 타이머 소유자는 selection-commit 하나뿐이어야 한다.
+  it("다른 이유를 껐다고 selection-commit 만료가 취소되지 않는다", () => {
     const { shield, current } = setup();
     shield.setReason("selection-commit", true);
-    shield.setReason("selection-commit", false);
-    vi.advanceTimersByTime(EXPIRE_MS / 2);
+    shield.setReason("capture-prep", true);
+    shield.setReason("capture-prep", false);
+    vi.advanceTimersByTime(EXPIRE_MS);
+    expect(current()).toBe(false);
+  });
+
+  // 타이머를 이유와 함께 소유하지 않으면 죽은 타이머가 나중에 켠 이유를 무단 취소한다.
+  it("selection-commit을 명시 해제하면 타이머도 취소한다", () => {
+    const { apply, shield } = setup();
     shield.setReason("selection-commit", true);
-    vi.advanceTimersByTime(EXPIRE_MS / 2);
-    expect(current()).toBe(true);
+    shield.setReason("selection-commit", false);
+    vi.advanceTimersByTime(EXPIRE_MS * 2);
+    // 살아남은 타이머가 깨어나면 해제가 한 번 더 적용된다 — 그 흔적으로 취소를 관찰한다.
+    expect(apply).toHaveBeenCalledTimes(2);
   });
 
   // 연속 커밋이면 두 번째 무장이 첫 타이머를 물려받아야 한다 — 안 죽이면 첫 타이머가
@@ -83,13 +93,24 @@ describe("hover shield", () => {
     expect(current()).toBe(true);
   });
 
-  it("clearReasons도 타이머를 정리한다", () => {
+  it("clearReasons는 이유를 실제로 비운다", () => {
     const { shield, current } = setup();
     shield.setReason("selection-commit", true);
     shield.clearReasons();
     shield.setReason("capture-prep", true);
-    vi.advanceTimersByTime(EXPIRE_MS);
-    expect(current()).toBe(true);
+    shield.setReason("capture-prep", false);
+    // 좀비 이유가 남아 있으면 방패가 영영 안 내려간다.
+    expect(current()).toBe(false);
+  });
+
+  it("clearReasons도 타이머를 정리한다", () => {
+    const { apply, shield } = setup();
+    shield.setReason("selection-commit", true);
+    shield.clearReasons();
+    shield.setReason("capture-prep", true);
+    vi.advanceTimersByTime(EXPIRE_MS * 2);
+    // 살아남은 타이머는 이유를 안 바꿔 상태로는 안 드러난다 — 깨어난 흔적(적용 1회)으로 본다.
+    expect(apply).toHaveBeenCalledTimes(3);
   });
 
   it("상태가 바뀔 때마다 적용을 호출한다 (누락 방지)", () => {
@@ -98,5 +119,47 @@ describe("hover shield", () => {
     shield.setReason("capture-prep", false);
     shield.clearReasons();
     expect(apply).toHaveBeenCalledTimes(3);
+  });
+});
+
+// blocker와 방패는 같은 shadow root의 hit target을 나눠 갖는다 — 프로브가 blocker만
+// 비켜세우면 elementFromPoint가 방패(=우리 host)를 돌려줘 picking이 조용히 죽는다.
+describe("hover shield hit-test", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("hit-test 동안 비켜서고 끝나면 되돌아온다", () => {
+    const { shield, current } = setup();
+    shield.setReason("capture-prep", true);
+    const seen: (boolean | undefined)[] = [];
+    const el = shield.withHitTest(() => {
+      seen.push(current());
+      return "el";
+    });
+    expect(seen).toEqual([false]);
+    expect(el).toBe("el");
+    expect(current()).toBe(true);
+  });
+
+  it("hit-test가 던져도 방패를 복원한다", () => {
+    const { shield, current } = setup();
+    shield.setReason("capture-prep", true);
+    expect(() =>
+      shield.withHitTest(() => {
+        throw new Error("boom");
+      }),
+    ).toThrow("boom");
+    expect(current()).toBe(true);
+  });
+
+  it("이유가 없으면 hit-test가 끝나도 그대로 내려가 있다", () => {
+    const { shield, current } = setup();
+    shield.withHitTest(() => null);
+    expect(current()).toBe(false);
   });
 });
