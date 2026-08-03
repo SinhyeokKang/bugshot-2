@@ -5,7 +5,6 @@ import type {
   ViewportRect,
 } from "@/types/picker";
 import {
-  buildTokenLookup,
   captureEditable,
   collectInspectorInfo,
   collectSelection,
@@ -15,7 +14,6 @@ import {
   shouldRestoreEditable,
   writeEditableText,
   type EditableHandle,
-  type TokenLookup,
 } from "./css-resolve";
 import {
   applyStyleOverlay,
@@ -128,40 +126,42 @@ let overlay: OverlayHandle | null = null;
 let areaHandle: AreaSelectHandle | null = null;
 // 현재 area-select 세션이 끝난 뒤 선택 상태로 돌아가야 하는지(element 편집 중 본문 이미지 삽입).
 let areaRestoreAfter = false;
-let tokenLookup: TokenLookup | null = null;
-let tokenBuildHandle: number | null = null;
+let inspectorRefreshHandle: number | null = null;
 
 type InspectorInfo = ReturnType<typeof collectInspectorInfo>;
 let inspectorCache = new WeakMap<Element, InspectorInfo>();
 
-function scheduleTokenBuild(): void {
-  cancelTokenBuild();
+function scheduleInspectorRefresh(): void {
+  cancelInspectorRefresh();
   const run = (): void => {
-    tokenBuildHandle = null;
+    inspectorRefreshHandle = null;
     if (mode === "idle") return;
     void (async () => {
       await ensureCssCacheLoaded();
       if ((mode as Mode) === "idle") return;
-      tokenLookup = buildTokenLookup();
+      inspectorCache = new WeakMap();
+      if ((mode as Mode) === "hover" && lastHover) render();
+      await ensureCrossOriginLoaded();
+      if ((mode as Mode) === "idle") return;
       inspectorCache = new WeakMap();
       if ((mode as Mode) === "hover" && lastHover) render();
     })();
   };
   if (typeof requestIdleCallback === "function") {
-    tokenBuildHandle = requestIdleCallback(run, { timeout: 1000 });
+    inspectorRefreshHandle = requestIdleCallback(run, { timeout: 1000 });
   } else {
-    tokenBuildHandle = window.setTimeout(run, 0);
+    inspectorRefreshHandle = window.setTimeout(run, 0);
   }
 }
 
-function cancelTokenBuild(): void {
-  if (tokenBuildHandle == null) return;
+function cancelInspectorRefresh(): void {
+  if (inspectorRefreshHandle == null) return;
   if (typeof cancelIdleCallback === "function") {
-    cancelIdleCallback(tokenBuildHandle);
+    cancelIdleCallback(inspectorRefreshHandle);
   } else {
-    clearTimeout(tokenBuildHandle);
+    clearTimeout(inspectorRefreshHandle);
   }
-  tokenBuildHandle = null;
+  inspectorRefreshHandle = null;
 }
 
 // 정적(all_frames) 주입 + programmatic 재주입(ensureContentScript)이 모듈을 두 번 평가할
@@ -582,13 +582,11 @@ function handleStart(frameToken?: string): void {
   leaveCurrent();
   selectedEl = null;
   lastHover = null;
-  tokenLookup = null;
-  // 시트가 뒤늦게 주입·교체되면(다크모드 토글·SPA 라우트) raw 캐시만 갱신되고 토큰 표는
-  // 옛 시트로 굳는다 — 재로드 완료마다 다시 세운다.
-  setOnCacheReloaded(scheduleTokenBuild);
+  // 시트가 뒤늦게 주입·교체되면(다크모드 토글·SPA 라우트) inspector도 다시 수집한다.
+  setOnCacheReloaded(scheduleInspectorRefresh);
   startCssCacheObserver();
   void ensureCssCacheLoaded();
-  scheduleTokenBuild();
+  scheduleInspectorRefresh();
   addHoverListeners();
   setMode("hover");
 }
@@ -625,8 +623,7 @@ function handleClear(): void {
     overlay = null;
   }
   hideAnnotation();
-  cancelTokenBuild();
-  tokenLookup = null;
+  cancelInspectorRefresh();
   inspectorCache = new WeakMap();
   if (capturedScroll) window.scrollTo(capturedScroll.x, capturedScroll.y);
   capturedScroll = null;
@@ -920,7 +917,7 @@ function render(): void {
   if (mode === "hover") {
     let info = inspectorCache.get(target);
     if (!info) {
-      info = collectInspectorInfo(target, tokenLookup ?? undefined);
+      info = collectInspectorInfo(target);
       inspectorCache.set(target, info);
     }
     renderInspector(overlay, target, info);

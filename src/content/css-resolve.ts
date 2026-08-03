@@ -10,6 +10,7 @@ import {
   getMatchingCrossOriginCustomPropRules,
   getRawDeclarationsFor,
   flattenSheets,
+  splitSelectorList,
   type CrossOriginRule,
 } from "./css-source-cache";
 import { NAMED_COLORS } from "@/lib/named-colors";
@@ -486,22 +487,7 @@ export interface InspectorInfo {
   borderRadius?: string;
 }
 
-export type TokenLookup = Map<string, string>;
-
-export function buildTokenLookup(el?: Element): TokenLookup {
-  const tokens = collectTokens(el);
-  const map: TokenLookup = new Map();
-  for (const t of tokens) {
-    const key = normalizeForLookup(t.value);
-    if (key && !map.has(key)) map.set(key, t.name);
-  }
-  return map;
-}
-
-export function collectInspectorInfo(
-  el: Element,
-  tokens?: TokenLookup,
-): InspectorInfo {
+export function collectInspectorInfo(el: Element): InspectorInfo {
   const cs = window.getComputedStyle(el);
   const rect = el.getBoundingClientRect();
 
@@ -513,24 +499,17 @@ export function collectInspectorInfo(
   const refs = collectInspectorSpecRefs(el, cs);
 
   const colorValue = formatColor(cs.color) ?? cs.color;
-  const color =
-    firstVarName(refs.color) ?? matchToken(colorValue, tokens) ?? colorValue;
+  const color = firstVarName(refs.color) ?? colorValue;
 
   const bgValue = formatColor(cs.backgroundColor);
   const backgroundColor = bgValue
-    ? (firstVarName(refs.backgroundColor) ??
-      matchToken(bgValue, tokens) ??
-      bgValue)
+    ? (firstVarName(refs.backgroundColor) ?? bgValue)
     : undefined;
   const backgroundColorValue = bgValue;
 
   const family = parseFirstFontFamily(cs.fontFamily);
-  const fontSize =
-    firstVarName(refs.fontSize) ?? matchToken(cs.fontSize, tokens) ?? cs.fontSize;
-  const fontWeight =
-    firstVarName(refs.fontWeight) ??
-    matchToken(cs.fontWeight, tokens) ??
-    cs.fontWeight;
+  const fontSize = firstVarName(refs.fontSize) ?? cs.fontSize;
+  const fontWeight = firstVarName(refs.fontWeight) ?? cs.fontWeight;
 
   return {
     tag,
@@ -548,7 +527,6 @@ export function collectInspectorInfo(
     padding: resolveBoxLabel(
       [refs.paddingTop, refs.paddingRight, refs.paddingBottom, refs.paddingLeft],
       [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft],
-      tokens,
     ),
     borderRadius: resolveBoxLabel(
       [
@@ -563,7 +541,6 @@ export function collectInspectorInfo(
         cs.borderBottomRightRadius,
         cs.borderBottomLeftRadius,
       ],
-      tokens,
     ),
   };
 }
@@ -571,14 +548,13 @@ export function collectInspectorInfo(
 function resolveBoxLabel(
   refs: [string?, string?, string?, string?],
   computed: [string, string, string, string],
-  tokens?: TokenLookup,
 ): string | undefined {
   if (computed.every((v) => parseFloat(v) === 0)) return undefined;
   const labels: [string, string, string, string] = [
-    firstVarName(refs[0]) ?? matchToken(computed[0], tokens) ?? computed[0],
-    firstVarName(refs[1]) ?? matchToken(computed[1], tokens) ?? computed[1],
-    firstVarName(refs[2]) ?? matchToken(computed[2], tokens) ?? computed[2],
-    firstVarName(refs[3]) ?? matchToken(computed[3], tokens) ?? computed[3],
+    firstVarName(refs[0]) ?? computed[0],
+    firstVarName(refs[1]) ?? computed[1],
+    firstVarName(refs[2]) ?? computed[2],
+    firstVarName(refs[3]) ?? computed[3],
   ];
   const [t, r, b, l] = labels;
   if (t === r && r === b && b === l) return t;
@@ -593,12 +569,6 @@ function firstVarName(value: string | undefined): string | undefined {
   const name = m[1];
   if (name.startsWith("--_") || name.startsWith("--tw-")) return undefined;
   return name;
-}
-
-function matchToken(value: string, tokens?: TokenLookup): string | undefined {
-  if (!tokens || !value) return undefined;
-  const key = normalizeForLookup(value);
-  return key ? tokens.get(key) : undefined;
 }
 
 function normalizeForLookup(value: string): string {
@@ -828,17 +798,23 @@ function collectRulesForElement(
   for (const rule of matched) {
     const decl = rule.style;
     const ruleSelector = rule.selectorText;
+    // customPropsOnly 경로(조상 custom prop 순회)는 일반 prop이 전부 필터 탈락해
+    // noteClaim 도달 선언이 0개 — 계산이 사장되므로 건너뛴다.
+    const spec =
+      customPropsOnly || hasOpaqueCascadeContext(rule)
+        ? null
+        : matchedSpecificity(el, ruleSelector);
     const raw = getRawDeclarationsFor(rule);
     const ruleProps: Record<string, string> = {};
     // raw 파서는 `!important`를 값에서 벗겨내므로 이 규칙 자신의 중요도는 CSSOM에서만
     // 읽을 수 있다. 이게 없으면 나중 규칙의 `!important` shorthand가 앞선 것에 진다.
     const selfImportant = importantProps(decl);
     if (raw) {
-      extractVarPropsFromMap(raw, out, sources, ruleProps, ruleSelector, wantedProps, claims, selfImportant);
+      extractVarPropsFromMap(raw, out, sources, ruleProps, ruleSelector, wantedProps, claims, selfImportant, spec);
     } else {
-      extractVarPropsFromCssText(decl.cssText, out, sources, ruleProps, ruleSelector, wantedProps, claims, selfImportant);
+      extractVarPropsFromCssText(decl.cssText, out, sources, ruleProps, ruleSelector, wantedProps, claims, selfImportant, spec);
     }
-    applyDeclarations(decl, out, sources, ruleProps, ruleSelector, wantedProps, claims);
+    applyDeclarations(decl, out, sources, ruleProps, ruleSelector, wantedProps, claims, spec);
     mergeIntoScope(scopeProps, candidates, ruleProps);
   }
   if (el instanceof HTMLElement) {
@@ -921,6 +897,7 @@ function applyDeclarations(
   origin: string,
   wantedProps: Set<string> | undefined,
   claims: ClaimState,
+  specificity: Specificity | null = null,
 ): void {
   for (let i = 0; i < decl.length; i++) {
     const name = decl.item(i);
@@ -937,8 +914,8 @@ function applyDeclarations(
       continue;
     }
     if (wantedProps && !wantedProps.has(name)) continue;
-    noteClaim(claims, name, val, important, origin);
     if (
+      noteClaim(claims, name, val, important, origin, specificity) &&
       shouldOverwriteSpecified(
         out[name],
         val,
@@ -951,6 +928,7 @@ function applyDeclarations(
       sources[name] = origin;
       claims.derived.delete(name);
     }
+    // 중요도 부기는 verdict 게이트 밖 — 게이트 안으로 들어가면 후속 중요도 판정이 무너진다.
     if (important) claims.important.add(name);
   }
   for (const shorthand of Object.keys(SHORTHAND_MAP)) {
@@ -958,8 +936,8 @@ function applyDeclarations(
     const val = decl.getPropertyValue(shorthand);
     const important = decl.getPropertyPriority(shorthand) === "important";
     if (!val) continue;
-    noteClaim(claims, shorthand, val, important, origin);
     if (
+      noteClaim(claims, shorthand, val, important, origin, specificity) &&
       shouldOverwriteSpecified(
         out[shorthand],
         val,
@@ -1006,6 +984,7 @@ function extractVarPropsFromCssText(
   wantedProps?: Set<string>,
   claims?: ClaimState,
   selfImportant?: Set<string>,
+  specificity: Specificity | null = null,
 ): void {
   const declared = new Map<string, string>();
   CSS_DECL_RE.lastIndex = 0;
@@ -1013,7 +992,250 @@ function extractVarPropsFromCssText(
   while ((m = CSS_DECL_RE.exec(cssText)) !== null) {
     declared.set(m[1], m[2].replace(/\s*!\s*important\s*$/i, "").trim());
   }
-  extractVarPropsFromMap(declared, out, sources, customProps, origin, wantedProps, claims, selfImportant);
+  extractVarPropsFromMap(declared, out, sources, customProps, origin, wantedProps, claims, selfImportant, specificity);
+}
+
+export type Specificity = readonly [number, number, number];
+
+// CSS는 성분별 사전식 비교이고 각 성분에 규격상 상한이 없다 — 스칼라 인코딩은 cap 충돌을 만든다.
+export function compareSpecificity(a: Specificity, b: Specificity): -1 | 0 | 1 {
+  for (let i = 0; i < 3; i++) {
+    if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
+  }
+  return 0;
+}
+
+const LEGACY_PSEUDO_ELEMENTS = new Set([
+  "before",
+  "after",
+  "first-line",
+  "first-letter",
+]);
+
+// 인자 중 최고 specificity가 가산되는 특례 — 정확 재현엔 중첩 파싱 + 매치 판정까지 필요하고,
+// 잘못된 확정(패자 원문 표시)이 uncertain(computed 폴백)보다 해로우므로 보수적으로 null 처리.
+// :host(-context)는 document 시트만 순회하는 현 구조상 실도달이 없지만 방어적으로 등재.
+const UNRESOLVABLE_FUNCTIONAL_PSEUDOS = new Set([
+  "is",
+  "not",
+  "has",
+  "host",
+  "host-context",
+]);
+
+const IDENT_CHAR_RE = /[a-zA-Z0-9_-]/;
+const PSEUDO_NAME_CHAR_RE = /[a-zA-Z-]/;
+const HEX_CHAR_RE = /[0-9a-fA-F]/;
+const ESCAPE_TERMINATOR_RE = /[ \t\n\r\f]/;
+
+// i는 `\` 위치. 이스케이프 시퀀스 끝 다음 인덱스를 돌려준다. hex 이스케이프는 최대 6자리
+// **+ 종결 공백 1개**까지가 한 시퀀스다 — Chrome CSSOM이 숫자로 시작하는 클래스를 이 형태로
+// 직렬화하므로(Tailwind `2xl:mt-4` → `.\32 xl\:mt-4`), 공백을 안 먹으면 뒤 ident가 별개
+// type 셀렉터로 이중 카운트된다.
+function skipEscape(s: string, i: number): number {
+  let j = i + 1;
+  if (j < s.length && HEX_CHAR_RE.test(s[j])) {
+    const limit = Math.min(j + 6, s.length);
+    while (j < limit && HEX_CHAR_RE.test(s[j])) j++;
+    // CRLF는 whitespace 하나로 센다.
+    if (s[j] === "\r" && s[j + 1] === "\n") return j + 2;
+    if (ESCAPE_TERMINATOR_RE.test(s[j] ?? "")) j++;
+    return j;
+  }
+  return j + 1;
+}
+
+function consumeIdent(s: string, i: number): number {
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === "\\") {
+      i = skipEscape(s, i);
+      continue;
+    }
+    if (IDENT_CHAR_RE.test(ch) || ch.charCodeAt(0) > 127) {
+      i++;
+      continue;
+    }
+    break;
+  }
+  return i;
+}
+
+// i는 여는 괄호 위치. 닫는 짝 인덱스를 돌려주고 미폐합이면 -1.
+function skipBalanced(s: string, i: number, open: string, close: string): number {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let j = i; j < s.length; j++) {
+    const ch = s[j];
+    if (quote) {
+      if (ch === "\\") j++;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === open) depth++;
+    else if (ch === close) {
+      depth--;
+      if (depth === 0) return j;
+    }
+  }
+  return -1;
+}
+
+// 단일 셀렉터(콤마 없음)의 specificity 튜플. 판정 불가면 null — 그 규칙의 충돌은
+// 기존 uncertain 경로(computed 폴백)로 남는다.
+export function selectorSpecificity(selector: string): Specificity | null {
+  let a = 0;
+  let b = 0;
+  let c = 0;
+  const s = selector;
+  const len = s.length;
+  let i = 0;
+  while (i < len) {
+    const ch = s[i];
+    if (ch === "\\") {
+      i = skipEscape(s, i);
+      continue;
+    }
+    if (ch === "[") {
+      const end = skipBalanced(s, i, "[", "]");
+      if (end < 0) return null;
+      b++;
+      i = end + 1;
+      continue;
+    }
+    if (ch === "#") {
+      a++;
+      i = consumeIdent(s, i + 1);
+      continue;
+    }
+    if (ch === ".") {
+      b++;
+      i = consumeIdent(s, i + 1);
+      continue;
+    }
+    // CSS nesting의 &는 :is(부모) 상당 — 인자 가산 특례와 같은 이유로 판정 불가.
+    if (ch === "&") return null;
+    // 최상위 |는 네임스페이스(ns|div) — 토크나이저가 type 2개로 오분류할 수 있어 보수 null.
+    // [attr|=x]는 대괄호 스킵에 흡수되므로 여기 도달하지 않는다.
+    if (ch === "|") return null;
+    if (ch === ":") {
+      const isElement = s[i + 1] === ":";
+      let j = i + (isElement ? 2 : 1);
+      const nameStart = j;
+      while (j < len && PSEUDO_NAME_CHAR_RE.test(s[j])) j++;
+      const name = s.slice(nameStart, j).toLowerCase();
+      const functional = s[j] === "(";
+      let argEnd = j;
+      if (functional) {
+        argEnd = skipBalanced(s, j, "(", ")");
+        if (argEnd < 0) return null;
+      }
+      if (isElement) {
+        // ::part()/::slotted()는 인자가 specificity에 가산되는 특례.
+        if (name === "part" || name === "slotted") return null;
+        c++;
+      } else if (LEGACY_PSEUDO_ELEMENTS.has(name)) {
+        c++;
+      } else if (name === "where") {
+        // :where()는 0 기여.
+      } else if (UNRESOLVABLE_FUNCTIONAL_PSEUDOS.has(name) && functional) {
+        return null;
+      } else if (
+        (name === "nth-child" || name === "nth-last-child") &&
+        functional &&
+        /\bof\b/i.test(s.slice(j + 1, argEnd))
+      ) {
+        // `:nth-child(An+B of S)`는 S가 가산되는 특례.
+        return null;
+      } else {
+        b++;
+      }
+      i = functional ? argEnd + 1 : j;
+      continue;
+    }
+    if (
+      ch === "*" ||
+      ch === " " ||
+      ch === "\t" ||
+      ch === "\n" ||
+      ch === ">" ||
+      ch === "+" ||
+      ch === "~" ||
+      ch === ","
+    ) {
+      i++;
+      continue;
+    }
+    c++;
+    i = consumeIdent(s, i + 1);
+  }
+  return [a, b, c];
+}
+
+// selector list에서 el에 실제 매치되는 파트 중 최고 specificity(CSS 사양과 동일).
+// el은 구조적 타입 — node 테스트에서 스텁 주입 가능.
+export function matchedSpecificity(
+  el: { matches(selectors: string): boolean },
+  selectorText: string,
+): Specificity | null {
+  const parts = splitSelectorList(selectorText);
+  let best: Specificity | null = null;
+  for (const part of parts) {
+    let matched: boolean;
+    try {
+      matched = el.matches(part);
+    } catch {
+      // 이 파트의 매치 여부를 모르면 그 파트가 승자인지도 알 수 없다.
+      return null;
+    }
+    if (!matched) continue;
+    const spec = selectorSpecificity(part);
+    // 매치된 파트가 판정 불가면 그 파트가 최고일 수 있다.
+    if (spec === null) return null;
+    if (best === null || compareSpecificity(spec, best) > 0) best = spec;
+  }
+  return best;
+}
+
+// node/jsdom엔 CSS rule 전역이 없다 — typeof 가드 없이는 ReferenceError.
+function instanceOfGlobal(value: unknown, ctorName: string): boolean {
+  const ctor = (globalThis as Record<string, unknown>)[ctorName];
+  return (
+    typeof ctor === "function" &&
+    value instanceof (ctor as abstract new (...args: never[]) => unknown)
+  );
+}
+
+// 인덱서(`css-source-cache.ts:walkRulesForIndex`)가 조건을 **실제로 평가하고** 하강하는
+// 그룹 규칙. 나머지(@layer·@scope·@container·@starting-style·미래 at-rule)는 조건 무관하게
+// 인덱싱되거나 승부 축이 specificity 밖이라 승자를 확정할 수 없다.
+const TRANSPARENT_GROUP_RULES = ["CSSMediaRule", "CSSSupportsRule"];
+
+// 승자를 확정할 수 없는 캐스케이드 문맥 판정 — null spec으로 기존 uncertain 경로를 태운다.
+// **열거가 아니라 화이트리스트다**: opaque 목록을 나열하면 "나머지는 안전하다"는 반대 전제가
+// 생겨 다음 at-rule에서 같은 구멍이 재발한다(docs/POSTMORTEM.md 2026-07-31 "밀어낼 대상을
+// 열거하지 않은 덮어쓰기" 재발 방지 (4)).
+// 모르는 그룹 규칙의 기본값은 uncertain이어야 한다 — 잘못된 확정이 computed 폴백보다 해롭다.
+export function hasOpaqueCascadeContext(rule: CSSStyleRule): boolean {
+  for (let r: CSSRule | null = rule.parentRule; r; r = r.parentRule) {
+    if (!TRANSPARENT_GROUP_RULES.some((name) => instanceOfGlobal(r, name))) {
+      return true;
+    }
+  }
+  for (let sheet: CSSStyleSheet | null = rule.parentStyleSheet; sheet; ) {
+    const owner: CSSRule | null = sheet.ownerRule;
+    if (!owner) break;
+    // 익명 layer(`@import … layer;`)는 layerName이 ""라 != null로 잡는다.
+    if (
+      instanceOfGlobal(owner, "CSSImportRule") &&
+      (owner as { layerName?: string | null }).layerName != null
+    ) {
+      return true;
+    }
+    sheet = owner.parentStyleSheet;
+  }
+  return false;
 }
 
 // 규칙 순회 전체에 걸쳐 누적되는 판정 재료. specified 맵은 값만 갖고 있어서, 그 값이
@@ -1021,7 +1243,15 @@ function extractVarPropsFromCssText(
 export interface ClaimState {
   important: Set<string>;
   derived: Set<string>;
-  candidates: Map<string, { value: string; important: boolean; origin: string }>;
+  candidates: Map<
+    string,
+    {
+      value: string;
+      important: boolean;
+      origin: string;
+      specificity: Specificity | null;
+    }
+  >;
   uncertain: Set<string>;
 }
 
@@ -1034,11 +1264,12 @@ export function newClaimState(): ClaimState {
   };
 }
 
-// 규칙 둘이 같은 prop을 다른 값으로 선언하면 specificity를 모르므로(getMatchingRules는
-// 문서 순서만 안다) 브라우저가 계산한 값으로 회피한다. 단 author가 var() 토큰을 썼으면
-// 이름을 유지한다 — computed는 토큰을 이미 해석해 버려서, 덮으면 토큰 칩·swatch가 사라지고
-// (`collectReferencedTokenNames`가 이름을 못 모은다) CSS 뷰가 리터럴 덤프가 된다.
-// 근사 두 개 중 "값이 덜 정확하다"를 택하고 "토큰을 잃는다"를 버린 것.
+// specificity 판정 불가(null-spec) 충돌로 남은 prop은 브라우저가 계산한 값으로 회피한다.
+// 단 author가 var() 토큰을 썼으면 이름을 유지한다 — computed는 토큰을 이미 해석해 버려서,
+// 덮으면 토큰 칩·swatch가 사라지고(`collectReferencedTokenNames`가 이름을 못 모은다)
+// CSS 뷰가 리터럴 덤프가 된다. 근사 두 개 중 "값이 덜 정확하다"를 택하고 "토큰을 잃는다"를
+// 버린 것. 같은 규칙을 raw 파서와 CSSOM이 표기만 다르게 읽어 동일 값 경로를 빠져나가는
+// 자기 충돌은, var 경로가 var() 값만 다루고 여기의 var() 스킵이 그 값을 안 덮으므로 실해 없다.
 export function resolveUncertainSpecified(
   all: Record<string, string>,
   sources: Record<string, string>,
@@ -1058,40 +1289,54 @@ export function resolveUncertainSpecified(
   }
 }
 
+// 규칙 간 캐스케이드 승자 판정(important > inline > specificity > 문서순)과 verdict 반환.
+// 표기 보호(var() 토큰 강등 방지 등)는 shouldOverwriteSpecified가 맡는다 — 승자 판정과
+// 표기 보호를 한 함수가 겸하면 조용히 하나를 버린다(docs/POSTMORTEM.md 2026-08-01).
+// 반환 false면 호출부가 out/sources 쓰기를 건너뛴다(패자 원문이 확정 표시되는 회귀 방지).
 export function noteClaim(
   claims: ClaimState,
   property: string,
   value: string,
   important: boolean,
   origin: string,
-): void {
+  specificity: Specificity | null = null,
+): boolean {
   const previous = claims.candidates.get(property);
-  const next = { value, important, origin };
+  const next = { value, important, origin, specificity };
   if (!previous) {
     claims.candidates.set(property, next);
-    return;
+    return true;
+  }
+  if (previous.important && !important) return false;
+  if (!previous.important && important) {
+    // important는 candidates가 잊은 null-spec 패자까지 전부 이기므로 판정 불가 이력을 무효화한다.
+    claims.candidates.set(property, next);
+    claims.uncertain.delete(property);
+    return true;
+  }
+  if (origin === "[inline]" && previous.origin !== "[inline]") {
+    claims.candidates.set(property, next);
+    claims.uncertain.delete(property);
+    return true;
+  }
+  if (previous.origin === "[inline]" && origin !== "[inline]") return false;
+  if (previous.specificity != null && specificity != null) {
+    // 동률은 문서순 뒤 승 — 순회가 seq 오름차순임을 getMatchingRules가 보장한다.
+    if (compareSpecificity(specificity, previous.specificity) >= 0) {
+      claims.candidates.set(property, next);
+      return true;
+    }
+    // uncertain은 지우지 않는다 — 앞선 null-spec 충돌의 판정 불가 이력은 유효하고,
+    // candidates는 마지막 승자 1개만 기억하므로 지우면 이력을 잃는다.
+    return false;
   }
   if (previous.value === value) {
-    if (origin === "[inline]" || (important && !previous.important)) {
-      claims.candidates.set(property, next);
-      claims.uncertain.delete(property);
-    }
-    return;
+    // 값 자체는 확정이라 uncertain을 늘리지 않되, 출처를 모른 채 뒤 선언을 승자로 단정하지 않는다.
+    return false;
   }
-  if (previous.important && !important) return;
-  if (!previous.important && important) {
-    claims.candidates.set(property, next);
-    claims.uncertain.delete(property);
-    return;
-  }
-  if (origin === "[inline]") {
-    claims.candidates.set(property, next);
-    claims.uncertain.delete(property);
-    return;
-  }
-  if (previous.origin === "[inline]") return;
   claims.candidates.set(property, next);
   claims.uncertain.add(property);
+  return true;
 }
 
 // specified 자리를 덮을지 판정하는 단일 출처. !important는 specificity보다 상위라 일반
@@ -1122,6 +1367,7 @@ export function extractVarPropsFromMap(
   wantedProps?: Set<string>,
   claims?: ClaimState,
   selfImportant?: Set<string>,
+  specificity: Specificity | null = null,
 ): void {
   for (const [prop, val] of declared) {
     if (prop.startsWith("--")) {
@@ -1130,10 +1376,18 @@ export function extractVarPropsFromMap(
     }
     if (wantedProps && !wantedProps.has(prop)) continue;
     if (!val.includes("var(")) continue;
-    if (claimSpecified(out, sources, origin, prop, val, claims, selfImportant)) {
+    // 직접 선언 prop은 캐스케이드 승자 판정을 먼저 탄다(claims 없으면 통과). CSSOM 패스가
+    // 같은 선언을 중복 등록해도 같은 값·origin·specificity라 동률 뒤 선언 분기로 무해하다.
+    const winner = claims
+      ? noteClaim(claims, prop, val, selfImportant?.has(prop) ?? false, origin, specificity)
+      : true;
+    if (winner && claimSpecified(out, sources, origin, prop, val, claims, selfImportant)) {
       // shorthand 키 자체는 author가 직접 쓴 값이라 파생이 아니다.
       claims?.derived.delete(prop);
     }
+    // 패자 규칙의 파생 전개는 통째로 스킵 — 파생은 noteClaim을 안 타므로(후보 등록 시
+    // 없던 uncertain이 새로 생긴다) 게이트 밖에 남기면 패자 파생값이 out을 덮는 desync가 된다.
+    if (!winner) continue;
     // border/border-{side}는 width|style|color 혼합이라 SHORTHAND_MAP 밖 — 토큰 분류로 분해.
     const sides = BORDER_SHORTHAND_SIDES[prop];
     if (Array.isArray(sides)) {

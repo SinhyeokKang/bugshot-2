@@ -1,10 +1,30 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("../css-source-cache", () => ({
-  getMatchingRules: () => [],
-  getRawDeclarationsFor: () => null,
-  flattenSheets: (sheets: unknown[]) => sheets,
-}));
+// 수용 테스트가 테스트별로 규칙을 갈아끼울 수 있게 hoisted mutable로 둔다(vi.mock hoisting 제약).
+const mockRules = vi.hoisted(() => ({ current: [] as unknown[] }));
+
+// 아래 importOriginal이 css-source-cache 실모듈을 로드하면서 messages → i18n →
+// settings-ui-store(zustand persist 즉시 hydration) 체인이 딸려와 chrome 부재로 stderr를
+// 더럽힌다. 스토리지 어댑터만 끊으면 그 hydration이 조용해진다.
+vi.mock("@/store/chrome-storage", () => {
+  const noop = { getItem: async () => null, setItem: async () => {}, removeItem: async () => {} };
+  return { chromeLocalStorage: noop, failClosedLocalStorage: noop };
+});
+
+vi.mock("../css-source-cache", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../css-source-cache")>();
+  return {
+    // splitSelectorList 등 순수 헬퍼는 실제 구현을 쓴다 — 모듈 통째 mock이라 빠지면
+    // matchedSpecificity가 undefined를 호출한다.
+    ...actual,
+    getMatchingRules: () => mockRules.current as CSSStyleRule[],
+    getRawDeclarationsFor: () => null,
+    flattenSheets: (sheets: unknown[]) => sheets,
+    getMatchingCrossOriginRules: () => [],
+    getMatchingCrossOriginCustomPropRules: () => [],
+    getCrossOriginCustomProps: () => ({}),
+  };
+});
 
 import {
   resolveVarChain,
@@ -30,6 +50,11 @@ import {
   resolveUncertainSpecified,
   normalizePositionOffsets,
   resolveTokenValue,
+  selectorSpecificity,
+  compareSpecificity,
+  matchedSpecificity,
+  hasOpaqueCascadeContext,
+  collectSpecifiedStylesWithSources,
   type EditableHandle,
 } from "../css-resolve";
 
@@ -1663,6 +1688,448 @@ describe("resolveTokenValue — 토큰 목록의 값/category 판정용 완전 �
     const props = { "--blue-500": "#06f", "--color-primary": "var(--blue-500)" };
     expect(categorizeToken(resolveTokenValue("var(--blue-500)", props))).toBe("color");
     expect(categorizeToken("var(--blue-500)")).toBe("unknown");
+  });
+});
+
+describe("selectorSpecificity", () => {
+  it("기본 성분: type/class/id/복합/universal", () => {
+    expect(selectorSpecificity("div")).toEqual([0, 0, 1]);
+    expect(selectorSpecificity(".a")).toEqual([0, 1, 0]);
+    expect(selectorSpecificity("#a")).toEqual([1, 0, 0]);
+    expect(selectorSpecificity("div.a#b")).toEqual([1, 1, 1]);
+    expect(selectorSpecificity("*")).toEqual([0, 0, 0]);
+  });
+
+  it("결합자는 무기여", () => {
+    expect(selectorSpecificity(".a > .b")).toEqual([0, 2, 0]);
+    expect(selectorSpecificity(".a .b ~ .c")).toEqual([0, 3, 0]);
+  });
+
+  it("pseudo-class는 b, pseudo-element는 c (레거시 단일콜론 포함)", () => {
+    expect(selectorSpecificity(".x:hover")).toEqual([0, 2, 0]);
+    expect(selectorSpecificity("div::before")).toEqual([0, 0, 2]);
+    expect(selectorSpecificity("div:before")).toEqual([0, 0, 2]);
+  });
+
+  it("함수형 pseudo-class는 인자를 스킵하고 b 1회", () => {
+    expect(selectorSpecificity("li:nth-child(2n)")).toEqual([0, 1, 1]);
+  });
+
+  it(":where()는 0 기여 (인자 스킵)", () => {
+    expect(selectorSpecificity(".x:where(.a #b)")).toEqual([0, 1, 0]);
+  });
+
+  it("따옴표 안 콤마·괄호는 attr 카운트를 오염시키지 않는다", () => {
+    expect(selectorSpecificity('[data-x="a,b(c"]')).toEqual([0, 1, 0]);
+  });
+
+  it("[attr|=x]는 정상 b 카운트 (대괄호 스킵에 흡수)", () => {
+    expect(selectorSpecificity("[attr|=x]")).toEqual([0, 1, 0]);
+  });
+
+  it("이스케이프 다음 문자는 pseudo로 세지 않는다", () => {
+    expect(selectorSpecificity(".a\\:b")).toEqual([0, 1, 0]);
+  });
+
+  // Chrome CSSOM은 숫자로 시작하는 클래스를 hex 이스케이프 + 종결 공백으로 직렬화한다
+  // (Tailwind `2xl:mt-4` → `.\32 xl\:mt-4`). 그 공백을 이스케이프의 일부로 안 먹으면
+  // 뒤 ident가 type 셀렉터로 이중 카운트돼 specificity가 과대평가된다.
+  it("hex 이스케이프의 종결 공백까지 소비한다 (Tailwind 직렬화)", () => {
+    expect(selectorSpecificity(".\\32 xl\\:mt-4")).toEqual([0, 1, 0]);
+    expect(selectorSpecificity("#\\31 23")).toEqual([1, 0, 0]);
+    // 이스케이프된 공백(`\ `)은 ident의 일부라 종결자가 아니다.
+    expect(selectorSpecificity(".a\\ b")).toEqual([0, 1, 0]);
+    // hex는 최대 6자리 — 7번째가 hex여도 거기서 끊기고 종결 공백을 안 먹는다.
+    // (7번째가 비-hex인 입력은 캡을 지워도 같은 자리에서 멈춰 캡을 검증하지 못한다.)
+    expect(selectorSpecificity(".\\0000313 abc")).toEqual([0, 1, 1]);
+    // 종결 whitespace는 공백뿐 아니라 CR·FF·CRLF(2문자 1개)도 해당한다.
+    expect(selectorSpecificity(".\\32\rx")).toEqual([0, 1, 0]);
+    expect(selectorSpecificity(".\\32\fx")).toEqual([0, 1, 0]);
+    expect(selectorSpecificity(".\\32\r\nx")).toEqual([0, 1, 0]);
+  });
+
+  it("판정 불가 셀렉터는 null (보수적 uncertain 처리)", () => {
+    const unresolvable = [
+      ":is(.a)",
+      ":not(.a)",
+      ":has(.a)",
+      "::part(x)",
+      "::slotted(.a)",
+      "& .a",
+      "li:nth-child(2n of .a)",
+      "ns|div",
+      ":host(.a)",
+    ];
+    for (const s of unresolvable) {
+      expect(selectorSpecificity(s), s).toBeNull();
+    }
+  });
+});
+
+describe("compareSpecificity", () => {
+  it("사전식 비교 — 성분 cap 없음 (스칼라 인코딩 회귀 방지)", () => {
+    expect(compareSpecificity([0, 1000, 0], [1, 0, 0])).toBe(-1);
+    expect(compareSpecificity([1, 0, 0], [0, 1000, 0])).toBe(1);
+    expect(compareSpecificity([0, 0, 1000], [0, 1, 0])).toBe(-1);
+  });
+
+  it("동일 튜플은 0", () => {
+    expect(compareSpecificity([0, 2, 1], [0, 2, 1])).toBe(0);
+  });
+});
+
+describe("matchedSpecificity", () => {
+  it("매치되는 파트 중 최고 specificity를 취한다", () => {
+    const el = { matches: (s: string) => s === ".a" || s === "#b" };
+    expect(matchedSpecificity(el, ".a, #b")).toEqual([1, 0, 0]);
+  });
+
+  it("비매치 파트는 specificity가 높거나 null이어도 무시한다", () => {
+    const el = { matches: (s: string) => s === ".a" };
+    expect(matchedSpecificity(el, ".a, #b")).toEqual([0, 1, 0]);
+    expect(matchedSpecificity(el, ".a, :is(.b)")).toEqual([0, 1, 0]);
+  });
+
+  it("매치된 파트가 null-spec이면 전체 null (그 파트가 최고일 수 있다)", () => {
+    const el = { matches: () => true };
+    expect(matchedSpecificity(el, ".a, :is(.b)")).toBeNull();
+  });
+
+  it("el.matches가 throw하면 null", () => {
+    const el = {
+      matches: () => {
+        throw new Error("invalid selector");
+      },
+    };
+    expect(matchedSpecificity(el, ".a")).toBeNull();
+  });
+
+  it("매치 파트 0개면 null (인덱스 손상 등 비정상)", () => {
+    const el = { matches: () => false };
+    expect(matchedSpecificity(el, ".a, .b")).toBeNull();
+  });
+});
+
+describe("hasOpaqueCascadeContext", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const bare = (extra: object = {}) =>
+    ({ parentRule: null, parentStyleSheet: null, ...extra }) as unknown as CSSStyleRule;
+
+  it("CSS rule 전역 부재(node)에서도 throw 없이 false", () => {
+    expect(hasOpaqueCascadeContext(bare())).toBe(false);
+  });
+
+  it("parentRule 체인의 CSSLayerBlockRule → true (조건 평가된 @media는 통과)", () => {
+    class FakeLayerBlock {}
+    class FakeMedia {
+      parentRule: unknown = null;
+      parentStyleSheet: unknown = null;
+    }
+    vi.stubGlobal("CSSLayerBlockRule", FakeLayerBlock);
+    vi.stubGlobal("CSSMediaRule", FakeMedia);
+    const media = new FakeMedia();
+    media.parentRule = new FakeLayerBlock();
+    expect(hasOpaqueCascadeContext(bare({ parentRule: media }))).toBe(true);
+  });
+
+  it("parentRule 체인의 CSSScopeRule → true", () => {
+    class FakeScope {}
+    vi.stubGlobal("CSSScopeRule", FakeScope);
+    expect(hasOpaqueCascadeContext(bare({ parentRule: new FakeScope() }))).toBe(true);
+  });
+
+  // 인덱서(css-source-cache:walkRulesForIndex)가 조건을 실제로 평가하는 건 @media·@supports
+  // 둘뿐이다. 나머지 조건부 그룹은 조건 무관하게 인덱싱되므로, 비적용 규칙이 known-spec으로
+  // 경쟁하면 uncertain 안전망 없이 확정 표시된다.
+  it("조건 평가 안 되는 그룹(@container·@starting-style) 소속 → true", () => {
+    class FakeContainer {}
+    class FakeStartingStyle {}
+    vi.stubGlobal("CSSContainerRule", FakeContainer);
+    vi.stubGlobal("CSSStartingStyleRule", FakeStartingStyle);
+    expect(hasOpaqueCascadeContext(bare({ parentRule: new FakeContainer() }))).toBe(true);
+    expect(
+      hasOpaqueCascadeContext(bare({ parentRule: new FakeStartingStyle() })),
+    ).toBe(true);
+  });
+
+  // 화이트리스트라 아직 이름조차 모르는 미래 at-rule도 기본이 opaque다.
+  it("정체 모를 그룹 규칙도 → true (열거가 아니라 화이트리스트)", () => {
+    class FakeFutureAtRule {}
+    vi.stubGlobal("CSSMediaRule", class {});
+    vi.stubGlobal("CSSSupportsRule", class {});
+    expect(
+      hasOpaqueCascadeContext(bare({ parentRule: new FakeFutureAtRule() })),
+    ).toBe(true);
+  });
+
+  it("@media·@supports 소속만은 false (인덱서가 조건을 평가해 통과시킨 규칙)", () => {
+    class FakeMedia {
+      parentRule: unknown = null;
+      parentStyleSheet: unknown = null;
+    }
+    class FakeSupports {
+      parentRule: unknown = null;
+      parentStyleSheet: unknown = null;
+    }
+    vi.stubGlobal("CSSMediaRule", FakeMedia);
+    vi.stubGlobal("CSSSupportsRule", FakeSupports);
+    const supports = new FakeSupports();
+    supports.parentRule = new FakeMedia();
+    expect(hasOpaqueCascadeContext(bare({ parentRule: supports }))).toBe(false);
+  });
+
+  it("@import layer 소속 시트 → true (익명 layer \"\"·중첩 import 체인 포함)", () => {
+    class FakeImportRule {
+      layerName: string | null = null;
+      parentStyleSheet: unknown = null;
+    }
+    vi.stubGlobal("CSSImportRule", FakeImportRule);
+    const anon = new FakeImportRule();
+    anon.layerName = "";
+    expect(
+      hasOpaqueCascadeContext(bare({ parentStyleSheet: { ownerRule: anon } })),
+    ).toBe(true);
+    // 중첩: layer 없는 @import 시트가 layer 있는 @import 아래에 있으면 체인 상단에서 잡힌다.
+    const outer = new FakeImportRule();
+    outer.layerName = "base";
+    const inner = new FakeImportRule();
+    inner.parentStyleSheet = { ownerRule: outer };
+    expect(
+      hasOpaqueCascadeContext(bare({ parentStyleSheet: { ownerRule: inner } })),
+    ).toBe(true);
+  });
+
+  it("layer 없는 @import(layerName null)는 false", () => {
+    class FakeImportRule {
+      layerName: string | null = null;
+      parentStyleSheet: unknown = null;
+    }
+    vi.stubGlobal("CSSImportRule", FakeImportRule);
+    const imp = new FakeImportRule();
+    expect(
+      hasOpaqueCascadeContext(bare({ parentStyleSheet: { ownerRule: imp } })),
+    ).toBe(false);
+  });
+});
+
+// 캐스케이드 승자 판정(important > inline > specificity > 문서순)과 verdict 반환.
+// 표기 보호(shouldOverwriteSpecified)와의 역할 분리는 design.md "역할 분리" 참조.
+describe("noteClaim — specificity 판정", () => {
+  it("specificity 역전: 낮은 spec 후속 선언은 verdict false, 이전 승자 유지·uncertain 없음", () => {
+    const claims = newClaimState();
+    expect(noteClaim(claims, "color", "red", false, ".a.b", [0, 2, 0])).toBe(true);
+    expect(noteClaim(claims, "color", "blue", false, ".c", [0, 1, 0])).toBe(false);
+    expect(claims.candidates.get("color")?.value).toBe("red");
+    expect(claims.candidates.get("color")?.origin).toBe(".a.b");
+    expect(claims.uncertain.has("color")).toBe(false);
+  });
+
+  it("동률은 문서순 — 뒤 선언 채택(true), uncertain 비움", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ".a", [0, 1, 0]);
+    expect(noteClaim(claims, "color", "blue", false, ".b", [0, 1, 0])).toBe(true);
+    expect(claims.candidates.get("color")?.value).toBe("blue");
+    expect(claims.uncertain.has("color")).toBe(false);
+  });
+
+  it("같은 값도 승자 비교를 탄다 — 높은 spec 이전 승자의 origin 유지", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ".a.b", [0, 2, 0]);
+    expect(noteClaim(claims, "color", "red", false, ".c", [0, 1, 0])).toBe(false);
+    expect(claims.candidates.get("color")?.origin).toBe(".a.b");
+  });
+
+  it("같은 값 known-spec 동률은 뒤 후보가 승자(true)", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ".a", [0, 1, 0]);
+    expect(noteClaim(claims, "color", "red", false, ".b", [0, 1, 0])).toBe(true);
+    expect(claims.candidates.get("color")?.origin).toBe(".b");
+  });
+
+  it("같은 값 + 어느 한쪽 null spec → 이전 후보 유지(false), uncertain 안 늘림", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ".a.b", [0, 2, 0]);
+    expect(noteClaim(claims, "color", "red", false, ":is(.c)", null)).toBe(false);
+    expect(claims.candidates.get("color")?.origin).toBe(".a.b");
+    expect(claims.uncertain.has("color")).toBe(false);
+
+    const claims2 = newClaimState();
+    noteClaim(claims2, "color", "red", false, ".a", null);
+    expect(noteClaim(claims2, "color", "red", false, ".b", [0, 1, 0])).toBe(false);
+    expect(claims2.candidates.get("color")?.origin).toBe(".a");
+    expect(claims2.uncertain.has("color")).toBe(false);
+  });
+
+  it("다른 값 + 어느 한쪽 null spec → 기존대로 채택 + uncertain(true)", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ".a", [0, 1, 0]);
+    expect(noteClaim(claims, "color", "blue", false, ":is(.b)", null)).toBe(true);
+    expect(claims.candidates.get("color")?.value).toBe("blue");
+    expect(claims.uncertain.has("color")).toBe(true);
+  });
+
+  it("낮은 spec + important가 높은 spec 일반을 이긴다 (기존 분기 유지)", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ".a.b.c", [0, 3, 0]);
+    expect(noteClaim(claims, "color", "blue", true, ".z", [0, 0, 1])).toBe(true);
+    expect(claims.candidates.get("color")?.value).toBe("blue");
+    // important 승자는 뒤의 높은 spec 일반 선언에도 지지 않는다.
+    expect(noteClaim(claims, "color", "green", false, ".x.y", [0, 2, 0])).toBe(false);
+    expect(claims.candidates.get("color")?.value).toBe("blue");
+  });
+
+  it("inline 일반 > 높은 spec 일반, important 일반 > inline 일반", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ".a.b.c", [0, 3, 0]);
+    expect(noteClaim(claims, "color", "blue", false, "[inline]", null)).toBe(true);
+    expect(claims.candidates.get("color")?.origin).toBe("[inline]");
+    expect(noteClaim(claims, "color", "green", true, ".z", [0, 0, 1])).toBe(true);
+    expect(claims.candidates.get("color")?.value).toBe("green");
+  });
+
+  it("null-spec 충돌로 uncertain된 prop은 후속 known-spec 패배 판정에서 delete되지 않는다", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ":is(.x)", null);
+    noteClaim(claims, "color", "blue", false, ".a.b", [0, 2, 0]);
+    expect(claims.uncertain.has("color")).toBe(true);
+    expect(noteClaim(claims, "color", "green", false, ".c", [0, 1, 0])).toBe(false);
+    expect(claims.uncertain.has("color")).toBe(true);
+  });
+
+  it("uncertain 확정 복귀 — important 도착 시 채택 + uncertain 해소", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ":is(.x)", null);
+    noteClaim(claims, "color", "blue", false, ".a.b", [0, 2, 0]);
+    expect(claims.uncertain.has("color")).toBe(true);
+    expect(noteClaim(claims, "color", "green", true, ".z", [0, 0, 1])).toBe(true);
+    expect(claims.candidates.get("color")?.value).toBe("green");
+    expect(claims.uncertain.has("color")).toBe(false);
+  });
+
+  it("uncertain 확정 복귀 — inline 도착도 동일", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ":is(.x)", null);
+    noteClaim(claims, "color", "blue", false, ".a.b", [0, 2, 0]);
+    expect(noteClaim(claims, "color", "green", false, "[inline]", null)).toBe(true);
+    expect(claims.uncertain.has("color")).toBe(false);
+  });
+
+  it("var 교차 ①: 리터럴 승자 verdict true여도 out의 author var()는 보호(의도된 비대칭)", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "var(--c)", false, ".a.b", [0, 2, 0]);
+    expect(noteClaim(claims, "color", "red", false, ".a.b.c", [0, 3, 0])).toBe(true);
+    expect(claims.candidates.get("color")?.value).toBe("red");
+    // verdict true 뒤에도 쓰기는 shouldOverwriteSpecified를 통과해야 한다 — out은 var 유지.
+    expect(shouldOverwriteSpecified("var(--c)", "red", false)).toBe(false);
+  });
+
+  it("var 교차 ②: 낮은 spec var() 후속은 verdict false — 승자 리터럴 유지(토큰 소멸 의도)", () => {
+    const claims = newClaimState();
+    noteClaim(claims, "color", "red", false, ".a.b.c", [0, 3, 0]);
+    expect(noteClaim(claims, "color", "var(--c)", false, ".a", [0, 1, 0])).toBe(false);
+    expect(claims.candidates.get("color")?.value).toBe("red");
+  });
+});
+
+// 공개 경로(collectSpecifiedStylesWithSources)로 스레딩+쓰기 게이트를 수용 검증.
+// node 트랙이라 window/HTMLElement/규칙을 전부 스텁한다(tasks.md Task 4 목록).
+describe("collectSpecifiedStylesWithSources — specificity 수용", () => {
+  const ruleStub = (
+    selectorText: string,
+    cssText: string,
+    decls: Record<string, string> = {},
+    priorities: Record<string, string> = {},
+  ): CSSStyleRule => {
+    const names = Object.keys(decls);
+    return {
+      selectorText,
+      parentRule: null,
+      parentStyleSheet: null,
+      style: {
+        length: names.length,
+        item: (i: number) => names[i] ?? "",
+        getPropertyValue: (n: string) => decls[n] ?? "",
+        getPropertyPriority: (n: string) => priorities[n] ?? "",
+        cssText,
+      },
+    } as unknown as CSSStyleRule;
+  };
+
+  const elStub = (matches: (sel: string) => boolean): Element =>
+    ({ matches, parentElement: null }) as unknown as Element;
+
+  beforeEach(() => {
+    vi.stubGlobal("HTMLElement", class {});
+    vi.stubGlobal("window", {
+      getComputedStyle: () => ({
+        getPropertyValue: (p: string) => (p.startsWith("--") ? "" : "rgb(1, 2, 3)"),
+      }),
+    });
+  });
+
+  afterEach(() => {
+    mockRules.current = [];
+    vi.unstubAllGlobals();
+  });
+
+  it("높은 spec 규칙 원문이 살아남고 [computed] 대체가 일어나지 않는다", () => {
+    mockRules.current = [
+      ruleStub(".btn.primary", "background-color: #ff0000", {
+        "background-color": "#ff0000",
+      }),
+      ruleStub(".x", "background-color: #00ff00", {
+        "background-color": "#00ff00",
+      }),
+    ];
+    const el = elStub((s) => s === ".btn.primary" || s === ".x");
+    const { styles, sources } = collectSpecifiedStylesWithSources(el);
+    expect(styles["background-color"]).toBe("#ff0000");
+    expect(sources["background-color"]).toBe(".btn.primary");
+  });
+
+  it("대조군: 한쪽 spec null이면 기존대로 uncertain → [computed] 대체", () => {
+    mockRules.current = [
+      ruleStub(".btn", "background-color: #ff0000", {
+        "background-color": "#ff0000",
+      }),
+      ruleStub(":is(.x)", "background-color: #00ff00", {
+        "background-color": "#00ff00",
+      }),
+    ];
+    const el = elStub(() => true);
+    const { styles, sources } = collectSpecifiedStylesWithSources(el);
+    expect(styles["background-color"]).toBe("rgb(1, 2, 3)");
+    expect(sources["background-color"]).toBe("[computed]");
+  });
+
+  it("3규칙 교차: 패자 shorthand는 직접 prop 쓰기와 파생 전개가 통째로 스킵된다", () => {
+    mockRules.current = [
+      ruleStub(".x.y.z", "border-top-color: var(--hi)"),
+      ruleStub(".x.y", "border: 1px solid var(--mid)"),
+      ruleStub(".x", "border: 2px dashed var(--lo)"),
+    ];
+    const el = elStub((s) => s === ".x.y.z" || s === ".x.y" || s === ".x");
+    const { styles, sources } = collectSpecifiedStylesWithSources(el);
+    // border 키는 spec 비교로 .x.y가 승자 — 패자 .x의 값이 out을 덮지 않는다.
+    expect(styles["border"]).toBe("1px solid var(--mid)");
+    expect(sources["border"]).toBe(".x.y");
+    // 패자 shorthand의 파생 전개 스킵 — border-top-color가 var(--lo)로 밀리지 않는다.
+    // (승자 shorthand .x.y의 파생이 직접 선언을 덮는 것은 수용된 잔여 근사 — design.md)
+    expect(styles["border-top-color"]).toBe("var(--mid)");
+  });
+
+  it("var vs var null-spec 충돌은 uncertain이어도 out이 var면 [computed] 대체가 없다", () => {
+    mockRules.current = [
+      ruleStub(":is(.a)", "color: var(--x)"),
+      ruleStub(":is(.b)", "color: var(--y)"),
+    ];
+    const el = elStub(() => true);
+    const { styles, sources } = collectSpecifiedStylesWithSources(el);
+    expect(styles["color"]).toBe("var(--y)");
+    expect(sources["color"]).toBe(":is(.b)");
   });
 });
 
