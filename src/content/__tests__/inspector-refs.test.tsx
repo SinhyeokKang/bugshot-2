@@ -5,14 +5,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const matchRules = vi.hoisted(() =>
   vi.fn((_el: Element) => [] as unknown[]),
 );
-vi.mock("../css-source-cache", () => ({
-  getMatchingRules: (el: Element) => matchRules(el),
-  getRawDeclarationsFor: () => null,
-  getCrossOriginCustomProps: () => ({}),
-  getMatchingCrossOriginRules: () => [],
-  getMatchingCrossOriginCustomPropRules: () => [],
-  flattenSheets: (sheets: unknown[]) => sheets,
-}));
+vi.mock("../css-source-cache", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../css-source-cache")>();
+  return {
+    // splitSelectorList 등 순수 헬퍼는 실제 구현 유지 — matchedSpecificity가 쓴다.
+    ...actual,
+    getMatchingRules: (el: Element) => matchRules(el),
+    getRawDeclarationsFor: () => null,
+    getCrossOriginCustomProps: () => ({}),
+    getMatchingCrossOriginRules: () => [],
+    getMatchingCrossOriginCustomPropRules: () => [],
+    flattenSheets: (sheets: unknown[]) => sheets,
+  };
+});
 
 import { collectInspectorSpecRefs } from "../css-resolve";
 
