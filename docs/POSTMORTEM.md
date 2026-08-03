@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-08-03 — 판정을 정밀화하면 안전망이 함께 사라진다: opaque 문맥을 **열거**한 순간 "나머지는 안전하다"가 됐고, 그 목록은 다른 파일이 정하고 있었다
+
+- **영역**: `스타일해석`, `content`, `e2e`
+- **계열**: `미검증단언`, `라이브러리전제`
+- **그물**: `e2e`
+- **증상**: specificity 판정을 넣은 직후, ① 조건이 **거짓이라 적용도 안 된** `@container` 규칙의 값이 편집/CSS 뷰에 승자로 확정 표시됐다(종전엔 uncertain → computed 폴백이라 브라우저 진실이 보였다). ② Tailwind `2xl:`류 숫자 시작 클래스를 쓰는 페이지에서 그 규칙이 실제보다 높은 specificity로 계산돼, 동률이라 문서순으로 갈렸어야 할 승부를 가로챘다. 둘 다 **틀린 값을 자신 있게** 보여주는 방향이라 uncertain보다 나쁘다.
+- **근본 원인**: 둘 다 "정밀화가 판정 불가의 범위를 좁힌다"는 성질에서 나왔다. ① `hasOpaqueCascadeContext`가 승자를 확정할 수 없는 문맥을 `@layer`/`@scope`로 **열거**했다. 열거는 자동으로 반대 전제를 만든다 — *나머지 그룹 규칙은 전부 투명(=조건이 참이라 경쟁 자격이 있다)*. 그런데 그 전제가 참인지는 이 파일이 아니라 **인덱서**(`css-source-cache.ts:walkRulesForIndex`)가 정한다: 거기서 조건을 실제로 평가하고 하강하는 건 `@media`·`@supports` **둘뿐**이고, `@container`·`@starting-style`은 `nested` 폴백으로 조건 무관하게 인덱싱된다. 즉 계약이 두 파일에 쪼개져 있는데 한쪽만 목록을 들고 있었다. ② `selectorSpecificity`의 토크나이저가 이스케이프를 `i += 2` 고정으로 소비했다. CSS 이스케이프는 hex 1–6자리 + **종결 whitespace 1개**까지가 한 시퀀스인데(그 공백은 구분자가 아니라 이스케이프의 일부다), 2문자만 먹으면 남은 hex와 종결 공백이 새어나와 뒤 ident가 **별개 type 셀렉터**로 한 번 더 세진다. 하필 Chrome CSSOM이 숫자로 시작하는 클래스를 정확히 그 형태로 직렬화한다(`2xl:mt-4` → `.\32 xl\:mt-4`) — 실서비스에서 흔한 입력이 곧장 이 경로를 탄다.
+- **재발 방지**: (1) **"승자를 확정할 수 없는 경우"는 열거하지 말고 화이트리스트로 뒤집는다.** 모르는 입력의 기본값이 "안전(=판정 포기)"이어야, 다음 CSS at-rule이 추가돼도 구멍이 안 생긴다. 열거형 가드를 볼 때마다 "이 목록 밖은 정말 안전한가, 그 판단의 출처는 어디인가"를 묻는다. (2) **판정 정밀화 커밋은 안전망을 걷어내는 커밋이다** — 폴백(여기선 uncertain → computed)이 덮어주던 케이스가 이제 확정 표시로 나가므로, 좁힌 범위 전수가 픽스의 일부다. "정확도가 올라갔으니 나빠질 리 없다"가 정확히 틀리는 지점. (3) **계약이 두 파일에 쪼개졌으면 그 사실을 코드에 적고 대조를 grep으로 남긴다**: `grep -n 'TRANSPARENT_GROUP_RULES' src/content/css-resolve.ts`와 `grep -n 'CSSMediaRule\|CSSSupportsRule' src/content/css-source-cache.ts`의 **목록이 일치해야 한다**(인덱서가 조건 평가를 추가/제거하면 화이트리스트도 함께 움직인다). (4) **파서에서 `\`를 2문자로 소비하는 코드는 전부 의심한다** — `grep -n '"\\\\\\\\"' src/content/css-resolve.ts`로 이스케이프 처리가 `skipEscape` 단일 출처를 거치는지 본다(복제본이 생기면 한쪽만 고쳐진다). (5) **캐스케이드 판정을 색으로 검증하지 말 것** — CSSOM이 리터럴을 `rgb()`로 정규화하는 데다(raw 파서 경로는 값에 `var(`가 있을 때만 탄다) **computed가 곧 승자 값**이라, 판정이 죽어 computed 폴백으로 떨어져도 같은 문자열이 나와 테스트가 공허해진다. `12rem`(specified) vs `192px`(computed)처럼 **computed에서 표기가 바뀌는 축**을 쓴다. (6) mutation 검증 중 **분기를 들어내면 그 분기만 쓰던 상수가 미참조가 돼 `TS6133`으로 `build:e2e`가 죽고, 직전 `dist-e2e`로 실행돼 "이 mutation은 안 문다"로 읽힌다**(2026-07-31의 "테스트 파일도 함께 되돌려야" 함정과 같은 실패 모드, 다른 원인). 빌드 출력에 `built in`이 있는지 매번 확인한다.
+- **관련**: `src/content/css-resolve.ts:hasOpaqueCascadeContext`(열거 → 화이트리스트 `TRANSPARENT_GROUP_RULES`)·`skipEscape`(신규 — hex 1–6자리 + 종결 whitespace, CRLF 1개)·`consumeIdent`·`selectorSpecificity`·`noteClaim`(verdict 반환), 계약 상대편 `src/content/css-source-cache.ts:walkRulesForIndex`(조건 평가 대상이 `@media`·`@supports`뿐), 그물 `e2e/style-specificity.spec.ts` + 픽스처 `e2e/fixtures/pages/specificity.html`(mutation 3종으로 각 테스트 red 확인), 단위 `src/content/__tests__/css-resolve.test.ts`, 문서 `docs/ARCHITECTURE.md`("CSSOM shorthand 한계 우회" — 남은 근사 2개 명시).
+
 ## 2026-08-01 — computed는 캐스케이드 승자지만 표기를 파괴한다 — 승자로 덮는 순간 디자인 토큰 이름이 사라졌고, 같은 요소의 두 화면이 서로를 반증했다
 
 - **영역**: `스타일해석`
