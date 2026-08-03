@@ -36,6 +36,17 @@
 
 ---
 
+## 2026-08-03 — 전파 축을 막은 회고가 hit-test 축을 "같이 막혔다"로 읽혔다 — blocker가 물러나는 두 순간에 hover가 스냅샷으로 굳었다
+
+- **영역**: `content`, `e2e`
+- **계열**: `라이브러리전제`, `미검증단언`
+- **그물**: `e2e`
+- **증상**: element picking 중엔 페이지 hover가 안 뜨는데, **요소를 선택 커밋하는 순간** 커서 밑 요소가 hover 상태로 켜지고 그게 before/after 스냅샷에 그대로 찍혔다. "가끔"이라 오래 안 잡혔다 — 요소에 hover 규칙이 있고 캡처가 그 창에 떨어져야 보인다.
+- **근본 원인**: 2026-08-01 회고가 hover를 **전파 축**(document 위임 핸들러)과 **hit-test 축**(CSS `:hover`) 둘로 갈라 놓고 전파 축을 닫았는데, hit-test 축의 방어는 **blocker가 서 있는 동안에만** 유효하다는 조건이 어디에도 안 적혔다. blocker가 물러나는 순간이 둘이다: `setMode("selected")`의 `display:none`, 그리고 `beginCapturePrep`의 `hostEl.style.visibility = "hidden"`. 후자가 더 나쁘다 — **캡처를 깨끗이 찍으려고 오버레이를 숨기는 그 동작이 곧 hit target 포기**라서, 정작 셔터가 열리는 순간에 방어가 0이다(`visibility:hidden`은 그리지 않을 뿐 아니라 hit-test 대상에서도 빠진다). 커밋과 캡처 사이엔 사이드패널 왕복(`picker.selected` → `prepareCapture`)이 끼어 수십~수백 ms가 비고, 그 동안 커서는 방금 클릭한 요소 위에 그대로 있다.
+- **픽스가 만든 2차 노출**: 투명 방패를 세우자 **hit-test 프로브가 blocker만 비켜세운다**는 사실이 결함이 됐다 — `withBlockerHitTest`가 blocker의 `pointer-events`만 내리므로 `elementFromPoint`가 방패(=우리 host)를 돌려주고, 호출부는 그걸 `isOwnUi`로 읽어 조기 return한다. **에러도 로그도 없이 picking이 죽는다**(아웃라인도 안 뜨고 클릭도 안 먹는다). 같은 shadow root의 hit target을 컨트롤러 둘이 나눠 갖기 시작하면, 한쪽만 아는 프로브·모드 전환이 전부 결함 후보가 된다.
+- **재발 방지**: (1) **"덮었다"의 유효 조건을 덮개의 수명으로 적어라** — 회고가 축을 갈라 놓아도 각 축의 방어가 *언제* 유효한지 안 적으면 다음 사람은 "그 축은 닫혔다"로 읽는다. 전수: `grep -n 'visibility = "hidden"\|style.display = "none"' src/content/*.ts`로 **우리 UI를 숨기는 자리**를 뽑고, 그 자리마다 "숨기는 동안 hit target을 누가 갖나"를 답한다. 숨김은 곧 hit target 양보다. (2) **hit-test를 나눠 갖는 레이어가 둘이 되면 프로브·모드 전환을 전수한다** — `grep -n 'elementFromPoint' src/content`로 프로브를, `grep -n 'setBlockerVisible' src/content/picker.ts`로 모드 전환을 세고 **두 컨트롤러를 모두 아는지** 확인한다. 여기선 프로브(`withBlockerHitTest`)와 `setBlockerVisible(true)` 둘이 서로 이중 방어라 **개별 격리 테스트가 원리적으로 불가**하다 — 뮤턴트도 둘을 동시에 지워야 red가 된다(그 사실을 `e2e/COVERAGE.md`에 적어 "이 테스트가 저 가드를 문다"는 오해를 막았다). (3) **자가치유 타이머가 있는 축은 재시도 헬퍼와 조합하면 조용히 공허해진다** — 방패의 1.5s 만료 폴백과 `pickElement`의 15s 클릭 재시도가 만나 회귀를 **테스트가 대신 복구**했다(정상 0.5s / 회귀 3.0s, 둘 다 pass). 남는 흔적이 소요 시간뿐이라 단언으로 안 잡힌다. 판정을 **만료보다 짧은 창**의 다른 신호로 옮긴다. (4) **커밋 직후처럼 "사이드패널 왕복 사이"의 상태는 폴링으로 못 잡는다** — `ext.evalInExt`로 `picker.prepareCapture`/`endCapture`를 직접 보내 그 상태를 만들고, 반대 방향(캡처가 영영 안 오는 경로)은 패널의 `chrome.tabs.sendMessage` 스파이로 만든다. **대조군(방패가 내려간 평시엔 `:hover`가 성립)을 같은 테스트에 넣어야** 커서가 딴 데 있어서 통과하는 공허한 green이 안 된다. (5) 미커버로 남긴 것: `dialog.showModal()`의 **top layer는 방패·blocker 둘 다 위**라 그 안 요소는 여전히 `:hover`를 받는다(blocker와 같은 기존 수용 한계).
+- **관련**: `src/content/hover-shield.ts`(신규 — 이유 집합 `selection-commit`/`capture-prep` + 만료 타이머 + `withHitTest`), `src/content/overlay.ts:createOverlay`(`.hover-shield` — `visibility:visible`로 host 숨김을 뚫는다)·`withBlockerHitTest`(두 레이어 동시 비켜세우기)·`setBlockerVisible`(blocker 복귀 시 방패 이유 비우기), `src/content/picker.ts:onClickCommit`·`beginCapturePrep`(인계)·`handleEndCapture`, 그물 `e2e/hover-shield.spec.ts`(뮤턴트 4종으로 red 확인) + `src/content/__tests__/hover-shield.test.ts`(이유 집합 — 뮤턴트 4종 kill 확인), 선행 회고 2026-08-01(전파 축).
+
 ## 2026-08-03 — 툴팁만 cross-origin을 안 기다렸고, 그 공백을 메우던 "값이 같으면 그 토큰"이 엉뚱한 토큰 이름을 확신 있게 보여줬다
 
 - **영역**: `스타일해석`, `content`
