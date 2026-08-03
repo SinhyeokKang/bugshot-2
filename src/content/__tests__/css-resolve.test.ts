@@ -3,6 +3,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // 수용 테스트가 테스트별로 규칙을 갈아끼울 수 있게 hoisted mutable로 둔다(vi.mock hoisting 제약).
 const mockRules = vi.hoisted(() => ({ current: [] as unknown[] }));
 
+// 아래 importOriginal이 css-source-cache 실모듈을 로드하면서 messages → i18n →
+// settings-ui-store(zustand persist 즉시 hydration) 체인이 딸려와 chrome 부재로 stderr를
+// 더럽힌다. 스토리지 어댑터만 끊으면 그 hydration이 조용해진다.
+vi.mock("@/store/chrome-storage", () => {
+  const noop = { getItem: async () => null, setItem: async () => {}, removeItem: async () => {} };
+  return { chromeLocalStorage: noop, failClosedLocalStorage: noop };
+});
+
 vi.mock("../css-source-cache", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../css-source-cache")>();
   return {
@@ -1723,6 +1731,23 @@ describe("selectorSpecificity", () => {
     expect(selectorSpecificity(".a\\:b")).toEqual([0, 1, 0]);
   });
 
+  // Chrome CSSOM은 숫자로 시작하는 클래스를 hex 이스케이프 + 종결 공백으로 직렬화한다
+  // (Tailwind `2xl:mt-4` → `.\32 xl\:mt-4`). 그 공백을 이스케이프의 일부로 안 먹으면
+  // 뒤 ident가 type 셀렉터로 이중 카운트돼 specificity가 과대평가된다.
+  it("hex 이스케이프의 종결 공백까지 소비한다 (Tailwind 직렬화)", () => {
+    expect(selectorSpecificity(".\\32 xl\\:mt-4")).toEqual([0, 1, 0]);
+    expect(selectorSpecificity("#\\31 23")).toEqual([1, 0, 0]);
+    // 이스케이프된 공백(`\ `)은 ident의 일부라 종결자가 아니다.
+    expect(selectorSpecificity(".a\\ b")).toEqual([0, 1, 0]);
+    // hex는 최대 6자리 — 7번째가 hex여도 거기서 끊기고 종결 공백을 안 먹는다.
+    // (7번째가 비-hex인 입력은 캡을 지워도 같은 자리에서 멈춰 캡을 검증하지 못한다.)
+    expect(selectorSpecificity(".\\0000313 abc")).toEqual([0, 1, 1]);
+    // 종결 whitespace는 공백뿐 아니라 CR·FF·CRLF(2문자 1개)도 해당한다.
+    expect(selectorSpecificity(".\\32\rx")).toEqual([0, 1, 0]);
+    expect(selectorSpecificity(".\\32\fx")).toEqual([0, 1, 0]);
+    expect(selectorSpecificity(".\\32\r\nx")).toEqual([0, 1, 0]);
+  });
+
   it("판정 불가 셀렉터는 null (보수적 uncertain 처리)", () => {
     const unresolvable = [
       ":is(.a)",
@@ -1797,10 +1822,16 @@ describe("hasOpaqueCascadeContext", () => {
     expect(hasOpaqueCascadeContext(bare())).toBe(false);
   });
 
-  it("parentRule 체인의 CSSLayerBlockRule → true (중간 그룹 규칙 통과)", () => {
+  it("parentRule 체인의 CSSLayerBlockRule → true (조건 평가된 @media는 통과)", () => {
     class FakeLayerBlock {}
+    class FakeMedia {
+      parentRule: unknown = null;
+      parentStyleSheet: unknown = null;
+    }
     vi.stubGlobal("CSSLayerBlockRule", FakeLayerBlock);
-    const media = { parentRule: new FakeLayerBlock(), parentStyleSheet: null };
+    vi.stubGlobal("CSSMediaRule", FakeMedia);
+    const media = new FakeMedia();
+    media.parentRule = new FakeLayerBlock();
     expect(hasOpaqueCascadeContext(bare({ parentRule: media }))).toBe(true);
   });
 
@@ -1808,6 +1839,46 @@ describe("hasOpaqueCascadeContext", () => {
     class FakeScope {}
     vi.stubGlobal("CSSScopeRule", FakeScope);
     expect(hasOpaqueCascadeContext(bare({ parentRule: new FakeScope() }))).toBe(true);
+  });
+
+  // 인덱서(css-source-cache:walkRulesForIndex)가 조건을 실제로 평가하는 건 @media·@supports
+  // 둘뿐이다. 나머지 조건부 그룹은 조건 무관하게 인덱싱되므로, 비적용 규칙이 known-spec으로
+  // 경쟁하면 uncertain 안전망 없이 확정 표시된다.
+  it("조건 평가 안 되는 그룹(@container·@starting-style) 소속 → true", () => {
+    class FakeContainer {}
+    class FakeStartingStyle {}
+    vi.stubGlobal("CSSContainerRule", FakeContainer);
+    vi.stubGlobal("CSSStartingStyleRule", FakeStartingStyle);
+    expect(hasOpaqueCascadeContext(bare({ parentRule: new FakeContainer() }))).toBe(true);
+    expect(
+      hasOpaqueCascadeContext(bare({ parentRule: new FakeStartingStyle() })),
+    ).toBe(true);
+  });
+
+  // 화이트리스트라 아직 이름조차 모르는 미래 at-rule도 기본이 opaque다.
+  it("정체 모를 그룹 규칙도 → true (열거가 아니라 화이트리스트)", () => {
+    class FakeFutureAtRule {}
+    vi.stubGlobal("CSSMediaRule", class {});
+    vi.stubGlobal("CSSSupportsRule", class {});
+    expect(
+      hasOpaqueCascadeContext(bare({ parentRule: new FakeFutureAtRule() })),
+    ).toBe(true);
+  });
+
+  it("@media·@supports 소속만은 false (인덱서가 조건을 평가해 통과시킨 규칙)", () => {
+    class FakeMedia {
+      parentRule: unknown = null;
+      parentStyleSheet: unknown = null;
+    }
+    class FakeSupports {
+      parentRule: unknown = null;
+      parentStyleSheet: unknown = null;
+    }
+    vi.stubGlobal("CSSMediaRule", FakeMedia);
+    vi.stubGlobal("CSSSupportsRule", FakeSupports);
+    const supports = new FakeSupports();
+    supports.parentRule = new FakeMedia();
+    expect(hasOpaqueCascadeContext(bare({ parentRule: supports }))).toBe(false);
   });
 
   it("@import layer 소속 시트 → true (익명 layer \"\"·중첩 import 체인 포함)", () => {

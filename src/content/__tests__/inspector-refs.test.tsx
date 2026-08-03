@@ -5,6 +5,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const matchRules = vi.hoisted(() =>
   vi.fn((_el: Element) => [] as unknown[]),
 );
+// importOriginal이 실모듈을 로드하며 딸려오는 settings-ui-store hydration이 chrome 부재로
+// stderr를 더럽힌다 — 스토리지 어댑터만 끊는다.
+vi.mock("@/store/chrome-storage", () => {
+  const noop = { getItem: async () => null, setItem: async () => {}, removeItem: async () => {} };
+  return { chromeLocalStorage: noop, failClosedLocalStorage: noop };
+});
+
 vi.mock("../css-source-cache", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../css-source-cache")>();
   return {

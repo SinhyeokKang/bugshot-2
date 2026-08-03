@@ -1056,12 +1056,31 @@ const UNRESOLVABLE_FUNCTIONAL_PSEUDOS = new Set([
 
 const IDENT_CHAR_RE = /[a-zA-Z0-9_-]/;
 const PSEUDO_NAME_CHAR_RE = /[a-zA-Z-]/;
+const HEX_CHAR_RE = /[0-9a-fA-F]/;
+const ESCAPE_TERMINATOR_RE = /[ \t\n\r\f]/;
+
+// i는 `\` 위치. 이스케이프 시퀀스 끝 다음 인덱스를 돌려준다. hex 이스케이프는 최대 6자리
+// **+ 종결 공백 1개**까지가 한 시퀀스다 — Chrome CSSOM이 숫자로 시작하는 클래스를 이 형태로
+// 직렬화하므로(Tailwind `2xl:mt-4` → `.\32 xl\:mt-4`), 공백을 안 먹으면 뒤 ident가 별개
+// type 셀렉터로 이중 카운트된다.
+function skipEscape(s: string, i: number): number {
+  let j = i + 1;
+  if (j < s.length && HEX_CHAR_RE.test(s[j])) {
+    const limit = Math.min(j + 6, s.length);
+    while (j < limit && HEX_CHAR_RE.test(s[j])) j++;
+    // CRLF는 whitespace 하나로 센다.
+    if (s[j] === "\r" && s[j + 1] === "\n") return j + 2;
+    if (ESCAPE_TERMINATOR_RE.test(s[j] ?? "")) j++;
+    return j;
+  }
+  return j + 1;
+}
 
 function consumeIdent(s: string, i: number): number {
   while (i < s.length) {
     const ch = s[i];
     if (ch === "\\") {
-      i += 2;
+      i = skipEscape(s, i);
       continue;
     }
     if (IDENT_CHAR_RE.test(ch) || ch.charCodeAt(0) > 127) {
@@ -1106,7 +1125,7 @@ export function selectorSpecificity(selector: string): Specificity | null {
   while (i < len) {
     const ch = s[i];
     if (ch === "\\") {
-      i += 2;
+      i = skipEscape(s, i);
       continue;
     }
     if (ch === "[") {
@@ -1219,14 +1238,19 @@ function instanceOfGlobal(value: unknown, ctorName: string): boolean {
   );
 }
 
-// @layer/@scope 소속 규칙은 승부 축이 specificity 밖(layer 순서·scope proximity)이라
-// 현재 모델로 승자를 확정하지 않는다 — null spec으로 기존 uncertain 경로를 태운다.
+// 인덱서(`css-source-cache.ts:walkRulesForIndex`)가 조건을 **실제로 평가하고** 하강하는
+// 그룹 규칙. 나머지(@layer·@scope·@container·@starting-style·미래 at-rule)는 조건 무관하게
+// 인덱싱되거나 승부 축이 specificity 밖이라 승자를 확정할 수 없다.
+const TRANSPARENT_GROUP_RULES = ["CSSMediaRule", "CSSSupportsRule"];
+
+// 승자를 확정할 수 없는 캐스케이드 문맥 판정 — null spec으로 기존 uncertain 경로를 태운다.
+// **열거가 아니라 화이트리스트다**: opaque 목록을 나열하면 "나머지는 안전하다"는 반대 전제가
+// 생겨 다음 at-rule에서 같은 구멍이 재발한다(docs/POSTMORTEM.md 2026-07-31 "밀어낼 대상을
+// 열거하지 않은 덮어쓰기" 재발 방지 (4)).
+// 모르는 그룹 규칙의 기본값은 uncertain이어야 한다 — 잘못된 확정이 computed 폴백보다 해롭다.
 export function hasOpaqueCascadeContext(rule: CSSStyleRule): boolean {
   for (let r: CSSRule | null = rule.parentRule; r; r = r.parentRule) {
-    if (
-      instanceOfGlobal(r, "CSSLayerBlockRule") ||
-      instanceOfGlobal(r, "CSSScopeRule")
-    ) {
+    if (!TRANSPARENT_GROUP_RULES.some((name) => instanceOfGlobal(r, name))) {
       return true;
     }
   }
