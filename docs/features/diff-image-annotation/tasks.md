@@ -102,7 +102,7 @@
   - [x] 현재+버퍼 혼합 제출에서 각 annotated가 같은 인덱스의 이미지로 들어간다
   - [x] `buildCaptureFiles` 파일명·인덱스는 불변(`before-0.webp` …)
   - [x] `getModeImages(element)`가 주석본을 반환하고, 주석이 없으면 원본을 반환한다
-  - [ ] `PreviewPanel`의 diff table `img src`가 주석본이고 액션 버튼은 없다 (수동 — 컴포넌트 렌더 비용상 유닛 그물 없음)
+  - [x] `PreviewPanel`의 diff table `img src`가 주석본이고 액션 버튼은 없다 (e2e 시나리오 3 — 유닛 그물은 없다)
 
 ### Task 7: `AnnotationOverlay` 접근성·완료 상태 보강 (독립 — 인라인 이미지 주석과 공유)
 
@@ -132,10 +132,10 @@
   - 오버레이는 기존 스크린샷 주석 블록 옆에 같은 `Suspense` 관례로 마운트. `onComplete`에서 라우팅 후 state를 null로, `onCancel`은 state만 null.
   - `[다음]`·취소 시 `setAnnotatingDiff(null)`(기존 `setAnnotating(false)`와 같은 자리).
 - **검증**:
-  - [ ] before/after 각각 오버레이가 열리고 완료 시 해당 칸만 바뀐다
+  - [x] before/after 각각 오버레이가 열리고 완료 시 해당 칸만 바뀐다
   - [ ] 버퍼 요소 카드의 주석이 현재 요소 카드에 안 붙는다
   - [ ] 재주석이 주석본 위에서 시작하고, 그 뒤 제거하면 **최초** 원본으로 돌아간다
-  - [ ] 제거 후 버튼이 1개로 준다
+  - [x] 제거 후 버튼이 1개로 준다
   - [ ] cancel은 어느 슬롯도 변경하지 않는다
   - [x] 동일 selector·서로 다른 frameId 카드의 key와 쓰기 대상이 충돌하지 않는다(순수 라우팅 헬퍼 단위 테스트)
 
