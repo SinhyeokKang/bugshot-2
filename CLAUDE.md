@@ -68,6 +68,8 @@ bugshot-2: Chrome MV3 Side Panel 버그 리포팅 확장. 웹 페이지의 버�
 | Codex 미러 동기화 | `pnpm sync:agents` (드리프트 검사만: `pnpm sync:agents:check`) |
 | pre-arm 청크 검사 | `pnpm check:prearm` (빌드 후 `dist` 검사. `pnpm check:prearm dist-e2e`도 가능) |
 
+**린터 없음** — ESLint/Prettier/Biome 미도입이라 `pnpm lint`는 존재하지 않는다. 스타일 게이트는 `pnpm typecheck` + `pnpm test`뿐이고, 린터 추가는 요청 없이 하지 않는다.
+
 ### CI (GitHub Actions)
 
 구성·게이트·함정은 **[docs/CI.md](./docs/CI.md)** 참조 — **CI 워크플로우를 수정하거나 CI 실패를 진단할 때는 그 문서를 먼저 읽는다.** job은 `verify`·`e2e`(4샤드)·`e2e-gate`·`notify` 넷이고, main의 required status check는 **`verify` + `e2e-gate` 둘**이다. **e2e 차단 게이트는 CI 단독** — `/push`는 e2e를 안 돌리고 run URL만 안내하며(논블로킹), `/merge`가 dev HEAD의 CI 결론을 게이트로 쓴다.
@@ -169,4 +171,4 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
   - **드리프트 방지 2단**: ① `.claude/settings.json`의 PostToolUse 훅이 `CLAUDE.md`·`.claude/commands/*.md`·`.agents/PREAMBLE.md` 편집 시 sync를 자동 실행 ② `/push`가 `pnpm sync:agents:check`로 최종 차단. **훅은 Claude Code 전용이라 Codex 세션에선 안 돈다** — Codex가 원본을 고쳤으면 `pnpm sync:agents`를 손으로 돌린다.
 - `docs/POSTMORTEM.md` — 회귀·버그 사후분석 회고 누적 (git 공유). `/postmortem` 스킬이 픽스마다 비자명 함정·재발방지를 한 항목씩 추가. 항목엔 **영역·계열·그물 3축 태그**가 붙고 `pnpm postmortem:report`가 반복 함정을 집계한다(vocab 단일 출처 `scripts/postmortem-report.mjs`) — 기록만 하고 안 세면 개별 회고에서 끝나므로 집계까지가 한 회로다
 - `docs/privacy.ko.md` · `docs/privacy.en.md` — 개인정보처리방침 (ko 원본 + en 번역, 항상 동기화). bug-shot.com/{ko,en}/privacy로 서빙
-- 사용자 개인 메모리: `~/.claude/projects/-Users-sinhyeok-code-bugshot-2/memory/`에 있음 (머신 로컬, git에 안 올라감)
+- 사용자 개인 메모리: `~/.claude/projects/<저장소 절대경로의 `/`를 `-`로 바꾼 슬러그>/memory/`에 있음. **머신마다 홈 디렉터리가 달라 경로를 박지 않는다** (머신 로컬, git에 안 올라감)
