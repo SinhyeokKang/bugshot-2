@@ -12,8 +12,12 @@ import { extractInlineRefs } from "@/sidepanel/lib/resolveInlineImages";
 import { deriveLogsAttach } from "@/sidepanel/hooks/deriveLogsAttach";
 import { toLiteSnapshot } from "@/sidepanel/lib/liteSnapshot";
 
-function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
-  let next = snap;
+export function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
+  let next = {
+    ...snap,
+    beforeAnnotated: snap.beforeAnnotated ?? null,
+    afterAnnotated: snap.afterAnnotated ?? null,
+  };
   // 구 3플래그(networkLogAttach/consoleLogAttach/actionLogAttach) 스냅샷 → 단일 logsAttach 파생.
   const legacyAttach = snap as unknown as {
     networkLogAttach?: boolean;

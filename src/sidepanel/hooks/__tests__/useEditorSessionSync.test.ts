@@ -50,8 +50,12 @@ vi.mock("@/types/messages", () => ({
   onSessionSaveExhausted: { fire: vi.fn(), listen: vi.fn() },
 }));
 
-import { EDITOR_SNAPSHOT_KEYS, useEditorStore } from "@/store/editor-store";
-import { snapshotFromState } from "../useEditorSessionSync";
+import {
+  EDITOR_SNAPSHOT_KEYS,
+  type EditorSnapshot,
+  useEditorStore,
+} from "@/store/editor-store";
+import { migrateLegacyDraft, snapshotFromState } from "../useEditorSessionSync";
 
 describe("snapshotFromState — 세션 직렬화 키 그물", () => {
   beforeEach(() => {
@@ -81,5 +85,18 @@ describe("snapshotFromState — 세션 직렬화 키 그물", () => {
   it("annotated 두 필드가 EditorSnapshot 키 목록에 들어 있다", () => {
     expect(EDITOR_SNAPSHOT_KEYS).toContain("beforeAnnotated");
     expect(EDITOR_SNAPSHOT_KEYS).toContain("afterAnnotated");
+  });
+});
+
+describe("migrateLegacyDraft — 주석 필드 역방향 호환", () => {
+  it("구버전 스냅샷에 없는 annotated 필드를 null로 보충한다", () => {
+    const legacy = snapshotFromState() as Partial<EditorSnapshot> & Record<string, unknown>;
+    delete legacy.beforeAnnotated;
+    delete legacy.afterAnnotated;
+
+    const migrated = migrateLegacyDraft(legacy as EditorSnapshot);
+
+    expect(migrated.beforeAnnotated).toBeNull();
+    expect(migrated.afterAnnotated).toBeNull();
   });
 });

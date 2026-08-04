@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { loadImage } from "@/sidepanel/capture";
 import { useT } from "@/i18n";
 import { AnnotationToolbar } from "./annotation/AnnotationToolbar";
+import { useDeferredExport } from "./annotation/deferredExport";
 import { ShapeNode, type TransformAttrs } from "./annotation/ShapeNode";
 import {
   ANNOTATION_THICKNESS,
@@ -112,6 +113,7 @@ export default function AnnotationOverlay({
   const pendingScrollRef = useRef<{ scrollLeft: number; scrollTop: number } | null>(null);
   const committedRef = useRef<TextEditing | null>(null);
   const drawPointerRef = useRef<number | null>(null);
+  const deferExport = useDeferredExport();
   const gestureRef = useRef({
     move: (_e: PointerEvent) => {},
     up: (_e: PointerEvent) => {},
@@ -515,7 +517,7 @@ export default function AnnotationOverlay({
     setSelectedId(null);
     // Transformer 핸들이 export에 찍히지 않도록 즉시 detach(effect 타이밍에 의존하지 않음).
     transformerRef.current?.nodes([]);
-    requestAnimationFrame(() => {
+    deferExport(() => {
       let url: string;
       try {
         url = stage.toDataURL({
