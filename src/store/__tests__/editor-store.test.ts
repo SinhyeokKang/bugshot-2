@@ -92,6 +92,7 @@ import {
   selectAttachedLogs,
   type EditorSnapshot,
 } from "../editor-store";
+import { dataUrlToBlob } from "../blob-db";
 
 /* ------------------------------------------------------------------ */
 /*  Fixtures                                                           */
@@ -2238,5 +2239,479 @@ describe("beforeCapturePending — before 캡처 in-flight 가드", () => {
     useEditorStore.getState().reset();
 
     expect(useEditorStore.getState().beforeCapturePending).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  diff 이미지 주석 — annotated 필드 · after 폐기 규율                  */
+/* ------------------------------------------------------------------ */
+
+describe("diff 이미지 주석 — annotated 필드 · after 폐기 규율", () => {
+  function annSelection(selector: string, frameId = 0) {
+    return {
+      selector,
+      tagName: "div",
+      frameId,
+      origin: "https://example.com",
+      classList: [],
+      specifiedStyles: {},
+      computedStyles: { color: "#000000" },
+      propSources: {},
+      hasParent: false,
+      hasChild: false,
+      text: null,
+      viewport: { width: 800, height: 600 },
+      capturedAt: 0,
+    };
+  }
+
+  function bufferedFor(
+    selector: string,
+    overrides: Record<string, unknown> = {},
+  ) {
+    return {
+      selector,
+      tagName: "div",
+      frameId: 0,
+      origin: "https://example.com",
+      selectionSnapshot: {
+        classList: [],
+        specifiedStyles: {},
+        computedStyles: { color: "#000000" },
+        propSources: {},
+        text: null,
+        viewport: { width: 800, height: 600 },
+        capturedAt: 0,
+      },
+      styleEdits: { classList: [], inlineStyle: { color: "#ffffff" }, text: "" },
+      beforeImage: "data:before",
+      afterImage: "data:after",
+      beforeAnnotated: "data:before-ann",
+      afterAnnotated: "data:after-ann",
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  /* ---- setBeforeAnnotated / setAfterAnnotated ---- */
+
+  it("setBeforeAnnotated는 beforeImage를 건드리지 않는다", () => {
+    useEditorStore.setState({ beforeImage: "data:before" });
+
+    useEditorStore.getState().setBeforeAnnotated("data:before-ann");
+
+    const s = useEditorStore.getState();
+    expect(s.beforeAnnotated).toBe("data:before-ann");
+    expect(s.beforeImage).toBe("data:before");
+  });
+
+  it("setAfterAnnotated는 afterImage를 건드리지 않는다", () => {
+    useEditorStore.setState({ afterImage: "data:after" });
+
+    useEditorStore.getState().setAfterAnnotated("data:after-ann");
+
+    const s = useEditorStore.getState();
+    expect(s.afterAnnotated).toBe("data:after-ann");
+    expect(s.afterImage).toBe("data:after");
+  });
+
+  /* ---- setAfterImage — 값 비교 폐기 ---- */
+
+  it("setAfterImage가 다른 값이면 afterAnnotated를 버린다 (재캡처)", () => {
+    useEditorStore.setState({
+      afterImage: "data:after",
+      afterAnnotated: "data:after-ann",
+    });
+
+    useEditorStore.getState().setAfterImage("data:after-2");
+
+    expect(useEditorStore.getState().afterAnnotated).toBeNull();
+  });
+
+  // rebind·중복 커밋에서 같은 값이 다시 들어오는 창이 있다 — 지점 열거가 아니라 값 비교라야
+  // 이 경로가 자동으로 갈린다.
+  it("setAfterImage가 같은 값이면 afterAnnotated를 보존한다", () => {
+    useEditorStore.setState({
+      afterImage: "data:after",
+      afterAnnotated: "data:after-ann",
+    });
+
+    useEditorStore.getState().setAfterImage("data:after");
+
+    expect(useEditorStore.getState().afterAnnotated).toBe("data:after-ann");
+  });
+
+  it("setAfterImage는 beforeAnnotated를 건드리지 않는다", () => {
+    useEditorStore.setState({
+      beforeAnnotated: "data:before-ann",
+      afterImage: "data:after",
+    });
+
+    useEditorStore.getState().setAfterImage("data:after-2");
+
+    expect(useEditorStore.getState().beforeAnnotated).toBe("data:before-ann");
+  });
+
+  /* ---- patchBufferedElement — "afterImage" in patch ---- */
+
+  it("patchBufferedElement({ afterImage: 다른 값 })는 그 항목의 afterAnnotated를 버린다", () => {
+    useEditorStore.setState({ bufferedElements: [bufferedFor(".card")] as never });
+
+    useEditorStore
+      .getState()
+      .patchBufferedElement(".card", 0, { afterImage: "data:after-2" });
+
+    const b = useEditorStore.getState().bufferedElements[0];
+    expect(b.afterImage).toBe("data:after-2");
+    expect(b.afterAnnotated).toBeNull();
+  });
+
+  it("patchBufferedElement({ afterImage: 같은 값 })는 afterAnnotated를 보존한다", () => {
+    useEditorStore.setState({ bufferedElements: [bufferedFor(".card")] as never });
+
+    useEditorStore
+      .getState()
+      .patchBufferedElement(".card", 0, { afterImage: "data:after" });
+
+    expect(useEditorStore.getState().bufferedElements[0].afterAnnotated).toBe(
+      "data:after-ann",
+    );
+  });
+
+  it("afterImage 키가 없는 patch(styleEdits만)는 afterAnnotated를 보존한다", () => {
+    useEditorStore.setState({ bufferedElements: [bufferedFor(".card")] as never });
+
+    useEditorStore.getState().patchBufferedElement(".card", 0, {
+      styleEdits: { classList: [], inlineStyle: { color: "#123456" }, text: "" },
+    });
+
+    expect(useEditorStore.getState().bufferedElements[0].afterAnnotated).toBe(
+      "data:after-ann",
+    );
+  });
+
+  // "afterImage 키가 있으면"을 느슨하게(undefined 포함) 구현하면 annotated 단독 패치가 자기를 지운다.
+  it("patchBufferedElement({ afterAnnotated }) 단독 패치는 자기를 지우지 않고 afterImage도 안 건드린다", () => {
+    useEditorStore.setState({
+      bufferedElements: [bufferedFor(".card", { afterAnnotated: null })] as never,
+    });
+
+    useEditorStore
+      .getState()
+      .patchBufferedElement(".card", 0, { afterAnnotated: "data:new-ann" });
+
+    const b = useEditorStore.getState().bufferedElements[0];
+    expect(b.afterAnnotated).toBe("data:new-ann");
+    expect(b.afterImage).toBe("data:after");
+  });
+
+  it("patchBufferedElement({ beforeAnnotated }) 단독 패치가 반영된다", () => {
+    useEditorStore.setState({
+      bufferedElements: [bufferedFor(".card", { beforeAnnotated: null })] as never,
+    });
+
+    useEditorStore
+      .getState()
+      .patchBufferedElement(".card", 0, { beforeAnnotated: "data:new-before-ann" });
+
+    const b = useEditorStore.getState().bufferedElements[0];
+    expect(b.beforeAnnotated).toBe("data:new-before-ann");
+    expect(b.beforeImage).toBe("data:before");
+  });
+
+  /* ---- bufferCurrentElement — 폐기 규율의 본체 ---- */
+
+  it("bufferCurrentElement(새 after)는 afterAnnotated를 버린다 (repick·DOM 이동)", () => {
+    useEditorStore.setState({
+      selection: annSelection(".card") as never,
+      styleEdits: { classList: [], inlineStyle: { color: "#ffffff" }, text: "", cssText: null },
+      beforeImage: "data:before",
+      afterImage: "data:after",
+      beforeAnnotated: "data:before-ann",
+      afterAnnotated: "data:after-ann",
+    });
+
+    useEditorStore.getState().bufferCurrentElement("data:after-2");
+
+    const b = useEditorStore.getState().bufferedElements[0];
+    expect(b.afterImage).toBe("data:after-2");
+    expect(b.afterAnnotated).toBeNull();
+  });
+
+  // picker-control의 rebindStylingSession은 state.afterImage를 그대로 넘긴다 — 복원 왕복은 보존.
+  it("bufferCurrentElement(state.afterImage)는 afterAnnotated를 보존한다 (세션 복원 왕복)", () => {
+    useEditorStore.setState({
+      selection: annSelection(".card") as never,
+      styleEdits: { classList: [], inlineStyle: { color: "#ffffff" }, text: "", cssText: null },
+      beforeImage: "data:before",
+      afterImage: "data:after",
+      afterAnnotated: "data:after-ann",
+    });
+
+    useEditorStore
+      .getState()
+      .bufferCurrentElement(useEditorStore.getState().afterImage);
+
+    expect(useEditorStore.getState().bufferedElements[0].afterAnnotated).toBe(
+      "data:after-ann",
+    );
+  });
+
+  it("bufferCurrentElement가 beforeAnnotated를 승격 항목에 싣는다", () => {
+    useEditorStore.setState({
+      selection: annSelection(".card") as never,
+      styleEdits: { classList: [], inlineStyle: { color: "#ffffff" }, text: "", cssText: null },
+      beforeImage: "data:before",
+      beforeAnnotated: "data:before-ann",
+    });
+
+    useEditorStore.getState().bufferCurrentElement("data:after");
+
+    expect(useEditorStore.getState().bufferedElements[0].beforeAnnotated).toBe(
+      "data:before-ann",
+    );
+  });
+
+  // 재편집 재버퍼는 최초 before를 유지한다 — beforeAnnotated도 그 짝이므로 함께 유지.
+  it("같은 요소 재버퍼는 최초 beforeAnnotated를 유지한다", () => {
+    useEditorStore.setState({
+      selection: annSelection(".card") as never,
+      styleEdits: { classList: [], inlineStyle: { color: "#ffffff" }, text: "", cssText: null },
+      beforeImage: "data:before-1",
+      beforeAnnotated: "data:before-ann-1",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after-1");
+
+    useEditorStore.setState({
+      beforeImage: "data:before-2",
+      beforeAnnotated: "data:before-ann-2",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after-2");
+
+    const list = useEditorStore.getState().bufferedElements;
+    expect(list).toHaveLength(1);
+    expect(list[0].beforeImage).toBe("data:before-1");
+    expect(list[0].beforeAnnotated).toBe("data:before-ann-1");
+  });
+
+  /* ---- onElementSelected — 복원 / 초기화 ---- */
+
+  it("버퍼 요소 재선택은 두 annotated 필드를 top-level로 복원한다", () => {
+    useEditorStore.setState({
+      bufferedElements: [bufferedFor(".card")] as never,
+      beforeAnnotated: null,
+      afterAnnotated: null,
+    });
+
+    useEditorStore.getState().onElementSelected(annSelection(".card") as never);
+
+    const s = useEditorStore.getState();
+    expect(s.beforeAnnotated).toBe("data:before-ann");
+    expect(s.afterAnnotated).toBe("data:after-ann");
+  });
+
+  it("구버전 버퍼 항목(annotated 필드 없음) 재선택은 null로 떨어진다", () => {
+    const legacy = bufferedFor(".card");
+    delete (legacy as Record<string, unknown>).beforeAnnotated;
+    delete (legacy as Record<string, unknown>).afterAnnotated;
+    useEditorStore.setState({
+      bufferedElements: [legacy] as never,
+      beforeAnnotated: "data:stale",
+      afterAnnotated: "data:stale",
+    });
+
+    useEditorStore.getState().onElementSelected(annSelection(".card") as never);
+
+    const s = useEditorStore.getState();
+    expect(s.beforeAnnotated).toBeNull();
+    expect(s.afterAnnotated).toBeNull();
+  });
+
+  it("신규 요소 선택은 직전 annotated를 둘 다 null로 초기화한다", () => {
+    useEditorStore.setState({
+      beforeAnnotated: "data:before-ann",
+      afterAnnotated: "data:after-ann",
+    });
+
+    useEditorStore.getState().onElementSelected(annSelection(".other") as never);
+
+    const s = useEditorStore.getState();
+    expect(s.beforeAnnotated).toBeNull();
+    expect(s.afterAnnotated).toBeNull();
+  });
+
+  /* ---- 초기화 계열 ---- */
+
+  it("reset이 두 annotated 필드를 청소한다", () => {
+    useEditorStore.setState({
+      beforeAnnotated: "data:before-ann",
+      afterAnnotated: "data:after-ann",
+    });
+
+    useEditorStore.getState().reset();
+
+    const s = useEditorStore.getState();
+    expect(s.beforeAnnotated).toBeNull();
+    expect(s.afterAnnotated).toBeNull();
+  });
+
+  it("onSubmitted가 두 annotated 필드를 청소한다", () => {
+    useEditorStore.setState({
+      beforeAnnotated: "data:before-ann",
+      afterAnnotated: "data:after-ann",
+    });
+
+    useEditorStore
+      .getState()
+      .onSubmitted({ key: "K-1", url: "https://x", platform: "jira" });
+
+    const s = useEditorStore.getState();
+    expect(s.beforeAnnotated).toBeNull();
+    expect(s.afterAnnotated).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  confirmDraft element — 주석본 resolve (annotated ?? raw)             */
+/* ------------------------------------------------------------------ */
+
+describe("confirmDraft element — 주석본 resolve", () => {
+  // blob 저장은 void (async () => …)() fire-and-forget이라 단언 전에 마이크로/매크로태스크를 비운다.
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  // saveImageBlob(id, slot, dataUrlToBlob(url)) — 두 mock의 호출은 1:1로 정렬된다.
+  function imageSaves(): [string, string][] {
+    const urls = vi.mocked(dataUrlToBlob).mock.calls.map((c) => c[0] as string);
+    return mockSaveImageBlob.mock.calls.map(
+      (c, i) => [c[1] as string, urls[i]] as [string, string],
+    );
+  }
+
+  function elementSelection() {
+    return {
+      selector: "#title",
+      tagName: "h1",
+      frameId: 0,
+      classList: [],
+      specifiedStyles: {},
+      computedStyles: { color: "red" },
+      propSources: {},
+      hasParent: false,
+      hasChild: false,
+      text: null,
+      viewport: { width: 800, height: 600 },
+      capturedAt: 0,
+    };
+  }
+
+  function buffered(overrides: Record<string, unknown> = {}) {
+    return {
+      selector: ".card",
+      tagName: "div",
+      frameId: 0,
+      origin: "",
+      selectionSnapshot: {
+        classList: [],
+        specifiedStyles: {},
+        computedStyles: { color: "#000" },
+        propSources: {},
+        text: null,
+        viewport: { width: 800, height: 600 },
+        capturedAt: 0,
+      },
+      styleEdits: { classList: [], inlineStyle: { color: "#fff" }, text: "" },
+      beforeImage: "data:b-before",
+      afterImage: "data:b-after",
+      beforeAnnotated: "data:b-before-ann",
+      afterAnnotated: "data:b-after-ann",
+      ...overrides,
+    };
+  }
+
+  function setup(overrides: Record<string, unknown> = {}) {
+    useEditorStore.setState({
+      captureMode: "element" as const,
+      phase: "drafting" as const,
+      targetPlatform: "github" as const,
+      target,
+      selection: elementSelection() as never,
+      draft: { title: "T", sections: {} },
+      styleEdits: { classList: [], inlineStyle: { color: "blue" }, text: "" },
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    mockSaveDraft.mockClear();
+    mockSaveImageBlob.mockClear();
+    vi.mocked(dataUrlToBlob).mockClear();
+  });
+
+  it("현재 요소·버퍼 요소의 4슬롯 모두 주석본을 저장한다", async () => {
+    setup({
+      beforeImage: "data:before",
+      afterImage: "data:after",
+      beforeAnnotated: "data:before-ann",
+      afterAnnotated: "data:after-ann",
+      bufferedElements: [buffered()] as never,
+    });
+
+    useEditorStore.getState().confirmDraft();
+    await flush();
+
+    expect(imageSaves()).toEqual([
+      ["before", "data:before-ann"],
+      ["after", "data:after-ann"],
+      ["b0-before", "data:b-before-ann"],
+      ["b0-after", "data:b-after-ann"],
+    ]);
+  });
+
+  it("주석이 없으면 원본을 저장한다", async () => {
+    setup({ beforeImage: "data:before", afterImage: "data:after" });
+
+    useEditorStore.getState().confirmDraft();
+    await flush();
+
+    expect(imageSaves()).toEqual([
+      ["before", "data:before"],
+      ["after", "data:after"],
+    ]);
+  });
+
+  it("raw가 null이고 annotated만 있어도 저장하고 snapshot 플래그가 선다", async () => {
+    setup({ beforeImage: null, afterImage: null, beforeAnnotated: "data:only-ann" });
+
+    useEditorStore.getState().confirmDraft();
+    await flush();
+
+    expect(mockSaveDraft.mock.calls[0][0].snapshot).toEqual({
+      before: true,
+      after: false,
+    });
+    expect(imageSaves()).toEqual([["before", "data:only-ann"]]);
+  });
+
+  it("버퍼 hasBefore/hasAfter가 resolve 기준으로 계산된다 (raw null + annotated만)", () => {
+    setup({
+      bufferedElements: [
+        buffered({
+          beforeImage: null,
+          afterImage: null,
+          beforeAnnotated: "data:b-before-ann",
+          afterAnnotated: null,
+        }),
+      ] as never,
+    });
+
+    useEditorStore.getState().confirmDraft();
+
+    const b = mockSaveDraft.mock.calls[0][0].bufferedElements[0];
+    expect(b.hasBefore).toBe(true);
+    expect(b.hasAfter).toBe(false);
   });
 });

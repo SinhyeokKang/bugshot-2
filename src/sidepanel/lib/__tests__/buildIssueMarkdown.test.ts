@@ -907,3 +907,90 @@ describe("로그 요약 — action 로그 단독 (video, net/con 없음)", () =>
     expect(html).not.toContain("<em>logSummary.logs.detail");
   });
 });
+
+describe("mergeStyleElements — annotated 필드 통과(여기서 resolve하지 않는다)", () => {
+  function buf(selector: string, extra: Record<string, unknown> = {}): BufferedElement {
+    return {
+      selector,
+      tagName: "div",
+      selectionSnapshot: {
+        classList: [selector],
+        specifiedStyles: {},
+        computedStyles: { color: "#000000" },
+        text: null,
+        viewport: { width: 0, height: 0 },
+        capturedAt: 0,
+      },
+      styleEdits: { classList: [selector], inlineStyle: { color: "#ffffff" }, text: "" },
+      beforeImage: `data:before-${selector}`,
+      afterImage: `data:after-${selector}`,
+      ...extra,
+    } as BufferedElement;
+  }
+
+  function cur(selector: string, extra: Record<string, unknown> = {}) {
+    return {
+      selection: {
+        selector,
+        tagName: "span",
+        classList: [selector],
+        computedStyles: { padding: "10px" },
+        specifiedStyles: {},
+        propSources: {},
+        hasParent: false,
+        hasChild: false,
+        text: null,
+        viewport: { width: 0, height: 0 },
+        capturedAt: 0,
+      },
+      styleEdits: { classList: [selector], inlineStyle: { padding: "20px" }, text: "" },
+      before: `data:before-${selector}`,
+      after: `data:after-${selector}`,
+      ...extra,
+    } as never;
+  }
+
+  // 표시 쪽이 "주석이 있는가"를 알아야 [주석 제거] 버튼 조건을 만들 수 있다 — 여기서 접으면 못 만든다.
+  it("현재 요소의 annotated를 접지 않고 그대로 싣는다", () => {
+    const out = mergeStyleElements([], cur("b", {
+      beforeAnnotated: "data:before-b-ann",
+      afterAnnotated: "data:after-b-ann",
+    }));
+
+    expect(out[0].beforeImage).toBe("data:before-b");
+    expect(out[0].beforeAnnotated).toBe("data:before-b-ann");
+    expect(out[0].afterAnnotated).toBe("data:after-b-ann");
+  });
+
+  it("버퍼 요소의 annotated가 같은 인덱스 항목에 실린다", () => {
+    const out = mergeStyleElements(
+      [
+        buf("a", { beforeAnnotated: "data:before-a-ann" }),
+        buf("c", { afterAnnotated: "data:after-c-ann" }),
+      ],
+      cur("b"),
+    );
+
+    expect(out.map((e) => e.selector)).toEqual(["a", "c", "b"]);
+    expect(out[0].beforeAnnotated).toBe("data:before-a-ann");
+    expect(out[0].afterAnnotated ?? null).toBeNull();
+    expect(out[1].afterAnnotated).toBe("data:after-c-ann");
+  });
+
+  it("필드가 없는 구버전 버퍼 항목도 예외 없이 통과한다(undefined 유지)", () => {
+    const out = mergeStyleElements([buf("a")], null);
+
+    expect(out[0].beforeAnnotated ?? null).toBeNull();
+    expect(out[0].afterAnnotated ?? null).toBeNull();
+  });
+
+  it("파일명 인덱싱은 불변이다", () => {
+    const out = mergeStyleElements(
+      [buf("a", { beforeAnnotated: "data:x" })],
+      cur("b", { afterAnnotated: "data:y" }),
+    );
+
+    expect(out.map((e) => e.beforeFilename)).toEqual(["before-0.webp", "before-1.webp"]);
+    expect(out.map((e) => e.afterFilename)).toEqual(["after-0.webp", "after-1.webp"]);
+  });
+});

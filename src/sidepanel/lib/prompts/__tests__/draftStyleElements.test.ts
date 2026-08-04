@@ -134,3 +134,69 @@ describe("selectAiDraftTokens", () => {
     ).toBeUndefined();
   });
 });
+
+// 접는 지점은 소비처다. 여기서 접지 않으면 캡 회계가 원본 길이로 돌고, 주석본은 rest 스프레드로
+// 캡을 우회해 그대로 실린다(캡 초과 이미지가 조용히 통과).
+describe("resolveAiDraftStyleElements — diff 이미지 주석 resolve(annotated ?? raw)", () => {
+  it("주석이 있으면 주석본을 싣는다", () => {
+    const [resolved] = resolveAiDraftStyleElements(
+      ctx(BYOK_CAPABILITIES, {
+        styleElements: [
+          {
+            ...element(0),
+            beforeImage: "data:before",
+            afterImage: "data:after",
+            beforeAnnotated: "data:before-ann",
+            afterAnnotated: "data:after-ann",
+          },
+        ] as never,
+      }),
+    );
+
+    expect(resolved.beforeImage).toBe("data:before-ann");
+    expect(resolved.afterImage).toBe("data:after-ann");
+  });
+
+  it("주석이 없으면 원본을 싣는다", () => {
+    const [resolved] = resolveAiDraftStyleElements(
+      ctx(BYOK_CAPABILITIES, {
+        styleElements: [
+          { ...element(0), beforeImage: "data:before", afterImage: "data:after" },
+        ] as never,
+      }),
+    );
+
+    expect(resolved.beforeImage).toBe("data:before");
+    expect(resolved.afterImage).toBe("data:after");
+  });
+
+  it("결과에 annotated 원본 필드가 남지 않는다 — 캡을 우회하는 두 번째 경로를 만들지 않는다", () => {
+    const [resolved] = resolveAiDraftStyleElements(
+      ctx(BYOK_CAPABILITIES, {
+        styleElements: [
+          {
+            ...element(0),
+            beforeImage: "data:before",
+            beforeAnnotated: "data:before-ann",
+          },
+        ] as never,
+      }),
+    );
+
+    expect("beforeAnnotated" in resolved).toBe(false);
+    expect("afterAnnotated" in resolved).toBe(false);
+  });
+
+  it("주석본이 imageChars 캡을 넘으면 접힌 뒤 탈락한다", () => {
+    const huge = `data:${"x".repeat(7_000_000)}`;
+    const [resolved] = resolveAiDraftStyleElements(
+      ctx(NANO_CAPABILITIES, {
+        styleElements: [
+          { ...element(0), beforeImage: "data:before", beforeAnnotated: huge },
+        ] as never,
+      }),
+    );
+
+    expect(resolved.beforeImage).toBeUndefined();
+  });
+});
