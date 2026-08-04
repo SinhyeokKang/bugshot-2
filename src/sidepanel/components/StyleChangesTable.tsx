@@ -170,7 +170,11 @@ function SnapshotCell({
     <Card
       ref={cardRef}
       className={cn(
-        "flex items-center justify-center bg-muted/30 p-1",
+        // 높이 **하한**만 준다. 조상 컨테이너로 확장된 가로로 긴 캡처는 표시 높이가 30px대라
+        // 액션 버튼(top-2 8 + h-8 32 = 40)이 카드를 뚫는데, 여기서 `aspect-video`로 비율을
+        // 고정하면(셀 실효 폭 105px → 59px) 세로로 긴 캡처가 max-h-40의 160px에서 짓눌린다.
+        // editable 조건을 걸지 않는다 — 미리보기와 작성 화면의 같은 이미지가 다른 높이로 뜬다.
+        "flex min-h-12 items-center justify-center bg-muted/30 p-1",
         editable &&
           "relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       )}
@@ -202,10 +206,10 @@ function SnapshotCell({
       />
       {editable && active ? (
         <ImageActions
-          // 우상단 — 본문 인라인 이미지 액션과 같은 자리(사용자가 두 번 배우지 않는다).
-          // inset이 `top-2`(8)가 아니라 `top-1`(4)인 이유: 조상 컨테이너로 확장된 가로로 긴
-          // 캡처는 표시 높이가 30px대(카드 ≈40px)라 8+`h-8`(32)이면 카드 밖으로 나간다.
-          className="absolute right-1 top-1"
+          // 우상단 8px — 본문 인라인 이미지 액션(`block-actions.css`의 0.5rem)과 같은 자리라
+          // 사용자가 두 번 배우지 않는다. 저높이 캡처에서 카드를 뚫던 문제는 inset을 줄이는
+          // 대신 카드 쪽 `min-h-12`(48 ≥ 8+32)로 막는다.
+          className="absolute right-2 top-2"
           onAnnotate={() => onAnnotate!(slot)}
           onReset={
             annotated && onReset
