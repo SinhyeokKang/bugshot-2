@@ -2360,7 +2360,10 @@ describe("diff 이미지 주석 — annotated 필드 · after 폐기 규율", ()
     expect(useEditorStore.getState().afterAnnotated).toBeNull();
   });
 
-  it("backToStyling 왕복 후 setAfterImage(null)이면 after 주석이 남지 않는다", () => {
+  // backToStyling 자신이 지워야 한다. 지금은 handleNext가 항상 setAfterImage를 부르는 데
+  // 기대고 있는데, 그 사이 구간에 짝 없는 주석본(수 MB)이 세션 스냅샷에 실리고, after 캡처를
+  // 건너뛰는 경로가 하나만 생겨도 옛 주석이 부활한다.
+  it("backToStyling이 afterAnnotated를 직접 지운다", () => {
     useEditorStore.setState({
       phase: "drafting",
       afterImage: "data:after",
@@ -2368,9 +2371,20 @@ describe("diff 이미지 주석 — annotated 필드 · after 폐기 규율", ()
     });
 
     useEditorStore.getState().backToStyling();
-    useEditorStore.getState().setAfterImage(null);
 
+    expect(useEditorStore.getState().afterImage).toBeNull();
     expect(useEditorStore.getState().afterAnnotated).toBeNull();
+  });
+
+  it("backToStyling은 beforeAnnotated를 보존한다 (before는 재캡처 경로가 없다)", () => {
+    useEditorStore.setState({
+      phase: "drafting",
+      beforeAnnotated: "data:before-ann",
+    });
+
+    useEditorStore.getState().backToStyling();
+
+    expect(useEditorStore.getState().beforeAnnotated).toBe("data:before-ann");
   });
 
   it("patchBufferedElement({ afterImage: null })도 이전이 null이면 afterAnnotated를 버린다", () => {
@@ -2514,6 +2528,26 @@ describe("diff 이미지 주석 — annotated 필드 · after 폐기 규율", ()
     expect(useEditorStore.getState().bufferedElements[0].beforeAnnotated).toBe(
       "data:before-ann",
     );
+  });
+
+  // beforeAnnotated는 before와 달리 drafting에서 몇 번이고 바뀐다. beforeImage가 같으면
+  // (요소당 1회 캡처라 중복 항목에선 항상 같다) prev를 이기게 두면 방금 그린 주석이 사라진다.
+  it("재버퍼에서 beforeImage가 같으면 현재의 최신 beforeAnnotated가 이긴다", () => {
+    useEditorStore.setState({
+      selection: annSelection(".card") as never,
+      styleEdits: { classList: [], inlineStyle: { color: "#ffffff" }, text: "", cssText: null },
+      beforeImage: "data:before",
+      beforeAnnotated: null,
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after-1");
+
+    useEditorStore.setState({ beforeAnnotated: "data:before-ann-new" });
+    useEditorStore.getState().bufferCurrentElement("data:after-2");
+
+    const list = useEditorStore.getState().bufferedElements;
+    expect(list).toHaveLength(1);
+    expect(list[0].beforeImage).toBe("data:before");
+    expect(list[0].beforeAnnotated).toBe("data:before-ann-new");
   });
 
   // 재편집 재버퍼는 최초 before를 유지한다 — beforeAnnotated도 그 짝이므로 함께 유지.

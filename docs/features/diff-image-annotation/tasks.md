@@ -76,7 +76,7 @@
   - [x] `annotated`가 있을 때만 제거 버튼이 뜬다
   - [x] 이미지가 null이면 버튼도 없고 `styleTable.noSnapshot`만 나온다
   - [x] before/after 칸의 `alt`가 서로 다르다
-  - [x] 핸들러·annotated 모두 미전달 시 기존 마크업이 무변경이다
+  - [x] 핸들러·annotated 모두 미전달 시 버튼·탭 정지점이 생기지 않는다 (alt는 slot별로 의도적 변경)
 
 ### Task 5: `mergeStyleElements` 필드 통과
 
@@ -102,7 +102,7 @@
   - [x] 현재+버퍼 혼합 제출에서 각 annotated가 같은 인덱스의 이미지로 들어간다
   - [x] `buildCaptureFiles` 파일명·인덱스는 불변(`before-0.webp` …)
   - [x] `getModeImages(element)`가 주석본을 반환하고, 주석이 없으면 원본을 반환한다
-  - [x] `PreviewPanel`의 diff table `img src`가 주석본이고 액션 버튼은 없다
+  - [ ] `PreviewPanel`의 diff table `img src`가 주석본이고 액션 버튼은 없다 (수동 — 컴포넌트 렌더 비용상 유닛 그물 없음)
 
 ### Task 7: `AnnotationOverlay` 접근성·완료 상태 보강 (독립 — 인라인 이미지 주석과 공유)
 
@@ -112,9 +112,9 @@
   - 기존 키 핸들러의 `if (editing) return` 가드를 새 Escape에도 적용한다(텍스트 도형 편집 중 Escape는 textarea 취소 전용).
   - 슬롯 구분용 `data-testid`를 추가한다 — 현재 `annotation-overlay` 하나뿐이라 e2e가 스크린샷 주석과 diff 주석을 구분할 수 없다.
 - **검증**:
-  - [ ] 오버레이가 dialog role/label로 식별된다
-  - [ ] Escape로 취소되고 닫힌 뒤 포커스가 실행 버튼으로 돌아간다
-  - [ ] 텍스트 도형 편집 중 Escape는 textarea만 취소하고 오버레이는 남는다
+  - [x] 오버레이가 dialog role/label로 식별된다
+  - [x] Escape로 취소되고 닫힌 뒤 포커스가 실행 버튼으로 돌아간다
+  - [ ] 텍스트 도형 편집 중 Escape는 textarea만 취소하고 오버레이는 남는다 (jsdom은 이미지 로드 전 분기만 렌더해 editing에 도달 못 함 — e2e/수동)
   - [ ] **`DraftEditDialog` 안 인라인 이미지 주석에서 Escape가 다이얼로그를 닫지 않는다**
   - [ ] 완료 처리 중 done 버튼이 비활성이다
   - [ ] 기존 `e2e/annotation-overlay.spec.ts`·`inline-image-annotation.spec.ts` green 유지

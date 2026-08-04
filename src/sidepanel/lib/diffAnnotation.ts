@@ -8,16 +8,21 @@ export interface DiffAnnotationTarget {
   frameId: number;
 }
 
-// diff table 카드는 mergeStyleElements의 파생 배열이라 쓰기 대상이 아니다. 같은 요소가 selection과
-// bufferedElements에 동시에 존재하는 창(버퍼 승격 전 비동기 구간)이 있지만, mergeStyleElements가
-// 그때 현재 쪽을 남기고 버퍼 쪽을 밀어내므로 `sameElementKey(el, selection)`가 참이면 그 카드는
-// 반드시 현재 요소다. 주석 추가·제거가 같은 판정을 타야 버퍼 카드의 제거가 현재 요소를 안 지운다.
+// diff table 카드는 mergeStyleElements의 파생 배열이라 쓰기 대상이 아니다. 술어는 그 함수의
+// 조건을 그대로 비춰야 한다: 현재 요소는 **diff가 1건 이상일 때만** curResolved가 되어 같은 키의
+// 버퍼 항목을 밀어낸다. 키 일치만 보면, 현재 diff가 0건이라 버퍼 카드가 렌더되는 상황에서도
+// current로 보내 주석이 top-level에 써지고 카드·제출물은 그대로인 무음 no-op이 된다.
+// 주석 추가·제거가 같은 판정을 타야 버퍼 카드의 제거가 현재 요소를 안 지운다.
 export function routeDiffAnnotation(
   el: ElementKeyLike,
   selection: ElementKeyLike | null | undefined,
+  currentHasDiffs: boolean,
 ): DiffAnnotationTarget {
   return {
-    target: selection && sameElementKey(el, selection) ? "current" : "buffered",
+    target:
+      selection && currentHasDiffs && sameElementKey(el, selection)
+        ? "current"
+        : "buffered",
     selector: el.selector,
     frameId: el.frameId ?? 0,
   };

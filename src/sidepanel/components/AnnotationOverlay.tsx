@@ -252,7 +252,7 @@ export default function AnnotationOverlay({
   useEffect(() => {
     const onEscape = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      // 툴바의 줌 Select가 열려 있으면 그 Escape는 레이어 몫이다(안 비키면 드롭다운 대신 주석
+      // ① 툴바의 줌 Select가 열려 있으면 그 Escape는 레이어 몫이다(안 비키면 드롭다운 대신 주석
       // 작업이 통째로 날아간다). Radix 레이어 스택이 최상위만 dismiss하므로 부모 다이얼로그도
       // 함께 보호된다. **"오버레이 루트 밖이면 비킨다"로 쓰면 안 된다** — 연 직후 포커스는 아직
       // 트리거 버튼(루트 밖)에 있어서 Escape가 통째로 죽는다. 툴팁도 popper지만 포커스를 안
@@ -264,8 +264,17 @@ export default function AnnotationOverlay({
       ) {
         return;
       }
-      e.preventDefault();
+      // ② 전파 차단은 **아래 가드보다 먼저** 한다. Radix `useEscapeKeydown`은 key만 보고
+      // isComposing·완료 여부를 안 보므로, 우리가 처리하지 않는 경우에도 여기서 안 끊으면
+      // 부모 Dialog(DraftEditDialog)가 닫혀 주석 세션째 날아간다.
       e.stopPropagation();
+      // ③ 한글 조합 중 Escape는 조합 취소다 — 기본 동작을 IME에 맡겨야 하므로 preventDefault
+      // 없이 빠진다(저장소 관용구: action-recorder-helpers·ValueCombobox 등).
+      if (e.isComposing) return;
+      // ④ 완료 처리 중이면 이미 rAF가 큐에 있다 — 여기서 닫아봐야 그 콜백이 onComplete를 불러
+      // 취소한 주석이 store에 기록된다.
+      if (completing) return;
+      e.preventDefault();
       if (editing) {
         setEditing(null);
         return;
@@ -274,7 +283,7 @@ export default function AnnotationOverlay({
     };
     window.addEventListener("keydown", onEscape, true);
     return () => window.removeEventListener("keydown", onEscape, true);
-  }, [editing, onCancel]);
+  }, [editing, onCancel, completing]);
 
   // 키보드: undo/redo + 선택 도형 삭제
   useEffect(() => {

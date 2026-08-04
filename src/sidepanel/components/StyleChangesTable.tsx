@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
@@ -147,11 +147,12 @@ function SnapshotCell({
   const t = useT();
   // opacity-0으로 숨기면 투명해도 탭 순서에 남아 요소당 최대 4개의 유령 정지점이 생긴다 →
   // 노출 여부를 여기서 판정해 조건부 렌더한다. 카드 자체가 키보드 진입점(탭 정지점 1개)이다.
-  // hover와 focus를 따로 세는 이유: 주석 제거로 버튼 하나가 사라지면 포커스가 body로 빠지는데,
-  // 한 플래그면 그때 hover 중인 그룹까지 통째로 접힌다.
+  // hover와 focus를 따로 세는 이유: 마우스를 올린 채 Tab으로 포커스를 카드 밖으로 옮기면
+  // 한 플래그로는 포커스 이탈이 hover까지 꺼서 커서 밑 그룹이 사라진다.
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const active = hovered || focused;
+  const cardRef = useRef<HTMLDivElement>(null);
   // 캡처가 생략된 칸(좌표 불신·요소 소실·기준 강등)을 빈 셀로 두면 오류와 구별되지 않는다.
   if (!image && !annotated) {
     return (
@@ -167,10 +168,16 @@ function SnapshotCell({
   const editable = !!onAnnotate;
   return (
     <Card
+      ref={cardRef}
       className={cn(
         "flex items-center justify-center bg-muted/30 p-1",
-        editable && "relative",
+        editable &&
+          "relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       )}
+      // 액션 그룹의 유일한 키보드 진입점 — group role + 접근명이 있어야 스크린 리더가
+      // "여기서 뭘 할 수 있는지"를 읽는다.
+      role={editable ? "group" : undefined}
+      aria-label={editable ? t(SNAPSHOT_ALT[slot].raw) : undefined}
       tabIndex={editable ? 0 : undefined}
       onPointerEnter={editable ? () => setHovered(true) : undefined}
       onPointerLeave={editable ? () => setHovered(false) : undefined}
@@ -199,7 +206,16 @@ function SnapshotCell({
           // `top-2`(8) + `h-8`(32)이면 버튼이 카드 아래로 뚫고 나간다(design.md 위험 5).
           className="absolute right-1 top-1/2 -translate-y-1/2"
           onAnnotate={() => onAnnotate!(slot)}
-          onReset={annotated && onReset ? () => onReset(slot) : undefined}
+          onReset={
+            annotated && onReset
+              ? () => {
+                  onReset(slot);
+                  // 제거 버튼이 언마운트되면 포커스가 body로 떨어진다 — 키보드 사용자를
+                  // 진입점인 카드로 되돌려 그룹이 계속 열려 있게 한다.
+                  cardRef.current?.focus();
+                }
+              : undefined
+          }
         />
       ) : null}
     </Card>

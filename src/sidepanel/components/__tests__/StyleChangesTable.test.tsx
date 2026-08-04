@@ -125,10 +125,10 @@ describe("StyleChangesTable — 액션 노출 조건", () => {
 
   // opacity-0으로 숨기면 투명해도 탭 순서에 남아 요소당 최대 4개의 유령 정지점이 생긴다.
   it("hover·focus 전에는 액션 버튼이 DOM에 아예 없다", () => {
-    renderEditable();
+    const { container } = renderEditable();
 
     expect(screen.queryByTestId("diff-image-annotate")).toBeNull();
-    expect(screen.queryByRole("group")).toBeNull();
+    expect(container.querySelector("[data-slot=button-group]")).toBeNull();
   });
 
   it("이미지에 hover하면 액션 버튼이 나타난다", async () => {
@@ -182,8 +182,23 @@ describe("StyleChangesTable — 액션 노출 조건", () => {
     expect(screen.queryByTestId("diff-image-annotate")).toBeNull();
   });
 
-  // 제거로 버튼 하나가 사라지면 포커스가 body로 빠진다 — 한 플래그면 hover 중인 그룹까지 접힌다.
-  it("hover 중 주석을 제거해도 남은 버튼이 계속 보인다", async () => {
+  // hovered/focused를 한 플래그로 합치면 이 케이스가 깨진다 — 마우스는 그대로인데 포커스만
+  // 밖으로 나갔다고 커서 밑 그룹이 사라진다. (제거 버튼 언마운트로는 focusout이 발화하지 않아
+  // 그 경로로는 두 플래그가 갈리지 않는다.)
+  it("마우스를 올린 채 포커스만 밖으로 나가도 그룹이 유지된다", async () => {
+    renderEditable();
+    const cell = cellOf("snapshot-before");
+
+    await userEvent.hover(cell);
+    await userEvent.tab();
+    fireEvent.focusOut(cell, { relatedTarget: document.body });
+
+    expect(screen.getByTestId("diff-image-annotate")).toBeTruthy();
+  });
+
+  // 제거 버튼이 언마운트되면 포커스가 body로 떨어진다 — 진입점인 카드로 되돌려야 키보드
+  // 사용자가 남은 [주석 추가]에 이어서 닿을 수 있다.
+  it("제거를 누르면 포커스가 카드로 돌아온다", async () => {
     const onReset = vi.fn();
     const { rerender } = render(
       <StyleChangesTable
@@ -196,7 +211,7 @@ describe("StyleChangesTable — 액션 노출 조건", () => {
       />,
     );
 
-    await userEvent.hover(cellOf("snapshot-before"));
+    await userEvent.tab();
     await userEvent.click(screen.getByTestId("diff-image-reset"));
     rerender(
       <StyleChangesTable
@@ -208,8 +223,17 @@ describe("StyleChangesTable — 액션 노출 조건", () => {
       />,
     );
 
+    expect(onReset).toHaveBeenCalledWith("before");
+    expect(document.activeElement).toBe(cellOf("snapshot-before"));
     expect(screen.getByTestId("diff-image-annotate")).toBeTruthy();
-    expect(screen.queryByTestId("diff-image-reset")).toBeNull();
+  });
+
+  it("액션이 있는 칸은 group role과 접근명을 갖는다", () => {
+    renderEditable();
+
+    const cell = cellOf("snapshot-before");
+    expect(cell.getAttribute("role")).toBe("group");
+    expect(cell.getAttribute("aria-label")).toBe("alt.beforeSnapshot");
   });
 
   it("주석이 없으면 제거 버튼이 없다", async () => {

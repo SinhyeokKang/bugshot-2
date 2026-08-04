@@ -33,7 +33,10 @@ import {
   PageShell,
   Section,
 } from "@/sidepanel/components/Section";
-import { StyleChangesTable } from "@/sidepanel/components/StyleChangesTable";
+import {
+  StyleChangesTable,
+  buildStyleDiff,
+} from "@/sidepanel/components/StyleChangesTable";
 import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
 import {
   annotationSource,
@@ -136,13 +139,17 @@ export function DraftingPanel() {
     [selection, styleEdits, bufferedElements, beforeImage, afterImage, beforeAnnotated, afterAnnotated],
   );
 
+  // mergeStyleElements가 현재 요소를 카드로 낼 조건과 같은 판정 — 라우팅이 이 값을 그대로 쓴다.
+  const currentHasDiffs =
+    !!selection && buildStyleDiff(selection, styleEdits).length > 0;
+
   // 카드는 파생 배열이라 쓰기 대상이 아니다 — 현재 선택이면 store 액션, 아니면 그 버퍼 항목.
   const writeDiffAnnotation = (
     el: ElementKeyLike,
     slot: SnapshotSlot,
     dataUrl: string | null,
   ) => {
-    const write = routeDiffAnnotation(el, selection);
+    const write = routeDiffAnnotation(el, selection, currentHasDiffs);
     const store = useEditorStore.getState();
     if (write.target === "current") {
       if (slot === "before") store.setBeforeAnnotated(dataUrl);

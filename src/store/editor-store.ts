@@ -349,8 +349,9 @@ export type EditorSnapshot = Pick<
 // after 주석 폐기 규율의 단일 출처. after가 다른 픽셀로 바뀌면 옛 좌표의 주석은 엉뚱한 곳을
 // 가리키고, 그건 주석이 없는 것보다 나쁘다. 지점을 열거하는 대신 값을 비교한다 —
 // rebindStylingSession의 복원 왕복(같은 값을 그대로 재커밋)만 보존 쪽으로 갈린다.
-// null 커밋은 "after를 버린다"는 뜻이므로 같은 null이어도 보존하지 않는다(짝 없는 주석본이
-// 남으면 backToStyling → 기준 갈림 → setAfterImage(null) 경로에서 옛 주석이 부활한다).
+// null 커밋은 "after를 버린다"는 뜻이므로 같은 null이어도 보존하지 않는다 — 짝 없는 주석본이
+// 남으면 나중에 같은 null이 다시 커밋될 때 옛 주석이 부활한다(`patchBufferedElement`의
+// 기준 갈림 재캡처, `bufferCurrentElement(null)`가 그 경로다).
 const keepsAnnotation = (next: string | null, prev: string | null) =>
   next !== null && next === prev;
 
@@ -782,7 +783,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         updated[idx] = {
           ...entry,
           beforeImage: prev.beforeImage,
-          beforeAnnotated: prev.beforeAnnotated ?? null,
+          // 주석은 이긴 before 쪽을 따라간다. before가 같은 값이면(요소당 1회 캡처라 중복
+          // 항목에선 항상 같다) drafting에서 갱신된 현재 주석이 최신이므로 그쪽이 이긴다.
+          beforeAnnotated:
+            prev.beforeImage === s.beforeImage
+              ? s.beforeAnnotated
+              : prev.beforeAnnotated ?? null,
           captureContext: prev.captureContext,
         };
         return { bufferedElements: updated };
@@ -825,7 +831,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       bufferedElements: [],
     })),
 
-  backToStyling: () => set({ phase: "styling", afterImage: null, aiStylingLoading: false }),
+  // after를 버리는 액션이므로 짝인 주석도 여기서 함께 버린다. handleNext가 항상 setAfterImage를
+  // 부른다는 데 기대면, 그 사이 구간에 짝 없는 주석본(수 MB)이 세션 스냅샷에 실린다.
+  // before는 재캡처 경로가 없어 보존한다.
+  backToStyling: () =>
+    set({ phase: "styling", afterImage: null, afterAnnotated: null, aiStylingLoading: false }),
 
   setDraft: (draft) => set({ draft }),
 
