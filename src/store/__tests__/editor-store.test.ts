@@ -944,6 +944,8 @@ describe("bufferCurrentElement — 복수 element 버퍼", () => {
       styleEdits: { classList: ["cta"], inlineStyle: { color: "#ffffff" }, text: "" },
       beforeImage: "data:before-A",
       afterImage: "data:after-A",
+      beforeAnnotated: null,
+      afterAnnotated: null,
     });
   });
 
@@ -2342,6 +2344,45 @@ describe("diff 이미지 주석 — annotated 필드 · after 폐기 규율", ()
     useEditorStore.getState().setAfterImage("data:after");
 
     expect(useEditorStore.getState().afterAnnotated).toBe("data:after-ann");
+  });
+
+  // backToStyling이 afterImage를 null로 두고, styling에서 기준이 갈리면 setAfterImage(null)이
+  // 다시 온다. null→null을 "값이 같다"로 읽으면 짝 없는 주석본이 살아남아 drafting 복귀 시
+  // after 칸에 옛 주석이 부활하고 그대로 제출된다.
+  it("setAfterImage(null)은 이전도 null이어도 afterAnnotated를 버린다", () => {
+    useEditorStore.setState({
+      afterImage: null,
+      afterAnnotated: "data:after-ann",
+    });
+
+    useEditorStore.getState().setAfterImage(null);
+
+    expect(useEditorStore.getState().afterAnnotated).toBeNull();
+  });
+
+  it("backToStyling 왕복 후 setAfterImage(null)이면 after 주석이 남지 않는다", () => {
+    useEditorStore.setState({
+      phase: "drafting",
+      afterImage: "data:after",
+      afterAnnotated: "data:after-ann",
+    });
+
+    useEditorStore.getState().backToStyling();
+    useEditorStore.getState().setAfterImage(null);
+
+    expect(useEditorStore.getState().afterAnnotated).toBeNull();
+  });
+
+  it("patchBufferedElement({ afterImage: null })도 이전이 null이면 afterAnnotated를 버린다", () => {
+    useEditorStore.setState({
+      bufferedElements: [bufferedFor(".card", { afterImage: null })] as never,
+    });
+
+    useEditorStore
+      .getState()
+      .patchBufferedElement(".card", 0, { afterImage: null });
+
+    expect(useEditorStore.getState().bufferedElements[0].afterAnnotated).toBeNull();
   });
 
   it("setAfterImage는 beforeAnnotated를 건드리지 않는다", () => {

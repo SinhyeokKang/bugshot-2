@@ -372,7 +372,12 @@ export function AiDraftDialog({
 export function getModeImages(
   store: Pick<
     ReturnType<typeof useEditorStore.getState>,
-    "screenshotAnnotated" | "screenshotRaw" | "beforeImage" | "afterImage"
+    | "screenshotAnnotated"
+    | "screenshotRaw"
+    | "beforeImage"
+    | "afterImage"
+    | "beforeAnnotated"
+    | "afterAnnotated"
   >,
   captureMode: CaptureMode,
   styleElements?: AiDraftStyleElement[],
@@ -388,7 +393,10 @@ export function getModeImages(
             element.beforeImage,
             element.afterImage,
           ])
-        : [store.beforeImage, store.afterImage]
+        : [
+            store.beforeAnnotated ?? store.beforeImage,
+            store.afterAnnotated ?? store.afterImage,
+          ]
     ).filter(
       (s): s is string => !!s,
     );

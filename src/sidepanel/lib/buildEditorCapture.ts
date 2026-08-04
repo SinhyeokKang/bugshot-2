@@ -115,6 +115,8 @@ export function buildEditorMarkdownContext(): MarkdownContext | null {
     styleEdits,
     before: beforeImage,
     after: afterImage,
+    beforeAnnotated: s.beforeAnnotated,
+    afterAnnotated: s.afterAnnotated,
   });
   return {
     ...common,
@@ -162,8 +164,13 @@ export function buildEditorLogsCaptureInput(ctx: MarkdownContext): BuildCaptureF
     captureMode,
     videoBlob,
     screenshotImage: captureMode === "screenshot" ? (screenshotAnnotated ?? screenshotRaw) : null,
-    beforeImages: isElement ? styleElements.map((e) => e.beforeImage ?? null) : undefined,
-    afterImages: isElement ? styleElements.map((e) => e.afterImage ?? null) : undefined,
+    // 접는 지점은 소비처다 — 제출 파일(before-{i}.webp)이 주석본이 되는 곳이 여기.
+    beforeImages: isElement
+      ? styleElements.map((e) => e.beforeAnnotated ?? e.beforeImage ?? null)
+      : undefined,
+    afterImages: isElement
+      ? styleElements.map((e) => e.afterAnnotated ?? e.afterImage ?? null)
+      : undefined,
     networkLog: hasNet ? networkLog : null,
     consoleLog: hasCon ? consoleLog : null,
     actionLog: hasAct ? actionLog : null,

@@ -95,8 +95,8 @@ describe("toLiteSnapshot", () => {
   // 구버전 영속 스냅샷엔 annotated 필드가 없다 — optional 폴백이라 예외 없이 null로 수렴한다.
   it("구버전 버퍼 항목(annotated 필드 없음)도 예외 없이 통과한다", () => {
     const s = snap();
-    delete (s.bufferedElements[0] as Record<string, unknown>).beforeAnnotated;
-    delete (s.bufferedElements[0] as Record<string, unknown>).afterAnnotated;
+    delete (s.bufferedElements[0] as unknown as Record<string, unknown>).beforeAnnotated;
+    delete (s.bufferedElements[0] as unknown as Record<string, unknown>).afterAnnotated;
 
     const b = toLiteSnapshot(s).bufferedElements[0];
     expect(b.beforeAnnotated).toBeNull();

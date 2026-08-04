@@ -53,6 +53,8 @@ interface AnnotationOverlayProps {
   imageUrl: string;
   onComplete: (annotatedUrl: string) => void;
   onCancel: () => void;
+  // 슬롯 구분용. 없으면 기본 testid만 붙어 e2e가 스크린샷 주석과 diff 주석을 구분하지 못한다.
+  testId?: string;
 }
 
 interface TextEditing {
@@ -78,6 +80,7 @@ export default function AnnotationOverlay({
   imageUrl,
   onComplete,
   onCancel,
+  testId,
 }: AnnotationOverlayProps) {
   const t = useT();
   const [image, setImage] = useState<HTMLImageElement | null>(null);
@@ -98,6 +101,8 @@ export default function AnnotationOverlay({
   const [draftShape, setDraftShape] = useState<AnnotationShape | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState<TextEditing | null>(null);
+  // toDataURL은 고해상도 캡처에서 체감 프리즈다 — 그 사이 [완료] 재클릭을 막는다.
+  const [completing, setCompleting] = useState(false);
 
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -229,6 +234,47 @@ export default function AnnotationOverlay({
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
   }, [selectedId, shapes]);
+
+  // 열릴 때 포커스를 가진 트리거로 닫힌 뒤 되돌린다. 트리거가 함께 사라졌으면(조건부 렌더)
+  // 되돌릴 곳이 없으므로 조용히 넘긴다.
+  useEffect(() => {
+    const trigger = document.activeElement;
+    return () => {
+      if (trigger instanceof HTMLElement && document.contains(trigger)) {
+        trigger.focus();
+      }
+    };
+  }, []);
+
+  // Escape 취소. **캡처 단계**에서 잡는다 — Radix DismissableLayer는 document 캡처에서 Escape를
+  // 들어 부모 Dialog(DraftEditDialog)를 닫으므로, window 버블에서 막으면 이미 늦다. 텍스트 도형
+  // 편집 중이면 오버레이가 아니라 textarea만 취소한다(전파는 그때도 막아야 부모가 안 닫힌다).
+  useEffect(() => {
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // 툴바의 줌 Select가 열려 있으면 그 Escape는 레이어 몫이다(안 비키면 드롭다운 대신 주석
+      // 작업이 통째로 날아간다). Radix 레이어 스택이 최상위만 dismiss하므로 부모 다이얼로그도
+      // 함께 보호된다. **"오버레이 루트 밖이면 비킨다"로 쓰면 안 된다** — 연 직후 포커스는 아직
+      // 트리거 버튼(루트 밖)에 있어서 Escape가 통째로 죽는다. 툴팁도 popper지만 포커스를 안
+      // 받으므로 keydown target이 되지 않는다.
+      const target = e.target;
+      if (
+        target instanceof Element &&
+        target.closest("[data-radix-popper-content-wrapper]")
+      ) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      if (editing) {
+        setEditing(null);
+        return;
+      }
+      onCancel();
+    };
+    window.addEventListener("keydown", onEscape, true);
+    return () => window.removeEventListener("keydown", onEscape, true);
+  }, [editing, onCancel]);
 
   // 키보드: undo/redo + 선택 도형 삭제
   useEffect(() => {
@@ -455,22 +501,39 @@ export default function AnnotationOverlay({
 
   const handleDone = () => {
     const stage = stageRef.current;
-    if (!stage || shapes.length === 0) return;
+    if (!stage || shapes.length === 0 || completing) return;
+    setCompleting(true);
     setSelectedId(null);
     // Transformer 핸들이 export에 찍히지 않도록 즉시 detach(effect 타이밍에 의존하지 않음).
     transformerRef.current?.nodes([]);
     requestAnimationFrame(() => {
-      const url = stage.toDataURL({
-        mimeType: "image/webp",
-        quality: 0.92,
-        pixelRatio: 1,
-      });
+      let url: string;
+      try {
+        url = stage.toDataURL({
+          mimeType: "image/webp",
+          quality: 0.92,
+          pixelRatio: 1,
+        });
+      } catch {
+        // 실패해도 오버레이는 남는다 — 되돌리지 않으면 [완료]가 영구 비활성이 된다.
+        setCompleting(false);
+        toast.error(t("annotation.exportError"));
+        return;
+      }
       onComplete(url);
     });
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-background" data-testid="annotation-overlay">
+    // aria-modal은 선언하지 않는다 — 포커스 트랩도 초기 포커스 이동도 없기 때문이고, 넣으면
+    // 안 지키는 약속이 된다. 초기 포커스를 오버레이로 옮기면 조건부 렌더인 트리거 버튼이
+    // 언마운트돼 닫힌 뒤 포커스 복귀가 깨진다 — 복귀 쪽을 택했다.
+    <div
+      className="fixed inset-0 z-50 bg-background"
+      data-testid={testId ?? "annotation-overlay"}
+      role="dialog"
+      aria-label={t("annotation.title")}
+    >
       {image ? (
         <AnnotationToolbar
           tool={tool}
@@ -503,7 +566,7 @@ export default function AnnotationOverlay({
           }}
           onCancel={onCancel}
           onDone={handleDone}
-          doneDisabled={shapes.length === 0}
+          doneDisabled={shapes.length === 0 || completing}
           viewportRef={viewportRef}
           scale={scale}
           zoom={zoom}
@@ -593,13 +656,8 @@ export default function AnnotationOverlay({
           value={editing.value}
           onChange={(e) => setEditing({ ...editing, value: e.target.value })}
           onBlur={commitText}
-          onKeyDown={(e) => {
-            // 박스 안 여러 줄 입력이므로 Enter는 줄바꿈. 완료는 바깥 클릭(blur), 취소는 Escape.
-            if (e.key === "Escape") {
-              e.preventDefault();
-              setEditing(null);
-            }
-          }}
+          // 박스 안 여러 줄 입력이므로 Enter는 줄바꿈. 완료는 바깥 클릭(blur), 취소는 Escape
+          // (위 캡처 단계 핸들러가 처리 — 여기 두면 전파를 못 막아 부모 다이얼로그가 닫힌다).
           style={{
             position: "fixed",
             left: editing.left,

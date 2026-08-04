@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: August 3, 2026
+**Effective date**: August 4, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -45,7 +45,7 @@ Search terms and the candidate/profile lists returned are not stored on the devi
 | Screenshots (area / screen / full page / element) / tab recordings | When capturing / recording a tab | Capturing the range you choose to attach to an issue — **full-page capture automatically scrolls the page beyond the visible screen and stitches multiple shots together, so content that was off-screen is included in the image.** **In element style editing the "before" image is captured the moment you pick an element, and it expands to the surrounding container (+24px on every side) — a table row, a list item, a dialog — when the element you picked sits inside one** |
 | Inline editor images | When inserting part of the screen into the issue body | Capturing the current tab's screen (`captureVisibleTab`) and inserting only the selected region into the body |
 | Screen recording video | When the screen-recording mode is selected, **or when tab recording is unavailable and BugShot falls back to screen sharing** | Recording the target **you choose yourself** in the browser's screen-share dialog (which may include the entire screen, other app windows, or other tabs — including screens outside the tab where BugShot is open) to attach to an issue. If tab-capture permission is revoked mid-flow (for example by navigating away), the screen-share dialog opens instead, and **even then recording does not start until you pick a target yourself** |
-| Annotations | When you draw on a screenshot or on the page during a recording | Composited into the image or video **on your device only**. Nothing is collected or transmitted separately |
+| Annotations | When you draw on a screenshot, on the before/after images of an element style edit, or on the page during a recording | Composited into the image or video **on your device only**. Nothing is collected or transmitted separately |
 | Audio | — | **Never collected.** Tab recording, screen recording, and the 30-second replay all capture video without microphone or system audio |
 | Network request logs | While the side panel is open (including before a capture starts) | Attaching to an issue (debug information). Part of each request URL — **the hostname — is also derived into the "API host list" above and written into the issue body** |
 | WebSocket messages (text frame payloads) | While the side panel is open (including before a capture starts) | Attaching to an issue (debug information — sent/received text messages, excluding binary) |

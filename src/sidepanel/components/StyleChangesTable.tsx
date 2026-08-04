@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
 import { ColorSwatch } from "./ColorSwatch";
+import { ImageActions } from "./ImageActions";
+import type { SnapshotSlot } from "@/sidepanel/lib/diffAnnotation";
 import { isRenderableColorLiteral } from "@/sidepanel/tabs/styleEditor/colorLiteral";
 import {
   DocTable,
@@ -37,10 +40,21 @@ export function StyleChangesTable({
   beforeImage,
   afterImage,
   diffs,
+  beforeAnnotated,
+  afterAnnotated,
+  onAnnotate,
+  onReset,
 }: {
   beforeImage: string | null;
   afterImage: string | null;
   diffs: StyleDiffRow[];
+  // annotated만 주면 표시만 주석본(PreviewPanel — 미리보기와 제출물이 갈리지 않게).
+  beforeAnnotated?: string | null;
+  afterAnnotated?: string | null;
+  // 핸들러가 있을 때만 액션 버튼을 렌더한다 — 읽기 전용 화면(PreviewPanel·DraftDetailDialog)
+  // 보호. 기본값 `() => {}`를 넣으면 조용히 샌다.
+  onAnnotate?: (slot: SnapshotSlot) => void;
+  onReset?: (slot: SnapshotSlot) => void;
 }) {
   const t = useT();
   return (
@@ -63,10 +77,24 @@ export function StyleChangesTable({
             {t("styleTable.snapshot")}
           </td>
           <td className={docTableCell}>
-            <SnapshotCell image={beforeImage} testId="snapshot-before" />
+            <SnapshotCell
+              slot="before"
+              image={beforeImage}
+              annotated={beforeAnnotated}
+              testId="snapshot-before"
+              onAnnotate={onAnnotate}
+              onReset={onReset}
+            />
           </td>
           <td className={docTableCell}>
-            <SnapshotCell image={afterImage} testId="snapshot-after" />
+            <SnapshotCell
+              slot="after"
+              image={afterImage}
+              annotated={afterAnnotated}
+              testId="snapshot-after"
+              onAnnotate={onAnnotate}
+              onReset={onReset}
+            />
           </td>
         </tr>
         {diffs.length === 0 ? (
@@ -96,10 +124,36 @@ export function StyleChangesTable({
   );
 }
 
-function SnapshotCell({ image, testId }: { image: string | null; testId?: string }) {
+const SNAPSHOT_ALT = {
+  before: { raw: "alt.beforeSnapshot", annotated: "alt.beforeSnapshotAnnotated" },
+  after: { raw: "alt.afterSnapshot", annotated: "alt.afterSnapshotAnnotated" },
+} as const;
+
+function SnapshotCell({
+  slot,
+  image,
+  annotated,
+  testId,
+  onAnnotate,
+  onReset,
+}: {
+  slot: SnapshotSlot;
+  image: string | null;
+  annotated?: string | null;
+  testId?: string;
+  onAnnotate?: (slot: SnapshotSlot) => void;
+  onReset?: (slot: SnapshotSlot) => void;
+}) {
   const t = useT();
+  // opacity-0으로 숨기면 투명해도 탭 순서에 남아 요소당 최대 4개의 유령 정지점이 생긴다 →
+  // 노출 여부를 여기서 판정해 조건부 렌더한다. 카드 자체가 키보드 진입점(탭 정지점 1개)이다.
+  // hover와 focus를 따로 세는 이유: 주석 제거로 버튼 하나가 사라지면 포커스가 body로 빠지는데,
+  // 한 플래그면 그때 hover 중인 그룹까지 통째로 접힌다.
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const active = hovered || focused;
   // 캡처가 생략된 칸(좌표 불신·요소 소실·기준 강등)을 빈 셀로 두면 오류와 구별되지 않는다.
-  if (!image) {
+  if (!image && !annotated) {
     return (
       <span
         data-testid={testId ? `${testId}-empty` : undefined}
@@ -109,14 +163,45 @@ function SnapshotCell({ image, testId }: { image: string | null; testId?: string
       </span>
     );
   }
+  const src = annotated ?? image!;
+  const editable = !!onAnnotate;
   return (
-    <Card className="flex items-center justify-center bg-muted/30 p-1">
+    <Card
+      className={cn(
+        "flex items-center justify-center bg-muted/30 p-1",
+        editable && "relative",
+      )}
+      tabIndex={editable ? 0 : undefined}
+      onPointerEnter={editable ? () => setHovered(true) : undefined}
+      onPointerLeave={editable ? () => setHovered(false) : undefined}
+      onFocus={editable ? () => setFocused(true) : undefined}
+      // React onBlur는 focusout이라 버블한다 — 카드에서 자식 버튼으로 탭해 들어가는 순간에도
+      // 발화하므로, 안쪽으로 이동한 경우는 걸러야 버튼이 눈앞에서 사라지지 않는다.
+      onBlur={
+        editable
+          ? (e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                setFocused(false);
+              }
+            }
+          : undefined
+      }
+    >
       <img
         data-testid={testId}
-        src={image}
-        alt={t("alt.capturedImage")}
+        src={src}
+        alt={t(SNAPSHOT_ALT[slot][annotated ? "annotated" : "raw"])}
         className="max-h-40 w-auto max-w-full object-contain"
       />
+      {editable && active ? (
+        <ImageActions
+          // 세로 중앙 고정 — 조상 컨테이너로 확장된 가로로 긴 캡처는 표시 높이가 30px대라
+          // `top-2`(8) + `h-8`(32)이면 버튼이 카드 아래로 뚫고 나간다(design.md 위험 5).
+          className="absolute right-1 top-1/2 -translate-y-1/2"
+          onAnnotate={() => onAnnotate!(slot)}
+          onReset={annotated && onReset ? () => onReset(slot) : undefined}
+        />
+      ) : null}
     </Card>
   );
 }

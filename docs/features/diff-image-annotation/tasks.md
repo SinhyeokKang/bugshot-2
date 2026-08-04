@@ -23,17 +23,17 @@
   - `onSubmitted`·`reset` 계열의 초기화 목록에 두 필드 추가.
   - `confirmDraft`는 `annotated ?? raw` 결과를 blob 저장 조건, `snapshot.before/after`, 버퍼 `hasBefore/hasAfter`, `saveImageBlob` 4곳에 동일하게 사용한다.
 - **검증**:
-  - [ ] `setAfterImage(x)`가 기존과 **다른** 값이면 `afterAnnotated === null`
-  - [ ] `setAfterImage(same)`처럼 값이 같으면 `afterAnnotated` **보존**
-  - [ ] `patchBufferedElement(sel, fid, { afterImage: x })`(다른 값) 후 그 항목의 `afterAnnotated === null`
-  - [ ] `patchBufferedElement(sel, fid, { styleEdits })`(afterImage 없는 patch)는 `afterAnnotated`를 **보존**
-  - [ ] `patchBufferedElement(sel, fid, { afterAnnotated: x })` 단독 패치가 그 값을 반영하고 **자기를 지우지 않으며** `afterImage`도 안 건드린다
-  - [ ] `bufferCurrentElement(newAfter, …)`는 `afterAnnotated`를 버리고, `bufferCurrentElement(state.afterImage, …)`(rebind)는 보존한다 — 이 두 케이스가 폐기 규율의 본체다
-  - [ ] `bufferCurrentElement`가 `beforeAnnotated`를 승격 항목에 싣는다
-  - [ ] 버퍼 요소 재선택은 두 annotated 필드를 복원하고, 신규 요소 선택은 직전 annotated를 null로 초기화한다
-  - [ ] `setBeforeAnnotated(x)`는 `beforeImage`를 안 건드린다
-  - [ ] `confirmDraft` — 현재 요소·버퍼 요소 각각에 대해 raw·annotated가 모두 있을 때 `saveImageBlob`에 넘어간 dataUrl이 **주석본**이다(4슬롯 전부). blob 저장이 `void (async () => …)()` fire-and-forget이므로 flush 후 단언한다(안 하면 조용히 통과한다)
-  - [ ] 버퍼 `hasBefore`/`hasAfter`가 resolve 기준으로 계산된다 — raw가 null이고 annotated만 있어도 true
+  - [x] `setAfterImage(x)`가 기존과 **다른** 값이면 `afterAnnotated === null`
+  - [x] `setAfterImage(same)`처럼 값이 같으면 `afterAnnotated` **보존**
+  - [x] `patchBufferedElement(sel, fid, { afterImage: x })`(다른 값) 후 그 항목의 `afterAnnotated === null`
+  - [x] `patchBufferedElement(sel, fid, { styleEdits })`(afterImage 없는 patch)는 `afterAnnotated`를 **보존**
+  - [x] `patchBufferedElement(sel, fid, { afterAnnotated: x })` 단독 패치가 그 값을 반영하고 **자기를 지우지 않으며** `afterImage`도 안 건드린다
+  - [x] `bufferCurrentElement(newAfter, …)`는 `afterAnnotated`를 버리고, `bufferCurrentElement(state.afterImage, …)`(rebind)는 보존한다 — 이 두 케이스가 폐기 규율의 본체다
+  - [x] `bufferCurrentElement`가 `beforeAnnotated`를 승격 항목에 싣는다
+  - [x] 버퍼 요소 재선택은 두 annotated 필드를 복원하고, 신규 요소 선택은 직전 annotated를 null로 초기화한다
+  - [x] `setBeforeAnnotated(x)`는 `beforeImage`를 안 건드린다
+  - [x] `confirmDraft` — 현재 요소·버퍼 요소 각각에 대해 raw·annotated가 모두 있을 때 `saveImageBlob`에 넘어간 dataUrl이 **주석본**이다(4슬롯 전부). blob 저장이 `void (async () => …)()` fire-and-forget이므로 flush 후 단언한다(안 하면 조용히 통과한다)
+  - [x] 버퍼 `hasBefore`/`hasAfter`가 resolve 기준으로 계산된다 — raw가 null이고 annotated만 있어도 true
 
 ### Task 2: 세션 영속화
 
@@ -43,9 +43,9 @@
   - `toLiteSnapshot`만 순수 헬퍼 모듈로 분리해 export하고, top-level·`bufferedElements` map 양쪽에서 두 필드를 null로 만든다.
   - **`snapshotFromState`는 옮기지 않는다** — 36필드 손나열 + `getState()` 직접 호출이라 이동 중 하나가 빠지면 타입·런타임 에러 없이 조용히 초기값이 되고, 영향 범위가 편집 세션 전체다.
 - **검증**:
-  - [ ] `toLiteSnapshot` 결과에 annotated 계열이 남지 않는다(top-level·버퍼 양쪽, 단위)
-  - [ ] `snapshotFromState` 결과 **키 집합 === `EditorSnapshot` Pick 키 집합** (회귀 그물 — 이 기능과 무관하게 앞으로도 지킨다)
-  - [ ] `snapshotFromState` 결과가 top-level annotated 두 필드를 값까지 보존한다
+  - [x] `toLiteSnapshot` 결과에 annotated 계열이 남지 않는다(top-level·버퍼 양쪽, 단위)
+  - [x] `snapshotFromState` 결과 **키 집합 === `EditorSnapshot` Pick 키 집합** (회귀 그물 — 이 기능과 무관하게 앞으로도 지킨다)
+  - [x] `snapshotFromState` 결과가 top-level annotated 두 필드를 값까지 보존한다
   - [ ] 주석 후 패널 닫았다 열면 주석본이 복원된다(수동)
 
 ### Task 3: `ImageActions` 컴포넌트
@@ -56,11 +56,11 @@
   - 래퍼는 `absolute right-2 top-2`. **`opacity-0`을 쓰지 않는다** — 투명해도 탭 순서에 남아 요소당 최대 4개의 보이지 않는 정지점을 만든다. hover/focus-within 상태를 부모가 판정해 **조건부 렌더**한다.
   - `data-testid` 부착: `diff-image-annotate` / `diff-image-reset`(인라인의 `inline-image-annotate`·`inline-image-reset` 선례). `aria-label`은 로케일 의존이라 e2e 셀렉터로 못 쓴다.
 - **검증**:
-  - [ ] `onReset` 없으면 버튼 1개, 있으면 2개
-  - [ ] 각 버튼 클릭이 해당 핸들러를 1회 호출
-  - [ ] `aria-label`이 `draft.*` 문구다(`title`은 붙지 않으므로 기준에서 제외)
-  - [ ] 안 보이는 상태에서는 버튼이 DOM에 없다(탭 정지점 0)
-  - [ ] 키보드 포커스로 진입하면 그룹이 보인다
+  - [x] `onReset` 없으면 버튼 1개, 있으면 2개
+  - [x] 각 버튼 클릭이 해당 핸들러를 1회 호출
+  - [x] `aria-label`이 `draft.*` 문구다(`title`은 붙지 않으므로 기준에서 제외)
+  - [x] 안 보이는 상태에서는 버튼이 DOM에 없다(탭 정지점 0)
+  - [x] 키보드 포커스로 진입하면 그룹이 보인다
 
 ### Task 4: `StyleChangesTable` optional 액션 prop + alt 분리
 
@@ -70,23 +70,23 @@
   - `slot`으로 `alt`를 before/after로 가른다 — 지금 두 칸이 `alt.capturedImage` 하나를 공유해 스크린 리더가 구분하지 못한다. 주석본일 때 문구를 달리한다. 신규 키 ko/en 동시 추가.
   - 이미지 래퍼 `Card`에 `group relative` 추가. 이미지 없는 칸은 지금과 동일.
 - **검증**:
-  - [ ] 핸들러 미전달 시 `ImageActions`가 DOM에 없다 — **`PreviewPanel`·`DraftDetailDialog`의 실제 호출부 형태 그대로 렌더해서** 확인(읽기 전용 화면 보호가 이 테스트의 본체)
-  - [ ] 핸들러 미전달 + `annotated` 전달 시 `img src`가 주석본이고 버튼은 없다
-  - [ ] `annotated`가 있으면 `img src`가 주석본, 없으면 원본
-  - [ ] `annotated`가 있을 때만 제거 버튼이 뜬다
-  - [ ] 이미지가 null이면 버튼도 없고 `styleTable.noSnapshot`만 나온다
-  - [ ] before/after 칸의 `alt`가 서로 다르다
-  - [ ] 핸들러·annotated 모두 미전달 시 기존 마크업이 무변경이다
+  - [x] 핸들러 미전달 시 `ImageActions`가 DOM에 없다 — **`PreviewPanel`·`DraftDetailDialog`의 실제 호출부 형태 그대로 렌더해서** 확인(읽기 전용 화면 보호가 이 테스트의 본체)
+  - [x] 핸들러 미전달 + `annotated` 전달 시 `img src`가 주석본이고 버튼은 없다
+  - [x] `annotated`가 있으면 `img src`가 주석본, 없으면 원본
+  - [x] `annotated`가 있을 때만 제거 버튼이 뜬다
+  - [x] 이미지가 null이면 버튼도 없고 `styleTable.noSnapshot`만 나온다
+  - [x] before/after 칸의 `alt`가 서로 다르다
+  - [x] 핸들러·annotated 모두 미전달 시 기존 마크업이 무변경이다
 
 ### Task 5: `mergeStyleElements` 필드 통과
 
 - **변경 대상**: `src/sidepanel/lib/buildIssueMarkdown.ts`, `src/sidepanel/lib/__tests__/buildIssueMarkdown.test.ts`
 - **작업 내용**: `StyleElementContext`에 optional `beforeAnnotated`/`afterAnnotated` 추가, `current` 인자에 두 필드 추가, buffered→resolved 매핑에서도 통과. **여기서 resolve하지 않는다.**
 - **검증**:
-  - [ ] 현재 요소의 annotated가 출력 항목에 그대로 실린다
-  - [ ] 버퍼 요소의 annotated가 인덱스에 맞게 실린다
-  - [ ] 필드가 없는 구버전 버퍼 항목도 예외 없이 통과(undefined 유지)
-  - [ ] 마크다운 본문 산출물은 무변경(기존 테스트 green)
+  - [x] 현재 요소의 annotated가 출력 항목에 그대로 실린다
+  - [x] 버퍼 요소의 annotated가 인덱스에 맞게 실린다
+  - [x] 필드가 없는 구버전 버퍼 항목도 예외 없이 통과(undefined 유지)
+  - [x] 마크다운 본문 산출물은 무변경(기존 테스트 green)
 
 ### Task 6: 제출·미리보기·AI 경로 resolve
 
@@ -98,11 +98,11 @@
   - `getModeImages`의 element 분기를 `annotated ?? raw`로. screenshot 분기는 이미 같은 규칙이다. **주석이 LLM으로 나가는 새 전송이므로 `docs/privacy.{ko,en}.md` 대조 대상**(`/push` 트리거).
   - `DraftDetailDialog`의 재제출 매핑은 무변경 — IDB에 이미 resolve된 이미지 한 장뿐이다.
 - **검증**:
-  - [ ] 주석이 있으면 `beforeImages[i]`가 주석본, 없으면 원본
-  - [ ] 현재+버퍼 혼합 제출에서 각 annotated가 같은 인덱스의 이미지로 들어간다
-  - [ ] `buildCaptureFiles` 파일명·인덱스는 불변(`before-0.webp` …)
-  - [ ] `getModeImages(element)`가 주석본을 반환하고, 주석이 없으면 원본을 반환한다
-  - [ ] `PreviewPanel`의 diff table `img src`가 주석본이고 액션 버튼은 없다
+  - [x] 주석이 있으면 `beforeImages[i]`가 주석본, 없으면 원본
+  - [x] 현재+버퍼 혼합 제출에서 각 annotated가 같은 인덱스의 이미지로 들어간다
+  - [x] `buildCaptureFiles` 파일명·인덱스는 불변(`before-0.webp` …)
+  - [x] `getModeImages(element)`가 주석본을 반환하고, 주석이 없으면 원본을 반환한다
+  - [x] `PreviewPanel`의 diff table `img src`가 주석본이고 액션 버튼은 없다
 
 ### Task 7: `AnnotationOverlay` 접근성·완료 상태 보강 (독립 — 인라인 이미지 주석과 공유)
 
@@ -137,7 +137,7 @@
   - [ ] 재주석이 주석본 위에서 시작하고, 그 뒤 제거하면 **최초** 원본으로 돌아간다
   - [ ] 제거 후 버튼이 1개로 준다
   - [ ] cancel은 어느 슬롯도 변경하지 않는다
-  - [ ] 동일 selector·서로 다른 frameId 카드의 key와 쓰기 대상이 충돌하지 않는다(순수 라우팅 헬퍼 단위 테스트)
+  - [x] 동일 selector·서로 다른 frameId 카드의 key와 쓰기 대상이 충돌하지 않는다(순수 라우팅 헬퍼 단위 테스트)
 
 ## 테스트 계획
 

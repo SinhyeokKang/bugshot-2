@@ -109,6 +109,7 @@ const ko = {
   "styleTable.unset": "미설정",
   "styleTable.noSnapshot": "스냅샷 없음",
 
+  "annotation.title": "이미지 주석",
   "annotation.cancel": "취소",
   "annotation.done": "주석 완료",
   "annotation.select": "선택",
@@ -133,6 +134,7 @@ const ko = {
   "annotation.textSize.M": "보통",
   "annotation.textSize.L": "크게",
   "annotation.loadError": "이미지를 불러오지 못했습니다.",
+  "annotation.exportError": "주석을 저장하지 못했습니다. 다시 시도해 주세요.",
   "annotation.zoomIn": "확대",
   "annotation.zoomOut": "축소",
   "annotation.zoomLevel": "배율",
@@ -275,6 +277,7 @@ const en = {
   "styleTable.unset": "Unset",
   "styleTable.noSnapshot": "No snapshot",
 
+  "annotation.title": "Image annotation",
   "annotation.cancel": "Cancel",
   "annotation.done": "Done",
   "annotation.select": "Select",
@@ -299,6 +302,7 @@ const en = {
   "annotation.textSize.M": "Medium",
   "annotation.textSize.L": "Large",
   "annotation.loadError": "Failed to load image.",
+  "annotation.exportError": "Failed to save the annotation. Please try again.",
   "annotation.zoomIn": "Zoom in",
   "annotation.zoomOut": "Zoom out",
   "annotation.zoomLevel": "Zoom level",

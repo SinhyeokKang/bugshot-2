@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { StyleChangesTable } from "../StyleChangesTable";
@@ -156,6 +156,60 @@ describe("StyleChangesTable — 액션 노출 조건", () => {
 
     expect(document.activeElement).toBe(cellOf("snapshot-before"));
     expect(screen.getByTestId("diff-image-annotate")).toBeTruthy();
+  });
+
+  // React onBlur는 focusout이라 버블한다 — 안쪽 이동을 안 거르면 탭해 들어가는 순간 사라진다.
+  // userEvent.tab()으로는 못 잡는다: focusout/focusin이 한 배치에 묶여 최종값이 true로 수렴해
+  // relatedTarget 가드를 지워도 통과한다. focusout만 단독 dispatch해야 갈린다.
+  it("포커스가 카드 안쪽 버튼으로 이동하는 focusout은 그룹을 접지 않는다", async () => {
+    renderEditable({ beforeAnnotated: "data:before-ann" });
+    const cell = cellOf("snapshot-before");
+    await userEvent.tab();
+
+    const inner = screen.getByTestId("diff-image-reset");
+    fireEvent.focusOut(cell, { relatedTarget: inner });
+
+    expect(screen.getByTestId("diff-image-annotate")).toBeTruthy();
+  });
+
+  it("포커스가 카드 밖으로 나가는 focusout은 그룹을 접는다", async () => {
+    renderEditable();
+    const cell = cellOf("snapshot-before");
+    await userEvent.tab();
+
+    fireEvent.focusOut(cell, { relatedTarget: document.body });
+
+    expect(screen.queryByTestId("diff-image-annotate")).toBeNull();
+  });
+
+  // 제거로 버튼 하나가 사라지면 포커스가 body로 빠진다 — 한 플래그면 hover 중인 그룹까지 접힌다.
+  it("hover 중 주석을 제거해도 남은 버튼이 계속 보인다", async () => {
+    const onReset = vi.fn();
+    const { rerender } = render(
+      <StyleChangesTable
+        beforeImage="data:before"
+        afterImage="data:after"
+        beforeAnnotated="data:before-ann"
+        diffs={DIFFS}
+        onAnnotate={() => {}}
+        onReset={onReset}
+      />,
+    );
+
+    await userEvent.hover(cellOf("snapshot-before"));
+    await userEvent.click(screen.getByTestId("diff-image-reset"));
+    rerender(
+      <StyleChangesTable
+        beforeImage="data:before"
+        afterImage="data:after"
+        diffs={DIFFS}
+        onAnnotate={() => {}}
+        onReset={onReset}
+      />,
+    );
+
+    expect(screen.getByTestId("diff-image-annotate")).toBeTruthy();
+    expect(screen.queryByTestId("diff-image-reset")).toBeNull();
   });
 
   it("주석이 없으면 제거 버튼이 없다", async () => {
