@@ -20,6 +20,10 @@ This is the heart of element mode. The before and after styles are captured as a
 
 If you bundled several elements back in [Styling](styling.md), each one gets its own table — laid out in order under its selector heading.
 
+You can **annotate the before and after images** right in the table. The capture widens to the container around the element you picked, so several elements often share the frame — and sometimes you need to say "it's *this* button's padding". Hover an image and an **Add annotation** button appears in the top-right corner. It opens the same editor as [Screenshot annotation](../screenshot/annotation.md): draw an arrow or a shape, then hit **Done**. Before and after are annotated independently, and once an image has an annotation the buttons become **Remove annotation** and **Edit annotation**. **Remove annotation** restores the image you originally captured, so feel free to experiment.
+
+> The annotated image is what gets attached to the issue, and what the preview and the AI draft use. The original stays inside the extension and never leaves.
+
 ## 4. Body sections
 
 ![Writing the body](../assets/element-issue-3.jpg)
