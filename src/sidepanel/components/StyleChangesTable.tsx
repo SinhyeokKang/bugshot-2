@@ -202,9 +202,10 @@ function SnapshotCell({
       />
       {editable && active ? (
         <ImageActions
-          // 세로 중앙 고정 — 조상 컨테이너로 확장된 가로로 긴 캡처는 표시 높이가 30px대라
-          // `top-2`(8) + `h-8`(32)이면 버튼이 카드 아래로 뚫고 나간다(design.md 위험 5).
-          className="absolute right-1 top-1/2 -translate-y-1/2"
+          // 우상단 — 본문 인라인 이미지 액션과 같은 자리(사용자가 두 번 배우지 않는다).
+          // inset이 `top-2`(8)가 아니라 `top-1`(4)인 이유: 조상 컨테이너로 확장된 가로로 긴
+          // 캡처는 표시 높이가 30px대(카드 ≈40px)라 8+`h-8`(32)이면 카드 밖으로 나간다.
+          className="absolute right-1 top-1"
           onAnnotate={() => onAnnotate!(slot)}
           onReset={
             annotated && onReset
