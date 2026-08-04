@@ -10,9 +10,14 @@ import { cancelAreaSelect, clearPicker, rebindStylingSession } from "@/sidepanel
 import { getNetworkLog, getConsoleLog, getActionLog, getVideoBlob, pruneOrphanInlineImages } from "@/store/blob-db";
 import { extractInlineRefs } from "@/sidepanel/lib/resolveInlineImages";
 import { deriveLogsAttach } from "@/sidepanel/hooks/deriveLogsAttach";
+import { toLiteSnapshot } from "@/sidepanel/lib/liteSnapshot";
 
-function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
-  let next = snap;
+export function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
+  let next = {
+    ...snap,
+    beforeAnnotated: snap.beforeAnnotated ?? null,
+    afterAnnotated: snap.afterAnnotated ?? null,
+  };
   // 구 3플래그(networkLogAttach/consoleLogAttach/actionLogAttach) 스냅샷 → 단일 logsAttach 파생.
   const legacyAttach = snap as unknown as {
     networkLogAttach?: boolean;
@@ -44,29 +49,11 @@ const DRAFT_PHASES = new Set(["drafting", "previewing", "done"]);
 // 사용자가 **새 캡처를 시작한 것**이다 — 직전 세션의 늦은 복원분으로 덮지 않는다.
 const ACTIVE_CAPTURE_PHASES = new Set(["picking", "capturing", "recording"]);
 
-// 이미지·영상 썸네일을 뺀 경량 스냅샷. session storage 쿼터 초과 시의 2차 시도용.
-function toLiteSnapshot(snap: EditorSnapshot): EditorSnapshot {
-  return {
-    ...snap,
-    beforeImage: null,
-    afterImage: null,
-    // captureContext는 남긴다 — 기준이 사라지면 resolveCaptureRect의 0×0 가드(요소 소실 시
-    // 마진 조각 대신 이미지 없음)가 함께 풀린다. 짝 없는 기준보다 그 가드가 값이 크다.
-    // bufferedElements는 배열 안 base64라 얕은 스프레드로는 안 비워짐 → 명시 변환.
-    bufferedElements: snap.bufferedElements.map((e) => ({
-      ...e,
-      beforeImage: null,
-      afterImage: null,
-    })),
-    screenshotRaw: null,
-    screenshotAnnotated: null,
-    videoThumbnail: null,
-  };
-}
-
 // videoBlob 제외: Blob은 chrome.storage 직렬화 불가 → 로그와 동일하게 IndexedDB(pending:${tabId})에
 // 별도 저장하고 hydrate가 복원. onRecordingComplete/replaceVideo 시점에 미러링된다.
-function snapshotFromState(): EditorSnapshot {
+// 순수 모듈로 옮기지 않는다 — 손나열 + getState() 직접 호출이라 이동 중 하나가 빠지면 타입·런타임
+// 에러 없이 조용히 초기값이 되고 영향 범위가 편집 세션 전체다. export는 키 집합 그물 테스트용.
+export function snapshotFromState(): EditorSnapshot {
   const s = useEditorStore.getState();
   return {
     captureMode: s.captureMode,
@@ -79,6 +66,8 @@ function snapshotFromState(): EditorSnapshot {
     tokens: s.tokens,
     beforeImage: s.beforeImage,
     afterImage: s.afterImage,
+    beforeAnnotated: s.beforeAnnotated,
+    afterAnnotated: s.afterAnnotated,
     captureContext: s.captureContext,
     bufferedElements: s.bufferedElements,
     screenshotRaw: s.screenshotRaw,

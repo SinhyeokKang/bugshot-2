@@ -36,6 +36,36 @@
 
 ---
 
+## 2026-08-04 — 오버레이 Escape는 "누가 처리하나"와 "누가 못 받게 하나"가 다른 판정인데 한 조건으로 묶었고, 두 번 뒤집혔다
+
+- **영역**: `컴포넌트`, `에디터`
+- **계열**: `라이브러리전제`, `미검증단언`
+- **그물**: `jsdom`
+- **증상**: (구현 중 `/code-review`·CTO 게이트가 잡음 — 미출시) diff table 이미지 주석을 위해 `AnnotationOverlay`에 Escape 취소를 얹는 과정에서 같은 핸들러가 **세 번 다른 얼굴로 틀렸다**. ① 첫 판: window **버블**에 달아 부모 `DraftEditDialog`가 함께 닫혔다. ② capture로 옮기고 "오버레이 루트 밖이 target이면 비킨다"로 줌 Select를 피하려 했더니, **연 직후 포커스가 아직 트리거 버튼(루트 밖)이라 Escape가 통째로 죽었다** — 캔버스를 한 번 클릭해 activeElement가 body가 된 뒤에야 동작. ③ popper 판정으로 고친 뒤 `isComposing`·`completing` guard를 추가했는데 그 둘을 `stopPropagation` **앞**에 둬, 우리가 처리하지 않는 Escape가 부모 Dialog까지 올라갔다(②의 재발).
+- **근본 원인**: Escape 하나에 **서로 다른 세 판정**이 겹쳐 있는데 조건 하나로 뭉갰다 — (a) *누가 처리하나*(오버레이 vs 열린 Radix 레이어), (b) *누가 못 받게 하나*(부모 DismissableLayer는 언제나 차단), (c) *지금 처리할 상태인가*(IME 조합 중·완료 rAF 대기 중). (b)는 (a)가 "내 몫이 아니다"라고 답한 경우를 **제외한 전부**에 걸리고 (c)와 무관한데, 코드에선 (c)의 early-return이 (b)보다 앞서면 (b)가 통째로 건너뛰어진다. 게다가 (a)를 "포커스 위치"로 근사한 게 ②였다 — 오버레이는 초기 포커스를 가져가지 않으므로 **"루트 밖"과 "다른 레이어가 소유"는 같은 말이 아니다**. Radix `useEscapeKeydown`이 `document` **capture**에 붙고 `event.key`만 보며(`isComposing` 미검사) `DismissableLayer`가 `isHighestLayer`만 dismiss한다는 세 전제를 실측 없이 뭉뚱그린 것이 ①③의 공통 뿌리다.
+- **재발 방지**: (1) **풀스크린 비-Radix 오버레이에 Escape를 달 땐 순서를 고정한다** — ⓐ 열린 팝퍼 레이어 판정(`target.closest("[data-radix-popper-content-wrapper]")`) → 비킴, ⓑ `stopPropagation()`(무조건), ⓒ 상태 guard(`isComposing`·처리 중) → return, ⓓ `preventDefault()` + 실제 처리. **ⓑ가 ⓒ보다 뒤로 가면 부모가 닫힌다.** grep: `grep -rn 'keydown.*true)' src/sidepanel/components`로 capture 리스너를 찾아 이 순서를 대조. (2) **"레이어 소유"를 포커스 위치로 근사하지 말 것** — 오버레이가 초기 포커스를 가져가지 않으면 activeElement는 여전히 트리거다. 소유 판정은 그 레이어의 DOM 마커로 한다. (3) **jsdom으로 고정 가능하다** — `loadImage`를 영원히 pending으로 모킹하면 Konva가 안 뜬 채 껍데기만 렌더돼 role/aria-label·Escape 라우팅·전파 차단·포커스 복귀를 전부 잴 수 있다(`AnnotationOverlay.test.tsx`). 캔버스가 있다고 컴포넌트 전체를 e2e로 미루지 말 것. (4) 전파 차단 테스트는 **`document`에 capture 리스너를 걸고 미호출을 단언**해야 부모 Dialog 보호를 실증한다 — `onCancel` 호출 여부만 보면 ③이 green으로 통과한다.
+- **관련**: `src/sidepanel/components/AnnotationOverlay.tsx`(Escape capture 핸들러 ⓐ~ⓓ 순서·`completing`·포커스 복귀), 그물 `src/sidepanel/components/__tests__/AnnotationOverlay.test.tsx`("우리가 처리하지 않는 Escape(IME 조합 중)도 전파는 막는다"가 ③ 전용), 호스트 `src/sidepanel/tabs/DraftingPanel.tsx`(비-modal)·`src/sidepanel/components/TiptapEditor.tsx`→`DraftEditDialog`(Radix modal). 선행 회고: **2026-07-22**(같은 오버레이×다이얼로그 조합의 pointer 축).
+
+## 2026-08-04 — 값 비교 폐기 규율이 `null → null`을 "안 바뀜"으로 읽었고, 그 구멍을 막던 게 호출 순서라는 우연이었다
+
+- **영역**: `store`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: (구현 중 `/code-review`가 잡음 — 미출시) diff table의 after 주석은 after가 재캡처되면 버려야 하는데(옛 좌표가 새 픽셀 위에서 엉뚱한 곳을 가리키면 주석이 없는 것보다 나쁘다), `backToStyling`으로 styling에 돌아갔다가 기준이 갈려 `setAfterImage(null)`이 다시 오는 경로에서 **짝 없는 주석본이 살아남아 after 칸에 옛 주석이 부활하고 그대로 제출**될 수 있었다. 게다가 그 사이 구간 내내 수 MB 주석본이 세션 스냅샷에 실렸다.
+- **근본 원인**: 폐기 조건을 `next !== prev` **하나**로 통일한 게 설계 의도였는데(지점을 열거하면 `rebindStylingSession`의 복원 왕복까지 폐기돼 버린다), `null → null`이 그 술어에서 "안 바뀜"으로 떨어진다. **`null` 커밋은 "값이 같다"가 아니라 "after를 버린다"는 뜻**이라 의미가 정반대인데 술어가 그걸 구별하지 못했다. 더 나쁜 건 이게 **부활까지 가지 않은 이유가 코드가 아니라 호출 순서**였다는 점 — styling→drafting의 유일 통로인 `handleNext`가 dirty 체크 없이 항상 `setAfterImage`를 부르는 덕에 우연히 덮였다. "diff 0건이면 after 캡처 스킵" 류의 최적화가 하나만 들어와도 되살아난다. 설계 문서(`design.md`)도 `backToStyling`을 "별도 규칙 불요"로 명시해 **틀린 근거가 문서에 박혀 있었다**.
+- **재발 방지**: (1) **값 비교 폐기 술어에 sentinel(`null`·`""`)이 들어올 수 있으면 "같다"의 의미를 먼저 나눈다** — `keepsAnnotation(next, prev) = next !== null && next === prev`처럼 **보존 쪽을 좁게** 쓴다(폐기가 기본, 보존이 예외). `grep -rn '!== s\.\|=== s\.' src/store`로 store의 값 비교 게이트를 훑어 sentinel 취급을 대조. (2) **"이 경로는 다른 호출이 덮어 준다"는 근거로 규율에서 빼지 말 것** — 덮는 쪽이 조건부가 되는 순간 조용히 깨지고, 그 사이 구간의 잔여 상태(여기선 세션 쿼터)는 그때도 실재한다. 상태를 버리는 액션이 그 짝도 같은 `set()`에서 버린다. (3) **store 액션을 우회하는 직접 `setState`를 전수한다** — `grep -rn 'useEditorStore.setState' src/`로 훑어 새 필드를 청소 목록에 넣는다(`picker-control.ts`의 두 곳이 이번에 빠져 있었다). (4) 폐기 규율은 **과잉·과소를 양쪽에서** 고정한다 — "다른 값이면 버린다"와 "같은 값이면 보존한다"를 쌍으로 두고, sentinel 케이스를 별도 케이스로 추가.
+- **관련**: `src/store/editor-store.ts`(`keepsAnnotation` 단일 출처·`backToStyling`·`setAfterImage`·`patchBufferedElement`·`bufferCurrentElement`), `src/sidepanel/picker-control.ts`(`releaseDetachedSelection`·`expireStylingSession` 직접 setState), 그물 `src/store/__tests__/editor-store.test.ts`(null 커밋 3케이스), 문서 `docs/ARCHITECTURE.md` "편집 세션 영속화".
+
+## 2026-08-04 — `userEvent.tab()`은 focusout/focusin을 한 배치로 묶어, 그 가드를 지워도 green인 테스트를 만든다
+
+- **영역**: `컴포넌트`, `e2e`
+- **계열**: `라이브러리전제`, `미검증단언`
+- **그물**: `jsdom`
+- **증상**: (구현 중 `/code-review`가 잡음 — 미출시) hover/focus로만 뜨는 액션 그룹에서 **카드→자식 버튼으로 Tab해 들어가는 순간 그룹이 언마운트**되는 버그를 `relatedTarget` 가드로 고치고 `userEvent.tab()` 두 번으로 테스트를 박았는데, **가드를 지워도 그 테스트가 통과**했다. 같은 파일의 다른 테스트("제거해도 남은 버튼이 보인다")는 두 플래그(hovered/focused) 분리를 검증한다고 적혀 있었지만 `focused` state를 통째로 지워도 green이었다.
+- **근본 원인**: 두 개의 서로 다른 라이브러리·DOM 전제를 실측 없이 믿었다. ① **`userEvent.tab()`은 스크립트에서 `.focus()`를 호출**하므로 focusout과 focusin이 한 태스크에 묶여 React act 큐에서 배치된다 → `setFocused(false)` → `setFocused(true)` 순으로 **최종값이 true로 수렴**해 가드 유무가 결과에 안 나타난다(실제 브라우저는 네이티브 focusout 리스너 반환 직후 microtask checkpoint가 돌아 React가 먼저 flush → 버튼이 언마운트된다). ② **포커스된 요소가 DOM에서 제거될 때 focusout은 발화하지 않는다** — "제거 버튼이 사라지면 포커스가 body로 빠지고 focusout이 온다"는 전제 자체가 거짓이라, 그 경로로는 두 플래그가 애초에 갈리지 않았고 근거 주석까지 틀려 있었다.
+- **재발 방지**: (1) **포커스 이동 가드는 `fireEvent.focusOut(el, { relatedTarget })`로 단독 dispatch해 검증한다** — `userEvent.tab()`은 이동 *결과*를 보기엔 좋지만 이동 *중간의 이벤트 순서*에 걸린 로직은 못 잰다. (2) **새 테스트는 "구현을 되돌리면 red인가"를 실제로 돌려 확인한다** — 특히 조건부 렌더·포커스·타이밍 가드처럼 상태가 수렴해 버리는 축은 통과가 아무것도 증명하지 않을 수 있다. `grep -rn 'userEvent.tab()' src/**/__tests__`로 같은 계열을 훑는다. (3) **DOM 이벤트 전제는 주석에 쓰기 전에 재현해 본다** — "요소가 제거되면 blur가 온다" 같은 상식은 틀린다. 틀린 근거 주석은 다음 사람이 그 축을 다시 안 보게 만들어 버그보다 오래 산다.
+- **관련**: `src/sidepanel/components/StyleChangesTable.tsx`(`SnapshotCell`의 hovered/focused 분리 + `relatedTarget` 가드 + 제거 후 카드 포커스 복귀), 그물 `src/sidepanel/components/__tests__/StyleChangesTable.test.tsx`(focusOut 단독 dispatch 2케이스).
+
 ## 2026-08-03 — 전파 축을 막은 회고가 hit-test 축을 "같이 막혔다"로 읽혔다 — blocker가 물러나는 두 순간에 hover가 스냅샷으로 굳었다
 
 - **영역**: `content`, `e2e`

@@ -35,8 +35,15 @@ import {
 } from "@/sidepanel/components/Section";
 import {
   StyleChangesTable,
+  buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
 import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
+import {
+  annotationSource,
+  routeDiffAnnotation,
+  type SnapshotSlot,
+} from "@/sidepanel/lib/diffAnnotation";
+import { elementKey, type ElementKeyLike } from "@/lib/element-key";
 import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
 import { downloadEditorLogsHtml } from "@/sidepanel/lib/buildEditorCapture";
 import { supportsActionLog, supportsConsoleNetworkLog } from "@/sidepanel/lib/captureLogSupport";
@@ -67,6 +74,8 @@ export function DraftingPanel() {
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const beforeImage = useEditorStore((s) => s.beforeImage);
   const afterImage = useEditorStore((s) => s.afterImage);
+  const beforeAnnotated = useEditorStore((s) => s.beforeAnnotated);
+  const afterAnnotated = useEditorStore((s) => s.afterAnnotated);
   const bufferedElements = useEditorStore((s) => s.bufferedElements);
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
@@ -99,6 +108,13 @@ export function DraftingPanel() {
   const targetPlatform = useEditorStore((s) => s.targetPlatform);
   const { status: aiStatus, providerLabel, capabilities, createSession } = useAI();
   const [annotating, setAnnotating] = useState(false);
+  // diff table 주석 세션(요소 카드 × before/after 슬롯). url은 진입 시점의 `annotated ?? raw`.
+  const [annotatingDiff, setAnnotatingDiff] = useState<{
+    selector: string;
+    frameId: number;
+    slot: SnapshotSlot;
+    url: string;
+  } | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const aiDraftLoading = useEditorStore((s) => s.aiDraftLoading);
   const [logDialogOpen, setLogDialogOpen] = useState(false);
@@ -116,10 +132,34 @@ export function DraftingPanel() {
             styleEdits,
             before: beforeImage,
             after: afterImage,
+            beforeAnnotated,
+            afterAnnotated,
           })
         : [],
-    [selection, styleEdits, bufferedElements, beforeImage, afterImage],
+    [selection, styleEdits, bufferedElements, beforeImage, afterImage, beforeAnnotated, afterAnnotated],
   );
+
+  // mergeStyleElements가 현재 요소를 카드로 낼 조건과 같은 판정 — 라우팅이 이 값을 그대로 쓴다.
+  const currentHasDiffs =
+    !!selection && buildStyleDiff(selection, styleEdits).length > 0;
+
+  // 카드는 파생 배열이라 쓰기 대상이 아니다 — 현재 선택이면 store 액션, 아니면 그 버퍼 항목.
+  const writeDiffAnnotation = (
+    el: ElementKeyLike,
+    slot: SnapshotSlot,
+    dataUrl: string | null,
+  ) => {
+    const write = routeDiffAnnotation(el, selection, currentHasDiffs);
+    const store = useEditorStore.getState();
+    if (write.target === "current") {
+      if (slot === "before") store.setBeforeAnnotated(dataUrl);
+      else store.setAfterAnnotated(dataUrl);
+      return;
+    }
+    store.patchBufferedElement(write.selector, write.frameId, {
+      [slot === "before" ? "beforeAnnotated" : "afterAnnotated"]: dataUrl,
+    });
+  };
 
   useEffect(() => {
     if (draft) return;
@@ -198,7 +238,7 @@ export function DraftingPanel() {
     styleElements.length > 0 ? (
       styleElements.map((el) => (
         <Section
-          key={el.selector}
+          key={elementKey(el)}
           testId="draft-media-block"
           title={`${t("section.styleChanges")} (${el.selector})`}
           collapsible
@@ -206,7 +246,20 @@ export function DraftingPanel() {
           <StyleChangesTable
             beforeImage={el.beforeImage ?? null}
             afterImage={el.afterImage ?? null}
+            beforeAnnotated={el.beforeAnnotated}
+            afterAnnotated={el.afterAnnotated}
             diffs={el.diffs}
+            onAnnotate={(slot) => {
+              const url = annotationSource(el, slot);
+              if (!url) return;
+              setAnnotatingDiff({
+                selector: el.selector,
+                frameId: el.frameId ?? 0,
+                slot,
+                url,
+              });
+            }}
+            onReset={(slot) => writeDiffAnnotation(el, slot, null)}
           />
         </Section>
       ))
@@ -432,6 +485,7 @@ export function DraftingPanel() {
               <CancelConfirmDialog
                 onConfirm={() => {
                   setAnnotating(false);
+                  setAnnotatingDiff(null);
                   reset();
                   if (tabId) void clearPicker(tabId);
                 }}
@@ -448,6 +502,7 @@ export function DraftingPanel() {
                 <Button
                   onClick={() => {
                     setAnnotating(false);
+                    setAnnotatingDiff(null);
                     if (confirmDraft()) toast.success(t("draft.saved"));
                   }}
                   disabled={titleMissing || aiDraftLoading || reproPrefillLoading}
@@ -492,6 +547,25 @@ export function DraftingPanel() {
               setAnnotating(false);
             }}
             onCancel={() => setAnnotating(false)}
+          />
+        </Suspense>
+      ) : null}
+      {annotatingDiff ? (
+        <Suspense
+          fallback={
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-background">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          }
+        >
+          <AnnotationOverlay
+            testId="diff-annotation-overlay"
+            imageUrl={annotatingDiff.url}
+            onComplete={(url) => {
+              writeDiffAnnotation(annotatingDiff, annotatingDiff.slot, url);
+              setAnnotatingDiff(null);
+            }}
+            onCancel={() => setAnnotatingDiff(null)}
           />
         </Suspense>
       ) : null}

@@ -32,6 +32,7 @@ import {
 } from "@/sidepanel/components/StyleChangesTable";
 import { buildIssueHtml, buildIssueMarkdown, mergeStyleElements, joinStyleSelectors, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import { buildMarkdownContext } from "@/sidepanel/lib/buildMarkdownContext";
+import { elementKey } from "@/lib/element-key";
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
@@ -51,6 +52,8 @@ export function PreviewPanel() {
   const tokens = useEditorStore((s) => s.tokens);
   const beforeImage = useEditorStore((s) => s.beforeImage);
   const afterImage = useEditorStore((s) => s.afterImage);
+  const beforeAnnotated = useEditorStore((s) => s.beforeAnnotated);
+  const afterAnnotated = useEditorStore((s) => s.afterAnnotated);
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
@@ -94,9 +97,11 @@ export function PreviewPanel() {
             styleEdits,
             before: beforeImage,
             after: afterImage,
+            beforeAnnotated,
+            afterAnnotated,
           })
         : [],
-    [selection, styleEdits, bufferedElements, beforeImage, afterImage],
+    [selection, styleEdits, bufferedElements, beforeImage, afterImage, beforeAnnotated, afterAnnotated],
   );
 
   const [logDialogOpen, setLogDialogOpen] = useState(false);
@@ -191,13 +196,16 @@ export function PreviewPanel() {
   ) : isElementMode ? (
     styleElements.map((el) => (
       <Section
-        key={el.selector}
+        key={elementKey(el)}
         testId="preview-media-block"
         title={`${t("section.styleChanges")} (${el.selector})`}
       >
+        {/* 핸들러는 넘기지 않는다(읽기 전용) — annotated만 넘겨야 미리보기와 제출물이 안 갈린다. */}
         <StyleChangesTable
           beforeImage={el.beforeImage ?? null}
           afterImage={el.afterImage ?? null}
+          beforeAnnotated={el.beforeAnnotated}
+          afterAnnotated={el.afterAnnotated}
           diffs={el.diffs}
         />
       </Section>

@@ -68,6 +68,10 @@ export interface StyleElementContext {
   afterFilename?: string;
   beforeImage?: string | null;
   afterImage?: string | null;
+  // diff table 주석본. 여기서 접지 않는다 — 표시 쪽이 "주석이 있는가"를 알아야 [주석 제거]를
+  // 낼 수 있다. 접는 지점은 소비처(제출·AI·미리보기)다.
+  beforeAnnotated?: string | null;
+  afterAnnotated?: string | null;
 }
 
 type ResolvedElement = Omit<StyleElementContext, "beforeFilename" | "afterFilename">;
@@ -91,6 +95,8 @@ function bufferedToResolved(b: BufferedElement): ResolvedElement {
     ),
     beforeImage: b.beforeImage,
     afterImage: b.afterImage,
+    beforeAnnotated: b.beforeAnnotated,
+    afterAnnotated: b.afterAnnotated,
   };
 }
 
@@ -103,6 +109,8 @@ export function mergeStyleElements(
     styleEdits: EditorStyleEdits;
     before: string | null;
     after: string | null;
+    beforeAnnotated?: string | null;
+    afterAnnotated?: string | null;
   } | null,
 ): StyleElementContext[] {
   const resolved: ResolvedElement[] = buffered
@@ -131,6 +139,8 @@ export function mergeStyleElements(
         diffs,
         beforeImage: current.before,
         afterImage: current.after,
+        beforeAnnotated: current.beforeAnnotated,
+        afterAnnotated: current.afterAnnotated,
       };
     }
   }

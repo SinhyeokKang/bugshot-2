@@ -6,6 +6,8 @@ type ImageStore = {
   screenshotRaw: string | null;
   beforeImage: string | null;
   afterImage: string | null;
+  beforeAnnotated: string | null;
+  afterAnnotated: string | null;
 };
 
 const EMPTY: ImageStore = {
@@ -13,6 +15,8 @@ const EMPTY: ImageStore = {
   screenshotRaw: null,
   beforeImage: null,
   afterImage: null,
+  beforeAnnotated: null,
+  afterAnnotated: null,
 };
 
 describe("getModeImages", () => {
@@ -119,6 +123,7 @@ describe("getModeImages", () => {
   it("video 모드 → undefined (다른 모드 이미지 무시)", () => {
     const result = getModeImages(
       {
+        ...EMPTY,
         screenshotAnnotated: "data:a",
         screenshotRaw: "data:r",
         beforeImage: "data:b",
@@ -132,6 +137,7 @@ describe("getModeImages", () => {
   it("freeform 모드 → undefined (다른 모드 이미지 무시)", () => {
     const result = getModeImages(
       {
+        ...EMPTY,
         screenshotAnnotated: "data:a",
         screenshotRaw: "data:r",
         beforeImage: "data:b",
@@ -140,5 +146,62 @@ describe("getModeImages", () => {
       "freeform",
     );
     expect(result).toBeUndefined();
+  });
+});
+
+// AI 초안에도 주석본이 나가야 한다 — 사용자가 손으로 지목한 곳을 모델이 못 보면 초안 품질이 떨어진다.
+// screenshot 분기는 이미 annotated ?? raw이고, element 분기만 규칙이 갈려 있었다.
+describe("getModeImages — element 주석본(annotated ?? raw)", () => {
+  it("store 폴백 경로에서 주석이 있으면 주석본을 반환한다", () => {
+    expect(
+      getModeImages(
+        {
+          ...EMPTY,
+          beforeImage: "data:before",
+          afterImage: "data:after",
+          beforeAnnotated: "data:before-ann",
+          afterAnnotated: "data:after-ann",
+        },
+        "element",
+      ),
+    ).toEqual(["data:before-ann", "data:after-ann"]);
+  });
+
+  it("한쪽만 주석이면 그쪽만 주석본이다", () => {
+    expect(
+      getModeImages(
+        {
+          ...EMPTY,
+          beforeImage: "data:before",
+          afterImage: "data:after",
+          afterAnnotated: "data:after-ann",
+        },
+        "element",
+      ),
+    ).toEqual(["data:before", "data:after-ann"]);
+  });
+
+  it("raw가 없고 주석만 있어도 반환한다", () => {
+    expect(
+      getModeImages({ ...EMPTY, beforeAnnotated: "data:only-ann" }, "element"),
+    ).toEqual(["data:only-ann"]);
+  });
+
+  it("주석이 없으면 원본을 반환한다 (기존 동작 불변)", () => {
+    expect(
+      getModeImages(
+        { ...EMPTY, beforeImage: "data:before", afterImage: "data:after" },
+        "element",
+      ),
+    ).toEqual(["data:before", "data:after"]);
+  });
+
+  it("screenshot 모드는 element 주석 필드를 무시한다", () => {
+    expect(
+      getModeImages(
+        { ...EMPTY, beforeAnnotated: "data:before-ann" },
+        "screenshot",
+      ),
+    ).toBeUndefined();
   });
 });

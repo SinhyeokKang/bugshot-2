@@ -89,6 +89,7 @@ import {
 } from "@/sidepanel/hooks/useDraftStyleElements";
 import { resolveDraftStyleElements } from "@/sidepanel/lib/resolveDraftStyleElements";
 import { joinStyleSelectors, type StyleElementContext } from "@/sidepanel/lib/buildIssueMarkdown";
+import { elementKey } from "@/lib/element-key";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
 import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
 import { supportsConsoleNetworkLog, supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
@@ -1126,7 +1127,7 @@ function DraftDetailSections({
     ) : hasStyleBlock && styleElements.length > 0 ? (
       styleElements.map((el) => (
         <FieldSection
-          key={el.selector}
+          key={elementKey(el)}
           label={`${t("section.styleChanges")} (${el.selector})`}
         >
           <StyleChangesTable

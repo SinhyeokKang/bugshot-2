@@ -26,7 +26,8 @@ export function resolveAiDraftStyleElements(
   return source.map((element) => {
     const diffs = element.diffs.slice(0, remainingDiffs);
     remainingDiffs -= diffs.length;
-    const { beforeImage, afterImage, ...rest } = element;
+    const { beforeImage, afterImage, beforeAnnotated, afterAnnotated, ...rest } =
+      element;
     const takeImage = (image: string | null | undefined) => {
       if (
         !image ||
@@ -39,8 +40,10 @@ export function resolveAiDraftStyleElements(
       remainingImageChars -= image.length;
       return image;
     };
-    const resolvedBefore = takeImage(beforeImage);
-    const resolvedAfter = takeImage(afterImage);
+    // 사용자가 손으로 지목한 곳을 모델이 못 보면 초안 품질이 떨어진다 — 캡 회계도 실제로
+    // 보낼 바이트(주석본) 기준이어야 한다.
+    const resolvedBefore = takeImage(beforeAnnotated ?? beforeImage);
+    const resolvedAfter = takeImage(afterAnnotated ?? afterImage);
     return {
       ...rest,
       diffs,

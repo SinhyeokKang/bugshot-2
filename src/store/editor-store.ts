@@ -92,6 +92,10 @@ export interface BufferedElement {
   styleEdits: EditorStyleEdits;
   beforeImage: string | null;
   afterImage: string | null;
+  // diff table 주석본. 원본은 그대로 두고 표시·제출만 `annotated ?? raw`로 접는다.
+  // 구버전 스냅샷엔 없다 — 소비 시점 ?? null 폴백.
+  beforeAnnotated?: string | null;
+  afterAnnotated?: string | null;
   // 버퍼 적재 시점의 캡처 기준. 구버전 스냅샷엔 없다 — 소비 시점 ?? null 폴백.
   captureContext?: CaptureContext;
 }
@@ -144,6 +148,9 @@ interface EditorState {
   tokens: Token[];
   beforeImage: string | null;
   afterImage: string | null;
+  // 현재 선택 요소의 diff table 주석본(원본 보관 — [주석 제거]가 최초 원본으로 되돌린다).
+  beforeAnnotated: string | null;
+  afterAnnotated: string | null;
   // 현재 선택 요소의 캡처 기준. before 캡처가 확정하고 after가 재사용한다.
   captureContext: CaptureContext | null;
   bufferedElements: BufferedElement[];
@@ -243,6 +250,8 @@ interface EditorState {
   setTokens: (tokens: Token[]) => void;
   setBeforeImage: (img: string | null) => void;
   setAfterImage: (img: string | null) => void;
+  setBeforeAnnotated: (dataUrl: string | null) => void;
+  setAfterAnnotated: (dataUrl: string | null) => void;
   setCaptureContext: (context: CaptureContext | null) => void;
   setBeforeCapturePending: (pending: boolean) => void;
   bufferCurrentElement: (
@@ -252,7 +261,12 @@ interface EditorState {
   patchBufferedElement: (
     selector: string,
     frameId: number,
-    patch: Partial<Pick<BufferedElement, "styleEdits" | "afterImage">>,
+    patch: Partial<
+      Pick<
+        BufferedElement,
+        "styleEdits" | "afterImage" | "beforeAnnotated" | "afterAnnotated"
+      >
+    >,
   ) => void;
   removeBufferedElement: (selector: string, frameId: number) => void;
   confirmStyles: () => void;
@@ -285,43 +299,61 @@ interface EditorState {
   hydrate: (snapshot: EditorSnapshot) => void;
 }
 
+// 영속 대상 키의 단일 출처. 타입(EditorSnapshot)이 이 배열에서 파생되므로, 여기 더하면
+// 타입도 따라오고 snapshotFromState의 손나열 누락은 키 집합 대조 테스트가 잡는다
+// (배열 없이 Pick만 두면 누락이 타입·런타임 에러 없이 조용히 초기값이 된다).
+export const EDITOR_SNAPSHOT_KEYS = [
+  "captureMode",
+  "phase",
+  "targetPlatform",
+  "target",
+  "selection",
+  "shotSelector",
+  "styleEdits",
+  "tokens",
+  "beforeImage",
+  "afterImage",
+  "beforeAnnotated",
+  "afterAnnotated",
+  "captureContext",
+  "bufferedElements",
+  "screenshotRaw",
+  "screenshotAnnotated",
+  "screenshotViewport",
+  "screenshotCapturedAt",
+  "videoThumbnail",
+  "videoViewport",
+  "videoCapturedAt",
+  "videoStartedAt",
+  "videoEndedAt",
+  "videoTrimmed",
+  "videoTrimSource",
+  "freeformViewport",
+  "freeformCapturedAt",
+  "logsAttach",
+  "reproPrefillDone",
+  "apiHostsDismissed",
+  "apiHostsDerived",
+  "attachments",
+  "draft",
+  "issueFields",
+  "currentIssueId",
+  "submitResult",
+] as const satisfies readonly (keyof EditorState)[];
+
 export type EditorSnapshot = Pick<
   EditorState,
-  | "captureMode"
-  | "phase"
-  | "targetPlatform"
-  | "target"
-  | "selection"
-  | "shotSelector"
-  | "styleEdits"
-  | "tokens"
-  | "beforeImage"
-  | "afterImage"
-  | "captureContext"
-  | "bufferedElements"
-  | "screenshotRaw"
-  | "screenshotAnnotated"
-  | "screenshotViewport"
-  | "screenshotCapturedAt"
-  | "videoThumbnail"
-  | "videoViewport"
-  | "videoCapturedAt"
-  | "videoStartedAt"
-  | "videoEndedAt"
-  | "videoTrimmed"
-  | "videoTrimSource"
-  | "freeformViewport"
-  | "freeformCapturedAt"
-  | "logsAttach"
-  | "reproPrefillDone"
-  | "apiHostsDismissed"
-  | "apiHostsDerived"
-  | "attachments"
-  | "draft"
-  | "issueFields"
-  | "currentIssueId"
-  | "submitResult"
+  (typeof EDITOR_SNAPSHOT_KEYS)[number]
 >;
+
+// after 주석 폐기 규율의 단일 출처. after가 다른 픽셀로 바뀌면 옛 좌표의 주석은 엉뚱한 곳을
+// 가리키고, 그건 주석이 없는 것보다 나쁘다. 지점을 열거하는 대신 값을 비교한다 —
+// rebindStylingSession의 복원 왕복(같은 값을 그대로 재커밋)만 보존 쪽으로 갈린다.
+// null 커밋은 "after를 버린다"는 뜻이므로 같은 null이어도 보존하지 않는다 — 짝 없는 주석본이
+// 남으면 나중에 같은 null이 다시 커밋될 때 옛 주석이 부활한다(`patchBufferedElement`의
+// 기준 갈림 재캡처, `bufferCurrentElement(null)`가 그 경로다).
+const keepsAnnotation = (next: string | null, prev: string | null) =>
+  next !== null && next === prev;
 
 const initial = {
   captureMode: "element" as CaptureMode,
@@ -340,6 +372,8 @@ const initial = {
   tokens: [] as Token[],
   beforeImage: null,
   afterImage: null,
+  beforeAnnotated: null as string | null,
+  afterAnnotated: null as string | null,
   captureContext: null as CaptureContext | null,
   bufferedElements: [] as BufferedElement[],
   screenshotRaw: null as string | null,
@@ -631,6 +665,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           },
           beforeImage: buffered.beforeImage,
           afterImage: buffered.afterImage,
+          beforeAnnotated: buffered.beforeAnnotated ?? null,
+          afterAnnotated: buffered.afterAnnotated ?? null,
           captureContext: buffered.captureContext ?? null,
           // 현재 요소로 승격 — 중복 카드 방지.
           bufferedElements: s.bufferedElements.filter(
@@ -651,6 +687,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         },
         beforeImage: null,
         afterImage: null,
+        beforeAnnotated: null,
+        afterAnnotated: null,
         captureContext: null,
         aiStylingLoading: false,
       };
@@ -688,7 +726,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setBeforeImage: (beforeImage) => set({ beforeImage }),
 
-  setAfterImage: (afterImage) => set({ afterImage }),
+  setAfterImage: (afterImage) =>
+    set((s) => ({
+      afterImage,
+      ...(keepsAnnotation(afterImage, s.afterImage)
+        ? {}
+        : { afterAnnotated: null }),
+    })),
+
+  setBeforeAnnotated: (beforeAnnotated) => set({ beforeAnnotated }),
+
+  setAfterAnnotated: (afterAnnotated) => set({ afterAnnotated }),
 
   setCaptureContext: (captureContext) => set({ captureContext }),
 
@@ -720,6 +768,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         },
         beforeImage: s.beforeImage,
         afterImage,
+        beforeAnnotated: s.beforeAnnotated,
+        afterAnnotated: keepsAnnotation(afterImage, s.afterImage)
+          ? s.afterAnnotated
+          : null,
         ...(context ? { captureContext: context } : {}),
       };
       const idx = s.bufferedElements.findIndex((b) => sameElementKey(b, sel));
@@ -731,6 +783,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         updated[idx] = {
           ...entry,
           beforeImage: prev.beforeImage,
+          // 주석은 이긴 before 쪽을 따라간다. before가 같은 값이면(요소당 1회 캡처라 중복
+          // 항목에선 항상 같다) drafting에서 갱신된 현재 주석이 최신이므로 그쪽이 이긴다.
+          beforeAnnotated:
+            prev.beforeImage === s.beforeImage
+              ? s.beforeAnnotated
+              : prev.beforeAnnotated ?? null,
           captureContext: prev.captureContext,
         };
         return { bufferedElements: updated };
@@ -740,9 +798,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   patchBufferedElement: (selector, frameId, patch) =>
     set((s) => ({
-      bufferedElements: s.bufferedElements.map((b) =>
-        sameElementKey(b, { selector, frameId }) ? { ...b, ...patch } : b,
-      ),
+      bufferedElements: s.bufferedElements.map((b) => {
+        if (!sameElementKey(b, { selector, frameId })) return b;
+        // "afterImage 키가 있으면"을 느슨하게(undefined 포함) 보면 { afterAnnotated } 단독
+        // 패치가 자기를 지운다 — `in`으로 키 존재를 정확히 판정한 뒤 값 비교로 갈린다.
+        const discard =
+          "afterImage" in patch &&
+          !keepsAnnotation(patch.afterImage ?? null, b.afterImage);
+        return { ...b, ...patch, ...(discard ? { afterAnnotated: null } : {}) };
+      }),
     })),
 
   removeBufferedElement: (selector, frameId) =>
@@ -767,7 +831,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       bufferedElements: [],
     })),
 
-  backToStyling: () => set({ phase: "styling", afterImage: null, aiStylingLoading: false }),
+  // after를 버리는 액션이므로 짝인 주석도 여기서 함께 버린다. handleNext가 항상 setAfterImage를
+  // 부른다는 데 기대면, 그 사이 구간에 짝 없는 주석본(수 MB)이 세션 스냅샷에 실린다.
+  // before는 재캡처 경로가 없어 보존한다.
+  backToStyling: () =>
+    set({ phase: "styling", afterImage: null, afterAnnotated: null, aiStylingLoading: false }),
 
   setDraft: (draft) => set({ draft }),
 
@@ -910,6 +978,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         set({ phase: "previewing" });
         return false;
       }
+      // 표시·제출·저장이 한 규칙(annotated ?? raw)으로 수렴한다 — 슬롯 추가 없음.
+      const beforeResolved = state.beforeAnnotated ?? state.beforeImage;
+      const afterResolved = state.afterAnnotated ?? state.afterImage;
       useIssuesStore.getState().saveDraft({
         id,
         status: "draft",
@@ -930,8 +1001,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           text: state.styleEdits.text,
         },
         snapshot: {
-          before: !!state.beforeImage,
-          after: !!state.afterImage,
+          before: !!beforeResolved,
+          after: !!afterResolved,
         },
         selectionSnapshot: {
           classList: [...state.selection.classList],
@@ -966,33 +1037,35 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                   viewport: { ...b.selectionSnapshot.viewport },
                   capturedAt: b.selectionSnapshot.capturedAt,
                 },
-                hasBefore: !!b.beforeImage,
-                hasAfter: !!b.afterImage,
+                hasBefore: !!(b.beforeAnnotated ?? b.beforeImage),
+                hasAfter: !!(b.afterAnnotated ?? b.afterImage),
               }))
             : undefined,
       });
       const bufferedSnapshot = state.bufferedElements;
       void (async () => {
         let failed = false;
-        if (state.beforeImage) {
-          if (!await saveImageBlob(id, "before", dataUrlToBlob(state.beforeImage))) {
+        if (beforeResolved) {
+          if (!await saveImageBlob(id, "before", dataUrlToBlob(beforeResolved))) {
             useIssuesStore.getState().patchDraftSnapshot(id, { before: false });
             failed = true;
           }
         }
-        if (state.afterImage) {
-          if (!await saveImageBlob(id, "after", dataUrlToBlob(state.afterImage))) {
+        if (afterResolved) {
+          if (!await saveImageBlob(id, "after", dataUrlToBlob(afterResolved))) {
             useIssuesStore.getState().patchDraftSnapshot(id, { after: false });
             failed = true;
           }
         }
         for (let i = 0; i < bufferedSnapshot.length; i++) {
           const b = bufferedSnapshot[i];
-          if (b.beforeImage && !await saveImageBlob(id, `b${i}-before`, dataUrlToBlob(b.beforeImage))) {
+          const bBefore = b.beforeAnnotated ?? b.beforeImage;
+          const bAfter = b.afterAnnotated ?? b.afterImage;
+          if (bBefore && !await saveImageBlob(id, `b${i}-before`, dataUrlToBlob(bBefore))) {
             useIssuesStore.getState().patchDraftBufferedImageFlags(id, i, { hasBefore: false });
             failed = true;
           }
-          if (b.afterImage && !await saveImageBlob(id, `b${i}-after`, dataUrlToBlob(b.afterImage))) {
+          if (bAfter && !await saveImageBlob(id, `b${i}-after`, dataUrlToBlob(bAfter))) {
             useIssuesStore.getState().patchDraftBufferedImageFlags(id, i, { hasAfter: false });
             failed = true;
           }
@@ -1095,7 +1168,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   setTargetPlatform: (platform) => set({ targetPlatform: platform }),
 
-  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, captureContext: null, bufferedElements: [], screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null, attachments: [] }),
+  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, beforeAnnotated: null, afterAnnotated: null, captureContext: null, bufferedElements: [], screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null, attachments: [] }),
 
   reset: () => set({ ...initial }),
 

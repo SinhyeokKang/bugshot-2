@@ -450,6 +450,8 @@ export async function releaseDetachedSelection(tabId: number): Promise<void> {
     styleEdits: { classList: [], inlineStyle: {}, text: "", cssText: null },
     beforeImage: null,
     afterImage: null,
+    beforeAnnotated: null,
+    afterAnnotated: null,
     captureContext: null,
   });
 }
@@ -463,6 +465,8 @@ export async function expireStylingSession(tabId: number): Promise<void> {
     styleEdits: { classList: [], inlineStyle: {}, text: "", cssText: null },
     beforeImage: null,
     afterImage: null,
+    beforeAnnotated: null,
+    afterAnnotated: null,
     captureContext: null,
   });
 }

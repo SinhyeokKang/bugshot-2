@@ -24,7 +24,11 @@ vi.mock("@/i18n", () => ({
 
 vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 Chrome/120.0.0.0 Safari/537.36" });
 
-import { buildEditorMarkdownContext } from "../buildEditorCapture";
+import {
+  buildEditorLogsCaptureInput,
+  buildEditorMarkdownContext,
+} from "../buildEditorCapture";
+import type { MarkdownContext } from "../buildIssueMarkdown";
 
 const actionLog: ActionLog = {
   id: "act-1",
@@ -96,5 +100,185 @@ describe("buildEditorMarkdownContext — actionLogCaptured (본문 요약 연결
       actionLog: { ...actionLog, captured: 0, entries: [] },
     });
     expect(buildEditorMarkdownContext()?.actionLogCaptured).toBeUndefined();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  diff 이미지 주석 — 제출 경로 resolve(annotated ?? raw)               */
+/* ------------------------------------------------------------------ */
+
+describe("buildEditorMarkdownContext — element annotated 전달", () => {
+  function elementState(overrides: Record<string, unknown> = {}) {
+    return baseState({
+      captureMode: "element",
+      selection: {
+        selector: "button.cta",
+        frameId: 0,
+        tagName: "button",
+        classList: [],
+        computedStyles: { color: "#000000" },
+        specifiedStyles: {},
+        propSources: {},
+        text: null,
+        viewport: { width: 800, height: 600 },
+        capturedAt: 0,
+      },
+      styleEdits: { classList: [], inlineStyle: { color: "#ffffff" }, text: "" },
+      bufferedElements: [],
+      beforeImage: "data:before",
+      afterImage: "data:after",
+      tokens: [],
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    editorState.current = {};
+  });
+
+  // 안 넘기면 미리보기·제출이 원본으로 되돌아간다(표시 쪽이 접는 지점을 잃는다).
+  it("top-level annotated 두 필드를 styleElements에 그대로 싣는다", () => {
+    editorState.current = elementState({
+      beforeAnnotated: "data:before-ann",
+      afterAnnotated: "data:after-ann",
+    });
+
+    const ctx = buildEditorMarkdownContext();
+
+    expect(ctx?.styleElements?.[0].beforeImage).toBe("data:before");
+    expect(ctx?.styleElements?.[0].beforeAnnotated).toBe("data:before-ann");
+    expect(ctx?.styleElements?.[0].afterAnnotated).toBe("data:after-ann");
+  });
+
+  it("주석이 없으면 annotated는 비어 있다", () => {
+    editorState.current = elementState();
+
+    const ctx = buildEditorMarkdownContext();
+
+    expect(ctx?.styleElements?.[0].beforeAnnotated ?? null).toBeNull();
+    expect(ctx?.styleElements?.[0].afterAnnotated ?? null).toBeNull();
+  });
+});
+
+describe("buildEditorLogsCaptureInput — before/after 이미지 resolve", () => {
+  function ctxWith(styleElements: MarkdownContext["styleElements"]): MarkdownContext {
+    return {
+      captureMode: "element",
+      title: "T",
+      sections: {},
+      sectionConfig: [],
+      url: "https://example.com",
+      selector: "button.cta",
+      tagName: "button",
+      classListBefore: [],
+      classListAfter: [],
+      specifiedStyles: {},
+      tokens: [],
+      viewport: { width: 800, height: 600 },
+      capturedAt: 0,
+      diffs: [],
+      environment: [],
+      styleElements,
+    };
+  }
+
+  beforeEach(() => {
+    editorState.current = baseState({ captureMode: "element" });
+  });
+
+  it("주석이 있으면 beforeImages/afterImages가 주석본이다", () => {
+    const input = buildEditorLogsCaptureInput(
+      ctxWith([
+        {
+          selector: "button.cta",
+          tagName: "button",
+          classListBefore: [],
+          classListAfter: [],
+          specifiedStyles: {},
+          diffs: [],
+          beforeImage: "data:before",
+          afterImage: "data:after",
+          beforeAnnotated: "data:before-ann",
+          afterAnnotated: "data:after-ann",
+        },
+      ]),
+    );
+
+    expect(input.beforeImages).toEqual(["data:before-ann"]);
+    expect(input.afterImages).toEqual(["data:after-ann"]);
+  });
+
+  it("주석이 없으면 원본이 들어간다", () => {
+    const input = buildEditorLogsCaptureInput(
+      ctxWith([
+        {
+          selector: "button.cta",
+          tagName: "button",
+          classListBefore: [],
+          classListAfter: [],
+          specifiedStyles: {},
+          diffs: [],
+          beforeImage: "data:before",
+          afterImage: "data:after",
+        },
+      ]),
+    );
+
+    expect(input.beforeImages).toEqual(["data:before"]);
+    expect(input.afterImages).toEqual(["data:after"]);
+  });
+
+  // 현재+버퍼 혼합에서 인덱스가 어긋나면 before-0.webp에 다른 요소의 주석본이 실린다.
+  it("현재+버퍼 혼합에서 각 annotated가 같은 인덱스로 들어간다", () => {
+    const input = buildEditorLogsCaptureInput(
+      ctxWith([
+        {
+          selector: ".card",
+          tagName: "div",
+          classListBefore: [],
+          classListAfter: [],
+          specifiedStyles: {},
+          diffs: [],
+          beforeImage: "data:b0",
+          afterImage: "data:a0",
+          afterAnnotated: "data:a0-ann",
+        },
+        {
+          selector: "button.cta",
+          tagName: "button",
+          classListBefore: [],
+          classListAfter: [],
+          specifiedStyles: {},
+          diffs: [],
+          beforeImage: "data:b1",
+          afterImage: "data:a1",
+          beforeAnnotated: "data:b1-ann",
+        },
+      ]),
+    );
+
+    expect(input.beforeImages).toEqual(["data:b0", "data:b1-ann"]);
+    expect(input.afterImages).toEqual(["data:a0-ann", "data:a1"]);
+  });
+
+  it("raw가 없고 annotated만 있어도 그 값이 들어간다", () => {
+    const input = buildEditorLogsCaptureInput(
+      ctxWith([
+        {
+          selector: "button.cta",
+          tagName: "button",
+          classListBefore: [],
+          classListAfter: [],
+          specifiedStyles: {},
+          diffs: [],
+          beforeImage: null,
+          afterImage: null,
+          beforeAnnotated: "data:only-ann",
+        },
+      ]),
+    );
+
+    expect(input.beforeImages).toEqual(["data:only-ann"]);
+    expect(input.afterImages).toEqual([null]);
   });
 });

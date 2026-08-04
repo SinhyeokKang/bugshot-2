@@ -68,6 +68,10 @@ export interface AiDraftStyleElement {
   diffs: StyleDiffRow[];
   beforeImage?: string | null;
   afterImage?: string | null;
+  // 입력 전용 — resolveAiDraftStyleElements가 `annotated ?? raw`로 접어 beforeImage/afterImage에
+  // 실은 뒤 결과에서 지운다. 남겨두면 캡 회계를 우회하는 두 번째 이미지 경로가 된다.
+  beforeAnnotated?: string | null;
+  afterAnnotated?: string | null;
 }
 
 // logRefs의 후보 대조는 여기서 하지 않는다 — 순수 JSON 디코더로 남기고,

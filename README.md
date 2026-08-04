@@ -114,7 +114,7 @@ Fix the bug visually before you even describe it.
 - **Live CSS editing** — edit layout, spacing, sizing, color, typography, borders, and more through structured fields, or switch to a syntax-highlighted CSS code editor — prefilled with the element's current styles (four-side longhands merged into shorthands), with autocomplete and inline color swatches — to edit raw CSS directly (arbitrary properties, `!important`). Changes apply to the live page instantly, so you can dial in the exact fix and see it in place.
 - **Class & text editing** — edit an element's class list or visible text live; those changes are tracked alongside its style diff.
 - **Design token awareness** — resolves `var()` chains and shows the token name (e.g. `--color-primary`) instead of the raw computed value, so the report speaks your design system's language.
-- **Before/after diff** — every change is tracked and rendered as a before → after table in the issue, plus paired before/after screenshots that widen to the enclosing dialog or table row so the fix is recognizable at a glance. Developers see exactly which properties to change. Edits across multiple elements are stacked and preserved until you submit.
+- **Before/after diff** — every change is tracked and rendered as a before → after table in the issue, plus paired before/after screenshots that widen to the enclosing dialog or table row so the fix is recognizable at a glance. Developers see exactly which properties to change. **Both images can be annotated** so you can point at the offending element even when the frame holds several, and removing an annotation restores the shot you originally captured. Edits across multiple elements are stacked and preserved until you submit.
 
 ### 📸 Capture
 

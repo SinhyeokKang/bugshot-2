@@ -27,7 +27,7 @@ Some elements won't be picked directly — clicking them selects the **outer ele
 - **Inside Shadow DOM**: components that keep their internals encapsulated — a video player's built-in controls, certain widgets — can't be opened up from the outside. Picking one selects the host element that wraps it.
 - **`::before` and `::after` pseudo-elements**: these are decorations drawn by CSS, not real DOM elements. Even when one looks like an icon or a tooltip tail, clicking it selects the element that created it.
 
-Styling the host often changes what's inside it too, so try the host first. If the part you want still won't budge, annotating a [Screenshot](../screenshot/capture.md) is the faster way to get your point across.
+Styling the host often changes what's inside it too, so try the host first. If the part you want still won't budge, keep the host selected and [annotate the before/after images](issue.md) to point at what's actually wrong.
 
 ## Elements inside iframes
 
