@@ -1,5 +1,4 @@
-import { memo, useState, Fragment, type MouseEvent } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { memo, Fragment } from "react";
 import { LogSeekChip } from "@/sidepanel/components/LogSeekChip";
 import { LevelIcon } from "@/sidepanel/components/ConsoleLogContent";
 import { LinkifiedText } from "@/sidepanel/components/LinkifiedText";
@@ -23,10 +22,6 @@ interface TimelineRowProps {
   onActivate: (item: TimelineItem) => void;
 }
 
-function stop(e: MouseEvent) {
-  e.stopPropagation();
-}
-
 function statusLabel(req: NetworkReq): string {
   if (isNetworkPending(req)) return "···";
   if (isStatusHidden(req) || req.status <= 0) return "—";
@@ -34,17 +29,15 @@ function statusLabel(req: NetworkReq): string {
 }
 
 // 1행 1이벤트 렌더. 기존 로그 행처럼 컨테이너는 div(중첩 button 무효 HTML 회피) —
-// 행 클릭=activate(seek+탭 조회), 내부 seek 칩/chevron은 focus 가능한 button으로 분리.
+// 행 클릭=activate(seek+탭 조회), 내부 seek 칩만 focus 가능한 button으로 분리.
+// 상세(args 전문·스택·pageUrl)는 행이 아니라 우측 콘솔 탭이 담당한다 — activate가
+// seek과 함께 탭 전환 + scrollToEntryId를 발화하므로 행 자체 펼침은 중복이다.
 export const TimelineRow = memo(function TimelineRow({
   item,
   isActive,
   videoStartedAt,
   onActivate,
 }: TimelineRowProps) {
-  const [expanded, setExpanded] = useState(false);
-  const canExpand =
-    item.kind === "console" && (item.entry.level === "error" || item.entry.level === "warn") && !!item.entry.stack;
-
   const spine = isActive ? "border-l-primary" : "border-l-border";
   const fill = timelineFillClass(item);
 
@@ -73,18 +66,6 @@ export const TimelineRow = memo(function TimelineRow({
             <span className="min-w-0 flex-1 break-all font-mono text-mono">
               <LinkifiedText text={item.entry.args} />
             </span>
-            {canExpand && (
-              <button
-                type="button"
-                data-testid="timeline-row-expand"
-                className="shrink-0 rounded p-0.5 hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                aria-label={expanded ? t("common.collapse") : t("common.expand")}
-                aria-expanded={expanded}
-                onClick={(e) => { stop(e); setExpanded((v) => !v); }}
-              >
-                {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              </button>
-            )}
           </>
         )}
 
@@ -111,15 +92,6 @@ export const TimelineRow = memo(function TimelineRow({
           </>
         )}
       </div>
-
-      {item.kind === "console" && canExpand && expanded && (
-        // 스택은 메시지 텍스트 시작점(pl-[82px] = px-2.5 10 + chip 32 + gap 12 + icon 16 + gap 12)에 정렬.
-        <div className="px-2.5 pb-2 pl-[82px] text-xs">
-          <pre className="max-h-[200px] overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 font-mono text-mono">
-            <LinkifiedText text={item.entry.stack!} />
-          </pre>
-        </div>
-      )}
     </div>
   );
 });
