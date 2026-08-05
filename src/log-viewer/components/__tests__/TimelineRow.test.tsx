@@ -40,12 +40,12 @@ describe("TimelineRow — 카테고리별 렌더", () => {
     expect(row.className).not.toContain("bg-blue-100");
   });
 
-  it("console error 행: red 면색 + 스택 chevron", () => {
+  it("console error 행: red 면색, 스택이 있어도 확장 UI 없음(상세는 콘솔 탭)", () => {
     render(<TimelineRow item={consoleItem("error", "boom", "at foo")} isActive={false} videoStartedAt={0} onActivate={noop} />);
     const row = screen.getByTestId("timeline-row");
     expect(row.dataset.kind).toBe("console");
     expect(row.className).toContain("bg-red-100");
-    expect(screen.getByTestId("timeline-row-expand")).toBeTruthy();
+    expect(screen.queryByTestId("timeline-row-expand")).toBeNull();
   });
 
   it("console info 행: blue 면색 (우측 탭과 sync)", () => {
@@ -53,7 +53,7 @@ describe("TimelineRow — 카테고리별 렌더", () => {
     expect(screen.getByTestId("timeline-row").className).toContain("bg-blue-100");
   });
 
-  it("console log 행: 면색·chevron 없음(스택 없는 log)", () => {
+  it("console log 행: 면색·확장 UI 없음(스택 없는 log)", () => {
     render(<TimelineRow item={consoleItem("log")} isActive={false} videoStartedAt={0} onActivate={noop} />);
     expect(screen.getByTestId("timeline-row").className).not.toContain("bg-");
     expect(screen.queryByTestId("timeline-row-expand")).toBeNull();
@@ -128,12 +128,20 @@ describe("TimelineRow — 클릭 = seek + 탭 조회 동시 발화", () => {
     expect(onActivate).toHaveBeenCalledWith(item);
   });
 
-  it("chevron 클릭 → 스택 확장, onActivate 미호출(stopPropagation)", async () => {
-    const onActivate = vi.fn();
-    render(<TimelineRow item={consoleItem("error", "boom", "at foo:1")} isActive={false} videoStartedAt={0} onActivate={onActivate} />);
+  // 상세(args 전문·스택·pageUrl)는 콘솔 탭이 담당한다 — activateTimelineItem이 seek과 함께
+  // 탭 전환 + scrollToEntryId를 발화하므로, 행이 스택을 자체 노출하면 중복이고
+  // entry.stack은 args에 이미 든 스택보다 빈약한 별개 스택이라 오히려 오도한다.
+  it("console error 행: 스택이 있어도 행 안에 스택을 렌더하지 않는다", () => {
+    render(<TimelineRow item={consoleItem("error", "boom", "at foo:1")} isActive={false} videoStartedAt={0} onActivate={noop} />);
     expect(screen.queryByText("at foo:1")).toBeNull();
-    await userEvent.click(screen.getByTestId("timeline-row-expand"));
-    expect(screen.getByText("at foo:1")).toBeTruthy();
-    expect(onActivate).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("timeline-row-expand")).toBeNull();
+  });
+
+  it("console error 행 클릭 → onActivate(item) (가로채는 확장 버튼 없음)", async () => {
+    const onActivate = vi.fn();
+    const item = consoleItem("error", "boom", "at foo:1");
+    render(<TimelineRow item={item} isActive={false} videoStartedAt={0} onActivate={onActivate} />);
+    await userEvent.click(screen.getByText("boom"));
+    expect(onActivate).toHaveBeenCalledWith(item);
   });
 });

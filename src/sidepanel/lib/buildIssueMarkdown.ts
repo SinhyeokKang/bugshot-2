@@ -9,6 +9,7 @@ import {
 import { segmentsToMarkdown, type StyleDiffSegment } from "./classDiff";
 import { sameElementKey } from "@/lib/element-key";
 import type { BufferedElement, EditorStyleEdits } from "@/store/editor-store";
+import { networkErrorCount } from "./buildLogSummary";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { filterEnvironmentRows, type EnvironmentRow } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
@@ -448,11 +449,16 @@ function buildMetaComment(ctx: MarkdownContext): string {
   if (envRows.length > 0) {
     meta.environment = Object.fromEntries(envRows.map((r) => [r.label, r.value]));
   }
-  if (ctx.captureMode !== "freeform") {
+  // 게이트 2단. ① freeform은 모드 자체로 제외 — 자유 서술이라 직전 element 세션의 잔여
+  // selector가 ctx에 남아도 실으면 안 된다(기존 계약). ② 나머지 모드는 **element 데이터가
+  // 실제로 있을 때만** — video·screenshot이 빈 selector/cssChanges/tokens를 싣던 것이
+  // LLM 프롬프트 잡음이었고 "요소를 골랐는데 셀렉터가 비었다"로 오독된다. 데이터 조건을
+  // AND로 얹어 "어느 모드가 style edit을 실을 수 있나"라는 전제를 새로 세우지 않는다.
+  const els = resolveStyleElements(ctx);
+  if (ctx.captureMode !== "freeform" && (els.length > 0 || ctx.selector)) {
     // top-level 단일 필드는 실제 본문에 emit되는 첫 element(els[0]) 기준 — 현재 요소가
     // no-diff여도 본문은 버퍼 element만 보여주므로, ctx(현재) 고정 시 selector·cssChanges가
-    // 본문/DOM 줄과 어긋난다. els 비면(이론상 미도달) ctx로 폴백.
-    const els = resolveStyleElements(ctx);
+    // 본문/DOM 줄과 어긋난다. els 비면 ctx로 폴백.
     const head = els[0];
     meta.selector = head?.selector ?? ctx.selector;
     meta.tagName = head?.tagName ?? ctx.tagName;
@@ -460,7 +466,7 @@ function buildMetaComment(ctx: MarkdownContext): string {
     meta.classListAfter = head?.classListAfter ?? ctx.classListAfter;
     meta.specifiedStyles = head?.specifiedStyles ?? ctx.specifiedStyles;
     meta.cssChanges = toCssChanges(head?.diffs ?? ctx.diffs);
-    meta.tokens = ctx.tokens;
+    if (ctx.tokens.length > 0) meta.tokens = ctx.tokens;
     // 1개 초과면 전체 element의 selector·변경사항을 elements 배열로도 직렬화(AI가 전부 파악).
     if (els.length > 1) {
       meta.elements = els.map((e) => ({
@@ -500,8 +506,8 @@ function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {
   lines.push("");
   if (net) {
     lines.push(
-      net.errors.length > 0
-        ? `- ${t("logSummary.network.line", { n: net.captured, errors: net.errors.length })}`
+      networkErrorCount(net) > 0
+        ? `- ${t("logSummary.network.line", { n: net.captured, errors: networkErrorCount(net) })}`
         : `- ${t("logSummary.network.lineNoError", { n: net.captured })}`,
     );
   }
@@ -525,8 +531,8 @@ function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {
   parts.push(`<p><strong>${escapeHtml(t("logSummary.logs.lead"))}</strong> ${escapeHtml(t("logSummary.logs.detail", { file: "logs.html" }))}</p>`);
   parts.push("<ul>");
   if (net) {
-    const line = net.errors.length > 0
-      ? t("logSummary.network.line", { n: net.captured, errors: net.errors.length })
+    const line = networkErrorCount(net) > 0
+      ? t("logSummary.network.line", { n: net.captured, errors: networkErrorCount(net) })
       : t("logSummary.network.lineNoError", { n: net.captured });
     parts.push(`<li>${escapeHtml(line)}</li>`);
   }

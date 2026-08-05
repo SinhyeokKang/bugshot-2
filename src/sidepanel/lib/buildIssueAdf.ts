@@ -10,6 +10,7 @@ import {
   styleSelectorList,
   type MarkdownContext,
 } from "./buildIssueMarkdown";
+import { networkErrorCount } from "./buildLogSummary";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
@@ -269,8 +270,8 @@ function emitLogSummaryAdf(
   content.push(paragraph(logsDetailNodes()));
   const items: AdfNode[] = [];
   if (net) {
-    const line = net.errors.length > 0
-      ? t("logSummary.network.line", { n: net.captured, errors: net.errors.length })
+    const line = networkErrorCount(net) > 0
+      ? t("logSummary.network.line", { n: net.captured, errors: networkErrorCount(net) })
       : t("logSummary.network.lineNoError", { n: net.captured });
     items.push(listItem([paragraph([textNode(line)])]));
   }

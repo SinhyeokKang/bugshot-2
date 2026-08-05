@@ -7,6 +7,7 @@ import {
   styleDomLabel,
   type MarkdownContext,
 } from "./buildIssueMarkdown";
+import { networkErrorCount } from "./buildLogSummary";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 import { escapeMrkdwn, markdownToMrkdwn } from "./markdownToMrkdwn";
@@ -116,8 +117,8 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
   lines.push(`*${t("logSummary.logs.lead")}* ${t("logSummary.logs.detail", { file: "logs.html" })}`, "");
   if (net) {
     lines.push(
-      net.errors.length > 0
-        ? `• ${t("logSummary.network.line", { n: net.captured, errors: net.errors.length })}`
+      networkErrorCount(net) > 0
+        ? `• ${t("logSummary.network.line", { n: net.captured, errors: networkErrorCount(net) })}`
         : `• ${t("logSummary.network.lineNoError", { n: net.captured })}`,
     );
   }
