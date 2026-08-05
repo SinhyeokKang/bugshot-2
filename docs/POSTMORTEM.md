@@ -36,6 +36,17 @@
 
 ---
 
+## 2026-08-06 — 필드를 고쳐 놓고 소비처 8곳을 안 바꿨다: 골든 스냅샷이 틀린 숫자를 봉인했고, UI는 3인데 이슈 본문만 1이었다
+
+- **영역**: `어댑터`
+- **계열**: `복제본`, `드리프트`
+- **그물**: `unit`
+- **증상**: 같은 `PUT /api/.../evaluation`이 400으로 **3번** 실패했는데 Jira·GitHub·Linear·Notion·Slack·Asana·ClickUp·GitLab로 나가는 이슈 본문에는 `네트워크: 7건 (에러 1건)`으로 찍혔다. 심각도가 축소돼 나갔다. 정작 사이드패널 로그 카드는 같은 로그에 **3건**을 표시하고 있었다 — 같은 숫자를 두 경로가 따로 파생해 갈라진 채로 굴러갔다.
+- **근본 원인**: `NetworkLogSummary.errors[]`는 `method+path+status`로 dedup되고 `MAX_ERRORS=5`로 cap된 **표시용 샘플 목록**인데 본문 빌더가 그 `length`를 개수로 썼다. 통짜 카운트 `errorCount`는 **이미 존재했고 주석까지 `errors[]는 … 개수 표시엔 부적합`이라고 경고를 달아뒀는데**(`buildLogSummary.ts:24-25`) 소비처는 **한 곳도 전환되지 않았다** — `net.errorCount`를 읽는 본문 빌더가 0곳이었다. 필드를 추가하며 "다음에 쓰겠지"로 남긴 게 그대로 굳었다. 콘솔은 `con.errorCount`를 옳게 써서 **같은 함수 안에서 두 줄이 비대칭**이었는데도 눈에 안 띄었다. **더 나쁜 건 그물이 오답을 봉인하고 있었다는 것**이다: `bodyOutputGolden.test.ts`의 픽스처가 `errorCount: 3` + `errors: [1개]`로 **정확히 이 상황을 재현하도록** 만들어져 있었고, 골든 스냅샷 58장이 `errors=1`을 고정하고 있었다. 골든은 "올바른 출력"이 아니라 **"현재 출력"**을 고정한다 — 버그가 있는 채로 스냅샷을 뜨면 버그가 계약이 된다.
+- **부수 함정(픽스가 만들 뻔한 2차 회귀)**: AI 메타 주석의 element 필드 게이트를 `captureMode !== "freeform"`에서 **데이터 존재 기준으로 "바꾸자"**, freeform 제외가 통째로 사라져 freeform 본문에 잔여 `selector`가 실리기 시작했다. 골든이 이걸 잡았다(diff에 `+ "selector": ...`가 떴다). 옳은 형태는 교체가 아니라 **AND로 얹기**(`captureMode !== "freeform" && (els.length > 0 || ctx.selector)`)였다 — 기존 게이트는 "freeform엔 직전 element 세션의 잔여가 남을 수 있다"는 별개 계약을 담고 있었는데, 새 조건이 그걸 대체할 수 있다고 가정한 게 오류다.
+- **재발 방지**: (1) **"개수 표시엔 부적합" 같은 경고를 필드 주석에 다는 것으로 끝내지 말 것** — 주석은 소비처에서 안 보인다. 올바른 값을 반환하는 **함수를 export하고 그걸로만 접근**하게 만든다(`networkErrorCount`). 지금은 `grep -rn "net\.errors\.length" src/`가 `buildLogSummary.ts` 내부 1건이어야 참이다. (2) **필드를 추가하는 커밋에서 소비처 전환까지 같이 한다** — 안 하면 `grep`으로 "이 필드를 읽는 곳이 0곳"임이 드러날 때까지 아무도 모른다. 새 필드가 기존 필드의 **대체**라면 기존 필드 읽기를 그 커밋에서 0으로 만든다. (3) **골든 스냅샷을 새로 뜰 땐 픽스처가 의도적으로 심어둔 엣지케이스가 출력에 제대로 반영됐는지 눈으로 본다** — 픽스처에 `errorCount: 3`을 넣은 사람은 그걸 검증하려던 것인데, 골든이 `errors=1`을 받아 적었다. 골든 갱신(`-u`) 시 diff를 **줄 단위로 집계해** 의도한 변화만 있는지 확인하는 절차가 필요하다(이번엔 그 집계가 freeform 회귀도 같이 잡았다). (4) **같은 값을 두 표면이 각자 파생하면 대조 테스트로 묶는다** — 로그 카드(`logCardTypeCounts`)와 이슈 본문이 "에러 N건"을 따로 계산해 3 vs 1로 갈렸다. (5) **게이트 조건을 "바꿀" 때 기존 조건이 담고 있던 별개 계약이 있는지 먼저 묻는다** — 교체인지 AND인지. 계열: 2026-07-14 "본문 노출은 8곳에 동시 전파된다", 2026-06-21 "본문 빌더 8개가 전부 같은 게이트를 복제".
+- **관련**: 단일 출처 `src/sidepanel/lib/buildLogSummary.ts:networkErrorCount`, 전환된 9개 호출부(`buildIssueMarkdown`[md+html 2곳]·`buildIssueAdf`·`buildMarkdownIssueBody`·`buildNotionIssueBody`·`buildLinearIssueBody`·`buildSlackBody`·`buildAsanaIssueBody`·`buildClickupIssueBody`), 두 번째 파생 표면 `src/sidepanel/components/logCardTypeCounts.ts`, 메타 게이트 `src/sidepanel/lib/buildIssueMarkdown.ts:buildMetaComment`, 그물 `src/sidepanel/lib/__tests__/buildLogSummary.test.ts`(헬퍼 유닛)·빌더 테스트 8종(4개는 네트워크 요약 단언이 아예 없어서 드리프트가 안 보였다)·`bodyOutputGolden.test.ts.snap`(58장 갱신).
+
 ## 2026-08-06 — 요약 표면이 상세를 흉내 냈는데, 그 상세가 원본보다 빈약했다 (`entry.stack` ≠ `entry.args`의 스택)
 
 - **영역**: `컴포넌트`
