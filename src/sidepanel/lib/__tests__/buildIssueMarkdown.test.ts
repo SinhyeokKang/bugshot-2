@@ -205,6 +205,21 @@ describe("buildIssueMarkdown", () => {
     expect(md).not.toContain("GET /api → 500 Error");
   });
 
+  // errors[]는 dedup+cap된 표시용 샘플이라 개수로 쓰면 심각도가 축소된다 —
+  // 같은 PUT이 400으로 3번 실패해도 "에러 1건"으로 나갔다.
+  it("네트워크 에러 건수는 dedup 전 전체 건수(errorCount)", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({
+        networkLogSummary: {
+          captured: 7,
+          errorCount: 3,
+          errors: [{ id: "nr-t1", method: "PUT", path: "/evaluation", status: 400, statusText: "Bad" }],
+        },
+      }),
+    );
+    expect(md).toContain("logSummary.network.line n=7 errors=3");
+  });
+
   it("pipe 문자 이스케이프", () => {
     const md = buildIssueMarkdown(
       makeCtx({ diffs: [{ prop: "content", asIs: "a|b", toBe: "c|d" }] }),
@@ -597,6 +612,42 @@ describe("buildMetaComment — 복수 element cssChanges (AI 메타)", () => {
     expect(meta.cssChanges).toEqual([
       { property: "color", from: "#000", to: "#fff" },
     ]);
+  });
+
+  // element 데이터가 없는 모드(video·screenshot)에서 빈 selector/cssChanges/tokens를 실어
+  // 보내면 LLM 프롬프트 잡음이고 "요소를 골랐는데 셀렉터가 비었다"로 오독된다.
+  // 게이트는 모드가 아니라 데이터 존재 — 어느 모드가 style edit을 실을 수 있는지에 대한
+  // 전제를 새로 세우지 않기 위해서다.
+  it.each(["video", "screenshot", "freeform"] as const)(
+    "%s 모드(element 데이터 없음) → meta에 element 필드를 아예 안 싣는다",
+    (captureMode) => {
+      const meta = parseMeta(
+        buildIssueMarkdown(makeCtx({ captureMode, selector: "", tagName: "", diffs: [], tokens: [] })),
+      );
+      expect(meta.selector).toBeUndefined();
+      expect(meta.tagName).toBeUndefined();
+      expect(meta.classListBefore).toBeUndefined();
+      expect(meta.classListAfter).toBeUndefined();
+      expect(meta.specifiedStyles).toBeUndefined();
+      expect(meta.cssChanges).toBeUndefined();
+      expect(meta.tokens).toBeUndefined();
+      // 모드 자체는 계속 실린다 — AI가 어떤 캡처인지는 알아야 한다.
+      expect(meta.captureMode).toBe(captureMode);
+    },
+  );
+
+  it("element 데이터가 있으면 모드와 무관하게 싣는다", () => {
+    const meta = parseMeta(buildIssueMarkdown(makeCtx({ captureMode: "element" })));
+    expect(meta.selector).toBe("div.container");
+    expect(meta.cssChanges).toHaveLength(1);
+  });
+
+  it("tokens는 비어 있으면 생략", () => {
+    expect(parseMeta(buildIssueMarkdown(makeCtx({ tokens: [] }))).tokens).toBeUndefined();
+    const withTokens = parseMeta(
+      buildIssueMarkdown(makeCtx({ tokens: [{ name: "--brand", value: "#f00" }] })),
+    );
+    expect(withTokens.tokens).toEqual([{ name: "--brand", value: "#f00" }]);
   });
 });
 

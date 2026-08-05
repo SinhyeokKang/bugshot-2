@@ -3,6 +3,7 @@ import {
   buildNetworkLogSummary,
   buildConsoleLogSummary,
   buildActionLogSummary,
+  networkErrorCount,
 } from "../buildLogSummary";
 import type { NetworkLog, NetworkRequest } from "@/types/network";
 import type { ConsoleLog, ConsoleEntry } from "@/types/console";
@@ -508,5 +509,39 @@ describe("buildActionLogSummary", () => {
     expect(lines.length).toBeLessThan(30);
     expect(lines.join("\n")).toContain("버튼29");
     expect(lines.join("\n")).not.toContain("버튼0\n");
+  });
+});
+
+// 본문 빌더가 "에러 N건"을 인쇄할 때 쓰는 단일 출처. errors[]는 dedup+cap된 표시용
+// 샘플이라 개수로 쓰면 심각도가 축소된다(같은 요청이 3번 실패해도 1로 나감).
+describe("networkErrorCount", () => {
+  it("errorCount가 있으면 그 값(비-dedup 통짜)을 쓴다", () => {
+    expect(networkErrorCount({ captured: 7, errorCount: 3, errors: [] })).toBe(3);
+  });
+
+  it("동일 요청 반복 실패는 errors[]가 1로 접혀도 실제 건수를 반환한다", () => {
+    const requests = [
+      makeRequest({ id: "a", url: "https://api.test/evaluation", method: "PUT", status: 400, statusText: "Bad" }),
+      makeRequest({ id: "b", url: "https://api.test/evaluation", method: "PUT", status: 400, statusText: "Bad" }),
+      makeRequest({ id: "c", url: "https://api.test/evaluation", method: "PUT", status: 400, statusText: "Bad" }),
+      makeRequest({ id: "d", url: "https://api.test/ok", status: 200, statusText: "OK" }),
+    ];
+    const summary = buildNetworkLogSummary(makeNetworkLog({ captured: 4, requests }));
+    expect(summary.errors).toHaveLength(1); // dedup 후 1
+    expect(networkErrorCount(summary)).toBe(3); // 실제로는 3번 실패
+  });
+
+  it("errorCount 미제공(구버전 스냅샷·테스트 리터럴)이면 errors.length로 폴백", () => {
+    expect(
+      networkErrorCount({
+        captured: 5,
+        errors: [{ id: "n1", method: "GET", path: "/a", status: 500, statusText: "Error" }],
+      }),
+    ).toBe(1);
+  });
+
+  it("에러 없으면 0", () => {
+    expect(networkErrorCount({ captured: 5, errorCount: 0, errors: [] })).toBe(0);
+    expect(networkErrorCount({ captured: 5, errors: [] })).toBe(0);
   });
 });

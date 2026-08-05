@@ -427,3 +427,20 @@ describe("buildLinearIssueBody — action 로그 단독 (video, net/con 없음)"
     expect(out.body).not.toContain("_logSummary.logs.detail");
   });
 });
+
+// errors[]는 dedup+cap된 표시용 샘플이라 개수로 쓰면 심각도가 축소된다 —
+// 같은 요청이 3번 실패해도 "에러 1건"으로 나갔다(8개 빌더 공통 드리프트).
+describe("buildLinearIssueBody — 네트워크 에러 건수", () => {
+  it("dedup 전 전체 건수(errorCount)를 인쇄한다", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({
+        networkLogSummary: {
+          captured: 7,
+          errorCount: 3,
+          errors: [{ id: "nr-t1", method: "PUT", path: "/evaluation", status: 400, statusText: "Bad" }],
+        },
+      }),
+    });
+    expect(out.body).toContain("logSummary.network.line n=7 errors=3");
+  });
+});
