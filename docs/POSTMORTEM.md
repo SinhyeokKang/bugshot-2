@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-08-06 — 요약 표면이 상세를 흉내 냈는데, 그 상세가 원본보다 빈약했다 (`entry.stack` ≠ `entry.args`의 스택)
+
+- **영역**: `컴포넌트`
+- **계열**: `미검증단언`
+- **그물**: `jsdom`
+- **증상**: log-viewer 통합 타임라인의 콘솔 행에 스택 펼침 chevron이 있었는데, 펼치면 우측 콘솔 탭보다 **정보가 적었다**. 실제 리포트(`logs.html`)에서 `args`는 5프레임짜리 axios 에러 스택을 담고 있는데 펼침이 보여준 `stack`은 무관한 2프레임(`Object.R [as onError]` / `gf.execute`)뿐이었다. 게다가 펼친 `<pre>`가 행의 `onClick` 안에 있어 스택 텍스트를 드래그 선택하거나 안의 링크를 누르면 영상이 seek됐다.
+- **근본 원인**: 두 겹이다. ① **`ConsoleEntry.stack`은 `args`의 부분집합이 아니다.** `console.error(err)`를 하면 레코더가 `err.stack`을 **args 문자열로 직렬화**하고, 별도 `stack` 필드에는 **로깅 호출 지점**의 스택이 들어간다 — 둘은 서로 다른 프레임 집합이다. "전용 `stack` 필드니까 args보다 상세하겠지"라는 암묵 전제가 틀렸고, 실데이터로 확인한 적이 없었다. ② **행의 역할 계약이 이미 두 곳에 있었는데 세 번째 지점이 어겼다.** `activateTimelineItem`(`App.tsx:137-141`)이 seek + `setActiveTab(kind)` + `setScrollToEntryId`를 발화해 **상세는 우측 탭이 담당한다**는 배선이 있었고, `guide/ko/logs/viewer.md:53,56`도 "한 줄에 한 이벤트 … 누르면 오른쪽이 그 종류의 로그 탭으로 전환되어 상세까지"라고 이미 **변경 후 동작을 기술**하고 있었다. 그런데 `TimelineRow`가 자체 상세를 또 들었다. **그리고 jsdom 테스트가 그 위반을 오히려 고정하고 있었다** — `expect(screen.getByTestId("timeline-row-expand")).toBeTruthy()`가 "chevron이 있어야 한다"를 계약으로 박아, 그물이 잡기는커녕 되돌리기를 막는 쪽으로 서 있었다.
+- **재발 방지**: (1) **`entry.stack`과 `entry.args`를 서로의 대체재로 가정하지 말 것** — 한쪽만 렌더할 거면 실제 캡처본(`logs.html` 하나 열어 `__BUGSHOT_DATA__` 디코드)으로 두 값을 나란히 찍어보고 정한다. 지금 콘솔 탭(`ConsoleLogContent.tsx:250-260`)이 args pre + stack pre를 **둘 다** 보여주는 게 옳은 형태다. (2) **상세를 담당하는 표면이 이미 있으면 요약 표면에 상세를 복제하지 않는다** — 타임라인·마커·프리뷰처럼 "인덱스" 역할인 UI에 펼침을 넣기 전에, 클릭 핸들러가 이미 상세 표면으로 보내고 있는지 먼저 본다. (3) **UI가 `guide/`의 서술과 어긋나면 어느 쪽이 계약인지 먼저 정한다** — 여기선 가이드가 맞았고 코드가 틀렸다. 가이드는 스펙의 사후 기록이 아니라 이미 합의된 계약일 수 있다. (4) **클릭 가능한 컨테이너 안에 텍스트 선택이 필요한 블록(`<pre>`·코드·스택)을 넣지 않는다** — 넣어야 하면 그 블록에서 `stopPropagation`.
+- **관련**: `src/log-viewer/components/TimelineRow.tsx`(아코디언 제거), 그물 `src/log-viewer/components/__tests__/TimelineRow.test.tsx`(계약을 "확장 UI 없음"으로 반전), 상세 담당 `src/sidepanel/components/ConsoleLogContent.tsx:250-260`, 배선 `src/log-viewer/App.tsx:137-141`, 계약 서술 `guide/ko/logs/viewer.md:53,56`.
+
 ## 2026-08-04 — 오버레이 Escape는 "누가 처리하나"와 "누가 못 받게 하나"가 다른 판정인데 한 조건으로 묶었고, 두 번 뒤집혔다
 
 - **영역**: `컴포넌트`, `에디터`
