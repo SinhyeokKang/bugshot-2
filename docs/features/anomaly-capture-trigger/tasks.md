@@ -39,13 +39,13 @@
   - **`apiHostRow.ts:22-31`의 `httpHostname`을 export**하고 `httpHostname → registrableDomain` 순서로 호출한다. `registrableDomain`(`:16`)은 **hostname을 받고** 파싱 실패 시 입력을 그대로 반환하므로, URL을 직접 넣으면 모든 비교가 조용히 실패해 신호 0건이 된다. 복제 금지.
   - network 신호 시각은 **`startTime + durationMs`**(응답 도착). `NetworkRequest`에 `timestamp`는 없다.
   - 사용자 취소 판정은 `statusText === "Aborted"`(XHR 전용) **+ `/abort/i` 패턴**(fetch의 DOMException 문구). 둘 중 하나면 제외.
-  - WebSocket(`method === "WS"`)과 `durationMs == null`(진행 중)은 신호가 아니다.
+  - WebSocket(`method === "WS"`)과 `phase === "pending"`(진행 중)은 신호가 아니다.
 - **검증**:
   - [ ] `source` 없는 `level:"error"` 엔트리는 감지되지 않는다
   - [ ] `status: 500`·`status: 503`은 감지, `status: 404`·`401`은 미감지
   - [ ] `phase: "error"` + `statusText: "Aborted"` 미감지, `statusText: "The user aborted a request."` **미감지**, `"Timeout"`·`"Network Error"`는 감지
   - [ ] `method: "WS"` + `status: 101` + `phase: "error"`는 미감지
-  - [ ] `durationMs`가 없는 진행 중 요청은 미감지
+  - [ ] `phase === "pending"`인 진행 중 요청은 미감지
   - [ ] network 신호의 `timestamp`가 `startTime + durationMs`와 일치(30초 타임아웃 케이스로 고정)
   - [ ] `windowStart` 이전 타임스탬프는 제외된다
   - [ ] `pageUrl`이 `undefined`거나 `windowStart`가 `null`이면 빈 배열
@@ -76,14 +76,15 @@
 - **작업 내용**:
   - `anomalySignals`·`anomalyTrimPending`·`anomalyDraftDone`·`anomalyDraftFailed` + setter 3개(`anomalySignals`는 setter를 만들지 않는다).
   - **`onRecordingComplete`에 7번째 인자 `anomaly?: AnomalySignal[] | null` 추가.** `phase: "drafting"`과 **같은 `set()`** 에 `anomalySignals`·`anomalyTrimPending = !!anomaly`·래치 2개 false를 전부 싣는다. `editor-store.ts:176-179`의 원자성 불변식(POSTMORTEM 2026-07-17) 대상이므로 **별도 setter로 이어 부르지 않는다.**
-  - **영속화는 zustand `persist`가 아니다.** `EDITOR_SNAPSHOT_KEYS`(`:305-342`)와 `useEditorSessionSync.snapshotFromState()`(`:56-96`) **양쪽에** 등록한다(키 대칭 테스트가 유일한 그물). `anomalyTrimPending`은 **영속 제외** — 패널 재오픈 시 영구 보류가 된다.
+  - **영속화는 zustand `persist`가 아니다.** `EDITOR_SNAPSHOT_KEYS`(`:305-342`)와 `useEditorSessionSync.snapshotFromState()`(`:56-96`) **양쪽에** 등록한다(키 대칭 테스트가 유일한 그물). `anomalyTrimPending`도 복구 마커로 영속하고, hydrate에서 true면 원본 영상만 유지한 채 anomaly 상태를 폐기해 일반 작성 화면으로 복구한다.
   - `reset`·`cancelRecording`은 `...initial` 스프레드라 자동 청소.
 - **검증**:
   - [ ] `onRecordingComplete(..., anomaly)` 호출 시 `subscribe`로 관측한 **모든 렌더에서** `phase === "drafting"`이면 `anomalySignals !== null`이 함께 성립한다(원자성 단언)
   - [ ] 같은 호출에서 `anomalyTrimPending === true`, 래치 2개 false
   - [ ] `anomaly`를 안 넘긴 일반 호출은 `anomalySignals === null`, `anomalyTrimPending === false` — **회귀 가드**
   - [ ] `reset()` 후 `anomalySignals === null`
-  - [ ] `hydrate(snapshot)` 왕복 후 `anomalySignals`·래치 2개가 보존되고 `anomalyTrimPending`은 복원되지 않는다
+  - [ ] 완료된 세션은 `hydrate(snapshot)` 왕복 후 `anomalySignals`·래치 2개가 보존된다
+  - [ ] `anomalyTrimPending: true` snapshot을 hydrate하면 원본 영상은 유지되고 anomaly 상태·출처는 폐기된다
   - [ ] `EDITOR_SNAPSHOT_KEYS` ↔ `snapshotFromState()` 파리티 테스트 통과
 
 ### Task 5: 감지 훅 배선 + `capture` 시그니처 선행 확장
@@ -93,12 +94,13 @@
   - **`capture`를 `() => Promise<void>` → `(opts?: { anomaly: AnomalySignal[] }) => Promise<void>`로 시그니처만 먼저 확장한다.** anomaly 분기 구현은 Task 7. 이렇게 하지 않으면 Task 6이 Task 7의 산출물을 요구하는 순환 의존이 생긴다.
   - `use30sReplay` 반환에 `bufferOldestTs: number | null` 추가(표시용 1초 타이머와 같은 주기로 갱신 — 별도 타이머를 만들지 않는다). 현재 반환은 `{ isReady, isEncoding, bufferedSeconds, capture, resolveTrim }`. `ReplayContextValue`에도 반영(현재 `resolveTrim`은 미노출, `trimming` 노출).
   - `useAnomalyDetection`: `editor-store`의 `consoleLog`/`networkLog` 구독 + `chrome.tabs.get`으로 `pageUrl` 추적(`useTabUnsupported`의 seq 가드 패턴 복제 — 늦게 온 응답이 최신 판정을 덮지 않게). `enabled`가 false면 빈 배열을 반환하고 리스너를 걸지 않는다.
-  - **결과 배열을 ref로 안정화한다.** 시그니처 문자열 join을 dedupe key로 써서 내용이 같으면 같은 배열 참조를 반환한다 — 200ms flush마다 새 배열을 그대로 흘리면 zustand v5 + `useSyncExternalStore`가 `getSnapshot should be cached`로 무한 루프를 낸다.
+  - **결과 배열을 ref로 안정화한다.** 각 신호의 `signature`·`timestamp`·`lastTimestamp`·`count`가 모두 같을 때만 같은 배열 참조를 반환한다 — 200ms flush마다 새 배열을 그대로 흘리면 zustand v5 + `useSyncExternalStore`가 `getSnapshot should be cached`로 무한 루프를 낸다.
   - **판정 조건을 이 훅에 두지 않는다.** `detectAnomalies` 호출만.
 - **검증**:
   - [ ] `enabled: false`면 항상 빈 배열이고 `chrome.tabs.onUpdated` 리스너가 등록되지 않는다
   - [ ] 로그가 갱신되면 반환 배열이 갱신된다
-  - [ ] **내용이 같은 로그 flush가 반복되면 반환 배열의 참조가 유지된다**(identity 안정화)
+  - [ ] `signature`·`timestamp`·`lastTimestamp`·`count`가 모두 같은 로그 flush만 반환 배열 참조를 유지한다
+  - [ ] 같은 시그니처가 다시 발생해 시각·횟수가 바뀌면 새 배열을 반환한다
   - [ ] 탭 URL이 바뀌면 재판정된다
   - [ ] 기존 `capture()` 무인자 호출부가 전부 그대로 컴파일된다 — **회귀 가드**
 
@@ -107,27 +109,30 @@
 - **변경 대상**: `src/sidepanel/tabs/AnomalyDialog.tsx` (신규), `src/sidepanel/tabs/IssueTab.tsx`, `src/sidepanel/tabs/__tests__/AnomalyDialog.test.tsx` (신규), `src/sidepanel/tabs/__tests__/IssueTab.test.tsx`, `src/i18n/namespaces/issue.ts`
 - **작업 내용**:
   - **훅은 `IssueTab`에서 돌리고 `EmptyState`에는 `anomalyCount: number`·`onOpenAnomaly: () => void` prop으로 주입한다.** `EmptyState`는 provider 없이 직접 렌더되는 순수 프레젠테이션 컴포넌트라, 훅을 안에 넣으면 기존 `IssueTab.test.tsx` 14개가 전부 mock을 요구한다. 기존 `CAPTURE_BUTTONS` 5개 단언과 "미지원이면 5개 전부 사라진다" 테스트도 함께 갱신한다.
-  - 배지: **`<button>` 래퍼 + shadcn `<Badge>`**(플랫폼 status badge 9곳 관용구). `data-testid="anomaly-badge"`. 노출 조건 = `replayEnabled && isReady && !unsupported && anomalyCount > 0`, `isEncoding`이면 비활성. 위치는 제목 아래·캡처 버튼 열 위, `CONTENT_MAX_W` 안. **`min-h`로 슬롯 높이를 예약**해 배지 등장/소멸이 캡처 버튼 5개를 밀지 않게 한다(`justify-center` + `overflow-hidden`). `role="status" aria-live="polite"`.
-  - `AnomalyDialog`: 읽기 전용 목록 + [닫기]/[이슈 작성 시작].
+  - 배지: **`<button>` 래퍼 + shadcn `<Badge>`**(플랫폼 status badge 9곳 관용구). `data-testid="anomaly-badge"`. 노출 조건 = `replayEnabled && isReady && !unsupported && anomalyCount > 0`, `isEncoding`이면 비활성. 위치는 제목 아래·캡처 버튼 열 위, `CONTENT_MAX_W` 안. **`min-h`로 슬롯 높이를 예약**해 배지 등장/소멸이 캡처 버튼 5개를 밀지 않게 한다. 버튼은 네이티브 역할과 기존 status badge 포커스 링을 유지하고, 별도 sr-only live region에 `role="status" aria-live="polite"`를 둔다.
+  - `AnomalyDialog`: 읽기 전용 목록 + [닫기]/[이슈 작성].
     - 클래스 전체: `w-[90vw] max-w-[800px] gap-5 rounded-3xl p-6 sm:rounded-3xl` + **`max-h-[80vh]`**, 본문 래퍼 `min-h-0 flex-1 overflow-y-auto overscroll-contain`.
-    - 푸터 `!flex-row items-center !justify-end gap-2`, DOM 순서 `[닫기 outline] → [이슈 작성 시작 default]`. X 버튼은 `dialog.tsx:44-47` 내장이므로 직접 넣지 않는다. 닫기 라벨은 `common.close`.
-    - 각 행은 **2행 스택**: 1행 = 아이콘 `h-4 w-4 shrink-0` + `min-w-0 flex-1 truncate` + `title={label}`, 2행 = `12:31:04 · console`(`text-xs text-muted-foreground`).
+    - 푸터 `!flex-row items-center !justify-end gap-2`, DOM 순서 `[닫기 outline] → [이슈 작성 default]`. X 버튼은 `dialog.tsx:44-47` 내장이므로 직접 넣지 않는다. 닫기 라벨은 `common.close`.
+    - 각 행은 **2행 스택**: 1행 = 아이콘 `h-4 w-4 shrink-0` + `min-w-0 flex-1 line-clamp-2`, 2행 = `12:31:04 · console`(`text-xs text-muted-foreground`). 2줄을 넘길 때만 포커스 가능한 Radix Tooltip으로 전문을 제공한다.
     - `ANOMALY_LIST_MAX`(20) 초과분은 "외 N종"으로 접는다.
     - **open 시점의 signals를 스냅샷 고정**하고 이후 갱신을 무시한다.
-    - `DialogDescription` 필수 — 목록의 의미 + [이슈 작성 시작]이 영상을 자동으로 자르고 AI 초안을 만든다는 것. `logsAttach`가 off면 "로그 첨부가 꺼져 있어 오류 내역이 본문에 남지 않습니다"를 덧붙인다.
-  - i18n 키 ko/en 동시 추가: `issue.anomaly.badge`(`{n}건`), `issue.anomaly.title`, `issue.anomaly.description`, `issue.anomaly.descriptionNoLogs`, `issue.anomaly.start`, `issue.anomaly.more`(`외 {n}종`), `issue.anomaly.trimmed`(토스트), `issue.anomaly.aiPrompt`.
+    - `DialogDescription` 필수 — 목록의 의미 + [이슈 작성]이 영상을 자동으로 자르고 AI 초안을 만든다는 것. `logsAttach`가 off면 "로그 첨부가 꺼져 있어 오류 내역이 본문에 남지 않습니다"를 덧붙인다.
+    - capture 직전 재필터 결과가 0건이면 캡처하지 않고 "오류 구간이 만료되었습니다" 상태를 표시한다.
+    - 320×400 저높이에서 중앙 영역만 세로 스크롤한다.
+  - i18n 키 ko/en 동시 추가: `issue.anomaly.badge`(`감지 신호 {n}종`), `issue.anomaly.title`, `issue.anomaly.description`, `issue.anomaly.descriptionNoLogs`, `issue.anomaly.start`(`[이슈 작성]`), `issue.anomaly.expired`, `issue.anomaly.more`(`외 {n}종`), `issue.anomaly.trimmed`(토스트), `issue.anomaly.aiPrompt`.
 - **검증**:
   - [ ] `anomalyCount: 0`이면 배지가 렌더되지 않는다(슬롯 높이는 유지)
   - [ ] `replayEnabled: false`면 신호가 있어도 배지가 없다
   - [ ] `isReady: false`면 배지가 없다
   - [ ] `isEncoding: true`면 배지가 비활성이다
-  - [ ] 배지에 `role="status"`가 있다
+  - [ ] 배지는 `button` 역할을 유지하고 별도 live region에 `role="status"`가 있다
   - [ ] 배지 클릭 → 다이얼로그 open
-  - [ ] 시그니처 2건이면 목록 행이 2개, 각 행이 2줄(메시지 + `시각 · 종류`)
+  - [ ] 시그니처 2종이면 목록 행이 2개, 각 행이 2줄(메시지 + `시각 · 종류`)
   - [ ] 시그니처 25건이면 행 20개 + "외 5종"
   - [ ] open 이후 signals prop이 바뀌어도 목록이 변하지 않는다(스냅샷 고정)
   - [ ] `logsAttach: false`면 description에 로그 미첨부 고지가 포함된다
-  - [ ] [이슈 작성 시작] 클릭 시 `capture({ anomaly })`가 호출된다
+  - [ ] [이슈 작성] 클릭 시 `capture({ anomaly })`가 호출된다
+  - [ ] 재필터 결과가 0건이면 capture가 호출되지 않고 만료 상태가 보인다
   - [ ] 기존 `IssueTab.test.tsx` 14개가 전부 green — **회귀 가드**
   - [ ] i18n 훅이 `locales.test.ts`를 통과시킨다(ko/en 대칭·placeholder 일치)
 
@@ -139,6 +144,7 @@
   - `onRecordingComplete(..., trim = null, filteredSignals)` — 트림 다이얼로그를 띄우지 않고, 같은 `set()`에 signals와 `anomalyTrimPending: true`가 실린다.
   - **`trimming` 소비처 3곳에 `anomalyTrimPending`을 OR로 합친다**: `App.tsx:239`(`trimming: replayTrim != null`) → `IssueTab.tsx:224`(DraftingPanel 마운트 보류) → `useReproPrefill.ts:88`. 합치지 않으면 `encodeToMp4` 왕복 동안 AI가 **자르기 전 로그**로 돌고 영상이 눈앞에서 교체된다.
   - 이어서 `anomalyTrimRangeMs` → `anomalyTrimSeconds` → `applyReplayTrim({ frames, tabId, startSec, endSec })`. **자체 try/catch로 감싼다** — `capture()`의 기존 catch는 `toast.error("encodeFailed")` 하나뿐이라 `TrimLogsPersistError`(영상은 잘렸는데 원본 로그가 pending에 남아 재오픈 시 부활)와 일반 실패가 같은 문구로 뭉개진다. `App.tsx:492-500`의 분기를 그대로 쓴다.
+  - network 로그는 요청 생명주기(`[startTime, startTime + durationMs]`)가 영상 트림 구간과 겹치면 보존한다. console/action은 기존 경계 판정을 유지한다.
   - `finally`에서 `setAnomalyTrimPending(false)`.
   - **순서 불변**: 기존 버퍼 구간 로그 trim → `onRecordingComplete` → `applyReplayTrim`. 뒤집으면 넓은 경계가 좁은 경계를 덮는다. (트림을 앞에 두는 것도 불가 — phase가 `idle`이라 `syncAndSettleLogs`가 레코더 버퍼를 다시 머지해 되살린다.)
 - **검증**:
@@ -151,6 +157,8 @@
   - [ ] `TrimLogsPersistError`와 일반 실패가 서로 다른 토스트를 낸다
   - [ ] trim 실패해도 `phase === "drafting"`이 유지되고 원본 영상이 남는다
   - [ ] 감지 시각이 로그 trim 하한보다 오래됐으면 그 signal이 재필터로 빠진다
+  - [ ] 시작은 구간 밖이지만 완료가 구간 안인 느린 5xx·타임아웃 요청은 로그에 남는다
+  - [ ] 자동 트림 중 패널 종료 후 hydrate하면 원본 영상은 유지되고 anomaly 상태·계측 출처는 폐기된다
   - [ ] 일반 `capture()`(인자 없음)는 기존대로 트림 다이얼로그를 띄운다 — **회귀 가드**
 
 ### Task 8: AI 초안 자동 실행 + 폴백 체인
@@ -161,8 +169,8 @@
   - `autoRunPrompt?: string | null`·`onAutoRunError?: () => void` prop. effect가 `autoRunPrompt`를 1회 소비(ref 래치 + store의 `anomalyDraftDone`).
   - **`aiStatus` 게이트는 `DraftingPanel`에 둔다.** `AiDraftDialog`에는 `aiStatus` prop이 없고(`:67-79`) 이 값은 `DraftingPanel.tsx:109`의 `useAI()`에서만 나온다. prop을 새로 뚫지 않는다.
   - `DraftingPanel`: `aiStatus === "available" && anomalySignals && !anomalyDraftFailed && !anomalyDraftDone`일 때만 `buildAnomalyPrompt(signals, t)`를 넘긴다. `onAutoRunError` → `setAnomalyDraftFailed(true)`. 성공·중단 모두 `setAnomalyDraftDone(true)`.
-  - 자동 트림 사후 고지: drafting 진입 후 `toast.info(t("issue.anomaly.trimmed"))` 1회(`anomalySignals`가 있고 트림이 실제로 적용됐을 때만).
-  - `useReproPrefill`: args에 `anomalyPending: boolean` 추가하고 `if (anomalyPending) return;` 게이트. **`anomalyPending = !!anomalySignals && !anomalyDraftFailed && !anomalyDraftDone`** — `!anomalyDraftDone`을 빼면 사용자가 중단했을 때 `Failed`가 안 서므로 게이트가 **영구히 닫힌다**. **명시 deps 배열(`:154-169`)에도 `anomalyPending`을 반드시 추가**한다(프리미티브 나열 방식이라 누락하면 게이트가 갱신되지 않는다).
+  - 자동 트림 사후 고지: drafting 진입 후 `toast.info(t("issue.anomaly.trimmed"))` 1회(`anomalySignals && videoTrimmed && videoTrimSource === "frames"`일 때만).
+  - `useReproPrefill`: args에 `anomalyPending: boolean` 추가하고 `if (anomalyPending) return;` 게이트. **`anomalyPending = !!anomalySignals && !anomalyDraftFailed`** — 실패한 경우에만 재현 단계 자동 채움으로 폴백하고, 전체 초안 성공·사용자 중단 뒤에는 추가 자동화를 실행하지 않는다. **명시 deps 배열(`:154-169`)에도 `anomalyPending`을 반드시 추가**한다.
   - `submitDisabled`는 건드리지 않는다(사용자 UI 경로 불변).
   - **`DraftingPanel.test.tsx`는 존재하지 않으므로 신규 작성한다.** tiptap·sonner 그래프를 끌어오므로 `DebugTab.test.tsx:7-19`식 스텁을 먼저 설계한다.
 - **검증**:
@@ -171,8 +179,8 @@
   - [ ] `aiStatus: "unavailable"`이면 `DraftingPanel`이 `autoRunPrompt`를 넘기지 않는다
   - [ ] 자동 실행 중에는 `useReproPrefill`이 미발화
   - [ ] 자동 실행 실패 → `anomalyDraftFailed: true` → `useReproPrefill`이 발화
-  - [ ] 자동 실행 중단 → `anomalyDraftFailed`는 false, `anomalyDraftDone`은 true → `anomalyPending`이 풀린다
-  - [ ] 자동 트림 토스트가 감지 경로에서만 1회 뜬다
+  - [ ] 자동 실행 중단 → `anomalyDraftFailed`는 false, `anomalyDraftDone`은 true → 빈 이슈 작성 폼에 머물고 repro prefill은 미발화
+  - [ ] 자동 트림 토스트는 `videoTrimmed && videoTrimSource === "frames"`인 감지 경로에서만 1회 뜬다
   - [ ] `autoRunPrompt: null`(일반 캡처)이면 기존 동작 그대로 — **회귀 가드**
   - [ ] 사용자가 다이얼로그를 직접 열어 쓰는 경로가 그대로 동작 — **회귀 가드**
 
@@ -194,6 +202,8 @@
 - **변경 대상**: `e2e/anomaly-capture.spec.ts` (신규), `e2e/fixtures/anomaly.html` (신규)
 - **스코프**: **배지 노출·목록 표시까지만.** 캡처 이후(트림·drafting 진입·AI 자동 실행)는 수동으로 내린다. 근거는 design.md "e2e 스코프" — replay 의존 spec 5개가 같은 이유로 삭제된 전례(`e2e/GOTCHAS.md:8`), isReady 6초 연속 폴링, `tab.active` 가드, `captureVisibleTab` quota의 확장 전역 성격.
 - **작업 내용**:
+  - 공용 extension fixture는 Replay를 off로 초기화해 전역 `captureVisibleTab` quota 경합을 막는다. 기본값 검증과 이 spec만 명시적으로 on으로 켠다.
+  - `e2e/capture-modes-layout.spec.ts`의 "기본 off" 단언은 기본 on 계약 검증으로 갱신하고, off→설정 이동은 spec 안에서 명시적으로 토글한 상태로 유지한다.
   - 픽스처 버튼 4개 — 5xx 요청 / uncaught throw / **XHR abort** / **fetch abort**(두 경로가 다르게 취급되므로 반드시 분리).
   - `test.describe.serial`로 묶어 `captureVisibleTab` quota 경합을 줄인다.
   - ready 대기 신호는 `replay-button`의 `aria-disabled` 해제를 기다린다(고정 sleep 금지).
@@ -226,7 +236,7 @@
 | `anomalyTrimRangeMs` | 단일 시그니처 6초, 복수 시그니처 span+6초, 빈 배열 null |
 | `buildAnomalyPrompt` | 시그니처 label이 전부 포함, 빈 배열 방어 |
 | `anomalyTrimSeconds` | 전체 덮음 → isFullRange 성립, 앞/뒤 clamp, 중간 구간 오프셋 일치, 빈 frames null |
-| `editor-store` | **원자성 단언**(drafting 전이 렌더에서 signals 동시 존재), 래치 초기화, `hydrate` 왕복, `anomalyTrimPending` 비영속 |
+| `editor-store` | **원자성 단언**(drafting 전이 렌더에서 signals 동시 존재), 래치 초기화, `hydrate` 왕복, pending hydrate 시 anomaly 폐기 복구 |
 | `useEditorSessionSync` | `EDITOR_SNAPSHOT_KEYS` ↔ `snapshotFromState()` 파리티 |
 | `submitEventProperties` × `filterProperties` | `from_anomaly`가 허용목록을 통과 |
 | `settings-ui-store` | 신규 기본값 true, 기존 persist false 보존, **키 없는 v9 미만 migrate → true** |
@@ -235,11 +245,11 @@
 
 | 대상 | 케이스 |
 |---|---|
-| `EmptyState`/`IssueTab` | 배지 노출 게이트 5종(count 0 / replayEnabled off / isReady false / isEncoding / 정상), `role="status"`, 기존 14개 회귀 |
-| `AnomalyDialog` | 행 수·2행 스택, 20종 초과 접기, open 후 스냅샷 고정, logsAttach off 고지, [이슈 작성 시작] 호출, 닫기 |
+| `EmptyState`/`IssueTab` | 배지 노출 게이트 5종(count 0 / replayEnabled off / isReady false / isEncoding / 정상), button/live region 역할 분리, 기존 14개 회귀 |
+| `AnomalyDialog` | 행 수·2행 스택, 20종 초과 접기, open 후 스냅샷 고정, 0건 만료, logsAttach off 고지, [이슈 작성] 호출, 닫기 |
 | `AiDraftDialog` | autoRunPrompt 1회 실행, 재마운트 이중 실행 없음, autoRunPrompt null 회귀, 사용자 수동 경로 회귀 |
 | `DraftingPanel` (신규) | aiStatus unavailable 시 autoRunPrompt 미전달, 실패 시 `anomalyDraftFailed`, 중단 시 `anomalyDraftDone`만, 트림 토스트 1회 |
-| `useReproPrefill` | anomalyPending 게이트, anomalyDraftFailed 후 발화, **anomalyDraftDone 후 발화(중단 경로)**, deps 갱신 반영 |
+| `useReproPrefill` | anomalyPending 게이트, anomalyDraftFailed 후 발화, **anomalyDraftDone 후에도 미발화(중단 경로)**, deps 갱신 반영 |
 | `use-30s-replay-gate` (`.tsx` — node가 아니라 jsdom) | anomaly 분기 trim 호출, `anomalyTrimPending` 토글, 에러 분기, 일반 capture 회귀 |
 
 ### e2e 시나리오 (`/e2e-write` 입력)
@@ -255,15 +265,16 @@
 
 ### 수동 테스트 (Chrome, `pnpm build` 후 로드 언팩)
 
-- [ ] [이슈 작성 시작] → 트림 다이얼로그 없이 작성 화면 진입, 영상 첨부됨
+- [ ] [이슈 작성] → 트림 다이얼로그 없이 작성 화면 진입, 영상 첨부됨
 - [ ] 잘린 영상의 시작/끝이 오류 발생 시점 앞뒤 3초와 육안으로 맞는지
 - [ ] 잘린 로그가 영상 구간과 어긋나지 않는지(로그 뷰어 타임라인 대조)
 - [ ] 트림이 끝나기 **전에** AI 초안이 시작되지 않는지(영상이 눈앞에서 교체되지 않는지)
 - [ ] AI 초안 자동 실행 오버레이가 뜨고 '중단' 버튼이 실제로 취소하는지
 - [ ] 중단 후 재현 단계 자동 채움으로 폴백되지 않되, 이후 수동 AI 초안 경로는 정상인지
-- [ ] 자동 트림 사후 고지 토스트가 뜨는지
+- [ ] 실제로 구간이 잘린 경우에만 자동 트림 사후 고지 토스트가 뜨는지
 - [ ] `unhandledrejection` / `console.assert(false)` 각각에서 배지 판정이 맞는지
 - [ ] **320px·400px 폭에서 배지와 감지 목록이 읽히는지**(e2e 뷰포트는 480px 고정이라 자동으로 못 잡는다)
+- [ ] **320×400 저높이에서 중앙 영역만 스크롤되고 배지·CTA가 잘리지 않는지**
 - [ ] 광고가 많은 상용 사이트 5개를 각 5분씩 — 리포트 의사가 없는 배지가 뜬 사이트가 2개 이하인지(prd.md 정확도 기준)
 - [ ] 신규 프로필로 설치했을 때 리플레이가 기본 on이고 폴링이 idle에서만 도는지
 - [ ] 설정을 한 번도 바꾼 적 없는 기존 프로필을 업데이트했을 때 리플레이가 on으로 바뀌는지(privacy 문서 서술과 일치하는지)
