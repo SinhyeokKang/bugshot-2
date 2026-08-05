@@ -2,7 +2,7 @@ import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import type { ActionLog } from "@/types/action";
 import type { TranslationFn } from "@/i18n";
-import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
+import { buildNetworkLogSummary, buildConsoleLogSummary, networkErrorCount } from "@/sidepanel/lib/buildLogSummary";
 
 // 캡처된 타입만 console → network → action 순으로 세그먼트를 조립해 ` · `로 join.
 // 에러 건수는 buildLogSummary 순수 헬퍼에서 파생(자체 계산 금지 — 단일 출처).
@@ -26,7 +26,7 @@ export function logCardTypeCounts(
     );
   }
   if (networkLog && networkLog.captured > 0) {
-    const errors = buildNetworkLogSummary(networkLog).errorCount ?? 0;
+    const errors = networkErrorCount(buildNetworkLogSummary(networkLog));
     segments.push(
       errors > 0
         ? t("logCard.networkCount", { captured: networkLog.captured, errors })
