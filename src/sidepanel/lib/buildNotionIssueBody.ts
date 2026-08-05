@@ -1,5 +1,6 @@
 import { t } from "@/i18n";
 import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
+import { networkErrorCount } from "./buildLogSummary";
 import { bodyBlocks } from "./bodyBlocks";
 import type {
   NotionAttachmentInput,
@@ -287,8 +288,8 @@ function emitLogSummary(blocks: NotionBlock[], ctx: MarkdownContext): void {
   const codeLines: string[] = [];
   if (net) {
     codeLines.push(
-      net.errors.length > 0
-        ? t("logSummary.network.line", { n: net.captured, errors: net.errors.length })
+      networkErrorCount(net) > 0
+        ? t("logSummary.network.line", { n: net.captured, errors: networkErrorCount(net) })
         : t("logSummary.network.lineNoError", { n: net.captured }),
     );
   }

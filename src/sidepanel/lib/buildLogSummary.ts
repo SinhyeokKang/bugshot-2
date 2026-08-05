@@ -55,6 +55,14 @@ export function buildNetworkLogSummary(log: NetworkLog): NetworkLogSummary {
   return { captured: log.captured, errorCount, errors };
 }
 
+// 본문 빌더 8개가 "에러 N건"을 인쇄할 때 쓰는 단일 출처. errors[]는 dedup+cap된 표시용
+// 샘플이라 개수로 쓰면 심각도가 축소된다(같은 요청이 3번 실패해도 1). errorCount가
+// optional인 건 빌더 테스트의 샘플 리터럴이 안 채우기 때문이라 폴백을 여기서 흡수한다 —
+// 8곳에 `?? errors.length`를 복붙하면 그게 다음 드리프트 씨앗이다(POSTMORTEM 2026-08-06).
+export function networkErrorCount(net: NetworkLogSummary): number {
+  return net.errorCount ?? net.errors.length;
+}
+
 export function buildConsoleLogSummary(log: ConsoleLog): ConsoleLogSummary {
   const errorCount = log.entries.filter((e) => e.level === "error").length;
   const warnCount = log.entries.filter((e) => e.level === "warn").length;

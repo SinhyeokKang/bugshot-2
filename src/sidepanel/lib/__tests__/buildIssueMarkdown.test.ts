@@ -618,7 +618,7 @@ describe("buildMetaComment — 복수 element cssChanges (AI 메타)", () => {
   // 보내면 LLM 프롬프트 잡음이고 "요소를 골랐는데 셀렉터가 비었다"로 오독된다.
   // 게이트는 모드가 아니라 데이터 존재 — 어느 모드가 style edit을 실을 수 있는지에 대한
   // 전제를 새로 세우지 않기 위해서다.
-  it.each(["video", "screenshot", "freeform"] as const)(
+  it.each(["video", "screenshot"] as const)(
     "%s 모드(element 데이터 없음) → meta에 element 필드를 아예 안 싣는다",
     (captureMode) => {
       const meta = parseMeta(
@@ -636,10 +636,22 @@ describe("buildMetaComment — 복수 element cssChanges (AI 메타)", () => {
     },
   );
 
-  it("element 데이터가 있으면 모드와 무관하게 싣는다", () => {
+  it("element 데이터가 있으면 싣는다", () => {
     const meta = parseMeta(buildIssueMarkdown(makeCtx({ captureMode: "element" })));
     expect(meta.selector).toBe("div.container");
     expect(meta.cssChanges).toHaveLength(1);
+  });
+
+  // freeform은 데이터 유무와 무관하게 모드로 제외한다 — 자유 서술이라 직전 element
+  // 세션의 잔여 selector가 ctx에 남아 있어도 실으면 안 된다(기존 계약).
+  it("freeform은 selector·diffs가 남아 있어도 element 필드를 안 싣는다", () => {
+    const meta = parseMeta(
+      buildIssueMarkdown(makeCtx({ captureMode: "freeform", selector: "div.leftover" })),
+    );
+    expect(meta.selector).toBeUndefined();
+    expect(meta.cssChanges).toBeUndefined();
+    expect(meta.tokens).toBeUndefined();
+    expect(meta.captureMode).toBe("freeform");
   });
 
   it("tokens는 비어 있으면 생략", () => {
