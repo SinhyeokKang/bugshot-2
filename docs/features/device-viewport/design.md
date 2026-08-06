@@ -141,12 +141,14 @@ getTopViewport(tabId)
                    : { width: innerWidth, height: innerHeight };
         }
    │
-   ├─ element     usePickerMessages.ts:160-167, :409-410   ← 기존 호출부
+   ├─ element     usePickerMessages.ts:160-167, :409-410   ← 기존 호출부 (frameId !== 0 게이트 뒤)
    ├─ screenshot  usePickerMessages.ts:206-223             ← 신규 경로
    ├─ freeform    picker-control.ts:844                    ← 기존 호출부
    ├─ video       video-recorder.ts:111-117                ← chrome.tabs.get → getTopViewport 교체 필요
    └─ replay      30s-replay/use-30s-replay.ts:153         ← 동일
 ```
+
+**element 경로만 조건부다.** 두 호출부가 `frameId !== 0`일 때만 조회하는데(`usePickerMessages.ts:160`, `:409-410`), 모드 ON에서 선택은 예외 없이 래퍼 안이라 게이트가 항상 참이 되어 무변경으로 올바른 값을 받는다. 값도 일치한다 — `payload.viewport`(래퍼 내부 `innerWidth`)와 `f.clientWidth`(래퍼 요소 content box)가 둘 다 선택한 폭이라 교체가 사실상 항등이다. 게이트를 "이제 불필요하다"며 걷어내면 모드 OFF의 top 선택에서 없던 주입이 생기고, 반대로 모드 ON에서 frameId 0으로 새는 경로가 생기면 메타가 `payload.viewport`로 폴백해 **top 실폭이 조용히 기록된다**.
 
 `func`는 직렬화·재평가되므로 클로저가 안 살아남는다(`CLAUDE.md` — `chrome.scripting.executeScript({func})`). 위 함수는 self-contained라 제약을 만족한다. 상수 `"__bugshot_device_frame__"`은 문자열 리터럴로 **인라인**해야 하고, `device-frame.ts`의 상수와 **복제**된다 — 동기화는 `picker-control` 유닛 테스트가 두 값을 대조해 고정한다(선례: `log-merge.ts` ↔ `trailing-throttle.ts` 복제+동기화 테스트 패턴).
 
