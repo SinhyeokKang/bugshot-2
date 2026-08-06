@@ -525,6 +525,10 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }): JSX.Elem
 
 **`TabsList` + `TabsTrigger`로 만든다** — `ToggleGroup`이 아니다. 코드베이스의 세그먼트 토글 정규 선례가 `StyleEditorPanel.tsx:239`의 `<TabsList className="grid h-9 w-full grid-cols-N">`(`TabsContent` 없이 store 값으로 구동)이고, `ToggleGroup`은 앱 사용처가 0인 미사용 primitive라 그 `segment` variant(`toggle.tsx:15-16`의 `border-input rounded-none -ml-px`)는 TabsList pill과 시각 언어가 전혀 다르다. ToggleGroup에 `h-9 rounded-lg bg-muted p-1`을 손으로 칠하면 TabsList 룩의 **네 번째 사본**이 되고 "직접 스타일링 금지"와 충돌한다. Tabs를 쓰면 부수적으로 `type="single"`의 재클릭 해제(`value=""`) 축도 사라진다.
 
+**`<Tabs>` 래퍼를 반드시 자기가 들고 온다.** 이 행은 `DebugTab`의 `<Tabs value={sub}>`(`:67`) **안쪽**에 놓이므로 `TabsList`만 렌더하면 바깥 컨텍스트를 잡는다 — 세그먼트를 누르는 순간 `setSub("390")`이 돌아 **존재하지 않는 서브탭으로 전환되고 화면이 빈다.** 에러가 아니라 조용한 오동작이다. 선례(`StyleEditorPanel.tsx:234-249`)도 자기 `<Tabs value=… onValueChange=…>`를 들고 `TabsContent` 없이 `TabsList`만 쓴다. 결과적으로 App(`:278`) > DebugTab(`:67`) > 이 행의 3중 중첩이 되는데, Radix는 `Tabs`마다 Provider와 roving tabindex를 따로 두므로 안전하다.
+
+**`CollapsingTabsList`가 아니라 순수 `TabsList`를 쓴다.** 서브탭 바가 쓰는 그 컴포넌트는 라벨이 셀을 넘치면 **모든 라벨을 한꺼번에 감춰 아이콘만 남긴다**(`ui/collapsing-tabs.tsx`). 여기서 그게 발동하면 폭 숫자가 통째로 사라져 아이콘만 남고, 그건 "아이콘이 숫자를 대체하지 않는다"는 이 기능의 원칙(prd)을 정면으로 깬다 — 기기 아이콘만 남은 행은 DPR·터치까지 에뮬레이트한다는 오해를 그대로 만든다. 접히지 않게 폭 예산을 맞추는 것이 Task 7의 검증 항목인 이유다.
+
 - 첫 세그먼트 라벨은 `전체`/`Full`(`Monitor` 아이콘). `끔`이 아니다 — 사용자가 고르는 건 "브라우저 폭 전체"라는 뷰포트 선택지 하나이고 데스크톱 뷰포트를 겸한다.
 - **아이콘 + 폭 숫자를 병기한다.** 아이콘만 두면 기기 에뮬레이션으로 오해되고(prd "구현 방식이 제품 범위를 결정한다"), 숫자만 두면 스캔이 느리다. 아이콘은 `lucide-react`의 `Monitor`/`Smartphone`/`Tablet`/`Laptop` — 신규 의존성 0.
 - **폭 예산.** 5세그먼트였을 때 세그먼트당 텍스트 가용 폭 ≈28.8px vs `1024` ≈31px로 적자였는데, 4세그먼트로 줄면서 세그먼트당 ≈68px(320px 패널 기준)이 되어 아이콘 14px + gap 4px + `1024` ≈31px가 들어간다. `grid grid-cols-4`. Task 7에서 **320/360/400px 3점**을 여전히 검증한다.
