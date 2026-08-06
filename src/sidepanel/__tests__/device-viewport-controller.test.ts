@@ -11,8 +11,11 @@ const deviceSet = vi.fn(async (_tabId: number, width: number | null) => ({
   width,
   available: { width: 1512, height: 900 },
 }));
-const deviceState = vi.fn(async () => ({ width: null, available: { width: 1512, height: 900 } }));
+const deviceState = vi.fn<
+  () => Promise<{ width: number | null; available: { width: number; height: number } }>
+>(async () => ({ width: null, available: { width: 1512, height: 900 } }));
 const activateRecordersInDeviceTree = vi.fn(async () => true);
+const sendBg = vi.fn(async (..._args: unknown[]) => ({ all: [], deviceTree: [] }));
 
 vi.mock("@/i18n", () => ({ t: (key: string) => key }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
@@ -52,13 +55,17 @@ vi.mock("@/store/settings-ui-store", () => ({
     getState: () => ({ deviceModeWarned: true, setDeviceModeWarned: vi.fn() }),
   },
 }));
-vi.mock("@/types/messages", () => ({ sendBg: vi.fn(async () => ({ all: [], deviceTree: [] })) }));
+vi.mock("@/types/messages", () => ({ sendBg }));
 
-type Listener = (msg: unknown, sender: chrome.runtime.MessageSender) => void;
+type Listener = (
+  msg: unknown,
+  sender: chrome.runtime.MessageSender,
+  sendResponse: (value?: unknown) => void,
+) => void;
 let listeners: Listener[] = [];
 
-function emit(msg: unknown): void {
-  for (const fn of listeners) fn(msg, {} as chrome.runtime.MessageSender);
+function emit(msg: unknown, sendResponse: (value?: unknown) => void = () => {}): void {
+  for (const fn of listeners) fn(msg, {} as chrome.runtime.MessageSender, sendResponse);
 }
 
 // 마이크로태스크를 충분히 흘려 await 체인이 device.set까지 도달하게 한다.
@@ -67,6 +74,8 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 beforeEach(async () => {
   vi.clearAllMocks();
   activateRecordersInDeviceTree.mockResolvedValue(true);
+  deviceState.mockResolvedValue({ width: null, available: { width: 1512, height: 900 } });
+  sendBg.mockResolvedValue({ all: [], deviceTree: [] });
   listeners = [];
   phase = "idle";
   vi.stubGlobal("chrome", {
@@ -90,13 +99,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function setup() {
+async function setup(clearDeviceSet = true) {
   const controller = await import("../device-viewport-controller");
   const mode = await import("../lib/device-mode");
   mode.clearDeviceModeState();
   const detach = controller.attachDeviceViewport(1);
   await flush();
-  deviceSet.mockClear();
+  if (clearDeviceSet) deviceSet.mockClear();
   return { controller, mode, detach };
 }
 
@@ -166,6 +175,51 @@ describe("push 리스너 수명", () => {
     mode.putPending(1, 390);
     detach();
     expect(mode.peekPending(1)).toBeNull();
+  });
+});
+
+describe("handoff 준비 ACK", () => {
+  it("pending을 세운 뒤 ACK하고 top 이동은 background에 맡긴다", async () => {
+    const { controller, mode, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    const respond = vi.fn();
+
+    emit({ type: "device.handoff", tabId: 1, url: "https://b.com/" }, respond);
+    await flush();
+
+    expect(mode.peekPending(1)?.width).toBe(390);
+    expect(respond).toHaveBeenCalledWith({ ok: true });
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+    detach();
+  });
+
+  it("unsupported 롤백은 background 단일 소유라 패널이 device.set을 중복 호출하지 않는다", async () => {
+    const { controller, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    const respond = vi.fn();
+
+    emit({ type: "device.handoff", tabId: 1, url: "blob:https://a.com/id" }, respond);
+    await flush();
+
+    expect(deviceSet).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalledWith({ ok: true });
+    detach();
+  });
+});
+
+describe("확장 reload 재수립", () => {
+  it("기존 래퍼를 제거해 top commit을 만든 뒤 같은 폭으로 재수립한다", async () => {
+    deviceState.mockResolvedValueOnce({ width: 390, available: { width: 1512, height: 900 } });
+    const { mode, detach } = await setup(false);
+
+    expect(deviceSet).toHaveBeenCalledWith(1, null);
+    expect(mode.peekPending(1)?.width).toBe(390);
+
+    deviceSet.mockClear();
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+    expect(deviceSet).toHaveBeenCalledWith(1, 390);
+    detach();
   });
 });
 

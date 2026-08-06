@@ -27,10 +27,11 @@ export type SentinelScope =
   | { kind: "frame"; frameId: number; documentId?: string };
 
 export function resolveSentinelTargets(args: {
-  deviceTree: string[];
+  deviceTree: string[] | null;
   scope: SentinelScope;
 }): SentinelTarget {
   const { deviceTree, scope } = args;
+  if (deviceTree == null) return { kind: "none" };
   const deviceMode = deviceTree.length > 0;
 
   if (!deviceMode) {
