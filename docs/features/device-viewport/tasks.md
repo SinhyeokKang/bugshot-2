@@ -252,7 +252,7 @@
   - [ ] `a.com` → `www.a.com`처럼 same-site이면서 cross-origin인 이동은 handoff로 간다 (판정이 site가 아니라 origin이다)
   - [ ] binding 확정 뒤의 `onErrorOccurred(래퍼 frameId)`도 잡혀 복구 경로로 간다 (감시창 밖 차단)
   - [ ] arm 창이 닫힌 상태에서는 top의 자식 커밋을 잠정 래퍼로 잡지 않는다 (일반 iframe 오탐 차단)
-  - [ ] 성공 신호(`frameReady`/`onCommitted`)와 차단 신호(`onErrorOccurred`/타임아웃)가 각각 `device.frameLoaded`/`device.frameBlocked` 하나씩만 발화한다 (중복 push로 롤백과 활성화가 경쟁하지 않는다)
+  - [ ] 판정 신호 6개가 각각 `frameLoaded`/`frameBlocked`/`handoff` 중 **정확히 하나만** 발화한다(arm 닫힘 상태의 `frameReady`는 무발화). 중복 push로 롤백과 활성화가 경쟁하지 않는다
   - [ ] same-origin redirect가 `frameBlocked`로 오판되지 않는다
   - [ ] `listTabDocuments`가 모드 OFF에서 `deviceTree: []`를 반환한다 (Task 5 게이트가 기존 broadcast 경로로 떨어지는 조건)
 
@@ -328,7 +328,7 @@
 | `usePickerMessages.ts` | `cropViewport ≠ metaViewport`일 때 크롭은 `cropViewport`, 메타는 `metaViewport`. `getTopViewport`가 `null`이면 `cropViewport` 폴백 |
 | `area-select.ts` | 래퍼 유/무에 따른 rect 분기(`x > 0` 포함), 드래그 클램핑, `viewport`는 항상 top |
 | `DeviceViewportBar.tsx` (jsdom) | 초과 비활성, 잠금, busy 접근성, `aria-disabled` 클릭·키보드 우회 차단, `tabId=null`·미지원 탭 미렌더 |
-| background device-frame coordinator | storage 복원 순서 큐, **모드 OFF에서 `isTopLikeFrame` ≡ `frameId === 0`**(prd 목표 6의 유일한 유닛 그물), frameId 지속/documentId 교체, parent 계보, `listTabDocuments`의 `all`/`deviceTree` 분리, arm 창 안/밖 잠정 등록 판정, 성공·차단 4신호 → push 1회, OFF/top navigation cleanup |
+| background device-frame coordinator | storage 복원 순서 큐, **모드 OFF에서 `isTopLikeFrame` ≡ `frameId === 0`**(prd 목표 6의 유일한 유닛 그물), frameId 지속/documentId 교체, parent 계보, `listTabDocuments`의 `all`/`deviceTree` 분리, arm 창 안/밖 잠정 등록 판정, 판정 신호 6개(frameReady×arm개폐 2 · onCommitted×origin 2 · onErrorOccurred · 타임아웃) → push 3종 중 정확히 1회 또는 무발화, OFF/top navigation cleanup |
 | `settings-ui-store.ts` | version 9 → 10 마이그레이션에서 `deviceModeWarned` 기본값 주입 |
 
 ### e2e 시나리오

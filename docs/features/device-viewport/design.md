@@ -59,7 +59,7 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
 | `src/sidepanel/tabs/DraftingPanel.tsx:576-678` | `ReproEnvironmentSection` | 모드 ON 읽기전용 인디케이터 1개. `device.state.width != null`에서 파생하므로 전역 상태를 안 만든다 |
 | `src/sidepanel/tabs/IssueTab.tsx:705-726` | `SessionExpiredDialog` — body가 `issue.sessionExpired.body` 고정 | handoff로 뜬 경우 body만 디바이스 모드 문구로 분기. 컴포넌트·`sessionExpired` 플래그·`onConfirm={() => reset()}`은 무변경 |
 | `src/sidepanel/App.tsx:362-376` | `iframeUnsupported` 다이얼로그(`:367`이 body) | 모드 ON이면 body 문구를 `app.iframeUnsupported.bodyDeviceMode`로 교체 |
-| `src/background/index.ts:120`·`:123`·`:145-186` | `onBeforeNavigate`/`onCommitted`의 frameId 게이트 + `navUrlPromise` | 아래 "래퍼 내부 네비게이션" 절 — 두 분기를 모두 태우고 `navUrlPromise` 키를 `tabId:frameId`로 |
+| `src/background/index.ts:120`·`:123`·`:145-186` | `onBeforeNavigate`/`onCommitted`의 frameId 게이트 + `navUrlPromise` | 아래 "래퍼 내부 same-origin 네비게이션" 절 — 두 분기를 모두 태우고 `navUrlPromise` 키를 `tabId:frameId`로 |
 | `src/background/tab-bindings.ts` | — | frameId/documentId binding의 session 보존·복구 + parent 계보 조회 + document 열거 |
 | `src/types/messages.ts`·`bgRequestTypes.ts` | `BgRequest` union + `BG_REQUEST_TYPES` 화이트리스트 | `device.arm`·`device.documents` 2종을 화이트리스트에 등록. **`device.frameReady`는 이 게이트를 통과 못 하고** 전용 push 리스너로 받는다 — 아래 절 참조. background→사이드패널 push `device.frameLoaded`/`device.frameBlocked`/`device.handoff` 3종도 추가 |
 | `src/types/picker.ts` | `PickerMessage` union | `device.*` 메시지 **6종** 추가(수신 3 + push 3) |
