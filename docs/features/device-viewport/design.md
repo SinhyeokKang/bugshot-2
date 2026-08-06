@@ -60,7 +60,7 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
 | `src/sidepanel/App.tsx:362-376` | `iframeUnsupported` 다이얼로그(`:367`이 body) | 모드 ON이면 body 문구를 `app.iframeUnsupported.bodyDeviceMode`로 교체 |
 | `src/background/index.ts:120`·`:123`·`:145-186` | `onBeforeNavigate`/`onCommitted`의 frameId 게이트 + `navUrlPromise` | 아래 "래퍼 내부 네비게이션" 절 — 두 분기를 모두 태우고 `navUrlPromise` 키를 `tabId:frameId`로 |
 | `src/background/tab-bindings.ts` | — | frameId/documentId binding의 session 보존·복구 + parent 계보 조회 + document 열거 |
-| `src/types/messages.ts`·`bgRequestTypes.ts` | `BgRequest` union + `BG_REQUEST_TYPES` 화이트리스트 | `device.arm`·`device.documents` 2종을 화이트리스트에 등록. **`device.frameReady`는 이 게이트를 통과 못 하고** 전용 push 리스너로 받는다 — 아래 절 참조. background→사이드패널 push `device.frameLoaded`/`device.frameBlocked` 2종도 추가 |
+| `src/types/messages.ts`·`bgRequestTypes.ts` | `BgRequest` union + `BG_REQUEST_TYPES` 화이트리스트 | `device.arm`·`device.documents` 2종을 화이트리스트에 등록. **`device.frameReady`는 이 게이트를 통과 못 하고** 전용 push 리스너로 받는다 — 아래 절 참조. background→사이드패널 push `device.frameLoaded`/`device.frameBlocked`/`device.handoff` 3종도 추가 |
 | `src/types/picker.ts` | `PickerMessage` union | `device.*` 메시지 3종 추가 |
 | `src/i18n/namespaces/app.ts`·`issue.ts` | ko/en 사전 | 신규 키(ko/en 동시) |
 
@@ -166,7 +166,7 @@ DeviceViewportBar 마운트
 
 ### 메시지 (`src/types/picker.ts`)
 
-`PickerMessage`에 **6종**을 더한다(수신 3 + push 3). 이 union은 이미 양방향이 섞여 있으므로(`types/picker.ts:131-136`이 push 타입) 컨벤션에 맞고, 응답 타입만 union 밖 별도 인터페이스로 둔다(`PrepareCaptureResponse` 선례). 여기에 더해 background 경유 4종(BgRequest 2 + push 2)이 `types/messages.ts`에 붙는다.
+`PickerMessage`에 **6종**을 더한다(수신 3 + push 3). 이 union은 이미 양방향이 섞여 있으므로(`types/picker.ts:131-136`이 push 타입) 컨벤션에 맞고, 응답 타입만 union 밖 별도 인터페이스로 둔다(`PrepareCaptureResponse` 선례). 여기에 더해 background 경유 **5종**(BgRequest 2 + push 3)이 `types/messages.ts`에 붙는다.
 
 ```ts
 // 사이드패널 → top 프레임 (frameId 0 지정 송신)
@@ -212,7 +212,7 @@ export interface DeviceDocumentsResponse {
 
 **배선 제약 4개** — 전부 기존 코드가 강제한다.
 
-1. **`device.set`은 반드시 비동기 응답이다.** mount 로드 대기(≤3s)가 있으므로 `case`에서 `void (async () => { … sendResponse(res) })(); return true;` 형태여야 한다(유일한 선례 `picker.collectTokens` `picker.ts:236-247`). `break`로 떨어뜨리면 스위치 밖 `:341`의 `sendResponse({ok:true})`가 먼저 나가고 두 번째 응답이 "message port closed"로 죽는다.
+1. **`device.set`은 비동기 응답이다.** mount 자체는 동기지만 `width: null`(전체 복귀)이 `location.reload()`까지 가므로, **reload보다 먼저 `sendResponse`가 나가야 한다** — 문서가 갈리면 응답 포트가 죽어 호출부가 전달 실패(`undefined`)로 읽는다. `case`에서 `void (async () => { … sendResponse(res) })(); return true;` 형태여야 한다(유일한 선례 `picker.collectTokens` `picker.ts:236-247`). `break`로 떨어뜨리면 스위치 밖 `:341`의 `sendResponse({ok:true})`가 먼저 나가고 두 번째 응답이 "message port closed"로 죽는다.
 2. **각 case 첫 줄에 `if (window !== window.top) return;`**(선례 `annotation.show/setTool/hide` `picker.ts:321,325,334`). frameId 0 지정 송신이면 이론상 불필요하지만, 한 번이라도 broadcast 경로가 섞이면 래퍼가 같은 메시지에 두 번째 응답을 쏜다.
 3. **`send`는 export되지 않는다**(`picker-control.ts:105`, 모듈 내부 전용). `sendPickerTop`을 picker-control 안에 두고 `deviceSet`/`deviceState`/`deviceWatch` export 래퍼를 노출한다(현행 `navigatePicker`·`prepareCapture` 패턴).
 4. **`send`는 전달 실패를 `undefined`로 삼킨다**(`:114-116`). 호출부는 `undefined`(content script 미도달)와 `{ok:false}`(XFO 차단)를 **구분해서** 다뤄야 한다 — `ok === false`만 보면 `undefined`가 성공으로 새어나간다.
@@ -225,13 +225,13 @@ export interface DeviceDocumentsResponse {
 
 `deviceFrameByTab`의 권위값은 `chrome.storage.session`에 `{ frameId, documentId }`로 보존하고 메모리 Map은 복제 캐시로만 쓴다. Chrome은 frame 생애 동안 navigation을 넘어 `frameId`를 유지하고 문서가 바뀔 때 `documentId`를 교체하므로, 등록 뒤의 same-origin redirect·링크 이동을 DOM 접근 없이 추적한다. SW 시작 시 복원 promise를 만들고 `webNavigation` 처리를 탭별 순서 큐에서 그 promise 뒤에 연결한다. 성능보다 정확성을 우선해 복구 전 이벤트를 동기 기본값으로 판정하지 않는다. top `onCommitted`, 탭 제거, 명시적 OFF에서는 저장값과 Map을 함께 지운다.
 
-**`chrome.storage.session`이 견디는 건 SW hibernation까지다.** 확장 reload·업데이트에서는 session storage가 비워지고, 같은 사건으로 content script도 전부 orphan이 된다 — 래퍼는 페이지에 남아 있는데 binding은 사라진 상태다. cross-origin 문서에서는 `window.frameElement`가 `null`이라 `device.frameReady` 자가 재발화도 불가능하므로, **재등록이 아니라 재수립으로 복구한다**: 사이드패널이 마운트 시 `device.state`(페이지에 래퍼 있음)와 `device.documents`(binding 없음)가 엇갈리면 같은 폭으로 `device.set`을 다시 보내 래퍼를 재생성한다. 확장 reload면 어차피 페이지 쪽 picker·레코더가 전부 죽어 재로드가 필요하므로 이 대가는 이미 치르는 것이고, "페이지 DOM이 단일 출처"와도 어긋나지 않는다.
+**`chrome.storage.session`이 견디는 건 SW hibernation까지다.** 확장 reload·업데이트에서는 session storage가 비워지고, 같은 사건으로 content script도 전부 orphan이 된다 — 래퍼는 페이지에 남아 있는데 binding은 사라진 상태다. **살아 있는 스크립트가 없어 `device.frameReady` 자가 재발화가 불가능하므로**(래퍼가 same-origin이라 `frameElement`는 읽히지만, 그걸 읽어줄 코드가 죽었다) 재등록이 아니라 **재수립으로 복구한다**: 사이드패널이 마운트 시 `device.state`(페이지에 래퍼 있음)와 `device.documents`(binding 없음)가 엇갈리면 같은 폭으로 `reestablish`를 부른다(아래 "재수립 계약"의 두 번째 호출 지점). 확장 reload면 어차피 페이지 쪽 picker·레코더가 전부 죽어 재로드가 필요하므로 이 대가는 이미 치르는 것이다.
 
 ### 래퍼 registry 등록 (위험 8의 실제 배선)
 
 `picker.start`는 **broadcast 1회뿐이고 재시도가 없다** — 그 시점에 리스너가 붙어 있는 프레임에만 배달되므로 **이후 생성된 프레임에는 절대 도달하지 않는다**. `ensureContentScript`의 ping도 `{frameId: 0}` 고정(`picker-control.ts:25`)이라 래퍼에 content script가 안 붙었어도 통과하고 재주입이 안 돈다. 등록에 실패하면 래퍼가 `isRegisteredChildFrame`을 통과 못 해 클릭이 `picker.ts:1080-1094`의 거부 경로로 가고, **모드 ON에서 아무 요소도 못 고르는** 상태가 된다.
 
-`phase !== "idle"` 잠금 덕에 mount는 항상 `picker.start`보다 앞서므로 순서 자체는 성립하지만, mount와 래퍼 content script의 `onMessage` 등록(document_idle) 사이에 창이 남는다. **`device.frameLoaded` 확정 직후 래퍼 frameId를 향해 `picker.start`를 `res?.ok`까지 재시도 송신한다** — 정확히 `restartPickerInFrame`(`picker-control.ts:286-303`, 10회×200ms) 패턴이다. 래퍼 frameId는 `device.frameReady`(same-origin) 또는 arm 창의 잠정 등록(즉시 redirect되는 사이트)으로 확정 시점에 이미 알려져 있다 — `device.set` 응답만 보고 쏘면 redirect 경로에서 타깃이 없다.
+**사용자 전이에서는** `phase !== "idle"` 잠금 덕에 mount가 항상 `picker.start`보다 앞서므로 순서 자체는 성립한다. **재수립은 그 보장이 없다** — 잠금을 우회하므로 picking 도중에 래퍼가 다시 서고, 그때 `picker.start`는 이미 지나간 뒤다. 어느 경우든 mount와 래퍼 content script의 `onMessage` 등록(document_idle) 사이에 창이 남는다. **`device.frameLoaded` 확정 직후 래퍼 frameId를 향해 `picker.start`를 `res?.ok`까지 재시도 송신한다** — 정확히 `restartPickerInFrame`(`picker-control.ts:286-303`, 10회×200ms) 패턴이다. 래퍼 frameId는 `device.frameReady`(same-origin) 또는 arm 창의 잠정 등록(즉시 redirect되는 사이트)으로 확정 시점에 이미 알려져 있다 — `device.set` 응답만 보고 쏘면 redirect 경로에서 타깃이 없다.
 
 **broadcast는 절대 쓰지 않는다** — `setFrameToken`(`frame-geometry.ts:73`)이 `picker.start`마다 `childFrames` WeakSet을 새 인스턴스로 갈아치우므로, 실수로 broadcast하면 top registry가 통째로 비워져 방금 등록된 래퍼가 날아간다.
 
@@ -407,7 +407,17 @@ export interface DeviceViewportState {
 export function useDeviceViewport(tabId: number | null): DeviceViewportState;
 ```
 
-`select()`가 하는 일(순서 고정):
+**`select()`는 세 경로로 갈린다.** 이 분기를 안 두면 폭 전환이 깨진다:
+
+| 전이 | 경로 | 왜 |
+|---|---|---|
+| `전체` → 폭 (OFF→ON) | 아래 전체 순서 | 래퍼가 새로 로드된다 |
+| 폭 → 다른 폭 (ON→ON) | **경량 경로** — `device.set { width }` 하나로 끝 | `mountDeviceFrame`이 기존 노드의 폭만 바꾸고 **재로드가 없다** |
+| 폭 → `전체` (ON→OFF) | pending 폐기 → `device.set { width: null }`(unmount + reload) | 진입과 대칭 |
+
+**폭 갱신에 `device.arm`·`frameLoaded` 대기·레코더 전환을 붙이면 안 된다.** 재로드가 없으니 `frameReady`도 `onCommitted`도 오지 않고, **3초 무신호 → 차단 판정 → 롤백**으로 끝난다 — 390에서 768을 누르면 모드가 통째로 풀리는 증상이다. 로그도 비우지 않는다: 같은 문서가 리사이즈된 것뿐이라 실제 브라우저 창 크기 변경과 동치이고, 경계를 그으면 오히려 연속된 디버깅 세션이 끊긴다.
+
+아래는 **OFF→ON 경로**의 순서다(고정):
 
 1. `locked || busy`면 **아무것도 하지 않고** 즉시 반환한다(카운터도 안 건드린다)
 2. 통과했으면 루프 카운터를 0으로 리셋한다 — 사용자 조작이 "정상 사용 중" 신호다
