@@ -158,7 +158,7 @@
 ### Task 7: 세그먼티드 컨트롤 UI
 
 - **변경 대상**: `src/sidepanel/components/DeviceViewportBar.tsx` (신규), `src/sidepanel/components/__tests__/DeviceViewportBar.test.tsx` (신규, jsdom)
-- **작업 내용**: `Tabs` + `TabsList grid grid-cols-4 h-9`(선례 `StyleEditorPanel.tsx:239` — `TabsContent` 없이 값으로 구동). `ToggleGroup`이 아니다. 첫 세그먼트 라벨 `전체`/`Full`(`Monitor` 아이콘, 데스크톱 뷰포트 겸용). **각 세그먼트는 아이콘 + 폭 숫자 병기** — 아이콘만 두면 기기 에뮬레이션으로 오해된다. 초과·잠금은 `aria-disabled`(never `disabled` — 툴팁이 죽는다). Radix의 키보드 활성화를 막도록 `onValueChange`와 `select()` 양쪽에서 locked/busy/초과 값을 거부한다. `busy`면 선택 세그먼트에 `Loader2 motion-reduce:animate-none`, 행에 `aria-busy`와 live status를 둔다. `data-testid`: 행 `device-viewport-bar`, 세그먼트 `device-preset-full`·`device-preset-390`·….
+- **작업 내용**: **자기 `<Tabs value onValueChange>` 래퍼 + `TabsList grid grid-cols-4 h-9`**(선례 `StyleEditorPanel.tsx:234-249` — `TabsContent` 없이 값으로 구동). `ToggleGroup`이 아니고, **`CollapsingTabsList`도 아니다**. 첫 세그먼트 라벨 `전체`/`Full`(`Monitor` 아이콘, 데스크톱 뷰포트 겸용). **각 세그먼트는 아이콘 + 폭 숫자 병기** — 아이콘만 두면 기기 에뮬레이션으로 오해된다. 초과·잠금은 `aria-disabled`(never `disabled` — 툴팁이 죽는다). Radix의 키보드 활성화를 막도록 `onValueChange`와 `select()` 양쪽에서 locked/busy/초과 값을 거부한다. `busy`면 선택 세그먼트에 `Loader2 motion-reduce:animate-none`, 행에 `aria-busy`와 live status를 둔다. `data-testid`: 행 `device-viewport-bar`, 세그먼트 `device-preset-full`·`device-preset-390`·….
 - **검증**:
   - [ ] `availableWidth=865`에서 `device-preset-1024`가 `aria-disabled="true"`, 나머지는 아니다
   - [ ] `availableWidth`가 865→1200으로 바뀌면 컴포넌트 재마운트·사용자 조작 없이 watch 상태 갱신으로 `1024`가 활성화된다
@@ -167,6 +167,8 @@
   - [ ] 오케스트레이터 `select()`를 직접 호출해도 locked/busy/초과 값은 거부된다
   - [ ] `busy=true`에서 스피너·`aria-busy`·live status가 뜨고 행 전체가 `aria-disabled`다
   - [ ] `tabId=null` 또는 미지원 탭이면 `null`을 반환한다
+  - [ ] **`<Tabs>` 래퍼가 있다** — `TabsList`만 렌더하면 `DebugTab`의 바깥 `Tabs`(`:67`) 컨텍스트를 잡아 세그먼트 클릭이 `setSub("390")`으로 새어 서브탭이 빈 값으로 전환된다(에러 없는 조용한 오동작)
+  - [ ] `CollapsingTabsList`를 쓰지 않는다 — 라벨 일괄 접힘이 발동하면 폭 숫자가 사라지고 아이콘만 남아 prd 원칙이 깨진다
   - [ ] 320/360/400px 폭에서 `1024` 라벨이 아이콘과 함께 안 잘리고 줄바꿈되지 않는다
   - [ ] 아이콘이 `aria-hidden`이고 접근명은 폭을 읽는 `aria-label`이다 (아이콘이 접근명을 대체하지 않는다)
 
