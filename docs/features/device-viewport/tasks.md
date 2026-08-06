@@ -4,7 +4,7 @@
 
 - **신규 권한 0.** `<all_urls>` content_scripts + `scripting`으로 전부 커버된다. `manifest.config.ts`를 건드리지 않는다.
 - **신규 env 0.** 외부 요청 0.
-- **신규 의존성 0.** `ToggleGroup`이 `src/components/ui/`에 없으면 `npx shadcn@latest add toggle-group`으로 추가한다(직접 스타일링 금지).
+- **신규 의존성 0.** 세그먼티드 컨트롤은 기존 `Tabs`/`TabsList`를 쓴다(선례 `StyleEditorPanel.tsx:239`). shadcn 신규 설치 없음.
 - 착수 전 `docs/POSTMORTEM.md`를 `iframe`·`frameId`·`pre-arm`·`캡처 타이밍`으로 grep해 과거 함정을 소환한다. 이 기능은 회귀 밀집 구간 3개를 전부 스친다.
 - `docs/ARCHITECTURE.md`의 "등록 핸드셰이크"·"캡처 3축" 절을 읽는다.
 
@@ -26,34 +26,39 @@
 ### Task 2: 래퍼 DOM 모듈
 
 - **변경 대상**: `src/content/device-frame.ts` (신규), `src/content/__tests__/device-frame.test.ts` (신규, jsdom)
-- **작업 내용**: `DEVICE_FRAME_ID`·`DEVICE_STYLE_ID` 상수, `currentDeviceWidth`·`deviceFrameRect`·`availableViewport`·`mountDeviceFrame`·`unmountDeviceFrame`. 은닉은 스타일시트 한 장(design.md 참조). 래퍼는 `document.body` 직속, `src = location.href`.
+- **작업 내용**: `DEVICE_FRAME_ID`·`DEVICE_STYLE_ID` 상수, `currentDeviceWidth`·`deviceFrameRect`·`availableViewport`·`clampToDeviceFrame`·`mountDeviceFrame`·`unmountDeviceFrame`. 은닉은 스타일시트 한 장이고 여백 색은 `prefers-color-scheme` 2색(design.md 참조 — `#171717` 고정 금지). 래퍼는 `document.body` 직속, `src = location.href`.
 - **검증**:
   - [ ] `mountDeviceFrame(390)` 후 `document.getElementById(DEVICE_FRAME_ID)`가 `document.body`의 직속 자식이다
   - [ ] 래퍼의 `src`가 `location.href`다 (`srcdoc`·`about:blank`가 아니다)
-  - [ ] `unmountDeviceFrame()` 후 `<style>`·iframe이 둘 다 제거되고, 원본 요소의 인라인 `style` 속성이 mount 이전과 **바이트 단위로 동일**하다
+  - [ ] `unmountDeviceFrame()` 후 `<style>`·iframe이 둘 다 제거되고, **원본 요소의 인라인 `style` 속성이 애초에 한 번도 변경되지 않았다**(은닉이 스타일시트 한 장이므로 저장·복원 자체가 없다 — 이 항목은 "복원이 정확한가"가 아니라 "건드리지 않았는가"를 본다)
   - [ ] `unmountDeviceFrame()`을 2회 호출해도 throw하지 않는다 (멱등)
   - [ ] 래퍼가 있는 상태에서 `mountDeviceFrame(768)`을 호출하면 iframe 노드가 교체되지 않고 폭만 바뀐다
   - [ ] `currentDeviceWidth()`가 mount 전 `null`, mount 후 `390`
+  - [ ] 주입 CSS에 `@media (prefers-color-scheme: dark)` 블록이 있고, 라이트/다크 배경값이 서로 다르다
+  - [ ] `clampToDeviceFrame`: 래퍼 밖으로 완전히 벗어난 rect, 걸친 rect, 안에 든 rect, `frame === null` 4케이스
 
 > 로드 검증(XFO/CSP)은 jsdom에서 재현 불가 — Task 15의 e2e가 유일한 그물이다.
 
 ### Task 3: 메시지 타입과 picker 핸들러
 
-- **변경 대상**: `src/types/picker.ts`, `src/content/picker.ts`
-- **작업 내용**: `device.set`·`device.state`·`device.watch` 수신 3종과 `device.availableChanged`·`device.frameReady` 발신 2종을 `PickerMessage`에 추가. `picker.ts:204`의 `handlePickerMessage` switch에 케이스를 얹되 **모두 `window === window.top` 게이트**를 건다(picker는 `all_frames`라 래퍼 안에서도 돈다). `device.watch`는 top의 `resize` 리스너를 켜고 끈다. 별도로 초기화 시점에 `window.frameElement?.id === DEVICE_FRAME_ID`면 `postToRuntime({ type: "device.frameReady" })`.
+- **변경 대상**: `src/types/picker.ts`, `src/content/picker.ts`, `src/sidepanel/picker-control.ts`
+- **작업 내용**: `PickerMessage`에 **총 5종** 추가 — 수신 3종(`device.set`·`device.state`·`device.watch`) + push 2종(`device.availableChanged`·`device.frameReady`). `picker.ts:204`의 `handlePickerMessage` switch에 케이스를 얹되 **각 case 첫 줄에 `if (window !== window.top) return;`**(picker는 `all_frames`라 래퍼 안에서도 돈다. 선례 `picker.ts:321,325,334`). `device.watch { on: false }`가 unwatch다 — 별도 타입을 두지 않는다. 별도로 초기화 시점에 `window.frameElement?.id === DEVICE_FRAME_ID`면 `postToRuntime({ type: "device.frameReady" })`. `send`는 미export이므로 picker-control 안에 `sendPickerTop`을 두고 `deviceSet`/`deviceState`/`deviceWatch` export 래퍼를 노출한다.
 - **검증**:
   - [ ] `pnpm typecheck` green (union 누락 없음)
-  - [ ] `device.set`이 `sendResponse` 비동기 응답을 위해 `return true`한다
-  - [ ] 래퍼 프레임에서 `device.set`을 받아도 아무것도 하지 않는다
+  - [ ] `device.set`이 `void (async () => {…sendResponse(res)})(); return true;` 형태다 — `break`로 떨어뜨리면 `picker.ts:341`의 `sendResponse({ok:true})`가 먼저 나가 두 번째 응답이 "message port closed"로 죽는다
+  - [ ] 래퍼 프레임에서 `device.set`을 받아도 아무것도 하지 않고 **응답도 안 한다**(이중 응답 방지)
+  - [ ] 호출부가 `undefined`(전달 실패)와 `{ok:false}`(XFO 차단)를 구분한다 — `send`가 실패를 `undefined`로 삼키므로(`picker-control.ts:114-116`) `ok === false`만 보면 전달 실패가 성공으로 샌다
 
-### Task 4: `getTopViewport`를 래퍼 인식으로 교체
+### Task 4: `getTopViewport`를 래퍼 인식으로 교체 + 영상·리플레이 편입
 
-- **변경 대상**: `src/sidepanel/picker-control.ts:809-824`, `src/sidepanel/__tests__/` 동기화 테스트
-- **작업 내용**: 주입 `func`이 `document.getElementById("__bugshot_device_frame__")`를 먼저 보고, 있으면 `clientWidth/clientHeight`를 반환. 프레임 id는 **인라인 리터럴**이어야 한다(클로저가 안 살아남는다). 함수 주석을 "브라우저 뷰포트" → "캡처 대상 뷰포트"로 갱신.
+- **변경 대상**: `src/sidepanel/picker-control.ts:811-824`, `src/sidepanel/video-recorder.ts:111-117`, `src/sidepanel/30s-replay/use-30s-replay.ts:153`, `src/sidepanel/__tests__/` 동기화 테스트
+- **작업 내용**: 주입 `func`이 `document.getElementById("__bugshot_device_frame__")`를 먼저 보고, 있으면 `clientWidth/clientHeight`를 반환. 프레임 id는 **인라인 리터럴**이어야 한다(클로저가 안 살아남는다). 함수 주석을 "브라우저 뷰포트" → "캡처 대상 뷰포트"로 갱신. **영상·30s Replay는 `getTopViewport`를 안 쓰고 `chrome.tabs.get(tabId)`의 `tab.width/height`를 쓰므로 함께 교체**한다 — 안 하면 모드 ON에서 영상 리포트의 `Viewport`만 브라우저 폭으로 남는다.
 - **검증**:
   - [ ] 인라인 리터럴이 `device-frame.ts`의 `DEVICE_FRAME_ID`와 같음을 단언하는 테스트가 있다 (`func.toString()`에 상수가 포함되는지)
-  - [ ] 주입 함수가 self-contained다 — 외부 변수를 참조하지 않는다
+  - [ ] 주입 함수가 self-contained다 — 외부 변수를 참조하지 않는다. **상수를 import하면 typecheck·유닛이 전부 green인데 런타임만 `ReferenceError`로 죽고 `picker-control.ts:820`의 catch가 그걸 삼켜 조용히 `null`로 폴백한다**
   - [ ] 모드 OFF에서 반환값이 이전과 동일 (`window.innerWidth/innerHeight`)
+  - [ ] `video-recorder`·`use-30s-replay`의 viewport 메타 소스가 `getTopViewport`다
+  - [ ] `getTopViewport`가 `null`을 반환할 때 두 곳 모두 기존 `chrome.tabs.get` 값으로 폴백한다 (host permission 실패 시 메타가 비지 않아야 한다)
 
 ### Task 5: 프레임 지정 레코더 정지
 
@@ -67,47 +72,58 @@
 ### Task 6: 전환 오케스트레이션 훅
 
 - **변경 대상**: `src/sidepanel/hooks/useDeviceViewport.ts` (신규)
-- **작업 내용**: design.md의 `select()` 7단계를 그대로 구현. 마운트 시 `device.state` 조회, `device.availableChanged` 구독. 최초 1회 경고 플래그는 `settings-ui-store`에 `deviceReloadWarned: boolean`.
+- **작업 내용**: design.md의 `select()` 7단계를 그대로 구현. 마운트 시 `device.state` 조회, `device.availableChanged` 구독. 최초 1회 경고 플래그는 `settings-ui-store`에 `deviceReloadWarned: boolean` — **version 9 → 10 bump + `migrateSettingsUi`(`settings-ui-store.ts:131-151`)에 등록**이 함께 가야 한다(선례 `:147` `autoReproPrefill`). 경고 문구는 **진입·해제 양방향 재로드**를 커버해야 한다. `전체` 복귀는 unmount 후 `location.reload()`까지 간다.
 - **검증**:
   - [ ] `locked`가 `phase !== "idle" || unsupported`로 파생된다
   - [ ] `select()`가 `syncAndSettleLogs` → store clear 3종 → `device.set` 순서를 지킨다 (순서가 바뀌면 떠나는 로그 꼬리를 잃는다)
   - [ ] `ok === false` 응답에서 상태가 `전체`로 되돌아가고 토스트가 뜬다
+  - [ ] **응답이 `undefined`(전달 실패)일 때도** 상태가 `전체`로 되돌아간다 — `ok === false`만 보면 샌다
+  - [ ] `select(null)`(전체 복귀)에서도 재로드가 일어나고 경고 대상이다
   - [ ] 언마운트 시 `device.watch { on: false }`를 보낸다
+  - [ ] persist version이 10이고 기존 version 9 스냅샷에서 `deviceReloadWarned`가 기본값으로 채워진다
+  - [ ] **mount 성공 직후 래퍼 frameId를 향해 `picker.start`를 `res?.ok`까지 재시도 송신한다**(`restartPickerInFrame` `picker-control.ts:286-303` 패턴, 10회×200ms). `picker.start`는 broadcast 1회뿐이라 사후 생성 프레임에 안 닿고 `ensureContentScript`의 ping은 frameId 0만 보므로(`:25`) 자가복구도 안 걸린다 — 등록에 실패하면 모드 ON에서 아무 요소도 못 고른다
+  - [ ] 그 재시도가 **broadcast가 아니다.** `setFrameToken`(`frame-geometry.ts:73`)이 `picker.start`마다 `childFrames` WeakSet을 갈아치우므로 broadcast하면 방금 등록된 래퍼가 날아간다
 
 ### Task 7: 세그먼티드 컨트롤 UI
 
 - **변경 대상**: `src/sidepanel/components/DeviceViewportBar.tsx` (신규), `src/sidepanel/components/__tests__/DeviceViewportBar.test.tsx` (신규, jsdom)
-- **작업 내용**: shadcn `ToggleGroup type="single"`, `grid grid-cols-5 h-9 rounded-lg bg-muted p-1`. 첫 세그먼트 라벨 `전체`/`Full`. 초과·잠금은 `aria-disabled`(never `disabled` — 툴팁이 죽는다). `data-testid`: 행 `device-viewport-bar`, 세그먼트 `device-preset-full`·`device-preset-390`·….
+- **작업 내용**: `Tabs` + `TabsList grid grid-cols-5 h-9`(선례 `StyleEditorPanel.tsx:239` — `TabsContent` 없이 값으로 구동). `ToggleGroup`이 아니다. 첫 세그먼트 라벨 `전체`/`Full`. 초과·잠금은 `aria-disabled`(never `disabled` — 툴팁이 죽는다). `busy`면 선택 세그먼트에 `Loader2 animate-spin` + 행 전체 `aria-disabled`. 세그먼트 `aria-label`은 숫자가 아니라 "너비 390픽셀"류. `data-testid`: 행 `device-viewport-bar`, 세그먼트 `device-preset-full`·`device-preset-390`·….
 - **검증**:
   - [ ] `availableWidth=865`에서 `device-preset-1024`가 `aria-disabled="true"`, 나머지는 아니다
   - [ ] `availableWidth`가 865→1200으로 바뀌면 재렌더 없이 `1024`가 활성화된다
   - [ ] `locked=true`에서 모든 세그먼트가 `aria-disabled`다
   - [ ] `aria-disabled` 세그먼트를 클릭해도 `select`가 호출되지 않는다
-  - [ ] `tabId=null`이면 `null`을 반환한다
+  - [ ] `busy=true`에서 스피너가 뜨고 행 전체가 `aria-disabled`다
+  - [ ] `tabId=null`이면 `null`을 반환한다. **미지원 탭에서는 `null`이 아니라 행 유지 + 전체 `aria-disabled` + 사유 툴팁**이다(관용구 `IssueTab.tsx:352-358` — 숨기면 브라우징 중 행이 생겼다 사라진다)
+  - [ ] **폭 3점 — 320/360/400px 컨테이너에서 `1024` 라벨이 잘리지도 넘치지도 않는다.** 320px에서 세그먼트당 텍스트 가용 폭이 ≈28.8px, `1024`가 ≈31px라 gap·패딩을 안 줄이면 넘친다
 
 ### Task 8: DebugTab 배선
 
-- **변경 대상**: `src/sidepanel/tabs/DebugTab.tsx:73-92`
-- **작업 내용**: 서브탭 바 `<div>` 다음, `<TabsContent>` 앞에 `sub === "issue" && !hideSubTabs && !unsupported`일 때만 `<DeviceViewportBar tabId={tabId} />` 행을 렌더.
+- **변경 대상**: `src/sidepanel/tabs/DebugTab.tsx:73-94`, `src/sidepanel/tabs/DraftingPanel.tsx:576-678`
+- **작업 내용**: 서브탭 바 wrapper `<div>`(`CollapsingTabsList`가 74-93) **안쪽에 `mt-2`로** `<DeviceViewportBar tabId={tabId} />`를 넣는다. 별도 bordered 행(`px-4 py-4 border-b`)을 만들면 상단 크롬이 138→207px가 되는데, idle 화면은 `PageScroll`을 안 쓰고 `justify-center`(`IssueTab.tsx:308`) + 조상 `overflow-hidden`(`App.tsx:299`)이라 **밀리는 게 아니라 위아래가 잘린다**. 조건은 `sub === "issue" && !hideSubTabs`.
+  별도로 `DraftingPanel`의 재현 환경 근처에 **모드 ON 읽기전용 인디케이터 1개**를 넣는다 — `hideSubTabs`(styling·drafting·previewing·done) 때문에 캡처 직후부터 제출까지 뷰포트 행이 사라져 ON 신호가 0이 되는 구간을 메운다. `getTopViewport` 결과에서 파생하고 전역 상태를 만들지 않는다.
 - **검증**:
   - [ ] 콘솔·네트워크 서브탭으로 이동하면 행이 사라진다
-  - [ ] `phase`가 drafting이면 행이 사라진다 (`hideSubTabs`와 동일 조건)
-  - [ ] 미지원 탭에서 행이 렌더되지 않는다
+  - [ ] `phase`가 drafting이면 행이 사라진다 (`hideSubTabs`와 동일 조건) — 대신 작성 화면 인디케이터가 뜬다
+  - [ ] 미지원 탭에서 행이 **비활성 상태로 유지**된다 (Task 7 참조 — 미렌더가 아니다)
+  - [ ] 행 추가 후에도 idle 캡처 진입 화면의 본문·CTA·footer가 잘리지 않는다 (360px 높이 기준 육안 확인)
   - [ ] `pnpm test e2e` 아님 — 이 단계는 `IssueTab.test.tsx`/`DebugTab` 렌더 테스트로 확인
 
-### Task 9: 화면(뷰포트) 캡처 rect 보정
+### Task 9: 화면(뷰포트) 캡처 rect 보정 + 드래그 클램핑
 
-- **변경 대상**: `src/content/area-select.ts:114`, `src/content/__tests__/`
-- **작업 내용**: `selectFullViewport`의 rect를 `deviceFrameRect() ?? { x:0, y:0, width: innerWidth, height: innerHeight }`로. **`viewport`(두 번째 인자)는 top 그대로 둔다** — 크롭 배율 기준이라 바꾸면 크롭이 깨진다.
+- **변경 대상**: `src/content/area-select.ts:110-118`·`:200-216`, `src/content/__tests__/`
+- **작업 내용**: `selectFullViewport`의 rect(`:116`)를 `deviceFrameRect() ?? { x:0, y:0, width: innerWidth, height: innerHeight }`로. **스프레드 `{x:0,y:0,...viewport}`를 풀어야 한다** — 래퍼가 `justify-content:center`로 놓이므로 `x` 오프셋이 0이 아니다. 드래그 확정 rect(`:200-216`)는 `clampToDeviceFrame`으로 래퍼 영역 안에 가둔다. **`viewport`(`:114`)는 두 경로 모두 top 그대로 둔다** — 크롭 배율 기준이라 바꾸면 크롭이 ~3.9배 어긋난다.
 - **검증**:
   - [ ] 모드 OFF에서 rect가 `{0,0,innerWidth,innerHeight}`로 이전과 동일
-  - [ ] 모드 ON에서 rect가 래퍼의 `getBoundingClientRect()`와 일치
-  - [ ] `onSelected`에 넘기는 `viewport`가 두 경우 모두 `{innerWidth, innerHeight}`
+  - [ ] 모드 ON에서 rect가 래퍼의 `getBoundingClientRect()`와 일치하고 `x > 0`이다
+  - [ ] 모드 ON에서 래퍼 밖 여백까지 드래그한 rect가 래퍼 영역으로 클램핑된다
+  - [ ] 모드 OFF에서 드래그 rect가 클램핑 없이 이전과 동일하다
+  - [ ] `onSelected`에 넘기는 `viewport`가 네 경우 모두 `{innerWidth, innerHeight}`
 
 ### Task 10: 크롭 배율 viewport와 메타 viewport 분리
 
-- **변경 대상**: `src/sidepanel/capture.ts`, `src/sidepanel/hooks/usePickerMessages.ts:206-223`
-- **작업 내용**: `captureAndCrop(rect, cropViewport, metaViewport)`로 인자 추가. `picker.areaSelected` 수신부가 `metaViewport = await getTopViewport(tabId)`를 넘긴다. `captureAndInsertInline`도 동일 판단이 필요한지 확인 — 인라인 이미지는 본문 삽입용이라 메타를 안 쓰면 무변경.
+- **변경 대상**: `src/sidepanel/hooks/usePickerMessages.ts:206-223`·`:423` — **`capture.ts`가 아니다.** `captureAndCrop`은 이 파일의 모듈 프라이빗 함수이고(`capture.ts`의 export는 `cropImage`뿐) 호출부도 `:222` 한 곳이라 변경이 이 파일 안에서 끝난다.
+- **작업 내용**: `captureAndCrop(rect, cropViewport, metaViewport)`로 인자 추가. `picker.areaSelected` 수신부가 `metaViewport = await getTopViewport(tabId)`를 넘긴다. `captureAndInsertInline`(`:442`)은 `cropImage`만 쓰고 메타를 안 써서 무변경 — 두 함수 시그니처가 비대칭이 되므로 주석으로 이유를 남긴다.
 - **검증**:
   - [ ] `cropImage`의 스케일 계산이 `cropViewport`를 쓴다 (`img.naturalWidth / cropViewport.width`)
   - [ ] `onAreaCaptured`에 넘어가는 값이 `metaViewport`다
@@ -116,28 +132,37 @@
 
 ### Task 11: 페이지 전체 캡처 잠금
 
-- **변경 대상**: `src/sidepanel/tabs/IssueTab.tsx:552-563`
-- **작업 내용**: `capture-method-fullpage`에 `ariaDisabled={busy || deviceMode}`. 모드 ON이면 툴팁 문구를 `issue.capturing.method.fullPageDeviceLocked`로 교체하고 `onFullPage`를 조기 반환.
+- **변경 대상**: `src/sidepanel/tabs/IssueTab.tsx:552-561`
+- **작업 내용**: `capture-method-fullpage`의 `ariaDisabled={busy}`(`:554`)를 `{busy || deviceMode}`로. **`label`은 건드리지 않는다** — `TooltipIconButton.tsx:42,54`에서 `label` 하나가 `aria-label`과 툴팁을 겸하므로 문구를 갈면 접근명이 "페이지 캡처(디바이스 모드에서 잠김)"가 된다. 잠금 사유는 별도 `TooltipContent`로 붙인다(선례 `mode-freeform` `IssueTab.tsx:371-389`). `onFullPage`도 조기 반환.
 - **검증**:
   - [ ] 모드 ON에서 버튼이 `aria-disabled="true"`다
+  - [ ] 모드 ON/OFF 양쪽에서 버튼의 `aria-label`이 동일하다 (잠금 사유가 접근명을 오염시키지 않는다)
   - [ ] 모드 ON에서 클릭해도 `runScrollCapture`가 호출되지 않는다 (**"조용한 1타일"이 절대 발생하지 않는다** — 이 항목이 이 태스크의 존재 이유다)
   - [ ] 모드 OFF에서 동작·툴팁이 이전과 동일
 
 ### Task 12: 래퍼 frameId를 top처럼 취급
 
-- **변경 대상**: `src/background/tab-bindings.ts`, `src/background/index.ts:123`·`:145-163`, `src/types/messages.ts`
-- **작업 내용**: `deviceFrameByTab: Map<number, number>` + `setDeviceFrame`·`isTopLikeFrame`. `device.frameReady` 수신 시 `sender.frameId`로 등록, `onCommitted(frameId: 0)`과 `device.set { width: null }` 성공 시 해제. `onBeforeNavigate`의 `if (details.frameId !== 0) return`과 `onCommitted`의 frameId≠0 early return을 `isTopLikeFrame(tabId, frameId)`으로 교체.
+- **변경 대상**: `src/background/tab-bindings.ts`, `src/background/index.ts:120`·`:123`·`:145-186`, `src/types/messages.ts`, `src/background/bgRequestTypes.ts`
+- **작업 내용**:
+  - `deviceFrameByTab: Map<number, number>` + `setDeviceFrame`·`isTopLikeFrame`. **동기 Map으로 유지**한다 — 소비처가 리스너 최상단 동기 early return이라 `chrome.storage.session` 조회를 넣으면 `:125`의 `navUrlPromise.set` 즉시성과 `:164-173`의 순서 보장이 깨진다. SW hibernation으로 Map이 비면 `device.state`로 페이지에 되물어 복구한다(이유를 코드 주석으로 남긴다).
+  - `device.frameReady`는 **background에 push 전용 `chrome.runtime.onMessage` 리스너를 하나 더 달아** 받는다. `index.ts:188`의 `BG_REQUEST_TYPES` 화이트리스트가 막고(Asana 전량 차단 회귀 전례), `messages.ts:198`의 `handleMessage`는 `_sender`를 아예 안 읽는다.
+  - **`onCommitted`의 두 책임을 분리한다.** `frameCommitted` push는 **항상 실제 `details.frameId`로**(자식 분기 `:146-162`를 래퍼에도 그대로 태운다), `isTopLikeFrame`은 **로그 라이프사이클에만**(`:129-140` 3종 sync, `:174-185` logClear) 적용.
+  - `navUrlPromise`(`:120`) 키를 `${tabId}:${frameId}`로 확장하고, 래퍼의 prev URL은 `chrome.tabs.get`이 아니라 직전 `onCommitted` URL로 추적.
 - **검증**:
   - [ ] 모드 OFF에서 Map이 비어 있어 `isTopLikeFrame`이 `frameId === 0`과 동치다 (기존 동작 100% 보존)
   - [ ] 래퍼 안에서 cross-origin 이동 시 3종 `sync`가 발화한다
   - [ ] 래퍼 안에서 reload 시 `logClear`가 발화한다
   - [ ] top 탭이 다른 URL로 이동하면 Map 엔트리가 지워진다
-  - [ ] 일반 iframe(래퍼 아님)에서는 여전히 early return한다 — **`frameCommitted` 재발행 경로가 안 깨져야 한다**
+  - [ ] 일반 iframe(래퍼 아님)에서는 여전히 자식 분기로 간다 — **`frameCommitted` 재발행 경로가 안 깨져야 한다**
+  - [ ] **래퍼 커밋에서도 `frameCommitted`의 `frameId`가 0이 아니라 래퍼 frameId다.** `:170`의 하드코딩 `frameId: 0`이 래퍼 documentId를 0 슬롯에 쓰면(`usePickerMessages.ts:271`) 이후 진짜 top의 `picker.selected`/`cancelled`/`areaSelected`가 `isStalePickerDocument`에 걸려 전부 드롭된다 — 완전 무반응 회귀
+  - [ ] 래퍼 안에서 A→B→C로 연속 이동할 때 두 번째 판정의 `prev`가 A가 아니라 B다
+  - [ ] `device.frameReady`가 `BG_REQUEST_TYPES` 게이트에 막히지 않고 background에 도달한다
+  - [ ] SW를 강제 종료했다 깨워도 `isTopLikeFrame`이 래퍼를 다시 인식한다 (`device.state` 되묻기 복구)
 
 ### Task 13: 2-depth 안내 문구 분기
 
-- **변경 대상**: `src/sidepanel/App.tsx:362-372`
-- **작업 내용**: `useDeviceViewport(tabId).width != null`이면 body를 `app.iframeUnsupported.bodyDeviceMode`로 교체. content script 프로토콜·`messages.ts`의 `fire()` 변경 없음.
+- **변경 대상**: `src/sidepanel/App.tsx:362-376` (문구 교체 지점은 `:367`)
+- **작업 내용**: `useDeviceViewport(tabId).width != null`이면 body를 `app.iframeUnsupported.bodyDeviceMode`로 교체. content script 프로토콜·`messages.ts`의 `fire()` 변경 없음. `DeviceViewportBar`와 훅이 두 번 마운트되므로 `device.state` 중복 요청이 안 나게 확인한다.
 - **검증**:
   - [ ] 모드 OFF에서 다이얼로그 문구가 이전과 동일
   - [ ] 모드 ON에서 "디바이스 모드를 끄면 선택할 수 있습니다" 취지의 문구로 바뀐다
@@ -149,9 +174,12 @@
 - **작업 내용**: ko/en 동시 추가.
   - `issue.device.full` / `issue.device.w390`~`w1024`
   - `issue.device.tooltip.tooNarrow` (창이 좁아 사용 불가)
-  - `issue.device.tooltip.locked` (캡처·작성 중 전환 불가)
-  - `issue.device.reloadWarning.title` / `.body` / `.dontAskAgain`
+  - `issue.device.tooltip.locked` (캡처·녹화 중 전환 불가 — **drafting은 행이 안 보이므로 이 문구의 도달 조건은 capturing/recording뿐**)
+  - `issue.device.tooltip.unsupported` (미지원 페이지)
+  - `issue.device.aria.full` / `.width` (세그먼트 접근명 — 숫자만 읽히지 않게)
+  - `issue.device.reloadWarning.title` / `.body` / `.dontAskAgain` — 문구가 **진입·해제 양방향 재로드**를 커버해야 한다
   - `issue.device.blocked` (XFO 롤백 토스트)
+  - `issue.device.indicator` (작성 화면 모드 ON 표시)
   - `issue.capturing.method.fullPageDeviceLocked`
   - `app.iframeUnsupported.bodyDeviceMode`
 - **검증**:
@@ -186,12 +214,14 @@
 | 대상 | 케이스 |
 |---|---|
 | `device-presets.ts` | 가용 폭 경계(초과/딱맞음/미달), `null` 낙관적 판정 |
-| `device-frame.ts` (jsdom) | mount/unmount 왕복 무손실, 멱등, 폭 갱신 시 노드 유지, `src === location.href`, body 직속 |
+| `device-frame.ts` (jsdom) | mount/unmount 왕복 무손실, 멱등, 폭 갱신 시 노드 유지, `src === location.href`, body 직속, 다크 미디어쿼리 블록 존재 |
+| `device-frame.ts` (node) | `clampToDeviceFrame` 4케이스(밖/걸침/안/`null`) |
 | `picker-control.ts` | 주입 `func`의 프레임 id 리터럴 ↔ `DEVICE_FRAME_ID` 동기화, self-contained(외부 참조 0) |
-| `capture.ts` | `cropViewport ≠ metaViewport`일 때 크롭은 `cropViewport`, 메타는 `metaViewport` |
-| `area-select.ts` | 래퍼 유/무에 따른 rect 분기, `viewport`는 항상 top |
-| `DeviceViewportBar.tsx` (jsdom) | 초과 비활성, 잠금, `aria-disabled` 클릭 무시, `tabId=null` 미렌더 |
+| `usePickerMessages.ts` | `cropViewport ≠ metaViewport`일 때 크롭은 `cropViewport`, 메타는 `metaViewport`. `getTopViewport`가 `null`이면 `cropViewport` 폴백 |
+| `area-select.ts` | 래퍼 유/무에 따른 rect 분기(`x > 0` 포함), 드래그 클램핑, `viewport`는 항상 top |
+| `DeviceViewportBar.tsx` (jsdom) | 초과 비활성, 잠금, busy 스피너, `aria-disabled` 클릭 무시, `tabId=null` 미렌더, 미지원 탭은 비활성 유지 |
 | `tab-bindings.ts` | `isTopLikeFrame`이 Map 비었을 때 `frameId === 0`과 동치 |
+| `settings-ui-store.ts` | version 9 → 10 마이그레이션에서 `deviceReloadWarned` 기본값 주입 |
 
 ### e2e 시나리오
 
@@ -205,8 +235,8 @@
 3. `390` 세그먼트를 누르면 페이지에 `#__bugshot_device_frame__`가 생기고 그 iframe 안의 `window.innerWidth`가 `390`이다.
 4. `390` 선택 후 페이지 안에서 `matchMedia("(max-width: 767px)").matches`가 `true`다.
 5. `390` 선택 후 원본 `body` 자식이 `display: none`이고 iframe만 보인다.
-6. `전체`로 되돌리면 `#__bugshot_device_frame__`와 `#__bugshot_device_style__`가 둘 다 없어지고 원본이 복원된다.
-7. 재로드 경고 다이얼로그가 최초 1회만 뜨고, [다시 보지 않기] 이후에는 안 뜬다.
+6. `전체`로 되돌리면 `#__bugshot_device_frame__`와 `#__bugshot_device_style__`가 둘 다 없어지고 원본이 **재로드**된다.
+7. 재로드 경고 다이얼로그가 최초 1회만 뜨고, [다시 보지 않기] 이후에는 안 뜬다. **`전체` 복귀에서도 같은 플래그를 쓴다.**
 
 **가용 폭**
 8. 창을 좁혀 가용 폭을 1024 미만으로 만들면 `device-preset-1024`가 `aria-disabled`가 된다.
@@ -221,8 +251,10 @@
 **캡처**
 14. 모드 ON에서 `capture-method-fullpage`가 `aria-disabled`이고, 클릭해도 캡처가 시작되지 않는다.
 15. 모드 ON에서 화면(뷰포트) 캡처를 하면 결과 이미지의 가로세로비가 래퍼 rect의 비와 일치한다(좌우 여백이 안 들어간다).
+15b. 모드 ON에서 래퍼 밖 여백까지 걸쳐 영역 드래그를 해도 결과 이미지의 가로세로비가 래퍼 rect 안에 든다(클램핑).
 16. 모드 ON에서 요소를 선택해 캡처한 이슈의 재현 환경 `Viewport` 행이 `390×<창높이>`다.
-17. 모드 OFF에서 같은 캡처의 `Viewport` 행이 브라우저 실제 폭이다.
+16b. 모드 ON에서 30s Replay로 만든 이슈의 `Viewport` 행도 `390×<창높이>`다 — 이 경로는 `chrome.tabs.get`을 쓰고 있어 Task 4를 안 하면 브라우저 폭이 남는다.
+17. 모드 OFF에서 같은 캡처들의 `Viewport` 행이 브라우저 실제 폭이다.
 
 **picker**
 18. 모드 ON에서 래퍼 안의 요소를 정상적으로 선택할 수 있다 (래퍼가 registry에 등록돼 blocker 핸드오프가 열린다 — **이게 깨지면 모드 ON에서 아무것도 못 고른다**).
@@ -232,15 +264,18 @@
 20. `X-Frame-Options: DENY`를 주는 픽스처 페이지에서 `390`을 누르면 3초 안에 원본이 복원되고 세그먼트가 `전체`로 돌아간다.
 
 **잠금**
-21. `phase`가 capturing/drafting/recording일 때 세그먼트 전체가 `aria-disabled`다.
-22. 미지원 탭(`chrome://`)에서 `device-viewport-bar`가 렌더되지 않는다.
+21. `phase`가 **capturing 또는 recording**일 때 세그먼트 전체가 `aria-disabled`다. (drafting·styling·previewing·done은 `hideSubTabs`에 걸려 **행 자체가 없으므로** 이 시나리오의 대상이 아니다 — 대신 22b를 본다.)
+22. 미지원 탭(`chrome://`)에서 `device-viewport-bar`가 **비활성 상태로 렌더된다**(미렌더가 아니다).
+22b. `phase`가 drafting일 때 뷰포트 행이 사라지고, 작성 화면에 모드 ON 인디케이터가 보인다.
 
 ### 수동 테스트 (자동화 불가)
 
 Chrome에서 `pnpm build` 후 dist를 로드해 확인한다.
 
 - [ ] 실제 반응형 사이트(예: 문서 사이트)에서 `390`↔`768`↔`전체` 전환이 시각적으로 매끄러운가
-- [ ] 래퍼 좌우 여백 배경색이 라이트/다크 모드 양쪽에서 어색하지 않은가
+- [ ] 래퍼 좌우 여백 배경색이 라이트/다크 모드 양쪽에서 어색하지 않은가 (라이트 페이지에 검은 슬래브가 안 깔리는가)
+- [ ] **주입 `func` 리팩터 후 실제 탭에서 `Viewport` 메타가 맞는가** — `executeScript({func})`의 클로저 제약은 typecheck·유닛이 못 잡고 `catch`가 실패를 삼켜 조용히 폴백한다(`docs/ARCHITECTURE.md:465`)
+- [ ] 사이드패널 폭을 320px까지 좁혀도 `1024` 세그먼트 라벨이 안 잘리고 안 넘치는가
 - [ ] 모드 ON에서 탭 녹화 영상에 여백이 포함되는 정도가 리포트 품질을 해치지 않는가
 - [ ] 모드 ON에서 30s Replay 프레임이 정상 인코딩되는가
 - [ ] 로그인이 필요한 사이트에서 모드 진입 후 세션이 유지되는가 (쿠키·`sessionStorage` 보존 확인)
@@ -276,7 +311,7 @@ Task 14 ┘        │
 
 사용자 노출 기능이므로 갱신이 필요하다. 작성 전 `guide/AUTHORING.md`를 읽고, 구현 후 `/guide`로 처리한다.
 
-- `guide/ko/element/…`·`guide/en/element/…` — 신규 페이지 "디바이스 뷰포트로 반응형 검증하기". IA상 캡처 계열 문서군에 붙인다.
+- 신규 페이지 "디바이스 뷰포트로 반응형 검증하기". **`element/` 하위에 두지 않는다** — `guide/ko/SUMMARY.md`의 IA가 element/screenshot/video/logs로 캡처 모드별 분기인데 이 기능은 그 넷을 횡단하고 컨트롤도 모드 공통 진입 화면에 있다. `element/` 안에 넣으면 스크린샷·영상 사용자가 못 찾는다. 상위 레벨이나 `quick-start` 인접에 둔다.
   - 반드시 포함: **에뮬레이트되는 것(폭·미디어쿼리·`fixed`)과 안 되는 것(DPR·터치·UA)** 을 표로 명시. 없는 것을 있다고 말하면 리포트가 틀린다.
   - 모드 진입 시 페이지가 재로드된다는 것, 되돌릴 수 없는 화면에서 주의할 것
   - 모드 ON 동안의 알려진 제약: 페이지 내 iframe 요소 선택 불가, 페이지 전체 캡처 잠김
