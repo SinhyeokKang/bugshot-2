@@ -3,7 +3,7 @@ import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
 import { readStoredGitlabAuth, writeStoredGitlabOAuthTokens } from "@/lib/settings-storage";
 import { pickRotatedAuth } from "./lib/rotatedAuth";
 import { getMyself, setGitlabRefreshHook } from "./gitlab-api";
-import { OAuthError, base64url, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, base64url, grantReason, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   assertConfigured as assertOAuthConfigured,
@@ -52,9 +52,10 @@ export function parseGitlabCallbackParams(
   const parsed = new URL(redirectUrl);
   const errorParam = parsed.searchParams.get("error");
   if (errorParam) {
+    const cancelled = isGitlabCancellationCode(errorParam);
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "gitlab", cancelled: isGitlabCancellationCode(errorParam) },
+      { platform: "gitlab", cancelled, reason: grantReason(cancelled) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
@@ -134,16 +135,18 @@ async function exchangeCode(
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenExchange", { status: res.status, text }),
-      { platform: "gitlab" },
+      { platform: "gitlab", reason: httpReason(res.status) },
     );
   }
   const data = (await res.json()) as
     | GitlabTokenResponse
     | { error?: string; error_description?: string };
   if ("error" in data && data.error) {
+    const cancelled = isGitlabCancellationCode(data.error);
     throw new OAuthError(data.error_description || data.error, {
       platform: "gitlab",
-      cancelled: isGitlabCancellationCode(data.error),
+      cancelled,
+      reason: grantReason(cancelled),
     });
   }
   return data as GitlabTokenResponse;
@@ -166,7 +169,7 @@ export async function refreshGitlabToken(auth: GitlabAuth): Promise<GitlabAuth> 
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenRefresh", { status: res.status, text }),
-      { platform: "gitlab" },
+      { platform: "gitlab", reason: httpReason(res.status) },
     );
   }
   const rData = (await res.json()) as
