@@ -133,6 +133,39 @@ describe("허용목록", () => {
     ).toEqual({ page_supported: "false" });
   });
 
+  // 허용목록에 reason이 없으면 trackConnect가 실어 보내도 payload에서 조용히 빠져
+  // "사유를 붙였는데 대시보드엔 안 보이는" 상태가 된다(trim_source 전례).
+  it("platform_connect의 reason이 통과한다", () => {
+    expect(
+      filterProperties("platform_connect", {
+        platform: "github",
+        result: "failed",
+        reason: "token_exchange_5xx",
+      }),
+    ).toEqual({ platform: "github", result: "failed", reason: "token_exchange_5xx" });
+  });
+
+  // reason은 고정 enum만 싣는 계약이지만 허용목록은 값을 검사하지 않는다 — 상류 응답
+  // 원문이 끼어들 수 있는 인접 키를 전부 막아두는 게 Privacy 방어선이다.
+  it("reason과 함께 온 상류 응답 원문 키는 전부 드롭된다", () => {
+    expect(
+      filterProperties("platform_connect", {
+        platform: "slack",
+        result: "failed",
+        reason: "token_exchange_4xx",
+        error_description: "invalid_grant: code was already redeemed",
+        status_text: "{\"error\":\"bad_verification_code\"}",
+        message: "token exchange failed (401)",
+      }),
+    ).toEqual({ platform: "slack", result: "failed", reason: "token_exchange_4xx" });
+  });
+
+  it("reason은 platform_connect 전용 — 다른 event엔 통과하지 않는다", () => {
+    expect(
+      filterProperties("platform_disconnected", { platform: "github", reason: "network" }),
+    ).toEqual({ platform: "github" });
+  });
+
   it("page_supported는 sidepanel_opened 전용 — 다른 event엔 통과하지 않는다", () => {
     expect(
       filterProperties("platform_disconnected", { platform: "github", page_supported: "true" }),
