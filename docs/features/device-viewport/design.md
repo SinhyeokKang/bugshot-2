@@ -572,7 +572,7 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }): JSX.Elem
 
 | 방식 | 판정 | 근거 |
 |---|---|---|
-| 영역(드래그) 캡처 | **클램핑** | rect·viewport 모두 top CSS px이고 크롭 배율은 이미지에서 유도한다(`capture.ts:127`). top blocker가 iframe 위 드래그도 가로채므로 크롭 자체는 정확하지만, 사용자가 래퍼 밖 여백까지 드래그할 수 있다 → 확정 rect(`area-select.ts:200-216`)를 래퍼 영역으로 클램핑한다 |
+| 영역(드래그) 캡처 | **클램핑** | rect·viewport 모두 top CSS px이고 크롭 배율은 이미지에서 유도한다(`capture.ts:127`). top blocker가 iframe 위 드래그도 가로채므로 크롭 자체는 정확하지만(핸드오프는 `picker.ts:1036`의 `mode !== "hover"` 조기 반환에 막혀 **element hover 모드에서만** 돈다 — area-select 중에는 blocker가 래퍼 위에서도 pointer-events를 유지한다), 사용자가 래퍼 밖 여백까지 드래그할 수 있다 → 확정 rect(`area-select.ts:200-216`)를 래퍼 영역으로 클램핑한다 |
 | 화면(뷰포트) 캡처 | **보정** | `area-select.ts:116`의 rect를 래퍼 rect로 교체. 안 하면 좌우 여백이 찍힌다. 중앙 정렬이라 `x`가 0이 아니므로 `{x:0,y:0,...viewport}` 스프레드를 풀어야 한다 |
 | 페이지 전체 캡처 | **잠금** | 오케스트레이터가 frameId 0 고정(`scroll-capture.ts:41`)이라 모드 ON이면 "조용한 1타일"이 된다 — 에러도 truncated 배지도 안 뜬다. 1차에서는 명시적으로 잠근다 |
 
