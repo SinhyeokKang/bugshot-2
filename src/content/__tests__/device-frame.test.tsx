@@ -62,12 +62,6 @@ describe("mountDeviceFrame", () => {
     expect(frameEl()).not.toBeNull();
   });
 
-  it("iframe load에서 onLoad 콜백이 발화한다", () => {
-    const onLoad = vi.fn();
-    mountDeviceFrame(390, onLoad);
-    frameEl()!.dispatchEvent(new Event("load"));
-    expect(onLoad).toHaveBeenCalledTimes(1);
-  });
 });
 
 describe("주입 스타일시트", () => {

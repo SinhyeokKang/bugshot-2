@@ -12,6 +12,7 @@ const deviceSet = vi.fn(async (_tabId: number, width: number | null) => ({
   available: { width: 1512, height: 900 },
 }));
 const deviceState = vi.fn(async () => ({ width: null, available: { width: 1512, height: 900 } }));
+const activateRecordersInDeviceTree = vi.fn(async () => true);
 
 vi.mock("@/i18n", () => ({ t: (key: string) => key }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
@@ -19,7 +20,7 @@ vi.mock("../picker-control", () => ({
   deviceSet: (tabId: number, width: number | null) => deviceSet(tabId, width),
   deviceState: () => deviceState(),
   deviceWatch: vi.fn(async () => {}),
-  activateRecordersInDeviceTree: vi.fn(async () => true),
+  activateRecordersInDeviceTree: () => activateRecordersInDeviceTree(),
   restartPickerInFrame: vi.fn(async () => {}),
   syncAndSettleLogs: vi.fn(async () => {}),
 }));
@@ -65,6 +66,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  activateRecordersInDeviceTree.mockResolvedValue(true);
   listeners = [];
   phase = "idle";
   vi.stubGlobal("chrome", {
@@ -164,5 +166,61 @@ describe("push 리스너 수명", () => {
     mode.putPending(1, 390);
     detach();
     expect(mode.peekPending(1)).toBeNull();
+  });
+});
+
+// 판정 push는 fire-and-forget이고, device.set 왕복과 래퍼 커밋은 동시에 진행된다 —
+// 캐시된 페이지처럼 커밋이 빠르면 push가 대기 등록보다 먼저 도착한다. 그걸 흘리면
+// 3초를 헛기다린 끝에 "차단"으로 접어 정상 로드된 래퍼를 롤백한다(사용자에겐 "가끔
+// 폭을 눌러도 아무 일이 안 일어난다"로 보인다).
+describe("판정 push 유실 방지", () => {
+  it("device.set 왕복 중에 도착한 frameLoaded로도 활성화까지 간다", async () => {
+    const { mode, detach } = await setup();
+    deviceSet.mockImplementationOnce(async (_tabId, width) => {
+      emit({ type: "device.frameLoaded", tabId: 1, frameId: 7 });
+      return { ok: true, width, available: { width: 1512, height: 900 } };
+    });
+    mode.putPending(1, 390);
+
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+
+    expect(activateRecordersInDeviceTree).toHaveBeenCalled();
+    detach();
+  });
+
+  it("이른 frameBlocked도 유실되지 않는다 (3초를 헛기다리지 않는다)", async () => {
+    const { mode, detach } = await setup();
+    deviceSet.mockImplementationOnce(async (_tabId, width) => {
+      emit({ type: "device.frameBlocked", tabId: 1 });
+      return { ok: true, width, available: { width: 1512, height: 900 } };
+    });
+    mode.putPending(1, 390);
+
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+
+    // 차단이면 활성화로 가지 않고 즉시 롤백(device.set(null))이 나간다.
+    expect(activateRecordersInDeviceTree).not.toHaveBeenCalled();
+    expect(deviceSet).toHaveBeenCalledWith(1, null);
+    detach();
+  });
+
+  // 걸어둔 판정이 다음 전이로 새면 방금 시작한 전이가 남의 결과로 끝난다.
+  it("앞선 전이의 판정이 다음 전이로 새지 않는다", async () => {
+    const { mode, detach } = await setup();
+    emit({ type: "device.frameBlocked", tabId: 1 });
+    await flush();
+
+    deviceSet.mockImplementationOnce(async (_tabId, width) => {
+      emit({ type: "device.frameLoaded", tabId: 1, frameId: 7 });
+      return { ok: true, width, available: { width: 1512, height: 900 } };
+    });
+    mode.putPending(1, 390);
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+
+    expect(activateRecordersInDeviceTree).toHaveBeenCalled();
+    detach();
   });
 });

@@ -25,8 +25,10 @@ export type DeviceSignal =
   | { kind: "beforeNavigate"; frameId: number; parentFrameId: number; url: string }
   | { kind: "committed"; frameId: number; documentId: string; url: string }
   | { kind: "errorOccurred"; frameId: number; url: string }
-  // top의 iframe "load". 보조 신호이고 단독으로 성공을 선언하지 않는다.
-  | { kind: "frameLoadEvent"; sameOriginHref: string | null }
+  // CSP `frame-src`가 삽입 자체를 막으면 webNavigation 이벤트가 하나도 오지 않는다 —
+  // 그 경우의 유일한 신호가 이 타임아웃이다. top의 iframe "load"를 보조 신호로 쓰는 안은
+  // 폐기했다: 브라우저가 초기 about:blank에도 load를 쏘는 타이밍이 있어, 정상 사이트에서
+  // 그걸 차단으로 오판해 모드가 간헐적으로 안 서는 대가가 3초 단축보다 훨씬 컸다.
   | { kind: "armTimeout" };
 
 export type DevicePush =
@@ -148,17 +150,6 @@ export function decideDeviceSignal(
       return { push: { type: "handoff", url: signal.url }, next: state };
     }
 
-    case "frameLoadEvent": {
-      // CSP `frame-src`가 프레임 삽입 자체를 막으면 webNavigation 이벤트가 하나도 오지 않고
-      // 브라우저가 about:blank에 load만 쏜다 — 이 경우 3초 타임아웃 말고는 신호가 없다.
-      // 성공 경로에서는 onCommitted가 이미 binding을 세운 뒤라 여기 도달하지 않는다.
-      if (!state.armed || state.binding !== null) return { push: null, next: state };
-      if (signal.sameOriginHref === null || signal.sameOriginHref === state.topUrl) {
-        return { push: null, next: state };
-      }
-      return { push: { type: "frameBlocked" }, next: { ...state, armed: false } };
-    }
-
     case "armTimeout":
       if (!state.armed) return { push: null, next: state };
       return { push: { type: "frameBlocked" }, next: { ...state, armed: false } };
@@ -189,10 +180,16 @@ export function isTopLikeFrame(
 export function splitTabDocuments(
   frames: Array<{ frameId: number; parentFrameId: number; documentId?: string; url?: string }>,
   binding: DeviceFrameBinding | null,
+  opts: { armed?: boolean } = {},
 ): DeviceDocumentsResponse {
-  const injectable = frames.filter(
-    (f) => typeof f.documentId === "string" && f.documentId.length > 0 && isSupportedUrl(f.url),
-  );
+  // 래퍼 자신은 URL 판정에서 면제한다 — 커밋 직후의 getAllFrames가 아직 about:blank를
+  // 보고하는 창이 있고, 거기서 떨어뜨리면 deviceTree가 비어 활성화가 실패하며 정상 로드된
+  // 래퍼가 롤백된다. binding이 있다는 것 자체가 그 프레임에 스크립트가 살아 있다는 증거다.
+  const usable = (f: { frameId: number; documentId?: string; url?: string }) =>
+    typeof f.documentId === "string" &&
+    f.documentId.length > 0 &&
+    (isSupportedUrl(f.url) || f.frameId === binding?.frameId);
+  const injectable = frames.filter(usable);
   const all = injectable.map((f) => f.documentId as string);
   if (!binding) return { all, deviceTree: [] };
 
@@ -212,6 +209,19 @@ export function splitTabDocuments(
   const deviceTree = injectable
     .filter((f) => inTree.has(f.frameId))
     .map((f) => f.documentId as string);
+  // getAllFrames가 방금 커밋된 래퍼를 아직 목록에 안 싣는 창이 있다 — 그러면 deviceTree가
+  // 통째로 비어 활성화가 실패하고 정상 로드된 래퍼가 롤백된다("가끔 폭을 눌러도 아무 일이
+  // 안 일어난다"). binding의 documentId는 커밋·frameReady에서 이미 받은 값이라 그 창에서는
+  // 열거를 기다릴 이유가 없다.
+  //
+  // **단 진입 감시창(armed) 안에서만이다.** 창 밖에서까지 무조건 넣으면, 페이지 JS가 래퍼를
+  // 지웠는데 top 커밋이 없는 경우(binding은 top 커밋에서만 소거된다) 게이트가 영구히 "모드 ON"
+  // 으로 굳어 죽은 documentId로만 발행한다 = 탭 세션 내내 로그 전면 공백. 창 밖에서는
+  // deviceTree가 비면서 기존 broadcast 폴백으로 자가복구되는 쪽이 맞다.
+  const enumerated = frames.some((f) => f.frameId === binding.frameId);
+  if (!enumerated && opts.armed && !deviceTree.includes(binding.documentId)) {
+    deviceTree.unshift(binding.documentId);
+  }
   return { all, deviceTree };
 }
 
@@ -369,6 +379,7 @@ export async function listTabDocuments(tabId: number): Promise<DeviceDocumentsRe
         url: f.url,
       })),
       getDeviceFrame(tabId),
+      { armed: armSlot(tabId).armed },
     );
   });
 }

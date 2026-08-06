@@ -850,20 +850,40 @@ export async function syncActionRecorder(tabId: number): Promise<void> {
 
 const RECORDER_KINDS = ["networkRecorder", "consoleRecorder", "actionRecorder"] as const;
 
+/**
+ * 한 document에 메시지 묶음을 응답 확인식으로 보낸다.
+ *
+ * `retries`가 필요한 이유: 갓 커밋된 래퍼의 content script는 document_idle에 붙으므로,
+ * 커밋 직후의 첫 송신이 "Receiving end does not exist"로 튕긴다. 그걸 실패로 접으면 정상
+ * 로드된 래퍼가 레코더 재무장 한 번 늦었다는 이유로 통째로 롤백된다 — `ensureContentScript`가
+ * 같은 창을 짧은 폴링으로 흡수하는 것과 같은 상황이다.
+ */
 async function ackDocument(
   tabId: number,
   documentId: string,
   msgs: PickerMessage[],
+  retries = 0,
 ): Promise<boolean> {
-  for (const msg of msgs) {
+  for (let attempt = 0; ; attempt++) {
     try {
-      await chrome.tabs.sendMessage(tabId, msg, { documentId });
+      for (const msg of msgs) {
+        await chrome.tabs.sendMessage(tabId, msg, { documentId });
+      }
+      return true;
     } catch {
-      return false;
+      if (attempt >= retries) return false;
+      await new Promise((r) => setTimeout(r, 100));
     }
   }
-  return true;
 }
+
+// 커밋~document_idle 창을 덮는 상한. ensureContentScript(10×50ms)와 같은 계열이되, 여기는
+// 프레임이 이미 커밋된 뒤라 조금 더 여유를 준다.
+const START_ACK_RETRIES = 10;
+// stop은 실패해도 전이를 깨지 않지만 **재시도는 필요하다** — 숨겨진 top의 레코더를 끄는
+// 수단이 이것뿐이라(게이트는 *재*발행만 막지 이미 무장된 레코더를 못 끈다), 일시 실패를
+// 그냥 넘기면 top이 같은 sentinel로 계속 dispatch해 로그가 조용히 2벌이 된다.
+const STOP_ACK_RETRIES = 3;
 
 /**
  * 현재 문서 전부를 정지한 뒤 래퍼 서브트리만 활성화한다. 각 단계는 응답 확인식이다.
@@ -892,7 +912,9 @@ export async function activateRecordersInDeviceTree(
   // 죽었고, 새 문서는 frameCommitted → 게이트가 다시 판정한다. 여기서 실패로 접으면 광고
   // 프레임 하나의 타이밍으로 정상 로드된 래퍼까지 롤백된다.
   const stops = RECORDER_KINDS.map((kind) => ({ type: `${kind}.stop` }) as PickerMessage);
-  await Promise.all(all.map((documentId) => ackDocument(tabId, documentId, stops)));
+  await Promise.all(
+    all.map((documentId) => ackDocument(tabId, documentId, stops, STOP_ACK_RETRIES)),
+  );
 
   clearLogs();
 
@@ -909,7 +931,7 @@ export async function activateRecordersInDeviceTree(
     starts.push({ type: "actionRecorder.setSentinel", sentinel: sentinels.action });
   }
   const started = await Promise.all(
-    deviceTree.map((documentId) => ackDocument(tabId, documentId, starts)),
+    deviceTree.map((documentId) => ackDocument(tabId, documentId, starts, START_ACK_RETRIES)),
   );
   return started.every(Boolean);
 }

@@ -110,8 +110,8 @@ const BG_REQUEST_TYPE_MAP: Record<BgRequest["type"], true> = {
   "slack.getPermalink": true,
   "analytics.capture": true,
   "css.fetchSheets": true,
-  // device.frameReady·device.frameLoadEvent는 여기 없다 — 요청/응답이 아니라 push이고
-  // handleMessage가 sender를 안 읽으므로 background의 전용 push 리스너가 따로 받는다.
+  // device.frameReady는 여기 없다 — 요청/응답이 아니라 push이고, 래퍼 frameId를 sender에서
+  // 얻어야 하는데 handleMessage는 sender를 안 읽는다. background의 전용 push 리스너가 받는다.
   "device.arm": true,
   "device.documents": true,
 };

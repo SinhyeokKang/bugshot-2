@@ -127,10 +127,38 @@ async function arm(tabId: number, on: boolean): Promise<void> {
   }
 }
 
+/**
+ * **판정 push는 대기 등록보다 먼저 도착할 수 있다.** `device.set` 왕복과 래퍼 커밋은 동시에
+ * 진행되므로, 캐시된 페이지처럼 커밋이 빠르면 background가 `frameLoaded`를 쏜 뒤에야 이쪽이
+ * 기다리기 시작한다. 그때 push를 흘리면 3초를 헛기다린 끝에 차단으로 접어 **정상 로드된
+ * 래퍼를 롤백한다** — 사용자에겐 "가끔 폭을 눌러도 아무 일이 안 일어난다"로 보인다.
+ * 그래서 대기자가 없을 때 도착한 판정은 버리지 않고 걸어둔다.
+ */
+let latchedVerdict: Verdict | null = null;
+
+/** 새 전이의 시작점. 앞선 시도의 대기·걸어둔 판정을 함께 버려 결과가 새지 않게 한다. */
+function resetVerdict(): void {
+  cancelVerdictWait();
+  latchedVerdict = null;
+}
+
+function cancelVerdictWait(): void {
+  const waiter = verdictWaiter;
+  if (!waiter) return;
+  verdictWaiter = null;
+  clearTimeout(waiter.timer);
+  // 덮어쓰기만 하면 그 promise가 영영 안 풀려 busy가 굳는다.
+  waiter.resolve({ ok: false });
+}
+
 /** frameLoaded / frameBlocked 중 하나를 기다린다. 무신호면 차단으로 접는다. */
 function waitForVerdict(): Promise<Verdict> {
-  // 앞선 대기를 먼저 끊는다 — 덮어쓰기만 하면 그 promise가 영영 안 풀려 busy가 굳는다.
-  settleVerdict({ ok: false });
+  if (latchedVerdict) {
+    const latched = latchedVerdict;
+    latchedVerdict = null;
+    return Promise.resolve(latched);
+  }
+  cancelVerdictWait();
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       verdictWaiter = null;
@@ -142,7 +170,10 @@ function waitForVerdict(): Promise<Verdict> {
 
 function settleVerdict(result: Verdict): void {
   const waiter = verdictWaiter;
-  if (!waiter) return;
+  if (!waiter) {
+    latchedVerdict = result;
+    return;
+  }
   verdictWaiter = null;
   clearTimeout(waiter.timer);
   waiter.resolve(result);
@@ -234,6 +265,10 @@ async function runOffToOn(tabId: number, width: number): Promise<void> {
     await syncAndSettleLogs(tabId);
     // device.set보다 먼저 열어야 첫 onBeforeNavigate를 안 놓친다.
     await arm(tabId, true);
+    // arm이 열린 **직후**에 비운다 — 이 지점과 다음 문장 사이엔 await가 없어 메시지가 끼어들
+    // 수 없고, 이 시점 이후의 판정만이 이번 시도의 것이다. arm보다 앞에서 비우면 arm 왕복 중에
+    // 도착한 앞 시도의 인플라이트 push가 새 시도의 판정으로 걸린다.
+    resetVerdict();
     const res = await deviceSet(tabId, width);
     // undefined(전달 실패)와 {ok:false}(마운트 실패)를 구분해서 다뤄야 한다 — ok === false만
     // 보면 send가 실패를 undefined로 삼키므로 전달 실패가 성공으로 샌다.
@@ -255,11 +290,13 @@ async function runOffToOn(tabId: number, width: number): Promise<void> {
     }
     const activated = await finishActivation(tabId, verdict.frameId);
     if (!stillOn(tabId)) return;
-    if (!activated) {
-      await rollbackToFull(tabId, t("issue.device.blocked"));
-      return;
-    }
     putPending(tabId, width);
+    // **레코더 재무장 실패는 모드 실패가 아니다.** 래퍼는 정상 로드됐고, 레코더는 다음 inject
+    // 트리거(tabs.onUpdated(complete)·visibilitychange·idle 복귀)에서 같은 게이트를 타고 스스로
+    // 재무장된다. 여기서 롤백하면 unmount + location.reload()라 **정상 동작 중인 페이지를
+    // 새로고침해 스크롤·입력값을 날린다** — 뷰포트를 고른 행위의 무게에 비해 과하다.
+    // 롤백은 래퍼가 실제로 못 선 경우(frameBlocked)에만 남긴다.
+    if (!activated) toast.warning(t("issue.device.recordersDegraded"));
   } finally {
     endAttempt(token);
     if (stillOn(tabId)) set({ busy: false });
@@ -297,6 +334,7 @@ async function reestablish(tabId: number, width: number, url: string): Promise<v
   try {
     // 재수립은 syncAndSettleLogs를 안 한다 — 떠나는 문서가 이미 없다. 1회 경고도 안 띄운다.
     await arm(tabId, true);
+    resetVerdict();
     const res = await deviceSet(tabId, width);
     if (!res?.ok) {
       await arm(tabId, false);
@@ -318,11 +356,9 @@ async function reestablish(tabId: number, width: number, url: string): Promise<v
     // start ACK 전이라 무해하다.
     const activated = await finishActivation(tabId, loaded.frameId);
     if (!stillOn(tabId)) return;
-    if (!activated) {
-      await rollbackToFull(tabId, t("issue.device.blocked"));
-      return;
-    }
     putPending(tabId, width);
+    // 위와 같은 이유 — 재수립 직후의 reload는 handoff가 만든 이동에 한 번 더 겹친다.
+    if (!activated) toast.warning(t("issue.device.recordersDegraded"));
   } finally {
     endAttempt(token);
     if (stillOn(tabId)) set({ busy: false });
@@ -454,6 +490,9 @@ async function syncFromPage(tabId: number): Promise<void> {
  */
 export function attachDeviceViewport(tabId: number): () => void {
   set({ tabId, width: null, availableWidth: null, busy: false, expiredByHandoff: false });
+  // 경계에서도 비운다 — 지금은 waitForVerdict 호출부 둘이 모두 resetVerdict 뒤라 실동작
+  // 문제가 없지만, 그 불변식을 "세 번째 호출부도 짝을 기억한다"에 맡기지 않는다.
+  resetVerdict();
   chrome.runtime.onMessage.addListener(handleMessage);
   // 만료 다이얼로그가 닫히면 handoff 표시도 함께 내린다 — 안 내리면 handoff 1회 뒤의
   // 평범한 세션 만료까지 계속 디바이스 모드 문구로 뜬다.
@@ -463,6 +502,7 @@ export function attachDeviceViewport(tabId: number): () => void {
   void syncFromPage(tabId);
   return () => {
     chrome.runtime.onMessage.removeListener(handleMessage);
+    resetVerdict();
     unsubscribe();
     dropPending(tabId);
     set({ tabId: null });
