@@ -274,13 +274,14 @@
   - `issue.device.full` / `issue.device.w390`·`w768`·`w1024` (**`w430` 없음**)
   - `issue.device.tooltip.tooNarrow` (창이 좁아 사용 불가)
   - `issue.device.tooltip.locked` (캡처·녹화 중 전환 불가 — **drafting은 행이 안 보이므로 이 문구의 도달 조건은 capturing/recording뿐**)
-  - `issue.device.aria.full` / `.width` (세그먼트 접근명 — 숫자만 읽히지 않게)
+  - `issue.device.aria.full` / `.width` (세그먼트 접근명 — 숫자만 읽히지 않게. `.width`는 폭 placeholder를 받는다. **라벨이 접혀 아이콘만 남아도 이게 유일한 폭 정보**라 생략 불가)
   - `issue.device.modeWarning.title` / `.body` / `.confirm` / `.cancel` — 진입·해제 재로드와 원본·래퍼 동시 실행에 따른 네트워크 요청·자동저장·결제 중복 위험. **`.dontAskAgain`은 없다**(체크박스 제거) 대신 `[계속]`/`[취소]` 버튼 라벨 2개가 필요하다. 네임스페이스가 `reloadWarning`이 아닌 이유는 경고 범위가 재로드보다 넓기 때문 — 플래그명 `deviceModeWarned`와 맞춘다
   - `issue.device.blocked` (XFO 롤백 토스트 — same-origin redirect 성공에는 쓰지 않는다)
   - `issue.sessionExpired.bodyDeviceMode` (handoff로 뜬 세션 만료 다이얼로그 body. **title은 기존 것을 재사용**한다 — "페이지가 변경되었습니다"가 그대로 맞다)
   - `issue.device.handoffToast` (녹화·미리보기·완료 phase의 비침습 토스트)
   - `issue.device.loop.title` / `.body` / `.confirm` (리다이렉트 루프 가드 다이얼로그)
-  - `issue.device.indicator` (작성 화면 모드 ON 표시)
+  - `issue.device.indicator` (작성 화면 모드 ON 표시 — 폭 placeholder 필요, 예: `뷰포트 {width}px`)
+  - `issue.device.status.switching` (**`busy` 구간 live status** — design이 "행에 `aria-busy`와 live status"를 요구하는데 문구 키가 없으면 스크린리더에 아무것도 안 읽힌다. XFO 사이트는 이 구간이 최대 3초다)
   - `issue.capturing.method.fullPageDeviceLocked`
   - `app.iframeUnsupported.bodyDeviceMode`
 - **검증**:
