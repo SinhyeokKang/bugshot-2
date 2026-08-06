@@ -181,7 +181,7 @@ PRD에 명시적으로 남긴다 — 구현 중 이것을 이유로 설계를 �
 
 ## 문서 영향
 
-manifest diff가 0이어도 **새로 관측 가능한 동작이 6개** 생기므로 privacy 문서 갱신은 필수 게이트다(30s Replay가 이 검사를 빠져나가 심사 탈락한 전례가 있다 — `CLAUDE.md:131`).
+manifest diff가 0이어도 **새로 관측 가능한 동작이 7개** 생기므로 privacy 문서 갱신은 필수 게이트다(30s Replay가 이 검사를 빠져나가 심사 탈락한 전례가 있다 — `CLAUDE.md:131`).
 
 | 새 동작 | 성격 |
 |---|---|
@@ -191,5 +191,6 @@ manifest diff가 0이어도 **새로 관측 가능한 동작이 6개** 생기므
 | 원본 문서 은닉 | 페이지 DOM에 스타일·iframe 삽입 |
 | 프레임 단위 로그 수집 대상 변경 | 수집 주체가 top → 래퍼 |
 | 에뮬레이트된 화면 캡처 | 스크린샷 내용이 실제 브라우저 표시와 다름 |
+| element 컨텍스트 확장이 프레임 안에서 동작 | 기존 방침("iframe 내부 요소에는 확장을 적용하지 않습니다", `privacy.ko.md:62`)의 **예외**가 생긴다 — 래퍼 안에서는 조상 컨테이너까지 넓혀 찍는다 |
 
 대상: `docs/privacy.ko.md`·`docs/privacy.en.md`(양쪽 본문 + 상단 시행일), `docs/PERMISSION.md` §12, `CLAUDE.md`, `docs/DIRECTORY.md`, `docs/ARCHITECTURE.md`, `guide/ko`·`guide/en`.
