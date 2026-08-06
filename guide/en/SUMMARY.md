@@ -10,6 +10,7 @@
   - [Issue Settings](settings/issue.md)
   - [AI LLM Connection](settings/ai.md)
   - [General](settings/general.md)
+- [Device Viewport](device-viewport.md)
 - [Inspect & Style](element/README.md)
   - [Pick an Element](element/picker.md)
   - [Styling](element/styling.md)

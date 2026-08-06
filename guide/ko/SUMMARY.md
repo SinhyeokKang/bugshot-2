@@ -10,6 +10,7 @@
   - [이슈 설정](settings/issue.md)
   - [AI LLM 연동](settings/ai.md)
   - [일반](settings/general.md)
+- [디바이스 뷰포트](device-viewport.md)
 - [요소 선택 & 스타일링](element/README.md)
   - [요소 선택](element/picker.md)
   - [스타일링](element/styling.md)
