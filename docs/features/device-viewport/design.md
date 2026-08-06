@@ -87,7 +87,7 @@ useDeviceViewport.select(390)
    │  ② 최초 ON 진입 1회 확인 다이얼로그 → [계속] 시 local persist
    │  ③ syncAndSettleLogs(tabId)            ← 떠나는 로그 꼬리 확보
    │  ④ bgRequest("device.arm", { tabId, on: true })  ← 래퍼 커밋 감시창(3s) 개방
-   │     (store clear는 여기가 아니라 stop ACK 뒤 — 아래 select() 10~12)
+   │     (store clear는 여기가 아니라 stop ACK 뒤 — 아래 select() 10~12단계)
    │
    ▼
 sendPickerTop(tabId, { type: "device.set", width: 390 })
@@ -640,13 +640,11 @@ export async function listTabDocuments(tabId: number): Promise<{ all: string[]; 
 
 ## 모드 전이 게이트
 
-| 위험 | 게이트 |
-|---|---|
 전이에는 **사용자 전이**(`select()`)와 **재수립**(`reestablish()`) 두 축이 있고, 게이트가 다르다. 잠금은 전자만 막는다.
 
 | 위험 | 사용자 전이 게이트 | 재수립에서는 |
 |---|---|---|
-| (a) 로그 혼입 — 엔트리에 frameId 필드가 없어(`console-recorder.ts:29-37`) 전이 전후를 구분할 수 없다 | 전이 **직전** 3종 `sync` + settle, **stop ACK 뒤** store clear(`select()` 4·10) | `sync`는 생략(떠나는 문서가 없다), clear는 동일하게 stop ACK 뒤 |
+| (a) 로그 혼입 — 엔트리에 frameId 필드가 없어(`console-recorder.ts:29-37`) 전이 전후를 구분할 수 없다 | 전이 **직전** 3종 `sync` + settle, **stop ACK 뒤** store clear(`select()` 5·11) | `sync`는 생략(떠나는 문서가 없다), clear는 동일하게 stop ACK 뒤 |
 | (b) draft·선택 요소 파괴 — 래퍼 재로드로 frameId가 재발급되면 `sameElementKey`(`element-key.ts:8-10`)가 어긋나 `applyStyles/applyClasses/applyText`가 **조용히 no-op**된다(반환값 미확인 — `tabs/styleEditor/StylePropEditors.tsx:45`가 `void`로 무시). `rebindStylingSession`은 URL(pageKey)만 보므로(`picker-control.ts:474-487`) 이 그물이 전이를 못 잡는다 | **`phase !== "idle"`이면 컨트롤 전체 잠금.** 사용자가 이 상태를 만드는 축을 제거한다. `element-key.ts`에 세대 축을 넣는 안은 소비처가 많아 비용이 크다 | 잠금이 **적용되지 않는다.** 대신 `sessionExpired` → `reset()`이 draft·선택 요소를 통째로 버려 no-op 유령 상태 자체를 없앤다 |
 | (c) 녹화·리플레이 중 전이 — 한 스트림 안 해상도 불연속(`video-recorder.ts:111-117`), 30s 버퍼가 토글만으로 `clear()`(`30s-replay/use-30s-replay.ts:56`, cleanup은 `:110`) | (b)와 같은 잠금이 함께 막는다(`phase === "recording"`) | 잠금이 적용되지 않지만 **두 위험 모두 발생하지 않는다** — 탭 크기가 안 변해 해상도가 연속이고, 30s `clear()`는 토글 전용이라 재수립이 안 건드린다. 통보는 토스트 1개 |
 | (d) 세션 복원 desync | **모드를 `chrome.storage`에 영속하지 않으므로 복원 축이 없다.** 마운트 시 `device.state`로 페이지에 물어본다 | 인메모리 `pending`이 top 커밋을 넘어 폭을 나르지만, 매 커밋마다 실제 re-mount로 조정되고 차단이면 `전체`로 롤백되므로 "래퍼 없는 ON"이 생기지 않는다. 폐기 조건 6개가 이 보장의 근거다 |
@@ -659,7 +657,7 @@ export async function listTabDocuments(tabId: number): Promise<{ all: string[]; 
 
 **handoff 목적지의 극초기 로그는 놓친다.** 새 origin엔 플래그가 없어 sentinel 도착 전 로그가 안 잡힌다. 오늘의 top cross-origin 이동과 동일하므로 새 손실이 아니고, 없애려면 origin을 넘는 사전 활성 신호가 필요해 잔여 위험으로 둔다.
 
-경계 우회 위험은 남는다: `preArm: true` 마커가 붙은 엔트리는 `logClear` 경계를 우회한다(`sidepanel/lib/log-prearm-filter.ts:8`). 다만 전이 시 **전 document stop ACK를 확인한 뒤에 store를 clear**하므로(위 `select()` 8→9 순서) clear 이후 도착하는 preArm 엔트리는 전부 래퍼 서브트리 것이다. 회귀 그물은 `e2e/logs-prearm.spec.ts`가 맡는다.
+경계 우회 위험은 남는다: `preArm: true` 마커가 붙은 엔트리는 `logClear` 경계를 우회한다(`sidepanel/lib/log-prearm-filter.ts:8`). 다만 전이 시 **전 document stop ACK를 확인한 뒤에 store를 clear**하므로(위 `select()` 10→11 순서) clear 이후 도착하는 preArm 엔트리는 전부 래퍼 서브트리 것이다. 회귀 그물은 `e2e/logs-prearm.spec.ts`가 맡는다.
 
 ## 2-depth 안내 문구 분기
 
