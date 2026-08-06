@@ -409,22 +409,28 @@ export function useDeviceViewport(tabId: number | null): DeviceViewportState;
 
 `select()`가 하는 일(순서 고정):
 
-1. `locked || busy`면 즉시 반환. 루프 카운터를 0으로 리셋한다(사용자 조작이 정상 신호다)
-2. **`width === null`(전체 복귀)이면 `pending`을 먼저 버린다.** OFF는 unmount + `location.reload()`인데 그 reload도 top 커밋이라, pending이 남아 있으면 곧바로 재수립이 걸려 OFF↔ON 무한 루프가 된다. 폐기가 `device.set`보다 앞이어야 한다
-3. 최초 ON 진입 1회 확인 다이얼로그. `[계속]`을 누르면 `settings-ui-store.deviceModeWarned = true`를 `chrome.storage.local`에 즉시 영속한다(플래그 이름이 `deviceReloadWarned`가 아닌 이유는 경고가 재로드뿐 아니라 원본·래퍼 동시 실행까지 덮기 때문이다). 체크박스는 없다. 이 스토어는 현재 **version 9**(`settings-ui-store.ts:242`)이므로 `migrateSettingsUi`(`:131-151`) 기본값 `false` 등록 + version 10 bump가 함께 가야 한다. 문구는 진입·해제 재로드와 원본·래퍼 동시 실행의 중복 요청·자동저장·결제 위험을 모두 말한다.
-4. `syncAndSettleLogs(tabId)` — 떠나는 페이지 로그 꼬리를 누적기에 밀어넣는다
-5. `width != null`이면 `device.arm { on: true }` — `device.set`보다 **먼저** 열어야 첫 `onBeforeNavigate`를 놓치지 않는다
-6. `sendPickerTop(tabId, { type: "device.set", width })`
-7. 응답이 `undefined`거나 `ok === false`면 토스트 + `전체`로 되돌리고 arm 창을 닫는다 (마운트 자체가 실패한 경우)
-8. `width != null`이면 `device.frameLoaded` / `device.frameBlocked` 중 하나를 기다린다(≤3s). `frameBlocked`면 `device.set { width: null }` 롤백 + `issue.device.blocked` 토스트
-9. `frameLoaded`면 **전 document stop ACK**(`activateRecordersInDeviceTree`의 앞단)
-10. `store.clearNetworkLog/clearConsoleLog/clearActionLog(tabId)` + 3종 persist `discard()` — 모드 전환은 네비게이션이라 `logClear`가 안 온다. 강제한다
-11. **래퍼 서브트리 start ACK**. 하나라도 실패하면 모드를 롤백한다
-12. arm 창을 닫는다(`device.arm { on: false }`)
+1. `locked || busy`면 **아무것도 하지 않고** 즉시 반환한다(카운터도 안 건드린다)
+2. 통과했으면 루프 카운터를 0으로 리셋한다 — 사용자 조작이 "정상 사용 중" 신호다
+3. **`width === null`(전체 복귀)이면 `pending`을 먼저 버린다.** OFF는 unmount + `location.reload()`인데 그 reload도 top 커밋이라, pending이 남아 있으면 곧바로 재수립이 걸려 OFF↔ON 무한 루프가 된다. 폐기가 `device.set`보다 앞이어야 한다
+4. 최초 ON 진입 1회 확인 다이얼로그. `[계속]`을 누르면 `settings-ui-store.deviceModeWarned = true`를 `chrome.storage.local`에 즉시 영속한다(플래그 이름이 `deviceReloadWarned`가 아닌 이유는 경고가 재로드뿐 아니라 원본·래퍼 동시 실행까지 덮기 때문이다). 체크박스는 없다. 이 스토어는 현재 **version 9**(`settings-ui-store.ts:242`)이므로 `migrateSettingsUi`(`:131-151`) 기본값 `false` 등록 + version 10 bump가 함께 가야 한다. 문구는 진입·해제 재로드와 원본·래퍼 동시 실행의 중복 요청·자동저장·결제 위험을 모두 말한다.
+5. `syncAndSettleLogs(tabId)` — 떠나는 페이지 로그 꼬리를 누적기에 밀어넣는다
+6. `width != null`이면 `device.arm { on: true }` — `device.set`보다 **먼저** 열어야 첫 `onBeforeNavigate`를 놓치지 않는다
+7. `sendPickerTop(tabId, { type: "device.set", width })`
+8. 응답이 `undefined`거나 `ok === false`면 토스트 + `전체`로 되돌리고 arm 창을 닫는다 (마운트 자체가 실패한 경우)
+9. `width != null`이면 `device.frameLoaded` / `device.frameBlocked` 중 하나를 기다린다(≤3s). `frameBlocked`면 `device.set { width: null }` 롤백 + `issue.device.blocked` 토스트
+10. `frameLoaded`면 **전 document stop ACK**(`activateRecordersInDeviceTree`의 앞단)
+11. `store.clearNetworkLog/clearConsoleLog/clearActionLog(tabId)` + 3종 persist `discard()` — 모드 전환은 네비게이션이라 `logClear`가 안 온다. 강제한다
+12. **래퍼 서브트리 start ACK**. 하나라도 실패하면 모드를 롤백한다
+13. arm 창을 닫는다(`device.arm { on: false }`)
 
-**clear는 반드시 stop ACK 뒤, start ACK 앞이다.** clear를 mount보다 앞에 두면 mount~stop ACK 사이에 숨겨진 원본이 뱉은 로그가 경계를 통과해 살아남는데, 래퍼와 top은 같은 origin이라 필터로도 못 가른다(위험 7·9). 래퍼의 pre-arm 버퍼는 start 시점에 flush되므로 clear를 뒤로 미뤄도 손실이 없다.
+**clear는 반드시 stop ACK 뒤, start ACK 앞이다.** 이유가 둘이고, 하나만 알고 순서를 되돌리면 나머지가 조용히 깨진다.
 
-`busy`는 5~12 전 구간에서 `true`다 — 8이 최대 3초를 쓰므로 스피너가 이 구간을 덮어야 한다.
+1. clear를 mount보다 앞에 두면 mount~stop ACK 사이에 숨겨진 원본이 뱉은 로그가 경계를 통과해 살아남는데, 래퍼와 top은 같은 origin이라 필터로도 못 가른다(위험 7·9).
+2. **그 구간에서 sentinel 게이트가 일시적으로 "모드 OFF"로 판정한다.** 게이트의 모드 판정은 `deviceTree.length > 0`인데 mount~`frameReady` 사이엔 binding이 없어 빈 배열이고, 하필 그때가 `tabs.onUpdated(status === "complete")`로 activate 3종이 가장 잘 도는 구간이다(아래 "sentinel 발행 경로 단일 게이트"가 "전환 직후가 가장 잘 걸린다"고 쓴 그 지점). 즉 숨겨진 top이 broadcast로 잠깐 되살아나는 것을 **막을 수 없고**, stop ACK가 다시 죽인 뒤의 clear만이 그 창의 로그를 지운다.
+
+래퍼의 pre-arm 버퍼는 start 시점에 flush되므로 clear를 뒤로 미뤄도 손실이 없다.
+
+`busy`는 6~13 전 구간에서 `true`다 — 9가 최대 3초를 쓰므로 스피너가 이 구간을 덮어야 한다.
 
 ### 재수립 계약 (`reestablish`)
 
@@ -441,17 +447,23 @@ async function reestablish(tabId: number, width: number): Promise<void>;
 
 `select()`와 무엇이 같고 무엇이 다른가:
 
+**표에 없는 축은 구현이 `select()`에서 그대로 복사해오거나 통째로 빠뜨린다.** 그래서 13축을 전부 적는다 — 빠진 축은 예외 없이 무증상 실패(모드가 안 서는데 UI는 켜져 보임)로 나온다.
+
 | 축 | `select()` | `reestablish()` |
 |---|---|---|
 | 트리거 | 사용자 세그먼트 클릭 | 페이지 사실(top 문서 교체·binding 소실) |
-| `locked`(`phase !== "idle"`) | 거부 | **우회한다** |
-| `busy` | 거부 | 거부(재수립끼리 직렬화) |
+| `locked`의 `phase !== "idle"` 축 | 거부 | **우회한다** |
+| `locked`의 `unsupported` 축 | 거부 | **우회하지 않는다** — 폐기가 이긴다(pending을 버리고 끝) |
+| `busy` | 거부 | 거부. **단 소비한 `pending`을 되돌려놓는다** |
 | 최초 1회 경고 | 띄운다 | 띄우지 않는다 |
 | `syncAndSettleLogs` | 한다 | **안 한다** — 떠나는 문서가 이미 없다 |
-| `device.arm` | 연다 | **연다**(동일) |
+| `device.arm` 개방 | 연다 | **연다**(동일) |
+| `device.arm` 폐쇄 | 13단계에서 닫는다 | 판정 후 닫는다. **handoff·차단 복구는 top을 옮기기 전에 즉시 닫는다** |
 | stop ACK → clear → start ACK | 한다 | **한다**(동일 순서) |
+| `picker.start` 재시도 | `frameLoaded` 뒤 래퍼 frameId로 (위험 8) | **동일** — picking 중 재수립이 이 경로의 유일한 도달 지점이다 |
 | 루프 카운터 | 0으로 리셋 | +1, 임계 초과면 중단 |
 | 실패(`frameBlocked`·전달 실패) | `전체` 롤백 + 토스트 | 동일 |
+| `pending`·카운터 소유 | — | **모듈 스코프 단일 인스턴스**(아래) |
 
 **`locked`를 우회하는 것이 이 계약의 핵심이다.** `select()`의 잠금은 *사용자가 전환을 일으켜 draft·선택 요소·녹화를 깨는 것*을 막는 장치다. 재수립은 이미 문서가 갈린 뒤의 복구라, 잠금을 그대로 적용하면 drafting·recording 중 handoff에서 **top만 옮겨가고 래퍼가 안 서는데 세그먼트는 여전히 `390`을 가리키는** 상태가 된다 — 기각했던 desync가 바로 이 경로로 되살아난다. draft 파괴는 잠금이 아니라 `sessionExpired` 통보가 받는다.
 
@@ -459,7 +471,13 @@ async function reestablish(tabId: number, width: number): Promise<void>;
 
 **호출 지점을 둘로 고정한다.** ① top `onCommitted` + `pending` 있음 ② 패널 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈림. ②는 top 커밋 없이 발생하는 유일한 경우라 별도 호출이 필요하지만, 같은 함수를 쓴다. 이 둘을 합치지 않으면 확장 reload 직후 top이 커밋될 때 두 경로가 동시에 발사돼 래퍼가 두 번 mount된다.
 
-`pending`(`{ tabId, width }`)은 이 훅이 소유한다. `select()` 성공 시 세팅, 위 "cross-origin handoff"의 폐기 조건에서 제거, top `onCommitted`에서 **소비 즉시 삭제한 뒤** `reestablish`를 부르고 성공하면 다시 세팅한다(실패 경로에서 유령 pending이 남지 않게).
+**`pending`과 루프 카운터는 훅 인스턴스가 아니라 모듈 스코프에 둔다.** `useDeviceViewport`는 `DeviceViewportBar`와 `App.tsx`의 다이얼로그 분기에서 **두 번 마운트된다**(Task 13이 `device.state` 중복 요청으로 이미 인정한 사실). 상태를 훅에 두면 인스턴스마다 pending을 갖게 되어 top 커밋 한 번에 재수립이 2회 발사되고 루프 임계를 각각 절반씩 센다 — "호출 지점 2개 고정"이 인스턴스 축에서 깨진다. 모듈 스코프 `Map<tabId, Pending>` 하나로 두고 훅은 읽기만 한다.
+
+`pending`(`{ tabId, width }`)의 수명: `select()` 성공 시 세팅 → 위 "cross-origin handoff"의 폐기 조건에서 제거 → top `onCommitted`에서 **소비 즉시 삭제한 뒤** `reestablish`를 부르고 성공하면 다시 세팅한다(실패 경로에서 유령 pending이 남지 않게). **단 `busy` 거부는 실패가 아니다** — 되돌려놓지 않으면 `select()`가 도는 중에 온 top 커밋에서 모드가 조용히 유실된다.
+
+**`unsupported`는 우회 대상이 아니다.** `locked`가 `phase !== "idle" || unsupported` 두 축이라(`useDeviceViewport` 타입 주석), 우회를 뭉뚱그리면 미지원 URL에서도 재수립을 시도하게 되고 폐기 조건 "미지원 URL 도달"과 충돌한다. 우회하는 건 `phase` 축뿐이고, unsupported면 pending을 버리고 끝낸다.
+
+**handoff·차단 복구는 `chrome.tabs.update` 전에 arm 창을 닫는다.** `select()`가 연 3초 창이 열린 채 남으면 타임아웃이 `frameBlocked`를 뒤늦게 쏘고, 그게 방금 성공한 재수립을 롤백시킨다. `reestablish`가 자기 창을 새로 여므로 이전 창은 반드시 닫혀 있어야 한다.
 
 ### `src/sidepanel/recorder-control.ts`
 
