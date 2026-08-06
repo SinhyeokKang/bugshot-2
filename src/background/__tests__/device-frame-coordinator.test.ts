@@ -255,6 +255,23 @@ describe("decideDeviceSignal — 성공·차단·handoff가 경쟁하지 않는�
     });
     expect(res.next.armed).toBe(false);
   });
+
+  it("beforeNavigate handoff 뒤 같은 프레임의 committed가 handoff를 중복 발화하지 않는다", () => {
+    const first = decideDeviceSignal(
+      state({ armed: false, binding: { frameId: 7, documentId: "d1" } }),
+      { kind: "beforeNavigate", frameId: 7, parentFrameId: 0, url: "https://b.com/" },
+    );
+    const second = decideDeviceSignal(first.next, {
+      kind: "committed",
+      frameId: 7,
+      documentId: "d2",
+      url: "https://b.com/",
+    });
+
+    expect(first.push).toEqual({ type: "handoff", url: "https://b.com/" });
+    expect(first.next.binding).toBeNull();
+    expect(second.push).toBeNull();
+  });
 });
 
 describe("handoffDeviceTab — 패널 수명과 무관한 top 이동", () => {
@@ -426,6 +443,12 @@ describe("SW 재기동 복원", () => {
     for (const k of Object.keys(store)) delete store[k];
     vi.resetModules();
     vi.stubGlobal("chrome", {
+      runtime: { sendMessage: vi.fn(async () => ({ ok: true })) },
+      tabs: {
+        update: vi.fn(async () => ({})),
+        sendMessage: vi.fn(async () => ({})),
+        reload: vi.fn(async () => {}),
+      },
       storage: {
         session: {
           get: vi.fn(async (key: string) => ({ [key]: store[key] })),
@@ -487,5 +510,21 @@ describe("SW 재기동 복원", () => {
     await mod.setDeviceFrame(1, null);
     expect(mod.getDeviceFrame(1)).toBeNull();
     expect(Object.values(store)).not.toContainEqual({ frameId: 7, documentId: "d1" });
+  });
+
+  it("binding storage 삭제가 실패해도 handoff top 이동은 계속한다", async () => {
+    const mod = await import("../device-frame-coordinator");
+    await mod.setDeviceFrame(1, { frameId: 7, documentId: "d1" });
+    vi.mocked(chrome.storage.session.remove).mockRejectedValueOnce(new Error("storage unavailable"));
+    mod.armDeviceFrame(1, false, TOP);
+
+    await mod.applyDeviceSignal(1, {
+      kind: "beforeNavigate",
+      frameId: 7,
+      parentFrameId: 0,
+      url: "https://b.com/",
+    });
+
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: "https://b.com/" });
   });
 });

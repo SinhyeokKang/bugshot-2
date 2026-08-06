@@ -130,7 +130,7 @@
 - **작업 내용**:
   - `reestablish(tabId, width)` 신설. **호출 지점은 top `onCommitted` + `pending` 하나뿐**이다. handoff·확장 reload 복구는 pending을 세우고 top commit을 만들기만 하며 직접 부르지 않는다.
   - **design.md 계약 표 13축을 전부 구현한다.** 특히 표에만 있고 `select()`엔 없는 축 다섯이 빠지기 쉽다: `unsupported`는 우회 안 함(폐기 우선) / `busy` 거부 시 pending 복원 / handoff·차단 복구는 `tabs.update` 전에 arm 창 닫기 / `picker.start` 재시도 / pending·카운터는 모듈 스코프 단일 인스턴스.
-  - `device.handoff` push 수신 → ① `pending = { tabId, width }`(인메모리, 영속 금지) ② `sessionExpired = true` ③ ACK. background가 ACK 뒤 `chrome.tabs.update(tabId, { url })`를 실행한다. 패널이 닫혀 ACK가 없으면 Full로 강등하더라도 top은 이동해 cross-origin 래퍼를 남기지 않는다.
+  - `device.handoff` push 수신 → `expiresAt` 전이면 ① `pending = { tabId, width }`(인메모리, 영속 금지) ② `sessionExpired = true` ③ ACK. background가 ACK 또는 500ms 상한 뒤 `chrome.tabs.update(tabId, { url })`를 실행한다. 패널이 닫혔거나 늦게 응답하면 pending 없이 Full로 강등하더라도 top은 이동해 cross-origin 래퍼를 남기지 않는다.
   - `SessionExpiredDialog`의 body만 디바이스 모드 문구로 분기하고 컴포넌트·플래그·`onConfirm={() => reset()}`은 건드리지 않는다. 녹화·미리보기·완료 phase면 다이얼로그 대신 토스트 1개.
   - **루프 가드는 `reestablish` 호출을 센다** — handoff 횟수를 세면 frame-busting(handoff 없이 top이 곧장 커밋)을 못 잡는다. 연속 2회 초과 또는 직전 재수립 URL 재방문 → 전용 다이얼로그 → [확인] 시 모드 해제 + idle. 리셋은 사용자의 명시적 세그먼트 조작, 또는 재수립 성공 후 top 커밋 없이 10초 경과.
   - **`select(null)`은 `pending`을 `device.set`보다 먼저 버린다** — OFF의 `location.reload()`도 top 커밋이라 pending이 남으면 OFF↔ON 루프가 된다.
@@ -142,7 +142,7 @@
   - [x] **`unsupported`는 우회하지 않는다** — `locked`가 `phase !== "idle" || unsupported` 두 축이라 뭉뚱그리면 미지원 URL에서도 재수립을 시도한다. 폐기 조건이 이긴다
   - [x] **`pending`·루프 카운터가 모듈 스코프다** — 훅은 `DeviceViewportBar`와 `App.tsx` 다이얼로그 분기에서 두 번 마운트되므로(Task 13), 훅 상태에 두면 top 커밋 한 번에 재수립이 2회 발사되고 루프 임계를 각각 절반씩 센다
   - [x] **`frameLoaded` 뒤 `picker.start` 재시도가 재수립 경로에도 있다** — picking 중 재수립이 그 분기의 유일한 도달 지점이다(위험 8). 빠지면 모드 ON에서 아무 요소도 못 고른다
-  - [x] `reestablish` 호출 지점이 정확히 2개다 (handoff·차단 복구가 직접 부르지 않는다 — 확장 reload 직후 top 커밋에서 두 경로가 겹쳐 발사되면 래퍼가 두 번 mount된다)
+  - [x] `reestablish` 호출 지점이 top commit 한 곳이다 (handoff·확장 reload 복구가 직접 부르지 않는다 — 두 경로가 겹쳐 발사되면 래퍼가 두 번 mount된다)
   - [x] `reestablish`는 `syncAndSettleLogs`를 안 부르고 1회 경고를 안 띄운다
   - [x] `reestablish`가 stop ACK 뒤에 store clear를 **무조건** 한 번 한다 — `background/index.ts:130`의 `logClear`는 editor 세션 스냅샷이 있을 때만 발화하므로, 패널을 막 열고 첫 로그 전이면 안 돈다. 두 번 비워도 둘 다 start ACK 전이라 무해하다
   - [x] `pending`이 `chrome.storage`에 안 들어간다 (영속하면 기각한 desync가 되살아난다)
@@ -229,7 +229,7 @@
   - `deviceFrameByTab: Map<number, {frameId, documentId}>` + `setDeviceFrame`·`isTopLikeFrame`·`armDeviceFrame`·`listTabDocuments`. 권위값은 `chrome.storage.session`에 보존하고 Map은 복제 캐시로 둔다. SW 시작 시 복원 promise 뒤에 navigation 이벤트를 탭별 순서 큐잉해 복구 전 오판을 막는다. **`isTopLikeFrame`은 동기 시그니처를 유지하되 큐 안에서만 호출한다** — 큐 밖 호출은 복원 전 오판이 된다.
   - 래퍼의 `device.frameReady`로 frameId를 등록한다. 이후 **same-origin** 이동은 frameId를 따라가고 commit마다 documentId를 갱신한다. **`frameReady`는 후속 문서에서도 매번 재발화하므로**(same-origin 불변식) arm 창이 닫혀 있으면 documentId만 갱신하고 push하지 않는다 — 안 그러면 same-origin 이동마다 `frameLoaded`가 날아온다. `parentFrameId`/`parentDocumentId`로 래퍼 자손 계보를 유지한다.
   - **로드 검증(XFO/CSP)의 판정 주체가 여기다.** `device.arm`으로 3초 감시창을 열고, 창 안에서 `parentFrameId === 0 && url === top URL`인 첫 `onBeforeNavigate`를 잠정 래퍼로 잡는다. 성공 = `device.frameReady` 또는 래퍼 frameId의 **same-origin** `onCommitted`(경로·쿼리만 바뀐 redirect 포함), 차단 = 래퍼 frameId의 `onErrorOccurred` 또는 3초 무신호. 결과를 `device.frameLoaded`/`device.frameBlocked`로 push한다. **same-origin redirect를 차단으로 합치지 않는다.**
-  - **cross-origin 감지 → `device.handoff` ACK → background top 이동.** 1차 트리거는 `onBeforeNavigate(래퍼 frameId)`의 URL origin이 top과 다를 때, 폴백은 `onCommitted(래퍼 frameId)`의 cross-origin이다. 패널이 닫혀 push가 실패해도 background가 top을 옮긴다. 판정은 `new URL(url).origin` 비교라 서브도메인 이동도 handoff다.
+  - **cross-origin 감지 → binding 즉시 폐기 → `device.handoff` ACK → background top 이동.** 1차 트리거는 `onBeforeNavigate(래퍼 frameId)`의 URL origin이 top과 다를 때, 폴백은 `onCommitted(래퍼 frameId)`의 cross-origin이다. binding을 먼저 지워 두 신호가 같은 이동을 중복 처리하지 못하게 한다. 패널이 닫혀 push가 실패해도 background가 top을 옮긴다. 판정은 `new URL(url).origin` 비교라 서브도메인 이동도 handoff다.
   - **차단 청취는 감시창 밖에서도 계속한다.** binding 확정 뒤의 `onErrorOccurred(래퍼 frameId)`도 듣고, 유지 중 차단은 handoff와 같은 경로로 보낸다(프레임에 못 들어가는 URL이므로 top으로 내보낸다). 안 하면 모드 유지 중 XFO 사이트에 도달했을 때 백지에 방치된다(prd 목표 9).
   - `listTabDocuments(tabId)`는 `chrome.webNavigation.getAllFrames({ tabId })` + binding으로 `{ all, deviceTree }`를 만든다. Task 5의 유일한 문서 열거원이다.
   - `device.arm`·`device.documents`는 `BgRequest` union + `BG_REQUEST_TYPES` 화이트리스트에 **등록한다**. 반면 `device.frameReady`는(구현에서 폐기된 `device.frameLoadEvent`도 원래 여기 속했다) **background에 push 전용 `chrome.runtime.onMessage` 리스너를 하나 더 달아** 받는다 — `index.ts:188`의 화이트리스트 게이트가 막고(Asana 전량 차단 회귀 전례), `messages.ts:198`의 `handleMessage`는 `_sender`를 아예 안 읽는다.

@@ -257,7 +257,7 @@ export type BgInternalMessage =
   | { type: "device.frameLoaded"; tabId: number; frameId: number }
   | { type: "device.frameBlocked"; tabId: number }
   // 래퍼가 cross-origin으로 나갔다 — 프레임에 가두면 파티션된 로그아웃 화면이 뜨므로 top을 옮긴다.
-  | { type: "device.handoff"; tabId: number; url: string };
+  | { type: "device.handoff"; tabId: number; url: string; expiresAt: number };
 
 export interface DeviceDocumentsResponse {
   /** 이 탭의 전 recorder document. */

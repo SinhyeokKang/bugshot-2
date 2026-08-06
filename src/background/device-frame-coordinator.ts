@@ -108,7 +108,7 @@ export function decideDeviceSignal(
         if (!isSameOrigin(signal.url, state.topUrl)) {
           return {
             push: { type: "handoff", url: signal.url },
-            next: { ...state, armed: false },
+            next: { ...state, armed: false, provisionalFrameId: null, binding: null },
           };
         }
         return { push: null, next: state };
@@ -129,7 +129,7 @@ export function decideDeviceSignal(
       if (!isSameOrigin(signal.url, state.topUrl)) {
         return {
           push: { type: "handoff", url: signal.url },
-          next: { ...state, armed: false },
+          next: { ...state, armed: false, provisionalFrameId: null, binding: null },
         };
       }
       const binding = { frameId: signal.frameId, documentId: signal.documentId };
@@ -148,7 +148,10 @@ export function decideDeviceSignal(
       }
       // 감시창 밖 차단(유지 중 XFO 사이트 도달)은 handoff와 같은 경로로 보낸다 — 프레임에
       // 못 들어가는 URL이므로 top을 그리로 내보낸다. 안 하면 백지에 방치된다.
-      return { push: { type: "handoff", url: signal.url }, next: state };
+      return {
+        push: { type: "handoff", url: signal.url },
+        next: { ...state, provisionalFrameId: null, binding: null },
+      };
     }
 
     case "armTimeout":
@@ -311,8 +314,13 @@ function pushToPanel(message: BgInternalMessage): void {
 export async function handoffDeviceTab(
   tabId: number,
   url: string,
-  notify: () => Promise<unknown> = () =>
-    chrome.runtime.sendMessage({ type: "device.handoff", tabId, url } satisfies BgInternalMessage),
+  notify: (expiresAt: number) => Promise<unknown> = (expiresAt) =>
+    chrome.runtime.sendMessage({
+      type: "device.handoff",
+      tabId,
+      url,
+      expiresAt,
+    } satisfies BgInternalMessage),
   update: (tabId: number, url: string) => Promise<unknown> = (targetTabId, targetUrl) =>
     chrome.tabs.update(targetTabId, { url: targetUrl }),
   rollback: (tabId: number) => Promise<unknown> = async (targetTabId) => {
@@ -328,10 +336,11 @@ export async function handoffDeviceTab(
   },
   ackTimeoutMs = 500,
 ): Promise<void> {
+  const expiresAt = Date.now() + ackTimeoutMs;
   let timer: ReturnType<typeof setTimeout> | null = null;
   try {
     await Promise.race([
-      notify(),
+      notify(expiresAt),
       new Promise<void>((resolve) => {
         timer = setTimeout(resolve, ackTimeoutMs);
       }),
@@ -368,6 +377,7 @@ export async function applyDeviceSignal(
   }
   if (!push) return null;
   if (push.type === "handoff") {
+    if (prevBinding) await setDeviceFrame(tabId, null).catch(() => {});
     await handoffDeviceTab(tabId, push.url);
   } else if (push.type === "frameLoaded") {
     // frameId는 방금 확정한 binding에서 나온다 — 사이드패널이 picker.start 재전송에 쓴다.

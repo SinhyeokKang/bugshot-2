@@ -40,7 +40,7 @@ So this is a tool for **"what does the layout do when it gets narrow"**. A site 
 
 The first time you pick a width, you'll get a one-time confirmation titled **The page will reload**. Two things are worth knowing up front:
 
-- The page reopens every time you change the viewport or go back to **Full**. On screens you can't redo — a completed checkout, say — it's safer to stay out.
+- The page reopens when you turn on a device viewport or go back to **Full**. On screens you can't redo — a completed checkout, say — it's safer to stay out.
 - The original page is only hidden from view; it keeps running behind the scenes. Autosaves and periodic requests can therefore happen twice.
 
 Read it, hit **Continue**, and you won't be asked again.
@@ -65,7 +65,7 @@ It sounds like a detour, but there's a reason. Trapping another site inside that
 
 The viewport row tucks itself away once you move on to writing the issue, so you can focus on the write-up. In its place, the **Environment** section shows the current width as `Viewport 390px`.
 
-The screen size recorded in the report's **Environment** is the width you picked, not your browser window — so nobody has to ask "which width did this break at?". Captured images and video are framed at that width too.
+The screen size recorded in the report's **Environment** is the width you picked, not your browser window — so nobody has to ask "which width did this break at?". Screenshots are captured inside that viewport, and video reports record the same width in their Environment.
 
 ---
 
