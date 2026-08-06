@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 
-import { OAuthError, grantReason, httpReason, type ConnectReason } from "../errors";
+import {
+  OAuthError,
+  authorizeRejection,
+  grantRejection,
+  httpReason,
+  type ConnectReason,
+} from "../errors";
 
 // PostHog `platform_connect`는 result(success/cancelled/failed) 3값뿐이라 "진짜 장애"와
 // "사용자 취소"를 사후에 가를 수 없었다. reason은 그 사유 축을 고정 enum으로만 싣는다 —
@@ -20,17 +26,11 @@ describe("httpReason", () => {
     expect(httpReason(599)).toBe("token_exchange_5xx");
   });
 
-  it("경계값 400/500이 아래 버킷으로 새지 않는다", () => {
-    expect(httpReason(399)).toBe("other");
-    expect(httpReason(400)).toBe("token_exchange_4xx");
-    expect(httpReason(499)).toBe("token_exchange_4xx");
-    expect(httpReason(500)).toBe("token_exchange_5xx");
-  });
-
-  it("2xx·3xx·0·600+는 other (res.ok가 false인데 4xx/5xx가 아닌 경우)", () => {
+  it("버킷 밖(0·2xx·3xx·600+)은 other — 399가 4xx로 새지 않는다", () => {
     expect(httpReason(0)).toBe("other");
     expect(httpReason(204)).toBe("other");
     expect(httpReason(302)).toBe("other");
+    expect(httpReason(399)).toBe("other");
     expect(httpReason(600)).toBe("other");
   });
 
@@ -40,16 +40,35 @@ describe("httpReason", () => {
   });
 });
 
-// GitHub는 `bad_verification_code`·`incorrect_client_credentials`를 **200 + 본문 error**로
-// 주고 Slack도 `ok:false`를 200으로 준다. status 기반 httpReason으로는 이 레인이 통째로
-// `other`에 떨어져 두 플랫폼의 가장 흔한 토큰 교환 실패가 미분류가 된다.
-describe("grantReason", () => {
-  it("제공자가 grant를 거부하면 token_exchange_rejected", () => {
-    expect(grantReason(false)).toBe("token_exchange_rejected");
+// 두 레인의 존재 이유와 값 선택 근거는 errors.ts의 함수 주석에 있다. 여기선 쌍이
+// 실제로 함께 나오는지만 본다 — 한쪽만 맞고 다른 쪽이 어긋나면 result와 reason이
+// PostHog에서 서로를 반증한다.
+describe("grantRejection (토큰 교환 200+본문 error)", () => {
+  it("제공자가 grant를 거부하면 token_exchange_rejected + failed 축", () => {
+    expect(grantRejection(false)).toEqual({
+      cancelled: false,
+      reason: "token_exchange_rejected",
+    });
   });
 
-  it("그 거부가 사용자 취소코드면 cancelled_denied (result 축과 어긋나면 안 된다)", () => {
-    expect(grantReason(true)).toBe("cancelled_denied");
+  it("그 거부가 사용자 취소코드면 cancelled_denied + cancelled 축", () => {
+    expect(grantRejection(true)).toEqual({ cancelled: true, reason: "cancelled_denied" });
+  });
+});
+
+describe("authorizeRejection (리다이렉트 ?error=)", () => {
+  it("제공자가 authorize를 거부하면 authorize_rejected + failed 축", () => {
+    expect(authorizeRejection(false)).toEqual({
+      cancelled: false,
+      reason: "authorize_rejected",
+    });
+  });
+
+  it("취소코드면 cancelled_denied + cancelled 축 (두 레인 공통)", () => {
+    expect(authorizeRejection(true)).toEqual({
+      cancelled: true,
+      reason: "cancelled_denied",
+    });
   });
 });
 
@@ -78,23 +97,26 @@ describe("OAuthError.reason", () => {
   });
 });
 
-// 값 집합을 코드 밖에서 한 번 더 고정한다 — 새 값을 추가하면서 analytics 허용목록·
-// 대시보드 쿼리를 같이 안 고치면 조용히 미분류로 떨어진다.
+// 값 집합을 코드 밖에서 고정한다 — 새 값을 추가하면서 대시보드 쿼리를 같이 안 고치면
+// 조용히 미분류로 떨어진다. **Record로 받는 게 핵심**이다: 배열 리터럴이면 union에
+// 12번째 값이 생겨도 typecheck·테스트 둘 다 통과해 "N개만 존재한다"가 거짓이 된다.
+// exhaustive Record는 멤버가 늘면 `pnpm typecheck`가 즉시 막는다.
 describe("ConnectReason 값 집합", () => {
-  it("11개 값만 존재한다", () => {
-    const all: ConnectReason[] = [
-      "profile_fetch_failed",
-      "cancelled_window",
-      "cancelled_denied",
-      "flow_in_progress",
-      "launch_failed",
-      "token_exchange_4xx",
-      "token_exchange_5xx",
-      "token_exchange_rejected",
-      "network",
-      "config_missing",
-      "other",
-    ];
-    expect(new Set(all).size).toBe(11);
+  it("12개 값만 존재한다", () => {
+    const all: Record<ConnectReason, true> = {
+      cancelled_window: true,
+      cancelled_denied: true,
+      flow_in_progress: true,
+      launch_failed: true,
+      authorize_rejected: true,
+      token_exchange_4xx: true,
+      token_exchange_5xx: true,
+      token_exchange_rejected: true,
+      profile_fetch_failed: true,
+      network: true,
+      config_missing: true,
+      other: true,
+    };
+    expect(Object.keys(all)).toHaveLength(12);
   });
 });

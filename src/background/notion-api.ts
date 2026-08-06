@@ -74,8 +74,11 @@ async function notionFetch<T>(
   if (res.status === 401) {
     // Notion 공개 통합은 토큰이 만료되지 않지만 권한 박탈/revoke 시 401.
     // refresh가 없으므로 즉시 재인증으로 안내.
+    // 401만 OAuthError로 감싸므로, 태깅이 없으면 같은 프로필 조회 레인이 status에 따라
+    // profile_fetch_failed(402~5xx = NotionError)와 other(401)로 갈린다.
     throw new OAuthError(t("notion.oauthExpired"), {
       platform: "notion",
+      reason: "profile_fetch_failed",
     });
   }
   if (!res.ok) {

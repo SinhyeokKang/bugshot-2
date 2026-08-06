@@ -24,8 +24,8 @@ function posthogHost(): string {
 // 통째로 드롭하고, 목록 밖 property 키도 payload에서 뺀다(값은 원문 유지).
 const ALLOWED_EVENTS: Record<string, readonly string[]> = {
   issue_submitted: ["platform", "capture_mode", "result", "replay_trimmed", "trim_source"],
-  // reason은 실패 사유의 고정 enum(ConnectReason)만 받는다 — 상류 error_description·
-  // 응답 본문은 이 축에 들어오지 않는다(httpReason이 status를 4xx/5xx로만 뭉갠다).
+  // reason에는 ConnectReason 고정 enum만 온다 — 상류 error_description·응답 본문을
+  // 이 목록에 얹지 말 것(원문이 나가는 유일한 경로가 된다).
   platform_connect: ["platform", "result", "reason"],
   platform_disconnected: ["platform"],
   extension_installed: ["version"],
