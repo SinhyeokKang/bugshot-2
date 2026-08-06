@@ -243,6 +243,8 @@ export interface DeviceDocumentsResponse {
 
 **broadcast는 절대 쓰지 않는다** — `setFrameToken`(`frame-geometry.ts:73`)이 `picker.start`마다 `childFrames` WeakSet을 새 인스턴스로 갈아치우므로, 실수로 broadcast하면 top registry가 통째로 비워져 방금 등록된 래퍼가 날아간다.
 
+**element 캡처의 좌표 합성도 이 등록에 함께 걸린다.** 래퍼 안 요소의 rect는 래퍼 내부 좌표인데 크롭은 top 이미지 기준이라, 기존 offset 핸드셰이크(`frame-geometry.ts:114-167` — 사이드패널이 `picker.armFrameOffset`으로 1회 arm하고 부모가 **registry 등록 여부를 확인한 뒤에만** offset을 응답)가 top 좌표로 합성한다. 래퍼는 1-depth 등록 iframe이므로 이 경로를 그대로 타고 추가 배선이 0이지만, **등록이 실패하면 요소 선택뿐 아니라 캡처도 rect `null`로 죽는다** — 위험 8이 두 갈래로 번지는 지점이다.
+
 ### `src/content/device-frame.ts`
 
 ```ts
