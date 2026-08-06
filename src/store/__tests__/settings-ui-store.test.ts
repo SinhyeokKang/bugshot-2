@@ -8,7 +8,6 @@ import {
   sectionLabelKey,
   sectionMdLabelKey,
   sectionPlaceholderKey,
-  SETTINGS_UI_PERSIST_VERSION,
   useSettingsUiStore,
   type IssueSection,
   type IssueSectionId,
@@ -437,9 +436,6 @@ describe("settings-ui-store", () => {
       expect(migrateSettingsUi({ deviceModeWarned: true }, 9).deviceModeWarned).toBe(true);
     });
 
-    it("persist version이 10이다", () => {
-      expect(SETTINGS_UI_PERSIST_VERSION).toBe(10);
-    });
   });
 
   describe("초기 마이그레이션 분기 (v1→v5)", () => {

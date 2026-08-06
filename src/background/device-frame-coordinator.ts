@@ -1,3 +1,5 @@
+import { deviceFrameKey } from "@/lib/session-keys";
+import { isSupportedUrl } from "@/lib/url-support";
 import type { BgInternalMessage, DeviceDocumentsResponse } from "@/types/messages";
 
 export interface DeviceFrameBinding {
@@ -37,13 +39,7 @@ export interface DeviceDecision {
   next: DeviceFrameState;
 }
 
-export const ARM_WINDOW_MS = 3000;
-
-const STORAGE_PREFIX = "deviceFrame:";
-
-function storageKey(tabId: number): string {
-  return `${STORAGE_PREFIX}${tabId}`;
-}
+const ARM_WINDOW_MS = 3000;
 
 // 판정 기준은 site가 아니라 origin이다 — a.com → www.a.com은 same-site여도 frameElement가
 // null이 되고 pre-arm 플래그(origin 스코프 sessionStorage)가 갈려, same-origin 전제로 싸게
@@ -73,14 +69,32 @@ export function decideDeviceSignal(
 
   switch (signal.kind) {
     case "frameReady": {
-      const binding = { frameId: signal.frameId, documentId: signal.documentId };
-      // frameReady는 한 번만 오지 않는다 — same-origin 불변식 때문에 래퍼 안에서 링크를 타고
-      // 들어간 후속 문서도 frameElement를 읽어 매번 재발화한다. arm 창이 닫혀 있으면
-      // documentId만 갱신한다(안 막으면 이동마다 전이 완료 처리가 반복된다).
-      if (!state.armed) return { push: null, next: { ...state, binding } };
+      // **이 신호는 신뢰 경계다.** 래퍼 자가식별은 `frameElement.id === DEVICE_FRAME_ID`
+      // 하나뿐인데 그 id는 페이지가 붙이는 DOM 속성이고, picker는 all_frames라 페이지가 만든
+      // same-origin iframe에도 주입돼 정상적으로 frameReady를 쏜다. 무조건 수용하면 위조
+      // binding이 굳고, sentinel 게이트의 모드 판정이 deviceTree 길이라 사용자가 모드를 켠 적
+      // 없어도 ON으로 뒤집혀 **진짜 top 문서의 로그가 통째로 안 잡힌다**(에러 없는 은폐).
+      // 그래서 이미 래퍼로 아는 프레임이거나, 우리가 연 arm 창의 잠정 래퍼일 때만 받는다.
+      if (!state.armed) {
+        // frameReady는 한 번만 오지 않는다 — same-origin 불변식 때문에 래퍼 안에서 링크를
+        // 타고 들어간 후속 문서도 매번 재발화한다. 그 재발화만 documentId 갱신으로 받는다.
+        if (state.binding?.frameId !== signal.frameId) return { push: null, next: state };
+        return {
+          push: null,
+          next: { ...state, binding: { frameId: signal.frameId, documentId: signal.documentId } },
+        };
+      }
+      if (state.provisionalFrameId != null && state.provisionalFrameId !== signal.frameId) {
+        return { push: null, next: state };
+      }
       return {
         push: { type: "frameLoaded" },
-        next: { ...state, armed: false, provisionalFrameId: null, binding },
+        next: {
+          ...state,
+          armed: false,
+          provisionalFrameId: null,
+          binding: { frameId: signal.frameId, documentId: signal.documentId },
+        },
       };
     }
 
@@ -166,20 +180,28 @@ export function isTopLikeFrame(
   return frameId === 0 || (binding != null && binding.frameId === frameId);
 }
 
-/** getAllFrames + binding을 합쳐 전 document와 래퍼 서브트리를 가른다. */
+/**
+ * getAllFrames + binding을 합쳐 **레코더가 붙어 있을 수 있는** document만 전량/래퍼 서브트리로
+ * 가른다. manifest에 `match_about_blank`가 없어 about:blank·srcdoc·data: 프레임엔 content
+ * script가 안 붙는데, 그런 프레임을 열거에 남기면 stop ACK가 "Receiving end does not exist"로
+ * 거절돼 **광고 iframe 하나 때문에 정상 로드된 래퍼까지 롤백된다**.
+ */
 export function splitTabDocuments(
-  frames: Array<{ frameId: number; parentFrameId: number; documentId?: string }>,
+  frames: Array<{ frameId: number; parentFrameId: number; documentId?: string; url?: string }>,
   binding: DeviceFrameBinding | null,
 ): DeviceDocumentsResponse {
-  const all = frames
-    .map((f) => f.documentId)
-    .filter((d): d is string => typeof d === "string" && d.length > 0);
+  const injectable = frames.filter(
+    (f) => typeof f.documentId === "string" && f.documentId.length > 0 && isSupportedUrl(f.url),
+  );
+  const all = injectable.map((f) => f.documentId as string);
   if (!binding) return { all, deviceTree: [] };
 
   const inTree = new Set<number>([binding.frameId]);
   // 계보는 깊이를 모르므로 고정점까지 돈다(프레임 수가 수십 단위라 비용이 무의미하다).
   for (let changed = true; changed; ) {
     changed = false;
+    // 계보는 injectable이 아니라 전 프레임으로 돈다 — 중간에 about:blank가 껴도 그 자손이
+    // 래퍼 서브트리에서 떨어져 나가면 안 된다.
     for (const f of frames) {
       if (!inTree.has(f.frameId) && inTree.has(f.parentFrameId)) {
         inTree.add(f.frameId);
@@ -187,10 +209,9 @@ export function splitTabDocuments(
       }
     }
   }
-  const deviceTree = frames
+  const deviceTree = injectable
     .filter((f) => inTree.has(f.frameId))
-    .map((f) => f.documentId)
-    .filter((d): d is string => typeof d === "string" && d.length > 0);
+    .map((f) => f.documentId as string);
   return { all, deviceTree };
 }
 
@@ -209,9 +230,9 @@ function ensureRestored(tabId: number): Promise<void> {
   let p = restoreByTab.get(tabId);
   if (p) return p;
   p = chrome.storage.session
-    .get(storageKey(tabId))
+    .get(deviceFrameKey(tabId))
     .then((data) => {
-      const stored = data[storageKey(tabId)] as DeviceFrameBinding | undefined;
+      const stored = data[deviceFrameKey(tabId)] as DeviceFrameBinding | undefined;
       if (stored && !bindingByTab.has(tabId)) bindingByTab.set(tabId, stored);
     })
     .catch(() => {});
@@ -246,11 +267,11 @@ export async function setDeviceFrame(
   restoreByTab.set(tabId, Promise.resolve());
   if (binding) {
     bindingByTab.set(tabId, binding);
-    await chrome.storage.session.set({ [storageKey(tabId)]: binding });
+    await chrome.storage.session.set({ [deviceFrameKey(tabId)]: binding });
     return;
   }
   bindingByTab.delete(tabId);
-  await chrome.storage.session.remove(storageKey(tabId));
+  await chrome.storage.session.remove(deviceFrameKey(tabId));
 }
 
 function armSlot(tabId: number): { armed: boolean; provisionalFrameId: number | null; topUrl: string } {
@@ -262,7 +283,7 @@ function armSlot(tabId: number): { armed: boolean; provisionalFrameId: number | 
   return slot;
 }
 
-export function readDeviceState(tabId: number): DeviceFrameState {
+function readDeviceState(tabId: number): DeviceFrameState {
   const slot = armSlot(tabId);
   return {
     topUrl: slot.topUrl,
@@ -330,7 +351,7 @@ export function armDeviceFrame(tabId: number, on: boolean, topUrl: string): void
   );
 }
 
-/** device.documents의 구현. Task 5 게이트의 유일한 문서 열거원이다. */
+/** device.documents의 구현. sentinel 게이트의 유일한 문서 열거원이다. */
 export async function listTabDocuments(tabId: number): Promise<DeviceDocumentsResponse> {
   return enqueueForTab(tabId, async () => {
     let frames: chrome.webNavigation.GetAllFrameResultDetails[] | null = null;
@@ -345,6 +366,7 @@ export async function listTabDocuments(tabId: number): Promise<DeviceDocumentsRe
         frameId: f.frameId,
         parentFrameId: f.parentFrameId,
         documentId: f.documentId,
+        url: f.url,
       })),
       getDeviceFrame(tabId),
     );
@@ -359,7 +381,7 @@ export function trackCommittedUrl(tabId: number, frameId: number, url: string): 
   return prev;
 }
 
-/** top 이동·탭 제거·명시적 OFF에서 Map·storage·타이머를 함께 지운다. */
+/** top 이동·명시적 OFF에서 Map·storage·타이머를 함께 지운다. 반드시 큐 안에서 부른다. */
 export async function clearDeviceFrame(tabId: number): Promise<void> {
   clearArmTimer(tabId);
   armedByTab.delete(tabId);
@@ -367,4 +389,15 @@ export async function clearDeviceFrame(tabId: number): Promise<void> {
     if (key.startsWith(`${tabId}:`)) lastCommittedUrl.delete(key);
   }
   await setDeviceFrame(tabId, null);
+}
+
+/**
+ * 탭이 사라졌을 때의 정리. 큐 뒤에서 지워야 인플라이트 태스크의 setDeviceFrame이 방금 지운
+ * 세션 키를 되살리지 않는다. 큐·복원 슬롯 자체도 함께 버려 SW 수명 동안 누적되지 않게 한다.
+ */
+export function forgetTab(tabId: number): void {
+  void enqueueForTab(tabId, () => clearDeviceFrame(tabId)).finally(() => {
+    queueByTab.delete(tabId);
+    restoreByTab.delete(tabId);
+  });
 }

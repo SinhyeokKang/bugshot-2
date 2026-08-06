@@ -49,7 +49,12 @@ import { SettingsTab } from "./tabs/SettingsTab";
 import { TabNavContext } from "./tab-nav";
 import { applyReplayTrim, applyRecordingTrim, TrimLogsPersistError } from "./30s-replay/apply-trim";
 import { clearPicker } from "@/sidepanel/picker-control";
-import { useDeviceViewportStore } from "@/sidepanel/device-viewport-controller";
+import {
+  attachDeviceViewport,
+  dismissDeviceLoopWarning,
+  setDeviceViewportUnsupported,
+  useDeviceViewportStore,
+} from "@/sidepanel/device-viewport-controller";
 import {
   deleteNetworkLog,
   deleteConsoleLog,
@@ -120,6 +125,17 @@ export default function App() {
   usePickerMessages(tabId ?? null);
   useThemeEffect();
 
+  // 디바이스 뷰포트 push 리스너는 **패널 루트가 소유한다** — 세그먼트 행은 작성 플로우에서
+  // 언마운트되는데 재수립이 가장 필요한 구간이 정확히 거기라, 컴포넌트 수명에 매달면
+  // 작성 중 handoff가 통째로 유실된다.
+  useEffect(() => {
+    if (tabId == null) return;
+    return attachDeviceViewport(tabId);
+  }, [tabId]);
+  useEffect(() => {
+    setDeviceViewportUnsupported(unsupported);
+  }, [unsupported]);
+
   const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
   const aiDraftLoading = useEditorStore((s) => s.aiDraftLoading);
   const reproPrefillLoading = useEditorStore((s) => s.reproPrefillLoading);
@@ -139,9 +155,9 @@ export default function App() {
   const [oauthExpiredPlatform, setOauthExpiredPlatform] = useState<PlatformId | null>(null);
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
-  // 훅이 아니라 컨트롤러 스토어를 직접 읽는다 — 이 분기는 폭만 필요하고, 훅을 부르면
-  // DeviceViewportBar와 함께 두 번 마운트되면서 device.state를 중복 조회한다.
+  // 이 분기는 폭만 필요하므로 훅이 아니라 컨트롤러 스토어를 직접 읽는다.
   const deviceWidth = useDeviceViewportStore((s) => s.width);
+  const deviceLoopWarning = useDeviceViewportStore((s) => s.loopWarning);
   const [blobSaveFailed, setBlobSaveFailed] = useState(false);
   const [stateSaveFailed, setStateSaveFailed] = useState(false);
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
@@ -358,6 +374,23 @@ export default function App() {
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setPickerUnavailable(false)} data-testid="picker-unavailable-ok">
               {t("common.ok")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 재수립은 작성·녹화 중에도 도는데 뷰포트 행은 그 구간에 없다 — 루프 경고는 행이 아니라
+          패널 루트가 소유해야 무음 유실되지 않는다. 강제 확인형이라 onOpenChange를 두지 않는다
+          (Esc로 닫으면 모드가 해제되지 않은 채 다이얼로그만 사라진다). */}
+      <AlertDialog open={deviceLoopWarning}>
+        <AlertDialogContent data-testid="device-loop-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("issue.device.loop.title")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("issue.device.loop.body")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={dismissDeviceLoopWarning}>
+              {t("issue.device.loop.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

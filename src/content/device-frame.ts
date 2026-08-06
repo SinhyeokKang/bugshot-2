@@ -122,7 +122,9 @@ export function clampToDeviceFrame(
 
 /**
  * 이 문서가 래퍼 자신인가. 래퍼는 언제나 top과 same-origin이라는 불변식 덕에 frameElement가
- * 항상 유효하다 — cross-origin 문서에서는 throw가 아니라 null이므로 자연히 false가 된다.
+ * 항상 유효하다 — cross-origin 문서에서는 명세상 null이라 일반 iframe은 자연히 false가 된다.
+ * try는 그 명세를 안 따르는 임베더(sandbox 조합 등)에서 접근이 throw할 때의 안전망이고,
+ * 그 경우도 "래퍼가 아니다"로 접는 게 맞다.
  */
 export function isDeviceFrame(): boolean {
   try {

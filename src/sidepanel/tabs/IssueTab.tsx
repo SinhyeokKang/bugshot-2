@@ -715,8 +715,8 @@ function SubmitSuccessPanel() {
   return <SubmitSuccessView result={submitResult} onClose={() => reset()} />;
 }
 
-// title은 기존 것을 재사용한다 — "페이지가 변경되었습니다"가 handoff에도 그대로 맞다.
-// 컴포넌트·sessionExpired 플래그·onConfirm은 무변경이고 body 문구만 갈린다.
+// handoff(래퍼가 cross-origin으로 나가 top을 통째로 옮긴 경우)는 사용자가 겪는 일이 달라
+// body만 갈린다 — title "페이지가 변경되었습니다"는 양쪽에 그대로 맞다.
 function SessionExpiredDialog({
   open,
   onConfirm,

@@ -139,12 +139,6 @@ function navKey(tabId: number, frameId: number): string {
   return `${tabId}:${frameId}`;
 }
 
-const RECORDER_SYNC_TYPES = [
-  "networkRecorder.sync",
-  "consoleRecorder.sync",
-  "actionRecorder.sync",
-] as const;
-
 chrome.webNavigation.onBeforeNavigate.addListener((details) => {
   const { tabId, frameId, parentFrameId, url } = details;
   if (frameId === 0) {
@@ -160,15 +154,23 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
     const key = sessionKey(tabId);
     const stored = await chrome.storage.session.get(key).catch(() => ({}) as Record<string, unknown>);
     if (stored[key] == null) return;
-    for (const type of RECORDER_SYNC_TYPES) {
-      chrome.tabs.sendMessage(tabId, { type }).catch(() => {});
-    }
+    chrome.tabs.sendMessage(tabId, { type: "networkRecorder.sync" }).catch(() => {});
+    chrome.tabs.sendMessage(tabId, { type: "consoleRecorder.sync" }).catch(() => {});
+    chrome.tabs.sendMessage(tabId, { type: "actionRecorder.sync" }).catch(() => {});
   });
 });
 
 chrome.webNavigation.onCommitted.addListener((details) => {
   const { tabId, frameId, documentId, url, transitionType } = details;
   const key = sessionKey(tabId);
+  if (frameId === 0) {
+    // **큐 밖에서 즉시** 알린다 — 이 push는 사이드패널의 documentId 게이트를 갱신하는
+    // 신호라 commit 순서를 지켜야 한다. storage 조회·복원 promise 뒤로 밀리면 새 문서의
+    // picker 메시지가 먼저 도착해 정상 메시지가 stale로 드롭된다.
+    chrome.runtime
+      .sendMessage({ type: "frameCommitted", tabId, frameId: 0, documentId } satisfies BgInternalMessage)
+      .catch(() => {});
+  }
   void enqueueForTab(tabId, async () => {
     // documentId 없는 커밋(구형 이벤트)은 binding을 만들 수 없어 판정에서 제외한다 —
     // 빈 documentId로 등록하면 문서 열거에서 걸러져 deviceTree가 조용히 빈다.
@@ -194,17 +196,6 @@ chrome.webNavigation.onCommitted.addListener((details) => {
           } satisfies BgInternalMessage)
           .catch(() => {});
       }
-    } else {
-      // top navigation도 이전 document에서 큐잉된 picker lifecycle을 documentId gate로
-      // 차단해야 한다. storage 조회를 기다리지 않고 commit 순서대로 먼저 알린다.
-      chrome.runtime
-        .sendMessage({
-          type: "frameCommitted",
-          tabId,
-          frameId: 0,
-          documentId,
-        } satisfies BgInternalMessage)
-        .catch(() => {});
     }
 
     // 여기서부터가 로그 라이프사이클 — 래퍼를 top처럼 취급하는 유일한 축이다.
@@ -248,12 +239,20 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     const frameId = sender.frameId;
     const documentId = sender.documentId;
     if (frameId == null || frameId === 0 || !documentId) return false;
-    void enqueueForTab(tabId, () =>
-      applyDeviceSignal(tabId, { kind: "frameReady", frameId, documentId }),
-    );
+    // 래퍼는 top의 **직속** 자식이다. 이 확인이 없으면 페이지가 2-depth에 심은 프레임도
+    // 래퍼를 자칭할 수 있다(id는 페이지가 붙이는 DOM 속성이고 picker는 all_frames다).
+    void enqueueForTab(tabId, async () => {
+      const frame = await chrome.webNavigation
+        .getFrame({ tabId, frameId })
+        .catch(() => null);
+      if (frame?.parentFrameId !== 0) return;
+      await applyDeviceSignal(tabId, { kind: "frameReady", frameId, documentId });
+    });
     return false;
   }
   if (message.type === "device.frameLoadEvent") {
+    // top이 발화하는 신호다 — 자식이 흉내 내면 진입 판정을 임의로 차단시킬 수 있다.
+    if (sender.frameId !== 0) return false;
     const { sameOriginHref } = message as { sameOriginHref: string | null };
     void enqueueForTab(tabId, () =>
       applyDeviceSignal(tabId, { kind: "frameLoadEvent", sameOriginHref }),

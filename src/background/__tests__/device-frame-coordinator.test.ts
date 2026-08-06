@@ -30,6 +30,38 @@ describe("decideDeviceSignal — 진입 판정 (arm 창 안)", () => {
     expect(res.next.provisionalFrameId).toBeNull();
   });
 
+  // 래퍼 자가식별은 frameElement.id 하나뿐인데 그 id는 페이지가 붙이는 DOM 속성이고,
+  // picker는 all_frames라 페이지가 만든 same-origin iframe에도 주입돼 정상적으로 frameReady를
+  // 쏜다. 무조건 수용하면 위조 binding이 굳고, sentinel 게이트의 모드 판정이 deviceTree 길이라
+  // 사용자가 모드를 켠 적 없어도 ON으로 뒤집혀 진짜 top의 로그가 통째로 안 잡힌다.
+  it("arm 닫힘 + binding 없음이면 frameReady를 아예 수용하지 않는다", () => {
+    const res = decideDeviceSignal(state({ armed: false, binding: null }), {
+      kind: "frameReady",
+      frameId: 9,
+      documentId: "forged",
+    });
+    expect(res.push).toBeNull();
+    expect(res.next.binding).toBeNull();
+  });
+
+  it("arm 닫힘에서 다른 frameId의 frameReady는 확정 binding을 못 가로챈다", () => {
+    const res = decideDeviceSignal(
+      state({ armed: false, binding: { frameId: 7, documentId: "d1" } }),
+      { kind: "frameReady", frameId: 9, documentId: "forged" },
+    );
+    expect(res.next.binding).toEqual({ frameId: 7, documentId: "d1" });
+  });
+
+  it("arm 열림이어도 잠정 래퍼와 다른 frameId면 승격하지 않는다", () => {
+    const res = decideDeviceSignal(state({ armed: true, provisionalFrameId: 7 }), {
+      kind: "frameReady",
+      frameId: 9,
+      documentId: "forged",
+    });
+    expect(res.push).toBeNull();
+    expect(res.next.binding).toBeNull();
+  });
+
   // same-origin 불변식 때문에 래퍼 안 링크 이동의 후속 문서도 frameElement를 읽어 매번 재발화한다.
   // 안 막으면 이동마다 frameLoaded가 날아와 사이드패널이 전이 완료 처리를 반복한다.
   it("frameReady + arm 닫힘 → 무발화, documentId만 갱신", () => {
@@ -275,12 +307,40 @@ describe("isTopLikeFrame", () => {
 });
 
 describe("splitTabDocuments", () => {
+  const url = "https://a.com/";
   const frames = [
-    { frameId: 0, parentFrameId: -1, documentId: "top" },
-    { frameId: 7, parentFrameId: 0, documentId: "wrap" },
-    { frameId: 9, parentFrameId: 7, documentId: "wrapChild" },
-    { frameId: 3, parentFrameId: 0, documentId: "ad" },
+    { frameId: 0, parentFrameId: -1, documentId: "top", url },
+    { frameId: 7, parentFrameId: 0, documentId: "wrap", url },
+    { frameId: 9, parentFrameId: 7, documentId: "wrapChild", url },
+    { frameId: 3, parentFrameId: 0, documentId: "ad", url },
   ];
+
+  // manifest에 match_about_blank가 없어 about:blank·srcdoc 프레임엔 레코더가 안 붙는다.
+  // 열거에 남겨두면 stop ACK가 "Receiving end does not exist"로 거절돼, 광고 iframe 하나로
+  // 정상 로드된 래퍼까지 롤백된다.
+  it("content script가 못 붙는 프레임은 열거에서 뺀다", () => {
+    const withBlank = [
+      ...frames,
+      { frameId: 4, parentFrameId: 0, documentId: "blank", url: "about:blank" },
+      { frameId: 5, parentFrameId: 0, documentId: "srcdoc", url: "about:srcdoc" },
+      { frameId: 6, parentFrameId: 0, documentId: "data", url: "data:text/html,x" },
+    ];
+    const res = splitTabDocuments(withBlank, null);
+    expect(res.all).not.toContain("blank");
+    expect(res.all).not.toContain("srcdoc");
+    expect(res.all).not.toContain("data");
+    expect(res.all).toContain("top");
+  });
+
+  it("주입 불가 프레임은 래퍼 자손이어도 deviceTree에서 빠진다", () => {
+    const withBlank = [
+      ...frames,
+      { frameId: 8, parentFrameId: 7, documentId: "wrapBlank", url: "about:blank" },
+    ];
+    const res = splitTabDocuments(withBlank, { frameId: 7, documentId: "wrap" });
+    expect(res.deviceTree).not.toContain("wrapBlank");
+    expect(res.deviceTree.sort()).toEqual(["wrap", "wrapChild"]);
+  });
 
   it("모드 OFF에서 deviceTree가 빈 배열이다 (게이트가 기존 broadcast 경로로 떨어지는 조건)", () => {
     const res = splitTabDocuments(frames, null);
@@ -296,7 +356,7 @@ describe("splitTabDocuments", () => {
   });
 
   it("documentId가 없는 프레임은 열거에서 빠진다", () => {
-    const res = splitTabDocuments([{ frameId: 0, parentFrameId: -1 }], null);
+    const res = splitTabDocuments([{ frameId: 0, parentFrameId: -1, url }], null);
     expect(res.all).toEqual([]);
   });
 });
