@@ -155,7 +155,7 @@
 
 ## 성공 기준
 
-1. `전체` 상태에서 **기존 e2e 전 스위트가 무변경으로 green**이다. (`e2e/capture-modes-layout.spec.ts:32-45`의 idle 버튼 정확 집합 단언 포함)
+1. `전체` 상태에서 **기존 e2e 전 스위트가 무변경으로 green**이다. 특히 `e2e/capture-modes-layout.spec.ts` — 그 spec의 실제 위험은 버튼 집합이 아니라 **레이아웃**이다. `:32-45`는 testId 6개 노출 + 3개 부재를 보는 것이라 행이 하나 늘어도 안 깨지지만, `:63-77`이 `boundingBox()`로 버튼 균등 너비를 재고 idle 화면은 `overflow-hidden`이라 **상단 크롬이 커지면 잘려서 보이지 않게 된다**(design.md "DebugTab 배선"). `전체`가 기본값이라 행이 늘어나는 것 자체는 모드와 무관하게 항상 일어나므로, 이 검증은 모드 OFF에서도 필수다.
 2. `390` 선택 후 페이지의 `window.innerWidth === 390`이고, `matchMedia("(max-width: 767px)").matches === true`다. 이어서 `768`을 누르면 **재로드·모드 해제 없이** `innerWidth`만 768이 된다.
 3. 모드 ON에서 같은 `console.log` 1회 호출이 로그 탭에 **1건**만 나타난다.
 4. 모드 ON에서 캡처한 이슈의 재현 환경 `Viewport` 행이 `390×<창높이>`다. **영상·30s Replay로 만든 이슈도 마찬가지다** — 이 둘은 `getTopViewport`를 안 쓰므로 별도 교체 없이는 브라우저 폭이 남는다. element·screenshot·freeform은 e2e로, **영상·30s Replay는 단위(값 전달·null 폴백) + 수동 체크리스트로** 닫는다.
