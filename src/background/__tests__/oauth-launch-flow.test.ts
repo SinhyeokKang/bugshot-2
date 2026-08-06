@@ -77,6 +77,23 @@ describe("classifyLaunchFlowError", () => {
     expect(result?.key).toBe("oauth.error.flowAlreadyInProgress");
   });
 
+  // cancelled와 reason은 표의 독립 컬럼이라 따로 검사하면 어긋난 행을 못 잡는다.
+  // `{cancelled:false, reason:"cancelled_window"}` 행 하나면 PostHog에
+  // `result=failed, reason=cancelled_window` 모순 조합이 나간다.
+  it("표의 cancelled와 reason 접두가 서로 어긋나지 않는다", () => {
+    for (const message of [
+      "The user did not approve access.",
+      "Authorization page could not be loaded.",
+      "Couldn't create a browser window to display an authorization page.",
+      "The browser context has been shut down",
+      "Only one web auth flow is allowed at a time.",
+    ]) {
+      const r = classifyLaunchFlowError(message);
+      expect(r, message).not.toBeNull();
+      expect(r?.reason.startsWith("cancelled_"), message).toBe(r?.cancelled);
+    }
+  });
+
   it("알 수 없는 메시지·빈 문자열은 분류하지 않는다 (과매칭 방지)", () => {
     expect(classifyLaunchFlowError("Failed to fetch")).toBeNull();
     expect(classifyLaunchFlowError("Token exchange failed (500)")).toBeNull();

@@ -2,7 +2,7 @@ import { t } from "@/i18n";
 import type { AsanaAuth, AsanaOAuthAuth } from "@/types/asana";
 import { writeStoredAsanaOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setAsanaRefreshHook } from "./asana-api";
-import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, grantReason, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   assertConfigured as assertOAuthConfigured,
@@ -35,9 +35,10 @@ export function parseAsanaCallbackParams(
   const parsed = new URL(redirectUrl);
   const errorParam = parsed.searchParams.get("error");
   if (errorParam) {
+    const cancelled = isAsanaCancellationCode(errorParam);
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "asana", cancelled: isAsanaCancellationCode(errorParam) },
+      { platform: "asana", cancelled, reason: grantReason(cancelled) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
@@ -107,16 +108,18 @@ async function exchangeCode(code: string): Promise<AsanaTokenResponse> {
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenExchange", { status: res.status, text }),
-      { platform: "asana" },
+      { platform: "asana", reason: httpReason(res.status) },
     );
   }
   const data = (await res.json()) as
     | AsanaTokenResponse
     | { error?: string; error_description?: string };
   if ("error" in data && data.error) {
+    const cancelled = isAsanaCancellationCode(data.error);
     throw new OAuthError(data.error_description || data.error, {
       platform: "asana",
-      cancelled: isAsanaCancellationCode(data.error),
+      cancelled,
+      reason: grantReason(cancelled),
     });
   }
   return data as AsanaTokenResponse;
@@ -137,7 +140,7 @@ export async function refreshAsanaToken(auth: AsanaAuth): Promise<AsanaAuth> {
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenRefresh", { status: res.status, text }),
-      { platform: "asana" },
+      { platform: "asana", reason: httpReason(res.status) },
     );
   }
   const rData = (await res.json()) as
