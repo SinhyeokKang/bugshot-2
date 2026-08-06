@@ -102,6 +102,31 @@ describe("classifyConnectReason", () => {
     expect(classifyConnectReason(new TypeError("boom"))).toBe("network");
   });
 
+  // 토큰 교환이 성공한 뒤 getMyself(프로필 조회) 한 왕복이 실패하는 레인. 8개 플랫폼이
+  // 각자 GithubError·SlackError… 를 던지는데 전부 숫자 status를 갖는다. OAuthError로
+  // **감싸면 안 된다** — serializeOAuthError의 401 fallthrough에 걸려 최초 연결 사용자에게
+  // "세션이 만료되었습니다"가 뜬다(2026-07-30 회고). 그래서 duck-typing으로만 분류한다.
+  it("숫자 status를 가진 플랫폼 API 에러는 profile_fetch_failed", () => {
+    class GithubError extends Error {
+      constructor(public status: number, message: string) {
+        super(message);
+        this.name = "GithubError";
+      }
+    }
+    expect(classifyConnectReason(new GithubError(403, "scope 부족"))).toBe(
+      "profile_fetch_failed",
+    );
+    // Slack은 status 기본값이 200이다 — 버킷을 status로 쪼개지 않는 이유.
+    expect(classifyConnectReason(new GithubError(200, "ratelimited"))).toBe(
+      "profile_fetch_failed",
+    );
+  });
+
+  it("status가 숫자가 아니면 profile_fetch_failed로 오분류하지 않는다", () => {
+    const err = Object.assign(new Error("boom"), { status: "500" });
+    expect(classifyConnectReason(err)).toBe("other");
+  });
+
   it("그 밖의 값은 전부 other", () => {
     expect(classifyConnectReason(new Error("boom"))).toBe("other");
     expect(classifyConnectReason(null)).toBe("other");
@@ -121,7 +146,10 @@ describe("result ↔ reason 정합성 불변식", () => {
     { err: new OAuthError("x", { notConfigured: true }), reason: "config_missing" },
     { err: new OAuthError("x", { reason: "token_exchange_4xx" }), reason: "token_exchange_4xx" },
     { err: new OAuthError("x", { reason: "token_exchange_5xx" }), reason: "token_exchange_5xx" },
+    { err: new OAuthError("x", { reason: "token_exchange_rejected" }), reason: "token_exchange_rejected" },
+    { err: new OAuthError("x", { cancelled: true, reason: "cancelled_denied" }), reason: "cancelled_denied" },
     { err: new TypeError("Failed to fetch"), reason: "network" },
+    { err: Object.assign(new Error("scope"), { status: 403 }), reason: "profile_fetch_failed" },
     { err: new Error("boom"), reason: "other" },
   ];
 
