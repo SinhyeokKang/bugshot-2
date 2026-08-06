@@ -120,6 +120,7 @@ Fix the bug visually before you even describe it.
 
 Grab exactly what's on screen and mark it up.
 
+- **Device viewport** — pin the page to a phone, tablet, or laptop width (390 / 768 / 1024) right in the panel and run the whole report at that size: media queries genuinely fire, and captures, logs, and the environment row all follow the pinned viewport. It emulates width, not a device — no touch events, no user-agent, no 2x image swaps. Switching reloads the page, and full-page capture is unavailable while a width is pinned.
 - **Element capture** — click an element to crop just that element as a clean screenshot; its DOM selector is added to the issue environment automatically.
 - **Works inside iframes** — the picker reaches one level into embedded frames, cross-origin ones included.
 - **Area capture** — drag any region of the screen to capture a precise slice.
@@ -347,7 +348,7 @@ the breadth will degrade accordingly.
 > The engineering docs under `docs/` and the source comments are written in
 > Korean — the project is built and maintained by one person, and that's the
 > language it was thought in.
-> Everything you need to audit the privacy claims above is in English.
+> Everything you need to audit the privacy claims above is available in both Korean and English.
 
 ## License
 
