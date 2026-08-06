@@ -2,9 +2,9 @@
 
 ## 개요
 
-top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device_frame__`)을 만들고, 원본 `body` 자식을 스타일시트 한 장으로 숨긴 뒤 그 iframe을 선택한 폭으로 렌더한다. top-level origin이 유지되므로 래퍼는 same-origin이고 쿠키·스토리지가 살아있으며, `<all_urls>` content_scripts가 래퍼 안에도 그대로 주입돼 picker·로그 레코더가 전부 동작한다.
+top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device_frame__`)을 만들고, 원본 `body` 자식을 스타일시트 한 장으로 숨긴 뒤 그 iframe을 선택한 폭으로 렌더한다. 최초 문서는 top과 same-origin이라 그 origin의 쿠키·스토리지를 그대로 쓰고, 이후 cross-origin 이동에서는 목적지 origin의 쿠키·스토리지를 정상 사용한다. `<all_urls>` content scripts가 두 경우 모두 주입되며, 래퍼 계보는 DOM 접근이 아니라 Chrome `frameId`/`documentId`로 추적한다.
 
-**설계의 축은 "상태를 어디에 두지 않을 것인가"다.** 모드의 단일 출처는 top 문서에 그 iframe이 존재하는지 여부뿐이고, 사이드패널 스토어에도 `chrome.storage`에도 모드 플래그를 두지 않는다. 이렇게 하면 탭 reload·URL 이동·확장 reload로 래퍼가 사라질 때 UI가 조용히 desync되는 축이 아예 생기지 않는다(브리프의 위험 (d)가 구조적으로 제거된다). 대신 사이드패널은 필요할 때마다 top 문서에 물어본다.
+**설계의 축은 "상태를 어디에 두지 않을 것인가"다.** 모드의 단일 출처는 top 문서에 그 iframe이 존재하는지 여부뿐이고, 사이드패널 스토어나 storage에 ON/OFF 플래그를 두지 않는다. background의 `chrome.storage.session`에는 로그·navigation 라우팅용 frame binding만 보존하며 UI 상태로 사용하지 않는다. 사이드패널은 필요할 때마다 top 문서에 물어본다.
 
 같은 원리로 **뷰포트 값을 파생하는 코드가 사이드패널 상태를 안 읽는다.** `getTopViewport`가 주입하는 함수가 스스로 래퍼를 찾아보고, 있으면 래퍼 크기를 없으면 `window.innerWidth/innerHeight`를 반환한다. `getTopViewport` **호출부 3개**(element·screenshot·freeform)가 무변경으로 올바른 값을 받는다.
 
@@ -37,14 +37,14 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
 | `src/sidepanel/picker-control.ts:811-824` | `getTopViewport`가 top `innerWidth/innerHeight` 반환 | 주입 함수가 래퍼를 먼저 찾도록 교체. 시그니처·기존 호출부 3개 무변경 |
 | `src/sidepanel/video-recorder.ts:111-117` | `chrome.tabs.get()`의 `tab.width/height`로 viewport 메타 | `getTopViewport(tabId)`로 교체 |
 | `src/sidepanel/30s-replay/use-30s-replay.ts:153` | 동일 | 동일 |
-| `src/sidepanel/recorder-control.ts` | clear 3종 (frameId 미지정 broadcast) | `stopRecordersInFrame(tabId, frameId)` 신설 |
+| `src/sidepanel/recorder-control.ts` | clear/activate 3종 (frameId 미지정 broadcast) | document 지정 stop/start + 래퍼 서브트리 전환 신설 |
 | `src/sidepanel/hooks/usePickerMessages.ts:206-223`·`:423` | `captureAndCrop(rect, viewport)` — **`capture.ts`가 아니라 이 파일의 모듈 프라이빗 함수**(`capture.ts`의 export는 `cropImage`뿐) | 크롭은 `msg.viewport`, 메타는 `getTopViewport(tabId)`로 분리. 변경이 이 파일 안에서 끝난다 |
 | `src/sidepanel/tabs/DebugTab.tsx:73-94` | 서브탭 바 `<div>`(`CollapsingTabsList` 74-93) | 그 wrapper 안쪽에 `mt-2`로 `<DeviceViewportBar>` 행을 넣는다 — 별도 bordered 행이면 상단 크롬이 138→207px가 되고 idle 화면은 `overflow-hidden`+`justify-center`라 밀리는 게 아니라 잘린다 |
 | `src/sidepanel/tabs/IssueTab.tsx:552-561` | `capture-method-fullpage` 버튼(`ariaDisabled={busy}` :554) | 모드 ON이면 `ariaDisabled` + 잠금 사유를 별도 `TooltipContent`로. **`label`을 바꾸면 안 된다** — `TooltipIconButton.tsx:42,54`에서 `label` 하나가 `aria-label`과 툴팁을 겸하므로 접근명까지 오염된다(선례: `mode-freeform` `IssueTab.tsx:371-389`) |
-| `src/sidepanel/tabs/DraftingPanel.tsx:576-678` | `ReproEnvironmentSection` | 모드 ON 읽기전용 인디케이터 1개. `getTopViewport` 결과에서 파생하므로 전역 상태를 안 만든다 |
+| `src/sidepanel/tabs/DraftingPanel.tsx:576-678` | `ReproEnvironmentSection` | 모드 ON 읽기전용 인디케이터 1개. `device.state.width != null`에서 파생하므로 전역 상태를 안 만든다 |
 | `src/sidepanel/App.tsx:362-376` | `iframeUnsupported` 다이얼로그(`:367`이 body) | 모드 ON이면 body 문구를 `app.iframeUnsupported.bodyDeviceMode`로 교체 |
 | `src/background/index.ts:120`·`:123`·`:145-186` | `onBeforeNavigate`/`onCommitted`의 frameId 게이트 + `navUrlPromise` | 아래 "래퍼 내부 네비게이션" 절 — 두 분기를 모두 태우고 `navUrlPromise` 키를 `tabId:frameId`로 |
-| `src/background/tab-bindings.ts` | — | `deviceFrameByTab: Map<number, number>` 등록·조회 + miss 복구 |
+| `src/background/tab-bindings.ts` | — | frameId/documentId binding의 session 보존·복구 + parent 계보 조회 |
 | `src/types/messages.ts`·`bgRequestTypes.ts` | `BgRequest` union + `BG_REQUEST_TYPES` 화이트리스트 | `device.frameReady`는 이 게이트를 통과 못 한다 — 아래 절 참조 |
 | `src/types/picker.ts` | `PickerMessage` union | `device.*` 메시지 3종 추가 |
 | `src/i18n/namespaces/app.ts`·`issue.ts` | ko/en 사전 | 신규 키(ko/en 동시) |
@@ -65,7 +65,7 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
    ▼
 useDeviceViewport.select(390)
    │  ① phase !== "idle" 이면 무시 (버튼이 이미 비활성)
-   │  ② 최초 1회 확인 다이얼로그
+   │  ② 최초 ON 진입 1회 확인 다이얼로그 → [계속] 시 local persist
    │  ③ syncAndSettleLogs(tabId)            ← 떠나는 로그 꼬리 확보
    │  ④ store.clearNetworkLog/Console/Action ← 모드 경계 (네비게이션이 아니라 logClear가 안 온다)
    │
@@ -81,12 +81,13 @@ device-frame.ts::mountDeviceFrame(390)
    ▼
 { ok: true, width: 390, available: {...} }
    │
-   ├─▶ [래퍼 프레임 / picker.ts]  window.frameElement.id === "__bugshot_device_frame__"
+   ├─▶ [최초 래퍼 문서 / picker.ts]  window.frameElement.id === "__bugshot_device_frame__"
    │        postToRuntime({ type: "device.frameReady" })
-   │            → background 전용 리스너: deviceFrameByTab.set(tabId, sender.frameId)
-   │            → sidepanel: 래퍼 frameId 기억 → 아래 재시도 송신의 타깃
+   │            → background 전용 리스너: frameId를 storage.session에 등록
+   │            → 이후 cross-origin 이동은 frameId 지속 + documentId 갱신으로 추적
    │
-   ├─▶ stopRecordersInFrame(tabId, 0)      ← 숨겨진 원본 문서의 레코더 정지
+   ├─▶ 모든 document recorder stop 응답 확인
+   │            → 래퍼 documentId + 하위 documentId만 start 응답 확인
    │   webNavigation.onCommitted(frameId≠0) → frameCommitted{frameId: 래퍼}
    │        → rebroadcastSentinelsToFrame(래퍼)  ← 기존 경로, 무변경
    │
@@ -173,7 +174,7 @@ export interface DeviceStateResponse {
 
 **따라서 background에 push 전용 `chrome.runtime.onMessage` 리스너를 하나 더 단다.** 기존 게이트를 안 흔들고 `sender.frameId`/`sender.tab.id`를 바로 읽는다.
 
-`deviceFrameByTab`은 **동기 Map으로 유지한다** — 소비처 2곳이 리스너 최상단 동기 early return이라 `chrome.storage.session` 조회를 넣을 수 없다(`:125`의 `navUrlPromise.set` 즉시성과 `:164-173`의 "storage 조회를 기다리지 않고 commit 순서대로 먼저 알린다"는 보장이 깨진다). SW hibernation으로 Map이 비면 **`send(tabId, {type:"device.state"}, 0)`로 페이지에 되묻어 복구**한다 — "단일 출처는 페이지 DOM"이라는 이 설계의 축과 그대로 맞는다. 이 저장소가 정합성 상태를 `chrome.storage.session`에 두는 관례(`tab-bindings.ts:16-35`)에서 벗어나는 유일한 지점이므로 코드 주석으로 이유를 남긴다.
+`deviceFrameByTab`의 권위값은 `chrome.storage.session`에 `{ frameId }`로 보존하고 메모리 Map은 복제 캐시로만 쓴다. Chrome은 frame 생애 동안 navigation을 넘어 `frameId`를 유지하고 문서가 바뀔 때 `documentId`를 교체하므로, 최초 same-origin 등록 뒤 cross-origin redirect·링크 이동도 DOM 접근 없이 추적한다. SW 시작 시 복원 promise를 만들고 `webNavigation` 처리를 탭별 순서 큐에서 그 promise 뒤에 연결한다. 성능보다 정확성을 우선해 복구 전 이벤트를 동기 기본값으로 판정하지 않는다. top `onCommitted`, 탭 제거, 명시적 OFF에서는 저장값과 Map을 함께 지운다.
 
 ### 래퍼 registry 등록 (위험 8의 실제 배선)
 
@@ -211,7 +212,7 @@ export function unmountDeviceFrame(): void;
 export function clampToDeviceFrame(rect: Rect, frame: Rect | null): Rect;
 ```
 
-**`전체` 복귀는 unmount 후 `location.reload()`까지 간다.** DOM 제거만 하면 원본 문서가 모드 진입 시점 상태로 남아, 모드 ON에서 한 로그인·장바구니 조작이 복귀 화면에 안 보인다. 진입·해제를 대칭으로 두면 상태 불일치 축이 사라진다 — 대신 최초 1회 경고 문구가 **양방향 재로드를 다 커버해야 한다**.
+**`전체` 복귀는 unmount 후 `location.reload()`까지 간다.** DOM 제거만 하면 원본 문서가 모드 진입 시점 상태로 남아, 모드 ON에서 한 로그인·장바구니 조작이 복귀 화면에 안 보인다. 진입·해제를 대칭으로 두면 상태 불일치 축이 사라진다. 최초 ON 진입 경고는 이 양방향 재로드와, 원본·래퍼 문서가 모드 ON 동안 함께 실행되어 timer·WebSocket·polling·자동저장·결제 동작이 중복될 수 있음을 명시한다.
 
 **은닉은 스타일시트 한 장으로 한다.** 개별 요소의 인라인 스타일을 저장·복원하지 않으므로 복원이 무손실이고, 캡처 중 DOM이 바뀌어도 규칙이 계속 적용된다.
 
@@ -238,21 +239,7 @@ body > *:not(#__bugshot_device_frame__) { display: none !important; }
 
 ### 로드 검증 (XFO/CSP 감지)
 
-```ts
-const ok = await new Promise<boolean>((resolve) => {
-  const timer = setTimeout(() => resolve(false), timeoutMs);
-  frame.addEventListener("load", () => {
-    clearTimeout(timer);
-    try {
-      resolve(frame.contentDocument?.location.href === location.href);
-    } catch {
-      resolve(false);   // cross-origin으로 밀린 경우
-    }
-  }, { once: true });
-});
-```
-
-XFO `DENY` / CSP `frame-ancestors 'none'`이면 Chrome이 `load`를 발화하되 문서는 `about:blank`로 남는다 → href 비교가 실패를 잡는다. same-origin이라 `SAMEORIGIN`·`frame-ancestors 'self'`는 정상 통과하므로 실패는 소수 사이트에 한정된다.
+top content script의 DOM load 신호와 background의 `webNavigation` 신호를 함께 쓴다. 초기 same-origin 문서는 href 일치로 성공하고, cross-origin redirect는 최초 등록한 frameId의 `onCommitted`로 성공한다. `onErrorOccurred`가 도착하거나 3초 안에 어느 성공 신호도 없고 blank 문서만 남을 때만 XFO/CSP 차단으로 롤백한다. redirect와 차단을 같은 reason으로 합치지 않는다.
 
 ### `src/sidepanel/lib/device-presets.ts`
 
@@ -292,21 +279,21 @@ export function useDeviceViewport(tabId: number | null): DeviceViewportState;
 `select()`가 하는 일(순서 고정):
 
 1. `locked || busy`면 즉시 반환
-2. 최초 1회 확인 다이얼로그(**모드 진입·해제 양방향** — 둘 다 재로드다. 해제는 `settings-ui-store`에 `deviceReloadWarned: boolean` 하나. 이 스토어는 현재 **version 9**(`settings-ui-store.ts:242`)이므로 `migrateSettingsUi`(`:131-151`)에 등록 + version 10 bump가 함께 가야 한다 — 선례 `:147` `autoReproPrefill`. 또 이 스토어에는 "봤음/무시함" 성격의 1회성 플래그 선례가 없다(전부 사용자 토글); 세션 스코프 dismissed 선례는 `editor-store`의 `apiHostsDismissed`다)
+2. 최초 ON 진입 1회 확인 다이얼로그. `[계속]`을 누르면 `settings-ui-store.deviceReloadWarned = true`를 `chrome.storage.local`에 즉시 영속한다. 체크박스는 없다. 이 스토어는 현재 **version 9**(`settings-ui-store.ts:242`)이므로 `migrateSettingsUi`(`:131-151`) 기본값 `false` 등록 + version 10 bump가 함께 가야 한다. 문구는 진입·해제 재로드와 원본·래퍼 동시 실행의 중복 요청·자동저장·결제 위험을 모두 말한다.
 3. `syncAndSettleLogs(tabId)` — 떠나는 페이지 로그 꼬리를 누적기에 밀어넣는다
 4. `store.clearNetworkLog/clearConsoleLog/clearActionLog(tabId)` + 3종 persist `discard()` — 모드 전환은 네비게이션이 아니라 `logClear`가 안 온다. 강제한다
 5. `sendPickerTop(tabId, { type: "device.set", width })`
 6. `ok === false`면 토스트 + 상태를 `전체`로 되돌린다
-7. `width != null`이면 `stopRecordersInFrame(tabId, 0)`
+7. `width != null`이면 현재 tab의 모든 recorder document에 stop을 보내 응답을 확인한 뒤, background가 추적한 래퍼 서브트리 documentId에만 start를 보내 응답을 확인한다. 하나라도 실패하면 모드를 롤백한다.
 
 ### `src/sidepanel/recorder-control.ts`
 
 ```ts
-/** 지정 프레임의 로그 레코더 3종만 정지. 기존 clear 3종은 frameId 미지정 broadcast라 그대로 못 쓴다. */
-export async function stopRecordersInFrame(tabId: number, frameId: number): Promise<void>;
+/** 현재 문서 전부를 정지한 뒤 지정 document 서브트리만 활성화한다. 각 단계는 응답 확인식이다. */
+export async function activateRecordersInDeviceTree(tabId: number, documentIds: string[]): Promise<boolean>;
 ```
 
-`chrome.tabs.sendMessage(tabId, msg, { frameId })`로 보낸다. 레코더 재활성 경로(`activateNetworkRecorder` 등 3종)가 `sendAll` broadcast라 top이 되살아나므로, **`picker-control`에 모듈 레벨 `deviceModeTabs: Set<number>` 캐시를 두고 activate 직후 재차 stop을 건다.** 이 캐시는 사이드패널 인스턴스 내부(탭 스코프)에 머물고 진실 소스가 아니다 — 틀려도 `getTopViewport`·`device.state`는 항상 페이지에서 다시 읽는다.
+정확도가 우선이므로 broadcast 후 top만 재정지하는 경쟁 구조는 쓰지 않는다. background의 `frameId`/`documentId`/`parentFrameId` 계보로 현재 문서를 열거하고, `chrome.tabs.sendMessage(..., { documentId })`로 전부 stop ACK를 받은 뒤 래퍼와 그 자손만 start ACK를 받는다. 전환 중 새 문서가 commit되면 같은 계보 판정으로 래퍼 자손만 활성화하고 나머지는 정지 상태를 재확인한다. sidepanel 모듈 캐시는 두지 않는다.
 
 ### `DeviceViewportBar`
 
@@ -318,17 +305,17 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }): JSX.Elem
 
 - 첫 세그먼트 라벨은 `전체`/`Full`. `끔`이 아니다 — 사용자가 고르는 건 "브라우저 폭 전체"라는 뷰포트 선택지 하나이고, 그래야 행 전체가 동질해진다.
 - **폭 예산이 빠듯하다.** 320px 패널에서 세그먼트당 텍스트 가용 폭이 ≈28.8px인데 `1024`(text-sm 4자리)가 ≈31px다. `grid grid-cols-5`에 gap이 남지 않게 하고 트리거 좌우 패딩을 줄여야 한다. Task 7에서 **320/360/400px 3점**을 검증한다.
-- 가용 폭 초과 세그먼트: `aria-disabled` + `opacity-50` + 툴팁. `disabled` 속성이 아니라 `aria-disabled`를 쓴다(DESIGN.md §14 — shadcn base의 `disabled:pointer-events-none`이 hover·툴팁을 죽인다). `ReplayButton`이 같은 선례다.
+- 가용 폭 초과 세그먼트: `aria-disabled` + `opacity-50` + 툴팁. `disabled` 속성이 아니라 `aria-disabled`를 쓴다(DESIGN.md §14 — shadcn base의 `disabled:pointer-events-none`이 hover·툴팁을 죽인다). Radix Tabs는 `aria-disabled`를 동작 가드로 해석하지 않으므로 `onValueChange`와 오케스트레이터 `select()` 양쪽에서 locked/busy/초과 값을 거부한다.
 - `locked`면 행 전체 `aria-disabled`.
-- **`busy`면 선택 세그먼트에 `Loader2 animate-spin`** + 행 전체 `aria-disabled`. XFO 사이트는 롤백까지 최대 3초라 무피드백 구간이 생긴다(선례 `IssueTab.tsx:560` — 스피너를 들면 `opacity-50`을 뺀다).
+- **`busy`면 선택 세그먼트에 `Loader2 motion-reduce:animate-none`** + 행 전체 `aria-disabled`·`aria-busy=true` + live status. XFO 사이트는 롤백까지 최대 3초라 무피드백 구간이 생긴다.
 - 세그먼트 접근명은 숫자가 아니라 `aria-label`로 "너비 390픽셀"류를 준다. 비활성 사유는 `aria-describedby`로 병행(Radix Tooltip은 focus에서도 열린다).
-- `tabId == null`이면 `null` 반환. **미지원 탭에서는 행을 숨기지 말고 유지 + 전체 `aria-disabled` + 사유 툴팁**으로 간다 — 이 앱의 관용구가 "자리 유지"이고(`IssueTab.tsx:352-358` 주석이 "버튼 자리를 미리 익히게 하는 편이 낫다"고 명시), `useTabUnsupported`는 네비게이션마다 재판정하므로 숨기면 일반 브라우징 중 행이 생겼다 사라진다.
+- `tabId == null` 또는 미지원 탭이면 `null`을 반환해 행을 렌더하지 않는다. PRD의 기존 미지원 캡처 진입 정책과 맞춘다.
 
 ### 모드 ON 인디케이터
 
 `hideSubTabs`는 `phase === styling|drafting|previewing|done`(`DebugTab.tsx:27-31`)이라, 뷰포트 행이 서브탭 바에 붙는 이상 **캡처 직후부터 제출까지 통째로 사라진다.** 전역 배지를 2차로 미뤘으므로 그 구간에 ON 신호가 0이 되고, `Device` 행 신설도 기각했으므로 리포트 표면에도 신호가 없다.
 
-1차는 **`DraftingPanel`의 재현 환경 근처에 읽기전용 표시 1개**로 갈음한다. `getTopViewport` 결과에서 파생하므로 전역 상태를 안 만들고 "페이지 DOM 단일 출처" 원칙을 안 깬다. 리포트를 받는 사람이 아니라 **작성자에게** 신호를 준다는 점에서 기각한 `Device` 행과 목적이 다르다.
+1차는 **`DraftingPanel`의 재현 환경 근처에 읽기전용 표시 1개**로 갈음한다. 폭이 우연히 프리셋과 같은 전체 상태와 혼동하지 않도록 `device.state.width != null`로 ON을 판정하고 `뷰포트 390px`처럼 현재 폭을 표시한다. 접근명과 `data-testid="device-viewport-indicator"`를 제공한다.
 
 ## 기존 패턴 준수
 
@@ -364,13 +351,16 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }): JSX.Elem
 
 ```ts
 // background/tab-bindings.ts
-const deviceFrameByTab = new Map<number, number>();
-export function setDeviceFrame(tabId: number, frameId: number | null): void;
+type DeviceFrameBinding = { frameId: number; documentId: string };
+const deviceFrameByTab = new Map<number, DeviceFrameBinding>();
+export async function setDeviceFrame(tabId: number, binding: DeviceFrameBinding | null): Promise<void>;
 export function isTopLikeFrame(tabId: number, frameId: number): boolean;  // 0 || 래퍼
 ```
 
-- 등록: 래퍼 안의 `picker.ts`가 `window.frameElement?.id === DEVICE_FRAME_ID`로 자기 정체를 알고(same-origin이라 `frameElement` 접근 가능 — 코드베이스에 `frameElement` 사용 선례는 0건이지만 금지 패턴도 아니다) `device.frameReady`를 발화 → background 전용 리스너가 `sender.frameId`로 기록
-- 해제: `device.set { width: null }` 성공 시, 그리고 `onCommitted(frameId: 0)`에서 무조건
+- 최초 등록: 같은 URL을 연 래퍼의 `picker.ts`만 `window.frameElement?.id === DEVICE_FRAME_ID`를 확인해 `device.frameReady`를 발화 → background가 `sender.frameId`/`sender.documentId`를 Map과 `chrome.storage.session`에 기록
+- 문서 이동: Chrome이 frame 생애 동안 유지하는 `frameId`를 권위값으로 삼고 `onCommitted.documentId`를 갱신한다. cross-origin 문서는 `frameElement`를 읽거나 재인증할 필요가 없다. `parentFrameId`/`parentDocumentId`로 래퍼 자손 계보도 갱신한다
+- SW 복구: 시작 시 storage 복원 promise 뒤에 navigation 이벤트를 탭별 큐잉한다. 복구 전에 Map이 비었다고 top-only로 판정하지 않는다
+- 해제: `device.set { width: null }` 성공 시, top `onCommitted`, 탭 제거에서 Map과 storage를 함께 제거
 - 소비: **아래 "무엇을 갈아끼우고 무엇을 그대로 두는가"**
 
 ### 무엇을 갈아끼우고 무엇을 그대로 두는가
@@ -393,7 +383,7 @@ export function isTopLikeFrame(tabId: number, frameId: number): boolean;  // 0 |
 
 키를 `${tabId}:${frameId}`로 바꾸고, 래퍼의 prev URL은 `tabs.get`이 아니라 직전 `onCommitted` URL을 별도 추적한다.
 
-**게이트는 동기로 유지한다.** `:123`과 `:145`는 리스너 최상단 동기 early return이고, `:125`의 `navUrlPromise.set` 즉시성과 `:164-173`의 "storage 조회를 기다리지 않고 commit 순서대로 먼저 알린다"는 보장이 async 조회로 깨진다.
+**게이트는 탭별 순서 큐로 직렬화한다.** storage 복구와 각 navigation 처리를 같은 promise chain에 연결해 `navUrlPromise` 갱신과 `frameCommitted` 순서를 보존한다. 즉시성보다 SW 재기동 뒤 올바른 래퍼 판정을 우선한다.
 
 이러면 래퍼 안의 이동에서도 3종 `sync` 꼬리 확보 + cross-origin/reload `logClear`가 동일하게 돌면서, iframe 재발행 경로도 살아남는다.
 
@@ -408,7 +398,7 @@ export function isTopLikeFrame(tabId: number, frameId: number): boolean;  // 0 |
 
 ## pre-arm 상호작용
 
-`__bugshot_recorder_active__` 플래그는 origin+탭 스코프 `sessionStorage`(`recorder-prearm.ts:4`)라 same-origin인 래퍼도 읽는다 → 래퍼가 `document_start`부터 `capturing = true`가 되어 로드 초반부터 버퍼에 적재한다. **이건 원하는 동작이다** — 래퍼가 곧 테스트 대상이고, 그 페이지의 초기 로그야말로 반응형 디버깅에서 필요한 것이다.
+`__bugshot_recorder_active__` 플래그는 origin 스코프 `sessionStorage`(`recorder-prearm.ts:4`)라 최초 same-origin 래퍼는 읽지만 cross-origin 목적지는 그 origin의 별도 저장소를 본다. 따라서 정확성 계약은 pre-arm 플래그가 아니라 `onCommitted` 뒤 documentId 지정 start ACK다. cross-origin 문서의 commit 이전 극초기 로그는 수집하지 못할 수 있으며, 이를 없애려면 origin을 넘는 사전 활성 신호가 필요하므로 잔여 위험으로 둔다.
 
 경계 우회 위험은 남는다: `preArm: true` 마커가 붙은 엔트리는 `logClear` 경계를 우회한다(`sidepanel/lib/log-prearm-filter.ts:8`). 다만 전이 시 사이드패널 store를 직접 clear하고 top 레코더를 stop하므로, clear 이후 도착하는 preArm 엔트리는 전부 래퍼 것이다. 회귀 그물은 `e2e/logs-prearm.spec.ts`가 맡는다.
 
@@ -451,11 +441,11 @@ export function isTopLikeFrame(tabId: number, frameId: number): boolean;  // 0 |
 
 1. **`getTopViewport`의 의미 변경이 캡처 5종에 동시 파급된다.** 시그니처는 그대로지만 반환값 의미가 "브라우저 뷰포트"에서 "캡처 대상 뷰포트"로 바뀐다. 주석을 반드시 갱신하고, 모드 OFF에서 값이 이전과 동일함을 유닛으로 고정한다. 영상·리플레이는 여기에 **새로 편입**되는 경로라 회귀 표면이 가장 넓다.
 2. **프레임 id 문자열이 두 곳에 복제된다**(`device-frame.ts` 상수 / `getTopViewport`의 인라인 리터럴). 직렬화 제약상 불가피하므로 동기화 테스트를 반드시 붙인다. **상수를 import하면 typecheck·유닛이 전부 green인데 런타임에만 `ReferenceError`로 죽고, `picker-control.ts:820`의 `catch`가 그걸 삼켜 조용히 `null`로 폴백한다** — 이 기능에서 가장 탐지하기 어려운 회귀 축이다(`docs/ARCHITECTURE.md:465`가 "inject 경로 리팩터 시 실제 탭 수동 회귀 필수"라고 못박은 그 지점).
-3. **`e2e/logs-origin-filter.spec.ts:41-42`의 전제가 모드 ON에서 붕괴한다** — same-origin이라 `OriginFilterBar` 버튼이 1개로 합쳐진다. 모드 OFF 기본이라 기존 spec은 green이지만, 신규 spec에서 이 전제를 재사용하지 않는다.
+3. **`e2e/logs-origin-filter.spec.ts:41-42`의 전제는 최초 same-origin 래퍼에서만 합쳐진다.** cross-origin 이동 뒤에는 목적지 origin 버튼이 별도로 생긴다. 모드 OFF 기본이라 기존 spec은 green이고 신규 spec은 두 상태를 구분한다.
 4. **`e2e/api-hosts-env-row.spec.ts:94-96`이 호스트 정렬 순서를 하드코딩한다.** 모드 ON에서 재로드로 요청 수가 2배가 되면 동률 호스트 정렬이 뒤집힐 수 있다(카운트 누적 `apiHostRow.ts:49`, 정렬 `:54-56`). 모드 OFF 기본이므로 기존 spec은 안전하지만 신규 spec에서 순서를 단언하지 않는다.
 5. **iframe 프레임 프로토콜은 회귀 밀집 구간이다.** `docs/POSTMORTEM.md:371`이 "iframe picker·OAuth는 e2e 커버가 없는 영역 — 리포트 처방을 '유닛 green'을 근거로 적용하지 말 것"이라고 못박았다. 이 기능은 그 구간을 정면으로 지난다.
 6. **`display: none`으로 숨긴 원본 문서의 타이머·폴링은 계속 돈다.** 레코더 stop이 로그는 막지만 CPU는 계속 쓴다. 재로드된 래퍼와 합쳐 리소스가 약 2배가 된다.
 7. **`check:prearm`의 검출 한계.** `scripts/check-prearm-chunk.mjs:39`의 `includes("recorders-entry")` 부분 문자열 매칭이 새 파일 이름과 충돌하지 않는지 확인한다(`device-frame`은 충돌하지 않는다).
 8. **top blocker의 pointerEvents 핸드오프가 래퍼에도 적용된다.** 래퍼가 `frame-geometry.ts` registry에 등록되므로 picker가 래퍼 위에서 핸드오프한다 — 이건 의도된 동작이지만, 등록 실패 시 래퍼 자체가 `iframeUnsupported`로 거부돼 **모드 ON에서 아무 요소도 못 고르는** 상태가 된다. 배선은 위 "래퍼 registry 등록" 절, e2e로 반드시 고정한다.
-9. **모드 ON에서 래퍼와 top의 로그를 origin으로 구분할 수 없다.** `originOf`는 `URL.origin` 파생이라 프레임 계층을 전혀 안 본다(`lib/session-keys.ts:43-50`) → same-origin 래퍼가 `OriginFilterBar`에서 top과 같은 버튼으로 합쳐지고(`lib/logOrigin.ts:7-11`), cap evict의 "top-origin 우선 보존"(`log-merge.ts:40`)이 래퍼 로그까지 보호한다. 원본 레코더를 stop하므로 실제 수집은 1벌이라 무해하지만, **구분 축이 없다는 사실을 구현 중 "버그"로 오인하지 말 것.** entry에 frameId를 싣는 안은 레코더 3벌·사이드패널 수신부·log-merge·필터 UI까지 퍼져 1차 범위를 크게 늘린다.
+9. **최초 same-origin 래퍼와 top은 origin 필터에서 구분되지 않는다.** 다만 전 document stop ACK 뒤 래퍼 서브트리만 start하므로 top 로그는 수집되지 않는다. cross-origin 이동 뒤에는 목적지 origin으로 구분된다.
 10. **`ensureMainWorldRecorders`(`picker-control.ts:85-101`)는 `allFrames`가 없어 top만 재주입한다**(`ensureRecorderBridge`는 `allFrames: true`). 래퍼에는 MAIN world 레코더의 **자가복구 경로가 없고** 정적 content_scripts 주입 + pre-arm 플래그에만 의존한다. 실동작은 하지만 복구 그물이 한 겹 얇다. `allFrames: true`로 넓히는 것은 모드 OFF에서도 전 프레임 재주입이 되는 범위 외 회귀라 1차에서 하지 않는다.
