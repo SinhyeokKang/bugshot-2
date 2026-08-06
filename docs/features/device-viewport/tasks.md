@@ -113,7 +113,7 @@
   - [ ] `device.frameLoaded` 수신 **전에는** `activateRecordersInDeviceTree`를 부르지 않는다 (binding이 아직 없어 `deviceTree`가 비면 start가 아무 데도 안 간다)
   - [ ] `busy`가 `device.arm`부터 판정·레코더 전환 완료까지 전 구간 `true`다
   - [ ] `select(null)`(전체 복귀)에서도 재로드가 일어나지만, 최초 ON에서 이미 확인했으므로 경고는 다시 띄우지 않는다
-  - [ ] 언마운트 시 `device.watch { on: false }`를 보낸다
+  - [ ] **마지막 구독자가 사라질 때만** `device.watch { on: false }`를 보낸다 — 훅이 두 곳에서 마운트되므로 모듈 스코프 refcount로 센다(`pending`·루프 카운터와 같은 소유 규칙)
   - [ ] persist version이 10이고 기존 version 9 스냅샷에서 `deviceModeWarned=false`가 채워진다
   - [ ] 최초 ON에서만 경고가 뜨고 `[계속]` 직후 true가 저장되며 사이드패널을 닫았다 다시 열어도 재노출되지 않는다
   - [ ] 래퍼 마운트가 XFO로 롤백된 경우에도 플래그는 소비된 상태로 둔다 — 사용자가 경고를 이미 읽었고, 재시도마다 다시 띄우면 성가시다(의도된 동작)
