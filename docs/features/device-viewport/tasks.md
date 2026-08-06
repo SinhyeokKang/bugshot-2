@@ -158,7 +158,7 @@
 ### Task 7: 세그먼티드 컨트롤 UI
 
 - **변경 대상**: `src/sidepanel/components/DeviceViewportBar.tsx` (신규), `src/sidepanel/components/__tests__/DeviceViewportBar.test.tsx` (신규, jsdom)
-- **작업 내용**: **자기 `<Tabs value onValueChange>` 래퍼 + `TabsList grid grid-cols-4 h-9`**(선례 `StyleEditorPanel.tsx:234-249` — `TabsContent` 없이 값으로 구동). `ToggleGroup`이 아니고, **`CollapsingTabsList`도 아니다**. 첫 세그먼트 라벨 `전체`/`Full`(`Monitor` 아이콘, 데스크톱 뷰포트 겸용). **각 세그먼트는 아이콘 + 폭 숫자 병기** — 아이콘만 두면 기기 에뮬레이션으로 오해된다. 초과·잠금은 `aria-disabled`(never `disabled` — 툴팁이 죽는다). Radix의 키보드 활성화를 막도록 `onValueChange`와 `select()` 양쪽에서 locked/busy/초과 값을 거부한다. `busy`면 선택 세그먼트에 `Loader2 motion-reduce:animate-none`, 행에 `aria-busy`와 live status를 둔다. `data-testid`: 행 `device-viewport-bar`, 세그먼트 `device-preset-full`·`device-preset-390`·….
+- **작업 내용**: **자기 `<Tabs value onValueChange>` 래퍼 + `CollapsingTabsList grid grid-cols-4 h-9`**(선례 `StyleEditorPanel.tsx:234-249` — `TabsContent` 없이 값으로 구동). `ToggleGroup`이 아니다. **라벨은 `TabLabel`로 감싸고 `CollapsingTabsList`를 쓴다** — 좁은 폭에서 아이콘만 남는 접힘이 의도된 동작이고(기기 아이콘을 넣은 이유), 접혀도 `aria-label`이 폭을 말한다. 첫 세그먼트 라벨 `전체`/`Full`(`Monitor` 아이콘, 데스크톱 뷰포트 겸용). **각 세그먼트는 아이콘 + 폭 숫자 병기** — 아이콘만 두면 기기 에뮬레이션으로 오해된다. 초과·잠금은 `aria-disabled`(never `disabled` — 툴팁이 죽는다). Radix의 키보드 활성화를 막도록 `onValueChange`와 `select()` 양쪽에서 locked/busy/초과 값을 거부한다. `busy`면 선택 세그먼트에 `Loader2 motion-reduce:animate-none`, 행에 `aria-busy`와 live status를 둔다. `data-testid`: 행 `device-viewport-bar`, 세그먼트 `device-preset-full`·`device-preset-390`·….
 - **검증**:
   - [ ] `availableWidth=865`에서 `device-preset-1024`가 `aria-disabled="true"`, 나머지는 아니다
   - [ ] `availableWidth`가 865→1200으로 바뀌면 컴포넌트 재마운트·사용자 조작 없이 watch 상태 갱신으로 `1024`가 활성화된다
@@ -168,9 +168,9 @@
   - [ ] `busy=true`에서 스피너·`aria-busy`·live status가 뜨고 행 전체가 `aria-disabled`다
   - [ ] `tabId=null` 또는 미지원 탭이면 `null`을 반환한다
   - [ ] **`<Tabs>` 래퍼가 있다** — `TabsList`만 렌더하면 `DebugTab`의 바깥 `Tabs`(`:67`) 컨텍스트를 잡아 세그먼트 클릭이 `setSub("390")`으로 새어 서브탭이 빈 값으로 전환된다(에러 없는 조용한 오동작)
-  - [ ] `CollapsingTabsList`를 쓰지 않는다 — 라벨 일괄 접힘이 발동하면 폭 숫자가 사라지고 아이콘만 남아 prd 원칙이 깨진다
-  - [ ] 320/360/400px 폭에서 `1024` 라벨이 아이콘과 함께 안 잘리고 줄바꿈되지 않는다
-  - [ ] 아이콘이 `aria-hidden`이고 접근명은 폭을 읽는 `aria-label`이다 (아이콘이 접근명을 대체하지 않는다)
+  - [ ] 320/360/400px 폭에서 라벨이 **잘리거나 줄바꿈되지 않는다** — 안 들어가면 `CollapsingTabsList`가 전 라벨을 접어 아이콘만 남긴다(다른 탭 바와 동일 거동)
+  - [ ] 접힌 상태에서도 각 세그먼트의 접근명이 폭을 말한다 (`aria-label`이 라벨과 독립이라 접힘에 영향받지 않는다)
+  - [ ] 아이콘이 `aria-hidden`이고 접근명은 폭을 읽는 `aria-label`이다 (아이콘이 접근명을 대체하지 않는다 — 접힘 상태에서 이게 유일한 폭 정보다)
 
 ### Task 8: DebugTab 배선
 
@@ -208,13 +208,17 @@
 
 ### Task 11: 페이지 전체 캡처 잠금
 
-- **변경 대상**: `src/sidepanel/tabs/IssueTab.tsx:552-561`
-- **작업 내용**: `capture-method-fullpage`의 `ariaDisabled={busy}`(`:554`)를 `{busy || deviceMode}`로. **`label`은 건드리지 않는다** — `TooltipIconButton.tsx:42,54`에서 `label` 하나가 `aria-label`과 툴팁을 겸하므로 문구를 갈면 접근명이 "페이지 캡처(디바이스 모드에서 잠김)"가 된다. 잠금 사유는 별도 `TooltipContent`로 붙인다(선례 `mode-freeform` `IssueTab.tsx:371-389`). `onFullPage`도 조기 반환.
+- **변경 대상**: `src/sidepanel/tabs/IssueTab.tsx:552-561`, `src/sidepanel/components/TooltipIconButton.tsx`
+- **작업 내용**: `capture-method-fullpage`의 `ariaDisabled={busy}`(`:554`)를 `{busy || deviceMode}`로. **`label`은 건드리지 않는다** — `TooltipIconButton.tsx:42,54`에서 `label` 하나가 `aria-label`과 툴팁을 겸하므로 문구를 갈면 접근명이 "페이지 캡처(디바이스 모드에서 잠김)"가 된다.
+  **잠금 사유를 보여주려면 `TooltipIconButton`을 손봐야 한다.** 그 컴포넌트는 `TooltipContent`를 내부에서 `label`로 렌더하고 props에 사유 슬롯이 없어서, 바깥에서 두 번째 `TooltipContent`를 붙일 수 없다(`mode-freeform` 선례는 `TooltipIconButton`이 아니라 raw `Button` + `Tooltip` 조합이라 그대로 못 베낀다). **`disabledReason?: string` 옵션 prop을 추가**해 있으면 툴팁 본문만 대체하고 `aria-label`은 `label`을 유지한다. 기존 호출부는 prop 미전달이라 무변경이다.
+  `onFullPage`도 조기 반환(컴포넌트가 `ariaDisabled`에서 이미 클릭을 막지만 오케스트레이터 쪽 이중 방어).
 - **검증**:
   - [ ] 모드 ON에서 버튼이 `aria-disabled="true"`다
   - [ ] 모드 ON/OFF 양쪽에서 버튼의 `aria-label`이 동일하다 (잠금 사유가 접근명을 오염시키지 않는다)
   - [ ] 모드 ON에서 클릭해도 `runScrollCapture`가 호출되지 않는다 (**"조용한 1타일"이 절대 발생하지 않는다** — 이 항목이 이 태스크의 존재 이유다)
   - [ ] 모드 OFF에서 동작·툴팁이 이전과 동일
+  - [ ] `disabledReason`을 안 넘긴 기존 `TooltipIconButton` 호출부(어노테이션 툴바·캡처 방식 툴바)의 툴팁이 무변경이다
+  - [ ] 모드 ON에서 툴팁 본문만 잠금 사유로 바뀌고 `aria-label`은 그대로다
 
 ### Task 12: 래퍼 frameId를 top처럼 취급
 
