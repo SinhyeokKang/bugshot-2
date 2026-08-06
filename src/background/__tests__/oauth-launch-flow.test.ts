@@ -19,6 +19,28 @@ describe("classifyLaunchFlowError", () => {
     expect(result?.cancelled).toBe(true);
   });
 
+  // cancelled 축만으로는 "창 닫기"와 "제공자 화면에서 거부"가 뭉쳐서 PostHog에서 안 갈린다.
+  // 이 표가 사유 축의 유일한 출처라 항목 추가 시 reason 누락을 여기서 잡는다.
+  it("각 레인에 reason이 붙는다", () => {
+    expect(classifyLaunchFlowError("The user did not approve access.")?.reason).toBe(
+      "cancelled_window",
+    );
+    expect(classifyLaunchFlowError("Authorization page could not be loaded.")?.reason).toBe(
+      "launch_failed",
+    );
+    expect(
+      classifyLaunchFlowError(
+        "Couldn't create a browser window to display an authorization page.",
+      )?.reason,
+    ).toBe("launch_failed");
+    expect(
+      classifyLaunchFlowError("The browser context has been shut down")?.reason,
+    ).toBe("launch_failed");
+    expect(
+      classifyLaunchFlowError("Only one web auth flow is allowed at a time.")?.reason,
+    ).toBe("flow_in_progress");
+  });
+
   it("창 닫기 판정은 대소문자·마침표 변형에 견딘다", () => {
     expect(
       classifyLaunchFlowError("the user did not approve access")?.cancelled,
@@ -97,6 +119,8 @@ describe("launchOAuthWebFlow", () => {
     expect((err as OAuthError).platform).toBe("slack");
     // 취소는 launch 실패가 아니다 — 두 축이 동시에 서면 안 된다.
     expect((err as OAuthError).launchFailed).toBe(false);
+    // 분류표의 reason이 에러까지 전달돼야 집계에서 창 닫기와 제공자 거부가 갈린다.
+    expect((err as OAuthError).reason).toBe("cancelled_window");
   });
 
   // 최초 연결 시도라 만료될 토큰이 없다. launchFailed 없이 던지면 serializeOAuthError가
@@ -112,6 +136,7 @@ describe("launchOAuthWebFlow", () => {
 
     expect((err as OAuthError).launchFailed).toBe(true);
     expect((err as OAuthError).cancelled).toBe(false);
+    expect((err as OAuthError).reason).toBe("launch_failed");
   });
 
   it("동시 flow reject → cancelled 아닌 OAuthError + platform", async () => {
@@ -126,6 +151,9 @@ describe("launchOAuthWebFlow", () => {
     expect(err).toBeInstanceOf(OAuthError);
     expect((err as OAuthError).cancelled).toBe(false);
     expect((err as OAuthError).platform).toBe("linear");
+    // 더블클릭·연속 클릭이라 사용자는 장애로 느끼지 않는다. failed로 집계되는 유일한
+    // "가짜 실패"라 전용 reason으로 떼어내야 진짜 장애 지표가 오염되지 않는다.
+    expect((err as OAuthError).reason).toBe("flow_in_progress");
     // 이 레인의 message는 8개 폼이 toast로 그대로 노출한다 — t()를 빠뜨리면
     // 사용자에게 "oauth.error.flowAlreadyInProgress" 키가 그대로 뜬다.
     expect((err as OAuthError).message).toBe(t("oauth.error.flowAlreadyInProgress"));
