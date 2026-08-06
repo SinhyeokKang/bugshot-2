@@ -79,6 +79,8 @@ const ko = {
   "issue.device.modeWarning.confirm": "계속",
   "issue.device.modeWarning.cancel": "취소",
   "issue.device.blocked": "이 페이지는 프레임 안에서 열 수 없어 전체로 되돌렸습니다.",
+  // 뷰포트는 정상이고 로그 수집만 늦은 상태 — 다음 전환·복귀에서 자동으로 다시 붙는다.
+  "issue.device.recordersDegraded": "뷰포트는 적용됐지만 로그 수집을 다시 시작하지 못했습니다. 잠시 뒤 자동으로 복구됩니다.",
   "issue.device.handoffToast": "다른 사이트로 이동해 페이지 전체를 그 사이트로 다시 열었습니다.",
   "issue.device.loop.title": "페이지 이동이 반복됩니다",
   "issue.device.loop.body": "이 사이트가 계속 다른 주소로 이동해 디바이스 뷰포트를 유지할 수 없습니다. 뷰포트를 전체로 되돌립니다.",
@@ -239,6 +241,7 @@ const en = {
   "issue.device.modeWarning.confirm": "Continue",
   "issue.device.modeWarning.cancel": "Cancel",
   "issue.device.blocked": "This page can't be opened inside a frame, so the viewport was switched back to Full.",
+  "issue.device.recordersDegraded": "The viewport was applied, but log collection couldn't restart. It will recover shortly on its own.",
   "issue.device.handoffToast": "You navigated to another site, so the whole page was reopened there.",
   "issue.device.loop.title": "The page keeps navigating",
   "issue.device.loop.body": "This site keeps redirecting, so the device viewport can't be kept. Switching back to Full.",

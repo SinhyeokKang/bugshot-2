@@ -235,39 +235,6 @@ describe("decideDeviceSignal — 성공·차단·handoff가 경쟁하지 않는�
     }
   });
 
-  // CSP frame-src가 삽입 자체를 막으면 webNavigation 이벤트가 하나도 안 오고 브라우저가
-  // about:blank에 load만 쏜다 — 이게 없으면 3초 타임아웃 말고는 신호가 없다.
-  it("arm 창 안에서 래퍼가 about:blank로 load되면 즉시 frameBlocked다", () => {
-    const res = decideDeviceSignal(state({ armed: true }), {
-      kind: "frameLoadEvent",
-      sameOriginHref: "about:blank",
-    });
-    expect(res.push).toEqual({ type: "frameBlocked" });
-  });
-
-  it("load된 문서가 top URL이면 무발화다 (성공을 중복 선언하지 않는다)", () => {
-    const res = decideDeviceSignal(state({ armed: true }), {
-      kind: "frameLoadEvent",
-      sameOriginHref: TOP,
-    });
-    expect(res.push).toBeNull();
-  });
-
-  it("binding이 이미 확정된 뒤의 load는 무발화다", () => {
-    const res = decideDeviceSignal(
-      state({ armed: true, binding: { frameId: 7, documentId: "d1" } }),
-      { kind: "frameLoadEvent", sameOriginHref: "about:blank" },
-    );
-    expect(res.push).toBeNull();
-  });
-
-  it("cross-origin이라 읽을 수 없는 load(null)는 무발화다 — handoff 경로가 따로 잡는다", () => {
-    const res = decideDeviceSignal(state({ armed: true }), {
-      kind: "frameLoadEvent",
-      sameOriginHref: null,
-    });
-    expect(res.push).toBeNull();
-  });
 
   it("판정이 끝나면 arm 창이 닫힌다 (뒤늦은 타임아웃이 성공을 롤백하지 못한다)", () => {
     const res = decideDeviceSignal(armedWithTarget(), {
@@ -330,6 +297,48 @@ describe("splitTabDocuments", () => {
     expect(res.all).not.toContain("srcdoc");
     expect(res.all).not.toContain("data");
     expect(res.all).toContain("top");
+  });
+
+  // 커밋 직후의 getAllFrames는 래퍼 URL을 아직 about:blank로 보고할 때가 있다. 그걸 필터로
+  // 떨어뜨리면 deviceTree가 비어 활성화가 실패하고, 정상 로드된 래퍼가 롤백된다.
+  // binding이 존재한다는 것 자체가 "그 프레임에 스크립트가 살아 있다"는 증거다.
+  it("래퍼 자신은 URL이 아직 안 잡혀도 deviceTree에 남는다", () => {
+    const res = splitTabDocuments(
+      [
+        { frameId: 0, parentFrameId: -1, documentId: "top", url },
+        { frameId: 7, parentFrameId: 0, documentId: "wrap", url: "about:blank" },
+      ],
+      { frameId: 7, documentId: "wrap" },
+    );
+    expect(res.deviceTree).toEqual(["wrap"]);
+  });
+
+  // getAllFrames가 방금 커밋된 래퍼를 아직 목록에 안 싣는 창이 있다. 그걸 그대로 두면
+  // deviceTree가 비어 활성화가 실패하고 정상 로드된 래퍼가 롤백된다 — binding의 documentId는
+  // 커밋·frameReady에서 이미 받은 값이라 진입 감시창 안에서는 열거를 기다릴 이유가 없다.
+  it("진입 감시창 안에서는 열거가 늦어도 binding의 documentId가 deviceTree에 든다", () => {
+    const res = splitTabDocuments(
+      [{ frameId: 0, parentFrameId: -1, documentId: "top", url }],
+      { frameId: 7, documentId: "wrap" },
+      { armed: true },
+    );
+    expect(res.deviceTree).toEqual(["wrap"]);
+  });
+
+  // 창 밖에서까지 넣으면, 페이지 JS가 래퍼를 지웠는데 top 커밋이 없는 경우(binding은 top
+  // 커밋에서만 소거된다) 게이트가 영구히 "모드 ON"으로 굳어 죽은 documentId로만 발행한다 =
+  // 탭 세션 내내 로그 전면 공백. 창 밖에선 비워서 기존 broadcast 폴백으로 자가복구시킨다.
+  it("감시창 밖에서 열거에 없으면 deviceTree를 비워 broadcast 폴백으로 떨어뜨린다", () => {
+    const res = splitTabDocuments(
+      [{ frameId: 0, parentFrameId: -1, documentId: "top", url }],
+      { frameId: 7, documentId: "wrap" },
+    );
+    expect(res.deviceTree).toEqual([]);
+  });
+
+  it("열거에 이미 있으면 중복으로 넣지 않는다", () => {
+    const res = splitTabDocuments(frames, { frameId: 7, documentId: "wrap" }, { armed: true });
+    expect(res.deviceTree.filter((d) => d === "wrap")).toHaveLength(1);
   });
 
   it("주입 불가 프레임은 래퍼 자손이어도 deviceTree에서 빠진다", () => {

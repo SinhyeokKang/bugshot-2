@@ -57,14 +57,11 @@ export function availableViewport(): { width: number; height: number } {
 
 /**
  * 래퍼를 만든다. 이미 있으면 폭만 갱신한다(노드 유지 = 재로드 없음 — 스크롤 위치·입력값이 산다).
- * **로드 판정을 하지 않는다** — XFO/CSP 판정 주체는 background 하나이고, content가 href를
- * 비교해 스스로 롤백하면 정상 redirect를 차단으로 오판한다. iframe "load"에서 onLoad를
- * 발화하는 것까지가 이 함수의 책임이다.
+ * **로드 판정을 전혀 하지 않는다** — XFO/CSP 판정 주체는 background 하나다. content가 href를
+ * 비교해 스스로 롤백하면 정상 redirect를 차단으로 오판하고, iframe "load"를 신호로 올리는
+ * 안도 초기 about:blank의 load에 걸려 정상 사이트를 차단으로 오판했다.
  */
-export function mountDeviceFrame(
-  width: number,
-  onLoad?: (sameOriginHref: string | null) => void,
-): void {
+export function mountDeviceFrame(width: number): void {
   if (!document.getElementById(DEVICE_STYLE_ID)) {
     const style = document.createElement("style");
     style.id = DEVICE_STYLE_ID;
@@ -78,20 +75,10 @@ export function mountDeviceFrame(
     // src는 반드시 location.href다. srcdoc·about:blank는 <all_urls> 미매치라 content script가
     // 안 붙어 로그·picker가 통째로 죽는다(e2e/GOTCHAS.md).
     frame.src = location.href;
-    const el = frame;
-    el.addEventListener("load", () => {
-      let href: string | null = null;
-      try {
-        href = el.contentDocument?.location.href ?? null;
-      } catch {
-        href = null;
-      }
-      onLoad?.(href);
-    });
     // document.body 직속이다. shadow root 안에 넣으면 frame-geometry의 findChildIframe이
     // document.querySelectorAll("iframe")만 훑으므로 미등록이 되고, elementFromPoint가
     // shadow retargeting으로 host를 돌려줘 안내조차 없이 shadow host가 선택된다.
-    document.body.appendChild(el);
+    document.body.appendChild(frame);
   }
   frame.style.width = `${width}px`;
 }

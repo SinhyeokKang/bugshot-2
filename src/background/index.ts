@@ -250,14 +250,6 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     });
     return false;
   }
-  if (message.type === "device.frameLoadEvent") {
-    // top이 발화하는 신호다 — 자식이 흉내 내면 진입 판정을 임의로 차단시킬 수 있다.
-    if (sender.frameId !== 0) return false;
-    const { sameOriginHref } = message as { sameOriginHref: string | null };
-    void enqueueForTab(tabId, () =>
-      applyDeviceSignal(tabId, { kind: "frameLoadEvent", sameOriginHref }),
-    );
-  }
   return false;
 });
 

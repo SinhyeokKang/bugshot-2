@@ -114,12 +114,10 @@ export type PickerMessage =
   | { type: "device.set"; width: number | null } // null = 전체(래퍼 제거 + reload)
   | { type: "device.state" }
   | { type: "device.watch"; on: boolean } // on:false가 unwatch다. 별도 타입을 두지 않는다
-  // ── push 3종
+  // ── push 2종
   | { type: "device.availableChanged"; available: { width: number; height: number } }
   // 래퍼 프레임 자신이 발화. 래퍼 frameId는 payload가 아니라 sender.frameId에서 얻는다.
   | { type: "device.frameReady" }
-  // top이 발화하는 보조 신호. 단독 판정에 쓰지 않고 3초 대기를 앞당기는 데만 쓴다.
-  | { type: "device.frameLoadEvent"; sameOriginHref: string | null }
   // frameToken: 전 프레임 broadcast로 공유되는 PRESENT 등록 인증 토큰 — 자식 announce에
   // 실리고 top이 검증한다(페이지가 볼 수 없는 chrome 경로라 위조 등록 차단).
   | { type: "picker.start"; frameToken?: string }

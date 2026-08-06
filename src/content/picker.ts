@@ -380,9 +380,7 @@ function handlePickerMessage(
             location.reload();
             return;
           }
-          mountDeviceFrame(msg.width, (sameOriginHref) =>
-            postToRuntime({ type: "device.frameLoadEvent", sameOriginHref }),
-          );
+          mountDeviceFrame(msg.width);
           // ok는 "마운트했다"이지 "로드에 성공했다"가 아니다 — XFO/CSP 판정은 background가 한다.
           sendResponse({ ok: true, width: msg.width, available: availableViewport() });
         })();
