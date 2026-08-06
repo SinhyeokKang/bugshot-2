@@ -297,7 +297,8 @@
 
 - **변경 대상**: `docs/privacy.ko.md`·`docs/privacy.en.md`, `docs/PERMISSION.md`, `CLAUDE.md`, `docs/DIRECTORY.md`, `docs/ARCHITECTURE.md`
 - **작업 내용**:
-  - **privacy ko/en 양쪽 본문 + 상단 시행일** — manifest diff가 0이어도 필수. 새 관측 동작 6개(같은 URL 재로드·쿠키 재전송·원본 문서 은닉·프레임 단위 로그 수집 대상 변경·에뮬레이트 화면 캡처·**cross-origin 이동 시 탭 전체 재이동**). 대상 절: `### 페이지 데이터 및 디버그 정보` 표(창 크기 행·스크린샷 행), iframe 로그 수집, iframe 요소 선택, `### 광역 호스트 권한 사용처`
+  - **privacy ko/en 양쪽 본문 + 상단 시행일** — manifest diff가 0이어도 필수. 새 관측 동작 7개(같은 URL 재로드·쿠키 재전송·원본 문서 은닉·프레임 단위 로그 수집 대상 변경·에뮬레이트 화면 캡처·**cross-origin 이동 시 탭 전체 재이동**·**프레임 안 element 컨텍스트 확장**). 대상 절: `### 페이지 데이터 및 디버그 정보` 표(창 크기 행 — `Viewport`가 이제 브라우저 창이 아니라 디바이스 폭일 수 있다·스크린샷 행), iframe 로그 수집(`privacy.ko.md:66`), iframe 요소 선택(`:68`), `### 광역 호스트 권한 사용처`(`docs/PERMISSION.md:555` §12와 짝).
+    **`privacy.ko.md:62`의 "iframe 내부 요소에는 확장을 적용하지 않습니다"가 모드 ON에서 거짓이 된다** — Task 3b가 래퍼에 한해 컨텍스트 확장을 열기 때문이다. 그 문장에 "단, 디바이스 뷰포트 모드에서 페이지 전체를 감싸는 확장 자체의 프레임은 예외" 취지를 더한다. 이 한 문장이 갱신 대상 중 **유일하게 기존 서술을 뒤집는** 것이라 놓치기 쉽다
   - `docs/PERMISSION.md` §12 표에 `scripting`/`<all_urls>` 새 사용처 1행
   - `CLAUDE.md` "스택"에 디바이스 뷰포트 1항목, "게이트웨이"에 모드 ON 제약
   - `docs/DIRECTORY.md`에 신규 파일 4개
