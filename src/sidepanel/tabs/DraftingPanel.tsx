@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Download, FileCode, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Camera, Download, FileCode, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Smartphone, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -13,6 +13,7 @@ import {
   useSettingsUiStore,
 } from "@/store/settings-ui-store";
 import { bodyBlocks, type TextIssueSection } from "@/sidepanel/lib/bodyBlocks";
+import { useDeviceViewportStore } from "@/sidepanel/device-viewport-controller";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
@@ -575,6 +576,7 @@ export function DraftingPanel() {
 
 function ReproEnvironmentSection() {
   const t = useT();
+  const deviceWidth = useDeviceViewportStore((s) => s.width);
   const target = useEditorStore((s) => s.target);
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
@@ -715,6 +717,17 @@ function ReproEnvironmentSection() {
       onOpenChange={setOpen}
     >
       <div className="flex flex-col gap-2">
+        {/* hideSubTabs가 styling~done을 전부 덮어 뷰포트 행이 사라지는 구간의 유일한 ON 신호다.
+            폭이 우연히 프리셋과 같은 전체 상태와 혼동하지 않도록 device.state.width로 판정한다. */}
+        {deviceWidth != null && (
+          <div
+            className="flex items-center gap-1.5 text-xs text-muted-foreground"
+            data-testid="device-viewport-indicator"
+          >
+            <Smartphone className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>{t("issue.device.indicator", { width: deviceWidth })}</span>
+          </div>
+        )}
         {readonlyRows.map((r, i) => (
           <div key={`ro-${i}`} className="flex items-center gap-1">
             <Input

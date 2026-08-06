@@ -1,4 +1,5 @@
 import { afterPaint } from "./after-paint";
+import { clampToDeviceFrame, deviceFrameRect } from "./device-frame";
 
 import type { ViewportRect } from "@/types/picker";
 
@@ -111,10 +112,12 @@ export function selectFullViewport(handle: AreaSelectHandle): void {
   removeListeners(handle);
   cleanupElements(handle);
   handle._deps.onBlockerRequest("hide");
+  // viewport는 크롭 배율 기준이라 모드와 무관하게 항상 top이다 — 바꾸면 크롭이 배율만큼 어긋난다.
   const viewport = { width: window.innerWidth, height: window.innerHeight };
-  settleAfterPaint(handle, () =>
-    handle._deps.onSelected({ x: 0, y: 0, ...viewport }, viewport),
-  );
+  // 디바이스 뷰포트 래퍼가 있으면 그 rect로 찍는다. 래퍼는 justify-content:center로 놓이므로
+  // x 오프셋이 0이 아니다 — {x:0,y:0,...viewport} 스프레드를 풀지 않으면 좌우 여백이 결과에 든다.
+  const rect: ViewportRect = deviceFrameRect() ?? { x: 0, y: 0, ...viewport };
+  settleAfterPaint(handle, () => handle._deps.onSelected(rect, viewport));
 }
 
 /* ── internal ────────────────────────────────────── */
@@ -211,7 +214,9 @@ function onMouseUp(h: AreaSelectHandle, e: MouseEvent): void {
   removeListeners(h);
   cleanupElements(h);
   h._deps.onBlockerRequest("hide");
-  const rect: ViewportRect = { x, y, width: w, height: hh };
+  // top blocker가 래퍼 위 드래그도 가로채므로 크롭 자체는 정확하지만, 사용자가 래퍼 밖 여백까지
+  // 끌 수 있다 — 확정 rect를 래퍼 영역으로 가둔다(래퍼가 없으면 항등).
+  const rect = clampToDeviceFrame({ x, y, width: w, height: hh }, deviceFrameRect());
   const viewport = { width: window.innerWidth, height: window.innerHeight };
   settleAfterPaint(h, () => h._deps.onSelected(rect, viewport));
 }

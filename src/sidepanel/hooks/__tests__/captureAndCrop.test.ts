@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const cropImage = vi.fn(async () => "data:image/png;base64,cropped");
-const getTopViewport = vi.fn<[number], Promise<{ width: number; height: number } | null>>(
-  async () => null,
-);
+const cropImage = vi.fn(async (..._args: unknown[]) => "data:image/png;base64,cropped");
+const getTopViewport =
+  vi.fn<(tabId: number) => Promise<{ width: number; height: number } | null>>(async () => null);
 const onAreaCaptured = vi.fn();
 
 vi.mock("@/sidepanel/capture", () => ({

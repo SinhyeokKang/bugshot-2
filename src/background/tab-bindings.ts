@@ -2,6 +2,7 @@ import { FROZEN_PHASES, originOf, pageKeyOf, sessionKey, pendingKey } from "@/li
 import { isSupportedUrl } from "@/lib/url-support";
 import { deleteNetworkLog, deleteConsoleLog, deleteActionLog, deleteVideoBlob } from "@/store/blob-db";
 import type { BgInternalMessage } from "@/types/messages";
+import { clearDeviceFrame } from "./device-frame-coordinator";
 
 type SessionSnap = {
   target?: { url?: string };
@@ -336,6 +337,7 @@ export function setupTabBindings(): void {
     }
     void chrome.storage.session.remove([sessionKey(tabId), `${ACTIVATION_URL_PREFIX}${tabId}`]);
     void setActivated(tabId, false);
+    void clearDeviceFrame(tabId);
     deleteNetworkLog(pendingKey(tabId)).catch(() => {});
     deleteConsoleLog(pendingKey(tabId)).catch(() => {});
     deleteActionLog(pendingKey(tabId)).catch(() => {});

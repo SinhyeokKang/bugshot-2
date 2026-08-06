@@ -12,6 +12,11 @@ vi.mock("../ConsoleSubTab", () => ({
     <div data-testid="stub-console" data-active={String(active)} />
   ),
 }));
+// 뷰포트 행도 같은 이유로 스텁 — 실제 컴포넌트는 컨트롤러(chrome.runtime)까지 끌어온다.
+// 여기서 고정하는 건 "행이 어느 조건에서 붙고 떨어지는가"뿐이다.
+vi.mock("@/sidepanel/components/DeviceViewportBar", () => ({
+  DeviceViewportBar: () => <div data-testid="stub-device-bar" />,
+}));
 vi.mock("../NetworkSubTab", () => ({
   NetworkSubTab: ({ active }: { active: boolean }) => (
     <div data-testid="stub-network" data-active={String(active)} />
@@ -109,6 +114,30 @@ describe("DebugTab — 미지원 전이 시 서브탭 복귀", () => {
   it("지원 상태로 마운트하면 issue 서브탭이 기본 선택", () => {
     renderDebug(false);
     expect(activeSub()).toBe("subtab-issue");
+  });
+});
+
+describe("DebugTab — 디바이스 뷰포트 행", () => {
+  it("issue 서브탭에서 서브탭 바 안쪽에 붙는다", () => {
+    renderDebug(false);
+    const bar = screen.getByTestId("stub-device-bar");
+    // 별도 bordered 행이면 상단 크롬이 커져 idle 화면이 잘린다 — 같은 wrapper 안이어야 한다.
+    expect(bar.parentElement).toBe(trigger("subtab-issue").closest("div")?.parentElement);
+  });
+
+  it("콘솔·네트워크 서브탭으로 이동하면 행이 사라진다", async () => {
+    renderDebug(false);
+    await userEvent.click(trigger("subtab-console"));
+    expect(screen.queryByTestId("stub-device-bar")).toBeNull();
+    await userEvent.click(trigger("subtab-network"));
+    expect(screen.queryByTestId("stub-device-bar")).toBeNull();
+  });
+
+  // hideSubTabs와 동일 조건 — 대신 작성 화면에는 device-viewport-indicator가 뜬다.
+  it("drafting phase면 서브탭 바와 함께 행도 사라진다", () => {
+    phase = "drafting";
+    renderDebug(false);
+    expect(screen.queryByTestId("stub-device-bar")).toBeNull();
   });
 });
 

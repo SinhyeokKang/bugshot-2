@@ -49,6 +49,7 @@ import { SettingsTab } from "./tabs/SettingsTab";
 import { TabNavContext } from "./tab-nav";
 import { applyReplayTrim, applyRecordingTrim, TrimLogsPersistError } from "./30s-replay/apply-trim";
 import { clearPicker } from "@/sidepanel/picker-control";
+import { useDeviceViewportStore } from "@/sidepanel/device-viewport-controller";
 import {
   deleteNetworkLog,
   deleteConsoleLog,
@@ -138,6 +139,9 @@ export default function App() {
   const [oauthExpiredPlatform, setOauthExpiredPlatform] = useState<PlatformId | null>(null);
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
+  // 훅이 아니라 컨트롤러 스토어를 직접 읽는다 — 이 분기는 폭만 필요하고, 훅을 부르면
+  // DeviceViewportBar와 함께 두 번 마운트되면서 device.state를 중복 조회한다.
+  const deviceWidth = useDeviceViewportStore((s) => s.width);
   const [blobSaveFailed, setBlobSaveFailed] = useState(false);
   const [stateSaveFailed, setStateSaveFailed] = useState(false);
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
@@ -364,7 +368,14 @@ export default function App() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("app.iframeUnsupported.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("app.iframeUnsupported.body")}
+              {/* 모드 ON에서는 페이지 전체가 이미 프레임 하나라 페이지 안 iframe이 전부
+                  2-depth가 된다 — 진짜 액션이 "스크린샷 모드"가 아니라 "뷰포트 되돌리기"다.
+                  거부 발화점(picker.ts)은 자신이 래퍼 안인지 모르므로 렌더 시점에 가른다. */}
+              {t(
+                deviceWidth != null
+                  ? "app.iframeUnsupported.bodyDeviceMode"
+                  : "app.iframeUnsupported.body",
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

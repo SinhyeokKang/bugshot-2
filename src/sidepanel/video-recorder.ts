@@ -9,6 +9,8 @@ import { pickVideoRecorderMime } from "./lib/video-mime";
 import { generateThumbnail } from "./lib/video-thumbnail";
 import { trackViewport } from "./lib/trackViewport";
 import { hideAnnotation } from "./annotation-control";
+import { getTopViewport } from "./picker-control";
+import { resolveCaptureViewport } from "./lib/capture-viewport";
 
 const MAX_DURATION_SEC = 60;
 
@@ -114,7 +116,12 @@ function beginRecording(
     try {
       const tab = await chrome.tabs.get(localTabId);
       if (localSource === "tab") {
-        viewport = { width: tab.width ?? 0, height: tab.height ?? 0 };
+        // 탭 녹화는 캡처 대상이 곧 탭이므로 디바이스 뷰포트를 따른다 — tab.width만 쓰면
+        // 모드 ON에서 영상 리포트의 Viewport만 브라우저 폭으로 남는다.
+        viewport = resolveCaptureViewport(await getTopViewport(localTabId), {
+          width: tab.width ?? 0,
+          height: tab.height ?? 0,
+        });
       }
       const store = useEditorStore.getState();
       if (store.target && (tab.url || tab.title)) {

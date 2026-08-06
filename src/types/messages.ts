@@ -240,13 +240,31 @@ export type BgRequest =
     }
   | { type: "slack.getPermalink"; channelId: string; ts: string }
   | { type: "analytics.capture"; event: string; properties: Record<string, string> }
-  | { type: "css.fetchSheets"; urls: string[] };
+  | { type: "css.fetchSheets"; urls: string[] }
+  // 래퍼 커밋 감시창(3s) 개폐. device.set보다 먼저 열어야 첫 onBeforeNavigate를 안 놓친다.
+  | { type: "device.arm"; tabId: number; on: boolean }
+  // sentinel 게이트의 유일한 문서 열거원 — 사이드패널은 프레임 트리를 모르고 캐시도 안 둔다.
+  | { type: "device.documents"; tabId: number };
 
 // handleMessage를 거치지 않는 bg→sidepanel 내부 통신 메시지.
 export type BgInternalMessage =
   | { type: "logClear"; tabId: number }
   | { type: "activeTabExpiredDeferred"; tabId: number }
-  | { type: "frameCommitted"; tabId: number; frameId: number; documentId?: string };
+  | { type: "frameCommitted"; tabId: number; frameId: number; documentId?: string }
+  // 디바이스 래퍼 로드 판정 결과. background가 단독 주체이고 셋 중 정확히 하나만 발화한다.
+  // frameId를 함께 싣는다 — picking 중 재수립에서 래퍼에 picker.start를 재전송하려면 타깃이
+  // 필요한데, 사이드패널은 프레임 트리를 모르고 잠정 등록은 background에만 있다.
+  | { type: "device.frameLoaded"; tabId: number; frameId: number }
+  | { type: "device.frameBlocked"; tabId: number }
+  // 래퍼가 cross-origin으로 나갔다 — 프레임에 가두면 파티션된 로그아웃 화면이 뜨므로 top을 옮긴다.
+  | { type: "device.handoff"; tabId: number; url: string };
+
+export interface DeviceDocumentsResponse {
+  /** 이 탭의 전 recorder document. */
+  all: string[];
+  /** 래퍼 + 그 자손. 모드 OFF면 빈 배열이고, 이 길이가 곧 모드 판정이다. */
+  deviceTree: string[];
+}
 
 export type BgResponse<T = unknown> =
   | { ok: true; result: T }

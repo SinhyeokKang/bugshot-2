@@ -75,6 +75,7 @@ import * as videoRecorder from "@/sidepanel/video-recorder";
 import { PageFooter, PageShell } from "@/sidepanel/components/Section";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
 import { useUnsupportedTab } from "@/sidepanel/hooks/tab-support-context";
+import { useDeviceViewportStore } from "@/sidepanel/device-viewport-controller";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
@@ -87,6 +88,7 @@ export function IssueTab() {
   const sessionExpired = useEditorStore((s) => s.sessionExpired);
   const tabId = useBoundTabId();
   const unsupported = useUnsupportedTab();
+  const deviceWidth = useDeviceViewportStore((s) => s.width);
   const { trimming } = useReplay();
   const t = useT();
   const [scrollProgress, setScrollProgress] = useState<{ done: number; total: number } | null>(null);
@@ -119,6 +121,9 @@ export function IssueTab() {
 
   const startFullPageCapture = (id: number) => {
     if (captureBusy) return;
+    // 컴포넌트가 ariaDisabled로 이미 클릭을 막지만, 오케스트레이터 쪽 이중 방어 —
+    // 여기가 뚫리면 결과가 에러가 아니라 "1타일짜리 정상 캡처"로 조용히 나온다.
+    if (useDeviceViewportStore.getState().width != null) return;
     const controller = new AbortController();
     scrollAbortRef.current = controller;
     setScrollProgress({ done: 0, total: 1 });
@@ -201,6 +206,7 @@ export function IssueTab() {
           progress={scrollProgress}
           busy={captureBusy}
           canceling={canceling}
+          deviceMode={deviceWidth != null}
         />
         <SessionExpiredDialog open={sessionExpired} onConfirm={() => reset()} />
       </>
@@ -472,6 +478,7 @@ function CapturingState({
   progress,
   busy,
   canceling,
+  deviceMode,
 }: {
   onCancel: () => void;
   onViewport: () => void;
@@ -479,6 +486,7 @@ function CapturingState({
   progress: { done: number; total: number } | null;
   busy: boolean;
   canceling: boolean;
+  deviceMode: boolean;
 }) {
   const t = useT();
   const percent = progress
@@ -551,7 +559,14 @@ function CapturingState({
           </TooltipIconButton>
           <TooltipIconButton
             label={t("issue.capturing.method.fullPage")}
-            ariaDisabled={busy}
+            // 오케스트레이터가 frameId 0 고정이라 모드 ON이면 "조용한 1타일"이 된다 —
+            // 에러도 truncated 배지도 안 뜨므로 명시적으로 잠근다.
+            ariaDisabled={busy || deviceMode}
+            // label은 안 건드린다 — TooltipIconButton에서 label 하나가 aria-label과 툴팁을
+            // 겸하므로 문구를 갈면 접근명이 오염된다. 사유는 disabledReason으로만 넣는다.
+            disabledReason={
+              deviceMode ? t("issue.capturing.method.fullPageDeviceLocked") : undefined
+            }
             // 진행 중엔 이 버튼이 스피너를 들고 있으므로 흐리게 만들지 않는다.
             className="aria-disabled:cursor-not-allowed"
             testId="capture-method-fullpage"
@@ -700,6 +715,8 @@ function SubmitSuccessPanel() {
   return <SubmitSuccessView result={submitResult} onClose={() => reset()} />;
 }
 
+// title은 기존 것을 재사용한다 — "페이지가 변경되었습니다"가 handoff에도 그대로 맞다.
+// 컴포넌트·sessionExpired 플래그·onConfirm은 무변경이고 body 문구만 갈린다.
 function SessionExpiredDialog({
   open,
   onConfirm,
@@ -708,13 +725,14 @@ function SessionExpiredDialog({
   onConfirm: () => void;
 }) {
   const t = useT();
+  const byHandoff = useDeviceViewportStore((s) => s.expiredByHandoff);
   return (
     <AlertDialog open={open}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{t("issue.sessionExpired.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-            {t("issue.sessionExpired.body")}
+            {t(byHandoff ? "issue.sessionExpired.bodyDeviceMode" : "issue.sessionExpired.body")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

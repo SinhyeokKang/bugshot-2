@@ -33,10 +33,12 @@ describe("device-presets", () => {
     });
 
     // 아이콘은 좁은 폭에서 라벨이 접혔을 때의 표현 수단이지 폭 숫자의 대체가 아니다.
-    it("각 프리셋에 아이콘이 있다", () => {
+    it("각 프리셋에 서로 다른 아이콘이 있다", () => {
+      // lucide 아이콘은 forwardRef 객체라 typeof가 "object"다 — 존재와 유일성만 본다.
       for (const preset of DEVICE_PRESETS) {
-        expect(preset.icon).toBeTypeOf("function");
+        expect(preset.icon).toBeTruthy();
       }
+      expect(new Set(DEVICE_PRESETS.map((p) => p.icon)).size).toBe(DEVICE_PRESETS.length);
     });
 
     it("labelKey가 여전히 폭 숫자를 가리킨다 (아이콘이 숫자를 대체하지 않는다)", () => {

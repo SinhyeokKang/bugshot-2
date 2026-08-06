@@ -15,6 +15,7 @@ export function TooltipIconButton({
   active,
   disabled,
   ariaDisabled,
+  disabledReason,
   testId,
   className,
   onClick,
@@ -24,6 +25,12 @@ export function TooltipIconButton({
   active?: boolean;
   disabled?: boolean;
   ariaDisabled?: boolean;
+  /**
+   * 잠금 사유. 있으면 **툴팁 본문만** 대체하고 aria-label은 label을 그대로 둔다 —
+   * label 하나가 둘을 겸하고 있어서 사유를 label에 섞으면 접근명이
+   * "페이지 캡처(디바이스 모드에서 잠김)"가 된다.
+   */
+  disabledReason?: string;
   testId?: string;
   className?: string;
   onClick?: () => void;
@@ -51,7 +58,7 @@ export function TooltipIconButton({
             {children}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>{label}</TooltipContent>
+        <TooltipContent>{disabledReason ?? label}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );

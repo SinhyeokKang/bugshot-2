@@ -14,6 +14,9 @@ const ko = {
   "app.pickerUnavailable.body": "Chrome 정책상 웹스토어·확장 페이지 등에서는 BugShot이 동작할 수 없습니다. 다른 페이지에서 시도해주세요.",
   "app.iframeUnsupported.title": "이 iframe은 선택할 수 없습니다",
   "app.iframeUnsupported.body": "중첩된 프레임이거나 확장 프로그램이 접근할 수 없는 프레임이라 내부 요소를 선택할 수 없습니다. 다른 요소를 선택하거나 스크린샷 모드를 사용해 주세요.",
+  // 모드 ON에서는 페이지 전체가 이미 프레임 하나라 페이지 안 iframe이 전부 2-depth가 된다 —
+  // 진짜 액션은 "스크린샷 모드"가 아니라 "디바이스 뷰포트를 끄기"다.
+  "app.iframeUnsupported.bodyDeviceMode": "디바이스 뷰포트에서는 페이지 안의 iframe 요소를 선택할 수 없습니다. 뷰포트를 전체로 되돌리면 선택할 수 있습니다.",
   "app.blobSaveFailed.title": "일부 미디어를 저장하지 못했습니다",
   "app.blobSaveFailed.body": "디스크 공간 부족 등의 원인으로 이미지·영상·로그 중 일부가 저장되지 않았습니다. 드래프트에서 누락된 항목을 확인해주세요.",
   "app.stateSaveFailed.title": "저장하지 못했습니다",
@@ -75,6 +78,7 @@ const en = {
   "app.pickerUnavailable.body": "Chrome policy prevents BugShot from running on the Chrome Web Store and similar restricted pages. Try another page.",
   "app.iframeUnsupported.title": "This iframe can't be selected",
   "app.iframeUnsupported.body": "Its inner elements can't be selected because the frame is nested or inaccessible to the extension. Select another element, or use Screenshot instead.",
+  "app.iframeUnsupported.bodyDeviceMode": "Elements inside a page iframe can't be selected in a device viewport. Switch the viewport back to Full to select them.",
   "app.blobSaveFailed.title": "Some media could not be saved",
   "app.blobSaveFailed.body": "Some images, videos, or logs could not be saved due to insufficient storage. Check the draft for missing items.",
   "app.stateSaveFailed.title": "Could not save",

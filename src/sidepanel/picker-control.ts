@@ -1,12 +1,19 @@
 import { classifyTabSupport } from "@/lib/url-support";
 import { pageKeyOf } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
-import { onPickerPermissionExpired, onPickerUnavailable } from "@/types/messages";
+import { onPickerPermissionExpired, onPickerUnavailable, sendBg } from "@/types/messages";
+import type { DeviceDocumentsResponse } from "@/types/messages";
 import { isActiveTabPermissionError } from "./lib/capture-error";
 import { sameCaptureBasis } from "./lib/capture-basis";
+import {
+  resolveSentinelTargets,
+  type SentinelScope,
+} from "./lib/device-sentinel-gate";
 import type {
   DescribeChildrenResponse,
   DescribeInitialResponse,
+  DeviceSetResponse,
+  DeviceStateResponse,
   PickerMessage,
   PickerTokensResponse,
   PrepareCaptureResponse,
@@ -168,17 +175,73 @@ function forgetSentinel(tabId: number, kind: keyof TabSentinels): void {
   if (!s.network && !s.console && !s.action) tabSentinels.delete(tabId);
 }
 
+// background가 유일한 문서 열거원이다 — 사이드패널은 프레임 트리를 모르고 캐시도 두지 않는다.
+async function fetchDeviceDocuments(tabId: number): Promise<DeviceDocumentsResponse> {
+  try {
+    return await sendBg<DeviceDocumentsResponse>({ type: "device.documents", tabId });
+  } catch {
+    // 조회 실패는 모드 OFF로 접는다 — 기존 broadcast 경로가 곧 폴백이다.
+    return { all: [], deviceTree: [] };
+  }
+}
+
+/**
+ * **sentinel을 발행하는 유일한 지점.** 모드 ON이면 래퍼 서브트리로 좁히고, OFF면 기존
+ * broadcast/frameId 경로 그대로다. 이 헬퍼를 우회하는 신규 발행 코드가 하나만 생겨도 숨겨진
+ * top이 되살아나 로그가 조용히 2벌이 된다(에러가 아니라 중복 엔트리라 무증상이다).
+ */
+async function emitSentinel(
+  tabId: number,
+  msg: PickerMessage,
+  scope: SentinelScope,
+): Promise<void> {
+  const { deviceTree } = await fetchDeviceDocuments(tabId);
+  const target = resolveSentinelTargets({ deviceTree, scope });
+  switch (target.kind) {
+    case "broadcast":
+      await sendAll(tabId, msg);
+      return;
+    case "frame":
+      await send(tabId, msg, target.frameId);
+      return;
+    case "documents":
+      await Promise.all(
+        target.documentIds.map((documentId) =>
+          chrome.tabs.sendMessage(tabId, msg, { documentId }).catch(() => {}),
+        ),
+      );
+      return;
+    case "none":
+      return;
+    default:
+      target satisfies never;
+  }
+}
+
 // 특정 프레임에만 setSentinel을 재전송(frameId 지정). setSentinel은 recording=true만 켜고 버퍼를
 // 비우지 않아(코드 검증), 기존 프레임이 동일 sentinel을 재수신해도 누적 로그가 보존된다.
-export function rebroadcastSentinelsToFrame(tabId: number, frameId: number): void {
+// 모드 ON에서는 위 게이트가 래퍼 서브트리 밖 프레임을 튕긴다 — 숨겨진 top의 자식 iframe이
+// 커밋될 때마다 그 레코더가 살아나는 경로다.
+export function rebroadcastSentinelsToFrame(
+  tabId: number,
+  frameId: number,
+  documentId?: string,
+): void {
   const s = tabSentinels.get(tabId);
   if (!s) return;
-  const sendToFrame = (msg: PickerMessage): void => {
-    chrome.tabs.sendMessage(tabId, msg, { frameId }).catch(() => {});
-  };
-  if (s.network) sendToFrame({ type: "networkRecorder.setSentinel", sentinel: s.network });
-  if (s.console) sendToFrame({ type: "consoleRecorder.setSentinel", sentinel: s.console });
-  if (s.action) sendToFrame({ type: "actionRecorder.setSentinel", sentinel: s.action });
+  const msgs: PickerMessage[] = [];
+  if (s.network) msgs.push({ type: "networkRecorder.setSentinel", sentinel: s.network });
+  if (s.console) msgs.push({ type: "consoleRecorder.setSentinel", sentinel: s.console });
+  if (s.action) msgs.push({ type: "actionRecorder.setSentinel", sentinel: s.action });
+  if (msgs.length === 0) return;
+  // 문서 열거는 한 번만 — 프레임이 잦게 커밋되는 광고성 페이지에서 3배로 왕복하지 않는다.
+  void (async () => {
+    const { deviceTree } = await fetchDeviceDocuments(tabId);
+    const scope: SentinelScope = { kind: "frame", frameId, documentId };
+    const target = resolveSentinelTargets({ deviceTree, scope });
+    if (target.kind !== "frame") return;
+    for (const msg of msgs) void send(tabId, msg, target.frameId);
+  })();
 }
 
 async function getPageUrl(tabId: number): Promise<string | undefined> {
@@ -712,7 +775,7 @@ export async function activateNetworkRecorder(tabId: number): Promise<string> {
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   rememberSentinel(tabId, "network", sentinel);
-  await sendAll(tabId, { type: "networkRecorder.setSentinel", sentinel });
+  await emitSentinel(tabId, { type: "networkRecorder.setSentinel", sentinel }, { kind: "all" });
   return sentinel;
 }
 
@@ -731,7 +794,7 @@ export async function activateConsoleRecorder(tabId: number): Promise<string> {
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   rememberSentinel(tabId, "console", sentinel);
-  await sendAll(tabId, { type: "consoleRecorder.setSentinel", sentinel });
+  await emitSentinel(tabId, { type: "consoleRecorder.setSentinel", sentinel }, { kind: "all" });
   return sentinel;
 }
 
@@ -750,7 +813,7 @@ export async function activateActionRecorder(tabId: number): Promise<string> {
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   rememberSentinel(tabId, "action", sentinel);
-  await sendAll(tabId, { type: "actionRecorder.setSentinel", sentinel });
+  await emitSentinel(tabId, { type: "actionRecorder.setSentinel", sentinel }, { kind: "all" });
   return sentinel;
 }
 
@@ -761,6 +824,70 @@ export async function stopActionRecorder(tabId: number): Promise<void> {
 
 export async function syncActionRecorder(tabId: number): Promise<void> {
   await sendAll(tabId, { type: "actionRecorder.sync" });
+}
+
+const RECORDER_KINDS = ["networkRecorder", "consoleRecorder", "actionRecorder"] as const;
+
+async function ackDocument(
+  tabId: number,
+  documentId: string,
+  msgs: PickerMessage[],
+): Promise<boolean> {
+  for (const msg of msgs) {
+    try {
+      await chrome.tabs.sendMessage(tabId, msg, { documentId });
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * 현재 문서 전부를 정지한 뒤 래퍼 서브트리만 활성화한다. 각 단계는 응답 확인식이다.
+ * 정확도가 우선이라 broadcast 후 top만 재정지하는 경쟁 구조는 쓰지 않는다.
+ *
+ * **clear는 반드시 stop ACK 뒤, start ACK 앞이다.** 이유가 둘이고 하나만 알고 순서를
+ * 되돌리면 나머지가 조용히 깨진다. ① clear가 mount보다 앞이면 mount~stop 사이에 숨겨진
+ * 원본이 뱉은 로그가 경계를 통과하는데 래퍼와 top은 같은 origin이라 필터로도 못 가른다.
+ * ② 그 구간엔 binding이 없어 sentinel 게이트가 일시적으로 "모드 OFF"로 판정하고, 하필
+ * 그때가 tabs.onUpdated(complete)로 activate 3종이 가장 잘 도는 구간이다 — 숨겨진 top이
+ * 잠깐 되살아나는 걸 막을 수 없고, stop ACK가 다시 죽인 뒤의 clear만이 그 로그를 지운다.
+ *
+ * 래퍼의 pre-arm 버퍼는 start 시점에 flush되므로 clear를 뒤로 미뤄도 손실이 없다.
+ *
+ * clear를 콜백으로 받는 이유: 실제 clear는 store와 persist guard를 건드리는데 그건
+ * usePickerMessages 쪽에 있고, 그걸 여기서 import하면 순환이 된다.
+ */
+export async function activateRecordersInDeviceTree(
+  tabId: number,
+  clearLogs: () => void,
+): Promise<boolean> {
+  const { all, deviceTree } = await fetchDeviceDocuments(tabId);
+  if (deviceTree.length === 0) return false;
+
+  const stops = RECORDER_KINDS.map((kind) => ({ type: `${kind}.stop` }) as PickerMessage);
+  const stopped = await Promise.all(all.map((documentId) => ackDocument(tabId, documentId, stops)));
+  if (stopped.some((ok) => !ok)) return false;
+
+  clearLogs();
+
+  const sentinels = tabSentinels.get(tabId);
+  if (!sentinels) return true; // 레코더가 애초에 비활성 — 전이 자체는 성공이다
+  const starts: PickerMessage[] = [];
+  if (sentinels.network) {
+    starts.push({ type: "networkRecorder.setSentinel", sentinel: sentinels.network });
+  }
+  if (sentinels.console) {
+    starts.push({ type: "consoleRecorder.setSentinel", sentinel: sentinels.console });
+  }
+  if (sentinels.action) {
+    starts.push({ type: "actionRecorder.setSentinel", sentinel: sentinels.action });
+  }
+  const started = await Promise.all(
+    deviceTree.map((documentId) => ackDocument(tabId, documentId, starts)),
+  );
+  return started.every(Boolean);
 }
 
 // capture 시 sync broadcast가 누적기에 머지될 때까지 대기하는 상한. 머지 도착 즉시 조기 탈출.
@@ -806,21 +933,53 @@ export async function syncAndSettleLogs(
   }
 }
 
-// top 프레임의 브라우저 뷰포트 조회. iframe 선택의 payload viewport(iframe 내부 크기)를
-// 환경 메타용 브라우저 뷰포트로 교체할 때와 freeform 진입 메타에 쓴다.
+// **캡처 대상 뷰포트** 조회(과거의 "브라우저 뷰포트"에서 의미가 넓어졌다). iframe 선택의
+// payload viewport(iframe 내부 크기)를 환경 메타로 교체할 때, freeform 진입 메타, 그리고
+// 영상·30s Replay 메타에 쓴다 — 캡처 5종의 단일 출처다.
+//
+// 주입 함수는 직렬화·재평가되므로 클로저가 안 살아남는다. 프레임 id는 반드시 **인라인
+// 리터럴**이어야 하고 device-frame.ts의 DEVICE_FRAME_ID와 복제 관계다 — 상수를 import하면
+// typecheck·유닛이 전부 green인데 런타임만 ReferenceError로 죽고 아래 catch가 그걸 삼켜
+// 조용히 null로 폴백한다. 동기화는 device-viewport-meta.test.ts가 두 값을 대조해 고정한다.
 export async function getTopViewport(
   tabId: number,
 ): Promise<{ width: number; height: number } | null> {
   try {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId },
-      func: () => ({ width: window.innerWidth, height: window.innerHeight }),
+      func: () => {
+        const frame = document.getElementById("__bugshot_device_frame__");
+        return frame
+          ? { width: frame.clientWidth, height: frame.clientHeight }
+          : { width: window.innerWidth, height: window.innerHeight };
+      },
     });
     return result?.result ?? null;
   } catch {
     // host permission이 없거나 정책 차단 페이지
     return null;
   }
+}
+
+/* ── 디바이스 뷰포트 ─────────────────────────────────────────── */
+
+// send는 모듈 내부 전용이라 사이드패널이 직접 못 쓴다 — navigatePicker·prepareCapture와 같은
+// 패턴으로 top 지정 송신 래퍼를 노출한다.
+export async function deviceSet(
+  tabId: number,
+  width: number | null,
+): Promise<DeviceSetResponse | undefined> {
+  return send<DeviceSetResponse>(tabId, { type: "device.set", width }, 0);
+}
+
+export async function deviceState(
+  tabId: number,
+): Promise<DeviceStateResponse | undefined> {
+  return send<DeviceStateResponse>(tabId, { type: "device.state" }, 0);
+}
+
+export async function deviceWatch(tabId: number, on: boolean): Promise<void> {
+  await send(tabId, { type: "device.watch", on }, 0);
 }
 
 export async function startFreeformDraft(tabId: number): Promise<void> {

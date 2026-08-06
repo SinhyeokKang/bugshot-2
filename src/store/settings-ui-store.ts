@@ -114,6 +114,11 @@ interface SettingsUiState {
   autoReproPrefill: boolean;
   recordingMode: RecordingSource;
   styleEditorView: StyleEditorView;
+  /**
+   * 디바이스 뷰포트 최초 ON 진입 1회 경고를 이미 봤는가. 경고 범위가 재로드뿐 아니라
+   * 원본·래퍼 동시 실행(중복 요청·자동저장·결제)까지 덮어서 deviceReloadWarned가 아니다.
+   */
+  deviceModeWarned: boolean;
   setTheme: (theme: ThemeMode) => void;
   setLocale: (locale: LocaleMode) => void;
   setIssueEnabled: (id: IssueSectionId, enabled: boolean) => void;
@@ -126,7 +131,11 @@ interface SettingsUiState {
   setAutoReproPrefill: (enabled: boolean) => void;
   setRecordingMode: (mode: RecordingSource) => void;
   setStyleEditorView: (view: StyleEditorView) => void;
+  setDeviceModeWarned: (warned: boolean) => void;
 }
+
+// migrate 분기와 persist 설정이 같은 숫자를 보게 단일 출처로 둔다.
+export const SETTINGS_UI_PERSIST_VERSION = 10;
 
 export function migrateSettingsUi(
   persisted: unknown,
@@ -145,6 +154,8 @@ export function migrateSettingsUi(
   state.recordingMode = state.recordingMode ?? "tab";
   state.styleEditorView = state.styleEditorView ?? "form";
   state.autoReproPrefill = state.autoReproPrefill ?? true;
+  // v10: 디바이스 뷰포트 1회 경고 플래그
+  state.deviceModeWarned = state.deviceModeWarned ?? false;
   // v9: 순서 배열에 미디어 엔트리 편입(레거시 앵커 위치로 backfill → 레이아웃 불변)
   state.issueSections = normalizeSections(state.issueSections ?? DEFAULT_ISSUE_SECTIONS);
   return state as SettingsUiState;
@@ -192,6 +203,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       autoReproPrefill: true,
       recordingMode: "tab",
       styleEditorView: "form",
+      deviceModeWarned: false,
       setTheme: (theme) => set({ theme }),
       setLocale: (locale) => set({ locale }),
       setIssueEnabled: (id, enabled) => {
@@ -234,12 +246,13 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       setAutoReproPrefill: (enabled) => set({ autoReproPrefill: enabled }),
       setRecordingMode: (recordingMode) => set({ recordingMode }),
       setStyleEditorView: (styleEditorView) => set({ styleEditorView }),
+      setDeviceModeWarned: (deviceModeWarned) => set({ deviceModeWarned }),
     }),
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
-      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가, v8: autoReproPrefill 추가, v9: issueSections에 media 엔트리 편입
-      version: 9,
+      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가, v8: autoReproPrefill 추가, v9: issueSections에 media 엔트리 편입, v10: deviceModeWarned 추가
+      version: SETTINGS_UI_PERSIST_VERSION,
       storage: createJSONStorage(() => apiKeyObfuscatingStorage),
       migrate: migrateSettingsUi,
       // migrate는 버전이 다를 때만 돈다 — 동일 버전에서 외부 오염된 배열도 교정하도록 rehydrate에서 재정규화.

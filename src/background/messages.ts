@@ -132,6 +132,7 @@ import type { GitlabAuth } from "@/types/gitlab";
 import type { AsanaAuth } from "@/types/asana";
 import type { ClickupAuth } from "@/types/clickup";
 import type { SlackAuth } from "@/types/slack";
+import { armDeviceFrame, listTabDocuments } from "./device-frame-coordinator";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
@@ -693,6 +694,21 @@ export async function handleMessage(
 
     case "css.fetchSheets":
       return { sheets: await fetchCssSheets(message.urls) };
+
+    case "device.arm": {
+      // top URL은 판정 기준(same-origin 대조)이므로 여는 시점에 실측한다.
+      const topUrl = message.on
+        ? await chrome.tabs
+            .get(message.tabId)
+            .then((tab) => tab.url ?? "")
+            .catch(() => "")
+        : "";
+      armDeviceFrame(message.tabId, message.on, topUrl);
+      return { ok: true };
+    }
+
+    case "device.documents":
+      return listTabDocuments(message.tabId);
 
     default: {
       const _exhaustive: never = message;
