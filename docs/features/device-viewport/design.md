@@ -480,7 +480,7 @@ async function reestablish(tabId: number, width: number): Promise<void>;
 
 **`device.arm`은 재수립에서도 반드시 연다.** arm 창이 없으면 잠정 등록이 없고, 그러면 즉시 redirect·차단 판정의 타깃 frameId가 없어 `frameLoaded`/`frameBlocked` 어느 쪽도 오지 않는다. `busy`가 3초 타임아웃으로 끝나고 모드는 조용히 안 선다.
 
-**호출 지점을 둘로 고정한다.** ① top `onCommitted` + `pending` 있음 ② 패널 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈림. ②는 top 커밋 없이 발생하는 유일한 경우라 별도 호출이 필요하지만, 같은 함수를 쓴다. 이 둘을 합치지 않으면 확장 reload 직후 top이 커밋될 때 두 경로가 동시에 발사돼 래퍼가 두 번 mount된다.
+**호출 지점을 둘로 고정한다.** ① top `onCommitted` + `pending` 있음 ② 패널 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈림. ②는 top 커밋 없이 발생하는 유일한 경우라 별도 호출이 필요하지만, 같은 함수를 쓴다. **②의 폭 인자는 `pending`이 아니라 `device.state.width`(래퍼의 실제 `clientWidth`)다** — 확장 reload는 사이드패널까지 죽여 인메모리 pending을 함께 지우므로, 그 경로에서 폭을 아는 곳은 페이지 DOM뿐이다. 이 둘을 합치지 않으면 확장 reload 직후 top이 커밋될 때 두 경로가 동시에 발사돼 래퍼가 두 번 mount된다.
 
 **`pending`과 루프 카운터는 훅 인스턴스가 아니라 모듈 스코프에 둔다.** `useDeviceViewport`는 `DeviceViewportBar`와 `App.tsx`의 다이얼로그 분기에서 **두 번 마운트된다**(Task 13이 `device.state` 중복 요청으로 이미 인정한 사실). 상태를 훅에 두면 인스턴스마다 pending을 갖게 되어 top 커밋 한 번에 재수립이 2회 발사되고 루프 임계를 각각 절반씩 센다 — "호출 지점 2개 고정"이 인스턴스 축에서 깨진다. 모듈 스코프 `Map<tabId, Pending>` 하나로 두고 훅은 읽기만 한다.
 
