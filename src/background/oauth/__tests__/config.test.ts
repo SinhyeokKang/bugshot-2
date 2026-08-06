@@ -83,6 +83,19 @@ describe("assertConfigured", () => {
     }
   });
 
+  // 빌드에 client_id·proxy URL이 안 박힌 건 사용자 장애가 아니라 배포 사고다. 집계에서
+  // token_exchange_* 와 섞이면 "프록시가 죽었나"를 의심하며 엉뚱한 데를 파게 된다.
+  it("두 경로 모두 reason=config_missing을 단다", () => {
+    for (const c of [cfg({ clientId: "" }), cfg({ proxyUrl: "" })]) {
+      try {
+        assertConfigured(c);
+        expect.unreachable("throw 해야 함");
+      } catch (e) {
+        expect((e as OAuthError).reason).toBe("config_missing");
+      }
+    }
+  });
+
   it("구성 완료면 throw 없음 (PKCE 포함)", () => {
     expect(() => assertConfigured(cfg())).not.toThrow();
     expect(() =>
