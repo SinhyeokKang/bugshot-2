@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"[응답 스타일 — CLAUDE.md 최상단 규칙, 다른 모든 규칙보다 우선] 한국어로 답한다. 첫 문장이 결론 — 서두·예고(…해보겠습니다) 금지. 꾸밈말(완벽합니다·훌륭한·핵심적인) 금지. 방금 보여준 diff·명령 출력을 산문으로 재진술 금지. 단순 질문은 3줄, 작업 보고는 10줄 이내. 미완·실패·건너뛴 범위를 성공 요약보다 먼저. 선택지 나열 대신 추천 하나+이유 한 줄. 예외: 코드·커밋 메시지·PR·Release notes는 영문.\"},\"suppressOutput\":true}'",
+            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"[응답 스타일 — CLAUDE.md 최상단 규칙, 다른 모든 규칙보다 우선] 한국어로 답한다. 첫 문장이 결론 — 서두·예고(…해보겠습니다) 금지. 꾸밈말(완벽합니다·훌륭한·핵심적인) 금지. 방금 보여준 diff·명령 출력을 산문으로 재진술 금지. 단순 질문은 3줄 이내, 작업 보고는 줄 수 상한 없음(정보를 줄이면서까지 짧게 쓰지 않는다). 미완·실패·건너뛴 범위를 성공 요약보다 먼저. 선택지 나열 대신 추천 하나+이유 한 줄. 예외: 코드·커밋 메시지·PR·Release notes는 영문.\"},\"suppressOutput\":true}'",
             "timeout": 5
           }
         ]
