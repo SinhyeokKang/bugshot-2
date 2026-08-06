@@ -98,8 +98,15 @@ describe("classifyConnectReason", () => {
     expect(classifyConnectReason(new Error("Load failed"))).toBe("network");
   });
 
-  it("TypeError는 메시지가 달라도 network (fetch 실패의 표준 형태)", () => {
-    expect(classifyConnectReason(new TypeError("boom"))).toBe("network");
+  // 이전엔 `instanceof TypeError`를 무조건 network로 봤는데, 그건 fetch 실패가
+  // TypeError라는 것의 역을 참으로 가정한 것이었다. clickup-api의 `String(raw.user.id)`나
+  // oauth.ts `fetchSites`의 `raw.map(...)`은 상류가 200+`{}` 를 주면 TypeError를 던진다 —
+  // 우리 파싱 결함이 사용자 회선 문제로 집계되던 오분류다. Chrome 확장이라 fetch 실패
+  // 문구는 "Failed to fetch" 하나로 고정이므로 메시지 매칭만으로 충분하다.
+  it("메시지가 네트워크 문구가 아닌 TypeError는 network가 아니다 (응답 shape 파싱 결함)", () => {
+    expect(classifyConnectReason(new TypeError("Cannot read properties of undefined"))).toBe(
+      "other",
+    );
   });
 
   // 토큰 교환이 성공한 뒤 getMyself(프로필 조회) 한 왕복이 실패하는 레인. 8개 플랫폼이
@@ -127,6 +134,17 @@ describe("classifyConnectReason", () => {
     expect(classifyConnectReason(err)).toBe("other");
   });
 
+  // 플랫폼 API 에러의 message는 상류 응답 본문을 이어붙인다(github-api.ts의
+  // `super(message + extractGithubDetail(body))`, gitlab/asana/clickup/jira 동형).
+  // GitLab이 502에 `{"message":"Upstream load failed"}`를 주면 메시지 매칭이 먼저 걸려
+  // 실제 프로필 조회 실패가 network로 뒤바뀐다 — status 검사가 앞서야 한다.
+  it("상류 본문에 네트워크 문구가 섞여도 status가 있으면 profile_fetch_failed", () => {
+    const err = Object.assign(new Error('502 {"message":"Upstream load failed"}'), {
+      status: 502,
+    });
+    expect(classifyConnectReason(err)).toBe("profile_fetch_failed");
+  });
+
   it("그 밖의 값은 전부 other", () => {
     expect(classifyConnectReason(new Error("boom"))).toBe("other");
     expect(classifyConnectReason(null)).toBe("other");
@@ -137,6 +155,10 @@ describe("classifyConnectReason", () => {
 
 // 두 축이 어긋나면 PostHog에 `result=cancelled, reason=token_exchange_5xx` 같은 모순
 // 조합이 생겨 어느 쪽을 믿어야 할지 알 수 없게 된다. 한쪽만 고치는 회귀를 여기서 막는다.
+//
+// **기대 reason은 반드시 리터럴로 박는다.** 한때 `classifyConnectReason(err)`로 라벨을
+// 계산해 중복을 줄였는데, 그러면 SUT가 기대값을 만들어 오분류가 통째로 통과한다 —
+// `token_exchange_rejected`를 `other`로 바꾸는 뮤테이션이 432 테스트를 전부 살아남았다.
 describe("result ↔ reason 정합성 불변식", () => {
   const cases: Array<{ err: unknown; reason: ConnectReason }> = [
     { err: new OAuthError("x", { cancelled: true, reason: "cancelled_window" }), reason: "cancelled_window" },
@@ -144,10 +166,11 @@ describe("result ↔ reason 정합성 불변식", () => {
     { err: new OAuthError("x", { launchFailed: true, reason: "flow_in_progress" }), reason: "flow_in_progress" },
     { err: new OAuthError("x", { launchFailed: true }), reason: "launch_failed" },
     { err: new OAuthError("x", { notConfigured: true }), reason: "config_missing" },
+    { err: new OAuthError("x", { reason: "authorize_rejected" }), reason: "authorize_rejected" },
     { err: new OAuthError("x", { reason: "token_exchange_4xx" }), reason: "token_exchange_4xx" },
     { err: new OAuthError("x", { reason: "token_exchange_5xx" }), reason: "token_exchange_5xx" },
     { err: new OAuthError("x", { reason: "token_exchange_rejected" }), reason: "token_exchange_rejected" },
-    { err: new OAuthError("x", { cancelled: true, reason: "cancelled_denied" }), reason: "cancelled_denied" },
+    { err: new OAuthError("x", { reason: "profile_fetch_failed" }), reason: "profile_fetch_failed" },
     { err: new TypeError("Failed to fetch"), reason: "network" },
     { err: Object.assign(new Error("scope"), { status: 403 }), reason: "profile_fetch_failed" },
     { err: new Error("boom"), reason: "other" },
