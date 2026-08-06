@@ -97,7 +97,7 @@
 ### Task 6: 전환 오케스트레이션 훅
 
 - **변경 대상**: `src/sidepanel/hooks/useDeviceViewport.ts` (신규)
-- **작업 내용**: design.md의 `select()` 10단계를 그대로 구현. 마운트 시 `device.state` 조회, `device.availableChanged` 구독. 최초 ON 진입 경고 플래그는 `settings-ui-store`에 **`deviceModeWarned: boolean`** — 경고가 재로드뿐 아니라 원본·래퍼 동시 실행까지 덮으므로 `deviceReloadWarned`가 아니라 이 이름을 쓴다. **version 9 → 10 bump + `migrateSettingsUi` 기본값 false 등록**이 함께 가야 한다. 체크박스 없이 `[계속]`에서 true를 `chrome.storage.local`에 즉시 영속한다. 문구는 진입·해제 재로드와 원본·래퍼 동시 실행에 따른 네트워크 요청·자동저장·결제 중복 위험을 모두 커버한다. `전체` 복귀는 unmount 후 `location.reload()`까지 간다.
+- **작업 내용**: design.md의 `select()` 12단계를 그대로 구현(재수립 경로는 Task 6b). 마운트 시 `device.state` 조회, `device.availableChanged` 구독. 최초 ON 진입 경고 플래그는 `settings-ui-store`에 **`deviceModeWarned: boolean`** — 경고가 재로드뿐 아니라 원본·래퍼 동시 실행까지 덮으므로 `deviceReloadWarned`가 아니라 이 이름을 쓴다. **version 9 → 10 bump + `migrateSettingsUi` 기본값 false 등록**이 함께 가야 한다. 체크박스 없이 `[계속]`에서 true를 `chrome.storage.local`에 즉시 영속한다. 문구는 진입·해제 재로드와 원본·래퍼 동시 실행에 따른 네트워크 요청·자동저장·결제 중복 위험을 모두 커버한다. `전체` 복귀는 unmount 후 `location.reload()`까지 간다.
   - 성공 판정은 `device.set` 응답이 아니라 background push(`device.frameLoaded`/`device.frameBlocked`, ≤3s) 수신이다. `device.arm`은 `device.set` **직전**에 열고 판정 후 닫는다.
   - 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈리면 확장 reload 후 상태이므로 같은 폭으로 `device.set`을 다시 보내 **재수립**한다.
 - **검증**:
@@ -116,20 +116,35 @@
   - [ ] **`device.frameLoaded` 확정 직후 래퍼 frameId를 향해 `picker.start`를 `res?.ok`까지 재시도 송신한다**(`restartPickerInFrame` `picker-control.ts:286-303` 패턴, 10회×200ms). `device.set` 응답만 보고 쏘면 즉시 redirect되는 사이트에서 타깃 frameId가 아직 없다. `picker.start`는 broadcast 1회뿐이라 사후 생성 프레임에 안 닿고 `ensureContentScript`의 ping은 frameId 0만 보므로(`:25`) 자가복구도 안 걸린다 — 등록에 실패하면 모드 ON에서 아무 요소도 못 고른다
   - [ ] 그 재시도가 **broadcast가 아니다.** `setFrameToken`(`frame-geometry.ts:73`)이 `picker.start`마다 `childFrames` WeakSet을 갈아치우므로 broadcast하면 방금 등록된 래퍼가 날아간다
 
-### Task 6b: cross-origin handoff (사이드패널 측)
+### Task 6b: 재수립 계약 + cross-origin handoff (사이드패널 측)
+
+**이 태스크가 이 기능에서 가장 조용히 틀리는 곳이다.** 모드가 다시 서야 하는 사건이 셋(handoff / 차단 복구 / 확장 reload 복구)인데 각자 구현하면 세 번 다르게 만들어지고, 실패가 전부 무증상(모드가 안 서는데 세그먼트는 켜져 보임)이다. **`reestablish` 하나로 못 박고 시작한다** — design.md "재수립 계약" 표가 계약서다.
 
 - **변경 대상**: `src/sidepanel/hooks/useDeviceViewport.ts`, `src/sidepanel/tabs/IssueTab.tsx:705-726`
-- **작업 내용**: `device.handoff` push 수신 → ① `pending = { tabId, width }`(인메모리, 영속 금지) ② `chrome.tabs.update(tabId, { url })` ③ `sessionExpired = true`(phase 판정 없이 무조건 — 렌더 분기가 non-idle 셋뿐이라 idle에선 안 뜬다). top `onCommitted`에서 `pending`을 소비해 같은 폭으로 `device.set` 재발사. `SessionExpiredDialog`의 body만 디바이스 모드 문구로 분기하고 컴포넌트·플래그·`onConfirm={() => reset()}`은 건드리지 않는다. 녹화·미리보기·완료 phase면 다이얼로그 대신 토스트 1개. **루프 가드**: 연속 handoff 2회 초과 또는 직전 handoff URL 재방문 → 전용 다이얼로그 → [확인] 시 모드 해제 + idle. 카운터는 사용자의 명시적 세그먼트 조작에서 0으로 리셋.
+- **작업 내용**:
+  - `reestablish(tabId, width)` 신설. **호출 지점은 둘뿐** — ① top `onCommitted` + `pending` 있음 ② 패널 마운트 시 `device.state`(래퍼 있음)/`device.documents`(binding 없음) 엇갈림. handoff·차단 복구는 pending 세팅 + `chrome.tabs.update`만 하고 직접 부르지 않는다.
+  - `select()`와의 차이 5개를 그대로 구현: `locked` **우회**(`busy`는 존중) / 1회 경고 안 띄움 / `syncAndSettleLogs` 생략 / `device.arm`은 **연다** / 루프 카운터 +1.
+  - `device.handoff` push 수신 → ① `pending = { tabId, width }`(인메모리, 영속 금지) ② `chrome.tabs.update(tabId, { url })` ③ `sessionExpired = true`(phase 판정 없이 무조건 — 렌더 분기가 non-idle 셋뿐이라 idle에선 안 뜬다).
+  - `SessionExpiredDialog`의 body만 디바이스 모드 문구로 분기하고 컴포넌트·플래그·`onConfirm={() => reset()}`은 건드리지 않는다. 녹화·미리보기·완료 phase면 다이얼로그 대신 토스트 1개.
+  - **루프 가드는 `reestablish` 호출을 센다** — handoff 횟수를 세면 frame-busting(handoff 없이 top이 곧장 커밋)을 못 잡는다. 연속 2회 초과 또는 직전 재수립 URL 재방문 → 전용 다이얼로그 → [확인] 시 모드 해제 + idle. 리셋은 사용자의 명시적 세그먼트 조작, 또는 재수립 성공 후 top 커밋 없이 10초 경과.
+  - **`select(null)`은 `pending`을 `device.set`보다 먼저 버린다** — OFF의 `location.reload()`도 top 커밋이라 pending이 남으면 OFF↔ON 루프가 된다.
 - **검증**:
+  - [ ] **`reestablish`가 `locked`(`phase !== "idle"`)에서 실행된다** — 거부하면 drafting·recording 중 handoff에서 top만 옮겨가고 래퍼가 안 서는데 세그먼트는 `390`을 가리키는 desync가 된다. 이 태스크의 존재 이유다
+  - [ ] `reestablish`가 `device.arm`을 연다 — 안 열면 잠정 등록이 없어 `frameLoaded`/`frameBlocked` 둘 다 안 오고 `busy`가 3초 타임아웃으로 끝난다
+  - [ ] `reestablish` 호출 지점이 정확히 2개다 (handoff·차단 복구가 직접 부르지 않는다 — 확장 reload 직후 top 커밋에서 두 경로가 겹쳐 발사되면 래퍼가 두 번 mount된다)
+  - [ ] `reestablish`는 `syncAndSettleLogs`를 안 부르고 1회 경고를 안 띄운다
+  - [ ] `reestablish`가 stop ACK 뒤에 store clear를 **무조건** 한 번 한다 — `background/index.ts:130`의 `logClear`는 editor 세션 스냅샷이 있을 때만 발화하므로, 패널을 막 열고 첫 로그 전이면 안 돈다. 두 번 비워도 둘 다 start ACK 전이라 무해하다
   - [ ] `pending`이 `chrome.storage`에 안 들어간다 (영속하면 기각한 desync가 되살아난다)
+  - [ ] `pending`은 top 커밋에서 **소비 즉시 삭제**되고 재수립 성공 시 다시 세팅된다 (실패 경로에 유령 pending이 안 남는다)
   - [ ] 폐기 조건 6개가 전부 구현돼 있다: `전체` 선택 / 탭 전환 / 미지원 URL 도달 / `frameBlocked` / 루프 가드 / 언마운트
+  - [ ] `select(null)`에서 pending 폐기가 `device.set`보다 앞이다 (OFF↔ON 무한 루프 차단)
   - [ ] 주소창으로 top을 옮겨도 같은 폭으로 재수립된다 (래퍼 안 이동과 규칙이 같다)
-  - [ ] handoff에서 로그 clear를 **직접 호출하지 않는다** — top 네비게이션이라 기존 `logClear`가 돈다. 이중 clear는 래퍼의 pre-arm 버퍼를 날린다
   - [ ] idle에서 handoff가 나면 다이얼로그가 안 뜨고 로그만 비워진다
   - [ ] drafting에서 handoff가 나면 다이얼로그가 뜨고 [확인] 뒤 phase가 idle이며 폭은 유지된다
   - [ ] recording에서 handoff가 나면 다이얼로그 대신 토스트가 뜨고 녹화가 계속된다
-  - [ ] 연속 3회째 handoff에서 루프 다이얼로그가 뜨고 [확인] 뒤 모드가 해제된다
-  - [ ] 사용자가 세그먼트를 다시 고르면 루프 카운터가 0이다
+  - [ ] 연속 3회째 **재수립**에서 루프 다이얼로그가 뜨고 [확인] 뒤 모드가 해제된다
+  - [ ] handoff를 거치지 않은 top 커밋(frame-busting 모사)도 루프 카운터를 올린다
+  - [ ] 사용자가 세그먼트를 다시 고르면, 그리고 재수립 성공 후 10초간 top 커밋이 없으면 카운터가 0이다
 
 ### Task 7: 세그먼티드 컨트롤 UI
 
@@ -270,7 +285,7 @@
   - `docs/PERMISSION.md` §12 표에 `scripting`/`<all_urls>` 새 사용처 1행
   - `CLAUDE.md` "스택"에 디바이스 뷰포트 1항목, "게이트웨이"에 모드 ON 제약
   - `docs/DIRECTORY.md`에 신규 파일 4개
-  - `docs/ARCHITECTURE.md`에 "디바이스 뷰포트" 절 — 단일 출처가 페이지 DOM인 이유, `srcdoc` 금지, shadow root 금지, 크롭/메타 viewport 분리, **XFO 판정 주체가 background 하나인 이유**(content의 href 비교는 same-origin redirect를 오판한다), **sentinel 발행 단일 게이트**(우회 코드가 하나 생기면 로그가 조용히 2벌이 된다), **"래퍼는 언제나 top과 same-origin" 불변식과 cross-origin handoff**(storage partitioning 때문이고, 이 불변식이 계보 추적·pre-arm·element 확장 셋을 동시에 싸게 만든다)
+  - `docs/ARCHITECTURE.md`에 "디바이스 뷰포트" 절 — 단일 출처가 페이지 DOM인 이유, `srcdoc` 금지, shadow root 금지, 크롭/메타 viewport 분리, **XFO 판정 주체가 background 하나인 이유**(content의 href 비교는 same-origin redirect를 오판한다), **sentinel 발행 단일 게이트**(우회 코드가 하나 생기면 로그가 조용히 2벌이 된다), **"래퍼는 언제나 top과 same-origin" 불변식과 cross-origin handoff**(storage partitioning 때문이고, 이 불변식이 계보 추적·pre-arm·element 확장 셋을 동시에 싸게 만든다), **재수립 계약**(`select`와 달리 잠금을 우회하는 이유 — 이걸 모르고 잠금을 적용하면 drafting 중 handoff에서 모드가 조용히 안 선다)
 - **검증**:
   - [ ] privacy ko/en이 같은 줄 수·같은 절 구성으로 유지된다
   - [ ] `pnpm sync:agents:check` green (`CLAUDE.md` 편집 시 훅이 자동 sync하지만 최종 확인)
@@ -286,7 +301,8 @@
 | `device-presets.ts` | 가용 폭 경계(초과/딱맞음/미달), `null` 낙관적 판정, 프리셋 3개·`430` 부재 |
 | `picker.ts` 확장 게이트 | 래퍼에서 확장 판정이 돌고 일반 iframe에서는 안 돈다, top 무변경 |
 | handoff 코디네이터 (background) | cross-origin beforeNavigate·commit 각각에서 push 1회, same-origin redirect 무시, 감시창 밖 `onErrorOccurred` 포착 |
-| handoff 오케스트레이션 (사이드패널) | `pending` 폐기 조건 6개, 루프 카운터(연속 2회 초과·직전 URL 재방문), phase별 통보 분기(idle 무음 / non-idle 다이얼로그 / recording 토스트), 로그 clear를 직접 호출하지 않음 |
+| `reestablish` 계약 (사이드패널) | `locked` 우회·`busy` 거부, `device.arm` 개방, `syncAndSettleLogs` 생략, 1회 경고 미노출, stop ACK 뒤 무조건 clear, 호출 지점 2개 |
+| handoff 오케스트레이션 (사이드패널) | `pending` 폐기 조건 6개와 `select(null)`에서의 폐기 순서, 루프 카운터(연속 2회 초과·직전 URL 재방문·handoff 없는 top 커밋 포함·10초 무커밋 리셋), phase별 통보 분기(idle 무음 / non-idle 다이얼로그 / recording 토스트) |
 | `device-frame.ts` (jsdom) | mount/unmount 왕복 무손실, 멱등, 폭 갱신 시 노드 유지, `src === location.href`, body 직속, 다크 미디어쿼리 블록 존재 |
 | `device-frame.ts` (node) | `clampToDeviceFrame` 4케이스(밖/걸침/안/`null`) |
 | `picker-control.ts` | 주입 `func`의 프레임 id 리터럴 ↔ `DEVICE_FRAME_ID` 동기화, self-contained(외부 참조 0) |
@@ -348,6 +364,10 @@
 26. idle 상태에서 cross-origin 이동이 나면 다이얼로그가 **뜨지 않고** 로그만 비워진다.
 27. 모드 ON에서 주소창으로 top을 다른 사이트로 옮겨도 같은 폭으로 재수립된다 (래퍼 안 이동과 결과가 같다).
 28. `a → b → a`로 되돌리는 픽스처에서 루프 가드 다이얼로그가 뜨고, [확인] 뒤 모드가 `전체`로 해제된다.
+28b. **frame-busting 픽스처**(래퍼가 `window.top.location = self.location`로 탈출)에서도 같은 루프 가드가 발동한다 — handoff를 거치지 않는 경로다.
+28c. drafting 중 cross-origin 이동에서 래퍼가 **실제로 다시 선다**(잠금 우회 확인). 세그먼트가 `390`인데 페이지에 `#__bugshot_device_frame__`가 없는 상태가 되지 않는다.
+28d. `전체`를 눌러 모드를 끄면 재로드 뒤에 래퍼가 **다시 서지 않는다**(pending 폐기 순서 확인).
+
 
 **element 확장**
 29. 모드 ON에서 조상 컨테이너가 게이트 3개를 통과하는 요소를 캡처하면 결과 rect가 요소 bbox+24px보다 크다 (확장이 살아 있다).
@@ -400,6 +420,8 @@ Task 14 ┘           │            └─▶ Task 5                           
 - **Task 3 이후 남는 의존은 넷뿐**이고 나머지는 병렬 가능하다: Task 10 → Task 4, **Task 5 → Task 12**(문서 열거·계보가 background에 있다), **Task 6 → Task 12**(성공 판정 push와 `device.arm`이 background에 있다), **Task 6b → Task 6**(`pending`을 훅이 소유한다).
 - **Task 3b(element 확장)는 Task 3 직후 독립**이다 — 래퍼 판정만 있으면 되고 background를 안 탄다.
 - **Task 6b를 e2e 전에 끝낼 것.** handoff가 빠진 상태로 cross-origin 링크를 밟으면 파티션된 로그아웃 화면이 뜨는데, 그게 "모드가 동작 안 함"으로 오진되기 쉽다.
+- **Task 6b의 `reestablish` 계약을 Task 6 착수 전에 확정할 것.** 잠금 우회·arm 개방·pending 폐기 순서·호출 지점 단일화·루프 카운터 범위 다섯이 전부 이 계약 하나에서 갈리고, 틀리면 전부 **무증상 실패**(모드가 안 서는데 UI는 켜져 보임)로 나온다. Task 6의 `select()`를 먼저 짜고 나중에 재수립을 얹으면 잠금을 그대로 물려받기 쉽다.
+- **Task 6b의 `reestablish` 계약을 Task 6보다 먼저 문서에서 확정하고 들어갈 것.** 잠금 우회·arm 개방·pending 폐기 순서·호출 지점 단일화·루프 카운터 범위 다섯이 전부 이 계약 하나에서 갈리고, 틀리면 전부 무증상 실패(모드가 안 서는데 UI는 켜져 보임)로 나온다.
 - **Task 11(전체 캡처 잠금)을 늦추지 말 것.** 이걸 마지막에 하면 그 사이 개발·수동 검증에서 "조용한 1타일"을 정상 결과로 오인하게 된다.
 - **Task 15는 반드시 Task 4~13 완료 후.** 부분 구현 상태에서 e2e를 쓰면 시나리오 3·10·16이 서로 다른 이유로 red가 나 원인 분리가 안 된다.
 - 각 태스크 종료마다 `pnpm typecheck` + `pnpm test`. `pnpm build`는 사용자 요청 시에만.

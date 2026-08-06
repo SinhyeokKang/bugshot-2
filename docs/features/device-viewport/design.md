@@ -122,6 +122,7 @@ device-frame.ts::mountDeviceFrame(390)   ← DOM만. 로드 판정을 하지 않
    │          rebroadcastSentinelsToFrame  ← 모드 OFF에서만 무변경 broadcast 성격
    │
    └─▶ [phase === "picking"이면] restartPickerInFrame(tabId, 래퍼 frameId)
+          ← select()는 잠금 때문에 picking에서 안 도므로 이 분기는 재수립 경로 전용이다
           ← registry 등록 보장. 아래 "래퍼 registry 등록" 절
 ```
 
@@ -296,7 +297,7 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
 
 **판정 주체는 background 하나다.** content가 `contentDocument.location.href`를 비교해 스스로 롤백하는 구버전 안은 정상 redirect를 차단으로 오판하고, 반대로 다른 origin으로 밀린 blank 문서는 DOM으로 들여다볼 수조차 없다. 그래서 `device.set`은 "마운트했다"만 응답하고(`DeviceSetResponse.ok`), 성공·차단은 아래 신호로 background가 정한다.
 
-`select()`가 `device.set` **직전**에 `device.arm { on: true }`로 3초 감시창을 연다. 창이 열린 동안 background는 top(`frameId 0`)의 직속 자식 중 URL이 top URL과 같은 첫 `onBeforeNavigate`를 **잠정 래퍼**로 잡아둔다 — cross-origin으로 즉시 redirect되는 사이트에서는 `device.frameReady`가 영영 안 오므로 이 잠정 등록이 유일한 추적 시작점이다. 창 밖에서는 이 추측을 하지 않으므로 일반 iframe을 래퍼로 오인할 여지가 없다.
+`select()`가 `device.set` **직전**에 `device.arm { on: true }`로 3초 감시창을 연다. 창이 열린 동안 background는 top(`frameId 0`)의 직속 자식 중 URL이 top URL과 같은 첫 `onBeforeNavigate`를 **잠정 래퍼**로 잡아둔다 — 즉시 redirect되는 사이트에서는 `device.frameReady`가 안 올 수 있는데, 그때 래퍼 frameId를 아는 유일한 시작점이 이 잠정 등록이다(성공·차단·handoff 세 판정의 공통 타깃). 창 밖에서는 이 추측을 하지 않으므로 일반 iframe을 래퍼로 오인할 여지가 없다.
 
 | 신호 | 판정 |
 |---|---|
@@ -309,8 +310,6 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
 판정 결과를 `device.frameLoaded`/`device.frameBlocked`로 사이드패널에 push하고, 사이드패널이 롤백(`device.set { width: null }`)과 토스트를 맡는다. same-origin redirect는 성공이지 별도 reason이 아니므로 `DeviceSetResponse`에 `reason` 필드를 두지 않는다.
 
 **차단 청취는 감시창 밖에서도 계속한다.** 위 표는 진입 판정이고, binding이 확정된 뒤에도 `onErrorOccurred(래퍼 frameId)`는 상시 듣는다 — 안 그러면 모드 유지 중 래퍼 안 링크로 XFO 사이트에 도달했을 때 백지에 방치된다(prd 목표 9). 유지 중 차단은 **handoff와 같은 경로로 보낸다**: 프레임에 못 들어가는 URL이므로 top을 그리로 보내고, 그 사이트에서 재수립을 1회 시도해 그것도 차단되면 `전체`로 롤백 + `issue.device.blocked` 토스트. 별도 UX를 만들지 않는다.
-
-`device.frameLoadEvent`(top의 iframe `load`)는 보조 신호다 — 아래 문단 참조.
 
 `device.frameLoadEvent`(top의 iframe `load`)는 보조 신호다. 도착해도 그 자체로 성공 처리하지 않고, `sameOriginHref`가 top URL과 일치할 때 3초를 기다리지 않고 성공을 앞당기는 데만 쓴다.
 
@@ -328,10 +327,12 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
 [사이드패널]
    ① pending = { tabId, width }            ← 인메모리. 영속하지 않는다
    ② chrome.tabs.update(tabId, { url })    ← top 교체. 래퍼 요청은 문서와 함께 취소된다
-   ③ phase !== "idle" 이면 sessionExpired = true  (녹화·미리보기·완료면 토스트 1개)
+   ③ sessionExpired = true                 (녹화·미리보기·완료면 토스트 1개)
    ▼
-[top onCommitted] → pending.width로 device.set 재발사 → 평소의 로드 검증 경로
+[top onCommitted + pending 있음] → reestablish(tabId, pending.width)
 ```
+
+**handoff는 재수립을 직접 하지 않는다.** pending을 세팅하고 top을 옮기는 것까지가 handoff의 책임이고, 실제 재수립은 **top `onCommitted` 한 지점**이 맡는다(아래 "재수립 계약"). 차단 복구도 같은 모양이라 두 경로가 갈리지 않는다.
 
 **`onBeforeNavigate`를 1차 트리거로 둔다.** commit에서 잡으면 파티션된 로그아웃 화면이 이미 렌더되고 그 문서의 로그·요청이 수집된 뒤다. 다만 same-origin URL이 서버에서 cross-origin으로 302되는 경우는 beforeNavigate에 안 보이므로 `onCommitted` 폴백이 함께 필요하다. **네비게이션을 취소하는 경로는 없다** — MV3에 blocking webRequest가 없으므로 handoff는 사후 조치이고, 그래서 다이얼로그도 게이트가 아니라 통보다.
 
@@ -348,11 +349,13 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
 | 루프 가드 발동 | 아래 |
 | 사이드패널 언마운트 | 인메모리라 자연 소멸 |
 
-**루프 가드.** `a.com → b.com → a.com` 핑퐁 사이트에서 무한 재로드가 난다. **연속 handoff 2회 초과 또는 직전 handoff URL 재방문**이면 루프로 보고 다이얼로그를 띄우며, [확인]에서 모드를 해제하고 이슈 idle로 되돌린다(카운터는 사용자의 명시적 세그먼트 조작에서 0으로 리셋).
+**루프 가드는 handoff가 아니라 재수립을 센다.** handoff 횟수만 세면 `a.com → b.com → a.com` 핑퐁은 잡지만 **frame-busting은 못 잡는다** — 래퍼가 `window.top.location = self.location`으로 탈출하면 handoff를 거치지 않고 top이 곧장 커밋되고, 재수립된 래퍼가 또 탈출해 무한 재로드가 된다(위험 5). 카운터를 `reestablish` 호출에 걸면 두 경로가 한 그물에 들어온다.
+
+**연속 재수립 2회 초과 또는 직전 재수립 URL 재방문**이면 루프로 보고 다이얼로그를 띄우며, [확인]에서 모드를 해제하고 이슈 idle로 되돌린다. 리셋 조건은 둘이다 — 사용자의 명시적 세그먼트 조작, 그리고 재수립 성공 후 top 커밋 없이 10초 경과(정상 사용에서 카운터가 누적되지 않게).
 
 **세션 만료는 기존 경로를 재사용한다.** `expireStylingSession`(`picker-control.ts:459`)이 쓰는 `sessionExpired` 플래그와 `SessionExpiredDialog`(`IssueTab.tsx:705-726` — 취소 없는 단일 [확인], `onConfirm={() => reset()}`)를 그대로 쓰고 **body 문구만 디바이스 모드용으로 분기**한다(i18n 키 2개, `App.tsx`의 2-depth 문구 분기와 같은 방식). phase 판정 없이 무조건 켜도 된다 — 렌더 분기가 capturing·drafting·SelectedPanel 셋뿐이라 idle에서는 안 뜨고, 다음 세션 시작 때 `reset()`이 내린다.
 
-**로그는 별도 배선이 필요 없다.** handoff는 실제 top cross-origin 네비게이션이라 `background/index.ts:174-185`의 `shouldClearLogs` → `logClear`가 그대로 돌아 떠나는 사이트의 로그가 버려진다. idle이면 그대로 조용히 비운다 — 오늘의 top 이동과 같다.
+**로그는 기존 `logClear`에 기대되 그것만 믿지 않는다.** handoff는 실제 top cross-origin 네비게이션이라 `background/index.ts:174-185`의 `shouldClearLogs` → `logClear`가 대개 돈다. 다만 그 리스너는 `:130`의 `if (stored[key] == null) return;`으로 **editor 세션 스냅샷이 있을 때만** 발화하는데, 스냅샷은 store 변경 구독으로만 쓰이므로 패널을 막 열고 첫 로그가 오기 전 창에서는 없다. 그래서 `reestablish`가 stop ACK 뒤에 **무조건 store clear를 한 번 더 한다** — 두 번 비워도 둘 다 start ACK 전이라 무해하고, 이 이중 안전장치가 없으면 그 창에서 A 사이트 로그가 B에 섞인다.
 
 **녹화 중에는 토스트 1개만.** `RecordingState`·`PreviewPanel`·`SubmitSuccessPanel`엔 다이얼로그 마운트 지점이 없고(`IssueTab.tsx:210-241`), 탭 녹화 스트림과 30s Replay 프레임 버퍼는 탭 단위라 handoff를 넘어 계속 담긴다. 결과물은 *영상엔 A+B / 로그엔 B만*이 되는데 이건 오늘 녹화 중 주소창 이동에서도 나는 기존 비대칭이라, 녹화를 끊는 새 축을 만들지 않고 통보만 한다.
 
@@ -406,23 +409,57 @@ export function useDeviceViewport(tabId: number | null): DeviceViewportState;
 
 `select()`가 하는 일(순서 고정):
 
-1. `locked || busy`면 즉시 반환
-2. 최초 ON 진입 1회 확인 다이얼로그. `[계속]`을 누르면 `settings-ui-store.deviceModeWarned = true`를 `chrome.storage.local`에 즉시 영속한다(플래그 이름이 `deviceReloadWarned`가 아닌 이유는 경고가 재로드뿐 아니라 원본·래퍼 동시 실행까지 덮기 때문이다). 체크박스는 없다. 이 스토어는 현재 **version 9**(`settings-ui-store.ts:242`)이므로 `migrateSettingsUi`(`:131-151`) 기본값 `false` 등록 + version 10 bump가 함께 가야 한다. 문구는 진입·해제 재로드와 원본·래퍼 동시 실행의 중복 요청·자동저장·결제 위험을 모두 말한다.
-3. `syncAndSettleLogs(tabId)` — 떠나는 페이지 로그 꼬리를 누적기에 밀어넣는다
-4. `width != null`이면 `device.arm { on: true }` — `device.set`보다 **먼저** 열어야 첫 `onBeforeNavigate`를 놓치지 않는다
-5. `sendPickerTop(tabId, { type: "device.set", width })`
-6. 응답이 `undefined`거나 `ok === false`면 토스트 + `전체`로 되돌리고 arm 창을 닫는다 (마운트 자체가 실패한 경우)
-7. `width != null`이면 `device.frameLoaded` / `device.frameBlocked` 중 하나를 기다린다(≤3s). `frameBlocked`면 `device.set { width: null }` 롤백 + `issue.device.blocked` 토스트
-8. `frameLoaded`면 **전 document stop ACK**(`activateRecordersInDeviceTree`의 앞단)
-9. `store.clearNetworkLog/clearConsoleLog/clearActionLog(tabId)` + 3종 persist `discard()` — 모드 전환은 네비게이션이라 `logClear`가 안 온다. 강제한다
-10. **래퍼 서브트리 start ACK**. 하나라도 실패하면 모드를 롤백한다
-11. arm 창을 닫는다(`device.arm { on: false }`)
+1. `locked || busy`면 즉시 반환. 루프 카운터를 0으로 리셋한다(사용자 조작이 정상 신호다)
+2. **`width === null`(전체 복귀)이면 `pending`을 먼저 버린다.** OFF는 unmount + `location.reload()`인데 그 reload도 top 커밋이라, pending이 남아 있으면 곧바로 재수립이 걸려 OFF↔ON 무한 루프가 된다. 폐기가 `device.set`보다 앞이어야 한다
+3. 최초 ON 진입 1회 확인 다이얼로그. `[계속]`을 누르면 `settings-ui-store.deviceModeWarned = true`를 `chrome.storage.local`에 즉시 영속한다(플래그 이름이 `deviceReloadWarned`가 아닌 이유는 경고가 재로드뿐 아니라 원본·래퍼 동시 실행까지 덮기 때문이다). 체크박스는 없다. 이 스토어는 현재 **version 9**(`settings-ui-store.ts:242`)이므로 `migrateSettingsUi`(`:131-151`) 기본값 `false` 등록 + version 10 bump가 함께 가야 한다. 문구는 진입·해제 재로드와 원본·래퍼 동시 실행의 중복 요청·자동저장·결제 위험을 모두 말한다.
+4. `syncAndSettleLogs(tabId)` — 떠나는 페이지 로그 꼬리를 누적기에 밀어넣는다
+5. `width != null`이면 `device.arm { on: true }` — `device.set`보다 **먼저** 열어야 첫 `onBeforeNavigate`를 놓치지 않는다
+6. `sendPickerTop(tabId, { type: "device.set", width })`
+7. 응답이 `undefined`거나 `ok === false`면 토스트 + `전체`로 되돌리고 arm 창을 닫는다 (마운트 자체가 실패한 경우)
+8. `width != null`이면 `device.frameLoaded` / `device.frameBlocked` 중 하나를 기다린다(≤3s). `frameBlocked`면 `device.set { width: null }` 롤백 + `issue.device.blocked` 토스트
+9. `frameLoaded`면 **전 document stop ACK**(`activateRecordersInDeviceTree`의 앞단)
+10. `store.clearNetworkLog/clearConsoleLog/clearActionLog(tabId)` + 3종 persist `discard()` — 모드 전환은 네비게이션이라 `logClear`가 안 온다. 강제한다
+11. **래퍼 서브트리 start ACK**. 하나라도 실패하면 모드를 롤백한다
+12. arm 창을 닫는다(`device.arm { on: false }`)
 
 **clear는 반드시 stop ACK 뒤, start ACK 앞이다.** clear를 mount보다 앞에 두면 mount~stop ACK 사이에 숨겨진 원본이 뱉은 로그가 경계를 통과해 살아남는데, 래퍼와 top은 같은 origin이라 필터로도 못 가른다(위험 7·9). 래퍼의 pre-arm 버퍼는 start 시점에 flush되므로 clear를 뒤로 미뤄도 손실이 없다.
 
-`busy`는 4~11 전 구간에서 `true`다 — 7이 최대 3초를 쓰므로 스피너가 이 구간을 덮어야 한다.
+`busy`는 5~12 전 구간에서 `true`다 — 8이 최대 3초를 쓰므로 스피너가 이 구간을 덮어야 한다.
 
-`pending`(handoff용 `{ tabId, width }`)은 이 훅이 소유한다. `select()` 성공 시 세팅, 위 "cross-origin handoff"의 폐기 조건에서 제거, top `onCommitted`에서 소비해 `device.set`을 재발사한다.
+### 재수립 계약 (`reestablish`)
+
+모드가 다시 서야 하는 사건이 셋이다 — **handoff**(top이 다른 origin으로 옮겨감), **차단 복구**(프레임에 못 들어가는 URL이라 top으로 내보냄), **확장 reload 복구**(페이지엔 래퍼가 있는데 binding이 사라짐). 셋을 각자 "재수립한다"고만 적어두면 구현에서 세 번 다르게 만들어지고, 그 차이가 전부 조용한 실패로 나온다. **하나의 함수로 못 박는다.**
+
+```ts
+/**
+ * 사용자 조작이 아니라 "이미 벌어진 페이지 사실"에 대한 반응이다.
+ * 호출 지점은 두 곳뿐 — top onCommitted(pending 있음)와 패널 마운트 시 binding 엇갈림 감지.
+ * handoff·차단 복구는 pending을 세팅하고 top을 옮기기만 하며, 직접 부르지 않는다.
+ */
+async function reestablish(tabId: number, width: number): Promise<void>;
+```
+
+`select()`와 무엇이 같고 무엇이 다른가:
+
+| 축 | `select()` | `reestablish()` |
+|---|---|---|
+| 트리거 | 사용자 세그먼트 클릭 | 페이지 사실(top 문서 교체·binding 소실) |
+| `locked`(`phase !== "idle"`) | 거부 | **우회한다** |
+| `busy` | 거부 | 거부(재수립끼리 직렬화) |
+| 최초 1회 경고 | 띄운다 | 띄우지 않는다 |
+| `syncAndSettleLogs` | 한다 | **안 한다** — 떠나는 문서가 이미 없다 |
+| `device.arm` | 연다 | **연다**(동일) |
+| stop ACK → clear → start ACK | 한다 | **한다**(동일 순서) |
+| 루프 카운터 | 0으로 리셋 | +1, 임계 초과면 중단 |
+| 실패(`frameBlocked`·전달 실패) | `전체` 롤백 + 토스트 | 동일 |
+
+**`locked`를 우회하는 것이 이 계약의 핵심이다.** `select()`의 잠금은 *사용자가 전환을 일으켜 draft·선택 요소·녹화를 깨는 것*을 막는 장치다. 재수립은 이미 문서가 갈린 뒤의 복구라, 잠금을 그대로 적용하면 drafting·recording 중 handoff에서 **top만 옮겨가고 래퍼가 안 서는데 세그먼트는 여전히 `390`을 가리키는** 상태가 된다 — 기각했던 desync가 바로 이 경로로 되살아난다. draft 파괴는 잠금이 아니라 `sessionExpired` 통보가 받는다.
+
+**`device.arm`은 재수립에서도 반드시 연다.** arm 창이 없으면 잠정 등록이 없고, 그러면 즉시 redirect·차단 판정의 타깃 frameId가 없어 `frameLoaded`/`frameBlocked` 어느 쪽도 오지 않는다. `busy`가 3초 타임아웃으로 끝나고 모드는 조용히 안 선다.
+
+**호출 지점을 둘로 고정한다.** ① top `onCommitted` + `pending` 있음 ② 패널 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈림. ②는 top 커밋 없이 발생하는 유일한 경우라 별도 호출이 필요하지만, 같은 함수를 쓴다. 이 둘을 합치지 않으면 확장 reload 직후 top이 커밋될 때 두 경로가 동시에 발사돼 래퍼가 두 번 mount된다.
+
+`pending`(`{ tabId, width }`)은 이 훅이 소유한다. `select()` 성공 시 세팅, 위 "cross-origin handoff"의 폐기 조건에서 제거, top `onCommitted`에서 **소비 즉시 삭제한 뒤** `reestablish`를 부르고 성공하면 다시 세팅한다(실패 경로에서 유령 pending이 남지 않게).
 
 ### `src/sidepanel/recorder-control.ts`
 
@@ -565,10 +602,14 @@ export async function listTabDocuments(tabId: number): Promise<{ all: string[]; 
 
 | 위험 | 게이트 |
 |---|---|
-| (a) 로그 혼입 — 엔트리에 frameId 필드가 없어(`console-recorder.ts:29-37`) 전이 전후를 구분할 수 없다 | 전이 직전 3종 `sync` + settle → store clear 강제 |
-| (b) draft·선택 요소 파괴 — 래퍼 재로드로 frameId가 재발급되면 `sameElementKey`(`element-key.ts:8-10`)가 어긋나 `applyStyles/applyClasses/applyText`가 **조용히 no-op**된다(반환값 미확인 — `tabs/styleEditor/StylePropEditors.tsx:45`가 `void`로 무시). `rebindStylingSession`은 URL(pageKey)만 보므로(`picker-control.ts:474-487`) 이 그물이 전이를 못 잡는다 | **`phase !== "idle"`이면 컨트롤 전체 잠금.** 전이 자체를 막아 (b)를 원천 제거한다. `element-key.ts`에 세대 축을 넣는 안은 소비처가 많아 비용이 크다 |
-| (c) 녹화·리플레이 중 전이 — 한 스트림 안 해상도 불연속(`video-recorder.ts:111-117`), 30s 버퍼가 토글만으로 `clear()`(`30s-replay/use-30s-replay.ts:56`, cleanup은 `:110`) | (b)와 같은 잠금이 함께 막는다(`phase === "recording"`) |
-| (d) 세션 복원 desync | **모드를 영속하지 않으므로 발생 축이 없다.** 사이드패널이 마운트될 때 `device.state`로 페이지에 물어본다 |
+전이에는 **사용자 전이**(`select()`)와 **재수립**(`reestablish()`) 두 축이 있고, 게이트가 다르다. 잠금은 전자만 막는다.
+
+| 위험 | 사용자 전이 게이트 | 재수립에서는 |
+|---|---|---|
+| (a) 로그 혼입 — 엔트리에 frameId 필드가 없어(`console-recorder.ts:29-37`) 전이 전후를 구분할 수 없다 | 전이 **직전** 3종 `sync` + settle, **stop ACK 뒤** store clear(`select()` 4·10) | `sync`는 생략(떠나는 문서가 없다), clear는 동일하게 stop ACK 뒤 |
+| (b) draft·선택 요소 파괴 — 래퍼 재로드로 frameId가 재발급되면 `sameElementKey`(`element-key.ts:8-10`)가 어긋나 `applyStyles/applyClasses/applyText`가 **조용히 no-op**된다(반환값 미확인 — `tabs/styleEditor/StylePropEditors.tsx:45`가 `void`로 무시). `rebindStylingSession`은 URL(pageKey)만 보므로(`picker-control.ts:474-487`) 이 그물이 전이를 못 잡는다 | **`phase !== "idle"`이면 컨트롤 전체 잠금.** 사용자가 이 상태를 만드는 축을 제거한다. `element-key.ts`에 세대 축을 넣는 안은 소비처가 많아 비용이 크다 | 잠금이 **적용되지 않는다.** 대신 `sessionExpired` → `reset()`이 draft·선택 요소를 통째로 버려 no-op 유령 상태 자체를 없앤다 |
+| (c) 녹화·리플레이 중 전이 — 한 스트림 안 해상도 불연속(`video-recorder.ts:111-117`), 30s 버퍼가 토글만으로 `clear()`(`30s-replay/use-30s-replay.ts:56`, cleanup은 `:110`) | (b)와 같은 잠금이 함께 막는다(`phase === "recording"`) | 잠금이 적용되지 않지만 **두 위험 모두 발생하지 않는다** — 탭 크기가 안 변해 해상도가 연속이고, 30s `clear()`는 토글 전용이라 재수립이 안 건드린다. 통보는 토스트 1개 |
+| (d) 세션 복원 desync | **모드를 `chrome.storage`에 영속하지 않으므로 복원 축이 없다.** 마운트 시 `device.state`로 페이지에 물어본다 | 인메모리 `pending`이 top 커밋을 넘어 폭을 나르지만, 매 커밋마다 실제 re-mount로 조정되고 차단이면 `전체`로 롤백되므로 "래퍼 없는 ON"이 생기지 않는다. 폐기 조건 6개가 이 보장의 근거다 |
 
 ## pre-arm 상호작용
 
