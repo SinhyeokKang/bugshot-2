@@ -62,7 +62,8 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
 | `src/background/index.ts:120`·`:123`·`:145-186` | `onBeforeNavigate`/`onCommitted`의 frameId 게이트 + `navUrlPromise` | 아래 "래퍼 내부 네비게이션" 절 — 두 분기를 모두 태우고 `navUrlPromise` 키를 `tabId:frameId`로 |
 | `src/background/tab-bindings.ts` | — | frameId/documentId binding의 session 보존·복구 + parent 계보 조회 + document 열거 |
 | `src/types/messages.ts`·`bgRequestTypes.ts` | `BgRequest` union + `BG_REQUEST_TYPES` 화이트리스트 | `device.arm`·`device.documents` 2종을 화이트리스트에 등록. **`device.frameReady`는 이 게이트를 통과 못 하고** 전용 push 리스너로 받는다 — 아래 절 참조. background→사이드패널 push `device.frameLoaded`/`device.frameBlocked`/`device.handoff` 3종도 추가 |
-| `src/types/picker.ts` | `PickerMessage` union | `device.*` 메시지 3종 추가 |
+| `src/types/picker.ts` | `PickerMessage` union | `device.*` 메시지 **6종** 추가(수신 3 + push 3) |
+| `src/store/settings-ui-store.ts` | persist **version 9**(`:242`), `migrateSettingsUi`(`:131-151`) | `deviceModeWarned: boolean` 추가 + 기본값 `false` 등록 + version 10 bump. 최초 ON 1회 경고의 영속 슬롯이다 |
 | `src/i18n/namespaces/app.ts`·`issue.ts` | ko/en 사전 | 신규 키(ko/en 동시) |
 
 ### 손 안 대는 곳

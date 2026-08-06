@@ -98,8 +98,8 @@
 
 ### Task 6: 전환 오케스트레이션 훅
 
-- **변경 대상**: `src/sidepanel/hooks/useDeviceViewport.ts` (신규)
-- **작업 내용**: design.md의 `select()` 12단계를 그대로 구현(재수립 경로는 Task 6b). 마운트 시 `device.state` 조회, `device.availableChanged` 구독. 최초 ON 진입 경고 플래그는 `settings-ui-store`에 **`deviceModeWarned: boolean`** — 경고가 재로드뿐 아니라 원본·래퍼 동시 실행까지 덮으므로 `deviceReloadWarned`가 아니라 이 이름을 쓴다. **version 9 → 10 bump + `migrateSettingsUi` 기본값 false 등록**이 함께 가야 한다. 체크박스 없이 `[계속]`에서 true를 `chrome.storage.local`에 즉시 영속한다. 문구는 진입·해제 재로드와 원본·래퍼 동시 실행에 따른 네트워크 요청·자동저장·결제 중복 위험을 모두 커버한다. `전체` 복귀는 unmount 후 `location.reload()`까지 간다.
+- **변경 대상**: `src/sidepanel/hooks/useDeviceViewport.ts` (신규), `src/store/settings-ui-store.ts`(version 9 → 10 + `deviceModeWarned`)
+- **작업 내용**: design.md의 `select()` **세 경로 + OFF→ON 13단계**를 그대로 구현(재수립 경로는 Task 6b). 마운트 시 `device.state` 조회, `device.availableChanged` 구독. 최초 ON 진입 경고 플래그는 `settings-ui-store`에 **`deviceModeWarned: boolean`** — 경고가 재로드뿐 아니라 원본·래퍼 동시 실행까지 덮으므로 `deviceReloadWarned`가 아니라 이 이름을 쓴다. **version 9 → 10 bump + `migrateSettingsUi` 기본값 false 등록**이 함께 가야 한다. 체크박스 없이 `[계속]`에서 true를 `chrome.storage.local`에 즉시 영속한다. 문구는 진입·해제 재로드와 원본·래퍼 동시 실행에 따른 네트워크 요청·자동저장·결제 중복 위험을 모두 커버한다. `전체` 복귀는 unmount 후 `location.reload()`까지 간다.
   - **OFF→ON 경로에서만** 성공 판정이 `device.set` 응답이 아니라 background push(`device.frameLoaded`/`device.frameBlocked`, ≤3s) 수신이다. `device.arm`은 `device.set` **직전**에 열고 판정 후 닫는다. 폭 갱신(ON→ON)은 arm도 판정도 없이 응답이 곧 결과다.
   - 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈리면 확장 reload 후 상태이므로 `device.state.width`(래퍼 실제 폭)로 **`reestablish`를 부른다**(Task 6b가 그 함수를 소유한다 — 여기서 `device.set`을 직접 보내면 계약 밖 네 번째 재수립 경로가 생긴다).
 - **검증**:
