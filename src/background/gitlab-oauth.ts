@@ -3,7 +3,7 @@ import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
 import { readStoredGitlabAuth, writeStoredGitlabOAuthTokens } from "@/lib/settings-storage";
 import { pickRotatedAuth } from "./lib/rotatedAuth";
 import { getMyself, setGitlabRefreshHook } from "./gitlab-api";
-import { OAuthError, base64url, grantReason, httpReason, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, authorizeRejection, base64url, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   assertConfigured as assertOAuthConfigured,
@@ -52,10 +52,9 @@ export function parseGitlabCallbackParams(
   const parsed = new URL(redirectUrl);
   const errorParam = parsed.searchParams.get("error");
   if (errorParam) {
-    const cancelled = isGitlabCancellationCode(errorParam);
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "gitlab", cancelled, reason: grantReason(cancelled) },
+      { platform: "gitlab", ...authorizeRejection(isGitlabCancellationCode(errorParam)) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
@@ -96,6 +95,7 @@ export async function startGitlabOAuth(): Promise<GitlabOAuthAuth> {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "gitlab",
       cancelled: true,
+      reason: "cancelled_window",
     });
   }
 
@@ -142,11 +142,9 @@ async function exchangeCode(
     | GitlabTokenResponse
     | { error?: string; error_description?: string };
   if ("error" in data && data.error) {
-    const cancelled = isGitlabCancellationCode(data.error);
     throw new OAuthError(data.error_description || data.error, {
       platform: "gitlab",
-      cancelled,
-      reason: grantReason(cancelled),
+      ...grantRejection(isGitlabCancellationCode(data.error)),
     });
   }
   return data as GitlabTokenResponse;

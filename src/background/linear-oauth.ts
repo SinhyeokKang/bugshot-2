@@ -3,7 +3,7 @@ import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
 import { readStoredLinearAuth, writeStoredLinearOAuthTokens } from "@/lib/settings-storage";
 import { pickRotatedAuth } from "./lib/rotatedAuth";
 import { getMyself, setLinearRefreshHook } from "./linear-api";
-import { OAuthError, base64url, grantReason, httpReason, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, authorizeRejection, base64url, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   assertConfigured as assertOAuthConfigured,
@@ -51,10 +51,9 @@ export function parseLinearCallbackParams(
   const parsed = new URL(redirectUrl);
   const errorParam = parsed.searchParams.get("error");
   if (errorParam) {
-    const cancelled = isLinearCancellationCode(errorParam);
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "linear", cancelled, reason: grantReason(cancelled) },
+      { platform: "linear", ...authorizeRejection(isLinearCancellationCode(errorParam)) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
@@ -96,6 +95,7 @@ export async function startLinearOAuth(): Promise<LinearOAuthAuth> {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "linear",
       cancelled: true,
+      reason: "cancelled_window",
     });
   }
 
@@ -139,11 +139,9 @@ async function exchangeCode(
   }
   const data = (await res.json()) as LinearTokenResponse | { error?: string; error_description?: string };
   if ("error" in data && data.error) {
-    const cancelled = isLinearCancellationCode(data.error);
     throw new OAuthError(data.error_description || data.error, {
       platform: "linear",
-      cancelled,
-      reason: grantReason(cancelled),
+      ...grantRejection(isLinearCancellationCode(data.error)),
     });
   }
   return data as LinearTokenResponse;

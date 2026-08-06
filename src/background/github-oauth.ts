@@ -3,7 +3,7 @@ import type { GithubAuth, GithubOAuthAuth } from "@/types/github";
 import { readStoredGithubAuth, writeStoredGithubOAuthTokens } from "@/lib/settings-storage";
 import { pickRotatedAuth } from "./lib/rotatedAuth";
 import { getMyself, setGithubRefreshHook } from "./github-api";
-import { OAuthError, grantReason, httpReason, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, authorizeRejection, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   isConfigured as isOAuthPlatformConfigured,
@@ -56,10 +56,9 @@ export function parseCallbackParams(
   const parsed = new URL(redirectUrl);
   const errorParam = parsed.searchParams.get("error");
   if (errorParam) {
-    const cancelled = isGithubCancellationCode(errorParam);
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "github", cancelled, reason: grantReason(cancelled) },
+      { platform: "github", ...authorizeRejection(isGithubCancellationCode(errorParam)) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
@@ -87,6 +86,7 @@ export async function startGithubOAuth(): Promise<GithubOAuthAuth> {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "github",
       cancelled: true,
+      reason: "cancelled_window",
     });
   }
 
@@ -128,11 +128,9 @@ async function exchangeCodeForTokens(code: string): Promise<GithubTokenResponse>
   }
   const data = (await res.json()) as GithubTokenResponse | { error?: string; error_description?: string };
   if ("error" in data && data.error) {
-    const cancelled = isGithubCancellationCode(data.error);
     throw new OAuthError(data.error_description || data.error, {
       platform: "github",
-      cancelled,
-      reason: grantReason(cancelled),
+      ...grantRejection(isGithubCancellationCode(data.error)),
     });
   }
   return data as GithubTokenResponse;
