@@ -8,6 +8,7 @@ import {
   sectionLabelKey,
   sectionMdLabelKey,
   sectionPlaceholderKey,
+  SETTINGS_UI_PERSIST_VERSION,
   useSettingsUiStore,
   type IssueSection,
   type IssueSectionId,
@@ -422,6 +423,22 @@ describe("settings-ui-store", () => {
       ];
       const migrated = migrateSettingsUi({ issueSections: v9 }, 9);
       expect(ids(migrated.issueSections)).toEqual(["media", "description", "expectedResult"]);
+    });
+  });
+
+  // 디바이스 모드 최초 ON 1회 경고의 영속 슬롯. 이름이 deviceReloadWarned가 아닌 이유는
+  // 경고 범위가 재로드뿐 아니라 원본·래퍼 동시 실행(중복 요청·자동저장·결제)까지 덮기 때문.
+  describe("v10: deviceModeWarned", () => {
+    it("v9 스냅샷에서 올라오면 false가 채워진다", () => {
+      expect(migrateSettingsUi({}, 9).deviceModeWarned).toBe(false);
+    });
+
+    it("이미 소비한 플래그는 보존한다", () => {
+      expect(migrateSettingsUi({ deviceModeWarned: true }, 9).deviceModeWarned).toBe(true);
+    });
+
+    it("persist version이 10이다", () => {
+      expect(SETTINGS_UI_PERSIST_VERSION).toBe(10);
     });
   });
 
