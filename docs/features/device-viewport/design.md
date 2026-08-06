@@ -96,7 +96,6 @@ sendPickerTop(tabId, { type: "device.set", width: 390 })
 device-frame.ts::mountDeviceFrame(390)   ← DOM만. 로드 판정을 하지 않는다
    │  <style id="__bugshot_device_style__">  body 자식 은닉 + 레이아웃
    │  <iframe id="__bugshot_device_frame__" src={location.href} style="width:390px">
-   │  iframe "load" 이벤트가 오면 postToRuntime({ type: "device.frameLoadEvent", sameOriginHref })
    ▼
 { ok: true, width: 390, available: {...} }   ← "마운트했다"이지 "성공했다"가 아니다
    │
@@ -197,9 +196,6 @@ export interface DeviceStateResponse {
 // content → 사이드패널·background (push)
 | { type: "device.availableChanged"; available: { width: number; height: number } }
 | { type: "device.frameReady" }        // 래퍼 프레임 자신이 발화. sender.frameId가 래퍼 frameId
-| { type: "device.frameLoadEvent"; sameOriginHref: string | null }
-      // top이 발화. iframe "load"에서 contentDocument를 읽어본 결과(cross-origin이면 null).
-      // 성공의 **보조** 신호일 뿐이고 단독 판정에 쓰지 않는다
 ```
 
 ```ts
@@ -263,7 +259,6 @@ export function availableViewport(): { width: number; height: number };
 /**
  * 래퍼를 만든다. 이미 있으면 폭만 갱신(재로드 없음). **로드 판정을 하지 않는다** —
  * XFO/CSP 판정은 background가 하고(아래 "로드 검증"), 이 모듈은 순수 DOM으로 남는다.
- * iframe "load"에서 device.frameLoadEvent를 발화하는 것까지가 이 함수의 책임이다.
  */
 export function mountDeviceFrame(width: number): void;
 
@@ -322,7 +317,7 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
 
 **차단 청취는 감시창 밖에서도 계속한다.** 위 표는 진입 판정이고, binding이 확정된 뒤에도 `onErrorOccurred(래퍼 frameId)`는 상시 듣는다 — 안 그러면 모드 유지 중 래퍼 안 링크로 XFO 사이트에 도달했을 때 백지에 방치된다(prd 목표 9). 유지 중 차단은 **handoff와 같은 경로로 보낸다**: 프레임에 못 들어가는 URL이므로 top을 그리로 보내고, 그 사이트에서 재수립을 1회 시도해 그것도 차단되면 `전체`로 롤백 + `issue.device.blocked` 토스트. 별도 UX를 만들지 않는다.
 
-`device.frameLoadEvent`(top의 iframe `load`)는 보조 신호다. 도착해도 그 자체로 성공 처리하지 않고, `sameOriginHref`가 top URL과 일치할 때 3초를 기다리지 않고 성공을 앞당기는 데만 쓴다.
+~~`device.frameLoadEvent`(top의 iframe `load`)를 보조 신호로 둔다~~ — **구현에서 폐기했다.** iframe `load`는 최초 `about:blank`에서 먼저 발화해서, 이 신호를 성공을 앞당기는 데 쓰면 아직 뜨지도 않은 래퍼를 성공으로 접는다(반대로 CSP 차단된 프레임을 성공으로 오판하는 경로이기도 하다). 성공 앞당김은 래퍼 자신이 보내는 `device.frameReady`가 대신하며, 그쪽은 실제로 content script가 붙은 뒤라야 발화하므로 오판이 없다.
 
 ### cross-origin handoff
 

@@ -38,7 +38,7 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 | `contextMenus` | 우클릭 컨텍스트 메뉴 등록 |
 | `identity` | `chrome.identity.launchWebAuthFlow()` OAuth 팝업 |
 | `tabCapture` | 탭 미디어 스트림 획득 (수동 영상 녹화) |
-| `webNavigation` | 네비게이션 이벤트 감지 (로그 꼬리 보존 + 커밋된 iframe에 로그 sentinel 재발행) |
+| `webNavigation` | 네비게이션 이벤트 감지 (로그 꼬리 보존 + 커밋된 iframe에 로그 sentinel 재발행 + **디바이스 뷰포트 래퍼 프레임의 로드/차단 판정과 문서 열거**) |
 
 ### host_permissions (설치 시 부여)
 
@@ -62,19 +62,21 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 
 | 트리거 | 코드 위치 |
 |---|---|
-| 툴바 아이콘 클릭 | `tab-bindings.ts:253` — `chrome.action.onClicked → activateTab()` |
+| 툴바 아이콘 클릭 | `tab-bindings.ts:300` — `chrome.action.onClicked → activateTab()` |
 | `Cmd+Shift+E` 단축키 | `_execute_action` → 아이콘 클릭과 동일하게 `action.onClicked` 발화 |
-| 컨텍스트 메뉴 "BugShot" 클릭 | `background/index.ts:80` — `contextMenus.onClicked → activateTab()` |
+| 컨텍스트 메뉴 "BugShot" 클릭 | `background/index.ts:88` — `contextMenus.onClicked → activateTab()` |
 
 ### 의존 API
 
 | API | 용도 | 사용 위치 |
 |---|---|---|
-| `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:204` (bg handler — 모든 호출이 `capture-throttle` 직렬 큐 경유). 호출처: `sidepanel/capture.ts:captureElementSnapshot`(요소), `usePickerMessages.ts`(영역·인라인), `sidepanel/scroll-capture.ts`(페이지 전체 타일 루프), `30s-replay/use-30s-replay.ts`(폴링 프레임) |
+| `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:205` (bg handler — 모든 호출이 `capture-throttle` 직렬 큐 경유). 호출처: `sidepanel/capture.ts:captureElementSnapshot`(요소), `usePickerMessages.ts`(영역·인라인), `sidepanel/scroll-capture.ts`(페이지 전체 타일 루프), `30s-replay/use-30s-replay.ts`(폴링 프레임) |
 | `chrome.tabCapture.getMediaStreamId()` | 수동 영상 녹화 스트림 (실패 시 `getDisplayMedia` 폴백) | `video-recorder.ts:startTabStream` |
 | `chrome.tabs.get() → tab.url` | 탭 URL 읽기 | `tab-bindings.ts`, `picker-control.ts`(`pageKeyOf` 등), `video-capture.ts`, `video-recorder.ts`, `30s-replay/use-30s-replay.ts` |
 | `chrome.scripting.executeScript()` | content script 재주입(picker·recorder-bridge는 `allFrames:true`)·뷰포트 측정 | `picker-control.ts` (`ensureMainWorldRecorders`·`getTopViewport` 등) |
 | `chrome.tabs.create()` / `chrome.tabs.remove()` | ① GitHub 업로드용 비활성 탭 생성·정리(`background/github-upload.ts`) ② 외부 링크 열기 — 등록된 이슈 URL·가이드·스토어 리뷰·플랫폼 토큰 발급 페이지(`IssueTab`·`SettingsFooter`·`SubmitSuccessView`·`IssueRow`) | 권한 불요(확장 기본 제공) |
+| `chrome.tabs.update()` | 디바이스 뷰포트 handoff — 래퍼가 못 버티는(cross-origin·XFO) URL로 top 탭 자체를 이동. `arm(tabId,false)`로 감시창을 닫은 뒤에만 호출한다(열린 채 남은 창이 타임아웃되면 뒤늦은 `frameBlocked`가 방금 성공한 재수립을 롤백시킨다) | `sidepanel/device-viewport-controller.ts`. 권한 불요(확장 기본 제공) |
+| `chrome.tabs.sendMessage(tabId, msg, { documentId })` | **문서 단위 라우팅** — 래퍼 도입으로 frameId만으로는 대상이 모호해져, sentinel 발행과 stop/start ACK는 `getAllFrames`로 얻은 documentId를 직접 찍는다 | `sidepanel/picker-control.ts`(`emitSentinel`·`ackDocument`) |
 | `chrome.tabs.query({})` | **전 창 전 탭 열거** — pending 로그 GC가 "살아있는 탭"을 계산하는 유일한 경로(fail-closed: 조회 실패 시 prune 전체 스킵) | `lib/pending-log-prune.ts`. URL을 읽지만 `activeTab`과 무관하게 `<all_urls>`가 커버한다 |
 | `chrome.runtime.onConnect` (port disconnect) | 사이드패널이 닫히면 port가 끊기는 것을 세션 teardown 신호로 사용 — 레코더 정지(`stopRecorders`) | `background/index.ts` |
 | `chrome.windows.onRemoved` | 창이 닫힐 때 그 창에 속한 탭의 활성화 상태 정리 | `background/tab-bindings.ts` |
@@ -100,7 +102,7 @@ url-support.ts:classifyTabSupport()
     └── 미지원/응답 없음 → "unsupported"
 ```
 
-- `picker-control.ts:183` — `ensureSupportedTab()`: 모든 캡처 진입점(picker, area, inline, freeform, video)에서 호출
+- `picker-control.ts:277` — `ensureSupportedTab()`: 모든 캡처 진입점(picker, area, inline, freeform, video)에서 호출
 - `tab-bindings.ts:159` — `deactivatePanelIfCrossOrigin()`: URL 판독 불가 시 cross-origin으로 간주하고, 닫을지 유지할지는 **출발지 URL**로 가른다(§ 패널 종료/유지 정책)
 
 #### 2단계: 캡처 시점 에러 매칭 (런타임 가드)
@@ -114,9 +116,9 @@ capture-error.ts:isActiveTabPermissionError()
 └── "extension has not been invoked" 포함
 ```
 
-- `picker-control.ts:195` — `maybeSurfacePermissionExpired()`: captureVisibleTab 실패 시 호출
-- `capture.ts:96` — 요소 스냅샷 실패
-- `usePickerMessages.ts:364·392` — 영역 캡처·인라인 캡처 실패 분기
+- `picker-control.ts:289` — `maybeSurfacePermissionExpired()`: captureVisibleTab 실패 시 호출
+- `capture.ts:108` — 요소 스냅샷 실패
+- `usePickerMessages.ts:452·480` — 영역 캡처·인라인 캡처 실패 분기
 
 #### 3단계: tabCapture 에러 매칭 (영상 녹화)
 
@@ -127,7 +129,7 @@ video-capture.ts:isTabCaptureUnavailable()
 └── "activetab"
 ```
 
-- `video-capture.ts:154` — `isTabCaptureUnavailable()` 정의(호출부 `:41`, `startTabStream` 실패 분기)
+- `video-capture.ts:154` — `isTabCaptureUnavailable()` 정의(호출부 `:65`, `startTabStream` 실패 분기)
 
 ### 만료 시 동작
 
@@ -170,10 +172,10 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 | 모드 | world | 코드 위치 | 설명 |
 |---|---|---|---|
 | Picker 재주입 | ISOLATED | `picker-control.ts:39` | `ping` 실패 시 `manifest.content_scripts[0].js`를 `allFrames:true`(top+iframe)로 재주입 (`ensureContentScript` — iframe picker 자가복구) |
-| Recorder bridge 재주입 | ISOLATED | `picker-control.ts:75` | `recorder-bridge.ts` (sentinel 수신·중계)를 `allFrames:true`로 재주입 |
+| Recorder bridge 재주입 | ISOLATED | `picker-control.ts:71` | `recorder-bridge.ts` (sentinel 수신·중계)를 `allFrames:true`로 재주입 |
 | Recorder entry 재주입 | MAIN | `picker-control.ts:ensureMainWorldRecorders` | `recorders-entry.ts` (network/console/action 후크) 재주입 (MAIN world). **정적 엔트리는 `all_frames: true`로 전 프레임 주입**이고, 여기 프로그래매틱 재주입만 `allFrames` 미지정이라 top 한정이다 |
-| 뷰포트 측정 | ISOLATED | `picker-control.ts` | Freeform 진입·iframe 요소 선택 시 top 프레임 `innerWidth/Height` 읽기 (`getTopViewport` — world 미지정 → 기본 ISOLATED) |
-| GitHub 업로드 | MAIN | `background/github-upload.ts:154` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수). 업로드마다 **전용 비활성 탭을 새로 열고 끝나면 닫는다** — 기존 github.com 탭에 붙으면 다른 확장의 MAIN world 후크가 base64 미디어와 `asset_upload_authenticity_token`을 가져갈 수 있다. 사용자가 연 탭이 아니라 `activeTab`이 아닌 `<all_urls>`에 의존 |
+| 뷰포트 측정 | ISOLATED | `picker-control.ts` | Freeform 진입·iframe 요소 선택 시 top 프레임 뷰포트 읽기 — **디바이스 뷰포트 래퍼가 있으면 그 `clientWidth/Height`를 반환**하고 없을 때만 `innerWidth/Height`로 폴백한다. 래퍼 id는 주입 함수 직렬화 제약 때문에 문자열 리터럴로 인라인 복제돼 있다(`device-viewport-meta.test.ts`가 원본 상수와 대조) (`getTopViewport` — world 미지정 → 기본 ISOLATED) |
+| GitHub 업로드 | MAIN | `background/github-upload.ts:155` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수). 업로드마다 **전용 비활성 탭을 새로 열고 끝나면 닫는다** — 기존 github.com 탭에 붙으면 다른 확장의 MAIN world 후크가 base64 미디어와 `asset_upload_authenticity_token`을 가져갈 수 있다. 사용자가 연 탭이 아니라 `activeTab`이 아닌 `<all_urls>`에 의존 |
 
 ### 주입 실패 시
 
@@ -216,6 +218,8 @@ video-capture.ts:startVideoCapture(tabId)
 
 주입 경로: 셋 다 **기존 picker content script**(manifest `content_scripts[0]`)에 메시지로 위임 — `chrome.scripting` 신규 사용처 없음. 페이지 전체 캡처는 캡처 중 추가되거나 `class`/`style` 변경으로 positioned 상태가 된 후보도 추적하며, 스크롤·요소 변형은 `finally`의 `endScrollCapture` + picker port disconnect 자가 복원으로 항상 원복된다(`src/content/scroll-capture.ts`). 이 표가 `docs/privacy.{ko,en}.md` §1의 "페이지 전체 캡처" 문단의 근거다.
 
+**디바이스 뷰포트 모드에서는 이 3축이 달라진다.** 영역·화면 캡처는 rect가 래퍼 영역으로 좁혀지고(화면 캡처는 `deviceFrameRect()`를 그대로 rect로 쓴다 — 래퍼가 가운데 정렬이라 x 오프셋이 0이 아니고, 안 쓰면 좌우 여백이 결과에 들어온다. 영역 캡처는 확정 rect를 `clampToDeviceFrame`으로 가둔다), **페이지 전체 캡처는 UI에서 잠긴다** — 오케스트레이터가 `frameId 0` 고정이라 안 막으면 에러도 truncated 배지도 없는 "조용한 1타일"이 된다. 크롭 배율 기준 viewport만 모드와 무관하게 top이다(`src/content/area-select.ts`·`src/sidepanel/tabs/IssueTab.tsx`).
+
 ### 영상 캡처 3종 (탭 녹화 / 화면 녹화 / 30s Replay)
 
 세 경로가 권한 모델이 다르다.
@@ -246,7 +250,7 @@ video-capture.ts:startVideoCapture(tabId)
 ### 전역 비활성화 패턴
 
 ```
-background/index.ts:32 — disableGlobalSidePanel()
+background/index.ts:40 — disableGlobalSidePanel()
 ├── chrome.runtime.onInstalled → 호출
 └── chrome.runtime.onStartup  → 호출
 ```
@@ -257,8 +261,8 @@ background/index.ts:32 — disableGlobalSidePanel()
 
 | 함수 | 위치 | 동작 |
 |---|---|---|
-| `activateTab()` | `tab-bindings.ts:253` | user gesture → `setOptions({enabled:true})` + `sidePanel.open()` + 활성화 URL 저장(`sidePanel:url:{tabId}`, `tab.url`을 읽을 수 있을 때만). **URL 지원 여부를 보지 않는다** — 미지원 페이지에서도 열고 패널이 안내를 그린다 |
-| `apply()` | `tab-bindings.ts:40` | 탭 전환·URL 변경 시 — **activated면** path 재등록, 아니면 비활성화. 지원 여부는 보지 않는다(보면 방금 연 패널을 다음 `onActivated`가 닫는다) |
+| `activateTab()` | `tab-bindings.ts:300` | user gesture → `setOptions({enabled:true})` + `sidePanel.open()` + 활성화 URL 저장(`sidePanel:url:{tabId}`, `tab.url`을 읽을 수 있을 때만). **URL 지원 여부를 보지 않는다** — 미지원 페이지에서도 열고 패널이 안내를 그린다 |
+| `apply()` | `tab-bindings.ts:41` | 탭 전환·URL 변경 시 — **activated면** path 재등록, 아니면 비활성화. 지원 여부는 보지 않는다(보면 방금 연 패널을 다음 `onActivated`가 닫는다) |
 | `deactivatePanelIfCrossOrigin()` | `tab-bindings.ts` | origin 비교 → same-origin 유지, cross-origin은 커버 URL(http/https, 파일 접근 토글 ON인 file:)이면 유지·판독된 미지원 URL이면 유지(세션만 제거)·비커버 지원 URL(토글 OFF인 file:)이면 닫기/deferred |
 
 ### sidePanel.open() 호출 조건
@@ -266,7 +270,7 @@ background/index.ts:32 — disableGlobalSidePanel()
 `sidePanel.open()`은 user gesture 컨텍스트에서만 호출 가능. 코드베이스에서 **단 한 곳**에서만 호출:
 
 ```
-tab-bindings.ts:227 — activateTab() 내부
+tab-bindings.ts:267 — activateTab() 내부
 ```
 
 트리거: `action.onClicked` (아이콘 클릭 / `_execute_action` 단축키) 또는 `contextMenus.onClicked`. 둘 다 동기 이벤트 핸들러에서 즉시 호출 → user gesture 유지.
@@ -292,7 +296,7 @@ tab-bindings.ts:227 — activateTab() 내부
 
 ### 세션 보존 규칙
 
-`shouldPreserveSession()` (`tab-bindings.ts:72`): 네비게이션 중에도 패널을 유지할 captureMode/phase 조합.
+`shouldPreserveSession()` (`tab-bindings.ts:73`): 네비게이션 중에도 패널을 유지할 captureMode/phase 조합.
 
 | captureMode | phase | 보존 여부 |
 |---|---|---|
@@ -327,10 +331,11 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 
 | 키 | 데이터 | 사용처 |
 |---|---|---|
-| `sidePanel:activated` | `number[]` (tab ID 목록) | `tab-bindings.ts:13` — 패널 활성화 탭 추적. **미지원 탭도 들어온다**(`activateTab`이 URL을 보지 않으므로). `onRemoved`가 무조건 정리 |
-| `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:14` — idle 상태 origin 비교 fallback. `chrome://` 등 `tab.url`을 못 읽는 탭에서는 **기록되지 않고**, 그 부재가 `deactivatePanelIfCrossOrigin`의 조기 return으로 이어져 패널이 유지된다 |
+| `sidePanel:activated` | `number[]` (tab ID 목록) | `tab-bindings.ts:14` — 패널 활성화 탭 추적. **미지원 탭도 들어온다**(`activateTab`이 URL을 보지 않으므로). `onRemoved`가 무조건 정리 |
+| `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:15` — idle 상태 origin 비교 fallback. `chrome://` 등 `tab.url`을 못 읽는 탭에서는 **기록되지 않고**, 그 부재가 `deactivatePanelIfCrossOrigin`의 조기 return으로 이어져 패널이 유지된다 |
 | `editor:{tabId}` | `EditorSnapshot` 전체 에디터 상태 | `useEditorSessionSync.ts` — 300ms 디바운스 저장·수화 |
 | `pendingPrunedAt` | `number` (timestamp) | `pending-log-prune.ts:93` — 브라우저 세션당 1회 정리 가드 |
+| `deviceFrame:{tabId}` | `DeviceFrameBinding` (`frameId` + `documentId`) | `device-frame-coordinator.ts` — 디바이스 뷰포트 래퍼의 권위 바인딩. SW 하이버네이션 후 복원에 쓰이고, top 문서가 갈리면 즉시 제거한다(남기면 다음 판정이 유령 frameId를 래퍼로 취급해, sentinel 게이트가 죽은 문서로 좁혀지며 로그가 통째로 사라진다). **폭·URL·활성 여부는 저장하지 않는다** — 모드의 단일 출처는 페이지 DOM이다 |
 
 ### chrome.storage.local (브라우저 재시작 후에도 유지)
 
@@ -393,7 +398,7 @@ bg service worker에서 직접 읽기/쓰기:
 ### OAuth 에러 처리
 
 - `OAuthError` (`oauth/errors.ts` — `oauth.ts`가 re-export): `cancelled`, `platform`, `notConfigured` 필드 포함
-- bg에서 시리얼라이즈: `body.oauthCancelled` 또는 `body.oauthRefreshFailed` 플래그 (`background/oauth.ts:26` `serializeOAuthError` — `background/index.ts`에서 호출)
+- bg에서 시리얼라이즈: `body.oauthCancelled` 또는 `body.oauthRefreshFailed` 플래그 (`background/oauth.ts:36` `serializeOAuthError` — `background/index.ts`에서 호출)
 - `notConfigured`(env 미설정)는 401이 아니라 **400 + `oauthNotConfigured`**로 직렬화한다 — 401로 내면 연동한 적도 없는 사용자에게 재로그인 프롬프트가 뜬다
 - `onOAuthExpired` 이벤트 (`types/messages.ts`): refresh 실패 시 발화 → 재인증 UI 표시
 - 사용자 취소 코드: `access_denied` (전 플랫폼), `user_cancelled_login`/`user_cancelled_authorize` (Jira), `user_denied` (Notion)
@@ -455,7 +460,7 @@ API Key/PAT 모드는 OAuth 인프라(refresh, proxy, identity API)를 일절 �
 ### 설정
 
 ```
-background/index.ts:49 — setupContextMenu()
+background/index.ts:57 — setupContextMenu()
 ├── runtime.onInstalled → 호출
 ├── runtime.onStartup  → 호출
 └── 직렬화 Promise 체인으로 중복 ID 방지
@@ -466,7 +471,7 @@ background/index.ts:49 — setupContextMenu()
 ### 클릭 핸들러
 
 ```
-background/index.ts:80 — contextMenus.onClicked
+background/index.ts:88 — contextMenus.onClicked
   → activateTab(tab) — 사이드 패널 활성화 (user gesture 제공)
 ```
 
@@ -474,13 +479,13 @@ background/index.ts:80 — contextMenus.onClicked
 
 ## 10. webNavigation
 
-### 리스너 2개
+### 리스너 3개 + 직접 조회 2개
 
 #### onBeforeNavigate — 로그 꼬리 보존
 
 ```
-background/index.ts:122 — webNavigation.onBeforeNavigate
-├── frameId !== 0 → 무시 (메인 프레임만)
+background/index.ts:142 — webNavigation.onBeforeNavigate
+├── frameId !== 0 && !isTopLikeFrame(binding, frameId) → 무시 (메인 프레임 + 디바이스 래퍼만 통과)
 ├── 현재 tab.url을 navUrlPromise Map에 저장 (onCommitted에서 사용 — 세션 검사보다 먼저, 무조건)
 ├── editor:{tabId} 세션 없음 → 무시 (패널 미바인딩 탭)
 └── networkRecorder.sync + consoleRecorder.sync + actionRecorder.sync 메시지 전송
@@ -491,7 +496,7 @@ background/index.ts:122 — webNavigation.onBeforeNavigate
 #### onCommitted — iframe sentinel 재발행 + 로그 초기화 판정
 
 ```
-background/index.ts:136 — webNavigation.onCommitted
+background/index.ts:163 — webNavigation.onCommitted
 ├── frameId !== 0 (iframe) → 활성 세션 있으면 frameCommitted 메시지 전송
 │   └── 사이드패널이 보유 sentinel을 그 프레임에 재발행
 │       (broadcast 이후 커밋된 cross-origin iframe을 로그 캡처에 합류)
@@ -507,6 +512,25 @@ background/index.ts:136 — webNavigation.onCommitted
 ```
 
 `shouldClearLogs()` 위치: `src/lib/navigation-clear.ts`.
+
+디바이스 뷰포트가 켜지면 **래퍼 프레임이 top처럼 취급된다** — 로그 sync·clear 판정 게이트가 `frameId === 0`이 아니라 `isTopLikeFrame(binding, frameId)`이고, 래퍼의 이전 URL은 `tabs.get`이 아니라 `trackCommittedUrl`이 준다(래퍼가 이동해도 top URL은 안 바뀐다). 반대로 `frameId === 0` 커밋에서는 `clearDeviceFrame(tabId)`로 바인딩을 버린다 — top 문서가 갈리면 그 래퍼도 함께 사라진 것이다.
+
+#### onErrorOccurred — 디바이스 뷰포트 래퍼 차단 판정
+
+```
+background/index.ts — webNavigation.onErrorOccurred
+└── applyDeviceSignal({ kind: "errorOccurred", frameId, url })
+    ├── 감시창(arm) 안 → frameBlocked (XFO/CSP로 래퍼가 못 뜬 사이트 → 전체로 롤백)
+    └── 감시창 밖 → handoff와 같은 경로로 top을 내보낸다
+        (안 하면 모드 유지 중 XFO 사이트에서 백지에 방치된다)
+```
+
+### 직접 조회 2개 (이벤트 아님)
+
+| API | 위치 | 용도 |
+|---|---|---|
+| `webNavigation.getFrame({tabId, frameId})` | `background/index.ts` | `device.frameReady` push의 `sender.frameId`가 **top의 직속 자식**(`parentFrameId === 0`)인지 확인. 래퍼 자기신고의 근거는 페이지가 붙일 수 있는 DOM 속성(`frameElement.id`)뿐이고 picker는 `all_frames`라, 이 확인이 없으면 페이지가 만든 same-origin iframe이 바인딩을 위조할 수 있다 — 위조가 통하면 사용자가 켠 적 없는 모드가 켜지고 **진짜 top 문서의 로그가 조용히 사라진다** |
+| `webNavigation.getAllFrames({tabId})` | `device-frame-coordinator.ts` (`listTabDocuments`) | 탭의 document 전량 열거 → 레코더 sentinel을 어느 문서에 발행할지 판정(sentinel 게이트의 유일한 문서 열거원) |
 
 ---
 
@@ -561,6 +585,7 @@ Linear·GitLab은 PKCE 지원으로 proxy 불필요 — 각각 `api.linear.app/o
 | 위치 | 용도 |
 |---|---|
 | `picker.ts` / `recorder-bridge.ts` / `recorders-entry.ts` | 모든 페이지에 picker·로그 레코더 content script 주입 (manifest `content_scripts` 3개 — bridge는 ISOLATED에서 sentinel 수신·데이터 중계, entry는 MAIN에서 console/network/action 후크) |
+| `content/device-frame.ts` (picker content script 경유) | **디바이스 뷰포트 래퍼 마운트** — 페이지에 `<style>` 한 장을 주입해 원본 `body` 자식을 `display:none`으로 숨기고, 같은 URL을 로드하는 `<iframe>`을 고정 폭으로 심는다. 인라인 스타일을 저장·복원하지 않으므로 unmount가 무손실이고, 페이지 데이터를 읽거나 밖으로 보내지 않는다(DOM 변형 전용, `chrome.*` 호출 0). `src`가 반드시 `location.href`인 것도 이 권한과 직결된다 — `srcdoc`·`about:blank`는 `<all_urls>`에 매치되지 않아 content script가 안 붙고 로그·picker가 통째로 죽는다 |
 | `background/messages.ts` (`captureVisibleTab`) | 30s Replay + 스틸 캡처(영역·화면·페이지 전체) — cross-origin 네비게이션 후에도 캡처 유지(activeTab은 회수되므로 광역 권한이 필요) |
 | `tab-bindings.ts` (`deactivatePanelIfCrossOrigin`) | cross-origin 커버 URL(http/https) 이동 시 패널 유지 — `broadGranted=true` 고정(§ 패널 종료/유지 정책 분기표) |
 | `LlmConnectDialog.tsx` (`ai-provider.ts:requestHostPermission` 경유) | BYOK LLM 프로바이더 연결 — 임의 baseUrl origin 요청이 `<all_urls>`에 포섭돼 **즉시 grant**(프롬프트 없음) |
@@ -638,7 +663,8 @@ required 권한이라 설치 시 "모든 사이트의 데이터 읽기/변경"�
   ├─ 30s Replay 토글 ON → captureVisibleTab 폴링 시작 (권한 확인 없음)
   ├─ cross-origin 커버 URL 이동 → 패널 유지 (broadGranted=true 고정)
   ├─ BYOK/GitLab self-managed 연결 → requestHostPermission 즉시 grant (프롬프트 없음)
-  └─ 모든 페이지 picker·로그 레코더 주입
+  ├─ 모든 페이지 picker·로그 레코더 주입
+  └─ 디바이스 뷰포트 ON → 페이지에 래퍼 iframe 마운트 + 원본 body 은닉 (권한 확인 없음)
 ```
 
 > 런타임 요청·철회·자동 비활성화 흐름은 없다(required 모델). 사용자가 Chrome 설정에서 site access를 좁히는 것만 가능.
