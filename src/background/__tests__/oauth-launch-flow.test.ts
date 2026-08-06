@@ -20,25 +20,20 @@ describe("classifyLaunchFlowError", () => {
   });
 
   // cancelled 축만으로는 "창 닫기"와 "제공자 화면에서 거부"가 뭉쳐서 PostHog에서 안 갈린다.
-  // 이 표가 사유 축의 유일한 출처라 항목 추가 시 reason 누락을 여기서 잡는다.
-  it("각 레인에 reason이 붙는다", () => {
-    expect(classifyLaunchFlowError("The user did not approve access.")?.reason).toBe(
-      "cancelled_window",
-    );
-    expect(classifyLaunchFlowError("Authorization page could not be loaded.")?.reason).toBe(
-      "launch_failed",
-    );
-    expect(
-      classifyLaunchFlowError(
-        "Couldn't create a browser window to display an authorization page.",
-      )?.reason,
-    ).toBe("launch_failed");
-    expect(
-      classifyLaunchFlowError("The browser context has been shut down")?.reason,
-    ).toBe("launch_failed");
-    expect(
-      classifyLaunchFlowError("Only one web auth flow is allowed at a time.")?.reason,
-    ).toBe("flow_in_progress");
+  // 이 표가 사유 축의 유일한 출처라 항목 추가 시 reason 누락을 여기서 잡는다. 두 컬럼을
+  // 한 케이스에서 함께 보는 게 중요하다 — 따로 검사하면 `{cancelled:false,
+  // reason:"cancelled_window"}` 같은 어긋난 행이 통과해 모순 조합이 PostHog로 나간다.
+  it.each([
+    ["The user did not approve access.", "cancelled_window"],
+    ["Authorization page could not be loaded.", "launch_failed"],
+    ["Couldn't create a browser window to display an authorization page.", "launch_failed"],
+    ["The browser context has been shut down", "launch_failed"],
+    ["Only one web auth flow is allowed at a time.", "flow_in_progress"],
+  ])("%s → reason=%s (cancelled 축과 접두 일치)", (message, reason) => {
+    const r = classifyLaunchFlowError(message);
+    expect(r).not.toBeNull();
+    expect(r?.reason).toBe(reason);
+    expect(r?.reason.startsWith("cancelled_")).toBe(r?.cancelled);
   });
 
   it("창 닫기 판정은 대소문자·마침표 변형에 견딘다", () => {
@@ -75,23 +70,6 @@ describe("classifyLaunchFlowError", () => {
     );
     expect(result?.cancelled).toBe(false);
     expect(result?.key).toBe("oauth.error.flowAlreadyInProgress");
-  });
-
-  // cancelled와 reason은 표의 독립 컬럼이라 따로 검사하면 어긋난 행을 못 잡는다.
-  // `{cancelled:false, reason:"cancelled_window"}` 행 하나면 PostHog에
-  // `result=failed, reason=cancelled_window` 모순 조합이 나간다.
-  it("표의 cancelled와 reason 접두가 서로 어긋나지 않는다", () => {
-    for (const message of [
-      "The user did not approve access.",
-      "Authorization page could not be loaded.",
-      "Couldn't create a browser window to display an authorization page.",
-      "The browser context has been shut down",
-      "Only one web auth flow is allowed at a time.",
-    ]) {
-      const r = classifyLaunchFlowError(message);
-      expect(r, message).not.toBeNull();
-      expect(r?.reason.startsWith("cancelled_"), message).toBe(r?.cancelled);
-    }
   });
 
   it("알 수 없는 메시지·빈 문자열은 분류하지 않는다 (과매칭 방지)", () => {

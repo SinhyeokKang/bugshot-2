@@ -5,7 +5,7 @@ import { describe, it, expect } from "vitest";
 // 토큰 교환 실패에 `reason`이 없으면 classifyConnectReason의 파생 규칙에서 "other"로
 // 떨어진다 — 즉 **태깅을 빠뜨린 플랫폼만 조용히 미분류**가 되고 테스트는 전부 green이다.
 // 실제로 slack 태깅을 지워도 4856 테스트가 통과하는 걸 뮤테이션으로 실측했다(2026-07-30
-// 회고 (4): 그물의 비공허성을 증명하라). 사이트별 fetch 모킹은 8파일 × 19지점이라 비용이
+// 회고 (4): 그물의 비공허성을 증명하라). 사이트별 fetch 모킹은 8파일 × 20여 지점이라 비용이
 // 크고, 여기서 막아야 할 건 로직이 아니라 **호출부 누락**이므로 원문 전수 대조로 잠근다.
 const BG = resolve(__dirname, "..");
 
@@ -15,10 +15,7 @@ const OAUTH_FILES = [
   ...readdirSync(BG).filter((f) => f.endsWith("-oauth.ts")),
 ].sort();
 
-// 태깅 단언은 인자명·줄바꿈에 묶지 않는다 — 순수 포매팅 변경이 거짓 경보를 내면
-// 그물이 리팩터를 방해하는 노이즈가 된다.
 const TAGGED_HTTP = /reason:\s*httpReason\(\w+\.status\)/;
-const TAGGED_GRANT = /reason:\s*grantReason\(/;
 
 function blocks(file: string, start: RegExp): string[] {
   const src = readFileSync(resolve(BG, file), "utf8");
@@ -28,25 +25,26 @@ function blocks(file: string, start: RegExp): string[] {
 
 // ① 상류가 non-2xx로 거절한 레인.
 const HTTP_LANE = /t\("oauth\.error\.token(?:Exchange|Refresh)"/;
-// ② 상류가 200을 주면서 본문에 error를 담은 레인. GitHub의 bad_verification_code,
-//    Slack의 ok:false가 여기로 온다 — status가 200이라 httpReason으로는 못 덮는다.
-//    `cancelled:`를 함께 요구해 **연결 경로만** 고른다: 취소코드를 판정하는 건 최초 연결
-//    레인뿐이고, refresh 레인은 trackConnect 밖이라 태깅해도 집계에 도달하지 않는다.
+// ② 상류가 200을 주면서 본문에 error를 담은 레인. ③ authorize 리다이렉트가 `?error=`를
+//    달고 돌아온 레인. 둘이 왜 다른 값을 쓰는지는 errors.ts의 헬퍼 주석 참조.
 const GRANT_LANE = /throw new OAuthError\(\s*(?:r?[Dd]ata\.error_description \|\| r?[Dd]ata\.error|data\.error \|\| "slack_oauth_error")/;
-
-// ③ authorize 리다이렉트가 `?error=`를 달고 돌아온 레인. ②와 구조가 같은 "제공자가
-//    grant를 거부했다"인데, cancelCodes가 대부분 access_denied 하나뿐이라 invalid_scope·
-//    server_error·unauthorized_client는 cancelled=false로 빠져나가 미분류가 된다.
 const REDIRECT_LANE = /throw new OAuthError\(\s*\n?\s*(?:parsed\.)?searchParams\.get\("error_description"\) \|\| errorParam/;
 
-function taggedLaneBlocks(file: string, lane: RegExp): string[] {
-  // shorthand(`cancelled,`)와 명시(`cancelled: …`) 양쪽을 받는다. `cancelled`를 함께
-  // 요구해 **연결 경로만** 고른다 — 취소코드를 판정하는 건 최초 연결 레인뿐이고,
-  // refresh 레인은 trackConnect 밖이라 태깅해도 집계에 도달하지 않는다.
-  return blocks(file, lane).filter((b) => /\bcancelled\s*[,:]/.test(b));
+// spread 형태를 요구해야 호출부가 cancelled·reason을 따로 넘겨 어긋뜨리는 걸 막는다.
+const TAGGED_GRANT = /\.\.\.grantRejection\(/;
+const TAGGED_AUTHORIZE = /\.\.\.authorizeRejection\(/;
+
+// 거부 레인은 refresh 경로에도 같은 모양이 있다. 취소코드를 판정하는 건 최초 연결
+// 레인뿐이라, 취소 판정 함수 호출을 함께 요구해 연결 경로만 고른다. 두 번째 대안은
+// 현재 매칭 0건이지만, 호출부가 수동 `cancelled:`로 회귀하면 그 블록을 스코프에
+// 붙잡아 spread 단언을 실패시키는 방어다.
+const CANCEL_CHECK = /is\w+CancellationCode\(|\bcancelled\s*[,:]/;
+
+function rejectionBlocks(file: string, lane: RegExp): string[] {
+  return blocks(file, lane).filter((b) => CANCEL_CHECK.test(b));
 }
 
-describe("토큰 교환 실패의 reason 태깅 전수", () => {
+describe("연결 실패 레인의 reason 태깅 전수", () => {
   it.each(OAUTH_FILES)("%s: non-2xx 레인이 전부 httpReason을 단다", (file) => {
     const found = blocks(file, HTTP_LANE);
     // 스캔이 아무것도 못 잡으면 이 테스트 자체가 빈 그물이 된다 — 0건을 실패로 본다.
@@ -56,11 +54,11 @@ describe("토큰 교환 실패의 reason 태깅 전수", () => {
     }
   });
 
-  it.each(OAUTH_FILES)("%s: 리다이렉트 error= 레인이 전부 grantReason을 단다", (file) => {
-    const found = taggedLaneBlocks(file, REDIRECT_LANE);
+  it.each(OAUTH_FILES)("%s: 리다이렉트 error= 레인이 authorizeRejection을 편다", (file) => {
+    const found = rejectionBlocks(file, REDIRECT_LANE);
     expect(found.length, `${file}에서 리다이렉트 error 레인을 못 찾았다`).toBeGreaterThan(0);
     for (const b of found) {
-      expect(b, `${file}: grantReason 태깅 누락\n${b}`).toMatch(TAGGED_GRANT);
+      expect(b, `${file}: authorizeRejection 누락\n${b}`).toMatch(TAGGED_AUTHORIZE);
     }
   });
 
@@ -77,24 +75,51 @@ describe("토큰 교환 실패의 reason 태깅 전수", () => {
   ];
 
   it("200+error 본문 레인의 보유 파일 집합이 고정돼 있다", () => {
-    const owners = OAUTH_FILES.filter((f) => taggedLaneBlocks(f, GRANT_LANE).length > 0);
+    const owners = OAUTH_FILES.filter((f) => rejectionBlocks(f, GRANT_LANE).length > 0);
     expect(owners).toEqual(GRANT_LANE_FILES);
   });
 
-  it.each(GRANT_LANE_FILES)("%s: 200+error 본문 레인이 전부 grantReason을 단다", (file) => {
-    for (const b of taggedLaneBlocks(file, GRANT_LANE)) {
-      expect(b, `${file}: grantReason 태깅 누락\n${b}`).toMatch(TAGGED_GRANT);
+  it.each(GRANT_LANE_FILES)("%s: 200+error 본문 레인이 grantRejection을 편다", (file) => {
+    for (const b of rejectionBlocks(file, GRANT_LANE)) {
+      expect(b, `${file}: grantRejection 누락\n${b}`).toMatch(TAGGED_GRANT);
     }
   });
 
-  it("지점 수가 줄지 않았다 (경로가 통째로 사라지면 커버리지가 준 것이다)", () => {
-    const sum = (fn: (f: string) => number) => OAUTH_FILES.reduce((n, f) => n + fn(f), 0);
-    expect(sum((f) => blocks(f, HTTP_LANE).length)).toBeGreaterThanOrEqual(13);
-    expect(sum((f) => taggedLaneBlocks(f, GRANT_LANE).length)).toBeGreaterThanOrEqual(6);
-    expect(sum((f) => taggedLaneBlocks(f, REDIRECT_LANE).length)).toBeGreaterThanOrEqual(8);
+  // 위 파일별 단언은 파일당 ≥1만 보장하므로 8까지밖에 안 나온다 — 13이 유지되는지는
+  // 총합으로만 확인된다. (grant·redirect 총합은 위 두 테스트에서 논리적으로 따라온다.)
+  it("non-2xx 태깅 지점 13곳이 유지된다", () => {
+    const total = OAUTH_FILES.reduce((n, f) => n + blocks(f, HTTP_LANE).length, 0);
+    expect(total).toBeGreaterThanOrEqual(13);
   });
 
   it("8개 플랫폼 파일을 전부 스캔한다", () => {
     expect(OAUTH_FILES).toHaveLength(8);
+  });
+
+  // `!redirect` 취소 분기 8곳은 Promise형 launchWebAuthFlow가 창 닫기를 reject로 알리는
+  // 탓에 도달 불가지만 방어용으로 남아 있다(2026-07-30 회고). 태깅이 없으면 파생으로
+  // cancelled_denied가 붙는데, 이 레인이 뜻하는 건 창 닫기라 값이 **틀린다**.
+  it.each(OAUTH_FILES)("%s: !redirect 취소 분기가 cancelled_window를 단다", (file) => {
+    const found = blocks(file, /if \(!redirect\) \{/);
+    expect(found.length, `${file}에서 !redirect 분기를 못 찾았다`).toBe(1);
+    expect(found[0], `${file}: cancelled_window 누락\n${found[0]}`).toMatch(
+      /reason:\s*"cancelled_window"/,
+    );
+  });
+
+  // ④ 토큰 교환 성공 뒤 프로필 조회 레인. 7개 플랫폼은 getMyself가 던지는 숫자 status를
+  //    classifyConnectReason이 duck-typing으로 잡아 파생되지만, **OAuthError로 감싸진
+  //    세 지점만 파생이 안 걸려** 명시 태깅이 필요하다. 위 레인들과 파일·문구가 달라
+  //    같은 스캐너에 안 걸리므로 지점을 직접 못박는다 — 뮤테이션에서 이 셋만 생존했다.
+  it.each([
+    ["oauth.ts", /t\("oauth\.error\.siteList"/, "jira는 getMyself가 없어 이게 프로필 조회 대응 단계"],
+    ["notion-api.ts", /t\("notion\.oauthExpired"/, "notion 401만 OAuthError로 감싸여 파생을 빠져나간다"],
+    ["lib/createRefreshRunner.ts", /t\("oauth\.error\.refreshExhausted"/, "연결 중 401 재시도 소진"],
+  ])("%s: 프로필 조회 레인이 profile_fetch_failed를 단다", (file, marker, why) => {
+    const found = blocks(file, marker);
+    expect(found.length, `${file}에서 지점을 못 찾았다 (${why})`).toBe(1);
+    expect(found[0], `${file}: 태깅 누락 — ${why}\n${found[0]}`).toMatch(
+      /reason:\s*"profile_fetch_failed"/,
+    );
   });
 });

@@ -2,7 +2,7 @@ import { t } from "@/i18n";
 import type { AsanaAuth, AsanaOAuthAuth } from "@/types/asana";
 import { writeStoredAsanaOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setAsanaRefreshHook } from "./asana-api";
-import { OAuthError, grantReason, httpReason, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, authorizeRejection, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   assertConfigured as assertOAuthConfigured,
@@ -35,10 +35,9 @@ export function parseAsanaCallbackParams(
   const parsed = new URL(redirectUrl);
   const errorParam = parsed.searchParams.get("error");
   if (errorParam) {
-    const cancelled = isAsanaCancellationCode(errorParam);
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "asana", cancelled, reason: grantReason(cancelled) },
+      { platform: "asana", ...authorizeRejection(isAsanaCancellationCode(errorParam)) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
@@ -75,6 +74,7 @@ export async function startAsanaOAuth(): Promise<AsanaOAuthAuth> {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "asana",
       cancelled: true,
+      reason: "cancelled_window",
     });
   }
 
@@ -115,11 +115,9 @@ async function exchangeCode(code: string): Promise<AsanaTokenResponse> {
     | AsanaTokenResponse
     | { error?: string; error_description?: string };
   if ("error" in data && data.error) {
-    const cancelled = isAsanaCancellationCode(data.error);
     throw new OAuthError(data.error_description || data.error, {
       platform: "asana",
-      cancelled,
-      reason: grantReason(cancelled),
+      ...grantRejection(isAsanaCancellationCode(data.error)),
     });
   }
   return data as AsanaTokenResponse;

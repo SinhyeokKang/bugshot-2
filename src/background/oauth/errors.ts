@@ -10,6 +10,7 @@ export type ConnectReason =
   | "cancelled_denied"
   | "flow_in_progress"
   | "launch_failed"
+  | "authorize_rejected"
   | "token_exchange_4xx"
   | "token_exchange_5xx"
   | "token_exchange_rejected"
@@ -26,11 +27,25 @@ export function httpReason(status: number): ConnectReason {
   return "other";
 }
 
+// 제공자가 거부한 두 레인. **값이 아니라 `cancelled`/`reason` 쌍을 반환하는 게 핵심**이다 —
+// 호출부가 둘을 따로 넘기면 `{cancelled: false, reason: "cancelled_denied"}` 같은 모순
+// 조합이 타입상 표현 가능해지고, 그러면 PostHog에서 result와 reason이 서로를 반증한다.
+// 반환 타입을 명시하는 것도 필수다 — 생략하면 삼항이 `string`으로 넓어지고, `as
+// ConnectReason`으로 좁히면 이번엔 오타(`cancelled_denyed`)가 그대로 통과한다.
+type Rejection = { cancelled: boolean; reason: ConnectReason };
+
 // GitHub는 `bad_verification_code`를, Slack은 `ok:false`를 **200 + 본문 error**로 준다.
 // status가 200이라 httpReason으로는 못 덮어 두 플랫폼의 가장 흔한 교환 실패가 미분류로
 // 떨어진다. 요청은 상류에 닿았고 grant만 거부된 경우라 4xx/5xx와도 구분해서 센다.
-export function grantReason(cancelled: boolean): ConnectReason {
-  return cancelled ? "cancelled_denied" : "token_exchange_rejected";
+export function grantRejection(cancelled: boolean): Rejection {
+  return { cancelled, reason: cancelled ? "cancelled_denied" : "token_exchange_rejected" };
+}
+
+// authorize 리다이렉트는 토큰 교환 **이전** 단계다. 여기서 나오는 `invalid_client`·
+// `invalid_scope`는 배포·설정 사고 신호라, 사용자 재시도로 풀리는 교환 실패와 같은
+// 버킷에 뭉치면 이 축을 만든 이유가 사라진다.
+export function authorizeRejection(cancelled: boolean): Rejection {
+  return { cancelled, reason: cancelled ? "cancelled_denied" : "authorize_rejected" };
 }
 
 export interface OAuthErrorOptions {
@@ -53,8 +68,6 @@ export class OAuthError extends Error {
   notConfigured: boolean;
   launchFailed: boolean;
   platform?: PlatformId;
-  // undefined면 classifyConnectReason이 기존 3축에서 파생한다 — 전 throw 지점에
-  // 태깅을 강제하지 않으려는 것(태깅 누락이 조용한 오분류가 되지 않게).
   reason?: ConnectReason;
   constructor(message: string, options: OAuthErrorOptions = {}) {
     super(message);

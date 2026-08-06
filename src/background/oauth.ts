@@ -8,11 +8,12 @@ import {
   assertConfigured as assertOAuthConfigured,
   isCancellation,
 } from "./oauth/config";
-import { type ConnectReason, OAuthError, grantReason, httpReason } from "./oauth/errors";
+import { type ConnectReason, OAuthError, authorizeRejection, httpReason } from "./oauth/errors";
 
 export {
   OAuthError,
-  grantReason,
+  authorizeRejection,
+  grantRejection,
   httpReason,
   type ConnectReason,
   type OAuthErrorOptions,
@@ -153,7 +154,11 @@ export async function startOAuthFlow(): Promise<OAuthStartResult> {
 
   const redirect = await launchOAuthWebFlow(url.toString(), "jira");
   if (!redirect) {
-    throw new OAuthError(t("oauth.error.cancelled"), { platform: "jira", cancelled: true });
+    throw new OAuthError(t("oauth.error.cancelled"), {
+      platform: "jira",
+      cancelled: true,
+      reason: "cancelled_window",
+    });
   }
 
   const parsed = new URL(redirect);
@@ -161,10 +166,9 @@ export async function startOAuthFlow(): Promise<OAuthStartResult> {
   const returnedState = parsed.searchParams.get("state");
   const errorParam = parsed.searchParams.get("error");
   if (errorParam) {
-    const cancelled = isAtlassianCancellationCode(errorParam);
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "jira", cancelled, reason: grantReason(cancelled) },
+      { platform: "jira", ...authorizeRejection(isAtlassianCancellationCode(errorParam)) },
     );
   }
   if (returnedState !== state) {
@@ -212,8 +216,11 @@ async function fetchSites(accessToken: string): Promise<JiraSite[]> {
     },
   });
   if (!res.ok) {
+    // jira는 getMyself가 없어 이 호출이 다른 7개 플랫폼의 프로필 조회 대응 단계다.
+    // 태깅을 빼면 jira만 profile_fetch_failed가 구조적으로 항상 0이라 플랫폼 비교가 깨진다.
     throw new OAuthError(t("oauth.error.siteList", { status: res.status }), {
       platform: "jira",
+      reason: "profile_fetch_failed",
     });
   }
   const raw = (await res.json()) as Array<{

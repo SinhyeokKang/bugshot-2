@@ -1,7 +1,7 @@
 import { t } from "@/i18n";
 import type { NotionOAuthAuth } from "@/types/notion";
 import { getMyself } from "./notion-api";
-import { OAuthError, grantReason, httpReason, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, authorizeRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   assertConfigured as assertOAuthConfigured,
@@ -33,10 +33,9 @@ export function parseNotionCallbackParams(
   const parsed = new URL(redirectUrl);
   const errorParam = parsed.searchParams.get("error");
   if (errorParam) {
-    const cancelled = isNotionCancellationCode(errorParam);
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "notion", cancelled, reason: grantReason(cancelled) },
+      { platform: "notion", ...authorizeRejection(isNotionCancellationCode(errorParam)) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
@@ -105,6 +104,7 @@ export async function startNotionOAuth(): Promise<NotionOAuthAuth> {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "notion",
       cancelled: true,
+      reason: "cancelled_window",
     });
   }
 
