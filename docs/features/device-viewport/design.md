@@ -301,7 +301,8 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
 
 | 신호 | 판정 |
 |---|---|
-| `device.frameReady` (same-origin) | 성공 — 잠정 래퍼를 확정 binding으로 승격 |
+| `device.frameReady` + arm 창 열림 | 성공 — 잠정 래퍼를 확정 binding으로 승격 |
+| `device.frameReady` + arm 창 닫힘 | 판정이 아니다 — `documentId`만 갱신하고 push하지 않는다(래퍼 안 same-origin 이동의 재발화) |
 | `onCommitted(래퍼 frameId)` + **same-origin** (경로·쿼리만 바뀐 redirect) | 성공 — `documentId`를 갱신하고 확정 |
 | `onCommitted(래퍼 frameId)` + **cross-origin** | 성공도 차단도 아니다 → **handoff**(아래 절) |
 | `onErrorOccurred(래퍼 frameId)` | 차단 (`ERR_BLOCKED_BY_RESPONSE` 등) |
@@ -470,7 +471,7 @@ async function reestablish(tabId: number, width: number): Promise<void>;
 | `device.arm` 개방 | 연다 | **연다**(동일) |
 | `device.arm` 폐쇄 | 13단계에서 닫는다 | 판정 후 닫는다. **handoff·차단 복구는 top을 옮기기 전에 즉시 닫는다** |
 | stop ACK → clear → start ACK | 한다 | **한다**(동일 순서) |
-| `picker.start` 재시도 | `frameLoaded` 뒤 래퍼 frameId로 (위험 8) | **동일** — picking 중 재수립이 이 경로의 유일한 도달 지점이다 |
+| `picker.start` 재시도 | `frameLoaded` 뒤 래퍼 frameId로, `phase === "picking"`일 때만 (위험 8) | **동일** — 그리고 picking 중 재수립이 그 분기의 유일한 도달 지점이다 |
 | 루프 카운터 | 0으로 리셋 | +1, 임계 초과면 중단 |
 | 실패(`frameBlocked`·전달 실패) | `전체` 롤백 + 토스트 | 동일 |
 | `pending`·카운터 소유 | — | **모듈 스코프 단일 인스턴스**(아래) |
@@ -594,11 +595,12 @@ export function isTopLikeFrame(tabId: number, frameId: number): boolean;
 export async function listTabDocuments(tabId: number): Promise<{ all: string[]; deviceTree: string[] }>;
 ```
 
-- 최초 등록: 같은 URL을 연 래퍼의 `picker.ts`만 `window.frameElement?.id === DEVICE_FRAME_ID`를 확인해 `device.frameReady`를 발화 → background가 `sender.frameId`/`sender.documentId`를 Map과 `chrome.storage.session`에 기록. cross-origin 문서에서 이 확인은 **throw가 아니라 `null`**이므로(HTML 명세: 컨테이너가 same origin-domain이 아니면 `frameElement`는 `null`) 래퍼 안 후속 문서는 조용히 통과한다
+- 최초 등록: 같은 URL을 연 래퍼의 `picker.ts`만 `window.frameElement?.id === DEVICE_FRAME_ID`를 확인해 `device.frameReady`를 발화 → background가 `sender.frameId`/`sender.documentId`를 Map과 `chrome.storage.session`에 기록.
+- **`frameReady`는 한 번만 오지 않는다.** same-origin 불변식 때문에 래퍼 안에서 링크를 타고 들어간 **후속 문서도 `frameElement`를 읽을 수 있어 매번 재발화한다.** 그래서 background는 수신 시 **arm 창이 열려 있는지로 갈린다**: 열려 있으면 진입 판정이므로 잠정 래퍼를 확정 승격하고 `device.frameLoaded`를 push하고, 닫혀 있으면 **binding의 `documentId`만 갱신하고 push하지 않는다**. 이 분기가 없으면 모드 유지 중 same-origin 이동마다 `frameLoaded`가 날아와 `busy`가 아닌 사이드패널이 전이 완료 처리를 다시 돈다. (부수 효과로 이 경로가 same-origin 이동의 documentId 갱신을 `onCommitted`와 이중으로 보장한다 — 멱등이라 무해하다.)
 - 잠정 등록: arm 창 안에서 `parentFrameId === 0 && url === top URL`인 첫 `onBeforeNavigate`를 잠정 래퍼로 잡는다. 즉시 redirect돼 `device.frameReady`가 안 오는 사이트에서 래퍼 frameId를 아는 유일한 시작점(handoff·차단 판정의 타깃이 된다) (위 "로드 검증")
-- 문서 이동: Chrome이 frame 생애 동안 유지하는 `frameId`를 권위값으로 삼고 `onCommitted.documentId`를 갱신한다. cross-origin 문서는 `frameElement`를 읽거나 재인증할 필요가 없다. `parentFrameId`/`parentDocumentId`로 래퍼 자손 계보도 갱신한다
+- 문서 이동: Chrome이 frame 생애 동안 유지하는 `frameId`를 권위값으로 삼고 `onCommitted.documentId`를 갱신한다. `parentFrameId`/`parentDocumentId`로 래퍼 자손 계보도 갱신한다
 - SW 복구: 시작 시 storage 복원 promise 뒤에 navigation 이벤트를 탭별 큐잉한다. 복구 전에 Map이 비었다고 top-only로 판정하지 않는다
-- 확장 reload 복구: storage.session이 비므로 위 "재수립" 경로(사이드패널이 `device.set`을 다시 보냄)로 처리한다. binding 자체를 되살리는 경로는 없다
+- 확장 reload 복구: storage.session이 비므로 위 "재수립 계약"의 두 번째 호출 지점(패널 마운트 시 binding 엇갈림 감지 → `reestablish`)으로 처리한다. binding 자체를 되살리는 경로는 없다
 - 해제: `device.set { width: null }` 성공 시, top `onCommitted`, 탭 제거에서 Map과 storage를 함께 제거
 - 소비: **아래 "무엇을 갈아끼우고 무엇을 그대로 두는가"**
 

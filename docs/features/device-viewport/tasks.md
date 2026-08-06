@@ -218,7 +218,7 @@
 - **변경 대상**: `src/background/tab-bindings.ts`, `src/background/index.ts:120`·`:123`·`:145-186`, `src/types/messages.ts`, `src/background/bgRequestTypes.ts`
 - **작업 내용**:
   - `deviceFrameByTab: Map<number, {frameId, documentId}>` + `setDeviceFrame`·`isTopLikeFrame`·`armDeviceFrame`·`listTabDocuments`. 권위값은 `chrome.storage.session`에 보존하고 Map은 복제 캐시로 둔다. SW 시작 시 복원 promise 뒤에 navigation 이벤트를 탭별 순서 큐잉해 복구 전 오판을 막는다. **`isTopLikeFrame`은 동기 시그니처를 유지하되 큐 안에서만 호출한다** — 큐 밖 호출은 복원 전 오판이 된다.
-  - 래퍼의 `device.frameReady`로 frameId를 등록한다. 이후 **same-origin** 이동은 frameId를 따라가고 commit마다 documentId를 갱신한다. `parentFrameId`/`parentDocumentId`로 래퍼 자손 계보를 유지한다.
+  - 래퍼의 `device.frameReady`로 frameId를 등록한다. 이후 **same-origin** 이동은 frameId를 따라가고 commit마다 documentId를 갱신한다. **`frameReady`는 후속 문서에서도 매번 재발화하므로**(same-origin 불변식) arm 창이 닫혀 있으면 documentId만 갱신하고 push하지 않는다 — 안 그러면 same-origin 이동마다 `frameLoaded`가 날아온다. `parentFrameId`/`parentDocumentId`로 래퍼 자손 계보를 유지한다.
   - **로드 검증(XFO/CSP)의 판정 주체가 여기다.** `device.arm`으로 3초 감시창을 열고, 창 안에서 `parentFrameId === 0 && url === top URL`인 첫 `onBeforeNavigate`를 잠정 래퍼로 잡는다. 성공 = `device.frameReady` 또는 래퍼 frameId의 **same-origin** `onCommitted`(경로·쿼리만 바뀐 redirect 포함), 차단 = 래퍼 frameId의 `onErrorOccurred` 또는 3초 무신호. 결과를 `device.frameLoaded`/`device.frameBlocked`로 push한다. **same-origin redirect를 차단으로 합치지 않는다.**
   - **cross-origin 감지 → `device.handoff` push.** 1차 트리거는 `onBeforeNavigate(래퍼 frameId)`의 URL origin이 top과 다를 때(요청 전에 잡힌다), 폴백은 `onCommitted(래퍼 frameId)`의 cross-origin(same-origin URL이 서버에서 302로 밀린 경우). 판정은 `new URL(url).origin` 비교 — site가 아니라 origin이라 서브도메인 이동도 handoff다. **네비게이션을 취소할 방법은 없다** — MV3에 blocking webRequest가 없으므로 handoff는 사후 조치다.
   - **차단 청취는 감시창 밖에서도 계속한다.** binding 확정 뒤의 `onErrorOccurred(래퍼 frameId)`도 듣고, 유지 중 차단은 handoff와 같은 경로로 보낸다(프레임에 못 들어가는 URL이므로 top으로 내보낸다). 안 하면 모드 유지 중 XFO 사이트에 도달했을 때 백지에 방치된다(prd 목표 9).
@@ -235,6 +235,7 @@
   - [ ] **래퍼 커밋에서도 `frameCommitted`의 `frameId`가 0이 아니라 래퍼 frameId다.** `:170`의 하드코딩 `frameId: 0`이 래퍼 documentId를 0 슬롯에 쓰면(`usePickerMessages.ts:271`) 이후 진짜 top의 `picker.selected`/`cancelled`/`areaSelected`가 `isStalePickerDocument`에 걸려 전부 드롭된다 — 완전 무반응 회귀
   - [ ] 래퍼 안에서 A→B→C로 연속 이동할 때 두 번째 판정의 `prev`가 A가 아니라 B다
   - [ ] `device.frameReady`가 `BG_REQUEST_TYPES` 게이트에 막히지 않고 background에 도달한다 (전용 push 리스너 경로)
+  - [ ] **arm 창이 닫힌 상태의 `frameReady`는 `documentId`만 갱신하고 `frameLoaded`를 push하지 않는다** — 래퍼 안 same-origin 이동마다 재발화하므로, 안 막으면 사이드패널이 전이 완료 처리를 반복한다
   - [ ] `device.arm`·`device.documents`는 반대로 화이트리스트에 **등록돼 있어** 정상 라우팅된다
   - [ ] SW를 강제 종료했다 깨워도 storage 복원 뒤 `isTopLikeFrame`이 래퍼를 다시 인식한다. Playwright에서 worker 종료·재기동을 안정적으로 판정할 수 있으면 e2e에 포함하고, 불가능한 경우에만 순수 coordinator 단위 테스트 + 수동 검증으로 남긴다
   - [ ] **same-origin** 이동 뒤 frameId는 유지되고 documentId만 교체된다 (start 재전달 자체는 Task 5의 게이트가 검증한다)
