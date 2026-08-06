@@ -73,6 +73,8 @@
   - [ ] 인라인 리터럴이 `device-frame.ts`의 `DEVICE_FRAME_ID`와 같음을 단언하는 테스트가 있다 (`func.toString()`에 상수가 포함되는지)
   - [ ] 주입 함수가 self-contained다 — 외부 변수를 참조하지 않는다. **상수를 import하면 typecheck·유닛이 전부 green인데 런타임만 `ReferenceError`로 죽고 `picker-control.ts:820`의 catch가 그걸 삼켜 조용히 `null`로 폴백한다**
   - [ ] 모드 OFF에서 반환값이 이전과 동일 (`window.innerWidth/innerHeight`)
+  - [ ] **element 두 호출부의 `frameId !== 0` 게이트를 건드리지 않는다**(`usePickerMessages.ts:160`·`:409-410`) — 모드 ON에서 선택은 항상 래퍼 안이라 게이트가 참이 되어 자동으로 올바른 값이 온다. 게이트를 없애면 모드 OFF의 top 선택에서 불필요한 주입이 돌고, 반대로 모드 ON에서 frameId 0으로 새면 메타가 `payload.viewport`(top 실폭)로 폴백해 **조용히 틀린 값**이 남는다
+  - [ ] 그 두 호출부의 주석("환경 메타는 **브라우저 뷰포트**여야 하므로")도 함께 갱신한다 — 함수 주석만 고치면 호출부가 옛 의미를 계속 주장한다
   - [ ] `video-recorder`·`use-30s-replay`의 viewport 메타 소스가 `getTopViewport`다
   - [ ] `getTopViewport`가 `null`을 반환할 때 두 곳 모두 기존 `chrome.tabs.get` 값으로 폴백한다 (host permission 실패 시 메타가 비지 않아야 한다)
 
