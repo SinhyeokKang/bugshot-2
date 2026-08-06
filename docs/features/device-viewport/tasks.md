@@ -94,13 +94,14 @@
   - [ ] 모드 ON에서 래퍼가 cross-origin으로 이동해 커밋되면 새 documentId에 sentinel이 재발행된다
   - [ ] 전환 중 새 document가 commit돼도 래퍼 자손만 활성화되고 숨겨진 top 트리는 정지 상태다
   - [ ] 모드 OFF에서 activate 3종·`rebroadcastSentinelsToFrame`의 동작이 무변경이다(게이트가 `deviceTree` 빈 배열에서 기존 경로로 떨어진다)
+  - [ ] **mount~`frameReady` 창에서 게이트가 일시적으로 OFF로 판정해 broadcast하는 것은 허용한다** — 그 구간엔 binding이 없어 `deviceTree`가 비는 게 정상이고, 되살아난 숨겨진 top은 이어지는 stop ACK가 죽이고 그 뒤 clear가 로그를 지운다. 이 창을 막으려고 게이트에 조건을 더하지 말 것(막을 방법이 없고 순서가 이미 방어한다)
 
 ### Task 6: 전환 오케스트레이션 훅
 
 - **변경 대상**: `src/sidepanel/hooks/useDeviceViewport.ts` (신규)
 - **작업 내용**: design.md의 `select()` 12단계를 그대로 구현(재수립 경로는 Task 6b). 마운트 시 `device.state` 조회, `device.availableChanged` 구독. 최초 ON 진입 경고 플래그는 `settings-ui-store`에 **`deviceModeWarned: boolean`** — 경고가 재로드뿐 아니라 원본·래퍼 동시 실행까지 덮으므로 `deviceReloadWarned`가 아니라 이 이름을 쓴다. **version 9 → 10 bump + `migrateSettingsUi` 기본값 false 등록**이 함께 가야 한다. 체크박스 없이 `[계속]`에서 true를 `chrome.storage.local`에 즉시 영속한다. 문구는 진입·해제 재로드와 원본·래퍼 동시 실행에 따른 네트워크 요청·자동저장·결제 중복 위험을 모두 커버한다. `전체` 복귀는 unmount 후 `location.reload()`까지 간다.
-  - 성공 판정은 `device.set` 응답이 아니라 background push(`device.frameLoaded`/`device.frameBlocked`, ≤3s) 수신이다. `device.arm`은 `device.set` **직전**에 열고 판정 후 닫는다.
-  - 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈리면 확장 reload 후 상태이므로 같은 폭으로 `device.set`을 다시 보내 **재수립**한다.
+  - **OFF→ON 경로에서만** 성공 판정이 `device.set` 응답이 아니라 background push(`device.frameLoaded`/`device.frameBlocked`, ≤3s) 수신이다. `device.arm`은 `device.set` **직전**에 열고 판정 후 닫는다. 폭 갱신(ON→ON)은 arm도 판정도 없이 응답이 곧 결과다.
+  - 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈리면 확장 reload 후 상태이므로 `device.state.width`(래퍼 실제 폭)로 **`reestablish`를 부른다**(Task 6b가 그 함수를 소유한다 — 여기서 `device.set`을 직접 보내면 계약 밖 네 번째 재수립 경로가 생긴다).
 - **검증**:
   - [ ] `locked`가 `phase !== "idle" || unsupported`로 파생된다 (미지원 탭에서 행은 미렌더지만, 같은 훅을 쓰는 `App.tsx` 다이얼로그 분기 때문에 축은 유지한다)
   - [ ] **`select()`가 세 경로로 갈린다**: OFF→ON(전체 순서) / ON→ON은 `device.set { width }` 하나로 끝나는 **경량 경로** / ON→OFF(pending 폐기 → unmount + reload)
@@ -116,7 +117,7 @@
   - [ ] persist version이 10이고 기존 version 9 스냅샷에서 `deviceModeWarned=false`가 채워진다
   - [ ] 최초 ON에서만 경고가 뜨고 `[계속]` 직후 true가 저장되며 사이드패널을 닫았다 다시 열어도 재노출되지 않는다
   - [ ] 래퍼 마운트가 XFO로 롤백된 경우에도 플래그는 소비된 상태로 둔다 — 사용자가 경고를 이미 읽었고, 재시도마다 다시 띄우면 성가시다(의도된 동작)
-  - [ ] **`device.frameLoaded` 확정 직후 래퍼 frameId를 향해 `picker.start`를 `res?.ok`까지 재시도 송신한다**(`restartPickerInFrame` `picker-control.ts:286-303` 패턴, 10회×200ms). `device.set` 응답만 보고 쏘면 즉시 redirect되는 사이트에서 타깃 frameId가 아직 없다. `picker.start`는 broadcast 1회뿐이라 사후 생성 프레임에 안 닿고 `ensureContentScript`의 ping은 frameId 0만 보므로(`:25`) 자가복구도 안 걸린다 — 등록에 실패하면 모드 ON에서 아무 요소도 못 고른다
+  - [ ] **`phase === "picking"`이면 `device.frameLoaded` 확정 직후 래퍼 frameId를 향해 `picker.start`를 `res?.ok`까지 재시도 송신한다**(`restartPickerInFrame` `picker-control.ts:286-303` 패턴, 10회×200ms). `device.set` 응답만 보고 쏘면 즉시 redirect되는 사이트에서 타깃 frameId가 아직 없다. `picker.start`는 broadcast 1회뿐이라 사후 생성 프레임에 안 닿고 `ensureContentScript`의 ping은 frameId 0만 보므로(`:25`) 자가복구도 안 걸린다 — 등록에 실패하면 모드 ON에서 아무 요소도 못 고른다
   - [ ] 그 재시도가 **broadcast가 아니다.** `setFrameToken`(`frame-geometry.ts:73`)이 `picker.start`마다 `childFrames` WeakSet을 갈아치우므로 broadcast하면 방금 등록된 래퍼가 날아간다
 
 ### Task 6b: 재수립 계약 + cross-origin handoff (사이드패널 측)
