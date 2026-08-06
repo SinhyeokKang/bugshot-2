@@ -54,7 +54,8 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
 | `src/sidepanel/hooks/usePickerMessages.ts:271-272` | `frameCommitted` 수신 → `rebroadcastSentinelsToFrame` 무조건 호출 | 같은 게이트. 래퍼 서브트리 커밋이면 재발행(= same-origin 이동 후 start 재전달의 정식 경로), 아니면 skip |
 | `src/sidepanel/hooks/usePickerMessages.ts:206-223`·`:423` | `captureAndCrop(rect, viewport)` — **`capture.ts`가 아니라 이 파일의 모듈 프라이빗 함수**(`capture.ts`의 export는 `cropImage`뿐) | 크롭은 `msg.viewport`, 메타는 `getTopViewport(tabId)`로 분리. 변경이 이 파일 안에서 끝난다 |
 | `src/sidepanel/tabs/DebugTab.tsx:73-94` | 서브탭 바 `<div>`(`CollapsingTabsList` 74-93) | 그 wrapper 안쪽에 `mt-2`로 `<DeviceViewportBar>` 행을 넣는다 — 별도 bordered 행이면 상단 크롬이 138→207px가 되고 idle 화면은 `overflow-hidden`+`justify-center`라 밀리는 게 아니라 잘린다 |
-| `src/sidepanel/tabs/IssueTab.tsx:552-561` | `capture-method-fullpage` 버튼(`ariaDisabled={busy}` :554) | 모드 ON이면 `ariaDisabled` + 잠금 사유를 별도 `TooltipContent`로. **`label`을 바꾸면 안 된다** — `TooltipIconButton.tsx:42,54`에서 `label` 하나가 `aria-label`과 툴팁을 겸하므로 접근명까지 오염된다(선례: `mode-freeform` `IssueTab.tsx:371-389`) |
+| `src/sidepanel/tabs/IssueTab.tsx:552-561` | `capture-method-fullpage` 버튼(`ariaDisabled={busy}` :554) | 모드 ON이면 `ariaDisabled`. 잠금 사유 노출은 `TooltipIconButton`에 **옵션 prop 추가**가 필요하다 — 아래 |
+| `src/sidepanel/components/TooltipIconButton.tsx` | `label` 하나가 `aria-label`(`:42`)과 `TooltipContent`(`:54`)를 겸하고, props에 사유 슬롯이 없다 | `disabledReason?: string` 추가 — 있으면 툴팁 본문만 그걸로 대체하고 `aria-label`은 `label` 유지 |
 | `src/sidepanel/tabs/DraftingPanel.tsx:576-678` | `ReproEnvironmentSection` | 모드 ON 읽기전용 인디케이터 1개. `device.state.width != null`에서 파생하므로 전역 상태를 안 만든다 |
 | `src/sidepanel/tabs/IssueTab.tsx:705-726` | `SessionExpiredDialog` — body가 `issue.sessionExpired.body` 고정 | handoff로 뜬 경우 body만 디바이스 모드 문구로 분기. 컴포넌트·`sessionExpired` 플래그·`onConfirm={() => reset()}`은 무변경 |
 | `src/sidepanel/App.tsx:362-376` | `iframeUnsupported` 다이얼로그(`:367`이 body) | 모드 ON이면 body 문구를 `app.iframeUnsupported.bodyDeviceMode`로 교체 |
@@ -527,11 +528,11 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }): JSX.Elem
 
 **`<Tabs>` 래퍼를 반드시 자기가 들고 온다.** 이 행은 `DebugTab`의 `<Tabs value={sub}>`(`:67`) **안쪽**에 놓이므로 `TabsList`만 렌더하면 바깥 컨텍스트를 잡는다 — 세그먼트를 누르는 순간 `setSub("390")`이 돌아 **존재하지 않는 서브탭으로 전환되고 화면이 빈다.** 에러가 아니라 조용한 오동작이다. 선례(`StyleEditorPanel.tsx:234-249`)도 자기 `<Tabs value=… onValueChange=…>`를 들고 `TabsContent` 없이 `TabsList`만 쓴다. 결과적으로 App(`:278`) > DebugTab(`:67`) > 이 행의 3중 중첩이 되는데, Radix는 `Tabs`마다 Provider와 roving tabindex를 따로 두므로 안전하다.
 
-**`CollapsingTabsList`가 아니라 순수 `TabsList`를 쓴다.** 서브탭 바가 쓰는 그 컴포넌트는 라벨이 셀을 넘치면 **모든 라벨을 한꺼번에 감춰 아이콘만 남긴다**(`ui/collapsing-tabs.tsx`). 여기서 그게 발동하면 폭 숫자가 통째로 사라져 아이콘만 남고, 그건 "아이콘이 숫자를 대체하지 않는다"는 이 기능의 원칙(prd)을 정면으로 깬다 — 기기 아이콘만 남은 행은 DPR·터치까지 에뮬레이트한다는 오해를 그대로 만든다. 접히지 않게 폭 예산을 맞추는 것이 Task 7의 검증 항목인 이유다.
+**`CollapsingTabsList` + `TabLabel`을 쓴다** — 서브탭 바·메인 탭 바와 같은 컴포넌트다. 라벨이 셀을 넘치면 모든 라벨을 한꺼번에 감춰 아이콘만 남기는데(`ui/collapsing-tabs.tsx`), **여기서는 그게 의도된 동작이다.** 기기 아이콘을 넣은 이유가 정확히 접힘 상태의 표현 수단을 만들기 위해서고, 접혀도 `aria-label`이 폭을 그대로 말하므로 정보가 사라지지 않는다. 폭 예산을 맞추려고 프리셋을 줄이거나 패딩을 깎을 필요가 없어지고, 이 패널의 다른 탭 바와 좁은 폭에서의 거동이 같아진다.
 
 - 첫 세그먼트 라벨은 `전체`/`Full`(`Monitor` 아이콘). `끔`이 아니다 — 사용자가 고르는 건 "브라우저 폭 전체"라는 뷰포트 선택지 하나이고 데스크톱 뷰포트를 겸한다.
-- **아이콘 + 폭 숫자를 병기한다.** 아이콘만 두면 기기 에뮬레이션으로 오해되고(prd "구현 방식이 제품 범위를 결정한다"), 숫자만 두면 스캔이 느리다. 아이콘은 `lucide-react`의 `Monitor`/`Smartphone`/`Tablet`/`Laptop` — 신규 의존성 0.
-- **폭 예산.** 5세그먼트였을 때 세그먼트당 텍스트 가용 폭 ≈28.8px vs `1024` ≈31px로 적자였는데, 4세그먼트로 줄면서 세그먼트당 ≈68px(320px 패널 기준)이 되어 아이콘 14px + gap 4px + `1024` ≈31px가 들어간다. `grid grid-cols-4`. Task 7에서 **320/360/400px 3점**을 여전히 검증한다.
+- **아이콘 + 폭 숫자를 병기한다**(폭이 모자라면 라벨이 접혀 아이콘만 남는다 — 위 문단). 숫자만 두면 좁은 폭에서 남길 게 없고, 아이콘만 두면 넓은 폭에서도 기기 에뮬레이션으로 오해된다(prd "구현 방식이 제품 범위를 결정한다"). 아이콘은 `lucide-react`의 `Monitor`/`Smartphone`/`Tablet`/`Laptop` — 신규 의존성 0.
+- **폭 예산은 접힘이 흡수한다.** 5세그먼트였을 때 세그먼트당 텍스트 가용 폭 ≈28.8px vs `1024` ≈31px로 적자였고, 4세그먼트면 세그먼트당 ≈68px(320px 패널 기준)이라 아이콘 14px + gap 4px + `1024` ≈31px가 들어간다. 못 들어가는 폭에서는 라벨이 접혀 아이콘만 남으므로 **잘림·줄바꿈이 원천적으로 없다**. `grid grid-cols-4`. Task 7의 320/360/400px 3점 검증은 "안 잘리는가"가 아니라 **"접힘 전환이 깔끔한가"**를 본다.
 - 가용 폭 초과 세그먼트: `aria-disabled` + `opacity-50` + 툴팁. `disabled` 속성이 아니라 `aria-disabled`를 쓴다(DESIGN.md §14 — shadcn base의 `disabled:pointer-events-none`이 hover·툴팁을 죽인다). Radix Tabs는 `aria-disabled`를 동작 가드로 해석하지 않으므로 `onValueChange`와 오케스트레이터 `select()` 양쪽에서 locked/busy/초과 값을 거부한다.
 - `locked`면 행 전체 `aria-disabled`.
 - **`busy`면 선택 세그먼트에 `Loader2 motion-reduce:animate-none`** + 행 전체 `aria-disabled`·`aria-busy=true` + live status. XFO 사이트는 롤백까지 최대 3초라 무피드백 구간이 생긴다.
