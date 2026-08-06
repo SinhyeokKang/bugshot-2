@@ -65,6 +65,16 @@ function startFixtureServer(): Promise<{ server: Server; port: number }> {
         res.end(JSON.stringify({ note: "zqxbodyneedle" }));
         return;
       }
+      // 디바이스 뷰포트 차단 판정용 — top-level 로드는 되고 프레임 삽입만 막힌다(XFO의 정의).
+      // 래퍼는 location.href를 그대로 싣으므로 이 페이지 자신이 헤더를 내야 재현된다.
+      if (urlPath.startsWith("/e2e-xfo")) {
+        res.writeHead(200, {
+          "content-type": "text/html; charset=utf-8",
+          "x-frame-options": "DENY",
+        });
+        res.end('<!doctype html><title>xfo</title><p id="xfo-marker">no framing</p>');
+        return;
+      }
       const name = urlPath === "/" ? "basic.html" : urlPath.replace(/^\//, "");
       const file = path.join(PAGES_DIR, name);
       if (!file.startsWith(PAGES_DIR + path.sep)) {
