@@ -36,6 +36,26 @@
 
 ---
 
+## 2026-08-07 — 새 기능이 옛 주석의 전제를 거짓으로 만들었는데, 필드를 골라 담는 조립이 그 사실을 조용히 삼켰다
+
+- **영역**: `content`, `미디어`
+- **계열**: `미검증단언`, `복제본`
+- **그물**: `e2e`
+- **증상**: 디바이스 뷰포트 모드에서 컨테이너(다이얼로그·표의 행) 안 요소를 편집하면 **before 이미지는 컨테이너까지 확장돼 찍히는데 after 이미지는 요소 bbox로만** 찍혔다. 에러도 stale 표시도 없어서 두 이미지의 크롭 범위가 다르다는 것 말고는 단서가 없었다.
+- **근본 원인**: 디바이스 래퍼를 확장 허용 원점에 넣으면서(`allowsContextExpansion() = window === window.top || isDeviceFrame()`) **비-top 프레임도 확장 판정을 돌리게 됐는데**, 비-top 응답 조립부인 `picker.ts:respondWithTopRect`가 응답 필드를 하나씩 골라 옮겨 담는 구조라 `contextSelector`가 그 목록에 없어 떨어졌다. 그 함수 바로 위 주석이 **"iframe은 확장 판정을 하지 않으므로 contextSelector는 항상 null"** 이라고 전제를 못 박고 있었고, 그 전제는 이번 기능으로 이미 거짓이었다. 유실된 `null`은 다음 문에서 뜻이 뒤집힌다 — `resolveExpandRequest`가 `contextSelector == null`을 "판정했고 **거부**함"으로 읽어 after에 `expandContext: false`를 실어 보내고, 이상 감지를 맡는 `sameCaptureBasis`는 before·after 양쪽이 `null`이라 "같은 기준"으로 통과시킨다. **셋이 겹쳐 완전 무증상이 됐다.** 같은 불변식("before/after는 같은 기준을 쓴다")이 뚫린 게 이번이 세 번째 문이다 — 2026-07-29는 `?? undefined` 변환이었고, 그때 남긴 재발방지가 "기준을 **읽는** 경로를 전수로 세라(`grep expandContext`)"였는데 이번엔 기준을 **실어 보내는** 경로에서 샜다. 더해서 `docs/ARCHITECTURE.md`가 바로 그 안티패턴을 요구사항으로 적어두고 있었다 — "`respondWithTopRect`의 조립 3분기는 `scrollX`/`scrollY`를 각각 명시적으로 실어야 한다". 문서가 "필드를 손으로 나열하라"고 지시하는 한 다음 필드도 같은 자리에서 샌다.
+- **재발 방지**: (1) **메시지 응답을 재조립할 땐 필드를 골라 담지 말고 `{...prep}`로 펼치고 바꿀 것만 덮어쓴다.** 골라 담는 조립은 "지금 존재하는 필드 목록"을 코드에 굳혀서, 나중에 늘어난 필드가 타입 에러 없이 사라진다. 전수 대상: `grep -n "sendResponse({ " src/content/*.ts` — 리터럴을 새로 만드는 지점이 곧 유실 후보다. (2) **선택적 필드(`?:`)가 "값 없음"이 아니라 *의미*를 실어 나르면 optional을 걷어낸다.** `PrepareCaptureResponse.contextSelector`를 `string | null` 필수로 바꾸자 유실 지점 5곳이 컴파일 타임에 한 번에 드러났다(3곳이 실제 버그, 2곳은 암묵적 `undefined`). `null`과 `undefined`가 다른 것을 뜻하는 필드는 optional로 두지 않는다 — 2026-07-29의 `?? undefined` 항목과 같은 뿌리다. (3) **"X는 항상 Y다"라고 못 박은 주석 옆에서 X의 전제를 넓히는 변경을 하면 그 주석을 grep해 함께 뒤집는다.** 이번 전제 확장은 `allowsContextExpansion` 하나였고 `grep -rn "window === window.top" src/content/`가 그 전수 목록이었다. (4) **무증상 회귀에 그물을 심었으면 픽스를 되돌려 red를 실측한다.** 종횡비 단언을 넣고 `respondWithTopRect`를 버그 버전으로 되돌리자 `before`는 통과하고 `after`만 실패했다 — 그 서명이 나와야 그 단언이 이 버그를 잡는다는 게 증명된다(안 하면 픽스와 무관하게 늘 green인 단언을 심고 안심하게 된다).
+- **관련**: `src/content/picker.ts:respondWithTopRect`(조립 3분기)·`handlePrepareCapture`, `src/content/device-frame.ts:allowsContextExpansion`, `src/types/picker.ts:PrepareCaptureResponse`(optional→필수), 뜻이 뒤집히는 지점 `src/sidepanel/lib/capture-basis.ts:resolveExpandRequest`·`sameCaptureBasis`, 그물 `e2e/device-viewport.spec.ts`("컨테이너 확장 기준이 before·after 양쪽에 똑같이 걸린다") + 공용 판정 `e2e/fixtures/capture-aspect.ts`, 선행 회고 `2026-07-29 — ?? undefined가 …`.
+
+## 2026-08-07 — 스킬이 시킨 문서 갱신을 건너뛰자, 다음 세션이 "그물이 없다"고 오판할 근거가 남았다
+
+- **영역**: `e2e`
+- **계열**: `드리프트`
+- **그물**: `없음`
+- **증상**: `e2e/COVERAGE.md`(커버리지 맵의 단일 출처)에 `device-viewport.spec.ts` 행이 **통째로 없었다**. `grep -c device e2e/COVERAGE.md` → 0. spec 파일 345줄·9 테스트는 이미 커밋돼 있었는데도 문서상으로는 그 기능에 e2e가 0건인 것으로 읽혔다.
+- **근본 원인**: 직전 `/e2e-write` 실행이 6단계(README·COVERAGE·GOTCHAS 갱신)를 건너뛰고 spec만 커밋했다(`dd717016`의 diff는 `device-viewport.spec.ts` + `fixtures/extension.ts` 둘뿐). 스킬 절차에 명시돼 있어도 **실행이 그 단계를 빼먹으면 남는 흔적이 없다** — 테스트는 green이고 CI도 통과하므로 어떤 게이트도 안 걸린다. 비용은 나중에 나온다: 이번 라운드에서 "이 회귀를 잡는 e2e가 있나"를 판단할 때 COVERAGE.md가 근거가 못 돼 spec 본문을 직접 읽어야 했고, 없었다면 중복 spec을 새로 썼을 것이다. 문서를 **쓰기만 하고 안 읽으면 죽은 로그**라는 POSTMORTEM 소환 회로의 거울상이다 — 여기선 **읽히긴 하는데 안 쓰여서** 죽었다.
+- **재발 방지**: **spec 파일 수와 COVERAGE.md 행 수를 기계적으로 대조한다** — `ls e2e/*.spec.ts e2e/logview/*.spec.ts | wc -l` vs `grep -c '^| \`.*\.spec\.ts\`' e2e/COVERAGE.md`. 두 수가 갈리면 맵에 안 올라간 spec이 있다는 뜻이고, 이건 사람이 기억할 게 아니라 `/e2e-write` 6단계에서 돌릴 한 줄이다(장기적으론 `pnpm check:e2e-coverage` 같은 스크립트가 제자리다 — 현재 없음). 같은 형태의 다른 단일 출처(`docs/DIRECTORY.md`의 파일 목록, `guide/AUTHORING.md`의 페이지 수)도 "산출물 개수 ↔ 문서 행 개수" 대조가 가능한 축이다.
+- **관련**: `e2e/COVERAGE.md`(누락된 단일 출처), `e2e/device-viewport.spec.ts`(누락 대상), `.claude/commands/e2e-write.md` 6단계(건너뛴 절차), 커밋 `dd717016`.
+
 ## 2026-08-06 — 테스트 중복을 지우다 기대값을 SUT가 계산하게 만들어, 그물이 항진명제가 됐다
 
 - **영역**: `background`
