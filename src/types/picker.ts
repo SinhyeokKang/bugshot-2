@@ -43,7 +43,9 @@ export interface PrepareCaptureResponse {
   viewport: { width: number; height: number };
   scrollX: number;
   scrollY: number;
-  contextSelector?: string | null;
+  // 필수다 — optional이면 응답을 손으로 조립하다 빠뜨려도 컴파일이 통과하는데, 유실된
+  // 확장 판정은 before/after 기준을 조용히 가른다(POSTMORTEM 2026-08-07).
+  contextSelector: string | null;
 }
 
 export interface PageMetrics {

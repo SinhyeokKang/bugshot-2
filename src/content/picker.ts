@@ -449,24 +449,24 @@ async function respondWithTopRect(
     sendResponse(prep);
     return;
   }
-  // iframe은 확장 판정을 하지 않으므로 contextSelector는 항상 null이고 scroll만 이어 싣는다.
-  const scroll = { scrollX: prep.scrollX, scrollY: prep.scrollY };
+  // prep을 통째로 펼치고 rect·viewport만 갈아끼운다 — 필드를 골라 옮겨 담으면 그 목록에
+  // 없는 필드가 조용히 떨어진다(contextSelector가 그렇게 유실됐다 — POSTMORTEM 2026-08-07).
   const offset = await requestFrameOffset();
   if (!offset) {
-    sendResponse({ rect: null, viewport: prep.viewport, ...scroll });
+    sendResponse({ ...prep, rect: null });
     return;
   }
   const rect = composeTopRect(prep.rect, offset);
   // iframe 자체가 top 뷰포트 밖으로 스크롤된 상태 — 크롭이 빈 화면 조각(1px clamp)으로
   // 유효 이미지처럼 저장되는 것을 막고 캡처 실패(rect null) 경로로 폴백.
   if (!rectIntersectsViewport(rect, offset.topViewport)) {
-    sendResponse({ rect: null, viewport: offset.topViewport, ...scroll });
+    sendResponse({ ...prep, rect: null, viewport: offset.topViewport });
     return;
   }
   // 자기 프레임 오버레이 숨김 커밋 대기. top 오버레이 쪽은 offset 응답기가 top realm에서
   // 따로 기다린다 — cross-origin iframe은 렌더러가 갈려 여기서 대신 기다릴 수 없다.
   await afterPaint();
-  sendResponse({ rect, viewport: offset.topViewport, ...scroll });
+  sendResponse({ ...prep, rect, viewport: offset.topViewport });
 }
 
 function viewportRectOf(el: Element): ViewportRect {
@@ -479,7 +479,7 @@ function handlePrepareCapture(
 ): PrepareCaptureResponse {
   const viewport = beginCapturePrep();
   const base = { viewport, scrollX: window.scrollX, scrollY: window.scrollY };
-  if (!ensureSelectedConnected()) return { ...base, rect: null };
+  if (!ensureSelectedConnected()) return { ...base, rect: null, contextSelector: null };
   const el = selectedEl!;
   const elementRect = viewportRectOf(el);
   // 일반 iframe은 게이트가 자기 뷰포트 기준이라 top 좌표에서의 완전 포함을 보장할 수 없다 —
@@ -543,7 +543,13 @@ function handlePrepareCaptureBySelector(
     el = null;
   }
   if (!el) {
-    sendResponse({ rect: null, viewport, scrollX: window.scrollX, scrollY: window.scrollY });
+    sendResponse({
+      rect: null,
+      viewport,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      contextSelector: null,
+    });
     return;
   }
   const target = el;
