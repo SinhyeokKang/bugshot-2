@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { sendBg } from "@/types/messages";
 import { useEditorStore } from "@/store/editor-store";
-import { syncAndSettleLogs } from "@/sidepanel/picker-control";
+import { getTopViewport, syncAndSettleLogs } from "@/sidepanel/picker-control";
+import { resolveCaptureViewport } from "@/sidepanel/lib/capture-viewport";
 import { trimByTime, replayLogBounds } from "@/sidepanel/lib/log-merge";
 import { saveNetworkLog, saveConsoleLog, saveActionLog } from "@/store/blob-db";
 import { networkLogPersist, consoleLogPersist, actionLogPersist } from "@/sidepanel/hooks/usePickerMessages";
@@ -150,7 +151,11 @@ export function use30sReplay(
       let target = { tabId: id, url: "", title: "" };
       try {
         const tab = await chrome.tabs.get(id);
-        viewport = { width: tab.width ?? 0, height: tab.height ?? 0 };
+        // 리플레이는 captureVisibleTab 프레임이라 캡처 대상 뷰포트를 따른다(탭 녹화와 동일 이유).
+        viewport = resolveCaptureViewport(await getTopViewport(id), {
+          width: tab.width ?? 0,
+          height: tab.height ?? 0,
+        });
         target = { tabId: id, url: tab.url ?? "", title: tab.title ?? "" };
       } catch {
         // 탭 닫힘 — 0 viewport·빈 target으로 진행

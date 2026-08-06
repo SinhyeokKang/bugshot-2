@@ -28,6 +28,14 @@ import {
   resolveContextRect,
 } from "./capture-context";
 import {
+  allowsContextExpansion,
+  availableViewport,
+  currentDeviceWidth,
+  isDeviceFrame,
+  mountDeviceFrame,
+  unmountDeviceFrame,
+} from "./device-frame";
+import {
   buildSelector,
   buildInitialTree,
   buildChildrenResponse,
@@ -173,6 +181,28 @@ const PICKER_FLAG = "__bugshotPicker__";
 if (!(window as unknown as Record<string, unknown>)[PICKER_FLAG]) {
   (window as unknown as Record<string, unknown>)[PICKER_FLAG] = true;
   registerPickerListeners();
+  // 래퍼 자신이 정체를 알린다 — 래퍼 frameId는 payload가 아니라 sender.frameId에서 얻는다.
+  // cross-origin 문서에서 frameElement는 throw가 아니라 null이라 일반 iframe은 자연히 통과한다.
+  // same-origin 불변식 때문에 래퍼 안 후속 문서에서도 매번 재발화하는데, arm 창이 닫혀 있으면
+  // background가 documentId만 갱신하고 push하지 않는다.
+  if (isDeviceFrame()) postToRuntime({ type: "device.frameReady" });
+}
+
+// 가용 폭 추적. windows.onBoundsChanged는 창 bounds만 주고 사이드패널 리사이즈에 발화하지
+// 않으며, 폴링도 하지 않는다.
+let deviceResizeHandler: (() => void) | null = null;
+
+function setDeviceWatch(on: boolean): void {
+  if (on) {
+    if (deviceResizeHandler) return;
+    deviceResizeHandler = () =>
+      postToRuntime({ type: "device.availableChanged", available: availableViewport() });
+    window.addEventListener("resize", deviceResizeHandler);
+    return;
+  }
+  if (!deviceResizeHandler) return;
+  window.removeEventListener("resize", deviceResizeHandler);
+  deviceResizeHandler = null;
 }
 
 function registerPickerListeners(): void {
@@ -334,6 +364,38 @@ function handlePickerMessage(
         if (window !== window.top) return;
         hideAnnotation();
         break;
+      // 디바이스 뷰포트 3종은 top 한정. frameId 0 지정 송신이라 이론상 게이트가 불필요하지만,
+      // 한 번이라도 broadcast 경로가 섞이면 래퍼가 같은 메시지에 두 번째 응답을 쏜다.
+      case "device.set": {
+        if (window !== window.top) return;
+        // break로 떨어뜨리면 스위치 밖 sendResponse({ok:true})가 먼저 나가고 두 번째 응답이
+        // "message port closed"로 죽는다.
+        void (async () => {
+          if (msg.width == null) {
+            unmountDeviceFrame();
+            sendResponse({ ok: true, width: null, available: availableViewport() });
+            // 문서가 갈린 뒤에 응답하면 포트가 죽어 호출부가 전달 실패(undefined)로 읽고
+            // 불필요한 롤백을 돈다 — 응답을 먼저 내보내고 다음 태스크에서 재로드한다.
+            await new Promise((r) => setTimeout(r, 0));
+            location.reload();
+            return;
+          }
+          mountDeviceFrame(msg.width, (sameOriginHref) =>
+            postToRuntime({ type: "device.frameLoadEvent", sameOriginHref }),
+          );
+          // ok는 "마운트했다"이지 "로드에 성공했다"가 아니다 — XFO/CSP 판정은 background가 한다.
+          sendResponse({ ok: true, width: msg.width, available: availableViewport() });
+        })();
+        return true;
+      }
+      case "device.state":
+        if (window !== window.top) return;
+        sendResponse({ width: currentDeviceWidth(), available: availableViewport() });
+        return;
+      case "device.watch":
+        if (window !== window.top) return;
+        setDeviceWatch(msg.on);
+        break;
       // recorder.* 메시지는 recorder-bridge.ts(all_frames)가 처리 — 무응답으로 흘려 이중 응답 방지.
       default:
         return;
@@ -422,9 +484,11 @@ function handlePrepareCapture(
   if (!ensureSelectedConnected()) return { ...base, rect: null };
   const el = selectedEl!;
   const elementRect = viewportRectOf(el);
-  // iframe은 게이트가 자기 뷰포트 기준이라 top 좌표에서의 완전 포함을 보장할 수 없다 —
-  // 확장 판정 자체를 하지 않는다(폴백이 곧 현행 동작).
-  if (!msg.expandContext || window !== window.top) {
+  // 일반 iframe은 게이트가 자기 뷰포트 기준이라 top 좌표에서의 완전 포함을 보장할 수 없다 —
+  // 확장 판정 자체를 하지 않는다(폴백이 곧 현행 동작). 디바이스 뷰포트 래퍼는 예외다:
+  // height:100%로 top 뷰포트를 세로로 꽉 채우고 가로는 자기 폭 그대로라 top 뷰포트에 항상
+  // 완전히 들어, 원래의 제외 논거가 성립하지 않는다(모드 ON에서 고르는 요소는 전부 래퍼 안이다).
+  if (!msg.expandContext || !allowsContextExpansion()) {
     return { ...base, rect: elementRect, contextSelector: null };
   }
   // != null — 빈 문자열을 "판정한 적 없음"으로 뭉개면 before가 확장에 성공했는데도
@@ -486,10 +550,11 @@ function handlePrepareCaptureBySelector(
   }
   const target = el;
   // 확장 판정은 live 참조 없이도 성립한다 — selector로 찾은 요소가 곧 포함 검증의 target이다.
-  // iframe은 handlePrepareCapture와 같은 이유(게이트가 자기 뷰포트 기준)로 확장하지 않는다.
+  // 일반 iframe은 handlePrepareCapture와 같은 이유(게이트가 자기 뷰포트 기준)로 확장하지 않고,
+  // 디바이스 뷰포트 래퍼만 같은 이유로 예외다(동명 주석 참조).
   const saved = msg.contextSelector;
   let container: Element | null = null;
-  if (msg.expandContext && saved != null && window === window.top) {
+  if (msg.expandContext && saved != null && allowsContextExpansion()) {
     try {
       container = document.querySelector(saved);
     } catch {

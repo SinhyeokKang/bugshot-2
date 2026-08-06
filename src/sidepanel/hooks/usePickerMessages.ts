@@ -8,6 +8,7 @@ import { captureElementSnapshot, cropImage } from "@/sidepanel/capture";
 import { clearPicker, collectTokens, getTopViewport, isCurrentPickerSession, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, releaseDetachedSelection, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
+import { resolveCaptureViewport } from "@/sidepanel/lib/capture-viewport";
 import { shouldPreserveBackgroundLogs } from "@/sidepanel/hooks/useBackgroundRecorder";
 import { createLogPersistGuard } from "@/sidepanel/lib/log-persist-guard";
 import { shouldDropPreArmEntry } from "@/sidepanel/lib/log-prearm-filter";
@@ -269,7 +270,9 @@ export function usePickerMessages(myTabId: number | null): void {
         const msg = message as Extract<BgInternalMessage, { type: "frameCommitted" }>;
         if (isForeignTabMessage(myTabId, msg.tabId)) return;
         if (msg.documentId) currentFrameDocuments.set(msg.frameId, msg.documentId);
-        rebroadcastSentinelsToFrame(msg.tabId, msg.frameId);
+        // documentId를 함께 넘긴다 — 모드 ON에서 sentinel 게이트가 이 값으로 래퍼 서브트리
+        // 소속을 판정한다(없으면 fail-closed로 발행하지 않는다).
+        rebroadcastSentinelsToFrame(msg.tabId, msg.frameId, msg.documentId);
         // picking 중 네비게이션된 iframe의 새 picker는 idle — 재시작하지 않으면 stale
         // registry 핸드오프로 클릭이 선택 없이 iframe 페이지에 유실된다.
         if (useEditorStore.getState().phase === "picking") {
@@ -420,17 +423,31 @@ async function captureElementShot(
   void clearPicker(tabId);
 }
 
-async function captureAndCrop(rect: ViewportRect, viewport: { width: number; height: number }): Promise<void> {
+/**
+ * **크롭 배율용 viewport와 메타용 viewport는 다르다.** 크롭은 top 기준이어야 정확하고
+ * (`img.naturalWidth / cropViewport.width`), 재현 환경 `Viewport` 행에 남을 메타는 캡처 대상
+ * 뷰포트(디바이스 모드면 래퍼 폭)여야 한다. 모드 OFF에서는 두 값이 같아 결과가 이전과 동일하다.
+ *
+ * 아래 `captureAndInsertInline`은 `cropImage`만 쓰고 메타를 안 써서 시그니처가 비대칭이다 —
+ * 본문 인라인 이미지는 재현 환경 행에 닿지 않기 때문이고, 대칭으로 맞추면 쓰지도 않는 값을
+ * 위해 주입 왕복을 한 번 더 돌게 된다.
+ */
+export async function captureAndCrop(
+  rect: ViewportRect,
+  cropViewport: { width: number; height: number },
+): Promise<void> {
   try {
     const tabId = useEditorStore.getState().target?.tabId;
     if (!tabId) return;
     const dataUrl = await sendBg<string>({ type: "captureVisibleTab", tabId });
-    const cropped = await cropImage(dataUrl, rect, viewport);
+    const cropped = await cropImage(dataUrl, rect, cropViewport);
+    // 조회는 크롭 뒤에 둔다 — captureVisibleTab 앞에 주입 왕복을 끼우면 캡처가 그만큼 늦는다.
+    const metaViewport = resolveCaptureViewport(await getTopViewport(tabId), cropViewport);
     // 캡처는 background 큐를 거쳐 수백 ms 걸린다 — 그 사이 취소·세션 만료·탭 변경으로 세션이
     // 바뀌었으면 결과를 버린다(target 없는 유령 drafting 방지).
     const s = useEditorStore.getState();
     if (s.phase !== "capturing" || s.target?.tabId !== tabId) return;
-    s.onAreaCaptured(cropped, viewport);
+    s.onAreaCaptured(cropped, metaViewport);
   } catch (err) {
     if (!maybeSurfacePermissionExpired(err)) {
       console.error("[bugshot] capture and crop failed", err);

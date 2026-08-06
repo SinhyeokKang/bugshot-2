@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ViewportRect } from "@/types/picker";
 
-const deviceFrameRect = vi.fn<[], ViewportRect | null>(() => null);
+const deviceFrameRect = vi.fn<() => ViewportRect | null>(() => null);
 
 vi.mock("../device-frame", async () => {
   const actual = await vi.importActual<typeof import("../device-frame")>("../device-frame");

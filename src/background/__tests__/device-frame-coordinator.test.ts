@@ -203,6 +203,40 @@ describe("decideDeviceSignal — 성공·차단·handoff가 경쟁하지 않는�
     }
   });
 
+  // CSP frame-src가 삽입 자체를 막으면 webNavigation 이벤트가 하나도 안 오고 브라우저가
+  // about:blank에 load만 쏜다 — 이게 없으면 3초 타임아웃 말고는 신호가 없다.
+  it("arm 창 안에서 래퍼가 about:blank로 load되면 즉시 frameBlocked다", () => {
+    const res = decideDeviceSignal(state({ armed: true }), {
+      kind: "frameLoadEvent",
+      sameOriginHref: "about:blank",
+    });
+    expect(res.push).toEqual({ type: "frameBlocked" });
+  });
+
+  it("load된 문서가 top URL이면 무발화다 (성공을 중복 선언하지 않는다)", () => {
+    const res = decideDeviceSignal(state({ armed: true }), {
+      kind: "frameLoadEvent",
+      sameOriginHref: TOP,
+    });
+    expect(res.push).toBeNull();
+  });
+
+  it("binding이 이미 확정된 뒤의 load는 무발화다", () => {
+    const res = decideDeviceSignal(
+      state({ armed: true, binding: { frameId: 7, documentId: "d1" } }),
+      { kind: "frameLoadEvent", sameOriginHref: "about:blank" },
+    );
+    expect(res.push).toBeNull();
+  });
+
+  it("cross-origin이라 읽을 수 없는 load(null)는 무발화다 — handoff 경로가 따로 잡는다", () => {
+    const res = decideDeviceSignal(state({ armed: true }), {
+      kind: "frameLoadEvent",
+      sameOriginHref: null,
+    });
+    expect(res.push).toBeNull();
+  });
+
   it("판정이 끝나면 arm 창이 닫힌다 (뒤늦은 타임아웃이 성공을 롤백하지 못한다)", () => {
     const res = decideDeviceSignal(armedWithTarget(), {
       kind: "frameReady",

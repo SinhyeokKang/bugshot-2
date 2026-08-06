@@ -8,6 +8,7 @@ import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useUnsupportedTab } from "@/sidepanel/hooks/tab-support-context";
 import { startFreeformDraft, syncNetworkRecorder, syncConsoleRecorder, syncActionRecorder } from "@/sidepanel/picker-control";
+import { DeviceViewportBar } from "@/sidepanel/components/DeviceViewportBar";
 import { IssueTab } from "./IssueTab";
 import { ConsoleSubTab } from "./ConsoleSubTab";
 import { NetworkSubTab } from "./NetworkSubTab";
@@ -91,6 +92,10 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
               </Badge>
             </TabsTrigger>
           </CollapsingTabsList>
+          {/* 서브탭 바 wrapper 안쪽에 mt-2로 넣는다 — 별도 bordered 행을 만들면 상단 크롬이
+              138→207px가 되는데, idle 화면은 PageScroll을 안 쓰고 justify-center + 조상
+              overflow-hidden이라 밀리는 게 아니라 위아래가 잘린다. */}
+          {sub === "issue" && <DeviceViewportBar tabId={tabId ?? null} />}
         </div>
       )}
 

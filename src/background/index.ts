@@ -18,6 +18,14 @@ import { pruneOrphanPendingLogsOncePerSession } from "@/lib/pending-log-prune";
 import { shouldClearLogs } from "@/lib/navigation-clear";
 import type { BgInternalMessage } from "@/types/messages";
 import { activateTab, setupTabBindings, shouldPreserveSession, stopRecorders } from "./tab-bindings";
+import {
+  applyDeviceSignal,
+  clearDeviceFrame,
+  enqueueForTab,
+  getDeviceFrame,
+  isTopLikeFrame,
+  trackCommittedUrl,
+} from "./device-frame-coordinator";
 
 initBgLocale();
 void pruneOrphanPendingLogsOncePerSession();
@@ -117,72 +125,141 @@ chrome.runtime.onConnect.addListener((port) => {
 // onBeforeNavigate: 떠나는 페이지의 MAIN 버퍼를 sync해 사이드패널에 넘긴다.
 // onCommitted: cross-origin 또는 reload이면 사이드패널 로그를 초기화(DevTools UX).
 //              same-origin 내부 이동은 로그를 보존해 멀티페이지 디버깅에 활용.
-const navUrlPromise = new Map<number, Promise<string>>();
+//
+// 디바이스 뷰포트 모드에서는 **래퍼 frameId를 top처럼 취급한다** — 래퍼가 이동해도 top URL은
+// 안 바뀌므로 그대로 두면 래퍼 안의 이동이 이 그물을 통째로 통과해, 같은 조작인데 모드
+// ON/OFF에서 로그 범위가 달라진다. 단 그 취급은 **로그 라이프사이클에만** 적용하고
+// frameCommitted push는 언제나 실제 frameId로 보낸다(아래 주석 참조).
+//
+// 키가 `tabId:frameId`인 이유: tabId 단일 키면 top과 래퍼가 겹쳐 navigate할 때 엔트리가
+// 서로를 덮는다. 래퍼의 prev URL은 tabs.get이 아니라 직전 onCommitted URL로 추적한다.
+const navUrlPromise = new Map<string, Promise<string>>();
+
+function navKey(tabId: number, frameId: number): string {
+  return `${tabId}:${frameId}`;
+}
+
+const RECORDER_SYNC_TYPES = [
+  "networkRecorder.sync",
+  "consoleRecorder.sync",
+  "actionRecorder.sync",
+] as const;
 
 chrome.webNavigation.onBeforeNavigate.addListener((details) => {
-  if (details.frameId !== 0) return;
-  navUrlPromise.set(
-    details.tabId,
-    chrome.tabs.get(details.tabId).then((tab) => tab.url ?? "").catch(() => ""),
-  );
-  const key = sessionKey(details.tabId);
-  void chrome.storage.session.get(key).then((stored) => {
+  const { tabId, frameId, parentFrameId, url } = details;
+  if (frameId === 0) {
+    // prev URL 스냅샷은 동기로 잡는다 — 큐에 넣으면 커밋 뒤에 읽어 새 URL이 prev가 된다.
+    navUrlPromise.set(
+      navKey(tabId, 0),
+      chrome.tabs.get(tabId).then((tab) => tab.url ?? "").catch(() => ""),
+    );
+  }
+  void enqueueForTab(tabId, async () => {
+    await applyDeviceSignal(tabId, { kind: "beforeNavigate", frameId, parentFrameId, url });
+    if (!isTopLikeFrame(getDeviceFrame(tabId), frameId)) return;
+    const key = sessionKey(tabId);
+    const stored = await chrome.storage.session.get(key).catch(() => ({}) as Record<string, unknown>);
     if (stored[key] == null) return;
-    chrome.tabs
-      .sendMessage(details.tabId, { type: "networkRecorder.sync" })
-      .catch(() => {});
-    chrome.tabs
-      .sendMessage(details.tabId, { type: "consoleRecorder.sync" })
-      .catch(() => {});
-    chrome.tabs
-      .sendMessage(details.tabId, { type: "actionRecorder.sync" })
-      .catch(() => {});
+    for (const type of RECORDER_SYNC_TYPES) {
+      chrome.tabs.sendMessage(tabId, { type }).catch(() => {});
+    }
   });
 });
 
 chrome.webNavigation.onCommitted.addListener((details) => {
-  const key = sessionKey(details.tabId);
-  if (details.frameId !== 0) {
-    // 캡처 시작 이후 생성·커밋된 iframe: 활성 세션이 있으면 sidepanel에 알려 보유 sentinel을
-    // 그 프레임에 재발행 → 정적 주입만으론 못 받는 'broadcast 이후 iframe'을 활성화한다.
-    void chrome.storage.session
-      .get(key)
-      .then((stored) => {
-        if (stored[key] == null) return;
+  const { tabId, frameId, documentId, url, transitionType } = details;
+  const key = sessionKey(tabId);
+  void enqueueForTab(tabId, async () => {
+    // documentId 없는 커밋(구형 이벤트)은 binding을 만들 수 없어 판정에서 제외한다 —
+    // 빈 documentId로 등록하면 문서 열거에서 걸러져 deviceTree가 조용히 빈다.
+    if (documentId) {
+      await applyDeviceSignal(tabId, { kind: "committed", frameId, documentId, url });
+    }
+    const binding = getDeviceFrame(tabId);
+
+    if (frameId !== 0) {
+      // 캡처 시작 이후 생성·커밋된 iframe: 활성 세션이 있으면 sidepanel에 알려 보유 sentinel을
+      // 그 프레임에 재발행 → 정적 주입만으론 못 받는 'broadcast 이후 iframe'을 활성화한다.
+      // **래퍼도 이 분기를 그대로 탄다.** 아래 top 분기의 하드코딩 frameId: 0으로 보내면
+      // 래퍼 documentId가 0 슬롯에 들어가 이후 진짜 top의 picker.selected/cancelled/
+      // areaSelected가 전부 isStalePickerDocument에 걸려 드롭된다(완전 무반응 회귀).
+      const stored = await chrome.storage.session.get(key).catch(() => ({}) as Record<string, unknown>);
+      if (stored[key] != null) {
         chrome.runtime
           .sendMessage({
             type: "frameCommitted",
-            tabId: details.tabId,
-            frameId: details.frameId,
-            documentId: details.documentId,
+            tabId,
+            frameId,
+            documentId,
           } satisfies BgInternalMessage)
           .catch(() => {});
-      })
-      .catch(() => {});
-    return;
-  }
-  // top navigation도 이전 document에서 큐잉된 picker lifecycle을 documentId gate로
-  // 차단해야 한다. storage 조회를 기다리지 않고 commit 순서대로 먼저 알린다.
-  chrome.runtime
-    .sendMessage({
-      type: "frameCommitted",
-      tabId: details.tabId,
-      frameId: 0,
-      documentId: details.documentId,
-    } satisfies BgInternalMessage)
-    .catch(() => {});
-  const urlPromise = navUrlPromise.get(details.tabId);
-  navUrlPromise.delete(details.tabId);
-  void Promise.all([
-    urlPromise ?? Promise.resolve(""),
-    chrome.storage.session.get(key),
-  ]).then(([prev, stored]) => {
-    if (stored[key] == null) return;
-    if (!shouldClearLogs(prev, details.url, details.transitionType)) return;
-    chrome.runtime
-      .sendMessage({ type: "logClear", tabId: details.tabId } satisfies BgInternalMessage)
-      .catch(() => {});
+      }
+    } else {
+      // top navigation도 이전 document에서 큐잉된 picker lifecycle을 documentId gate로
+      // 차단해야 한다. storage 조회를 기다리지 않고 commit 순서대로 먼저 알린다.
+      chrome.runtime
+        .sendMessage({
+          type: "frameCommitted",
+          tabId,
+          frameId: 0,
+          documentId,
+        } satisfies BgInternalMessage)
+        .catch(() => {});
+    }
+
+    // 여기서부터가 로그 라이프사이클 — 래퍼를 top처럼 취급하는 유일한 축이다.
+    if (isTopLikeFrame(binding, frameId)) {
+      const prev =
+        frameId === 0
+          ? await (navUrlPromise.get(navKey(tabId, 0)) ?? Promise.resolve(""))
+          : trackCommittedUrl(tabId, frameId, url);
+      if (frameId === 0) navUrlPromise.delete(navKey(tabId, 0));
+      const stored = await chrome.storage.session.get(key).catch(() => ({}) as Record<string, unknown>);
+      if (stored[key] != null && shouldClearLogs(prev, url, transitionType)) {
+        chrome.runtime
+          .sendMessage({ type: "logClear", tabId } satisfies BgInternalMessage)
+          .catch(() => {});
+      }
+    }
+
+    // top 문서가 갈리면 래퍼도 함께 사라진다 — binding을 남기면 다음 판정이 유령 frameId를
+    // 래퍼로 취급한다. 재수립은 사이드패널이 pending으로 다시 세운다.
+    if (frameId === 0) await clearDeviceFrame(tabId);
   });
+});
+
+// 감시창 안이면 차단(frameBlocked), 밖이면 유지 중 차단이라 handoff와 같은 경로로 top을
+// 내보낸다 — 안 하면 모드 유지 중 XFO 사이트에 도달했을 때 백지에 방치된다.
+chrome.webNavigation.onErrorOccurred.addListener((details) => {
+  const { tabId, frameId, url } = details;
+  void enqueueForTab(tabId, () =>
+    applyDeviceSignal(tabId, { kind: "errorOccurred", frameId, url }),
+  );
+});
+
+// device.frameReady는 요청/응답이 아니라 push다 — BG_REQUEST_TYPES 화이트리스트가 막고
+// (등록 누락으로 Asana가 런타임 전량 차단된 회귀 전례), handleMessage는 sender를 아예 안
+// 읽는다. 래퍼 frameId를 sender에서 얻어야 하므로 전용 리스너를 따로 단다.
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (!message || typeof message !== "object") return false;
+  const tabId = sender.tab?.id;
+  if (tabId == null) return false;
+  if (message.type === "device.frameReady") {
+    const frameId = sender.frameId;
+    const documentId = sender.documentId;
+    if (frameId == null || frameId === 0 || !documentId) return false;
+    void enqueueForTab(tabId, () =>
+      applyDeviceSignal(tabId, { kind: "frameReady", frameId, documentId }),
+    );
+    return false;
+  }
+  if (message.type === "device.frameLoadEvent") {
+    const { sameOriginHref } = message as { sameOriginHref: string | null };
+    void enqueueForTab(tabId, () =>
+      applyDeviceSignal(tabId, { kind: "frameLoadEvent", sameOriginHref }),
+    );
+  }
+  return false;
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
