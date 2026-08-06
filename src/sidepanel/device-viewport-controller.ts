@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import { t } from "@/i18n";
+import { isSupportedUrl } from "@/lib/url-support";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { sendBg, type BgInternalMessage } from "@/types/messages";
@@ -22,6 +23,7 @@ import { isPresetAvailable } from "./lib/device-presets";
 import {
   decideReestablish,
   dropPending,
+  isDeviceModeLocked,
   noteReestablish,
   putPending,
   resetLoopGuard,
@@ -30,9 +32,14 @@ import {
 } from "./lib/device-mode";
 
 /**
- * 디바이스 뷰포트 모드의 오케스트레이션. **모듈 스코프 단일 인스턴스다** — `useDeviceViewport`가
- * `DeviceViewportBar`와 `App.tsx`의 다이얼로그 분기에서 두 번 마운트되므로, 훅 인스턴스가
- * 오케스트레이션을 소유하면 top 커밋 한 번에 재수립이 2회 발사되고 루프 임계를 각각 절반씩 센다.
+ * 디바이스 뷰포트 모드의 오케스트레이션. **모듈 스코프 단일 인스턴스다.**
+ *
+ * 이유는 수명이다 — 유일한 UI 소비자인 `DeviceViewportBar`는 `hideSubTabs`(styling·drafting·
+ * previewing·done)에서 언마운트되는데, **재수립이 가장 필요한 구간이 정확히 거기다**(작성 중
+ * handoff). 오케스트레이션을 그 컴포넌트 수명에 매달면 `device.handoff`·`frameCommitted` push가
+ * 통째로 드롭돼 "phase 잠금을 우회한다"는 계약이 실행 경로상 도달 불가가 된다. 그래서 push
+ * 리스너는 패널 루트(`App.tsx`)가 열고 닫고, 가용 폭 구독(`device.watch`)만 Bar 수명을 따른다.
+ *
  * 사이드패널 문서는 탭 하나에 바인딩되므로 싱글턴이 곧 탭 스코프다.
  */
 interface DeviceViewportSnapshot {
@@ -60,7 +67,6 @@ export const useDeviceViewportStore = create<DeviceViewportSnapshot>(() => ({
 const VERDICT_TIMEOUT_MS = 3000;
 
 let subscribers = 0;
-let listening = false;
 /** handoff는 "실패"가 아니라 "top이 옮겨간다"다 — 롤백을 돌리면 방금 세운 pending을 지운다. */
 type Verdict = { ok: true; frameId: number } | { ok: false; handoff?: boolean };
 
@@ -74,6 +80,27 @@ function set(patch: Partial<DeviceViewportSnapshot>): void {
 
 function snap(): DeviceViewportSnapshot {
   return useDeviceViewportStore.getState();
+}
+
+// 전이는 await를 여럿 낀다 — 그 사이 바인딩 탭이 갈리면 남은 단계가 엉뚱한 탭을 건드린다
+// (성공한 래퍼를 unmount + reload 시키는 롤백이 대표적이다).
+function stillOn(tabId: number): boolean {
+  return snap().tabId === tabId;
+}
+
+// 진행 중인 전이가 노리는 폭. store의 width는 device.set 응답 전까지 아직 옛 값이라,
+// 즉시 cross-origin으로 밀리는 사이트의 handoff가 그 창에 도착하면 폭을 알 길이 없다.
+// 소유권 토큰을 함께 둔다 — 겹친 전이에서 먼저 끝난 쪽이 남의 값을 null로 지우지 않게.
+let attemptingWidth: number | null = null;
+let attemptToken = 0;
+
+function beginAttempt(width: number): number {
+  attemptingWidth = width;
+  return ++attemptToken;
+}
+
+function endAttempt(token: number): void {
+  if (attemptToken === token) attemptingWidth = null;
 }
 
 /* ── 로그 경계 ──────────────────────────────────────────────── */
@@ -151,7 +178,7 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
   const state = snap();
   const tabId = state.tabId;
   if (tabId == null) return;
-  if (isLocked() || state.busy) return; // 카운터도 안 건드린다
+  if (isDeviceViewportLocked() || state.busy) return; // 카운터도 안 건드린다
 
   // 사용자 조작이 "정상 사용 중" 신호다.
   resetLoopGuard(tabId);
@@ -170,6 +197,7 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
     dropPending(tabId);
     set({ busy: true });
     const res = await deviceSet(tabId, null);
+    if (!stillOn(tabId)) return;
     set({ busy: false, width: res?.width ?? null, availableWidth: res?.available.width ?? state.availableWidth });
     return;
   }
@@ -179,6 +207,7 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
   if (path === "resize") {
     set({ busy: true });
     const res = await deviceSet(tabId, width);
+    if (!stillOn(tabId)) return;
     set({ busy: false });
     if (!res?.ok) {
       await rollbackToFull(tabId, t("issue.device.blocked"));
@@ -199,6 +228,7 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
 
 async function runOffToOn(tabId: number, width: number): Promise<void> {
   set({ busy: true });
+  const token = beginAttempt(width);
   try {
     // 떠나는 페이지 로그 꼬리를 누적기에 밀어넣는다.
     await syncAndSettleLogs(tabId);
@@ -209,26 +239,30 @@ async function runOffToOn(tabId: number, width: number): Promise<void> {
     // 보면 send가 실패를 undefined로 삼키므로 전달 실패가 성공으로 샌다.
     if (!res?.ok) {
       await arm(tabId, false);
-      await rollbackToFull(tabId, t("issue.device.blocked"));
+      if (stillOn(tabId)) await rollbackToFull(tabId, t("issue.device.blocked"));
       return;
     }
+    if (!stillOn(tabId)) return;
     set({ width: res.width, availableWidth: res.available.width });
 
     const verdict = await waitForVerdict();
     await arm(tabId, false);
+    if (!stillOn(tabId)) return;
     if (!verdict.ok) {
       // handoff면 top이 이미 옮겨가는 중이라 롤백하지 않는다 — 재수립이 뒤를 잇는다.
       if (!verdict.handoff) await rollbackToFull(tabId, t("issue.device.blocked"));
       return;
     }
     const activated = await finishActivation(tabId, verdict.frameId);
+    if (!stillOn(tabId)) return;
     if (!activated) {
       await rollbackToFull(tabId, t("issue.device.blocked"));
       return;
     }
     putPending(tabId, width);
   } finally {
-    set({ busy: false });
+    endAttempt(token);
+    if (stillOn(tabId)) set({ busy: false });
   }
 }
 
@@ -239,12 +273,8 @@ async function runOffToOn(tabId: number, width: number): Promise<void> {
  */
 async function reestablish(tabId: number, width: number, url: string): Promise<void> {
   // 게이트를 먼저 본다 — 거부된 시도까지 세면 busy가 겹칠 때 루프 임계가 헛되이 오른다.
-  const gate = decideReestablish({
-    phase: useEditorStore.getState().phase,
-    unsupported: unsupportedTab,
-    busy: snap().busy,
-    loop: false,
-  });
+  // phase는 넘기지 않는다 — 재수립이 phase로 막히지 않는다는 계약이 그 부재로 표현된다.
+  const gate = decideReestablish({ unsupported: unsupportedTab, busy: snap().busy });
   if (gate.action === "reject") {
     // busy 거부는 실패가 아니다 — 되돌려놓지 않으면 select()가 도는 중에 온 top 커밋에서
     // 모드가 조용히 유실된다.
@@ -263,19 +293,22 @@ async function reestablish(tabId: number, width: number, url: string): Promise<v
   }
 
   set({ busy: true });
+  const token = beginAttempt(width);
   try {
     // 재수립은 syncAndSettleLogs를 안 한다 — 떠나는 문서가 이미 없다. 1회 경고도 안 띄운다.
     await arm(tabId, true);
     const res = await deviceSet(tabId, width);
     if (!res?.ok) {
       await arm(tabId, false);
-      await rollbackToFull(tabId, t("issue.device.blocked"));
+      if (stillOn(tabId)) await rollbackToFull(tabId, t("issue.device.blocked"));
       return;
     }
+    if (!stillOn(tabId)) return;
     set({ width: res.width, availableWidth: res.available.width });
 
     const loaded = await waitForVerdict();
     await arm(tabId, false);
+    if (!stillOn(tabId)) return;
     if (!loaded.ok) {
       if (!loaded.handoff) await rollbackToFull(tabId, t("issue.device.blocked"));
       return;
@@ -284,13 +317,15 @@ async function reestablish(tabId: number, width: number, url: string): Promise<v
     // 있을 때만 발화해서, 패널을 막 열고 첫 로그 전이면 안 돈다. 두 번 비워도 둘 다
     // start ACK 전이라 무해하다.
     const activated = await finishActivation(tabId, loaded.frameId);
+    if (!stillOn(tabId)) return;
     if (!activated) {
       await rollbackToFull(tabId, t("issue.device.blocked"));
       return;
     }
     putPending(tabId, width);
   } finally {
-    set({ busy: false });
+    endAttempt(token);
+    if (stillOn(tabId)) set({ busy: false });
   }
 }
 
@@ -302,8 +337,16 @@ const TOAST_ONLY_PHASES = new Set(["recording", "previewing", "done"]);
 async function onHandoff(tabId: number, url: string): Promise<void> {
   // handoff는 재수립을 직접 하지 않는다 — pending을 세팅하고 top을 옮기는 것까지가 책임이고,
   // 실제 재수립은 top onCommitted 한 지점이 맡는다.
-  const width = snap().width;
+  const width = snap().width ?? attemptingWidth;
   if (width == null) return;
+  // 래퍼가 data:·about:·blob:로 커밋·에러난 경우까지 top 네비게이션 대상으로 삼지 않는다.
+  // handoff 플래그로 끊어야 인플라이트 전이가 자기 롤백을 또 돌지 않는다(이중 reload·토스트 2개).
+  if (!isSupportedUrl(url)) {
+    settleVerdict({ ok: false, handoff: true });
+    await arm(tabId, false);
+    if (stillOn(tabId)) await rollbackToFull(tabId, t("issue.device.blocked"));
+    return;
+  }
   // 진행 중인 select의 판정 대기를 handoff로 끊는다 — 평범한 실패로 끊으면 그 select가
   // 롤백을 돌려 아래에서 세울 pending을 먼저 지운다.
   settleVerdict({ ok: false, handoff: true });
@@ -378,8 +421,8 @@ export function setDeviceViewportUnsupported(value: boolean): void {
   }
 }
 
-function isLocked(): boolean {
-  return useEditorStore.getState().phase !== "idle" || unsupportedTab;
+function isDeviceViewportLocked(): boolean {
+  return isDeviceModeLocked(useEditorStore.getState().phase, unsupportedTab);
 }
 
 async function syncFromPage(tabId: number): Promise<void> {
@@ -397,31 +440,46 @@ async function syncFromPage(tabId: number): Promise<void> {
       tabId,
     }));
   } catch {
+    // 열거 실패면 엇갈림 여부를 판정할 수 없다 — 재수립을 추측으로 발사하지 않는다.
     return;
   }
-  if (deviceTree.length > 0 || snap().tabId !== tabId) return;
+  if (deviceTree.length > 0 || !stillOn(tabId)) return;
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   await reestablish(tabId, state.width, tab?.url ?? "");
 }
 
-/** 훅이 마운트마다 부른다. refcount라 마지막 구독자가 사라질 때만 watch를 끊는다. */
+/**
+ * **패널 루트에서 한 번만 부른다.** push 리스너 수명이 곧 재수립 가능 구간이라, 조건부로
+ * 렌더되는 컴포넌트에 매달면 작성 중 handoff가 통째로 유실된다.
+ */
 export function attachDeviceViewport(tabId: number): () => void {
+  set({ tabId, width: null, availableWidth: null, busy: false, expiredByHandoff: false });
+  chrome.runtime.onMessage.addListener(handleMessage);
+  // 만료 다이얼로그가 닫히면 handoff 표시도 함께 내린다 — 안 내리면 handoff 1회 뒤의
+  // 평범한 세션 만료까지 계속 디바이스 모드 문구로 뜬다.
+  const unsubscribe = useEditorStore.subscribe((state, prev) => {
+    if (prev.sessionExpired && !state.sessionExpired) set({ expiredByHandoff: false });
+  });
+  void syncFromPage(tabId);
+  return () => {
+    chrome.runtime.onMessage.removeListener(handleMessage);
+    unsubscribe();
+    dropPending(tabId);
+    set({ tabId: null });
+  };
+}
+
+/**
+ * 가용 폭 구독. 세그먼트가 화면에 있을 때만 필요하므로 Bar 수명을 따른다 — 모드를 안 쓰는
+ * 탭에서 페이지 resize마다 push가 오는 것을 막는다. refcount인 이유는 구독자가 늘어날 여지가
+ * 아니라, 리마운트에서 unmount(새)→mount(옛) 순서가 뒤집혀도 watch가 안 끊기게 하려는 것이다.
+ */
+export function watchAvailableWidth(tabId: number): () => void {
   subscribers += 1;
-  if (snap().tabId !== tabId) {
-    set({ tabId, width: null, availableWidth: null, busy: false, expiredByHandoff: false });
-  }
-  if (!listening) {
-    listening = true;
-    chrome.runtime.onMessage.addListener(handleMessage);
-    void deviceWatch(tabId, true);
-    void syncFromPage(tabId);
-  }
+  if (subscribers === 1) void deviceWatch(tabId, true);
   return () => {
     subscribers -= 1;
-    if (subscribers > 0) return;
-    listening = false;
-    chrome.runtime.onMessage.removeListener(handleMessage);
-    void deviceWatch(tabId, false);
+    if (subscribers === 0) void deviceWatch(tabId, false);
   };
 }
 

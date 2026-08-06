@@ -1,10 +1,10 @@
 /**
  * 디바이스 뷰포트 모드의 전이 판정과, 전이를 넘어 살아남아야 하는 최소 상태.
  *
- * **pending과 루프 카운터가 훅이 아니라 여기 모듈 스코프에 있는 이유**: `useDeviceViewport`는
- * `DeviceViewportBar`와 `App.tsx`의 다이얼로그 분기에서 **두 번 마운트된다.** 훅 상태에 두면
- * 인스턴스마다 pending을 갖게 되어 top 커밋 한 번에 재수립이 2회 발사되고 루프 임계를 각각
- * 절반씩 센다 — "호출 지점 2개 고정"이 인스턴스 축에서 깨진다.
+ * **pending과 루프 카운터가 훅이 아니라 여기 모듈 스코프에 있는 이유**: 이 둘은 세그먼트 행이
+ * 화면에서 사라진 뒤에도 살아 있어야 한다. 행은 작성 플로우(styling~done)에서 언마운트되는데
+ * top 문서 교체는 바로 그 구간에도 일어나고, 그때 폭을 나르는 게 pending이다. 훅 상태에 두면
+ * 행이 사라지는 순간 모드가 조용히 유실된다.
  *
  * **pending은 인메모리다.** 개요의 "상태를 어디에 두지 않을 것인가"와 표면상 충돌하므로 세
  * 조건을 명시한다: ① chrome.storage에 영속하지 않는다 ② 매 top 커밋마다 실제 re-mount로
@@ -29,6 +29,15 @@ export function resolveSelectPath(
   return "resize";
 }
 
+/**
+ * 세그먼트 잠금식의 단일 출처. 훅(렌더)과 오케스트레이터(실행)가 각자 계산하면 한쪽만 바뀌었을
+ * 때 버튼은 눌리는데 `select()`가 무음 거부하는 desync가 된다.
+ * 미지원 탭은 행 자체가 미렌더지만, 같은 훅을 쓰는 `App.tsx` 분기 때문에 축은 유지한다.
+ */
+export function isDeviceModeLocked(phase: string, unsupported: boolean): boolean {
+  return phase !== "idle" || unsupported;
+}
+
 export type ReestablishVerdict =
   | { action: "run" }
   | { action: "reject"; reason: "busy"; restorePending: true }
@@ -37,22 +46,24 @@ export type ReestablishVerdict =
 /**
  * 재수립은 사용자 조작이 아니라 "이미 벌어진 페이지 사실"에 대한 반응이다.
  *
- * - **phase 축은 우회한다.** `select()`의 잠금은 사용자가 전환을 일으켜 draft·선택 요소·녹화를
- *   깨는 것을 막는 장치다. 재수립에 그대로 적용하면 drafting·recording 중 handoff에서 top만
- *   옮겨가고 래퍼가 안 서는데 세그먼트는 여전히 폭을 가리키는 desync가 된다.
+ * **`phase`를 인자로 받지 않는 것 자체가 계약이다.** `select()`의 잠금은 사용자가 전환을
+ * 일으켜 draft·선택 요소·녹화를 깨는 것을 막는 장치인데, 재수립에 그대로 적용하면
+ * drafting·recording 중 handoff에서 top만 옮겨가고 래퍼가 안 서는데 세그먼트는 여전히 폭을
+ * 가리키는 desync가 된다. 인자로 받아놓고 안 읽으면 그 계약을 검증하는 테스트가 공허해진다.
+ *
  * - **unsupported 축은 우회하지 않는다.** locked가 두 축이라 뭉뚱그리면 미지원 URL에서도
  *   재수립을 시도하게 되고 폐기 조건 "미지원 URL 도달"과 충돌한다.
  * - **busy 거부는 실패가 아니다.** 소비한 pending을 되돌려놓지 않으면 `select()`가 도는 중에
  *   온 top 커밋에서 모드가 조용히 유실된다.
+ *
+ * 루프 판정은 여기 없다 — 거부된 시도까지 세면 임계가 헛되이 오르므로, 이 게이트를 통과한
+ * 뒤에 `noteReestablish`가 따로 센다.
  */
 export function decideReestablish(input: {
-  phase: string;
   unsupported: boolean;
   busy: boolean;
-  loop: boolean;
 }): ReestablishVerdict {
   if (input.unsupported) return { action: "abandon", reason: "unsupported" };
-  if (input.loop) return { action: "abandon", reason: "loop" };
   if (input.busy) return { action: "reject", reason: "busy", restorePending: true };
   return { action: "run" };
 }

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Download, FileCode, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Smartphone, Trash2, WandSparkles } from "lucide-react";
+import { Camera, Download, FileCode, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Monitor, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -14,6 +14,7 @@ import {
 } from "@/store/settings-ui-store";
 import { bodyBlocks, type TextIssueSection } from "@/sidepanel/lib/bodyBlocks";
 import { useDeviceViewportStore } from "@/sidepanel/device-viewport-controller";
+import { DEVICE_PRESETS } from "@/sidepanel/lib/device-presets";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
@@ -577,6 +578,8 @@ export function DraftingPanel() {
 function ReproEnvironmentSection() {
   const t = useT();
   const deviceWidth = useDeviceViewportStore((s) => s.width);
+  // 아이콘은 세그먼트 컨트롤과 같은 단일 출처를 쓴다 — 고정하면 768·1024에서 표시가 어긋난다.
+  const DeviceIcon = DEVICE_PRESETS.find((p) => p.width === deviceWidth)?.icon ?? Monitor;
   const target = useEditorStore((s) => s.target);
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
@@ -724,7 +727,7 @@ function ReproEnvironmentSection() {
             className="flex items-center gap-1.5 text-xs text-muted-foreground"
             data-testid="device-viewport-indicator"
           >
-            <Smartphone className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <DeviceIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>{t("issue.device.indicator", { width: deviceWidth })}</span>
           </div>
         )}

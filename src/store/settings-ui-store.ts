@@ -134,9 +134,6 @@ interface SettingsUiState {
   setDeviceModeWarned: (warned: boolean) => void;
 }
 
-// migrate 분기와 persist 설정이 같은 숫자를 보게 단일 출처로 둔다.
-export const SETTINGS_UI_PERSIST_VERSION = 10;
-
 export function migrateSettingsUi(
   persisted: unknown,
   version: number,
@@ -252,7 +249,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
       // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가, v8: autoReproPrefill 추가, v9: issueSections에 media 엔트리 편입, v10: deviceModeWarned 추가
-      version: SETTINGS_UI_PERSIST_VERSION,
+      version: 10,
       storage: createJSONStorage(() => apiKeyObfuscatingStorage),
       migrate: migrateSettingsUi,
       // migrate는 버전이 다를 때만 돈다 — 동일 버전에서 외부 오염된 배열도 교정하도록 rehydrate에서 재정규화.

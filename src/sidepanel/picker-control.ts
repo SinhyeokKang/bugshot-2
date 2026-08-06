@@ -176,13 +176,35 @@ function forgetSentinel(tabId: number, kind: keyof TabSentinels): void {
 }
 
 // background가 유일한 문서 열거원이다 — 사이드패널은 프레임 트리를 모르고 캐시도 두지 않는다.
-async function fetchDeviceDocuments(tabId: number): Promise<DeviceDocumentsResponse> {
-  try {
-    return await sendBg<DeviceDocumentsResponse>({ type: "device.documents", tabId });
-  } catch {
-    // 조회 실패는 모드 OFF로 접는다 — 기존 broadcast 경로가 곧 폴백이다.
-    return { all: [], deviceTree: [] };
+//
+// 실패는 대개 SW 콜드스타트라 **한 번 재시도한다.** 그래도 실패하면 빈 배열을 돌려 기존
+// broadcast 경로로 떨어진다(fail-open): 모드 ON에서 그 라운드만 로그가 2벌이 되고 다음
+// inject에서 정정되는 반면, fail-closed로 접으면 모드 OFF(대다수)에서 레코더가 아예 안 켜져
+// 로그가 통째로 빈다. 조용한 중복이 조용한 공백보다 회복 가능하다.
+// activate 3종은 useBackgroundRecorder가 Promise.all로 동시에 부른다 — 같은 tick의 요청을
+// 하나로 합쳐 SW 왕복과 getAllFrames를 3배로 돌리지 않는다. 캐시가 아니라 in-flight 병합이라
+// "모드 판정을 캐시하지 않는다"는 원칙과 충돌하지 않는다(정착 즉시 슬롯을 비운다).
+const inflightDocuments = new Map<number, Promise<DeviceDocumentsResponse>>();
+
+function fetchDeviceDocuments(tabId: number): Promise<DeviceDocumentsResponse> {
+  const inflight = inflightDocuments.get(tabId);
+  if (inflight) return inflight;
+  const task = requestDeviceDocuments(tabId).finally(() => {
+    inflightDocuments.delete(tabId);
+  });
+  inflightDocuments.set(tabId, task);
+  return task;
+}
+
+async function requestDeviceDocuments(tabId: number): Promise<DeviceDocumentsResponse> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await sendBg<DeviceDocumentsResponse>({ type: "device.documents", tabId });
+    } catch {
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 100));
+    }
   }
+  return { all: [], deviceTree: [] };
 }
 
 /**
@@ -866,9 +888,11 @@ export async function activateRecordersInDeviceTree(
   const { all, deviceTree } = await fetchDeviceDocuments(tabId);
   if (deviceTree.length === 0) return false;
 
+  // stop 실패는 전이를 깨지 않는다 — 열거와 송신 사이에 이동한 문서는 애초에 그 레코더가
+  // 죽었고, 새 문서는 frameCommitted → 게이트가 다시 판정한다. 여기서 실패로 접으면 광고
+  // 프레임 하나의 타이밍으로 정상 로드된 래퍼까지 롤백된다.
   const stops = RECORDER_KINDS.map((kind) => ({ type: `${kind}.stop` }) as PickerMessage);
-  const stopped = await Promise.all(all.map((documentId) => ackDocument(tabId, documentId, stops)));
-  if (stopped.some((ok) => !ok)) return false;
+  await Promise.all(all.map((documentId) => ackDocument(tabId, documentId, stops)));
 
   clearLogs();
 

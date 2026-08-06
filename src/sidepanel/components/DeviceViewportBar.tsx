@@ -23,13 +23,16 @@ import { useUnsupportedTab } from "@/sidepanel/hooks/tab-support-context";
 import { useDeviceViewport } from "@/sidepanel/hooks/useDeviceViewport";
 import {
   confirmDeviceWarning,
-  dismissDeviceLoopWarning,
   dismissDeviceWarning,
   useDeviceViewportStore,
 } from "@/sidepanel/device-viewport-controller";
 import { DEVICE_PRESETS, isPresetAvailable } from "@/sidepanel/lib/device-presets";
 
 const FULL = "full";
+
+// DESIGN.md §14의 잠금 표기 — disabled 속성을 못 쓰므로(툴팁이 죽는다) aria-disabled variant로
+// 커서·투명도를 준다. IssueTab·DraftingPanel에도 같은 리터럴이 지역 상수로 있다.
+const lockedClass = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
 /**
  * 뷰포트 폭 세그먼티드 컨트롤.
@@ -46,8 +49,9 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
   const t = useT();
   const unsupported = useUnsupportedTab();
   const { width, availableWidth, locked, busy, select } = useDeviceViewport(tabId);
+  // 진입 경고는 사용자가 이 행을 눌러야 뜨므로 여기 둔다. 반면 루프 경고는 재수립 중에
+  // 뜨는데 재수립은 이 행이 없는 phase에서도 돌므로 패널 루트(App.tsx)가 소유한다.
   const warningWidth = useDeviceViewportStore((s) => s.warningWidth);
-  const loopWarning = useDeviceViewportStore((s) => s.loopWarning);
 
   if (tabId == null || unsupported) return null;
 
@@ -93,7 +97,9 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
         // disabled 속성이 아니라 aria-disabled — shadcn base의 disabled:pointer-events-none이
         // hover·툴팁을 죽인다(DESIGN.md §14).
         aria-disabled={disabled ? true : undefined}
-        className={cn("min-w-0 gap-1.5", disabled && "opacity-50")}
+        // 스피너를 든 세그먼트는 흐리게 만들지 않는다 — 지금 무슨 일이 일어나는지 보여주는
+        // 유일한 표시다(캡처 방식 툴바의 진행 중 버튼과 같은 예외).
+        className={cn("min-w-0 gap-1.5", lockedClass, showSpinner && "aria-disabled:opacity-100")}
       >
         {showSpinner ? (
           <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />
@@ -147,7 +153,12 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
         </Tabs>
       </TooltipProvider>
 
-      <AlertDialog open={warningWidth != null}>
+      <AlertDialog
+        open={warningWidth != null}
+        onOpenChange={(open) => {
+          if (!open) dismissDeviceWarning();
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("issue.device.modeWarning.title")}</AlertDialogTitle>
@@ -166,19 +177,6 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={loopWarning}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("issue.device.loop.title")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("issue.device.loop.body")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={dismissDeviceLoopWarning}>
-              {t("issue.device.loop.confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }

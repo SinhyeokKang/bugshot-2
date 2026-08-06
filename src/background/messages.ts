@@ -132,7 +132,7 @@ import type { GitlabAuth } from "@/types/gitlab";
 import type { AsanaAuth } from "@/types/asana";
 import type { ClickupAuth } from "@/types/clickup";
 import type { SlackAuth } from "@/types/slack";
-import { armDeviceFrame, listTabDocuments } from "./device-frame-coordinator";
+import { armDeviceFrame, enqueueForTab, listTabDocuments } from "./device-frame-coordinator";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
@@ -703,7 +703,12 @@ export async function handleMessage(
             .then((tab) => tab.url ?? "")
             .catch(() => "")
         : "";
-      armDeviceFrame(message.tabId, message.on, topUrl);
+      // 큐 안에서 세워야 한다 — top 커밋 태스크 끝의 clearDeviceFrame이 armedByTab을 통째로
+      // 지우므로, 큐 밖에서 세운 arm이 그 뒤에 닿으면 감시창이 조용히 닫힌 채 3초 침묵 후
+      // "차단" 토스트가 뜬다.
+      await enqueueForTab(message.tabId, () =>
+        armDeviceFrame(message.tabId, message.on, topUrl),
+      );
       return { ok: true };
     }
 

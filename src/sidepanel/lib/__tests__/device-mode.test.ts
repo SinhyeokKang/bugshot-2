@@ -37,52 +37,47 @@ describe("resolveSelectPath — select()가 세 경로로 갈린다", () => {
   });
 });
 
-describe("decideReestablish — 계약의 잠금 축", () => {
-  // 이 태스크의 존재 이유. 거부하면 drafting·recording 중 handoff에서 top만 옮겨가고
-  // 래퍼가 안 서는데 세그먼트는 390을 가리키는 desync가 된다.
-  it("phase 축(locked)을 우회한다 — drafting·recording에서도 실행된다", () => {
-    for (const phase of ["drafting", "styling", "recording", "previewing", "capturing"]) {
-      expect(
-        decideReestablish({ phase, unsupported: false, busy: false, loop: false }),
-      ).toEqual({ action: "run" });
-    }
-  });
-
+// phase 축은 여기 인자가 아니다 — 이 함수가 phase를 아예 안 받는 것이 곧 "재수립은 phase로
+// 막지 않는다"는 계약이다. 인자로 받아놓고 안 읽으면 그 계약을 검증하는 테스트가 공허해진다.
+// 실제 우회 여부는 컨트롤러 테스트(device-viewport-controller.test.ts)가 잡는다.
+describe("decideReestablish — 폐기·거부 축", () => {
   // locked가 phase !== "idle" || unsupported 두 축이라 뭉뚱그리면 미지원 URL에서도
   // 재수립을 시도한다. 폐기 조건이 이긴다.
-  it("unsupported는 우회하지 않는다 — 폐기가 이긴다", () => {
-    expect(
-      decideReestablish({ phase: "idle", unsupported: true, busy: false, loop: false }),
-    ).toEqual({ action: "abandon", reason: "unsupported" });
+  it("unsupported면 폐기한다", () => {
+    expect(decideReestablish({ unsupported: true, busy: false })).toEqual({
+      action: "abandon",
+      reason: "unsupported",
+    });
   });
 
   // 삭제한 채 거부하면 select()가 도는 중에 온 top 커밋에서 모드가 조용히 유실된다.
   it("busy면 거부하되 소비한 pending을 복원하라고 지시한다", () => {
-    expect(
-      decideReestablish({ phase: "idle", unsupported: false, busy: true, loop: false }),
-    ).toEqual({ action: "reject", reason: "busy", restorePending: true });
+    expect(decideReestablish({ unsupported: false, busy: true })).toEqual({
+      action: "reject",
+      reason: "busy",
+      restorePending: true,
+    });
   });
 
-  it("루프 임계 초과면 폐기한다", () => {
-    expect(
-      decideReestablish({ phase: "drafting", unsupported: false, busy: false, loop: true }),
-    ).toEqual({ action: "abandon", reason: "loop" });
+  it("unsupported가 busy보다 먼저 판정된다 (폐기 우선)", () => {
+    expect(decideReestablish({ unsupported: true, busy: true })).toEqual({
+      action: "abandon",
+      reason: "unsupported",
+    });
   });
 
-  it("unsupported가 busy·loop보다 먼저 판정된다 (폐기 우선)", () => {
-    expect(
-      decideReestablish({ phase: "idle", unsupported: true, busy: true, loop: true }),
-    ).toEqual({ action: "abandon", reason: "unsupported" });
+  it("둘 다 아니면 실행한다", () => {
+    expect(decideReestablish({ unsupported: false, busy: false })).toEqual({ action: "run" });
   });
 });
 
 describe("pending — 모듈 스코프 단일 인스턴스", () => {
-  // 훅이 DeviceViewportBar와 App.tsx 다이얼로그 분기에서 두 번 마운트되므로, 훅 상태에 두면
-  // top 커밋 한 번에 재수립이 2회 발사되고 루프 임계를 각각 절반씩 센다.
-  it("어느 import 경로에서 읽어도 같은 인스턴스다", async () => {
+  // 소비가 파괴적이라 두 번째 독자는 빈손이 된다 — 이게 "top 커밋 한 번에 재수립 1회"를
+  // 보장하는 실제 장치다(상태를 훅에 두면 인스턴스마다 사본을 갖게 돼 이 성질이 깨진다).
+  it("두 번째 소비자는 빈손이다", () => {
     putPending(1, 390);
-    const again = await import("../device-mode");
-    expect(again.peekPending(1)).toEqual({ tabId: 1, width: 390 });
+    expect(takePending(1)).toEqual({ tabId: 1, width: 390 });
+    expect(peekPending(1)).toBeNull();
   });
 
   it("takePending은 소비 즉시 삭제한다 (실패 경로에 유령 pending이 안 남는다)", () => {
