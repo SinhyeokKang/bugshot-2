@@ -10,6 +10,8 @@ const TAILWIND_CONFIG = resolve(__dirname, "../../../tailwind.config.js");
 // 세 번째 사본: picker 인스펙터 카드. content script는 CSS 변수를 import할 수 없어 overlay.ts의
 // CSS 문자열 안에 hsl() 리터럴로 복제돼 있다 — 사본 자체는 불가피하니 값만 대조해 잠근다.
 const OVERLAY = resolve(__dirname, "../../content/overlay.ts");
+// 네 번째 사본: 디바이스 뷰포트 래퍼의 좌우 여백(--muted). 같은 이유로 리터럴 복제다.
+const DEVICE_FRAME = resolve(__dirname, "../../content/device-frame.ts");
 
 // overlay.ts의 `--x: hsl(a b% c%);` 리터럴을 globals.css와 같은 `a b% c%` 표기로 되돌린다.
 function parseOverlayTokens(scope: "light" | "dark"): Record<string, string> {
@@ -159,6 +161,31 @@ describe("디자인 토큰 표", () => {
       for (const [name, value] of Object.entries(overlay)) {
         expect([name, value]).toEqual([name, dark[name]]);
       }
+    });
+  });
+
+  // 네 번째 사본: 디바이스 뷰포트 래퍼의 좌우 여백. content script라 CSS 변수를 import할 수
+  // 없어 device-frame.ts의 CSS 문자열 안에 hsl() 리터럴로 복제돼 있다. 이 여백은 영역·화면
+  // 캡처와 탭 녹화·30s Replay에 그대로 찍히므로 드리프트가 곧 리포트 이미지의 색이 된다
+  // (라이트를 `0 0% 96.1%`로 쓰면 slate 틴트가 빠진 채도 0 값 — 이미 드리프트한 사본이다).
+  describe("네 번째 사본 (content/device-frame.ts 래퍼 여백)", () => {
+    // body { ... background: hsl(a b% c%) ... } 리터럴을 globals.css 표기로 되돌린다.
+    function parseDeviceFrameMuted(scope: "light" | "dark"): string {
+      const src = readFileSync(DEVICE_FRAME, "utf8");
+      const darkStart = src.indexOf("@media (prefers-color-scheme: dark)");
+      if (darkStart === -1) throw new Error("device-frame.ts에 다크 미디어쿼리가 없다");
+      const region = scope === "dark" ? src.slice(darkStart) : src.slice(0, darkStart);
+      const m = region.match(/background:\s*hsl\(([^)]+)\)/);
+      if (!m) throw new Error(`device-frame.ts ${scope} 배경 리터럴이 없다`);
+      return m[1].trim();
+    }
+
+    it("라이트 여백이 globals.css :root의 --muted와 같다", () => {
+      expect(parseDeviceFrameMuted("light")).toBe(parseTokens(GLOBALS, ":root").muted);
+    });
+
+    it("다크 여백이 globals.css .dark의 --muted와 같다", () => {
+      expect(parseDeviceFrameMuted("dark")).toBe(parseTokens(GLOBALS, ".dark").muted);
     });
   });
 
