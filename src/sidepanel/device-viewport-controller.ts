@@ -370,16 +370,21 @@ async function reestablish(tabId: number, width: number, url: string): Promise<v
 // 다이얼로그 마운트 지점이 없는 phase — 통보를 토스트 1개로 갈음한다.
 const TOAST_ONLY_PHASES = new Set(["recording", "previewing", "done"]);
 
-async function onHandoff(tabId: number, url: string): Promise<void> {
+async function onHandoff(tabId: number, url: string, expiresAt: number): Promise<boolean> {
+  if (Date.now() >= expiresAt) {
+    // top 이동은 이미 진행된다. 인플라이트 진입 판정만 handoff로 끝내고 pending은 남기지 않는다.
+    settleVerdict({ ok: false, handoff: true });
+    return false;
+  }
   // handoff는 재수립을 직접 하지 않는다 — pending을 세팅하고 top을 옮기는 것까지가 책임이고,
   // 실제 재수립은 top onCommitted 한 지점이 맡는다.
   const width = snap().width ?? attemptingWidth;
-  if (width == null) return;
+  if (width == null) return true;
   // 래퍼가 data:·about:·blob:로 커밋·에러난 경우까지 top 네비게이션 대상으로 삼지 않는다.
   // handoff 플래그로 끊어야 인플라이트 전이가 자기 롤백을 또 돌지 않는다(이중 reload·토스트 2개).
   if (!isSupportedUrl(url)) {
     settleVerdict({ ok: false, handoff: true });
-    return;
+    return true;
   }
   // 진행 중인 select의 판정 대기를 handoff로 끊는다 — 평범한 실패로 끊으면 그 select가
   // 롤백을 돌려 아래에서 세울 pending을 먼저 지운다.
@@ -389,11 +394,12 @@ async function onHandoff(tabId: number, url: string): Promise<void> {
   const phase = useEditorStore.getState().phase;
   if (TOAST_ONLY_PHASES.has(phase)) {
     toast.info(t("issue.device.handoffToast"));
-    return;
+    return true;
   }
   // phase 판정 없이 무조건 켠다 — 렌더 분기가 non-idle 셋뿐이라 idle에서는 안 뜬다.
   set({ expiredByHandoff: true });
   useEditorStore.setState({ sessionExpired: true });
+  return true;
 }
 
 function handleMessage(
@@ -423,7 +429,7 @@ function handleMessage(
   }
   if (msg.type === "device.handoff") {
     if (msg.tabId !== tabId) return;
-    void onHandoff(tabId, msg.url).finally(() => sendResponse({ ok: true }));
+    void onHandoff(tabId, msg.url, msg.expiresAt).then((ok) => sendResponse({ ok }));
     return true;
   }
   if (msg.type === "frameCommitted") {

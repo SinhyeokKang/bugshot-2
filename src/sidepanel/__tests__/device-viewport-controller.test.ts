@@ -184,7 +184,7 @@ describe("handoff 준비 ACK", () => {
     controller.useDeviceViewportStore.setState({ width: 390 });
     const respond = vi.fn();
 
-    emit({ type: "device.handoff", tabId: 1, url: "https://b.com/" }, respond);
+    emit({ type: "device.handoff", tabId: 1, url: "https://b.com/", expiresAt: Date.now() + 500 }, respond);
     await flush();
 
     expect(mode.peekPending(1)?.width).toBe(390);
@@ -198,11 +198,27 @@ describe("handoff 준비 ACK", () => {
     controller.useDeviceViewportStore.setState({ width: 390 });
     const respond = vi.fn();
 
-    emit({ type: "device.handoff", tabId: 1, url: "blob:https://a.com/id" }, respond);
+    emit({ type: "device.handoff", tabId: 1, url: "blob:https://a.com/id", expiresAt: Date.now() + 500 }, respond);
     await flush();
 
     expect(deviceSet).not.toHaveBeenCalled();
     expect(respond).toHaveBeenCalledWith({ ok: true });
+    detach();
+  });
+
+  it("ACK 기한이 지난 handoff는 유령 pending을 만들지 않는다", async () => {
+    const { controller, mode, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    const respond = vi.fn();
+
+    emit(
+      { type: "device.handoff", tabId: 1, url: "https://b.com/", expiresAt: Date.now() - 1 },
+      respond,
+    );
+    await flush();
+
+    expect(mode.peekPending(1)).toBeNull();
+    expect(respond).toHaveBeenCalledWith({ ok: false });
     detach();
   });
 });

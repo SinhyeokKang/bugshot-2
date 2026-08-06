@@ -211,7 +211,7 @@ export interface DeviceDocumentsResponse {
 // background → 사이드패널 (push)
 | { type: "device.frameLoaded"; tabId: number }
 | { type: "device.frameBlocked"; tabId: number }
-| { type: "device.handoff"; tabId: number; url: string }   // 래퍼가 cross-origin으로 나갔다
+| { type: "device.handoff"; tabId: number; url: string; expiresAt: number } // 래퍼가 cross-origin으로 나갔다
 ```
 
 **배선 제약 4개** — 전부 기존 코드가 강제한다.
@@ -328,12 +328,13 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
    │
    ├─ background: onBeforeNavigate(래퍼 frameId, cross-origin)   ← 빠른 경로
    │     또는 onCommitted(래퍼 frameId, cross-origin)             ← same-origin URL이 302로 밀린 경우의 폴백
-   │        → push: device.handoff { tabId, url }
+   │        → binding 폐기
+   │        → push: device.handoff { tabId, url, expiresAt }
    ▼
 [사이드패널]
    ① pending = { tabId, width }            ← 인메모리. 영속하지 않는다
    ② sessionExpired = true                 (녹화·미리보기·완료면 토스트 1개)
-   ③ ACK
+   ③ expiresAt 전이면 pending 저장 → ACK
    ▼
 [background]
    ④ chrome.tabs.update(tabId, { url })    ← 패널이 닫혀 ACK가 없어도 실행
@@ -341,7 +342,7 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
 [top onCommitted + pending 있음] → reestablish(tabId, pending.width)
 ```
 
-**handoff는 재수립을 직접 하지 않는다.** 사이드패널은 pending을 세우고 ACK하며, background가 top 이동을 소유한다. 패널이 닫혔으면 같은 폭을 나를 pending이 없으므로 top만 이동해 Full로 강등하지만, cross-origin 문서를 래퍼에 남기지 않는 불변식을 우선한다. 패널이 열려 있으면 실제 재수립은 **top `onCommitted` 한 지점**이 맡는다.
+**handoff는 재수립을 직접 하지 않는다.** background는 handoff 판정 즉시 binding을 폐기해 같은 이동의 `beforeNavigate`·`committed`가 top 이동을 중복 발화하지 못하게 한다. 사이드패널은 500ms `expiresAt` 전에 메시지를 처리했을 때만 pending을 세우고 ACK하며, background가 top 이동을 소유한다. 패널이 닫혔거나 늦게 응답하면 같은 폭을 나를 pending 없이 top만 이동해 Full로 강등하지만, 다음 일반 탐색에 유령 pending을 남기지 않고 cross-origin 문서를 래퍼에 두지 않는 불변식을 우선한다. 패널이 제때 응답하면 실제 재수립은 **top `onCommitted` 한 지점**이 맡는다.
 
 **`onBeforeNavigate`를 1차 트리거로 둔다.** commit에서 잡으면 파티션된 로그아웃 화면이 이미 렌더되고 그 문서의 로그·요청이 수집된 뒤다. 다만 same-origin URL이 서버에서 cross-origin으로 302되는 경우는 beforeNavigate에 안 보이므로 `onCommitted` 폴백이 함께 필요하다. **네비게이션을 취소하는 경로는 없다** — MV3에 blocking webRequest가 없으므로 handoff는 사후 조치이고, 그래서 다이얼로그도 게이트가 아니라 통보다.
 
@@ -458,8 +459,8 @@ export function useDeviceViewport(tabId: number | null): DeviceViewportState;
 ```ts
 /**
  * 사용자 조작이 아니라 "이미 벌어진 페이지 사실"에 대한 반응이다.
- * 호출 지점은 두 곳뿐 — top onCommitted(pending 있음)와 패널 마운트 시 binding 엇갈림 감지.
- * handoff·차단 복구는 pending을 세팅하고 top을 옮기기만 하며, 직접 부르지 않는다.
+ * 호출 지점은 top onCommitted(pending 있음) 하나다.
+ * handoff·확장 reload 복구는 pending을 세팅하고 top commit을 만들기만 하며 직접 부르지 않는다.
  */
 async function reestablish(tabId: number, width: number): Promise<void>;
 ```
