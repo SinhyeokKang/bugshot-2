@@ -52,7 +52,8 @@
   - [ ] `device.set`이 `void (async () => {…sendResponse(res)})(); return true;` 형태다 — `break`로 떨어뜨리면 `picker.ts:341`의 `sendResponse({ok:true})`가 먼저 나가 두 번째 응답이 "message port closed"로 죽는다
   - [ ] 래퍼 프레임에서 `device.set`을 받아도 아무것도 하지 않고 **응답도 안 한다**(이중 응답 방지)
   - [ ] 호출부가 `undefined`(전달 실패)와 `{ok:false}`(마운트 실패)를 구분한다 — `send`가 실패를 `undefined`로 삼키므로(`picker-control.ts:114-116`) `ok === false`만 보면 전달 실패가 성공으로 샌다
-  - [ ] `device.set` 응답만으로 성공을 선언하지 않는다 — 모드 확정은 Task 12의 `device.frameLoaded` 수신 뒤다
+  - [ ] `device.set` 응답만으로 성공을 선언하지 않는다 — OFF→ON의 모드 확정은 Task 12의 `device.frameLoaded` 수신 뒤다(폭 갱신 경량 경로는 예외로, 응답이 곧 결과다)
+  - [ ] **`width: null` 처리에서 `sendResponse`가 `location.reload()`보다 먼저 나간다** — 문서가 갈린 뒤에 응답하면 포트가 죽어 호출부가 전달 실패(`undefined`)로 읽고 불필요한 롤백을 돈다
 
 ### Task 3b: element 컨텍스트 확장 게이트 완화
 
@@ -102,6 +103,8 @@
   - 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈리면 확장 reload 후 상태이므로 같은 폭으로 `device.set`을 다시 보내 **재수립**한다.
 - **검증**:
   - [ ] `locked`가 `phase !== "idle" || unsupported`로 파생된다 (미지원 탭에서 행은 미렌더지만, 같은 훅을 쓰는 `App.tsx` 다이얼로그 분기 때문에 축은 유지한다)
+  - [ ] **`select()`가 세 경로로 갈린다**: OFF→ON(전체 순서) / ON→ON은 `device.set { width }` 하나로 끝나는 **경량 경로** / ON→OFF(pending 폐기 → unmount + reload)
+  - [ ] **폭 전환(390→768)에 `device.arm`·`frameLoaded` 대기·레코더 전환·로그 clear가 붙지 않는다** — 재로드가 없어 `frameReady`도 `onCommitted`도 안 오므로, 붙이면 3초 무신호 → 차단 판정 → 롤백으로 모드가 통째로 풀린다
   - [ ] `select()`가 `syncAndSettleLogs` → `device.arm` → `device.set` → 판정 → **전 document stop ACK → store clear 3종 → 래퍼 서브트리 start ACK** 순서를 지킨다. **clear가 stop ACK 뒤·start ACK 앞이어야 한다** — mount보다 앞에 두면 mount~stop 사이에 숨겨진 원본이 뱉은 로그가 경계를 통과하는데 같은 origin이라 필터로도 못 가른다
   - [ ] `ok === false` 응답에서 상태가 `전체`로 되돌아가고 토스트가 뜬다
   - [ ] **응답이 `undefined`(전달 실패)일 때도** 상태가 `전체`로 되돌아간다 — `ok === false`만 보면 샌다
@@ -329,6 +332,7 @@
 
 **전환**
 3. `390` 세그먼트를 누르면 페이지에 `#__bugshot_device_frame__`가 생기고 그 iframe 안의 `window.innerWidth`가 `390`이다.
+3b. **`390`에서 `768`로 바꾸면 iframe 노드가 유지된 채 `innerWidth`만 768이 되고, 모드가 풀리지 않으며 로그도 초기화되지 않는다** (경량 경로 — 재로드가 없어 차단 판정이 돌면 안 된다).
 4. `390` 선택 후 페이지 안에서 `matchMedia("(max-width: 767px)").matches`가 `true`다.
 5. `390` 선택 후 원본 `body` 자식이 `display: none`이고 iframe만 보인다.
 6. `전체`로 되돌리면 `#__bugshot_device_frame__`와 `#__bugshot_device_style__`가 둘 다 없어지고 원본이 **재로드**된다.
