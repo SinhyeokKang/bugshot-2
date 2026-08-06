@@ -2,6 +2,7 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 
+import { hasOpenDismissLayer } from "@/lib/dismiss-guard";
 import { cn } from "@/lib/utils";
 
 const Dialog = DialogPrimitive.Root;
@@ -27,13 +28,20 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onPointerDownOutside, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       aria-describedby={undefined}
       onCloseAutoFocus={(e) => e.preventDefault()}
+      onPointerDownOutside={(event) => {
+        onPointerDownOutside?.(event);
+        // 열린 콤보박스를 닫으려고 dim을 누른 것 — 다이얼로그까지 닫지 않는다.
+        if (!event.defaultPrevented && hasOpenDismissLayer(document)) {
+          event.preventDefault();
+        }
+      }}
       className={cn(
         "fixed inset-0 z-50 m-auto flex h-fit w-full max-w-[calc(100%-2rem)] flex-col gap-4 overflow-hidden rounded-2xl border bg-background p-6 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-300",
         className,

@@ -22,6 +22,9 @@ const PopoverContent = React.forwardRef<
         className,
       )}
       {...props}
+      // Dialog 안에서 열렸을 때 dim 클릭이 이 레이어만 닫도록 하는 소유 마커.
+      // 소비처가 덮어쓰지 못하게 스프레드 뒤에 둔다 (@/lib/dismiss-guard).
+      data-dismiss-layer="popover"
     />
   </PopoverPrimitive.Portal>
 ));
