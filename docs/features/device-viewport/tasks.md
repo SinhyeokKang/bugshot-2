@@ -182,7 +182,7 @@
   - [ ] `phase`가 drafting이면 행이 사라진다 (`hideSubTabs`와 동일 조건) — 대신 작성 화면 인디케이터가 뜬다
   - [ ] 미지원 탭에서 행이 렌더되지 않는다
   - [ ] drafting에서 `device.state.width != null`일 때만 인디케이터가 현재 폭·접근명과 함께 렌더된다
-  - [ ] 행 추가 후에도 idle 캡처 진입 화면의 본문·CTA·footer가 잘리지 않는다 (360px 높이 기준 육안 확인)
+  - [ ] 행 추가 후에도 idle 캡처 진입 화면의 본문·CTA·footer가 잘리지 않는다 (360px 높이 기준 육안 확인). **`e2e/capture-modes-layout.spec.ts`의 `boundingBox()` 단언(`:63-77`)이 이 잘림을 잡는 기존 그물이다** — 그 spec이 red면 행 높이부터 의심한다
   - [ ] `pnpm test e2e` 아님 — 이 단계는 `IssueTab.test.tsx`/`DebugTab` 렌더 테스트로 확인
 
 ### Task 9: 화면(뷰포트) 캡처 rect 보정 + 드래그 클램핑
@@ -336,7 +336,7 @@
 
 **모드 게이팅 (최우선)**
 1. 뷰포트 행 기본 선택이 `전체`이면 페이지 DOM에 `#__bugshot_device_frame__`가 없다.
-2. 기존 e2e 전 스위트가 무변경으로 green이다 — 특히 `capture-modes-layout.spec.ts`의 idle 버튼 정확 집합 단언.
+2. 기존 e2e 전 스위트가 무변경으로 green이다 — 특히 `capture-modes-layout.spec.ts`의 `boundingBox()` 기반 균등 너비 단언(`:63-77`). 뷰포트 행이 상단 크롬을 키워 idle 화면이 잘리면 여기서 먼저 깨진다.
 
 **전환**
 3. `390` 세그먼트를 누르면 페이지에 `#__bugshot_device_frame__`가 생기고 그 iframe 안의 `window.innerWidth`가 `390`이다.
