@@ -40,6 +40,13 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 - `setAlignment(panel, label, idx)` — AlignmentProp(text-align) 탭 선택 (left0 center1 right2 justify3).
 - `closeAllPopovers(panel)` — Escape + outside-click 폴백.
 
+캡처 기준 판정(`fixtures/capture-aspect.ts` — `capture-context`·`device-viewport` 공용. **복제 금지**: 두 spec이 같은 판정을 써야 top 경로만 고쳐지고 래퍼 경로가 뒤처지는 일이 없다):
+
+- `snapshotAspect(panel, "before"|"after")` — `snapshot-*` 이미지의 `naturalWidth/naturalHeight`. 픽셀 폭을 CSS px로 못 환산해서(Playwright가 페이지 DPR을 1로 고정) 종횡비로 "어느 rect로 잘랐나"를 판정한다. iframe 응답은 top 좌표로 **평행이동**만 되므로 래퍼에도 그대로 유효.
+- `expectedAspect(ctx, selector)` / `assertHypothesesSeparable(ctx, container, element)` — 그 rect로 잘랐을 때의 종횡비 / 두 가설이 실제로 갈리는지(0.5 초과) 선단언. `ctx`는 `Page | Frame` — **디바이스 모드에선 래퍼 `Frame`을 넘긴다**(top으로 재면 `vw` 기반 픽스처가 다른 크기로 읽혀 판정이 무의미해진다).
+- `assertGatesSatisfied(ctx, container, element)` — 픽스처가 확장 게이트 G1/G2/G3를 실제로 만족하는지. 없으면 "확장 안 걸림"이 구현 회귀인지 픽스처 붕괴인지 안 갈린다.
+- `settleBeforeCapture(fixture)` / `proceedToDrafting(panel, fixture)` — pick 직후 자동 before 캡처를 큐에서 빼내기 / `next-step` aria-disabled 가드 + quota 간격 재시도.
+
 logview project 전용(`logview/fixtures.ts` — 확장 fixture와 별개, 일반 Playwright `test`):
 
 - `openViewer(page, data)` — `dist-log-viewer/index.html`에 `Partial<LogViewerData>`를 평문 JSON으로 주입해 `setContent`로 연다(미지정 필드는 null/기본 meta).
@@ -60,6 +67,7 @@ fixture 페이지(`fixtures/pages/`):
 - `capture-context.html` — element 캡처 컨텍스트 확장용. `#modal`(`role=dialog` + `aria-modal`, `position:fixed` 60vw×80px — 확장 게이트 G1/G2/G3를 전부 만족하도록 크기를 잡았다) 안의 `#modal-btn`(40×40 정사각 — 크롭 종횡비가 모달과 확실히 갈린다), 그리고 시맨틱 조상이 없는 `.plain-wrap > div > #plain-btn`(폴백 확인용). **`inset:0` 백드롭을 두지 않는다** — 전면 오버레이는 picker 클릭을 가로챈다. 모달 높이를 `vh`/`vw`로 잡으면 창 비율에 따라 크롭이 정사각형이 되거나 버튼이 박스 밖으로 밀려 게이트가 깨진다(GOTCHAS 참조).
 - `api-hosts.html` — 재현 환경 `API Hosts` 자동 행용. `#box`(320×200, element 픽 대상)와 `__fetchApis(port)`(spec이 arm 확인 후 호출 — `api.bugshot.test` 2건 + `auth.bugshot.test` 1건을 `/e2e-json-*` 경로로 요청해 요청 수 내림차순 정렬까지 판정 가능하게 둔다). 로드 시 자동 발사하지 않는 이유는 레코더 fetch 후크의 `capturing` 게이트(websocket.html과 같은 계열).
 - `iframe.html` — top frame + `#frame` iframe(src=basic.html, picker iframe 내부 선택·iframe 로그 캡처용).
+- **서버 엔드포인트** `/e2e-xfo`: `X-Frame-Options: DENY` + `#xfo-marker`. 디바이스 뷰포트 래퍼는 `location.href`를 그대로 싣기 때문에 **그 페이지 자신이 헤더를 내야** "top 로드는 되고 프레이밍만 막힌다"는 XFO의 정의가 재현된다(정적 파일로는 헤더를 못 붙인다).
 - `iframe-nested.html` — `#outer`(src=iframe-child.html, 1-depth 등록 대상) + `#inert`(srcdoc — 미주입·거부 대상). `iframe-child.html`은 그 안에 `#inner`(2-depth, 거부 대상) 보유. picker 거부 게이트용.
 - `cross-origin.html` — `http://localhost:<port>/basic.html` iframe을 JS로 주입(동적 포트). 서버는 전 인터페이스 바인딩이라 localhost로도 접속돼 127.0.0.1 top과 origin이 갈라진다 — origin 필터용.
 - `websocket.html` — `__openWs(tag)`(arm 후 spec이 호출 — `ws://location.host/` 연결 + open 시 `{ping:tag}` 송신, echo를 promise로 resolve, `__lastWs` 저장) / `__closeWs()`(마지막 연결 close) / `__wsCheck()`(무간섭 — `WebSocket.OPEN===1` + 새 인스턴스 `instanceof WebSocket`). ws echo 서버는 `extension.ts`의 http `upgrade` 핸들(raw, `ws` devDep 없음).

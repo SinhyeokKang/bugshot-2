@@ -1,6 +1,19 @@
 import type { Frame, Page } from "@playwright/test";
 
-import { enterDebug, expect, test, type ExtContext } from "./fixtures/extension";
+import {
+  assertGatesSatisfied,
+  assertHypothesesSeparable,
+  proceedToDrafting,
+  settleBeforeCapture,
+  snapshotAspect,
+} from "./fixtures/capture-aspect";
+import {
+  enterDebug,
+  expect,
+  test,
+  typeStyleValue,
+  type ExtContext,
+} from "./fixtures/extension";
 
 const FRAME_ID = "__bugshot_device_frame__";
 const STYLE_ID = "__bugshot_device_style__";
@@ -281,6 +294,51 @@ test.describe("디바이스 뷰포트", () => {
       await fixture.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
       await expect(panel.getByTestId("repick")).toBeVisible({ timeout: 3000 });
     }).toPass({ timeout: 30_000 });
+
+    await panel.close();
+    await fixture.close();
+  });
+
+  /**
+   * 래퍼는 **비-top 프레임**이라 캡처 응답이 `respondWithTopRect`로 top 좌표에 재조립되는데,
+   * 거기서 확장 판정(`contextSelector`)이 떨어지면 before는 컨테이너 rect로 크롭되고 after는
+   * 확장을 요청조차 하지 않아 요소 bbox로 찍힌다. 두 기준이 갈려도 `sameCaptureBasis`는 양쪽
+   * null을 같다고 읽으므로 **에러도 stale 표시도 없다** — 그래서 이미지 종횡비가 유일한 그물이다.
+   * `capture-context.spec.ts`는 전부 top 문서 전용이라 이 경로를 덮지 못한다.
+   */
+  test("모드 ON에서 컨테이너 확장 기준이 before·after 양쪽에 똑같이 걸린다", async ({
+    ext,
+  }) => {
+    const { fixture, panel } = await openBench(ext, "basis", {
+      page: "capture-context.html",
+    });
+
+    await enterDeviceMode(panel, fixture, 390);
+    const wrapper = await waitForWrapperFrame(fixture);
+
+    // 게이트는 래퍼 뷰포트(390 × top 높이) 기준으로 판정된다 — top으로 재면 60vw 모달이
+    // 다른 크기로 읽혀 "확장 안 걸림"이 구현 회귀인지 픽스처 붕괴인지 갈리지 않는다.
+    await assertGatesSatisfied(wrapper, "#modal", "#modal-btn");
+
+    await panel.getByTestId("mode-element").click();
+    // boundingBox는 프레임 오프셋을 반영한 메인 프레임 좌표를 준다(래퍼는 가운데 정렬이라 x≠0).
+    await expect(async () => {
+      const box = await wrapper.locator("#modal-btn").boundingBox();
+      expect(box).not.toBeNull();
+      await fixture.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+      await fixture.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+      await expect(panel.getByTestId("repick")).toBeVisible({ timeout: 3000 });
+    }).toPass({ timeout: 30_000 });
+
+    await settleBeforeCapture(fixture);
+    await typeStyleValue(panel, "color", "#ff0000");
+    await expect(wrapper.locator("#modal-btn")).toHaveCSS("color", "rgb(255, 0, 0)");
+
+    await proceedToDrafting(panel, fixture);
+
+    const { container } = await assertHypothesesSeparable(wrapper, "#modal", "#modal-btn");
+    expect(await snapshotAspect(panel, "before")).toBeCloseTo(container, 1);
+    expect(await snapshotAspect(panel, "after")).toBeCloseTo(container, 1);
 
     await panel.close();
     await fixture.close();
