@@ -21,6 +21,20 @@ describe("resolveSentinelTargets — 모드 OFF (기존 경로 무변경)", () =
   });
 });
 
+describe("resolveSentinelTargets — 문서 열거 실패", () => {
+  it("scope와 무관하게 fail-closed로 발행하지 않는다", () => {
+    expect(resolveSentinelTargets({ deviceTree: null, scope: { kind: "all" } })).toEqual({
+      kind: "none",
+    });
+    expect(
+      resolveSentinelTargets({
+        deviceTree: null,
+        scope: { kind: "frame", frameId: 3, documentId: "ad" },
+      }),
+    ).toEqual({ kind: "none" });
+  });
+});
+
 describe("resolveSentinelTargets — 모드 ON", () => {
   const deviceTree = ["wrap", "wrapChild"];
 

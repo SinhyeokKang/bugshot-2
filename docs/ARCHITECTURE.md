@@ -186,7 +186,7 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **탭별 큐**: 모든 판정은 `enqueueForTab(tabId, task)`로 `chrome.storage.session` 복원 뒤에 돈다. SW 재기동 직후 동기 기본값으로 판정하면 살아 있는 래퍼를 못 알아본다 — 즉시성보다 올바른 판정이 우선이다. binding은 `deviceFrame:${tabId}`에 영속하며 **UI 상태가 아니라 로그·navigation 라우팅용**이고, top 커밋마다 `clearDeviceFrame`으로 버려진다.
 
-**판정 latch (`sidepanel/device-viewport-controller.ts`)**: `device.set` 왕복과 래퍼 커밋은 동시에 진행되므로 **판정 push가 대기 등록보다 먼저 도착할 수 있다**(캐시된 페이지). 그걸 흘리면 3초를 헛기다린 끝에 차단으로 접어 **정상 로드된 래퍼를 롤백**한다(사용자에겐 "가끔 폭을 눌러도 아무 일이 안 일어난다"로 보인다). 그래서 대기자가 없을 때 온 판정은 `latchedVerdict`에 걸어두고 `waitForVerdict`가 1회성으로 동기 소비한다. 순서 계약: `arm(true)` → `resetVerdict()`(**둘 사이에 await 금지** — 이 지점 이후의 판정만이 이번 시도의 것이다) → `device.set` → `waitForVerdict` → `arm(false)`. `chrome.tabs.update`(handoff) 앞에서도 반드시 `arm(false)` — 열린 채 남은 3초 창이 타임아웃되면 뒤늦은 `frameBlocked`가 방금 성공한 재수립을 롤백시킨다.
+**판정 latch (`sidepanel/device-viewport-controller.ts`)**: `device.set` 왕복과 래퍼 커밋은 동시에 진행되므로 **판정 push가 대기 등록보다 먼저 도착할 수 있다**(캐시된 페이지). 그걸 흘리면 3초를 헛기다린 끝에 차단으로 접어 **정상 로드된 래퍼를 롤백**한다(사용자에겐 "가끔 폭을 눌러도 아무 일이 안 일어난다"로 보인다). 그래서 대기자가 없을 때 온 판정은 `latchedVerdict`에 걸어두고 `waitForVerdict`가 1회성으로 동기 소비한다. 순서 계약: `arm(true)` → `resetVerdict()`(**둘 사이에 await 금지** — 이 지점 이후의 판정만이 이번 시도의 것이다) → `device.set` → `waitForVerdict` → `arm(false)`. handoff는 background가 판정과 함께 arm을 닫고, 패널이 `pending`을 세운 ACK 뒤 `chrome.tabs.update`를 실행한다. ACK는 500ms 상한이 있어 패널이 응답하지 못해도 탭별 큐가 굳지 않는다. 패널이 닫혀 ACK가 없어도 top 이동은 수행해 cross-origin 문서를 래퍼에 남기지 않고, 모드는 Full로 안전하게 강등된다. `blob:`·`data:` 등 top 이동 불가 URL은 top의 래퍼를 제거하고 reload하는 Full 복귀로 접는다.
 
 **롤백은 `frameBlocked`에만 건다.** OFF·롤백은 unmount + `location.reload()`라, handoff나 레코더 재무장 실패에 롤백을 돌리면 **정상 동작 중인 페이지를 새로고침해 스크롤·입력값을 날린다**. handoff는 실패가 아니라 "top이 옮겨간다"이고, 레코더 재무장 실패는 토스트 경고로만 끝낸다(래퍼는 정상 로드됐고 레코더는 다음 inject 트리거에서 스스로 재무장된다).
 
@@ -198,7 +198,7 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **모드 상태는 어디에도 영속하지 않는다.** 단일 출처는 페이지 DOM(래퍼의 `style.width`)이고, 폭을 top 커밋 너머로 나르는 건 메모리 `pending` 하나다. 셋이 함께 성립해야 정직하다 — ① `chrome.storage`에 안 쓴다 ② 매 top 커밋마다 실제 재마운트로 조정된다 ③ 차단되면 전체로 롤백한다. 하나라도 깨지면 **래퍼는 없는데 UI만 ON**인 desync가 되살아난다.
 
-**sentinel 게이트 (`sidepanel/lib/device-sentinel-gate.ts`)**: 모드 ON 중 레코더 sentinel 발행을 래퍼 서브트리로 좁힌다. **트리거를 하나씩 막는 방식은 새 트리거가 생길 때마다 샌다** — 발행 지점을 `picker-control.ts:emitSentinel` 하나로 모으고 거기 게이트를 건다(래퍼 로드가 top 탭 status를 `complete`로 되돌리므로 재주입이 가장 잘 걸리는 구간이 정확히 전환 직후다). 모드 판정은 캐시가 아니라 **`deviceTree.length > 0`**이고, 문서 열거원은 background `device.documents` 하나다. `documentId`를 모르면 **fail-closed** — 발행 누락은 로그 공백(조용하지만 복구 가능)이고 오발행은 로그 2벌(무증상)이다. 되살아난 레코더는 에러가 아니라 그냥 중복 엔트리라 **게이트를 우회하는 신규 발행 코드가 하나만 생겨도 로그가 조용히 2벌**이 된다.
+**sentinel 게이트 (`sidepanel/lib/device-sentinel-gate.ts`)**: 모드 ON 중 레코더 sentinel 발행을 래퍼 서브트리로 좁힌다. **트리거를 하나씩 막는 방식은 새 트리거가 생길 때마다 샌다** — 발행 지점을 `picker-control.ts:emitSentinel` 하나로 모으고 거기 게이트를 건다(래퍼 로드가 top 탭 status를 `complete`로 되돌리므로 재주입이 가장 잘 걸리는 구간이 정확히 전환 직후다). 모드 판정은 캐시가 아니라 **`deviceTree.length > 0`**이고, 문서 열거원은 background `device.documents` 하나다. 성공한 빈 트리는 모드 OFF이지만 열거 실패는 `null`로 구분한다. 실패했거나 `documentId`를 모르면 **fail-closed** — 발행 누락은 로그 공백(조용하지만 복구 가능)이고 오발행은 로그 2벌(무증상)이다. 되살아난 레코더는 에러가 아니라 그냥 중복 엔트리라 **게이트를 우회하는 신규 발행 코드가 하나만 생겨도 로그가 조용히 2벌**이 된다.
 
 **숨은 top은 죽지 않았다.** `display:none`일 뿐 스크립트는 계속 돌고, 래퍼와 same-origin이라 pre-arm sessionStorage 플래그(`__bugshot_recorder_active__`)를 **공유**해 둘 다 `document_start`부터 적재한다. 게이트는 *재*발행만 막지 이미 무장된 레코더를 못 끄므로, 숨은 top을 끄는 수단은 stop ACK뿐이다.
 

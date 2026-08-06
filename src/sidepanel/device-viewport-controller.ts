@@ -305,8 +305,8 @@ async function runOffToOn(tabId: number, width: number): Promise<void> {
 
 /**
  * 재수립. **사용자 조작이 아니라 "이미 벌어진 페이지 사실"에 대한 반응이다.**
- * 호출 지점은 둘뿐 — ① top onCommitted + pending 있음 ② 패널 마운트 시 binding 엇갈림.
- * handoff·차단 복구는 pending을 세팅하고 top을 옮기기만 하며 직접 부르지 않는다.
+ * 호출 지점은 top onCommitted + pending 하나다. handoff·확장 reload 복구는
+ * pending을 세팅하고 top commit을 만들기만 하며 직접 부르지 않는다.
  */
 async function reestablish(tabId: number, width: number, url: string): Promise<void> {
   // 게이트를 먼저 본다 — 거부된 시도까지 세면 busy가 겹칠 때 루프 임계가 헛되이 오른다.
@@ -379,23 +379,13 @@ async function onHandoff(tabId: number, url: string): Promise<void> {
   // handoff 플래그로 끊어야 인플라이트 전이가 자기 롤백을 또 돌지 않는다(이중 reload·토스트 2개).
   if (!isSupportedUrl(url)) {
     settleVerdict({ ok: false, handoff: true });
-    await arm(tabId, false);
-    if (stillOn(tabId)) await rollbackToFull(tabId, t("issue.device.blocked"));
     return;
   }
   // 진행 중인 select의 판정 대기를 handoff로 끊는다 — 평범한 실패로 끊으면 그 select가
   // 롤백을 돌려 아래에서 세울 pending을 먼저 지운다.
   settleVerdict({ ok: false, handoff: true });
-  // 열린 채 남은 3초 창이 타임아웃되면 frameBlocked가 뒤늦게 날아와 방금 성공한 재수립을
-  // 롤백시킨다 — tabs.update 전에 반드시 닫는다.
-  await arm(tabId, false);
+  // background가 이 push의 ACK를 받은 뒤 top을 이동한다. pending이 commit보다 먼저다.
   putPending(tabId, width);
-  try {
-    await chrome.tabs.update(tabId, { url });
-  } catch {
-    // 탭이 닫혔다 — pending은 다음 마운트에서 폐기된다.
-    return;
-  }
   const phase = useEditorStore.getState().phase;
   if (TOAST_ONLY_PHASES.has(phase)) {
     toast.info(t("issue.device.handoffToast"));
@@ -406,7 +396,11 @@ async function onHandoff(tabId: number, url: string): Promise<void> {
   useEditorStore.setState({ sessionExpired: true });
 }
 
-function handleMessage(message: unknown, sender: chrome.runtime.MessageSender): void {
+function handleMessage(
+  message: unknown,
+  sender: chrome.runtime.MessageSender,
+  sendResponse: (value?: unknown) => void,
+): boolean | void {
   if (!message || typeof message !== "object" || !("type" in message)) return;
   const tabId = snap().tabId;
   if (tabId == null) return;
@@ -429,8 +423,8 @@ function handleMessage(message: unknown, sender: chrome.runtime.MessageSender): 
   }
   if (msg.type === "device.handoff") {
     if (msg.tabId !== tabId) return;
-    void onHandoff(tabId, msg.url);
-    return;
+    void onHandoff(tabId, msg.url).finally(() => sendResponse({ ok: true }));
+    return true;
   }
   if (msg.type === "frameCommitted") {
     if (msg.tabId !== tabId || msg.frameId !== 0) return;
@@ -480,8 +474,14 @@ async function syncFromPage(tabId: number): Promise<void> {
     return;
   }
   if (deviceTree.length > 0 || !stillOn(tabId)) return;
-  const tab = await chrome.tabs.get(tabId).catch(() => null);
-  await reestablish(tabId, state.width, tab?.url ?? "");
+  // 기존 래퍼를 두고 device.set(같은 폭)을 보내면 폭만 바꾸어 commit이 안 생긴다.
+  // pending을 먼저 세우고 Full 복귀로 top commit을 만들어 공용 재수립 경로를 태운다.
+  putPending(tabId, state.width);
+  const reset = await deviceSet(tabId, null);
+  if (!reset?.ok) {
+    dropPending(tabId);
+    set({ width: null });
+  }
 }
 
 /**

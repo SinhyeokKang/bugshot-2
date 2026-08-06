@@ -103,7 +103,7 @@
 - **변경 대상**: `src/sidepanel/hooks/useDeviceViewport.ts` (신규), `src/store/settings-ui-store.ts`(version 9 → 10 + `deviceModeWarned`)
 - **작업 내용**: design.md의 `select()` **세 경로 + OFF→ON 13단계**를 그대로 구현(재수립 경로는 Task 6b). 마운트 시 `device.state` 조회, `device.availableChanged` 구독. 최초 ON 진입 경고 플래그는 `settings-ui-store`에 **`deviceModeWarned: boolean`** — 경고가 재로드뿐 아니라 원본·래퍼 동시 실행까지 덮으므로 `deviceReloadWarned`가 아니라 이 이름을 쓴다. **version 9 → 10 bump + `migrateSettingsUi` 기본값 false 등록**이 함께 가야 한다. 체크박스 없이 `[계속]`에서 true를 `chrome.storage.local`에 즉시 영속한다. 문구는 진입·해제 재로드와 원본·래퍼 동시 실행에 따른 네트워크 요청·자동저장·결제 중복 위험을 모두 커버한다. `전체` 복귀는 unmount 후 `location.reload()`까지 간다.
   - **OFF→ON 경로에서만** 성공 판정이 `device.set` 응답이 아니라 background push(`device.frameLoaded`/`device.frameBlocked`, ≤3s) 수신이다. `device.arm`은 `device.set` **직전**에 열고 판정 후 닫는다. 폭 갱신(ON→ON)은 arm도 판정도 없이 응답이 곧 결과다.
-  - 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈리면 확장 reload 후 상태이므로 `device.state.width`(래퍼 실제 폭)로 **`reestablish`를 부른다**(Task 6b가 그 함수를 소유한다 — 여기서 `device.set`을 직접 보내면 계약 밖 네 번째 재수립 경로가 생긴다).
+  - 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈리면 확장 reload 후 상태다. `device.state.width`를 pending에 세우고 래퍼를 제거해 top commit을 만들면 Task 6b의 단일 `reestablish` 호출 지점으로 수렴한다.
 - **검증**:
   - [x] `locked`가 `phase !== "idle" || unsupported`로 파생된다 (미지원 탭에서 행은 미렌더지만, 같은 훅을 쓰는 `App.tsx` 다이얼로그 분기 때문에 축은 유지한다)
   - [x] **`select()`가 세 경로로 갈린다**: OFF→ON(전체 순서) / ON→ON은 `device.set { width }` 하나로 끝나는 **경량 경로** / ON→OFF(pending 폐기 → unmount + reload)
@@ -128,9 +128,9 @@
 
 - **변경 대상**: `src/sidepanel/hooks/useDeviceViewport.ts`, `src/sidepanel/tabs/IssueTab.tsx:705-726`
 - **작업 내용**:
-  - `reestablish(tabId, width)` 신설. **호출 지점은 둘뿐** — ① top `onCommitted` + `pending` 있음 ② 패널 마운트 시 `device.state`(래퍼 있음)/`device.documents`(binding 없음) 엇갈림. handoff·차단 복구는 pending 세팅 + `chrome.tabs.update`만 하고 직접 부르지 않는다.
+  - `reestablish(tabId, width)` 신설. **호출 지점은 top `onCommitted` + `pending` 하나뿐**이다. handoff·확장 reload 복구는 pending을 세우고 top commit을 만들기만 하며 직접 부르지 않는다.
   - **design.md 계약 표 13축을 전부 구현한다.** 특히 표에만 있고 `select()`엔 없는 축 다섯이 빠지기 쉽다: `unsupported`는 우회 안 함(폐기 우선) / `busy` 거부 시 pending 복원 / handoff·차단 복구는 `tabs.update` 전에 arm 창 닫기 / `picker.start` 재시도 / pending·카운터는 모듈 스코프 단일 인스턴스.
-  - `device.handoff` push 수신 → ① `pending = { tabId, width }`(인메모리, 영속 금지) ② `chrome.tabs.update(tabId, { url })` ③ `sessionExpired = true`(phase 판정 없이 무조건 — 렌더 분기가 non-idle 셋뿐이라 idle에선 안 뜬다).
+  - `device.handoff` push 수신 → ① `pending = { tabId, width }`(인메모리, 영속 금지) ② `sessionExpired = true` ③ ACK. background가 ACK 뒤 `chrome.tabs.update(tabId, { url })`를 실행한다. 패널이 닫혀 ACK가 없으면 Full로 강등하더라도 top은 이동해 cross-origin 래퍼를 남기지 않는다.
   - `SessionExpiredDialog`의 body만 디바이스 모드 문구로 분기하고 컴포넌트·플래그·`onConfirm={() => reset()}`은 건드리지 않는다. 녹화·미리보기·완료 phase면 다이얼로그 대신 토스트 1개.
   - **루프 가드는 `reestablish` 호출을 센다** — handoff 횟수를 세면 frame-busting(handoff 없이 top이 곧장 커밋)을 못 잡는다. 연속 2회 초과 또는 직전 재수립 URL 재방문 → 전용 다이얼로그 → [확인] 시 모드 해제 + idle. 리셋은 사용자의 명시적 세그먼트 조작, 또는 재수립 성공 후 top 커밋 없이 10초 경과.
   - **`select(null)`은 `pending`을 `device.set`보다 먼저 버린다** — OFF의 `location.reload()`도 top 커밋이라 pending이 남으면 OFF↔ON 루프가 된다.
@@ -229,7 +229,7 @@
   - `deviceFrameByTab: Map<number, {frameId, documentId}>` + `setDeviceFrame`·`isTopLikeFrame`·`armDeviceFrame`·`listTabDocuments`. 권위값은 `chrome.storage.session`에 보존하고 Map은 복제 캐시로 둔다. SW 시작 시 복원 promise 뒤에 navigation 이벤트를 탭별 순서 큐잉해 복구 전 오판을 막는다. **`isTopLikeFrame`은 동기 시그니처를 유지하되 큐 안에서만 호출한다** — 큐 밖 호출은 복원 전 오판이 된다.
   - 래퍼의 `device.frameReady`로 frameId를 등록한다. 이후 **same-origin** 이동은 frameId를 따라가고 commit마다 documentId를 갱신한다. **`frameReady`는 후속 문서에서도 매번 재발화하므로**(same-origin 불변식) arm 창이 닫혀 있으면 documentId만 갱신하고 push하지 않는다 — 안 그러면 same-origin 이동마다 `frameLoaded`가 날아온다. `parentFrameId`/`parentDocumentId`로 래퍼 자손 계보를 유지한다.
   - **로드 검증(XFO/CSP)의 판정 주체가 여기다.** `device.arm`으로 3초 감시창을 열고, 창 안에서 `parentFrameId === 0 && url === top URL`인 첫 `onBeforeNavigate`를 잠정 래퍼로 잡는다. 성공 = `device.frameReady` 또는 래퍼 frameId의 **same-origin** `onCommitted`(경로·쿼리만 바뀐 redirect 포함), 차단 = 래퍼 frameId의 `onErrorOccurred` 또는 3초 무신호. 결과를 `device.frameLoaded`/`device.frameBlocked`로 push한다. **same-origin redirect를 차단으로 합치지 않는다.**
-  - **cross-origin 감지 → `device.handoff` push.** 1차 트리거는 `onBeforeNavigate(래퍼 frameId)`의 URL origin이 top과 다를 때(요청 전에 잡힌다), 폴백은 `onCommitted(래퍼 frameId)`의 cross-origin(same-origin URL이 서버에서 302로 밀린 경우). 판정은 `new URL(url).origin` 비교 — site가 아니라 origin이라 서브도메인 이동도 handoff다. **네비게이션을 취소할 방법은 없다** — MV3에 blocking webRequest가 없으므로 handoff는 사후 조치다.
+  - **cross-origin 감지 → `device.handoff` ACK → background top 이동.** 1차 트리거는 `onBeforeNavigate(래퍼 frameId)`의 URL origin이 top과 다를 때, 폴백은 `onCommitted(래퍼 frameId)`의 cross-origin이다. 패널이 닫혀 push가 실패해도 background가 top을 옮긴다. 판정은 `new URL(url).origin` 비교라 서브도메인 이동도 handoff다.
   - **차단 청취는 감시창 밖에서도 계속한다.** binding 확정 뒤의 `onErrorOccurred(래퍼 frameId)`도 듣고, 유지 중 차단은 handoff와 같은 경로로 보낸다(프레임에 못 들어가는 URL이므로 top으로 내보낸다). 안 하면 모드 유지 중 XFO 사이트에 도달했을 때 백지에 방치된다(prd 목표 9).
   - `listTabDocuments(tabId)`는 `chrome.webNavigation.getAllFrames({ tabId })` + binding으로 `{ all, deviceTree }`를 만든다. Task 5의 유일한 문서 열거원이다.
   - `device.arm`·`device.documents`는 `BgRequest` union + `BG_REQUEST_TYPES` 화이트리스트에 **등록한다**. 반면 `device.frameReady`는(구현에서 폐기된 `device.frameLoadEvent`도 원래 여기 속했다) **background에 push 전용 `chrome.runtime.onMessage` 리스너를 하나 더 달아** 받는다 — `index.ts:188`의 화이트리스트 게이트가 막고(Asana 전량 차단 회귀 전례), `messages.ts:198`의 `handleMessage`는 `_sender`를 아예 안 읽는다.
@@ -321,7 +321,7 @@
 | `device-presets.ts` | 가용 폭 경계(초과/딱맞음/미달), `null` 낙관적 판정, 프리셋 3개·`430` 부재 |
 | `picker.ts` 확장 게이트 | 래퍼에서 확장 판정이 돌고 일반 iframe에서는 안 돈다, top 무변경 |
 | handoff 코디네이터 (background) | cross-origin beforeNavigate·commit 각각에서 push 1회, same-origin redirect 무시, 감시창 밖 `onErrorOccurred` 포착 |
-| `reestablish` 계약 (사이드패널) | 계약 표 13축 전부 — `phase` 축만 우회하고 `unsupported`는 폐기, `busy` 거부 시 pending 복원, arm 개폐 시점, `picker.start` 재시도, stop ACK 뒤 무조건 clear, 호출 지점 2개, 모듈 스코프 단일 소유 |
+| `reestablish` 계약 (사이드패널) | 계약 표 13축 전부 — `phase` 축만 우회하고 `unsupported`는 폐기, `busy` 거부 시 pending 복원, arm 개폐 시점, `picker.start` 재시도, stop ACK 뒤 무조건 clear, top commit 단일 호출 지점, 모듈 스코프 단일 소유 |
 | handoff 오케스트레이션 (사이드패널) | `pending` 폐기 조건 6개와 `select(null)`에서의 폐기 순서, 루프 카운터(연속 2회 초과·직전 URL 재방문·handoff 없는 top 커밋 포함·10초 무커밋 리셋), phase별 통보 분기(idle 무음 / non-idle 다이얼로그 / recording 토스트) |
 | `device-frame.ts` (jsdom) | mount/unmount 왕복 무손실, 멱등, 폭 갱신 시 노드 유지, `src === location.href`, body 직속, 다크 미디어쿼리 블록 존재 |
 | `device-frame.ts` (node) | `clampToDeviceFrame` 4케이스(밖/걸침/안/`null`) |

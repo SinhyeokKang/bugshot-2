@@ -86,7 +86,8 @@ export function decideDeviceSignal(
           next: { ...state, binding: { frameId: signal.frameId, documentId: signal.documentId } },
         };
       }
-      if (state.provisionalFrameId != null && state.provisionalFrameId !== signal.frameId) {
+      const expectedFrameId = state.provisionalFrameId ?? state.binding?.frameId;
+      if (expectedFrameId == null || expectedFrameId !== signal.frameId) {
         return { push: null, next: state };
       }
       return {
@@ -307,6 +308,46 @@ function pushToPanel(message: BgInternalMessage): void {
   chrome.runtime.sendMessage(message).catch(() => {});
 }
 
+export async function handoffDeviceTab(
+  tabId: number,
+  url: string,
+  notify: () => Promise<unknown> = () =>
+    chrome.runtime.sendMessage({ type: "device.handoff", tabId, url } satisfies BgInternalMessage),
+  update: (tabId: number, url: string) => Promise<unknown> = (targetTabId, targetUrl) =>
+    chrome.tabs.update(targetTabId, { url: targetUrl }),
+  rollback: (tabId: number) => Promise<unknown> = async (targetTabId) => {
+    try {
+      await chrome.tabs.sendMessage(
+        targetTabId,
+        { type: "device.set", width: null },
+        { frameId: 0 },
+      );
+    } catch {
+      await chrome.tabs.reload(targetTabId).catch(() => {});
+    }
+  },
+  ackTimeoutMs = 500,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    await Promise.race([
+      notify(),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, ackTimeoutMs);
+      }),
+    ]);
+  } catch {
+    // 패널이 닫혀도 cross-origin 문서를 래퍼에 남기지 않는다.
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  if (!isSupportedUrl(url)) {
+    await rollback(tabId).catch(() => {});
+    return;
+  }
+  await update(tabId, url).catch(() => {});
+}
+
 /** 신호를 상태에 반영하고 결과를 사이드패널에 push한다. 반드시 큐 안에서 부른다. */
 export async function applyDeviceSignal(
   tabId: number,
@@ -327,7 +368,7 @@ export async function applyDeviceSignal(
   }
   if (!push) return null;
   if (push.type === "handoff") {
-    pushToPanel({ type: "device.handoff", tabId, url: push.url });
+    await handoffDeviceTab(tabId, push.url);
   } else if (push.type === "frameLoaded") {
     // frameId는 방금 확정한 binding에서 나온다 — 사이드패널이 picker.start 재전송에 쓴다.
     pushToPanel({ type: "device.frameLoaded", tabId, frameId: next.binding?.frameId ?? 0 });

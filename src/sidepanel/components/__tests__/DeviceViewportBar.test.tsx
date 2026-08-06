@@ -169,6 +169,21 @@ describe("DeviceViewportBar — Tabs 컨텍스트 격리", () => {
 });
 
 describe("DeviceViewportBar — 접근명", () => {
+  it("정상 세그먼트도 hover 툴팁으로 폭 라벨을 보여준다", async () => {
+    render(<DeviceViewportBar tabId={1} />);
+    await userEvent.hover(seg(390));
+    expect((await screen.findByRole("tooltip")).textContent).toContain("issue.device.w390");
+  });
+
+  it("잠긴 세그먼트는 기본 라벨 대신 사유를 보여준다", async () => {
+    hookState.availableWidth = 865;
+    render(<DeviceViewportBar tabId={1} />);
+    await userEvent.hover(seg(1024));
+    expect((await screen.findByRole("tooltip")).textContent).toContain(
+      "issue.device.tooltip.tooNarrow",
+    );
+  });
+
   // 라벨이 접혀 아이콘만 남아도 이게 유일한 폭 정보다.
   it("각 세그먼트의 aria-label이 폭을 말한다", () => {
     render(<DeviceViewportBar tabId={1} />);

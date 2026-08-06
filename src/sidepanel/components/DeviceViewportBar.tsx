@@ -115,7 +115,7 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
     return (
       <Tooltip key={key}>
         <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-        {reason ? <TooltipContent>{reason}</TooltipContent> : null}
+        <TooltipContent>{reason ?? label}</TooltipContent>
       </Tooltip>
     );
   }

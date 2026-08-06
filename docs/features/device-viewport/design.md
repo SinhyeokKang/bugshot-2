@@ -229,7 +229,7 @@ export interface DeviceDocumentsResponse {
 
 `deviceFrameByTab`의 권위값은 `chrome.storage.session`에 `{ frameId, documentId }`로 보존하고 메모리 Map은 복제 캐시로만 쓴다. Chrome은 frame 생애 동안 navigation을 넘어 `frameId`를 유지하고 문서가 바뀔 때 `documentId`를 교체하므로, 등록 뒤의 same-origin redirect·링크 이동을 DOM 접근 없이 추적한다. SW 시작 시 복원 promise를 만들고 `webNavigation` 처리를 탭별 순서 큐에서 그 promise 뒤에 연결한다. 성능보다 정확성을 우선해 복구 전 이벤트를 동기 기본값으로 판정하지 않는다. top `onCommitted`, 탭 제거, 명시적 OFF에서는 저장값과 Map을 함께 지운다.
 
-**`chrome.storage.session`이 견디는 건 SW hibernation까지다.** 확장 reload·업데이트에서는 session storage가 비워지고, 같은 사건으로 content script도 전부 orphan이 된다 — 래퍼는 페이지에 남아 있는데 binding은 사라진 상태다. **살아 있는 스크립트가 없어 `device.frameReady` 자가 재발화가 불가능하므로**(래퍼가 same-origin이라 `frameElement`는 읽히지만, 그걸 읽어줄 코드가 죽었다) 재등록이 아니라 **재수립으로 복구한다**: 사이드패널이 마운트 시 `device.state`(페이지에 래퍼 있음)와 `device.documents`(binding 없음)가 엇갈리면 같은 폭으로 `reestablish`를 부른다(아래 "재수립 계약"의 두 번째 호출 지점). 확장 reload면 어차피 페이지 쪽 picker·레코더가 전부 죽어 재로드가 필요하므로 이 대가는 이미 치르는 것이다.
+**`chrome.storage.session`이 견디는 건 SW hibernation까지다.** 확장 reload·업데이트에서는 session storage가 비워지고, 같은 사건으로 content script도 전부 orphan이 된다 — 래퍼는 페이지에 남아 있는데 binding은 사라진 상태다. 사이드패널이 마운트하면 `device.state` 전에 picker content script를 재주입해 페이지 DOM의 래퍼 폭을 읽는다. `device.documents`에 binding이 없으면 그 폭을 `pending`에 세우고 기존 래퍼를 제거해 top reload를 만든다. top `onCommitted`가 pending을 소비해 공용 `reestablish`를 호출한다. 기존 래퍼를 남긴 채 같은 폭으로 `device.set`하면 폭만 바뀌 뿐 commit이 생기지 않아 판정 타임아웃으로 끝난다.
 
 ### 래퍼 registry 등록 (위험 8의 실제 배선)
 
@@ -332,13 +332,16 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
    ▼
 [사이드패널]
    ① pending = { tabId, width }            ← 인메모리. 영속하지 않는다
-   ② chrome.tabs.update(tabId, { url })    ← top 교체. 래퍼 요청은 문서와 함께 취소된다
-   ③ sessionExpired = true                 (녹화·미리보기·완료면 토스트 1개)
+   ② sessionExpired = true                 (녹화·미리보기·완료면 토스트 1개)
+   ③ ACK
+   ▼
+[background]
+   ④ chrome.tabs.update(tabId, { url })    ← 패널이 닫혀 ACK가 없어도 실행
    ▼
 [top onCommitted + pending 있음] → reestablish(tabId, pending.width)
 ```
 
-**handoff는 재수립을 직접 하지 않는다.** pending을 세팅하고 top을 옮기는 것까지가 handoff의 책임이고, 실제 재수립은 **top `onCommitted` 한 지점**이 맡는다(아래 "재수립 계약"). 차단 복구도 같은 모양이라 두 경로가 갈리지 않는다.
+**handoff는 재수립을 직접 하지 않는다.** 사이드패널은 pending을 세우고 ACK하며, background가 top 이동을 소유한다. 패널이 닫혔으면 같은 폭을 나를 pending이 없으므로 top만 이동해 Full로 강등하지만, cross-origin 문서를 래퍼에 남기지 않는 불변식을 우선한다. 패널이 열려 있으면 실제 재수립은 **top `onCommitted` 한 지점**이 맡는다.
 
 **`onBeforeNavigate`를 1차 트리거로 둔다.** commit에서 잡으면 파티션된 로그아웃 화면이 이미 렌더되고 그 문서의 로그·요청이 수집된 뒤다. 다만 same-origin URL이 서버에서 cross-origin으로 302되는 경우는 beforeNavigate에 안 보이므로 `onCommitted` 폴백이 함께 필요하다. **네비게이션을 취소하는 경로는 없다** — MV3에 blocking webRequest가 없으므로 handoff는 사후 조치이고, 그래서 다이얼로그도 게이트가 아니라 통보다.
 
@@ -485,9 +488,9 @@ async function reestablish(tabId: number, width: number): Promise<void>;
 
 **`device.arm`은 재수립에서도 반드시 연다.** arm 창이 없으면 잠정 등록이 없고, 그러면 즉시 redirect·차단 판정의 타깃 frameId가 없어 `frameLoaded`/`frameBlocked` 어느 쪽도 오지 않는다. `busy`가 3초 타임아웃으로 끝나고 모드는 조용히 안 선다.
 
-**호출 지점을 둘로 고정한다.** ① top `onCommitted` + `pending` 있음 ② 패널 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈림. ②는 top 커밋 없이 발생하는 유일한 경우라 별도 호출이 필요하지만, 같은 함수를 쓴다. **②의 폭 인자는 `pending`이 아니라 `device.state.width`(래퍼의 실제 `clientWidth`)다** — 확장 reload는 사이드패널까지 죽여 인메모리 pending을 함께 지우므로, 그 경로에서 폭을 아는 곳은 페이지 DOM뿐이다. 이 둘을 합치지 않으면 확장 reload 직후 top이 커밋될 때 두 경로가 동시에 발사돼 래퍼가 두 번 mount된다.
+**`reestablish` 호출 지점은 top `onCommitted` + `pending` 하나로 고정한다.** 패널 마운트 시 `device.state`(래퍼 있음)와 `device.documents`(binding 없음)가 엇갈리면 `device.state.width`를 pending에 세우고 래퍼를 제거해 top reload를 만든다. 그 commit이 공용 호출 지점으로 수렴한다. 확장 reload는 인메모리 pending을 함께 지우므로 폭의 소스는 페이지 DOM뿐이다.
 
-**`pending`과 루프 카운터는 훅 인스턴스가 아니라 모듈 스코프에 둔다.** `useDeviceViewport`는 `DeviceViewportBar`와 `App.tsx`의 다이얼로그 분기에서 **두 번 마운트된다**(Task 13이 `device.state` 중복 요청으로 이미 인정한 사실). 상태를 훅에 두면 인스턴스마다 pending을 갖게 되어 top 커밋 한 번에 재수립이 2회 발사되고 루프 임계를 각각 절반씩 센다 — "호출 지점 2개 고정"이 인스턴스 축에서 깨진다. 모듈 스코프 `Map<tabId, Pending>` 하나로 두고 훅은 읽기만 한다.
+**`pending`과 루프 카운터는 훅 인스턴스가 아니라 모듈 스코프에 둔다.** `useDeviceViewport`는 `DeviceViewportBar`와 `App.tsx`의 다이얼로그 분기에서 **두 번 마운트된다**(Task 13이 `device.state` 중복 요청으로 이미 인정한 사실). 상태를 훅에 두면 인스턴스마다 pending을 갖게 되어 top 커밋 한 번에 재수립이 2회 발사되고 루프 임계를 각각 절반씩 센다. 모듈 스코프 `Map<tabId, Pending>` 하나로 두고 훅은 읽기만 한다.
 
 `pending`(`{ tabId, width }`)의 수명: `select()` 성공 시 세팅 → 위 "cross-origin handoff"의 폐기 조건에서 제거 → top `onCommitted`에서 **소비 즉시 삭제한 뒤** `reestablish`를 부르고 성공하면 다시 세팅한다(실패 경로에서 유령 pending이 남지 않게). **단 `busy` 거부는 실패가 아니다** — 되돌려놓지 않으면 `select()`가 도는 중에 온 top 커밋에서 모드가 조용히 유실된다.
 
@@ -518,7 +521,7 @@ export async function activateRecordersInDeviceTree(tabId: number): Promise<bool
 | `rebroadcastSentinelsToFrame` (`:173-182`) | `frameCommitted` 수신 (`usePickerMessages.ts:271-272`) | 커밋된 **모든** 자식 프레임에 재발행 — 숨겨진 top의 자식 iframe이 커밋될 때마다 그 레코더가 살아난다 |
 | `activateRecordersInDeviceTree` | 모드 전환 | 정상 |
 
-호출 트리거를 하나씩 막는 방식은 새 트리거가 생길 때마다 샌다. **발행 지점 하나로 좁혀 게이트를 건다** — `picker-control` 안에 sentinel 송신 헬퍼를 두고, 모드 ON이면 `deviceTree` documentId 지정 송신으로, OFF면 기존 `sendAll`/frameId 지정으로 갈린다. 모드 판정은 캐시가 아니라 `device.documents` 응답의 `deviceTree.length > 0`이다.
+호출 트리거를 하나씩 막는 방식은 새 트리거가 생길 때마다 샌다. **발행 지점 하나로 좁혀 게이트를 건다** — `picker-control` 안에 sentinel 송신 헬퍼를 두고, 모드 ON이면 `deviceTree` documentId 지정 송신으로, OFF면 기존 `sendAll`/frameId 지정으로 갈린다. 성공한 빈 트리는 OFF이고, `device.documents` 실패는 `null`로 구분해 fail-closed한다.
 
 이 게이트가 **same-origin 이동 후 start 재전달의 정식 경로**이기도 하다: 래퍼가 같은 origin의 B로 이동하면 `frameCommitted(래퍼 frameId)` → 게이트 통과 → 새 documentId에 sentinel 재발행. pre-arm 절이 말하는 "정확성 계약은 `onCommitted` 뒤 documentId 지정 start ACK"의 구현 주체가 여기다.
 
@@ -609,7 +612,7 @@ export async function listTabDocuments(tabId: number): Promise<{ all: string[]; 
 - 잠정 등록: arm 창 안에서 `parentFrameId === 0 && url === top URL`인 첫 `onBeforeNavigate`를 잠정 래퍼로 잡는다. 즉시 redirect돼 `device.frameReady`가 안 오는 사이트에서 래퍼 frameId를 아는 유일한 시작점(handoff·차단 판정의 타깃이 된다) (위 "로드 검증")
 - 문서 이동: Chrome이 frame 생애 동안 유지하는 `frameId`를 권위값으로 삼고 `onCommitted.documentId`를 갱신한다. `parentFrameId`/`parentDocumentId`로 래퍼 자손 계보도 갱신한다
 - SW 복구: 시작 시 storage 복원 promise 뒤에 navigation 이벤트를 탭별 큐잉한다. 복구 전에 Map이 비었다고 top-only로 판정하지 않는다
-- 확장 reload 복구: storage.session이 비므로 위 "재수립 계약"의 두 번째 호출 지점(패널 마운트 시 binding 엇갈림 감지 → `reestablish`)으로 처리한다. binding 자체를 되살리는 경로는 없다
+- 확장 reload 복구: storage.session이 비므로 패널 마운트에서 binding 엇갈림을 감지하면 기존 래퍼를 제거하고 pending을 남긴다. 이어지는 top commit이 단일 `reestablish` 호출 지점으로 수렴하며, binding 자체를 되살리는 경로는 없다
 - 해제: `device.set { width: null }` 성공 시, top `onCommitted`, 탭 제거에서 Map과 storage를 함께 제거
 - 소비: **아래 "무엇을 갈아끼우고 무엇을 그대로 두는가"**
 

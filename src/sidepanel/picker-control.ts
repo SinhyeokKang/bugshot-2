@@ -177,16 +177,14 @@ function forgetSentinel(tabId: number, kind: keyof TabSentinels): void {
 
 // background가 유일한 문서 열거원이다 — 사이드패널은 프레임 트리를 모르고 캐시도 두지 않는다.
 //
-// 실패는 대개 SW 콜드스타트라 **한 번 재시도한다.** 그래도 실패하면 빈 배열을 돌려 기존
-// broadcast 경로로 떨어진다(fail-open): 모드 ON에서 그 라운드만 로그가 2벌이 되고 다음
-// inject에서 정정되는 반면, fail-closed로 접으면 모드 OFF(대다수)에서 레코더가 아예 안 켜져
-// 로그가 통째로 빈다. 조용한 중복이 조용한 공백보다 회복 가능하다.
+// 실패는 대개 SW 콜드스타트라 한 번 재시도한다. 그래도 실패하면 null로 구분해
+// fail-closed한다. 성공한 빈 트리(모드 OFF)와 통신 실패를 합치면 숨겨진 top이 다시 살아난다.
 // activate 3종은 useBackgroundRecorder가 Promise.all로 동시에 부른다 — 같은 tick의 요청을
 // 하나로 합쳐 SW 왕복과 getAllFrames를 3배로 돌리지 않는다. 캐시가 아니라 in-flight 병합이라
 // "모드 판정을 캐시하지 않는다"는 원칙과 충돌하지 않는다(정착 즉시 슬롯을 비운다).
-const inflightDocuments = new Map<number, Promise<DeviceDocumentsResponse>>();
+const inflightDocuments = new Map<number, Promise<DeviceDocumentsResponse | null>>();
 
-function fetchDeviceDocuments(tabId: number): Promise<DeviceDocumentsResponse> {
+function fetchDeviceDocuments(tabId: number): Promise<DeviceDocumentsResponse | null> {
   const inflight = inflightDocuments.get(tabId);
   if (inflight) return inflight;
   const task = requestDeviceDocuments(tabId).finally(() => {
@@ -196,7 +194,7 @@ function fetchDeviceDocuments(tabId: number): Promise<DeviceDocumentsResponse> {
   return task;
 }
 
-async function requestDeviceDocuments(tabId: number): Promise<DeviceDocumentsResponse> {
+async function requestDeviceDocuments(tabId: number): Promise<DeviceDocumentsResponse | null> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       return await sendBg<DeviceDocumentsResponse>({ type: "device.documents", tabId });
@@ -204,7 +202,7 @@ async function requestDeviceDocuments(tabId: number): Promise<DeviceDocumentsRes
       if (attempt === 0) await new Promise((r) => setTimeout(r, 100));
     }
   }
-  return { all: [], deviceTree: [] };
+  return null;
 }
 
 /**
@@ -217,7 +215,8 @@ async function emitSentinel(
   msg: PickerMessage,
   scope: SentinelScope,
 ): Promise<void> {
-  const { deviceTree } = await fetchDeviceDocuments(tabId);
+  const documents = await fetchDeviceDocuments(tabId);
+  const deviceTree = documents?.deviceTree ?? null;
   const target = resolveSentinelTargets({ deviceTree, scope });
   switch (target.kind) {
     case "broadcast":
@@ -258,7 +257,8 @@ export function rebroadcastSentinelsToFrame(
   if (msgs.length === 0) return;
   // 문서 열거는 한 번만 — 프레임이 잦게 커밋되는 광고성 페이지에서 3배로 왕복하지 않는다.
   void (async () => {
-    const { deviceTree } = await fetchDeviceDocuments(tabId);
+    const documents = await fetchDeviceDocuments(tabId);
+    const deviceTree = documents?.deviceTree ?? null;
     const scope: SentinelScope = { kind: "frame", frameId, documentId };
     const target = resolveSentinelTargets({ deviceTree, scope });
     if (target.kind !== "frame") return;
@@ -905,7 +905,9 @@ export async function activateRecordersInDeviceTree(
   tabId: number,
   clearLogs: () => void,
 ): Promise<boolean> {
-  const { all, deviceTree } = await fetchDeviceDocuments(tabId);
+  const documents = await fetchDeviceDocuments(tabId);
+  if (!documents) return false;
+  const { all, deviceTree } = documents;
   if (deviceTree.length === 0) return false;
 
   // stop 실패는 전이를 깨지 않는다 — 열거와 송신 사이에 이동한 문서는 애초에 그 레코더가
@@ -1021,7 +1023,12 @@ export async function deviceSet(
 export async function deviceState(
   tabId: number,
 ): Promise<DeviceStateResponse | undefined> {
-  return send<DeviceStateResponse>(tabId, { type: "device.state" }, 0);
+  try {
+    await ensureContentScript(tabId);
+    return send<DeviceStateResponse>(tabId, { type: "device.state" }, 0);
+  } catch {
+    return undefined;
+  }
 }
 
 export async function deviceWatch(tabId: number, on: boolean): Promise<void> {

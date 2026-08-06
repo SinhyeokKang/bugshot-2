@@ -75,7 +75,7 @@ const ko = {
   "issue.device.indicator": "뷰포트 {width}px",
   // 경고 범위가 재로드보다 넓어 modeWarning이다(플래그명 deviceModeWarned와 맞춘다).
   "issue.device.modeWarning.title": "페이지를 다시 불러옵니다",
-  "issue.device.modeWarning.body": "뷰포트를 바꾸거나 전체로 되돌릴 때마다 페이지가 다시 열립니다. 또 원래 페이지가 화면에서만 감춰진 채 계속 실행되므로, 네트워크 요청·자동 저장·결제 같은 동작이 두 번 일어날 수 있습니다. 되돌릴 수 없는 화면에서는 사용하지 마세요.",
+  "issue.device.modeWarning.body": "디바이스 뷰포트를 켜거나 전체로 되돌릴 때 페이지가 다시 열립니다. 또 원래 페이지가 화면에서만 감춰진 채 계속 실행되므로, 네트워크 요청·자동 저장·결제 같은 동작이 두 번 일어날 수 있습니다. 되돌릴 수 없는 화면에서는 사용하지 마세요.",
   "issue.device.modeWarning.confirm": "계속",
   "issue.device.modeWarning.cancel": "취소",
   "issue.device.blocked": "이 페이지는 프레임 안에서 열 수 없어 전체로 되돌렸습니다.",
@@ -237,7 +237,7 @@ const en = {
   "issue.device.status.switching": "Switching the viewport",
   "issue.device.indicator": "Viewport {width}px",
   "issue.device.modeWarning.title": "The page will reload",
-  "issue.device.modeWarning.body": "The page reloads every time you change the viewport or switch back to Full. The original page also keeps running while hidden, so network requests, autosaves, and payments can happen twice. Don't use this on screens you can't undo.",
+  "issue.device.modeWarning.body": "The page reopens when you turn on a device viewport or switch back to Full. The original page also keeps running while hidden, so network requests, autosaves, and payments can happen twice. Don't use this on screens you can't undo.",
   "issue.device.modeWarning.confirm": "Continue",
   "issue.device.modeWarning.cancel": "Cancel",
   "issue.device.blocked": "This page can't be opened inside a frame, so the viewport was switched back to Full.",

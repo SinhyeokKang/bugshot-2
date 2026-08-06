@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   decideDeviceSignal,
+  handoffDeviceTab,
   isTopLikeFrame,
   splitTabDocuments,
   type DeviceFrameState,
@@ -42,6 +43,16 @@ describe("decideDeviceSignal — 진입 판정 (arm 창 안)", () => {
     });
     expect(res.push).toBeNull();
     expect(res.next.binding).toBeNull();
+  });
+
+  it("arm 열림 + provisional 없음면 직속 iframe의 frameReady도 수용하지 않는다", () => {
+    const res = decideDeviceSignal(
+      state({ armed: true, provisionalFrameId: null, binding: null }),
+      { kind: "frameReady", frameId: 9, documentId: "forged" },
+    );
+    expect(res.push).toBeNull();
+    expect(res.next.binding).toBeNull();
+    expect(res.next.armed).toBe(true);
   });
 
   it("arm 닫힘에서 다른 frameId의 frameReady는 확정 binding을 못 가로챈다", () => {
@@ -243,6 +254,44 @@ describe("decideDeviceSignal — 성공·차단·handoff가 경쟁하지 않는�
       documentId: "d1",
     });
     expect(res.next.armed).toBe(false);
+  });
+});
+
+describe("handoffDeviceTab — 패널 수명과 무관한 top 이동", () => {
+  it("패널 ACK 후 top을 이동한다", async () => {
+    const order: string[] = [];
+    await handoffDeviceTab(
+      1,
+      "https://b.com/",
+      async () => { order.push("notify"); },
+      async () => { order.push("update"); },
+    );
+    expect(order).toEqual(["notify", "update"]);
+  });
+
+  it("패널 수신자가 없어도 top을 이동한다", async () => {
+    const update = vi.fn(async () => {});
+    await handoffDeviceTab(
+      1,
+      "https://b.com/",
+      async () => { throw new Error("no receiver"); },
+      update,
+    );
+    expect(update).toHaveBeenCalledWith(1, "https://b.com/");
+  });
+
+  it("패널 ACK가 안 오면 상한 후 top을 이동한다", async () => {
+    const update = vi.fn(async () => {});
+    await handoffDeviceTab(1, "https://b.com/", () => new Promise(() => {}), update, vi.fn(), 1);
+    expect(update).toHaveBeenCalledWith(1, "https://b.com/");
+  });
+
+  it("unsupported URL은 top 이동 대신 Full 안전 강등을 실행한다", async () => {
+    const update = vi.fn(async () => {});
+    const rollback = vi.fn(async () => {});
+    await handoffDeviceTab(1, "blob:https://a.com/id", async () => {}, update, rollback);
+    expect(update).not.toHaveBeenCalled();
+    expect(rollback).toHaveBeenCalledWith(1);
   });
 });
 

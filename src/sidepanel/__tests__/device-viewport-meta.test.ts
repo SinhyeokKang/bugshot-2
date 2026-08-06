@@ -62,3 +62,32 @@ describe("getTopViewport 주입 함수", () => {
     expect(reevaluated()).toEqual({ width: 390, height: 800 });
   });
 });
+
+describe("deviceState 확장 reload 자가복구", () => {
+  it("top ping 실패 시 picker를 재주입한 뒤 상태를 조회한다", async () => {
+    const sendMessage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("orphan content script"))
+      .mockResolvedValueOnce({ type: "pong" })
+      .mockResolvedValueOnce({ width: 390, available: { width: 1512, height: 800 } });
+    const executeScript = vi.fn(async () => []);
+    vi.stubGlobal("chrome", {
+      runtime: {
+        getManifest: () => ({ content_scripts: [{ js: ["picker.js"], all_frames: true }] }),
+      },
+      tabs: { sendMessage },
+      scripting: { executeScript },
+    });
+
+    const { deviceState } = await import("../picker-control");
+    await expect(deviceState(1)).resolves.toEqual({
+      width: 390,
+      available: { width: 1512, height: 800 },
+    });
+    expect(executeScript).toHaveBeenCalledWith({
+      target: { tabId: 1, allFrames: true },
+      files: ["picker.js"],
+    });
+    expect(sendMessage.mock.calls.at(-1)?.[1]).toEqual({ type: "device.state" });
+  });
+});
