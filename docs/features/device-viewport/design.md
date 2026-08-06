@@ -74,18 +74,20 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
 
 ## 데이터 흐름
 
-### 모드 ON
+### 모드 ON (OFF→ON 경로)
+
+폭 갱신(ON→ON)은 `device.set` 하나로 끝나므로 이 흐름을 타지 않는다 — 아래 `select()` 절의 경로 표 참조.
 
 ```
 [사용자] 세그먼트 "390" 클릭
    │
    ▼
 useDeviceViewport.select(390)
-   │  ① phase !== "idle" 이면 무시 (버튼이 이미 비활성)
+   │  ① locked(phase !== "idle" || unsupported) 또는 busy면 무시 (버튼이 이미 비활성)
    │  ② 최초 ON 진입 1회 확인 다이얼로그 → [계속] 시 local persist
    │  ③ syncAndSettleLogs(tabId)            ← 떠나는 로그 꼬리 확보
    │  ④ bgRequest("device.arm", { tabId, on: true })  ← 래퍼 커밋 감시창(3s) 개방
-   │     (store clear는 여기가 아니라 stop ACK 뒤 — 아래 select() 8~10)
+   │     (store clear는 여기가 아니라 stop ACK 뒤 — 아래 select() 10~12)
    │
    ▼
 sendPickerTop(tabId, { type: "device.set", width: 390 })
@@ -157,8 +159,10 @@ DeviceViewportBar 마운트
              available.width = document.documentElement.clientWidth  ← 세로 스크롤바 제외
    └─ picker.ts (top): window.addEventListener("resize")
         → postToRuntime({ type: "device.availableChanged", available })
-   └─ DeviceViewportBar 언마운트 → { type: "device.watch", on: false }
+   └─ 마지막 구독자가 사라지면 → { type: "device.watch", on: false }
 ```
+
+**`watch`도 `pending`과 같은 이유로 모듈 스코프 refcount다.** 훅이 `DeviceViewportBar`와 `App.tsx` 다이얼로그 분기 두 곳에서 마운트되므로, "Bar 언마운트 = watch off"로 두면 아직 살아 있는 다른 구독자의 `availableChanged`까지 끊긴다. 실피해는 작지만(다이얼로그 분기는 `width`만 읽고, idle 복귀 때 `device.state`가 다시 조회된다) 소유 규칙을 `pending`·루프 카운터와 다르게 두면 리팩터에서 갈린다.
 
 `innerWidth`가 아니라 `documentElement.clientWidth`를 쓴다 — 세로 스크롤바 15~17px을 빼지 않으면 래퍼가 가용 폭에 딱 맞을 때 가로 스크롤이 생긴다.
 
@@ -476,7 +480,7 @@ async function reestablish(tabId: number, width: number): Promise<void>;
 | `picker.start` 재시도 | `frameLoaded` 뒤 래퍼 frameId로, `phase === "picking"`일 때만 (위험 8) | **동일** — 그리고 picking 중 재수립이 그 분기의 유일한 도달 지점이다 |
 | 루프 카운터 | 0으로 리셋 | +1, 임계 초과면 중단 |
 | 실패(`frameBlocked`·전달 실패) | `전체` 롤백 + 토스트 | 동일 |
-| `pending`·카운터 소유 | — | **모듈 스코프 단일 인스턴스**(아래) |
+| `pending`·카운터·`watch` refcount 소유 | — | **모듈 스코프 단일 인스턴스**(아래) |
 
 **`locked`를 우회하는 것이 이 계약의 핵심이다.** `select()`의 잠금은 *사용자가 전환을 일으켜 draft·선택 요소·녹화를 깨는 것*을 막는 장치다. 재수립은 이미 문서가 갈린 뒤의 복구라, 잠금을 그대로 적용하면 drafting·recording 중 handoff에서 **top만 옮겨가고 래퍼가 안 서는데 세그먼트는 여전히 `390`을 가리키는** 상태가 된다 — 기각했던 desync가 바로 이 경로로 되살아난다. draft 파괴는 잠금이 아니라 `sessionExpired` 통보가 받는다.
 
