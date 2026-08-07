@@ -149,14 +149,24 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
     );
   }
   void enqueueForTab(tabId, async () => {
+    // **판정보다 먼저 본다.** handoff 판정은 binding을 폐기하므로, 뒤에서 읽으면 떠나는 래퍼가
+    // top-like가 아니게 돼 그 문서의 로그 꼬리가 통째로 사라진다. 판정을 기다리는 것도
+    // 안 된다 — handoff는 ACK 상한만큼 큐를 붙잡는데 그 사이 문서는 이미 갈린다.
+    if (isTopLikeFrame(getDeviceFrame(tabId), frameId)) {
+      // 발송은 fire-and-forget이라 판정을 기다리게 할 이유가 없다 — storage 왕복까지 앞에
+      // 세우면 하필 "commit 전에 잡는" handoff 1차 트리거의 여유를 스스로 깎는다.
+      void (async () => {
+        const key = sessionKey(tabId);
+        const stored = await chrome.storage.session
+          .get(key)
+          .catch(() => ({}) as Record<string, unknown>);
+        if (stored[key] == null) return;
+        chrome.tabs.sendMessage(tabId, { type: "networkRecorder.sync" }).catch(() => {});
+        chrome.tabs.sendMessage(tabId, { type: "consoleRecorder.sync" }).catch(() => {});
+        chrome.tabs.sendMessage(tabId, { type: "actionRecorder.sync" }).catch(() => {});
+      })();
+    }
     await applyDeviceSignal(tabId, { kind: "beforeNavigate", frameId, parentFrameId, url });
-    if (!isTopLikeFrame(getDeviceFrame(tabId), frameId)) return;
-    const key = sessionKey(tabId);
-    const stored = await chrome.storage.session.get(key).catch(() => ({}) as Record<string, unknown>);
-    if (stored[key] == null) return;
-    chrome.tabs.sendMessage(tabId, { type: "networkRecorder.sync" }).catch(() => {});
-    chrome.tabs.sendMessage(tabId, { type: "consoleRecorder.sync" }).catch(() => {});
-    chrome.tabs.sendMessage(tabId, { type: "actionRecorder.sync" }).catch(() => {});
   });
 });
 

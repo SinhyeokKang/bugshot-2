@@ -178,7 +178,12 @@ function forgetSentinel(tabId: number, kind: keyof TabSentinels): void {
 // background가 유일한 문서 열거원이다 — 사이드패널은 프레임 트리를 모르고 캐시도 두지 않는다.
 //
 // 실패는 대개 SW 콜드스타트라 한 번 재시도한다. 그래도 실패하면 null로 구분해
-// fail-closed한다. 성공한 빈 트리(모드 OFF)와 통신 실패를 합치면 숨겨진 top이 다시 살아난다.
+// fail-closed한다. 성공한 빈 트리(모드 OFF)와 통신 실패를 합치면 숨겨진 top이 다시 살아나고,
+// 모드 ON에서는 stop을 못 보내므로 그 세션 내내 로그가 2벌로 고정된다(다음 inject로도 안 낫는다).
+// **fail-closed의 대가인 "그 라운드 발행 0"은 회수된다** — 재주입 트리거(tabs.onUpdated·
+// visibilitychange·idle 복귀)가 성공 여부와 무관하게 계속 발화해 다음 라운드에서 다시 발행한다.
+// activate가 실패를 삼키지 않고 throw하는 건 그 재시도를 만들기 위해서가 아니라 ① 발행 못 한
+// sentinel을 맵에서 지워 반쪽 재발행을 막고 ② 무증상 공백에 로그를 남기기 위해서다.
 // activate 3종은 useBackgroundRecorder가 Promise.all로 동시에 부른다 — 같은 tick의 요청을
 // 하나로 합쳐 SW 왕복과 getAllFrames를 3배로 돌리지 않는다. 캐시가 아니라 in-flight 병합이라
 // "모드 판정을 캐시하지 않는다"는 원칙과 충돌하지 않는다(정착 즉시 슬롯을 비운다).
@@ -192,6 +197,12 @@ function fetchDeviceDocuments(tabId: number): Promise<DeviceDocumentsResponse | 
   });
   inflightDocuments.set(tabId, task);
   return task;
+}
+
+/** 열거 실패는 `null`이다 — 성공한 빈 트리(모드 OFF)와 절대 합치지 않는다. */
+export async function fetchDeviceTree(tabId: number): Promise<string[] | null> {
+  const documents = await fetchDeviceDocuments(tabId);
+  return documents?.deviceTree ?? null;
 }
 
 async function requestDeviceDocuments(tabId: number): Promise<DeviceDocumentsResponse | null> {
@@ -214,29 +225,53 @@ async function emitSentinel(
   tabId: number,
   msg: PickerMessage,
   scope: SentinelScope,
-): Promise<void> {
-  const documents = await fetchDeviceDocuments(tabId);
-  const deviceTree = documents?.deviceTree ?? null;
+): Promise<boolean> {
+  const deviceTree = await fetchDeviceTree(tabId);
+  // 열거 실패는 "발행 대상 없음"과 다르다 — false로 올려 호출부가 재시도 트리거를 살린다.
+  // 성공으로 접으면 아무 프레임에도 안 보낸 채 green이 돼 그 탭의 로그가 통째로 빈다.
+  if (deviceTree == null) return false;
   const target = resolveSentinelTargets({ deviceTree, scope });
   switch (target.kind) {
     case "broadcast":
       await sendAll(tabId, msg);
-      return;
+      return true;
     case "frame":
       await send(tabId, msg, target.frameId);
-      return;
+      return true;
     case "documents":
       await Promise.all(
         target.documentIds.map((documentId) =>
           chrome.tabs.sendMessage(tabId, msg, { documentId }).catch(() => {}),
         ),
       );
-      return;
+      return true;
+    // scope가 `all`인 지금의 유일한 호출부에서는 안 나온다 — 다른 scope가 생겨 살아나면
+    // "발행 0인데 성공"이 되므로 그때 이 반환값을 다시 판단해야 한다.
     case "none":
-      return;
+      return true;
     default:
       target satisfies never;
+      return true;
   }
+}
+
+/**
+ * activate 3종 공통 꼬리. **열거에 실패했을 때만** sentinel을 맵에서 지우고 throw한다 — 남겨두면
+ * 이후 커밋된 iframe에만 재발행돼 top 없는 반쪽 로그가 된다. 개별 송신 실패(갓 커밋된 프레임의
+ * "Receiving end does not exist" 등)는 여기 안 걸린다 — 그건 `ackDocument`의 재시도가 맡는다.
+ */
+async function emitActivation(
+  tabId: number,
+  kind: keyof TabSentinels,
+  build: (sentinel: string) => PickerMessage,
+): Promise<string> {
+  const sentinel = crypto.randomUUID();
+  rememberSentinel(tabId, kind, sentinel);
+  if (!(await emitSentinel(tabId, build(sentinel), { kind: "all" }))) {
+    forgetSentinel(tabId, kind);
+    throw new Error("device documents unavailable");
+  }
+  return sentinel;
 }
 
 // 특정 프레임에만 setSentinel을 재전송(frameId 지정). setSentinel은 recording=true만 켜고 버퍼를
@@ -257,8 +292,7 @@ export function rebroadcastSentinelsToFrame(
   if (msgs.length === 0) return;
   // 문서 열거는 한 번만 — 프레임이 잦게 커밋되는 광고성 페이지에서 3배로 왕복하지 않는다.
   void (async () => {
-    const documents = await fetchDeviceDocuments(tabId);
-    const deviceTree = documents?.deviceTree ?? null;
+    const deviceTree = await fetchDeviceTree(tabId);
     const scope: SentinelScope = { kind: "frame", frameId, documentId };
     const target = resolveSentinelTargets({ deviceTree, scope });
     if (target.kind !== "frame") return;
@@ -795,10 +829,10 @@ export async function activateNetworkRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
   await ensureRecorderBridge(tabId);
   await ensureMainWorldRecorders(tabId);
-  const sentinel = crypto.randomUUID();
-  rememberSentinel(tabId, "network", sentinel);
-  await emitSentinel(tabId, { type: "networkRecorder.setSentinel", sentinel }, { kind: "all" });
-  return sentinel;
+  return emitActivation(tabId, "network", (sentinel) => ({
+    type: "networkRecorder.setSentinel",
+    sentinel,
+  }));
 }
 
 export async function stopNetworkRecorder(tabId: number): Promise<void> {
@@ -814,10 +848,10 @@ export async function activateConsoleRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
   await ensureRecorderBridge(tabId);
   await ensureMainWorldRecorders(tabId);
-  const sentinel = crypto.randomUUID();
-  rememberSentinel(tabId, "console", sentinel);
-  await emitSentinel(tabId, { type: "consoleRecorder.setSentinel", sentinel }, { kind: "all" });
-  return sentinel;
+  return emitActivation(tabId, "console", (sentinel) => ({
+    type: "consoleRecorder.setSentinel",
+    sentinel,
+  }));
 }
 
 export async function stopConsoleRecorder(tabId: number): Promise<void> {
@@ -833,10 +867,10 @@ export async function activateActionRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
   await ensureRecorderBridge(tabId);
   await ensureMainWorldRecorders(tabId);
-  const sentinel = crypto.randomUUID();
-  rememberSentinel(tabId, "action", sentinel);
-  await emitSentinel(tabId, { type: "actionRecorder.setSentinel", sentinel }, { kind: "all" });
-  return sentinel;
+  return emitActivation(tabId, "action", (sentinel) => ({
+    type: "actionRecorder.setSentinel",
+    sentinel,
+  }));
 }
 
 export async function stopActionRecorder(tabId: number): Promise<void> {
@@ -921,7 +955,10 @@ export async function activateRecordersInDeviceTree(
   clearLogs();
 
   const sentinels = tabSentinels.get(tabId);
-  if (!sentinels) return true; // 레코더가 애초에 비활성 — 전이 자체는 성공이다
+  // 맵이 비었다는 건 "레코더가 애초에 비활성"이거나 "직전 activate가 열거 실패로 접혔다"이고,
+  // 여기서 둘을 못 가른다. 후자여도 래퍼 로드가 tabs.onUpdated(complete)를 만들어 곧바로
+  // inject가 다시 도는 창이라, 전이를 실패로 접어 정상 래퍼를 롤백시키는 쪽이 더 나쁘다.
+  if (!sentinels) return true;
   const starts: PickerMessage[] = [];
   if (sentinels.network) {
     starts.push({ type: "networkRecorder.setSentinel", sentinel: sentinels.network });

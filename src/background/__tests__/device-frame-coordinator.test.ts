@@ -55,6 +55,18 @@ describe("decideDeviceSignal — 진입 판정 (arm 창 안)", () => {
     expect(res.next.armed).toBe(true);
   });
 
+  // 재수립은 살아남은 binding 위에서 arm을 다시 연다 — 잠정 등록이 없으므로 이 폴백이
+  // 없으면 정상 래퍼의 frameReady가 무시돼 3초 armTimeout → 차단 → 롤백으로 접힌다.
+  it("arm 열림 + 잠정 없음이어도 확정 binding과 같은 frameId면 승격한다", () => {
+    const res = decideDeviceSignal(
+      state({ armed: true, provisionalFrameId: null, binding: { frameId: 7, documentId: "d1" } }),
+      { kind: "frameReady", frameId: 7, documentId: "d2" },
+    );
+    expect(res.push).toEqual({ type: "frameLoaded" });
+    expect(res.next.binding).toEqual({ frameId: 7, documentId: "d2" });
+    expect(res.next.armed).toBe(false);
+  });
+
   it("arm 닫힘에서 다른 frameId의 frameReady는 확정 binding을 못 가로챈다", () => {
     const res = decideDeviceSignal(
       state({ armed: false, binding: { frameId: 7, documentId: "d1" } }),
@@ -277,36 +289,51 @@ describe("decideDeviceSignal — 성공·차단·handoff가 경쟁하지 않는�
 describe("handoffDeviceTab — 패널 수명과 무관한 top 이동", () => {
   it("패널 ACK 후 top을 이동한다", async () => {
     const order: string[] = [];
-    await handoffDeviceTab(
-      1,
-      "https://b.com/",
-      async () => { order.push("notify"); },
-      async () => { order.push("update"); },
-    );
+    await handoffDeviceTab(1, "https://b.com/", {
+      notify: async () => { order.push("notify"); },
+      update: async () => { order.push("update"); },
+    });
     expect(order).toEqual(["notify", "update"]);
   });
 
   it("패널 수신자가 없어도 top을 이동한다", async () => {
     const update = vi.fn(async () => {});
-    await handoffDeviceTab(
-      1,
-      "https://b.com/",
-      async () => { throw new Error("no receiver"); },
+    await handoffDeviceTab(1, "https://b.com/", {
+      notify: async () => { throw new Error("no receiver"); },
       update,
-    );
+    });
     expect(update).toHaveBeenCalledWith(1, "https://b.com/");
   });
 
   it("패널 ACK가 안 오면 상한 후 top을 이동한다", async () => {
     const update = vi.fn(async () => {});
-    await handoffDeviceTab(1, "https://b.com/", () => new Promise(() => {}), update, vi.fn(), 1);
+    await handoffDeviceTab(1, "https://b.com/", {
+      notify: () => new Promise(() => {}),
+      update,
+      ackTimeoutMs: 1,
+    });
+    expect(update).toHaveBeenCalledWith(1, "https://b.com/");
+  });
+
+  // 패널이 만료를 알려도 top 이동은 취소되지 않는다 — cross-origin 문서를 래퍼에 남기지
+  // 않는 쪽이 이기고, 대신 패널이 Full로 강등한다. 그 계약이 여기서 고정된다.
+  it("패널이 만료를 응답해도 top을 이동한다", async () => {
+    const update = vi.fn(async () => {});
+    await handoffDeviceTab(1, "https://b.com/", {
+      notify: async () => ({ ok: false }),
+      update,
+    });
     expect(update).toHaveBeenCalledWith(1, "https://b.com/");
   });
 
   it("unsupported URL은 top 이동 대신 Full 안전 강등을 실행한다", async () => {
     const update = vi.fn(async () => {});
     const rollback = vi.fn(async () => {});
-    await handoffDeviceTab(1, "blob:https://a.com/id", async () => {}, update, rollback);
+    await handoffDeviceTab(1, "blob:https://a.com/id", {
+      notify: async () => {},
+      update,
+      rollback,
+    });
     expect(update).not.toHaveBeenCalled();
     expect(rollback).toHaveBeenCalledWith(1);
   });
@@ -512,7 +539,9 @@ describe("SW 재기동 복원", () => {
     expect(Object.values(store)).not.toContainEqual({ frameId: 7, documentId: "d1" });
   });
 
-  it("binding storage 삭제가 실패해도 handoff top 이동은 계속한다", async () => {
+  // 삭제 실패에도 Map은 비운다 — 이 SW 수명에서 죽은 래퍼를 살려두면 로그 라우팅이 그리로
+  // 새고, storage에 남은 stale은 다음 top 커밋의 clearDeviceFrame이 지운다.
+  it("binding storage 삭제가 실패해도 handoff top 이동과 Map 해제는 계속한다", async () => {
     const mod = await import("../device-frame-coordinator");
     await mod.setDeviceFrame(1, { frameId: 7, documentId: "d1" });
     vi.mocked(chrome.storage.session.remove).mockRejectedValueOnce(new Error("storage unavailable"));
@@ -526,5 +555,33 @@ describe("SW 재기동 복원", () => {
     });
 
     expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: "https://b.com/" });
+    expect(mod.getDeviceFrame(1)).toBeNull();
+  });
+
+  // set 실패로 applyDeviceSignal이 throw하면 판정 push가 통째로 사라진다 — 패널은 3초를
+  // 헛기다린 끝에 차단으로 접어 정상 로드된 래퍼를 롤백한다.
+  it("binding 기록이 실패해도 판정 push는 나간다", async () => {
+    const mod = await import("../device-frame-coordinator");
+    mod.armDeviceFrame(1, true, TOP);
+    await mod.applyDeviceSignal(1, {
+      kind: "beforeNavigate",
+      frameId: 7,
+      parentFrameId: 0,
+      url: TOP,
+    });
+    vi.mocked(chrome.storage.session.set).mockRejectedValueOnce(new Error("storage unavailable"));
+
+    await mod.applyDeviceSignal(1, {
+      kind: "committed",
+      frameId: 7,
+      documentId: "d1",
+      url: TOP,
+    });
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: "device.frameLoaded",
+      tabId: 1,
+      frameId: 7,
+    });
   });
 });

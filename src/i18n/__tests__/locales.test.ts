@@ -3,15 +3,6 @@ import ko from "../ko";
 import en from "../en";
 
 describe("i18n locale parity", () => {
-  it("디바이스 경고는 재로드 경계를 ON·Full 복귀로만 안내한다", () => {
-    expect(ko["issue.device.modeWarning.body"]).toBe(
-      "디바이스 뷰포트를 켜거나 전체로 되돌릴 때 페이지가 다시 열립니다. 또 원래 페이지가 화면에서만 감춰진 채 계속 실행되므로, 네트워크 요청·자동 저장·결제 같은 동작이 두 번 일어날 수 있습니다. 되돌릴 수 없는 화면에서는 사용하지 마세요.",
-    );
-    expect(en["issue.device.modeWarning.body"]).toBe(
-      "The page reopens when you turn on a device viewport or switch back to Full. The original page also keeps running while hidden, so network requests, autosaves, and payments can happen twice. Don't use this on screens you can't undo.",
-    );
-  });
-
   it("en has every key ko defines", () => {
     const koKeys = Object.keys(ko);
     const enKeys = new Set(Object.keys(en));

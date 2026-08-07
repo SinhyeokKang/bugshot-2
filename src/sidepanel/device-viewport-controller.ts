@@ -11,6 +11,7 @@ import {
   deviceSet,
   deviceState,
   deviceWatch,
+  fetchDeviceTree,
   restartPickerInFrame,
   syncAndSettleLogs,
 } from "./picker-control";
@@ -103,6 +104,15 @@ function endAttempt(token: number): void {
   if (attemptToken === token) attemptingWidth = null;
 }
 
+/**
+ * 진행 중인 전이의 소유권을 뺏는다. handoff 만료 강등이 `await deviceSet` 창 안에 도착하면
+ * 그 응답의 `set({ width })`가 방금 내린 폭을 되살려 desync가 그대로 복구된다.
+ */
+function abortAttempt(): void {
+  attemptToken += 1;
+  attemptingWidth = null;
+}
+
 /* ── 로그 경계 ──────────────────────────────────────────────── */
 
 // 모드 전환은 네비게이션이 아니라 logClear가 안 온다 — 강제한다. store clear가 IDB의 pending
@@ -180,6 +190,17 @@ function settleVerdict(result: Verdict): void {
 }
 
 /* ── 전이 ──────────────────────────────────────────────────── */
+
+/**
+ * 페이지 쪽 Full 복귀를 background가 이미 소유한 경로에서 **패널 상태만** 맞춘다.
+ * 폭을 안 내리면 페이지는 Full인데 UI만 ON인 desync가 굳고(같은 폭 재선택은 noop, 페이지
+ * 전체 캡처는 영구 차단), 소유권을 안 뺏으면 인플라이트 전이가 그 폭을 되살린다.
+ */
+function demoteToFull(tabId: number): void {
+  abortAttempt();
+  dropPending(tabId);
+  set({ width: null });
+}
 
 async function rollbackToFull(tabId: number, message: string): Promise<void> {
   dropPending(tabId);
@@ -270,6 +291,9 @@ async function runOffToOn(tabId: number, width: number): Promise<void> {
     // 도착한 앞 시도의 인플라이트 push가 새 시도의 판정으로 걸린다.
     resetVerdict();
     const res = await deviceSet(tabId, width);
+    // 이 창 안에서 handoff 만료 강등이 왔으면 그쪽이 이긴다 — 아래 set({width})가 방금 내린
+    // 폭을 되살리면 "래퍼는 없는데 UI만 ON"이 그대로 돌아온다.
+    if (attemptToken !== token) return;
     // undefined(전달 실패)와 {ok:false}(마운트 실패)를 구분해서 다뤄야 한다 — ok === false만
     // 보면 send가 실패를 undefined로 삼키므로 전달 실패가 성공으로 샌다.
     if (!res?.ok) {
@@ -289,7 +313,9 @@ async function runOffToOn(tabId: number, width: number): Promise<void> {
       return;
     }
     const activated = await finishActivation(tabId, verdict.frameId);
-    if (!stillOn(tabId)) return;
+    // finishActivation은 백그라운드 왕복·ACK 재시도라 수백 ms다 — 그 창에서 온 만료 강등이
+    // 이겨야 한다. 안 그러면 아래 putPending이 방금 버린 pending을 되살려 재수립이 돈다.
+    if (!stillOn(tabId) || attemptToken !== token) return;
     putPending(tabId, width);
     // **레코더 재무장 실패는 모드 실패가 아니다.** 래퍼는 정상 로드됐고, 레코더는 다음 inject
     // 트리거(tabs.onUpdated(complete)·visibilitychange·idle 복귀)에서 같은 게이트를 타고 스스로
@@ -336,6 +362,7 @@ async function reestablish(tabId: number, width: number, url: string): Promise<v
     await arm(tabId, true);
     resetVerdict();
     const res = await deviceSet(tabId, width);
+    if (attemptToken !== token) return;
     if (!res?.ok) {
       await arm(tabId, false);
       if (stillOn(tabId)) await rollbackToFull(tabId, t("issue.device.blocked"));
@@ -355,7 +382,7 @@ async function reestablish(tabId: number, width: number, url: string): Promise<v
     // 있을 때만 발화해서, 패널을 막 열고 첫 로그 전이면 안 돈다. 두 번 비워도 둘 다
     // start ACK 전이라 무해하다.
     const activated = await finishActivation(tabId, loaded.frameId);
-    if (!stillOn(tabId)) return;
+    if (!stillOn(tabId) || attemptToken !== token) return;
     putPending(tabId, width);
     // 위와 같은 이유 — 재수립 직후의 reload는 handoff가 만든 이동에 한 번 더 겹친다.
     if (!activated) toast.warning(t("issue.device.recordersDegraded"));
@@ -370,36 +397,44 @@ async function reestablish(tabId: number, width: number, url: string): Promise<v
 // 다이얼로그 마운트 지점이 없는 phase — 통보를 토스트 1개로 갈음한다.
 const TOAST_ONLY_PHASES = new Set(["recording", "previewing", "done"]);
 
+/**
+ * 반환값은 "기한 안에 처리했나"다. background는 그걸 읽지 않고 top을 옮기므로, 기한을 넘겼으면
+ * 재수립을 포기하는 대신 **Full로 강등해** 페이지와 UI를 맞추는 것까지가 이쪽 책임이다.
+ */
 async function onHandoff(tabId: number, url: string, expiresAt: number): Promise<boolean> {
-  if (Date.now() >= expiresAt) {
-    // top 이동은 이미 진행된다. 인플라이트 진입 판정만 handoff로 끝내고 pending은 남기지 않는다.
-    settleVerdict({ ok: false, handoff: true });
-    return false;
-  }
+  const inTime = Date.now() < expiresAt;
   // handoff는 재수립을 직접 하지 않는다 — pending을 세팅하고 top을 옮기는 것까지가 책임이고,
   // 실제 재수립은 top onCommitted 한 지점이 맡는다.
-  const width = snap().width ?? attemptingWidth;
-  if (width == null) return true;
-  // 래퍼가 data:·about:·blob:로 커밋·에러난 경우까지 top 네비게이션 대상으로 삼지 않는다.
-  // handoff 플래그로 끊어야 인플라이트 전이가 자기 롤백을 또 돌지 않는다(이중 reload·토스트 2개).
-  if (!isSupportedUrl(url)) {
-    settleVerdict({ ok: false, handoff: true });
-    return true;
-  }
   // 진행 중인 select의 판정 대기를 handoff로 끊는다 — 평범한 실패로 끊으면 그 select가
   // 롤백을 돌려 아래에서 세울 pending을 먼저 지운다.
   settleVerdict({ ok: false, handoff: true });
-  // background가 이 push의 ACK를 받은 뒤 top을 이동한다. pending이 commit보다 먼저다.
-  putPending(tabId, width);
+  const width = snap().width ?? attemptingWidth;
+  if (width == null) return inTime;
+  // 래퍼가 data:·about:·blob:로 커밋·에러난 경우까지 top 네비게이션 대상으로 삼지 않는다.
+  // background가 래퍼 제거 + reload로 접으므로 device.set을 또 부르지 않는다(이중 reload) —
+  // 대신 폭은 이쪽이 내린다. 안 내리면 페이지는 Full인데 UI만 ON으로 남는다.
+  if (!isSupportedUrl(url)) {
+    demoteToFull(tabId);
+    toast.error(t("issue.device.blocked"));
+    return inTime;
+  }
+
+  if (inTime) {
+    // background가 이 push의 ACK를 받은 뒤 top을 이동한다. pending이 commit보다 먼저다.
+    putPending(tabId, width);
+  } else {
+    demoteToFull(tabId);
+  }
+  // top이 실제로 옮겨가는 건 기한과 무관하다 — 통보는 양쪽 경로가 같아야 한다.
   const phase = useEditorStore.getState().phase;
   if (TOAST_ONLY_PHASES.has(phase)) {
     toast.info(t("issue.device.handoffToast"));
-    return true;
+    return inTime;
   }
   // phase 판정 없이 무조건 켠다 — 렌더 분기가 non-idle 셋뿐이라 idle에서는 안 뜬다.
   set({ expiredByHandoff: true });
   useEditorStore.setState({ sessionExpired: true });
-  return true;
+  return inTime;
 }
 
 function handleMessage(
@@ -429,7 +464,9 @@ function handleMessage(
   }
   if (msg.type === "device.handoff") {
     if (msg.tabId !== tabId) return;
-    void onHandoff(tabId, msg.url, msg.expiresAt).then((ok) => sendResponse({ ok }));
+    void onHandoff(tabId, msg.url, msg.expiresAt)
+      .then((ok) => sendResponse({ ok }))
+      .catch(() => sendResponse({ ok: false }));
     return true;
   }
   if (msg.type === "frameCommitted") {
@@ -469,17 +506,10 @@ async function syncFromPage(tabId: number): Promise<void> {
   // 페이지엔 래퍼가 있는데 binding이 없다 = 확장 reload로 storage.session이 비워진 상태.
   // 살아 있는 스크립트가 없어 frameReady 자가 재발화가 불가능하므로 재수립으로 복구한다.
   // 폭을 아는 곳은 페이지 DOM뿐이라 pending이 아니라 device.state.width를 인자로 쓴다.
-  let deviceTree: string[] = [];
-  try {
-    ({ deviceTree } = await sendBg<{ all: string[]; deviceTree: string[] }>({
-      type: "device.documents",
-      tabId,
-    }));
-  } catch {
-    // 열거 실패면 엇갈림 여부를 판정할 수 없다 — 재수립을 추측으로 발사하지 않는다.
-    return;
-  }
-  if (deviceTree.length > 0 || !stillOn(tabId)) return;
+  // 열거 실패(null)면 엇갈림 여부를 판정할 수 없다 — 아래 복구가 정상 페이지를 reload하므로
+  // 추측으로 발사하지 않는다. 재시도·in-flight 병합·null 세만틱은 공용 경로가 소유한다.
+  const deviceTree = await fetchDeviceTree(tabId);
+  if (deviceTree == null || deviceTree.length > 0 || !stillOn(tabId)) return;
   // 기존 래퍼를 두고 device.set(같은 폭)을 보내면 폭만 바꾸어 commit이 안 생긴다.
   // pending을 먼저 세우고 Full 복귀로 top commit을 만들어 공용 재수립 경로를 태운다.
   putPending(tabId, state.width);
