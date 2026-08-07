@@ -15,7 +15,8 @@ const deviceState = vi.fn<
   () => Promise<{ width: number | null; available: { width: number; height: number } }>
 >(async () => ({ width: null, available: { width: 1512, height: 900 } }));
 const activateRecordersInDeviceTree = vi.fn(async () => true);
-const sendBg = vi.fn(async (..._args: unknown[]) => ({ all: [], deviceTree: [] }));
+const fetchDeviceTree = vi.fn<() => Promise<string[] | null>>(async () => []);
+const sendBg = vi.fn(async (..._args: unknown[]) => ({ ok: true }));
 
 vi.mock("@/i18n", () => ({ t: (key: string) => key }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
@@ -24,6 +25,7 @@ vi.mock("../picker-control", () => ({
   deviceState: () => deviceState(),
   deviceWatch: vi.fn(async () => {}),
   activateRecordersInDeviceTree: () => activateRecordersInDeviceTree(),
+  fetchDeviceTree: () => fetchDeviceTree(),
   restartPickerInFrame: vi.fn(async () => {}),
   syncAndSettleLogs: vi.fn(async () => {}),
 }));
@@ -61,21 +63,36 @@ type Listener = (
   msg: unknown,
   sender: chrome.runtime.MessageSender,
   sendResponse: (value?: unknown) => void,
-) => void;
+) => boolean | void;
 let listeners: Listener[] = [];
 
-function emit(msg: unknown, sendResponse: (value?: unknown) => void = () => {}): void {
-  for (const fn of listeners) fn(msg, {} as chrome.runtime.MessageSender, sendResponse);
+// 반환값을 그대로 돌려준다 — `return true`(비동기 응답 채널 유지)를 버리면 그 계약이
+// 테스트에서 사라져, 지워도 green인 채로 매 handoff가 ACK 상한까지 지연된다.
+function emit(
+  msg: unknown,
+  sendResponse: (value?: unknown) => void = () => {},
+): Array<boolean | void> {
+  return listeners.map((fn) => fn(msg, {} as chrome.runtime.MessageSender, sendResponse));
 }
 
 // 마이크로태스크를 충분히 흘려 await 체인이 device.set까지 도달하게 한다.
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+// 전이를 특정 await에 세워두고 그 창에 push를 밀어넣기 위한 게이트.
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(async () => {
   vi.clearAllMocks();
   activateRecordersInDeviceTree.mockResolvedValue(true);
   deviceState.mockResolvedValue({ width: null, available: { width: 1512, height: 900 } });
-  sendBg.mockResolvedValue({ all: [], deviceTree: [] });
+  fetchDeviceTree.mockResolvedValue([]);
+  sendBg.mockResolvedValue({ ok: true });
   listeners = [];
   phase = "idle";
   vi.stubGlobal("chrome", {
@@ -184,31 +201,66 @@ describe("handoff 준비 ACK", () => {
     controller.useDeviceViewportStore.setState({ width: 390 });
     const respond = vi.fn();
 
-    emit({ type: "device.handoff", tabId: 1, url: "https://b.com/", expiresAt: Date.now() + 500 }, respond);
+    const kept = emit(
+      { type: "device.handoff", tabId: 1, url: "https://b.com/", expiresAt: Date.now() + 500 },
+      respond,
+    );
     await flush();
 
     expect(mode.peekPending(1)?.width).toBe(390);
     expect(respond).toHaveBeenCalledWith({ ok: true });
     expect(chrome.tabs.update).not.toHaveBeenCalled();
+    // 채널을 안 잡으면 sendResponse가 무시돼 background가 매번 ACK 상한까지 헛기다린다.
+    expect(kept).toContain(true);
     detach();
   });
 
-  it("unsupported 롤백은 background 단일 소유라 패널이 device.set을 중복 호출하지 않는다", async () => {
+  it("ACK 처리 중 예외가 나도 응답을 돌려준다", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(toast.info).mockImplementationOnce(() => {
+      throw new Error("toast unavailable");
+    });
     const { controller, detach } = await setup();
     controller.useDeviceViewportStore.setState({ width: 390 });
+    phase = "recording";
+    const respond = vi.fn();
+
+    emit(
+      { type: "device.handoff", tabId: 1, url: "https://b.com/", expiresAt: Date.now() + 500 },
+      respond,
+    );
+    await flush();
+
+    expect(respond).toHaveBeenCalledWith({ ok: false });
+    detach();
+  });
+
+  // 페이지 쪽 Full 복귀는 background가 소유한다(래퍼 제거 + reload). 패널이 device.set을
+  // 또 부르면 이중 reload가 되지만, **폭은 내려야 한다** — 안 내리면 페이지는 Full인데
+  // UI만 ON으로 남아 같은 폭 재선택이 noop으로 죽는다.
+  it("unsupported 롤백은 device.set 중복 없이 폭만 강등한다", async () => {
+    const { controller, mode, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    mode.putPending(1, 390);
     const respond = vi.fn();
 
     emit({ type: "device.handoff", tabId: 1, url: "blob:https://a.com/id", expiresAt: Date.now() + 500 }, respond);
     await flush();
 
     expect(deviceSet).not.toHaveBeenCalled();
+    expect(controller.useDeviceViewportStore.getState().width).toBeNull();
+    expect(mode.peekPending(1)).toBeNull();
     expect(respond).toHaveBeenCalledWith({ ok: true });
     detach();
   });
 
-  it("ACK 기한이 지난 handoff는 유령 pending을 만들지 않는다", async () => {
+  // 만료 분기는 pending만 안 남기는 게 아니라 **Full로 강등까지** 해야 한다. background는
+  // 응답값을 안 보고 top을 옮기므로, width를 390으로 둔 채 끝내면 래퍼는 없는데 UI만 ON인
+  // desync가 탭 세션 내내 굳는다(390 재선택은 noop, 페이지 전체 캡처는 영구 차단).
+  it("ACK 기한이 지난 handoff는 유령 pending 없이 Full로 강등한다", async () => {
     const { controller, mode, detach } = await setup();
     controller.useDeviceViewportStore.setState({ width: 390 });
+    mode.putPending(1, 390);
     const respond = vi.fn();
 
     emit(
@@ -218,7 +270,62 @@ describe("handoff 준비 ACK", () => {
     await flush();
 
     expect(mode.peekPending(1)).toBeNull();
+    expect(controller.useDeviceViewportStore.getState().width).toBeNull();
     expect(respond).toHaveBeenCalledWith({ ok: false });
+    detach();
+  });
+
+  // 강등이 `await deviceSet` 창 안에 도착하면 그 응답의 set({width})가 방금 내린 폭을
+  // 되살려 desync가 그대로 복구된다 — 소유권 토큰으로 인플라이트 전이를 무효화해야 한다.
+  it("인플라이트 전이가 만료 강등을 되덮지 않는다", async () => {
+    const { controller, mode, detach } = await setup();
+    const gate = deferred();
+    deviceSet.mockImplementationOnce(async (_tabId, width) => {
+      await gate.promise;
+      return { ok: true, width, available: { width: 1512, height: 900 } };
+    });
+
+    const selecting = controller.selectDeviceWidth(390);
+    await flush();
+    emit(
+      { type: "device.handoff", tabId: 1, url: "https://b.com/", expiresAt: Date.now() - 1 },
+      vi.fn(),
+    );
+    await flush();
+    gate.resolve();
+    await selecting;
+    await flush();
+
+    expect(controller.useDeviceViewportStore.getState().width).toBeNull();
+    expect(mode.peekPending(1)).toBeNull();
+    detach();
+  });
+
+  // 판정이 ok로 풀린 뒤 finishActivation(백그라운드 왕복·ACK 재시도)이 도는 창도 같은 문제다 —
+  // 그 뒤의 putPending이 방금 버린 pending을 되살리면 "만료 = 재수립 안 함"이 뒤집힌다.
+  it("finishActivation 창에서 온 만료 강등도 pending을 되살리지 않는다", async () => {
+    const { controller, mode, detach } = await setup();
+    const gate = deferred();
+    activateRecordersInDeviceTree.mockImplementationOnce(async () => {
+      await gate.promise;
+      return true;
+    });
+
+    const selecting = controller.selectDeviceWidth(390);
+    await flush();
+    emit({ type: "device.frameLoaded", tabId: 1, frameId: 7 });
+    await flush();
+    emit(
+      { type: "device.handoff", tabId: 1, url: "https://b.com/", expiresAt: Date.now() - 1 },
+      vi.fn(),
+    );
+    await flush();
+    gate.resolve();
+    await selecting;
+    await flush();
+
+    expect(mode.peekPending(1)).toBeNull();
+    expect(controller.useDeviceViewportStore.getState().width).toBeNull();
     detach();
   });
 });
@@ -235,6 +342,18 @@ describe("확장 reload 재수립", () => {
     emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
     await flush();
     expect(deviceSet).toHaveBeenCalledWith(1, 390);
+    detach();
+  });
+
+  // 열거 실패를 "엇갈림"으로 읽으면 래퍼가 멀쩡한데도 device.set(null) → location.reload()로
+  // 정상 동작 중인 페이지의 스크롤·입력값을 날린다. 판정 불가는 아무것도 하지 않는다.
+  it("문서 열거가 실패하면 복구를 발사하지 않는다", async () => {
+    deviceState.mockResolvedValueOnce({ width: 390, available: { width: 1512, height: 900 } });
+    fetchDeviceTree.mockResolvedValueOnce(null);
+    const { mode, detach } = await setup(false);
+
+    expect(deviceSet).not.toHaveBeenCalled();
+    expect(mode.peekPending(1)).toBeNull();
     detach();
   });
 });

@@ -86,10 +86,10 @@ export function decideDeviceSignal(
           next: { ...state, binding: { frameId: signal.frameId, documentId: signal.documentId } },
         };
       }
+      // 재수립은 살아남은 binding 위에서 arm을 다시 여니 잠정 등록이 없다 — 그때의 타깃은
+      // 확정 binding이다. 둘 다 없으면 arm 창 안이어도 받지 않는다(위조 수용 방지).
       const expectedFrameId = state.provisionalFrameId ?? state.binding?.frameId;
-      if (expectedFrameId == null || expectedFrameId !== signal.frameId) {
-        return { push: null, next: state };
-      }
+      if (expectedFrameId !== signal.frameId) return { push: null, next: state };
       return {
         push: { type: "frameLoaded" },
         next: {
@@ -284,6 +284,9 @@ export async function setDeviceFrame(
     await chrome.storage.session.set({ [deviceFrameKey(tabId)]: binding });
     return;
   }
+  // Map은 storage 성공 여부와 무관하게 비운다 — 이 SW 수명에서 죽은 래퍼를 살려두면 로그·
+  // navigation 라우팅이 그리로 샌다. storage에 남은 stale은 다음 top 커밋의 clearDeviceFrame이
+  // 지우고, 그전에 SW가 죽어 되살아나도 같은 지점이 회수한다.
   bindingByTab.delete(tabId);
   await chrome.storage.session.remove(deviceFrameKey(tabId));
 }
@@ -311,31 +314,45 @@ function pushToPanel(message: BgInternalMessage): void {
   chrome.runtime.sendMessage(message).catch(() => {});
 }
 
+interface HandoffSeams {
+  notify?: (expiresAt: number) => Promise<unknown>;
+  update?: (tabId: number, url: string) => Promise<unknown>;
+  rollback?: (tabId: number) => Promise<unknown>;
+  ackTimeoutMs?: number;
+}
+
+/**
+ * 패널에 준비 기회를 주고 top을 옮긴다. **응답값은 보지 않는다** — 패널이 만료를 알려도
+ * cross-origin 문서를 래퍼에 남기지 않는 쪽이 이기고, 폭 강등은 패널이 자기 쪽에서 한다.
+ */
 export async function handoffDeviceTab(
   tabId: number,
   url: string,
-  notify: (expiresAt: number) => Promise<unknown> = (expiresAt) =>
-    chrome.runtime.sendMessage({
-      type: "device.handoff",
-      tabId,
-      url,
-      expiresAt,
-    } satisfies BgInternalMessage),
-  update: (tabId: number, url: string) => Promise<unknown> = (targetTabId, targetUrl) =>
-    chrome.tabs.update(targetTabId, { url: targetUrl }),
-  rollback: (tabId: number) => Promise<unknown> = async (targetTabId) => {
-    try {
-      await chrome.tabs.sendMessage(
-        targetTabId,
-        { type: "device.set", width: null },
-        { frameId: 0 },
-      );
-    } catch {
-      await chrome.tabs.reload(targetTabId).catch(() => {});
-    }
-  },
-  ackTimeoutMs = 500,
+  seams: HandoffSeams = {},
 ): Promise<void> {
+  const {
+    notify = (deadline: number) =>
+      chrome.runtime.sendMessage({
+        type: "device.handoff",
+        tabId,
+        url,
+        expiresAt: deadline,
+      } satisfies BgInternalMessage),
+    update = (targetTabId: number, targetUrl: string) =>
+      chrome.tabs.update(targetTabId, { url: targetUrl }),
+    rollback = async (targetTabId: number) => {
+      try {
+        await chrome.tabs.sendMessage(
+          targetTabId,
+          { type: "device.set", width: null },
+          { frameId: 0 },
+        );
+      } catch {
+        await chrome.tabs.reload(targetTabId).catch(() => {});
+      }
+    },
+    ackTimeoutMs = 500,
+  } = seams;
   const expiresAt = Date.now() + ackTimeoutMs;
   let timer: ReturnType<typeof setTimeout> | null = null;
   try {
@@ -373,7 +390,9 @@ export async function applyDeviceSignal(
     (prevBinding?.frameId !== next.binding.frameId ||
       prevBinding?.documentId !== next.binding.documentId)
   ) {
-    await setDeviceFrame(tabId, next.binding);
+    // 기록 실패로 여기서 throw하면 아래 판정 push가 통째로 사라지고, 패널은 3초를 헛기다린
+    // 끝에 차단으로 접어 **정상 로드된 래퍼를 롤백한다**. Map은 이미 갱신됐다.
+    await setDeviceFrame(tabId, next.binding).catch(() => {});
   }
   if (!push) return null;
   if (push.type === "handoff") {
