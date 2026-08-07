@@ -49,7 +49,7 @@ There's one welcome exception. **Going from one width to another doesn't reload 
 
 ## When you navigate to another site
 
-Follow a link to a different site while the mode is on and **the whole page reopens there**, with the viewport re-established at the same width. Logs start fresh, and if you had an issue in progress you'll get a heads-up.
+Follow a link to a different site while the mode is on and **the whole page reopens there**, with the viewport re-established at the same width. Logs start fresh, and if you had an issue in progress you'll get a heads-up. Once in a while the width doesn't carry over and you land on **Full** — just pick the width again, nothing else is lost.
 
 It sounds like a detour, but there's a reason. Trapping another site inside that small frame makes the browser treat it as a separate visit, so you'd get a **logged-out screen** — and a screenshot of that documents a page nobody actually saw. Moving the whole page across keeps you signed in.
 
