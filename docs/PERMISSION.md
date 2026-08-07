@@ -75,7 +75,7 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 | `chrome.tabs.get() → tab.url` | 탭 URL 읽기 | `tab-bindings.ts`, `picker-control.ts`(`pageKeyOf` 등), `video-capture.ts`, `video-recorder.ts`, `30s-replay/use-30s-replay.ts` |
 | `chrome.scripting.executeScript()` | content script 재주입(picker·recorder-bridge는 `allFrames:true`)·뷰포트 측정 | `picker-control.ts` (`ensureMainWorldRecorders`·`getTopViewport` 등) |
 | `chrome.tabs.create()` / `chrome.tabs.remove()` | ① GitHub 업로드용 비활성 탭 생성·정리(`background/github-upload.ts`) ② 외부 링크 열기 — 등록된 이슈 URL·가이드·스토어 리뷰·플랫폼 토큰 발급 페이지(`IssueTab`·`SettingsFooter`·`SubmitSuccessView`·`IssueRow`) | 권한 불요(확장 기본 제공) |
-| `chrome.tabs.update()` | 디바이스 뷰포트 handoff — 래퍼가 못 버티는(cross-origin·XFO) URL로 top 탭 자체를 이동. `arm(tabId,false)`로 감시창을 닫은 뒤에만 호출한다(열린 채 남은 창이 타임아웃되면 뒤늦은 `frameBlocked`가 방금 성공한 재수립을 롤백시킨다) | `sidepanel/device-viewport-controller.ts`. 권한 불요(확장 기본 제공) |
+| `chrome.tabs.update()` | 디바이스 뷰포트 handoff — 래퍼가 못 버티는(cross-origin·XFO) URL로 top 탭 자체를 이동. 감시창은 같은 판정 전이에서 이미 닫힌 뒤다(열린 채 남으면 타임아웃의 `frameBlocked`가 방금 성공한 재수립을 롤백시킨다). 패널에 500ms 준비 기회를 주지만 응답과 무관하게 실행한다 | `background/device-frame-coordinator.ts`(`handoffDeviceTab`). 권한 불요(확장 기본 제공) |
 | `chrome.tabs.sendMessage(tabId, msg, { documentId })` | **문서 단위 라우팅** — 래퍼 도입으로 frameId만으로는 대상이 모호해져, sentinel 발행과 stop/start ACK는 `getAllFrames`로 얻은 documentId를 직접 찍는다 | `sidepanel/picker-control.ts`(`emitSentinel`·`ackDocument`) |
 | `chrome.tabs.query({})` | **전 창 전 탭 열거** — pending 로그 GC가 "살아있는 탭"을 계산하는 유일한 경로(fail-closed: 조회 실패 시 prune 전체 스킵) | `lib/pending-log-prune.ts`. URL을 읽지만 `activeTab`과 무관하게 `<all_urls>`가 커버한다 |
 | `chrome.runtime.onConnect` (port disconnect) | 사이드패널이 닫히면 port가 끊기는 것을 세션 teardown 신호로 사용 — 레코더 정지(`stopRecorders`) | `background/index.ts` |

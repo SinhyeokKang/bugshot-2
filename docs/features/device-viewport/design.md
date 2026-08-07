@@ -229,7 +229,9 @@ export interface DeviceDocumentsResponse {
 
 `deviceFrameByTab`의 권위값은 `chrome.storage.session`에 `{ frameId, documentId }`로 보존하고 메모리 Map은 복제 캐시로만 쓴다. Chrome은 frame 생애 동안 navigation을 넘어 `frameId`를 유지하고 문서가 바뀔 때 `documentId`를 교체하므로, 등록 뒤의 same-origin redirect·링크 이동을 DOM 접근 없이 추적한다. SW 시작 시 복원 promise를 만들고 `webNavigation` 처리를 탭별 순서 큐에서 그 promise 뒤에 연결한다. 성능보다 정확성을 우선해 복구 전 이벤트를 동기 기본값으로 판정하지 않는다. top `onCommitted`, 탭 제거, 명시적 OFF에서는 저장값과 Map을 함께 지운다.
 
-**`chrome.storage.session`이 견디는 건 SW hibernation까지다.** 확장 reload·업데이트에서는 session storage가 비워지고, 같은 사건으로 content script도 전부 orphan이 된다 — 래퍼는 페이지에 남아 있는데 binding은 사라진 상태다. 사이드패널이 마운트하면 `device.state` 전에 picker content script를 재주입해 페이지 DOM의 래퍼 폭을 읽는다. `device.documents`에 binding이 없으면 그 폭을 `pending`에 세우고 기존 래퍼를 제거해 top reload를 만든다. top `onCommitted`가 pending을 소비해 공용 `reestablish`를 호출한다. 기존 래퍼를 남긴 채 같은 폭으로 `device.set`하면 폭만 바뀌 뿐 commit이 생기지 않아 판정 타임아웃으로 끝난다.
+**`chrome.storage.session`이 견디는 건 SW hibernation까지다.** 확장 reload·업데이트에서는 session storage가 비워지고, 같은 사건으로 content script도 전부 orphan이 된다 — 래퍼는 페이지에 남아 있는데 binding은 사라진 상태다. 사이드패널이 마운트하면 `device.state` 전에 picker content script를 재주입해 페이지 DOM의 래퍼 폭을 읽는다. `device.documents`에 binding이 없으면 그 폭을 `pending`에 세우고 기존 래퍼를 제거해 top reload를 만든다. top `onCommitted`가 pending을 소비해 공용 `reestablish`를 호출한다. 기존 래퍼를 남긴 채 같은 폭으로 `device.set`하면 폭만 바뀔 뿐 commit이 생기지 않아 판정 타임아웃으로 끝난다.
+
+**단 이 엇갈림 판정은 열거에 성공했을 때만 한다.** 복구가 실제로 하는 일이 "래퍼 제거 + top reload"라, 통신 실패를 빈 트리로 접으면 래퍼가 멀쩡한데도 **정상 동작 중인 페이지를 새로고침해 스크롤·입력값을 날린다**. 그래서 사이드패널은 `fetchDeviceTree`(1회 재시도 + in-flight 병합)의 `null`을 "판정 불가"로 읽고 아무것도 하지 않는다 — 같은 라운드를 우회해 직접 `device.documents`를 부르면 그 null 세만틱이 사라진다.
 
 ### 래퍼 registry 등록 (위험 8의 실제 배선)
 
@@ -332,17 +334,19 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
    │        → push: device.handoff { tabId, url, expiresAt }
    ▼
 [사이드패널]
-   ① pending = { tabId, width }            ← 인메모리. 영속하지 않는다
-   ② sessionExpired = true                 (녹화·미리보기·완료면 토스트 1개)
-   ③ expiresAt 전이면 pending 저장 → ACK
-   ▼
+   ① expiresAt 전이면  → pending = { tabId, width }   ← 인메모리. 영속하지 않는다
+   │ expiresAt 뒤면    → pending 폐기 + width = null   ← Full 강등. 재수립하지 않는다
+   ②(공통) sessionExpired = true                       (녹화·미리보기·완료면 토스트 1개)
+   ▼ (어느 쪽이든 ACK)
 [background]
-   ④ chrome.tabs.update(tabId, { url })    ← 패널이 닫혀 ACK가 없어도 실행
+   ② chrome.tabs.update(tabId, { url })    ← ACK 내용도, 패널 부재도 이 이동을 막지 않는다
    ▼
-[top onCommitted + pending 있음] → reestablish(tabId, pending.width)
+[top onCommitted + pending 있음] → reestablish(tabId, pending.width, url)
 ```
 
-**handoff는 재수립을 직접 하지 않는다.** background는 handoff 판정 즉시 binding을 폐기해 같은 이동의 `beforeNavigate`·`committed`가 top 이동을 중복 발화하지 못하게 한다. 사이드패널은 500ms `expiresAt` 전에 메시지를 처리했을 때만 pending을 세우고 ACK하며, background가 top 이동을 소유한다. 패널이 닫혔거나 늦게 응답하면 같은 폭을 나를 pending 없이 top만 이동해 Full로 강등하지만, 다음 일반 탐색에 유령 pending을 남기지 않고 cross-origin 문서를 래퍼에 두지 않는 불변식을 우선한다. 패널이 제때 응답하면 실제 재수립은 **top `onCommitted` 한 지점**이 맡는다.
+**handoff는 재수립을 직접 하지 않는다.** background는 handoff 판정 즉시 binding을 폐기해 같은 이동의 `beforeNavigate`·`committed`가 top 이동을 중복 발화하지 못하게 한다. 사이드패널은 500ms `expiresAt` 전에 메시지를 처리했을 때만 pending을 세우고, background가 top 이동을 소유한다 — **응답값은 읽지 않는다**(cross-origin 문서를 래퍼에 남기지 않는 쪽이 이긴다). 패널이 닫혔거나 늦게 응답하면 top만 이동하는데, 그때 **패널은 스스로 폭을 `null`로 내려 Full로 강등한다** — 안 내리면 래퍼는 없는데 UI만 ON인 desync가 탭 세션 내내 굳는다(같은 폭 재선택은 `noop`, 페이지 전체 캡처는 영구 차단). 패널이 제때 응답하면 실제 재수립은 **top `onCommitted` 한 지점**이 맡는다.
+
+**사용자 통보는 기한과 무관하게 같다.** top이 실제로 옮겨가는 건 ACK를 제때 했는지와 상관없으므로, 만료 경로도 `sessionExpired`(또는 녹화·미리보기·완료 phase의 토스트 1개)를 똑같이 띄운다. 그 다이얼로그는 확인 전용이고 [확인]이 `reset()`이라 **작성 중 draft를 파기한다** — 통보를 만료 경로에서 빼면 사용자는 페이지가 바뀐 것도, draft가 무의미해진 것도 모른 채 남는다. 반면 `blob:`·`data:` 등 top 이동 불가 URL은 background가 래퍼만 제거하고 **같은 URL로 reload**하므로 세션이 이어진다 — 그 경로는 폭 강등 + `issue.device.blocked` 토스트로 끝내고 `sessionExpired`를 띄우지 않는다.
 
 **`onBeforeNavigate`를 1차 트리거로 둔다.** commit에서 잡으면 파티션된 로그아웃 화면이 이미 렌더되고 그 문서의 로그·요청이 수집된 뒤다. 다만 same-origin URL이 서버에서 cross-origin으로 302되는 경우는 beforeNavigate에 안 보이므로 `onCommitted` 폴백이 함께 필요하다. **네비게이션을 취소하는 경로는 없다** — MV3에 blocking webRequest가 없으므로 handoff는 사후 조치이고, 그래서 다이얼로그도 게이트가 아니라 통보다.
 
@@ -462,7 +466,7 @@ export function useDeviceViewport(tabId: number | null): DeviceViewportState;
  * 호출 지점은 top onCommitted(pending 있음) 하나다.
  * handoff·확장 reload 복구는 pending을 세팅하고 top commit을 만들기만 하며 직접 부르지 않는다.
  */
-async function reestablish(tabId: number, width: number): Promise<void>;
+async function reestablish(tabId: number, width: number, url: string): Promise<void>;
 ```
 
 `select()`와 무엇이 같고 무엇이 다른가:
@@ -478,7 +482,7 @@ async function reestablish(tabId: number, width: number): Promise<void>;
 | 최초 1회 경고 | 띄운다 | 띄우지 않는다 |
 | `syncAndSettleLogs` | 한다 | **안 한다** — 떠나는 문서가 이미 없다 |
 | `device.arm` 개방 | 연다 | **연다**(동일) |
-| `device.arm` 폐쇄 | 13단계에서 닫는다 | 판정 후 닫는다. **handoff·차단 복구는 top을 옮기기 전에 즉시 닫는다** |
+| `device.arm` 폐쇄 | 13단계에서 닫는다 | 판정 후 닫는다. **handoff는 background가 판정과 같은 전이에서 닫는다**(패널은 관여하지 않는다) |
 | stop ACK → clear → start ACK | 한다 | **한다**(동일 순서) |
 | `picker.start` 재시도 | `frameLoaded` 뒤 래퍼 frameId로, `phase === "picking"`일 때만 (위험 8) | **동일** — 그리고 picking 중 재수립이 그 분기의 유일한 도달 지점이다 |
 | 루프 카운터 | 0으로 리셋 | +1, 임계 초과면 중단 |
@@ -497,7 +501,7 @@ async function reestablish(tabId: number, width: number): Promise<void>;
 
 **`unsupported`는 우회 대상이 아니다.** `locked`가 `phase !== "idle" || unsupported` 두 축이라(`useDeviceViewport` 타입 주석), 우회를 뭉뚱그리면 미지원 URL에서도 재수립을 시도하게 되고 폐기 조건 "미지원 URL 도달"과 충돌한다. 우회하는 건 `phase` 축뿐이고, unsupported면 pending을 버리고 끝낸다.
 
-**handoff·차단 복구는 `chrome.tabs.update` 전에 arm 창을 닫는다.** `select()`가 연 3초 창이 열린 채 남으면 타임아웃이 `frameBlocked`를 뒤늦게 쏘고, 그게 방금 성공한 재수립을 롤백시킨다. `reestablish`가 자기 창을 새로 여므로 이전 창은 반드시 닫혀 있어야 한다.
+**arm 창은 `chrome.tabs.update` 전에 닫혀야 한다 — 소유자는 background다.** `select()`가 연 3초 창이 열린 채 남으면 타임아웃이 `frameBlocked`를 뒤늦게 쏘고, 그게 방금 성공한 재수립을 롤백시킨다. `reestablish`가 자기 창을 새로 여므로 이전 창은 반드시 닫혀 있어야 한다. 이 폐쇄는 `decideDeviceSignal`의 handoff 분기가 `armed: false`를 내고 `applyDeviceSignal`이 `clearArmTimer`를 부르는 것으로 이뤄진다 — **top 이동과 같은 전이 안이라 패널 왕복이 낄 자리가 없다.** 인플라이트 `select()`가 판정 대기 뒤에 보내는 `arm(false)`는 자기 정리 경로의 멱등 폐쇄일 뿐 이 순서 보장에 관여하지 않는다.
 
 ### `src/sidepanel/recorder-control.ts`
 
