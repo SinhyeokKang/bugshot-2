@@ -362,8 +362,9 @@ test.describe("디바이스 뷰포트", () => {
     const fullPage = panel.getByTestId("capture-method-fullpage");
     await expect(fullPage).toBeVisible();
     await expect(fullPage).toHaveAttribute("aria-disabled", "true");
-    // 잠금 사유가 접근명을 오염시키면 안 된다 — label 하나가 aria-label과 툴팁을 겸한다.
-    await expect(fullPage).toHaveAttribute("aria-label", /.+/);
+    // 잠금 사유가 접근명을 오염시키면 안 된다 — label 하나가 aria-label과 툴팁을 겸하므로
+    // 사유를 label로 밀어넣으면 접근명이 안내 문장으로 바뀐다. `/.+/`로는 그걸 못 잡는다.
+    await expect(fullPage).toHaveAttribute("aria-label", /^(페이지 캡처|Page capture)$/);
 
     await fullPage.evaluate((el) => (el as HTMLElement).click());
     await panel.waitForTimeout(1500);

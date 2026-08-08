@@ -94,6 +94,26 @@ describe("드래그 확정 rect — 클램핑", () => {
     expect(rect.x + rect.width).toBeLessThanOrEqual(FRAME.x + FRAME.width);
   });
 
+  // 최소 드래그 게이트가 클램핑 **앞**에 있어, 래퍼 밖 여백만 200×200으로 끌면 게이트를
+  // 통과한 뒤 클램프가 폭 0으로 접는다. 그 rect는 crop에서 Math.max(1,…)로 살아나
+  // **에러 없이 1px 이미지**가 drafting에 올라온다 — 취소로 접어야 한다.
+  it("래퍼 밖 여백만 드래그하면 확정하지 않고 취소로 접는다", async () => {
+    deviceFrameRect.mockReturnValue(FRAME);
+    const onCancelled = vi.fn();
+    const onSelected = vi.fn();
+    const handle = startAreaSelect({
+      shadow: document.createElement("div").attachShadow({ mode: "open" }),
+      onBlockerRequest: () => {},
+      onSelected,
+      onCancelled,
+    });
+    // FRAME.x = 317 — 좌측 여백 안에서만 끝나는 200×200 드래그.
+    drag(handle, [20, 100], [220, 300]);
+    await settle();
+    expect(onSelected).not.toHaveBeenCalled();
+    expect(onCancelled).toHaveBeenCalled();
+  });
+
   it("모드 ON에서도 viewport는 top 그대로다", async () => {
     deviceFrameRect.mockReturnValue(FRAME);
     const { handle, onSelected } = harness();

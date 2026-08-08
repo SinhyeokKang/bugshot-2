@@ -14,12 +14,14 @@ const deviceSet = vi.fn(async (_tabId: number, width: number | null) => ({
 const deviceState = vi.fn<
   () => Promise<{ width: number | null; available: { width: number; height: number } }>
 >(async () => ({ width: null, available: { width: 1512, height: 900 } }));
-const activateRecordersInDeviceTree = vi.fn(async () => true);
+const activateRecordersInDeviceTree = vi.fn<() => Promise<"ok" | "startFailed" | "notReached">>(
+  async () => "ok",
+);
 const fetchDeviceTree = vi.fn<() => Promise<string[] | null>>(async () => []);
 const sendBg = vi.fn(async (..._args: unknown[]) => ({ ok: true }));
 
 vi.mock("@/i18n", () => ({ t: (key: string) => key }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn(), warning: vi.fn() } }));
 vi.mock("../picker-control", () => ({
   deviceSet: (tabId: number, width: number | null) => deviceSet(tabId, width),
   deviceState: () => deviceState(),
@@ -89,7 +91,7 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  activateRecordersInDeviceTree.mockResolvedValue(true);
+  activateRecordersInDeviceTree.mockResolvedValue("ok");
   deviceState.mockResolvedValue({ width: null, available: { width: 1512, height: 900 } });
   fetchDeviceTree.mockResolvedValue([]);
   sendBg.mockResolvedValue({ ok: true });
@@ -308,7 +310,7 @@ describe("handoff 준비 ACK", () => {
     const gate = deferred();
     activateRecordersInDeviceTree.mockImplementationOnce(async () => {
       await gate.promise;
-      return true;
+      return "ok";
     });
 
     const selecting = controller.selectDeviceWidth(390);
@@ -450,6 +452,46 @@ describe("resize(ON→ON) 전이의 소유권", () => {
   });
 });
 
+describe("레코더 재무장 실패", () => {
+  // 래퍼는 정상 로드됐고 레코더는 다음 inject 트리거에서 스스로 재무장한다 — 여기서 롤백하면
+  // unmount + reload라 **정상 동작 중인 페이지의 스크롤·입력값을 날린다**. 경고 하나로 끝낸다.
+  it("모드를 롤백하지 않고 경고 토스트만 띄운다", async () => {
+    const { toast } = await import("sonner");
+    const { controller, mode, detach } = await setup();
+    activateRecordersInDeviceTree.mockResolvedValueOnce("startFailed");
+
+    const selecting = controller.selectDeviceWidth(390);
+    await flush();
+    emit({ type: "device.frameLoaded", tabId: 1, frameId: 7 });
+    await selecting;
+    await flush();
+
+    expect(toast.warning).toHaveBeenCalled();
+    expect(deviceSet).not.toHaveBeenCalledWith(1, null);
+    expect(controller.useDeviceViewportStore.getState().width).toBe(390);
+    expect(mode.peekPending(1)).toBe(390);
+    detach();
+  });
+
+  // 열거에 실패해 stop ACK에 닿지도 못한 갈래는 숨은 top이 무장된 채 남아 로그가 2벌이 되고,
+  // 재주입 트리거로 스스로 낫지 않는다 — "잠시 뒤 자동으로 복구됩니다"를 말하면 안 된다.
+  it("stop ACK에 닿지 못한 갈래는 자동 복구를 약속하지 않는다", async () => {
+    const { toast } = await import("sonner");
+    const { controller, detach } = await setup();
+    activateRecordersInDeviceTree.mockResolvedValueOnce("notReached");
+
+    const selecting = controller.selectDeviceWidth(390);
+    await flush();
+    emit({ type: "device.frameLoaded", tabId: 1, frameId: 7 });
+    await selecting;
+    await flush();
+
+    expect(toast.warning).toHaveBeenCalledWith("issue.device.recordersStuck");
+    expect(toast.warning).not.toHaveBeenCalledWith("issue.device.recordersDegraded");
+    detach();
+  });
+});
+
 describe("busy 거부 이어받기", () => {
   // busy 거부는 pending을 되돌려놓지만, 그 소비자는 top 커밋 하나뿐이다 — 거부를 유발한
   // 커밋은 이미 지나갔으므로 아무도 안 집는다. 전이가 끝나는 시점에 한 번 이어받아야
@@ -478,6 +520,71 @@ describe("busy 거부 이어받기", () => {
 
     expect(deviceSet).toHaveBeenCalledWith(1, 390);
     detach();
+  });
+});
+
+describe("이어받기 슬롯 수명", () => {
+  // 거부는 resize 전이 중에도 난다 — 그 경로엔 drain이 없어서 슬롯만 남고 아무도 안 집는다.
+  it("resize 중에 거부된 재수립도 전이 종료 후 이어받는다", async () => {
+    const { controller, mode, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    const gate = deferred();
+    deviceSet.mockImplementationOnce(async (_tabId, width) => {
+      await gate.promise;
+      return { ok: true, width, available: { width: 1512, height: 900 } };
+    });
+
+    const selecting = controller.selectDeviceWidth(768);
+    await flush();
+    mode.putPending(1, 768);
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+
+    deviceSet.mockClear();
+    gate.resolve();
+    await selecting;
+    await flush();
+    await flush();
+
+    expect(deviceSet).toHaveBeenCalledWith(1, 768);
+    detach();
+  });
+
+  // 남은 슬롯이 다음 성공 전이의 finally에서 뒤늦게 터지면, 이미 그 폭으로 선 래퍼에
+  // device.set을 또 보내 재로드가 안 생기고 → 무신호 → armTimeout → 롤백으로
+  // **방금 켠 모드가 3초 뒤 스스로 꺼지며 페이지를 새로고침한다.**
+  it("detach가 이어받기 슬롯도 비운다", async () => {
+    const { controller, mode, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    const gate = deferred();
+    deviceSet.mockImplementationOnce(async (_tabId, width) => {
+      await gate.promise;
+      return { ok: true, width, available: { width: 1512, height: 900 } };
+    });
+    const selecting = controller.selectDeviceWidth(768);
+    await flush();
+    mode.putPending(1, 768);
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+    detach();
+    gate.resolve();
+    await selecting;
+    await flush();
+
+    // 새 부착에서 성공 전이가 남긴 pending을 옛 슬롯이 집어가면 안 된다.
+    const detach2 = controller.attachDeviceViewport(1);
+    await flush();
+    deviceSet.mockClear();
+    const second = controller.selectDeviceWidth(390);
+    await flush();
+    emit({ type: "device.frameLoaded", tabId: 1, frameId: 7 });
+    await second;
+    await flush();
+    await flush();
+
+    expect(deviceSet).toHaveBeenCalledTimes(1);
+    expect(mode.peekPending(1)).toBe(390);
+    detach2();
   });
 });
 

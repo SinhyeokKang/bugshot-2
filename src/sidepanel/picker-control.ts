@@ -936,14 +936,19 @@ const STOP_ACK_RETRIES = 3;
  * clear를 콜백으로 받는 이유: 실제 clear는 store와 persist guard를 건드리는데 그건
  * usePickerMessages 쪽에 있고, 그걸 여기서 import하면 순환이 된다.
  */
+export type ActivateResult = "ok" | "startFailed" | "notReached";
+
 export async function activateRecordersInDeviceTree(
   tabId: number,
   clearLogs: () => void,
-): Promise<boolean> {
+): Promise<ActivateResult> {
   const documents = await fetchDeviceDocuments(tabId);
-  if (!documents) return false;
+  // **stop ACK에 닿지도 못한 경우다.** 숨은 top 레코더는 무장된 채 남고 clearLogs도 안 돈다 —
+  // 게이트는 *재*발행만 막지 이미 무장된 레코더를 못 끄므로, 재주입 트리거가 아무리 돌아도
+  // 스스로 복구되지 않는다. "잠시 뒤 자동으로 복구됩니다"를 말하면 안 되는 유일한 갈래다.
+  if (!documents) return "notReached";
   const { all, deviceTree } = documents;
-  if (deviceTree.length === 0) return false;
+  if (deviceTree.length === 0) return "notReached";
 
   // stop 실패는 전이를 깨지 않는다 — 열거와 송신 사이에 이동한 문서는 애초에 그 레코더가
   // 죽었고, 새 문서는 frameCommitted → 게이트가 다시 판정한다. 여기서 실패로 접으면 광고
@@ -959,7 +964,7 @@ export async function activateRecordersInDeviceTree(
   // 맵이 비었다는 건 "레코더가 애초에 비활성"이거나 "직전 activate가 열거 실패로 접혔다"이고,
   // 여기서 둘을 못 가른다. 후자여도 래퍼 로드가 tabs.onUpdated(complete)를 만들어 곧바로
   // inject가 다시 도는 창이라, 전이를 실패로 접어 정상 래퍼를 롤백시키는 쪽이 더 나쁘다.
-  if (!sentinels) return true;
+  if (!sentinels) return "ok";
   const starts: PickerMessage[] = [];
   if (sentinels.network) {
     starts.push({ type: "networkRecorder.setSentinel", sentinel: sentinels.network });
@@ -973,7 +978,7 @@ export async function activateRecordersInDeviceTree(
   const started = await Promise.all(
     deviceTree.map((documentId) => ackDocument(tabId, documentId, starts, START_ACK_RETRIES)),
   );
-  return started.every(Boolean);
+  return started.every(Boolean) ? "ok" : "startFailed";
 }
 
 // capture 시 sync broadcast가 누적기에 머지될 때까지 대기하는 상한. 머지 도착 즉시 조기 탈출.

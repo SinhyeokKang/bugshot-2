@@ -8,6 +8,7 @@ import { sendBg, type BgInternalMessage } from "@/types/messages";
 import type { PickerMessage } from "@/types/picker";
 import {
   activateRecordersInDeviceTree,
+  type ActivateResult,
   deviceSet,
   deviceState,
   deviceWatch,
@@ -48,6 +49,8 @@ interface DeviceViewportSnapshot {
   width: number | null;
   availableWidth: number | null;
   busy: boolean;
+  /** 진행 중 전이가 노리는 폭. store의 width는 응답 전까지 옛 값이라 스피너가 떠나는 쪽에 뜬다. */
+  busyWidth: number | null;
   /** 최초 ON 진입 1회 확인 다이얼로그가 대기 중인 폭. null이면 안 띄운다. */
   warningWidth: number | null;
   loopWarning: boolean;
@@ -60,6 +63,7 @@ export const useDeviceViewportStore = create<DeviceViewportSnapshot>(() => ({
   width: null,
   availableWidth: null,
   busy: false,
+  busyWidth: null,
   warningWidth: null,
   loopWarning: false,
   expiredByHandoff: false,
@@ -224,7 +228,7 @@ async function rollbackToFull(tabId: number, message: string): Promise<void> {
  * broadcast는 절대 쓰지 않는다 — setFrameToken이 picker.start마다 childFrames WeakSet을
  * 갈아치우므로 broadcast하면 방금 등록된 래퍼가 날아간다.
  */
-async function finishActivation(tabId: number, frameId: number): Promise<boolean> {
+async function finishActivation(tabId: number, frameId: number): Promise<ActivateResult> {
   const ok = await activateRecordersInDeviceTree(tabId, () => clearLogStores(tabId));
   if (useEditorStore.getState().phase === "picking" && frameId !== 0) {
     void restartPickerInFrame(tabId, frameId);
@@ -253,25 +257,26 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
   // (noop을 이미 걸렀으므로 width === null은 곧 on-to-off다.)
   if (path === "on-to-off" || width == null) {
     dropPending(tabId);
-    set({ busy: true });
+    set({ busy: true, busyWidth: null });
     const res = await deviceSet(tabId, null);
     if (!stillOn(tabId)) return;
     // **응답의 width는 읽지 않는다.** OFF의 결과는 정의상 Full이고, 응답값을 채택하면 이 창에
     // 도착한 handoff 강등이 방금 내린 null을 되살릴 여지가 생긴다. 소유권 토큰 대신 이쪽이
     // 맞다 — off는 노릴 폭이 없어서 토큰에 실을 값 자체가 없다.
-    set({ busy: false, width: null, availableWidth: res?.available.width ?? state.availableWidth });
+    set({ busy: false, busyWidth: null, width: null, availableWidth: res?.available.width ?? state.availableWidth });
+    drainDeferredReestablish(tabId);
     return;
   }
 
   // 폭 갱신은 재로드가 없어 frameReady도 onCommitted도 오지 않는다 — arm·판정 대기·레코더
   // 전환·로그 clear를 붙이면 3초 무신호 → 차단 판정 → 롤백으로 모드가 통째로 풀린다.
   if (path === "resize") {
-    set({ busy: true });
+    set({ busy: true, busyWidth: width });
     const token = beginAttempt(width);
     try {
       const res = await deviceSet(tabId, width);
       if (!stillOn(tabId)) return;
-      set({ busy: false });
+      set({ busy: false, busyWidth: null });
       // 강등이 이 창 안에 왔으면 그쪽이 이긴다 — 아래 set/putPending이 방금 내린 폭을 되살리면
       // "래퍼는 없는데 UI만 ON"이 그대로 돌아온다(off-to-on·재수립과 같은 규율).
       if (attemptToken !== token) return;
@@ -284,6 +289,9 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
     } finally {
       // 조기 반환(탭 재바인딩·강등)에서도 반납해야 attemptingWidth에 옛 폭이 남지 않는다.
       endAttempt(token);
+      // **busy를 놓는 모든 경로가 drain해야 한다.** 한 경로라도 빠지면 그 전이 중에 거부된
+      // 재수립은 아무도 안 집고, 남은 슬롯이 다음 성공 전이의 finally에서 뒤늦게 터진다.
+      if (stillOn(tabId)) drainDeferredReestablish(tabId);
     }
     return;
   }
@@ -308,7 +316,7 @@ async function runTransition(
   width: number,
   { syncLogs }: { syncLogs: boolean },
 ): Promise<void> {
-  set({ busy: true });
+  set({ busy: true, busyWidth: width });
   const token = beginAttempt(width);
   try {
     // 떠나는 페이지 로그 꼬리를 누적기에 밀어넣는다.
@@ -358,11 +366,14 @@ async function runTransition(
     // 재무장된다. 여기서 롤백하면 unmount + location.reload()라 **정상 동작 중인 페이지를
     // 새로고침해 스크롤·입력값을 날린다** — 뷰포트를 고른 행위의 무게에 비해 과하다.
     // 롤백은 래퍼가 실제로 못 선 경우(frameBlocked)에만 남긴다.
-    if (!activated) toast.warning(t("issue.device.recordersDegraded"));
+    // 자동 복구를 약속하는 문구는 start ACK 실패에만 참이다 — stop ACK에 닿지도 못한
+    // 갈래는 숨은 top이 무장된 채 남아 로그가 2벌이 되고, 그건 스스로 안 낫는다.
+    if (activated === "startFailed") toast.warning(t("issue.device.recordersDegraded"));
+    if (activated === "notReached") toast.warning(t("issue.device.recordersStuck"));
   } finally {
     endAttempt(token);
     if (stillOn(tabId)) {
-      set({ busy: false });
+      set({ busy: false, busyWidth: null });
       drainDeferredReestablish(tabId);
     }
   }
@@ -496,6 +507,13 @@ function handleMessage(
   }
   if (msg.type === "frameCommitted") {
     if (msg.tabId !== tabId || msg.frameId !== 0) return;
+    // 가용 폭 리스너는 **top 문서에 붙는다** — top이 갈리면 사라지는데 `deviceWatch`는
+    // refcount 0→1에서만 나가므로 재전송 지점이 없다. 그러면 `전체`로 되돌린 뒤 창·패널 폭을
+    // 바꿔도 `availableWidth`가 그 패널 세션 내내 고정돼, 안 들어가는 폭이 활성으로 보인다.
+    if (subscribers.get(tabId)) {
+      void deviceWatch(tabId, true);
+      void refreshAvailableWidth(tabId);
+    }
     // 소비 즉시 삭제한 뒤 재수립하고, 성공하면 다시 세팅한다(실패 경로에 유령 pending이 안 남게).
     const width = takePending(tabId);
     if (width == null) return;
@@ -583,6 +601,7 @@ export function attachDeviceViewport(tabId: number): () => void {
     width: null,
     availableWidth: null,
     busy: false,
+    busyWidth: null,
     expiredByHandoff: false,
     warningWidth: null,
     loopWarning: false,
@@ -604,6 +623,10 @@ export function attachDeviceViewport(tabId: number): () => void {
     dropPending(tabId);
     // 카운터도 함께 되돌린다 — 남겨두면 다음 부착의 첫 재수립이 앞 세션 잔량 위에서 센다.
     resetLoopGuard(tabId);
+    // 이어받기 슬롯도 비운다 — 남기면 다음 부착의 첫 성공 전이가 방금 세운 pending을
+    // 그 슬롯에 뺏겨, 이미 선 래퍼에 device.set을 또 보내고 무신호 → armTimeout → 롤백으로
+    // **방금 켠 모드가 3초 뒤 스스로 꺼지며 페이지를 새로고침한다.**
+    if (deferredTabId === tabId) deferredTabId = null;
     set({ tabId: null });
   };
 }

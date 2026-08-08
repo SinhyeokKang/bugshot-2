@@ -35,10 +35,15 @@ const FULL = "full";
 
 // Tailwind는 클래스명을 정적으로 스캔하므로 템플릿 리터럴로 만들면 purge된다.
 const GRID_COLS: Record<number, string> = {
+  2: "grid-cols-2",
   3: "grid-cols-3",
   4: "grid-cols-4",
   5: "grid-cols-5",
+  6: "grid-cols-6",
 };
+
+// 표 밖이면 클래스가 통째로 빠져 1열로 무너진다 — 그럴 바엔 현재 열 수로 접는다.
+const gridColsFor = (n: number) => GRID_COLS[n] ?? GRID_COLS[4];
 
 /**
  * 뷰포트 폭 세그먼티드 컨트롤.
@@ -58,7 +63,7 @@ const GRID_COLS: Record<number, string> = {
 export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
   const t = useT();
   const unsupported = useUnsupportedTab();
-  const { width, availableWidth, locked, busy, select } = useDeviceViewport(tabId);
+  const { width, availableWidth, locked, busy, busyWidth, select } = useDeviceViewport(tabId);
   // 진입 경고는 사용자가 이 행을 눌러야 뜨므로 여기 둔다. 반면 루프 경고는 재수립 중에
   // 뜨는데 재수립은 이 행이 없는 phase에서도 돌므로 패널 루트(App.tsx)가 소유한다.
   const warningWidth = useDeviceViewportStore((s) => s.warningWidth);
@@ -104,7 +109,10 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
   ) {
     const disabled = isDisabled(preset);
     const reason = reasonFor(preset);
-    const showSpinner = busy && value === key;
+    // **가려는** 세그먼트에 띄운다 — store의 width는 device.set 응답 전까지 옛 값이라
+    // `value === key`로 보면 390→768에서 스피너가 390에 뜬다(떠나는 쪽).
+    const spinnerKey = busy ? (busyWidth == null ? FULL : String(busyWidth)) : null;
+    const showSpinner = spinnerKey === key;
     const trigger = (
       <TabsTrigger
         value={key}
@@ -148,7 +156,7 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
             <CollapsingTabsList
               // 열 수는 `전체` + 프리셋이다 — 하드코딩하면 프리셋을 늘렸을 때
               // "세그먼트가 N개다" 테스트는 통과하는데 그리드만 깨진다.
-              className={cn("grid h-9 w-full", GRID_COLS[DEVICE_PRESETS.length + 1])}
+              className={cn("grid h-9 w-full", gridColsFor(DEVICE_PRESETS.length + 1))}
             >
               {segment(
                 FULL,

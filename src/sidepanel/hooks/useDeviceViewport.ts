@@ -14,6 +14,8 @@ export interface DeviceViewportState {
   availableWidth: number | null;
   locked: boolean;
   busy: boolean;
+  /** 진행 중 전이가 노리는 폭(null = 전체). 스피너를 떠나는 세그먼트가 아니라 가려는 쪽에 띄운다. */
+  busyWidth: number | null;
   select: (width: number | null) => Promise<void>;
 }
 
@@ -28,6 +30,7 @@ export function useDeviceViewport(tabId: number | null): DeviceViewportState {
   const width = useDeviceViewportStore((s) => s.width);
   const availableWidth = useDeviceViewportStore((s) => s.availableWidth);
   const busy = useDeviceViewportStore((s) => s.busy);
+  const busyWidth = useDeviceViewportStore((s) => s.busyWidth);
 
   useEffect(() => {
     if (tabId == null) return;
@@ -39,6 +42,7 @@ export function useDeviceViewport(tabId: number | null): DeviceViewportState {
     availableWidth,
     locked: isDeviceModeLocked(phase, unsupported),
     busy,
+    busyWidth,
     select: selectDeviceWidth,
   };
 }
