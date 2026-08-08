@@ -118,11 +118,15 @@ describe("DebugTab — 미지원 전이 시 서브탭 복귀", () => {
 });
 
 describe("DebugTab — 디바이스 뷰포트 행", () => {
-  it("issue 서브탭에서 서브탭 바 안쪽에 붙는다", () => {
+  it("issue 서브탭에서 서브탭 바와 형제인 자기 행으로 붙는다", () => {
     renderDebug(false);
     const bar = screen.getByTestId("stub-device-bar");
-    // 별도 bordered 행이면 상단 크롬이 커져 idle 화면이 잘린다 — 같은 wrapper 안이어야 한다.
-    expect(bar.parentElement).toBe(trigger("subtab-issue").closest("div")?.parentElement);
+    const subTabRow = trigger("subtab-issue").closest("div")?.parentElement;
+    // 로그 탭 필터 행과 같은 규칙 — 서브탭 바 wrapper 안이 아니라 그 바로 뒤 형제 행이다.
+    // 행 컨테이너(border-b·px-4 py-4)는 DeviceViewportBar가 자기 루트에 들고 있어서,
+    // 렌더 게이트에 걸려 null이 되면 빈 행이 남지 않는다.
+    expect(bar.parentElement).toBe(subTabRow?.parentElement);
+    expect(subTabRow?.nextElementSibling).toBe(bar);
   });
 
   it("콘솔·네트워크 서브탭으로 이동하면 행이 사라진다", async () => {

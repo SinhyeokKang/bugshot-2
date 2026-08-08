@@ -92,12 +92,14 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
               </Badge>
             </TabsTrigger>
           </CollapsingTabsList>
-          {/* 서브탭 바 wrapper 안쪽에 mt-2로 넣는다 — 별도 bordered 행을 만들면 상단 크롬이
-              138→207px가 되는데, idle 화면은 PageScroll을 안 쓰고 justify-center + 조상
-              overflow-hidden이라 밀리는 게 아니라 위아래가 잘린다. */}
-          {sub === "issue" && <DeviceViewportBar tabId={tabId ?? null} />}
         </div>
       )}
+
+      {/* 서브탭 바와 같은 wrapper를 쓰지 않고 그 뒤에 붙는 독립 행 — 행 컨테이너는
+          DeviceViewportBar가 자기 루트에 들고 있다(렌더 게이트에 걸리면 빈 행이 남지 않게).
+          상단 크롬이 182→207px로 커지므로, idle 화면은 PageScroll을 안 쓰고 justify-center +
+          조상 overflow-hidden이라 패널이 아주 낮으면 위아래가 잘릴 수 있다. */}
+      {!hideSubTabs && sub === "issue" && <DeviceViewportBar tabId={tabId ?? null} />}
 
       <TabsContent
         value="issue"
