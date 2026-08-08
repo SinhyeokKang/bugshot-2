@@ -53,6 +53,7 @@ import { blurActiveElement } from "@/sidepanel/lib/blurActiveElement";
 import {
   attachDeviceViewport,
   dismissDeviceLoopWarning,
+  setDeviceViewportTrimming,
   setDeviceViewportUnsupported,
   useDeviceViewportStore,
 } from "@/sidepanel/device-viewport-controller";
@@ -219,6 +220,11 @@ export default function App() {
   useEffect(() => {
     if (deviceLoopWarning) blurActiveElement();
   }, [deviceLoopWarning]);
+
+  // 트림 오버레이가 떠 있으면 drafting이어도 만료 다이얼로그 마운트 지점이 없다.
+  useEffect(() => {
+    setDeviceViewportTrimming(replayTrim != null);
+  }, [replayTrim]);
 
   useEffect(() => {
     if (tabId == null) return;

@@ -27,7 +27,7 @@
 
 ### Task 2: 래퍼 DOM 모듈
 
-- **변경 대상**: `src/content/device-frame.ts` (신규), `src/content/__tests__/device-frame.test.ts` (신규, jsdom)
+- **변경 대상**: `src/content/device-frame.ts` (신규), `src/content/__tests__/device-frame.test.ts` (신규, node — clampToDeviceFrame)·`device-frame-dom.test.tsx` (신규, jsdom — 마운트·복원 왕복)
 - **작업 내용**: `DEVICE_FRAME_ID`·`DEVICE_STYLE_ID` 상수, `currentDeviceWidth`·`deviceFrameRect`·`availableViewport`·`clampToDeviceFrame`·`mountDeviceFrame`·`unmountDeviceFrame`. 은닉은 스타일시트 한 장이고 여백 색은 `--muted`의 `prefers-color-scheme` 2색 — 라이트 `hsl(210 40% 96.1%)` / 다크 `hsl(0 0% 14.9%)`(`globals.css:26`·`:57`). **라이트를 `0 0% 96.1%`로 쓰지 않는다**(slate 틴트가 빠진 드리프트 값). `#171717` 고정 금지. 이 파일이 토큰 사본 4번째이므로 `src/styles/__tests__/tokens.test.ts`에 등록한다. 래퍼는 `document.body` 직속, `src = location.href`. **`mountDeviceFrame`은 로드 판정을 하지 않는다**(`Promise<boolean>`이 아니라 `void`) — XFO/CSP 판정은 Task 12의 background가 하고 이 모듈은 순수 DOM으로 남는다. iframe `load`에서 `device.frameLoadEvent`를 발화하는 것까지가 책임이다.
 - **검증**:
   - [x] `mountDeviceFrame(390)` 후 `document.getElementById(DEVICE_FRAME_ID)`가 `document.body`의 직속 자식이다
@@ -178,7 +178,7 @@
 ### Task 8: DebugTab 배선
 
 - **변경 대상**: `src/sidepanel/tabs/DebugTab.tsx:73-94`, `src/sidepanel/tabs/DraftingPanel.tsx:576-678`
-- **작업 내용**: 서브탭 바 wrapper `<div>`(`CollapsingTabsList`가 74-93) **안쪽에 `mt-2`로** `<DeviceViewportBar tabId={tabId} />`를 넣는다. 별도 bordered 행(`px-4 py-4 border-b`)을 만들면 상단 크롬이 138→207px가 되는데, idle 화면은 `PageScroll`을 안 쓰고 `justify-center`(`IssueTab.tsx:308`) + 조상 `overflow-hidden`(`App.tsx:299`)이라 **밀리는 게 아니라 위아래가 잘린다**. 조건은 `sub === "issue" && !hideSubTabs`.
+- **작업 내용**: 서브탭 바 wrapper `<div>` **뒤에 형제로** `<DeviceViewportBar tabId={tabId} />`를 둔다. 행 컨테이너(`shrink-0 border-b border-border px-4 py-4` — 로그 탭 필터 행과 같은 규칙)는 `DeviceViewportBar`가 자기 루트에 들고 오므로, 렌더 게이트(`tabId == null || unsupported`)로 `null`이 되면 빈 행이 남지 않는다. 조건은 `sub === "issue" && !hideSubTabs`. 대가는 상단 크롬 182→207px — idle 화면은 `PageScroll`을 안 쓰고 `justify-center` + 조상 `overflow-hidden`이라 패널이 아주 낮으면 밀리는 게 아니라 위아래가 잘린다. (초기안은 wrapper 안쪽 `mt-2`였다.)
   별도로 `DraftingPanel`의 재현 환경 근처에 **모드 ON 읽기전용 인디케이터 1개**를 넣는다 — `device.state.width != null`로 ON을 판정하고 `뷰포트 390px`처럼 폭을 표시한다. 접근명과 `data-testid="device-viewport-indicator"`를 둔다.
 - **검증**:
   - [x] 콘솔·네트워크 서브탭으로 이동하면 행이 사라진다

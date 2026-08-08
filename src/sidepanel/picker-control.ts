@@ -1079,7 +1079,14 @@ export async function deviceState(
 }
 
 export async function deviceWatch(tabId: number, on: boolean): Promise<void> {
-  await send(tabId, { type: "device.watch", on }, 0);
+  // 셋 다 주입을 보장해야 한다 — Bar의 effect가 App의 attach보다 먼저 발사되므로, 여기만
+  // 빠지면 picker 미주입 탭에서 resize 리스너가 그 패널 세션 내내 안 걸린다.
+  try {
+    await ensureContentScript(tabId);
+    await send(tabId, { type: "device.watch", on }, 0);
+  } catch {
+    // 미지원·정책 차단 페이지 — 가용 폭 추적은 없어도 모드 자체는 게이트가 막는다.
+  }
 }
 
 export async function startFreeformDraft(tabId: number): Promise<void> {

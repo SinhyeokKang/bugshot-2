@@ -94,6 +94,12 @@ function stillOn(tabId: number): boolean {
 // 소유권 토큰을 함께 둔다 — 겹친 전이에서 먼저 끝난 쪽이 남의 값을 null로 지우지 않게.
 let attemptingWidth: number | null = null;
 let attemptToken = 0;
+/**
+ * busy로 거부한 재수립을 이어받을 탭. **거부는 실패가 아닌데 소비자가 top 커밋 하나뿐이라**,
+ * 거부를 유발한 그 커밋이 이미 지나가서 되돌려놓은 pending을 아무도 집지 않는다 —
+ * 래퍼는 top 재로드로 사라졌는데 store width만 남는 desync가 그대로 굳는다.
+ */
+let deferredTabId: number | null = null;
 
 function beginAttempt(width: number): number {
   attemptingWidth = width;
@@ -355,8 +361,20 @@ async function runTransition(
     if (!activated) toast.warning(t("issue.device.recordersDegraded"));
   } finally {
     endAttempt(token);
-    if (stillOn(tabId)) set({ busy: false });
+    if (stillOn(tabId)) {
+      set({ busy: false });
+      drainDeferredReestablish(tabId);
+    }
   }
+}
+
+/** busy로 거부돼 되돌려진 재수립을 전이 종료 직후 한 번 이어받는다. */
+function drainDeferredReestablish(tabId: number): void {
+  if (deferredTabId !== tabId) return;
+  deferredTabId = null;
+  const width = takePending(tabId);
+  if (width == null) return;
+  void reestablish(tabId, width).catch(() => {});
 }
 
 /**
@@ -373,8 +391,9 @@ async function reestablish(tabId: number, width: number): Promise<void> {
   const gate = decideReestablish({ unsupported: unsupportedTab, busy: snap().busy });
   if (gate.action === "reject") {
     // busy 거부는 실패가 아니다 — 되돌려놓지 않으면 select()가 도는 중에 온 top 커밋에서
-    // 모드가 조용히 유실된다.
+    // 모드가 조용히 유실된다. 되돌리는 것만으론 부족해 이어받기까지 예약한다.
     putPending(tabId, width);
+    deferredTabId = tabId;
     return;
   }
   if (gate.action === "abandon") {
@@ -434,7 +453,7 @@ async function onHandoff(tabId: number, url: string, expiresAt: number): Promise
   }
   // top이 실제로 옮겨가는 건 기한과 무관하다 — 통보는 양쪽 경로가 같아야 한다.
   const phase = useEditorStore.getState().phase;
-  if (!DIALOG_PHASES.has(phase)) {
+  if (!DIALOG_PHASES.has(phase) || trimmingOverlay) {
     toast.info(t("issue.device.handoffToast"));
     return inTime;
   }
@@ -490,6 +509,17 @@ function handleMessage(
 // 미지원 판정은 훅이 알려준다 — 컨트롤러가 chrome.tabs를 또 폴링하지 않는다.
 let unsupportedTab = false;
 
+/**
+ * 만료 다이얼로그가 **지금 실제로 마운트될 수 있는가**의 두 번째 축. phase가 drafting이어도
+ * 트림 오버레이가 떠 있으면 `IssueTab`이 다이얼로그를 렌더하지 않는다 — phase만 보면 통보가
+ * 0건인데 `sessionExpired`만 래치돼 세션 저장이 멈춘다.
+ */
+let trimmingOverlay = false;
+
+export function setDeviceViewportTrimming(value: boolean): void {
+  trimmingOverlay = value;
+}
+
 export function setDeviceViewportUnsupported(value: boolean): void {
   unsupportedTab = value;
   if (!value) return;
@@ -499,6 +529,9 @@ export function setDeviceViewportUnsupported(value: boolean): void {
   // `reestablish`의 abandon 분기가 내려주길 기대할 수 없다: 그건 pending이 살아 있어야
   // 도달하는데, 미지원 판정은 `status:"loading"`에서도 돌아 top 커밋보다 먼저 올 수 있다.
   demoteToFull(tabId);
+  // 대기 중이던 진입 경고도 함께 내린다 — Bar가 null을 반환해 다이얼로그는 언마운트되지만
+  // 플래그는 래치돼, 같은 탭이 지원 URL로 돌아오면 조작 없이 경고가 되살아난다.
+  set({ warningWidth: null });
 }
 
 function isDeviceViewportLocked(): boolean {
@@ -584,7 +617,12 @@ export function watchAvailableWidth(tabId: number): () => void {
   // refcount는 **탭별**이다 — 전역 하나면 탭 재바인딩에서 mount(새 탭)가 unmount(옛 탭)보다
   // 먼저 오는 순서에 카운터가 2→1이 되어 새 탭에 watch가 안 나가고 옛 탭 구독도 안 끊긴다.
   subscribers.set(tabId, (subscribers.get(tabId) ?? 0) + 1);
-  if (subscribers.get(tabId) === 1) void deviceWatch(tabId, true);
+  if (subscribers.get(tabId) === 1) {
+    void deviceWatch(tabId, true);
+    // 구독이 끊겨 있던 동안의 resize는 push가 안 온다 — 재진입 때 한 번 따라잡지 않으면
+    // 안 들어가는 폭이 활성으로 보이고, 누르면 top에 가로 스크롤이 생긴다.
+    void refreshAvailableWidth(tabId);
+  }
   return () => {
     const next = (subscribers.get(tabId) ?? 1) - 1;
     if (next > 0) {
@@ -594,6 +632,12 @@ export function watchAvailableWidth(tabId: number): () => void {
     subscribers.delete(tabId);
     void deviceWatch(tabId, false);
   };
+}
+
+async function refreshAvailableWidth(tabId: number): Promise<void> {
+  const state = await deviceState(tabId);
+  if (!stillOn(tabId) || state == null) return;
+  set({ availableWidth: state.available.width });
 }
 
 /* ── 다이얼로그 응답 ────────────────────────────────────────── */

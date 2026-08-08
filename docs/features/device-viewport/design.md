@@ -167,7 +167,7 @@ DeviceViewportBar 마운트
    └─ 마지막 구독자가 사라지면 → { type: "device.watch", on: false }
 ```
 
-**`watch`도 `pending`과 같은 이유로 모듈 스코프 refcount다.** 훅이 `DeviceViewportBar`와 `App.tsx` 다이얼로그 분기 두 곳에서 마운트되므로, "Bar 언마운트 = watch off"로 두면 아직 살아 있는 다른 구독자의 `availableChanged`까지 끊긴다. 실피해는 작지만(다이얼로그 분기는 `width`만 읽고, idle 복귀 때 `device.state`가 다시 조회된다) 소유 규칙을 `pending`·루프 카운터와 다르게 두면 리팩터에서 갈린다.
+**`watch`도 `pending`과 같은 이유로 모듈 스코프 refcount다.** 리마운트에서 unmount(옛)→mount(새) 순서가 뒤집혀도 watch가 안 끊기게 하려는 것이다(`useDeviceViewport`의 유일한 소비자는 `DeviceViewportBar`이고 `App.tsx`는 컨트롤러 스토어를 직접 구독한다). **refcount는 탭별**이다 — 전역 하나면 탭 재바인딩에서 새 탭에 watch가 안 나가고 옛 탭 구독도 안 끊긴다. 구독이 끊겨 있던 동안의 resize는 push가 안 오므로 **0→1 진입 때 `device.state`로 가용 폭을 한 번 따라잡는다** — 안 하면 안 들어가는 폭이 활성으로 보이고 누르면 top에 가로 스크롤이 생긴다.
 
 `innerWidth`가 아니라 `documentElement.clientWidth`를 쓴다 — 세로 스크롤바 15~17px을 빼지 않으면 래퍼가 가용 폭에 딱 맞을 때 가로 스크롤이 생긴다.
 
@@ -372,7 +372,7 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
 
 **연속 재수립 2회 초과**면 루프로 보고 다이얼로그를 띄우며(초기안의 "직전 재수립 URL 재방문" 축은 폐기했다 — 10초 안의 평범한 재새로고침 두 번이 그 술어에 걸려 작성 중 draft가 파기됐고, 임계와 함께 걸도록 좁히면 횟수 조건과 결과가 완전히 겹쳐 죽은 항이 된다. a→b→a 핑퐁도 매 재수립이 카운터를 올려 같은 3회째에 잡힌다), [확인]에서 모드를 해제하고 이슈 idle로 되돌린다. 리셋 조건은 둘이다 — 사용자의 명시적 세그먼트 조작, 그리고 재수립 성공 후 top 커밋 없이 10초 경과(정상 사용에서 카운터가 누적되지 않게).
 
-**세션 만료는 기존 경로를 재사용한다.** `expireStylingSession`(`picker-control.ts:459`)이 쓰는 `sessionExpired` 플래그와 `SessionExpiredDialog`(`IssueTab.tsx:705-726` — 취소 없는 단일 [확인], `onConfirm={() => reset()}`)를 그대로 쓰고 **body 문구만 디바이스 모드용으로 분기**한다(i18n 키 2개, `App.tsx`의 2-depth 문구 분기와 같은 방식). phase 판정 없이 무조건 켜도 된다 — 렌더 분기가 capturing·drafting·SelectedPanel 셋뿐이라 idle에서는 안 뜨고, 다음 세션 시작 때 `reset()`이 내린다.
+**세션 만료는 기존 경로를 재사용한다.** `expireStylingSession`(`picker-control.ts:459`)이 쓰는 `sessionExpired` 플래그와 `SessionExpiredDialog`(`IssueTab.tsx:705-726` — 취소 없는 단일 [확인], `onConfirm={() => reset()}`)를 그대로 쓰고 **body 문구만 디바이스 모드용으로 분기**한다(i18n 키 2개, `App.tsx`의 2-depth 문구 분기와 같은 방식). **켜는 건 다이얼로그가 실제로 마운트되는 구간에서만이다** — `DIALOG_PHASES`(capturing·drafting·styling) 화이트리스트 + 트림 오버레이가 안 떠 있을 것. 나머지에서는 토스트 1개로 갈음한다. "렌더 분기가 셋뿐이니 무조건 켜도 된다"가 초기 판단이었는데 `sessionExpired`는 **래치**라(내리는 건 `reset()`뿐) 렌더 지점이 없는 구간에서 켜면 통보는 0건인 채 플래그만 남아, 이후 첫 요소 선택이 만료 다이얼로그로 즉사하고 그동안 `useEditorSessionSync`의 저장·복구도 멈춘다.
 
 **로그는 기존 `logClear`에 기대되 그것만 믿지 않는다.** handoff는 실제 top cross-origin 네비게이션이라 `background/index.ts:174-185`의 `shouldClearLogs` → `logClear`가 대개 돈다. 다만 그 리스너는 `:130`의 `if (stored[key] == null) return;`으로 **editor 세션 스냅샷이 있을 때만** 발화하는데, 스냅샷은 store 변경 구독으로만 쓰이므로 패널을 막 열고 첫 로그가 오기 전 창에서는 없다. 그래서 `reestablish`가 stop ACK 뒤에 **무조건 store clear를 한 번 더 한다** — 두 번 비워도 둘 다 start ACK 전이라 무해하고, 이 이중 안전장치가 없으면 그 창에서 A 사이트 로그가 B에 섞인다.
 

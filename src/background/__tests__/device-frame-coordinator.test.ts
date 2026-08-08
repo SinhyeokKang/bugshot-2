@@ -228,6 +228,26 @@ describe("decideDeviceSignal — 성공·차단·handoff가 경쟁하지 않는�
     expect(res.push).toEqual({ type: "handoff", url: "https://blocked.example/" });
   });
 
+  // 취소는 차단이 아니다 — 래퍼 안 링크가 다운로드였거나, OFF/롤백의 unmount가 로딩 중인
+  // 래퍼를 제거했을 때도 ERR_ABORTED가 온다. 그걸 handoff로 읽으면 top이 래퍼가 가려던
+  // URL로 실제 이동해, "전체 복귀"가 엉뚱한 페이지로 끝난다.
+  it("net::ERR_ABORTED는 차단도 handoff도 아니다", () => {
+    expect(
+      decideDeviceSignal(armedWithTarget(), {
+        kind: "errorOccurred",
+        frameId: 7,
+        url: TOP,
+        error: "net::ERR_ABORTED",
+      }).push,
+    ).toBeNull();
+    expect(
+      decideDeviceSignal(
+        state({ armed: false, binding: { frameId: 7, documentId: "d1" } }),
+        { kind: "errorOccurred", frameId: 7, url: "https://b.com/", error: "net::ERR_ABORTED" },
+      ).push,
+    ).toBeNull();
+  });
+
   it("래퍼가 아닌 프레임의 신호는 전부 무발화다", () => {
     const base = armedWithTarget();
     expect(decideDeviceSignal(base, { kind: "errorOccurred", frameId: 99, url: TOP }).push).toBeNull();
