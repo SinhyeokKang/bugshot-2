@@ -108,6 +108,11 @@ export interface DeviceSetResponse {
 export interface DeviceStateResponse {
   width: number | null;
   available: { width: number; height: number };
+  /**
+   * 사용자가 지금 보는 주소. 모드 ON이면 래퍼의 것, OFF면 top의 것이다 — 래퍼 안 이동은
+   * top URL을 안 바꾸므로 `chrome.tabs.get().url`은 이 값의 대체가 못 된다.
+   */
+  pageUrl: string;
 }
 
 export type PickerMessage =

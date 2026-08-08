@@ -82,7 +82,11 @@ export function shouldPreserveSession(
   return false;
 }
 
-async function clearIfPageChanged(
+/**
+ * 페이지가 갈렸으면 편집 세션을 접는다. **URL 하나만 받는다** — 그래야 top 네비게이션과
+ * 래퍼 내부 same-origin 이동이 같은 판정을 탄다(PRD "세션 수명주기 동일화").
+ */
+export async function clearIfPageChanged(
   tabId: number,
   newUrl: string | undefined,
 ): Promise<void> {

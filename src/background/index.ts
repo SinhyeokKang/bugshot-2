@@ -17,7 +17,7 @@ import { OAuthError, serializeOAuthError } from "./oauth";
 import { pruneOrphanPendingLogsOncePerSession } from "@/lib/pending-log-prune";
 import { shouldClearLogs } from "@/lib/navigation-clear";
 import type { BgInternalMessage } from "@/types/messages";
-import { activateTab, setupTabBindings, shouldPreserveSession, stopRecorders } from "./tab-bindings";
+import { activateTab, clearIfPageChanged, setupTabBindings, shouldPreserveSession, stopRecorders } from "./tab-bindings";
 import {
   applyDeviceSignal,
   clearDeviceFrame,
@@ -226,6 +226,10 @@ chrome.webNavigation.onCommitted.addListener((details) => {
           .sendMessage({ type: "logClear", tabId } satisfies BgInternalMessage)
           .catch(() => {});
       }
+      // **래퍼 이동도 세션 수명주기를 탄다.** top 이동은 `tabs.onUpdated(info.url)`이 이 판정을
+      // 부르는데 래퍼 이동은 top URL을 안 바꿔 그 이벤트가 안 온다 — 그러면 죽은 문서의
+      // selector가 store에 남고, after 캡처가 새 문서의 같은 selector를 엉뚱하게 찍는다.
+      if (frameId !== 0) await clearIfPageChanged(tabId, url);
     }
 
     // top 문서가 갈리면 래퍼도 함께 사라진다 — binding을 남기면 다음 판정이 유령 frameId를

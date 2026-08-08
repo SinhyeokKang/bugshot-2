@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // 디바이스 뷰포트가 picker-control에 얹은 두 계약을 잠근다.
@@ -95,6 +97,57 @@ describe("deviceSet 주입 보장", () => {
 
     const { deviceSet } = await import("../picker-control");
     await expect(deviceSet(1, 390)).resolves.toBeUndefined();
+  });
+});
+
+// 래퍼 안에서 same-origin 이동을 해도 top URL은 안 바뀐다 — 캡처가 `chrome.tabs.get().url`을
+// 그대로 기록하면 리포트 Page 행·logs.html pageUrl·세션 pageKey가 전부 사용자가 본 화면이
+// 아니라 모드 진입 시점의 주소를 가리킨다.
+describe("resolvePageUrl", () => {
+  function stubDeviceState(response: unknown) {
+    vi.stubGlobal("chrome", {
+      runtime: { getManifest: () => MANIFEST },
+      tabs: { sendMessage: vi.fn(async () => response) },
+      scripting: { executeScript: vi.fn(async () => []) },
+    });
+  }
+
+  it("페이지가 알려준 주소를 fallback보다 우선한다", async () => {
+    stubDeviceState({
+      width: 390,
+      available: { width: 390, height: 800 },
+      pageUrl: "https://a.com/detail",
+    });
+
+    const { resolvePageUrl } = await import("../picker-control");
+    await expect(resolvePageUrl(1, "https://a.com/list")).resolves.toBe("https://a.com/detail");
+  });
+
+  it("조회가 실패하면 fallback을 쓴다", async () => {
+    vi.stubGlobal("chrome", {
+      runtime: { getManifest: () => MANIFEST },
+      tabs: { sendMessage: vi.fn().mockRejectedValue(new Error("no receiver")) },
+      scripting: { executeScript: vi.fn().mockRejectedValue(new Error("blocked")) },
+    });
+
+    const { resolvePageUrl } = await import("../picker-control");
+    await expect(resolvePageUrl(1, "https://a.com/list")).resolves.toBe("https://a.com/list");
+  });
+
+  // 구버전 content script가 살아있는 탭(확장 업데이트 직후)은 pageUrl 없이 응답한다.
+  it("응답에 pageUrl이 비어 있으면 fallback을 쓴다", async () => {
+    stubDeviceState({ width: null, available: { width: 1512, height: 800 }, pageUrl: "" });
+
+    const { resolvePageUrl } = await import("../picker-control");
+    await expect(resolvePageUrl(1, "https://a.com/list")).resolves.toBe("https://a.com/list");
+  });
+
+  // 헬퍼가 맞아도 호출부가 안 쓰면 무의미한데, 4개 진입점은 전부 chrome.tabs·store·content
+  // 왕복이 얽힌 브라우저 바운드라 유닛으로 못 돈다 — nav-order-contract와 같은 원문 대조로 잠근다.
+  it("캡처 진입 4곳이 tab.url을 직접 쓰지 않는다", () => {
+    const src = readFileSync(resolve(__dirname, "..", "picker-control.ts"), "utf8");
+    expect(src.match(/resolvePageUrl\(tabId, tab\.url \?\? ""\)/g)).toHaveLength(4);
+    expect(src).not.toMatch(/url: tab\.url \?\? ""/);
   });
 });
 

@@ -36,6 +36,24 @@ export function currentDeviceWidth(): number | null {
   return Number.isFinite(width) ? width : null;
 }
 
+/**
+ * 래퍼가 지금 보여주는 주소. 없으면 null.
+ *
+ * **래퍼 안에서 same-origin 이동을 해도 top URL은 안 바뀐다** — `chrome.tabs.get().url`을
+ * 그대로 쓰면 리포트의 `Page` 행과 세션 키가 사용자가 본 화면과 다른 주소를 가리킨다.
+ * same-origin 불변식 덕에 top이 `contentWindow.location`을 그냥 읽을 수 있다.
+ */
+export function deviceFrameUrl(): string | null {
+  const el = frameEl();
+  if (!el) return null;
+  try {
+    return el.contentWindow?.location.href ?? null;
+  } catch {
+    // 불변식이 깨진 순간(cross-origin으로 밀림) — background handoff가 곧 접는다.
+    return null;
+  }
+}
+
 /** 래퍼의 top 좌표계 rect. 없으면 null. area-select가 화면 캡처 rect로 쓴다. */
 export function deviceFrameRect(): ViewportRect | null {
   const el = frameEl();
@@ -125,6 +143,10 @@ export function clampToDeviceFrame(
  */
 export function isDeviceFrame(): boolean {
   try {
+    // `id`는 페이지가 붙일 수 있는 DOM 속성이라 그것만으로는 자칭을 못 막는다. 진짜 래퍼는
+    // 언제나 **top의 직속 자식**이므로 그 축을 함께 본다(background의 `device.frameReady`가
+    // `parentFrameId === 0`을 요구하는 것과 같은 방어).
+    if (window.parent !== window.top) return false;
     return (window.frameElement as HTMLElement | null)?.id === DEVICE_FRAME_ID;
   } catch {
     return false;

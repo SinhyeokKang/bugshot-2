@@ -1,5 +1,6 @@
 import type {
   DeviceSetResponse,
+  DeviceStateResponse,
   PageMetrics,
   PickerMessage,
   PrepareCaptureResponse,
@@ -32,6 +33,7 @@ import {
   allowsContextExpansion,
   availableViewport,
   currentDeviceWidth,
+  deviceFrameUrl,
   isDeviceFrame,
   mountDeviceFrame,
   unmountDeviceFrame,
@@ -421,7 +423,12 @@ function handlePickerMessage(
       }
       case "device.state":
         if (window !== window.top) return;
-        sendResponse({ width: currentDeviceWidth(), available: availableViewport() });
+        sendResponse({
+          width: currentDeviceWidth(),
+          available: availableViewport(),
+          // 래퍼가 있으면 그쪽 주소가 사용자가 본 화면이다.
+          pageUrl: deviceFrameUrl() ?? location.href,
+        } satisfies DeviceStateResponse);
         return;
       case "device.watch":
         if (window !== window.top) return;
