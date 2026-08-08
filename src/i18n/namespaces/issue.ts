@@ -66,6 +66,8 @@ const ko = {
   "issue.device.full": "전체",
   // 래퍼 iframe의 접근명. content script가 사전을 못 읽어 device.set 페이로드로 실려 간다.
   "issue.device.frameTitle": "BugShot 디바이스 뷰포트",
+  // 이름 없는 tablist는 AT가 "탭 목록"으로만 읽어 무엇을 고르는 줄인지 안 알려준다.
+  "issue.device.aria.list": "뷰포트 너비",
   // 라벨이 접혀 아이콘만 남아도 접근명은 폭을 그대로 말한다.
   "issue.device.aria.full": "뷰포트 전체 너비",
   "issue.device.aria.width": "뷰포트 너비 {width}픽셀",
@@ -230,6 +232,7 @@ const en = {
 
   "issue.device.full": "Full",
   "issue.device.frameTitle": "BugShot device viewport",
+  "issue.device.aria.list": "Viewport width",
   "issue.device.aria.full": "Full viewport width",
   "issue.device.aria.width": "Viewport width {width} pixels",
   "issue.device.tooltip.tooNarrow": "The window is too narrow for this width",

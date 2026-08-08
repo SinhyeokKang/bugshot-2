@@ -149,6 +149,8 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
             aria-busy={busy || undefined}
           >
             <CollapsingTabsList
+              // 이 줄은 헤딩도 라벨도 없이 홀로 있다 — 이름을 안 주면 AT가 "탭 목록"까지만 읽는다.
+              aria-label={t("issue.device.aria.list")}
               // 열 수는 `전체` + 프리셋이다 — 하드코딩하면 프리셋을 늘렸을 때
               // "세그먼트가 N개다" 테스트는 통과하는데 그리드만 깨진다.
               className={cn("grid h-9 w-full", gridColsFor(DEVICE_PRESETS.length + 1))}

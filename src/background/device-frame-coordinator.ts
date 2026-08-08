@@ -66,6 +66,26 @@ function isSameOrigin(a: string, b: string): boolean {
   }
 }
 
+/**
+ * "프레임이라서 못 들어간 것"이 아니라 "어디서 열어도 못 여는 것"인가.
+ * **화이트리스트가 아니라 블랙리스트인 이유**: 임베드 거부 코드는 브라우저 버전마다 늘어나는데
+ * 모르는 코드를 무해로 접으면 진짜 XFO 사이트에서 백지에 방치된다 — 확실한 것만 걸러낸다.
+ */
+function isTransientNetworkError(error: string | undefined): boolean {
+  if (!error) return false;
+  return (
+    error.startsWith("net::ERR_NAME_") ||
+    error === "net::ERR_INTERNET_DISCONNECTED" ||
+    error === "net::ERR_CONNECTION_REFUSED" ||
+    error === "net::ERR_CONNECTION_RESET" ||
+    error === "net::ERR_CONNECTION_CLOSED" ||
+    error === "net::ERR_CONNECTION_TIMED_OUT" ||
+    error === "net::ERR_TIMED_OUT" ||
+    error === "net::ERR_ADDRESS_UNREACHABLE" ||
+    error === "net::ERR_NETWORK_CHANGED"
+  );
+}
+
 function targetFrameId(state: DeviceFrameState): number | null {
   return state.binding?.frameId ?? state.provisionalFrameId;
 }
@@ -161,6 +181,8 @@ export function decideDeviceSignal(
       // reload"라는 OFF 계약이 엉뚱한 페이지로 끝난다.
       if (signal.error === "net::ERR_ABORTED") return { push: null, next: state };
       if (state.armed) {
+        // 감시창 안은 원인을 안 가린다 — 래퍼가 한 번도 안 섰으므로 무엇 때문이든 롤백해야
+        // "래퍼는 없는데 UI만 ON"인 desync가 안 생긴다.
         // 잠정 등록을 남기면 arm이 닫힌 뒤에도 그 frameId가 target으로 잡혀, 롤백된 페이지의
         // 같은 프레임 이동이 handoff 경로를 탄다(성공·handoff 분기는 이미 지우고 있다).
         return {
@@ -170,6 +192,10 @@ export function decideDeviceSignal(
       }
       // 감시창 밖 차단(유지 중 XFO 사이트 도달)은 handoff와 같은 경로로 보낸다 — 프레임에
       // 못 들어가는 URL이므로 top을 그리로 내보낸다. 안 하면 백지에 방치된다.
+      // **단 그 논거는 "프레임이라서 못 연다"에만 선다.** DNS 실패·연결 끊김은 top으로 가도
+      // 똑같이 못 열고 모드와 보던 페이지만 잃는다 — 래퍼 안에 브라우저 에러 화면이 남는 건
+      // 평범한 탭과 같은 결과라 그대로 둔다.
+      if (isTransientNetworkError(signal.error)) return { push: null, next: state };
       return {
         push: { type: "handoff", url: signal.url },
         next: { ...state, provisionalFrameId: null, binding: null },

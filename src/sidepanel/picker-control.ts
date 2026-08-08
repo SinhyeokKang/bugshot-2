@@ -342,7 +342,7 @@ export async function startPicker(tabId: number): Promise<void> {
   if (!(await ensureSupportedTab(tab))) return;
   useEditorStore.getState().startPicking({
     tabId,
-    url: tab.url ?? "",
+    url: await resolvePageUrl(tabId, tab.url ?? ""),
     title: tab.title ?? "",
   });
   try {
@@ -715,7 +715,7 @@ export async function startAreaCapture(tabId: number): Promise<void> {
   if (!(await ensureSupportedTab(tab))) return;
   useEditorStore.getState().startCapturing({
     tabId,
-    url: tab.url ?? "",
+    url: await resolvePageUrl(tabId, tab.url ?? ""),
     title: tab.title ?? "",
   });
   try {
@@ -748,7 +748,7 @@ export async function startElementShot(tabId: number): Promise<void> {
   if (!(await ensureSupportedTab(tab))) return;
   useEditorStore.getState().startElementShot({
     tabId,
-    url: tab.url ?? "",
+    url: await resolvePageUrl(tabId, tab.url ?? ""),
     title: tab.title ?? "",
   });
   try {
@@ -1076,6 +1076,16 @@ export async function deviceSet(
   }
 }
 
+/**
+ * 캡처가 기록할 페이지 주소. **래퍼 안에서 same-origin 이동을 해도 top URL은 안 바뀌므로**
+ * `chrome.tabs.get().url`은 사용자가 본 화면의 주소가 아니다 — 리포트의 `Page` 행,
+ * `logs.html`의 pageUrl, 세션 pageKey가 전부 이 값을 탄다. 페이지에 직접 묻는다.
+ */
+export async function resolvePageUrl(tabId: number, fallback: string): Promise<string> {
+  const state = await deviceState(tabId);
+  return state?.pageUrl || fallback;
+}
+
 export async function deviceState(
   tabId: number,
 ): Promise<DeviceStateResponse | undefined> {
@@ -1107,7 +1117,11 @@ export async function startFreeformDraft(tabId: number): Promise<void> {
     return;
   }
   if (!(await ensureSupportedTab(tab))) return;
-  const target = { tabId, url: tab.url ?? "", title: tab.title ?? "" };
+  const target = {
+    tabId,
+    url: await resolvePageUrl(tabId, tab.url ?? ""),
+    title: tab.title ?? "",
+  };
 
   // freeform은 진입 즉시 drafting(=머지 프리즈)이라, 진입 직전 누적이 첨부에 반영되도록
   // sync 데이터가 누적기에 머지될 때까지(settle) idle 상태에서 기다린 뒤 drafting으로 전환한다.

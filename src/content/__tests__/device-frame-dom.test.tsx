@@ -3,6 +3,7 @@ import {
   DEVICE_FRAME_ID,
   DEVICE_STYLE_ID,
   currentDeviceWidth,
+  deviceFrameUrl,
   isDeviceFrame,
   mountDeviceFrame,
   unmountDeviceFrame,
@@ -25,6 +26,36 @@ beforeEach(() => {
 
 // OFF는 unmount + reload인데, 래퍼가 한 번도 안 선 페이지(전달 실패 롤백)에서도 reload를
 // 돌면 정상 페이지의 스크롤·입력값을 이유 없이 날린다 — 되돌릴 게 있었는지를 호출부가 알아야 한다.
+// 래퍼 안에서 same-origin 이동을 해도 top URL은 안 바뀐다 — 캡처가 기록할 주소를
+// `chrome.tabs.get().url`에서 가져오면 리포트 Page 행·세션 키가 사용자가 본 화면과 갈린다.
+describe("deviceFrameUrl", () => {
+  it("래퍼가 없으면 null", () => {
+    expect(deviceFrameUrl()).toBeNull();
+  });
+
+  it("래퍼가 있으면 그 문서의 주소를 돌려준다", () => {
+    mountDeviceFrame(390, TITLE);
+    const frame = frameEl()!;
+    Object.defineProperty(frame, "contentWindow", {
+      configurable: true,
+      value: { location: { href: "https://a.com/detail" } },
+    });
+    expect(deviceFrameUrl()).toBe("https://a.com/detail");
+  });
+
+  // same-origin 불변식이 깨지는 순간(cross-origin으로 밀림)엔 접근이 throw한다.
+  it("접근이 throw하면 null로 접는다", () => {
+    mountDeviceFrame(390, TITLE);
+    Object.defineProperty(frameEl()!, "contentWindow", {
+      configurable: true,
+      get() {
+        throw new Error("cross-origin");
+      },
+    });
+    expect(deviceFrameUrl()).toBeNull();
+  });
+});
+
 describe("unmountDeviceFrame 반환값", () => {
   it("래퍼가 없었으면 false", () => {
     expect(unmountDeviceFrame()).toBe(false);
@@ -167,6 +198,17 @@ describe("isDeviceFrame", () => {
     const fake = document.createElement("iframe");
     fake.id = "some-other-frame";
     vi.spyOn(window, "frameElement", "get").mockReturnValue(fake);
+    expect(isDeviceFrame()).toBe(false);
+    vi.restoreAllMocks();
+  });
+
+  // `id`는 페이지가 붙이는 DOM 속성이라, 2-depth에 심은 프레임이 래퍼를 자칭해
+  // allowsContextExpansion(=캡처 범위 확장)을 열 수 있다. 진짜 래퍼는 top의 직속 자식뿐이다.
+  it("top의 직속 자식이 아니면 id가 같아도 false", () => {
+    const fake = document.createElement("iframe");
+    fake.id = DEVICE_FRAME_ID;
+    vi.spyOn(window, "frameElement", "get").mockReturnValue(fake);
+    vi.spyOn(window, "parent", "get").mockReturnValue({} as Window);
     expect(isDeviceFrame()).toBe(false);
     vi.restoreAllMocks();
   });

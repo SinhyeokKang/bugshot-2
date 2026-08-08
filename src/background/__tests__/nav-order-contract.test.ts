@@ -41,3 +41,21 @@ describe("onBeforeNavigate — 로그 꼬리 sync가 handoff 판정보다 앞선
     }
   });
 });
+
+// 같은 이유로 원문 대조 — 래퍼 내부 same-origin 이동은 top URL을 안 바꾸므로
+// `tabs.onUpdated(info.url)`이 안 오고, 세션 만료 판정이 통째로 건너뛰어진다. 그러면 죽은
+// 문서의 selector가 `editor:${tabId}`에 남아 after 캡처가 새 문서의 같은 selector를 찍는다.
+// PRD가 "로그·세션 수명주기 동일화"를 한 항목으로 묶은 게 이 지점이다.
+describe("onCommitted — 래퍼 이동도 세션 수명주기를 탄다", () => {
+  const start = SRC.search(/chrome\.webNavigation\.onCommitted\.addListener/);
+  const body = SRC.slice(start);
+
+  it("clearIfPageChanged가 top-like 게이트 안에서 래퍼 프레임에만 불린다", () => {
+    const gate = body.indexOf("isTopLikeFrame(binding, frameId)");
+    const call = body.indexOf("clearIfPageChanged(tabId, url)");
+    expect(gate).toBeGreaterThan(-1);
+    expect(call, "clearIfPageChanged 호출이 없다").toBeGreaterThan(gate);
+    // top(frameId 0)은 tabs.onUpdated가 이미 부른다 — 여기서 또 부르면 2중 판정이다.
+    expect(body.slice(gate, call)).toMatch(/frameId !== 0/);
+  });
+});

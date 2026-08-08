@@ -248,6 +248,53 @@ describe("decideDeviceSignal — 성공·차단·handoff가 경쟁하지 않는�
     ).toBeNull();
   });
 
+  // 감시창 밖 handoff의 논거는 "프레임에 못 들어가는 URL이니 top을 그리로 보낸다"인데,
+  // DNS 실패·연결 끊김은 top으로 가도 똑같이 못 연다 — 대신 모드와 보던 페이지만 잃는다.
+  // 래퍼 안에 브라우저 에러 화면이 뜨는 건 평범한 탭에서와 같은 결과라 그대로 둔다.
+  it("일시적 네트워크 오류는 감시창 밖에서 handoff를 만들지 않는다", () => {
+    for (const error of [
+      "net::ERR_NAME_NOT_RESOLVED",
+      "net::ERR_INTERNET_DISCONNECTED",
+      "net::ERR_CONNECTION_REFUSED",
+      "net::ERR_TIMED_OUT",
+    ]) {
+      expect(
+        decideDeviceSignal(
+          state({ armed: false, binding: { frameId: 7, documentId: "d1" } }),
+          { kind: "errorOccurred", frameId: 7, url: "https://dead.example/", error },
+        ).push,
+        error,
+      ).toBeNull();
+    }
+  });
+
+  // 감시창 **안**은 다르다 — 래퍼가 한 번도 안 섰으니 원인과 무관하게 롤백해야
+  // "래퍼는 없는데 UI만 ON"인 desync가 안 생긴다.
+  it("감시창 안에서는 일시적 오류도 frameBlocked다", () => {
+    expect(
+      decideDeviceSignal(armedWithTarget(), {
+        kind: "errorOccurred",
+        frameId: 7,
+        url: TOP,
+        error: "net::ERR_NAME_NOT_RESOLVED",
+      }).push,
+    ).toEqual({ type: "frameBlocked" });
+  });
+
+  it("임베드 거부(ERR_BLOCKED_BY_RESPONSE)는 감시창 밖에서 handoff다", () => {
+    expect(
+      decideDeviceSignal(
+        state({ armed: false, binding: { frameId: 7, documentId: "d1" } }),
+        {
+          kind: "errorOccurred",
+          frameId: 7,
+          url: "https://xfo.example/",
+          error: "net::ERR_BLOCKED_BY_RESPONSE",
+        },
+      ).push,
+    ).toEqual({ type: "handoff", url: "https://xfo.example/" });
+  });
+
   it("래퍼가 아닌 프레임의 신호는 전부 무발화다", () => {
     const base = armedWithTarget();
     expect(decideDeviceSignal(base, { kind: "errorOccurred", frameId: 99, url: TOP }).push).toBeNull();
