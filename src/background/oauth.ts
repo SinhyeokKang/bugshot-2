@@ -8,9 +8,16 @@ import {
   assertConfigured as assertOAuthConfigured,
   isCancellation,
 } from "./oauth/config";
-import { OAuthError } from "./oauth/errors";
+import { type ConnectReason, OAuthError, authorizeRejection, httpReason } from "./oauth/errors";
 
-export { OAuthError, type OAuthErrorOptions } from "./oauth/errors";
+export {
+  OAuthError,
+  authorizeRejection,
+  grantRejection,
+  httpReason,
+  type ConnectReason,
+  type OAuthErrorOptions,
+} from "./oauth/errors";
 
 const AUTHORIZE_URL = "https://auth.atlassian.com/authorize";
 const RESOURCES_URL =
@@ -61,17 +68,22 @@ interface LaunchFlowError {
   match: RegExp;
   key: TranslationKey;
   cancelled: boolean;
+  reason: ConnectReason;
 }
 
 // 상호 배타적이라 순서는 무관하다 — 항목을 추가할 땐 겹치지 않는지 확인할 것.
+// reason은 cancelled 축이 못 가르는 사유를 집계에 남긴다: 창 닫기(가장 흔한 이탈)와
+// 동의 화면 거부는 둘 다 취소지만 원인이 다르고, 동시 flow는 실패로 세지만 장애가 아니다.
 const LAUNCH_FLOW_ERRORS: readonly LaunchFlowError[] = [
-  { match: /did not approve access/i, key: "oauth.error.cancelled", cancelled: true },
-  { match: /page could not be loaded/i, key: "oauth.error.authorizationPageFailed", cancelled: false },
-  { match: /create a browser window/i, key: "oauth.error.windowCreateFailed", cancelled: false },
+  { match: /did not approve access/i, key: "oauth.error.cancelled", cancelled: true, reason: "cancelled_window" },
+  { match: /page could not be loaded/i, key: "oauth.error.authorizationPageFailed", cancelled: false, reason: "launch_failed" },
+  { match: /create a browser window/i, key: "oauth.error.windowCreateFailed", cancelled: false, reason: "launch_failed" },
   // 프로필이 파괴돼야 나오는데 그러면 사이드패널도 같이 죽어 이 문구는 표시되지 않는다.
   // 집계도 미분류일 때와 같은 failed다 — 관측 가능한 효과는 없고 테이블 완전성으로 남긴다.
-  { match: /browser context has been shut down/i, key: "oauth.error.browserContextShutDown", cancelled: false },
-  { match: /one web auth flow is allowed/i, key: "oauth.error.flowAlreadyInProgress", cancelled: false },
+  { match: /browser context has been shut down/i, key: "oauth.error.browserContextShutDown", cancelled: false, reason: "launch_failed" },
+  // 더블클릭·연속 클릭. failed로 세지만 사용자는 장애로 느끼지 않는 유일한 레인이라
+  // 전용 reason으로 떼어내야 진짜 장애 지표가 이걸로 오염되지 않는다.
+  { match: /one web auth flow is allowed/i, key: "oauth.error.flowAlreadyInProgress", cancelled: false, reason: "flow_in_progress" },
 ];
 
 export function classifyLaunchFlowError(message: string): LaunchFlowError | null {
@@ -92,6 +104,7 @@ export async function launchOAuthWebFlow(
         platform,
         cancelled: classified.cancelled,
         launchFailed: !classified.cancelled,
+        reason: classified.reason,
       });
     }
     throw err;
@@ -141,7 +154,11 @@ export async function startOAuthFlow(): Promise<OAuthStartResult> {
 
   const redirect = await launchOAuthWebFlow(url.toString(), "jira");
   if (!redirect) {
-    throw new OAuthError(t("oauth.error.cancelled"), { platform: "jira", cancelled: true });
+    throw new OAuthError(t("oauth.error.cancelled"), {
+      platform: "jira",
+      cancelled: true,
+      reason: "cancelled_window",
+    });
   }
 
   const parsed = new URL(redirect);
@@ -151,7 +168,7 @@ export async function startOAuthFlow(): Promise<OAuthStartResult> {
   if (errorParam) {
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "jira", cancelled: isAtlassianCancellationCode(errorParam) },
+      { platform: "jira", ...authorizeRejection(isAtlassianCancellationCode(errorParam)) },
     );
   }
   if (returnedState !== state) {
@@ -185,7 +202,7 @@ async function exchangeCodeForTokens(code: string): Promise<TokenResponse> {
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenExchange", { status: res.status, text }),
-      { platform: "jira" },
+      { platform: "jira", reason: httpReason(res.status) },
     );
   }
   return res.json() as Promise<TokenResponse>;
@@ -199,8 +216,11 @@ async function fetchSites(accessToken: string): Promise<JiraSite[]> {
     },
   });
   if (!res.ok) {
+    // jira는 getMyself가 없어 이 호출이 다른 7개 플랫폼의 프로필 조회 대응 단계다.
+    // 태깅을 빼면 jira만 profile_fetch_failed가 구조적으로 항상 0이라 플랫폼 비교가 깨진다.
     throw new OAuthError(t("oauth.error.siteList", { status: res.status }), {
       platform: "jira",
+      reason: "profile_fetch_failed",
     });
   }
   const raw = (await res.json()) as Array<{
@@ -236,7 +256,7 @@ export async function refreshOAuthToken(
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenRefresh", { status: res.status, text }),
-      { platform: "jira" },
+      { platform: "jira", reason: httpReason(res.status) },
     );
   }
   const data = (await res.json()) as TokenResponse;

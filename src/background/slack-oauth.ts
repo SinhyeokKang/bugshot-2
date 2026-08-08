@@ -1,7 +1,7 @@
 import { t } from "@/i18n";
 import type { SlackOAuthAuth, SlackOAuthResult } from "@/types/slack";
 import { getMyself } from "./slack-api";
-import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, authorizeRejection, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   assertConfigured as assertOAuthConfigured,
@@ -37,7 +37,7 @@ export function parseSlackCallbackParams(
   if (errorParam) {
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "slack", cancelled: isSlackCancellationCode(errorParam) },
+      { platform: "slack", ...authorizeRejection(isSlackCancellationCode(errorParam)) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
@@ -73,6 +73,7 @@ export async function startSlackOAuth(): Promise<SlackOAuthResult> {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "slack",
       cancelled: true,
+      reason: "cancelled_window",
     });
   }
 
@@ -115,14 +116,14 @@ async function exchangeCode(code: string): Promise<SlackTokenResponse> {
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenExchange", { status: res.status, text }),
-      { platform: "slack" },
+      { platform: "slack", reason: httpReason(res.status) },
     );
   }
   const data = (await res.json()) as SlackTokenResponse;
   if (!data.ok) {
     throw new OAuthError(data.error || "slack_oauth_error", {
       platform: "slack",
-      cancelled: isSlackCancellationCode(data.error ?? null),
+      ...grantRejection(isSlackCancellationCode(data.error ?? null)),
     });
   }
   return data;

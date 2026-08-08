@@ -2,7 +2,7 @@ import { t } from "@/i18n";
 import type { AsanaAuth, AsanaOAuthAuth } from "@/types/asana";
 import { writeStoredAsanaOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setAsanaRefreshHook } from "./asana-api";
-import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, authorizeRejection, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   assertConfigured as assertOAuthConfigured,
@@ -37,7 +37,7 @@ export function parseAsanaCallbackParams(
   if (errorParam) {
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "asana", cancelled: isAsanaCancellationCode(errorParam) },
+      { platform: "asana", ...authorizeRejection(isAsanaCancellationCode(errorParam)) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
@@ -74,6 +74,7 @@ export async function startAsanaOAuth(): Promise<AsanaOAuthAuth> {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "asana",
       cancelled: true,
+      reason: "cancelled_window",
     });
   }
 
@@ -107,7 +108,7 @@ async function exchangeCode(code: string): Promise<AsanaTokenResponse> {
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenExchange", { status: res.status, text }),
-      { platform: "asana" },
+      { platform: "asana", reason: httpReason(res.status) },
     );
   }
   const data = (await res.json()) as
@@ -116,7 +117,7 @@ async function exchangeCode(code: string): Promise<AsanaTokenResponse> {
   if ("error" in data && data.error) {
     throw new OAuthError(data.error_description || data.error, {
       platform: "asana",
-      cancelled: isAsanaCancellationCode(data.error),
+      ...grantRejection(isAsanaCancellationCode(data.error)),
     });
   }
   return data as AsanaTokenResponse;
@@ -137,7 +138,7 @@ export async function refreshAsanaToken(auth: AsanaAuth): Promise<AsanaAuth> {
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenRefresh", { status: res.status, text }),
-      { platform: "asana" },
+      { platform: "asana", reason: httpReason(res.status) },
     );
   }
   const rData = (await res.json()) as

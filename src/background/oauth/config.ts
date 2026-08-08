@@ -137,12 +137,14 @@ export function assertConfigured(cfg: OAuthPlatformConfig): void {
     throw new OAuthError(t(cfg.notConfiguredClientKey), {
       platform: cfg.platform,
       notConfigured: true,
+      reason: "config_missing",
     });
   }
   if (cfg.needsProxy && !cfg.proxyUrl) {
     throw new OAuthError(t(cfg.notConfiguredProxyKey ?? cfg.notConfiguredClientKey), {
       platform: cfg.platform,
       notConfigured: true,
+      reason: "config_missing",
     });
   }
 }

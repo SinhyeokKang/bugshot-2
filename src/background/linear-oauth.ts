@@ -3,7 +3,7 @@ import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
 import { readStoredLinearAuth, writeStoredLinearOAuthTokens } from "@/lib/settings-storage";
 import { pickRotatedAuth } from "./lib/rotatedAuth";
 import { getMyself, setLinearRefreshHook } from "./linear-api";
-import { OAuthError, base64url, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, authorizeRejection, base64url, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   assertConfigured as assertOAuthConfigured,
@@ -53,7 +53,7 @@ export function parseLinearCallbackParams(
   if (errorParam) {
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "linear", cancelled: isLinearCancellationCode(errorParam) },
+      { platform: "linear", ...authorizeRejection(isLinearCancellationCode(errorParam)) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
@@ -95,6 +95,7 @@ export async function startLinearOAuth(): Promise<LinearOAuthAuth> {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "linear",
       cancelled: true,
+      reason: "cancelled_window",
     });
   }
 
@@ -133,14 +134,14 @@ async function exchangeCode(
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenExchange", { status: res.status, text }),
-      { platform: "linear" },
+      { platform: "linear", reason: httpReason(res.status) },
     );
   }
   const data = (await res.json()) as LinearTokenResponse | { error?: string; error_description?: string };
   if ("error" in data && data.error) {
     throw new OAuthError(data.error_description || data.error, {
       platform: "linear",
-      cancelled: isLinearCancellationCode(data.error),
+      ...grantRejection(isLinearCancellationCode(data.error)),
     });
   }
   return data as LinearTokenResponse;
@@ -164,7 +165,7 @@ export async function refreshLinearToken(
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenRefresh", { status: res.status, text }),
-      { platform: "linear" },
+      { platform: "linear", reason: httpReason(res.status) },
     );
   }
   const rData = (await res.json()) as LinearTokenResponse | { error?: string; error_description?: string };

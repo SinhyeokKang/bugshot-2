@@ -1,7 +1,7 @@
 import { t } from "@/i18n";
 import type { ClickupOAuthAuth } from "@/types/clickup";
 import { getMyself } from "./clickup-api";
-import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, authorizeRejection, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   assertConfigured as assertOAuthConfigured,
@@ -35,7 +35,7 @@ export function parseClickupCallbackParams(
   if (errorParam) {
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "clickup", cancelled: isClickupCancellationCode(errorParam) },
+      { platform: "clickup", ...authorizeRejection(isClickupCancellationCode(errorParam)) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
@@ -67,6 +67,7 @@ export async function startClickupOAuth(): Promise<ClickupOAuthAuth> {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "clickup",
       cancelled: true,
+      reason: "cancelled_window",
     });
   }
 
@@ -98,7 +99,7 @@ async function exchangeCode(code: string): Promise<ClickupTokenResponse> {
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenExchange", { status: res.status, text }),
-      { platform: "clickup" },
+      { platform: "clickup", reason: httpReason(res.status) },
     );
   }
   const data = (await res.json()) as
@@ -107,7 +108,7 @@ async function exchangeCode(code: string): Promise<ClickupTokenResponse> {
   if ("error" in data && data.error) {
     throw new OAuthError(data.error_description || data.error, {
       platform: "clickup",
-      cancelled: isClickupCancellationCode(data.error),
+      ...grantRejection(isClickupCancellationCode(data.error)),
     });
   }
   return data as ClickupTokenResponse;

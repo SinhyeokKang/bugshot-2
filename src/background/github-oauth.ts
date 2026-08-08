@@ -3,7 +3,7 @@ import type { GithubAuth, GithubOAuthAuth } from "@/types/github";
 import { readStoredGithubAuth, writeStoredGithubOAuthTokens } from "@/lib/settings-storage";
 import { pickRotatedAuth } from "./lib/rotatedAuth";
 import { getMyself, setGithubRefreshHook } from "./github-api";
-import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, authorizeRejection, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   isConfigured as isOAuthPlatformConfigured,
@@ -58,7 +58,7 @@ export function parseCallbackParams(
   if (errorParam) {
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
-      { platform: "github", cancelled: isGithubCancellationCode(errorParam) },
+      { platform: "github", ...authorizeRejection(isGithubCancellationCode(errorParam)) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
@@ -86,6 +86,7 @@ export async function startGithubOAuth(): Promise<GithubOAuthAuth> {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "github",
       cancelled: true,
+      reason: "cancelled_window",
     });
   }
 
@@ -122,14 +123,14 @@ async function exchangeCodeForTokens(code: string): Promise<GithubTokenResponse>
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenExchange", { status: res.status, text }),
-      { platform: "github" },
+      { platform: "github", reason: httpReason(res.status) },
     );
   }
   const data = (await res.json()) as GithubTokenResponse | { error?: string; error_description?: string };
   if ("error" in data && data.error) {
     throw new OAuthError(data.error_description || data.error, {
       platform: "github",
-      cancelled: isGithubCancellationCode(data.error),
+      ...grantRejection(isGithubCancellationCode(data.error)),
     });
   }
   return data as GithubTokenResponse;
@@ -163,7 +164,7 @@ export async function refreshGithubToken(
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenRefresh", { status: res.status, text }),
-      { platform: "github" },
+      { platform: "github", reason: httpReason(res.status) },
     );
   }
   const data = (await res.json()) as GithubTokenResponse | { error?: string; error_description?: string };

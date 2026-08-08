@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { classifyConnectResult, trackConnect } from "../connect-tracking";
+import {
+  classifyConnectReason,
+  classifyConnectResult,
+  trackConnect,
+} from "../connect-tracking";
 import { OAuthError } from "../oauth";
+import type { ConnectReason } from "../oauth/errors";
 
 vi.mock("../analytics", () => ({
   captureEvent: vi.fn(async () => {}),
@@ -41,19 +46,159 @@ describe("classifyConnectResult", () => {
   });
 });
 
+// result 3값만으로는 PostHog에서 "진짜 장애"와 "사용자 취소"를 가를 수 없다. reason은
+// 그 사유 축이고, 상류 응답 원문 대신 고정 enum만 싣는다(Privacy 코어밸류).
+describe("classifyConnectReason", () => {
+  it("명시 태깅된 reason이 항상 우선한다 (파생 규칙이 덮어쓰지 않는다)", () => {
+    // launchOAuthWebFlow가 창 닫기에 다는 조합 — cancelled 축과 reason이 동시에 선다.
+    expect(
+      classifyConnectReason(
+        new OAuthError("x", { cancelled: true, reason: "cancelled_window" }),
+      ),
+    ).toBe("cancelled_window");
+    // 동시 flow는 취소가 아니라 launchFailed 축인데 사유는 따로 봐야 한다.
+    expect(
+      classifyConnectReason(
+        new OAuthError("x", { launchFailed: true, reason: "flow_in_progress" }),
+      ),
+    ).toBe("flow_in_progress");
+    expect(
+      classifyConnectReason(new OAuthError("x", { reason: "token_exchange_5xx" })),
+    ).toBe("token_exchange_5xx");
+  });
+
+  it("태깅 없는 cancelled는 제공자 화면 거부로 파생 (창 닫기는 launch 단계에서 태깅됨)", () => {
+    expect(classifyConnectReason(new OAuthError("x", { cancelled: true }))).toBe(
+      "cancelled_denied",
+    );
+  });
+
+  it("태깅 없는 notConfigured는 config_missing", () => {
+    expect(classifyConnectReason(new OAuthError("x", { notConfigured: true }))).toBe(
+      "config_missing",
+    );
+  });
+
+  it("태깅 없는 launchFailed는 launch_failed", () => {
+    expect(classifyConnectReason(new OAuthError("x", { launchFailed: true }))).toBe(
+      "launch_failed",
+    );
+  });
+
+  it("축이 하나도 안 선 OAuthError는 other (stateMismatch·codeMissing·tokenPersist 등)", () => {
+    expect(classifyConnectReason(new OAuthError("state mismatch"))).toBe("other");
+  });
+
+  it("비-OAuthError 네트워크 실패는 network", () => {
+    expect(classifyConnectReason(new TypeError("Failed to fetch"))).toBe("network");
+    expect(classifyConnectReason(new Error("NetworkError when attempting to fetch"))).toBe(
+      "network",
+    );
+    // Safari/WebKit 계열 문구.
+    expect(classifyConnectReason(new Error("Load failed"))).toBe("network");
+  });
+
+  // 이전엔 `instanceof TypeError`를 무조건 network로 봤는데, 그건 fetch 실패가
+  // TypeError라는 것의 역을 참으로 가정한 것이었다. clickup-api의 `String(raw.user.id)`나
+  // oauth.ts `fetchSites`의 `raw.map(...)`은 상류가 200+`{}` 를 주면 TypeError를 던진다 —
+  // 우리 파싱 결함이 사용자 회선 문제로 집계되던 오분류다. Chrome 확장이라 fetch 실패
+  // 문구는 "Failed to fetch" 하나로 고정이므로 메시지 매칭만으로 충분하다.
+  it("메시지가 네트워크 문구가 아닌 TypeError는 network가 아니다 (응답 shape 파싱 결함)", () => {
+    expect(classifyConnectReason(new TypeError("Cannot read properties of undefined"))).toBe(
+      "other",
+    );
+  });
+
+  // 토큰 교환이 성공한 뒤 getMyself(프로필 조회) 한 왕복이 실패하는 레인. 8개 플랫폼이
+  // 각자 GithubError·SlackError… 를 던지는데 전부 숫자 status를 갖는다. OAuthError로
+  // **감싸면 안 된다** — serializeOAuthError의 401 fallthrough에 걸려 최초 연결 사용자에게
+  // "세션이 만료되었습니다"가 뜬다(2026-07-30 회고). 그래서 duck-typing으로만 분류한다.
+  it("숫자 status를 가진 플랫폼 API 에러는 profile_fetch_failed", () => {
+    class GithubError extends Error {
+      constructor(public status: number, message: string) {
+        super(message);
+        this.name = "GithubError";
+      }
+    }
+    expect(classifyConnectReason(new GithubError(403, "scope 부족"))).toBe(
+      "profile_fetch_failed",
+    );
+    // Slack은 status 기본값이 200이다 — 버킷을 status로 쪼개지 않는 이유.
+    expect(classifyConnectReason(new GithubError(200, "ratelimited"))).toBe(
+      "profile_fetch_failed",
+    );
+  });
+
+  it("status가 숫자가 아니면 profile_fetch_failed로 오분류하지 않는다", () => {
+    const err = Object.assign(new Error("boom"), { status: "500" });
+    expect(classifyConnectReason(err)).toBe("other");
+  });
+
+  // 플랫폼 API 에러의 message는 상류 응답 본문을 이어붙인다(github-api.ts의
+  // `super(message + extractGithubDetail(body))`, gitlab/asana/clickup/jira 동형).
+  // GitLab이 502에 `{"message":"Upstream load failed"}`를 주면 메시지 매칭이 먼저 걸려
+  // 실제 프로필 조회 실패가 network로 뒤바뀐다 — status 검사가 앞서야 한다.
+  it("상류 본문에 네트워크 문구가 섞여도 status가 있으면 profile_fetch_failed", () => {
+    const err = Object.assign(new Error('502 {"message":"Upstream load failed"}'), {
+      status: 502,
+    });
+    expect(classifyConnectReason(err)).toBe("profile_fetch_failed");
+  });
+
+  it("그 밖의 값은 전부 other", () => {
+    expect(classifyConnectReason(new Error("boom"))).toBe("other");
+    expect(classifyConnectReason(null)).toBe("other");
+    expect(classifyConnectReason(undefined)).toBe("other");
+    expect(classifyConnectReason("oops")).toBe("other");
+  });
+});
+
+// 두 축이 어긋나면 PostHog에 `result=cancelled, reason=token_exchange_5xx` 같은 모순
+// 조합이 생겨 어느 쪽을 믿어야 할지 알 수 없게 된다. 한쪽만 고치는 회귀를 여기서 막는다.
+//
+// **기대 reason은 반드시 리터럴로 박는다.** 한때 `classifyConnectReason(err)`로 라벨을
+// 계산해 중복을 줄였는데, 그러면 SUT가 기대값을 만들어 오분류가 통째로 통과한다 —
+// `token_exchange_rejected`를 `other`로 바꾸는 뮤테이션이 432 테스트를 전부 살아남았다.
+describe("result ↔ reason 정합성 불변식", () => {
+  const cases: Array<{ err: unknown; reason: ConnectReason }> = [
+    { err: new OAuthError("x", { cancelled: true, reason: "cancelled_window" }), reason: "cancelled_window" },
+    { err: new OAuthError("x", { cancelled: true }), reason: "cancelled_denied" },
+    { err: new OAuthError("x", { launchFailed: true, reason: "flow_in_progress" }), reason: "flow_in_progress" },
+    { err: new OAuthError("x", { launchFailed: true }), reason: "launch_failed" },
+    { err: new OAuthError("x", { notConfigured: true }), reason: "config_missing" },
+    { err: new OAuthError("x", { reason: "authorize_rejected" }), reason: "authorize_rejected" },
+    { err: new OAuthError("x", { reason: "token_exchange_4xx" }), reason: "token_exchange_4xx" },
+    { err: new OAuthError("x", { reason: "token_exchange_5xx" }), reason: "token_exchange_5xx" },
+    { err: new OAuthError("x", { reason: "token_exchange_rejected" }), reason: "token_exchange_rejected" },
+    { err: new OAuthError("x", { reason: "profile_fetch_failed" }), reason: "profile_fetch_failed" },
+    { err: new TypeError("Failed to fetch"), reason: "network" },
+    { err: Object.assign(new Error("scope"), { status: 403 }), reason: "profile_fetch_failed" },
+    { err: new Error("boom"), reason: "other" },
+  ];
+
+  it.each(cases)("reason=$reason", ({ err, reason }) => {
+    expect(classifyConnectReason(err)).toBe(reason);
+    expect(classifyConnectResult(err)).toBe(
+      reason.startsWith("cancelled_") ? "cancelled" : "failed",
+    );
+  });
+});
+
 describe("trackConnect", () => {
   it("성공 시 run 반환값을 그대로 반환하고 result=success로 기록", async () => {
     const auth = { accessToken: "tok" };
     const result = await trackConnect("github", async () => auth);
 
     expect(result).toBe(auth);
+    // 성공엔 사유가 없다 — 빈 문자열도 "other"도 아닌 키 부재여야 PostHog에서
+    // `reason is not set`으로 성공 코호트를 깔끔히 가를 수 있다.
     expect(mockCapture).toHaveBeenCalledWith("platform_connect", {
       platform: "github",
       result: "success",
     });
   });
 
-  it("취소(OAuthError cancelled)면 원본 에러를 그대로 rethrow하고 result=cancelled", async () => {
+  it("취소(OAuthError cancelled)면 원본 에러를 그대로 rethrow하고 result=cancelled + reason", async () => {
     const err = new OAuthError("cancelled", { cancelled: true });
 
     await expect(
@@ -65,10 +210,11 @@ describe("trackConnect", () => {
     expect(mockCapture).toHaveBeenCalledWith("platform_connect", {
       platform: "jira",
       result: "cancelled",
+      reason: "cancelled_denied",
     });
   });
 
-  it("실패(raw TypeError)면 원본 에러를 그대로 rethrow하고 result=failed", async () => {
+  it("실패(raw TypeError)면 원본 에러를 그대로 rethrow하고 result=failed + reason", async () => {
     const err = new TypeError("Failed to fetch");
 
     await expect(
@@ -80,6 +226,37 @@ describe("trackConnect", () => {
     expect(mockCapture).toHaveBeenCalledWith("platform_connect", {
       platform: "linear",
       result: "failed",
+      reason: "network",
     });
+  });
+
+  it("토큰 교환 5xx는 result=failed + token_exchange_5xx (진짜 장애 신호)", async () => {
+    const err = new OAuthError("token exchange 503", { reason: "token_exchange_5xx" });
+
+    await expect(
+      trackConnect("slack", async () => {
+        throw err;
+      }),
+    ).rejects.toBe(err);
+
+    expect(mockCapture).toHaveBeenCalledWith("platform_connect", {
+      platform: "slack",
+      result: "failed",
+      reason: "token_exchange_5xx",
+    });
+  });
+
+  it("에러 메시지 원문은 어떤 경로로도 payload에 실리지 않는다", async () => {
+    const err = new OAuthError("token exchange failed (401) {\"error\":\"bad_verification_code\"}", {
+      reason: "token_exchange_4xx",
+    });
+
+    await trackConnect("notion", async () => {
+      throw err;
+    }).catch(() => {});
+
+    const [, props] = mockCapture.mock.calls[0];
+    expect(JSON.stringify(props)).not.toContain("bad_verification_code");
+    expect(Object.keys(props).sort()).toEqual(["platform", "reason", "result"]);
   });
 });

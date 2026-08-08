@@ -40,8 +40,11 @@ export function createRefreshRunner<
       cur = await refreshHook(cur);
       res = await doFetch(cur);
       if (res.status === 401) {
+        // 최초 연결의 getMyself가 401을 받아 여기까지 오면 집계 대상이다. 태깅이 없으면
+        // 같은 프로필 조회 레인이 other로 새서 플랫폼별 분포가 어긋난다.
         throw new OAuthError(t("oauth.error.refreshExhausted"), {
           platform,
+          reason: "profile_fetch_failed",
         });
       }
     }
