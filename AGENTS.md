@@ -139,9 +139,9 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 ### 워크플로우 (스킬 라인업)
 
-스킬 20개의 역할·단계별 게이트는 `.claude/commands/<name>.md`에 정의돼 있고(한 줄 설명은 세션 스킬 목록에 상시 노출된다), Codex 미러는 `.agents/skills/source-command-<name>/SKILL.md`다.
+스킬 21개의 역할·단계별 게이트는 `.claude/commands/<name>.md`에 정의돼 있고(한 줄 설명은 세션 스킬 목록에 상시 노출된다), Codex 미러는 `.agents/skills/source-command-<name>/SKILL.md`다.
 
-권장 흐름: `/feature` → `/feature-review` → `/tdd interface` → `/implement` → `/e2e-write` → `/code-review` → `/tdd regression` → `/refactor` → `/push`(논블로킹 — e2e는 CI가 검증) → `/merge`(dev HEAD의 CI 결론 확인 → PR CI 대기 → 머지). 사용자 노출 UX·기능을 건드렸으면 `/push` 전에 `/guide`로 ko/en 가이드를 맞춘다(`/implement` 보고의 "가이드 영향" 플래그가 신호). e2e 시나리오가 추가·변경됐으면 `/e2e-write`로 spec을 green까지(`/implement` 보고의 "e2e 영향" 플래그가 신호). `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK. **회귀·버그를 잡아 고쳤으면 `/postmortem`으로 `docs/POSTMORTEM.md`에 회고를 남긴다**(같은 함정 재발 방지 — 실패 사후분석 회로). 역으로 `/implement`·`/refactor`·`/code-review`는 **착수 전 변경 영역으로 `docs/POSTMORTEM.md`를 grep**해 과거 함정을 소환한다(쓰기만 하고 안 읽으면 죽은 로그 — 소환 회로로 루프를 닫는다).
+권장 흐름: `/feature` → `/feature-review` → `/tdd interface` → `/implement` → `/e2e-write` → `/code-review` → `/tdd regression` → `/refactor` → `/push`(논블로킹 — e2e는 CI가 검증) → `/merge`(dev HEAD의 CI 결론 확인 → PR CI 대기 → 머지). 사용자 노출 UX·기능을 건드렸으면 `/push` 전에 `/guide`로 ko/en 가이드를 맞추고(`/implement` 보고의 "가이드 영향" 플래그가 신호), 화면이 바뀌었으면 `/guide-shots`로 스크린샷까지 다시 찍는다(촬영은 확장 로드 + 특권 `chrome.*` API가 있는 런타임만 — 없으면 stale 탐지·리포트까지만 돈다). e2e 시나리오가 추가·변경됐으면 `/e2e-write`로 spec을 green까지(`/implement` 보고의 "e2e 영향" 플래그가 신호). `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK. **회귀·버그를 잡아 고쳤으면 `/postmortem`으로 `docs/POSTMORTEM.md`에 회고를 남긴다**(같은 함정 재발 방지 — 실패 사후분석 회로). 역으로 `/implement`·`/refactor`·`/code-review`는 **착수 전 변경 영역으로 `docs/POSTMORTEM.md`를 grep**해 과거 함정을 소환한다(쓰기만 하고 안 읽으면 죽은 로그 — 소환 회로로 루프를 닫는다).
 
 ### 문서 신선도
 
@@ -188,8 +188,9 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - `docs/PERMISSION.md` — Chrome 권한 전체 레퍼런스 (activeTab 라이프사이클, OAuth 토큰 흐름, optional permission 등)
 - `docs/CI.md` — GitHub Actions 구성·게이트·함정 (job 4개·e2e 샤딩·xvfb depth 24·nightly notify). **CI 워크플로우를 수정하거나 CI 실패를 진단할 때 먼저 읽는다.** `/doc-check ci`가 `.github/workflows/ci.yml`과 대조
 - `AGENTS.md` · `.agents/skills/` — CLAUDE.md·`.claude/commands/`의 **Codex 호환 미러**. `scripts/sync-agents.mjs`(`pnpm sync:agents`)가 만드는 **순수 생성물이라 손으로 편집하지 않는다** — 고칠 건 원본에서 고친다. 본문은 치환 없이 그대로 복제하므로 미러가 `CLAUDE.md`·`.claude/commands/`를 가리켜도 그 경로가 맞다. Codex 런타임 차이(훅 부재·미제공 스킬·커밋 트레일러)만 `.agents/PREAMBLE.md`에 손으로 관리해 AGENTS.md 상단에 붙는다.
-  - **역할 분담**: Codex는 **작업 → 커밋까지**, 원격으로 나가는 건 Claude Code 단일 창구. `/push`·`/merge`·`/deploy`·`/sync`는 미러하지 않는다(스크립트 `EXCLUDE`) — 릴리스 게이트(원격 CI 결론 조회, 버전 bump, tag)가 두 창구에서 경쟁하면 깨지기 때문. 나머지 16개가 미러 대상이고, 원본이 없어진 미러 디렉터리는 sync가 지운다. `/ship`은 미러하되 **Codex에선 11단계(마지막 커밋)까지만** 돌고 12·13단계(`/push`·`/build`)를 인계한다 — 이 분기는 `ship.md` 본문("push 권한 / 런타임별 종착점")에 박혀 있어 미러에 그대로 따라간다.
+  - **역할 분담**: Codex는 **작업 → 커밋까지**, 원격으로 나가는 건 Claude Code 단일 창구. `/push`·`/merge`·`/deploy`·`/sync`는 미러하지 않는다(스크립트 `EXCLUDE`) — 릴리스 게이트(원격 CI 결론 조회, 버전 bump, tag)가 두 창구에서 경쟁하면 깨지기 때문. 나머지 17개가 미러 대상이고, 원본이 없어진 미러 디렉터리는 sync가 지운다. `/ship`은 미러하되 **Codex에선 11단계(마지막 커밋)까지만** 돌고 12·13단계(`/push`·`/build`)를 인계한다 — 이 분기는 `ship.md` 본문("push 권한 / 런타임별 종착점")에 박혀 있어 미러에 그대로 따라간다.
   - **드리프트 방지 2단**: ① `.claude/settings.json`의 PostToolUse 훅이 `CLAUDE.md`·`.claude/commands/*.md`·`.agents/PREAMBLE.md` 편집 시 sync를 자동 실행 ② `/push`가 `pnpm sync:agents:check`로 최종 차단. **훅은 Claude Code 전용이라 Codex 세션에선 안 돈다** — Codex가 원본을 고쳤으면 `pnpm sync:agents`를 손으로 돌린다.
 - `docs/POSTMORTEM.md` — 회귀·버그 사후분석 회고 누적 (git 공유). `/postmortem` 스킬이 픽스마다 비자명 함정·재발방지를 한 항목씩 추가. 항목엔 **영역·계열·그물 3축 태그**가 붙고 `pnpm postmortem:report`가 반복 함정을 집계한다(vocab 단일 출처 `scripts/postmortem-report.mjs`) — 기록만 하고 안 세면 개별 회고에서 끝나므로 집계까지가 한 회로다
+- `docs/features/DROPPED.md` — **기획까지 갔다가 안 하기로 한 것들의 사유 기록** (git 공유). **기획을 접기로 결정하면 `docs/features/<slug>/`를 그냥 지우지 말고 여기 항목을 남긴다 — `/feature` 세션이 아니어도, 일반 대화에서 결정했어도 마찬가지다**(실제로 대부분 그렇다). 항목마다 *왜 안 하는지* + *무엇이 바뀌면 다시 볼 만한지*를 쓴다("지금은 안 한다"와 "영원히 안 한다"는 다르다). 역으로 새 기능을 기획하기 전 이 파일을 기능 키워드로 grep해 과거 판단을 소환한다(`/feature` 0단계 — 쓰기만 하고 안 읽으면 죽은 로그, `POSTMORTEM`과 같은 회로). 판정 기준 4개: **브라우저·기존 도구가 이미 하는가 / 페이지에 무언가를 심어야 하는가 / 사정거리가 이름값보다 좁은가 / 검증 수단이 있는가**
 - `docs/privacy.ko.md` · `docs/privacy.en.md` — 개인정보처리방침 (ko 원본 + en 번역, 항상 동기화). bug-shot.com/{ko,en}/privacy로 서빙
 - 사용자 개인 메모리: `~/.claude/projects/<저장소 절대경로의 `/`를 `-`로 바꾼 슬러그>/memory/`에 있음. **머신마다 홈 디렉터리가 달라 경로를 박지 않는다** (머신 로컬, git에 안 올라감)

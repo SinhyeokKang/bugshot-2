@@ -10,7 +10,7 @@ No key? No problem. If Chrome's built-in AI is available in your browser, the ba
 
 Pick a provider and enter your key.
 
-- **Provider** — Choose your LLM from the list, or type an OpenAI-compatible endpoint URL directly.
+- **Provider** — Choose your LLM from the list. OpenAI, Anthropic, Gemini, Mistral, Groq, Together, OpenRouter, and Ollama are built in, so there's no endpoint URL to hunt down. Not on the list? Pick **Custom** and paste any OpenAI-compatible endpoint — locally hosted models like Ollama connect the same way.
 - **API Key** — The key issued by that service.
 
 Once you connect, a screen follows for picking the model — choose the one you want under **Select model**. Most providers with an OpenAI-compatible endpoint connect without a hitch. There's no separate permission prompt — once you've filled in the details, it connects right away.

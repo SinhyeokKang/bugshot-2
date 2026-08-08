@@ -127,6 +127,7 @@ docs/                    # 프로젝트 레퍼런스 문서 (루트엔 CLAUDE.md
 ├── privacy.ko.md   # 개인정보처리방침 ko 원본 (bug-shot.com/ko/privacy 서빙 소스)
 ├── privacy.en.md   # 개인정보처리방침 en 번역 (ko와 항상 동기화)
 └── features/        # /feature 산출물 — 기능별 디렉터리에 prd.md·design.md·tasks.md. /implement·/ship bypass가 계획 원본으로 읽는다
+    └── DROPPED.md   # 안 하기로 한 기획의 사유 기록. 기획을 접으면 디렉터리를 그냥 지우지 말고 여기 항목을 남긴다(왜 안 하는지 + 무엇이 바뀌면 다시 볼 만한지). /feature 0단계가 새 기획 착수 전 이 파일을 grep해 과거 판단을 소환한다
 guide/                   # 사용자 가이드 소스 (ko/en). bugshot-web docs-portal이 빌드타임에 fetch → bug-shot.com/{locale}/docs로 서빙. guide/{ko,en}/ 각각 SUMMARY.md + README.md + quick-start.md + faq.md + assets/ + 6개 섹션(integrations·settings·element·screenshot·video·logs) 25페이지. 작성 규칙은 guide/AUTHORING.md
 scripts/                 # 저장소 유지보수 스크립트 (빌드 파이프라인 밖)
 ├── sync-agents.mjs   # Codex 미러 생성기 — CLAUDE.md→AGENTS.md(.agents/PREAMBLE.md 프리펜드) + .claude/commands/*.md→.agents/skills/source-command-*/SKILL.md. 본문 무치환 복제, 고아 미러 삭제, `--check`로 드리프트만 검출(exit 1). `pnpm sync:agents` / PostToolUse 훅 / `/push` 게이트가 호출
