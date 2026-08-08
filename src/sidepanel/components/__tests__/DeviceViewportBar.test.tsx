@@ -17,6 +17,7 @@ let hookState: {
   availableWidth: number | null;
   locked: boolean;
   busy: boolean;
+  busyWidth?: number | null;
 };
 let unsupported = false;
 
@@ -30,7 +31,7 @@ vi.mock("@/sidepanel/hooks/tab-support-context", () => ({
 beforeEach(() => {
   select.mockClear();
   unsupported = false;
-  hookState = { width: null, availableWidth: 1512, locked: false, busy: false };
+  hookState = { width: null, availableWidth: 1512, locked: false, busy: false, busyWidth: null };
 });
 
 function seg(width: number | "full"): HTMLElement {
@@ -108,6 +109,26 @@ describe("DeviceViewportBar — 잠금·busy", () => {
     for (const id of ["full", 390, 768, 1024] as const) {
       expect(seg(id).getAttribute("aria-disabled")).toBe("true");
     }
+  });
+
+  // store의 width는 device.set 응답 전까지 옛 값이다 — `value === key`로 판정하면 390→768에서
+  // 스피너가 **떠나는** 390에 뜬다. 진행 표시가 가리키는 대상이 반대가 되면 안 된다.
+  it("스피너는 떠나는 세그먼트가 아니라 가려는 세그먼트에 뜬다", () => {
+    hookState.busy = true;
+    hookState.width = 390;
+    hookState.busyWidth = 768;
+    render(<DeviceViewportBar tabId={1} />);
+    expect(seg(768).querySelector(".animate-spin")).not.toBeNull();
+    expect(seg(390).querySelector(".animate-spin")).toBeNull();
+  });
+
+  it("전체로 되돌리는 중이면 전체 세그먼트에 뜬다", () => {
+    hookState.busy = true;
+    hookState.width = 390;
+    hookState.busyWidth = null;
+    render(<DeviceViewportBar tabId={1} />);
+    expect(seg("full").querySelector(".animate-spin")).not.toBeNull();
+    expect(seg(390).querySelector(".animate-spin")).toBeNull();
   });
 
   // shadcn base의 disabled:pointer-events-none이 hover·툴팁을 죽인다(DESIGN.md §14).

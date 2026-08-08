@@ -410,7 +410,9 @@ async function captureElementShot(
   }
   // iframe 요소 샷의 payload viewport도 iframe 내부 크기 — 기록 메타는 브라우저 뷰포트로.
   const viewport =
-    frameId !== 0 ? (await getTopViewport(tabId)) ?? payload.viewport : payload.viewport;
+    frameId !== 0
+      ? resolveCaptureViewport(await getTopViewport(tabId), payload.viewport)
+      : payload.viewport;
   // 캡처는 background 큐를 거쳐 수백 ms 걸린다 — 그 사이 취소·세션 만료·탭 변경이 있었으면
   // 결과를 버린다(captureAndCrop과 동일 규약). 안 그러면 유령 drafting으로 전이한다.
   const s = useEditorStore.getState();
