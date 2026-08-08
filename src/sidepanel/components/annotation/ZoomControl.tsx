@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { useT } from "@/i18n";
 import { TooltipIconButton } from "@/sidepanel/components/TooltipIconButton";
+import { LOCKED_CLASS } from "@/sidepanel/lib/locked-class";
 import {
   formatZoomPercent,
   MAX_ZOOM,
@@ -19,7 +20,7 @@ import {
 } from "./viewport";
 
 // aria-disabled는 disabled와 달리 흐림·커서를 자동으로 안 준다(DESIGN "진행 중 잠금" — 툴팁·포커스를 살리려 aria 사용).
-const LOCK_CLASS = "bg-transparent aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
+const LOCK_CLASS = `bg-transparent ${LOCKED_CLASS}`;
 
 interface ZoomControlProps {
   scale: number; // 현재 표시 배율

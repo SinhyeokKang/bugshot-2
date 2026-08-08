@@ -435,7 +435,6 @@ describe("settings-ui-store", () => {
     it("이미 소비한 플래그는 보존한다", () => {
       expect(migrateSettingsUi({ deviceModeWarned: true }, 9).deviceModeWarned).toBe(true);
     });
-
   });
 
   describe("초기 마이그레이션 분기 (v1→v5)", () => {

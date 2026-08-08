@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Download, FileCode, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Monitor, Trash2, WandSparkles } from "lucide-react";
+import { Camera, Download, FileCode, ImageIcon, ImagePlus, Loader2, Monitor, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -15,6 +15,7 @@ import {
 import { bodyBlocks, type TextIssueSection } from "@/sidepanel/lib/bodyBlocks";
 import { useDeviceViewportStore } from "@/sidepanel/device-viewport-controller";
 import { DEVICE_PRESETS } from "@/sidepanel/lib/device-presets";
+import { LOCKED_CLASS } from "@/sidepanel/lib/locked-class";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
@@ -60,9 +61,6 @@ import {
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { OrderedListEditor } from "@/sidepanel/components/OrderedListEditor";
 import { AiDraftDialog } from "./AiDraftDialog";
-
-// 진행 중 잠금 표시 — IssueTab 캡처 툴바와 같은 관례.
-const lockedClass = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
 const LazyTiptapEditor = lazy(() => import("../components/TiptapEditor"));
 const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
@@ -875,7 +873,7 @@ function SectionTextarea({
               <TooltipIconButton
                 label={noLogs ? t("draft.insertLog.empty") : t("draft.insertLog")}
                 ariaDisabled={noLogs}
-                className={lockedClass}
+                className={LOCKED_CLASS}
                 testId={`section-log-insert-${section.id}`}
                 onClick={() => {
                   // 접힌 섹션은 에디터가 언마운트돼 삽입이 조용히 사라진다 — 먼저 펼친다.
@@ -888,7 +886,7 @@ function SectionTextarea({
               <TooltipIconButton
                 label={t("draft.captureArea")}
                 ariaDisabled={aiLoading}
-                className={lockedClass}
+                className={LOCKED_CLASS}
                 onClick={() => {
                   useEditorStore.getState().startInlineCapture(section.id);
                   const tabId = useEditorStore.getState().target?.tabId;

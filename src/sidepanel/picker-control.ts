@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import { classifyTabSupport } from "@/lib/url-support";
 import { pageKeyOf } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
@@ -1050,11 +1051,20 @@ export async function getTopViewport(
 
 // send는 모듈 내부 전용이라 사이드패널이 직접 못 쓴다 — navigatePicker·prepareCapture와 같은
 // 패턴으로 top 지정 송신 래퍼를 노출한다.
+//
+// **주입 보장이 deviceState와 대칭이어야 한다** — 재수립은 background가 큐 밖에서 즉시 쏘는
+// `frameCommitted` 직후에 돌고 picker는 document_idle 주입이라, 그 창의 device.set은 리시버가
+// 없어 undefined로 돌아온다. 컨트롤러는 그걸 "차단"으로 접어 정상 페이지를 롤백한다.
 export async function deviceSet(
   tabId: number,
   width: number | null,
 ): Promise<DeviceSetResponse | undefined> {
-  return send<DeviceSetResponse>(tabId, { type: "device.set", width }, 0);
+  try {
+    await ensureContentScript(tabId);
+    return send<DeviceSetResponse>(tabId, { type: "device.set", width, title: t("issue.device.frameTitle") }, 0);
+  } catch {
+    return undefined;
+  }
 }
 
 export async function deviceState(

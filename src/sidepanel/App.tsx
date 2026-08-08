@@ -49,6 +49,7 @@ import { SettingsTab } from "./tabs/SettingsTab";
 import { TabNavContext } from "./tab-nav";
 import { applyReplayTrim, applyRecordingTrim, TrimLogsPersistError } from "./30s-replay/apply-trim";
 import { clearPicker } from "@/sidepanel/picker-control";
+import { blurActiveElement } from "@/sidepanel/lib/blurActiveElement";
 import {
   attachDeviceViewport,
   dismissDeviceLoopWarning,
@@ -74,14 +75,6 @@ function useSettingsHydrated() {
     [],
   );
   return ready;
-}
-
-// 프로그램매틱 dialog open 시 focused element가 root에 남아있으면
-// Radix의 aria-hidden과 충돌해 a11y 경고가 뜨므로 미리 blur.
-function blurActiveElement() {
-  if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
-    document.activeElement.blur();
-  }
 }
 
 const AI_OVERLAY_STYLE: Record<
@@ -220,6 +213,12 @@ export default function App() {
     });
     return unsub;
   }, []);
+
+  // 루프 경고는 이벤트가 아니라 스토어 플래그로 열리므로 blur 지점도 여기다 — 재수립 push로
+  // 뜨는 동안 포커스는 직전에 만지던 요소에 남아 있다.
+  useEffect(() => {
+    if (deviceLoopWarning) blurActiveElement();
+  }, [deviceLoopWarning]);
 
   useEffect(() => {
     if (tabId == null) return;

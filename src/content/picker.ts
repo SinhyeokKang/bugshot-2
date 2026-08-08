@@ -210,6 +210,9 @@ function registerPickerListeners(): void {
     if (port.name !== PICKER_PORT_NAME) return;
     port.onDisconnect.addListener(() => {
       handleClear();
+      // 패널이 닫히면 device.watch(false)가 안 온다 — 유일한 해제 경로를 그것 하나로 두면
+      // resize 리스너가 다음 네비게이션까지 페이지에 남는다.
+      setDeviceWatch(false);
     });
   });
   chrome.runtime.onMessage.addListener(handlePickerMessage);
@@ -380,7 +383,7 @@ function handlePickerMessage(
             location.reload();
             return;
           }
-          mountDeviceFrame(msg.width);
+          mountDeviceFrame(msg.width, msg.title);
           // ok는 "마운트했다"이지 "로드에 성공했다"가 아니다 — XFO/CSP 판정은 background가 한다.
           sendResponse({ ok: true, width: msg.width, available: availableViewport() });
         })();

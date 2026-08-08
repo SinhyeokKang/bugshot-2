@@ -1,10 +1,21 @@
 import { deviceFrameKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
 import type { BgInternalMessage, DeviceDocumentsResponse } from "@/types/messages";
+import type { PickerMessage } from "@/types/picker";
 
 export interface DeviceFrameBinding {
   frameId: number;
   documentId: string;
+}
+
+/**
+ * storage.session에 실리는 형태. **`topUrl`이 binding과 같은 레코드에 있어야 한다** —
+ * SW가 죽으면 arm 슬롯은 통째로 사라지는데 binding만 되살리면 `topUrl`이 `""`이고
+ * `isSameOrigin(url, "")`은 `new URL("")`이 throw해 항상 `false`다. 그러면 복원된 래퍼의
+ * **첫 same-origin 이동이 통째로 handoff로 오판**돼 top 탭이 강제 이동하고 로그가 지워진다.
+ */
+interface DeviceFrameRecord extends DeviceFrameBinding {
+  topUrl: string;
 }
 
 export interface DeviceFrameState {
@@ -144,7 +155,12 @@ export function decideDeviceSignal(
     case "errorOccurred": {
       if (target == null || signal.frameId !== target) return { push: null, next: state };
       if (state.armed) {
-        return { push: { type: "frameBlocked" }, next: { ...state, armed: false } };
+        // 잠정 등록을 남기면 arm이 닫힌 뒤에도 그 frameId가 target으로 잡혀, 롤백된 페이지의
+        // 같은 프레임 이동이 handoff 경로를 탄다(성공·handoff 분기는 이미 지우고 있다).
+        return {
+          push: { type: "frameBlocked" },
+          next: { ...state, armed: false, provisionalFrameId: null },
+        };
       }
       // 감시창 밖 차단(유지 중 XFO 사이트 도달)은 handoff와 같은 경로로 보낸다 — 프레임에
       // 못 들어가는 URL이므로 top을 그리로 내보낸다. 안 하면 백지에 방치된다.
@@ -156,7 +172,10 @@ export function decideDeviceSignal(
 
     case "armTimeout":
       if (!state.armed) return { push: null, next: state };
-      return { push: { type: "frameBlocked" }, next: { ...state, armed: false } };
+      return {
+        push: { type: "frameBlocked" },
+        next: { ...state, armed: false, provisionalFrameId: null },
+      };
 
     default:
       signal satisfies never;
@@ -234,6 +253,7 @@ export function splitTabDocuments(
 const bindingByTab = new Map<number, DeviceFrameBinding>();
 const armedByTab = new Map<number, { armed: boolean; provisionalFrameId: number | null; topUrl: string }>();
 const restoreByTab = new Map<number, Promise<void>>();
+const restoredTabs = new Set<number>();
 const queueByTab = new Map<number, Promise<unknown>>();
 const armTimers = new Map<number, ReturnType<typeof setTimeout>>();
 // navUrlPromise를 tabId:frameId로 넓히면서 래퍼의 prev URL은 tabs.get이 아니라 직전
@@ -246,12 +266,33 @@ function ensureRestored(tabId: number): Promise<void> {
   p = chrome.storage.session
     .get(deviceFrameKey(tabId))
     .then((data) => {
-      const stored = data[deviceFrameKey(tabId)] as DeviceFrameBinding | undefined;
-      if (stored && !bindingByTab.has(tabId)) bindingByTab.set(tabId, stored);
+      const stored = data[deviceFrameKey(tabId)] as DeviceFrameRecord | undefined;
+      if (!stored) return;
+      if (!bindingByTab.has(tabId)) {
+        bindingByTab.set(tabId, { frameId: stored.frameId, documentId: stored.documentId });
+      }
+      // 이미 arm이 열려 topUrl을 새로 받았으면 그쪽이 최신이다.
+      const slot = armSlot(tabId);
+      if (!slot.topUrl) slot.topUrl = stored.topUrl ?? "";
     })
-    .catch(() => {});
+    .catch(() => {})
+    .finally(() => {
+      restoredTabs.add(tabId);
+    });
   restoreByTab.set(tabId, p);
   return p;
+}
+
+/**
+ * 이 탭에 디바이스 판정이 걸릴 여지가 있는가. **복원 전이면 알 수 없으므로 `true`** —
+ * 모른다고 건너뛰면 복원 자체가 영영 안 도는 상태로 굳는다. 관여가 없는 탭의 서브프레임
+ * 신호는 `decideDeviceSignal`이 어차피 무발화라, 여기서 접는 것과 결과가 같다.
+ */
+export function mayNeedDeviceSignal(tabId: number): boolean {
+  if (!restoredTabs.has(tabId)) return true;
+  if (bindingByTab.has(tabId)) return true;
+  const slot = armedByTab.get(tabId);
+  return slot?.armed === true || slot?.provisionalFrameId != null;
 }
 
 /**
@@ -279,9 +320,11 @@ export async function setDeviceFrame(
   // 권위값은 storage.session이고 Map은 복제 캐시다. 복원을 건너뛰어도 되는 상태가 되므로
   // restore 슬롯을 즉시 resolved로 덮어 다음 큐가 불필요하게 storage를 다시 읽지 않게 한다.
   restoreByTab.set(tabId, Promise.resolve());
+  restoredTabs.add(tabId);
   if (binding) {
     bindingByTab.set(tabId, binding);
-    await chrome.storage.session.set({ [deviceFrameKey(tabId)]: binding });
+    const record: DeviceFrameRecord = { ...binding, topUrl: armSlot(tabId).topUrl };
+    await chrome.storage.session.set({ [deviceFrameKey(tabId)]: record });
     return;
   }
   // Map은 storage 성공 여부와 무관하게 비운다 — 이 SW 수명에서 죽은 래퍼를 살려두면 로그·
@@ -342,9 +385,11 @@ export async function handoffDeviceTab(
       chrome.tabs.update(targetTabId, { url: targetUrl }),
     rollback = async (targetTabId: number) => {
       try {
+        // width:null 분기는 title을 안 읽지만 payload 계약은 지킨다 — sendMessage 인자가
+        // any라 타입이 안 잡아주므로 producer 둘 중 하나만 어긋나도 조용히 남는다.
         await chrome.tabs.sendMessage(
           targetTabId,
-          { type: "device.set", width: null },
+          { type: "device.set", width: null, title: "" } satisfies PickerMessage,
           { frameId: 0 },
         );
       } catch {
@@ -480,5 +525,6 @@ export function forgetTab(tabId: number): void {
   void enqueueForTab(tabId, () => clearDeviceFrame(tabId)).finally(() => {
     queueByTab.delete(tabId);
     restoreByTab.delete(tabId);
+    restoredTabs.delete(tabId);
   });
 }

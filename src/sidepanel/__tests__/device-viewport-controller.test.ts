@@ -207,7 +207,7 @@ describe("handoff 준비 ACK", () => {
     );
     await flush();
 
-    expect(mode.peekPending(1)?.width).toBe(390);
+    expect(mode.peekPending(1)).toBe(390);
     expect(respond).toHaveBeenCalledWith({ ok: true });
     expect(chrome.tabs.update).not.toHaveBeenCalled();
     // 채널을 안 잡으면 sendResponse가 무시돼 background가 매번 ACK 상한까지 헛기다린다.
@@ -336,7 +336,7 @@ describe("확장 reload 재수립", () => {
     const { mode, detach } = await setup(false);
 
     expect(deviceSet).toHaveBeenCalledWith(1, null);
-    expect(mode.peekPending(1)?.width).toBe(390);
+    expect(mode.peekPending(1)).toBe(390);
 
     deviceSet.mockClear();
     emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
@@ -355,6 +355,134 @@ describe("확장 reload 재수립", () => {
     expect(deviceSet).not.toHaveBeenCalled();
     expect(mode.peekPending(1)).toBeNull();
     detach();
+  });
+
+  // pending은 인메모리라 패널 문서가 죽으면 사라지는데, 정상 상태(래퍼·binding 모두 살아
+  // 있음)의 재부착이 그걸 다시 안 세우면 이후 첫 top 커밋에서 재수립이 안 걸린다 —
+  // 래퍼는 사라지는데 스토어 width는 남는 desync가 굳는다.
+  it("래퍼가 살아 있는 재부착도 pending을 세운다", async () => {
+    deviceState.mockResolvedValueOnce({ width: 390, available: { width: 1512, height: 900 } });
+    fetchDeviceTree.mockResolvedValueOnce(["doc-1"]);
+    const { mode, detach } = await setup(false);
+
+    // 엇갈림이 아니므로 복구용 device.set(null)은 안 나간다.
+    expect(deviceSet).not.toHaveBeenCalled();
+    expect(mode.peekPending(1)).toBe(390);
+
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+    expect(deviceSet).toHaveBeenCalledWith(1, 390);
+    detach();
+  });
+
+  // 재부착 조회는 두 왕복(device.state → device.documents)을 거친다 — 그 사이 사용자가
+  // `전체`를 눌렀으면 그쪽이 이미 pending을 버렸고, 뒤늦게 옛 폭으로 되살리면 이어지는
+  // reload의 top 커밋이 그걸 소비해 방금 끈 모드가 다시 켜진다.
+  it("조회 중에 사용자가 전체를 누르면 pending을 되살리지 않는다", async () => {
+    deviceState.mockResolvedValueOnce({ width: 390, available: { width: 1512, height: 900 } });
+    const gate = deferred();
+    fetchDeviceTree.mockImplementationOnce(async () => {
+      await gate.promise;
+      return ["doc-1"];
+    });
+
+    const controller = await import("../device-viewport-controller");
+    const mode = await import("../lib/device-mode");
+    mode.clearDeviceModeState();
+    const detach = controller.attachDeviceViewport(1);
+    await flush();
+
+    await controller.selectDeviceWidth(null);
+    await flush();
+    gate.resolve();
+    await flush();
+
+    expect(mode.peekPending(1)).toBeNull();
+    detach();
+  });
+});
+
+describe("resize(ON→ON) 전이의 소유권", () => {
+  // off-to-on만 토큰으로 지키면 resize 창에 도착한 강등이 응답의 set({width})·putPending에
+  // 되덮인다 — 같은 desync가 다른 문으로 그대로 돌아온다.
+  it("resize 중에 온 만료 강등을 되덮지 않는다", async () => {
+    const { controller, mode, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    const gate = deferred();
+    deviceSet.mockImplementationOnce(async (_tabId, width) => {
+      await gate.promise;
+      return { ok: true, width, available: { width: 1512, height: 900 } };
+    });
+
+    const selecting = controller.selectDeviceWidth(768);
+    await flush();
+    emit(
+      { type: "device.handoff", tabId: 1, url: "https://b.com/", expiresAt: Date.now() - 1 },
+      vi.fn(),
+    );
+    await flush();
+    gate.resolve();
+    await selecting;
+    await flush();
+
+    expect(controller.useDeviceViewportStore.getState().width).toBeNull();
+    expect(mode.peekPending(1)).toBeNull();
+    detach();
+  });
+
+  // OFF의 결과는 정의상 Full이다 — 응답의 width를 채택하면 이 창에 도착한 handoff 강등이
+  // 방금 내린 null을 되살릴 여지가 생긴다. 폭 0/옛 폭이 실린 응답을 줘서 그걸 고정한다.
+  it("on-to-off는 응답의 width를 채택하지 않는다", async () => {
+    const { controller, mode, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    deviceSet.mockImplementationOnce(async () => ({
+      ok: true,
+      width: 390,
+      available: { width: 1512, height: 900 },
+    }));
+
+    await controller.selectDeviceWidth(null);
+    await flush();
+
+    expect(controller.useDeviceViewportStore.getState().width).toBeNull();
+    expect(mode.peekPending(1)).toBeNull();
+    detach();
+  });
+});
+
+describe("재부착 경계", () => {
+  // 경고 다이얼로그가 탭 재바인딩을 넘어 살아남으면 [계속]이 새 탭 id에 옛 폭으로 돈다.
+  it("attach가 이전 탭의 경고 상태를 비운다", async () => {
+    const { controller, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ warningWidth: 390, loopWarning: true });
+    detach();
+
+    const detach2 = controller.attachDeviceViewport(2);
+    await flush();
+    expect(controller.useDeviceViewportStore.getState().warningWidth).toBeNull();
+    expect(controller.useDeviceViewportStore.getState().loopWarning).toBe(false);
+    detach2();
+  });
+
+  // 다이얼로그 왕복 사이에 phase가 바뀌면 select()의 잠금이 이미 지나간 뒤다.
+  it("경고 [계속]이 잠금·가용 폭을 다시 확인한다", async () => {
+    const { controller, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ warningWidth: 390 });
+    phase = "drafting";
+
+    controller.confirmDeviceWarning();
+    await flush();
+
+    expect(deviceSet).not.toHaveBeenCalled();
+    detach();
+  });
+
+  it("detach가 루프 카운터도 되돌린다", async () => {
+    const { mode, detach } = await setup();
+    mode.noteReestablish(1);
+    mode.noteReestablish(1);
+    detach();
+    expect(mode.noteReestablish(1)).toBe("ok");
   });
 });
 

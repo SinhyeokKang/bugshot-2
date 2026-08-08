@@ -113,7 +113,9 @@ export interface DeviceStateResponse {
 export type PickerMessage =
   | { type: "ping" }
   // ── 디바이스 뷰포트 (수신 3종은 전부 top 한정 — 각 case 첫 줄이 window !== window.top을 튕긴다)
-  | { type: "device.set"; width: number | null } // null = 전체(래퍼 제거 + reload)
+  // title은 래퍼 iframe의 접근명이다 — content script는 i18n 사전을 못 읽으므로
+  // 사이드패널이 로케일에 맞춰 조립해 실어 보낸다.
+  | { type: "device.set"; width: number | null; title: string } // null = 전체(래퍼 제거 + reload)
   | { type: "device.state" }
   | { type: "device.watch"; on: boolean } // on:false가 unwatch다. 별도 타입을 두지 않는다
   // ── push 2종
