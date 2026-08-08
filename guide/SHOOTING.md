@@ -128,6 +128,13 @@ BugShot 자신의 공개 저장소명(`bugshot-web` 등)은 치환하지 않는�
 | Linear | `SIN — Sinhyeok-kang` | 더미 이슈용 |
 | GitLab | `bugshot-2/bugshot-test` | 더미 이슈용 |
 
+**AI 배너 컷은 BYOK 키가 꽂혀 있어야 뜬다.** 설정 > AI 모델 > `API 키 연결` → 프로바이더 `Gemini` → 촬영용 키(아래) → 모델 `gemini-2.5-flash`.
+
+
+**촬영용 키는 저장소에 두지 않는다** — public이라 커밋하는 순간 스크래핑 대상이고 GitHub push protection도 막는다. 발급자에게 받아 로컬에서만 입력한다(Gemini 무료 티어면 충분하다). 이 키로 `settings-ai-1/2`·`element-styling-4`·`element-issue-4`·`screenshot-issue-4`를 찍는다.
+
+> **주의 — 오래 살아있는 패널 인스턴스가 키를 덮어쓴다.** `bugshot-app-settings`는 zustand persist라 **무엇을 바꿔도 메모리의 state 통째로** 다시 쓴다. 패널을 열어둔 채 다른 창에서 키를 꽂으면, 이후 오래된 패널이 로케일 하나만 바꿔도 `llm: null`로 되돌아간다(실제로 발생). **설정을 바꾸면 패널을 먼저 리로드하고 시작한다.**
+
 **이슈 목록 컷은 시드가 아니라 실제 제출로 채운다.** 상태 배지(`GithubSubmittedBadge` 등)가 `sendBg` → SW fetch로 트래커를 실시간 조회하므로, `bugshot-issues`에 가짜 레코드를 심으면 배지가 조회 실패로 뜬다. 썸네일도 IndexedDB blob이라 실제 캡처를 거쳐야 한다. 목록에 필요한 행은 4~6개뿐이라 실제 제출이 더 싸다. **더미 이슈는 GitLab·Linear에만 넣는다**(Jira·GitHub는 실사용 트래커).
 
 **ko/en 로케일별로 제출 이슈의 제목 언어를 맞춘다** — en 세트를 찍기 전 로컬 이슈 목록을 비우고 영문 제목으로 다시 제출한다.
@@ -138,6 +145,7 @@ BugShot 자신의 공개 저장소명(`bugshot-web` 등)은 치환하지 않는�
 - **녹화 시도 후 패널이 이상 상태에 빠질 수 있다.** 실패한 `tabCapture` 시도 뒤 `이슈 작성`(freeform) 버튼이 무반응이 됐다. 패널 URL을 다시 `goto`해 리로드하면 복구된다.
 - **커서 화살표** — 기존 참조 일부(`settings-issue-2/3`, `element-picker-1`, `quick-start-1`)에는 인터랙션 지점을 가리키는 커서 그래픽이 얹혀 있다. 합성 단계에서 SVG로 덧그릴 수 있다(미구현).
 - **드롭다운은 열어서 찍는다** — 참조 `settings-general-1`은 언어 콤보박스가 열린 상태다. 인터랙션이 주제인 컷은 해당 컨트롤을 열어 둔다.
+- **AI 배너는 더 이상 벍이 아니다** — §5의 BYOK 키를 꽂으면 바로 뜬다. 단 **AI 초안 다이얼로그는 배너 위치에 띄워서 패널이 짧으면 뷰포트 밖(`top > innerHeight`)으로 밀려난다** — 자연 높이로 viewport를 먼저 늘리고 배너를 눌러야 다이얼로그가 화면 안에 생긴다. 배너 자체는 `button` 하나에 두 문구가 들어 있어 `button "...AI 초안 작성"` 부분 매칭으로 잡는다.
 
 ## 7. 재개 방법 (세션 시작 시)
 
@@ -154,30 +162,31 @@ Aside 세션에서:
 
 ## 8. 진행 상태 / 핸드오프 (2026-08-09 기준)
 
-### ko: 61 / 72 — 자동 촬영분 완료
+### ko: 62 / 73 — 자동 촬영분 완료
 
 커밋 6개로 반영됨: `42f36e8b`(49장) → `39d6223b`(log viewer 5) → `8fe17834`(이슈 목록·플랫폼 3) → `9af6d7c3`(웹스토어·플랫폼 그리드 2) → `c15d597a`(핸드오프) → `fc8c1516`(페이지 캡처 진행 1).
 
-**남은 12장 — 전부 이 세션에서 촬영 불가였던 것들이다:**
+**남은 11장 — 전부 녹화 계열이고 ko/en 동일하다:**
 
 | 에셋 | 사유 |
 |---|---|
 | `video-record-2~5`, `video-replay-3`, `video-issue-1~6` (11장) | §6대로 **수동 촬영 전용**. `tabCapture`·30초 리플레이 모두 실제 user gesture를 요구해 합성 클릭(`click()`·`click({force:true})` 모두)으로 시작되지 않는다 |
-| `element-issue-4`, `screenshot-issue-4`, `settings-ai-2` (3장, `video-issue-4` 중복) | AI 배너 컷. **BYOK(Gemini)를 꽂아 배너 자체는 뜨는 것을 확인**했다(`Gemini AI로 초안을 작성해보세요 / AI 초안 작성`, `settings-ai-1`은 연결 상태로 재촬영 완료). 남은 문제는 촬영 배관 둘 — ① 배너 DOM 좌표 탐색이 `0`을 반환해 밴드를 못 잡는다(텍스트가 중첩돼 있어 `children.length` 필터로는 못 집는다. `getByRole`/`data-testid`로 잡을 것) ② **마스킹이 리렌더로 날아간다** — 텍스트 노드를 바꿔도 React가 다시 그리면 원복되므로, viewport 확정 후 리렌더가 멎은 뒤 마스킹하고 **즉시** 스크린샷을 찍어야 한다 |
+
+AI 배너 컷은 **해결됐다** — §5의 BYOK Gemini 키로 `settings-ai-1`·`settings-ai-2`·`element-issue-4`·`screenshot-issue-4`를 ko/en 양쪽 찍었고, 덤으로 놓여 있던 **`element-styling-4`(AI 스타일링 배너)도 제대로 재촬영**했다 — 직전까지는 `element-styling-1` 복사본이었다. `screenshot-issue-4`와 `settings-ai-2`는 같은 이미지를 공유한다. `video-issue-4`는 캡션만 AI 배너일 뿐 배경이 녹화 모드 초안 화면이라 녹화 그룹에 남겨둔다.
 
 > Chrome 내장 AI(Gemini Nano)는 몇 시간째 `downloading`에서 `downloadprogress`가 0으로 고정이었고 `create()`도 20초 타임아웃이었다. `chrome://on-device-internals`는 Aside가 내부 디버깅 페이지를 막아 확인 불가. **내장 AI를 기다리지 말고 BYOK를 쓴다.**
 
 `video-record-5`만 아직 `dummy.jpg` placeholder다. 나머지 71자리는 실제 이미지.
 
-### en: 59 / 73 — 자동 촬영분 완료
+### en: 62 / 73 — 자동 촬영분 완료
 
-ko와 같은 파이프라인을 그대로 돌렸다. 남은 14장은 ko와 동일하다 — 녹화 계열 11장(수동 전용) + AI 배너 3장.
+ko와 같은 파이프라인을 그대로 돌렸다. 남은 11장은 ko와 동일하다(녹화 계열, 수동 전용).
 
 촬영에 쓴 실제 제출 이슈(전부 영문 제목): GitHub `#23`·`#24`, GitLab `#13`·`#14`, Linear `SIN-110`·`SIN-111`, Slack 1건. `bugshot-issues`를 비우고 새로 쌓았다. **촬영 후 로케일은 `ko`로 되돌려 놓았다.**
 
-**미해결 — `settings-ai-1` ko/en 불일치**: ko는 BYOK Gemini가 연결된 카드 상태로 재촬영됐는데(`3f97de0d`), en을 찍는 시점엔 프로바이더가 이미 해제돼 있어 **빈 "Connect an AI model" 상태로 찍혔다.** BYOK 키를 다시 꽂고 en `settings-ai-1`만 재촬영할 것.
+`settings-ai-1`은 en도 연결된 카드 상태로 다시 찍어 ko와 맞췄다.
 
-#### en 세션에서 새로 드러난 벍 (재현 시 필수)
+#### en 세션에서 새로 드러난 벽 (재현 시 필수)
 
 - **페이지 스크린샷에 `page.screenshot()`을 쓰지 마라.** device metrics override가 걸린 탭에서는 Playwright의 `screenshot({ clip })`이 CSS 좌표와 어긋나 엉뚜한 영역을 돌려준다(에러 없음). **`Page.captureScreenshot`을 clip 없이** 뷰포트 전체로 받아 합성 캔버스에서 크롭한다. 마우스 좌표는 CSS px 그대로 맞는다. 패널(`page.screenshot()`)은 정상 동작하므로 그대로 둔다.
 - **페이지 레이아웃은 창 크기(1440×900)에 맞춰라.** 다른 크기로 override하면 캐프처가 창 표면을 다시 스케일해 배율이 깨진다.
