@@ -103,6 +103,48 @@ describe("deviceSet 주입 보장", () => {
 // 래퍼 안에서 same-origin 이동을 해도 top URL은 안 바뀐다 — 캡처가 `chrome.tabs.get().url`을
 // 그대로 기록하면 리포트 Page 행·logs.html pageUrl·세션 pageKey가 전부 사용자가 본 화면이
 // 아니라 모드 진입 시점의 주소를 가리킨다.
+// stop ACK가 소진되면 그 문서의 레코더는 무장된 채 남는다 — 게이트는 *재*발행만 막지 이미
+// 무장된 레코더를 못 끈다. 래퍼 서브트리 **밖** 문서(숨겨진 top과 그 iframe들)는 이동하지도
+// 않으므로 "새 문서는 frameCommitted가 다시 판정한다"는 자가치유 논거가 성립하지 않는다.
+// 결과는 그 세션 내내 로그 2벌인데, 반환값이 버려져 경고가 0건이었다.
+describe("activateRecordersInDeviceTree — stop ACK 소진", () => {
+  function stub(failFor: (documentId: string) => boolean) {
+    vi.stubGlobal("chrome", {
+      runtime: {
+        getManifest: () => MANIFEST,
+        lastError: undefined,
+        sendMessage: vi.fn((_req: unknown, cb: (res: unknown) => void) => {
+          cb({ ok: true, result: { all: ["top", "wrap"], deviceTree: ["wrap"] } });
+        }),
+      },
+      tabs: {
+        sendMessage: vi.fn(async (_tabId: number, _msg: unknown, opts?: { documentId?: string }) => {
+          if (opts?.documentId && failFor(opts.documentId)) throw new Error("no receiver");
+          return {};
+        }),
+      },
+      scripting: { executeScript: vi.fn(async () => []) },
+      storage: {
+        local: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}), remove: vi.fn(async () => {}) },
+        session: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}), remove: vi.fn(async () => {}) },
+      },
+    });
+  }
+
+  it("래퍼 밖 문서의 stop이 소진되면 notReached다", async () => {
+    stub((id) => id === "top");
+    const { activateRecordersInDeviceTree } = await import("../picker-control");
+    await expect(activateRecordersInDeviceTree(1, () => {})).resolves.toBe("notReached");
+  });
+
+  // 래퍼 서브트리 안 문서는 곧 갈릴 수 있고 frameCommitted가 다시 판정한다 — 기존 관용을 유지한다.
+  it("래퍼 안 문서의 stop 실패는 전이를 깨지 않는다", async () => {
+    stub((id) => id === "wrap");
+    const { activateRecordersInDeviceTree } = await import("../picker-control");
+    await expect(activateRecordersInDeviceTree(1, () => {})).resolves.toBe("ok");
+  });
+});
+
 describe("resolvePageUrl", () => {
   function stubDeviceState(response: unknown) {
     vi.stubGlobal("chrome", {

@@ -1,4 +1,5 @@
 import { ANNOTATION_HOST_ID } from "./annotation";
+import { currentDeviceWidth } from "./device-frame";
 import { HOST_ID } from "./overlay";
 
 import type { PageMetrics, ScrollAck } from "@/types/picker";
@@ -33,10 +34,18 @@ export interface ScrollCaptureSession {
 // hidden 탭에서는 rAF가 발화하지 않아 응답이 매달린다(prepareCaptureBySelector 선례).
 const SCROLL_SETTLE_FALLBACK_MS = 500;
 
+/**
+ * 페이지 전체 캡처 세션을 연다. **디바이스 뷰포트 ON이면 열지 않는다** — 오케스트레이터는
+ * frameId 0 고정이라 래퍼 안이 아니라 `html{overflow:hidden}`인 top을 스크롤시키고, 그러면
+ * 에러도 truncated 배지도 없이 1타일짜리 이미지가 "성공"으로 올라온다. UI 잠금은 패널
+ * 인메모리 `width`에 걸려 있어 패널 재오픈 직후 그 값이 아직 `null`인 창이 열리므로,
+ * 사실을 아는 유일한 곳인 페이지에서 한 번 더 막는다(`apiHostRow`와 같은 규율).
+ */
 export function beginScrollCapture(): {
   session: ScrollCaptureSession;
   metrics: PageMetrics;
-} {
+} | null {
+  if (currentDeviceWidth() != null) return null;
   // quirks mode에서 scrollingElement가 null.
   const root = document.scrollingElement ?? document.documentElement;
   let session: ScrollCaptureSession;

@@ -35,6 +35,7 @@ import {
   currentDeviceWidth,
   deviceFrameUrl,
   isDeviceFrame,
+  isHiddenTopElement,
   mountDeviceFrame,
   unmountDeviceFrame,
 } from "./device-frame";
@@ -1148,6 +1149,14 @@ function onMouseMove(e: MouseEvent): void {
   // 페이지 요소가 진짜 :hover를 받는다. 직전 휠 직후인지는 overlay가 판정한다.
   if (overlay) cancelBlockerScrollYield(overlay);
   const target = elementAtPoint(e.clientX, e.clientY);
+  // 모드 ON의 래퍼 좌우 여백 — 커서 밑은 숨겨진 top의 body다. 아웃라인을 그리면 고를 수
+  // 있어 보이고, 실제로 고르면 편집이 화면에 아무 효과가 없다(아래 커밋에서도 거부한다).
+  if (isHiddenTopElement(target)) {
+    if (lastHover) leaveCurrent();
+    lastHover = null;
+    if (overlay) hideOutline(overlay);
+    return;
+  }
   if (isOwnUi(target) || target === lastHover) return;
   lastHover = target;
   // 등록된 자식 iframe 위에서는 blocker를 투과시켜 안쪽 picker가 이벤트를 받게 한다
@@ -1183,6 +1192,9 @@ function onClickCommit(e: MouseEvent): void {
   e.stopPropagation();
   const target = elementAtPoint(e.clientX, e.clientY);
   if (isOwnUi(target) || !target) return;
+  // 여백 클릭은 아무것도 안 고른 것과 같다 — 삼키고 hover 상태를 유지한다(등록 iframe 위
+  // 클릭 레이스와 같은 처리). 고르면 리포트의 Viewport가 top 실폭으로 기록된다.
+  if (isHiddenTopElement(target)) return;
   // 등록 iframe(안쪽 picker 활성)은 핸드오프 대상 — mousemove 전에 클릭이 먼저 온
   // 드문 레이스에서만 여기 도달하므로 삼킨다(다음 mousemove가 blocker를 투과시킴).
   // 미등록 iframe(sandbox·중첩)은 cross-document 경계로 내부 선택 불가 — 기존 거부 유지.
@@ -1434,7 +1446,7 @@ function handleSelectFullViewport(): boolean {
 
 let scrollSession: ScrollCaptureSession | null = null;
 
-function handleBeginScrollCapture(): PageMetrics {
+function handleBeginScrollCapture(): PageMetrics | null {
   // 재진입(연타·재마운트)이면 이전 세션을 먼저 원복한다 — 안 그러면 그 세션이 숨긴 fixed 요소가
   // 영영 복원되지 않고 originalScroll도 유실된다.
   if (scrollSession) {
@@ -1453,9 +1465,11 @@ function handleBeginScrollCapture(): PageMetrics {
     setBlockerScrollYield(overlay, false);
   }
   mode = "idle";
-  const { session, metrics } = beginScrollCapture();
-  scrollSession = session;
-  return metrics;
+  const begun = beginScrollCapture();
+  // 디바이스 뷰포트 ON — 오케스트레이터의 `!begun?.viewport` 게이트가 이 falsy를 받아 접는다.
+  if (!begun) return null;
+  scrollSession = begun.session;
+  return begun.metrics;
 }
 
 // 사이드패널이 죽어(패널 닫힘·탭 전환) endScrollCapture가 못 오면 페이지에 숨긴 고정 요소와

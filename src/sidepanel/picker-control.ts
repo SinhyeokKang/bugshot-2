@@ -6,7 +6,6 @@ import { onPickerPermissionExpired, onPickerUnavailable, sendBg } from "@/types/
 import type { DeviceDocumentsResponse } from "@/types/messages";
 import { isActiveTabPermissionError } from "./lib/capture-error";
 import { sameCaptureBasis } from "./lib/capture-basis";
-import { SEND_CAP_MS, withSendCap } from "./lib/send-cap";
 import {
   resolveSentinelTargets,
   type SentinelScope,
@@ -961,10 +960,20 @@ export async function activateRecordersInDeviceTree(
   // stop 실패는 전이를 깨지 않는다 — 열거와 송신 사이에 이동한 문서는 애초에 그 레코더가
   // 죽었고, 새 문서는 frameCommitted → 게이트가 다시 판정한다. 여기서 실패로 접으면 광고
   // 프레임 하나의 타이밍으로 정상 로드된 래퍼까지 롤백된다.
+  //
+  // **그 관용은 래퍼 서브트리 안에서만 성립한다.** 서브트리 밖(숨겨진 top과 그 iframe들)은
+  // 이동하지 않는 문서라 "새 문서가 다시 판정한다"가 참이 아니고, 게이트는 *재*발행만 막지
+  // 이미 무장된 레코더를 못 끈다 — 소진되면 그 세션 내내 로그가 2벌이고 스스로 안 낫는다.
+  // 결과가 `notReached`와 같으므로 신호도 같아야 한다(그 문구만 자동 복구를 약속하지 않는다).
   const stops = RECORDER_KINDS.map((kind) => ({ type: `${kind}.stop` }) as PickerMessage);
-  await Promise.all(
-    all.map((documentId) => ackDocument(tabId, documentId, stops, STOP_ACK_RETRIES)),
+  const inTree = new Set(deviceTree);
+  const stopped = await Promise.all(
+    all.map(async (documentId) => ({
+      outside: !inTree.has(documentId),
+      ok: await ackDocument(tabId, documentId, stops, STOP_ACK_RETRIES),
+    })),
   );
+  if (stopped.some((s) => s.outside && !s.ok)) return "notReached";
 
   clearLogs();
 
@@ -992,7 +1001,7 @@ export async function activateRecordersInDeviceTree(
 // capture 시 sync broadcast가 누적기에 머지될 때까지 대기하는 상한. 머지 도착 즉시 조기 탈출.
 const LOG_SYNC_SETTLE_MS = 300;
 // sync 메시지 왕복 상한. 페이지가 멈춰 응답이 없어도 호출부가 진행하게 한다.
-const LOG_SYNC_SEND_CAP_MS = SEND_CAP_MS;
+const LOG_SYNC_SEND_CAP_MS = 500;
 
 // 양 레코더 sync를 보낸 뒤, data round-trip(usePickerMessages 머지)이 누적기에 반영될 때까지 대기한다.
 // sync는 메시지 전달까지만 await하고 실제 데이터는 별도 비동기 경로로 도착하므로, store의 endedAt 증가로
@@ -1047,10 +1056,21 @@ export async function getTopViewport(
     const [result] = await chrome.scripting.executeScript({
       target: { tabId },
       func: () => {
-        const frame = document.getElementById("__bugshot_device_frame__");
-        return frame
-          ? { width: frame.clientWidth, height: frame.clientHeight }
-          : { width: window.innerWidth, height: window.innerHeight };
+        const frame = document.getElementById(
+          "__bugshot_device_frame__",
+        ) as HTMLIFrameElement | null;
+        if (!frame) return { width: window.innerWidth, height: window.innerHeight };
+        // 요소의 content box는 **안쪽 문서의 스크롤바를 안 뺀다** — 그러면 리포트가 390이라
+        // 말하는데 그 문서의 innerWidth·미디어쿼리 기준은 375다. 모드 OFF는 window.innerWidth라
+        // 스크롤바가 빠지므로, 안 맞추면 두 모드의 숫자 의미가 갈린다. same-origin 불변식 덕에
+        // 안쪽을 그냥 읽을 수 있고, 커밋 전이거나 접근이 throw하면 요소 박스로 접는다.
+        try {
+          const win = frame.contentWindow;
+          if (win?.innerWidth) return { width: win.innerWidth, height: win.innerHeight };
+        } catch {
+          /* 불변식이 깨진 순간 — 아래 요소 박스로 접는다 */
+        }
+        return { width: frame.clientWidth, height: frame.clientHeight };
       },
     });
     return result?.result ?? null;
@@ -1074,10 +1094,7 @@ export async function deviceSet(
 ): Promise<DeviceSetResponse | undefined> {
   try {
     await ensureContentScript(tabId);
-    // 상한 없이 기다리면 정지한 페이지에서 전이가 finally에 못 닿아 busy가 영구 래치된다.
-    return await withSendCap(
-      send<DeviceSetResponse>(tabId, { type: "device.set", width, title: t("issue.device.frameTitle") }, 0),
-    );
+    return send<DeviceSetResponse>(tabId, { type: "device.set", width, title: t("issue.device.frameTitle") }, 0);
   } catch {
     return undefined;
   }
@@ -1098,8 +1115,7 @@ export async function deviceState(
 ): Promise<DeviceStateResponse | undefined> {
   try {
     await ensureContentScript(tabId);
-    // resolvePageUrl을 통해 캡처 진입 전부의 앞단에 있다 — 여기서 멈추면 캡처 자체가 막힌다.
-    return await withSendCap(send<DeviceStateResponse>(tabId, { type: "device.state" }, 0));
+    return send<DeviceStateResponse>(tabId, { type: "device.state" }, 0);
   } catch {
     return undefined;
   }
@@ -1110,7 +1126,7 @@ export async function deviceWatch(tabId: number, on: boolean): Promise<void> {
   // 빠지면 picker 미주입 탭에서 resize 리스너가 그 패널 세션 내내 안 걸린다.
   try {
     await ensureContentScript(tabId);
-    await withSendCap(send(tabId, { type: "device.watch", on }, 0));
+    await send(tabId, { type: "device.watch", on }, 0);
   } catch {
     // 미지원·정책 차단 페이지 — 가용 폭 추적은 없어도 모드 자체는 게이트가 막는다.
   }
