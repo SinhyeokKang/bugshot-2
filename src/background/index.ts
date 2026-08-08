@@ -230,7 +230,9 @@ chrome.webNavigation.onCommitted.addListener((details) => {
 
     // top 문서가 갈리면 래퍼도 함께 사라진다 — binding을 남기면 다음 판정이 유령 frameId를
     // 래퍼로 취급한다. 재수립은 사이드패널이 pending으로 다시 세운다.
-    if (frameId === 0) await clearDeviceFrame(tabId);
+    // 디바이스 관여가 없는 탭은 지울 게 없다 — 무조건 부르면 모든 탭의 top 이동마다
+    // storage.session.remove 왕복이 탭 큐 안에서 직렬로 걸린다.
+    if (frameId === 0 && mayNeedDeviceSignal(tabId)) await clearDeviceFrame(tabId);
   });
 });
 

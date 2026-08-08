@@ -375,8 +375,11 @@ function handlePickerMessage(
         // "message port closed"로 죽는다.
         void (async () => {
           if (msg.width == null) {
-            unmountDeviceFrame();
+            const had = unmountDeviceFrame();
             sendResponse({ ok: true, width: null, available: availableViewport() });
+            // 래퍼가 한 번도 안 섰으면 되돌릴 화면이 없다 — 전달 실패 롤백까지 reload를 돌면
+            // 정상 페이지의 스크롤·입력값을 이유 없이 날린다.
+            if (!had) return;
             // 문서가 갈린 뒤에 응답하면 포트가 죽어 호출부가 전달 실패(undefined)로 읽고
             // 불필요한 롤백을 돈다 — 응답을 먼저 내보내고 다음 태스크에서 재로드한다.
             await new Promise((r) => setTimeout(r, 0));

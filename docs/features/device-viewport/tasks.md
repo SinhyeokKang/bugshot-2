@@ -80,7 +80,7 @@
 
 ### Task 5: 문서 지정 레코더 전환 + sentinel 발행 단일 게이트
 
-- **변경 대상**: `src/sidepanel/recorder-control.ts`, `src/sidepanel/picker-control.ts:173-182`·`:709-755`, `src/sidepanel/hooks/usePickerMessages.ts:271-272`, Task 12의 background frame coordinator
+- **변경 대상**: `src/sidepanel/picker-control.ts`, `src/sidepanel/picker-control.ts:173-182`·`:709-755`, `src/sidepanel/hooks/usePickerMessages.ts:271-272`, Task 12의 background frame coordinator
 - **작업 내용**:
   - `activateRecordersInDeviceTree(tabId)` 신설. 문서 목록은 인자가 아니라 `bgRequest("device.documents")`로 받는다(`{ all, deviceTree }`) — 사이드패널은 프레임 트리를 모르고 캐시도 두지 않기로 했다. `all`에 지정 stop ACK → `deviceTree`에만 지정 start ACK.
   - **sentinel을 발행하는 지점을 헬퍼 하나로 좁히고 거기에 서브트리 게이트를 건다.** 모드 ON이면 `deviceTree` documentId 지정 송신, OFF면 기존 `sendAll`/frameId 지정. 모드 판정은 캐시가 아니라 `deviceTree.length > 0`.
@@ -128,11 +128,11 @@
 
 - **변경 대상**: `src/sidepanel/hooks/useDeviceViewport.ts`, `src/sidepanel/tabs/IssueTab.tsx:705-726`
 - **작업 내용**:
-  - `reestablish(tabId, width, url)` 신설. **호출 지점은 top `onCommitted` + `pending` 하나뿐**이다. handoff·확장 reload 복구는 pending을 세우고 top commit을 만들기만 하며 직접 부르지 않는다(`url`은 루프 가드의 "직전 재수립 URL 재방문" 판정에 쓴다).
+  - `reestablish(tabId, width)` 신설. **호출 지점은 top `onCommitted` + `pending` 하나뿐**이다. handoff·확장 reload 복구는 pending을 세우고 top commit을 만들기만 하며 직접 부르지 않는다.
   - **design.md 계약 표 13축을 전부 구현한다.** 특히 표에만 있고 `select()`엔 없는 축 다섯이 빠지기 쉽다: `unsupported`는 우회 안 함(폐기 우선) / `busy` 거부 시 pending 복원 / arm 창은 `tabs.update` 전에 닫혀 있을 것(handoff 경로에서는 background가 판정과 같은 전이에서 닫는다) / `picker.start` 재시도 / pending·카운터는 모듈 스코프 단일 인스턴스.
   - `device.handoff` push 수신 → `expiresAt` 전이면 `pending = { tabId, width }`(인메모리, 영속 금지), 뒤면 pending을 세우지 않고 **폭을 `null`로 내려 Full로 강등한다** — background는 응답값과 무관하게 `chrome.tabs.update(tabId, { url })`를 실행하므로, 안 내리면 래퍼 없이 UI만 ON인 desync가 남는다. **`sessionExpired = true` 통보는 양쪽 공통**이다(top 이동은 기한과 무관하게 일어난다). 단 `blob:`·`data:` 등 top 이동 불가 URL은 background가 같은 URL로 reload해 세션이 이어지므로 폭 강등 + `issue.device.blocked` 토스트로 끝낸다.
   - `SessionExpiredDialog`의 body만 디바이스 모드 문구로 분기하고 컴포넌트·플래그·`onConfirm={() => reset()}`은 건드리지 않는다. 녹화·미리보기·완료 phase면 다이얼로그 대신 토스트 1개.
-  - **루프 가드는 `reestablish` 호출을 센다** — handoff 횟수를 세면 frame-busting(handoff 없이 top이 곧장 커밋)을 못 잡는다. 연속 2회 초과 또는 직전 재수립 URL 재방문 → 전용 다이얼로그 → [확인] 시 모드 해제 + idle. 리셋은 사용자의 명시적 세그먼트 조작, 또는 재수립 성공 후 top 커밋 없이 10초 경과.
+  - **루프 가드는 `reestablish` 호출을 센다** — handoff 횟수를 세면 frame-busting(handoff 없이 top이 곧장 커밋)을 못 잡는다. 연속 2회 초과 → 전용 다이얼로그 → [확인] 시 모드 해제 + idle. 리셋은 사용자의 명시적 세그먼트 조작, 또는 재수립 성공 후 top 커밋 없이 10초 경과.
   - **`select(null)`은 `pending`을 `device.set`보다 먼저 버린다** — OFF의 `location.reload()`도 top 커밋이라 pending이 남으면 OFF↔ON 루프가 된다.
 - **검증**:
   - [x] **`reestablish`가 `locked`(`phase !== "idle"`)에서 실행된다** — 거부하면 drafting·recording 중 handoff에서 top만 옮겨가고 래퍼가 안 서는데 세그먼트는 `390`을 가리키는 desync가 된다. 이 태스크의 존재 이유다

@@ -23,6 +23,20 @@ beforeEach(() => {
   document.body.innerHTML = "";
 });
 
+// OFF는 unmount + reload인데, 래퍼가 한 번도 안 선 페이지(전달 실패 롤백)에서도 reload를
+// 돌면 정상 페이지의 스크롤·입력값을 이유 없이 날린다 — 되돌릴 게 있었는지를 호출부가 알아야 한다.
+describe("unmountDeviceFrame 반환값", () => {
+  it("래퍼가 없었으면 false", () => {
+    expect(unmountDeviceFrame()).toBe(false);
+  });
+
+  it("래퍼가 있었으면 true이고, 두 번째 호출은 false", () => {
+    mountDeviceFrame(390, TITLE);
+    expect(unmountDeviceFrame()).toBe(true);
+    expect(unmountDeviceFrame()).toBe(false);
+  });
+});
+
 describe("mountDeviceFrame", () => {
   it("래퍼가 document.body의 직속 자식이다", () => {
     document.body.innerHTML = "<main id='page'>original</main>";

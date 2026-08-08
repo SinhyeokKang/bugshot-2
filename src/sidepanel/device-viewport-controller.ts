@@ -67,7 +67,7 @@ export const useDeviceViewportStore = create<DeviceViewportSnapshot>(() => ({
 
 const VERDICT_TIMEOUT_MS = 3000;
 
-let subscribers = 0;
+const subscribers = new Map<number, number>();
 /** handoff는 "실패"가 아니라 "top이 옮겨간다"다 — 롤백을 돌리면 방금 세운 pending을 지운다. */
 type Verdict = { ok: true; frameId: number } | { ok: false; handoff?: boolean };
 
@@ -332,7 +332,11 @@ async function runTransition(
     if (!stillOn(tabId)) return;
     if (!verdict.ok) {
       // handoff면 top이 이미 옮겨가는 중이라 롤백하지 않는다 — 재수립이 뒤를 잇는다.
-      if (!verdict.handoff) await rollbackToFull(tabId, t("issue.device.blocked"));
+      // arm(false) 왕복 중에 온 handoff도 마찬가지다: 그쪽이 세운 pending을 이 롤백의
+      // dropPending이 지우면 재수립이 통째로 미발사된다.
+      if (!verdict.handoff && attemptToken === token) {
+        await rollbackToFull(tabId, t("issue.device.blocked"));
+      }
       return;
     }
     // stop ACK 뒤 clear를 무조건 한 번 한다 — background의 logClear는 editor 세션 스냅샷이
@@ -389,8 +393,16 @@ async function reestablish(tabId: number, width: number): Promise<void> {
 
 /* ── push 수신 ─────────────────────────────────────────────── */
 
-// 다이얼로그 마운트 지점이 없는 phase — 통보를 토스트 1개로 갈음한다.
-const TOAST_ONLY_PHASES = new Set(["recording", "previewing", "done"]);
+/**
+ * 만료 다이얼로그를 **실제로 렌더하는** phase. 나머지는 토스트 1개로 갈음한다.
+ *
+ * 화이트리스트여야 한다 — 렌더 지점이 없는 phase(idle·picking·recording·previewing·done)에서
+ * `sessionExpired`를 켜면 그 순간 통보는 0건인데 플래그만 **래치**된다(내리는 건 `reset()`뿐).
+ * 그 뒤 요소를 골라 styling에 들어가는 즉시 만료 다이얼로그가 떠 방금 만든 선택을 파기하고,
+ * 그동안 `useEditorSessionSync`의 저장·복구 경로도 통째로 멈춘다.
+ * 마운트 지점은 `IssueTab`의 capturing·drafting·styling 세 분기다.
+ */
+const DIALOG_PHASES = new Set(["capturing", "drafting", "styling"]);
 
 /**
  * 반환값은 "기한 안에 처리했나"다. background는 그걸 읽지 않고 top을 옮기므로, 기한을 넘겼으면
@@ -422,11 +434,10 @@ async function onHandoff(tabId: number, url: string, expiresAt: number): Promise
   }
   // top이 실제로 옮겨가는 건 기한과 무관하다 — 통보는 양쪽 경로가 같아야 한다.
   const phase = useEditorStore.getState().phase;
-  if (TOAST_ONLY_PHASES.has(phase)) {
+  if (!DIALOG_PHASES.has(phase)) {
     toast.info(t("issue.device.handoffToast"));
     return inTime;
   }
-  // phase 판정 없이 무조건 켠다 — 렌더 분기가 non-idle 셋뿐이라 idle에서는 안 뜬다.
   set({ expiredByHandoff: true });
   useEditorStore.setState({ sessionExpired: true });
   return inTime;
@@ -481,10 +492,13 @@ let unsupportedTab = false;
 
 export function setDeviceViewportUnsupported(value: boolean): void {
   unsupportedTab = value;
-  if (value) {
-    const tabId = snap().tabId;
-    if (tabId != null) dropPending(tabId);
-  }
+  if (!value) return;
+  const tabId = snap().tabId;
+  if (tabId == null) return;
+  // pending만 버리면 안 된다 — 폭을 안 내리면 "래퍼는 없는데 UI만 ON"이 굳는다.
+  // `reestablish`의 abandon 분기가 내려주길 기대할 수 없다: 그건 pending이 살아 있어야
+  // 도달하는데, 미지원 판정은 `status:"loading"`에서도 돌아 top 커밋보다 먼저 올 수 있다.
+  demoteToFull(tabId);
 }
 
 function isDeviceViewportLocked(): boolean {
@@ -567,11 +581,18 @@ export function attachDeviceViewport(tabId: number): () => void {
  * 아니라, 리마운트에서 unmount(새)→mount(옛) 순서가 뒤집혀도 watch가 안 끊기게 하려는 것이다.
  */
 export function watchAvailableWidth(tabId: number): () => void {
-  subscribers += 1;
-  if (subscribers === 1) void deviceWatch(tabId, true);
+  // refcount는 **탭별**이다 — 전역 하나면 탭 재바인딩에서 mount(새 탭)가 unmount(옛 탭)보다
+  // 먼저 오는 순서에 카운터가 2→1이 되어 새 탭에 watch가 안 나가고 옛 탭 구독도 안 끊긴다.
+  subscribers.set(tabId, (subscribers.get(tabId) ?? 0) + 1);
+  if (subscribers.get(tabId) === 1) void deviceWatch(tabId, true);
   return () => {
-    subscribers -= 1;
-    if (subscribers === 0) void deviceWatch(tabId, false);
+    const next = (subscribers.get(tabId) ?? 1) - 1;
+    if (next > 0) {
+      subscribers.set(tabId, next);
+      return;
+    }
+    subscribers.delete(tabId);
+    void deviceWatch(tabId, false);
   };
 }
 
