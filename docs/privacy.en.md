@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: August 7, 2026
+**Effective date**: August 8, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -100,7 +100,7 @@ When you reload a page on which you have previously started debug capture, resum
 |---|---|---|
 | LLM provider settings (base URL, API key, model) | When configuring the AI draft / AI styling feature | Calling the LLM API |
 
-The LLM API key is stored obfuscated. You choose the provider yourself; presets ship base URLs for OpenAI, Anthropic, Gemini, Groq, OpenRouter, Together, and Ollama — **when you use an AI feature, the material for the draft (title, body, style changes, annotated image, log summaries) is sent to the provider you picked.** The action-log summary may carry unmasked input and selection values as-is (masked values are sent as `***`). Nothing is sent if you don't turn the AI features on. The provider setup screen is the one exception: it calls your endpoint to list the available models (API key only, no user content). In addition, when you enter the report-drafting screen after a video capture, the action-log summary along with the page address and title is sent once per session to your connected AI provider (if one is configured) to auto-fill the reproduction steps. This auto-fill is on by default and can be turned off in settings.
+The LLM API key is stored obfuscated. You choose the provider yourself; presets ship base URLs for OpenAI, Anthropic, Gemini, Mistral, Groq, OpenRouter, Together, and Ollama — **when you use an AI feature, the material for the draft (title, body, style changes, annotated image, log summaries) is sent to the provider you picked.** The action-log summary may carry unmasked input and selection values as-is (masked values are sent as `***`). Nothing is sent if you don't turn the AI features on. The provider setup screen is the one exception: it calls your endpoint to list the available models (API key only, no user content). In addition, when you enter the report-drafting screen after a video capture, the action-log summary along with the page address and title is sent once per session to your connected AI provider (if one is configured) to auto-fill the reproduction steps. This auto-fill is on by default and can be turned off in settings.
 
 On browsers that support Chrome's built-in AI (Prompt API), drafts and CSS change suggestions can be generated with the on-device model without any external API call. In that case, data never leaves your device and no separate API key is required.
 
