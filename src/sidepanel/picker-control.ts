@@ -258,8 +258,12 @@ async function emitSentinel(
 
 /**
  * activate 3종 공통 꼬리. **열거에 실패했을 때만** sentinel을 맵에서 지우고 throw한다 — 남겨두면
- * 이후 커밋된 iframe에만 재발행돼 top 없는 반쪽 로그가 된다. 개별 송신 실패(갓 커밋된 프레임의
- * "Receiving end does not exist" 등)는 여기 안 걸린다 — 그건 `ackDocument`의 재시도가 맡는다.
+ * 이후 커밋된 iframe에만 재발행돼 top 없는 반쪽 로그가 된다.
+ *
+ * 개별 송신 실패(갓 커밋된 프레임의 "Receiving end does not exist" 등)는 여기 안 걸린다 —
+ * **이 경로엔 ACK 재시도가 없다**(`ackDocument`는 모드 전환의 `activateRecordersInDeviceTree`
+ * 전용이다). 대신 재주입 트리거(`tabs.onUpdated(complete)`·visibilitychange·idle 복귀)가
+ * 성공 여부와 무관하게 계속 발화해 다음 라운드에서 다시 발행하는 것이 그 자리의 복구 수단이다.
  */
 async function emitActivation(
   tabId: number,

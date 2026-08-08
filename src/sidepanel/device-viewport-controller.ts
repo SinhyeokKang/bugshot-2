@@ -249,6 +249,14 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
   const path = resolveSelectPath(state.width, width);
   if (path === "noop") return;
 
+  // OFF→ON 최초 진입이면 경고를 먼저 소비한다(다이얼로그 [계속]이 전이를 잇는다).
+  // **아래 카운터 리셋보다 앞이다** — 경고를 띄웠다 취소하면 아무 일도 안 일어난 셈이라,
+  // 뒤에 두면 그 조작이 frame-busting 그물을 지운다.
+  if (path === "off-to-on" && !useSettingsUiStore.getState().deviceModeWarned) {
+    set({ warningWidth: width });
+    return;
+  }
+
   // 사용자 조작이 "정상 사용 중" 신호다 — **아무 일도 안 하는 조작은 빼고 센다.**
   // 게이트 앞에 두면 미가용 프리셋·같은 폭 재선택이 frame-busting 그물을 지운다.
   resetLoopGuard(tabId);
@@ -259,7 +267,7 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
   if (path === "on-to-off" || width == null) {
     dropPending(tabId);
     set({ busy: true, busyWidth: null });
-    const res = await deviceSet(tabId, null).catch(() => undefined);
+    const res = await deviceSet(tabId, null);
     if (!stillOn(tabId)) return;
     // **응답의 width는 읽지 않는다.** OFF의 결과는 정의상 Full이고, 응답값을 채택하면 이 창에
     // 도착한 handoff 강등이 방금 내린 null을 되살릴 여지가 생긴다. 소유권 토큰 대신 이쪽이
@@ -294,21 +302,21 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
       set({ width: res.width, availableWidth: res.available.width });
       putPending(tabId, width);
     } finally {
-      set({ busy: false, busyWidth: null });
+      const owned = attemptToken === token;
       // 조기 반환(탭 재바인딩·강등)에서도 반납해야 attemptingWidth에 옛 폭이 남지 않는다.
       endAttempt(token);
-      // **busy를 놓는 모든 경로가 drain해야 한다.** 한 경로라도 빠지면 그 전이 중에 거부된
-      // 재수립은 아무도 안 집고, 남은 슬롯이 다음 성공 전이의 finally에서 뒤늦게 터진다.
-      if (stillOn(tabId)) drainDeferredReestablish(tabId);
+      // **`stillOn` 안에서만 놓는다** — 탭이 갈렸으면 이 busy는 새 탭 전이의 것이라,
+      // 무조건 놓으면 남의 래치를 풀어 게이트가 그 전이 중에 열린다.
+      if (stillOn(tabId)) {
+        set({ busy: false, busyWidth: null });
+        // **busy를 놓는 모든 경로가 drain해야 한다.** 한 경로라도 빠지면 그 전이 중에 거부된
+        // 재수립은 아무도 안 집고, 남은 슬롯이 다음 성공 전이의 finally에서 뒤늦게 터진다.
+        if (owned) drainDeferredReestablish(tabId);
+      }
     }
     return;
   }
 
-  // OFF→ON: 최초 진입이면 경고를 먼저 소비한다(다이얼로그 [계속]이 전이를 잇는다).
-  if (!useSettingsUiStore.getState().deviceModeWarned) {
-    set({ warningWidth: width });
-    return;
-  }
   await runTransition(tabId, width, { syncLogs: true });
 }
 
@@ -322,11 +330,31 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
 async function runTransition(
   tabId: number,
   width: number,
-  { syncLogs }: { syncLogs: boolean },
+  { syncLogs, reestablishing = false }: { syncLogs: boolean; reestablishing?: boolean },
 ): Promise<void> {
   set({ busy: true, busyWidth: width });
   const token = beginAttempt(width);
   try {
+    // **전제 확인은 래치 *안*이다.** `reestablish` 쪽에 두면 게이트(busy 읽기)와 래치 사이에
+    // 소유권 없는 await가 생겨, 그 창에서 사용자 전이가 시작돼 전이 둘이 동시에 돌고 그 창에
+    // 도착한 강등(`demoteToFull`의 `abortAttempt`)도 되돌려진다.
+    if (reestablishing) {
+      const page = await deviceState(tabId);
+      if (!stillOn(tabId) || attemptToken !== token) return;
+      if (page?.width === width) {
+        // 이미 그 폭이다 — `device.set`을 또 보내면 노드를 유지한 채 폭만 갱신하므로 재로드가
+        // 없고, 무신호 → armTimeout → 롤백으로 정상 모드가 스스로 꺼진다. 상태만 맞춘다.
+        set({ width, availableWidth: page.available.width });
+        putPending(tabId, width);
+        return;
+      }
+      // 아무 일도 안 하고 끝나는 시도는 세지 않는다 — 그래서 카운터가 전제 확인 뒤다.
+      if (noteReestablish(tabId) === "loop") {
+        dropPending(tabId);
+        set({ width: null, loopWarning: true });
+        return;
+      }
+    }
     // 떠나는 페이지 로그 꼬리를 누적기에 밀어넣는다.
     if (syncLogs) await syncAndSettleLogs(tabId);
     // device.set보다 먼저 열어야 첫 onBeforeNavigate를 안 놓친다.
@@ -338,11 +366,9 @@ async function runTransition(
     const res = await deviceSet(tabId, width);
     // 이 창 안에서 handoff 만료 강등이 왔으면 그쪽이 이긴다 — 아래 set({width})가 방금 내린
     // 폭을 되살리면 "래퍼는 없는데 UI만 ON"이 그대로 돌아온다.
-    // arm 창은 닫고 나간다 — 열어두면 3초 뒤 armTimeout이 frameBlocked를 뒤늦게 latch시킨다.
-    if (attemptToken !== token) {
-      await arm(tabId, false);
-      return;
-    }
+    // **토큰을 잃었으면 arm은 건드리지 않는다** — 감시창은 탭당 슬롯 하나에 토큰이 없어서,
+    // 진 전이가 닫으면 이긴 전이의 `frameLoaded`가 유실돼 3초 침묵 뒤 롤백된다.
+    if (attemptToken !== token) return;
     // undefined(전달 실패)와 {ok:false}(마운트 실패)를 구분해서 다뤄야 한다 — ok === false만
     // 보면 send가 실패를 undefined로 삼키므로 전달 실패가 성공으로 샌다.
     if (!res?.ok) {
@@ -386,10 +412,13 @@ async function runTransition(
     if (activated === "startFailed") toast.warning(t("issue.device.recordersDegraded"));
     if (activated === "notReached") toast.warning(t("issue.device.recordersStuck"));
   } finally {
+    const owned = attemptToken === token;
     endAttempt(token);
     if (stillOn(tabId)) {
       set({ busy: false, busyWidth: null });
-      drainDeferredReestablish(tabId);
+      // 소유권을 잃었으면 이어받지 않는다 — 그 pending은 나를 밀어낸 handoff가 top 커밋용으로
+      // 세운 것이라, 여기서 먼저 소비하면 정작 그 커밋에서 재수립이 미발사된다.
+      if (owned) drainDeferredReestablish(tabId);
     }
   }
 }
@@ -437,25 +466,11 @@ async function reestablish(tabId: number, width: number): Promise<void> {
     set({ width: null });
     return;
   }
-  // 전제 확인은 루프 카운터보다 앞이다 — 아무 일도 안 하고 끝나는 시도까지 세면 임계가
-  // 헛되이 오른다(거부를 안 세는 것과 같은 이유).
-  const page = await deviceState(tabId);
-  if (!stillOn(tabId)) return;
-  if (page?.width === width) {
-    // 이미 그 폭이다. 상태만 맞추고 pending을 되돌려 다음 top 커밋이 다시 집게 둔다.
-    set({ width, availableWidth: page.available.width });
-    putPending(tabId, width);
-    return;
-  }
-  if (noteReestablish(tabId) === "loop") {
-    dropPending(tabId);
-    set({ width: null, loopWarning: true });
-    return;
-  }
-  // 재수립은 syncAndSettleLogs를 안 한다 — 떠나는 문서가 이미 없다.
+  // 재수립은 syncAndSettleLogs를 안 한다 — 떠나는 문서가 이미 없다. 전제 확인·루프 카운터는
+  // `runTransition`이 래치 안에서 소유한다(게이트와 래치 사이에 창을 만들지 않으려고).
   // 가용 폭은 재확인하지 않는다 — 사용자 조작이 아니라 페이지 사실에 대한 반응이라,
   // 안 들어가는 폭이면 창이 좁아진 것이고 그건 다음 `availableChanged`가 정정한다.
-  await runTransition(tabId, width, { syncLogs: false });
+  await runTransition(tabId, width, { syncLogs: false, reestablishing: true });
 }
 
 /* ── push 수신 ─────────────────────────────────────────────── */

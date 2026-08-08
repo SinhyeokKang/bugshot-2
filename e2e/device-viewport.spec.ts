@@ -103,7 +103,7 @@ async function selectWidth(panel: Page, key: string): Promise<void> {
   // 입장에선 [계속]을 누르면 그만이라 여기서도 그렇게 흘려보낸다(경고 자체의 단언은
   // 전용 테스트가 소유한다).
   const dialog = panel.getByRole("alertdialog");
-  if (await dialog.isVisible({ timeout: 1000 }).catch(() => false)) {
+  if (await dialog.isVisible().catch(() => false)) {
     await dialog.getByRole("button").last().click();
   }
 }

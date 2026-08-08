@@ -68,6 +68,14 @@ describe("mountDeviceFrame", () => {
     expect(currentDeviceWidth()).toBe(390);
   });
 
+  // title은 노드 생성 분기 밖에 있어야 한다 — 안에 두면 로케일을 바꾼 뒤 폭만 전환했을 때
+  // (노드를 유지하는 경량 경로) 접근명이 옛 로케일로 남는다.
+  it("폭만 바꿔도 접근명이 새 값으로 갱신된다", () => {
+    mountDeviceFrame(390, TITLE);
+    mountDeviceFrame(768, "BugShot 디바이스 뷰포트");
+    expect(frameEl()!.title).toBe("BugShot 디바이스 뷰포트");
+  });
+
   it("래퍼가 있는 상태에서 다시 부르면 iframe 노드가 교체되지 않고 폭만 바뀐다", () => {
     mountDeviceFrame(390, TITLE);
     const first = frameEl();
