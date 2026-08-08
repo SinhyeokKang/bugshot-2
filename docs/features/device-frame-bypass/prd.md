@@ -14,7 +14,15 @@ CSP `frame-ancestors`로 프레임 삽입을 거부하면 브라우저가 로드
 | google.com | 성공 | `X-Frame-Options: SAMEORIGIN` — 래퍼가 same-origin이라 통과 |
 | skillflo.com | 성공 | 차단 헤더 없음 |
 | github.com | 실패 | `X-Frame-Options: deny` |
-| naver.com | 실패 | 래퍼 요청에서 `errorOccurred` 발생 |
+| naver.com | 실패 | 래퍼 요청이 `net::ERR_BLOCKED_BY_RESPONSE`로 거부 |
+
+naver 실패 시점의 background 상태는 `{armed: true, topUrl: "https://www.naver.com/",
+provisionalFrameId: 1623, binding: null}`이었다 — **판정 로직 자체는 정상이었다.** 래퍼를
+잠정 등록까지 마친 뒤 브라우저가 응답을 거부했고, 그걸 `frameBlocked`로 올바르게 접었다.
+고쳐야 할 것은 판정이 아니라 "거부당한다"는 사실 쪽이다.
+
+`net::ERR_BLOCKED_BY_RESPONSE`는 **XFO와 CSP `frame-ancestors` 위반에 공통으로 쓰인다** —
+에러 코드로는 둘을 못 가른다. 그래서 e2e는 두 갈래를 각각의 픽스처로 덮어야 한다.
 
 `SAMEORIGIN`은 래퍼가 top과 same-origin이라는 불변식 덕에 자연히 통과한다. 문제는 `DENY`와
 `frame-ancestors`를 쓰는 사이트다.
