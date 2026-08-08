@@ -148,7 +148,7 @@ Aside 세션에서:
 
 ## 8. 진행 상태 / 핸드오프 (2026-08-09 기준)
 
-### ko: 59 / 72
+### ko: 60 / 72
 
 커밋 4개로 반영됨 — `42f36e8b`(49장) → `39d6223b`(log viewer 5장) → `8fe17834`(이슈 목록·플랫폼 3장) → `9af6d7c3`(웹스토어·플랫폼 그리드 2장).
 
@@ -157,9 +157,11 @@ Aside 세션에서:
 | 에셋 | 사유 |
 |---|---|
 | `video-record-2~5`, `video-replay-3`, `video-issue-1~6` (10장) | §6대로 **수동 촬영 전용**. `tabCapture`·30초 리플레이 모두 실제 user gesture를 요구해 합성 클릭으로 시작되지 않는다 |
-| `element-issue-4`, `screenshot-issue-4`, `settings-ai-2` (3장) | AI 배너가 필요한 컷. 촬영 시점에 Chrome 내장 AI가 `downloading`이었다. `LanguageModel.availability()`가 `available`이면 바로 촬영 가능 |
+| `element-issue-4`, `screenshot-issue-4`, `settings-ai-2` (3장) | AI 배너가 필요한 컷. Chrome 내장 AI가 계속 `downloading`이고 `downloadprogress`가 0%에서 움직이지 않았다(다운로드를 시작한 페이지가 닫히면 진행 이벤트를 못 받는다). `LanguageModel.availability()`가 `available`이면 바로 촬영 가능 |
 
-`screenshot-capture-3`(페이지 캡처 진행 상태)와 `video-record-5`는 아직 `dummy.jpg` placeholder 상태다.
+`video-record-5`만 아직 `dummy.jpg` placeholder 상태다.
+
+> `screenshot-capture-3`(페이지 캡처 진행 상태)은 **짧은 페이지에서는 캡처가 즉시 끝나 진행 화면을 못 잡는다.** 긴 문서(예: README blob)로 이동한 뒤 `페이지 캡처`를 누르고 sleep 없이 250ms 간격으로 폴링해 `페이지를 캡처하는 중…` 문구가 뜨는 프레임을 집어야 한다.
 
 ### en: 0 / 73
 
