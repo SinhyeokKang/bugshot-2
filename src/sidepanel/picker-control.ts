@@ -6,6 +6,7 @@ import { onPickerPermissionExpired, onPickerUnavailable, sendBg } from "@/types/
 import type { DeviceDocumentsResponse } from "@/types/messages";
 import { isActiveTabPermissionError } from "./lib/capture-error";
 import { sameCaptureBasis } from "./lib/capture-basis";
+import { SEND_CAP_MS, withSendCap } from "./lib/send-cap";
 import {
   resolveSentinelTargets,
   type SentinelScope,
@@ -604,7 +605,10 @@ export async function rebindStylingSession(tabId: number): Promise<void> {
   }
   const state = useEditorStore.getState();
   const prevKey = pageKeyOf(state.target?.url);
-  const newKey = pageKeyOf(await getPageUrl(tabId));
+  // **생산자와 같은 출처로 읽는다.** `target.url`은 `resolvePageUrl`이 넣은 값(모드 ON이면
+  // 래퍼 주소)인데 여기서 top 주소로 비교하면, 래퍼 안에서 한 번이라도 이동한 뒤에는 두 키가
+  // 영영 달라 패널을 다시 열 때마다 멀쩡한 styling 세션이 만료된다.
+  const newKey = pageKeyOf(await resolvePageUrl(tabId, ""));
   if (!prevKey || !newKey || prevKey !== newKey) {
     await expireStylingSession(tabId);
     return;
@@ -988,7 +992,7 @@ export async function activateRecordersInDeviceTree(
 // capture 시 sync broadcast가 누적기에 머지될 때까지 대기하는 상한. 머지 도착 즉시 조기 탈출.
 const LOG_SYNC_SETTLE_MS = 300;
 // sync 메시지 왕복 상한. 페이지가 멈춰 응답이 없어도 호출부가 진행하게 한다.
-const LOG_SYNC_SEND_CAP_MS = 500;
+const LOG_SYNC_SEND_CAP_MS = SEND_CAP_MS;
 
 // 양 레코더 sync를 보낸 뒤, data round-trip(usePickerMessages 머지)이 누적기에 반영될 때까지 대기한다.
 // sync는 메시지 전달까지만 await하고 실제 데이터는 별도 비동기 경로로 도착하므로, store의 endedAt 증가로
@@ -1070,7 +1074,10 @@ export async function deviceSet(
 ): Promise<DeviceSetResponse | undefined> {
   try {
     await ensureContentScript(tabId);
-    return send<DeviceSetResponse>(tabId, { type: "device.set", width, title: t("issue.device.frameTitle") }, 0);
+    // 상한 없이 기다리면 정지한 페이지에서 전이가 finally에 못 닿아 busy가 영구 래치된다.
+    return await withSendCap(
+      send<DeviceSetResponse>(tabId, { type: "device.set", width, title: t("issue.device.frameTitle") }, 0),
+    );
   } catch {
     return undefined;
   }
@@ -1091,7 +1098,8 @@ export async function deviceState(
 ): Promise<DeviceStateResponse | undefined> {
   try {
     await ensureContentScript(tabId);
-    return send<DeviceStateResponse>(tabId, { type: "device.state" }, 0);
+    // resolvePageUrl을 통해 캡처 진입 전부의 앞단에 있다 — 여기서 멈추면 캡처 자체가 막힌다.
+    return await withSendCap(send<DeviceStateResponse>(tabId, { type: "device.state" }, 0));
   } catch {
     return undefined;
   }
@@ -1102,7 +1110,7 @@ export async function deviceWatch(tabId: number, on: boolean): Promise<void> {
   // 빠지면 picker 미주입 탭에서 resize 리스너가 그 패널 세션 내내 안 걸린다.
   try {
     await ensureContentScript(tabId);
-    await send(tabId, { type: "device.watch", on }, 0);
+    await withSendCap(send(tabId, { type: "device.watch", on }, 0));
   } catch {
     // 미지원·정책 차단 페이지 — 가용 폭 추적은 없어도 모드 자체는 게이트가 막는다.
   }

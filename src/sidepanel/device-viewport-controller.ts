@@ -522,7 +522,7 @@ async function onHandoff(tabId: number, url: string, expiresAt: number): Promise
   }
   // top이 실제로 옮겨가는 건 기한과 무관하다 — 통보는 양쪽 경로가 같아야 한다.
   const phase = useEditorStore.getState().phase;
-  if (!DIALOG_PHASES.has(phase) || trimmingOverlay) {
+  if (!DIALOG_PHASES.has(phase) || trimmingOverlay || !issueTabMounted) {
     toast.info(t("issue.device.handoffToast"));
     return inTime;
   }
@@ -591,6 +591,21 @@ let trimmingOverlay = false;
 
 export function setDeviceViewportTrimming(value: boolean): void {
   trimmingOverlay = value;
+}
+
+/**
+ * 세 번째 축이자 **가장 정확한 축** — `IssueTab`이 지금 트리에 있는가. 다이얼로그의 마운트
+ * 지점이 거기뿐이므로 그 컴포넌트 자신이 보고한다.
+ *
+ * phase만으로는 못 잡는다: `capturing`은 콘솔·네트워크 서브탭이 열려 있는 phase인데
+ * (`hideSubTabs`에도 `logTabsLocked`에도 없다) 서브탭을 켜면 Radix `TabsContent`가
+ * `IssueTab`을 언마운트한다. 숨는 조건을 컨트롤러가 다시 열거하면 다음 서브탭·오버레이가
+ * 생길 때마다 같은 구멍이 다시 난다 — 마운트 사실을 그대로 받는다.
+ */
+let issueTabMounted = false;
+
+export function setDeviceViewportIssueMounted(value: boolean): void {
+  issueTabMounted = value;
 }
 
 export function setDeviceViewportUnsupported(value: boolean): void {

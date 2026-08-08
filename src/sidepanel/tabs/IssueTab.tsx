@@ -76,7 +76,10 @@ import * as videoRecorder from "@/sidepanel/video-recorder";
 import { PageFooter, PageShell } from "@/sidepanel/components/Section";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
 import { useUnsupportedTab } from "@/sidepanel/hooks/tab-support-context";
-import { useDeviceViewportStore } from "@/sidepanel/device-viewport-controller";
+import {
+  setDeviceViewportIssueMounted,
+  useDeviceViewportStore,
+} from "@/sidepanel/device-viewport-controller";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
@@ -96,6 +99,14 @@ export function IssueTab() {
   const [viewportBusy, setViewportBusy] = useState(false);
   const [canceling, setCanceling] = useState(false);
   const scrollAbortRef = useRef<AbortController | null>(null);
+
+  // 세션 만료 다이얼로그의 마운트 지점은 이 컴포넌트뿐인데, 서브탭을 켜면 Radix TabsContent가
+  // 여기를 언마운트한다(capturing은 그 서브탭이 열려 있는 phase다). 컨트롤러가 숨는 조건을
+  // 다시 열거하면 다음 서브탭·오버레이에서 같은 구멍이 나므로 마운트 사실을 그대로 보고한다.
+  useEffect(() => {
+    setDeviceViewportIssueMounted(true);
+    return () => setDeviceViewportIssueMounted(false);
+  }, []);
   // 캡처가 인플라이트인 동안은 다른 캡처 버튼을 막는다 — 연타하면 진행 중 캡처가 reset으로 날아간다.
   const captureBusy = scrollProgress !== null || viewportBusy;
 

@@ -4,6 +4,7 @@ import {
   stopNetworkRecorder,
   stopActionRecorder,
   syncAndSettleLogs,
+  resolvePageUrl,
 } from "./picker-control";
 import { pickVideoRecorderMime } from "./lib/video-mime";
 import { generateThumbnail } from "./lib/video-thumbnail";
@@ -128,7 +129,7 @@ function beginRecording(
         useEditorStore.setState({
           target: {
             ...store.target,
-            url: tab.url ?? store.target.url,
+            url: await resolvePageUrl(localTabId, tab.url ?? store.target.url),
             title: tab.title ?? store.target.title,
           },
         });

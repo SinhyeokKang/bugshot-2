@@ -43,6 +43,18 @@ describe("deviceFrameUrl", () => {
     expect(deviceFrameUrl()).toBe("https://a.com/detail");
   });
 
+  // src를 세운 직후~커밋 전까지 contentWindow는 about:blank다. 그걸 주소로 돌려주면
+  // 전이 중에 시작한 캡처가 "about:blank"로 기록되고, 곧 커밋되는 진짜 URL이 세션
+  // 만료 판정에서 다른 페이지로 읽혀 방금 만든 캡처 세션을 지운다.
+  it("아직 커밋 전(about:blank)이면 null", () => {
+    mountDeviceFrame(390, TITLE);
+    Object.defineProperty(frameEl()!, "contentWindow", {
+      configurable: true,
+      value: { location: { href: "about:blank" } },
+    });
+    expect(deviceFrameUrl()).toBeNull();
+  });
+
   // same-origin 불변식이 깨지는 순간(cross-origin으로 밀림)엔 접근이 throw한다.
   it("접근이 throw하면 null로 접는다", () => {
     mountDeviceFrame(390, TITLE);
