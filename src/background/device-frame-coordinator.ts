@@ -484,7 +484,12 @@ export async function applyDeviceSignal(
   ) {
     // 기록 실패로 여기서 throw하면 아래 판정 push가 통째로 사라지고, 패널은 3초를 헛기다린
     // 끝에 차단으로 접어 **정상 로드된 래퍼를 롤백한다**. Map은 이미 갱신됐다.
-    await setDeviceFrame(tabId, next.binding).catch(() => {});
+    // **다만 무음은 아니어야 한다** — 이 SW 수명 동안은 Map으로 버티지만, 기록이 빠진 채
+    // SW가 죽으면 복원이 binding을 못 살려 deviceTree가 비고, sentinel 게이트가 그걸
+    // "모드 OFF"로 읽어 숨은 top 레코더를 되살린다(에러 없이 로그만 2벌이 되는 무증상 고장).
+    await setDeviceFrame(tabId, next.binding).catch((err) => {
+      console.error("[bugshot] device binding persist failed", err);
+    });
   }
   if (!push) return null;
   if (push.type === "handoff") {
@@ -568,9 +573,14 @@ export async function clearDeviceFrame(tabId: number): Promise<void> {
  * 세션 키를 되살리지 않는다. 큐·복원 슬롯 자체도 함께 버려 SW 수명 동안 누적되지 않게 한다.
  */
 export function forgetTab(tabId: number): void {
-  void enqueueForTab(tabId, () => clearDeviceFrame(tabId)).finally(() => {
-    queueByTab.delete(tabId);
-    restoreByTab.delete(tabId);
-    restoredTabs.delete(tabId);
-  });
+  // `enqueueForTab`이 반환하는 promise는 `queueByTab.set`이 이미 핸들러를 붙여 처리된 상태지만,
+  // `.finally()`가 만드는 파생 promise는 새 것이라 거절이 그대로 샌다(탭 종료와 겹친
+  // storage.remove 실패가 SW에 unhandled rejection을 띄운다).
+  void enqueueForTab(tabId, () => clearDeviceFrame(tabId))
+    .finally(() => {
+      queueByTab.delete(tabId);
+      restoreByTab.delete(tabId);
+      restoredTabs.delete(tabId);
+    })
+    .catch(() => {});
 }
