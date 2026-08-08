@@ -627,6 +627,64 @@ describe("전이가 노리는 폭", () => {
   });
 });
 
+describe("재수립 전제 확인 창의 소유권", () => {
+  // 게이트(busy 확인)와 래치(set busy:true) 사이에 await가 있으면 그 창에서 사용자 전이가
+  // 시작돼 전이 2개가 동시에 돈다 — 사용자 조작이 무음 폐기되고, 진 쪽 finally가 이긴 쪽의
+  // busy를 놓아 세 번째 전이까지 열린다.
+  it("전제 확인 중에는 사용자 전이가 시작되지 않는다", async () => {
+    const { controller, mode, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    const gate = deferred();
+    deviceState.mockImplementationOnce(async () => {
+      await gate.promise;
+      return { width: null, available: { width: 1512, height: 900 } };
+    });
+
+    mode.putPending(1, 390);
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+    // 재수립이 전제 확인에 멈춰 있는 동안 busy가 이미 잡혀 있어야 한다.
+    expect(controller.useDeviceViewportStore.getState().busy).toBe(true);
+
+    deviceSet.mockClear();
+    await controller.selectDeviceWidth(768);
+    await flush();
+    expect(deviceSet).not.toHaveBeenCalledWith(1, 768);
+
+    gate.resolve();
+    await flush();
+    detach();
+  });
+
+  // demoteToFull(만료 handoff·미지원)이 내린 width:null을 이 창이 되살리면 안 된다.
+  it("전제 확인 중에 온 강등을 되돌리지 않는다", async () => {
+    const { controller, mode, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    const gate = deferred();
+    deviceState.mockImplementationOnce(async () => {
+      await gate.promise;
+      return { width: 390, available: { width: 1512, height: 900 } };
+    });
+
+    mode.putPending(1, 390);
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+
+    emit(
+      { type: "device.handoff", tabId: 1, url: "https://b.com/", expiresAt: Date.now() - 1 },
+      vi.fn(),
+    );
+    await flush();
+    gate.resolve();
+    await flush();
+    await flush();
+
+    expect(controller.useDeviceViewportStore.getState().width).toBeNull();
+    expect(mode.peekPending(1)).toBeNull();
+    detach();
+  });
+});
+
 describe("이어받기 슬롯 수명", () => {
   // **이어받기가 device.set을 또 보내면 안 되는 경우가 있다.** resize는 arm을 안 하므로 그
   // device.set이 새 top 문서에 래퍼를 만들어버리고, 이어받기가 같은 폭으로 한 번 더 보내면

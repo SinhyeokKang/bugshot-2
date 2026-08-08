@@ -1,4 +1,5 @@
 import type {
+  DeviceSetResponse,
   PageMetrics,
   PickerMessage,
   PrepareCaptureResponse,
@@ -191,16 +192,22 @@ if (!(window as unknown as Record<string, unknown>)[PICKER_FLAG]) {
 // 가용 폭 추적. windows.onBoundsChanged는 창 bounds만 주고 사이드패널 리사이즈에 발화하지
 // 않으며, 폴링도 하지 않는다.
 let deviceResizeHandler: (() => void) | null = null;
+let deviceResizeFrame = 0;
+
+function cancelDeviceResizeFrame(): void {
+  if (!deviceResizeFrame) return;
+  cancelAnimationFrame(deviceResizeFrame);
+  deviceResizeFrame = 0;
+}
 
 function setDeviceWatch(on: boolean): void {
   if (on) {
     if (deviceResizeHandler) return;
     // 창 드래그 리사이즈는 초당 수십 건이다 — rAF로 코얼레싱한다(기존 뷰포트 리스너와 동형).
-    let pending = 0;
     deviceResizeHandler = () => {
-      if (pending) return;
-      pending = requestAnimationFrame(() => {
-        pending = 0;
+      if (deviceResizeFrame) return;
+      deviceResizeFrame = requestAnimationFrame(() => {
+        deviceResizeFrame = 0;
         postToRuntime({ type: "device.availableChanged", available: availableViewport() });
       });
     };
@@ -209,6 +216,8 @@ function setDeviceWatch(on: boolean): void {
   }
   if (!deviceResizeHandler) return;
   window.removeEventListener("resize", deviceResizeHandler);
+  // 예약된 프레임까지 거둔다 — 안 거두면 해제 뒤에 push가 한 번 더 나간다.
+  cancelDeviceResizeFrame();
   deviceResizeHandler = null;
 }
 
@@ -381,10 +390,15 @@ function handlePickerMessage(
         // break로 떨어뜨리면 스위치 밖 sendResponse({ok:true})가 먼저 나가고 두 번째 응답이
         // "message port closed"로 죽는다.
         void (async () => {
+          let answered = false;
+          const answer = (res: DeviceSetResponse) => {
+            answered = true;
+            sendResponse(res);
+          };
           try {
           if (msg.width == null) {
             const had = unmountDeviceFrame();
-            sendResponse({ ok: true, width: null, available: availableViewport() });
+            answer({ ok: true, width: null, available: availableViewport() });
             // 래퍼가 한 번도 안 섰으면 되돌릴 화면이 없다 — 전달 실패 롤백까지 reload를 돌면
             // 정상 페이지의 스크롤·입력값을 이유 없이 날린다.
             if (!had) return;
@@ -396,10 +410,11 @@ function handlePickerMessage(
           }
           mountDeviceFrame(msg.width, msg.title);
           // ok는 "마운트했다"이지 "로드에 성공했다"가 아니다 — XFO/CSP 판정은 background가 한다.
-          sendResponse({ ok: true, width: msg.width, available: availableViewport() });
+          answer({ ok: true, width: msg.width, available: availableViewport() });
           } catch {
             // 응답을 아예 안 보내면 호출부가 "전달 실패"로 읽고 불필요한 롤백을 돈다.
-            sendResponse({ ok: false, width: null, available: availableViewport() });
+            // 단 이미 보냈으면 두 번째는 "message port closed"로 죽으므로 한 번만 보낸다.
+            if (!answered) sendResponse({ ok: false, width: null, available: availableViewport() });
           }
         })();
         return true;

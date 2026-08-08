@@ -76,7 +76,7 @@ export function putPending(tabId: number, width: number): void {
   pendingByTab.set(tabId, width);
 }
 
-/** 비파괴 조회. 소비 없이 상태를 확인하는 유일한 수단이라 테스트 seam으로도 쓴다. */
+/** 비파괴 조회. 프로덕션 소비처는 없고 테스트가 상태를 소비 없이 보는 seam이다. */
 export function peekPending(tabId: number): number | null {
   return pendingByTab.get(tabId) ?? null;
 }
