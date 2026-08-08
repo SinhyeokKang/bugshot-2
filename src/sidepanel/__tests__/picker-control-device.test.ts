@@ -142,12 +142,26 @@ describe("resolvePageUrl", () => {
     await expect(resolvePageUrl(1, "https://a.com/list")).resolves.toBe("https://a.com/list");
   });
 
-  // 헬퍼가 맞아도 호출부가 안 쓰면 무의미한데, 4개 진입점은 전부 chrome.tabs·store·content
+  // 헬퍼가 맞아도 호출부가 안 쓰면 무의미한데, 진입점들은 전부 chrome.tabs·store·content
   // 왕복이 얽힌 브라우저 바운드라 유닛으로 못 돈다 — nav-order-contract와 같은 원문 대조로 잠근다.
-  it("캡처 진입 4곳이 tab.url을 직접 쓰지 않는다", () => {
-    const src = readFileSync(resolve(__dirname, "..", "picker-control.ts"), "utf8");
-    expect(src.match(/resolvePageUrl\(tabId, tab\.url \?\? ""\)/g)).toHaveLength(4);
-    expect(src).not.toMatch(/url: tab\.url \?\? ""/);
+  //
+  // **한 파일만 훑으면 안 된다.** `target.url` 생산자는 picker-control 밖에도 있고, 일부만
+  // 전환하면 같은 진입 화면의 버튼끼리 기록 주소가 갈린다(영역 캡처는 래퍼 주소, 탭 녹화는
+  // top 주소). 소비자(세션 만료·styling 재바인딩)는 슬롯 하나만 보므로 그 불일치가 곧
+  // 오탐 만료가 된다. 생산자 파일 전부를 분모에 둔다.
+  it("target.url 생산자가 전부 resolvePageUrl을 거친다", () => {
+    const PRODUCERS = [
+      "picker-control.ts",
+      "video-capture.ts",
+      "video-recorder.ts",
+      "30s-replay/use-30s-replay.ts",
+    ];
+    for (const rel of PRODUCERS) {
+      const src = readFileSync(resolve(__dirname, "..", rel), "utf8");
+      // `url: tab.url ?? <폴백>`이 생산자 관용구다. `classifyTabSupport({ url: tab.url })`
+      // 같은 지원 판정은 top 주소가 맞으므로 분모에 넣지 않는다(`??`가 없어 자연히 갈린다).
+      expect(src, `${rel}이 tab.url을 그대로 넣는다`).not.toMatch(/url: tab\??\.url \?\?/);
+    }
   });
 });
 

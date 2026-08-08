@@ -218,6 +218,49 @@ describe("handoff 준비 ACK", () => {
     detach();
   });
 
+  // 만료 다이얼로그의 마운트 지점은 `IssueTab`뿐인데, capturing은 콘솔·네트워크 서브탭이
+  // 열려 있는 phase다(hideSubTabs에도 logTabsLocked에도 없다). 서브탭을 켜면 Radix가
+  // IssueTab을 언마운트하므로, phase만 보고 sessionExpired를 켜면 통보가 0건인 채
+  // 플래그만 래치된다 — 내리는 건 reset()뿐이라 세션 저장도 함께 멈춘다.
+  it("IssueTab이 언마운트돼 있으면 capturing이어도 토스트로 통보한다", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(toast.info).mockClear();
+    const { controller, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    phase = "capturing";
+    controller.setDeviceViewportIssueMounted(false);
+
+    emit(
+      { type: "device.handoff", tabId: 1, url: "https://b.com/", expiresAt: Date.now() + 500 },
+      vi.fn(),
+    );
+    await flush();
+
+    expect(toast.info).toHaveBeenCalledWith("issue.device.handoffToast");
+    expect(controller.useDeviceViewportStore.getState().expiredByHandoff).toBe(false);
+    controller.setDeviceViewportIssueMounted(true);
+    detach();
+  });
+
+  it("IssueTab이 마운트돼 있으면 capturing은 다이얼로그로 간다", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(toast.info).mockClear();
+    const { controller, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    phase = "capturing";
+    controller.setDeviceViewportIssueMounted(true);
+
+    emit(
+      { type: "device.handoff", tabId: 1, url: "https://b.com/", expiresAt: Date.now() + 500 },
+      vi.fn(),
+    );
+    await flush();
+
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(controller.useDeviceViewportStore.getState().expiredByHandoff).toBe(true);
+    detach();
+  });
+
   it("ACK 처리 중 예외가 나도 응답을 돌려준다", async () => {
     const { toast } = await import("sonner");
     vi.mocked(toast.info).mockImplementationOnce(() => {

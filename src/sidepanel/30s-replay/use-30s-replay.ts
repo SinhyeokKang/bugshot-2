@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { sendBg } from "@/types/messages";
 import { useEditorStore } from "@/store/editor-store";
-import { getTopViewport, syncAndSettleLogs } from "@/sidepanel/picker-control";
+import { getTopViewport, resolvePageUrl, syncAndSettleLogs } from "@/sidepanel/picker-control";
 import { resolveCaptureViewport } from "@/sidepanel/lib/capture-viewport";
 import { trimByTime, replayLogBounds } from "@/sidepanel/lib/log-merge";
 import { saveNetworkLog, saveConsoleLog, saveActionLog } from "@/store/blob-db";
@@ -156,7 +156,11 @@ export function use30sReplay(
           width: tab.width ?? 0,
           height: tab.height ?? 0,
         });
-        target = { tabId: id, url: tab.url ?? "", title: tab.title ?? "" };
+        target = {
+          tabId: id,
+          url: await resolvePageUrl(id, tab.url ?? ""),
+          title: tab.title ?? "",
+        };
       } catch {
         // 탭 닫힘 — 0 viewport·빈 target으로 진행
       }

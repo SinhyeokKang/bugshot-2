@@ -11,6 +11,7 @@ import { getNetworkLog, getConsoleLog, getActionLog, getVideoBlob, pruneOrphanIn
 import { extractInlineRefs } from "@/sidepanel/lib/resolveInlineImages";
 import { deriveLogsAttach } from "@/sidepanel/hooks/deriveLogsAttach";
 import { toLiteSnapshot } from "@/sidepanel/lib/liteSnapshot";
+import { survivesTopNavigation } from "@/sidepanel/lib/top-nav-survival";
 
 export function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
   let next = {
@@ -235,9 +236,15 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       if (!info.url) return;
       const state = useEditorStore.getState();
       if (state.sessionExpired) return;
-      const prevKey = pageKeyOf(state.target?.url);
-      const newKey = pageKeyOf(info.url);
-      if (!prevKey || prevKey === newKey) return;
+      if (
+        survivesTopNavigation({
+          prevKey: pageKeyOf(state.target?.url),
+          newKey: pageKeyOf(info.url),
+          selectionFrameId: state.selection?.frameId,
+        })
+      ) {
+        return;
+      }
 
       const { phase, captureMode } = state;
 

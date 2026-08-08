@@ -47,7 +47,12 @@ export function deviceFrameUrl(): string | null {
   const el = frameEl();
   if (!el) return null;
   try {
-    return el.contentWindow?.location.href ?? null;
+    const href = el.contentWindow?.location.href;
+    // src를 세운 직후~커밋 전까지는 about:blank다. 그걸 주소로 내보내면 그 창에 시작한 캡처가
+    // "about:blank"로 기록되고, 곧 커밋되는 진짜 URL이 세션 만료 판정에서 다른 페이지로 읽혀
+    // 방금 만든 캡처 세션을 지운다. 호출부는 null을 받아 top 주소로 접는다.
+    if (!href || href === "about:blank") return null;
+    return href;
   } catch {
     // 불변식이 깨진 순간(cross-origin으로 밀림) — background handoff가 곧 접는다.
     return null;

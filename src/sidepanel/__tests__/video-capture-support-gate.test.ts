@@ -35,6 +35,8 @@ vi.mock("../picker-control", () => ({
   activateNetworkRecorder: vi.fn(() => Promise.resolve()),
   activateConsoleRecorder: vi.fn(() => Promise.resolve()),
   activateActionRecorder: vi.fn(() => Promise.resolve()),
+  // 모드 OFF 상당 — 페이지가 알려줄 게 없으면 폴백(top URL)을 그대로 쓴다.
+  resolvePageUrl: vi.fn(async (_tabId: number, fallback: string) => fallback),
 }));
 vi.mock("../recorder-control", () => ({
   clearNetworkRecorder: vi.fn(() => Promise.resolve()),

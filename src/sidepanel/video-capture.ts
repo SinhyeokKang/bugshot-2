@@ -4,6 +4,7 @@ import {
   activateNetworkRecorder,
   activateConsoleRecorder,
   activateActionRecorder,
+  resolvePageUrl,
 } from "./picker-control";
 import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "./recorder-control";
 import { showAnnotation } from "./annotation-control";
@@ -83,7 +84,7 @@ export async function startVideoCapture(
     useEditorStore.getState().startRecording(
       {
         tabId,
-        url: tab.url ?? "",
+        url: await resolvePageUrl(tabId, tab.url ?? ""),
         title: tab.title ?? "",
       },
       "tab",
@@ -137,7 +138,7 @@ export async function startScreenCapture(
     useEditorStore.getState().startRecording(
       {
         tabId,
-        url: tab.url ?? "",
+        url: await resolvePageUrl(tabId, tab.url ?? ""),
         title: tab.title ?? "",
       },
       "screen",
