@@ -11,7 +11,7 @@ Use this skill when the user asks to run the migrated source command `guide-shot
 
 `guide/ko/assets`·`guide/en/assets`의 스크린샷 146장(로케일당 73장)을 **실제 확장을 조작해 다시 찍는** 전용 스킬. 문서 본문은 건드리지 않는다 — 본문은 `/guide`, 이미지는 여기.
 
-촬영 절차·합성 스펙·마스킹 표·함정·진행 상태는 전부 **`docs/features/guide-shots/design.md`가 단일 출처**다. 이 스킬은 그 문서를 로드해 실행하는 손이고, 여기에는 **stale 판정 로직과 런타임 분기**만 둔다.
+촬영 절차·합성 스펙·마스킹 표·함정·진행 상태는 전부 **`guide/SHOOTING.md`가 단일 출처**다. 이 스킬은 그 문서를 로드해 실행하는 손이고, 여기에는 **stale 판정 로직과 런타임 분기**만 둔다.
 
 ## 런타임별 종착점 (가장 먼저 판정)
 
@@ -36,7 +36,7 @@ stale 탐지는 git 메타데이터만 보므로 어느 런타임에서든 돈�
 
 ### 1. 전제 확인
 
-- `docs/features/guide-shots/design.md`를 **먼저 읽는다**(§1 상수·§2 촬영·§3 합성·§4 마스킹·§6 벽·§8 진행 상태).
+- `guide/SHOOTING.md`를 **먼저 읽는다**(§1 상수·§2 촬영·§3 합성·§4 마스킹·§6 벽·§8 진행 상태).
 - Aside 런타임이면 `chrome://extensions`에서 `chrome.developerPrivate.getExtensionsInfo`로 BugShot이 **ENABLED·UNPACKED**이고 `path`가 이 저장소 `dist`인지 확인한다.
 - `dist`가 마지막 커밋보다 오래됐으면 **촬영 전에 `pnpm build`가 필요하다**고 보고하고 멈춘다. 낡은 빌드를 찍으면 새 이미지가 곧바로 stale이 된다.
 
@@ -82,7 +82,7 @@ placeholder   2 : video-record-5(ko,en)
 
 ### 3. 촬영 환경 구성
 
-`design.md` §8 "촬영 환경 재구성 절차"를 그대로 따른다. 세 가지를 빠뜨리면 조용히 깨진다:
+`SHOOTING.md` §8 "촬영 환경 재구성 절차"를 그대로 따른다. 세 가지를 빠뜨리면 조용히 깨진다:
 
 1. 패널을 **별도 팝업 창**으로 뺀다 — 대상 페이지와 같은 윈도우의 탭이면 `captureVisibleTab`이 실패하고 `스냅샷 없음`으로 렌더된다.
 2. 촬영 직전 **`innerWidth`를 검증**한다 — `Emulation.setDeviceMetricsOverride`는 탭 전환마다 조용히 풀린다.
@@ -92,13 +92,13 @@ placeholder   2 : video-record-5(ko,en)
 
 ### 4. 촬영
 
-`design.md` §2·§3 규칙대로 찍는다. 구도는 **패널 높이가 아니라 카드 offset으로** 잡는다(상단 60 / 중간 블리드 / 하단 60, 잘리는 변엔 곡률 0). 캡처 진입 화면과 제출 완료 화면만 패널 높이 600 고정.
+`SHOOTING.md` §2·§3 규칙대로 찍는다. 구도는 **패널 높이가 아니라 카드 offset으로** 잡는다(상단 60 / 중간 블리드 / 하단 60, 잘리는 변엔 곡률 0). 캡처 진입 화면과 제출 완료 화면만 패널 높이 600 고정.
 
 **결과를 바로 레포에 쓰지 않는다.** 스테이징 디렉터리에 모으고, 각 컷을 `display()`로 눈으로 확인한 뒤 반영한다. 좌표 계산만 믿으면 "그럴듯하게 이상한" 이미지가 통과한다.
 
 ### 5. 마스킹 (공개 문서 전제)
 
-가이드는 `bug-shot.com/{locale}/docs`로 공개 서빙된다. `design.md` §4 마스킹 표를 **촬영 직전 DOM 텍스트 노드에** 적용한다. 새 화면에서 회사·개인 식별 문자열이 보이면 표에 추가하고 문서도 갱신한다.
+가이드는 `bug-shot.com/{locale}/docs`로 공개 서빙된다. `SHOOTING.md` §4 마스킹 표를 **촬영 직전 DOM 텍스트 노드에** 적용한다. 새 화면에서 회사·개인 식별 문자열이 보이면 표에 추가하고 문서도 갱신한다.
 
 영상·이미지 **픽셀 안의** 문자열은 마스킹이 불가능하다. 그런 컷은 다른 소스로 다시 만들거나 프레임을 바꿔 피한다.
 
@@ -106,11 +106,11 @@ placeholder   2 : video-record-5(ko,en)
 
 - `guide/{ko,en}/assets/`에 복사한다. **ko/en 파일 트리는 항상 대칭**이어야 한다(`AUTHORING.md` §8).
 - 커밋 prefix는 **`docs(guide): …`**. 무엇을 왜 다시 찍었는지 본문에 남긴다.
-- `design.md` §8 진행 상태를 갱신한다. 새로 발견한 함정은 "남은 잔여 이슈"에 추가한다 — **기록하지 않으면 다음 세션이 같은 곳에서 막힌다.**
+- `SHOOTING.md` §8 진행 상태를 갱신한다. 새로 발견한 함정은 "남은 잔여 이슈"에 추가한다 — **기록하지 않으면 다음 세션이 같은 곳에서 막힌다.**
 
 ## 알려진 벽
 
-`design.md` §6이 단일 출처. 요약하면:
+`SHOOTING.md` §6이 단일 출처. 요약하면:
 
 - **녹화 계열 전체**(`video-record-2~5`·`video-replay-3`·`video-issue-*`) — `tabCapture`·30초 리플레이·`getDisplayMedia` 모두 실제 user gesture를 요구해 합성 클릭으로 시작되지 않는다. **수동 촬영 전용**이니 stale로 잡혀도 자동 촬영을 시도하지 말고 리포트에만 남긴다.
 - **AI 배너 컷** — Chrome 내장 AI가 `available`이 아니면 배너 자체가 안 뜬다. BYOK 키를 꽂으면 즉시 가능하지만 배지에 프로바이더명이 노출된다.

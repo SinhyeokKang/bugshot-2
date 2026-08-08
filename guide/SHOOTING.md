@@ -1,6 +1,10 @@
-# guide-shots (가이드 에셋 자동 캡처)
+# 스크린샷 촬영 매뉴얼 (SHOOTING)
 
-`guide/{ko,en}/assets`의 스크린샷 146장(로케일당 73장, `readme-1` 제외)을 손으로 찍던 것을 Aside 세션으로 자동화한다. **코드를 만들지 않는 기능이다** — 실행체는 Aside 세션의 REPL(Playwright `page` + 저수준 CDP `page._sendToTarget`)이고 `manual-smoke`와 같은 배관이다. 새 의존성·새 권한·새 스크립트 0개.
+`guide/ko/assets`·`guide/en/assets`의 스크린샷을 **찍거나 다시 찍을 때 이 문서를 먼저 읽는다.** 촬영 환경·합성 스펙·마스킹·함정·진행 상태까지 이미지 작업에 필요한 모든 규칙이 여기 있다. 문서 본문 규칙은 [AUTHORING.md](./AUTHORING.md)가, 이미지는 이 파일이 단일 출처다.
+
+> 이 파일은 `guide/` 루트(ko/en 상위)에 있어 **docs-portal 서빙 대상이 아니다** — 레포에만 남는 내부 문서다. `AUTHORING.md`와 같은 위치·같은 성격이고, `docs/features/`(구현 후 삭제되는 백로그)에 두지 않는 이유도 그것이다.
+
+대상은 146장(로케일당 73장, `readme-1` 제외). 실행체는 **Aside 세션의 REPL**(Playwright `page` + 저수준 CDP `page._sendToTarget`)이고 `manual-smoke`와 같은 배관이다. 새 의존성·새 권한·새 스크립트 0개.
 
 > 왜 e2e 하네스가 아닌가: `dist-e2e`를 로드한 별도 Playwright 인스턴스는 **연동이 비어 있어** 전부 목킹해야 한다. Aside 브라우저에는 이미 BugShot이 UNPACKED(`/Users/.../bugshot-2/dist`)로 설치돼 있고 실제 연동이 살아 있어 "실제 사용 중인 화면"이 그대로 나온다. 또한 이 세션의 Bash 샌드박스는 Chrome 프로세스 기동 자체가 막혀 있어(crashpad mach bootstrap 거부 → SIGABRT) 별도 인스턴스는 애초에 못 띄운다.
 
@@ -133,7 +137,7 @@ BugShot 자신의 공개 저장소명(`bugshot-web` 등)은 치환하지 않는�
 - **커서 화살표** — 기존 참조 일부(`settings-issue-2/3`, `element-picker-1`, `quick-start-1`)에는 인터랙션 지점을 가리키는 커서 그래픽이 얹혀 있다. 합성 단계에서 SVG로 덧그릴 수 있다(미구현).
 - **드롭다운은 열어서 찍는다** — 참조 `settings-general-1`은 언어 콤보박스가 열린 상태다. 인터랙션이 주제인 컷은 해당 컨트롤을 열어 둔다.
 
-## 7. 재개 방법
+## 7. 재개 방법 (세션 시작 시)
 
 Aside 세션에서:
 

@@ -205,7 +205,7 @@ bug-shot.com 랜딩 기준. **친절하고 캐주얼하게.** ko/en은 같은 �
 
 - **비표준 확장 문법(`{% hint %}` 등) 미사용.** 주의/경고/선행조건은 plain 인용구(`>`)로.
   - **예외**: 외부 사이트 OG 카드용 `{% embed url="..." %}`만 허용한다. 현재 사용처는 ko/en `README.md` 도입부의 **Chrome 웹스토어 설치 페이지**(`chromewebstore.google.com/detail/bugshot/<id>`) 카드 1곳 — 최초 유입자에게 설치 CTA를 카드 UI로 노출하기 위함. (과거엔 `https://bug-shot.com` 랜딩 카드였으나, 가이드가 bug-shot.com에 올라가면 자기참조라 웹스토어 설치 링크로 교체함.) 그 외 hint·tabs 등은 계속 금지.
-- **이미지**: 모든 스크린샷 자리에 placeholder + 의미 있는 alt/캡션.
+- **이미지**: 모든 스크린샷 자리에 placeholder + 의미 있는 alt/캡션. **실제 촬영·재촬영은 [SHOOTING.md](./SHOOTING.md)가 단일 출처**이고 `/guide-shots` 스킬이 그걸 로드해 실행한다 — 이 문서는 "어느 자리에 무슨 이미지가 오는가"까지만 정한다.
   - **파일명은 페이지 경로 기반**: 경로 세그먼트를 `-`로 잇고(소문자, `README`→`readme`) 끝에 페이지 내 순번. 예: `element/issue.md`의 3번째 → `element-issue-3.jpg`, `integrations/issue-tracking.md`의 1번째 → `integrations-issue-tracking-1.jpg`. (과거 `<섹션>.<페이지>.<N>` 번호식·단일 `dummy.jpg` 공유 방식에서 전환함.)
   - 경로 깊이를 페이지 위치에 맞춘다: 루트 페이지(`README.md`, `quick-start.md`)는 `![설명](assets/readme-1.jpg)`, 1단계 하위(`integrations/*.md` 등)는 `![설명](../assets/integrations-platforms-1.jpg)`.
   - 캡션은 "여기엔 무슨 스크린샷"인지 사용자가 나중에 교체할 수 있게 구체적으로.
