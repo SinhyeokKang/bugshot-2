@@ -335,7 +335,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 | `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:15` — idle 상태 origin 비교 fallback. `chrome://` 등 `tab.url`을 못 읽는 탭에서는 **기록되지 않고**, 그 부재가 `deactivatePanelIfCrossOrigin`의 조기 return으로 이어져 패널이 유지된다 |
 | `editor:{tabId}` | `EditorSnapshot` 전체 에디터 상태 | `useEditorSessionSync.ts` — 300ms 디바운스 저장·수화 |
 | `pendingPrunedAt` | `number` (timestamp) | `pending-log-prune.ts:93` — 브라우저 세션당 1회 정리 가드 |
-| `deviceFrame:{tabId}` | `DeviceFrameBinding` (`frameId` + `documentId`) | `device-frame-coordinator.ts` — 디바이스 뷰포트 래퍼의 권위 바인딩. SW 하이버네이션 후 복원에 쓰이고, top 문서가 갈리면 즉시 제거한다(남기면 다음 판정이 유령 frameId를 래퍼로 취급해, sentinel 게이트가 죽은 문서로 좁혀지며 로그가 통째로 사라진다). **폭·URL·활성 여부는 저장하지 않는다** — 모드의 단일 출처는 페이지 DOM이다 |
+| `deviceFrame:{tabId}` | `DeviceFrameRecord` (`frameId` + `documentId` + `topUrl`) | `device-frame-coordinator.ts` — 디바이스 뷰포트 래퍼의 권위 바인딩. SW 하이버네이션 후 복원에 쓰이고, top 문서가 갈리면 즉시 제거한다(남기면 다음 판정이 유령 frameId를 래퍼로 취급해, sentinel 게이트가 죽은 문서로 좁혀지며 로그가 통째로 사라진다). **`topUrl`은 그 탭의 top 문서 주소**이고 same-origin 판정 기준이라 binding과 같은 레코드에 실린다 — 안 실으면 복원 뒤 `isSameOrigin(url, "")`이 항상 false가 되어 래퍼의 첫 same-origin 이동이 handoff로 오판된다. **폭·활성 여부는 저장하지 않는다** — 모드의 단일 출처는 페이지 DOM이다 |
 
 ### chrome.storage.local (브라우저 재시작 후에도 유지)
 

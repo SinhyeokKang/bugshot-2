@@ -32,7 +32,7 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
 | `src/sidepanel/device-viewport-controller.ts` | 전이 오케스트레이션·push 수신·소유권 토큰. 패널 루트가 attach/detach |
 | `src/sidepanel/components/DeviceViewportBar.tsx` | 세그먼티드 컨트롤 UI |
 | `src/sidepanel/hooks/useDeviceViewport.ts` | 컨트롤러 스토어 구독 + 가용 폭 watch 수명. 전이 자체는 컨트롤러가 소유한다 |
-| `src/content/__tests__/device-frame.test.ts` | jsdom — 스타일 주입·복원 왕복 |
+| `src/content/__tests__/device-frame-dom.test.tsx` | jsdom — 스타일 주입·복원 왕복 (node 트랙 `device-frame.test.ts`는 `clampToDeviceFrame` 전담) |
 | `src/sidepanel/lib/__tests__/device-presets.test.ts` | node — 가용 폭 판정 |
 | `src/sidepanel/components/__tests__/DeviceViewportBar.test.tsx` | jsdom — 잠금·비활성 조건 |
 | `src/background/__tests__/device-frame-coordinator.test.ts` | node — binding 순서 큐, 계보 판정, `isTopLikeFrame` 모드 OFF 동치 |
@@ -51,7 +51,7 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
 | `src/sidepanel/picker-control.ts:811-824` | `getTopViewport`가 top `innerWidth/innerHeight` 반환 | 주입 함수가 래퍼를 먼저 찾도록 교체. 시그니처·기존 호출부 3개 무변경 |
 | `src/sidepanel/video-recorder.ts:111-117` | `chrome.tabs.get()`의 `tab.width/height`로 viewport 메타 | `getTopViewport(tabId)`로 교체 |
 | `src/sidepanel/30s-replay/use-30s-replay.ts:153` | 동일 | 동일 |
-| `src/sidepanel/recorder-control.ts` | clear 3종 (`:13-21`, frameId 미지정 broadcast) | `activateRecordersInDeviceTree` 신설 — document 지정 stop/start ACK |
+| `src/sidepanel/picker-control.ts` (레코더 제어부) | clear 3종 (`:13-21`, frameId 미지정 broadcast) | `activateRecordersInDeviceTree` 신설 — document 지정 stop/start ACK |
 | `src/sidepanel/picker-control.ts:709-755` | `activate*Recorder` 3종이 `sendAll` broadcast로 sentinel 발행 | **sentinel 발행 경로 전체에 서브트리 게이트.** 아래 "sentinel 발행 경로 단일 게이트" 절 — 여기를 안 막으면 로그 2벌이 되살아난다 |
 | `src/sidepanel/picker-control.ts:173-182` | `rebroadcastSentinelsToFrame(tabId, frameId)` — 커밋된 프레임에 무조건 재발행 | 같은 게이트를 통과시킨다. 모드 ON에서 래퍼 서브트리 밖 프레임이면 발행하지 않는다 |
 | `src/sidepanel/hooks/useBackgroundRecorder.ts:104`·`:113-118`·`:141-144` | `inject()`가 visibilitychange·`status==="complete"`·idle 복귀마다 activate 3종 재호출 | 호출부는 무변경. 위 게이트가 하류에서 흡수한다 — 호출 트리거를 하나씩 막는 방식은 새 트리거가 생길 때마다 샌다 |
@@ -64,7 +64,7 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
 | `src/sidepanel/tabs/IssueTab.tsx:705-726` | `SessionExpiredDialog` — body가 `issue.sessionExpired.body` 고정 | handoff로 뜬 경우 body만 디바이스 모드 문구로 분기. 컴포넌트·`sessionExpired` 플래그·`onConfirm={() => reset()}`은 무변경 |
 | `src/sidepanel/App.tsx:362-376` | `iframeUnsupported` 다이얼로그(`:367`이 body) | 모드 ON이면 body 문구를 `app.iframeUnsupported.bodyDeviceMode`로 교체 |
 | `src/background/index.ts:120`·`:123`·`:145-186` | `onBeforeNavigate`/`onCommitted`의 frameId 게이트 + `navUrlPromise` | 아래 "래퍼 내부 same-origin 네비게이션" 절 — 두 분기를 모두 태우고 `navUrlPromise` 키를 `tabId:frameId`로 |
-| `src/background/tab-bindings.ts` | — | frameId/documentId binding의 session 보존·복구 + parent 계보 조회 + document 열거 |
+| `src/background/device-frame-coordinator.ts` (신규) | — | frameId/documentId binding의 session 보존·복구 + 계보 조회 + document 열거. `tab-bindings.ts`는 탭 정리 훅만 얹는다 |
 | `src/types/messages.ts`·`bgRequestTypes.ts` | `BgRequest` union + `BG_REQUEST_TYPES` 화이트리스트 | `device.arm`·`device.documents` 2종을 화이트리스트에 등록. **`device.frameReady`는 이 게이트를 통과 못 하고** 전용 push 리스너로 받는다 — 아래 절 참조. background→사이드패널 push `device.frameLoaded`/`device.frameBlocked`/`device.handoff` 3종도 추가 |
 | `src/types/picker.ts` | `PickerMessage` union | `device.*` 메시지 **5종** 추가(수신 3 + push 2 — `frameLoadEvent`는 폐기했다) |
 | `src/store/settings-ui-store.ts` | persist **version 9**(`:242`), `migrateSettingsUi`(`:131-151`) | `deviceModeWarned: boolean` 추가 + 기본값 `false` 등록 + version 10 bump. 최초 ON 1회 경고의 영속 슬롯이다 |
@@ -370,7 +370,7 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
 
 **루프 가드는 handoff가 아니라 재수립을 센다.** handoff 횟수만 세면 `a.com → b.com → a.com` 핑퐁은 잡지만 **frame-busting은 못 잡는다** — 래퍼가 `window.top.location = self.location`으로 탈출하면 handoff를 거치지 않고 top이 곧장 커밋되고, 재수립된 래퍼가 또 탈출해 무한 재로드가 된다(위험 5). 카운터를 `reestablish` 호출에 걸면 두 경로가 한 그물에 들어온다.
 
-**연속 재수립 2회 초과 또는 직전 재수립 URL 재방문**이면 루프로 보고 다이얼로그를 띄우며, [확인]에서 모드를 해제하고 이슈 idle로 되돌린다. 리셋 조건은 둘이다 — 사용자의 명시적 세그먼트 조작, 그리고 재수립 성공 후 top 커밋 없이 10초 경과(정상 사용에서 카운터가 누적되지 않게).
+**연속 재수립 2회 초과**면 루프로 보고 다이얼로그를 띄우며(초기안의 "직전 재수립 URL 재방문" 축은 폐기했다 — 10초 안의 평범한 재새로고침 두 번이 그 술어에 걸려 작성 중 draft가 파기됐고, 임계와 함께 걸도록 좁히면 횟수 조건과 결과가 완전히 겹쳐 죽은 항이 된다. a→b→a 핑퐁도 매 재수립이 카운터를 올려 같은 3회째에 잡힌다), [확인]에서 모드를 해제하고 이슈 idle로 되돌린다. 리셋 조건은 둘이다 — 사용자의 명시적 세그먼트 조작, 그리고 재수립 성공 후 top 커밋 없이 10초 경과(정상 사용에서 카운터가 누적되지 않게).
 
 **세션 만료는 기존 경로를 재사용한다.** `expireStylingSession`(`picker-control.ts:459`)이 쓰는 `sessionExpired` 플래그와 `SessionExpiredDialog`(`IssueTab.tsx:705-726` — 취소 없는 단일 [확인], `onConfirm={() => reset()}`)를 그대로 쓰고 **body 문구만 디바이스 모드용으로 분기**한다(i18n 키 2개, `App.tsx`의 2-depth 문구 분기와 같은 방식). phase 판정 없이 무조건 켜도 된다 — 렌더 분기가 capturing·drafting·SelectedPanel 셋뿐이라 idle에서는 안 뜨고, 다음 세션 시작 때 `reset()`이 내린다.
 

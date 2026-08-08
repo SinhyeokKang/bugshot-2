@@ -425,7 +425,7 @@ describe("splitTabDocuments", () => {
     const res = splitTabDocuments(
       [{ frameId: 0, parentFrameId: -1, documentId: "top", url }],
       { frameId: 7, documentId: "wrap" },
-      { armed: true },
+      { recentBinding: true },
     );
     expect(res.deviceTree).toEqual(["wrap"]);
   });
@@ -442,7 +442,7 @@ describe("splitTabDocuments", () => {
   });
 
   it("열거에 이미 있으면 중복으로 넣지 않는다", () => {
-    const res = splitTabDocuments(frames, { frameId: 7, documentId: "wrap" }, { armed: true });
+    const res = splitTabDocuments(frames, { frameId: 7, documentId: "wrap" }, { recentBinding: true });
     expect(res.deviceTree.filter((d) => d === "wrap")).toHaveLength(1);
   });
 
@@ -504,6 +504,38 @@ describe("SW 재기동 복원", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  // 사이드패널은 열거 실패를 null로 구분해 fail-closed한다 — 유일한 열거원이 그걸 빈 배열로
+  // 접으면 "모드 OFF"로 읽혀 broadcast가 나가고, 숨겨진 top 레코더가 되살아나 로그가 2벌이 된다.
+  // 열거 지연 폴백의 게이트가 `armed`였는데, 판정 성공 분기가 binding과 함께 armed를 false로
+  // 떨어뜨리고 패널도 arm(false) 뒤에 열거를 부르므로 그 조건이 실행 경로에서 절대 참이 아니었다.
+  // 게이트는 "방금 확정한 binding"이어야 한다 — 그 창에 걸리면 deviceTree가 비어 stop이 안 나가고
+  // 숨겨진 top 레코더가 살아남아 로그가 2벌로 굳는다(무증상).
+  it("binding 확정 직후면 열거가 래퍼를 아직 안 실어도 deviceTree에 넣는다", async () => {
+    const mod = await import("../device-frame-coordinator");
+    await mod.setDeviceFrame(1, { frameId: 7, documentId: "wrap" });
+    Object.assign(chrome, {
+      webNavigation: {
+        getAllFrames: vi.fn(async () => [
+          { frameId: 0, parentFrameId: -1, documentId: "top", url: TOP },
+        ]),
+      },
+    });
+    const res = await mod.listTabDocuments(1);
+    expect(res.deviceTree).toEqual(["wrap"]);
+  });
+
+  it("getAllFrames가 실패하면 빈 열거로 접지 않고 실패로 올린다", async () => {
+    const mod = await import("../device-frame-coordinator");
+    Object.assign(chrome, {
+      webNavigation: {
+        getAllFrames: vi.fn(async () => {
+          throw new Error("no host permission");
+        }),
+      },
+    });
+    await expect(mod.listTabDocuments(1)).rejects.toThrow();
   });
 
   it("setDeviceFrame이 storage.session에 권위값을 보존한다", async () => {

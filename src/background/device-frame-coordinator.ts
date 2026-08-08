@@ -203,7 +203,7 @@ export function isTopLikeFrame(
 export function splitTabDocuments(
   frames: Array<{ frameId: number; parentFrameId: number; documentId?: string; url?: string }>,
   binding: DeviceFrameBinding | null,
-  opts: { armed?: boolean } = {},
+  opts: { recentBinding?: boolean } = {},
 ): DeviceDocumentsResponse {
   // 래퍼 자신은 URL 판정에서 면제한다 — 커밋 직후의 getAllFrames가 아직 about:blank를
   // 보고하는 창이 있고, 거기서 떨어뜨리면 deviceTree가 비어 활성화가 실패하며 정상 로드된
@@ -237,12 +237,15 @@ export function splitTabDocuments(
   // 안 일어난다"). binding의 documentId는 커밋·frameReady에서 이미 받은 값이라 그 창에서는
   // 열거를 기다릴 이유가 없다.
   //
-  // **단 진입 감시창(armed) 안에서만이다.** 창 밖에서까지 무조건 넣으면, 페이지 JS가 래퍼를
-  // 지웠는데 top 커밋이 없는 경우(binding은 top 커밋에서만 소거된다) 게이트가 영구히 "모드 ON"
-  // 으로 굳어 죽은 documentId로만 발행한다 = 탭 세션 내내 로그 전면 공백. 창 밖에서는
-  // deviceTree가 비면서 기존 broadcast 폴백으로 자가복구되는 쪽이 맞다.
+  // **단 binding을 방금 확정한 창 안에서만이다.** 무기한 넣으면, 페이지 JS가 래퍼를 지웠는데
+  // top 커밋이 없는 경우(binding은 top 커밋에서만 소거된다) 게이트가 영구히 "모드 ON"으로 굳어
+  // 죽은 documentId로만 발행한다 = 탭 세션 내내 로그 전면 공백. 창 밖에서는 deviceTree가
+  // 비면서 기존 broadcast 폴백으로 자가복구되는 쪽이 맞다.
+  //
+  // 게이트가 `armed`가 아닌 이유: 판정 성공 분기가 binding과 **같은 전이에서** armed를 false로
+  // 떨어뜨리고, 패널도 `arm(false)` 뒤에 열거를 부른다 — 그 조건은 실행 경로에서 참이 될 수 없다.
   const enumerated = frames.some((f) => f.frameId === binding.frameId);
-  if (!enumerated && opts.armed && !deviceTree.includes(binding.documentId)) {
+  if (!enumerated && opts.recentBinding && !deviceTree.includes(binding.documentId)) {
     deviceTree.unshift(binding.documentId);
   }
   return { all, deviceTree };
@@ -254,6 +257,8 @@ const bindingByTab = new Map<number, DeviceFrameBinding>();
 const armedByTab = new Map<number, { armed: boolean; provisionalFrameId: number | null; topUrl: string }>();
 const restoreByTab = new Map<number, Promise<void>>();
 const restoredTabs = new Set<number>();
+/** binding을 확정한 시각. 커밋 직후 getAllFrames가 래퍼를 아직 안 싣는 창을 덮는 데만 쓴다. */
+const bindingConfirmedAt = new Map<number, number>();
 const queueByTab = new Map<number, Promise<unknown>>();
 const armTimers = new Map<number, ReturnType<typeof setTimeout>>();
 // navUrlPromise를 tabId:frameId로 넓히면서 래퍼의 prev URL은 tabs.get이 아니라 직전
@@ -323,6 +328,7 @@ export async function setDeviceFrame(
   restoredTabs.add(tabId);
   if (binding) {
     bindingByTab.set(tabId, binding);
+    bindingConfirmedAt.set(tabId, Date.now());
     const record: DeviceFrameRecord = { ...binding, topUrl: armSlot(tabId).topUrl };
     await chrome.storage.session.set({ [deviceFrameKey(tabId)]: record });
     return;
@@ -331,6 +337,7 @@ export async function setDeviceFrame(
   // navigation 라우팅이 그리로 샌다. storage에 남은 stale은 다음 top 커밋의 clearDeviceFrame이
   // 지우고, 그전에 SW가 죽어 되살아나도 같은 지점이 회수한다.
   bindingByTab.delete(tabId);
+  bindingConfirmedAt.delete(tabId);
   await chrome.storage.session.remove(deviceFrameKey(tabId));
 }
 
@@ -479,13 +486,12 @@ export function armDeviceFrame(tabId: number, on: boolean, topUrl: string): void
 /** device.documents의 구현. sentinel 게이트의 유일한 문서 열거원이다. */
 export async function listTabDocuments(tabId: number): Promise<DeviceDocumentsResponse> {
   return enqueueForTab(tabId, async () => {
-    let frames: chrome.webNavigation.GetAllFrameResultDetails[] | null = null;
-    try {
-      frames = await chrome.webNavigation.getAllFrames({ tabId });
-    } catch {
-      frames = null;
-    }
-    if (!frames) return { all: [], deviceTree: [] };
+    // **실패를 빈 열거로 접지 않는다.** 사이드패널은 열거 실패를 `null`로 구분해 fail-closed
+    // 하도록 설계돼 있는데(`picker-control.ts:fetchDeviceTree`), 유일한 열거원이 `[]`로 답하면
+    // "모드 OFF"로 읽혀 sentinel이 broadcast되고 숨겨진 top 레코더가 되살아난다(로그 2벌,
+    // 무증상). throw해야 `sendBg`가 거절돼 그 null 경로를 탄다.
+    const frames = await chrome.webNavigation.getAllFrames({ tabId });
+    if (!frames) throw new Error("device.documents: frame enumeration unavailable");
     return splitTabDocuments(
       frames.map((f) => ({
         frameId: f.frameId,
@@ -494,7 +500,7 @@ export async function listTabDocuments(tabId: number): Promise<DeviceDocumentsRe
         url: f.url,
       })),
       getDeviceFrame(tabId),
-      { armed: armSlot(tabId).armed },
+      { recentBinding: Date.now() - (bindingConfirmedAt.get(tabId) ?? 0) < ARM_WINDOW_MS },
     );
   });
 }

@@ -86,10 +86,17 @@ export function mountDeviceFrame(width: number, title: string): void {
   frame.style.width = `${width}px`;
 }
 
-/** 래퍼·스타일을 제거한다. 멱등. */
-export function unmountDeviceFrame(): void {
-  frameEl()?.remove();
-  document.getElementById(DEVICE_STYLE_ID)?.remove();
+/**
+ * 래퍼·스타일을 제거한다. 멱등. **되돌릴 게 있었는지를 돌려준다** — OFF는 unmount + reload인데,
+ * 래퍼가 한 번도 안 선 페이지(전달 실패 롤백)까지 reload하면 정상 페이지의 스크롤·입력값을
+ * 이유 없이 날린다.
+ */
+export function unmountDeviceFrame(): boolean {
+  const frame = frameEl();
+  const style = document.getElementById(DEVICE_STYLE_ID);
+  frame?.remove();
+  style?.remove();
+  return frame != null || style != null;
 }
 
 /** 드래그 rect를 래퍼 영역 안으로 클램핑. 래퍼가 없으면 rect 그대로. */
