@@ -5,7 +5,7 @@
 - **착수 전 `docs/POSTMORTEM.md`를 `picker`·`오버레이`·`Kbd`로 grep** — 특히 2026-07-18(`Kbd`에 `truncate`/`justify-center` 함정)·2026-07-20(mono 통일이 `Kbd` base에 가려진 칩을 빠뜨림)을 읽는다.
 - **`e2e/GOTCHAS.md`를 읽는다** — picker 관련 spec은 재arm 레이스가 있어 `pickElement` 헬퍼가 클릭을 재시도한다.
 - 권한·env·의존성 변경 **없음**.
-- 다른 두 기능(`css-cascade-fidelity`·`ua-default-baseline`)과 **완전 독립**이다. `css-resolve.ts`를 공유하지만 건드리는 함수가 다르다(이쪽은 `collectInspectorInfo` 계열, 저쪽은 `collectRulesForElement`·`selectorSpecificity`).
+- 같은 조사에서 나온 다른 두 기획(`css-cascade-fidelity`·`ua-default-baseline`)은 드랍됐다(`docs/features/DROPPED.md`). 이 기능은 그 둘과 **완전 독립**이라 영향을 받지 않는다 — `css-resolve.ts`를 공유하지만 건드리는 함수가 다르다(이쪽은 `collectInspectorInfo` 계열, 저쪽은 `collectRulesForElement`·`selectorSpecificity`).
 
 ---
 
