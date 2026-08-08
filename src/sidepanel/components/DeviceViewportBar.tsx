@@ -29,21 +29,10 @@ import {
 } from "@/sidepanel/device-viewport-controller";
 import { DEVICE_PRESETS, isPresetAvailable } from "@/sidepanel/lib/device-presets";
 import { blurActiveElement } from "@/sidepanel/lib/blurActiveElement";
+import { gridColsFor } from "@/sidepanel/lib/grid-cols";
 import { LOCKED_CLASS } from "@/sidepanel/lib/locked-class";
 
 const FULL = "full";
-
-// Tailwind는 클래스명을 정적으로 스캔하므로 템플릿 리터럴로 만들면 purge된다.
-const GRID_COLS: Record<number, string> = {
-  2: "grid-cols-2",
-  3: "grid-cols-3",
-  4: "grid-cols-4",
-  5: "grid-cols-5",
-  6: "grid-cols-6",
-};
-
-// 표 밖이면 클래스가 통째로 빠져 1열로 무너진다 — 그럴 바엔 현재 열 수로 접는다.
-const gridColsFor = (n: number) => GRID_COLS[n] ?? GRID_COLS[4];
 
 /**
  * 뷰포트 폭 세그먼티드 컨트롤.
@@ -176,12 +165,15 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
                 ),
               )}
             </CollapsingTabsList>
-            {/* XFO 사이트는 롤백까지 최대 3초라 무피드백 구간이 생긴다. 노드는 상시 두고
-                텍스트만 갈아끼운다 — 리전과 내용이 동시에 생기면 낭독을 놓치는 AT가 있다. */}
-            <span role="status" className="sr-only">
-              {busy ? t("issue.device.status.switching") : ""}
-            </span>
           </div>
+          {/* XFO 사이트는 롤백까지 최대 3초라 무피드백 구간이 생긴다. 노드는 상시 두고
+              텍스트만 갈아끼운다 — 리전과 내용이 동시에 생기면 낭독을 놓치는 AT가 있다.
+              **`aria-busy` 컨테이너 밖에 둔다** — `aria-busy=true`는 그 서브트리의 변경 통지를
+              완료까지 보류하라는 신호라, 안에 두면 채워지는 순간과 비워지는 순간이 모두
+              보류 구간에 들어가 통지할 창이 남지 않는다. */}
+          <span role="status" className="sr-only">
+            {busy ? t("issue.device.status.switching") : ""}
+          </span>
         </Tabs>
       </TooltipProvider>
 

@@ -17,7 +17,7 @@ let hookState: {
   availableWidth: number | null;
   locked: boolean;
   busy: boolean;
-  busyWidth?: number | null;
+  busyWidth: number | null;
 };
 let unsupported = false;
 
@@ -105,7 +105,10 @@ describe("DeviceViewportBar — 잠금·busy", () => {
     const bar = screen.getByTestId("device-viewport-bar");
     expect(bar.getAttribute("aria-busy")).toBe("true");
     // XFO 사이트는 롤백까지 최대 3초라 무피드백 구간이 생긴다.
-    expect(screen.getByRole("status").textContent).toContain("issue.device.status.switching");
+    const status = screen.getByRole("status");
+    expect(status.textContent).toContain("issue.device.status.switching");
+    // aria-busy 서브트리 안이면 그 변경 통지가 완료까지 보류돼 낭독할 창이 안 남는다.
+    expect(status.closest("[aria-busy]")).toBeNull();
     for (const id of ["full", 390, 768, 1024] as const) {
       expect(seg(id).getAttribute("aria-disabled")).toBe("true");
     }

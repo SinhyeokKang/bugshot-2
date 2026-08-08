@@ -19,13 +19,14 @@ const activateRecordersInDeviceTree = vi.fn<() => Promise<"ok" | "startFailed" |
 );
 const fetchDeviceTree = vi.fn<() => Promise<string[] | null>>(async () => []);
 const sendBg = vi.fn(async (..._args: unknown[]) => ({ ok: true }));
+const deviceWatch = vi.fn(async (_tabId: number, _on: boolean) => {});
 
 vi.mock("@/i18n", () => ({ t: (key: string) => key }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn(), warning: vi.fn() } }));
 vi.mock("../picker-control", () => ({
   deviceSet: (tabId: number, width: number | null) => deviceSet(tabId, width),
   deviceState: () => deviceState(),
-  deviceWatch: vi.fn(async () => {}),
+  deviceWatch: (tabId: number, on: boolean) => deviceWatch(tabId, on),
   activateRecordersInDeviceTree: () => activateRecordersInDeviceTree(),
   fetchDeviceTree: () => fetchDeviceTree(),
   restartPickerInFrame: vi.fn(async () => {}),
@@ -523,6 +524,84 @@ describe("busy 거부 이어받기", () => {
   });
 });
 
+describe("가용 폭 구독", () => {
+  // 리스너는 top 문서에 붙는데 deviceWatch는 refcount 0→1에서만 나간다 — top이 갈리면
+  // 재전송 지점이 없어 그 패널 세션 내내 availableWidth가 고정된다.
+  it("top 커밋마다 구독을 다시 건다", async () => {
+    const { controller, detach } = await setup();
+    const release = controller.watchAvailableWidth(1);
+    await flush();
+    deviceWatch.mockClear();
+
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+
+    expect(deviceWatch).toHaveBeenCalledWith(1, true);
+    release();
+    detach();
+  });
+
+  // 두 호출이 겹치면 각자 ensureContentScript를 앞세워 true가 false보다 늦게 도착할 수 있다 —
+  // 그러면 해제 지점이 사라져 페이지에 resize 리스너가 남는다. 보낼 값은 체인 안에서 읽는다.
+  it("구독자가 없어진 뒤의 재발사는 off로 나간다", async () => {
+    const { controller, detach } = await setup();
+    const release = controller.watchAvailableWidth(1);
+    await flush();
+    deviceWatch.mockClear();
+
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    release();
+    await flush();
+
+    expect(deviceWatch.mock.calls.at(-1)).toEqual([1, false]);
+    detach();
+  });
+});
+
+describe("전이가 노리는 폭", () => {
+  // Bar 테스트는 훅을 통째로 mock해 busyWidth를 주입하므로 생산자를 고정하지 못한다.
+  // 생산자에서 빠지면 spinnerKey가 FULL로 접혀 390→768에서 스피너가 `전체`에 뜬다.
+  it("resize 중에는 가려는 폭이 busyWidth에 실린다", async () => {
+    const { controller, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    const gate = deferred();
+    deviceSet.mockImplementationOnce(async (_tabId, width) => {
+      await gate.promise;
+      return { ok: true, width, available: { width: 1512, height: 900 } };
+    });
+
+    const selecting = controller.selectDeviceWidth(768);
+    await flush();
+    expect(controller.useDeviceViewportStore.getState().busyWidth).toBe(768);
+
+    gate.resolve();
+    await selecting;
+    await flush();
+    expect(controller.useDeviceViewportStore.getState().busyWidth).toBeNull();
+    detach();
+  });
+
+  it("전체로 되돌리는 중에는 null이다", async () => {
+    const { controller, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    const gate = deferred();
+    deviceSet.mockImplementationOnce(async () => {
+      await gate.promise;
+      return { ok: true, width: null, available: { width: 1512, height: 900 } };
+    });
+
+    const selecting = controller.selectDeviceWidth(null);
+    await flush();
+    const snap = controller.useDeviceViewportStore.getState();
+    expect(snap.busy).toBe(true);
+    expect(snap.busyWidth).toBeNull();
+
+    gate.resolve();
+    await selecting;
+    detach();
+  });
+});
+
 describe("이어받기 슬롯 수명", () => {
   // 거부는 resize 전이 중에도 난다 — 그 경로엔 drain이 없어서 슬롯만 남고 아무도 안 집는다.
   it("resize 중에 거부된 재수립도 전이 종료 후 이어받는다", async () => {
@@ -547,6 +626,41 @@ describe("이어받기 슬롯 수명", () => {
     await flush();
 
     expect(deviceSet).toHaveBeenCalledWith(1, 768);
+    detach();
+  });
+
+  // OFF는 device.set보다 먼저 dropPending을 한다 — 그래서 drain이 집을 수 있는 건 그 뒤
+  // await 창에서 handoff가 새로 세운 pending(= **방금 끈 폭**)뿐이다. 그걸 이어받으면
+  // `전체`를 누른 직후 모드가 그 폭으로 되살아나며 래퍼가 다시 선다.
+  it("전체로 되돌리는 경로는 이어받지 않고 슬롯만 버린다", async () => {
+    const { controller, mode, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    const gate = deferred();
+    deviceSet.mockImplementationOnce(async () => {
+      await gate.promise;
+      return { ok: true, width: null, available: { width: 1512, height: 900 } };
+    });
+
+    const selecting = controller.selectDeviceWidth(null);
+    await flush();
+    // OFF 왕복 중 handoff가 옛 폭으로 pending을 세우고, 뒤이은 top 커밋이 busy로 거부된다.
+    emit(
+      { type: "device.handoff", tabId: 1, url: "https://b.com/", expiresAt: Date.now() + 500 },
+      vi.fn(),
+    );
+    await flush();
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+
+    deviceSet.mockClear();
+    gate.resolve();
+    await selecting;
+    await flush();
+    await flush();
+
+    expect(deviceSet).not.toHaveBeenCalled();
+    expect(controller.useDeviceViewportStore.getState().width).toBeNull();
+    expect(mode.peekPending(1)).toBeNull();
     detach();
   });
 

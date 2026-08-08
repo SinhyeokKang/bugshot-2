@@ -97,7 +97,7 @@ describe("드래그 확정 rect — 클램핑", () => {
   // 최소 드래그 게이트가 클램핑 **앞**에 있어, 래퍼 밖 여백만 200×200으로 끌면 게이트를
   // 통과한 뒤 클램프가 폭 0으로 접는다. 그 rect는 crop에서 Math.max(1,…)로 살아나
   // **에러 없이 1px 이미지**가 drafting에 올라온다 — 취소로 접어야 한다.
-  it("래퍼 밖 여백만 드래그하면 확정하지 않고 취소로 접는다", async () => {
+  it("래퍼 밖 여백만 드래그하면 확정하지 않고, 세션은 살려 다시 끌게 둔다", async () => {
     deviceFrameRect.mockReturnValue(FRAME);
     const onCancelled = vi.fn();
     const onSelected = vi.fn();
@@ -111,7 +111,13 @@ describe("드래그 확정 rect — 클램핑", () => {
     drag(handle, [20, 100], [220, 300]);
     await settle();
     expect(onSelected).not.toHaveBeenCalled();
-    expect(onCancelled).toHaveBeenCalled();
+    // 최소 드래그 미달과 같은 종착점 — 세션을 끝내지 않는다.
+    expect(onCancelled).not.toHaveBeenCalled();
+
+    // 같은 핸들로 래퍼 안을 다시 끌면 정상 확정된다(세션이 살아 있다는 증거).
+    drag(handle, [400, 100], [600, 300]);
+    await settle();
+    expect(onSelected).toHaveBeenCalledTimes(1);
   });
 
   it("모드 ON에서도 viewport는 top 그대로다", async () => {

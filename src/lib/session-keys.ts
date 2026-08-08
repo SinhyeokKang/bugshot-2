@@ -26,7 +26,7 @@ export function sessionKey(tabId: number): string {
 
 // 디바이스 뷰포트 래퍼 frame binding(chrome.storage.session). 값은 UI 상태가 아니라 로그·
 // navigation 라우팅용이고, SW hibernation을 넘겨 복원된다.
-export const DEVICE_FRAME_PREFIX = "deviceFrame:";
+const DEVICE_FRAME_PREFIX = "deviceFrame:";
 
 export function deviceFrameKey(tabId: number): string {
   return `${DEVICE_FRAME_PREFIX}${tabId}`;

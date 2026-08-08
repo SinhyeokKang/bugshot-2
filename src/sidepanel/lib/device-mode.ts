@@ -134,7 +134,7 @@ export function resetLoopGuard(tabId: number): void {
   loopByTab.delete(tabId);
 }
 
-/** 테스트·탭 정리용 전량 초기화. */
+/** 전량 초기화. 프로덕션 소비처는 없고 테스트 격리 전용이다. */
 export function clearDeviceModeState(): void {
   pendingByTab.clear();
   for (const slot of loopByTab.values()) {

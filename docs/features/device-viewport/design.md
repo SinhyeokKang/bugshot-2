@@ -448,7 +448,7 @@ export function useDeviceViewport(tabId: number | null): DeviceViewportState;
 9. `width != null`이면 `device.frameLoaded` / `device.frameBlocked` 중 하나를 기다린다(≤3s). `frameBlocked`면 `device.set { width: null }` 롤백 + `issue.device.blocked` 토스트
 10. `frameLoaded`면 **전 document stop ACK**(`activateRecordersInDeviceTree`의 앞단)
 11. `store.clearNetworkLog/clearConsoleLog/clearActionLog(tabId)` + 3종 persist `discard()` — 모드 전환은 네비게이션이라 `logClear`가 안 온다. 강제한다
-12. **래퍼 서브트리 start ACK**. 실패해도 모드를 롤백하지 않고 `issue.device.recordersDegraded` 토스트만 띄운다 — 래퍼는 정상 로드됐고 레코더는 다음 inject 트리거에서 같은 게이트를 타고 스스로 재무장한다. 여기서 롤백하면 unmount + `location.reload()`라 **정상 동작 중인 페이지의 스크롤·입력값을 날린다**. 롤백은 래퍼가 실제로 못 선 경우(`frameBlocked`)에만 남긴다
+12. **래퍼 서브트리 start ACK**. 실패해도 모드를 롤백하지 않고 `issue.device.recordersDegraded` 토스트만 띄운다(문서 열거에 실패해 stop ACK에 닿지도 못한 갈래는 스스로 낫지 않으므로 `issue.device.recordersStuck`으로 갈린다) — 래퍼는 정상 로드됐고 레코더는 다음 inject 트리거에서 같은 게이트를 타고 스스로 재무장한다. 여기서 롤백하면 unmount + `location.reload()`라 **정상 동작 중인 페이지의 스크롤·입력값을 날린다**. 롤백은 래퍼가 실제로 못 선 경우(`frameBlocked`)에만 남긴다
 13. arm 창을 닫는다(`device.arm { on: false }`)
 
 **clear는 반드시 stop ACK 뒤, start ACK 앞이다.** 이유가 둘이고, 하나만 알고 순서를 되돌리면 나머지가 조용히 깨진다.
@@ -515,7 +515,7 @@ async function reestablish(tabId: number, width: number, url: string): Promise<v
  * 문서 목록은 인자로 받지 않고 bgRequest("device.documents")로 background에서 가져온다 —
  * 사이드패널은 프레임 트리를 알 수 없고(캐시를 두지 않기로 했다), background만 안다.
  */
-export async function activateRecordersInDeviceTree(tabId: number): Promise<boolean>;
+export async function activateRecordersInDeviceTree(tabId: number): Promise<ActivateResult>;
 ```
 
 정확도가 우선이므로 broadcast 후 top만 재정지하는 경쟁 구조는 쓰지 않는다. 열거원은 background의 `chrome.webNavigation.getAllFrames({ tabId })`이고(`frameId`·`parentFrameId`·`documentId`·`parentDocumentId`를 한 번에 준다), 여기에 래퍼 binding을 얹어 `{ all, deviceTree }`로 갈라 응답한다. 사이드패널은 `chrome.tabs.sendMessage(..., { documentId })`로 `all`에 stop ACK를 받은 뒤 `deviceTree`에만 start ACK를 받는다. sidepanel 모듈 캐시는 두지 않는다.

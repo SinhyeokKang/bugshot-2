@@ -211,19 +211,25 @@ function onMouseUp(h: AreaSelectHandle, e: MouseEvent): void {
     showDimming(h, null);
     return;
   }
-  removeListeners(h);
-  cleanupElements(h);
-  h._deps.onBlockerRequest("hide");
   // top blocker가 래퍼 위 드래그도 가로채므로 크롭 자체는 정확하지만, 사용자가 래퍼 밖 여백까지
   // 끌 수 있다 — 확정 rect를 래퍼 영역으로 가둔다(래퍼가 없으면 항등).
   const rect = clampToDeviceFrame({ x, y, width: w, height: hh }, deviceFrameRect());
-  // 클램핑 **뒤에** 한 번 더 본다 — 최소 드래그 게이트는 클램핑 전 크기를 보므로, 래퍼 밖
+  // 클램핑 **뒤에** 한 번 더 본다 — 위 최소 드래그 게이트는 클램핑 전 크기를 보므로, 래퍼 밖
   // 여백만 끈 드래그가 그걸 통과한 뒤 0으로 접힌다. 그 rect는 crop의 `Math.max(1, …)`에
   // 살아나 에러 없이 1px 이미지로 drafting에 올라온다.
+  // **종착점은 위 게이트와 같다** — 세션을 끝내지 않고 오버레이만 되돌려 다시 끌게 둔다.
+  // 390 모드면 좌우 여백이 각 500px대라 흔한 오조작인데, 같은 성격의 실수가 한쪽은 재시도이고
+  // 한쪽은 세션 종료면 사용자가 규칙을 못 배운다.
   if (rect.width < 1 || rect.height < 1) {
-    h._deps.onCancelled();
+    h._dragStart = null;
+    h._areaSelectEl.style.display = "none";
+    h._areaSizeEl.style.display = "none";
+    showDimming(h, null);
     return;
   }
+  removeListeners(h);
+  cleanupElements(h);
+  h._deps.onBlockerRequest("hide");
   const viewport = { width: window.innerWidth, height: window.innerHeight };
   settleAfterPaint(h, () => h._deps.onSelected(rect, viewport));
 }
