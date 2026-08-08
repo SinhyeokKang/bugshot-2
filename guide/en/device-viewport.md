@@ -60,6 +60,7 @@ It sounds like a detour, but there's a reason. Trapping another site inside that
 - **Page capture (the scrolling one) is locked.** The button dims and hovering it tells you why. To grab a long page end to end, switch back to **Full** first. Area capture, screen capture, element capture, and recording all work as usual.
 - **Elements inside an iframe on the page can't be picked** — payment windows, embedded widgets, that sort of thing. A dialog explains it, and switching back to **Full** restores normal picking.
 - Pages that refuse to be opened inside a frame won't hold the viewport, and you'll land back on **Full**. Banks and government sites often set this.
+- **Closing the side panel leaves the width in place.** The mode lives on the page itself, so closing only the panel keeps that tab rendering at the narrow width. To undo it, reopen the panel and pick **Full**, or reload the tab.
 
 ## Checking whether it's on
 

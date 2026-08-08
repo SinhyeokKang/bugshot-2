@@ -242,9 +242,6 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
   if (tabId == null) return;
   if (isDeviceViewportLocked() || state.busy) return; // 카운터도 안 건드린다
 
-  // 사용자 조작이 "정상 사용 중" 신호다.
-  resetLoopGuard(tabId);
-
   // 버튼이 이미 막지만 오케스트레이터 쪽 이중 방어 — Radix는 aria-disabled를 동작 가드로
   // 해석하지 않으므로 키보드 활성화가 여기까지 샐 수 있다.
   if (width != null && !isPresetAvailable(width, state.availableWidth)) return;
@@ -252,13 +249,17 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
   const path = resolveSelectPath(state.width, width);
   if (path === "noop") return;
 
+  // 사용자 조작이 "정상 사용 중" 신호다 — **아무 일도 안 하는 조작은 빼고 센다.**
+  // 게이트 앞에 두면 미가용 프리셋·같은 폭 재선택이 frame-busting 그물을 지운다.
+  resetLoopGuard(tabId);
+
   // OFF는 unmount + location.reload()인데 그 reload도 top 커밋이라, pending이 남아 있으면
   // 곧바로 재수립이 걸려 OFF↔ON 무한 루프가 된다. 폐기가 device.set보다 앞이어야 한다.
   // (noop을 이미 걸렀으므로 width === null은 곧 on-to-off다.)
   if (path === "on-to-off" || width == null) {
     dropPending(tabId);
     set({ busy: true, busyWidth: null });
-    const res = await deviceSet(tabId, null);
+    const res = await deviceSet(tabId, null).catch(() => undefined);
     if (!stillOn(tabId)) return;
     // **응답의 width는 읽지 않는다.** OFF의 결과는 정의상 Full이고, 응답값을 채택하면 이 창에
     // 도착한 handoff 강등이 방금 내린 null을 되살릴 여지가 생긴다. 소유권 토큰 대신 이쪽이
@@ -280,17 +281,20 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
     try {
       const res = await deviceSet(tabId, width);
       if (!stillOn(tabId)) return;
-      set({ busy: false, busyWidth: null });
-      // 강등이 이 창 안에 왔으면 그쪽이 이긴다 — 아래 set/putPending이 방금 내린 폭을 되살리면
-      // "래퍼는 없는데 UI만 ON"이 그대로 돌아온다(off-to-on·재수립과 같은 규율).
+      // 강등·handoff가 이 창 안에 왔으면 그쪽이 이긴다 — 아래 set/putPending이 방금 내린 폭을
+      // 되살리거나, 롤백의 dropPending이 handoff가 세운 pending을 지우면 재수립이 미발사된다.
       if (attemptToken !== token) return;
       if (!res?.ok) {
+        // **busy는 롤백 뒤에 놓는다**(finally). 앞에서 놓으면 롤백 왕복 내내 게이트가 열려,
+        // 그 창에 다른 폭을 고르면 뒤늦은 `set({width:null})`이 그걸 덮어 "페이지는 ON인데
+        // UI는 전체"가 굳고 살아남은 pending이 다음 top 커밋에서 조용히 되살아난다.
         await rollbackToFull(tabId, t("issue.device.blocked"));
         return;
       }
       set({ width: res.width, availableWidth: res.available.width });
       putPending(tabId, width);
     } finally {
+      set({ busy: false, busyWidth: null });
       // 조기 반환(탭 재바인딩·강등)에서도 반납해야 attemptingWidth에 옛 폭이 남지 않는다.
       endAttempt(token);
       // **busy를 놓는 모든 경로가 drain해야 한다.** 한 경로라도 빠지면 그 전이 중에 거부된
@@ -334,7 +338,11 @@ async function runTransition(
     const res = await deviceSet(tabId, width);
     // 이 창 안에서 handoff 만료 강등이 왔으면 그쪽이 이긴다 — 아래 set({width})가 방금 내린
     // 폭을 되살리면 "래퍼는 없는데 UI만 ON"이 그대로 돌아온다.
-    if (attemptToken !== token) return;
+    // arm 창은 닫고 나간다 — 열어두면 3초 뒤 armTimeout이 frameBlocked를 뒤늦게 latch시킨다.
+    if (attemptToken !== token) {
+      await arm(tabId, false);
+      return;
+    }
     // undefined(전달 실패)와 {ok:false}(마운트 실패)를 구분해서 다뤄야 한다 — ok === false만
     // 보면 send가 실패를 undefined로 삼키므로 전달 실패가 성공으로 샌다.
     if (!res?.ok) {
@@ -342,7 +350,10 @@ async function runTransition(
       if (stillOn(tabId)) await rollbackToFull(tabId, t("issue.device.blocked"));
       return;
     }
-    if (!stillOn(tabId)) return;
+    if (!stillOn(tabId)) {
+      await arm(tabId, false);
+      return;
+    }
     set({ width: res.width, availableWidth: res.available.width });
 
     const verdict = await waitForVerdict();
@@ -399,8 +410,13 @@ function drainDeferredReestablish(tabId: number): void {
 
 /**
  * 재수립. **사용자 조작이 아니라 "이미 벌어진 페이지 사실"에 대한 반응이다.**
- * 호출 지점은 top onCommitted + pending 하나다. handoff·확장 reload 복구는
- * pending을 세팅하고 top commit을 만들기만 하며 직접 부르지 않는다.
+ * 호출 지점은 top onCommitted와 `drainDeferredReestablish` 둘이다.
+ *
+ * **전제("래퍼가 없다")를 코드로 확인한다.** 이걸 주석으로만 두면 호출 지점이 늘어날 때마다
+ * 조용히 깨진다 — 실제로 이어받기가 생기면서 깨졌다. 래퍼가 이미 그 폭으로 서 있는데
+ * `device.set`을 또 보내면 노드를 유지한 채 폭만 갱신하므로 **재로드가 안 생기고**,
+ * `frameReady`도 `onCommitted`도 안 와서 무신호 → `armTimeout` → `frameBlocked` → 롤백,
+ * 즉 정상 모드가 스스로 꺼지며 페이지를 새로고침한다.
  *
  * 게이트만 소유하고 본체는 `runTransition`에 넘긴다 — 사용자 전이와 다른 건 진입 조건과
  * 로그 꼬리 sync 여부뿐이고, 1회 경고를 안 띄우는 것도 여기서 안 부르는 것으로 표현된다.
@@ -421,12 +437,24 @@ async function reestablish(tabId: number, width: number): Promise<void> {
     set({ width: null });
     return;
   }
+  // 전제 확인은 루프 카운터보다 앞이다 — 아무 일도 안 하고 끝나는 시도까지 세면 임계가
+  // 헛되이 오른다(거부를 안 세는 것과 같은 이유).
+  const page = await deviceState(tabId);
+  if (!stillOn(tabId)) return;
+  if (page?.width === width) {
+    // 이미 그 폭이다. 상태만 맞추고 pending을 되돌려 다음 top 커밋이 다시 집게 둔다.
+    set({ width, availableWidth: page.available.width });
+    putPending(tabId, width);
+    return;
+  }
   if (noteReestablish(tabId) === "loop") {
     dropPending(tabId);
     set({ width: null, loopWarning: true });
     return;
   }
   // 재수립은 syncAndSettleLogs를 안 한다 — 떠나는 문서가 이미 없다.
+  // 가용 폭은 재확인하지 않는다 — 사용자 조작이 아니라 페이지 사실에 대한 반응이라,
+  // 안 들어가는 폭이면 창이 좁아진 것이고 그건 다음 `availableChanged`가 정정한다.
   await runTransition(tabId, width, { syncLogs: false });
 }
 
@@ -454,7 +482,9 @@ async function onHandoff(tabId: number, url: string, expiresAt: number): Promise
   // 진행 중인 select의 판정 대기를 handoff로 끊는다 — 평범한 실패로 끊으면 그 select가
   // 롤백을 돌려 아래에서 세울 pending을 먼저 지운다.
   settleVerdict({ ok: false, handoff: true });
-  const width = snap().width ?? attemptingWidth;
+  // **진행 중 전이가 노리는 폭이 우선이다** — store의 width는 응답 전까지 옛 값이라,
+  // resize 중 handoff면 사용자가 방금 고른 폭이 아니라 떠나는 폭을 나르게 된다.
+  const width = attemptingWidth ?? snap().width;
   if (width == null) return inTime;
   // 래퍼가 data:·about:·blob:로 커밋·에러난 경우까지 top 네비게이션 대상으로 삼지 않는다.
   // background가 래퍼 제거 + reload로 접으므로 device.set을 또 부르지 않는다(이중 reload) —
@@ -468,6 +498,10 @@ async function onHandoff(tabId: number, url: string, expiresAt: number): Promise
   if (inTime) {
     // background가 이 push의 ACK를 받은 뒤 top을 이동한다. pending이 commit보다 먼저다.
     putPending(tabId, width);
+    // **인플라이트 전이의 소유권도 뺏는다.** 안 뺏으면 그 전이의 롤백이 방금 세운 pending을
+    // 지워 재수립이 통째로 미발사되고, 실제로는 handoff인데 "차단됨" 오탐이 뜬다.
+    // (만료·미지원 갈래는 demoteToFull이 이미 abortAttempt를 한다.)
+    abortAttempt();
   } else {
     demoteToFull(tabId);
   }
@@ -585,6 +619,9 @@ async function syncFromPage(tabId: number): Promise<void> {
     if (snap().width === state.width) putPending(tabId, state.width);
     return;
   }
+  // 조회 두 왕복 사이에 사용자가 `전체`를 눌렀으면 그쪽이 이미 폐기했다 — 되살리면
+  // OFF의 reload 커밋이 그걸 소비해 방금 끈 모드가 부활한다(위 분기와 같은 규율).
+  if (snap().width !== state.width) return;
   // 기존 래퍼를 두고 device.set(같은 폭)을 보내면 폭만 바꾸어 commit이 안 생긴다.
   // pending을 먼저 세우고 Full 복귀로 top commit을 만들어 공용 재수립 경로를 태운다.
   putPending(tabId, state.width);

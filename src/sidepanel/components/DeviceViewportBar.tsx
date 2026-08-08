@@ -136,7 +136,13 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
   return (
     <>
       <TooltipProvider delayDuration={200}>
-        <Tabs value={value} onValueChange={handleValueChange}>
+        <Tabs
+          value={value}
+          onValueChange={handleValueChange}
+          // Radix 기본값 automatic은 **포커스 이동만으로** onValueChange를 쏜다 — 서브탭에선
+          // 무해하지만 여기 onValueChange는 페이지를 재로드하는 파괴적 동작이다.
+          activationMode="manual"
+        >
           <div
             className="shrink-0 border-b border-border px-4 py-4"
             data-testid="device-viewport-bar"
