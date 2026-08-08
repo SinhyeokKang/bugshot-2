@@ -174,6 +174,8 @@ Aside 세션에서:
 
 AI 배너 컷은 **해결됐다** — §5의 BYOK Gemini 키로 `settings-ai-1`·`settings-ai-2`·`element-issue-4`·`screenshot-issue-4`를 ko/en 양쪽 찍었고, 덤으로 놓여 있던 **`element-styling-4`(AI 스타일링 배너)도 제대로 재촬영**했다 — 직전까지는 `element-styling-1` 복사본이었다. `screenshot-issue-4`와 `settings-ai-2`는 같은 이미지를 공유한다. `video-issue-4`는 캡션만 AI 배너일 뿐 배경이 녹화 모드 초안 화면이라 녹화 그룹에 남겨둔다.
 
+> **AI 배너 컷 3장은 BYOK(Gemini)로 촬영 완료.** 그때 걸렸던 배관 둘의 해법: ① 배너 좌표는 `TreeWalker`로 텍스트 노드를 찾은 뒤 **부모로 4단계 거슬러 올라가 height>40인 컨테이너**를 잡는다(`children.length` 필터는 중첩 때문에 실패한다) ② 마스킹은 viewport 확정 후 **2.5초 대기해 리렌더가 멎은 뒤** 걸고 즉시 스크린샷을 찍는다.
+>
 > Chrome 내장 AI(Gemini Nano)는 몇 시간째 `downloading`에서 `downloadprogress`가 0으로 고정이었고 `create()`도 20초 타임아웃이었다. `chrome://on-device-internals`는 Aside가 내부 디버깅 페이지를 막아 확인 불가. **내장 AI를 기다리지 말고 BYOK를 쓴다.**
 
 `video-record-5`만 아직 `dummy.jpg` placeholder다. 나머지 71자리는 실제 이미지.
