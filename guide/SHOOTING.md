@@ -112,6 +112,8 @@ chrome.windows.create({ tabId: panelTabId, type: "popup", width: 620, height: 90
 | `SIN — Sinhyeok-kang` | `ACME — Product` |
 | `FCLXP` · `Skillflo` | `WEB` · `Acme` |
 | `bugshot-2/bugshot-test` | `acme/web-app` |
+| Jira 기본 이슈 타입 `버그` (en 컷) | `Bug` |
+| Linear 팀 라벨 `SIN — ` | `ACME — ` |
 
 BugShot 자신의 공개 저장소명(`bugshot-web` 등)은 치환하지 않는다.
 
@@ -167,12 +169,26 @@ Aside 세션에서:
 
 `video-record-5`만 아직 `dummy.jpg` placeholder다. 나머지 71자리는 실제 이미지.
 
-### en: 0 / 73 — 미착수
+### en: 59 / 73 — 자동 촬영분 완료
 
-ko와 같은 파이프라인을 그대로 돌린다. 추가로 신경 쓸 것은 둘뿐:
+ko와 같은 파이프라인을 그대로 돌렸다. 남은 14장은 ko와 동일하다 — 녹화 계열 11장(수동 전용) + AI 배너 3장.
 
-1. **로케일** — 설정 > 일반 > 언어를 `English`로 바꾼다(`settings-ui-store`에 영속되므로 패널을 다시 열어도 유지된다). 이 세션은 **ko로 되돌려 놓고 끝났다.**
-2. **이슈 목록의 제목 언어** — `integrations-issue-tracking-1`은 실제 제출 이슈를 그대로 렌더한다. 현재 쌓인 7건(GitHub `#21`·`#22`, GitLab `#11`·`#12`, Linear `SIN-108`·`SIN-109`, Slack 1건)은 전부 한국어 제목이라 en 컷에 못 쓴다. 로컬 이슈 목록(`bugshot-issues`)만 비우고 영문 제목으로 다시 제출할 것. Slack 카드의 `자세히`/`트래커로 등록` 버튼(`integrations-platforms-2`)은 **Slack 제출 이슈 + Slack 제외 트래커 연결**이 동시에 있어야 뜬다.
+촬영에 쓴 실제 제출 이슈(전부 영문 제목): GitHub `#23`·`#24`, GitLab `#13`·`#14`, Linear `SIN-110`·`SIN-111`, Slack 1건. `bugshot-issues`를 비우고 새로 쌓았다. **촬영 후 로케일은 `ko`로 되돌려 놓았다.**
+
+**미해결 — `settings-ai-1` ko/en 불일치**: ko는 BYOK Gemini가 연결된 카드 상태로 재촬영됐는데(`3f97de0d`), en을 찍는 시점엔 프로바이더가 이미 해제돼 있어 **빈 "Connect an AI model" 상태로 찍혔다.** BYOK 키를 다시 꽂고 en `settings-ai-1`만 재촬영할 것.
+
+#### en 세션에서 새로 드러난 벍 (재현 시 필수)
+
+- **페이지 스크린샷에 `page.screenshot()`을 쓰지 마라.** device metrics override가 걸린 탭에서는 Playwright의 `screenshot({ clip })`이 CSS 좌표와 어긋나 엉뚜한 영역을 돌려준다(에러 없음). **`Page.captureScreenshot`을 clip 없이** 뷰포트 전체로 받아 합성 캔버스에서 크롭한다. 마우스 좌표는 CSS px 그대로 맞는다. 패널(`page.screenshot()`)은 정상 동작하므로 그대로 둔다.
+- **페이지 레이아웃은 창 크기(1440×900)에 맞춰라.** 다른 크기로 override하면 캐프처가 창 표면을 다시 스케일해 배율이 깨진다.
+- **`file://` 네비게이션을 데몬이 막는다.** `openTab`·`page.goto`·`chrome.tabs.update` 전부 거부된다. 이미 열려 있는 `file://` 탭에 붙어 **페이지 컨텍스트에서 `location.replace(...)`** 를 실행하면 이동한다.
+- **로그 뷰어 로케일은 `navigator.language`가 유일 입력**(`src/log-viewer/i18n.ts`)이라 확장 설정과 무관하다. `Emulation.setLocaleOverride`는 안 먹히고 **`Emulation.setUserAgentOverride({ userAgent, acceptLanguage: "en-US" })` + reload**가 먹힌다.
+- **`logs.html` 페이로드는 재조립할 수 있다.** `__BUGSHOT_DATA__`는 gzip+base64 JSON이라 브라우저 `DecompressionStream`/`CompressionStream`으로 풀어 `report`·`video`만 갈아끼우고 다시 쓰면 된다(`__BUGSHOT_META__`는 평문 JSON — 제목·issueKey도 같이 고친다). en `logs-viewer-*`는 ko 리포트의 로그·타임라인을 재사용하되 `report`를 영문으로 교체했다.
+- **영상도 교체 가능하다.** ko 영상엔 한국어 리포트가 박혀 en에 못 쓴다. 영문 GitHub 이슈 페이지를 스크롤하며 프레임을 모은 뒤 **canvas `captureStream` + `MediaRecorder`(webm)** 로 재인코딩해 `video.dataUrl`만 갈았다. `startedAt`을 그대로 두면 마커·타임라인 정렬이 유지된다. 이걸로 **"영상 잔여 노출" 잔여 이슈도 en에선 해소**됐다.
+- **30초 리플레이 버퍼는 패널 뷰포트를 바꿀 때마다 0으로 리셋된다.** `video-replay-2`는 **뷰포트를 먼저 고정하고 30초를 기다린 뒤 viewport를 건드리지 않고** 찍는다.
+- **탭 클릭은 그 탭이 브라우저에서 활성일 때만 먹는다.** 로그 뷰어의 Report/Console 탭은 `element.click()`도 비활성 탭에선 조용히 무시됐다 — `chrome.tabs.update(id, { active: true })` 먼저.
+- **앱 탭바는 패널 폭 380px 이하에서 아이콘만 남기고 라벨이 사라진다.** ko의 일부 컷(`quick-start-5`·`video-record-1`·`integrations-platforms-2`)은 확대 구도라 폭을 줄여 재현하려면 라벨이 깨진다 — en은 **전수 520폭 표준 배율**로 통일했다(세트 내 일관성 우선).
+- **암커 탐색은 `textContent === "..."` 정확 일치로 하지 마라.** 브랜드 아이콘 `alt`가 섞여 `"GitLabGitLab"` 같은 값이 나온다. 실측 y를 직접 뽑아 오프셋을 계산하는 편이 빠르다.
 
 ### 촬영 환경 재구성 절차
 
