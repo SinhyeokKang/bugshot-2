@@ -148,27 +148,25 @@ Aside 세션에서:
 
 ## 8. 진행 상태 / 핸드오프 (2026-08-09 기준)
 
-### ko: 60 / 72
+### ko: 60 / 72 — 자동 촬영분 완료
 
-커밋 4개로 반영됨 — `42f36e8b`(49장) → `39d6223b`(log viewer 5장) → `8fe17834`(이슈 목록·플랫폼 3장) → `9af6d7c3`(웹스토어·플랫폼 그리드 2장).
+커밋 6개로 반영됨: `42f36e8b`(49장) → `39d6223b`(log viewer 5) → `8fe17834`(이슈 목록·플랫폼 3) → `9af6d7c3`(웹스토어·플랫폼 그리드 2) → `c15d597a`(핸드오프) → `fc8c1516`(페이지 캡처 진행 1).
 
-**남은 13장:**
+**남은 12장 — 전부 이 세션에서 촬영 불가였던 것들이다:**
 
 | 에셋 | 사유 |
 |---|---|
-| `video-record-2~5`, `video-replay-3`, `video-issue-1~6` (10장) | §6대로 **수동 촬영 전용**. `tabCapture`·30초 리플레이 모두 실제 user gesture를 요구해 합성 클릭으로 시작되지 않는다 |
-| `element-issue-4`, `screenshot-issue-4`, `settings-ai-2` (3장) | AI 배너가 필요한 컷. Chrome 내장 AI가 계속 `downloading`이고 `downloadprogress`가 0%에서 움직이지 않았다(다운로드를 시작한 페이지가 닫히면 진행 이벤트를 못 받는다). `LanguageModel.availability()`가 `available`이면 바로 촬영 가능 |
+| `video-record-2~5`, `video-replay-3`, `video-issue-1~6` (11장) | §6대로 **수동 촬영 전용**. `tabCapture`·30초 리플레이 모두 실제 user gesture를 요구해 합성 클릭(`click()`·`click({force:true})` 모두)으로 시작되지 않는다 |
+| `element-issue-4`, `screenshot-issue-4`, `settings-ai-2` (3장, `video-issue-4` 중복) | AI 배너가 떠야 하는 컷. Chrome 내장 AI가 계속 `downloading`이고 `downloadprogress`가 0%에서 안 움직였다(다운로드를 시작한 페이지가 닫히면 진행 이벤트를 못 받는다). **BYOK 키를 하나 꽂으면 즉시 배너가 떠 바로 촬영 가능**하다 — 단 배지에 프로바이더명이 노출된다 |
 
-`video-record-5`만 아직 `dummy.jpg` placeholder 상태다.
+`video-record-5`만 아직 `dummy.jpg` placeholder다. 나머지 71자리는 실제 이미지.
 
-> `screenshot-capture-3`(페이지 캡처 진행 상태)은 **짧은 페이지에서는 캡처가 즉시 끝나 진행 화면을 못 잡는다.** 긴 문서(예: README blob)로 이동한 뒤 `페이지 캡처`를 누르고 sleep 없이 250ms 간격으로 폴링해 `페이지를 캡처하는 중…` 문구가 뜨는 프레임을 집어야 한다.
+### en: 0 / 73 — 미착수
 
-### en: 0 / 73
+ko와 같은 파이프라인을 그대로 돌린다. 추가로 신경 쓸 것은 둘뿐:
 
-**아무것도 촬영하지 않았다.** ko와 같은 파이프라인을 그대로 돌리면 되고, 추가로 신경 쓸 것은 둘뿐이다.
-
-1. **로케일** — 이 세션 끝에 확장 설정 > General > Language를 **English로 바꿔 둔 상태**다(`설정 > 일반 > 언어`). ko를 다시 찍어야 하면 되돌려야 한다. 로케일은 `settings-ui-store`에 영속되므로 패널을 다시 열어도 유지된다.
-2. **이슈 목록의 제목 언어** — `integrations-issue-tracking-1`은 실제 제출 이슈를 그대로 보여주므로, en 세트를 찍기 전에 **영문 제목으로 더미를 다시 제출**해야 한다. ko용으로 이미 제출된 7건(GitHub `#21`·`#22`, GitLab `#11`·`#12`, Linear `SIN-108`·`SIN-109`, Slack 1건)은 한국어 제목이라 en 컷에 쓸 수 없다. 로컬 이슈 목록만 비우고(`bugshot-issues`) 영문으로 새로 제출하면 된다.
+1. **로케일** — 설정 > 일반 > 언어를 `English`로 바꾼다(`settings-ui-store`에 영속되므로 패널을 다시 열어도 유지된다). 이 세션은 **ko로 되돌려 놓고 끝났다.**
+2. **이슈 목록의 제목 언어** — `integrations-issue-tracking-1`은 실제 제출 이슈를 그대로 렌더한다. 현재 쌓인 7건(GitHub `#21`·`#22`, GitLab `#11`·`#12`, Linear `SIN-108`·`SIN-109`, Slack 1건)은 전부 한국어 제목이라 en 컷에 못 쓴다. 로컬 이슈 목록(`bugshot-issues`)만 비우고 영문 제목으로 다시 제출할 것. Slack 카드의 `자세히`/`트래커로 등록` 버튼(`integrations-platforms-2`)은 **Slack 제출 이슈 + Slack 제외 트래커 연결**이 동시에 있어야 뜬다.
 
 ### 촬영 환경 재구성 절차
 
@@ -179,7 +177,7 @@ Aside 세션에서:
 const gh = await openTab("https://github.com/SinhyeokKang/bugshot-web");
 const ghId = (await chrome.tabs.query({ url: "https://github.com/*" }))[0].id;
 const pnl = await openTab(`chrome-extension://<EXT_ID>/src/sidepanel/index.html?tabId=${ghId}`);
-// 2. 패널을 별도 창으로 (§ "캡처가 걸린 컷은 패널을 별도 창으로 뺀다")
+// 2. 패널을 별도 창으로 (캡처가 걸린 컷의 필수 조건)
 const pt = (await chrome.tabs.query({})).find(t => t.url?.includes("/src/sidepanel/index.html"));
 await chrome.windows.create({ tabId: pt.id, type: "popup", width: 620, height: 900 });
 // 3. 합성용 탭에도 viewport를 걸어야 한다 — 안 걸면 스크린샷이 타일링된다
@@ -191,3 +189,5 @@ await comp._sendToTarget("Emulation.setDeviceMetricsOverride",
 
 - **로그 뷰어 영상 잔여 노출** — `logs-viewer-*`의 영상 프레임 안 GitHub 헤더에 저장소 소유자 핸들이 작게 남는다. 리포트 텍스트는 전부 치환했지만 영상 픽셀은 손댈 수 없다. 문제가 되면 다른 영상으로 리포트를 다시 만들어야 한다.
 - **웹스토어 컷** — 촬영 브라우저가 Chrome 포크라 설치 버튼이 `Aside에 추가`로 렌더된다. 촬영 직전 DOM에서 브랜드 문자열을 `Chrome`으로 되돌린다. 상단 "Chrome으로 전환하여…" 배너를 `visibility:hidden`으로 숨기려 하면 **콘텐츠 컨테이너째 사라지니** 텍스트 치환만 할 것.
+- **`screenshot-capture-3` 류 순간 상태** — 짧은 페이지에서는 캡처가 즉시 끝나 진행 화면을 못 잡는다. 긴 문서(README blob 등)로 이동한 뒤 `페이지 캡처`를 누르고 sleep 없이 250ms 간격으로 폴링해 해당 프레임을 집는다.
+- **중앙 정렬 화면** — 캡처 진입 화면·제출 완료 화면은 콘텐츠가 세로 중앙 정렬이라 패널이 크면 가운데가 빈다. 이 두 화면만 패널 높이 **600** 고정으로 찍는다.
