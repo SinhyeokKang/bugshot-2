@@ -264,7 +264,11 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
     // 도착한 handoff 강등이 방금 내린 null을 되살릴 여지가 생긴다. 소유권 토큰 대신 이쪽이
     // 맞다 — off는 노릴 폭이 없어서 토큰에 실을 값 자체가 없다.
     set({ busy: false, busyWidth: null, width: null, availableWidth: res?.available.width ?? state.availableWidth });
-    drainDeferredReestablish(tabId);
+    // **OFF는 이어받지 않는다.** 이 경로는 device.set보다 먼저 dropPending을 하므로, drain이
+    // 집을 수 있는 건 그 뒤 await 창에서 handoff가 새로 세운 pending(= 방금 끈 폭)뿐이다.
+    // 그걸 이어받으면 `전체`를 누른 직후 모드가 그 폭으로 되살아난다. 슬롯만 버린다.
+    dropDeferredReestablish(tabId);
+    dropPending(tabId);
     return;
   }
 
@@ -377,6 +381,11 @@ async function runTransition(
       drainDeferredReestablish(tabId);
     }
   }
+}
+
+/** 이어받기 예약만 버린다 — OFF·detach처럼 "되살리면 안 되는" 종료가 쓴다. */
+function dropDeferredReestablish(tabId: number): void {
+  if (deferredTabId === tabId) deferredTabId = null;
 }
 
 /** busy로 거부돼 되돌려진 재수립을 전이 종료 직후 한 번 이어받는다. */
@@ -510,10 +519,7 @@ function handleMessage(
     // 가용 폭 리스너는 **top 문서에 붙는다** — top이 갈리면 사라지는데 `deviceWatch`는
     // refcount 0→1에서만 나가므로 재전송 지점이 없다. 그러면 `전체`로 되돌린 뒤 창·패널 폭을
     // 바꿔도 `availableWidth`가 그 패널 세션 내내 고정돼, 안 들어가는 폭이 활성으로 보인다.
-    if (subscribers.get(tabId)) {
-      void deviceWatch(tabId, true);
-      void refreshAvailableWidth(tabId);
-    }
+    if (subscribers.get(tabId)) syncDeviceWatch(tabId, true);
     // 소비 즉시 삭제한 뒤 재수립하고, 성공하면 다시 세팅한다(실패 경로에 유령 pending이 안 남게).
     const width = takePending(tabId);
     if (width == null) return;
@@ -626,7 +632,7 @@ export function attachDeviceViewport(tabId: number): () => void {
     // 이어받기 슬롯도 비운다 — 남기면 다음 부착의 첫 성공 전이가 방금 세운 pending을
     // 그 슬롯에 뺏겨, 이미 선 래퍼에 device.set을 또 보내고 무신호 → armTimeout → 롤백으로
     // **방금 켠 모드가 3초 뒤 스스로 꺼지며 페이지를 새로고침한다.**
-    if (deferredTabId === tabId) deferredTabId = null;
+    dropDeferredReestablish(tabId);
     set({ tabId: null });
   };
 }
@@ -636,15 +642,35 @@ export function attachDeviceViewport(tabId: number): () => void {
  * 탭에서 페이지 resize마다 push가 오는 것을 막는다. refcount인 이유는 구독자가 늘어날 여지가
  * 아니라, 리마운트에서 unmount(새)→mount(옛) 순서가 뒤집혀도 watch가 안 끊기게 하려는 것이다.
  */
+/**
+ * watch 상태를 **탭별 직렬 체인**으로 보낸다. 두 호출이 겹치면 각자 `ensureContentScript`
+ * (ping 실패 시 최대 ~500ms 폴링)를 앞세우므로 `true`가 길어져 `false`보다 늦게 도착할 수
+ * 있고, 그러면 해제 지점이 사라져 페이지에 resize 리스너가 남는다. 보낼 값을 **체인 안에서**
+ * 읽으므로 마지막에 등록된 태스크가 언제나 현재 refcount를 반영한다.
+ */
+const watchChain = new Map<number, Promise<unknown>>();
+
+function syncDeviceWatch(tabId: number, alsoRefresh = false): void {
+  const prev = watchChain.get(tabId) ?? Promise.resolve();
+  const next = prev
+    .then(async () => {
+      const on = (subscribers.get(tabId) ?? 0) > 0;
+      await deviceWatch(tabId, on);
+      // 주입은 앞선 deviceWatch가 이미 보장했다 — 순차로 두면 ping 1회로 끝난다.
+      if (on && alsoRefresh) await refreshAvailableWidth(tabId);
+    })
+    .catch(() => {});
+  watchChain.set(tabId, next);
+}
+
 export function watchAvailableWidth(tabId: number): () => void {
   // refcount는 **탭별**이다 — 전역 하나면 탭 재바인딩에서 mount(새 탭)가 unmount(옛 탭)보다
   // 먼저 오는 순서에 카운터가 2→1이 되어 새 탭에 watch가 안 나가고 옛 탭 구독도 안 끊긴다.
   subscribers.set(tabId, (subscribers.get(tabId) ?? 0) + 1);
   if (subscribers.get(tabId) === 1) {
-    void deviceWatch(tabId, true);
     // 구독이 끊겨 있던 동안의 resize는 push가 안 온다 — 재진입 때 한 번 따라잡지 않으면
     // 안 들어가는 폭이 활성으로 보이고, 누르면 top에 가로 스크롤이 생긴다.
-    void refreshAvailableWidth(tabId);
+    syncDeviceWatch(tabId, true);
   }
   return () => {
     const next = (subscribers.get(tabId) ?? 1) - 1;
@@ -653,7 +679,7 @@ export function watchAvailableWidth(tabId: number): () => void {
       return;
     }
     subscribers.delete(tabId);
-    void deviceWatch(tabId, false);
+    syncDeviceWatch(tabId);
   };
 }
 

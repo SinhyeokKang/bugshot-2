@@ -1,4 +1,5 @@
 import { useEffect, useState, type ComponentType } from "react";
+import { gridColsFor } from "@/sidepanel/lib/grid-cols";
 import { Loader2 } from "lucide-react";
 import { SlackIcon } from "@/components/icons/SlackIcon";
 import {
@@ -96,17 +97,6 @@ export interface SubmitFieldsDialogProps {
   onSubmit: (platform: PlatformId) => Promise<NormalizedSubmitResult>;
   onSuccess?: (result: NormalizedSubmitResult) => void;
 }
-
-// Tailwind JIT 정적 추출을 위해 full class 문자열을 매핑.
-const TABS_GRID_COLS: Record<number, string> = {
-  2: "grid-cols-2",
-  3: "grid-cols-3",
-  4: "grid-cols-4",
-  5: "grid-cols-5",
-  6: "grid-cols-6",
-  7: "grid-cols-7",
-  8: "grid-cols-8",
-};
 
 const PLATFORM_TABS: {
   id: PlatformId;
@@ -269,7 +259,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
           <Tabs value={platform} onValueChange={(v) => setPlatform(v as PlatformId)}>
             <CollapsingTabsList className={cn(
               "grid h-9 w-full",
-              TABS_GRID_COLS[availablePlatforms.length] ?? "grid-cols-2",
+              gridColsFor(availablePlatforms.length),
             )}>
               {PLATFORM_TABS.filter((p) => availablePlatforms.includes(p.id)).map(
                 ({ id, Icon, invertOnDark }) => (

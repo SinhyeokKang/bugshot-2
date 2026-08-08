@@ -70,7 +70,7 @@ const ko = {
   "issue.device.aria.full": "뷰포트 전체 너비",
   "issue.device.aria.width": "뷰포트 너비 {width}픽셀",
   "issue.device.tooltip.tooNarrow": "창이 좁아 이 너비를 쓸 수 없습니다",
-  "issue.device.tooltip.locked": "캡처·녹화 중에는 뷰포트를 바꿀 수 없습니다",
+  "issue.device.tooltip.locked": "이슈를 작성하는 중에는 뷰포트를 바꿀 수 없습니다",
   "issue.device.status.switching": "뷰포트를 바꾸는 중입니다",
   "issue.device.indicator": "뷰포트 {width}px",
   // 경고 범위가 재로드보다 넓어 modeWarning이다(플래그명 deviceModeWarned와 맞춘다).
@@ -233,7 +233,7 @@ const en = {
   "issue.device.aria.full": "Full viewport width",
   "issue.device.aria.width": "Viewport width {width} pixels",
   "issue.device.tooltip.tooNarrow": "The window is too narrow for this width",
-  "issue.device.tooltip.locked": "The viewport can't change while capturing or recording",
+  "issue.device.tooltip.locked": "The viewport can't change while you're working on an issue",
   "issue.device.status.switching": "Switching the viewport",
   "issue.device.indicator": "Viewport {width}px",
   "issue.device.modeWarning.title": "The page will reload",
