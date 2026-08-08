@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-08-09 — 피커 조준 UX (`picker-aim-ux`)
+
+키보드 화살표로 DOM을 훑고(G1), Space로 마우스 추적을 얼리고(G2), 인스펙터 카드가 실제 렌더 폰트를 보여주고(G3), 오버레이 호스트가 제거되면 자가치유하는(G4) 네 갈래 기획. `/feature-review`의 4인 검수(CPO·CDO·CTO·QA)에서 갈래마다 독립적으로 무너졌다.
+
+**G1·G2·G5 — 전제가 코드로 반증됐다.** `startPicker`(`src/sidepanel/picker-control.ts`) 전 경로에 **포커스를 페이지로 넘기는 코드가 없다.** 사용자는 사이드패널 버튼을 눌러 picking을 시작하므로 포커스는 사이드패널 문서에 남고, `picker.ts`의 `window.addEventListener("keydown", …)`는 발화하지 않는다. 마우스 이동은 포커스를 옮기지 않고, 페이지를 클릭하면 그 순간 확정돼 hover 모드가 끝난다 — **"조준 단계를 유지한 채 페이지에 포커스를 주는" 조작이 제품에 존재하지 않는다.** design.md에서 "포커스"라는 단어가 나오는 유일한 줄은 iframe 경계 항목이었다.
+
+**G4 — 사정거리가 이름값보다 좁다.** 실측 사례가 0건이고(POSTMORTEM에도 PRD에도 인용 없음), 문서가 약속한 "SPA 라우트 전환"은 실제로 커버되지 않는다. React/Vue/Next의 라우트 전환은 body 안 루트 div의 자식만 바꿔 `<html>` 직속인 오버레이 호스트를 건드리지 않고, `documentElement` 자체가 교체되면 observer는 detach된 옛 노드에 붙어 발화조차 안 한다. 실제로 잡히는 건 `documentElement.innerHTML` 대입과 호스트 직접 제거뿐이다. 여기에 🔴 2건(치유가 `area-select` 세션을 복구 불가능하게 파괴 / `picker.cancelled`가 `handleClear`의 세션 초기화 뒤라 dead code)과 🟡 다수(healCount 누적↔연속 모순, iframe별 독립 카운터 탓에 광고 iframe 하나가 top 세션을 취소, 캡처 중 치유가 hover-shield 상태 유실)가 전부 이 갈래에서 나왔다.
+
+**G3 — 브라우저가 이미 한다.** Chrome DevTools의 Computed 패널에 **"Rendered Fonts"** 섹션이 있고 정확히 같은 정보를 준다. 드랍 기준 1번에 걸린다. 네 갈래 중 설계 품질은 가장 좋았지만(판정을 `isRendered`로 주입해 순수 함수로 분리), 그것만 남기면 기획 하나를 유지할 이유가 되지 못한다.
+
+**부수적으로 — 묶음 기획 생존율이 0/3이 됐다.** `regression-net`·`css-cascade-fidelity`에 이어 셋째다. 네 갈래가 서로 호출하지 않았고, 태스크 5개로 최소인데 design.md가 357줄이었다. 문서가 큰 이유가 깊이가 아니라 갈래 수일 때가 신호다.
+
+**다시 볼 조건**: G1·G2는 "picking 중 페이지에 포커스를 주는 방법"이 먼저 정해져야 성립한다. 그 자체가 별도 결정이고, 확장이 사용자 포커스를 빼앗는 동작이라 before/after 스냅샷 신뢰와 충돌할 여지가 있다. G3는 DevTools로 안 되는 구체적 시나리오가 나올 때.
+
+### 이 검수가 발굴한, 기획과 무관하게 **남아 있는 사실 2건**
+
+기획은 접지만 아래는 실제 코드의 상태다. 묻어두지 않는다.
+
+1. **페이지 쪽 `Escape`가 사문(死文)일 가능성이 높다.** `picker.ts`의 `onKeyDown`은 페이지 `window`에 붙는데 위 이유로 포커스가 페이지에 없다. e2e의 Escape 단언 21건 중 20건은 `panel.keyboard.press`(패널 문맥)이고, 페이지 문맥 단언은 `pickElement`가 부르는 `fixture.bringToFront()` 덕에 통과한다 — **자동화가 만든 포커스 전환이라 제품 동작이 아니다**(헬퍼 주석이 그렇게 적어놨다). 즉 "페이지에서 Escape로 picking을 취소한다"가 실사용에서 동작하는지 **검증된 적이 없다.** 패널의 `[취소]` 버튼이라는 대체 경로가 있어 가려져 있었다. 확인해서 사실이면 별도 픽스 대상이다.
+2. **`parseFirstFontFamily`(`src/content/css-resolve.ts`)가 `split(",")[0]`이라 따옴표 안 콤마에서 틀린 답을 준다.** `"Font, With Comma", serif`에서 `"Font`를 돌려준다. 인스펙터 카드의 `font` 행에 그대로 나간다. 기획과 무관한 독립 버그다.
+
+**키보드 e2e를 앞으로 쓸 때의 함정**: `pickElement` 헬퍼가 `fixture.bringToFront()`를 부르므로 **e2e에서만 페이지가 키보드 포커스를 갖는다.** 키 입력에 의존하는 spec은 이 환경에서 green이어도 실사용을 보장하지 못한다.
+
+---
+
 ## 2026-08-08 — 디바이스 뷰포트 (구현까지 갔다가 드랍)
 
 **유일하게 코드까지 만들었다가 드랍한 항목이다.** 전체 이력은 `archive/device-viewport` 브랜치, 회고는 `docs/POSTMORTEM.md`의 2026-08-08 항목.
