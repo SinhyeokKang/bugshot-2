@@ -540,7 +540,7 @@ background/index.ts — webNavigation.onErrorOccurred
 
 | 호스트 (트래픽 대상) | 사용 기능 | API 호출 위치 |
 |---|---|---|
-| 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM 동봉 프리셋 7종(OpenAI·Anthropic·Gemini·Groq·Together·OpenRouter·Ollama(localhost))·사용자 임의 baseUrl·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강) | `picker.ts`, `recorder-bridge.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab·fetchCssSheets), `ai-provider.ts` |
+| 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM 동봉 프리셋 8종(OpenAI·Anthropic·Gemini·Mistral·Groq·Together·OpenRouter·Ollama(localhost))·사용자 임의 baseUrl·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강) | `picker.ts`, `recorder-bridge.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab·fetchCssSheets), `ai-provider.ts` |
 | `*.atlassian.net` | Jira REST API (API Key 모드) | `jira-api.ts` — `${baseUrl}/rest/api/3/*` |
 | `api.atlassian.com` | Jira OAuth API + accessible-resources | `jira-api.ts`, `oauth.ts` |
 | Jira 발급 media/CDN URL | 첨부 업로드 후 redirect를 따라 byte-range GET/HEAD로 media ID 판별(고정 host 아님) | `jira-api.ts` — `getMediaFileId` |
