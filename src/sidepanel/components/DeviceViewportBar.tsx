@@ -37,6 +37,10 @@ const lockedClass = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 /**
  * 뷰포트 폭 세그먼티드 컨트롤.
  *
+ * **행 컨테이너(`border-b`·`px-4 py-4`)도 자기가 들고 온다** — 서브탭 바와 같은 wrapper를
+ * 쓰지 않고 그 뒤에 붙는 독립 행이다(로그 탭 필터 행과 같은 규칙). 컨테이너를 `DebugTab` 쪽에
+ * 두면 아래 렌더 게이트(`tabId == null || unsupported`)로 `null`이 됐을 때 빈 행이 남는다.
+ *
  * **`<Tabs>` 래퍼를 반드시 자기가 들고 온다** — 이 행은 `DebugTab`의 `<Tabs value={sub}>`
  * 안쪽에 놓이므로 `TabsList`만 렌더하면 바깥 컨텍스트를 잡아, 세그먼트를 누르는 순간
  * `setSub("390")`이 돌아 존재하지 않는 서브탭으로 전환되고 화면이 빈다(에러 없는 조용한 오동작).
@@ -124,7 +128,11 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
     <>
       <TooltipProvider delayDuration={200}>
         <Tabs value={value} onValueChange={handleValueChange}>
-          <div className="mt-2" data-testid="device-viewport-bar" aria-busy={busy || undefined}>
+          <div
+            className="shrink-0 border-b border-border px-4 py-4"
+            data-testid="device-viewport-bar"
+            aria-busy={busy || undefined}
+          >
             <CollapsingTabsList className="grid h-9 w-full grid-cols-4">
               {segment(
                 FULL,

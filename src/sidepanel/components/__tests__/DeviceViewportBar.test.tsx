@@ -49,6 +49,14 @@ describe("DeviceViewportBar — 렌더 게이트", () => {
     expect(screen.queryByTestId("device-viewport-bar")).toBeNull();
   });
 
+  it("행 루트가 자기 컨테이너를 들고 온다 (로그 탭 필터 행과 같은 규칙)", () => {
+    render(<DeviceViewportBar tabId={1} />);
+    const bar = screen.getByTestId("device-viewport-bar");
+    for (const cls of ["shrink-0", "border-b", "border-border", "px-4", "py-4"]) {
+      expect(bar.classList.contains(cls)).toBe(true);
+    }
+  });
+
   it("세그먼트가 4개다 (전체 + 프리셋 3)", () => {
     render(<DeviceViewportBar tabId={1} />);
     for (const id of ["full", 390, 768, 1024] as const) {

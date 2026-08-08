@@ -53,7 +53,7 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
 | `src/sidepanel/hooks/useBackgroundRecorder.ts:104`·`:113-118`·`:141-144` | `inject()`가 visibilitychange·`status==="complete"`·idle 복귀마다 activate 3종 재호출 | 호출부는 무변경. 위 게이트가 하류에서 흡수한다 — 호출 트리거를 하나씩 막는 방식은 새 트리거가 생길 때마다 샌다 |
 | `src/sidepanel/hooks/usePickerMessages.ts:271-272` | `frameCommitted` 수신 → `rebroadcastSentinelsToFrame` 무조건 호출 | 같은 게이트. 래퍼 서브트리 커밋이면 재발행(= same-origin 이동 후 start 재전달의 정식 경로), 아니면 skip |
 | `src/sidepanel/hooks/usePickerMessages.ts:206-223`·`:423` | `captureAndCrop(rect, viewport)` — **`capture.ts`가 아니라 이 파일의 모듈 프라이빗 함수**(`capture.ts`의 export는 `cropImage`뿐) | 크롭은 `msg.viewport`, 메타는 `getTopViewport(tabId)`로 분리. 변경이 이 파일 안에서 끝난다 |
-| `src/sidepanel/tabs/DebugTab.tsx:73-94` | 서브탭 바 `<div>`(`CollapsingTabsList` 74-93) | 그 wrapper 안쪽에 `mt-2`로 `<DeviceViewportBar>` 행을 넣는다 — 별도 bordered 행이면 상단 크롬이 138→207px가 되고 idle 화면은 `overflow-hidden`+`justify-center`라 밀리는 게 아니라 잘린다 |
+| `src/sidepanel/tabs/DebugTab.tsx:73-94` | 서브탭 바 `<div>`(`CollapsingTabsList` 74-93) | 그 wrapper **뒤에 형제로** `<DeviceViewportBar>` 행을 둔다. 행 컨테이너(`shrink-0 border-b border-border px-4 py-4` — 로그 탭 필터 행과 같은 규칙)는 `DeviceViewportBar`가 자기 루트에 들고 오므로, 렌더 게이트(`tabId == null \|\| unsupported`)로 `null`이 되면 빈 행이 남지 않는다. 대가는 상단 크롬 182→207px — idle 화면은 `PageScroll`을 안 쓰고 `overflow-hidden`+`justify-center`라 패널이 아주 낮으면 밀리는 게 아니라 잘린다 |
 | `src/sidepanel/tabs/IssueTab.tsx:552-561` | `capture-method-fullpage` 버튼(`ariaDisabled={busy}` :554) | 모드 ON이면 `ariaDisabled`. 잠금 사유 노출은 `TooltipIconButton`에 **옵션 prop 추가**가 필요하다 — 아래 |
 | `src/sidepanel/components/TooltipIconButton.tsx` | `label` 하나가 `aria-label`(`:42`)과 `TooltipContent`(`:54`)를 겸하고, props에 사유 슬롯이 없다 | `disabledReason?: string` 추가 — 있으면 툴팁 본문만 그걸로 대체하고 `aria-label`은 `label` 유지 |
 | `src/sidepanel/tabs/DraftingPanel.tsx:576-678` | `ReproEnvironmentSection` | 모드 ON 읽기전용 인디케이터 1개. `device.state.width != null`에서 파생하므로 전역 상태를 안 만든다 |
@@ -553,7 +553,7 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }): JSX.Elem
 
 ### 모드 ON 인디케이터
 
-`hideSubTabs`는 `phase === styling|drafting|previewing|done`(`DebugTab.tsx:27-31`)이라, 뷰포트 행이 서브탭 바에 붙는 이상 **캡처 직후부터 제출까지 통째로 사라진다.** 전역 배지를 2차로 미뤘으므로 그 구간에 ON 신호가 0이 되고, `Device` 행 신설도 기각했으므로 리포트 표면에도 신호가 없다.
+`hideSubTabs`는 `phase === styling|drafting|previewing|done`(`DebugTab.tsx:27-31`)이라, 뷰포트 행이 서브탭 바와 같은 `hideSubTabs` 게이트를 타는 이상 **캡처 직후부터 제출까지 통째로 사라진다.** 전역 배지를 2차로 미뤘으므로 그 구간에 ON 신호가 0이 되고, `Device` 행 신설도 기각했으므로 리포트 표면에도 신호가 없다.
 
 1차는 **`DraftingPanel`의 재현 환경 근처에 읽기전용 표시 1개**로 갈음한다. 폭이 우연히 프리셋과 같은 전체 상태와 혼동하지 않도록 `device.state.width != null`로 ON을 판정하고 `뷰포트 390px`처럼 현재 폭을 표시한다. 접근명과 `data-testid="device-viewport-indicator"`를 제공한다.
 
