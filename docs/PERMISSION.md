@@ -529,7 +529,7 @@ background/index.ts — webNavigation.onErrorOccurred
 
 | API | 위치 | 용도 |
 |---|---|---|
-| `webNavigation.getFrame({tabId, frameId})` | `background/index.ts` | `device.frameReady` push의 `sender.frameId`가 **top의 직속 자식**(`parentFrameId === 0`)인지 확인. 래퍼 자기신고의 근거는 페이지가 붙일 수 있는 DOM 속성(`frameElement.id`)뿐이고 picker는 `all_frames`라, 이 확인이 없으면 페이지가 만든 same-origin iframe이 바인딩을 위조할 수 있다 — 위조가 통하면 사용자가 켠 적 없는 모드가 켜지고 **진짜 top 문서의 로그가 조용히 사라진다** |
+| `webNavigation.getFrame({tabId, frameId})` | `background/index.ts` | `device.frameReady` push의 `sender.frameId`가 **top의 직속 자식**(`parentFrameId === 0`)인지 확인. 래퍼 자기신고의 근거는 페이지가 붙일 수 있는 DOM 속성(`frameElement.id`)뿐이고 picker는 `all_frames`라, 이 확인이 없으면 페이지가 만든 same-origin iframe이 바인딩을 위조할 수 있다 — 위조가 통하면 사용자가 켠 적 없는 모드가 켜지고 **진짜 top 문서의 로그가 조용히 사라진다**. **잔여 위험**: 이 검사는 2-depth 위조만 막는다. arm 창(3초)이 열려 있는 동안에는 `parentFrameId === 0`이고 URL이 top과 같은 **직속 자식**이 잠정 등록을 선점할 수 있어(first-wins), 적대적 페이지가 `location.href`를 src로 하는 자식 iframe을 미리 깔아두면 그 창 안에서 binding을 가로챌 수 있다. 영향 범위는 해당 탭의 로그 무결성 한정이고, iframe 등록 핸드셰이크의 frameToken이 "인증이 아니라 힌트"인 것과 같은 등급의 수용된 위험이다 |
 | `webNavigation.getAllFrames({tabId})` | `device-frame-coordinator.ts` (`listTabDocuments`) | 탭의 document 전량 열거 → 레코더 sentinel을 어느 문서에 발행할지 판정(sentinel 게이트의 유일한 문서 열거원) |
 
 ---

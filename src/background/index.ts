@@ -24,6 +24,7 @@ import {
   enqueueForTab,
   getDeviceFrame,
   isTopLikeFrame,
+  mayNeedDeviceSignal,
   trackCommittedUrl,
 } from "./device-frame-coordinator";
 
@@ -148,6 +149,9 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
       chrome.tabs.get(tabId).then((tab) => tab.url ?? "").catch(() => ""),
     );
   }
+  // 디바이스 관여가 없는 탭의 서브프레임 이동은 판정도 로그 꼬리 sync도 대상이 아니다 —
+  // 큐에 넣으면 광고 iframe 하나마다 storage 복원 체인과 arm 슬롯 엔트리가 생긴다.
+  if (frameId !== 0 && !mayNeedDeviceSignal(tabId)) return;
   void enqueueForTab(tabId, async () => {
     // **판정보다 먼저 본다.** handoff 판정은 binding을 폐기하므로, 뒤에서 읽으면 떠나는 래퍼가
     // top-like가 아니게 돼 그 문서의 로그 꼬리가 통째로 사라진다. 판정을 기다리는 것도
@@ -184,7 +188,8 @@ chrome.webNavigation.onCommitted.addListener((details) => {
   void enqueueForTab(tabId, async () => {
     // documentId 없는 커밋(구형 이벤트)은 binding을 만들 수 없어 판정에서 제외한다 —
     // 빈 documentId로 등록하면 문서 열거에서 걸러져 deviceTree가 조용히 빈다.
-    if (documentId) {
+    // 큐 자체는 못 건너뛴다 — 아래 sentinel 재발행이 디바이스 모드와 무관하게 필요하다.
+    if (documentId && mayNeedDeviceSignal(tabId)) {
       await applyDeviceSignal(tabId, { kind: "committed", frameId, documentId, url });
     }
     const binding = getDeviceFrame(tabId);
@@ -233,6 +238,7 @@ chrome.webNavigation.onCommitted.addListener((details) => {
 // 내보낸다 — 안 하면 모드 유지 중 XFO 사이트에 도달했을 때 백지에 방치된다.
 chrome.webNavigation.onErrorOccurred.addListener((details) => {
   const { tabId, frameId, url } = details;
+  if (!mayNeedDeviceSignal(tabId)) return;
   void enqueueForTab(tabId, () =>
     applyDeviceSignal(tabId, { kind: "errorOccurred", frameId, url }),
   );

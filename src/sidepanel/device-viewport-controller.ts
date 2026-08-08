@@ -250,7 +250,10 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
     set({ busy: true });
     const res = await deviceSet(tabId, null);
     if (!stillOn(tabId)) return;
-    set({ busy: false, width: res?.width ?? null, availableWidth: res?.available.width ?? state.availableWidth });
+    // **응답의 width는 읽지 않는다.** OFF의 결과는 정의상 Full이고, 응답값을 채택하면 이 창에
+    // 도착한 handoff 강등이 방금 내린 null을 되살릴 여지가 생긴다. 소유권 토큰 대신 이쪽이
+    // 맞다 — off는 노릴 폭이 없어서 토큰에 실을 값 자체가 없다.
+    set({ busy: false, width: null, availableWidth: res?.available.width ?? state.availableWidth });
     return;
   }
 
@@ -258,32 +261,52 @@ export async function selectDeviceWidth(width: number | null): Promise<void> {
   // 전환·로그 clear를 붙이면 3초 무신호 → 차단 판정 → 롤백으로 모드가 통째로 풀린다.
   if (path === "resize") {
     set({ busy: true });
-    const res = await deviceSet(tabId, width);
-    if (!stillOn(tabId)) return;
-    set({ busy: false });
-    if (!res?.ok) {
-      await rollbackToFull(tabId, t("issue.device.blocked"));
-      return;
+    const token = beginAttempt(width);
+    try {
+      const res = await deviceSet(tabId, width);
+      if (!stillOn(tabId)) return;
+      set({ busy: false });
+      // 강등이 이 창 안에 왔으면 그쪽이 이긴다 — 아래 set/putPending이 방금 내린 폭을 되살리면
+      // "래퍼는 없는데 UI만 ON"이 그대로 돌아온다(off-to-on·재수립과 같은 규율).
+      if (attemptToken !== token) return;
+      if (!res?.ok) {
+        await rollbackToFull(tabId, t("issue.device.blocked"));
+        return;
+      }
+      set({ width: res.width, availableWidth: res.available.width });
+      putPending(tabId, width);
+    } finally {
+      // 조기 반환(탭 재바인딩·강등)에서도 반납해야 attemptingWidth에 옛 폭이 남지 않는다.
+      endAttempt(token);
     }
-    set({ width: res.width, availableWidth: res.available.width });
-    putPending(tabId, width);
     return;
   }
 
-  // OFF→ON: 최초 진입이면 경고를 먼저 소비한다(다이얼로그 [계속]이 runOffToOn을 잇는다).
+  // OFF→ON: 최초 진입이면 경고를 먼저 소비한다(다이얼로그 [계속]이 전이를 잇는다).
   if (!useSettingsUiStore.getState().deviceModeWarned) {
     set({ warningWidth: width });
     return;
   }
-  await runOffToOn(tabId, width);
+  await runTransition(tabId, width, { syncLogs: true });
 }
 
-async function runOffToOn(tabId: number, width: number): Promise<void> {
+/**
+ * OFF→ON과 재수립의 공통 본체. 둘의 실차이는 **떠나는 문서의 로그 꼬리를 밀어넣는지** 하나다
+ * (재수립은 그 문서가 이미 없다). 따로 두면 소유권 토큰·롤백 조건 같은 가드가 한쪽만 고쳐지는
+ * 비대칭이 반복해서 생긴다 — 실제로 resize 경로가 그렇게 샜다.
+ *
+ * 진입 게이트(`decideReestablish`·루프 카운터·1회 경고)는 여기가 아니라 호출부가 소유한다.
+ */
+async function runTransition(
+  tabId: number,
+  width: number,
+  { syncLogs }: { syncLogs: boolean },
+): Promise<void> {
   set({ busy: true });
   const token = beginAttempt(width);
   try {
     // 떠나는 페이지 로그 꼬리를 누적기에 밀어넣는다.
-    await syncAndSettleLogs(tabId);
+    if (syncLogs) await syncAndSettleLogs(tabId);
     // device.set보다 먼저 열어야 첫 onBeforeNavigate를 안 놓친다.
     await arm(tabId, true);
     // arm이 열린 **직후**에 비운다 — 이 지점과 다음 문장 사이엔 await가 없어 메시지가 끼어들
@@ -312,6 +335,9 @@ async function runOffToOn(tabId: number, width: number): Promise<void> {
       if (!verdict.handoff) await rollbackToFull(tabId, t("issue.device.blocked"));
       return;
     }
+    // stop ACK 뒤 clear를 무조건 한 번 한다 — background의 logClear는 editor 세션 스냅샷이
+    // 있을 때만 발화해서, 패널을 막 열고 첫 로그 전이면 안 돈다. 두 번 비워도 둘 다
+    // start ACK 전이라 무해하다.
     const activated = await finishActivation(tabId, verdict.frameId);
     // finishActivation은 백그라운드 왕복·ACK 재시도라 수백 ms다 — 그 창에서 온 만료 강등이
     // 이겨야 한다. 안 그러면 아래 putPending이 방금 버린 pending을 되살려 재수립이 돈다.
@@ -333,8 +359,11 @@ async function runOffToOn(tabId: number, width: number): Promise<void> {
  * 재수립. **사용자 조작이 아니라 "이미 벌어진 페이지 사실"에 대한 반응이다.**
  * 호출 지점은 top onCommitted + pending 하나다. handoff·확장 reload 복구는
  * pending을 세팅하고 top commit을 만들기만 하며 직접 부르지 않는다.
+ *
+ * 게이트만 소유하고 본체는 `runTransition`에 넘긴다 — 사용자 전이와 다른 건 진입 조건과
+ * 로그 꼬리 sync 여부뿐이고, 1회 경고를 안 띄우는 것도 여기서 안 부르는 것으로 표현된다.
  */
-async function reestablish(tabId: number, width: number, url: string): Promise<void> {
+async function reestablish(tabId: number, width: number): Promise<void> {
   // 게이트를 먼저 본다 — 거부된 시도까지 세면 busy가 겹칠 때 루프 임계가 헛되이 오른다.
   // phase는 넘기지 않는다 — 재수립이 phase로 막히지 않는다는 계약이 그 부재로 표현된다.
   const gate = decideReestablish({ unsupported: unsupportedTab, busy: snap().busy });
@@ -349,47 +378,13 @@ async function reestablish(tabId: number, width: number, url: string): Promise<v
     set({ width: null });
     return;
   }
-  if (noteReestablish(tabId, url) === "loop") {
+  if (noteReestablish(tabId) === "loop") {
     dropPending(tabId);
     set({ width: null, loopWarning: true });
     return;
   }
-
-  set({ busy: true });
-  const token = beginAttempt(width);
-  try {
-    // 재수립은 syncAndSettleLogs를 안 한다 — 떠나는 문서가 이미 없다. 1회 경고도 안 띄운다.
-    await arm(tabId, true);
-    resetVerdict();
-    const res = await deviceSet(tabId, width);
-    if (attemptToken !== token) return;
-    if (!res?.ok) {
-      await arm(tabId, false);
-      if (stillOn(tabId)) await rollbackToFull(tabId, t("issue.device.blocked"));
-      return;
-    }
-    if (!stillOn(tabId)) return;
-    set({ width: res.width, availableWidth: res.available.width });
-
-    const loaded = await waitForVerdict();
-    await arm(tabId, false);
-    if (!stillOn(tabId)) return;
-    if (!loaded.ok) {
-      if (!loaded.handoff) await rollbackToFull(tabId, t("issue.device.blocked"));
-      return;
-    }
-    // stop ACK 뒤 clear를 무조건 한 번 한다 — background의 logClear는 editor 세션 스냅샷이
-    // 있을 때만 발화해서, 패널을 막 열고 첫 로그 전이면 안 돈다. 두 번 비워도 둘 다
-    // start ACK 전이라 무해하다.
-    const activated = await finishActivation(tabId, loaded.frameId);
-    if (!stillOn(tabId) || attemptToken !== token) return;
-    putPending(tabId, width);
-    // 위와 같은 이유 — 재수립 직후의 reload는 handoff가 만든 이동에 한 번 더 겹친다.
-    if (!activated) toast.warning(t("issue.device.recordersDegraded"));
-  } finally {
-    endAttempt(token);
-    if (stillOn(tabId)) set({ busy: false });
-  }
+  // 재수립은 syncAndSettleLogs를 안 한다 — 떠나는 문서가 이미 없다.
+  await runTransition(tabId, width, { syncLogs: false });
 }
 
 /* ── push 수신 ─────────────────────────────────────────────── */
@@ -472,12 +467,10 @@ function handleMessage(
   if (msg.type === "frameCommitted") {
     if (msg.tabId !== tabId || msg.frameId !== 0) return;
     // 소비 즉시 삭제한 뒤 재수립하고, 성공하면 다시 세팅한다(실패 경로에 유령 pending이 안 남게).
-    const pending = takePending(tabId);
-    if (!pending) return;
-    void chrome.tabs
-      .get(tabId)
-      .then((tab) => reestablish(tabId, pending.width, tab.url ?? ""))
-      .catch(() => {});
+    const width = takePending(tabId);
+    if (width == null) return;
+    // 이전엔 chrome.tabs.get 체인의 catch가 rejection을 덮고 있었다 — 그 봉인을 유지한다.
+    void reestablish(tabId, width).catch(() => {});
   }
 }
 
@@ -509,7 +502,18 @@ async function syncFromPage(tabId: number): Promise<void> {
   // 열거 실패(null)면 엇갈림 여부를 판정할 수 없다 — 아래 복구가 정상 페이지를 reload하므로
   // 추측으로 발사하지 않는다. 재시도·in-flight 병합·null 세만틱은 공용 경로가 소유한다.
   const deviceTree = await fetchDeviceTree(tabId);
-  if (deviceTree == null || deviceTree.length > 0 || !stillOn(tabId)) return;
+  if (deviceTree == null || !stillOn(tabId)) return;
+  if (deviceTree.length > 0) {
+    // 래퍼도 binding도 정상이다 — 여기서 pending을 안 세우면 이 패널 문서가 아는 폭이
+    // 아무 데도 안 남아, 다음 top 커밋에서 재수립이 미발사되고 래퍼만 사라진다.
+    // (pending은 인메모리라 패널을 닫았다 열면 select()가 세운 값이 이미 없다.)
+    //
+    // **다시 읽고 쓴다** — 여기까지 두 번의 왕복(device.state → device.documents+재시도)을
+    // 거치는 동안 사용자가 `전체`를 눌렀으면 그쪽이 이미 dropPending을 했고, 옛 폭으로
+    // 되살리면 이어지는 reload의 top 커밋이 그걸 소비해 방금 끈 모드가 다시 켜진다.
+    if (snap().width === state.width) putPending(tabId, state.width);
+    return;
+  }
   // 기존 래퍼를 두고 device.set(같은 폭)을 보내면 폭만 바꾸어 commit이 안 생긴다.
   // pending을 먼저 세우고 Full 복귀로 top commit을 만들어 공용 재수립 경로를 태운다.
   putPending(tabId, state.width);
@@ -525,7 +529,17 @@ async function syncFromPage(tabId: number): Promise<void> {
  * 렌더되는 컴포넌트에 매달면 작성 중 handoff가 통째로 유실된다.
  */
 export function attachDeviceViewport(tabId: number): () => void {
-  set({ tabId, width: null, availableWidth: null, busy: false, expiredByHandoff: false });
+  // 경고 두 개도 함께 비운다 — 탭 재바인딩을 넘어 살아남으면 [계속]이 **새 탭 id에 옛 폭**으로
+  // 전이를 돌고, 루프 다이얼로그는 그 탭과 무관한 draft를 reset한다.
+  set({
+    tabId,
+    width: null,
+    availableWidth: null,
+    busy: false,
+    expiredByHandoff: false,
+    warningWidth: null,
+    loopWarning: false,
+  });
   // 경계에서도 비운다 — 지금은 waitForVerdict 호출부 둘이 모두 resetVerdict 뒤라 실동작
   // 문제가 없지만, 그 불변식을 "세 번째 호출부도 짝을 기억한다"에 맡기지 않는다.
   resetVerdict();
@@ -541,6 +555,8 @@ export function attachDeviceViewport(tabId: number): () => void {
     resetVerdict();
     unsubscribe();
     dropPending(tabId);
+    // 카운터도 함께 되돌린다 — 남겨두면 다음 부착의 첫 재수립이 앞 세션 잔량 위에서 센다.
+    resetLoopGuard(tabId);
     set({ tabId: null });
   };
 }
@@ -562,11 +578,15 @@ export function watchAvailableWidth(tabId: number): () => void {
 /* ── 다이얼로그 응답 ────────────────────────────────────────── */
 
 export function confirmDeviceWarning(): void {
-  const { tabId, warningWidth } = snap();
+  const { tabId, warningWidth, busy, availableWidth } = snap();
   set({ warningWidth: null });
   useSettingsUiStore.getState().setDeviceModeWarned(true);
   if (tabId == null || warningWidth == null) return;
-  void runOffToOn(tabId, warningWidth);
+  // 다이얼로그 왕복 사이에 phase·창 폭이 바뀌었을 수 있다 — select()의 게이트는 이미
+  // 지나갔으므로 여기서 한 번 더 본다(잠긴 상태에서 전이가 시작되는 유일한 구멍이었다).
+  if (isDeviceViewportLocked() || busy) return;
+  if (!isPresetAvailable(warningWidth, availableWidth)) return;
+  void runTransition(tabId, warningWidth, { syncLogs: true });
 }
 
 export function dismissDeviceWarning(): void {

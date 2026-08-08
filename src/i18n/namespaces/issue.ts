@@ -61,11 +61,11 @@ const ko = {
   "issue.sessionExpired.bodyDeviceMode": "다른 사이트로 이동해 페이지 전체를 그 사이트로 다시 열었습니다. 디버깅 세션이 새로 시작되고 작성 중인 내용은 초기화됩니다.",
   "issue.submit": "이슈 제출",
 
-  // 라벨은 폭 숫자다 — 기기 이름을 쓰면 DPR·터치·UA까지 에뮬레이트한다는 오해를 준다.
+  // 폭 세그먼트 라벨은 숫자 그 자체라 사전에 없다(DEVICE_PRESETS.width 단일 출처) —
+  // 기기 이름을 쓰면 DPR·터치·UA까지 에뮬레이트한다는 오해를 준다.
   "issue.device.full": "전체",
-  "issue.device.w390": "390",
-  "issue.device.w768": "768",
-  "issue.device.w1024": "1024",
+  // 래퍼 iframe의 접근명. content script가 사전을 못 읽어 device.set 페이로드로 실려 간다.
+  "issue.device.frameTitle": "BugShot 디바이스 뷰포트",
   // 라벨이 접혀 아이콘만 남아도 접근명은 폭을 그대로 말한다.
   "issue.device.aria.full": "뷰포트 전체 너비",
   "issue.device.aria.width": "뷰포트 너비 {width}픽셀",
@@ -225,11 +225,10 @@ const en = {
   "issue.sessionExpired.title": "The page has changed",
   "issue.sessionExpired.body": "Your draft will be reset.",
   "issue.sessionExpired.bodyDeviceMode": "You navigated to another site, so the whole page was reopened there. A new debugging session starts and your draft will be reset.",
+  "issue.submit": "Submit issue",
 
   "issue.device.full": "Full",
-  "issue.device.w390": "390",
-  "issue.device.w768": "768",
-  "issue.device.w1024": "1024",
+  "issue.device.frameTitle": "BugShot device viewport",
   "issue.device.aria.full": "Full viewport width",
   "issue.device.aria.width": "Viewport width {width} pixels",
   "issue.device.tooltip.tooNarrow": "The window is too narrow for this width",
@@ -246,7 +245,6 @@ const en = {
   "issue.device.loop.title": "The page keeps navigating",
   "issue.device.loop.body": "This site keeps redirecting, so the device viewport can't be kept. Switching back to Full.",
   "issue.device.loop.confirm": "OK",
-  "issue.submit": "Submit issue",
 
   "section.issueTitle": "Issue title",
   "section.env": "Environment",

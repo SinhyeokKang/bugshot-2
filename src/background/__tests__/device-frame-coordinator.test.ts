@@ -268,6 +268,18 @@ describe("decideDeviceSignal — 성공·차단·handoff가 경쟁하지 않는�
     expect(res.next.armed).toBe(false);
   });
 
+  // 잠정 등록을 남기면 그 frameId가 target으로 계속 잡혀, arm이 닫힌 뒤의 그 프레임 이동이
+  // handoff 경로를 탄다. 성공·handoff 분기는 이미 지우고 있어 차단 분기만 비대칭이었다.
+  it("차단 판정도 잠정 등록을 지운다", () => {
+    expect(
+      decideDeviceSignal(armedWithTarget(), { kind: "errorOccurred", frameId: 7, url: TOP }).next
+        .provisionalFrameId,
+    ).toBeNull();
+    expect(
+      decideDeviceSignal(armedWithTarget(), { kind: "armTimeout" }).next.provisionalFrameId,
+    ).toBeNull();
+  });
+
   it("beforeNavigate handoff 뒤 같은 프레임의 committed가 handoff를 중복 발화하지 않는다", () => {
     const first = decideDeviceSignal(
       state({ armed: false, binding: { frameId: 7, documentId: "d1" } }),
@@ -496,8 +508,69 @@ describe("SW 재기동 복원", () => {
 
   it("setDeviceFrame이 storage.session에 권위값을 보존한다", async () => {
     const mod = await import("../device-frame-coordinator");
+    mod.armDeviceFrame(1, true, TOP);
     await mod.setDeviceFrame(1, { frameId: 7, documentId: "d1" });
-    expect(Object.values(store)).toContainEqual({ frameId: 7, documentId: "d1" });
+    expect(Object.values(store)).toContainEqual({ frameId: 7, documentId: "d1", topUrl: TOP });
+  });
+
+  // topUrl을 안 실으면 복원된 슬롯의 topUrl이 ""이고 isSameOrigin(url, "")은 URL 생성이
+  // throw해 항상 false다 — 래퍼의 첫 same-origin 이동이 통째로 handoff로 오판돼 top 탭이
+  // 강제 이동하고 로그가 지워진다.
+  it("복원이 topUrl까지 되살려 same-origin 이동을 handoff로 오판하지 않는다", async () => {
+    const first = await import("../device-frame-coordinator");
+    first.armDeviceFrame(1, true, TOP);
+    await first.applyDeviceSignal(1, {
+      kind: "beforeNavigate",
+      frameId: 7,
+      parentFrameId: 0,
+      url: TOP,
+    });
+    await first.applyDeviceSignal(1, {
+      kind: "committed",
+      frameId: 7,
+      documentId: "d1",
+      url: TOP,
+    });
+
+    vi.resetModules();
+    const revived = await import("../device-frame-coordinator");
+    const push = await revived.enqueueForTab(1, () =>
+      revived.applyDeviceSignal(1, {
+        kind: "beforeNavigate",
+        frameId: 7,
+        parentFrameId: 0,
+        url: "https://a.com/other",
+      }),
+    );
+
+    expect(push).toBeNull();
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+    expect(revived.getDeviceFrame(1)).toEqual({ frameId: 7, documentId: "d1" });
+  });
+
+  // 복원 전에는 관여 여부를 알 수 없다 — 모르면 건너뛰지 않아야 위 복원이 아예 안 도는
+  // 상태로 굳지 않는다.
+  it("복원 전이면 서브프레임 신호를 건너뛰지 않는다", async () => {
+    const mod = await import("../device-frame-coordinator");
+    expect(mod.mayNeedDeviceSignal(1)).toBe(true);
+  });
+
+  it("복원 뒤 디바이스 관여가 없으면 서브프레임 신호를 건너뛴다", async () => {
+    const mod = await import("../device-frame-coordinator");
+    await mod.enqueueForTab(1, () => {});
+    expect(mod.mayNeedDeviceSignal(1)).toBe(false);
+  });
+
+  it("arm이 열려 있거나 binding이 있으면 건너뛰지 않는다", async () => {
+    const mod = await import("../device-frame-coordinator");
+    await mod.enqueueForTab(1, () => {});
+    mod.armDeviceFrame(1, true, TOP);
+    expect(mod.mayNeedDeviceSignal(1)).toBe(true);
+
+    mod.armDeviceFrame(1, false, TOP);
+    expect(mod.mayNeedDeviceSignal(1)).toBe(false);
+    await mod.setDeviceFrame(1, { frameId: 7, documentId: "d1" });
+    expect(mod.mayNeedDeviceSignal(1)).toBe(true);
   });
 
   // 복구 전 이벤트를 동기 기본값으로 판정하면 래퍼를 top-only로 오판한다.

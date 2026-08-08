@@ -26,8 +26,12 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
 |---|---|
 | `src/content/device-frame.ts` | 래퍼 생성·제거·로드 검증. top 문서 DOM만 다루는 순수 DOM 모듈. `picker.ts`가 import |
 | `src/sidepanel/lib/device-presets.ts` | 프리셋 상수 + 가용 폭 판정 순수 함수. 유닛 테스트 대상 |
+| `src/sidepanel/lib/device-mode.ts` | 전이 경로·재수립 게이트 판정 + pending·루프 카운터(모듈 스코프). 유닛 테스트 대상 |
+| `src/sidepanel/lib/device-sentinel-gate.ts` | sentinel 발행 대상 판정(모드 ON이면 래퍼 서브트리로 좁힘). 유닛 테스트 대상 |
+| `src/sidepanel/lib/capture-viewport.ts` | 캡처 뷰포트 폴백 규칙 단일 출처 |
+| `src/sidepanel/device-viewport-controller.ts` | 전이 오케스트레이션·push 수신·소유권 토큰. 패널 루트가 attach/detach |
 | `src/sidepanel/components/DeviceViewportBar.tsx` | 세그먼티드 컨트롤 UI |
-| `src/sidepanel/hooks/useDeviceViewport.ts` | 현재 폭·가용 폭 조회, 전환 오케스트레이션 |
+| `src/sidepanel/hooks/useDeviceViewport.ts` | 컨트롤러 스토어 구독 + 가용 폭 watch 수명. 전이 자체는 컨트롤러가 소유한다 |
 | `src/content/__tests__/device-frame.test.ts` | jsdom — 스타일 주입·복원 왕복 |
 | `src/sidepanel/lib/__tests__/device-presets.test.ts` | node — 가용 폭 판정 |
 | `src/sidepanel/components/__tests__/DeviceViewportBar.test.tsx` | jsdom — 잠금·비활성 조건 |
@@ -62,7 +66,7 @@ top 문서 안에 같은 URL을 `src=`로 로드하는 iframe(`#__bugshot_device
 | `src/background/index.ts:120`·`:123`·`:145-186` | `onBeforeNavigate`/`onCommitted`의 frameId 게이트 + `navUrlPromise` | 아래 "래퍼 내부 same-origin 네비게이션" 절 — 두 분기를 모두 태우고 `navUrlPromise` 키를 `tabId:frameId`로 |
 | `src/background/tab-bindings.ts` | — | frameId/documentId binding의 session 보존·복구 + parent 계보 조회 + document 열거 |
 | `src/types/messages.ts`·`bgRequestTypes.ts` | `BgRequest` union + `BG_REQUEST_TYPES` 화이트리스트 | `device.arm`·`device.documents` 2종을 화이트리스트에 등록. **`device.frameReady`는 이 게이트를 통과 못 하고** 전용 push 리스너로 받는다 — 아래 절 참조. background→사이드패널 push `device.frameLoaded`/`device.frameBlocked`/`device.handoff` 3종도 추가 |
-| `src/types/picker.ts` | `PickerMessage` union | `device.*` 메시지 **6종** 추가(수신 3 + push 3) |
+| `src/types/picker.ts` | `PickerMessage` union | `device.*` 메시지 **5종** 추가(수신 3 + push 2 — `frameLoadEvent`는 폐기했다) |
 | `src/store/settings-ui-store.ts` | persist **version 9**(`:242`), `migrateSettingsUi`(`:131-151`) | `deviceModeWarned: boolean` 추가 + 기본값 `false` 등록 + version 10 bump. 최초 ON 1회 경고의 영속 슬롯이다 |
 | `src/i18n/namespaces/app.ts`·`issue.ts` | ko/en 사전 | 신규 키(ko/en 동시) |
 
@@ -173,11 +177,12 @@ DeviceViewportBar 마운트
 
 ### 메시지 (`src/types/picker.ts`)
 
-`PickerMessage`에 **6종**을 더한다(수신 3 + push 3). 이 union은 이미 양방향이 섞여 있으므로(`types/picker.ts:131-136`이 push 타입) 컨벤션에 맞고, 응답 타입만 union 밖 별도 인터페이스로 둔다(`PrepareCaptureResponse` 선례). 여기에 더해 background 경유 **5종**(BgRequest 2 + push 3)이 `types/messages.ts`에 붙는다.
+`PickerMessage`에 **5종**을 더한다(수신 3 + push 2). 이 union은 이미 양방향이 섞여 있으므로(`types/picker.ts:131-136`이 push 타입) 컨벤션에 맞고, 응답 타입만 union 밖 별도 인터페이스로 둔다(`PrepareCaptureResponse` 선례). 여기에 더해 background 경유 **5종**(BgRequest 2 + push 3)이 `types/messages.ts`에 붙는다.
 
 ```ts
 // 사이드패널 → top 프레임 (frameId 0 지정 송신)
-| { type: "device.set"; width: number | null }   // null = 전체(래퍼 제거)
+| { type: "device.set"; width: number | null; title: string } // null = 전체(래퍼 제거)
+//   title = 래퍼 iframe의 접근명. content script는 i18n 사전을 못 읽으므로 패널이 실어 보낸다
 | { type: "device.state" }
 | { type: "device.watch"; on: boolean }          // on:false가 unwatch. 별도 타입을 두지 않는다
 
@@ -209,7 +214,7 @@ export interface DeviceDocumentsResponse {
 }
 
 // background → 사이드패널 (push)
-| { type: "device.frameLoaded"; tabId: number }
+| { type: "device.frameLoaded"; tabId: number; frameId: number } // picker.start 재전송 대상
 | { type: "device.frameBlocked"; tabId: number }
 | { type: "device.handoff"; tabId: number; url: string; expiresAt: number } // 래퍼가 cross-origin으로 나갔다
 ```
@@ -385,17 +390,16 @@ content에 주입하는 CSS는 토큰 표의 또 다른 사본이므로(`docs/DE
 
 ```ts
 export interface DevicePreset {
-  /** 세그먼트의 뷰포트 폭. 라벨에 숫자로 그대로 노출된다. */
+  /** 세그먼트의 뷰포트 폭이자 **라벨의 단일 출처**. 숫자를 그대로 찍으므로 사전을 거치지 않는다. */
   width: number;
-  labelKey: string;
   /** 보조 기호. 폭 숫자를 대체하지 않는다. */
   icon: LucideIcon;
 }
 
 export const DEVICE_PRESETS: readonly DevicePreset[] = [
-  { width: 390, labelKey: "issue.device.w390", icon: Smartphone },
-  { width: 768, labelKey: "issue.device.w768", icon: Tablet },
-  { width: 1024, labelKey: "issue.device.w1024", icon: Laptop },
+  { width: 390, icon: Smartphone },
+  { width: 768, icon: Tablet },
+  { width: 1024, icon: Laptop },
 ];
 
 /** 가용 폭 안에 들어가는가. availableWidth가 null(미조회)이면 낙관적으로 true. */
@@ -444,7 +448,7 @@ export function useDeviceViewport(tabId: number | null): DeviceViewportState;
 9. `width != null`이면 `device.frameLoaded` / `device.frameBlocked` 중 하나를 기다린다(≤3s). `frameBlocked`면 `device.set { width: null }` 롤백 + `issue.device.blocked` 토스트
 10. `frameLoaded`면 **전 document stop ACK**(`activateRecordersInDeviceTree`의 앞단)
 11. `store.clearNetworkLog/clearConsoleLog/clearActionLog(tabId)` + 3종 persist `discard()` — 모드 전환은 네비게이션이라 `logClear`가 안 온다. 강제한다
-12. **래퍼 서브트리 start ACK**. 하나라도 실패하면 모드를 롤백한다
+12. **래퍼 서브트리 start ACK**. 실패해도 모드를 롤백하지 않고 `issue.device.recordersDegraded` 토스트만 띄운다 — 래퍼는 정상 로드됐고 레코더는 다음 inject 트리거에서 같은 게이트를 타고 스스로 재무장한다. 여기서 롤백하면 unmount + `location.reload()`라 **정상 동작 중인 페이지의 스크롤·입력값을 날린다**. 롤백은 래퍼가 실제로 못 선 경우(`frameBlocked`)에만 남긴다
 13. arm 창을 닫는다(`device.arm { on: false }`)
 
 **clear는 반드시 stop ACK 뒤, start ACK 앞이다.** 이유가 둘이고, 하나만 알고 순서를 되돌리면 나머지가 조용히 깨진다.
@@ -503,7 +507,7 @@ async function reestablish(tabId: number, width: number, url: string): Promise<v
 
 **arm 창은 `chrome.tabs.update` 전에 닫혀야 한다 — 소유자는 background다.** `select()`가 연 3초 창이 열린 채 남으면 타임아웃이 `frameBlocked`를 뒤늦게 쏘고, 그게 방금 성공한 재수립을 롤백시킨다. `reestablish`가 자기 창을 새로 여므로 이전 창은 반드시 닫혀 있어야 한다. 이 폐쇄는 `decideDeviceSignal`의 handoff 분기가 `armed: false`를 내고 `applyDeviceSignal`이 `clearArmTimer`를 부르는 것으로 이뤄진다 — **top 이동과 같은 전이 안이라 패널 왕복이 낄 자리가 없다.** 인플라이트 `select()`가 판정 대기 뒤에 보내는 `arm(false)`는 자기 정리 경로의 멱등 폐쇄일 뿐 이 순서 보장에 관여하지 않는다.
 
-### `src/sidepanel/recorder-control.ts`
+### `src/sidepanel/picker-control.ts` — `activateRecordersInDeviceTree`
 
 ```ts
 /**

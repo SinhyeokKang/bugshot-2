@@ -5,6 +5,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // ② 문서 열거가 실패하면 sentinel을 발행하지 않고 **실패로 올린다** — 조용히 성공으로 접으면
 //    useBackgroundRecorder가 재시도 트리거를 잃어 그 탭의 로그가 통째로 빈다.
 
+// 키만 남긴다 — 실제 ko/en 문구는 locales.test.ts가 맡는다.
+vi.mock("@/i18n", () => ({ t: (key: string) => key }));
+
 const MANIFEST = { content_scripts: [{ js: ["picker.js"], all_frames: true }] };
 
 afterEach(() => {
@@ -47,6 +50,51 @@ describe("deviceState 확장 reload 자가복구", () => {
 
     const { deviceState } = await import("../picker-control");
     await expect(deviceState(1)).resolves.toBeUndefined();
+  });
+});
+
+// frameCommitted는 background가 큐 밖에서 onCommitted 즉시 푸시하는데 picker는 document_idle
+// 주입이다 — 재수립이 그 창에서 device.set을 쏘면 리시버가 없어 undefined가 돌아오고,
+// 컨트롤러는 그걸 "차단"으로 접어 정상 페이지를 롤백하며 오탐 토스트를 띄운다.
+describe("deviceSet 주입 보장", () => {
+  it("top ping 실패 시 picker를 재주입한 뒤 device.set을 보낸다", async () => {
+    const sendMessage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("orphan content script"))
+      .mockResolvedValueOnce({ type: "pong" })
+      .mockResolvedValueOnce({ ok: true, width: 390, available: { width: 1512, height: 800 } });
+    const executeScript = vi.fn(async () => []);
+    vi.stubGlobal("chrome", {
+      runtime: { getManifest: () => MANIFEST },
+      tabs: { sendMessage },
+      scripting: { executeScript },
+    });
+
+    const { deviceSet } = await import("../picker-control");
+    await expect(deviceSet(1, 390)).resolves.toEqual({
+      ok: true,
+      width: 390,
+      available: { width: 1512, height: 800 },
+    });
+    expect(executeScript).toHaveBeenCalled();
+    // title은 래퍼 iframe의 접근명 — content script가 사전을 못 읽어 여기서 실어 보낸다.
+    expect(sendMessage.mock.calls.at(-1)?.[1]).toEqual({
+      type: "device.set",
+      width: 390,
+      title: "issue.device.frameTitle",
+    });
+  });
+
+  // 재주입까지 실패하면 진짜로 못 보내는 페이지다 — 그때만 undefined로 접어 롤백에 맡긴다.
+  it("재주입까지 실패하면 undefined로 접는다", async () => {
+    vi.stubGlobal("chrome", {
+      runtime: { getManifest: () => MANIFEST },
+      tabs: { sendMessage: vi.fn().mockRejectedValue(new Error("no receiver")) },
+      scripting: { executeScript: vi.fn().mockRejectedValue(new Error("blocked")) },
+    });
+
+    const { deviceSet } = await import("../picker-control");
+    await expect(deviceSet(1, 390)).resolves.toBeUndefined();
   });
 });
 

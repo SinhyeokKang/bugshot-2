@@ -61,7 +61,7 @@ export function availableViewport(): { width: number; height: number } {
  * 비교해 스스로 롤백하면 정상 redirect를 차단으로 오판하고, iframe "load"를 신호로 올리는
  * 안도 초기 about:blank의 load에 걸려 정상 사이트를 차단으로 오판했다.
  */
-export function mountDeviceFrame(width: number): void {
+export function mountDeviceFrame(width: number, title: string): void {
   if (!document.getElementById(DEVICE_STYLE_ID)) {
     const style = document.createElement("style");
     style.id = DEVICE_STYLE_ID;
@@ -75,6 +75,9 @@ export function mountDeviceFrame(width: number): void {
     // src는 반드시 location.href다. srcdoc·about:blank는 <all_urls> 미매치라 content script가
     // 안 붙어 로그·picker가 통째로 죽는다(e2e/GOTCHAS.md).
     frame.src = location.href;
+    // 모드 ON이면 페이지 전체가 이 프레임 하나다 — 접근명이 없으면 무명 프레임이 된다.
+    // 사전을 못 읽으므로 문자열은 사이드패널이 device.set에 실어 보낸다.
+    frame.title = title;
     // document.body 직속이다. shadow root 안에 넣으면 frame-geometry의 findChildIframe이
     // document.querySelectorAll("iframe")만 훑으므로 미등록이 되고, elementFromPoint가
     // shadow retargeting으로 host를 돌려줘 안내조차 없이 shadow host가 선택된다.

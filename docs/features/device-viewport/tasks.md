@@ -272,7 +272,7 @@
 
 - **변경 대상**: `src/i18n/namespaces/app.ts`, `src/i18n/namespaces/issue.ts`
 - **작업 내용**: ko/en 동시 추가.
-  - `issue.device.full` / `issue.device.w390`·`w768`·`w1024` (**`w430` 없음**)
+  - `issue.device.full` (폭 라벨은 사전에 없다 — `DEVICE_PRESETS.width`를 그대로 찍는다) / `issue.device.frameTitle`
   - `issue.device.tooltip.tooNarrow` (창이 좁아 사용 불가)
   - `issue.device.tooltip.locked` (캡처·녹화 중 전환 불가 — **drafting은 행이 안 보이므로 이 문구의 도달 조건은 capturing/recording뿐**)
   - `issue.device.aria.full` / `.width` (세그먼트 접근명 — 숫자만 읽히지 않게. `.width`는 폭 placeholder를 받는다. **라벨이 접혀 아이콘만 남아도 이게 유일한 폭 정보**라 생략 불가)

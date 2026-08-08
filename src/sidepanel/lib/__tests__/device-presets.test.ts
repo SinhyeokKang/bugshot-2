@@ -41,9 +41,11 @@ describe("device-presets", () => {
       expect(new Set(DEVICE_PRESETS.map((p) => p.icon)).size).toBe(DEVICE_PRESETS.length);
     });
 
-    it("labelKey가 여전히 폭 숫자를 가리킨다 (아이콘이 숫자를 대체하지 않는다)", () => {
+    // 라벨은 폭 숫자 그 자체라 번역 대상이 아니다 — 사전에 복제하면 사전 값과 width가
+    // 어긋나도 잡는 그물이 없어진다(라벨의 단일 출처는 width 하나다).
+    it("프리셋에 labelKey가 없다 (라벨은 width에서 파생)", () => {
       for (const preset of DEVICE_PRESETS) {
-        expect(preset.labelKey).toBe(`issue.device.w${preset.width}`);
+        expect("labelKey" in preset).toBe(false);
       }
     });
   });

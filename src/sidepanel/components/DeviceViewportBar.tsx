@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Loader2, Monitor } from "lucide-react";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -27,12 +28,10 @@ import {
   useDeviceViewportStore,
 } from "@/sidepanel/device-viewport-controller";
 import { DEVICE_PRESETS, isPresetAvailable } from "@/sidepanel/lib/device-presets";
+import { blurActiveElement } from "@/sidepanel/lib/blurActiveElement";
+import { LOCKED_CLASS } from "@/sidepanel/lib/locked-class";
 
 const FULL = "full";
-
-// DESIGN.md §14의 잠금 표기 — disabled 속성을 못 쓰므로(툴팁이 죽는다) aria-disabled variant로
-// 커서·투명도를 준다. IssueTab·DraftingPanel에도 같은 리터럴이 지역 상수로 있다.
-const lockedClass = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
 /**
  * 뷰포트 폭 세그먼티드 컨트롤.
@@ -56,6 +55,12 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
   // 진입 경고는 사용자가 이 행을 눌러야 뜨므로 여기 둔다. 반면 루프 경고는 재수립 중에
   // 뜨는데 재수립은 이 행이 없는 phase에서도 돌므로 패널 루트(App.tsx)가 소유한다.
   const warningWidth = useDeviceViewportStore((s) => s.warningWidth);
+
+  // 컨트롤드 다이얼로그라 Radix가 트리거를 모른다 — 세그먼트에 남은 포커스를 미리 뗀다
+  // (DESIGN.md §9: 프로그램매틱 open은 aria-hidden과 충돌한다).
+  useEffect(() => {
+    if (warningWidth != null) blurActiveElement();
+  }, [warningWidth]);
 
   if (tabId == null || unsupported) return null;
 
@@ -103,7 +108,7 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
         aria-disabled={disabled ? true : undefined}
         // 스피너를 든 세그먼트는 흐리게 만들지 않는다 — 지금 무슨 일이 일어나는지 보여주는
         // 유일한 표시다(캡처 방식 툴바의 진행 중 버튼과 같은 예외).
-        className={cn("min-w-0 gap-1.5", lockedClass, showSpinner && "aria-disabled:opacity-100")}
+        className={cn("min-w-0 gap-1.5", LOCKED_CLASS, showSpinner && "aria-disabled:opacity-100")}
       >
         {showSpinner ? (
           <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />
@@ -145,18 +150,18 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
                 segment(
                   String(preset.width),
                   preset.width,
-                  t(preset.labelKey),
+                  // 라벨은 폭 숫자 그 자체다 — 번역하지 않으므로 사전을 거치지 않는다.
+                  String(preset.width),
                   t("issue.device.aria.width", { width: preset.width }),
                   preset.icon,
                 ),
               )}
             </CollapsingTabsList>
-            {/* XFO 사이트는 롤백까지 최대 3초라 무피드백 구간이 생긴다. */}
-            {busy && (
-              <span role="status" className="sr-only">
-                {t("issue.device.status.switching")}
-              </span>
-            )}
+            {/* XFO 사이트는 롤백까지 최대 3초라 무피드백 구간이 생긴다. 노드는 상시 두고
+                텍스트만 갈아끼운다 — 리전과 내용이 동시에 생기면 낭독을 놓치는 AT가 있다. */}
+            <span role="status" className="sr-only">
+              {busy ? t("issue.device.status.switching") : ""}
+            </span>
           </div>
         </Tabs>
       </TooltipProvider>
@@ -184,7 +189,6 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
     </>
   );
 }

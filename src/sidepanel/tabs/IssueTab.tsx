@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { LOCKED_CLASS } from "@/sidepanel/lib/locked-class";
 import { recordModeMeta } from "@/sidepanel/lib/recordModeMeta";
 import { formatMmSs } from "@/sidepanel/lib/logRow";
 import { useTabNav } from "@/sidepanel/tab-nav";
@@ -492,9 +493,6 @@ function CapturingState({
   const percent = progress
     ? Math.round((progress.done / Math.max(1, progress.total)) * 100)
     : 0;
-  // disabled는 pointer-events를 죽여 title 툴팁·스피너 대비까지 잃는다 — ReplayButton과 같은
-  // aria-disabled 관용구로 시각·툴팁을 유지하고 핸들러에서 가드한다.
-  const lockedClass = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
   return (
     <PageShell>
       <EmptyShell
@@ -543,7 +541,7 @@ function CapturingState({
             label={t("issue.capturing.method.area")}
             active={!busy}
             ariaDisabled={busy}
-            className={lockedClass}
+            className={LOCKED_CLASS}
             testId="capture-method-area"
           >
             <Crop />
@@ -551,7 +549,7 @@ function CapturingState({
           <TooltipIconButton
             label={t("issue.capturing.method.viewport")}
             ariaDisabled={busy}
-            className={lockedClass}
+            className={LOCKED_CLASS}
             testId="capture-method-viewport"
             onClick={onViewport}
           >
@@ -567,8 +565,9 @@ function CapturingState({
             disabledReason={
               deviceMode ? t("issue.capturing.method.fullPageDeviceLocked") : undefined
             }
-            // 진행 중엔 이 버튼이 스피너를 들고 있으므로 흐리게 만들지 않는다.
-            className="aria-disabled:cursor-not-allowed"
+            // 진행 중엔 이 버튼이 스피너를 들고 있으므로 흐림만 되돌린다 — 반면 모드 ON 잠금은
+            // 스피너가 없어 흐림을 빼면 "밝은데 안 눌린다"가 된다(DeviceViewportBar와 같은 규칙).
+            className={cn(LOCKED_CLASS, busy && "aria-disabled:opacity-100")}
             testId="capture-method-fullpage"
             onClick={onFullPage}
           >

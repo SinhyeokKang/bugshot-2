@@ -180,7 +180,8 @@ describe("DeviceViewportBar — 접근명", () => {
   it("정상 세그먼트도 hover 툴팁으로 폭 라벨을 보여준다", async () => {
     render(<DeviceViewportBar tabId={1} />);
     await userEvent.hover(seg(390));
-    expect((await screen.findByRole("tooltip")).textContent).toContain("issue.device.w390");
+    // 라벨은 사전을 거치지 않는다 — DEVICE_PRESETS.width를 그대로 찍는다.
+    expect((await screen.findByRole("tooltip")).textContent).toContain("390");
   });
 
   it("잠긴 세그먼트는 기본 라벨 대신 사유를 보여준다", async () => {
@@ -215,7 +216,7 @@ describe("DeviceViewportBar — 접근명", () => {
   it("라벨이 폭 숫자를 병기한다 (아이콘만 두면 기기 에뮬레이션으로 오해된다)", () => {
     render(<DeviceViewportBar tabId={1} />);
     for (const width of [390, 768, 1024]) {
-      expect(seg(width).textContent).toContain(`issue.device.w${width}`);
+      expect(seg(width).textContent).toContain(String(width));
     }
   });
 });

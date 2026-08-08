@@ -8,6 +8,8 @@ import {
   unmountDeviceFrame,
 } from "../device-frame";
 
+const TITLE = "BugShot device viewport";
+
 function frameEl(): HTMLIFrameElement | null {
   return document.getElementById(DEVICE_FRAME_ID) as HTMLIFrameElement | null;
 }
@@ -24,7 +26,7 @@ beforeEach(() => {
 describe("mountDeviceFrame", () => {
   it("래퍼가 document.body의 직속 자식이다", () => {
     document.body.innerHTML = "<main id='page'>original</main>";
-    mountDeviceFrame(390);
+    mountDeviceFrame(390, TITLE);
     const frame = frameEl();
     expect(frame).not.toBeNull();
     // shadow root 안에 넣으면 frame-geometry의 findChildIframe이 못 찾아 미등록이 되고,
@@ -32,8 +34,15 @@ describe("mountDeviceFrame", () => {
     expect(frame!.parentElement).toBe(document.body);
   });
 
+  // 모드 ON이면 페이지 전체가 이 프레임 하나라, 접근명이 없으면 무명 프레임이 된다.
+  // content script는 사전을 못 읽으므로 문자열은 device.set 페이로드로 들어온다.
+  it("래퍼가 전달받은 접근명을 title로 단다", () => {
+    mountDeviceFrame(390, TITLE);
+    expect(frameEl()!.title).toBe(TITLE);
+  });
+
   it("래퍼의 src가 location.href다 (srcdoc·about:blank가 아니다)", () => {
-    mountDeviceFrame(390);
+    mountDeviceFrame(390, TITLE);
     const frame = frameEl()!;
     expect(frame.getAttribute("src")).toBe(location.href);
     expect(frame.hasAttribute("srcdoc")).toBe(false);
@@ -41,14 +50,14 @@ describe("mountDeviceFrame", () => {
 
   it("currentDeviceWidth가 mount 전 null, mount 후 폭을 돌려준다", () => {
     expect(currentDeviceWidth()).toBeNull();
-    mountDeviceFrame(390);
+    mountDeviceFrame(390, TITLE);
     expect(currentDeviceWidth()).toBe(390);
   });
 
   it("래퍼가 있는 상태에서 다시 부르면 iframe 노드가 교체되지 않고 폭만 바뀐다", () => {
-    mountDeviceFrame(390);
+    mountDeviceFrame(390, TITLE);
     const first = frameEl();
-    mountDeviceFrame(768);
+    mountDeviceFrame(768, TITLE);
     expect(frameEl()).toBe(first);
     expect(currentDeviceWidth()).toBe(768);
     // 재로드가 없어야 스크롤 위치·입력값이 유지된다.
@@ -57,7 +66,7 @@ describe("mountDeviceFrame", () => {
 
   it("로드를 기다리거나 스스로 unmount하지 않는다 (판정 책임이 이 모듈에 없다)", () => {
     // XFO/CSP 판정 주체는 background다. 반환값이 Promise가 아니어야 계약이 지켜진다.
-    const ret = mountDeviceFrame(390) as unknown;
+    const ret = mountDeviceFrame(390, TITLE) as unknown;
     expect(ret).toBeUndefined();
     expect(frameEl()).not.toBeNull();
   });
@@ -66,7 +75,7 @@ describe("mountDeviceFrame", () => {
 
 describe("주입 스타일시트", () => {
   it("라이트/다크 배경값이 서로 다르고 다크 미디어쿼리 블록이 있다", () => {
-    mountDeviceFrame(390);
+    mountDeviceFrame(390, TITLE);
     const css = styleEl()!.textContent ?? "";
     expect(css).toContain("@media (prefers-color-scheme: dark)");
     const darkAt = css.indexOf("@media (prefers-color-scheme: dark)");
@@ -78,7 +87,7 @@ describe("주입 스타일시트", () => {
   });
 
   it("원본 자식은 display:none으로 숨긴다 (visibility가 아니다)", () => {
-    mountDeviceFrame(390);
+    mountDeviceFrame(390, TITLE);
     const css = styleEl()!.textContent ?? "";
     // visibility면 레이아웃이 살아 원본 문서의 옵저버·측정 코드가 계속 돌아 유령 로그가 는다.
     expect(css).toMatch(
@@ -89,7 +98,7 @@ describe("주입 스타일시트", () => {
 
 describe("unmountDeviceFrame", () => {
   it("style·iframe이 둘 다 제거된다", () => {
-    mountDeviceFrame(390);
+    mountDeviceFrame(390, TITLE);
     unmountDeviceFrame();
     expect(frameEl()).toBeNull();
     expect(styleEl()).toBeNull();
@@ -104,7 +113,7 @@ describe("unmountDeviceFrame", () => {
     const aside = document.querySelector("aside")!;
     const beforeMain = main.getAttribute("style");
     const beforeAside = aside.getAttribute("style");
-    mountDeviceFrame(390);
+    mountDeviceFrame(390, TITLE);
     expect(main.getAttribute("style")).toBe(beforeMain);
     expect(aside.getAttribute("style")).toBe(beforeAside);
     unmountDeviceFrame();
@@ -113,7 +122,7 @@ describe("unmountDeviceFrame", () => {
   });
 
   it("2회 호출해도 throw하지 않는다 (멱등)", () => {
-    mountDeviceFrame(390);
+    mountDeviceFrame(390, TITLE);
     unmountDeviceFrame();
     expect(() => unmountDeviceFrame()).not.toThrow();
   });

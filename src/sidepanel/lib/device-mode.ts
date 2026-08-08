@@ -40,8 +40,8 @@ export function isDeviceModeLocked(phase: string, unsupported: boolean): boolean
 
 export type ReestablishVerdict =
   | { action: "run" }
-  | { action: "reject"; reason: "busy"; restorePending: true }
-  | { action: "abandon"; reason: "unsupported" | "loop" };
+  | { action: "reject"; reason: "busy" }
+  | { action: "abandon"; reason: "unsupported" };
 
 /**
  * 재수립은 사용자 조작이 아니라 "이미 벌어진 페이지 사실"에 대한 반응이다.
@@ -64,32 +64,28 @@ export function decideReestablish(input: {
   busy: boolean;
 }): ReestablishVerdict {
   if (input.unsupported) return { action: "abandon", reason: "unsupported" };
-  if (input.busy) return { action: "reject", reason: "busy", restorePending: true };
+  if (input.busy) return { action: "reject", reason: "busy" };
   return { action: "run" };
 }
 
 /* ── pending ────────────────────────────────────────────────── */
 
-export interface Pending {
-  tabId: number;
-  width: number;
-}
-
-const pendingByTab = new Map<number, Pending>();
+const pendingByTab = new Map<number, number>();
 
 export function putPending(tabId: number, width: number): void {
-  pendingByTab.set(tabId, { tabId, width });
+  pendingByTab.set(tabId, width);
 }
 
-export function peekPending(tabId: number): Pending | null {
+/** 비파괴 조회. 소비 없이 상태를 확인하는 유일한 수단이라 테스트 seam으로도 쓴다. */
+export function peekPending(tabId: number): number | null {
   return pendingByTab.get(tabId) ?? null;
 }
 
 /** top 커밋에서의 소비. 실패 경로에 유령 pending이 안 남게 읽는 즉시 지운다. */
-export function takePending(tabId: number): Pending | null {
-  const pending = pendingByTab.get(tabId) ?? null;
+export function takePending(tabId: number): number | null {
+  const width = pendingByTab.get(tabId) ?? null;
   pendingByTab.delete(tabId);
-  return pending;
+  return width;
 }
 
 export function dropPending(tabId: number): void {
@@ -105,7 +101,6 @@ const LOOP_LIMIT = 2;
 
 interface LoopSlot {
   count: number;
-  lastUrl: string;
   timer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -116,16 +111,20 @@ const loopByTab = new Map<number, LoopSlot>();
  * 못 잡는다 — 래퍼가 `window.top.location = self.location`으로 탈출하면 handoff를 거치지 않고
  * top이 곧장 커밋되고, 재수립된 래퍼가 또 탈출해 무한 재로드가 된다. 카운터를 이 호출에 걸면
  * 두 경로가 한 그물에 들어온다.
+ *
+ * **판정은 횟수 하나다.** "직전 URL 재방문이면 횟수와 무관하게 루프"라는 별도 술어를 뒀더니
+ * 10초 안의 평범한 재새로고침 두 번이 같은 URL 재수립 2회로 걸려, 모드 해제 + editor
+ * reset(작성 중 draft 파기)이 정상 사용에서 터졌다. 그 술어를 임계와 함께 걸도록 좁히면
+ * 횟수 조건과 결과가 완전히 겹쳐 죽은 항이 되므로 아예 걷어낸다 — a→b→a 핑퐁도 매 재수립이
+ * 카운터를 올리므로 같은 3회째에 잡힌다.
  */
-export function noteReestablish(tabId: number, url: string): "ok" | "loop" {
-  const slot = loopByTab.get(tabId) ?? { count: 0, lastUrl: "", timer: null };
+export function noteReestablish(tabId: number): "ok" | "loop" {
+  const slot = loopByTab.get(tabId) ?? { count: 0, timer: null };
   if (slot.timer) clearTimeout(slot.timer);
-  const revisit = slot.count > 0 && slot.lastUrl === url;
   slot.count += 1;
-  slot.lastUrl = url;
   slot.timer = setTimeout(() => resetLoopGuard(tabId), LOOP_RESET_MS);
   loopByTab.set(tabId, slot);
-  return revisit || slot.count > LOOP_LIMIT ? "loop" : "ok";
+  return slot.count > LOOP_LIMIT ? "loop" : "ok";
 }
 
 /** 사용자의 명시적 세그먼트 조작이 "정상 사용 중" 신호다. */
