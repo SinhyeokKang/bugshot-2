@@ -51,6 +51,45 @@ describe("getTopViewport 주입 함수", () => {
     expect(reevaluated()).toEqual({ width: 1512, height: 800 });
   });
 
+  // 래퍼 요소의 content box는 **안쪽 문서의 스크롤바를 안 뺀다** — 그러면 리포트가
+  // `Viewport 390`이라 말하는데 그 문서의 `innerWidth`·미디어쿼리 기준은 375다. 모드 OFF는
+  // `window.innerWidth`라 스크롤바가 빠지므로, 안 맞추면 같은 페이지에서 두 모드의 숫자
+  // 의미가 갈린다. same-origin 불변식 덕에 안쪽 문서를 그냥 읽을 수 있다.
+  it("모드 ON에서 래퍼 **내부 문서**의 innerWidth를 우선한다", async () => {
+    const func = await captureInjectedFunc();
+    vi.stubGlobal("document", {
+      getElementById: (id: string) =>
+        id === DEVICE_FRAME_ID
+          ? {
+              clientWidth: 390,
+              clientHeight: 800,
+              contentWindow: { innerWidth: 375, innerHeight: 800 },
+            }
+          : null,
+    });
+    vi.stubGlobal("window", { innerWidth: 1512, innerHeight: 800 });
+    expect(func()).toEqual({ width: 375, height: 800 });
+  });
+
+  // 커밋 전이거나 접근이 throw하면(불변식이 깨진 순간) 요소 박스로 접는다 — null보다 낫다.
+  it("내부 문서를 못 읽으면 래퍼 요소 박스로 접는다", async () => {
+    const func = await captureInjectedFunc();
+    vi.stubGlobal("document", {
+      getElementById: (id: string) =>
+        id === DEVICE_FRAME_ID
+          ? {
+              clientWidth: 390,
+              clientHeight: 800,
+              get contentWindow() {
+                throw new Error("cross-origin");
+              },
+            }
+          : null,
+    });
+    vi.stubGlobal("window", { innerWidth: 1512, innerHeight: 800 });
+    expect(func()).toEqual({ width: 390, height: 800 });
+  });
+
   it("모드 ON에서 래퍼의 clientWidth/clientHeight를 돌려준다", async () => {
     const func = await captureInjectedFunc();
     const reevaluated = new Function(`return (${func.toString()});`)() as InjectedFn;

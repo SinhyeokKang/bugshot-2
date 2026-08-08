@@ -159,6 +159,21 @@ export function isDeviceFrame(): boolean {
 }
 
 /**
+ * 모드 ON에서 **화면에 안 보이는 top 요소**인가. 래퍼는 body의 유일한 표시 자식이고 body는
+ * `height:100vh; display:flex; justify-content:center`라, 래퍼 좌우 여백(390 모드면 각
+ * 500px대)을 클릭하면 `elementFromPoint`가 숨겨진 top의 `body`를 돌려준다. 그걸 고르면
+ * 편집은 화면에 아무 효과가 없고, 리포트의 `Viewport`는 element 경로가 frameId 0에서
+ * 교체를 건너뛰므로 top 실폭으로 기록된다.
+ *
+ * 래퍼 자신은 제외한다 — 그 클릭은 기존 iframe 핸드오프 경로가 받는다.
+ */
+export function isHiddenTopElement(el: Element | null): boolean {
+  if (!el) return false;
+  if (currentDeviceWidth() == null) return false;
+  return el.id !== DEVICE_FRAME_ID;
+}
+
+/**
  * element 컨텍스트 확장 판정을 돌려도 되는 문서인가.
  * 원래 iframe을 제외한 논거("게이트가 자기 뷰포트 기준이라 top 좌표에서의 완전 포함을
  * 보장할 수 없다")는 래퍼에는 성립하지 않는다 — 래퍼는 height:100%로 top 뷰포트를 세로로

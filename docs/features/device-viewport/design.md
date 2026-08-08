@@ -151,7 +151,9 @@ getTopViewport(tabId)
    └─ replay      30s-replay/use-30s-replay.ts:153         ← 동일
 ```
 
-**element 경로만 조건부다.** 두 호출부가 `frameId !== 0`일 때만 조회하는데(`usePickerMessages.ts:160`, `:409-410`), 모드 ON에서 선택은 예외 없이 래퍼 안이라 게이트가 항상 참이 되어 무변경으로 올바른 값을 받는다. 값도 일치한다 — `payload.viewport`(래퍼 내부 `innerWidth`)와 `f.clientWidth`(래퍼 요소 content box)가 둘 다 선택한 폭이라 교체가 사실상 항등이다. 게이트를 "이제 불필요하다"며 걷어내면 모드 OFF의 top 선택에서 없던 주입이 생기고, 반대로 모드 ON에서 frameId 0으로 새는 경로가 생기면 메타가 `payload.viewport`로 폴백해 **top 실폭이 조용히 기록된다**.
+**element 경로만 조건부다.** 두 호출부가 `frameId !== 0`일 때만 조회하는데(`usePickerMessages.ts:160`, `:409-410`), 모드 ON에서 선택은 예외 없이 래퍼 안이라 게이트가 항상 참이 되어 무변경으로 올바른 값을 받는다. 값도 일치한다 — 주입 함수가 **래퍼 내부 문서의 `innerWidth`**를 우선하므로 `payload.viewport`와 같은 값이다. (요소의 `clientWidth`는 안쪽 문서의 스크롤바를 안 빼 클래식 스크롤바 환경에서 390 vs 375로 갈렸다. 그건 폴백으로만 남는다 — 커밋 전이거나 same-origin 접근이 throw할 때.) 게이트를 "이제 불필요하다"며 걷어내면 모드 OFF의 top 선택에서 없던 주입이 생기고, 반대로 모드 ON에서 frameId 0으로 새는 경로가 생기면 메타가 `payload.viewport`로 폴백해 **top 실폭이 조용히 기록된다**.
+
+그 "새는 경로"는 실재했다 — 래퍼 좌우 여백을 클릭하면 `elementFromPoint`가 **숨겨진 top의 `body`**를 돌려준다(body가 `height:100vh; display:flex`라 뷰포트를 덮는다). `isHiddenTopElement`(`content/device-frame.ts`)가 hover·클릭 양쪽에서 그 요소를 거부해 닫는다.
 
 `func`는 직렬화·재평가되므로 클로저가 안 살아남는다(`CLAUDE.md` — `chrome.scripting.executeScript({func})`). 위 함수는 self-contained라 제약을 만족한다. 상수 `"__bugshot_device_frame__"`은 문자열 리터럴로 **인라인**해야 하고, `device-frame.ts`의 상수와 **복제**된다 — 동기화는 `picker-control` 유닛 테스트가 두 값을 대조해 고정한다(선례: `log-merge.ts` ↔ `trailing-throttle.ts` 복제+동기화 테스트 패턴).
 

@@ -5,6 +5,7 @@ import {
   currentDeviceWidth,
   deviceFrameUrl,
   isDeviceFrame,
+  isHiddenTopElement,
   mountDeviceFrame,
   unmountDeviceFrame,
 } from "../device-frame";
@@ -190,6 +191,34 @@ describe("unmountDeviceFrame", () => {
     mountDeviceFrame(390, TITLE);
     unmountDeviceFrame();
     expect(() => unmountDeviceFrame()).not.toThrow();
+  });
+});
+
+// 래퍼는 body의 유일한 표시 자식이고 body 자신은 height:100vh; display:flex다 — 좌우 여백
+// (390 모드에서 각 500px대)을 클릭하면 elementFromPoint가 **숨겨진 top의 body**를 돌려준다.
+// 그걸 그대로 고르면 편집은 화면에 아무 효과가 없고, 리포트의 Viewport는 element 경로의
+// frameId 0 분기 때문에 top 실폭으로 기록된다(PRD 목표 5 위반).
+describe("isHiddenTopElement", () => {
+  it("모드 OFF면 무엇도 숨은 top이 아니다", () => {
+    expect(isHiddenTopElement(document.body)).toBe(false);
+  });
+
+  it("모드 ON에서 래퍼 밖 top 요소는 숨은 top이다", () => {
+    mountDeviceFrame(390, TITLE);
+    expect(isHiddenTopElement(document.body)).toBe(true);
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    expect(isHiddenTopElement(div)).toBe(true);
+  });
+
+  it("래퍼 자신은 아니다 — 그 클릭은 기존 iframe 핸드오프 경로가 받는다", () => {
+    mountDeviceFrame(390, TITLE);
+    expect(isHiddenTopElement(frameEl())).toBe(false);
+  });
+
+  it("null은 아니다 — 호출부의 기존 null 처리를 뺏지 않는다", () => {
+    mountDeviceFrame(390, TITLE);
+    expect(isHiddenTopElement(null)).toBe(false);
   });
 });
 

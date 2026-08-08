@@ -862,6 +862,55 @@ describe("이어받기 슬롯 수명", () => {
   });
 });
 
+// `chrome.tabs.sendMessage`에는 타임아웃이 없고 content 리스너는 페이지 메인 스레드에서
+// 디스패치된다 — 대상 탭이 alert()·동기 무한루프에 걸리면(BugShot이 겨냥하는 바로 그 페이지)
+// 응답이 영영 안 와 전이가 `finally`에 못 닿고 세그먼트가 그 패널 세션 내내 잠긴다.
+//
+// **상한을 메시지에 걸면 안 된다** — 상한이 만든 `undefined`를 컨트롤러가 "차단"·"래퍼 없음"
+// 으로 읽어 정상 페이지를 롤백·새로고침한다. 대신 전이가 소유권을 놓게 해, 늦게 깨어난
+// 왕복이 토큰 검사에 걸려 아무것도 안 건드리게 만든다.
+describe("전이 워치독", () => {
+  it("응답이 영영 안 와도 busy가 풀리고 세그먼트가 다시 눌린다", async () => {
+    const { controller, detach } = await setup();
+    vi.useFakeTimers();
+    deviceSet.mockImplementationOnce(() => new Promise(() => {}));
+
+    void controller.selectDeviceWidth(390);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(controller.useDeviceViewportStore.getState().busy).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(controller.TRANSITION_WATCHDOG_MS);
+    expect(controller.useDeviceViewportStore.getState().busy).toBe(false);
+    vi.useRealTimers();
+    detach();
+  });
+
+  // 늦게 도착한 응답이 폭을 되살리면 "래퍼는 없는데 UI만 ON"인 desync가 그대로 굳는다.
+  it("워치독 이후 늦게 깨어난 왕복은 아무것도 안 건드린다", async () => {
+    const { controller, mode, detach } = await setup();
+    vi.useFakeTimers();
+    let release: (() => void) | null = null;
+    deviceSet.mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          release = () => r({ ok: true, width: 390, available: { width: 1512, height: 900 } });
+        }),
+    );
+
+    void controller.selectDeviceWidth(390);
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(controller.TRANSITION_WATCHDOG_MS);
+
+    (release as (() => void) | null)?.();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(controller.useDeviceViewportStore.getState().width).toBeNull();
+    expect(mode.peekPending(1)).toBeNull();
+    vi.useRealTimers();
+    detach();
+  });
+});
+
 describe("재부착 경계", () => {
   // 경고 다이얼로그가 탭 재바인딩을 넘어 살아남으면 [계속]이 새 탭 id에 옛 폭으로 돈다.
   it("attach가 이전 탭의 경고 상태를 비운다", async () => {

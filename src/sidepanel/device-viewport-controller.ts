@@ -71,6 +71,12 @@ export const useDeviceViewportStore = create<DeviceViewportSnapshot>(() => ({
 
 const VERDICT_TIMEOUT_MS = 3000;
 
+/**
+ * 전이가 이 시간을 넘기면 소유권을 놓고 `busy`를 푼다. 정상 전이는 `device.set` + 래퍼 커밋
+ * 판정(최대 3초)까지 합쳐도 한참 아래라, 이 값이 발화하면 그건 페이지가 응답을 안 하는 것이다.
+ */
+export const TRANSITION_WATCHDOG_MS = 15_000;
+
 const subscribers = new Map<number, number>();
 /** handoff는 "실패"가 아니라 "top이 옮겨간다"다 — 롤백을 돌리면 방금 세운 pending을 지운다. */
 type Verdict = { ok: true; frameId: number } | { ok: false; handoff?: boolean };
@@ -334,6 +340,24 @@ async function runTransition(
 ): Promise<void> {
   set({ busy: true, busyWidth: width });
   const token = beginAttempt(width);
+  // **상한은 메시지가 아니라 전이에 건다.** `chrome.tabs.sendMessage`엔 타임아웃이 없고 content
+  // 리스너는 페이지 메인 스레드에서 디스패치되므로, 대상 탭이 `alert()`·동기 무한루프에 걸리면
+  // (BugShot이 겨냥하는 바로 그 페이지) 응답이 영영 안 와 이 함수가 `finally`에 못 닿는다 —
+  // `busy`가 굳어 세그먼트가 그 패널 세션 내내 잠긴다.
+  //
+  // 왕복 하나하나에 상한을 걸어 `undefined`를 만들어내는 안은 폐기했다. 컨트롤러는 그 값을
+  // "차단"(→ 롤백 + 오탐 토스트 + 페이지 새로고침)과 "래퍼 없음"(→ 페이지 전체 캡처 잠금 해제,
+  // 재수립 전제 확인 무력화)으로 읽으므로, 느린 페이지에서 **모르는 것을 아는 것처럼** 답하게
+  // 된다. 게다가 `ensureContentScript`의 첫 문장이 상한 없는 ping이라 정작 정지 페이지는 그
+  // 상한에 닿지도 못한다.
+  //
+  // 대신 소유권만 내려놓는다 — 늦게 깨어난 왕복은 `attemptToken !== token`에 걸려 페이지·스토어를
+  // 아무것도 건드리지 않고 끝난다. 이미 있는 기제라 새 실패 모드를 만들지 않는다.
+  const watchdog = setTimeout(() => {
+    if (attemptToken !== token) return;
+    abortAttempt();
+    if (stillOn(tabId)) set({ busy: false, busyWidth: null });
+  }, TRANSITION_WATCHDOG_MS);
   try {
     // **전제 확인은 래치 *안*이다.** `reestablish` 쪽에 두면 게이트(busy 읽기)와 래치 사이에
     // 소유권 없는 await가 생겨, 그 창에서 사용자 전이가 시작돼 전이 둘이 동시에 돌고 그 창에
@@ -412,6 +436,7 @@ async function runTransition(
     if (activated === "startFailed") toast.warning(t("issue.device.recordersDegraded"));
     if (activated === "notReached") toast.warning(t("issue.device.recordersStuck"));
   } finally {
+    clearTimeout(watchdog);
     const owned = attemptToken === token;
     endAttempt(token);
     if (stillOn(tabId)) {

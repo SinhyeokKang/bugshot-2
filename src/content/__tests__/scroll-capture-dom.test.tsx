@@ -5,10 +5,29 @@ import {
   endScrollCapture,
   scrollCaptureTo,
 } from "../scroll-capture";
+import { DEVICE_FRAME_ID } from "../device-frame";
 
 afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
+});
+
+// 오케스트레이터는 frameId 0 고정이라, 디바이스 뷰포트 ON에서 페이지 전체 캡처가 돌면
+// `html{overflow:hidden}`인 top을 스크롤시키며 **조용히 1타일**을 찍는다(에러도 truncated
+// 배지도 없다). UI 잠금은 패널 인메모리 `width`에 걸려 있어 패널 재오픈 직후 그 값이 아직
+// null인 창에서 열린다 — 페이지 쪽 2차 방어가 있어야 그 창이 닫힌다.
+describe("beginScrollCapture — 디바이스 뷰포트 2차 방어", () => {
+  it("래퍼가 있으면 metrics를 내주지 않는다", () => {
+    const frame = document.createElement("iframe");
+    frame.id = DEVICE_FRAME_ID;
+    frame.style.width = "390px";
+    document.body.appendChild(frame);
+    expect(beginScrollCapture()).toBeNull();
+  });
+
+  it("래퍼가 없으면 평소대로 metrics를 준다", () => {
+    expect(beginScrollCapture()?.metrics.viewport).toBeDefined();
+  });
 });
 
 describe("scroll capture positioned elements", () => {
@@ -54,7 +73,7 @@ describe("scroll capture positioned elements", () => {
         }) as CSSStyleDeclaration,
     );
 
-    const { session } = beginScrollCapture();
+    const { session } = beginScrollCapture()!;
     await scrollCaptureTo(session, 0, false);
     expect(fixed.style.visibility).toBe("");
     expect(sticky.style.visibility).toBe("visible");
@@ -97,7 +116,7 @@ describe("scroll capture positioned elements", () => {
         }) as CSSStyleDeclaration,
     );
 
-    const { session } = beginScrollCapture();
+    const { session } = beginScrollCapture()!;
     await scrollCaptureTo(session, 600, true);
     expect(lateFixed.style.visibility).toBe("");
 
@@ -129,7 +148,7 @@ describe("scroll capture positioned elements", () => {
         }) as CSSStyleDeclaration,
     );
 
-    const { session } = beginScrollCapture();
+    const { session } = beginScrollCapture()!;
     await scrollCaptureTo(session, 600, true);
 
     const inserted = document.createElement("aside");
