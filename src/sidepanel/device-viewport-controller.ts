@@ -728,6 +728,10 @@ function syncDeviceWatch(tabId: number, alsoRefresh = false): void {
     })
     .catch(() => {});
   watchChain.set(tabId, next);
+  // 자기가 꼬리일 때만 비운다 — 뒤에 이어 붙은 태스크가 있으면 그 체인을 끊게 된다.
+  void next.then(() => {
+    if (watchChain.get(tabId) === next) watchChain.delete(tabId);
+  });
 }
 
 export function watchAvailableWidth(tabId: number): () => void {
