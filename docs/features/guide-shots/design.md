@@ -143,3 +143,49 @@ Aside 세션에서:
 4. §2~§3 규칙대로 촬영·합성한다.
 
 `dist`가 마지막 커밋보다 오래됐으면 먼저 `pnpm build`가 필요하다(Aside 브라우저는 `dist`를 직접 로드한다).
+
+---
+
+## 8. 진행 상태 / 핸드오프 (2026-08-09 기준)
+
+### ko: 59 / 72
+
+커밋 4개로 반영됨 — `42f36e8b`(49장) → `39d6223b`(log viewer 5장) → `8fe17834`(이슈 목록·플랫폼 3장) → `9af6d7c3`(웹스토어·플랫폼 그리드 2장).
+
+**남은 13장:**
+
+| 에셋 | 사유 |
+|---|---|
+| `video-record-2~5`, `video-replay-3`, `video-issue-1~6` (10장) | §6대로 **수동 촬영 전용**. `tabCapture`·30초 리플레이 모두 실제 user gesture를 요구해 합성 클릭으로 시작되지 않는다 |
+| `element-issue-4`, `screenshot-issue-4`, `settings-ai-2` (3장) | AI 배너가 필요한 컷. 촬영 시점에 Chrome 내장 AI가 `downloading`이었다. `LanguageModel.availability()`가 `available`이면 바로 촬영 가능 |
+
+`screenshot-capture-3`(페이지 캡처 진행 상태)와 `video-record-5`는 아직 `dummy.jpg` placeholder 상태다.
+
+### en: 0 / 73
+
+**아무것도 촬영하지 않았다.** ko와 같은 파이프라인을 그대로 돌리면 되고, 추가로 신경 쓸 것은 둘뿐이다.
+
+1. **로케일** — 이 세션 끝에 확장 설정 > General > Language를 **English로 바꿔 둔 상태**다(`설정 > 일반 > 언어`). ko를 다시 찍어야 하면 되돌려야 한다. 로케일은 `settings-ui-store`에 영속되므로 패널을 다시 열어도 유지된다.
+2. **이슈 목록의 제목 언어** — `integrations-issue-tracking-1`은 실제 제출 이슈를 그대로 보여주므로, en 세트를 찍기 전에 **영문 제목으로 더미를 다시 제출**해야 한다. ko용으로 이미 제출된 7건(GitHub `#21`·`#22`, GitLab `#11`·`#12`, Linear `SIN-108`·`SIN-109`, Slack 1건)은 한국어 제목이라 en 컷에 쓸 수 없다. 로컬 이슈 목록만 비우고(`bugshot-issues`) 영문으로 새로 제출하면 된다.
+
+### 촬영 환경 재구성 절차
+
+세션이 바뀌면 패널·백드롭 탭이 모두 사라진다. §7 재개 절차에 더해:
+
+```js
+// 1. 백드롭 + 패널
+const gh = await openTab("https://github.com/SinhyeokKang/bugshot-web");
+const ghId = (await chrome.tabs.query({ url: "https://github.com/*" }))[0].id;
+const pnl = await openTab(`chrome-extension://<EXT_ID>/src/sidepanel/index.html?tabId=${ghId}`);
+// 2. 패널을 별도 창으로 (§ "캡처가 걸린 컷은 패널을 별도 창으로 뺀다")
+const pt = (await chrome.tabs.query({})).find(t => t.url?.includes("/src/sidepanel/index.html"));
+await chrome.windows.create({ tabId: pt.id, type: "popup", width: 620, height: 900 });
+// 3. 합성용 탭에도 viewport를 걸어야 한다 — 안 걸면 스크린샷이 타일링된다
+await comp._sendToTarget("Emulation.setDeviceMetricsOverride",
+                         { width: 1600, height: 1000, deviceScaleFactor: 1 });
+```
+
+### 남은 잔여 이슈
+
+- **로그 뷰어 영상 잔여 노출** — `logs-viewer-*`의 영상 프레임 안 GitHub 헤더에 저장소 소유자 핸들이 작게 남는다. 리포트 텍스트는 전부 치환했지만 영상 픽셀은 손댈 수 없다. 문제가 되면 다른 영상으로 리포트를 다시 만들어야 한다.
+- **웹스토어 컷** — 촬영 브라우저가 Chrome 포크라 설치 버튼이 `Aside에 추가`로 렌더된다. 촬영 직전 DOM에서 브랜드 문자열을 `Chrome`으로 되돌린다. 상단 "Chrome으로 전환하여…" 배너를 `visibility:hidden`으로 숨기려 하면 **콘텐츠 컨테이너째 사라지니** 텍스트 치환만 할 것.
