@@ -152,7 +152,7 @@ Aside 세션에서:
 
 ## 8. 진행 상태 / 핸드오프 (2026-08-09 기준)
 
-### ko: 60 / 72 — 자동 촬영분 완료
+### ko: 61 / 72 — 자동 촬영분 완료
 
 커밋 6개로 반영됨: `42f36e8b`(49장) → `39d6223b`(log viewer 5) → `8fe17834`(이슈 목록·플랫폼 3) → `9af6d7c3`(웹스토어·플랫폼 그리드 2) → `c15d597a`(핸드오프) → `fc8c1516`(페이지 캡처 진행 1).
 
@@ -161,7 +161,9 @@ Aside 세션에서:
 | 에셋 | 사유 |
 |---|---|
 | `video-record-2~5`, `video-replay-3`, `video-issue-1~6` (11장) | §6대로 **수동 촬영 전용**. `tabCapture`·30초 리플레이 모두 실제 user gesture를 요구해 합성 클릭(`click()`·`click({force:true})` 모두)으로 시작되지 않는다 |
-| `element-issue-4`, `screenshot-issue-4`, `settings-ai-2` (3장, `video-issue-4` 중복) | AI 배너가 떠야 하는 컷. Chrome 내장 AI가 계속 `downloading`이고 `downloadprogress`가 0%에서 안 움직였다(다운로드를 시작한 페이지가 닫히면 진행 이벤트를 못 받는다). **BYOK 키를 하나 꽂으면 즉시 배너가 떠 바로 촬영 가능**하다 — 단 배지에 프로바이더명이 노출된다 |
+| `element-issue-4`, `screenshot-issue-4`, `settings-ai-2` (3장, `video-issue-4` 중복) | AI 배너 컷. **BYOK(Gemini)를 꽂아 배너 자체는 뜨는 것을 확인**했다(`Gemini AI로 초안을 작성해보세요 / AI 초안 작성`, `settings-ai-1`은 연결 상태로 재촬영 완료). 남은 문제는 촬영 배관 둘 — ① 배너 DOM 좌표 탐색이 `0`을 반환해 밴드를 못 잡는다(텍스트가 중첩돼 있어 `children.length` 필터로는 못 집는다. `getByRole`/`data-testid`로 잡을 것) ② **마스킹이 리렌더로 날아간다** — 텍스트 노드를 바꿔도 React가 다시 그리면 원복되므로, viewport 확정 후 리렌더가 멎은 뒤 마스킹하고 **즉시** 스크린샷을 찍어야 한다 |
+
+> Chrome 내장 AI(Gemini Nano)는 몇 시간째 `downloading`에서 `downloadprogress`가 0으로 고정이었고 `create()`도 20초 타임아웃이었다. `chrome://on-device-internals`는 Aside가 내부 디버깅 페이지를 막아 확인 불가. **내장 AI를 기다리지 말고 BYOK를 쓴다.**
 
 `video-record-5`만 아직 `dummy.jpg` placeholder다. 나머지 71자리는 실제 이미지.
 
@@ -188,6 +190,10 @@ await chrome.windows.create({ tabId: pt.id, type: "popup", width: 620, height: 9
 await comp._sendToTarget("Emulation.setDeviceMetricsOverride",
                          { width: 1600, height: 1000, deviceScaleFactor: 1 });
 ```
+
+### 동시 세션 주의
+
+**ko/en을 두 세션에서 병행하지 마라.** 확장 설정(`bugshot-app-settings`의 `locale`)과 이슈 목록(`bugshot-issues`)이 **같은 프로필의 공유 스토리지**다. en 세션이 로케일을 바꾸면 진행 중인 ko 촬영이 조용히 영문 화면으로 찍히고, 이슈 목록을 비우면 ko 목록 컷이 빈 화면이 된다(실제로 이 세션 중 `bugshot-issues`가 0건으로 비워지는 것을 관측했다). 로케일별로 순차 진행하거나, 촬영 직전 `locale`을 매번 확인할 것.
 
 ### 남은 잔여 이슈
 
