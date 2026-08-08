@@ -3,6 +3,7 @@ import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import {
   SiAnthropic,
   SiGooglegemini,
+  SiMistralai,
   SiOllama,
   SiOpenrouter,
 } from "@icons-pack/react-simple-icons";
@@ -84,6 +85,9 @@ const PROVIDER_ICONS: Record<
   },
   gemini: {
     icon: (props) => <SiGooglegemini color="default" {...props} />,
+  },
+  mistral: {
+    icon: (props) => <SiMistralai color="default" {...props} />,
   },
   groq: { icon: GroqIcon, darkInvert: true },
   together: { icon: TogetherIcon },
