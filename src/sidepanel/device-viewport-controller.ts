@@ -759,9 +759,14 @@ export function dismissDeviceWarning(): void {
   set({ warningWidth: null });
 }
 
+/**
+ * 루프 경고는 "모드를 못 유지한다"는 사실 보고이지 세션 종료 사유가 아니다 — 모드만 `전체`로
+ * 되돌리고(폭은 판정 시점에 이미 null) 작성 중이던 제목·본문·캡처는 그대로 둔다. 여기서
+ * `useEditorStore.reset()`을 부르면, 재로드가 잦은 페이지에서 사용자가 쓰던 draft가
+ * 자기 조작과 무관하게 사라진다.
+ */
 export function dismissDeviceLoopWarning(): void {
   const tabId = snap().tabId;
   set({ loopWarning: false });
   if (tabId != null) resetLoopGuard(tabId);
-  useEditorStore.getState().reset();
 }

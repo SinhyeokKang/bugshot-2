@@ -86,7 +86,7 @@ const ko = {
   "issue.device.recordersStuck": "뷰포트는 적용됐지만 로그 수집을 다시 잡지 못했습니다. 이 상태에서는 로그가 중복될 수 있으니 전체로 되돌린 뒤 다시 시도해 주세요.",
   "issue.device.handoffToast": "다른 사이트로 이동해 페이지 전체를 그 사이트로 다시 열었습니다.",
   "issue.device.loop.title": "페이지 이동이 반복됩니다",
-  "issue.device.loop.body": "이 사이트가 계속 다른 주소로 이동해 디바이스 뷰포트를 유지할 수 없습니다. 뷰포트를 전체로 되돌리고 작성 중인 내용은 초기화됩니다.",
+  "issue.device.loop.body": "이 사이트가 계속 다른 주소로 이동해 디바이스 뷰포트를 유지할 수 없습니다. 뷰포트를 전체로 되돌립니다 — 작성 중인 내용은 그대로 남습니다.",
   "issue.device.loop.confirm": "확인",
 
   "section.issueTitle": "이슈 제목",
@@ -248,7 +248,7 @@ const en = {
   "issue.device.recordersStuck": "The viewport was applied, but log collection couldn't be re-established. Logs may be duplicated in this state — switch back to Full and try again.",
   "issue.device.handoffToast": "You navigated to another site, so the whole page was reopened there.",
   "issue.device.loop.title": "The page keeps navigating",
-  "issue.device.loop.body": "This site keeps redirecting, so the device viewport can't be kept. Switching back to Full — your draft will be reset.",
+  "issue.device.loop.body": "This site keeps redirecting, so the device viewport can't be kept. Switching back to Full — your draft is kept as is.",
   "issue.device.loop.confirm": "OK",
 
   "section.issueTitle": "Issue title",

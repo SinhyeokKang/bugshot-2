@@ -833,6 +833,19 @@ describe("재부착 경계", () => {
     detach2();
   });
 
+  // 무한 재로드는 멈춰야 하지만, 사용자가 쓰던 제목·본문·캡처까지 날릴 이유는 없다.
+  // 루프 경고는 "모드를 못 유지한다"는 사실 보고이지 세션 종료 사유가 아니다.
+  it("루프 경고 닫기가 작성 중 draft를 파기하지 않는다", async () => {
+    const { controller, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ loopWarning: true });
+
+    controller.dismissDeviceLoopWarning();
+
+    expect(controller.useDeviceViewportStore.getState().loopWarning).toBe(false);
+    expect(editorState.reset).not.toHaveBeenCalled();
+    detach();
+  });
+
   // 다이얼로그 왕복 사이에 phase가 바뀌면 select()의 잠금이 이미 지나간 뒤다.
   it("경고 [계속]이 잠금·가용 폭을 다시 확인한다", async () => {
     const { controller, detach } = await setup();
