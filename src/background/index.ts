@@ -239,10 +239,10 @@ chrome.webNavigation.onCommitted.addListener((details) => {
 // 감시창 안이면 차단(frameBlocked), 밖이면 유지 중 차단이라 handoff와 같은 경로로 top을
 // 내보낸다 — 안 하면 모드 유지 중 XFO 사이트에 도달했을 때 백지에 방치된다.
 chrome.webNavigation.onErrorOccurred.addListener((details) => {
-  const { tabId, frameId, url } = details;
+  const { tabId, frameId, url, error } = details;
   if (!mayNeedDeviceSignal(tabId)) return;
   void enqueueForTab(tabId, () =>
-    applyDeviceSignal(tabId, { kind: "errorOccurred", frameId, url }),
+    applyDeviceSignal(tabId, { kind: "errorOccurred", frameId, url, error }),
   );
 });
 

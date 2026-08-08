@@ -35,7 +35,8 @@ export type DeviceSignal =
   | { kind: "frameReady"; frameId: number; documentId: string }
   | { kind: "beforeNavigate"; frameId: number; parentFrameId: number; url: string }
   | { kind: "committed"; frameId: number; documentId: string; url: string }
-  | { kind: "errorOccurred"; frameId: number; url: string }
+  // error는 판정 축이다 — 취소(net::ERR_ABORTED)는 차단이 아니다. 아래 case 주석 참조.
+  | { kind: "errorOccurred"; frameId: number; url: string; error?: string }
   // CSP `frame-src`가 삽입 자체를 막으면 webNavigation 이벤트가 하나도 오지 않는다 —
   // 그 경우의 유일한 신호가 이 타임아웃이다. top의 iframe "load"를 보조 신호로 쓰는 안은
   // 폐기했다: 브라우저가 초기 about:blank에도 load를 쏘는 타이밍이 있어, 정상 사이트에서
@@ -154,6 +155,11 @@ export function decideDeviceSignal(
 
     case "errorOccurred": {
       if (target == null || signal.frameId !== target) return { push: null, next: state };
+      // 취소는 차단이 아니다. 래퍼 안 링크가 다운로드(Content-Disposition)였거나, `전체` 복귀·
+      // 롤백의 unmount가 **로딩 중인** 래퍼를 제거했을 때도 이 이벤트가 온다 — 그걸 handoff로
+      // 읽으면 `chrome.tabs.update`가 top을 래퍼가 가려던 URL로 실제 이동시켜, "원래 top URL로
+      // reload"라는 OFF 계약이 엉뚱한 페이지로 끝난다.
+      if (signal.error === "net::ERR_ABORTED") return { push: null, next: state };
       if (state.armed) {
         // 잠정 등록을 남기면 arm이 닫힌 뒤에도 그 frameId가 target으로 잡혀, 롤백된 페이지의
         // 같은 프레임 이동이 handoff 경로를 탄다(성공·handoff 분기는 이미 지우고 있다).
@@ -259,6 +265,14 @@ const restoreByTab = new Map<number, Promise<void>>();
 const restoredTabs = new Set<number>();
 /** binding을 확정한 시각. 커밋 직후 getAllFrames가 래퍼를 아직 안 싣는 창을 덮는 데만 쓴다. */
 const bindingConfirmedAt = new Map<number, number>();
+
+// 경과가 음수면(시계 되감김) 창을 닫는다 — 열어두면 판정이 영구 참이 되어, 아래 주석이
+// 경고한 "죽은 documentId로만 발행 = 탭 세션 내내 로그 전면 공백"이 그대로 재현된다.
+function withinArmWindow(at: number | undefined): boolean {
+  if (at == null) return false;
+  const elapsed = Date.now() - at;
+  return elapsed >= 0 && elapsed < ARM_WINDOW_MS;
+}
 const queueByTab = new Map<number, Promise<unknown>>();
 const armTimers = new Map<number, ReturnType<typeof setTimeout>>();
 // navUrlPromise를 tabId:frameId로 넓히면서 래퍼의 prev URL은 tabs.get이 아니라 직전
@@ -500,7 +514,7 @@ export async function listTabDocuments(tabId: number): Promise<DeviceDocumentsRe
         url: f.url,
       })),
       getDeviceFrame(tabId),
-      { recentBinding: Date.now() - (bindingConfirmedAt.get(tabId) ?? 0) < ARM_WINDOW_MS },
+      { recentBinding: withinArmWindow(bindingConfirmedAt.get(tabId)) },
     );
   });
 }

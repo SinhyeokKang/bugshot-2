@@ -450,6 +450,37 @@ describe("resize(ON→ON) 전이의 소유권", () => {
   });
 });
 
+describe("busy 거부 이어받기", () => {
+  // busy 거부는 pending을 되돌려놓지만, 그 소비자는 top 커밋 하나뿐이다 — 거부를 유발한
+  // 커밋은 이미 지나갔으므로 아무도 안 집는다. 전이가 끝나는 시점에 한 번 이어받아야
+  // "래퍼는 사라졌는데 store width는 그대로"가 안 굳는다.
+  it("전이 중에 거부된 재수립을 전이 종료 후 이어받는다", async () => {
+    const { controller, mode, detach } = await setup();
+    const gate = deferred();
+    deviceSet.mockImplementationOnce(async (_tabId, width) => {
+      await gate.promise;
+      return { ok: true, width, available: { width: 1512, height: 900 } };
+    });
+
+    const selecting = controller.selectDeviceWidth(390);
+    await flush();
+    // 전이가 busy인 동안 top 커밋이 온다 → reestablish가 busy로 거부되고 pending만 되돌린다.
+    mode.putPending(1, 390);
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+
+    deviceSet.mockClear();
+    gate.resolve();
+    emit({ type: "device.frameLoaded", tabId: 1, frameId: 7 });
+    await selecting;
+    await flush();
+    await flush();
+
+    expect(deviceSet).toHaveBeenCalledWith(1, 390);
+    detach();
+  });
+});
+
 describe("재부착 경계", () => {
   // 경고 다이얼로그가 탭 재바인딩을 넘어 살아남으면 [계속]이 새 탭 id에 옛 폭으로 돈다.
   it("attach가 이전 탭의 경고 상태를 비운다", async () => {

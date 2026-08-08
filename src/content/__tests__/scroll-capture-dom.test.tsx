@@ -79,8 +79,6 @@ describe("scroll capture positioned elements", () => {
     vi.spyOn(window, "scrollY", "get").mockImplementation(() => scrollY);
     vi.spyOn(window, "scrollX", "get").mockReturnValue(0);
     vi.spyOn(window, "scrollTo").mockImplementation(((options?: ScrollToOptions | number) => {
-      // window.scrollTo는 오버로드 2개(x,y | options)라 인자 타입을 명시하지 않으면
-      // typeof === "object" 좁히기가 never로 떨어진다.
       if (typeof options === "object" && options) scrollY = Number(options.top ?? scrollY);
     }) as typeof window.scrollTo);
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
@@ -116,8 +114,6 @@ describe("scroll capture positioned elements", () => {
     vi.spyOn(window, "scrollY", "get").mockImplementation(() => scrollY);
     vi.spyOn(window, "scrollX", "get").mockReturnValue(0);
     vi.spyOn(window, "scrollTo").mockImplementation(((options?: ScrollToOptions | number) => {
-      // window.scrollTo는 오버로드 2개(x,y | options)라 인자 타입을 명시하지 않으면
-      // typeof === "object" 좁히기가 never로 떨어진다.
       if (typeof options === "object" && options) scrollY = Number(options.top ?? scrollY);
     }) as typeof window.scrollTo);
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {

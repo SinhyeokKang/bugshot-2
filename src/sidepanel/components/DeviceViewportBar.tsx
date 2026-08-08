@@ -33,6 +33,13 @@ import { LOCKED_CLASS } from "@/sidepanel/lib/locked-class";
 
 const FULL = "full";
 
+// Tailwind는 클래스명을 정적으로 스캔하므로 템플릿 리터럴로 만들면 purge된다.
+const GRID_COLS: Record<number, string> = {
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
+};
+
 /**
  * 뷰포트 폭 세그먼티드 컨트롤.
  *
@@ -138,7 +145,11 @@ export function DeviceViewportBar({ tabId }: { tabId: number | null }) {
             data-testid="device-viewport-bar"
             aria-busy={busy || undefined}
           >
-            <CollapsingTabsList className="grid h-9 w-full grid-cols-4">
+            <CollapsingTabsList
+              // 열 수는 `전체` + 프리셋이다 — 하드코딩하면 프리셋을 늘렸을 때
+              // "세그먼트가 N개다" 테스트는 통과하는데 그리드만 깨진다.
+              className={cn("grid h-9 w-full", GRID_COLS[DEVICE_PRESETS.length + 1])}
+            >
               {segment(
                 FULL,
                 null,
