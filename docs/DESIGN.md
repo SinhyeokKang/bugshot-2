@@ -242,7 +242,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 
 - **일반 UI 아이콘 = lucide-react.** 표준 `h-4 w-4`(인라인), 큰 아이콘 `h-6 w-6`. 색은 semantic(`text-muted-foreground` 등).
 - **플랫폼 브랜드 = `@icons-pack/react-simple-icons`**, `Si{Name}` + **`color="default"`**(브랜드 색 유지). 크기는 className.
-  - **GitHub·Notion만 `dark:invert`**(어두운 단색 마크). 동적 케이스는 플래그 + `cn(…, flag && "dark:invert")` — `SubmitFieldsDialog`의 `PLATFORM_TABS`는 `invertOnDark`, `LlmConnectDialog`는 같은 개념을 `darkInvert`로 부른다(OpenAI·Anthropic·Groq·OpenRouter·Ollama — gemini·together는 미적용). ⚠ 한 개념에 두 이름 — **새 코드는 `invertOnDark`로 통일**.
+  - **GitHub·Notion만 `dark:invert`**(어두운 단색 마크). 동적 케이스는 플래그 + `cn(…, flag && "dark:invert")` — `SubmitFieldsDialog`의 `PLATFORM_TABS`는 `invertOnDark`, `LlmConnectDialog`는 같은 개념을 `darkInvert`로 부른다(OpenAI·Anthropic·Groq·OpenRouter·Ollama — gemini·mistral·together는 유색 마크라 미적용). ⚠ 한 개념에 두 이름 — **새 코드는 `invertOnDark`로 통일**.
 - **커스텀 SVG는 simple-icons가 미지원일 때만**. 공용은 `src/components/icons/SlackIcon.tsx` 하나(simple-icons v13이 Slack 마크를 브랜드 가이드라인 사유로 삭제). 단일 화면 전용은 그 파일에 인라인 정의 허용 — `LlmConnectDialog`(`tabs/settings/`)의 `OpenAIIcon`·`GroqIcon`·`TogetherIcon`. className으로 크기 제어.
 
 ## 13. 공용 합성 컴포넌트 (`src/sidepanel/components/`)
