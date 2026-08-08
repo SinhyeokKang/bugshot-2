@@ -27,8 +27,8 @@ import {
 } from "../ai-provider";
 
 describe("PROVIDER_PRESETS", () => {
-  it("7개 프리셋이 정의됨", () => {
-    expect(PROVIDER_PRESETS).toHaveLength(7);
+  it("8개 프리셋이 정의됨", () => {
+    expect(PROVIDER_PRESETS).toHaveLength(8);
   });
 
   it("모든 프리셋이 id, label, baseUrl, kind 필드를 가짐", () => {
@@ -50,6 +50,16 @@ describe("PROVIDER_PRESETS", () => {
     expect(ids).toContain("openai");
     expect(ids).toContain("anthropic");
     expect(ids).toContain("gemini");
+  });
+
+  it("Mistral 프리셋이 OpenAI 호환으로 정의됨", () => {
+    const mistral = PROVIDER_PRESETS.find((p) => p.id === "mistral");
+    expect(mistral).toEqual({
+      id: "mistral",
+      label: "Mistral",
+      baseUrl: "https://api.mistral.ai/v1",
+      kind: "openai",
+    });
   });
 });
 
@@ -118,6 +128,10 @@ describe("detectProviderKind", () => {
     );
   });
 
+  it("Mistral 프리셋 URL → openai", () => {
+    expect(detectProviderKind("https://api.mistral.ai/v1")).toBe("openai");
+  });
+
   it("커스텀 Anthropic 호스트네임 → anthropic", () => {
     expect(detectProviderKind("https://api.anthropic.com/v2")).toBe(
       "anthropic",
@@ -140,6 +154,7 @@ describe("getProviderLabel", () => {
         "https://generativelanguage.googleapis.com/v1beta/openai",
       ),
     ).toBe("Gemini");
+    expect(getProviderLabel("https://api.mistral.ai/v1")).toBe("Mistral");
   });
 
   it("커스텀 URL → Custom", () => {
@@ -824,6 +839,11 @@ describe("byokCapabilities — 로컬 엔드포인트", () => {
     "https://llm.internal.example.com/v1",
   ])("%s → 원격은 rich 유지", (baseUrl) => {
     expect(byokCapabilities(baseUrl)).toEqual(BYOK_CAPABILITIES);
+  });
+
+  it("Mistral 프리셋이 원격으로 판정된다", () => {
+    const mistral = PROVIDER_PRESETS.find((p) => p.id === "mistral")!;
+    expect(byokCapabilities(mistral.baseUrl)).toEqual(BYOK_CAPABILITIES);
   });
 
   it("Ollama 프리셋이 로컬로 판정된다", () => {

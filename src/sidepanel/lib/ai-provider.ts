@@ -340,6 +340,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   { id: "openai", label: "OpenAI", baseUrl: "https://api.openai.com/v1", kind: "openai" },
   { id: "anthropic", label: "Anthropic", baseUrl: "https://api.anthropic.com/v1", kind: "anthropic" },
   { id: "gemini", label: "Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", kind: "openai" },
+  { id: "mistral", label: "Mistral", baseUrl: "https://api.mistral.ai/v1", kind: "openai" },
   { id: "groq", label: "Groq", baseUrl: "https://api.groq.com/openai/v1", kind: "openai" },
   { id: "together", label: "Together", baseUrl: "https://api.together.xyz/v1", kind: "openai" },
   { id: "openrouter", label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", kind: "openai" },

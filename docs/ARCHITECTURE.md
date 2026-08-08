@@ -425,7 +425,7 @@ trim 적용 여부는 `videoTrimmed`(세션 영속 `EditorSnapshot` 키 — `onR
 이슈 작성을 돕는 두 AI 기능 — **AI Draft**(캡처 컨텍스트로 이슈 본문 초안 생성)와 **AI Styling**(자연어로 라이브 요소 스타일 편집) — 이 공용 프로바이더 추상화 위에 올라간다. 모두 **BYOK(Bring Your Own Key)** — 키·엔드포인트는 사용자가 설정하고 호출은 사이드패널에서 직접 나간다. 서버 중계 없음.
 
 **프로바이더 추상화** (`src/sidepanel/lib/ai-provider.ts`): `AIProvider` 인터페이스 = `generate`(단발) + `createSession`(멀티턴 — `messages` 누적). 구현 3종:
-- **OpenAI-compatible** (`createOpenAICompatibleProvider`): `/chat/completions`. 프리셋은 `PROVIDER_PRESETS` **7종**(OpenAI·Anthropic·Gemini·Groq·Together·OpenRouter·Ollama)이 한 배열에 있고 `kind`로 openai/anthropic 라우팅(`detectProviderKind`) + 임의 baseUrl. `responseSchema`면 `response_format: json_object`.
+- **OpenAI-compatible** (`createOpenAICompatibleProvider`): `/chat/completions`. 프리셋은 `PROVIDER_PRESETS` **8종**(OpenAI·Anthropic·Gemini·Mistral·Groq·Together·OpenRouter·Ollama)이 한 배열에 있고 `kind`로 openai/anthropic 라우팅(`detectProviderKind`) + 임의 baseUrl. `responseSchema`면 `response_format: json_object`.
 - **Anthropic** (`createAnthropicProvider`): `/messages`, `anthropic-dangerous-direct-browser-access` 헤더. JSON 스키마는 system에 인라인. 이미지는 base64 `source`(OpenAI는 `image_url`).
 - **Chrome Built-in AI** (`createChromeAIProvider`): 온디바이스 `LanguageModel`(Prompt API). `CHROME_AI_LANG_OPTIONS`로 출력 언어 고정. 이미지·외부 전송 없음.
 
