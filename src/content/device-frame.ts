@@ -75,14 +75,14 @@ export function mountDeviceFrame(width: number, title: string): void {
     // src는 반드시 location.href다. srcdoc·about:blank는 <all_urls> 미매치라 content script가
     // 안 붙어 로그·picker가 통째로 죽는다(e2e/GOTCHAS.md).
     frame.src = location.href;
-    // 모드 ON이면 페이지 전체가 이 프레임 하나다 — 접근명이 없으면 무명 프레임이 된다.
-    // 사전을 못 읽으므로 문자열은 사이드패널이 device.set에 실어 보낸다.
-    frame.title = title;
     // document.body 직속이다. shadow root 안에 넣으면 frame-geometry의 findChildIframe이
     // document.querySelectorAll("iframe")만 훑으므로 미등록이 되고, elementFromPoint가
     // shadow retargeting으로 host를 돌려줘 안내조차 없이 shadow host가 선택된다.
     document.body.appendChild(frame);
   }
+  // 폭 전환은 노드를 유지하는 경량 경로다 — title도 매번 맞춰야 로케일 변경 뒤 폭만 바꿨을 때
+  // 접근명이 옛 로케일로 남지 않는다.
+  frame.title = title;
   frame.style.width = `${width}px`;
 }
 

@@ -195,8 +195,15 @@ let deviceResizeHandler: (() => void) | null = null;
 function setDeviceWatch(on: boolean): void {
   if (on) {
     if (deviceResizeHandler) return;
-    deviceResizeHandler = () =>
-      postToRuntime({ type: "device.availableChanged", available: availableViewport() });
+    // 창 드래그 리사이즈는 초당 수십 건이다 — rAF로 코얼레싱한다(기존 뷰포트 리스너와 동형).
+    let pending = 0;
+    deviceResizeHandler = () => {
+      if (pending) return;
+      pending = requestAnimationFrame(() => {
+        pending = 0;
+        postToRuntime({ type: "device.availableChanged", available: availableViewport() });
+      });
+    };
     window.addEventListener("resize", deviceResizeHandler);
     return;
   }
@@ -374,6 +381,7 @@ function handlePickerMessage(
         // break로 떨어뜨리면 스위치 밖 sendResponse({ok:true})가 먼저 나가고 두 번째 응답이
         // "message port closed"로 죽는다.
         void (async () => {
+          try {
           if (msg.width == null) {
             const had = unmountDeviceFrame();
             sendResponse({ ok: true, width: null, available: availableViewport() });
@@ -389,6 +397,10 @@ function handlePickerMessage(
           mountDeviceFrame(msg.width, msg.title);
           // ok는 "마운트했다"이지 "로드에 성공했다"가 아니다 — XFO/CSP 판정은 background가 한다.
           sendResponse({ ok: true, width: msg.width, available: availableViewport() });
+          } catch {
+            // 응답을 아예 안 보내면 호출부가 "전달 실패"로 읽고 불필요한 롤백을 돈다.
+            sendResponse({ ok: false, width: null, available: availableViewport() });
+          }
         })();
         return true;
       }

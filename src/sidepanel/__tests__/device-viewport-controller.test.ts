@@ -381,6 +381,31 @@ describe("확장 reload 재수립", () => {
   // 재부착 조회는 두 왕복(device.state → device.documents)을 거친다 — 그 사이 사용자가
   // `전체`를 눌렀으면 그쪽이 이미 pending을 버렸고, 뒤늦게 옛 폭으로 되살리면 이어지는
   // reload의 top 커밋이 그걸 소비해 방금 끈 모드가 다시 켜진다.
+  // 형제 분기(엇갈림 복구)도 같은 창을 갖는다 — 여기만 무조건 putPending이면 방금 끈 모드가
+  // OFF의 reload 커밋에서 되살아난다.
+  it("엇갈림 복구 조회 중에 전체를 눌러도 되살리지 않는다", async () => {
+    deviceState.mockResolvedValueOnce({ width: 390, available: { width: 1512, height: 900 } });
+    const gate = deferred();
+    fetchDeviceTree.mockImplementationOnce(async () => {
+      await gate.promise;
+      return [];
+    });
+
+    const controller = await import("../device-viewport-controller");
+    const mode = await import("../lib/device-mode");
+    mode.clearDeviceModeState();
+    const detach = controller.attachDeviceViewport(1);
+    await flush();
+
+    await controller.selectDeviceWidth(null);
+    await flush();
+    gate.resolve();
+    await flush();
+
+    expect(mode.peekPending(1)).toBeNull();
+    detach();
+  });
+
   it("조회 중에 사용자가 전체를 누르면 pending을 되살리지 않는다", async () => {
     deviceState.mockResolvedValueOnce({ width: 390, available: { width: 1512, height: 900 } });
     const gate = deferred();
@@ -603,8 +628,11 @@ describe("전이가 노리는 폭", () => {
 });
 
 describe("이어받기 슬롯 수명", () => {
-  // 거부는 resize 전이 중에도 난다 — 그 경로엔 drain이 없어서 슬롯만 남고 아무도 안 집는다.
-  it("resize 중에 거부된 재수립도 전이 종료 후 이어받는다", async () => {
+  // **이어받기가 device.set을 또 보내면 안 되는 경우가 있다.** resize는 arm을 안 하므로 그
+  // device.set이 새 top 문서에 래퍼를 만들어버리고, 이어받기가 같은 폭으로 한 번 더 보내면
+  // 재로드가 안 생겨 무신호 → armTimeout → 롤백 + 페이지 재로드로 끝난다.
+  // 재수립은 "래퍼가 없다"를 코드로 확인하고, 이미 그 폭이면 상태만 맞춘다.
+  it("이어받기가 이미 선 래퍼에 device.set을 다시 보내지 않는다", async () => {
     const { controller, mode, detach } = await setup();
     controller.useDeviceViewportStore.setState({ width: 390 });
     const gate = deferred();
@@ -612,6 +640,37 @@ describe("이어받기 슬롯 수명", () => {
       await gate.promise;
       return { ok: true, width, available: { width: 1512, height: 900 } };
     });
+    // 이어받기 시점의 페이지 사실: 래퍼가 이미 768로 서 있다.
+    deviceState.mockResolvedValue({ width: 768, available: { width: 1512, height: 900 } });
+
+    const selecting = controller.selectDeviceWidth(768);
+    await flush();
+    mode.putPending(1, 768);
+    emit({ type: "frameCommitted", tabId: 1, frameId: 0 });
+    await flush();
+
+    deviceSet.mockClear();
+    gate.resolve();
+    await selecting;
+    await flush();
+    await flush();
+
+    expect(deviceSet).not.toHaveBeenCalled();
+    expect(controller.useDeviceViewportStore.getState().width).toBe(768);
+    expect(mode.peekPending(1)).toBe(768);
+    detach();
+  });
+
+  // 래퍼가 정말 없으면(= top이 갈렸다) 이어받기는 그대로 전이를 돈다.
+  it("래퍼가 없으면 이어받기가 전이를 돈다", async () => {
+    const { controller, mode, detach } = await setup();
+    controller.useDeviceViewportStore.setState({ width: 390 });
+    const gate = deferred();
+    deviceSet.mockImplementationOnce(async (_tabId, width) => {
+      await gate.promise;
+      return { ok: true, width, available: { width: 1512, height: 900 } };
+    });
+    deviceState.mockResolvedValue({ width: null, available: { width: 1512, height: 900 } });
 
     const selecting = controller.selectDeviceWidth(768);
     await flush();

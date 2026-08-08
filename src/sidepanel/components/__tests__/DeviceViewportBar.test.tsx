@@ -162,6 +162,18 @@ describe("DeviceViewportBar — 활성화 가드", () => {
     expect(select).not.toHaveBeenCalled();
   });
 
+  // Radix Tabs 기본값은 activationMode="automatic" — 포커스 이동만으로 onValueChange가 돈다.
+  // 서브탭·플랫폼 탭에선 무해하지만 여기 onValueChange는 **페이지를 재로드하는 파괴적 동작**이다.
+  it("잠기지 않은 상태에서도 화살표키 이동만으로는 select가 안 불린다", async () => {
+    render(<DeviceViewportBar tabId={1} />);
+    seg("full").focus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(select).not.toHaveBeenCalled();
+    // 명시적 활성화(Enter)에서만 돈다.
+    await userEvent.keyboard("{Enter}");
+    expect(select).toHaveBeenCalledWith(390);
+  });
+
   it("locked 상태에서는 화살표키 이동으로도 select가 안 불린다", async () => {
     hookState.locked = true;
     render(<DeviceViewportBar tabId={1} />);
