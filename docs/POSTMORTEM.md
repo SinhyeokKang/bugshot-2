@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-08-10 — 영속 테스트가 남의 describe에서 키 상수를 물려받아, 빈 저장소를 읽고 기본값으로 통과했다
+
+- **영역**: `store`
+- **계열**: `미검증단언`, `드리프트`
+- **그물**: `unit`
+- **증상**: (구현 중 자체 검증이 잡음 — 미출시) `aiLanguage`의 persist `merge` 재정규화를 덮으려고 쓴 rehydrate 테스트가 **검증 대상과 무관하게 통과**했다. `store["bugshot-settings-ui"]`에 오염값 `Klingon`을 심고 `useSettingsUiStore.persist.rehydrate()` 후 `"auto"`를 기대했는데, 실제 persist `name`은 `bugshot-app-settings`라 rehydrate가 **빈 저장소를 읽었다**. 상태는 스토어 기본값 `"auto"`에 머물렀고, 단언의 통과 근거는 정규화가 아니라 기본값이었다. `merge`의 `normalizeAiLanguage` 호출을 통째로 지워도 green이다.
+- **근본 원인**: 같은 파일의 `apiKeyObfuscatingStorage` describe가 `const KEY = "bugshot-settings-ui"`를 들고 있었고, 거기에 케이스를 이어 붙이며 그 상수를 그대로 썼다. **그 describe에서는 임의 키가 정답이다** — 저장 래퍼의 `getItem`/`setItem` 왕복만 재므로 키가 무엇이든 무관하다. rehydrate는 반대로 **persist `name`과 일치해야만** 입력이 도달하는데, 상수 이름이 `KEY`로 같아 그 차이가 보이지 않았다. 여기에 **기대값(`auto`)이 하필 기본값과 같다**는 조건이 겹쳐, 입력이 0바이트여도 단언이 성립하는 구조가 됐다. 영속 계층을 실제로 태우는 테스트는 식별자가 어긋나면 예외가 아니라 **조용한 빈 입력**으로 실패한다는 게 핵심이다. 들킨 경로는 같은 describe에 넣은 **반대 방향 케이스**(유효값 `French` 보존)가 red가 된 것 하나뿐이었다 — 그게 없었으면 공허한 green이 그대로 커밋됐다.
+- **재발 방지**: (1) **영속·저장소를 실제로 태우는 테스트의 키·이름은 프로덕션 상수와 대조한다** — 손으로 적은 리터럴이면 `grep -n "name:" src/store/*.ts`로 persist `name`을 확인하고, 이상적으로는 프로덕션에서 export해 import한다. 남의 describe에서 상수를 물려받을 때 **그 describe가 그 값에 의존하는지**를 먼저 묻는다(왕복 테스트는 의존하지 않고 rehydrate는 의존한다). (2) **기대값이 기본값과 같으면 그 케이스는 단독으로 아무것도 증명하지 못한다** — 시작 상태를 기대값과 **다르게** 심고(`setAiLanguage("French")` 후 오염값 rehydrate), 같은 축의 **반대 방향 케이스를 쌍으로** 둔다. 이번에 유일한 탐지 경로가 그 쌍이었다. `grep -rn "persist.rehydrate\|persist\.setOptions" src/`가 이 부류의 전수 대상이다. (3) 2026-08-06 두 항목("기대값을 SUT가 계산" · "빈 그물 3연속")의 재발방지 — **그물은 작성 직후 뮤테이션으로 비공허를 증명한다** — 를 이번에도 적용해 `merge`의 `normalizeAiLanguage` 삭제·`aiLanguageLabel`의 조회 축 뒤집기 두 뮤턴트로 red를 실측했다. 같은 계열의 **새로운 트리거**(부분열 충돌·SUT 경유 기대값이 아니라 *영속 키 불일치*)이니, 공허성의 원인 목록에 "입력이 도달하지 않았다"를 추가한다.
+- **관련**: `src/store/__tests__/settings-ui-store.test.ts`("rehydrate 재정규화 (merge)" describe — `PERSIST_KEY`를 persist `name`과 일치시키고 시작 상태를 심음), `src/store/settings-ui-store.ts`(`merge`의 `normalizeAiLanguage` · persist `name: "bugshot-app-settings"`), `src/sidepanel/lib/aiLanguage.ts:aiLanguageLabel`(같은 라운드에서 무검증으로 드러나 테스트 추가). 선행 회고: **2026-08-06**(테스트 중복 제거가 기대값을 SUT에 넘겨 항진명제) · **2026-08-06**(그물을 같은 시점에 써서 맹점 상속 — 빈 그물 3연속).
+
 ## 2026-08-10 — 라이브러리 필터를 열자 그 필터가 겸하던 두 번째 일(값 검사)까지 같이 열렸다
 
 - **영역**: `content`

@@ -42,3 +42,15 @@ Auto-fill the issue body from your capture and logs. On the issue screen, a purp
 Jot the bug down in a line or two (you can leave it blank in element mode) and hit **Generate**. AI fills in the title and every enabled body section in one shot. It draws not just on your capture and logs but on anything you've already typed, so feel free to run it again to polish. When a log is directly tied to the bug — not just errors, but even a normal-looking 200 response that fits what went wrong — AI also drops the **actual log into the description as a code block** — the log text is the captured original, never something the AI wrote. The evidence differs a bit per mode — see [Write an Issue (element)](../element/issue.md) for the detailed flow.
 
 > AI slips up now and then, so give the generated result a quick look before submitting.
+
+## AI writing language
+
+**AI writing language** sets the language the AI writes in, separately from your display language — keep the interface in English and get the issue body in French, if that's what your team reads. Handy when you file into a tracker your teammates read in another language.
+
+The default is **Auto**, with the language it currently resolves to shown in parentheses (e.g. `Auto (English)`). Leave it on Auto and it follows your display language, so switching the interface later won't leave the AI stuck on the old one.
+
+You can pick from English, 한국어, 日本語, 中文(简体), Español, Français, Deutsch, Português (Brasil), and Русский.
+
+This applies to **AI Draft** and to [Fill steps to reproduce](./issue.md). AI Styling isn't affected — it changes style values, not prose.
+
+> This option only shows up when you're running on an **LLM you connected** above. On Chrome's built-in AI, or a model running on your own machine (connected over a localhost address), it stays hidden and the AI follows your display language instead. If you don't see it, check which AI is running first.
