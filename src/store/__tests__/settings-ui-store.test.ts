@@ -196,6 +196,19 @@ describe("settings-ui-store", () => {
       expect(useSettingsUiStore.getState().locale).toBe("ko");
     });
 
+    it("aiLanguage 기본값은 auto (UI 로케일을 따라간다)", () => {
+      expect(useSettingsUiStore.getState().aiLanguage).toBe("auto");
+    });
+
+    it("setAiLanguage로 AI 출력 언어 변경 (UI 로케일과 독립)", () => {
+      const before = useSettingsUiStore.getState().locale;
+      useSettingsUiStore.getState().setAiLanguage("French");
+      expect(useSettingsUiStore.getState().aiLanguage).toBe("French");
+      expect(useSettingsUiStore.getState().locale).toBe(before);
+      useSettingsUiStore.getState().setAiLanguage("auto");
+      expect(useSettingsUiStore.getState().aiLanguage).toBe("auto");
+    });
+
     it("setIssueEnabled로 개별 섹션 토글", () => {
       useSettingsUiStore.getState().resetIssueSections();
       useSettingsUiStore.getState().setIssueEnabled("notes", true);
@@ -373,6 +386,22 @@ describe("settings-ui-store", () => {
     it("기존 autoReproPrefill=false는 보존(덮어쓰지 않음)", () => {
       const migrated = migrateSettingsUi({ autoReproPrefill: false }, 7);
       expect(migrated.autoReproPrefill).toBe(false);
+    });
+  });
+
+  describe("aiLanguage 마이그레이션 (v9→v10)", () => {
+    it("aiLanguage 부재 시 기본값 'auto' 부여 (기존 사용자 동작 변화 0)", () => {
+      expect(migrateSettingsUi({}, 9).aiLanguage).toBe("auto");
+    });
+
+    it("기존 aiLanguage는 보존(덮어쓰지 않음)", () => {
+      expect(migrateSettingsUi({ aiLanguage: "French" }, 9).aiLanguage).toBe("French");
+    });
+
+    // 값이 프롬프트 지시문에 그대로 박히므로 오염된 storage를 통과시키면 안 된다.
+    it("알 수 없는 값은 'auto'로 정규화한다", () => {
+      expect(migrateSettingsUi({ aiLanguage: "Klingon" }, 9).aiLanguage).toBe("auto");
+      expect(migrateSettingsUi({ aiLanguage: 42 as never }, 9).aiLanguage).toBe("auto");
     });
   });
 
