@@ -113,25 +113,27 @@ function AiLanguageSection() {
 
   return (
     <Section title={t("llm.section.outputLanguage")}>
-      <Select
-        value={aiLanguage}
-        onValueChange={(v) => setAiLanguage(v as AiLanguage)}
-      >
-        <SelectTrigger className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="auto">{autoLabel}</SelectItem>
-          {AI_LANGUAGE_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {t("llm.outputLanguage.help")}
-      </p>
+      <div className="space-y-2">
+        <Select
+          value={aiLanguage}
+          onValueChange={(v) => setAiLanguage(v as AiLanguage)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">{autoLabel}</SelectItem>
+            {AI_LANGUAGE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-sm text-muted-foreground">
+          {t("llm.outputLanguage.help")}
+        </p>
+      </div>
     </Section>
   );
 }
