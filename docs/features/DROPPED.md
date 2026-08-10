@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-08-10 — 요소 식별 정보 표시 재설계 (`stable-element-locator`의 절반)
+
+이슈 본문의 재현 환경 `DOM` 행을 selector 쉼표 나열에서 번호 붙은 목록(`Element 1 · [data-e2e="card"] › span`)으로 바꾸고, 각 Style changes 제목을 요소 참조로 연결하며, 전체 selector를 제목에서 빼 별도 행으로 내리려던 절반. **같은 기획의 나머지 절반(selector 생성 알고리즘)은 진행한다** — `docs/features/stable-element-locator/`.
+
+**두 기획이 서로를 호출하지 않았다.** selector 품질이 좋아지는 것과 본문에 그 selector를 어떻게 배치하느냐는 독립이다. 표시 절반만 오늘 해도 되고, 알고리즘 절반만 해도 각자 가치가 성립한다. 묶음 기획 생존율 0/3(`regression-net`·`css-cascade-fidelity`·`picker-aim-ux`)에 넷째가 될 참이었다.
+
+**비용이 근거보다 크다.** 소비처가 본문 빌더 8곳(`buildMarkdownIssueBody`·`buildLinearIssueBody`·`buildSlackBody`·`buildAsanaIssueBody`·`buildClickupIssueBody`·`buildIssueMarkdown`·`buildIssueAdf`·`buildNotionIssueBody`) + DOM 행 생산자 4곳(`environmentRows.ts`·`PreviewPanel`·`DraftDetailDialog`·`buildReportData.ts`) + 공용 렌더러 1곳(`IssuePreviewView`)이고, 골든 스냅샷 `bodyOutputGolden.test.ts.snap`(189KB / 58장)을 일괄 무효화한다. 여기에 `IssuePreviewView`는 log-viewer가 재사용하므로 복제 사전까지 파급된다. 반면 얻는 것은 "복수 요소 이슈가 읽기 쉬워짐"이고 **측정 수단이 없다.**
+
+**근거가 실측이 아니다.** 복수 요소를 한 이슈에 담는 빈도도, "어느 변경 표가 어느 요소인지 모르겠다"는 리포트도 확인된 게 없다. `picker-aim-ux` G4와 `css-cascade-fidelity`를 죽인 것과 같은 축이다.
+
+**검수가 발굴한, 표시 절반과 무관하게 남아 있는 사실 3건** — 묻어두지 않는다.
+
+1. **before/after 업로드 파일명이 0-index인데 사람이 세는 순서와 어긋난다.** `before-${i}.webp`/`after-${i}.webp`(`buildIssueMarkdown.ts:157`)라 요소 3개 이슈의 Jira 첨부 패널·GitHub 업로드 목록에 `before-0`부터 나온다. `submitToAsana.ts:105`가 webp→jpeg로 rename하는 경로도 같은 index를 쓴다.
+2. **before/after alt 텍스트가 고정 문구다.** `alt.beforeSnapshot`/`alt.afterSnapshot`(`StyleChangesTable.tsx:128`)이라 요소 3개 이슈를 스크린리더로 읽으면 동일 alt 6개가 연달아 나온다. 요소 번호 없이도 alt에 selector 꼬리를 넣는 국소 수정으로 개선된다.
+3. **Style changes 제목의 selector는 400px에서 이미 잘린다.** `Section`의 `h3`가 `min-w-0 truncate`인데 `title` 폴백이 없어(`Section.tsx:86`) 식별에도 복사에도 못 쓰인다. 제목 전체 재설계 없이 `title` 속성만 붙여도 hover로 전문이 보인다.
+
+**다시 볼 조건**: 복수 요소 이슈에서 요소↔변경 표 대응이 안 읽힌다는 **실사용 리포트가 실제로 올 때**. 그때는 표시 모델만 별도 기획으로 쓰면 되고, 위 사실 3건은 그와 무관하게 각각 국소 픽스로 처리할 수 있다. 알고리즘 절반이 먼저 안착하면 `selector` 문자열 자체가 짧고 읽기 좋아지므로 표시 압력이 줄어들 가능성도 있다 — 그 관찰이 판단 근거가 된다.
+
+---
+
 ## 2026-08-09 — 피커 조준 UX (`picker-aim-ux`)
 
 키보드 화살표로 DOM을 훑고(G1), Space로 마우스 추적을 얼리고(G2), 인스펙터 카드가 실제 렌더 폰트를 보여주고(G3), 오버레이 호스트가 제거되면 자가치유하는(G4) 네 갈래 기획. `/feature-review`의 4인 검수(CPO·CDO·CTO·QA)에서 갈래마다 독립적으로 무너졌다.

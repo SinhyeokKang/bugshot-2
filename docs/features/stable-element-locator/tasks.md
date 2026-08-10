@@ -1,227 +1,186 @@
-# 안정적 요소 식별 정보 — 구현 태스크
+# 안정적 요소 selector 생성 — 구현 태스크
+
+> **스코프 축소 (2026-08-10)**: 표시 재설계 태스크(display model, 플랫폼 본문 빌더,
+> Jira ADF·Notion, UI 렌더, 골든 일괄 갱신, i18n·가이드·privacy)는 드랍했다. 사유는
+> [`docs/features/DROPPED.md`](../DROPPED.md) 2026-08-10 항목. 12개 → 5개.
 
 ## 선행 조건
 
 - 착수 전 `docs/POSTMORTEM.md`를 `selector`, `bufferedElements`, `styleElements`,
-  `frameId`, `saveDraft`로 grep한다. 특히 2026-07-27 복수 요소 AI 컨텍스트 누락과
-  optional 필드 재확정 부활 회귀를 확인한다.
+  `frameId`, `contextSelector`, `골든`으로 grep한다. 특히 2026-08-03 Chrome CSSOM
+  직렬화, 2026-08-06 골든 diff 집계, 2026-08-07 `sendResponse` 필드 유실 회귀를 확인한다.
 - 신규 권한·env·OAuth·외부 API·의존성 없음. `@medv/finder` 4.0.2를 유지한다.
+- privacy·가이드·i18n 갱신 없음. 사용자에게 보이는 라벨·화면·조작이 바뀌지 않고
+  수집 항목도 늘지 않는다(design.md "문서" 절 참조).
 - 구현은 TDD 순서로 진행하고 빌드는 실행하지 않는다.
 
 ## 태스크
 
-### Task 1: 안정성 분류와 selector score 순수 함수 (TDD)
+### Task 0: jsdom `CSS.escape` 폴리필 (선행)
+
+- **변경 대상**: `src/test/setup-dom.ts`
+- **작업 내용**: finder가 `CSS.escape`를 무조건 호출하는데 jsdom 29에는 `window.CSS`
+  전역 자체가 없다. Task 2 이후의 모든 jsdom 테스트가 이 폴리필 없이는 첫 finder
+  호출에서 `ReferenceError`로 죽는다. 기존 테스트가 `dom-describe.ts`를 한 번도 태우지
+  않아 아직 드러나지 않은 결손이다.
+- **검증**:
+  - [x] 폴리필 추가 후 jsdom에서 `finder(el)`가 예외 없이 문자열을 반환
+  - [x] 기존 `*.test.tsx` 전부 green (폴리필이 다른 테스트를 깨지 않음)
+  - [x] 폴리필은 Chrome 실동작과 다르다는 주석을 남기고, 특수문자 escaping의 최종 그물은
+    e2e·수동임을 명시
+
+### Task 1: 안정성 분류와 후보 비교 순수 함수 (TDD)
 
 - **변경 대상**: `src/content/__tests__/element-locator.test.ts` →
   `src/content/element-locator.ts`(신규)
-- **작업 내용**: test attribute allowlist, 동적 ID/class/attribute 거부, selector token
-  분류, `SelectorScore` 사전식 비교를 테스트 먼저 작성한 뒤 구현한다.
+- **작업 내용**: test attribute allowlist, 동적 ID/class/attribute 거부, selector의 위치
+  토큰 판정, `(positional, stage, length)` 비교를 테스트 먼저 작성한 뒤 구현한다.
 - **검증**:
-  - [ ] `data-testid`, `data-test-id`, `data-test`, `data-e2e`, `data-cy`, `data-qa`,
-    `data-automation-id`, `data-pw`만 test contract tier로 분류
-  - [ ] 임의 `data-user-id`, `data-index`, `data-selected`는 최고 tier로 승격되지 않음
-  - [ ] UUID·긴 숫자·hex/hash·React useId·framework 생성 ID/class 거부
-  - [ ] 조상 BEM/semantic class는 안정 class로 남고 선택 요소 자체 class는 안정 후보에서 제외
-  - [ ] score가 test → ID/semantic → 조상 class → tag-only → 안정+위치 → 불안정 → path
-    fallback 순이며,
-    같은 risk에서는 위치 수 → base 안정성 → 불안정 token → compound 수 → 길이로 비교
+  - [x] `data-testid`, `data-test-id`, `data-test`, `data-e2e`, `data-cy`, `data-qa`,
+    `data-automation-id`, `data-pw`만 test contract로 분류
+  - [x] 그중 `data-e2e`·`data-cy`·`data-qa`·`data-pw`·`data-test-id`·`data-automation-id`
+    6개는 finder 기본 `wordLike` 게이트에 막히므로 stable 단계 `attr` 훅이 명시적으로
+    통과시켜야 후보가 생김을 단언
+  - [x] 임의 `data-user-id`, `data-index`, `data-selected`는 test contract로 승격되지 않음
+  - [x] UUID·긴 숫자·hex/hash·React useId·framework 생성 ID/class 거부
+  - [x] `className` 훅이 선택 요소가 가진 class 이름을 **전역 거부**하고, 조상이 같은
+    이름을 써도 함께 배제된다는 한계를 테스트로 고정
+  - [x] 비교가 위치토큰 유무 → 단계(stable 0 / compat 1) → 길이 순
+  - [x] 위치 없는 compat 후보가 위치 있는 stable 후보를 이긴다
 
-### Task 2: 유일 selector 후보 생성과 fallback (TDD)
+### Task 2: 2단계 후보 생성과 fallback (TDD)
 
 - **변경 대상**: `src/content/__tests__/element-locator.test.tsx` →
   `src/content/element-locator.ts`, `src/content/dom-describe.ts`
-- **작업 내용**: jsdom DOM에서 finder 단계별 후보를 만들고 document 유일성+target identity
-  hard gate 후 최적 후보를 선택한다. 전체 500ms/2000 path check 예산, 조상 12단계,
-  후보 4개 상한을 구현한다. 기존 `pathSelector` fallback을 재사용하되 DOM Tree의
-  `buildSelector`는 기존 단일 finder 경량 경로를 유지한다. finder 호출은 주입 가능한 seam으로
-  두어 fake clock/mock으로 단계별 남은 예산을 검증한다.
+- **작업 내용**: jsdom DOM에서 stable/compat 2단계 finder 후보를 만들고 최적 후보를
+  선택한다. 공유 500ms deadline, path check 1000/1000, 직전 선택 1건 기억을 구현한다. `pathSelector`를 `element-locator.ts`로 옮기고 `dom-describe.ts`가
+  역import하되 DOM Tree의 `buildSelector`는 기존 단일 finder 경량 경로를 유지한다.
+  finder 호출은 주입 가능한 seam으로 두어 fake clock/mock으로 검증한다.
 - **검증**:
-  - [ ] 예시 DOM에서 유일하면 `[data-e2e="enrollment-card"]` 포함 후보가 nth/class 후보보다 우선
-  - [ ] 반복 `data-e2e`만으로 비유일한 후보는 채택하지 않음
-  - [ ] 반복 카드의 동일 descendant는 추가 구분자 또는 위치 fallback으로 현재 target 하나만 선택
-  - [ ] 동적 ID와 해시 class보다 안정 attribute/class 후보 우선
-  - [ ] 모든 후보가 실패하거나 finder가 throw/timeout이면 path fallback 반환
-  - [ ] 특수문자 ID/class/attribute가 `CSS.escape` 후 query 가능
-  - [ ] `html`, body 직계 자식, SVG element 방어
-  - [ ] disconnected element는 유일성 계약을 가장하지 않고, 호출 전 `isConnected` 확인과
+  - [x] 예시 DOM에서 `[data-e2e="enrollment-card"] span`이 채택되고, 선택 요소 자신의
+    class(`.text-semantic-…`)와 `nth-of-type` 후보를 이긴다
+  - [x] 반복 `data-e2e`만으로 비유일한 후보는 finder가 애초에 반환하지 않음
+  - [x] 반복 카드의 동일 descendant는 위치 fallback으로 현재 target 하나만 선택
+  - [x] 동적 ID와 해시 class보다 안정 attribute/class 후보 우선
+  - [x] **단계별 개별 try/catch**: stable 단계가 `Error("Timeout: …")`를 던져도 compat
+    단계가 실행된다
+  - [x] `unique()`의 `Error("Can't select any node with this selector")`도 같은 경로로 흡수
+  - [x] 모든 후보가 실패하면 `pathSelector` 반환
+  - [x] **결정성**: 예산이 중간에 끊기면 부분 결과를 채택하지 않고 항상 `pathSelector`로
+    수렴한다. 같은 요소·같은 DOM에 대해 fake clock 값을 바꿔도 결과가 동일
+  - [x] 남은 예산이 0 이하이면 finder를 **호출하지 않는다**(`timeoutMs: 0`을 넘기지 않음)
+  - [x] mock finder에 전달된 timeout은 공용 500ms deadline의 남은 값이고 path check 합계는
+    1000+1000=2000
+  - [x] 보강 호출(`reuseStableSelector`)은 직전 선택과 같은 요소면 finder를 안 돌린다
+  - [x] 재선택(`buildStableSelector`)은 항상 다시 계산한다 — DOM 재배치 후 캐시된 위치
+    selector가 다른 요소를 가리키는 것을 막는다
+  - [x] 특수문자 ID/class/attribute가 `CSS.escape` 후 query 가능 — **jsdom 폴리필 기준**
+    (Chrome 실동작은 e2e·수동으로 확인)
+  - [x] `html`, body 직계 자식, SVG element 방어
+  - [x] disconnected element는 유일성 계약을 가장하지 않고, 호출 전 `isConnected` 확인과
     예외 매핑으로 기존 selection-detached 세션 만료 경로가 처리
-  - [ ] mock finder에 전달된 timeout은 공용 500ms deadline의 남은 값이고 path check 합계는
-    400+500+500+600=2000; deadline 소진 뒤 후속 finder 미호출
-  - [ ] DOM Tree 초기/자식 확장은 안정 locator 다회 탐색을 호출하지 않아 기존 비용 계약 유지
-  - [ ] 기존 `buildInitialTree`·`buildChildrenResponse` selector 소비 테스트 green
+  - [x] DOM Tree 초기/자식 확장은 안정 selector 탐색을 호출하지 않아 기존 비용 계약 유지
+    (`buildSelector` 호출 경로에 mock spy)
 
-### Task 3: picker payload와 live store에 locator 전달
+> `buildInitialTree`·`buildChildrenResponse`의 기존 selector 소비 테스트는 **존재하지
+> 않는다**(`dom-describe.ts` 커버리지 0/119). 이 축의 회귀 확인은 e2e
+> `dom-tree-nav.spec.ts`와 아래 수동 테스트가 담당한다.
 
-- **변경 대상**: `src/types/picker.ts`, `src/content/css-resolve.ts`,
-  `src/content/picker.ts`, `src/sidepanel/hooks/usePickerMessages.ts`,
-  `src/store/editor-store.ts` 및 인접 테스트
-- **작업 내용**: `ElementLocator` 타입과 `PickerSelectionPayload.locator`를 추가한다.
-  selection 수집 시 locator를 한 번만 만들고 `selector === locator.selector`를 유지한다.
-  sidepanel에서 `sender.frameId`·`sender.origin`을 보강하고 buffer 승격/재선택 때 locator를
-  보존한다.
+### Task 3: picker 선택 경로 배선과 selector 일관성
+
+- **변경 대상**: `src/content/picker.ts`, `src/sidepanel/tabs/DomTreeDialog.tsx` 및 인접
+  테스트 (`css-resolve.ts`는 이미 builder를 인자로 받아 변경 0줄)
+- **작업 내용**: `collectSelection`이 selector builder를 받도록 시그니처를 조정하고,
+  요소 선택 경로만 새 빌더를 쓴다. **`emitSelected`는 `buildStableSelector`,
+  `postSelectionUpdate`(`picker.ts:1129`)는 `reuseStableSelector`**로 갈라 한 선택 안에서
+  같은 문자열을 보장한다.
+  DOM Tree 경로와 `contextSelector` 조상 경로(`picker.ts:456`)는 기존 `buildSelector`
+  유지.
 - **검증**:
-  - [ ] picker payload의 selector와 locator.selector 동일
-  - [ ] `picker.selectionUpdated`가 locator를 덮어쓰거나 다른 요소에 적용하지 않음
-  - [ ] top frame은 origin 미설정, iframe은 sender.origin 사용(payload 위조값 없음)
-  - [ ] bufferCurrentElement·기존 버퍼 재선택·patch 경로가 locator 보존
-  - [ ] 선택 요소 class 삭제·교체 뒤 현재 편집·버퍼 승격·재선택·패널 재오픈 rebind·캡처가
-    같은 요소를 유지하거나 compatibility fallback 실패를 명시적으로 처리
-  - [ ] `sameElementKey`는 selector+frameId 그대로이며 locator/번호를 키로 사용하지 않음
-  - [ ] styling session rebind·applyEditsBySelector·prepareCaptureBySelector 기존 테스트 green
+  - [x] `postSelectionUpdate`가 만드는 selector가 `emitSelected`와 동일 문자열이라
+    `updateSelectionStyles`(`editor-store.ts:697`)의 `sameElementKey` stale 가드를 통과한다
+    — cross-origin 스타일 보강이 드랍되지 않음
+  - [x] 한 번의 선택에서 finder 실행이 선택 시점 1회뿐(보강은 재사용)
+  - [x] `contextSelector`가 기존 경량 경로를 유지하고 값이 바뀌지 않음
+  - [x] payload 조립이 **필드를 골라 담지 않고 스프레드**로 펼쳐 `contextSelector` 등
+    기존 필드가 유실되지 않음 (`grep -n "sendResponse({ " src/content/*.ts`로 전수 확인)
+  - [ ] **선택 요소 class 삭제·교체 뒤에도** 현재 편집·버퍼 승격·재선택·패널 재오픈
+    rebind·캡처가 같은 요소를 유지한다. compat fallback이 불가피하게 그 class를 쓴
+    경우만 예외이고 기존 세션 만료 경로로 처리됨을 단언
+  - [x] `sameElementKey`는 selector+frameId 그대로
 
-### Task 4: 저장 초안 locator 영속화와 하위호환 (TDD)
+> styling session rebind·`applyEditsBySelector`·`prepareCaptureBySelector`의 기존 테스트는
+> **존재하지 않는다**(`picker.ts` 커버리지 0/828, 해당 심볼 언급 테스트 0건). 이 축은 e2e
+> `buffered-reselect-edit.spec.ts`와 수동 테스트로 확인한다.
 
-- **변경 대상**: `src/store/issues-store.ts`, `src/store/editor-store.ts`,
-  `src/sidepanel/lib/resolveDraftStyleElements.ts`, 각 `__tests__/`
-- **작업 내용**: `IssueRecord.locator?`, `IssueRecord.origin?`,
-  `IssueBufferedElement.locator?`를 저장·복원한다.
-  current와 buffered 양쪽을 빠짐없이 직렬화하고 구버전 optional 누락을 허용한다.
+### Task 4: 골든 스냅샷 갱신과 전체 회귀
+
+- **변경 대상**: `src/sidepanel/lib/__tests__/__snapshots__/bodyOutputGolden.test.ts.snap`
+  및 selector 문자열을 하드코딩한 기존 테스트
+- **작업 내용**: 표시 형식은 안 바뀌지만 **selector 값이 바뀌므로** 골든과 selector를
+  단언하는 테스트가 흔들린다. 일괄 갱신 후 diff를 검토하고 typecheck를 실행한다.
+  빌드는 실행하지 않는다.
 - **검증**:
-  - [ ] 단일 현재 요소 locator 저장·복원
-  - [ ] 복수 buffer locator와 iframe origin 저장·복원
-  - [ ] iframe의 단일 current draft가 `IssueRecord.origin?`을 거쳐 저장·재열기 후 host를 복원
-  - [ ] locator 없는 구버전 IssueRecord가 tagName/selector fallback으로 렌더 가능
-  - [ ] 버퍼를 모두 지운 뒤 재확정해도 locator/버퍼가 되살아나지 않음
-  - [ ] 초안 삭제·blob 정리 동작 불변, 스키마 마이그레이션 불필요
-
-### Task 5: 공용 복수 요소 display model (TDD)
-
-- **변경 대상**: `src/sidepanel/lib/__tests__/elementLocatorFormat.test.ts` →
-  `src/sidepanel/lib/elementLocatorFormat.ts`(신규),
-  `src/sidepanel/lib/buildIssueMarkdown.ts`
-- **작업 내용**: `StyleElementContext[]`에서 `ElementLocatorDisplay[]`를 만드는 순수 formatter를
-  구현한다. `mergeStyleElements`가 locator/origin을 보존하고 최종 배열 순서로 연속 번호를
-  부여한다. DOM 전용 structured row와 공용 `<ol>` 렌더 모델을 제공한다.
-- **검증**:
-  - [ ] 단일 요소가 Element 1
-  - [ ] 복수 요소가 최종 merge 순서대로 Element 1..N
-  - [ ] dedup·삭제 뒤 번호에 공백이 없음
-  - [ ] anchor 있음 → `anchor › tag`, 없음 → tag만
-  - [ ] text·accessible name·class 전체 목록이 summary에 포함되지 않음
-  - [ ] non-top frame만 origin 표시, 같은 selector의 다른 frame은 별도 항목
-  - [ ] origin은 host Badge/동등 텍스트, 전체 origin tooltip, opaque는 localized unknown
-  - [ ] 구버전 locator/tag 누락 fallback이 throw하지 않음
-  - [ ] `bugshot-meta-for-ai`의 기존 top-level selector와 elements[].selector 보존
-
-### Task 6: Markdown/HTML 계열 본문과 미리보기 적용 (TDD)
-
-- **변경 대상**: `src/sidepanel/lib/buildIssueMarkdown.ts`,
-  `buildMarkdownIssueBody.ts`, `buildLinearIssueBody.ts`, `buildAsanaIssueBody.ts`,
-  `buildClickupIssueBody.ts`, `buildSlackBody.ts`, 관련 테스트,
-  `src/sidepanel/tabs/DraftingPanel.tsx`, `PreviewPanel.tsx`, `DraftDetailDialog.tsx`
-- **작업 내용**: DOM selector 쉼표 나열을 번호 목록으로 교체하고 각 Style changes 제목을
-  Element 번호로 바꾼 뒤 바로 아래 Selector 행을 추가한다. GitHub/GitLab 공용 builder와
-  Linear/Asana/ClickUp/Slack wrapper가 같은 display model을 사용하도록 한다.
-- **검증**:
-  - [ ] DOM 목록에는 compact summary만 있고 전체 selector/text 없음
-  - [ ] 각 Style changes에 같은 Element N과 전체 selector가 정확히 한 번 있음
-  - [ ] selector는 heading에서 제거됨
-  - [ ] before/after 파일 index와 Element 번호가 동일 배열 index를 사용
-  - [ ] 단일/복수, buffer-only+현재 no-diff, 같은 selector+다른 frame 케이스 green
-  - [ ] Markdown·HTML escape(`[]`, quotes, backticks, `<>&`) 안전
-  - [ ] Drafting/Preview/DraftDetail DOM 표기가 제출 본문과 동일
-  - [ ] 세 화면의 DOM은 공용 `<ol>` 렌더러를 쓰고 Style changes key는 selector+frameId
-  - [ ] 400px에서 Selector mono code가 잘리지 않고 anywhere wrap되며 텍스트 선택 가능
-  - [ ] screenshot 요소 캡처의 기존 단일 `ShotSelector` DOM 행은 불변
-
-### Task 7: Jira ADF·Notion 구조화 본문 적용 (TDD)
-
-- **변경 대상**: `src/sidepanel/lib/buildIssueAdf.ts`,
-  `buildNotionIssueBody.ts`, 관련 테스트와 제출 후처리 테스트
-- **작업 내용**: DOM을 각 포맷의 중첩/개별 list item으로 렌더하고 summary·selector를 code
-  mark/annotation으로 구분한다. Style changes heading과 Selector paragraph를 Element 번호로
-  연결한다.
-- **검증**:
-  - [ ] Jira ADF 유효 노드 구조, 빈 text node 없음
-  - [ ] Notion block/rich text 제한 내 출력
-  - [ ] Jira snapshot splice가 i번째 style table을 계속 정확히 찾음. Selector paragraph 추가로
-    table index 탐색이 어긋나지 않음
-  - [ ] Notion before/after attachment placeholder와 Element 번호 대응 유지
-  - [ ] 특수문자 selector가 평문으로 보존되고 markup 구조를 깨지 않음
-
-### Task 8: i18n 대칭과 문서 갱신
-
-- **변경 대상**: `src/i18n/namespaces/logs.ts`, `src/log-viewer/i18n.ts`,
-  `docs/ARCHITECTURE.md`, `docs/DIRECTORY.md`, `docs/privacy.ko.md`·
-  `docs/privacy.en.md`, `guide/ko/element/issue.md`, `guide/en/element/issue.md`
-- **작업 내용**: Element/Selector 라벨을 ko/en에 추가하고 복제 사전을 맞춘다. 아키텍처와
-  디렉터리 문서를 실제 구현에 맞춰 갱신한다. privacy 양쪽은 조상 test attribute 요약의
-  별도 수집·저장·전송을 ko/en 본문에 명시하고 시행일을 함께 수정한다.
-  가이드는 `guide/AUTHORING.md` 규칙에 따라 ko 원본·en 번역을 같은 변경에서 갱신한다.
-- **검증**:
-  - [ ] `pnpm test --run src/i18n/__tests__/locales.test.ts src/log-viewer/__tests__/i18n.test.ts`
-  - [ ] guide ko/en 섹션 구조·사실 대칭
-  - [ ] privacy ko/en 본문과 시행일 동시 갱신
-  - [ ] `pnpm sync:agents:check` 통과(원본 CLAUDE/command 미수정 확인)
-
-### Task 9: 전체 회귀 검증
-
-- **변경 대상**: 테스트만; 프로덕션 추가 변경 없음
-- **작업 내용**: selector 생성, store, 초안, 8개 플랫폼, AI meta 테스트를 전수 확인하고
-  typecheck를 실행한다. 빌드는 실행하지 않는다.
-- **검증**:
-  - [ ] `pnpm test` 통과
-  - [ ] `pnpm typecheck` 통과
-  - [ ] git diff에서 manifest/권한/env/외부 fetch 변경 없음
-  - [ ] 신규 locator에 text/accessibility name/임의 속성 snapshot 없음
-  - [ ] finder 전체 예산이 500ms/2000 path check를 넘지 않음
+  - [ ] 골든 diff를 줄 단위로 집계해 **selector 문자열 변경만** 있는지 확인. 구조·순서·
+    라벨이 바뀐 줄이 있으면 원인 규명 전까지 커밋하지 않음(POSTMORTEM 2026-08-06)
+  - [x] `pnpm test` 통과
+  - [x] `pnpm typecheck` 통과
+  - [x] git diff에서 manifest/권한/env/외부 fetch 변경 없음
+  - [x] `docs/privacy.*`·`guide/`·`src/i18n/`·`src/log-viewer/` diff가 **0**임을 확인
+    (스코프 축소의 사후 검증 — 하나라도 걸리면 표시 절반이 새어 들어온 것이다)
 
 ## 테스트 계획
 
 ### 단위 테스트
 
-- `element-locator.test.ts`: attribute/class/id 안정성 분류, score, budget/fallback.
+- `element-locator.test.ts`: attribute/class/id 안정성 분류, 2필드 비교.
 - `element-locator.test.tsx`: 실제 jsdom DOM에서 단일·반복 앵커, 동적 token, escaping,
-  detached/SVG, 유일성 검증.
-- `elementLocatorFormat.test.ts`: 단일·복수 번호, iframe origin, 구버전 fallback, text 제외.
-- `editor-store.test.ts`·`issues-store.test.ts`·`resolveDraftStyleElements.test.ts`: live buffer와
-  저장 초안 optional locator 왕복.
-- 각 build 테스트: Markdown/HTML/Jira/Notion/GitHub/GitLab/Linear/Asana/ClickUp/Slack에서
-  DOM 목록 ↔ Style changes 번호 ↔ selector 대응.
-- `buildIssueMarkdown.test.ts`: AI meta 기존 selector 보존과 locator 추가.
+  detached/SVG, 단계별 try/catch, 예산 소진 결정성, 메모이즈.
+- `editor-store.test.ts`: `updateSelectionStyles` stale 가드가 같은 selector로 통과.
 
 ### e2e 시나리오
 
-`/e2e-write` 입력 후보:
+`/e2e-write` 입력 후보. **게이트는 전용 marker prop으로 걸고 selector 문자열은 단언에만
+쓴다** — `e2e/GOTCHAS.md:35`가 "`@medv/finder`는 최단 유니크를 고르므로 selector 줄을
+게이트로 쓰지 말라"를 이미 못박았다. selector를 대기 조건으로 쓰면 실패가 assertion이
+아니라 timeout으로 나온다.
 
-1. “서로 다른 카드 두 개에 같은 스타일 class가 있고 첫 카드 조상에 고유
-   `data-e2e`가 있을 때, 첫 카드의 자식을 선택해 스타일을 변경하면 미리보기 DOM에
-   `data-e2e` 앵커가 표시되고 Style changes의 Selector에 `nth-of-type`보다 해당 앵커가
-   우선 표시된다.”
-2. “두 요소를 담아 다음으로 이동하면 DOM에 Element 1·2가 표시되고 각 Style changes
-   섹션의 번호·before/after 이미지가 같은 순서이며 selector는 각 섹션에 한 번만 있다.”
-3. “iframe과 top frame에서 같은 selector의 요소를 각각 담으면 DOM 목록에 두 항목이
-   남고 iframe 항목만 origin이 표시된다.”
-4. “복수 요소 초안을 저장해 다시 열면 Element 번호·앵커·Selector가 저장 전과 같다.”
+**작성 완료 — `e2e/stable-locator.spec.ts` + `e2e/fixtures/pages/stable-locator.html`(serial 4).**
 
-fixture에는 고유/반복 `data-e2e`, top/iframe 동일 selector, 선택 요소 class 삭제 케이스를
-둔다. Drafting/Preview/DraftDetail의 DOM 목록·Element 번호·Selector 행에는 공용
-`data-testid` 계약을 추가하고, 저장 시나리오는 저장 → 이슈 목록 → 상세 재열기 경로로 판정한다.
+- [x] 형제 카드가 있을 때 조상 `[data-e2e]`가 위치 표현·타깃 class를 이긴다
+- [x] 타깃의 의심스러운 id(`#deadbeef` — finder 기본은 penalty 0으로 최우선 채택)·해시
+  class 대신 조상 `[data-testid]`를 쓴다
+- [x] test contract 이름이어도 PII 값(`data-testid="user-jane@acme.com"`)은 selector에
+  실리지 않는다
+- [x] 타깃 class 삭제 후에도 selector 불변 + `.chip{color}` 소실이 패널에 반영된다
+  (= `picker.selectionUpdated`가 stale 가드에 안 걸림)
 
-실제 picker/content script·iframe 메시지와 미리보기 렌더를 검증하므로 구현 보고에서
-e2e 영향 `있음`으로 표시하고 `/e2e-write`로 반영한다.
+**픽스처는 대상마다 형제를 둔다** — 얕은 경로가 이미 유일하면 finder가 가장 싼 후보로
+끝내 앵커가 나올 자리가 없고, 그러면 제품이 정상인데 spec만 red가 된다.
+
+원래 시나리오 3(cross-origin 보강 왕복)은 **자동화 불가**다. e2e 서버가 loopback이라
+SSRF 가드(`isFetchableSheetUrl`)가 외부 시트 fetch를 막아 2차 `selectionUpdated`가 아예
+발화하지 않는다(`style-cross-origin-section.spec`와 같은 사유). 위 4번이 1차(CSS 캐시)
+경로로 같은 계약을 태우고, 실제 cross-origin 왕복은 수동 잔여로 옮겼다.
 
 ### 수동 테스트
 
-- [ ] 큰 상용 페이지에서 선택 locator 생성이 500ms 상한 안에 끝나고, DOM Tree 초기·자식
-  확장 시간이 변경 전 기준보다 유의하게 증가하지 않음
-- [ ] 카드 순서를 바꾼 뒤 저장된 selector를 참고했을 때 test anchor가 개발자에게 유용한
-  컴포넌트 검색 단서로 남음(장기 동일성 보증 테스트가 아니라 사람 판독 확인)
-- [ ] selector가 매우 긴 요소 5개를 담아도 DOM 목록은 한 요소 한 줄이고 Style changes
-  제목이 과밀하지 않음
-- [ ] Chrome DevTools console에서 각 Selector를 해당 frame document에 실행하면 현재
-  캡처 시점 target 하나만 매치
-- [ ] CSS CodeMirror selector 1행·DOM Tree 이동·버퍼 재선택·before/after 재캡처 정상
+- [ ] 고정 픽스처(대형 상용 페이지 1개)에서 DOM Tree 열기 3회 중앙값이 변경 전 대비
+  **+20% 이내**이고, 선택 selector 생성이 500ms 안에 끝난다
+- [ ] Chrome DevTools console에서 생성된 selector를 해당 frame document에 실행하면 현재
+  캡처 시점 target 하나만 매치 (jsdom 폴리필이 아닌 실제 `CSS.escape` 경로 확인 —
+  특수문자 class·ID가 있는 요소 포함)
+- [ ] 선택 요소의 class를 편집기로 지운 뒤 재선택·버퍼 승격·before/after 재캡처가 같은
+  요소를 유지
+- [ ] CSS CodeMirror selector 1행·DOM Tree 이동·버퍼 재선택 정상
+- [ ] `data-testid`만 있는 사이트, test attribute가 전혀 없는 사이트 각각에서 회귀 없음
 
-## 구현 순서 권장
+## 구현 순서
 
-Task 1 → 2 → 3 → 4 → 5 순차. Task 5의 display model 확정 후 Task 6과 7은 병렬 가능하다.
-Task 8은 출력 계약이 확정된 뒤, Task 9는 마지막에 수행한다. 각 TDD 태스크는 대상 테스트
-red 확인 → 최소 구현 → 대상 테스트 green 순서로 닫는다.
+Task 0 → 1 → 2 → 3 → 4 순차. 각 TDD 태스크는 대상 테스트 red 확인 → 최소 구현 → 대상
+테스트 green 순서로 닫는다.
 
 ## 가이드 영향
 
-- `guide/ko/element/issue.md`·`guide/en/element/issue.md` — 재현 환경의 복수 요소 번호
-  목록과 각 Style changes 아래 Selector 표기를 설명한다.
-- 구현 후 `/guide`로 ko 원본·en 번역을 동기화한다. 새 화면이나 조작은 없어 이미지 교체는
-  실제 미리보기 캡처에서 DOM/Style changes 표기가 달라질 때만 수행한다.
+**없음.** 사용자에게 보이는 화면·라벨·조작이 바뀌지 않는다. `DOM` 행에 표시되는
+selector 문자열 값만 달라지므로 가이드 스크린샷도 다시 찍지 않는다.

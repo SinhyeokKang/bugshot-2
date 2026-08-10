@@ -1,16 +1,39 @@
-# 안정적 요소 식별 정보
+# 안정적 요소 selector 생성
+
+> **스코프 축소 (2026-08-10)**: 초안은 selector 생성 알고리즘과 이슈 본문 표시 재설계
+> (`Element N` 번호 목록·Style changes 제목 변경·전체 selector 행 분리)를 한 문서에
+>담고 있었다. 표시 절반은 근거가 실측이 아니고 소비처 13곳 + 골든 58장을 흔드는 데
+> 비해 성공 판정 수단이 없어 드랍했다 — 사유와 다시 볼 조건은
+> [`docs/features/DROPPED.md`](../DROPPED.md)의 2026-08-10 항목. 이 문서는 알고리즘
+> 절반만 다룬다.
 
 ## 배경
 
-BugShot의 요소 스타일 편집 모드는 선택한 DOM 요소마다 CSS selector를 생성하고, 복수
-요소를 한 이슈에 묶으면 재현 환경의 `DOM` 행과 각 스타일 변경 섹션에 selector를
-표시한다. 현재 생성기는 `@medv/finder` 4.0.2이며, 현재 DOM에서 짧고 유일한 경로를
-찾는 데 최적화돼 있다. finder의 고정 penalty는 id 0, class 1, attribute 2,
-tag 5, `nth-of-type` 10이라 안정적인 `data-e2e` 조상보다 전역에서 흔한 스타일
-클래스와 위치 selector가 선택될 수 있다.
+BugShot의 요소 스타일 편집 모드는 선택한 DOM 요소마다 CSS selector를 생성한다. 이
+selector는 표시용이 아니라 **실행 키**다 — 세션 rebind(`picker-control.ts:474`
+`rebindStylingSession` → `picker.ts:1216 document.querySelector`), 편집 적용, 캡처,
+버퍼 dedup(`sameElementKey(selector, frameId)`)이 전부 이 문자열에 걸린다. 현재 생성기는
+`@medv/finder` 4.0.2다.
+
+finder가 테스트 계약 속성을 놓치는 원인은 penalty 경쟁이 아니라 **후보 생성 게이트**다.
+finder의 기본 `attr` predicate는 `role`·`name`·`aria-label`·`rel`·`href`와, `data-*` 중
+`wordLike`를 통과하는 이름만 허용한다. `wordLike`는 `/^[a-z\-]{3,}$/i`(숫자 불허)에
+더해 하이픈·대문자 분절 후 각 토큰이 3자 이상일 것을 요구한다. 그 결과:
+
+| 속성 | finder 기본 허용 | 거부 사유 |
+|---|---|---|
+| `data-testid`, `data-test` | ✅ | — |
+| `data-e2e` | ❌ | 숫자 포함 |
+| `data-cy`, `data-qa`, `data-pw` | ❌ | 토큰 2자 |
+| `data-test-id`, `data-automation-id` | ❌ | `id` 토큰 2자 |
+
+즉 흔히 쓰는 테스트 계약 속성 8개 중 6개는 **후보로 생성조차 되지 않는다.** penalty
+표(id 0, class 1, attribute 2, tag 5, `nth-of-type` 10, `nth-child` 50)는 그다음 문제로,
+게이트를 통과한 test attribute(2)조차 전역에서 흔한 스타일 class(1)에 진다.
 
 예를 들어 다음 DOM에서 현재 결과는
-`article:nth-of-type(1) .text-semantic-informative-primary-low`다.
+`article:nth-of-type(1) .text-semantic-informative-primary-low`다. `data-e2e`는 경쟁에서
+진 게 아니라 링에 오르지 못했다.
 
 ```html
 <article data-e2e="enrollment-card">
@@ -23,119 +46,145 @@ tag 5, `nth-of-type` 10이라 안정적인 `data-e2e` 조상보다 전역에서 
     </p>
   </header>
 </article>
+<article>
+  <header><p>신청일시 <span class="text-semantic-informative-primary-low">…</span></p></header>
+</article>
 ```
 
-이 selector는 카드 순서가 바뀌면 다른 요소를 가리킬 수 있고, selector만 여러 개
-쉼표로 나열한 `DOM` 행은 이슈 처리자가 어느 변경 표와 어느 요소가 대응하는지 읽기
-어렵다. 반대로 모든 조상 속성·fallback 경로를 본문에 펼치면 복수 요소 이슈가 과밀해진다.
+**형제 카드가 있어야 이 예시가 성립한다.** finder는 "가장 싼 유일 후보"를 반환하므로
+카드가 하나뿐이면 `span`(penalty 5)이 이미 유일해 `[data-e2e=…] span`(7)까지 가지
+않는다. 즉 **앵커는 얕은 경로가 유일하지 않을 때만 나타난다.**
+
+이 결과는 두 가지를 동시에 나쁘게 만든다. ① 카드 순서가 바뀌면 rebind가 다른 요소를
+집는다. ② 선택 요소 **자신의 class**가 selector에 들어가 있어, 사용자가 스타일 편집기로
+그 class를 지우면(`picker.applyClasses` → `picker.ts:672 handleApplyClasses`) 자기 자신이
+만든 selector가 자기 손에 깨진다.
 
 ## 목표
 
 1. 선택 요소와 조상에서 안정성 높은 앵커를 우선 사용하되, 완성 selector가 현재
    frame document에서 선택 요소 하나만 가리킨다는 런타임 계약을 유지한다.
 2. `data-testid`·`data-e2e`·`data-cy` 같은 테스트 계약 속성을 생성 ID·해시 클래스·
-   임의 `data-*`보다 우선한다. 선택 요소에서 사용자가 편집할 수 있는 class는 안정 후보에서
-   제외하고, 위치 표현은 다른 유일한 후보가 없을 때만 사용한다.
-3. 요소 스타일 편집 이슈의 `DOM` 행을 selector 나열에서 번호가 붙은 짧은 식별 목록으로
-   바꾼다. 각 항목은 안정적 앵커와 대상 태그만 표시하며 선택 요소의 text는 포함하지 않는다.
-4. 각 스타일 변경 섹션을 같은 요소 번호로 연결하고, 실행 가능한 전체 selector는 그
-   섹션 바로 아래에 별도 표시한다.
-5. 단일·복수 요소, top frame·iframe, 라이브 작성·저장 초안 재열기, 클립보드와 8개
-   제출 플랫폼에서 같은 요소 번호·요약·selector를 출력한다.
+   임의 `data-*`보다 우선한다. **선택 요소가 가진 class 이름은 안정 후보에서 제외**하고,
+   위치 표현은 다른 유일한 후보가 없을 때만 사용한다.
+3. 한 번의 선택 안에서 선택 메시지(`picker.selected`)와 cross-origin 스타일 보강
+   메시지(`picker.selectionUpdated`)가 같은 selector 문자열을 낸다. 갈리면 보강이
+   `sameElementKey` stale 가드에 무음으로 드랍된다. (재선택·rebind는 **의도적으로
+   다시 계산한다** — 아래 위험 요소 3.)
 
 ## 비목표 (Non-goals)
 
+- **이슈 본문 표시 재설계를 하지 않는다.** `DOM` 행의 selector 나열, Style changes 제목,
+  전체 selector 위치는 전부 현행 유지다. 사유는 `docs/features/DROPPED.md` 2026-08-10.
+  이번 변경으로 selector **문자열 값**은 바뀌지만 표시 **형식**은 바뀌지 않는다.
+- `ElementLocator` 같은 구조화 메타데이터를 만들거나 저장하지 않는다. `IssueRecord`·
+  `IssueBufferedElement` 스키마는 손대지 않는다 — 표시 절반이 없으면 소비처가 없다.
 - selector가 페이지 새로고침·재배포 후에도 같은 요소를 가리킨다고 보증하지 않는다.
   런타임 DOM 한 장만으로 속성의 장기 안정성을 증명할 수 없다.
 - selector를 소스 파일·React/Vue/Svelte 컴포넌트 위치로 역매핑하지 않는다.
 - 대상 사이트별 selector allowlist, 사용자 설정, 프레임워크 자동 감지 기능을 추가하지 않는다.
 - Playwright role/text locator, XPath, text selector를 생성하지 않는다. BugShot의 재선택·
   편집 적용 경로는 표준 CSS selector를 계속 사용한다.
-- 선택 요소의 text, accessible name, 가까운 라벨·제목을 새 식별 정보에 포함하지 않는다.
 - 임의 `data-*`를 모두 안정적 앵커로 취급하지 않는다.
 - Shadow DOM 내부 지원 범위를 넓히지 않는다. 기존처럼 캡슐화된 내부 대신 host가 선택된다.
 - action log의 `buildLightSelector`는 이번 범위에서 변경하지 않는다. 이 기능은 요소 스타일
   편집과 요소 캡처에 쓰는 `dom-describe.ts:buildSelector` 경로만 다룬다.
+- DOM Tree(`buildInitialTree`·`buildChildrenResponse`)의 selector 생성은 기존 단일 finder
+  경량 경로를 유지한다. 노드마다 다단계 탐색을 얹으면 트리 열기가 초 단위로 늘어난다.
+- 조상이 선택 요소와 **같은 이름의 class**를 가지면 그 class도 함께 안정 후보에서
+  빠진다. finder 훅에 element 인자가 없어 소유자를 구분할 수 없기 때문이며, 이 손실은
+  compatibility fallback으로 보전한다(아래 위험 요소 4).
 
 ## 사용자 시나리오
 
-### 단일 요소
+### 안정적 앵커가 있는 요소
 
 1. 사용자가 `data-e2e="enrollment-card"` 조상 아래의 `span`을 선택해 스타일을 바꾼다.
-2. BugShot은 안정적 앵커를 우선한 CSS selector를 만들고 현재 frame document에서 선택
-   요소만 매치하는지 검증한다.
-3. 이슈의 재현 환경에는 다음처럼 한 줄이 표시된다. text는 포함하지 않는다.
-
-   ```text
-   DOM
-   1. Element 1 · [data-e2e="enrollment-card"] › span
-   ```
-
-4. 스타일 변경 섹션에는 같은 번호와 실행 가능한 selector가 표시된다.
-
-   ```text
-   Style changes — Element 1
-   Selector: [data-e2e="enrollment-card"] span.text-semantic-informative-primary-low
-   ```
-
-### 복수 요소
-
-1. 사용자가 요소 3개를 차례로 수정해 한 이슈에 담는다.
-2. `DOM` 행은 `Element 1`부터 최종 `styleElements` 순서대로 한 항목씩 표시한다.
-3. 각 Style changes 섹션은 동일 번호를 사용한다. selector가 길어도 DOM 목록에는 반복하지
-   않고 해당 섹션 아래에만 한 번 표시한다.
-4. 버퍼 요소를 삭제하거나 현재 요소가 기존 버퍼 요소를 대체하면 번호는 최종 병합 결과를
-   기준으로 연속 재부여된다. 저장 데이터의 영구 ID로 사용하지 않는다.
+2. BugShot은 `[data-e2e="enrollment-card"] span`을 만든다. 선택 요소 자신의 class는
+   들어가지 않는다.
+3. 사용자가 그 요소의 class를 편집기로 지워도 재선택·버퍼 승격·before/after 재캡처가
+   같은 요소를 계속 집는다.
+4. 이슈 본문의 `DOM` 행에는 현행 그대로 이 selector 문자열이 표시된다.
 
 ### 안정적 앵커가 없는 요소
 
 1. 선택 요소와 조상에 신뢰 가능한 test attribute·ID가 없고 클래스도 생성값뿐이다.
 2. BugShot은 현재처럼 유일한 fallback selector를 생성하되 위치 표현 사용을 허용한다.
-3. DOM 요약은 거짓 안정성을 만들지 않고 `Element N · <tag>`만 표시한다.
-4. 전체 위치 selector는 Style changes 섹션 아래 `Selector`로 남아 개발자가 필요할 때
-   복사할 수 있다.
+3. 사용자가 보는 것은 지금과 다르지 않다 — 이 경로는 회귀가 없다는 것이 목표다.
 
 ### 반복 test attribute
 
 1. 목록의 모든 카드가 `data-e2e="enrollment-card"`를 공유한다.
-2. 이 속성은 사람이 컴포넌트 종류를 찾는 앵커로는 표시할 수 있지만, 그것만으로 완성
-   selector를 확정하지 않는다.
-3. 후보 조합이 선택 요소 하나를 가리키지 못하면 추가 안정 후보를 결합하고, 그래도
-   불가능하면 위치 표현으로 유일성을 확보한다.
+2. 그것만으로는 유일해지지 않으므로 finder가 위치 표현을 더해 현재 target 하나만
+   가리키게 한다. 반복 속성이 있다는 이유로 유일성 계약을 완화하지 않는다.
 
 ### iframe 요소
 
 1. 사용자가 1-depth iframe 안의 요소를 수정한다.
-2. selector 유일성은 해당 frame document 안에서 검증한다.
-3. DOM 요약의 iframe 항목에만 frame origin host를 조건부로 표시해 top document의 같은
-   selector와 구분한다. Style changes는 같은 Element 번호로 연결하고 origin을 반복하지 않는다.
+2. selector 유일성은 해당 frame document 안에서 검증한다. top document에서 검사하면
+   항상 실패하거나 다른 프레임의 같은 selector와 잘못 합쳐진다.
 
-### 저장 초안과 구버전 초안
+### cross-origin 스타일 보강
 
-1. 사용자가 복수 요소 이슈를 저장하고 나중에 다시 연다.
-2. optional 구조화 locator가 저장돼 있으면 라이브 작성과 동일한 요약을 복원한다.
-3. locator가 없는 구버전 초안은 `tagName`과 기존 selector로 안전하게 폴백한다. 초안
-   마이그레이션이나 데이터 폐기는 하지 않는다.
+1. 선택 직후 `picker.selected`가 나가고, cross-origin 시트 원문이 확보되면
+   `picker.selectionUpdated`가 스타일을 보강한다(선택당 최대 2회).
+2. 사이드패널은 `sameElementKey`로 stale 가드를 걸므로 두 메시지의 selector가 다르면
+   보강이 무음 드랍된다. 같은 요소에 대해서는 항상 같은 문자열이 나가야 한다.
+
+## 위험 요소
+
+`docs/features/DROPPED.md`의 판정 기준 4개 중 둘에 저촉된다. 기각 사유가 아니라 기획
+시점에 인지하고 넘어가는 항목으로 기록한다.
+
+1. **기준 1 (브라우저·기존 도구가 이미 하는가)** — 부분 저촉. Chrome DevTools의
+   Copy selector가 selector를 만들어 준다. 이 기능의 값어치는 selector를 **만드는 것**이
+   아니라 BugShot이 **자기 실행 키로 쓰는 문자열의 품질**이다. DevTools가 만든 selector를
+   BugShot의 rebind·dedup에 주입할 경로는 없다.
+2. **기준 3 (사정거리가 이름값보다 좁은가)** — 저촉. "안정적"이라는 이름과 달리 실제
+   사정거리는 ① 세션 내 rebind·버퍼 재선택 신뢰성 ② 이슈를 읽는 사람이 컴포넌트를
+   grep할 단서 두 개다. 페이지 리로드·재배포 후 동일성은 위 비목표에서 명시적으로
+   부인한다. 기준 2(페이지에 무언가를 심는가)와 기준 4(검증 수단이 있는가)는 저촉하지
+   않는다 — 노드 주입 없이 `querySelectorAll` 읽기만 하고, 핵심 판정이 전부 순수 함수라
+   유닛으로 고정된다.
+3. **재선택 시 selector가 달라질 수 있다 — 의도된 트레이드오프.** selector 문자열은
+   `sameElementKey(selector, frameId)`의 동등성 키라, 같은 요소가 다른 문자열을 얻으면
+   버퍼에 두 번 쌓이고 이전 편집이 소실된다. 그럼에도 **재선택마다 다시 계산한다** —
+   페이지 수명 캐시를 두면 리스트가 재배치돼 같은 노드가 다른 위치로 옮겨간 뒤 캐시된
+   위치 selector가 **다른 요소**를 가리켜 `applyEditsBySelector`·
+   `prepareCaptureBySelector`가 무음으로 엉뚱한 요소를 편집·캡처한다. 잘못된 요소를
+   건드리는 쪽이 버퍼 중복보다 나쁘다. 보증 범위는 목표 3(한 선택 안)으로 한정한다.
+4. **finder 훅의 소유자 구분 불가** — 위 비목표 마지막 항목. 조상이 선택 요소와 같은
+   class 이름을 쓰면 함께 배제된다(디자인 시스템에서 흔하다). 이 경우 안정 후보가
+   비고 compatibility fallback으로 내려간다.
+5. **selector 값 변경 자체가 회귀 표면이다.** 표시는 안 바꿔도 문자열이 바뀌므로
+   `sameElementKey`를 소비하는 8파일·12지점(버퍼 dedup, 버퍼 재선택 시 편집 복원,
+   `mergeStyleElements` dedup)과 골든 스냅샷이 전부 영향을 받는다.
 
 ## 성공 기준
 
-- 예시 DOM에서 전역 유일 조건이 충족되면 `data-e2e` 앵커를 포함한 selector가 클래스+
-  `nth-of-type` 후보보다 먼저 선택된다.
+- 예시 DOM에서 전역 유일 조건이 충족되면 `[data-e2e="enrollment-card"] span`이
+  `article:nth-of-type(1) .text-semantic-informative-primary-low`보다 먼저 선택된다.
 - 동적 ID·해시 클래스·상태/순서 `data-*`가 안정 앵커로 승격되지 않는 테스트가 있다.
-- 선택 요소에서 편집 가능한 class는 안정 class 후보에 쓰지 않으며, class 삭제·교체 뒤에도
-  현재 편집·버퍼 승격·재선택·패널 재오픈·캡처가 같은 요소를 유지하거나 기존 best-effort
-  fallback으로 명시적으로 처리된다.
+- 선택 요소가 가진 class 이름은 안정 class 후보에 쓰지 않으며, class 삭제·교체 뒤에도
+  현재 편집·버퍼 승격·재선택·패널 재오픈·캡처가 같은 요소를 유지한다. compatibility
+  fallback이 불가피하게 그 class를 쓴 경우만 예외이며, 그 경우도 기존 best-effort
+  경로가 세션 만료로 명시 처리한다.
+- 한 번의 호출 안에서 예산이 끊기면 부분 결과를 쓰지 않고 결정적인 `pathSelector`로
+  수렴한다. (호출 사이의 동일성까지는 보증하지 않는다 — 위험 요소 3.)
+- `picker.selected`와 `picker.selectionUpdated`가 같은 요소에 대해 같은 selector를 내
+  cross-origin 스타일 보강이 stale 가드에 드랍되지 않는다.
 - 생성된 selector는 항상 현재 frame document에서 정확히 선택 요소 하나만 매치한다.
-- finder timeout·후보 부재 때 기존 위치 fallback이 유지되고 선택·재선택·편집 적용·캡처가
-  동작한다.
-- DOM 목록과 Style changes가 단일·복수 요소에서 동일한 `Element N` 번호를 사용한다.
-- DOM 목록에는 선택 요소 text와 전체 selector가 없고, 각 Style changes에는 전체 selector가
-  정확히 한 번 표시된다.
-- Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack, 클립보드 HTML/Markdown,
-  미리보기, 저장 초안 상세이 동일한 정보를 보존한다.
-- top frame의 같은 selector와 iframe selector가 origin 표기로 구분된다.
-- picker의 안정 locator 생성은 선택 요소 1개에만 적용되며 DOM Tree의 기존 로딩 비용을
-  증가시키지 않는다. locator 탐색은 전체 500ms/2000 path check 상한 안에서 끝난다.
-- 새 권한·env·OAuth·외부 API·서버 전송 경로가 없다. 캡처 데이터는 기존처럼 브라우저에서
-  사용자가 선택한 플랫폼으로 직접 전송된다.
+- finder timeout·throw·후보 부재 때 기존 위치 fallback이 유지되고 선택·재선택·편집 적용·
+  캡처가 동작한다.
+- 안정 locator 생성은 선택 요소 1개, 선택 1회당 한 번만 계산한다. DOM Tree의 기존
+  로딩 비용은 고정 픽스처에서 열기 3회 중앙값 기준 변경 전 대비 +20% 이내다.
+- **새 권한·env·OAuth·외부 API·서버 전송 경로가 없고 privacy 갱신도 불필요하다.**
+  수집·전달 항목이 늘지 않는다 — 조상 test attribute 값은 finder 기본 `data-*` 허용으로
+  오늘도 selector에 실려 나가고 `privacy.ko.md` L42가 "요소를 고른 경우 그 요소의 CSS
+  selector"로 이미 공개한다. 새 데이터 범주가 아니라 같은 범주의 다른 문자열이다.
+- **test attribute·semantic attribute·id 값은 "사람이 손으로 지은 식별자" 모양만 통과한다.**
+  `data-testid={user.email}` 같은 코드가 흔해 test contract 이름이 값의 안전을 보장하지
+  않는다. 이메일·전화번호·주문번호·세션 토큰·비ASCII를 거부하고, 거부된 값은 compat
+  단계(= 변경 전 동작)로 떨어져 기능이 죽지 않는다.
+- **finder가 이미 유일성을 보장하므로 추가 `querySelectorAll` 검증은 0회다.**
 - 관련 단위 테스트와 `pnpm test`, `pnpm typecheck`가 통과한다. 빌드는 실행하지 않는다.

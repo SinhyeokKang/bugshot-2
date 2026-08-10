@@ -464,6 +464,40 @@ trim 적용 여부는 `videoTrimmed`(세션 영속 `EditorSnapshot` 키 — `onR
 
 현재 사용처: **`func:` 직렬화 형태의** MAIN world는 `github-upload.ts:pageBatchUploadFn` 하나(같은 `world:"MAIN"`인 `picker-control.ts:ensureMainWorldRecorders`는 `files:` 주입이라 이 규칙 무관). 다만 **직렬화 경계는 world와 무관하게 `func:` 전부에 걸린다** — `picker-control.ts:getTopViewport`는 `world` 미지정(ISOLATED)이지만 같은 제약을 받는다(인라인 화살표라 클로저가 없어 현재는 안전). TypeScript·단위 테스트 모두 이 경계를 못 잡으므로 **inject 경로 리팩터 시 실제 탭 수동 회귀 필수**.
 
+## 요소 selector 생성 (실행 키)
+
+요소 스타일 편집의 `selector`는 표시용이 아니라 **실행 키**다. 세션 rebind(`picker-control.ts:rebindStylingSession` → `picker.ts`의 `document.querySelector`), 편집 적용, 캡처, 버퍼 dedup(`sameElementKey(selector, frameId)`)이 전부 이 문자열에 걸린다.
+
+**두 빌더가 공존한다.**
+
+| 경로 | 빌더 | 이유 |
+|---|---|---|
+| 요소 선택(`emitSelected`·`postSelectionUpdate`) | `element-locator.ts:buildStableSelector` | 안정 앵커 우선 |
+| DOM Tree 노드·`contextSelector`(캡처 basis 조상) | `dom-describe.ts:buildSelector` | 비용. `buildSelector`는 노드마다 자체 500ms/2000 check 예산으로 호출되고 `buildInitialTree`엔 총량 캡이 없다 |
+
+**그 결과 `TreeNode.selector`와 `selection.selector`는 더 이상 같은 문자열이 아니다.** 둘을 등가 비교하는 곳은 `DomTreeDialog.tsx`의 현재 노드 하이라이트 하나이고, 그건 스토어가 아니라 **트리 응답 `ancestorPath`의 마지막 항목**을 쓴다(같은 빌더끼리 비교). 이 불변식은 `dom-describe.test.tsx`가 고정한다 — 깨지면 하이라이트가 무음으로 죽고, 갈리는 조건이 곧 앵커가 채택되는 조건이라 **기능이 잘 동작할 때만** 죽는다.
+
+### 왜 finder 훅만 바꾸는가
+
+`@medv/finder`는 후보를 누적 penalty 오름차순으로 yield하고 **유일한 첫 후보**를 반환한다(penalty: id 0 / class 1 / attr 2 / tag 5 / `nth-of-type` 10 / `nth-child` 50). 즉 주어진 훅 구성에서 이미 "가장 싼 유일 selector"다. 사람이 다시 정렬할 이유는 하나뿐 — test attribute(2)가 흔한 스타일 class(1)에 진다는 것. 그래서 훅만 두 벌로 바꿔 2회 실행하고 `(위치 토큰 유무, 단계, 길이)`로 고른다.
+
+1. **stable** — 신뢰 test attribute + semantic attribute만 허용, 동적 ID·해시 class 거부, **선택 요소가 가진 class 이름 전역 거부**
+2. **compat** — finder 현행 기본(= 변경 전 동작)
+
+**앵커는 얕은 경로가 유일하지 않을 때만 나타난다.** `<span>`이 페이지에서 유일하면 finder는 `span`(penalty 5)을 골라 `[data-e2e=…] span`(7)까지 가지 않는다. e2e 픽스처가 대상마다 형제를 두는 이유다.
+
+**finder 훅에는 element 인자가 없다**(`className: (name) => boolean`). `tie()`가 조상과 타깃에 같은 술어를 호출하므로 "조상 class는 허용, 타깃 class만 제외"는 표현 불가 — 이름 기준 전역 거부가 유일한 근사이고, 조상이 같은 이름을 쓰면 함께 빠진다. 손실은 compat 단계가 보전한다.
+
+### 값 정책 (privacy 경계)
+
+selector는 이슈 본문·8개 플랫폼 제출 페이로드·저장 초안·사용자가 고른 LLM endpoint로 나간다. `data-testid`가 "개발자가 붙인 계약"이라는 전제는 틀렸다 — 리스트 행마다 `data-testid={user.email}`로 값을 넣는 코드가 흔하다. `isHandWrittenIdentifier`가 trusted·semantic·**id**를 같은 게이트에 태운다: ASCII 식별자 모양, 3자 초과 순수 숫자 세그먼트 금지, 긴 영숫자 혼합 토큰 금지(단어 사이 숫자 1~2자는 허용 — `oauth2button`). id를 빼먹으면 finder penalty 0이라 `#user-jane@acme.com`이 stage 0에서 최우선 채택된다. 거부된 값은 compat 단계로 떨어져 **변경 전 동작 그대로**라, 이 게이트는 기능을 죽이지 않고 앵커만 포기한다.
+
+### 결정성
+
+selector 문자열이 `sameElementKey`의 동등성 키라, 같은 요소가 다른 문자열을 얻으면 버퍼에 두 번 쌓이고 이전 편집이 소실된다. 그래서 ① 직전 선택 1건을 기억해 `picker.selected`와 `picker.selectionUpdated`가 같은 문자열을 쓰고(갈리면 cross-origin 스타일 보강이 stale 가드에 **무음 드랍**), ② 예산이 끊기면 부분 결과 대신 결정적인 `pathSelector`로 수렴한다. **재선택은 캐시하지 않는다** — 리스트가 재배치돼 같은 노드가 다른 위치로 옮겨간 뒤 캐시된 위치 selector를 쓰면 무음으로 엉뚱한 요소가 편집·캡처된다.
+
+유일성은 finder가 반환 전에 `unique()`로 이미 보장하므로 추가 `querySelectorAll` 검증을 하지 않는다. `pathSelector`는 documentElement까지 `nth-of-type` 체인이라 구성상 유일하다.
+
 ## DOM 트리 Lazy Load
 
 DOM 트리 Dialog는 전체 DOM 직렬화 시 프리즈 → 두 단계:

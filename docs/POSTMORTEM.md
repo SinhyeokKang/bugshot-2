@@ -36,6 +36,27 @@
 
 ---
 
+## 2026-08-10 — 라이브러리 필터를 열자 그 필터가 겸하던 두 번째 일(값 검사)까지 같이 열렸다
+
+- **영역**: `content`
+- **계열**: `라이브러리전제`
+- **그물**: `unit`
+- **증상**: (구현 중 `/code-review` security 관점이 잡음 — 미출시) `data-testid="user-jane@acme.com"`·`data-cy="010-1234-5678"`·`data-qa="order-2026-0810-KR"` 같은 값이 생성 selector에 그대로 실렸다. 그 selector는 이슈 본문 재현 환경 행 → 8개 플랫폼 제출 페이로드·저장 초안·사용자가 고른 LLM endpoint로 나간다. 변경 **전에는 전부 차단**되던 값들이다.
+- **근본 원인**: `@medv/finder`의 기본 `attr` predicate는 이름과 값을 **한 함수에서** 검사한다 — `acceptedAttrNames.has(name) || (name.startsWith('data-') && wordLike(name))` **그리고** `wordLike(value) && value.length < 100`. 우리가 연 것은 **이름 게이트**뿐이었다(`wordLike`가 `data-e2e`·`data-cy`·`data-qa`·`data-pw`·`data-test-id`·`data-automation-id` 6개를 후보로도 안 만들어서). 그런데 훅을 통째로 교체하는 API라 이름만 바꿀 수가 없고, 새 술어를 쓰는 순간 **값 게이트도 함께 사라진다**. 1차 구현의 값 검사는 길이 100자·제어문자·"8자 이상 연속 hex" 셋뿐이었는데, 하이픈이 hex 런을 끊어 `010-1234-5678`·`order-2026-0810`이 그대로 통과했다. 더해서 `id`는 아예 값 정책이 없었고 finder penalty가 0이라 `#user-jane@acme.com`이 stage 0에서 **최우선** 채택된다 — 같은 문자열이 `for` 속성에서는 막히고 `id`에서는 통과하는 비대칭이 남아 있었다. "test contract 속성은 개발자가 붙인 계약"이라는 전제가 뿌리인데, 실제로는 리스트 행마다 `data-testid={user.email}`·`` data-testid={`row-${order.id}`} ``로 값을 넣는 코드가 흔하다.
+- **재발 방지**: (1) **라이브러리 훅을 교체할 땐 그 훅의 기본 구현을 읽고 "이게 몇 가지 일을 하고 있나"를 먼저 센다** — 이름 검사를 열려고 교체했는데 값 검사가 딸려 나갔다. `grep -n "export function attr\|export function idName\|export function className" node_modules/@medv/finder/finder.js`로 기본 술어를 열어 각 절이 무엇을 막는지 항목화한 뒤 대체 술어를 쓴다. (2) **selector·식별자처럼 "기계 문자열"로 분류된 값도 페이지가 내용을 통제하면 PII 경로다** — 새로 selector에 들어갈 수 있게 된 축(attribute name·id·class)마다 이메일·전화번호·주문번호·비ASCII 샘플로 단위 테스트를 박는다(`element-locator.test.ts`의 "test contract 속성이어도 PII·런타임 식별자 값은 통과시키지 않는다"). (3) **같은 문자열이 축에 따라 갈리면 게이트 하나를 빼먹은 것이다** — `for="jane@acme.com"`은 막고 `id="jane@acme.com"`은 통과하던 게 신호였다. finder가 값을 받는 축은 `attr`·`idName`·`className` 셋이고 셋 다 같은 술어를 태워야 한다. (4) 좁히는 방향의 손실은 **compat 단계가 흡수**하므로(변경 전 동작으로 폴백) 애매하면 거부한다 — 이 게이트는 기능을 죽이지 않고 앵커만 포기한다.
+- **관련**: `src/content/element-locator.ts:isHandWrittenIdentifier`(trusted·semantic·`isStableIdName` 공용 게이트)·`isStableAttribute`·`isStableIdName`, 기본 구현 `node_modules/@medv/finder/finder.js:attr`(이름+값 한 함수), 그물 `src/content/__tests__/element-locator.test.ts`(PII 8케이스 + id 대칭), e2e `e2e/stable-locator.spec.ts`(3번 — `data-testid="user-jane@acme.com"`).
+
+## 2026-08-10 — 한 생산자를 둘로 쪼개자, 그 출력을 문자열로 비교하던 곳이 무음으로 죽었다
+
+- **영역**: `content`, `컴포넌트`
+- **계열**: `드리프트`, `미검증단언`
+- **그물**: `jsdom`
+- **증상**: (구현 중 CTO 게이트가 잡음 — 미출시) DOM 트리 다이얼로그에서 **현재 선택된 노드의 하이라이트가 사라진다.** 에러도 폴백도 로그도 없고 트리 이동·확장·선택은 전부 정상이라, "어느 노드가 지금 편집 중인지"만 안 보인다. 게다가 **기능이 잘 동작할 때만** 죽는다 — 아래 이유로 두 문자열이 갈리는 조건이 곧 새 selector가 앵커를 채택하는 조건이다.
+- **근본 원인**: `DomTreeDialog`의 `isCurrent`가 `node.selector === currentSelector`인데, 왼쪽은 `dom-describe.ts:buildSelector`(트리 직렬화) 산출이고 오른쪽은 스토어의 `selection.selector`(picker payload) 산출이다. **변경 전엔 둘 다 같은 함수라 이 비교가 공짜로 성립했다.** 요소 선택 경로만 새 빌더(`element-locator.ts:buildStableSelector`)로 갈아타면서 두 문자열이 다른 알고리즘의 출력이 됐는데, 설계 문서는 "DOM Tree의 `TreeNode.selector` 계약은 유지한다"·"DOM Tree는 기존 경량 경로를 유지한다"고 **안 건드린다는 결정만** 적었고 *안 건드린 결과 비교 가능하지 않게 된다*는 귀결을 안 적었다. 구현자가 문서를 그대로 따르면 반드시 밟는다. 두 알고리즘 출력이 등가 비교되는 곳은 코드베이스 전체에서 이 한 줄뿐이었고(`expanded` Set·`ancestorPath`·`contextSelector`는 전부 compat끼리라 일관), 하필 그 한 줄에 유닛도 e2e 단언도 없었다.
+- **재발 방지**: (1) **한 값의 생산자를 둘로 쪼개면, 그 값을 `===`로 비교하던 지점을 전수로 센다** — 쪼개기 전엔 "같은 함수니까"로 성립하던 비교가 전부 후보다. `grep -rn "\.selector ===\|=== .*[Ss]elector" src/`가 이 축의 전수 목록이고 현재 유효한 교차 비교는 0곳(하이라이트는 트리 응답 `ancestorPath` 꼬리로 옮겨 compat끼리 비교한다). (2) **"A는 안 건드린다"는 설계 결정을 쓸 때 *그 결과 A와 B의 관계가 어떻게 바뀌는지*를 같은 문단에 쓴다** — 결정만 적으면 귀결은 구현 시점에 발견된다. (3) **시각 신호 하나로만 드러나는 계약은 그 계약을 순수 함수 층에서 따로 고정한다** — 하이라이트 자체는 클래스 유무라 e2e/시각 판정이지만, 그 밑에 깔린 "`ancestorPath` 꼬리와 트리 노드가 같은 빌더 산출"은 jsdom으로 잰다(`dom-describe.test.tsx`). 겸사겸사 그 테스트가 두 빌더의 출력이 **실제로 갈린다**는 것도 함께 단언해, 비교를 되돌리려는 시도가 red로 잡힌다. (4) 계열은 2026-08-06 "필드를 고쳐 놓고 소비처 8곳을 안 바꿨다"와 같다 — 그쪽은 필드 교체, 이쪽은 생산자 분기이고 둘 다 **소비처 전수 세기**가 처방이다.
+- **관련**: `src/sidepanel/tabs/DomTreeDialog.tsx`(`isCurrent` — 스토어 구독 → 트리 응답 `ancestorPath.at(-1)`), 생산자 `src/content/dom-describe.ts:buildSelector`·`buildInitialTree`(compat) ↔ `src/content/element-locator.ts:buildStableSelector`(stable), 그물 `src/content/__tests__/dom-describe.test.tsx`("ancestorPath의 마지막 항목이 선택 요소 트리 노드의 selector와 같다" + "그 selector는 stable 빌더 산출과 다를 수 있다"), 문서 `docs/ARCHITECTURE.md` "요소 selector 생성 (실행 키)".
+
+
 ## 2026-08-08 — 리뷰 루프가 8라운드 연속 자기 픽스로 다음 결함을 만들었는데, 종료 조건이 그걸 못 세게 돼 있었다
 
 - **영역**: `툴체인`
