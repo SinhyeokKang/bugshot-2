@@ -1,6 +1,7 @@
 import type { CaptureMode } from "@/store/editor-store";
 import type { LocaleMode, TextSectionId } from "@/store/settings-ui-store";
 import type { AiDraftSessionContext } from "@/sidepanel/lib/buildAiDraftPrompt";
+import { resolveAiLanguage } from "@/sidepanel/lib/aiLanguage";
 import {
   describeAiDraftElementImages,
   resolveAiDraftStyleElements,
@@ -80,7 +81,9 @@ function getSectionDesc(
 
 export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
   const caps = PROMPT_CAPS.rich;
-  const lang = ctx.locale === "ko" ? "Korean" : "English";
+  // 출력 언어는 UI 로케일과 독립된 축이다. 아래 섹션 설명 테이블은 그대로 locale에 묶어둔다 —
+  // 프롬프트 뼈대는 영어라 신규 언어를 "Write in X" 한 줄로 커버한다.
+  const lang = resolveAiLanguage(ctx.aiLanguage, ctx.locale);
   const cand = selectLogCandidates(ctx);
   const hasLogRefs = canRequestLogRefs(ctx, cand);
   const lines: string[] = [];
@@ -246,8 +249,9 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
   lines.push("- Keep every section as brief as its content allows.");
   lines.push("- Write plain text. Markdown picture embeds such as ![](...) do not belong in any field.");
   lines.push("- If a section has no relevant information, use an empty string.");
+  // 존댓말 패딩은 한국어 산문에만 있는 문제라 UI 로케일이 아니라 실제 출력 언어에 건다.
   lines.push(
-    ctx.locale === "ko"
+    lang === "Korean"
       ? `- Write all string values in ${lang}, in a terse technical bug-report tone — no greetings, no softening, no redundant honorific padding.`
       : `- Write all string values in ${lang}.`,
   );

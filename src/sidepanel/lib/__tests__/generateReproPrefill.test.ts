@@ -8,6 +8,7 @@ import {
   BYOK_CAPABILITIES,
 } from "../ai-provider";
 import type { AISession, AIProvider } from "../ai-provider";
+import type { AiLanguage } from "../aiLanguage";
 import { COMPACT_DRAFT_FEW_SHOT } from "../prompts/draftCompact";
 import { buildAiDraftSchema } from "../buildAiDraftPrompt";
 
@@ -150,7 +151,7 @@ describe("generateReproStepsWithAI", () => {
 describe("generateReproStepsWithAI — 출력 언어", () => {
   const richInput = (
     createSession: AIProvider["createSession"],
-    over: { locale?: "ko" | "en"; aiLanguage?: string } = {},
+    over: { locale?: "ko" | "en"; aiLanguage?: AiLanguage } = {},
   ) => ({
     ...baseInput(createSession),
     capabilities: BYOK_CAPABILITIES,
