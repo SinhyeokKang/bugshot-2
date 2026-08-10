@@ -8,7 +8,7 @@
 
 ## 2026-08-10 — 요소 식별 정보 표시 재설계 (`stable-element-locator`의 절반)
 
-이슈 본문의 재현 환경 `DOM` 행을 selector 쉼표 나열에서 번호 붙은 목록(`Element 1 · [data-e2e="card"] › span`)으로 바꾸고, 각 Style changes 제목을 요소 참조로 연결하며, 전체 selector를 제목에서 빼 별도 행으로 내리려던 절반. **같은 기획의 나머지 절반(selector 생성 알고리즘)은 진행한다** — `docs/features/stable-element-locator/`.
+이슈 본문의 재현 환경 `DOM` 행을 selector 쉼표 나열에서 번호 붙은 목록(`Element 1 · [data-e2e="card"] › span`)으로 바꾸고, 각 Style changes 제목을 요소 참조로 연결하며, 전체 selector를 제목에서 빼 별도 행으로 내리려던 절반. **같은 기획의 나머지 절반(selector 생성 알고리즘)은 진행했다** — `src/content/element-locator.ts`로 착지(기획 문서는 구현 완료 후 삭제).
 
 **두 기획이 서로를 호출하지 않았다.** selector 품질이 좋아지는 것과 본문에 그 selector를 어떻게 배치하느냐는 독립이다. 표시 절반만 오늘 해도 되고, 알고리즘 절반만 해도 각자 가치가 성립한다. 묶음 기획 생존율 0/3(`regression-net`·`css-cascade-fidelity`·`picker-aim-ux`)에 넷째가 될 참이었다.
 
