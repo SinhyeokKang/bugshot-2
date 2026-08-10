@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>stable locator fixture</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font: 14px/1.4 system-ui, sans-serif;
+      }
+      article,
+      section,
+      div.pii {
+        display: block;
+        margin: 0 0 12px;
+        border: 1px solid #dddddd;
+        padding: 8px;
+      }
+      /* 타깃과 형제가 **함께** 갖는 class. 유일 구분자가 아니라야 finder가 이걸로
+         끝내지 않고 조상까지 올라간다. 값은 class 삭제 후 사라지는 것을 관측하는
+         데도 쓴다(보강 메시지가 드랍되면 이 줄이 doc에 남는다). */
+      .chip {
+        color: rgb(51, 68, 85);
+      }
+      .pay {
+        color: rgb(34, 51, 68);
+      }
+      .note {
+        color: rgb(68, 85, 102);
+      }
+      /* CSS 뷰 doc 전환 게이트 전용 marker — 단언 대상과 겹치지 않게 둔다.
+         `data-marker` 값이 1자라 finder의 wordLike(세그먼트 3자 이상)를 못 넘어
+         양 단계 모두 selector 후보로 쓰지 않는다. **값을 단어로 바꾸면 compat 단계가
+         집어가 게이트가 곧 단언이 되어버린다.** */
+      [data-marker="a"] {
+        min-height: 11px;
+      }
+      [data-marker="b"] {
+        min-height: 12px;
+      }
+      [data-marker="c"] {
+        min-height: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 1) 형제 카드가 있어야 앵커가 일한다. 얕은 경로가 이미 유일하면 finder는 가장
+         싼 후보(`span`)를 골라 앵커가 나올 자리 자체가 없다. 여기선 `p > span`이
+         두 카드에 걸쳐 있어 조상까지 올라가야 유일해진다. -->
+    <article data-e2e="enrollment-card">
+      <p><span class="chip" data-marker="a">2026.08.03</span></p>
+    </article>
+    <article>
+      <p><span class="chip">2027.01.01</span></p>
+    </article>
+
+    <!-- 2) 타깃 자신은 안정 앵커가 없고 조상만 갖는다. id `deadbeef`는 finder 기본
+         predicate가 그대로 받는다(전부 글자라 wordLike 통과) — 우리 hex 휴리스틱만
+         거부하므로 두 단계 결과가 실제로 갈려 단언이 공허해지지 않는다. -->
+    <section data-testid="checkout-panel">
+      <div>
+        <button id="deadbeef" class="Button_ab12cd34 pay" data-marker="b">
+          Pay
+        </button>
+      </div>
+    </section>
+    <section>
+      <div><button class="Button_ab12cd34 pay">Other</button></div>
+    </section>
+
+    <!-- 3) test contract 이름에 PII 값. selector에 실리면 이슈 본문·8개 플랫폼
+         페이로드·저장 초안·사용자가 고른 LLM endpoint로 그대로 나간다. -->
+    <div class="pii" data-testid="user-jane@acme.com">
+      <p><span class="note" data-marker="c">x</span></p>
+    </div>
+    <div class="pii">
+      <p><span class="note">y</span></p>
+    </div>
+  </body>
+</html>
