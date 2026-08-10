@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   AI_LANGUAGE_OPTIONS,
+  aiLanguageLabel,
   normalizeAiLanguage,
   resolveAiLanguage,
 } from "../aiLanguage";
@@ -81,5 +82,19 @@ describe("normalizeAiLanguage", () => {
     expect(normalizeAiLanguage(null)).toBe("auto");
     expect(normalizeAiLanguage(42)).toBe("auto");
     expect(normalizeAiLanguage("french")).toBe("auto"); // 대소문자 관용 없음 — 프롬프트에 박히는 값이다
+  });
+});
+
+describe("aiLanguageLabel", () => {
+  it("프리셋을 자기 언어 표기로 되돌린다 (셀렉터의 '자동 (…)' 라벨 소스)", () => {
+    expect(aiLanguageLabel("Korean")).toBe("한국어");
+    expect(aiLanguageLabel("French")).toBe("Français");
+    expect(aiLanguageLabel("English")).toBe("English");
+  });
+
+  // English만 value===label이라 조회 축이 뒤집혀도 그 케이스는 통과한다 — 축이 다른 값으로 잰다.
+  it("label이 아니라 value로 조회한다", () => {
+    expect(aiLanguageLabel("Japanese")).toBe("日本語");
+    expect(() => aiLanguageLabel("日本語" as never)).toThrow();
   });
 });
