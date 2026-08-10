@@ -184,6 +184,12 @@ describe("buildStableSelector — 단계와 예산", () => {
     expect(finder).toHaveBeenCalledTimes(2);
     expect(finder.mock.calls[0][1].maxNumberOfPathChecks).toBe(1000);
     expect(finder.mock.calls[1][1].maxNumberOfPathChecks).toBe(1000);
+    // 1단계만 안정성 훅을 얹고 2단계는 finder 기본값 그대로 — 두 호출에 같은 훅을
+    // 넘기는 뮤턴트가 path check 단언만으로는 살아남는다.
+    expect(finder.mock.calls[0][1].attr).toBeTypeOf("function");
+    expect(finder.mock.calls[0][1].className).toBeTypeOf("function");
+    expect(finder.mock.calls[1][1].attr).toBeUndefined();
+    expect(finder.mock.calls[1][1].className).toBeUndefined();
   });
 
   it("각 단계 timeoutMs는 공용 500ms deadline의 남은 값이다", () => {
@@ -211,15 +217,20 @@ describe("buildStableSelector — 단계와 예산", () => {
     expect(finder).toHaveBeenCalledTimes(2);
   });
 
-  it("두 단계가 모두 throw하면 path fallback을 반환한다", () => {
+  it("두 단계가 모두 throw하면 path fallback을 반환하고 한 번 warn한다", () => {
     const el = fixture();
     const finder = vi.fn().mockImplementation(() => {
       throw new Error("Selector was not found.");
     });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     expect(buildStableSelector(el, { finder, now: () => 0 })).toBe(
       pathSelector(el),
     );
+    // dom-describe의 기존 finder 경로도 실패를 warn으로 남긴다. 새 경로만 침묵하면
+    // 예산 초과와 진짜 버그가 구분 없이 위치 체인으로 열화된다.
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 
   it("예산이 끊기면 후속 단계를 호출하지 않고 path fallback으로 수렴한다", () => {

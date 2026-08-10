@@ -42,9 +42,12 @@ const REACT_USE_ID_RE = /^:[a-z0-9]+:$/i;
 const GENERATED_ID_RE = /^(?:__id_\d+|ember\d+|mui-\d+)$/i;
 // emotion·styled-components·JSS는 빌드마다 바뀌는 해시를 접두사 뒤에 붙인다.
 const CSS_IN_JS_RE = /^(?:css|sc|jss|emotion|styled)-[a-z0-9]{2,}$/i;
-// semantic attribute는 finder 기본과 같은 좁은 값 정책을 유지한다 — 여기를 열면
-// aria-label의 화면 텍스트나 href의 URL이 selector에 실려 이슈 본문으로 나간다.
-const SEMANTIC_VALUE_RE = /^[a-z][a-z0-9-]*$/i;
+const IDENTIFIER_SHAPE_RE = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/i;
+const SHORT_INDEX_RE = /^\d{1,3}$/;
+// oauth2button·html5video·otpInput6 — 숫자가 단어 사이에 한 번만 끼는 모양.
+// 9f2k1lQz처럼 숫자로 시작하거나 산재하는 토큰은 여기 안 걸린다.
+const WORD_WITH_DIGIT_RE = /^[a-z]+\d{1,2}[a-z]*$/i;
+const MAX_VALUE_LENGTH = 100;
 const POSITIONAL_RE = /:nth-(?:child|of-type)\(/;
 
 /* ── 안정성 판정 (finder 훅 시그니처와 1:1) ────────── */
@@ -57,8 +60,37 @@ function isDynamicValue(value: string): boolean {
   );
 }
 
+/**
+ * 사람이 손으로 지은 식별자만 통과시킨다.
+ *
+ * selector는 이슈 본문·8개 플랫폼 제출 페이로드·저장 초안·사용자가 고른 LLM
+ * endpoint로 나간다. `data-testid`가 "개발자가 붙인 계약"이라는 전제는 틀렸다 —
+ * 리스트 행마다 `data-testid={user.email}`·`` data-testid={`row-${order.id}`} ``로
+ * 값을 넣는 코드가 흔하고, 그러면 이메일·전화번호·주문번호·세션 토큰이 그대로
+ * 실린다. 애매하면 거부하고 compat 단계(= 변경 전 동작)에 맡긴다.
+ */
+function isHandWrittenIdentifier(value: string): boolean {
+  if (!IDENTIFIER_SHAPE_RE.test(value)) return false;
+  return value.split(/[-_]/).every((segment) => {
+    if (SHORT_INDEX_RE.test(segment)) return true; // tab-1, row-12
+    if (!/[a-z]/i.test(segment)) return false; // 010, 99213
+    if (WORD_WITH_DIGIT_RE.test(segment)) return true; // oauth2button, otpInput6
+    return !(segment.length >= 6 && /\d/.test(segment)); // 9f2k1lQz, 550e8400
+  });
+}
+
+/**
+ * id는 finder penalty가 0이라 stage 0에서 최우선 채택된다. attribute 쪽만 좁히면
+ * `<label for="jane@acme.com">`는 막히고 그게 가리키는 `<input id="jane@acme.com">`은
+ * 통과하는 비대칭이 남는다.
+ */
 export function isStableIdName(name: string): boolean {
-  return name.length > 0 && !isDynamicValue(name);
+  return (
+    name.length > 0 &&
+    name.length <= MAX_VALUE_LENGTH &&
+    !isDynamicValue(name) &&
+    isHandWrittenIdentifier(name)
+  );
 }
 
 export function isStableClassName(name: string): boolean {
@@ -71,20 +103,12 @@ export function isStableClassName(name: string): boolean {
 }
 
 export function isStableAttribute(name: string, value: string): boolean {
-  if (value.length === 0 || value.length > 100) return false;
-  if (hasControlChar(value)) return false;
-  if (isDynamicValue(value)) return false;
-  // test contract 속성만 값 정책을 넓힌다(finder의 wordLike는 숫자를 막는다).
-  if (TRUSTED_TEST_ATTRIBUTES.has(name)) return true;
-  return SEMANTIC_ATTRIBUTES.has(name) && SEMANTIC_VALUE_RE.test(value);
-}
-
-function hasControlChar(value: string): boolean {
-  for (let i = 0; i < value.length; i++) {
-    const code = value.charCodeAt(i);
-    if (code < 0x20 || code === 0x7f) return true;
+  if (!TRUSTED_TEST_ATTRIBUTES.has(name) && !SEMANTIC_ATTRIBUTES.has(name)) {
+    return false;
   }
-  return false;
+  if (value.length === 0 || value.length > MAX_VALUE_LENGTH) return false;
+  if (isDynamicValue(value)) return false;
+  return isHandWrittenIdentifier(value);
 }
 
 /** CSS Modules류 `Component_ab12cd34` — 마지막 `_` 뒤가 영숫자 혼합 6자 이상. */
@@ -195,6 +219,7 @@ function computeStableSelector(el: Element, deps: Partial<LocatorDeps>): string 
   ];
 
   const scored: { selector: string; score: SelectorScore }[] = [];
+  let lastError: unknown;
   for (let stage = 0; stage < stageHooks.length; stage++) {
     const remaining = BUDGET_MS - (now() - start);
     // 예산이 끊기면 부분 결과를 채택하지 않고 결정적인 path fallback으로 수렴한다.
@@ -209,12 +234,18 @@ function computeStableSelector(el: Element, deps: Partial<LocatorDeps>): string 
         ...stageHooks[stage],
       });
       scored.push({ selector, score: scoreSelector(selector, stage as 0 | 1) });
-    } catch {
+    } catch (err) {
       // 단계별 개별 catch — 예산 초과·detached는 finder가 던진다. stable의 throw가
       // compat을 낙태시키면 안 된다.
+      lastError = err;
     }
   }
-  if (scored.length === 0) return pathSelector(el);
+  if (scored.length === 0) {
+    // dom-describe의 기존 finder 경로도 실패를 남긴다. 여기만 침묵하면 예산 초과와
+    // 진짜 버그가 구분 없이 위치 체인으로 열화된다.
+    console.warn("[bugshot] finder failed, using path fallback", lastError);
+    return pathSelector(el);
+  }
   scored.sort((a, b) => compareSelectorScores(a.score, b.score));
   return scored[0].selector;
 }

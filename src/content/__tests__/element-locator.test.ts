@@ -63,7 +63,7 @@ describe("isStableAttribute", () => {
     expect(isStableAttribute("data-e2e", "row-1754812800000")).toBe(false);
   });
 
-  it("semantic attribute는 finder와 같은 좁은 값 정책을 유지한다", () => {
+  it("semantic attribute는 좁은 값 정책을 유지한다", () => {
     // 여기를 넓히면 화면 텍스트·URL이 selector에 실려 이슈 본문으로 나간다.
     expect(isStableAttribute("aria-label", "Close order #12345 for Jane")).toBe(
       false,
@@ -71,6 +71,45 @@ describe("isStableAttribute", () => {
     expect(isStableAttribute("href", "/account?email=jane%40acme.com")).toBe(
       false,
     );
+    expect(isStableAttribute("name", "customer2837465")).toBe(false);
+    expect(isStableAttribute("for", "user-2837465")).toBe(false);
+  });
+
+  // selector는 이슈 본문·8개 플랫폼 페이로드·저장 초안·LLM endpoint로 나간다.
+  // test contract 속성이라고 값이 안전한 게 아니다 — 리스트 행마다
+  // data-testid={user.email} 같은 코드가 흔하다.
+  it("test contract 속성이어도 PII·런타임 식별자 값은 통과시키지 않는다", () => {
+    expect(isStableAttribute("data-testid", "user-jane@acme.com")).toBe(false);
+    expect(isStableAttribute("data-testid", "jane.doe@example.co.kr")).toBe(
+      false,
+    );
+    expect(isStableAttribute("data-cy", "010-1234-5678")).toBe(false);
+    expect(isStableAttribute("data-qa", "order-2026-0810-KR")).toBe(false);
+    expect(isStableAttribute("data-test", "ORD-99213")).toBe(false);
+    expect(isStableAttribute("data-e2e", "sess_9f2k1lQz")).toBe(false);
+    expect(isStableAttribute("data-pw", "김철수")).toBe(false);
+    expect(isStableAttribute("data-testid", "user jane")).toBe(false);
+  });
+
+  it("사람이 지은 컴포넌트 이름은 통과한다", () => {
+    expect(isStableAttribute("data-e2e", "enrollment-card")).toBe(true);
+    expect(isStableAttribute("data-testid", "submitBtn")).toBe(true);
+    expect(isStableAttribute("data-testid", "nav_item")).toBe(true);
+    // 짧은 인덱스 꼬리는 흔한 정당 케이스라 남긴다.
+    expect(isStableAttribute("data-testid", "tab-1")).toBe(true);
+    expect(isStableAttribute("data-testid", "row-12")).toBe(true);
+  });
+
+  // 이 기능의 목적이 "finder가 못 여는 test contract 앵커를 여는 것"인데, 단어 사이에
+  // 숫자가 낀 정상 식별자까지 막으면 그 목적이 그 값들에 대해 무효가 된다.
+  it("단어 사이에 숫자가 낀 식별자는 통과하되 토큰 모양은 계속 거부한다", () => {
+    expect(isStableAttribute("data-testid", "oauth2button")).toBe(true);
+    expect(isStableAttribute("data-testid", "html5video")).toBe(true);
+    expect(isStableAttribute("data-testid", "checkoutStep2")).toBe(true);
+    expect(isStableAttribute("data-testid", "otpInput6")).toBe(true);
+    // 숫자로 시작하거나 숫자가 산재하면 여전히 토큰으로 본다.
+    expect(isStableAttribute("data-e2e", "sess_9f2k1lQz")).toBe(false);
+    expect(isStableAttribute("data-testid", "user12345")).toBe(false);
   });
 
   it("빈 값·100자 초과·제어문자는 통과하지 않는다", () => {
@@ -101,6 +140,22 @@ describe("isStableIdName", () => {
     expect(isStableIdName("__id_12")).toBe(false);
     expect(isStableIdName("ember427")).toBe(false);
     expect(isStableIdName("mui-42")).toBe(false);
+  });
+
+  // id는 finder penalty 0이라 stage 0에서 최우선 채택된다. attribute 쪽만 좁히면
+  // 같은 문자열이 `for`에서는 막히고 `id`에서는 통과하는 비대칭이 남는다.
+  it("ID도 attribute와 같은 식별자 정책을 태운다", () => {
+    expect(isStableIdName("user-jane@acme.com")).toBe(false);
+    expect(isStableIdName("010-1234-5678")).toBe(false);
+    expect(isStableIdName("Jane Doe order")).toBe(false);
+    expect(isStableIdName("sess_9f2k1lQz")).toBe(false);
+  });
+
+  // isStableAttribute와 같은 상한을 둔다 — id도 selector 문자열을 타고 본문으로 나간다.
+  it("100자 초과·제어문자 ID를 거부한다", () => {
+    expect(isStableIdName(`section-${"x".repeat(93)}`)).toBe(false); // 101자
+    expect(isStableIdName("a\nb")).toBe(false);
+    expect(isStableIdName(`section-${"x".repeat(92)}`)).toBe(true); // 100자
   });
 });
 
@@ -175,6 +230,17 @@ describe("compareSelectorScores", () => {
       compareSelectorScores(
         stable("article:nth-of-type(1) span"),
         compat("article:nth-of-type(1) .chip"),
+      ),
+    ).toBeLessThan(0);
+  });
+
+  // 이 기능의 핵심 계약 — 앵커 후보가 compat의 짧은 class 후보보다 길어도 이겨야 한다.
+  // 길이가 같은 방향인 케이스만 두면 stage 키를 삭제한 뮤턴트가 살아남는다.
+  it("stable 단계는 문자열이 더 길어도 compat을 이긴다", () => {
+    expect(
+      compareSelectorScores(
+        stable('[data-testid="checkout-panel"] button'),
+        compat(".pay"),
       ),
     ).toBeLessThan(0);
   });
