@@ -103,9 +103,14 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
   const t = useT();
   const tabId = useBoundTabId();
   const bufferThenSwitch = useBufferThenSwitch();
-  const currentSelector = useEditorStore((s) => s.selection?.selector);
   const frameId = useEditorStore((s) => s.selection?.frameId ?? 0);
   const [tree, setTree] = useState<TreeNode | null>(null);
+  // 현재 노드 판정은 스토어의 selection.selector가 아니라 트리 응답에서 가져온다.
+  // 그쪽은 buildStableSelector(2단계) 산출이고 node.selector는 buildSelector(compat)
+  // 산출이라 앵커가 채택되는 요소에서 두 문자열이 갈린다 — 즉 이 기능이 일할 때만
+  // 하이라이트가 무음으로 죽는다. ancestorPath의 마지막 항목이 같은 빌더로 만든
+  // 선택 요소 selector다.
+  const [currentSelector, setCurrentSelector] = useState<string | undefined>();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
@@ -120,6 +125,7 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
       }
       setTree(resp.tree);
       setExpanded(new Set(resp.ancestorPath));
+      setCurrentSelector(resp.ancestorPath.at(-1));
       setLoading(false);
     });
     return () => {

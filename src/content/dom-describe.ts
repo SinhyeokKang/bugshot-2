@@ -5,6 +5,7 @@ import type {
   TreeNode,
 } from "@/types/picker";
 
+import { pathSelector } from "./element-locator";
 import { HOST_ID } from "./overlay";
 
 export function buildSelector(el: Element): string {
@@ -114,27 +115,4 @@ function describeShallow(el: Element): TreeNode {
     classes: Array.from(el.classList),
     childCount: kids.length,
   };
-}
-
-function pathSelector(el: Element): string {
-  const parts: string[] = [];
-  let cur: Element | null = el;
-  while (cur && cur.nodeType === 1 && cur !== document.documentElement) {
-    const tag = cur.tagName.toLowerCase();
-    const parent: Element | null = cur.parentElement;
-    if (!parent) {
-      parts.unshift(tag);
-      break;
-    }
-    const same = Array.from(parent.children).filter(
-      (s) => s.tagName === cur!.tagName,
-    );
-    if (same.length === 1) {
-      parts.unshift(tag);
-    } else {
-      parts.unshift(`${tag}:nth-of-type(${same.indexOf(cur) + 1})`);
-    }
-    cur = parent;
-  }
-  return parts.join(" > ");
 }

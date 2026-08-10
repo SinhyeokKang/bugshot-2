@@ -24,9 +24,9 @@
   호출에서 `ReferenceError`로 죽는다. 기존 테스트가 `dom-describe.ts`를 한 번도 태우지
   않아 아직 드러나지 않은 결손이다.
 - **검증**:
-  - [ ] 폴리필 추가 후 jsdom에서 `finder(el)`가 예외 없이 문자열을 반환
-  - [ ] 기존 `*.test.tsx` 전부 green (폴리필이 다른 테스트를 깨지 않음)
-  - [ ] 폴리필은 Chrome 실동작과 다르다는 주석을 남기고, 특수문자 escaping의 최종 그물은
+  - [x] 폴리필 추가 후 jsdom에서 `finder(el)`가 예외 없이 문자열을 반환
+  - [x] 기존 `*.test.tsx` 전부 green (폴리필이 다른 테스트를 깨지 않음)
+  - [x] 폴리필은 Chrome 실동작과 다르다는 주석을 남기고, 특수문자 escaping의 최종 그물은
     e2e·수동임을 명시
 
 ### Task 1: 안정성 분류와 후보 비교 순수 함수 (TDD)
@@ -36,17 +36,17 @@
 - **작업 내용**: test attribute allowlist, 동적 ID/class/attribute 거부, selector의 위치
   토큰 판정, `(positional, stage, length)` 비교를 테스트 먼저 작성한 뒤 구현한다.
 - **검증**:
-  - [ ] `data-testid`, `data-test-id`, `data-test`, `data-e2e`, `data-cy`, `data-qa`,
+  - [x] `data-testid`, `data-test-id`, `data-test`, `data-e2e`, `data-cy`, `data-qa`,
     `data-automation-id`, `data-pw`만 test contract로 분류
-  - [ ] 그중 `data-e2e`·`data-cy`·`data-qa`·`data-pw`·`data-test-id`·`data-automation-id`
+  - [x] 그중 `data-e2e`·`data-cy`·`data-qa`·`data-pw`·`data-test-id`·`data-automation-id`
     6개는 finder 기본 `wordLike` 게이트에 막히므로 stable 단계 `attr` 훅이 명시적으로
     통과시켜야 후보가 생김을 단언
-  - [ ] 임의 `data-user-id`, `data-index`, `data-selected`는 test contract로 승격되지 않음
-  - [ ] UUID·긴 숫자·hex/hash·React useId·framework 생성 ID/class 거부
-  - [ ] `className` 훅이 선택 요소가 가진 class 이름을 **전역 거부**하고, 조상이 같은
+  - [x] 임의 `data-user-id`, `data-index`, `data-selected`는 test contract로 승격되지 않음
+  - [x] UUID·긴 숫자·hex/hash·React useId·framework 생성 ID/class 거부
+  - [x] `className` 훅이 선택 요소가 가진 class 이름을 **전역 거부**하고, 조상이 같은
     이름을 써도 함께 배제된다는 한계를 테스트로 고정
-  - [ ] 비교가 위치토큰 유무 → 단계(stable 0 / compat 1) → 길이 순
-  - [ ] 위치 없는 compat 후보가 위치 있는 stable 후보를 이긴다
+  - [x] 비교가 위치토큰 유무 → 단계(stable 0 / compat 1) → 길이 순
+  - [x] 위치 없는 compat 후보가 위치 있는 stable 후보를 이긴다
 
 ### Task 2: 2단계 후보 생성과 fallback (TDD)
 
@@ -58,27 +58,27 @@
   역import하되 DOM Tree의 `buildSelector`는 기존 단일 finder 경량 경로를 유지한다.
   finder 호출은 주입 가능한 seam으로 두어 fake clock/mock으로 검증한다.
 - **검증**:
-  - [ ] 예시 DOM에서 `[data-e2e="enrollment-card"] span`이 채택되고, 선택 요소 자신의
+  - [x] 예시 DOM에서 `[data-e2e="enrollment-card"] span`이 채택되고, 선택 요소 자신의
     class(`.text-semantic-…`)와 `nth-of-type` 후보를 이긴다
-  - [ ] 반복 `data-e2e`만으로 비유일한 후보는 finder가 애초에 반환하지 않음
-  - [ ] 반복 카드의 동일 descendant는 위치 fallback으로 현재 target 하나만 선택
-  - [ ] 동적 ID와 해시 class보다 안정 attribute/class 후보 우선
-  - [ ] **단계별 개별 try/catch**: stable 단계가 `Error("Timeout: …")`를 던져도 compat
+  - [x] 반복 `data-e2e`만으로 비유일한 후보는 finder가 애초에 반환하지 않음
+  - [x] 반복 카드의 동일 descendant는 위치 fallback으로 현재 target 하나만 선택
+  - [x] 동적 ID와 해시 class보다 안정 attribute/class 후보 우선
+  - [x] **단계별 개별 try/catch**: stable 단계가 `Error("Timeout: …")`를 던져도 compat
     단계가 실행된다
-  - [ ] `unique()`의 `Error("Can't select any node with this selector")`도 같은 경로로 흡수
-  - [ ] 모든 후보가 실패하면 `pathSelector` 반환
-  - [ ] **결정성**: 예산이 중간에 끊기면 부분 결과를 채택하지 않고 항상 `pathSelector`로
+  - [x] `unique()`의 `Error("Can't select any node with this selector")`도 같은 경로로 흡수
+  - [x] 모든 후보가 실패하면 `pathSelector` 반환
+  - [x] **결정성**: 예산이 중간에 끊기면 부분 결과를 채택하지 않고 항상 `pathSelector`로
     수렴한다. 같은 요소·같은 DOM에 대해 fake clock 값을 바꿔도 결과가 동일
-  - [ ] 남은 예산이 0 이하이면 finder를 **호출하지 않는다**(`timeoutMs: 0`을 넘기지 않음)
-  - [ ] mock finder에 전달된 timeout은 공용 500ms deadline의 남은 값이고 path check 합계는
+  - [x] 남은 예산이 0 이하이면 finder를 **호출하지 않는다**(`timeoutMs: 0`을 넘기지 않음)
+  - [x] mock finder에 전달된 timeout은 공용 500ms deadline의 남은 값이고 path check 합계는
     1000+1000=2000
-  - [ ] 같은 요소 참조로 재호출하면 finder가 다시 호출되지 않음(메모이즈)
-  - [ ] 특수문자 ID/class/attribute가 `CSS.escape` 후 query 가능 — **jsdom 폴리필 기준**
+  - [x] 같은 요소 참조로 재호출하면 finder가 다시 호출되지 않음(메모이즈)
+  - [x] 특수문자 ID/class/attribute가 `CSS.escape` 후 query 가능 — **jsdom 폴리필 기준**
     (Chrome 실동작은 e2e·수동으로 확인)
-  - [ ] `html`, body 직계 자식, SVG element 방어
-  - [ ] disconnected element는 유일성 계약을 가장하지 않고, 호출 전 `isConnected` 확인과
+  - [x] `html`, body 직계 자식, SVG element 방어
+  - [x] disconnected element는 유일성 계약을 가장하지 않고, 호출 전 `isConnected` 확인과
     예외 매핑으로 기존 selection-detached 세션 만료 경로가 처리
-  - [ ] DOM Tree 초기/자식 확장은 안정 selector 탐색을 호출하지 않아 기존 비용 계약 유지
+  - [x] DOM Tree 초기/자식 확장은 안정 selector 탐색을 호출하지 않아 기존 비용 계약 유지
     (`buildSelector` 호출 경로에 mock spy)
 
 > `buildInitialTree`·`buildChildrenResponse`의 기존 selector 소비 테스트는 **존재하지
@@ -95,17 +95,17 @@
   DOM Tree 경로와 `contextSelector` 조상 경로(`picker.ts:456`)는 기존 `buildSelector`
   유지.
 - **검증**:
-  - [ ] `postSelectionUpdate`가 만드는 selector가 `emitSelected`와 동일 문자열이라
+  - [x] `postSelectionUpdate`가 만드는 selector가 `emitSelected`와 동일 문자열이라
     `updateSelectionStyles`(`editor-store.ts:697`)의 `sameElementKey` stale 가드를 통과한다
     — cross-origin 스타일 보강이 드랍되지 않음
-  - [ ] 한 번의 선택에서 `buildStableSelector`가 1회만 실행됨(메모이즈 spy)
-  - [ ] `contextSelector`가 기존 경량 경로를 유지하고 값이 바뀌지 않음
-  - [ ] payload 조립이 **필드를 골라 담지 않고 스프레드**로 펼쳐 `contextSelector` 등
+  - [x] 한 번의 선택에서 `buildStableSelector`가 1회만 실행됨(메모이즈 spy)
+  - [x] `contextSelector`가 기존 경량 경로를 유지하고 값이 바뀌지 않음
+  - [x] payload 조립이 **필드를 골라 담지 않고 스프레드**로 펼쳐 `contextSelector` 등
     기존 필드가 유실되지 않음 (`grep -n "sendResponse({ " src/content/*.ts`로 전수 확인)
   - [ ] **선택 요소 class 삭제·교체 뒤에도** 현재 편집·버퍼 승격·재선택·패널 재오픈
     rebind·캡처가 같은 요소를 유지한다. compat fallback이 불가피하게 그 class를 쓴
     경우만 예외이고 기존 세션 만료 경로로 처리됨을 단언
-  - [ ] `sameElementKey`는 selector+frameId 그대로
+  - [x] `sameElementKey`는 selector+frameId 그대로
 
 > styling session rebind·`applyEditsBySelector`·`prepareCaptureBySelector`의 기존 테스트는
 > **존재하지 않는다**(`picker.ts` 커버리지 0/828, 해당 심볼 언급 테스트 0건). 이 축은 e2e
@@ -121,10 +121,10 @@
 - **검증**:
   - [ ] 골든 diff를 줄 단위로 집계해 **selector 문자열 변경만** 있는지 확인. 구조·순서·
     라벨이 바뀐 줄이 있으면 원인 규명 전까지 커밋하지 않음(POSTMORTEM 2026-08-06)
-  - [ ] `pnpm test` 통과
-  - [ ] `pnpm typecheck` 통과
-  - [ ] git diff에서 manifest/권한/env/외부 fetch 변경 없음
-  - [ ] `docs/privacy.*`·`guide/`·`src/i18n/`·`src/log-viewer/` diff가 **0**임을 확인
+  - [x] `pnpm test` 통과
+  - [x] `pnpm typecheck` 통과
+  - [x] git diff에서 manifest/권한/env/외부 fetch 변경 없음
+  - [x] `docs/privacy.*`·`guide/`·`src/i18n/`·`src/log-viewer/` diff가 **0**임을 확인
     (스코프 축소의 사후 검증 — 하나라도 걸리면 표시 절반이 새어 들어온 것이다)
 
 ## 테스트 계획

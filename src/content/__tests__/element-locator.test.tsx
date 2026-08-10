@@ -4,6 +4,7 @@ import {
   buildStableSelector,
   pathSelector,
   resetStableSelectorCache,
+  reuseStableSelector,
 } from "../element-locator";
 
 afterEach(() => {
@@ -86,6 +87,22 @@ describe("buildStableSelector — 안정 앵커", () => {
 
     expect(selector).toContain(":nth-");
     expectResolvesTo(selector, target);
+  });
+
+  it("조상이 타깃과 같은 이름의 class를 써도 함께 배제된다", () => {
+    // finder 훅에 element 인자가 없어 소유자를 구분할 수 없다. 이름 기준 전역
+    // 거부의 손실을 계약으로 고정한다 — 여기선 조상의 .row도 못 쓰므로
+    // stable 단계가 data-e2e 앵커로 간다.
+    mount(`
+      <div class="row" data-e2e="first"><span class="row">a</span></div>
+      <div class="row"><span class="row">b</span></div>
+    `);
+    const target = $("[data-e2e] span");
+
+    const selector = buildStableSelector(target);
+
+    expect(selector).not.toContain(".row");
+    expect(selector).toContain('[data-e2e="first"]');
   });
 
   it("타깃 class가 유일한 구분자면 compat 후보를 채택해 회귀를 만들지 않는다", () => {
@@ -222,25 +239,42 @@ describe("buildStableSelector — 단계와 예산", () => {
     expect(selector).toBe(pathSelector(el));
   });
 
-  it("같은 요소로 다시 부르면 finder를 다시 돌리지 않고 같은 문자열을 준다", () => {
+  it("보강 호출은 직전 선택과 같은 요소면 finder를 다시 돌리지 않는다", () => {
     const el = fixture();
     const finder = vi.fn().mockReturnValue("b");
 
-    const first = buildStableSelector(el, { finder, now: () => 0 });
-    const second = buildStableSelector(el, { finder, now: () => 0 });
+    const selected = buildStableSelector(el, { finder, now: () => 0 });
+    const enriched = reuseStableSelector(el, { finder, now: () => 0 });
 
-    expect(second).toBe(first);
-    expect(finder).toHaveBeenCalledTimes(2); // 첫 호출의 2단계뿐
+    expect(enriched).toBe(selected);
+    expect(finder).toHaveBeenCalledTimes(2); // 선택 시점의 2단계뿐
   });
 
-  it("메모이즈는 요소별이라 다른 요소는 새로 계산한다", () => {
+  it("보강 호출이 다른 요소면 그 요소로 새로 계산한다", () => {
     mount(`<div><b class="x">a</b><i class="y">b</i></div>`);
     const finder = vi.fn().mockReturnValue("b");
 
     buildStableSelector($("b"), { finder, now: () => 0 });
-    buildStableSelector($("i"), { finder, now: () => 0 });
+    reuseStableSelector($("i"), { finder, now: () => 0 });
 
     expect(finder).toHaveBeenCalledTimes(4);
+  });
+
+  it("재선택은 항상 다시 계산한다 — DOM이 바뀌면 캐시가 엉뚱한 요소를 가리킨다", () => {
+    mount(`
+      <ul><li><span>a</span></li><li><span>b</span></li></ul>
+    `);
+    const target = document.querySelectorAll("span")[1];
+    const before = buildStableSelector(target);
+
+    // 리스트가 재배치돼 같은 노드가 1번 자리로 이동한다(React 노드 재사용).
+    const list = $("ul");
+    list.insertBefore(target.parentElement!, list.firstElementChild);
+
+    const after = buildStableSelector(target);
+
+    expect(after).not.toBe(before);
+    expectResolvesTo(after, target);
   });
 });
 

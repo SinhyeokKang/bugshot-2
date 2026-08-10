@@ -63,6 +63,16 @@ describe("isStableAttribute", () => {
     expect(isStableAttribute("data-e2e", "row-1754812800000")).toBe(false);
   });
 
+  it("semantic attribute는 finder와 같은 좁은 값 정책을 유지한다", () => {
+    // 여기를 넓히면 화면 텍스트·URL이 selector에 실려 이슈 본문으로 나간다.
+    expect(isStableAttribute("aria-label", "Close order #12345 for Jane")).toBe(
+      false,
+    );
+    expect(isStableAttribute("href", "/account?email=jane%40acme.com")).toBe(
+      false,
+    );
+  });
+
   it("빈 값·100자 초과·제어문자는 통과하지 않는다", () => {
     expect(isStableAttribute("data-testid", "")).toBe(false);
     expect(isStableAttribute("data-testid", "a".repeat(101))).toBe(false);
@@ -104,6 +114,16 @@ describe("isStableClassName", () => {
   it("해시 suffix가 붙은 CSS Modules class를 거부한다", () => {
     expect(isStableClassName("Component_ab12cd34")).toBe(false);
     expect(isStableClassName("button_1x2y3z4w")).toBe(false);
+  });
+
+  it("emotion·styled-components·JSS 해시 class를 거부한다", () => {
+    expect(isStableClassName("css-1q2w3e4")).toBe(false);
+    expect(isStableClassName("sc-bdVaJa")).toBe(false);
+    expect(isStableClassName("jss-42")).toBe(false);
+  });
+
+  it("MUI의 실제 안정 class는 통과한다", () => {
+    expect(isStableClassName("MuiButton-root")).toBe(true);
   });
 
   it("전체가 일반 단어·하이픈 조합이면 길어도 통과한다", () => {

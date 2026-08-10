@@ -34,6 +34,7 @@ import {
   parentOf,
   firstChildOf,
 } from "./dom-describe";
+import { buildStableSelector, reuseStableSelector } from "./element-locator";
 import {
   createOverlay,
   destroyOverlay,
@@ -1130,7 +1131,7 @@ function postSelectionUpdate(el: Element): void {
   if (!activePickerSessionId) return;
   const payload = collectSelection(
     el,
-    buildSelector,
+    reuseStableSelector,
     parentOf(el) !== null,
     firstChildOf(el) !== null,
   );
@@ -1154,7 +1155,7 @@ function emitSelected(
   selectionDetachedNotified = false;
   const payload = collectSelection(
     el,
-    buildSelector,
+    buildStableSelector,
     parentOf(el) !== null,
     firstChildOf(el) !== null,
   );
@@ -1167,12 +1168,12 @@ function emitSelected(
   void (async () => {
     if (!isCssCacheReady()) {
       await ensureCssCacheLoaded();
-      if (selectedEl !== el) return;
+      if (selectedEl !== el || !ensureSelectedConnected()) return;
       postSelectionUpdate(el);
     }
     // cross-origin author 보강은 background fetch라 더 늦게 도착 — 2차 selectionUpdated.
     await ensureCrossOriginLoaded();
-    if (selectedEl !== el) return;
+    if (selectedEl !== el || !ensureSelectedConnected()) return;
     postSelectionUpdate(el);
   })();
 }
