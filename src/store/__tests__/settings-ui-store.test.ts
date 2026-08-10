@@ -558,5 +558,53 @@ describe("settings-ui-store", () => {
       const raw = await apiKeyObfuscatingStorage.getItem(KEY);
       expect(JSON.parse(raw!).state.llm.apiKey).toBe("sk-legacy");
     });
+
+  });
+
+  // migrate는 버전이 다를 때만 돈다 — 동일 버전에서 외부 오염된 값은 rehydrate의 merge가 잡는다.
+  // aiLanguage는 프롬프트 지시문으로 나가므로 그 재정규화가 실제로 도는지 고정한다.
+  describe("rehydrate 재정규화 (merge)", () => {
+    // persist 이름과 같아야 한다 — 다른 키면 rehydrate가 빈 저장소를 읽어 단언이 공허해진다.
+    const PERSIST_KEY = "bugshot-app-settings";
+    let store: Record<string, string>;
+
+    beforeEach(() => {
+      store = {};
+      vi.stubGlobal("chrome", {
+        storage: {
+          local: {
+            get: async (name: string) => ({ [name]: store[name] }),
+            set: async (obj: Record<string, string>) => {
+              Object.assign(store, obj);
+            },
+            remove: async (name: string) => {
+              delete store[name];
+            },
+          },
+        },
+      });
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    const persisted = (aiLanguage: unknown) => {
+      store[PERSIST_KEY] = JSON.stringify({ version: 10, state: { aiLanguage } });
+    };
+
+    it("오염된 aiLanguage를 auto로 되돌린다", async () => {
+      useSettingsUiStore.getState().setAiLanguage("French"); // 기본값과 달라야 단언이 공허하지 않다
+      persisted("Klingon");
+      await useSettingsUiStore.persist.rehydrate();
+      expect(useSettingsUiStore.getState().aiLanguage).toBe("auto");
+    });
+
+    it("유효한 aiLanguage는 보존한다", async () => {
+      useSettingsUiStore.getState().setAiLanguage("auto");
+      persisted("French");
+      await useSettingsUiStore.persist.rehydrate();
+      expect(useSettingsUiStore.getState().aiLanguage).toBe("French");
+    });
   });
 });
