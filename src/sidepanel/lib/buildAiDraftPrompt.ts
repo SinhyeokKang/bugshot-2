@@ -9,6 +9,7 @@ import type {
   PromptStyle,
   ProviderCapabilities,
 } from "./ai-provider";
+import type { AiLanguage } from "./aiLanguage";
 import { extractJson } from "./extractJson";
 import { MAX_TITLE_LENGTH } from "./prompts/caps";
 import {
@@ -123,6 +124,8 @@ export interface AiDraftSessionContext {
   caps: ProviderCapabilities;
   captureMode: CaptureMode;
   locale: LocaleMode;
+  // 미지정 = auto. rich 빌더만 읽는다 — compact은 nano의 outputLanguage 고정과 영어 few-shot 탓에 로케일에 묶여 있다.
+  aiLanguage?: AiLanguage;
   url: string;
   pageTitle: string;
   selector?: string;

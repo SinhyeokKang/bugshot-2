@@ -138,6 +138,7 @@ export function AiDraftDialog({
         caps: capabilities,
         captureMode,
         locale: settingsUi.locale,
+        aiLanguage: settingsUi.aiLanguage,
         url: store.target?.url ?? "",
         pageTitle: store.target?.title ?? "",
         selector: isElement ? store.selection?.selector : store.shotSelector?.selector,

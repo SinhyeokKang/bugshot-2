@@ -95,6 +95,7 @@ export function DraftingPanel() {
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
   const autoReproPrefill = useSettingsUiStore((s) => s.autoReproPrefill);
   const locale = useSettingsUiStore((s) => s.locale);
+  const aiLanguage = useSettingsUiStore((s) => s.aiLanguage);
   const target = useEditorStore((s) => s.target);
   const reproPrefillDone = useEditorStore((s) => s.reproPrefillDone);
   const setReproPrefillDone = useEditorStore((s) => s.setReproPrefillDone);
@@ -184,6 +185,7 @@ export function DraftingPanel() {
     url: target?.url ?? "",
     pageTitle: target?.title ?? "",
     locale,
+    aiLanguage,
     trimming,
     sectionEnabled: isReproSectionEnabled(issueSections),
     autoReproPrefill,

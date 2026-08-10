@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { t } from "@/i18n";
 import type { CaptureMode, EditorDraft } from "@/store/editor-store";
 import type { LocaleMode } from "@/store/settings-ui-store";
+import type { AiLanguage } from "@/sidepanel/lib/aiLanguage";
 import type { ActionLog } from "@/types/action";
 import type { AIProvider, ProviderCapabilities } from "@/sidepanel/lib/ai-provider";
 import { supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
@@ -21,6 +22,7 @@ interface UseReproPrefillArgs {
   url: string;
   pageTitle: string;
   locale: LocaleMode;
+  aiLanguage: AiLanguage;
   trimming: boolean;
   sectionEnabled: boolean;
   // 첫 렌더 값만 읽는다 — 이후 변경은 이번 작성 세션에 반영되지 않는다(반응형 아님).
@@ -51,6 +53,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     url,
     pageTitle,
     locale,
+    aiLanguage,
     trimming,
     sectionEnabled,
     autoReproPrefill,
@@ -124,6 +127,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
           createSession,
           captureMode,
           locale,
+          aiLanguage,
           url,
           pageTitle,
           actionLogSummary: buildActionLogSummary(log),
@@ -147,7 +151,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     // 여기서 끊으면 되살릴 요청이 이미 죽어 영구히 안 채워진다. 진짜 끊어야 하는
     // 사용자 명시 중단은 헬퍼의 canceller가 abort한다(POSTMORTEM 2026-07-28).
     return () => aiRun.detach(run);
-    // deps는 발화 판정용 원시 플래그만 — draft/actionLog·locale/url/pageTitle을 넣으면 로딩 중 무관한 변경이 재실행→취소를 유발해 AI 결과 유실·로딩 고착을 만든다(발화 시점 closure로 읽는다).
+    // deps는 발화 판정용 원시 플래그만 — draft/actionLog·locale/aiLanguage/url/pageTitle을 넣으면 로딩 중 무관한 변경이 재실행→취소를 유발해 AI 결과 유실·로딩 고착을 만든다(발화 시점 closure로 읽는다).
     // autoReproPrefill도 의도적으로 뺐다 — 위 autoEnabledRef로 진입 시점에 고정한다.
     // aiRun은 마운트 동안 참조가 안정적이라(useAiRun 규약 7) deps에 두어도 재실행을 만들지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
