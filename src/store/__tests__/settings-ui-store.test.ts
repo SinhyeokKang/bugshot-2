@@ -196,6 +196,19 @@ describe("settings-ui-store", () => {
       expect(useSettingsUiStore.getState().locale).toBe("ko");
     });
 
+    it("aiLanguage 기본값은 auto (UI 로케일을 따라간다)", () => {
+      expect(useSettingsUiStore.getState().aiLanguage).toBe("auto");
+    });
+
+    it("setAiLanguage로 AI 출력 언어 변경 (UI 로케일과 독립)", () => {
+      const before = useSettingsUiStore.getState().locale;
+      useSettingsUiStore.getState().setAiLanguage("French");
+      expect(useSettingsUiStore.getState().aiLanguage).toBe("French");
+      expect(useSettingsUiStore.getState().locale).toBe(before);
+      useSettingsUiStore.getState().setAiLanguage("auto");
+      expect(useSettingsUiStore.getState().aiLanguage).toBe("auto");
+    });
+
     it("setIssueEnabled로 개별 섹션 토글", () => {
       useSettingsUiStore.getState().resetIssueSections();
       useSettingsUiStore.getState().setIssueEnabled("notes", true);
@@ -376,6 +389,22 @@ describe("settings-ui-store", () => {
     });
   });
 
+  describe("aiLanguage 마이그레이션 (v9→v10)", () => {
+    it("aiLanguage 부재 시 기본값 'auto' 부여 (기존 사용자 동작 변화 0)", () => {
+      expect(migrateSettingsUi({}, 9).aiLanguage).toBe("auto");
+    });
+
+    it("기존 aiLanguage는 보존(덮어쓰지 않음)", () => {
+      expect(migrateSettingsUi({ aiLanguage: "French" }, 9).aiLanguage).toBe("French");
+    });
+
+    // 값이 프롬프트 지시문에 그대로 박히므로 오염된 storage를 통과시키면 안 된다.
+    it("알 수 없는 값은 'auto'로 정규화한다", () => {
+      expect(migrateSettingsUi({ aiLanguage: "Klingon" }, 9).aiLanguage).toBe("auto");
+      expect(migrateSettingsUi({ aiLanguage: 42 as never }, 9).aiLanguage).toBe("auto");
+    });
+  });
+
   // v8 사용자는 순서 배열에 미디어 엔트리가 없다 → 레거시 앵커 위치로 backfill해
   // 마이그레이션 직후 본문 레이아웃이 변하지 않게 한다.
   describe("미디어 엔트리 마이그레이션 (v8→v9)", () => {
@@ -528,6 +557,54 @@ describe("settings-ui-store", () => {
       store[KEY] = JSON.stringify({ state: { llm: { apiKey: "sk-legacy" } } });
       const raw = await apiKeyObfuscatingStorage.getItem(KEY);
       expect(JSON.parse(raw!).state.llm.apiKey).toBe("sk-legacy");
+    });
+
+  });
+
+  // migrate는 버전이 다를 때만 돈다 — 동일 버전에서 외부 오염된 값은 rehydrate의 merge가 잡는다.
+  // aiLanguage는 프롬프트 지시문으로 나가므로 그 재정규화가 실제로 도는지 고정한다.
+  describe("rehydrate 재정규화 (merge)", () => {
+    // persist 이름과 같아야 한다 — 다른 키면 rehydrate가 빈 저장소를 읽어 단언이 공허해진다.
+    const PERSIST_KEY = "bugshot-app-settings";
+    let store: Record<string, string>;
+
+    beforeEach(() => {
+      store = {};
+      vi.stubGlobal("chrome", {
+        storage: {
+          local: {
+            get: async (name: string) => ({ [name]: store[name] }),
+            set: async (obj: Record<string, string>) => {
+              Object.assign(store, obj);
+            },
+            remove: async (name: string) => {
+              delete store[name];
+            },
+          },
+        },
+      });
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    const persisted = (aiLanguage: unknown) => {
+      store[PERSIST_KEY] = JSON.stringify({ version: 10, state: { aiLanguage } });
+    };
+
+    it("오염된 aiLanguage를 auto로 되돌린다", async () => {
+      useSettingsUiStore.getState().setAiLanguage("French"); // 기본값과 달라야 단언이 공허하지 않다
+      persisted("Klingon");
+      await useSettingsUiStore.persist.rehydrate();
+      expect(useSettingsUiStore.getState().aiLanguage).toBe("auto");
+    });
+
+    it("유효한 aiLanguage는 보존한다", async () => {
+      useSettingsUiStore.getState().setAiLanguage("auto");
+      persisted("French");
+      await useSettingsUiStore.persist.rehydrate();
+      expect(useSettingsUiStore.getState().aiLanguage).toBe("French");
     });
   });
 });

@@ -4,6 +4,7 @@ import type { StateStorage } from "zustand/middleware";
 import type { TranslationKey } from "@/i18n/ko";
 import type { RecordingSource } from "./editor-store";
 import { obfuscateApiKey, deobfuscateApiKey } from "@/lib/key-obfuscation";
+import { normalizeAiLanguage, type AiLanguage } from "@/sidepanel/lib/aiLanguage";
 import { chromeLocalStorage } from "./chrome-storage";
 
 export type ThemeMode = "light" | "dark" | "system";
@@ -107,6 +108,8 @@ function detectLocale(): LocaleMode {
 interface SettingsUiState {
   theme: ThemeMode;
   locale: LocaleMode;
+  // UI 언어와 독립된 축 — "auto"면 locale을 따라간다(해석은 resolveAiLanguage).
+  aiLanguage: AiLanguage;
   issueSections: IssueSection[];
   llm: LlmConfig | null;
   replayEnabled: boolean;
@@ -116,6 +119,7 @@ interface SettingsUiState {
   styleEditorView: StyleEditorView;
   setTheme: (theme: ThemeMode) => void;
   setLocale: (locale: LocaleMode) => void;
+  setAiLanguage: (aiLanguage: AiLanguage) => void;
   setIssueEnabled: (id: IssueSectionId, enabled: boolean) => void;
   reorderIssueSections: (from: number, to: number) => void;
   resetIssueSectionOrder: () => void;
@@ -145,6 +149,8 @@ export function migrateSettingsUi(
   state.recordingMode = state.recordingMode ?? "tab";
   state.styleEditorView = state.styleEditorView ?? "form";
   state.autoReproPrefill = state.autoReproPrefill ?? true;
+  // ??가 아니라 정규화다 — 이 값은 프롬프트 지시문으로 나가므로 오염된 문자열을 통과시키지 않는다.
+  state.aiLanguage = normalizeAiLanguage(state.aiLanguage);
   // v9: 순서 배열에 미디어 엔트리 편입(레거시 앵커 위치로 backfill → 레이아웃 불변)
   state.issueSections = normalizeSections(state.issueSections ?? DEFAULT_ISSUE_SECTIONS);
   return state as SettingsUiState;
@@ -185,6 +191,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
     (set) => ({
       theme: "light",
       locale: detectLocale(),
+      aiLanguage: "auto",
       issueSections: DEFAULT_ISSUE_SECTIONS,
       llm: null,
       replayEnabled: false,
@@ -194,6 +201,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       styleEditorView: "form",
       setTheme: (theme) => set({ theme }),
       setLocale: (locale) => set({ locale }),
+      setAiLanguage: (aiLanguage) => set({ aiLanguage }),
       setIssueEnabled: (id, enabled) => {
         // 미디어 카드엔 사용 여부 스위치가 없다(위치만 관장) — 오염 유입 차단.
         if (id === "media") return;
@@ -238,8 +246,8 @@ export const useSettingsUiStore = create<SettingsUiState>()(
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
-      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가, v8: autoReproPrefill 추가, v9: issueSections에 media 엔트리 편입
-      version: 9,
+      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가, v8: autoReproPrefill 추가, v9: issueSections에 media 엔트리 편입, v10: aiLanguage 추가
+      version: 10,
       storage: createJSONStorage(() => apiKeyObfuscatingStorage),
       migrate: migrateSettingsUi,
       // migrate는 버전이 다를 때만 돈다 — 동일 버전에서 외부 오염된 배열도 교정하도록 rehydrate에서 재정규화.
@@ -249,6 +257,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
           ...current,
           ...p,
           issueSections: normalizeSections(p.issueSections ?? current.issueSections),
+          aiLanguage: normalizeAiLanguage(p.aiLanguage),
         };
       },
     },

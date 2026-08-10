@@ -212,3 +212,102 @@ describe("expectedResult 요구 분리 지시", () => {
     expect(p).not.toContain("on separate lines");
   });
 });
+
+// issue #204: AI 초안 출력 언어를 UI 로케일에서 분리한다. rich 경로 한정 —
+// compact·styling은 이번 범위 밖이고, 그 비대칭 자체를 아래 마지막 케이스가 고정한다.
+describe("출력 언어 설정 (aiLanguage)", () => {
+  // 언어 이름은 `Write a bug report in X` / `- Write all string values in X` 두 지시에만
+  // 등장한다. 짧은 부분열(`French`)로 재면 다른 지시와 겹칠 여지가 생기므로 지시문째 잰다.
+  const systemLine = (lang: string) => `Write a bug report in ${lang}`;
+  const rulesLine = (lang: string) => `Write all string values in ${lang}`;
+
+  it("미지정(auto)은 기존 동작 그대로 UI 로케일을 따른다", () => {
+    expect(buildRichDraftPrompt(ctx({ locale: "ko" }))).toContain(systemLine("Korean"));
+    expect(buildRichDraftPrompt(ctx({ locale: "en" }))).toContain(systemLine("English"));
+  });
+
+  it("명시 선택은 UI 로케일을 이긴다 (ko UI + French)", () => {
+    const p = buildRichDraftPrompt(ctx({ locale: "ko", aiLanguage: "French" }));
+    expect(p).toContain(systemLine("French"));
+    expect(p).toContain(rulesLine("French"));
+    expect(p).not.toContain(systemLine("Korean"));
+    expect(p).not.toContain(rulesLine("Korean"));
+  });
+
+  it("명시 선택은 UI 로케일을 이긴다 (en UI + Korean)", () => {
+    const p = buildRichDraftPrompt(ctx({ locale: "en", aiLanguage: "Korean" }));
+    expect(p).toContain(systemLine("Korean"));
+    expect(p).not.toContain(systemLine("English"));
+    expect(p).not.toContain(rulesLine("English"));
+  });
+
+  // 음성 가드 무력화 방지(POSTMORTEM 2026-07): 좁은 픽스처에선 다른 지시가 아예 안 실려
+  // not.toContain이 우연히 green이 된다. 지시가 가장 많이 붙는 축(전 섹션 ON + element)에서 한 번 더.
+  it("전 섹션 ON + element 모드에서도 다른 언어 이름이 새지 않는다", () => {
+    const p = buildRichDraftPrompt(
+      ctx({
+        locale: "ko",
+        captureMode: "element",
+        aiLanguage: "French",
+        enabledSections: [
+          { id: "description" },
+          { id: "stepsToReproduce" },
+          { id: "expectedResult" },
+          { id: "notes" },
+        ],
+      }),
+    );
+    expect(p).toContain(rulesLine("French"));
+    expect(p).not.toContain("Korean");
+    expect(p).not.toContain("English");
+  });
+
+  // 섹션 설명 테이블은 UI 로케일에 묶인 채로 둔다 — 언어마다 번역본을 늘리지 않는 게 설계다.
+  it("섹션 설명·모드 힌트는 출력 언어가 아니라 UI 로케일을 따른다 (ko UI + French)", () => {
+    const p = buildRichDraftPrompt(
+      ctx({
+        locale: "ko",
+        aiLanguage: "French",
+        enabledSections: [{ id: "description" }, { id: "expectedResult" }],
+      }),
+    );
+    expect(p).toContain("현재 관찰되는 문제 현상만 구체적으로");
+    expect(p).toContain("각각 별도 줄로 분리"); // EXPECTED_SPLIT_HINT.ko
+  });
+
+  it("섹션 설명·모드 힌트는 출력 언어가 아니라 UI 로케일을 따른다 (en UI + Korean)", () => {
+    const p = buildRichDraftPrompt(
+      ctx({
+        locale: "en",
+        aiLanguage: "Korean",
+        enabledSections: [{ id: "description" }, { id: "expectedResult" }],
+      }),
+    );
+    expect(p).toContain("describe only the currently observed problem");
+    expect(p).toContain("on separate lines"); // EXPECTED_SPLIT_HINT.en
+  });
+
+  // 존댓말 억제는 한국어 산문에만 의미가 있다 — UI 로케일이 아니라 실제 출력 언어에 걸려야 한다.
+  it("존댓말 억제 지시는 출력 언어가 Korean일 때만 붙는다", () => {
+    const koUiEnOut = buildRichDraftPrompt(ctx({ locale: "ko", aiLanguage: "English" }));
+    expect(koUiEnOut).not.toMatch(/honorific padding/i);
+
+    const enUiKoOut = buildRichDraftPrompt(ctx({ locale: "en", aiLanguage: "Korean" }));
+    expect(enUiKoOut).toMatch(/honorific padding/i);
+  });
+
+  it("auto 경로의 존댓말 억제는 기존과 동일하다 (ko UI만 붙는다)", () => {
+    expect(buildRichDraftPrompt(ctx({ locale: "ko" }))).toMatch(/honorific padding/i);
+    expect(buildRichDraftPrompt(ctx({ locale: "en" }))).not.toMatch(/honorific padding/i);
+  });
+
+  // 의도된 비대칭. 대칭 맞추기로 compact에 유입되면 nano 다국어 품질·영어 few-shot 검증이
+  // 통째로 딸려온다(이번 범위 밖).
+  it("compact은 aiLanguage를 무시하고 UI 로케일을 따른다 (rich 한정 범위)", () => {
+    const p = buildCompactDraftPrompt(
+      ctx({ caps: NANO_CAPABILITIES, locale: "ko", aiLanguage: "French" }),
+    );
+    expect(p).toContain("Write in Korean.");
+    expect(p).not.toContain("French");
+  });
+});

@@ -34,8 +34,22 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { cn } from "@/lib/utils";
+import { useAI } from "@/sidepanel/hooks/useAI";
+import {
+  AI_LANGUAGE_OPTIONS,
+  aiLanguageLabel,
+  resolveAiLanguage,
+  type AiLanguage,
+} from "@/sidepanel/lib/aiLanguage";
 import {
   ANTHROPIC_MODELS,
   detectProviderKind,
@@ -78,6 +92,49 @@ function LlmOnboarding() {
       </div>
       <LlmConnectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </>
+  );
+}
+
+// 노출 조건은 "LLM 연결됨"이 아니라 rich 프롬프트다 — 로컬 엔드포인트는 연결돼 있어도
+// compact으로 강등돼(LOCAL_BYOK_CAPABILITIES) 이 설정이 프롬프트에 반영되지 않는다.
+function AiLanguageSection() {
+  const t = useT();
+  const { capabilities } = useAI();
+  const locale = useSettingsUiStore((s) => s.locale);
+  const aiLanguage = useSettingsUiStore((s) => s.aiLanguage);
+  const setAiLanguage = useSettingsUiStore((s) => s.setAiLanguage);
+
+  if (capabilities.promptStyle !== "rich") return null;
+
+  // auto는 저장값이 아니라 지금 로케일로 해석해 보여준다 — 화면 언어를 바꾸면 같이 따라간다.
+  const autoLabel = t("llm.outputLanguage.auto", {
+    lang: aiLanguageLabel(resolveAiLanguage("auto", locale)),
+  });
+
+  return (
+    <Section title={t("llm.section.outputLanguage")}>
+      <div className="space-y-2">
+        <Select
+          value={aiLanguage}
+          onValueChange={(v) => setAiLanguage(v as AiLanguage)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">{autoLabel}</SelectItem>
+            {AI_LANGUAGE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-sm text-muted-foreground">
+          {t("llm.outputLanguage.help")}
+        </p>
+      </div>
+    </Section>
   );
 }
 
@@ -242,6 +299,8 @@ function LlmConnected() {
             </PopoverContent>
           </Popover>
         </Section>
+
+        <AiLanguageSection />
       </PageScroll>
 
       <SettingsFooter />

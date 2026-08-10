@@ -5,8 +5,10 @@ import {
   LlmAuthError,
   LlmEmptyResponseError,
   NANO_CAPABILITIES,
+  BYOK_CAPABILITIES,
 } from "../ai-provider";
 import type { AISession, AIProvider } from "../ai-provider";
+import type { AiLanguage } from "../aiLanguage";
 import { COMPACT_DRAFT_FEW_SHOT } from "../prompts/draftCompact";
 import { buildAiDraftSchema } from "../buildAiDraftPrompt";
 
@@ -141,5 +143,36 @@ describe("generateReproStepsWithAI", () => {
     expect(console.warn).toHaveBeenCalled();
     const logged = vi.mocked(console.warn).mock.calls.flat().join(" ");
     expect(logged).not.toContain("p@ssw0rd");
+  });
+});
+
+// issue #204: 재현 단계 자동채움도 같은 AiDraftSessionContext를 재사용하므로 출력 언어가
+// 따라와야 한다. 한 이슈 안에서 본문과 재현 단계의 언어가 갈리면 그게 더 나쁘다.
+describe("generateReproStepsWithAI — 출력 언어", () => {
+  const richInput = (
+    createSession: AIProvider["createSession"],
+    over: { locale?: "ko" | "en"; aiLanguage?: AiLanguage } = {},
+  ) => ({
+    ...baseInput(createSession),
+    capabilities: BYOK_CAPABILITIES,
+    ...over,
+  });
+
+  it("aiLanguage 선택이 재현 단계 프롬프트에 실린다 (en UI + French)", async () => {
+    const { createSession, calls } = makeCreateSession(
+      async () => '{"stepsToReproduce":"Open X"}',
+    );
+    await generateReproStepsWithAI(
+      richInput(createSession, { locale: "en", aiLanguage: "French" }),
+    );
+    expect(calls[0].systemPrompt).toContain("Write a bug report in French");
+  });
+
+  it("미지정(auto)이면 UI 로케일을 따른다", async () => {
+    const { createSession, calls } = makeCreateSession(
+      async () => '{"stepsToReproduce":"Open X"}',
+    );
+    await generateReproStepsWithAI(richInput(createSession, { locale: "ko" }));
+    expect(calls[0].systemPrompt).toContain("Write a bug report in Korean");
   });
 });

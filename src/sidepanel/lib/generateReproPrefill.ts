@@ -15,6 +15,7 @@ import {
   stripLineNumbering,
   type AiDraftSessionContext,
 } from "./buildAiDraftPrompt";
+import type { AiLanguage } from "./aiLanguage";
 import { extractJson } from "./extractJson";
 import { fewShotChars, isTextOverBudget } from "./prompts/promptBudget";
 
@@ -23,6 +24,7 @@ export interface ReproPrefillInput {
   createSession: AIProvider["createSession"];
   captureMode: CaptureMode;
   locale: LocaleMode;
+  aiLanguage?: AiLanguage;
   url: string;
   pageTitle: string;
   actionLogSummary: ActionLogSummary;
@@ -42,6 +44,7 @@ export async function generateReproStepsWithAI(
     caps: input.capabilities,
     captureMode: input.captureMode,
     locale: input.locale,
+    aiLanguage: input.aiLanguage,
     url: input.url,
     pageTitle: input.pageTitle,
     actionLogSummary: input.actionLogSummary,
