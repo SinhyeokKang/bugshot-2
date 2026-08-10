@@ -30,13 +30,14 @@
 
 - test attribute·ID·class/attribute 값의 안정성 판정 순수 함수와 2단계 finder 후보 생성.
 - 후보 비교와 `pathSelector` fallback.
-- 선택 요소당 결과 메모이즈(WeakMap 키 = 요소 참조). 같은 요소에 대한 재호출은 finder를
-  다시 돌리지 않는다.
-- DOM 접근은 선택 요소와 조상 체인, `pathSelector` 후보 검증 1회로 제한.
+- **직전 선택 1건**만 기억한다. `buildStableSelector`(선택 시점)는 항상 계산하고,
+  `reuseStableSelector`(보강 시점)는 같은 요소면 그 값을 재사용한다. 페이지 수명
+  캐시가 아니다 — 이유는 아래 "결정성".
 - `@medv/finder` 외 신규 의존성 없음.
 
 ```typescript
-export function buildStableSelector(el: Element): string;
+export function buildStableSelector(el: Element): string;  // 선택 시점 — 항상 계산
+export function reuseStableSelector(el: Element): string;  // 보강 시점 — 직전 선택 재사용
 ```
 
 ### `src/content/dom-describe.ts` (수정)
@@ -47,17 +48,23 @@ export function buildStableSelector(el: Element): string;
   재사용해야 하므로 `pathSelector`를 `element-locator.ts`로 옮기고 `dom-describe.ts`가
   역import한다 — 순수 함수라 커버리지 로직 스코프에 포함되는 쪽이 맞다
   (`dom-describe.ts`는 `BROWSER_BOUND_EXACT` 등록으로 분모 제외 상태다).
-- DOM Tree의 `TreeNode.selector` 계약은 유지한다.
+- DOM Tree의 `TreeNode.selector` 계약은 유지한다. **그 귀결로 `TreeNode.selector`(compat)와
+  `selection.selector`(stable)는 더 이상 같은 문자열이 아니다.** 둘을 등가 비교하던 곳은
+  `DomTreeDialog.tsx`의 현재 노드 하이라이트 하나이고, 스토어 대신 트리 응답
+  `ancestorPath`의 마지막 항목을 쓰도록 바꿔 compat끼리 비교하게 한다
+  (`dom-describe.test.tsx`가 이 불변식을 고정).
 
 ### `src/content/css-resolve.ts`·`src/content/picker.ts` (수정)
 
-- `collectSelection`이 selector builder를 받도록 시그니처를 조정한다. 요소 선택 경로만
-  `buildStableSelector`를 쓰고 DOM Tree 경로는 기존 `buildSelector`를 계속 쓴다.
+- `collectSelection`은 **이미 selector builder를 인자로 받는다**(`css-resolve.ts`의
+  `buildSelectorFn`). 요소 선택 경로에만 `buildStableSelector`를 주입하고 DOM Tree
+  경로는 기존 `buildSelector`를 계속 쓴다 — `css-resolve.ts` 변경은 0줄이다.
 - **`emitSelected`(pick/navigate/rebind 3소스)와 `postSelectionUpdate`(cross-origin 스타일
   보강, 선택당 최대 2회 추가 발화, `picker.ts:1129`)가 같은 요소에 대해 같은 selector를
   내야 한다.** 사이드패널 `updateSelectionStyles`(`editor-store.ts:697`)가
   `sameElementKey`로 stale 가드를 걸기 때문에, 두 경로의 selector가 갈리면 보강이 무음
-  드랍된다. 요소 참조 기준 메모이즈로 양쪽을 같은 값에 묶고 finder 재실행도 막는다.
+  드랍된다. `emitSelected`는 `buildStableSelector`, `postSelectionUpdate`는
+  `reuseStableSelector`를 써서 한 선택 안에서 같은 문자열을 보장한다.
 - payload 조립은 **필드를 골라 담지 않고 스프레드로 펼친 뒤 바꿀 것만 덮어쓴다**
   (POSTMORTEM 2026-08-07 `contextSelector` 유실 재발 방지).
 - `picker.ts:456`의 `buildSelector(ancestor)`(캡처 basis 조상 = `contextSelector`)는
@@ -91,7 +98,7 @@ export function buildStableSelector(el: Element): string;
 ```text
 사용자 요소 선택 (해당 frame document)
   → collectSelection에서 buildStableSelector(element)
-      ├─ WeakMap 캐시 hit이면 즉시 반환 (postSelectionUpdate 재호출 경로)
+      ├─ (보강 경로는 reuseStableSelector로 직전 선택 값을 그대로 재사용)
       ├─ stage 1 stable / stage 2 compat, 각각 try/catch
       ├─ (positional, stage, length) 비교
       └─ 예산 소진·전부 실패 시 pathSelector fallback
@@ -160,9 +167,8 @@ ID·class·attribute 값에 다음 중 하나가 맞으면 stable 단계에서 �
 - UUID 전체 형태, 10자리 이상 숫자열, epoch-like 숫자
 - 8자 이상 연속 hex 또는 base64-like 무구분 문자열
 - `:r<number>:` 등 React `useId`, `__id_<number>`, `ember<number>`, `mui-<number>` 형태
-- `data-reactid` 등 프레임워크 내부 attribute name
-- `data-index`, `data-row-index`, `data-position`, 상태를 나타내는 `data-selected`,
-  `data-expanded`, `data-loading`
+- (attribute **이름**은 allowlist라 `data-reactid`·`data-index`·`data-selected` 같은 건
+  애초에 stable 후보가 되지 않는다 — 거부 게이트에 도달조차 안 한다)
 - class 끝의 6자 이상 hash suffix(`Component_ab12cd34` 등). 단 사람이 명시한 BEM/semantic
   class를 과도하게 배제하지 않도록 전체 class가 일반 단어·하이픈 조합이면 허용한다.
 
@@ -171,8 +177,9 @@ ID·class·attribute 값에 다음 중 하나가 맞으면 stable 단계에서 �
 
 ### 후보 비교
 
-두 단계 출력과 `pathSelector`를 후보 목록에 넣되 중복 문자열은 제거하고, 다음 tuple로
-오름차순 비교한다.
+두 단계 출력만 채점한다. `pathSelector`는 후보가 아니라 폴백이다 — 둘 다 실패하거나
+예산이 끊기면 그걸로 끝낸다. 중복 문자열 제거도 하지 않는다(동점이면 stage가 두 번째
+키라 stable이 이겨 결과가 같다). 다음 tuple로 오름차순 비교한다.
 
 ```typescript
 type SelectorScore = readonly [
@@ -192,26 +199,43 @@ PRD 예시 DOM 검증: `.text-semantic-informative-primary-low`는 타깃 자신
 단계에서 거부되고, `[data-e2e="enrollment-card"] span`(penalty 2+5=7)이
 `article:nth-of-type(1) span`(10+5=15)을 이긴다. 정렬은 finder가 한다.
 
-**유일성 hard gate는 `pathSelector` 후보에만 적용한다.** finder는 반환 전에 이미
+**유일성 검증을 위한 추가 `querySelectorAll`은 0회다.** finder는 반환 전에 이미
 `unique()`로 `querySelectorAll(...).length === 1`을 통과시키고 `optimize()`가 추가로
-`querySelector(...) === input`까지 본다. 동기 코드라 그 사이 DOM 변이도 없다. finder
-출력을 다시 `querySelectorAll`로 검증하는 건 큰 DOM에서 무시할 수 없는 순수 낭비다.
-절대 매치 개수·DOM 비율 임계값은 쓰지 않는다.
+`querySelector(...) === input`까지 본다. 동기 코드라 그 사이 DOM 변이도 없다.
+`pathSelector`는 documentElement까지 `nth-of-type` 체인이라 **구성상 항상 유일**하므로
+검증할 것이 없다. 절대 매치 개수·DOM 비율 임계값도 쓰지 않는다.
 
 ### 결정성
 
-selector 문자열은 `sameElementKey(selector, frameId)`의 동등성 키다. 시간 예산 소진 여부에
-따라 결과가 달라지면 같은 요소가 버퍼에 두 번 쌓이고 이전 편집이 소실된다. 그래서:
+selector 문자열은 `sameElementKey(selector, frameId)`의 동등성 키다. 같은 요소가 다른
+문자열을 얻으면 버퍼에 두 번 쌓이고 이전 편집이 소실된다. 다만 **보증 범위는 한 선택
+안으로 한정한다.**
 
-- 중간 단계에서 예산이 끊기면 **부분 결과를 채택하지 않고 항상 `pathSelector`로
-  수렴**한다. `pathSelector`는 시간 예산과 무관한 순수 경로 계산이라 결정적이다.
-- 같은 요소에 대한 반복 호출은 WeakMap 메모이즈로 첫 결과를 재사용한다. 이것이
-  `emitSelected` ↔ `postSelectionUpdate` 일관성의 근거이기도 하다.
+- **한 선택 안**: `picker.selected`가 만든 문자열을 `picker.selectionUpdated`가 그대로
+  재사용한다(`reuseStableSelector`). 갈리면 보강이 stale 가드에 무음 드랍된다.
+- **한 호출 안**: 중간 단계에서 예산이 끊기면 부분 결과를 채택하지 않고 `pathSelector`로
+  수렴한다. `pathSelector`는 시간 예산과 무관한 순수 경로 계산이라 결정적이다.
+- **재선택·rebind는 다시 계산한다.** 페이지 수명 캐시(WeakMap)를 두면 리스트가 재배치돼
+  같은 노드가 다른 위치로 옮겨간 뒤 캐시된 위치 selector가 **다른 요소**를 가리켜
+  `applyEditsBySelector`·`prepareCaptureBySelector`가 무음으로 엉뚱한 요소를 편집·캡처한다.
+  잘못된 요소를 건드리는 쪽이 버퍼 중복보다 나쁘다는 판단이고, 재계산은 DOM이 안 바뀐
+  동안에는 어차피 같은 문자열을 낸다.
+
+### 값 정책 (privacy 경계)
+
+selector는 이슈 본문·8개 플랫폼 제출 페이로드·저장 초안·사용자가 고른 LLM endpoint로
+나간다. `data-testid`가 "개발자가 붙인 계약"이라는 전제는 틀렸다 — 리스트 행마다
+`data-testid={user.email}`로 값을 넣는 코드가 흔하다. `isHandWrittenIdentifier`가
+trusted·semantic·**id**를 같은 게이트에 태운다: ASCII 식별자 모양, 3자 초과 순수 숫자
+세그먼트 금지, 긴 영숫자 혼합 토큰 금지(단어 사이 숫자 1~2자는 허용 — `oauth2button`).
+id를 빼먹으면 finder penalty 0이라 `#user-jane@acme.com`이 stage 0에서 최우선 채택된다.
+거부된 값은 compat 단계로 떨어져 **변경 전 동작 그대로**라, 이 게이트는 기능을 죽이지
+않고 앵커만 포기한다.
 
 ### 비용 상한
 
 - selector 후보 최대 2개 + 최종 path fallback 1개.
-- `document.querySelectorAll` 추가 호출은 `pathSelector` 후보 검증 1회뿐.
+- `document.querySelectorAll` 추가 호출 0회(finder 자체 보장 + `pathSelector`는 구성상 유일).
 - class별 `querySelectorAll` 반복이나 DOM 전체 대비 비율 계산은 하지 않는다.
 - 전체 finder 예산은 기존 500ms/2000 path check를 넘기지 않는 것을 목표로 하되,
   **정밀 보증이 아니라 상한 근사**다. `optimize()` 단계의 쿼리는 `maxNumberOfPathChecks`

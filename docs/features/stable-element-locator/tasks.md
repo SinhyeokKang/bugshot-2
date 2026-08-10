@@ -53,8 +53,7 @@
 - **변경 대상**: `src/content/__tests__/element-locator.test.tsx` →
   `src/content/element-locator.ts`, `src/content/dom-describe.ts`
 - **작업 내용**: jsdom DOM에서 stable/compat 2단계 finder 후보를 만들고 최적 후보를
-  선택한다. 공유 500ms deadline, path check 1000/1000, 요소 참조 WeakMap 메모이즈를
-  구현한다. `pathSelector`를 `element-locator.ts`로 옮기고 `dom-describe.ts`가
+  선택한다. 공유 500ms deadline, path check 1000/1000, 직전 선택 1건 기억을 구현한다. `pathSelector`를 `element-locator.ts`로 옮기고 `dom-describe.ts`가
   역import하되 DOM Tree의 `buildSelector`는 기존 단일 finder 경량 경로를 유지한다.
   finder 호출은 주입 가능한 seam으로 두어 fake clock/mock으로 검증한다.
 - **검증**:
@@ -72,7 +71,9 @@
   - [x] 남은 예산이 0 이하이면 finder를 **호출하지 않는다**(`timeoutMs: 0`을 넘기지 않음)
   - [x] mock finder에 전달된 timeout은 공용 500ms deadline의 남은 값이고 path check 합계는
     1000+1000=2000
-  - [x] 같은 요소 참조로 재호출하면 finder가 다시 호출되지 않음(메모이즈)
+  - [x] 보강 호출(`reuseStableSelector`)은 직전 선택과 같은 요소면 finder를 안 돌린다
+  - [x] 재선택(`buildStableSelector`)은 항상 다시 계산한다 — DOM 재배치 후 캐시된 위치
+    selector가 다른 요소를 가리키는 것을 막는다
   - [x] 특수문자 ID/class/attribute가 `CSS.escape` 후 query 가능 — **jsdom 폴리필 기준**
     (Chrome 실동작은 e2e·수동으로 확인)
   - [x] `html`, body 직계 자식, SVG element 방어
@@ -87,18 +88,19 @@
 
 ### Task 3: picker 선택 경로 배선과 selector 일관성
 
-- **변경 대상**: `src/content/css-resolve.ts`, `src/content/picker.ts`,
-  `src/store/editor-store.ts` 및 인접 테스트
+- **변경 대상**: `src/content/picker.ts`, `src/sidepanel/tabs/DomTreeDialog.tsx` 및 인접
+  테스트 (`css-resolve.ts`는 이미 builder를 인자로 받아 변경 0줄)
 - **작업 내용**: `collectSelection`이 selector builder를 받도록 시그니처를 조정하고,
-  요소 선택 경로만 `buildStableSelector`를 쓴다. **`emitSelected`와
-  `postSelectionUpdate`(`picker.ts:1129`)가 같은 메모이즈 결과를 공유**하게 한다.
+  요소 선택 경로만 새 빌더를 쓴다. **`emitSelected`는 `buildStableSelector`,
+  `postSelectionUpdate`(`picker.ts:1129`)는 `reuseStableSelector`**로 갈라 한 선택 안에서
+  같은 문자열을 보장한다.
   DOM Tree 경로와 `contextSelector` 조상 경로(`picker.ts:456`)는 기존 `buildSelector`
   유지.
 - **검증**:
   - [x] `postSelectionUpdate`가 만드는 selector가 `emitSelected`와 동일 문자열이라
     `updateSelectionStyles`(`editor-store.ts:697`)의 `sameElementKey` stale 가드를 통과한다
     — cross-origin 스타일 보강이 드랍되지 않음
-  - [x] 한 번의 선택에서 `buildStableSelector`가 1회만 실행됨(메모이즈 spy)
+  - [x] 한 번의 선택에서 finder 실행이 선택 시점 1회뿐(보강은 재사용)
   - [x] `contextSelector`가 기존 경량 경로를 유지하고 값이 바뀌지 않음
   - [x] payload 조립이 **필드를 골라 담지 않고 스프레드**로 펼쳐 `contextSelector` 등
     기존 필드가 유실되지 않음 (`grep -n "sendResponse({ " src/content/*.ts`로 전수 확인)
@@ -143,20 +145,23 @@
 게이트로 쓰지 말라"를 이미 못박았다. selector를 대기 조건으로 쓰면 실패가 assertion이
 아니라 timeout으로 나온다.
 
-1. "서로 다른 카드 두 개에 같은 스타일 class가 있고 첫 카드 조상에 고유 `data-e2e`가
-   있을 때, 첫 카드의 자식을 선택하면 미리보기 DOM 행의 selector에 `nth-of-type`이
-   아니라 `[data-e2e=…]` 앵커가 쓰이고 선택 요소 자신의 class가 들어가지 않는다."
-2. "요소를 선택해 스타일을 바꾼 뒤 그 요소의 class를 편집기로 지워도, 재선택·버퍼
-   승격·before/after 재캡처가 같은 요소를 계속 집는다."
-3. "cross-origin 시트가 있는 픽스처에서 요소를 선택하면 스타일 보강이 도착해 CSS 뷰의
-   값이 갱신된다(selectionUpdated 드랍 없음)."
+**작성 완료 — `e2e/stable-locator.spec.ts` + `e2e/fixtures/pages/stable-locator.html`(serial 4).**
 
-fixture에는 고유/반복 `data-e2e`, 동적 ID·해시 class, cross-origin 시트, 선택 요소
-class 삭제 케이스를 둔다. 새 `data-testid`는 필요 없다 — 기존 `env-row`/CSS 뷰 셀렉터로
-판정한다.
+- [x] 형제 카드가 있을 때 조상 `[data-e2e]`가 위치 표현·타깃 class를 이긴다
+- [x] 타깃의 의심스러운 id(`#deadbeef` — finder 기본은 penalty 0으로 최우선 채택)·해시
+  class 대신 조상 `[data-testid]`를 쓴다
+- [x] test contract 이름이어도 PII 값(`data-testid="user-jane@acme.com"`)은 selector에
+  실리지 않는다
+- [x] 타깃 class 삭제 후에도 selector 불변 + `.chip{color}` 소실이 패널에 반영된다
+  (= `picker.selectionUpdated`가 stale 가드에 안 걸림)
 
-실제 picker/content script를 검증하므로 구현 보고에서 e2e 영향 `있음`으로 표시하고
-`/e2e-write`로 반영한다.
+**픽스처는 대상마다 형제를 둔다** — 얕은 경로가 이미 유일하면 finder가 가장 싼 후보로
+끝내 앵커가 나올 자리가 없고, 그러면 제품이 정상인데 spec만 red가 된다.
+
+원래 시나리오 3(cross-origin 보강 왕복)은 **자동화 불가**다. e2e 서버가 loopback이라
+SSRF 가드(`isFetchableSheetUrl`)가 외부 시트 fetch를 막아 2차 `selectionUpdated`가 아예
+발화하지 않는다(`style-cross-origin-section.spec`와 같은 사유). 위 4번이 1차(CSS 캐시)
+경로로 같은 계약을 태우고, 실제 cross-origin 왕복은 수동 잔여로 옮겼다.
 
 ### 수동 테스트
 

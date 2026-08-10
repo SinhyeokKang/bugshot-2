@@ -46,7 +46,14 @@ finder의 기본 `attr` predicate는 `role`·`name`·`aria-label`·`rel`·`href`
     </p>
   </header>
 </article>
+<article>
+  <header><p>신청일시 <span class="text-semantic-informative-primary-low">…</span></p></header>
+</article>
 ```
+
+**형제 카드가 있어야 이 예시가 성립한다.** finder는 "가장 싼 유일 후보"를 반환하므로
+카드가 하나뿐이면 `span`(penalty 5)이 이미 유일해 `[data-e2e=…] span`(7)까지 가지
+않는다. 즉 **앵커는 얕은 경로가 유일하지 않을 때만 나타난다.**
 
 이 결과는 두 가지를 동시에 나쁘게 만든다. ① 카드 순서가 바뀌면 rebind가 다른 요소를
 집는다. ② 선택 요소 **자신의 class**가 selector에 들어가 있어, 사용자가 스타일 편집기로
@@ -60,9 +67,10 @@ finder의 기본 `attr` predicate는 `role`·`name`·`aria-label`·`rel`·`href`
 2. `data-testid`·`data-e2e`·`data-cy` 같은 테스트 계약 속성을 생성 ID·해시 클래스·
    임의 `data-*`보다 우선한다. **선택 요소가 가진 class 이름은 안정 후보에서 제외**하고,
    위치 표현은 다른 유일한 후보가 없을 때만 사용한다.
-3. 한 세션 안에서 같은 요소는 항상 같은 selector 문자열을 얻는다. 선택 메시지와
-   cross-origin 스타일 보강 메시지가 서로 다른 selector를 내지 않고, 시간 예산 소진
-   여부로 결과가 갈리지 않는다.
+3. 한 번의 선택 안에서 선택 메시지(`picker.selected`)와 cross-origin 스타일 보강
+   메시지(`picker.selectionUpdated`)가 같은 selector 문자열을 낸다. 갈리면 보강이
+   `sameElementKey` stale 가드에 무음으로 드랍된다. (재선택·rebind는 **의도적으로
+   다시 계산한다** — 아래 위험 요소 3.)
 
 ## 비목표 (Non-goals)
 
@@ -138,10 +146,13 @@ finder의 기본 `attr` predicate는 `role`·`name`·`aria-label`·`rel`·`href`
    부인한다. 기준 2(페이지에 무언가를 심는가)와 기준 4(검증 수단이 있는가)는 저촉하지
    않는다 — 노드 주입 없이 `querySelectorAll` 읽기만 하고, 핵심 판정이 전부 순수 함수라
    유닛으로 고정된다.
-3. **selector 비결정성** — selector 문자열은 `sameElementKey(selector, frameId)`의 동등성
-   키다. 시간 예산 소진 여부에 따라 같은 요소·같은 DOM에서 다른 selector가 나오면 같은
-   요소가 버퍼에 두 번 쌓이고 이전 편집이 소실된다. 예산 소진 시 부분 결과를 쓰지 않고
-   결정적인 `pathSelector`로 수렴해 막는다.
+3. **재선택 시 selector가 달라질 수 있다 — 의도된 트레이드오프.** selector 문자열은
+   `sameElementKey(selector, frameId)`의 동등성 키라, 같은 요소가 다른 문자열을 얻으면
+   버퍼에 두 번 쌓이고 이전 편집이 소실된다. 그럼에도 **재선택마다 다시 계산한다** —
+   페이지 수명 캐시를 두면 리스트가 재배치돼 같은 노드가 다른 위치로 옮겨간 뒤 캐시된
+   위치 selector가 **다른 요소**를 가리켜 `applyEditsBySelector`·
+   `prepareCaptureBySelector`가 무음으로 엉뚱한 요소를 편집·캡처한다. 잘못된 요소를
+   건드리는 쪽이 버퍼 중복보다 나쁘다. 보증 범위는 목표 3(한 선택 안)으로 한정한다.
 4. **finder 훅의 소유자 구분 불가** — 위 비목표 마지막 항목. 조상이 선택 요소와 같은
    class 이름을 쓰면 함께 배제된다(디자인 시스템에서 흔하다). 이 경우 안정 후보가
    비고 compatibility fallback으로 내려간다.
@@ -158,8 +169,8 @@ finder의 기본 `attr` predicate는 `role`·`name`·`aria-label`·`rel`·`href`
   현재 편집·버퍼 승격·재선택·패널 재오픈·캡처가 같은 요소를 유지한다. compatibility
   fallback이 불가피하게 그 class를 쓴 경우만 예외이며, 그 경우도 기존 best-effort
   경로가 세션 만료로 명시 처리한다.
-- 같은 요소·같은 DOM에서 selector 생성 결과는 시간 예산 소진 여부와 무관하게
-  결정적이다. 예산이 끊기면 부분 결과를 쓰지 않고 `pathSelector`로 수렴한다.
+- 한 번의 호출 안에서 예산이 끊기면 부분 결과를 쓰지 않고 결정적인 `pathSelector`로
+  수렴한다. (호출 사이의 동일성까지는 보증하지 않는다 — 위험 요소 3.)
 - `picker.selected`와 `picker.selectionUpdated`가 같은 요소에 대해 같은 selector를 내
   cross-origin 스타일 보강이 stale 가드에 드랍되지 않는다.
 - 생성된 selector는 항상 현재 frame document에서 정확히 선택 요소 하나만 매치한다.
@@ -171,4 +182,9 @@ finder의 기본 `attr` predicate는 `role`·`name`·`aria-label`·`rel`·`href`
   수집·전달 항목이 늘지 않는다 — 조상 test attribute 값은 finder 기본 `data-*` 허용으로
   오늘도 selector에 실려 나가고 `privacy.ko.md` L42가 "요소를 고른 경우 그 요소의 CSS
   selector"로 이미 공개한다. 새 데이터 범주가 아니라 같은 범주의 다른 문자열이다.
+- **test attribute·semantic attribute·id 값은 "사람이 손으로 지은 식별자" 모양만 통과한다.**
+  `data-testid={user.email}` 같은 코드가 흔해 test contract 이름이 값의 안전을 보장하지
+  않는다. 이메일·전화번호·주문번호·세션 토큰·비ASCII를 거부하고, 거부된 값은 compat
+  단계(= 변경 전 동작)로 떨어져 기능이 죽지 않는다.
+- **finder가 이미 유일성을 보장하므로 추가 `querySelectorAll` 검증은 0회다.**
 - 관련 단위 테스트와 `pnpm test`, `pnpm typecheck`가 통과한다. 빌드는 실행하지 않는다.
