@@ -133,6 +133,67 @@ describe("useLazyListOnOpen — in-flight 무효화 (🔴 race 근본 계약)", 
     await waitFor(() => expect(result.current.items).toEqual(["new"]));
   });
 
+  // 위 두 케이스는 items가 빈 채로 교체돼서 리셋 effect의 setItems([])가 no-op이다.
+  // 목록을 이미 받은 뒤 교체되는 이 흐름만이 그 줄을 지킨다 — 안 지우면 items.length > 0
+  // 가드가 재조회를 영구히 막아, 사용자는 이전 스코프 목록에 갇힌다.
+  it("목록을 받은 뒤 닫고 스코프를 바꾸면 이전 목록을 버리고 재조회한다", async () => {
+    const dA = deferred<string[]>();
+    const dB = deferred<string[]>();
+    const loadA = vi.fn(() => dA.promise);
+    const loadB = vi.fn(() => dB.promise);
+
+    const { result, rerender } = renderHook(
+      ({ open, load }) => useLazyListOnOpen(open, true, load),
+      { initialProps: { open: true, load: loadA } },
+    );
+
+    await waitFor(() => expect(loadA).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      dA.resolve(["a-item"]);
+    });
+    await waitFor(() => expect(result.current.items).toEqual(["a-item"]));
+
+    // 목록을 손에 쥔 채 닫고, 닫힌 상태에서 스코프를 바꾼다.
+    rerender({ open: false, load: loadA });
+    rerender({ open: false, load: loadB });
+    expect(result.current.items).toEqual([]);
+
+    rerender({ open: true, load: loadB });
+    await waitFor(() => expect(loadB).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      dB.resolve(["b-item"]);
+    });
+    await waitFor(() => expect(result.current.items).toEqual(["b-item"]));
+  });
+
+  it("무효화된 이전 요청이 reject돼도 새 스코프에 그 에러를 세우지 않는다", async () => {
+    const dA = deferred<string[]>();
+    const dB = deferred<string[]>();
+    const loadA = vi.fn(() => dA.promise);
+    const loadB = vi.fn(() => dB.promise);
+
+    const { result, rerender } = renderHook(
+      ({ load }) => useLazyListOnOpen(true, true, load),
+      { initialProps: { load: loadA } },
+    );
+
+    await waitFor(() => expect(loadA).toHaveBeenCalledTimes(1));
+    rerender({ load: loadB });
+    await waitFor(() => expect(loadB).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      dA.reject(new Error("stale scope"));
+    });
+    expect(result.current.error).toBeNull();
+
+    await act(async () => {
+      dB.resolve(["new"]);
+    });
+    await waitFor(() => expect(result.current.items).toEqual(["new"]));
+    expect(result.current.error).toBeNull();
+  });
+
   it("무효화된 응답은 loading도 끄지 못한다", async () => {
     const dA = deferred<string[]>();
     const dB = deferred<string[]>();
@@ -174,6 +235,37 @@ describe("useLazyListOnOpen — 에러 처리", () => {
 
     await waitFor(() => expect(result.current.error).toBe("formatted:boom"));
     expect(result.current.loading).toBe(false);
+  });
+
+  // SingleLazyCombobox는 4번째 인자를 넘기지 않는다 — 이행한 콤보박스 7개가 전부 이 경로다.
+  it("formatError를 안 넘기면 Error의 message를 쓴다", async () => {
+    const d = deferred<string[]>();
+    const load = vi.fn(() => d.promise);
+
+    const { result } = renderHook(() => useLazyListOnOpen(true, true, load));
+
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      d.reject(new Error("멤버를 불러오지 못했습니다"));
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe("멤버를 불러오지 못했습니다"),
+    );
+  });
+
+  it("formatError를 안 넘겼을 때 비-Error가 던져지면 문자열화한다", async () => {
+    const d = deferred<string[]>();
+    const load = vi.fn(() => d.promise);
+
+    const { result } = renderHook(() => useLazyListOnOpen(true, true, load));
+
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      d.reject("plain string");
+    });
+
+    await waitFor(() => expect(result.current.error).toBe("plain string"));
   });
 
   it("formatError가 렌더마다 새 함수여도 effect를 재실행시키지 않는다", async () => {
