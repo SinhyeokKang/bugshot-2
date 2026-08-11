@@ -1,4 +1,5 @@
-import { dateBcp47, type TranslationFn } from "@/i18n";
+import { dateBcp47, getLocale, type TranslationFn } from "@/i18n";
+import { localeValue, type LocaleMode, type LocaleTable } from "@/i18n/locales";
 import { extractNotionPageId } from "@/lib/notion-page-id";
 import type { IssueRecord } from "@/store/issues-store";
 import { connectedPlatforms } from "@/store/settings-store";
@@ -158,11 +159,21 @@ export function issueTimestamp(issue: IssueRecord): number {
   return issue.submittedAt ?? issue.createdAt;
 }
 
+// 폴백 허용 — 짧은 월 표기가 합리적 기본이고 ko만 긴 표기를 쓴다. BCP47 문자열 비교로
+// 박아두면 새 로케일이 고를 기회 없이 short로 떨어진다.
+const MONTH_STYLE: LocaleTable<Intl.DateTimeFormatOptions["month"]> = {
+  en: "short",
+  ko: "long",
+};
+
+export function dateMonthStyle(locale: LocaleMode): Intl.DateTimeFormatOptions["month"] {
+  return localeValue(MONTH_STYLE, locale);
+}
+
 export function dateLabel(ts: number): string {
-  const locale = dateBcp47();
-  return new Date(ts).toLocaleDateString(locale, {
+  return new Date(ts).toLocaleDateString(dateBcp47(), {
     year: "numeric",
-    month: locale === "ko-KR" ? "long" : "short",
+    month: dateMonthStyle(getLocale()),
     day: "numeric",
   });
 }

@@ -55,9 +55,13 @@ describe("dateMonthStyle", () => {
     expect(dateMonthStyle("en")).toBe("short");
   });
 
+  // undefined도 실패 모드다 — 테이블 값이 비면 Intl이 월을 통째로 빼고 렌더한다.
   it("등록된 모든 로케일이 유효한 month 옵션을 낸다", () => {
     const valid = new Set(["numeric", "2-digit", "long", "short", "narrow"]);
-    const invalid = LOCALES.filter((l) => !valid.has(dateMonthStyle(l)));
+    const invalid = LOCALES.filter((l) => {
+      const style = dateMonthStyle(l);
+      return style === undefined || !valid.has(style);
+    });
     expect(invalid).toEqual([]);
   });
 });
