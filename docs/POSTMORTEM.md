@@ -36,6 +36,26 @@
 
 ---
 
+## 2026-08-11 — 자격증명 가드가 입력 폼에만 있어서, 저장된 설정으로 도는 요청은 아무도 안 봤다
+
+- **영역**: `background`, `어댑터`
+- **계열**: `복제본`, `미검증단언`
+- **그물**: `unit`
+- **증상**: Jira를 API Token으로 연결할 때 워크스페이스 URL에 `http://`를 넣으면 그대로 저장되고, 이후 모든 요청이 `Authorization: Basic base64(email:apiToken)`을 **평문으로** 전송했다. 같은 자리의 GitLab PAT·BYOK LLM 키는 막혀 있었다.
+- **근본 원인**: 판정 함수(`isCredentialSafeUrl`)는 이미 있었고 소비처가 셋이어야 했는데 **둘만 불렀다**. 그런데 진짜 함정은 "하나 빠뜨렸다"가 아니라 **가드가 있던 두 곳도 잘못된 층에 있었다**는 것이다 — GitLab은 `gitlabInstanceUrl.normalizeInstanceUrl`, BYOK는 `LlmConnectDialog`, 즉 **둘 다 사이드패널 입력 폼**이다. 폼은 연결하는 순간 한 번만 지나간다. 저장된 계정으로 도는 이후 요청은 폼을 다시 통과하지 않고, `gitlab.testPat`처럼 폼을 우회해 baseUrl을 직접 받는 핸들러도 있다. GitLab만 해도 baseUrl을 쓰는 핸들러가 14개인데 감사가 지목한 건 그중 하나였다 — 그 하나를 고쳤으면 나머지 13개가 그대로 남았을 것이다. **"입력을 검사한다"와 "나가는 요청을 검사한다"는 다른 문제이고, 자격증명은 후자여야 한다.**
+- **재발 방지**: (1) **자격증명이 실리는 요청은 egress 단일 관문에서 검사한다** — 지금은 Jira `jira-api.ts:resolveUrl`의 apiKey 분기, GitLab `gitlab-api.ts:gitlabFetch`의 상대경로 분기 둘이고, 새 플랫폼을 붙이면 그 어댑터의 `*Fetch`에 같은 줄이 들어가야 한다. 폼 가드는 안내용으로 **추가로** 둔다(에러를 입력 시점에 보여주려는 것이지 방어선이 아니다). 전수: `grep -rn "auth.baseUrl\|normalizeBaseUrl" src/background/`가 baseUrl을 쓰는 지점 전부를 뽑고, 각각이 관문을 지나는지 본다. (2) **헬퍼에 테스트가 있다고 호출부가 지켜지는 게 아니다** — `assertCredentialSafeBase` 자체 테스트 6개는 처음부터 있었는데, 그 상태로 `jira-api`·`gitlab-api`의 게이트 호출을 통째로 지워도 5103 케이스가 전부 green이었다. 호출부를 고정하는 테스트(`http` base면 **fetch mock이 호출되지 않음**)를 따로 박아야 한다. 이번엔 자체검증이 잡았지만 그 전까지 "전체 green"을 근거로 넘어갈 뻔했다. (3) **로컬 예외를 함께 고정한다** — loopback http는 통과해야 한다(로컬 GitLab·ollama). 가드를 넣을 때 거부 케이스만 테스트하면 이 예외가 조용히 사라진다. (4) **이미 저장된 설정은 어느 폼도 재검증하지 않는다** — 폼 가드가 나중에 생긴 플랫폼(GitLab은 2026-07-26, Jira는 이번)은 그 이전에 http로 연결한 계정이 스토리지에 남아 있을 수 있고, egress 가드를 켜는 순간 "연결됨으로 보이는데 모든 조회가 실패"하는 상태가 된다. 의도된 차단이지만 복구 경로(연결 해제 → https 재연결)를 사용자가 유추해야 한다.
+- **관련**: `src/lib/credential-url.ts:assertCredentialSafeBase`(판정은 `@/lib/loopback-host:isCredentialSafeUrl`에 위임, i18n 문구만 입힘 — 키 접두사를 2-멤버 union으로 받아 `t()` 캐스트를 없앴다), 관문 `src/background/jira-api.ts:resolveUrl`·`src/background/gitlab-api.ts:gitlabFetch`, 폼 가드 `src/sidepanel/tabs/connect/JiraConnectForm.tsx:handleValidate`·`connect/gitlabInstanceUrl.ts:normalizeInstanceUrl`·`settings/LlmConnectDialog.tsx:handleConnect`, 그물 `src/lib/__tests__/credential-url.test.ts`(헬퍼) + `src/background/__tests__/{jira,gitlab}-api.test.ts`(호출부 — fetch 미호출 단언). 같은 배치에서 `ai-provider.ts:fetchModels`도 리다이렉트 차단이 빠져 있었는데, **기존 테스트가 그 부재를 `toBeUndefined()`로 정답처럼 고정**하고 있어 기대값을 뒤집어야 했다 — 그물이 결함을 승인한 상태였다.
+
+## 2026-08-11 — 발신처를 막으려고 `sender.tab`을 봤는데, 그건 "content script인가"가 아니라 "탭에서 열렸나"였다
+
+- **영역**: `background`, `e2e`
+- **계열**: `라이브러리전제`, `미검증단언`
+- **그물**: `e2e`
+- **증상**: (사전 차단 — 같은 라운드의 자체검증이 잡음) `captureVisibleTab` 핸들러에 content script 발신을 거부하는 가드를 넣었는데, 그대로 나갔으면 **e2e의 캡처 의존 spec 전량이 죽고** `e2e-gate`(main required check)가 머지를 막았을 것이다. 프로덕션은 멀쩡했을 것이라 로컬 유닛·빌드로는 아무 신호도 안 났다.
+- **근본 원인**: `chrome.runtime.MessageSender.tab`은 **"연결이 탭에서 열렸는가"**를 뜻하고 Chrome 문서가 "including content scripts"라고 적은 대로 content script는 그 부분집합일 뿐이다. 막고 싶었던 건 "content script인가"인데 잰 것은 "탭에 있는가"였다. 프로덕션 사이드패널은 `chrome.sidePanel`로 열려 탭이 아니라서 우연히 통과했고, e2e fixture는 패널을 `context.newPage()` + `goto("chrome-extension://…/index.html")`로 **탭에 띄운다**(`e2e/fixtures/extension.ts:openPanel`). 즉 같은 코드가 프로덕션에선 통과하고 테스트에선 막히는 갈림이 판별식 하나에서 생겼다. 설계 문서에는 "한 줄 가드가 위험의 100%를 덮는다"라고 적혀 있었는데, 그 문장은 **발신처 목록을 세어 본 결과**였지 판별식이 그 목록과 일치하는지 확인한 결과가 아니었다. 올바른 축은 origin이다 — content script의 `sender.origin`은 페이지 origin이고 확장 페이지는 탭에 있든 패널에 있든 `chrome-extension://<id>`다.
+- **재발 방지**: (1) **발신처 판별은 `sender.origin`으로 한다** — `sender.tab`은 위치 축이라 "확장 페이지를 탭으로 띄우는" 경로(e2e·디버그용 탭 열기)를 함께 막는다. 새 핸들러에 발신처 가드를 넣을 땐 `grep -rn "sender\.tab\|sender\.origin" src/background/`로 기존 판별식을 먼저 보고 축을 맞춘다. (2) **fail-closed 가드를 추가할 땐 "지금 통과해야 하는 발신처"를 전수 열거하고 각각이 실제로 통과하는지 확인한다** — 이번 발신처는 `sidepanel/capture.ts`·`scroll-capture.ts`·`usePickerMessages.ts`·`30s-replay/use-30s-replay.ts` 넷이고, 그중 어느 것도 유닛 테스트가 없다(`messages.ts`는 커버리지 로직 스코프 제외). **그래서 이 축은 e2e가 유일한 그물이고, push 전에 `capture.spec.ts`·`capture-methods.spec.ts`를 로컬에서 돌리는 게 CI 왕복보다 싸다.** (3) **e2e 픽스처가 프로덕션과 다른 실행 형태를 쓰는 지점을 기억한다** — `e2e/GOTCHAS.md`가 이미 "e2e에선 사이드패널이 탭이다"를 적어 뒀는데 가드를 설계할 때 그걸 안 봤다. 실행 컨텍스트에 의존하는 판정(탭 여부·window 종류·포커스)을 넣을 때 이 파일을 먼저 grep한다. (4) 같은 배치의 인접 사례: URL 인코딩을 통일하면서 asana 쿼리를 `URLSearchParams`로 바꿨더니 `opt_fields=name,email`의 쉼표가 `%2C`가 돼 **정상 값에서 URL 문자열이 달라졌다**. 설계가 "정상 id에서는 변경 전과 동일"을 검증 기준으로 박아둔 덕에 잡혔다 — **인코딩·정규화를 "통일"할 때는 통일 자체가 회귀를 만들 수 있으므로 무변화 케이스를 먼저 단언한다.**
+- **관련**: `src/background/messages.ts`(`captureVisibleTab` case의 origin 가드), 발신처 4곳 `src/sidepanel/capture.ts`·`scroll-capture.ts`·`hooks/usePickerMessages.ts`·`30s-replay/use-30s-replay.ts`, 픽스처 `e2e/fixtures/extension.ts:openPanel`(패널을 탭으로 연다), 그물 `e2e/capture.spec.ts`·`capture-methods.spec.ts`. 계열 선행: **2026-06-29**(captureVisibleTab 쿼터 — 실제 API 호출을 `messages.ts` 1곳 + `capture-throttle` 경유로 유지하라는 제약. 이번 가드는 case 최상단 1줄이라 그 구조를 안 건드렸다).
+
 ## 2026-08-11 — 자기검증 앵커를 달아놓고도 스캐너가 소비자 하나를 통째로 안 봤다
 
 - **영역**: `i18n`, `툴체인`
