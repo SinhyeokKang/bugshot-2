@@ -33,6 +33,16 @@
 
 (부수 확인: 세 파일 모두 `reqIdRef` 무효화를 이미 올바르게 하고 있고 `items.length > 0` 조기 반환도 없어 🔴2 증상이 없다. 방치해도 버그가 남지 않는다.)
 
+### 구현 후 확인 — linear 3개에 같은 계열의 **약한** race가 있다 (별도 배치 후보)
+
+구현 단계의 CTO 게이트가 이행 밖 콤보박스를 전수 확인하다 찾은 것이라 감사 리포트에는 없다. **이 배치에서 고치지 않는다** — 스코프 밖이고, 증상 등급이 달라 묶으면 이 배치가 "무엇을 고쳤는지"가 흐려진다.
+
+`linearFields/{LabelCombobox,AssigneeCombobox,ProjectCombobox}.tsx`는 `loadedTeamId` 마커로 조기 반환을 `loadedTeamId === teamId && items.length > 0`까지 좁혀 놨다. 그래서 **영구 wedge는 없다** — 팀이 바뀌면 마커가 어긋나 재오픈 시 재조회된다. 🔴2가 "닫힌 채 스코프가 바뀌면 목록이 영영 안 고쳐진다"인 것과 등급이 다르다.
+
+다만 **응답 무효화가 아예 없다.** 팀 A 조회가 in-flight인 채 팀 B로 바꿔 재조회했을 때 A가 B보다 늦게 도착하면 `setItems(listA)` + `setLoadedTeamId("A")`가 B의 목록을 덮는다. 팝오버가 열려 있는 동안은 deps(`[open, teamId]`)가 안 바뀌어 그 상태가 유지되므로, **팀 B 이슈에 팀 A의 라벨·담당자를 고를 수 있다.** 닫았다 열면 복구된다.
+
+이행 대상이 되려면 `loadedTeamId` 마커 패턴을 `load` 식별자 기반으로 바꿔야 하는데, 그건 세 파일의 로드 모델 자체를 갈아끼우는 일이라 별도 배치가 맞다. jira는 확인 결과 깨끗하다 — `IssueTypeField`·`PriorityField`는 `cancelled` 클린업이 `open` 변화에도 걸려 reqId보다 강한 무효화이고, 나머지 4개가 쓰는 `useDebouncedSearch.ts`에는 `seqRef` 무효화가 있다.
+
 ## 변경 범위
 
 ### 수정 (7)

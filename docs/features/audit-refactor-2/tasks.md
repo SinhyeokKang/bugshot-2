@@ -17,8 +17,8 @@
   2. **in-flight 무효화**: `open=true`로 `loadA` 호출 → resolve 전에 `loadB`로 rerender → `loadA` resolve(`["old"]`) → `items`에 `"old"`가 **없어야** 한다. 이어서 `loadB` resolve(`["new"]`) → `items === ["new"]`.
   3. `load` reject 시 `error`가 `formatError` 결과로 채워지고, `formatError`가 렌더마다 새 함수여도 effect가 재실행되지 않는다(호출 횟수로 검증 — latest-ref 분리 `useLazyListOnOpen.ts:20-21`).
 - **검증**:
-  - [ ] `pnpm test src/sidepanel/hooks/__tests__/useLazyListOnOpen.test.tsx` 통과 (현재 코드 기준 **처음부터 green** — 훅은 이미 올바르다. 회귀 잠금용)
-  - [ ] 케이스 2에서 `useLazyListOnOpen.ts:24`의 `reqIdRef.current++`를 일시적으로 지우면 실패하는 것을 확인(테스트가 실제로 그 줄을 지키는지 검증)
+  - [x] `pnpm test src/sidepanel/hooks/__tests__/useLazyListOnOpen.test.tsx` 통과 (현재 코드 기준 **처음부터 green** — 훅은 이미 올바르다. 회귀 잠금용)
+  - [x] 케이스 2에서 `useLazyListOnOpen.ts:24`의 `reqIdRef.current++`를 일시적으로 지우면 실패하는 것을 확인(테스트가 실제로 그 줄을 지키는지 검증)
 
 ### Task 2: 🔴2 재현 테스트 (red)
 
@@ -34,8 +34,8 @@
     6. **기대**: `sendBg`가 repo B로 호출되고, 목록에 `"a-only"`가 없다.
   - 이행 전 결과: 4단계 응답이 `reqIdRef` 검사를 통과해 `items`를 채우고, 5단계에서 `items.length > 0`(`LabelCombobox.tsx:42`)이 재조회를 막아 `"a-only"`가 보인다 → **실패**.
 - **검증**:
-  - [ ] 이행 전 `pnpm test src/sidepanel/tabs/githubFields/__tests__/LabelCombobox.test.tsx` **실패**(red) — 실패 메시지를 기록에 남긴다
-  - [ ] 실패 원인이 "재조회 없음 + 이전 스코프 항목 노출"인지 확인(단순 셀렉터 오류가 아님)
+  - [x] 이행 전 `pnpm test src/sidepanel/tabs/githubFields/__tests__/LabelCombobox.test.tsx` **실패**(red) — 실패 메시지를 기록에 남긴다
+  - [x] 실패 원인이 "재조회 없음 + 이전 스코프 항목 노출"인지 확인(단순 셀렉터 오류가 아님)
 
 ### Task 3: `githubFields/LabelCombobox` 이행 (green)
 
@@ -48,10 +48,10 @@
   - `triggerLabel = !ready ? t("github.field.requireRepo") : value ?? t("github.field.labels.placeholder")`, `searchPlaceholder={t("github.field.labels.search")}`, `emptyLabel={t("github.field.labels.empty")}`
   - `useState`/`useEffect`/`reqIdRef`/Popover·Command·Button·아이콘 import 전부 삭제.
 - **검증**:
-  - [ ] Task 2 테스트 green
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `grep -n "useEffect\|reqIdRef\|Popover\|CommandItem" src/sidepanel/tabs/githubFields/LabelCombobox.tsx` 결과 0줄
-  - [ ] `load`가 `useCallback`으로 감싸져 있다 (위험요소 1)
+  - [x] Task 2 테스트 green
+  - [x] `pnpm typecheck` 통과
+  - [x] `grep -n "useEffect\|reqIdRef\|Popover\|CommandItem" src/sidepanel/tabs/githubFields/LabelCombobox.tsx` 결과 0줄
+  - [x] `load`가 `useCallback`으로 감싸져 있다 (위험요소 1)
   - [ ] 수동: 저장소 선택 → 라벨 콤보박스에 **색 dot이 보인다**(R5) / 미선택 시 트리거가 `requireRepo` 문구 + 비활성(R3)
 
 ### Task 4: `githubFields/AssigneeCombobox` 이행
@@ -59,8 +59,8 @@
 - **변경 대상**: `src/sidepanel/tabs/githubFields/AssigneeCombobox.tsx`
 - **작업 내용**: Task 3과 동형. `load` deps `[owner, repo]`, `type: "github.searchAssignees"`, `getKey/getName = (u) => u.login`, `selectedKey={value ?? null}`, `onSelect={(u) => onChange(u ? u.login : undefined)}`, `renderItem`에 `u.avatarUrl` 있을 때만 `<img className="mr-2 h-4 w-4 rounded-full">` + login. `triggerLabel`은 기존 IIFE와 동일한 3분기.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과, `pnpm test` 통과
-  - [ ] `grep`으로 `useEffect`/`reqIdRef`/`Popover` 잔여 0
+  - [x] `pnpm typecheck` 통과, `pnpm test` 통과
+  - [x] `grep`으로 `useEffect`/`reqIdRef`/`Popover` 잔여 0
   - [ ] 수동: 아바타 이미지가 항목마다 보인다(R5), 아바타 없는 유저는 이미지 없이 정상 렌더
 
 ### Task 5: `gitlabFields/LabelCombobox` 이행
@@ -68,8 +68,8 @@
 - **변경 대상**: `src/sidepanel/tabs/gitlabFields/LabelCombobox.tsx`
 - **작업 내용**: `ready = !!projectId`, `load` deps `[projectId]`, `type: "gitlab.getLabels"`, `getKey/getName = (l) => l.name`, `renderItem`에 `ColorSwatch`, `triggerLabel`의 미선택 문구는 `gitlab.field.requireProject`.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과, `pnpm test` 통과
-  - [ ] `grep` 잔여 0
+  - [x] `pnpm typecheck` 통과, `pnpm test` 통과
+  - [x] `grep` 잔여 0
   - [ ] 수동: 프로젝트 변경 후 라벨 목록이 새 프로젝트 것으로 갱신(🔴2), 색 dot 유지
 
 ### Task 6: `gitlabFields/AssigneeCombobox` 이행
@@ -77,7 +77,7 @@
 - **변경 대상**: `src/sidepanel/tabs/gitlabFields/AssigneeCombobox.tsx`
 - **작업 내용**: `AssigneeValue`(`{id:number, username:string}`) 유지. **`getKey={(u) => String(u.id)}`, `selectedKey={value ? String(value.id) : null}`** — number/string 혼용 주의(위험요소 3). `getName={(u) => u.username}`, `onSelect={(u) => onChange(u ? { id: u.id, username: u.username } : null)}`, `renderItem`에 아바타 + username.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과, `pnpm test` 통과
+  - [x] `pnpm typecheck` 통과, `pnpm test` 통과
   - [ ] 수동: **담당자를 고른 뒤 다시 열면 체크 표시가 그 항목에 남는다**(getKey 문자열화 검증 — 여기가 조용히 죽는 지점)
   - [ ] 수동: 같은 담당자를 다시 클릭하면 선택 해제된다
 
@@ -86,8 +86,8 @@
 - **변경 대상**: `src/sidepanel/tabs/asanaFields/WorkspaceCombobox.tsx`
 - **작업 내용**: 스코프 없음 — `const load = useCallback(() => sendBg<AsanaWorkspace[]>({ type: "asana.getWorkspaces" }), []);`. `disabled={!!disabled}`(Props의 optional `disabled` 유지), `getKey=(w)=>w.gid`, `getName=(w)=>w.name`, `selectedKey={value?.workspaceGid ?? null}`, `onSelect={(w) => onChange(w ? { workspaceGid: w.gid, workspaceName: w.name } : null)}`, `renderItem` 불필요.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과, `pnpm test` 통과
-  - [ ] `grep` 잔여 0 — 이행 후 파일이 50줄 이하
+  - [x] `pnpm typecheck` 통과, `pnpm test` 통과
+  - [x] `grep` 잔여 0 — 이행 후 파일이 50줄 이하
   - [ ] 수동: 워크스페이스 목록이 열리고 검색·선택이 동작
 
 ### Task 8: `asanaFields/ProjectCombobox` 이행
@@ -95,7 +95,7 @@
 - **변경 대상**: `src/sidepanel/tabs/asanaFields/ProjectCombobox.tsx`
 - **작업 내용**: `ready = !!workspaceGid`, `load` deps `[workspaceGid]`, `type: "asana.searchProjects"`(`query: ""` 유지 — 서버 검색 없음), `getKey=(p)=>p.gid`, `getName=(p)=>p.name`, `selectedKey={value?.projectGid ?? null}`. 기존 파일 `:44`의 "서버 검색이 없어 1회 받아 클라이언트 필터" 주석은 `load` 위로 옮겨 보존한다(WHY 주석).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과, `pnpm test` 통과
+  - [x] `pnpm typecheck` 통과, `pnpm test` 통과
   - [ ] 수동: 워크스페이스를 바꾸면 프로젝트 후보가 새 워크스페이스 것으로 갱신(🔴2)
   - [ ] 수동: 검색어 입력 시 클라이언트 필터가 동작(서버 재요청 없음)
 
@@ -104,8 +104,8 @@
 - **변경 대상**: `src/sidepanel/tabs/asanaFields/AssigneeCombobox.tsx`
 - **작업 내용**: `load` deps `[workspaceGid]`, `type: "asana.searchAssignees"`. `getKey=(u)=>u.gid`, `getName=(u)=>u.name`, **`getItemValue={(u) => u.gid}`**(현재 `CommandItem value={u.gid}`와 동일 유지), **`pinSelected`**(현재 `:125`의 `orderSelectedFirst` 대체 — R6), `renderItem`에 이름 + 이메일 2줄. `orderSelectedFirst` 직접 import는 제거한다(내 변경이 만든 고아).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과, `pnpm test` 통과
-  - [ ] `grep -n "orderSelectedFirst" src/sidepanel/tabs/asanaFields/AssigneeCombobox.tsx` 결과 0줄
+  - [x] `pnpm typecheck` 통과, `pnpm test` 통과
+  - [x] `grep -n "orderSelectedFirst" src/sidepanel/tabs/asanaFields/AssigneeCombobox.tsx` 결과 0줄
   - [ ] 수동: 담당자를 고른 뒤 다시 열면 **맨 위에 온다**(R6)
   - [ ] 수동: 이메일 보조 줄이 그대로 보인다(R5)
 
@@ -114,8 +114,8 @@
 - **변경 대상**: `docs/DESIGN.md` (§13 공용 합성 컴포넌트 표의 `SingleLazyCombobox.tsx` 행)
 - **작업 내용**: "현재 clickup·slack 2곳만 쓴다 — 나머지 6개는 Popover+Command를 손으로 조립한 잔재다" 문장을 이행 결과로 교체. 남는 예외를 명시한다: **서버 검색형 3개**(`githubFields/RepoCombobox`·`gitlabFields/ProjectCombobox`·`notionFields/DatabaseCombobox` — 질의마다 서버 재조회라 모델이 다름), **linear 4개**(`loadedTeamId` 마커 패턴), **jira**(`FieldCombobox` + `useDebouncedSearch` 자체 계열).
 - **검증**:
-  - [ ] 문장이 `grep -rn "SingleLazyCombobox" src/`의 실제 사용처 목록과 일치
-  - [ ] 별도 커밋(`docs(DESIGN): ...`)으로 분리
+  - [x] 문장이 `grep -rn "SingleLazyCombobox" src/`의 실제 사용처 목록과 일치
+  - [x] 별도 커밋(`docs(DESIGN): ...`)으로 분리
 
 ## 테스트 계획
 
@@ -149,6 +149,8 @@ CLAUDE.md 2트랙 규정상 둘 다 **`.tsx` 트랙**이다. `useLazyListOnOpen`
 - [ ] R2: 상위 값을 바꾸면 하위 라벨·담당자 트리거가 placeholder로 리셋된다(이슈 폼·Connect 폼 양쪽)
 - [ ] R3: 상위 값 미선택 시 트리거가 안내 문구 + 비활성
 - [ ] R4: github/gitlab 라벨·담당자 검색이 부분일치로 동작(퍼지 매칭이 사라진 것을 인지·수용)
+- [ ] R4-b: 같은 4개에서 cmdk의 **관련도 정렬도 사라져** 결과가 API 응답 순서로 고정된다(`shouldFilter={false}`가 필터와 정렬을 함께 끈다). 인지·수용.
+- [ ] R4-c: 같은 4개에서 **팝오버를 닫아도 검색어가 남는다**. 이행 전엔 `CommandInput`이 비제어라 `PopoverContent` 언마운트와 함께 리셋됐지만, 공용 컴포넌트는 `query`를 Popover 바깥 state로 들고 있다. 저장소 A에서 "bug"를 친 뒤 저장소 B로 바꿔 열면 **B의 라벨이 그 검색어로 걸러진 채**(최악의 경우 `empty` 문구) 보인다 — 입력창에 텍스트가 남아 무음은 아니고 지우면 복구된다. asana 3개·clickup 4개·slack 1개는 원래 이 동작이라, 이행 후 12곳이 같은 규칙으로 수렴한다. **공용 컴포넌트의 기존 성질이므로 고치려면 `SingleLazyCombobox`를 손대야 하고 그건 이 배치의 수정 금지 대상이다** — 수용하고, 바꾸려면 별도 배치로 12곳을 함께 다룬다.
 - [ ] R5: 라벨 색 dot / 아바타 / asana 담당자 이메일 2줄이 모두 보인다
 - [ ] R6: asana 담당자를 고른 뒤 재오픈하면 맨 위에 온다
 - [ ] R7: 콤보박스를 열어둔 채 background 네트워크 요청이 1회인지(DevTools > SW) — 무한 재조회 없음
