@@ -42,20 +42,24 @@
 
 | 파일 | 변경 |
 |---|---|
-| `docs/ARCHITECTURE.md:576` | `settings-ui-store` v9 → **v10**, `v10은 aiLanguage 추가` 서술 편입 |
+| `docs/ARCHITECTURE.md:582` | `settings-ui-store` v9 → **v10**, `v10은 aiLanguage 추가` 서술 편입 |
 | `docs/DIRECTORY.md:96` | `settings-ui v9:` → **v10**, 필드 목록에 `aiLanguage` 추가 |
 
-코드(`src/store/settings-ui-store.ts:250` `version: 10`, `:249` 주석)는 이미 정확하다. `migrateSettingsUi`(`:135-157`)는 버전 비교 없는 nullish 정규화 + `merge`(`:254-262`) 재정규화라 멱등이므로 **코드는 손대지 않는다**.
+코드(`src/store/settings-ui-store.ts:268` `version: 10`, `:267` 주석)는 이미 정확하다. `migrateSettingsUi`(`:133-158`)는 버전 비교 없는 nullish 정규화 + `mergePersistedSettings`(`:162-175`, persist 옵션 `merge:`가 `:271`에서 이 named export를 가리킨다) 재정규화라 멱등이므로 **코드는 손대지 않는다**.
+
+**감사 이후 바뀐 두 가지**(문서 서술에 반영할 것): ① 재정규화 함수가 persist 옵션 안 익명 함수에서 **`mergePersistedSettings` named export로 추출**됐다(주석 근거: "persist 옵션 안 익명 함수로 두면 테스트가 닿지 못해 이 방어가 무검증으로 남는다"). ② `migrateSettingsUi`에 `state.locale = normalizeLocale(state.locale)`(`:154`)가 추가됐다 — 버전 분기 없는 정규화이고 막는 대상은 **다운그레이드**(새 로케일 persist가 구버전으로 롤백되면 사전 조회가 undefined). 둘 다 v10 서술과 함께 넣으면 문서가 현재 코드와 문자 단위로 맞는다.
 
 ### 항목 18 — persist 키 상수화
 
 | 파일 | 현재 | 변경 |
 |---|---|---|
 | `src/lib/session-keys.ts` | `ISSUES_PERSIST_KEY`(`:21`) 보유, import 0개 leaf | `APP_SETTINGS_PERSIST_KEY = "bugshot-app-settings"` 추가 |
-| `src/store/settings-ui-store.ts:248` | `name: "bugshot-app-settings"` | `name: APP_SETTINGS_PERSIST_KEY` |
-| `src/i18n/bg-init.ts:14,15,20,21` | 리터럴 4벌 | 상수 참조 4곳 |
+| `src/store/settings-ui-store.ts:266` | `name: "bugshot-app-settings"` | `name: APP_SETTINGS_PERSIST_KEY` |
+| `src/i18n/bg-init.ts:17,18,23,24` | 리터럴 4벌 | 상수 참조 4곳 |
 
 **위치 근거**: `src/lib/session-keys.ts`는 **import가 하나도 없는 leaf**이고, background(`src/background/index.ts:3`·`src/background/tab-bindings.ts:1`)·store·content·sidepanel이 이미 전부 쓰는 검증된 위치다. `ISSUES_PERSIST_KEY`가 **정확히 같은 이유**(blob-db GC가 봉투를 직독)로 거기 있으므로 형제 상수를 나란히 두면 규율이 한 줄로 읽힌다. `src/lib/settings-storage.ts`는 후보에서 뺐다 — 그 파일은 **다른 store의 다른 키**(`bugshot-settings`, 인증 봉투)를 다루고 8개 플랫폼 auth 타입을 import한다. 이름이 하나 글자 차이(`SETTINGS_STORAGE_KEY` ↔ 새 상수)로 한 파일에 공존하면 그 자체가 사고 지점이다. `src/i18n/bg-init.ts`가 sidepanel 그래프를 끌어오면 안 된다는 제약(CLAUDE.md의 store→tabs 금지와 같은 계열)도 leaf 선택으로 자동 충족된다.
+
+**신설 `src/i18n/locales.ts`를 후보로 재검토(리베이스 이후)** — 결론은 **`session-keys.ts` 유지**다. 로케일 인프라 대공사로 i18n에도 "의존성 0 leaf"가 하나 생겼고(`locales.ts` 상단 주석 + `src/i18n/__tests__/locale-registry.test.ts`가 **소스 스캔으로 런타임 import 0을 강제**한다), `bg-init.ts`(background)와 `settings-ui-store.ts`(sidepanel) **양쪽이 이미 그 파일을 import**하므로 형태만 보면 새 후보다. 그럼에도 두지 않는 이유: ① 그 모듈의 선언된 단일 출처는 **로케일 레지스트리**이고 persist 키는 로케일과 무관하다 — 무관한 상수를 얹으면 "의존성 0"을 지키는 이유 자체가 흐려진다(테스트는 import만 재지 내용은 안 잰다). ② `ISSUES_PERSIST_KEY`와 형제로 두는 편이 "크로스레이어 영속 키는 여기 모인다"는 규율을 한 줄로 읽히게 한다. **다만 이 불변식은 설계의 전제를 확증해준다** — bg-init이 이미 leaf 모듈 하나를 import하고도 background 번들이 멀쩡하므로, `session-keys.ts` import가 SW 그래프를 오염시키지 않는다는 근거가 실측으로 하나 더 생긴 셈이다.
 
 ### 항목 71·73~76
 
@@ -100,7 +104,7 @@
       → 8개 빌더 · logs.html Report 탭
 ```
 
-`logsAttached` 토글(`DraftDetailDialog.tsx:924`·`:1001`)은 `patchIssue`로 레코드만 바꾸고 `draft.environment`는 건드리지 않는다 — **행은 계속 저장돼 있고 제출 시점에만 걸러진다**. 이 가역성이 설계의 전제다(off→on으로 되돌리면 행이 다시 실린다). 라이브 규율과 같다: `logsAttach` off로 행이 사라질 땐 `apiHostsDismissed` 래치를 세우지 않는다(`apiHostRow.ts:105`, ARCHITECTURE.md:554).
+`logsAttached` 토글(`DraftDetailDialog.tsx:924`·`:1001`)은 `patchIssue`로 레코드만 바꾸고 `draft.environment`는 건드리지 않는다 — **행은 계속 저장돼 있고 제출 시점에만 걸러진다**. 이 가역성이 설계의 전제다(off→on으로 되돌리면 행이 다시 실린다). 라이브 규율과 같다: `logsAttach` off로 행이 사라질 땐 `apiHostsDismissed` 래치를 세우지 않는다(`apiHostRow.ts:105`, ARCHITECTURE.md:560).
 
 ### 항목 13 — 실패 시 저장소 상태
 
@@ -252,11 +256,11 @@ export function inlineRefMarkdown(refId: string, alt = ""): string {
 
 ## 기존 패턴 준수
 
-- **`IssueRecord`의 비파괴 optional 필드는 버전 bump 없이 추가**(`docs/ARCHITECTURE.md:576`, `issues-store.ts:255-259`의 선례 목록 — `actionLogBlobKey`·`videoStartedAt`·`bufferedElements`·`slackPreserved`). 항목 12의 `apiHostsDerived`가 정확히 그 형태다. `ISSUES_STORE_VERSION`은 **5 유지**.
+- **`IssueRecord`의 비파괴 optional 필드는 버전 bump 없이 추가**(`docs/ARCHITECTURE.md:582`, `issues-store.ts:255-259`의 선례 목록 — `actionLogBlobKey`·`videoStartedAt`·`bufferedElements`·`slackPreserved`). 항목 12의 `apiHostsDerived`가 정확히 그 형태다. `ISSUES_STORE_VERSION`은 **5 유지**.
 - **`saveDraft`는 교체가 아니라 병합**(`issues-store.ts:353-355`) — 새 키는 조건부 스프레드 없이 항상 명시.
 - **게이트는 컴포넌트가 아니라 lib에**(`apiHostRow.ts:61-62`) — 테스트 파일 없는 컴포넌트에 판정을 두면 회귀가 green으로 통과한다.
 - **fail-closed는 사용자 산출물을 담는 저장소의 기본**(`chrome-storage.ts:36-45`, ARCHITECTURE.md:64·66) — 항목 13이 그 규율에 합류한다.
-- **크로스레이어 영속 키는 상수 단일 출처**(`session-keys.ts:19-21`, ARCHITECTURE.md:574) — 항목 18.
+- **크로스레이어 영속 키는 상수 단일 출처**(`session-keys.ts:19-21`, ARCHITECTURE.md:580) — 항목 18.
 - **`Record<PlatformId, T>` satisfies로 플랫폼 전수 강제**(`types/platform.ts:29`) — 항목 71.
 - **문서 갱신은 문서별 커밋**(`docs(ARCHITECTURE): ...` / `docs(DIRECTORY): ...`) — 항목 17·73.
 
@@ -283,3 +287,4 @@ export function inlineRefMarkdown(refId: string, alt = ""): string {
 7. **[소] 항목 76 — 게이트 교체 함정.** `HOST_ID` 제외를 `ANNOTATION_HOST_ID`로 **바꾸면** picker overlay가 DOM Tree에 노출된다. OR로 얹는다(POSTMORTEM 2026-08-04의 "기존 게이트를 새 조건으로 대체"와 같은 계열).
 8. **[소] 항목 71 — `as const` 전환이 `PlatformId[]` 소비처를 깨뜨릴 수 있다.** `Object.keys(...) as PlatformId[]`로 mutable 배열을 유지해 `pickInitialPlatform`의 `for...of`가 그대로 돌게 한다.
 9. **[소] 항목 74 — `alt` 기본값.** 현재 생성물은 `![](...)`(빈 alt)이다. 헬퍼의 기본값을 빈 문자열로 두지 않으면 본문 마크다운이 바뀌어 골든이 깨진다.
+10. **[소] `docs/features/french-locale/`와의 충돌 — 파일 충돌 없음, 문서 줄번호만 경쟁한다.** fr 기획은 `src/i18n/{locales,index}.ts`·`aiLanguage.ts`·`localeLabels.ts`·`log-viewer/i18n.ts`를 건드리고 **`bg-init.ts`·`settings-ui-store.ts`는 안 건드리므로** 항목 18과 소스 충돌이 없다(순서 의존도 없다). 겹치는 건 Task 8·11의 문서뿐이다 — fr Task 8이 `docs/DIRECTORY.md:99-101`·`docs/ARCHITECTURE.md:256`을 고치므로, 그쪽이 먼저 들어오면 이 배치가 인용한 `ARCHITECTURE.md:582`·`DIRECTORY.md:96`이 다시 밀린다. **착수 시 줄번호를 다시 확인**한다(내용 판정은 불변).

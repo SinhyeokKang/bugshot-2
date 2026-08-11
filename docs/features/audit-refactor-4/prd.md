@@ -2,6 +2,12 @@
 
 > 제품 기능이 아니라 코드베이스 감사(2026-08-11 `/audit`) 후속 정리다.
 
+## 코드 기준 갱신 (v1.7.19 + N-way 로케일 인프라 이후)
+
+이 문서는 커밋 `225efb7b`(v1.7.18) 시점 코드로 감사한 결과를 옮긴 것이고, 그 뒤 v1.7.19와 **N-way 로케일 인프라 대공사**(프랑스어 추가 준비 — `src/i18n/locales.ts` 신설, `LocaleMode`·`detectLocale`·`normalizeLocale`이 store에서 그쪽으로 이관)가 리베이스로 들어왔다. **재검증 결과 이 배치의 항목은 하나도 해소되지 않았다** — 12·13·14·71·73~76은 인용 파일이 아예 안 바뀌었고, 17은 여전히 문서 v9 / 코드 v10, 18은 여전히 리터럴 5벌(+테스트 1벌)이다.
+
+바뀐 건 **인용한 코드의 모습과 줄번호**뿐이라 그 부분만 갱신했다: `src/store/settings-ui-store.ts`(로케일 정규화 한 줄 추가 + `mergePersistedSettings` named export 추출로 전 구간 하향 이동)·`src/i18n/bg-init.ts`(`@/i18n/locales` import 2줄 추가로 +3행)·`docs/ARCHITECTURE.md`(500번대 이후 +6행). 나머지 인용 파일의 줄번호는 그대로다.
+
 ## 사용자 노출 변화
 
 대부분은 내부 정합·문서 수정이지만 **두 항목은 사용자에게 보인다**.
@@ -29,8 +35,8 @@
 - **항목 12** — `API Hosts` 자동 행은 로그 첨부 게이트에 묶인 파생물이라 라이브 제출 ctx(`src/sidepanel/lib/buildEditorCapture.ts:55-59`)가 `stripApiHostsRows`로 한 번 더 막는다. 그런데 저장된 초안의 재제출 ctx(`src/sidepanel/tabs/DraftDetailDialog.tsx:352`)는 `environment: issue.draft.environment ?? []`로 직통이다. 같은 다이얼로그가 로그 첨부 토글(`:924`·`:1001` → `patchIssue({logsAttached})`)을 제공하므로, 사용자가 로그를 끈 초안에서도 자동 행이 8개 빌더 본문에 실린다. **호출 한 줄 추가로는 못 막는다** — `stripApiHostsRows(rows, lastDerived)`는 `row.value === lastDerived`로 "사용자가 손 안 댄 행"을 판정하는데, `IssueRecord`에 `apiHostsDerived` 대응 필드가 없어 재료 자체가 없다. **스키마 확장이 선행**돼야 한다.
 - **항목 13** — `migrateIssuesState`의 v<2 이미지 이관(`src/store/issues-store.ts:294-307`)이 `saveImageBlobRaw` 실패를 `catch {}`로 삼키고 `hasBefore/hasAfter=false`로 확정한다. 원본 dataURL은 그 자리에서 폐기되고 version 5 봉투가 기록되므로 **복구 경로가 없다**. 같은 파일의 rehydrate 경로(`shouldPruneAfterRehydrate`, `:64`)와 저장소 어댑터(`failClosedLocalStorage`, `src/store/chrome-storage.ts:39`)는 fail-closed인데 migrate만 fail-open이다.
 - **항목 14** — `handleSelectByPath`(`src/content/picker.ts:1214-1238`)의 overlay 재생성 분기가 `startCssCacheObserver()`·`ensureCssCacheLoaded()`는 부르면서 `setOnCacheReloaded(scheduleInspectorRefresh)`를 재등록하지 않는다. 등록은 `handleStart`(`:608`)에만 있고 `handleClear`(`:656`)가 null로 되돌리므로, 복원 세션은 훅이 죽은 채 산다.
-- **항목 17** — `settings-ui-store` persist `version: 10`(`src/store/settings-ui-store.ts:250`, v10 = `aiLanguage`)인데 `docs/ARCHITECTURE.md:576`·`docs/DIRECTORY.md:96`은 v9로 고정돼 있다. **문서 stale이지 코드 결함이 아니다** — `migrateSettingsUi`(`:135-157`)는 버전 비교 없는 nullish 정규화 + `merge` 재정규화라 멱등하다.
-- **항목 18** — persist 키 `"bugshot-app-settings"`가 `src/store/settings-ui-store.ts:248`에 하드코딩돼 있고, `src/i18n/bg-init.ts:14,15,20,21`이 같은 리터럴 4벌로 background에서 봉투를 직접 파싱한다. 다른 두 영속 키는 **정확히 이 크로스레이어 이유로** 상수화돼 있다(`ISSUES_PERSIST_KEY` in `src/lib/session-keys.ts:21` — blob-db GC가 직독 / `SETTINGS_STORAGE_KEY` in `src/lib/settings-storage.ts:10` — background 인증 봉투 직독). `docs/ARCHITECTURE.md:574`가 경고한 "조용히 깨지는" 2계약 중 한쪽만 무보호다.
+- **항목 17** — `settings-ui-store` persist `version: 10`(`src/store/settings-ui-store.ts:268`, v10 = `aiLanguage`)인데 `docs/ARCHITECTURE.md:582`·`docs/DIRECTORY.md:96`은 v9로 고정돼 있다. **문서 stale이지 코드 결함이 아니다** — `migrateSettingsUi`(`:133-158`)는 버전 비교 없는 nullish 정규화 + `mergePersistedSettings`(`:162-175`) 재정규화라 멱등하다.
+- **항목 18** — persist 키 `"bugshot-app-settings"`가 `src/store/settings-ui-store.ts:266`에 하드코딩돼 있고, `src/i18n/bg-init.ts:17,18,23,24`가 같은 리터럴 4벌로 background에서 봉투를 직접 파싱한다. 다른 두 영속 키는 **정확히 이 크로스레이어 이유로** 상수화돼 있다(`ISSUES_PERSIST_KEY` in `src/lib/session-keys.ts:21` — blob-db GC가 직독 / `SETTINGS_STORAGE_KEY` in `src/lib/settings-storage.ts:10` — background 인증 봉투 직독). `docs/ARCHITECTURE.md:580`이 경고한 "조용히 깨지는" 2계약 중 한쪽만 무보호다.
 - **항목 71·73~76** — 구조 취약점·문서/주석 드리프트·헬퍼 부재. 현재 오동작은 76(어노테이션 중 DOM Tree에 자체 overlay host 노출)뿐이다.
 
 ## 목표
@@ -72,8 +78,8 @@
 - 항목 12: `IssueRecord.apiHostsDerived`가 4개 `confirmDraft` 분기 전부에서 명시적으로 기록되고, 라이브·draft 두 제출 경로가 **같은 순수 함수**를 호출한다. 구 초안(필드 없음)에서 strip이 no-op임을 단위 테스트가 고정한다.
 - 항목 13: `saveImageBlobRaw` 실패 시 `migrateIssuesState`가 throw하고, 그 경로에서 `shouldPruneAfterRehydrate`가 false를 반환함을 단위 테스트가 고정한다. 성공 경로 동작은 불변.
 - 항목 14: `handleSelectByPath`의 overlay 재생성 분기가 `setOnCacheReloaded(scheduleInspectorRefresh)`를 포함하고, 수동 체크리스트(복원 세션 + 다크모드 토글)로 실동작 확인.
-- 항목 17: `docs/ARCHITECTURE.md:576`·`docs/DIRECTORY.md:96`이 settings-ui v10과 `aiLanguage`를 반영한다. 코드 변경 0.
-- 항목 18: `"bugshot-app-settings"` 리터럴이 저장소에 **정확히 1개**(상수 정의)만 남는다 — `grep -rn '"bugshot-app-settings"' src/`로 확인.
+- 항목 17: `docs/ARCHITECTURE.md:582`·`docs/DIRECTORY.md:96`이 settings-ui v10과 `aiLanguage`를 반영한다. 코드 변경 0.
+- 항목 18: `"bugshot-app-settings"` 리터럴이 **프로덕션 코드에 정확히 1개**(상수 정의)만 남는다 — `grep -rn '"bugshot-app-settings"' src/`로 확인(값 잠금 테스트의 리터럴은 제외 — tasks.md Task 9).
 - 항목 71: `PLATFORM_FALLBACK_ORDER`에서 플랫폼 하나를 지우면 `pnpm typecheck`가 실패한다(뮤테이션으로 증명).
 - 항목 73·75: 문서·주석이 코드 동작과 일치한다. 코드 변경 0(73)/주석만(75).
 - 항목 74: `inline:` 리터럴 생성이 헬퍼 1곳으로 모이고 3개 호출부가 그것을 쓴다.

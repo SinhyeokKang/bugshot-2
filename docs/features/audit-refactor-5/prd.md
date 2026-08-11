@@ -56,9 +56,29 @@
 
 `ConsoleLogContent.tsx:38`의 `levelCodeBg`는 같은 레벨 축(error/warn/info)에 `bg-red-200 dark:bg-red-950/70`이라는 **제3의 스케일**을 로컬 정의한다(🟡26). `NetworkLogContent.tsx:50-62`는 더 노골적이다 — 같은 함수 안에서 비선택 행은 `TONE_BG.red`를 쓰고 선택 행은 `bg-red-200 dark:bg-red-950/70`을 손으로 적는다(🟡27). amber는 §2 등재 관용구(`IntegrationsCta`)와 `StyleCssView`가 갈려 표면이 2종이다(🟡28).
 
-**(4) 타입이 있는데 `as`로 뚫려 있다.** `src/i18n/ko.ts:21`이 `TranslationKey = keyof typeof ko`로 닫힌 union을 만들어 놨는데, 두 곳이 캐스트로 그걸 무력화한다 — `LINEAR_STATE_I18N`(🟡33)과 `settings-ui-store.ts`의 섹션 키 헬퍼 4종(⚪60). 그리고 `src/i18n/index.ts:39`의 `t()`에는 폴백이 없어(🟡32), 캐스트로 들어온 키가 미정의면 params 유무에 따라 **TypeError 또는 `undefined` 렌더**로 갈린다. 복제 사전 `src/log-viewer/i18n.ts:282`는 `if (!text) return key;`가 있어 같은 상황에서 키 문자열을 렌더한다 — **두 사전의 실패 모드가 다르다.**
+**(4) 타입이 있는데 `as`로 뚫려 있다.** `src/i18n/ko.ts:21`이 `TranslationKey = keyof typeof ko`로 닫힌 union을 만들어 놨는데, 두 곳이 캐스트로 그걸 무력화한다 — `LINEAR_STATE_I18N`(🟡33)과 `settings-ui-store.ts`의 섹션 키 헬퍼 4종(⚪60). 그리고 `src/i18n/index.ts:39`의 `t()`에는 폴백이 없어(🟡32), 캐스트로 들어온 키가 미정의면 params 유무에 따라 **TypeError 또는 `undefined` 렌더**로 갈린다. 복제 사전 `src/log-viewer/i18n.ts:293`은 `if (!text) return key;`가 있어 같은 상황에서 키 문자열을 렌더한다 — **두 사전의 실패 모드가 다르다.**
 
 여기에 content script 오버레이 계열(🟡29·30·⚪88·89), shadcn 미사용 raw 마크업(🟡24·25·⚪81~83), 잔여 raw 색·radius·복제(⚪78~80·84·86·87·90·91), DESIGN.md 자체의 수치 드리프트(⚪92)를 얹었다.
+
+### 코드 기준 갱신 (N-way 로케일 인프라 이후 재검증)
+
+이 문서는 **`225efb7b`(v1.7.18) 시점 코드로 감사한 결과**를 바탕으로 쓰였다. 그 뒤 v1.7.19 + 후속 커밋이 **로케일 축을 2-way 하드코딩에서 N-way로 바꾸는 인프라 작업**(프랑스어 추가 준비)을 얹었고, 그 결과 i18n 항목(🟡32·33·34·⚪60·86·87·91)이 서 있던 코드의 모습·줄번호·어휘가 바뀌었다. 신설·재작성된 것은 다음이다.
+
+- `src/i18n/locales.ts`(신규) — 로케일 레지스트리 **단일 출처**. `LOCALES`·`LocaleMode`·`BASE_LOCALE`(=`ko`, 키 집합을 정의하는 사전)·`DEFAULT_LOCALE`(=`en`, 미지 값이 떨어질 곳)·`BCP47`·`normalizeLocale`·`detectLocale`·`matchLocaleTag`·`LocaleTable<T>`·`localeValue()`. **의존성 0**이 불변식이고 `src/i18n/__tests__/locale-registry.test.ts`가 소스 스캔으로 강제한다.
+- `src/test/locale-parity.ts`(신규) — `findParityViolations`/`findUncovered`/`findExtraneous`. 메인 `locales.test.ts`와 log-viewer `i18n.test.ts` 양쪽이 공유하는 대칭 검사기.
+- `src/i18n/__tests__/translate.test.ts`(신규) — `t()`의 런타임 동작(치환·로케일 전환·`dateBcp47`) 그물. 감사 시점엔 없던 파일이다.
+- `src/log-viewer/__tests__/i18n.test.ts` — `koDict`/`enDict` 2자 비교에서 `DICTS`·`LOCALES` 순회 N-way로 전면 재작성.
+
+**감사 항목 자체는 이 변경으로 하나도 해소되지 않았다**(전수 재확인):
+
+| 항목 | 현재 코드 | 상태 |
+|---|---|---|
+| 🟡32 | `src/i18n/index.ts:39` — `return interpolate(locales[currentLocale][key], params)` | 폴백 없음, **유효** |
+| 🟡33 | `statusBadges/constants.ts:41` — `LINEAR_STATE_I18N: Record<string, string>` | **유효** |
+| 🟡34 | `log-viewer/__tests__/i18n.test.ts:155` — `MAIN_NAMESPACES = [logs, editor]` | `common` 누락, **유효**(줄만 169→155 이동) |
+| ⚪60 | `settings-ui-store.ts:84,87,90,93` — `as TranslationKey` 4곳 | **유효**(줄만 80·83·86·89 → 84·87·90·93) |
+
+로케일은 여전히 **ko/en 2개**다(`LOCALES = ["ko", "en"]`). 프랑스어는 `docs/features/french-locale/`에 기획만 있고 코드에 없다 — 그 기획과의 순서 의존은 design.md "위험 요소"·tasks.md "선행 조건" 참조. ⚪87의 실측치(875키·52 prefix·34 리프-겸-prefix)도 재측정 결과 **그대로**다.
 
 ### 감사 리포트와 실제 코드가 어긋난 6곳 (기획 중 확인)
 
@@ -72,9 +92,9 @@
 
 4. **⚪92의 FieldRow "실측 34곳"은 세는 단위가 다르다.** DESIGN §13의 "42곳"은 `grep -c "flex flex-col gap-1.5" tabs/connect/*.tsx` = **42**와 정확히 일치한다. 감사의 34는 `grep -c "<label"` = **34**(라벨을 실제로 동반한 필드 쌍)다. 즉 둘 다 맞고 **세는 대상이 다르다** — 문서를 고칠 게 아니라 문장을 정밀화해야 한다("동일 마크업 42곳 중 라벨 동반 필드 쌍 34곳").
 
-5. **⚪87의 수치가 과소하다.** 실측(8개 namespace 파일 파싱): 총 키 **875개**, top-level prefix **52개**(감사 "27+"), 리프이자 prefix인 키 **34개**(감사 "4쌍"). `logViewer.*` 소유권 분산은 사실 — 메인 `logs.ts`에 2개, `log-viewer/i18n.ts`에 38개.
+5. **⚪87의 수치가 과소하다.** 실측(8개 namespace 파일 파싱): 총 키 **875개**, top-level prefix **52개**(감사 "27+"), 리프이자 prefix인 키 **34개**(감사 "4쌍"). `logViewer.*` 소유권 분산은 사실 — 메인 `logs.ts`에 **1키**(`logViewer.seekTo`), `log-viewer/i18n.ts`에 **19키**. (기존 "2개/38개"는 ko/en 두 테이블의 **줄 수**를 센 값이라 키 수로는 절반이다.)
 
-6. **⚪83의 "바이트 동일 복제"는 className 한정이다.** `JsonTreeViewer.tsx:150`과 `DomTreeDialog.tsx:265`의 className은 `inline-flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/15`로 바이트 동일하지만, **props는 갈린다** — JsonTreeViewer만 `aria-expanded`를 갖고(DomTreeDialog는 없다), i18n 키도 `common.expand/collapse` vs `dom.expand/collapse`로 다르다. 공용화하면 두 차이를 **먼저 결정**해야 한다.
+6. **⚪83의 "바이트 동일 복제"는 className 한정이다.** `JsonTreeViewer.tsx:150`과 `DomTreeDialog.tsx:273`의 className은 `inline-flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/15`로 바이트 동일하지만, **props는 갈린다** — JsonTreeViewer만 `aria-expanded`를 갖고(DomTreeDialog는 없다), i18n 키도 `common.expand/collapse` vs `dom.expand/collapse`로 다르다. 공용화하면 두 차이를 **먼저 결정**해야 한다.
 
 ## 목표
 
@@ -86,8 +106,8 @@
 6. **amber 표면이 1종이 된다**(🟡28) — `StyleCssView` 경고 배너가 §2 등재 amber 관용구(`bg-amber-100/80` / `dark:bg-amber-950`)를 따른다.
 7. **picker 인스펙터 카드가 앱 theme 설정을 따른다**(🟡29) — OS 설정이 아니라 `useSettingsUiStore.theme`(기본 `light`)이 카드 색을 정한다. §3의 "theme(`light`|`dark`|`system`)을 `useSettingsUiStore`에서 읽어"가 content script 표면까지 확장된다.
 8. **box-model 오버레이의 채움색과 라벨색이 세 축 모두 같은 계열이다**(🟡30) — margin=amber / padding=green / gap=violet.
-9. **미정의 i18n 키가 화면에 `undefined`로 나타나지 않는다**(🟡32) — `t()`가 폴백을 갖되, **폴백에 의존할 일이 없도록 `as` 캐스트 2곳을 먼저 제거**한다(🟡33·⚪60). 키 리네임은 런타임이 아니라 `pnpm typecheck`에서 잡힌다.
-10. **복제 사전 drift 그물에 구멍이 없다**(🟡34) — `MAIN_NAMESPACES`가 복제 사전이 실제로 복제하는 모든 namespace를 덮는다.
+9. **미정의 i18n 키가 화면에 `undefined`로 나타나지 않는다**(🟡32) — `t()`가 폴백을 갖되, **폴백에 의존할 일이 없도록 `as` 캐스트 2곳을 먼저 제거**한다(🟡33·⚪60). 키 리네임은 런타임이 아니라 `pnpm typecheck`에서 잡힌다. 이 폴백은 `locales.ts`가 세운 **로케일 레벨 "폴백 금지" 원칙과 층위가 다르다**(design.md E-0 참조).
+10. **복제 사전 drift 그물에 구멍이 없다**(🟡34) — 대조 원본이 손으로 나열한 namespace 배열이 아니라 **메인 사전 레지스트리 전체**가 되어, 지금 누락된 `common`은 물론 앞으로 추가될 namespace도 자동으로 덮인다.
 11. **⚪ 9건이 정리된다** — 빈 값 문구 통일(72), AI 배너 그라디언트 팔레트 정리(78), 상태 dot `dark:` 짝(80), 트리 chevron 공용화(83), `rounded-[4px]` → 등재값(84), dead i18n 키 정리(86), overlay 죽은 CSS 훅 제거(88), `editor-store`의 컴포넌트 디렉터리 import 승격(90), 미등재 role 무음 생략(91).
 12. **DESIGN.md의 수치·목록이 실측과 맞는다**(⚪92·79·89) — §9 title-only 레거시 목록, §13 FieldRow 수치, §14 `lockedClass` 복제 수치, §2 raw 색 등재 목록, §4 오버레이 폰트 스택.
 
@@ -170,9 +190,10 @@ DESIGN §10 관용구 ②:
 
 ### R10. log-viewer가 계속 빌드·통과한다 (🟡34·⚪86 리스크)
 
-`MAIN_NAMESPACES`에 `common`을 추가하면 지금까지 검사 밖이던 `common.expand/collapse/clearSearch` 3키가 **값 일치 대조에 들어온다.** 두 사전의 값이 이미 다르면 즉시 red다. ⚪86의 dead 키 삭제도 위험하다 — `actionLog.role.*` 7키는 **메인 dict에선 도달 불가지만 drift 테스트의 원본 역할**이라, 지우면 복제 사전 쪽 대응 키가 대조 상대를 잃는다.
+대조 원본을 넓히면 지금까지 검사 밖이던 `common.expand/collapse/clearSearch` 3키가 **값 일치 대조에 들어온다.** 두 사전의 값이 이미 다르면 즉시 red다(기획 중 실측으로는 **drift 0**이라 그대로 green이어야 하지만, 구현 시점에 상류가 값을 바꿨을 수 있으므로 먼저 돌려본다). ⚪86의 dead 키 삭제도 위험하다 — `actionLog.role.*` 7키는 **메인 dict에선 도달 불가지만 drift 테스트의 원본 역할**이라, 지우면 복제 사전 쪽 대응 키가 대조 상대를 잃는다.
 
-- 확인: `pnpm test src/log-viewer`. `common` 추가는 **먼저 값 대조를 돌려보고** 불일치가 있으면 값을 맞춘 뒤 테스트를 넣는다.
+- 확인: `pnpm test src/log-viewer`. 대조 범위 확장은 **먼저 값 대조를 돌려보고** 불일치가 있으면 값을 맞춘 뒤 테스트를 넣는다.
+- 추가 확인: 대조 원본을 `@/i18n`의 `locales` 레지스트리로 바꾸면 이 테스트가 **`src/i18n/index.ts` → `useSettingsUiStore` 그래프를 node 환경에서 import**하게 된다. 같은 import를 하는 `src/i18n/__tests__/locales.test.ts`가 이미 node에서 green이므로 통과가 기대값이지만, red면 design.md E-3의 대체안(8개 namespace 전량 나열)으로 내린다.
 
 ### R11. `common.empty` 소비처 3곳이 함께 움직인다 (⚪72 리스크)
 
@@ -191,8 +212,9 @@ DESIGN §10 관용구 ②:
 - `pnpm typecheck` + `pnpm test` green.
 - **`as Parameters<typeof t>[0]` / `as TranslationKey` 캐스트가 0개다** — `grep -rn "as TranslationKey\|as Parameters<typeof t>" src/` 결과가 비어 있다(신규 예외는 사유 주석 필수).
 - **키를 리네임하면 tsc가 잡는다** — `src/i18n/namespaces/issue.ts`의 `section.description`을 임시로 리네임하면 `settings-ui-store.ts`가 typecheck를 깬다(확인 후 되돌린다).
-- **`t()`가 어떤 입력에도 `undefined`를 반환하지 않는다** — 미정의 키 + params 조합으로 호출해도 throw하지 않는 단위 테스트가 `src/i18n/__tests__/`에 있다.
+- **`t()`가 어떤 입력에도 `undefined`를 반환하지 않는다** — 미정의 키 + params 조합으로 호출해도 throw하지 않는 케이스가 `src/i18n/__tests__/translate.test.ts`에 있다.
 - **복제 사전 drift 그물이 `common`을 덮는다** — `log-viewer/i18n.ts`의 `common.expand` 값을 일부러 바꾸면 `pnpm test`가 red다.
+- **그 그물이 namespace를 열거하지 않는다** — `log-viewer/__tests__/i18n.test.ts`에 namespace 이름을 손으로 나열한 배열이 남아 있지 않다(항목 34가 정확히 그 열거의 구멍이었다).
 - **`TONE_BG` 밖에서 조립된 로그 배경이 0개다** — `grep -rn "bg-\(red\|amber\|blue\|green\)-200" src/sidepanel/components/` 결과가 비어 있다.
 - **overlay 토큰 3표 대조 테스트가 살아 있다** — R1의 "일부러 틀리게 하면 red" 확인 완료.
 - **`aria-pressed` 3요소가 갖춰진다** — `*.test.tsx`가 `OriginFilterBar`·`NetworkLogContent` WS 필터의 활성/비활성 `aria-pressed`를 고정한다.

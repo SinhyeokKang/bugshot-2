@@ -3,9 +3,12 @@
 ## 선행 조건
 
 - 새 권한·env·의존성·shadcn 설치 **없음**. 모든 변경이 기존 컴포넌트·토큰·메시지 안에서 끝난다.
+- **문서 기준 코드**: 이 3문서는 `225efb7b`(v1.7.18)로 감사됐고, v1.7.19 + 후속 커밋의 **N-way 로케일 인프라** 도입 후 i18n 항목(🟡32·33·34·⚪60·86·87·91)을 재검증해 갱신했다(prd.md "코드 기준 갱신"). **그 이후 상류가 또 움직였을 수 있으니 Task 7·8 착수 전 인용된 줄번호를 한 번 재확인**한다.
+- **`docs/features/french-locale/`와의 순서**: 프랑스어 로케일 기획이 대기 중이고 Task 8과 같은 파일을 만진다. **둘을 동시에 진행하지 않는다** — Task 8(특히 8-3 dead 키 삭제)은 fr 장기 브랜치가 도는 동안 넣지 않고, 순서가 어떻게 되든 **먼저 들어간 쪽이 상대 문서의 수치를 갱신**한다(design.md 위험 요소 13~15). Task 1~7·9는 fr과 무관해 순서 제약이 없다.
 - 착수 전 읽을 것:
   - `docs/DESIGN.md` §1·§2·§3·§4·§6·§9·§10·§13·§14·§15 — 이 배치의 ground truth.
   - `src/components/ui/button.tsx` — Task 2의 cva 대조 대상(설계는 §10 요약을 인용했지만 **실제 cva를 읽고** 덮을 항목을 확정한다).
+  - `src/i18n/locales.ts` + `src/test/locale-parity.ts` — Task 7·8의 ground truth. 폴백 금지/허용 테이블 구분과 N-way 대칭 검사기의 단일 출처다.
   - `docs/POSTMORTEM.md`를 `overlay`·`theme`·`i18n`·`log-colors`·`aria`로 grep — CLAUDE.md의 소환 회로.
 - **라이트/다크 두 테마로 확장을 실물 확인할 준비**: 시각 판정 태스크(Task 2·3·4)는 `pnpm build` 후 로드해야 한다. dist가 stale이면 헛테스트다.
 - 브랜치: `dev`.
@@ -50,7 +53,7 @@
   - `src/sidepanel/tabs/styleEditor/ValueCombobox.tsx:201-215` (Popover 트리거)
   - `src/sidepanel/components/TreeChevronButton.tsx` (**신규**)
   - `src/sidepanel/components/JsonTreeViewer.tsx:146-154`
-  - `src/sidepanel/tabs/DomTreeDialog.tsx:258-273`
+  - `src/sidepanel/tabs/DomTreeDialog.tsx:267-281`
 - **작업 내용**
   - **먼저 `src/components/ui/button.tsx`의 cva를 읽고** 덮어야 할 항목을 확정한다(design.md B-1·B-2의 목록은 §10 요약 기반 — 실제 cva와 대조 필요).
   - `LinkToggle` → `Button size="icon" variant="outline"` + `cn("h-9 w-9 shrink-0", linked && "border-foreground bg-foreground text-background hover:bg-foreground/80 hover:text-background")`. **`hover:text-background` 누락 금지**(위험 요소 3).
@@ -157,8 +160,8 @@
   - `src/sidepanel/tabs/statusBadges/constants.ts:41`
   - `src/sidepanel/tabs/statusBadges/LinearStatusBadge.tsx:31`
   - `src/sidepanel/tabs/statusBadges/LinearSubmittedBadge.tsx:85`
-  - `src/store/settings-ui-store.ts:80,83,86,89`
-  - `src/i18n/index.ts:33-52`
+  - `src/store/settings-ui-store.ts:84,87,90,93`
+  - `src/i18n/index.ts:35-51` (`t()` + `useT()` — **두 경로 모두**)
 - **작업 내용**
   - **7-1**: `LINEAR_STATE_I18N: Record<string, TranslationKey>`(type-only import) + 소비처 2곳의 `as Parameters<typeof t>[0]` 삭제. `settings-ui-store`의 `as TranslationKey` 4개 삭제.
   - **7-1 게이트**: 여기서 `pnpm typecheck`를 돌린다. **red면 그게 성과다** — R9의 판단 규칙(키 추가 vs id union 좁히기)을 따르고, 캐스트를 되살리지 않는다.
@@ -166,7 +169,7 @@
   - `import.meta.env.DEV`가 background 번들에서 치환되지 않으면 조건을 제거하고 무조건 `console.error`로 단순화.
 - **검증**
   - [ ] `grep -rn "as TranslationKey\|as Parameters<typeof t>" src/` 결과가 비어 있다.
-  - [ ] `src/i18n/__tests__/index.test.ts`(존재 확인 필요, 없으면 신규) — 미정의 키를 `as any`로 넘겨도 **throw하지 않고** 키 문자열을 반환한다. params가 있어도 동일(현재는 TypeError).
+  - [ ] `src/i18n/__tests__/translate.test.ts`(**기존 파일 확장** — 감사 이후 신설됐다) — 미정의 키를 `as any`로 넘겨도 **throw하지 않고** 키 문자열을 반환한다. params가 있어도 동일(현재는 TypeError). `useT()` 경로도 같은 케이스를 건다.
   - [ ] `pnpm typecheck` green (7-1 red 처리 완료 후).
   - [ ] **(게이트 증명)** `src/i18n/namespaces/issue.ts`의 `section.description`을 임시 리네임 → `settings-ui-store.ts`에서 typecheck red 확인 → 되돌린다.
   - [ ] 수동: Linear 이슈 목록에서 상태 배지 5종(backlog/unstarted/started/completed/cancelled) 라벨이 정상 렌더된다.
@@ -175,24 +178,28 @@
 
 ### Task 8: i18n 사전 정리 (소주제 E-3·E-4·E-5 — 🟡34 + ⚪86·91)
 
-> **이 태스크는 그 자체가 테스트 수정이다**(🟡34). 순서: 값 대조 → 값 정합 → 테스트 확장 → dead 키 삭제.
+> **이 태스크는 그 자체가 테스트 수정이다**(🟡34). 순서: 값 대조 → 값 정합 → 대조 범위 확장 → dead 키 삭제.
+>
+> **감사 처방에서 결론이 바뀌었다** — "`MAIN_NAMESPACES`에 `common` 추가"가 아니라 **namespace 열거 자체를 없앤다**(design.md E-3). 같은 파일이 로케일 축의 열거는 이미 걷어냈는데(N-way) namespace 축만 손으로 나열해 두었고, 항목 34가 정확히 그 열거의 구멍이다.
 
 - **변경 대상**
-  - `src/log-viewer/__tests__/i18n.test.ts:169`
+  - `src/log-viewer/__tests__/i18n.test.ts:155` (`MAIN_NAMESPACES` 및 그 아래 drift 케이스)
   - `src/i18n/namespaces/logs.ts` (dead 키 3종 ko/en 6줄 삭제 + `actionLog.role.*` 보존 주석)
-  - `src/log-viewer/markers.ts:106-109` (주석만)
-  - `src/log-viewer/i18n.ts` (값 불일치가 있으면 정합)
+  - `src/log-viewer/markers.ts:108-110` (주석만)
+  - `src/log-viewer/i18n.ts` (값 불일치가 있으면 정합 — `common.*` 3키는 ko `:140-142` / en `:273-275`)
 - **작업 내용**
-  - **8-1 (선행)**: `common.expand`·`common.collapse`·`common.clearSearch` 3키를 메인 `src/i18n/namespaces/common.ts`와 `src/log-viewer/i18n.ts`에서 **값 대조**(ko/en). 불일치가 있으면 메인 값을 정답으로 삼아 복제 사전을 맞춘다.
-  - **8-2**: `MAIN_NAMESPACES = [logs, editor, common]` + `import { common }` 추가. 배열 위에 "복제 사전에 다른 namespace 키를 추가하면 여기 등록" 주석.
-  - **8-3**: `networkLog/consoleLog/actionLog.dialog.title` 6줄 삭제. **삭제 전 `src/log-viewer/i18n.ts`에도 같은 키가 있는지 grep** — 있으면 그쪽도 함께(대조 상대 소멸 방지).
+  - **8-1 (선행)**: `common.expand`·`common.collapse`·`common.clearSearch` 3키를 메인 `src/i18n/namespaces/common.ts`와 `src/log-viewer/i18n.ts`에서 **값 대조**(등록된 전 로케일). 기획 중 실측으로는 **drift 0**이지만 상류가 움직였을 수 있으니 직접 돌린다. 불일치가 있으면 메인 값을 정답으로 삼아 복제 사전을 맞춘다.
+  - **8-2**: `MAIN_NAMESPACES` 배열을 제거하고 대조 원본을 **메인 사전 레지스트리**(`import { locales } from "@/i18n"`)로 바꾼다. 판정 로직(`복제 사전 키 중 메인에도 있는 것만 값 비교`)은 그대로. 겹치는 키는 **88개**(기존 85 + `common` 3)라 지금 시점 결과는 `common` 추가와 동일하고, 차이는 **앞으로 namespace가 늘어도 배열을 갱신할 필요가 없다**는 점이다.
+    - `@/i18n` import가 node 환경에서 문제가 되면(그 파일이 `useSettingsUiStore`를 끌어온다 — `src/i18n/__tests__/locales.test.ts`가 같은 import로 이미 green이므로 기대값은 통과) **8개 namespace 전량 나열**로 내리고 "namespace를 추가하면 여기 등록" 주석을 단다. `common`만 추가하는 감사 원안으로는 내리지 않는다.
+  - **8-3**: `networkLog/consoleLog/actionLog.dialog.title` 6줄 삭제(`logs.ts:5,48,69`=ko / `:135,178,199`=en). 복제 사전엔 이 3키가 **없음을 실측 확인**했으므로 대조 상대 소멸 문제는 없다(구현 시 grep으로 한 번 더 확인).
   - **8-4**: `actionLog.role.*` 위에 보존 사유 주석(design.md E-4 문구).
-  - **8-5**: `markers.ts`의 role 폴백에 "미등재 role은 단어를 생략한다(의도)" 주석. 액션 레코더가 실제로 기록하는 role 집합을 확인해 **기록되는데 미등재인 role이 있으면 그것만** ko/en 추가.
+  - **8-5**: `markers.ts`의 role 폴백에 "미등재 role은 단어를 생략한다(의도)" 주석. 액션 레코더가 실제로 기록하는 role 집합을 확인해 **기록되는데 미등재인 role이 있으면 그것만** 전 로케일에 추가.
 - **검증**
   - [ ] `pnpm test src/log-viewer` green.
-  - [ ] **(R10 그물 증명)** `log-viewer/i18n.ts`의 `common.expand` 값을 일부러 바꿔 drift 테스트가 **red**가 되는지 확인 후 되돌린다.
+  - [ ] **(R10 그물 증명)** `log-viewer/i18n.ts`의 `common.expand` 값을 일부러 바꿔 drift 테스트가 **red**가 되는지 확인 후 되돌린다. 감사 시점엔 이 조작이 **green으로 통과**했다 — 그게 항목 34의 본체다.
+  - [ ] `grep -n "MAIN_NAMESPACES" src/log-viewer/__tests__/i18n.test.ts` 결과가 비어 있다(열거 제거 확인). 대체안으로 내렸으면 대신 8개 namespace가 전부 나열됐는지 확인.
   - [ ] `grep -rn "dialog.title" src/` 결과에 `networkLog/consoleLog/actionLog`가 없다.
-  - [ ] `pnpm test src/i18n` green (ko/en 대칭 유지).
+  - [ ] `pnpm test src/i18n` green (N-way 대칭 유지 — `findParityViolations`·`findUncovered`·`findExtraneous` 전부).
   - [ ] 수동: log-viewer(`logs.html`)를 다운로드해 열어 액션 타임라인 마커 툴팁의 role 단어가 정상 표시된다.
 
 ---
@@ -226,8 +233,8 @@
 |---|---|
 | `src/sidepanel/lib/__tests__/resolveDark.test.ts` (신규) | `("light", true)` / `("dark", false)` / `("system", true)` / `("system", false)` 4조합 |
 | `src/lib/__tests__/log-colors.test.ts` (신규 또는 확장) | `TONE_BG_STRONG` 5키 전부 non-empty(특히 `neutral === "bg-muted"`), `TONE_BG`와 키 집합 일치 |
-| `src/i18n/__tests__/index.test.ts` (신규 또는 확장) | 미정의 키 + params → throw 없이 키 문자열 반환. 정의된 키 + params → 치환 정상. `useT()` 경로도 동일 |
-| `src/log-viewer/__tests__/i18n.test.ts` (**수정 = 항목 34 본체**) | `MAIN_NAMESPACES`에 `common` 추가 |
+| `src/i18n/__tests__/translate.test.ts` (**기존 확장** — 감사 이후 신설) | 미정의 키 + params → throw 없이 키 문자열 반환. 정의된 키 + params → 치환 정상. `useT()` 경로도 동일 |
+| `src/log-viewer/__tests__/i18n.test.ts` (**수정 = 항목 34 본체**) | 대조 원본을 메인 사전 레지스트리로 교체(namespace 열거 제거). 겹치는 88키 전부 값 일치 |
 | `src/styles/__tests__/tokens.test.ts` (**수정**) | `parseOverlayTokens` 앵커 교체. 기존 3표 대조 케이스는 그대로 통과해야 한다 |
 
 ### 컴포넌트 테스트 (`*.test.tsx` — jsdom + @testing-library/react)

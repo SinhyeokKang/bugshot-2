@@ -7,6 +7,8 @@
 - **⚪ 항목(68·93~114)은 감사 리포트 기재이고 개별 검증을 생략했다. 착수 시 해당 파일·라인을 재확인**하고, 리포트와 다르면 그 항목을 스킵하고 사유를 남긴다.
 - 새 의존성·권한·env 없음. shadcn 컴포넌트 추가 없음.
 - 다른 audit-refactor 배치(특히 5)가 진행 중이면 **G4·G5를 뒤로 미룬다**(connect 폼·배지 파일 충돌).
+- **`docs/features/french-locale/`와 G6는 같은 `src/i18n/index.ts`를 만진다 — 동시 진행 금지.** fr Task 4(`LOCALES`·`locales.fr` 등록)는 쪼갤 수 없는 원자 커밋이고 그 브랜치는 long-lived다. **fr Task 4가 dev에 들어온 뒤 G6를 착수하거나(권장), G6를 먼저 끝내고 fr 브랜치가 rebase로 흡수한다.** ⚪102의 `issueListUtils.ts`도 fr Task 7이 그 테스트를 `LOCALES` 순회로 바꾸므로 같은 규칙을 따른다. 배치 4는 무관하다(만지는 i18n 파일이 `bg-init.ts`뿐).
+- **줄번호·항목 유효성은 v1.7.19 + N-way 로케일 인프라 기준으로 재검증했다**(prd.md §코드 기준 갱신). 요약: ⚪106 무효 · ⚪102에서 `issueListUtils.ts` 제외 · 🟡54는 근거 추가.
 - 리팩터 시작 전 `docs/POSTMORTEM.md`를 변경 영역 키워드로 grep한다(`saveDraft`·`inline`·`submitTo`·`prearm`·`settings-storage`).
 
 ---
@@ -176,17 +178,21 @@
 
 ---
 
-### G6. 타입 경계 (🟡54·55·57·58·59 + ⚪106·111·112)
+### G6. 타입 경계 (🟡54·55·57·58·59 + ⚪111·112)
 
 > import 반경이 104개 파일. 커밋을 5개로 쪼갠다.
+> **⚪106은 무효**라 G6에서 빠졌다(아래 Task 6-1).
 
-#### Task 6-1: `useT` 분리 (🟡54 + ⚪106)
-- **변경 대상**: `src/i18n/index.ts`(:4·:14·:47-51) + **신규** `src/i18n/useT.ts` + `useT` 사용처
-- **작업 내용**: `useT`를 `src/i18n/useT.ts`로 옮긴다(스토어 값 import는 이쪽만). `index.ts`는 `t`·`setLocale`·`dateBcp47`만 남기고 **`@/store/settings-ui-store` 값 import를 제거**한다(`LocaleMode` 타입 import는 유지 — `import type`). ⚪106 `getLocale` 사용처 0이면 함께 삭제.
+#### Task 6-1: `useT` 분리 (🟡54)
+- **변경 대상**: `src/i18n/index.ts`(:4·:47-51) + **신규** `src/i18n/useT.ts` + `useT` 사용처
+- **작업 내용**: `useT`를 `src/i18n/useT.ts`로 옮긴다(스토어 값 import는 이쪽만). `index.ts`는 `t`·`setLocale`·`getLocale`·`dateBcp47`만 남기고 **`@/store/settings-ui-store` 값 import를 제거**한다(`LocaleMode`는 이제 `@/i18n/locales`가 정의하므로 store에서 가져올 이유 자체가 없다 — `./locales`에서 `import type`). **이 분리가 성립시키는 것**: `settings-ui-store.ts:9`가 `@/i18n/locales`를 값으로 import하고 같은 파일 `:12-13`이 "방향은 store → i18n 단방향"이라 선언해뒀는데, `index.ts:4`의 값 import가 그걸 깨고 있다. 즉 이 태스크는 번들 감량이자 **선언된 불변식 복구**다.
+- **`src/i18n/locales.ts`는 건드리지 않는다** — 의존성 0을 `src/i18n/__tests__/locale-registry.test.ts`가 소스 스캔으로 강제한다(log-viewer 별도 번들이 상대경로로 직접 끌어간다). 공용 심볼을 그쪽으로 옮기는 해법은 즉시 red.
+- **⚪106 `getLocale` 삭제는 무효 — 하지 않는다.** 리베이스 후 프로덕션 사용처가 생겼다: `src/sidepanel/tabs/issueListUtils.ts:176`의 `dateMonthStyle(getLocale())`(로케일별 월 표기).
+- **선행/후행 순서**: `docs/features/french-locale/` Task 4가 같은 `src/i18n/index.ts`를 원자 커밋으로 고친다. 동시 진행 금지(design.md 위험 요소).
 - **검증**:
-  - [ ] `grep -n "settings-ui-store" src/i18n/index.ts` 결과가 `import type`만
-  - [ ] `grep -rn "getLocale" src/ e2e/ scripts/` 0건 확인 후 삭제
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [ ] `grep -n "settings-ui-store" src/i18n/index.ts` 결과 0줄
+  - [ ] `grep -rn "getLocale" src/ e2e/ scripts/`에 `issueListUtils.ts:176`이 그대로 있다(삭제하지 않았다는 증거)
+  - [ ] `pnpm typecheck` + `pnpm test` green — `locale-registry.test.ts` 포함
   - [ ] `pnpm build` 후 `pnpm check:prearm` 통과
 
 #### Task 6-2: `bg-client.ts` 분리 (🟡57)
@@ -309,10 +315,11 @@
   - [ ] `pnpm build` + `pnpm build:log-viewer` 통과 (별도 그래프 확인)
 
 ### Task 9-3: 파일 내부 전용 export의 `export` 제거 (⚪102·98)
-- **변경 대상**: `src/sidepanel/picker-control.ts:459` · `src/sidepanel/tabs/issueListUtils.ts:161` · `src/sidepanel/30s-replay/frame-buffer.ts:6` · `src/sidepanel/lib/markdown-logs-link.ts:5` · `src/sidepanel/lib/renderLogRefs.ts:17` · `src/sidepanel/lib/buildAiStylingPrompt.ts:37` · `src/sidepanel/tabs/statusBadges/GithubStatusBadge.tsx:18` · `src/content/element-locator.ts:166`
+- **변경 대상**: `src/sidepanel/picker-control.ts:459` · ~~`src/sidepanel/tabs/issueListUtils.ts:161`~~(아래 참조) · `src/sidepanel/30s-replay/frame-buffer.ts:6` · `src/sidepanel/lib/markdown-logs-link.ts:5` · `src/sidepanel/lib/renderLogRefs.ts:17` · `src/sidepanel/lib/buildAiStylingPrompt.ts:37` · `src/sidepanel/tabs/statusBadges/GithubStatusBadge.tsx:18` · `src/content/element-locator.ts:166`
 - **작업 내용**: 외부 참조 0 확인 후 `export` 키워드만 제거(코드 이동 없음). **`element-locator.ts:166`은 테스트 전용 export라 삭제하면 테스트가 깨진다 — `// 테스트 전용 export` 주석만 붙인다.**
+- **`issueListUtils.ts`는 대상에서 뺀다(리베이스 재확인 결과).** 감사가 지목한 `:161`은 `dateLabel`이었고 지금은 `:173`으로 밀렸는데, 로케일 인프라 공사로 `src/sidepanel/tabs/__tests__/issueListUtils.test.ts`가 이걸 직접 import해 단언한다(ko/en 날짜 표기 회귀). 같은 공사로 생긴 형제 `dateMonthStyle`(`:169`)도 테스트 전용 export다. **둘 다 ⚪98과 같은 취급 — `export`를 떼지 말고 `// 테스트 전용 export` 주석만 붙인다.**
 - **검증**:
-  - [ ] 심볼마다 `grep -rn "<심볼>" src/ e2e/` 결과가 자기 파일(+ `element-locator`는 테스트)뿐
+  - [ ] 심볼마다 `grep -rn "<심볼>" src/ e2e/` 결과가 자기 파일(+ `element-locator`·`dateLabel`·`dateMonthStyle`은 테스트)뿐
   - [ ] `pnpm typecheck` + `pnpm test` green
 
 ### Task 9-4: 중복 헬퍼 2건 (⚪100·101·94)
@@ -326,6 +333,7 @@
 ### Task 9-5: 주석·별칭·미세 정리 (⚪68·93·95·96·97·103·104·105·114)
 - **변경 대상**: `src/content/overlay.ts:678`(swatch 불변식 주석 추가) · `src/background/github-upload.ts:39`(`created` 항상 true) · `src/background/github-oauth.ts:20`(1회용 wrapper 군집) · `src/content/css-source-cache.ts:624`(WHAT 재진술 영어 주석 5건) · `src/content/network-recorder.ts:9`(재진술 주석) · `src/sidepanel/components/AnnotationOverlay.tsx:231`(재진술 주석) · `src/sidepanel/lib/trailing-throttle.ts:17`(이중 단언) · `src/sidepanel/lib/buildEditorCapture.ts:4`(same-dir alias 6건) · ⚪114 배치·명명 8곳
 - **작업 내용**: **감사 리포트 기재 — 착수 시 각 라인 재확인.** 리포트와 다르면 스킵 + 사유. `css-source-cache.ts`·`network-recorder.ts`는 **회고 1위 영역 / pre-arm 청크**라 주석만 건드리고 코드는 손대지 않는다.
+- **⚪114의 `src/lib/external-url.ts`는 미변경이다.** 리베이스로 바뀐 건 이름이 비슷한 **`src/lib/external-links.ts`**(로케일별 가이드 URL — `USER_GUIDE_URLS`·`userGuideUrl`이 `@/i18n/locales`의 `LocaleTable`을 쓴다)이고, ⚪114 대상이 아니다. 두 파일을 혼동하지 말 것.
 - **검증**:
   - [ ] `src/content/` 파일들은 주석 외 diff 0
   - [ ] `pnpm typecheck` + `pnpm test` green

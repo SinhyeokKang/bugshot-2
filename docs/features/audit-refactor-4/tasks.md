@@ -7,6 +7,8 @@
 - `pnpm test`는 pre-훅이 `build:log-viewer`를 먼저 돌린다(새 체크아웃이면 필수).
 - **`ISSUES_STORE_VERSION`은 5 유지**(design.md §기존 패턴 준수). Task 3에서 bump하지 않는다.
 - 문서 커밋은 문서별로 분리(`docs(ARCHITECTURE): ...` / `docs(DIRECTORY): ...`) — Task 8·11.
+- **줄번호는 v1.7.19 + N-way 로케일 인프라 기준으로 갱신돼 있다**(prd.md §코드 기준 갱신). `settings-ui-store.ts`·`bg-init.ts`·`docs/ARCHITECTURE.md` 세 파일만 밀렸고 나머지는 그대로다.
+- **`docs/features/french-locale/`와 소스 충돌·순서 의존 없음** — fr 기획은 `src/i18n/{locales,index}.ts`·`aiLanguage.ts`·`localeLabels.ts`·`log-viewer/i18n.ts`를 건드리고 이 배치가 만지는 `bg-init.ts`·`settings-ui-store.ts`는 안 건드린다. 겹치는 건 Task 8·11의 문서 줄번호뿐이니(fr Task 8이 `DIRECTORY.md:99-101`·`ARCHITECTURE.md:256`을 고친다) 착수 시 대상 줄을 다시 확인한다.
 
 ## 태스크
 
@@ -109,22 +111,22 @@
 
 ### Task 8: settings-ui-store 버전 문서 정합 (항목 17, **코드 변경 0**)
 
-- **변경 대상**: `docs/ARCHITECTURE.md:576`, `docs/DIRECTORY.md:96`
-- **작업 내용**: 두 곳의 `settings-ui-store` 버전 서술을 **v9 → v10**으로 고치고 `v10은 aiLanguage 추가`를 편입한다. `docs/DIRECTORY.md:96`은 `settings-ui v9:` 헤더를 v10으로 바꾸고 필드 목록에 `aiLanguage`(AI 출력 언어, v10 추가·기본 `auto`)를 더한다. **코드는 손대지 않는다** — `src/store/settings-ui-store.ts:250`의 `version: 10`은 이미 정확하고, `migrateSettingsUi`(`:135-157`)는 버전 비교 없는 nullish 정규화 + `merge`(`:254-262`) 재정규화라 멱등이다. 커밋은 문서별로 분리.
-  - 참고: 같은 `ARCHITECTURE.md:576` 문장 끝의 "`IssueRecord`의 비파괴 optional 필드 추가(…)" 선례 목록에 Task 3의 `apiHostsDerived`를 더할지는 design.md가 지정하지 않았다 — 항목 12 완료 후 `/push` 문서 트라이아지에서 판단한다.
+- **변경 대상**: `docs/ARCHITECTURE.md:582`, `docs/DIRECTORY.md:96`
+- **작업 내용**: 두 곳의 `settings-ui-store` 버전 서술을 **v9 → v10**으로 고치고 `v10은 aiLanguage 추가`를 편입한다. `docs/DIRECTORY.md:96`은 `settings-ui v9:` 헤더를 v10으로 바꾸고 필드 목록에 `aiLanguage`(AI 출력 언어, v10 추가·기본 `auto`)를 더한다. **코드는 손대지 않는다** — `src/store/settings-ui-store.ts:268`의 `version: 10`은 이미 정확하고, `migrateSettingsUi`(`:133-158`)는 버전 비교 없는 nullish 정규화 + `mergePersistedSettings`(`:162-175`) 재정규화라 멱등이다. **리베이스로 바뀐 두 가지도 같이 반영한다**(design.md §항목 17): 재정규화가 persist 옵션 안 익명 함수에서 `mergePersistedSettings` **named export로 추출**됐고, `migrateSettingsUi`에 `state.locale = normalizeLocale(state.locale)`(`:154`, 다운그레이드 방어)가 추가됐다. 커밋은 문서별로 분리.
+  - 참고: 같은 `ARCHITECTURE.md:582` 문장 끝의 "`IssueRecord`의 비파괴 optional 필드 추가(…)" 선례 목록에 Task 3의 `apiHostsDerived`를 더할지는 design.md가 지정하지 않았다 — 항목 12 완료 후 `/push` 문서 트라이아지에서 판단한다.
 - **검증**:
   - [ ] `git diff --stat`에 `src/` 파일이 **하나도 없다**
   - [ ] `grep -n "settings-ui-store\` v9\|settings-ui v9" docs/` 결과 0줄
-  - [ ] 두 문서의 새 서술이 `src/store/settings-ui-store.ts:249-250`의 주석·`version` 값과 문자 단위로 일치
+  - [ ] 두 문서의 새 서술이 `src/store/settings-ui-store.ts:267-268`의 주석·`version` 값과 문자 단위로 일치
 
 ### Task 9: `bugshot-app-settings` persist 키 상수화 (항목 18)
 
 - **변경 대상**: `src/lib/session-keys.ts`, `src/store/settings-ui-store.ts`, `src/i18n/bg-init.ts`, `src/lib/__tests__/session-keys.test.ts`
-- **작업 내용**: `src/lib/session-keys.ts`에 `export const APP_SETTINGS_PERSIST_KEY = "bugshot-app-settings";`를 `ISSUES_PERSIST_KEY`(`:21`) 바로 아래 형제로 추가하고, 같은 형태의 이유 주석(background `i18n/bg-init.ts`가 이 봉투를 직독하므로 리터럴을 두 벌 두면 로케일 미러링이 타입 에러 없이 죽는다)을 붙인다. 호출부 5곳을 상수 참조로 교체 — `settings-ui-store.ts:248`의 `name:`, `bg-init.ts:14,15,20,21`. **위치는 `session-keys.ts` 고정** — `src/lib/settings-storage.ts`는 다른 store의 다른 키(`bugshot-settings`)를 다루고 8개 플랫폼 auth 타입을 import하므로, 한 글자 차이 이름이 한 파일에 공존하는 것 자체가 사고 지점이다(대안 7). `session-keys.ts`는 import 0개 leaf라 `bg-init.ts`에 sidepanel 그래프가 유입되지 않는다. **오타는 전 사용자 설정 초기화이고 타입 에러가 안 난다**(위험 3) — 값 동일성을 단위 테스트로 잠근다(`src/lib/__tests__/settings-storage.test.ts:93-95`가 `SETTINGS_STORAGE_KEY`에 하는 것과 같은 형태).
+- **작업 내용**: `src/lib/session-keys.ts`에 `export const APP_SETTINGS_PERSIST_KEY = "bugshot-app-settings";`를 `ISSUES_PERSIST_KEY`(`:21`) 바로 아래 형제로 추가하고, 같은 형태의 이유 주석(background `i18n/bg-init.ts`가 이 봉투를 직독하므로 리터럴을 두 벌 두면 로케일 미러링이 타입 에러 없이 죽는다)을 붙인다. 호출부 5곳을 상수 참조로 교체 — `settings-ui-store.ts:266`의 `name:`, `bg-init.ts:17,18,23,24`. **위치는 `session-keys.ts` 고정** — `src/lib/settings-storage.ts`는 다른 store의 다른 키(`bugshot-settings`)를 다루고 8개 플랫폼 auth 타입을 import하므로, 한 글자 차이 이름이 한 파일에 공존하는 것 자체가 사고 지점이다(대안 7). 리베이스로 생긴 `src/i18n/locales.ts`(의존성 0 leaf)도 후보로 재검토했으나 **로케일 레지스트리에 무관한 상수를 얹지 않는다**로 유지(design.md §항목 18). `session-keys.ts`는 import 0개 leaf라 `bg-init.ts`에 sidepanel 그래프가 유입되지 않는다 — `bg-init.ts`가 이미 `@/i18n/locales`를 import하고도 SW 번들이 멀쩡한 게 같은 형태의 실측 근거다. **오타는 전 사용자 설정 초기화이고 타입 에러가 안 난다**(위험 3) — 값 동일성을 단위 테스트로 잠근다(`src/lib/__tests__/settings-storage.test.ts:93-95`가 `SETTINGS_STORAGE_KEY`에 하는 것과 같은 형태).
 - **검증**:
   - [ ] `src/lib/__tests__/session-keys.test.ts`에 `expect(APP_SETTINGS_PERSIST_KEY).toBe("bugshot-app-settings")` 추가, green
-  - [ ] `grep -rn '"bugshot-app-settings"' src/` 결과가 **정확히 2줄** — 상수 정의(`session-keys.ts`) + 값 잠금 테스트 2벌(`session-keys.test.ts` 신규, `settings-ui-store.test.ts:568`의 기존 `PERSIST_KEY`). **프로덕션 코드에는 1줄만** 남는다
-  - [ ] `pnpm test src/store/__tests__/settings-ui-store.test.ts` green — rehydrate 재정규화 describe(`:566`)가 여전히 저장분을 읽는다(키가 안 바뀐 증거)
+  - [ ] `grep -rn '"bugshot-app-settings"' src/` 결과가 **정확히 3줄** — 상수 정의(`session-keys.ts`) 1줄 + 값 잠금 테스트 2줄(`session-keys.test.ts` 신규, `settings-ui-store.test.ts:624`의 기존 `PERSIST_KEY`). **프로덕션 코드에는 1줄만** 남는다
+  - [ ] `pnpm test src/store/__tests__/settings-ui-store.test.ts` green — rehydrate 재정규화 describe(`:622`)가 여전히 저장분을 읽는다(키가 안 바뀐 증거)
   - [ ] `pnpm typecheck` green
 
 ### Task 10: `PLATFORM_FALLBACK_ORDER` 컴파일 강제 (항목 71)
@@ -150,7 +152,7 @@
 
 ### Task 11: orphan GC 실패 정책 문서 정합 (항목 73, **코드 변경 0**)
 
-- **변경 대상**: `docs/ARCHITECTURE.md:64`
+- **변경 대상**: `docs/ARCHITECTURE.md:64` (리베이스 후에도 같은 줄 — 500번대 이후만 밀렸다)
 - **작업 내용**: "pending prune의 세션 1회 플래그도 삭제가 성공한 뒤에만 기록한다"를 실제 계약으로 정정한다 — **참조 수집이 실패하면 prune 전체를 건너뛰고 플래그도 안 남기지만, 개별 delete 실패는 삼킨다(플래그는 그대로 기록된다)**. **코드를 문서에 맞추지 않는다**(대안 8): 실패 방향이 "미삭제"라 무해하고, 개별 실패를 전파하면 delete 하나가 실패할 때마다 세션 플래그가 안 서서 매 기동 전량 재스캔이 돈다. 문단의 나머지 취지("살아있는 것 계산 실패 → 아무것도 안 살아있음으로 해석 금지")는 유지한다.
 - **검증**:
   - [ ] `git diff --stat`에 `src/` 파일이 **하나도 없다**

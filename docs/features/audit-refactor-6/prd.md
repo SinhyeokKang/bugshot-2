@@ -2,6 +2,16 @@
 
 > 제품 기능이 아니라 코드베이스 감사(2026-08-11 `/audit`) 후속 정리다. 사용자 노출 동작 변경은 없다(순수 내부 구조 정리).
 
+## 코드 기준 갱신 (v1.7.19 + N-way 로케일 인프라 이후)
+
+이 문서는 커밋 `225efb7b`(v1.7.18) 시점 코드로 감사한 결과를 옮긴 것이고, 그 뒤 v1.7.19와 **N-way 로케일 인프라 대공사**(프랑스어 추가 준비 — `src/i18n/locales.ts` 신설, `LocaleMode`·`detectLocale`·`normalizeLocale`이 store에서 그쪽으로 이관)가 리베이스로 들어왔다. **재검증 결과 이 배치의 항목은 그 변경으로 해소되지 않았다.** 달라진 것은 셋뿐이다:
+
+- **🟡54 — 근거가 하나 늘었다.** `i18n/index.ts`의 스토어 값 import는 그대로인데, 타입 의존이 반대로 뒤집혀 이제 **선언된 단방향(store → i18n) 위반**이기도 하다(아래 배경 §54).
+- **⚪106 — 무효.** `getLocale`에 프로덕션 사용처가 생겼다(`src/sidepanel/tabs/issueListUtils.ts:176`). 삭제하지 않는다.
+- **⚪102 — 대상 1건 변경.** `issueListUtils.ts`의 파일 내부 전용 export였던 `dateLabel`이 테스트에서 import되기 시작해 **삭제·비공개화 대상이 아니라 주석 대상**(⚪98과 같은 취급)이 됐다.
+
+그 외 인용 파일·줄번호는 대부분 그대로다. 예외로 `src/lib/external-links.ts`가 이 공사로 바뀌었는데, ⚪114가 가리키는 `src/lib/external-url.ts`와는 **다른 파일**이다(이름이 비슷해 혼동 주의).
+
 예외 없음. 이 배치의 모든 항목은 **동일 출력·동일 동작을 유지한 채** 구현을 한 곳으로 모으거나 죽은 코드를 걷어내는 것이다. 단 항목 48만 **폴백 값 통일**이라 이론상 출력이 바뀔 수 있는데, 바뀌는 대상은 "Asana 인라인 이미지의 파일 확장자"이고 실제 도달 조건(파싱 실패 data URL)이 캡처 파이프라인에 존재하지 않는다 — design.md "위험 요소" R6 참조.
 
 ## 배치 지도
@@ -31,7 +41,9 @@
 여기에 **경계가 흐려진 것** 두 계열이 붙는다:
 
 - `src/types/messages.ts`는 이름과 달리 선언 전용이 아니다 — `BgError` 클래스·`sendBg`·에러 판독 4개·emitter 7개가 들어 있고, `src/types/` 나머지 17개 파일은 선언 전용이다(🟡57). 이 불일치가 툴링까지 오염시켰다: `scripts/coverage-report.mjs:66`의 `isBrowserBound()`가 `src/types/`를 **"타입 선언 (실행 코드 없음)"** 이라는 근거로 통째 제외하는데, 그 근거가 사실이 아니다(🟡58).
-- `src/i18n/index.ts:4`가 `useSettingsUiStore`를 **값 import**한다(🟡54). 그런데 스토어가 필요한 건 React 훅인 `useT`(:48)뿐이고, background가 쓰는 건 `t()`다. 결과적으로 `t()` 하나 때문에 zustand persist 스토어 전체가 SW 번들로 들어간다 — `src/store/settings-ui-store.ts:214-215`가 **"이 스토어는 background service worker 번들에 포함되므로 UI DnD 라이브러리를 그래프에 끌어들이면 안 된다"** 고 경고하는 그 스토어다. CLAUDE.md의 "store는 `sidepanel/tabs`를 import하지 않는다" 게이트와 같은 방향의 위반이 반대편에서 일어나고 있다.
+- `src/i18n/index.ts:4`가 `useSettingsUiStore`를 **값 import**한다(🟡54). 그런데 스토어가 필요한 건 React 훅인 `useT`(:47)뿐이고, background가 쓰는 건 `t()`다. 결과적으로 `t()` 하나 때문에 zustand persist 스토어 전체가 SW 번들로 들어간다 — `src/store/settings-ui-store.ts:232-233`이 **"이 스토어는 background service worker 번들에 포함되므로 UI DnD 라이브러리를 그래프에 끌어들이면 안 된다"** 고 경고하는 그 스토어다. CLAUDE.md의 "store는 `sidepanel/tabs`를 import하지 않는다" 게이트와 같은 방향의 위반이 반대편에서 일어나고 있다.
+  - **N-way 로케일 인프라 이후 근거가 하나 더 붙었다 — 이제 *선언된* 의존 방향 위반이다.** `LocaleMode` 정의가 store에서 신설 `src/i18n/locales.ts`로 이관되면서 **store가 `@/i18n/locales`를 값으로 import**하고(`settings-ui-store.ts:9` — `detectLocale`·`normalizeLocale`), 같은 파일 `:12-13`이 re-export 위에 **"방향은 store → i18n 단방향이다"** 라고 못박았다. `i18n/index.ts:4`의 값 import가 정확히 그 단방향을 깨서 i18n ↔ store 순환을 만든다. 즉 이 항목은 감사 시점의 "SW 번들 비대"에 더해 **문서화된 불변식 위반**이 됐다.
+  - **해법의 제약도 그만큼 명확해졌다.** `src/i18n/locales.ts`는 **의존성 0을 유지해야 하는** 모듈이고(log-viewer 별도 번들이 상대경로로 직접 끌어가고, SW도 탄다), `src/i18n/__tests__/locale-registry.test.ts`가 **소스를 읽어 런타임 import 0을 강제**한다. 따라서 `useT`를 떼어낸 뒤 `index.ts`에 남는 것도 `./ko`·`./en`·`./locales`(타입+상수)까지여야 하고, **`locales.ts` 쪽으로 무언가를 밀어 넣는 해법은 그 테스트가 즉시 red로 잡는다.**
 
 마지막으로 **무음 데이터 유실 지점 하나** — `src/store/editor-store.ts:867`의 `confirmDraft`는 captureMode 4분기가 각자 `saveDraft({...})`를 부르는데, 그 안의 공통 필드 12줄(`id`·`status`·`platform`·`title`·`createdAt`·`updatedAt`·`pageUrl`·`pageTitle`·`draft`·3개 로그 blobKey)이 **4벌 복제**돼 있다(🟡62, 함수 전체 ~252줄). 한 분기에서 필드를 빠뜨리면 typecheck도 테스트도 통과하고 데이터만 조용히 사라진다.
 
@@ -65,7 +77,7 @@ CLAUDE.md 작업 원칙은 **"기존 dead code는 언급만 하고 삭제하지 
 6. **`*ConnectFlow` 6개가 1개 컴포넌트가 된다**(🟡50) — jira·slack은 형태가 달라 제외(design.md 판정표).
 7. **`SubmittedBadge` 7개의 error/deleted·loading 렌더가 1벌이 된다**(🟡51) — 본체는 그대로 둔다(판정표 참조).
 8. **connect 폼의 라벨 행이 `FieldRow`를 쓴다**(🟡53) — 새 추상화 없이 기존 단일 출처로 치환만.
-9. **`t()`가 zustand 스토어를 끌고 들어가지 않는다**(🟡54) — `useT`를 분리해 background 번들에서 `settings-ui-store`가 빠진다.
+9. **`t()`가 zustand 스토어를 끌고 들어가지 않는다**(🟡54) — `useT`를 분리해 background 번들에서 `settings-ui-store`가 빠지고, **`settings-ui-store.ts:12-13`이 선언한 "store → i18n 단방향"이 실제로 성립한다**(지금은 양방향 값 import라 순환).
 10. **`networkLogPath`가 단일 출처다**(🟡55) — `extractPath` 제거.
 11. **`settings-storage`의 13벌 골격이 테이블 1개로 수렴한다**(🟡56) — 9번째 플랫폼을 추가할 때 read/write 함수를 새로 쓰지 않는다.
 12. **`src/types/`가 선언 전용이 된다**(🟡57) — 런타임 코드가 `src/lib/`으로 나가고, 그 결과 `scripts/coverage-report.mjs:66`의 제외 근거가 **사실**이 된다(🟡58). emitter 7종은 팩토리 1개로 수렴한다(⚪112).

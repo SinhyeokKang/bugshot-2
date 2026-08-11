@@ -129,7 +129,7 @@ base cva와의 차이를 하나씩 확인한다:
 
 ### B-3. 트리 chevron 공용화 (⚪83)
 
-`JsonTreeViewer.tsx:146`과 `DomTreeDialog.tsx:259`의 className이 바이트 동일하다. **먼저 두 차이를 결정한다**(PRD "어긋난 6곳" 6번):
+`JsonTreeViewer.tsx:146`과 `DomTreeDialog.tsx:267`의 className이 바이트 동일하다. **먼저 두 차이를 결정한다**(PRD "어긋난 6곳" 6번):
 
 1. **`aria-expanded`**: JsonTreeViewer만 갖는다 → **둘 다 갖는다**(접근성은 더 강한 쪽으로 수렴).
 2. **i18n 키**: `common.expand/collapse` vs `dom.expand/collapse` → **호출부가 라벨을 주입**하게 해 둘 다 보존한다(DOM 트리는 "하위 요소 펼치기" 같은 도메인 문구를 유지할 여지가 있고, `dom.*` 키를 지우면 log-viewer 복제 사전 대조[⚪86 참조]와 얽힌다).
@@ -356,17 +356,34 @@ if (darkStart === -1) throw new Error("overlay.ts에 다크 인스펙터 블록�
 
 ## 소주제 E — i18n 타입 안전 (🟡32·33·34 + ⚪60·72·86·87·91)
 
+### E-0. 전제 — "폴백 금지"는 **로케일 축**의 원칙이고, 항목 32는 **키 축**이다
+
+이 배치가 감사된 뒤 `src/i18n/locales.ts`(로케일 레지스트리 단일 출처)가 신설되면서 **폴백에 대한 명시적 원칙이 코드에 박혔다.** 항목 32를 읽는 다음 사람이 "폴백 금지라 했으니 32는 폐기"로 오독하지 않도록 층위를 먼저 갈라 둔다.
+
+`locales.ts`가 세운 구분은 이렇다.
+
+| 구분 | 형태 | 대상 | 목적 |
+|---|---|---|---|
+| **폴백 금지 테이블** | `Record<LocaleMode, T>` (`Partial` 금지) | `locales`(`i18n/index.ts:8`) · `BCP47`(`locales.ts:17`) · `LOCALE_AI_PRESET` 등 | 로케일을 추가하면 **컴파일러가 여기를 채우라고 지목**한다. 안 채우면 조회가 `undefined`가 되어 `t()`가 죽거나 **무음으로 영어가 누출**된다. |
+| **폴백 허용 테이블** | `LocaleTable<T>` = `Partial<Record<LocaleMode,T>> & Record<typeof DEFAULT_LOCALE, T>` + `localeValue()`(`locales.ts:58-63`) | 프롬프트 섹션 설명(`SECTION_DESC_BASE`·`MODE_HINTS`) 등 | **"영어 스캐폴딩 + `Write in X`"가 설계인 표**에만 쓴다. 여기서의 en 폴백은 결함이 아니라 의도다. |
+
+**항목 32가 다루는 건 이 둘 중 어느 쪽도 아니다.** 폴백 금지/허용은 *"이 로케일의 사전이 통째로 있는가"* 를 가르는 **로케일 축**의 규칙이고, 항목 32는 *"사전은 있는데 그 안에 이 키가 없는가"* 를 다루는 **키 축**이다. `locales`가 폴백 금지 테이블인 덕분에 `locales[currentLocale]`은 항상 존재하지만, `locales[currentLocale][key]`는 캐스트가 뚫린 만큼 `undefined`일 수 있다 — `t()`에 폴백이 없어 그 값이 그대로 `interpolate`에 들어간다(`index.ts:39`).
+
+따라서 두 원칙은 충돌하지 않고 **같은 방향**이다. 로케일 축의 해법이 "타입으로 강제하고 폴백을 금지한다"였듯, 키 축의 해법도 **타입 강제가 본체**(E-2의 캐스트 제거)이고 런타임 `return key`는 도달 불가 자리의 안전망이다. 실제로 `DEFAULT_LOCALE = "en"`(미지 *로케일* 값이 떨어질 곳)과 `return key`(미지 *키* 가 떨어질 곳)는 같은 설계 습관의 두 적용이다 — 어느 쪽도 "조용히 잘못된 문자열"을 만들지 않는다.
+
+> 한 줄 요약: **로케일이 없으면 en으로, 키가 없으면 키 문자열로.** 전자는 사용자에게 읽히는 폴백이라 타입으로 봉하고, 후자는 개발자에게 보이라고 있는 폴백이라 DEV `console.error`를 얹는다.
+
 ### E-1. 항목 32 결론 — **폴백은 넣되, 그게 그물이 아니다**
 
 먼저 현재 타입이 무엇을 막는지 확정했다:
 
 - `src/i18n/ko.ts:21`: `export type TranslationKey = keyof typeof ko;` — 875개 키의 **닫힌 union**.
-- `src/i18n/index.ts:33-38`: `t(key: TranslationKey, params?)`.
+- `src/i18n/index.ts:35-40`: `t(key: TranslationKey, params?)`. 훅 경로 `useT()`는 `:47-51`에 **같은 `interpolate` 호출을 복제**하고 있다(폴백을 넣을 때 두 경로를 함께 고쳐야 하는 이유).
 
 즉 **정상 호출부에서 미정의 키는 원천적으로 불가능하다.** 런타임 실패는 오직 두 escape hatch에서만 나온다:
 
 1. `as Parameters<typeof t>[0]` 캐스트 — `LinearStatusBadge.tsx:31`·`LinearSubmittedBadge.tsx:85`(🟡33)
-2. `as TranslationKey` 캐스트 — `settings-ui-store.ts:80,83,86,89`(⚪60)
+2. `as TranslationKey` 캐스트 — `settings-ui-store.ts:84,87,90,93`(⚪60)
 
 **결론: 실패 모드 선택보다 escape hatch 제거가 먼저다.** 폴백만 넣으면 미정의 키가 **무음으로 키 문자열을 렌더**해 오히려 발견이 늦어진다(감사 지적대로). 캐스트를 없애면 키 리네임이 `pnpm typecheck`에서 즉시 잡히고, 폴백은 그때부터 **"이론상 도달 불가한 자리의 안전망"** 역할만 한다.
 
@@ -390,7 +407,7 @@ export function t(key: TranslationKey, params?: Record<string, string | number>)
 // useT()의 클로저도 같은 lookup을 쓴다 — 두 경로가 갈리면 훅 경유만 폴백이 없다.
 ```
 
-**`throw`를 쓰지 않는 이유**: 개발 중에 드물게 도달하는 분기 하나가 화면 전체를 흰 화면으로 만든다. `console.error`로 충분히 시끄럽고, 진짜 게이트는 tsc다. **복제 사전(`log-viewer/i18n.ts:282`)의 `return key`와 동작이 같아져** 두 사전의 실패 모드도 수렴한다(감사가 지적한 비대칭 해소).
+**`throw`를 쓰지 않는 이유**: 개발 중에 드물게 도달하는 분기 하나가 화면 전체를 흰 화면으로 만든다. `console.error`로 충분히 시끄럽고, 진짜 게이트는 tsc다. **복제 사전(`log-viewer/i18n.ts:293`)의 `if (!text) return key;`와 동작이 같아져** 두 사전의 실패 모드도 수렴한다(감사가 지적한 비대칭 해소).
 
 **`import.meta.env.DEV` 가용성 확인 필요**: `src/i18n/index.ts`는 사이드패널·background 양쪽 번들에 들어간다. Vite가 두 진입 모두에서 `import.meta.env`를 치환하는지 구현 시 확인하고, 안 되면 조건 없이 `console.error`로 단순화한다(프로덕션 콘솔 노이즈는 도달 불가 자리라 무해).
 
@@ -409,7 +426,7 @@ export const LINEAR_STATE_I18N: Record<string, TranslationKey> = {
 
 소비처 2곳(`LinearStatusBadge.tsx:31`·`LinearSubmittedBadge.tsx:85`)에서 `as Parameters<typeof t>[0]`를 삭제한다. `Record<string, …>`(열린 키)는 유지 — Linear API의 `state.type`이 열린 집합이라 `undefined` 가능성이 실재하고, 두 소비처가 이미 `| undefined`로 받아 처리한다.
 
-**⚪60** — `src/store/settings-ui-store.ts:80-90`: `as TranslationKey`를 **그냥 지운다.**
+**⚪60** — `src/store/settings-ui-store.ts:83-93`: `as TranslationKey`를 **그냥 지운다.**
 
 ```ts
 export function sectionLabelKey(id: IssueSectionId): TranslationKey {
@@ -423,20 +440,38 @@ TS는 반환 위치의 컨텍스트 타입으로 템플릿 리터럴 표현식�
 - 실제로 UI에 렌더되는 조합이면 → **키를 ko/en 양쪽에 추가**한다.
 - 렌더되지 않는 조합(예: 특정 섹션에 help가 없음)이면 → **id 파라미터 타입을 좁힌다**(`TextSectionId` 하위 union 신설). 캐스트를 되살리지 않는다.
 
-### E-3. drift 그물 (🟡34)
+### E-3. drift 그물 (🟡34) — **결론이 바뀌었다: `common` 추가가 아니라 열거 자체를 없앤다**
 
-`src/log-viewer/__tests__/i18n.test.ts:169`:
+감사 시점의 처방은 "`MAIN_NAMESPACES`에 `common`을 더한다"였다. 그 사이 이 파일이 **N-way로 전면 재작성**되면서(로케일 축의 하드코딩 제거 — `koDict`/`enDict` 2자 비교 → `DICTS`·`LOCALES` 순회 + `@/test/locale-parity`) 판단 근거가 달라졌다.
+
+현재 상태(`src/log-viewer/__tests__/i18n.test.ts:155`):
+
+```ts
+const MAIN_NAMESPACES: Record<string, Record<string, string>>[] = [logs, editor];
+```
+
+**로케일 축은 레지스트리가 돌게 고쳐놓고 namespace 축은 여전히 손으로 열거한다.** 항목 34는 정확히 그 열거의 구멍이다 — `common`이 빠진 게 원인이지, `common`만 특별한 게 아니다. 같은 그물에서 로케일 축은 "열거하면 다음 것에서 구멍"이라 판단해 걷어냈으므로, namespace 축도 같은 판단을 적용하는 게 일관된다.
+
+**채택: 대조 원본을 메인 사전 레지스트리 전체로 바꾼다.**
 
 ```ts
 // before
-const MAIN_NAMESPACES = [logs, editor];
-// after
-const MAIN_NAMESPACES = [logs, editor, common];
+const MAIN_NAMESPACES: Record<string, Record<string, string>>[] = [logs, editor];
+//   → LOCALES × MAIN_NAMESPACES 이중 순회
+
+// after — 메인 i18n의 폴백 금지 레지스트리를 그대로 진실로 쓴다.
+import { locales } from "@/i18n";
+//   → LOCALES 순회. 각 로케일에서 locales[locale]이 곧 메인 사전 전체다.
+//   판정은 그대로 "복제 사전 키 중 메인에도 있는 것만 값 비교".
 ```
 
-복제 사전이 실제로 갖는 `common.*` 3키(`common.expand`·`common.collapse`·`common.clearSearch` — `log-viewer/i18n.ts:274-276` 실측)가 대조 범위에 들어온다. **R10대로 값 불일치가 이미 있으면 먼저 값을 맞춘 뒤 테스트를 확장**한다(테스트가 red인 채로 커밋하지 않는다).
+**넓어지는 범위는 실측으로 0이다** — 복제 사전 122키 중 메인과 겹치는 건 **88키**이고, 그 88키가 `logs`+`editor`+`common` 3 namespace로 정확히 소진된다(`logs`+`editor`만이면 85키, `common` 3키가 나머지). 즉 지금 시점에서 이 변경은 **`common` 추가와 결과가 동일하고**, 겹치는 88키 전부에 대해 **ko/en drift는 0**이다(기획 중 실측 — 그대로 green이어야 한다). 차이는 미래에만 있다: 복제 사전에 새 namespace 키가 들어와도 배열을 갱신하지 않아 생기는 무음 구멍이 **구조적으로 사라진다.**
 
-> 더 근본적인 대안(namespace를 하드코딩하지 않고 메인 dict 전체와 대조)은 **채택하지 않는다** — `logViewer.*` 38키처럼 log-viewer 전용 키가 메인에 없는 게 정상이라, 전체 대조는 "메인에 있는 키만 값 비교"라는 현재 로직과 결과가 같으면서 import만 늘린다. `MAIN_NAMESPACES` 배열을 유지하되 **주석에 "복제 사전에 키를 추가하면 그 namespace를 여기 등록"을 명시**해 다음 사람이 같은 구멍을 안 만들게 한다.
+- 남는 34키(`logViewer.*` 19키 등)는 메인에 대응이 없는 log-viewer 전용이라 값 대조 대상이 아니다 — 판정 로직이 `k in table`로 이미 걸러낸다.
+- `@/i18n` import는 vitest에서 `src/i18n/index.ts`로 해석된다(log-viewer 전용 alias는 `vite.log-viewer.config.ts`에만 있다). 그 파일이 `useSettingsUiStore`를 끌어오지만 `src/i18n/__tests__/locales.test.ts`가 이미 같은 import로 node 환경에서 green이므로 통과가 기대값이다.
+- **폴백 대안**: 위 import가 node 환경에서 문제가 되면 `MAIN_NAMESPACES`를 유지하되 **8개 namespace를 전량 나열**(`common, app, issue, editor, integrations, settings, logs, ai`)하고, 배열 위에 "namespace를 추가하면 여기 등록" 주석을 단다. 감사 처방(`common`만 추가)으로 내리지는 않는다 — 그건 지금 아는 구멍 하나만 막고 구조는 그대로 두는 것이다.
+
+**R10대로 값 불일치가 이미 있으면 먼저 값을 맞춘 뒤 테스트를 확장**한다(테스트가 red인 채로 커밋하지 않는다). 복제 사전의 `common.*` 3키 위치는 `log-viewer/i18n.ts:140-142`(ko)·`:273-275`(en)다.
 
 ### E-4. dead 키 (⚪86) — **⚪34와 함께 설계**
 
@@ -447,7 +482,7 @@ const MAIN_NAMESPACES = [logs, editor, common];
 | `networkLog.dialog.title` · `consoleLog.dialog.title` · `actionLog.dialog.title` (ko/en 6줄) | 코드 참조 **0**(`grep` 확인, i18n 파일 자신 제외) | **삭제** |
 | `actionLog.role.*` 7키 (ko/en 14줄) | 메인 dict 경로 참조 0. 실소비는 `log-viewer/markers.ts:108`의 복제 사전 | **유지** |
 
-`actionLog.role.*`을 지우면 안 되는 이유가 E-3과 맞물린다: `MAIN_NAMESPACES`에 `logs`가 있으므로 이 7키는 **복제 사전 값의 대조 원본**이다. 메인에서 지우면 대조 상대가 사라져 log-viewer 쪽 값이 아무렇게나 drift해도 그물에 안 걸린다. **주석으로 역할을 명시**한다:
+`actionLog.role.*`을 지우면 안 되는 이유가 E-3과 맞물린다: drift 대조가 메인 사전을 원본으로 삼으므로 이 7키는 **복제 사전 값의 대조 원본**이다(E-3의 어느 형태를 택하든 `logs` namespace는 대조 범위 안이다). 메인에서 지우면 대조 상대가 사라져 log-viewer 쪽 값이 아무렇게나 drift해도 그물에 안 걸린다. **주석으로 역할을 명시**한다:
 
 ```ts
 // actionLog.role.*: 메인 dict 소비처는 없다(실소비는 log-viewer/markers.ts의 복제 사전).
@@ -458,7 +493,7 @@ const MAIN_NAMESPACES = [logs, editor, common];
 
 ### E-5. 열린 집합 role (⚪91)
 
-`src/log-viewer/markers.ts:106-109`:
+`src/log-viewer/markers.ts:108-110`:
 
 ```ts
 const roleKey = e.role ? `actionLog.role.${e.role}` : "";
@@ -488,7 +523,7 @@ const target = rw && rw !== roleKey ? `"${name}" ${rw}` : `"${name}"`;
 
 ### E-7. namespace 잡동사니 (⚪87)
 
-PRD "어긋난 6곳" 5번대로 실측치를 확정했다: 총 키 **875**, top-level prefix **52**, 리프이자 prefix인 키 **34**, `logViewer.*` 소유권 2/38 분산, `viewerLogin`/`viewerUsername`/`viewerName` 3이명(github·linear가 `viewerLogin`, gitlab이 `viewerUsername`, asana·clickup·slack이 `viewerName`), `annotation.thickness.S/M/L`만 대문자 리프.
+PRD "어긋난 6곳" 5번대로 실측치를 확정했다(N-way 인프라 도입 후 재측정에도 **동일**): 총 키 **875**, top-level prefix **52**, 리프이자 prefix인 키 **34**, `logViewer.*` 소유권 **1키(메인) / 19키(복제 사전)** 분산, `viewerLogin`/`viewerUsername`/`viewerName` 3이명(github·linear가 `viewerLogin`, gitlab이 `viewerUsername`, asana·clickup·slack이 `viewerName`), `annotation.thickness.S/M/L`만 대문자 리프.
 
 **채택: 재편하지 않는다**(PRD 비목표). 다만 두 가지는 **저비용으로 정리 가능**하므로 구현 시 판단한다:
 
@@ -592,8 +627,9 @@ function handleStart(frameToken?: string, theme?: "light" | "dark"): void;
 
 ## 기존 패턴 준수
 
-- **i18n ko/en 동시 갱신** — CLAUDE.md: `src/i18n/` 편집 시 PostToolUse 훅이 `locales.test.ts`(키 대칭·빈 값·placeholder 토큰 일치)를 자동 실행해 불일치를 차단한다. 신규 키 `annotation.textInput`은 ko/en 양쪽에 넣는다.
-- **사전은 두 벌** — CLAUDE.md: log-viewer는 `src/log-viewer/i18n.ts`에 복제 사전을 따로 둔다. 훅 matcher(`*src/i18n/*`)에 안 걸리고 `pnpm test`가 잡는다. E-3·E-4가 이 규칙의 그물 자체를 손대는 작업이다.
+- **i18n 로케일 동시 갱신** — CLAUDE.md: `src/i18n/` 편집 시 PostToolUse 훅이 `locales.test.ts`를 자동 실행해 불일치를 차단한다. 그 검사는 이제 ko/en 2자 비교가 아니라 **`LOCALES` 순회 N-way**이고, 판정기 본체는 `src/test/locale-parity.ts`의 `findParityViolations`(키 누락·잉여·빈 값·placeholder 토큰 대칭)·`findUncovered`·`findExtraneous`다. 신규 키 `annotation.textInput`은 등록된 전 로케일(현재 ko/en)에 넣는다.
+- **로케일 레지스트리 단일 출처** — `src/i18n/locales.ts`가 `LOCALES`·`BASE_LOCALE`(ko)·`DEFAULT_LOCALE`(en)·폴백 금지/허용 구분을 정의하고 **의존성 0**이 불변식이다(`__tests__/locale-registry.test.ts`가 소스 스캔으로 강제). 이 배치는 그 파일을 건드리지 않는다 — E-0대로 항목 32는 키 축이라 층위가 다르다.
+- **사전은 두 벌** — CLAUDE.md: log-viewer는 `src/log-viewer/i18n.ts`에 복제 사전(`DICTS`)을 따로 둔다. 훅 matcher(`*src/i18n/*`)에 안 걸리고 `pnpm test`가 잡는다. E-3·E-4가 이 규칙의 그물 자체를 손대는 작업이다.
 - **`sidepanel/tabs` 격리** — CLAUDE.md: store·log-viewer가 `sidepanel/tabs`를 import하면 안 된다. `TreeChevronButton`을 `components/`에 두는 근거(B-3), `resolveDark`를 `sidepanel/lib/`에 두는 근거(D-1)가 여기서 온다.
 - **`cn()` 사용** — DESIGN §15. A의 pill 2종을 템플릿 concat에서 전환.
 - **테스트 2트랙** — CLAUDE.md: `*.test.ts`(node, 순수 함수) / `*.test.tsx`(jsdom + @testing-library/react). aria 속성 존재는 후자로 고정 가능하고, 색상 대비·오버레이 렌더는 **jsdom으로도 못 잡는다**("포인터 드래그·캔버스처럼 브라우저 실동작에 걸린 것" 계열).
@@ -645,8 +681,8 @@ function handleStart(frameToken?: string, theme?: "light" | "dark"): void;
 ### 그물 손상
 
 5. **`tokens.test.ts` 하드 실패** (R1) — D-1이 미디어쿼리 문자열을 지우면 `throw new Error("overlay.ts에 다크 미디어쿼리가 없다")`. 파서를 함께 안 고치면 즉시 red라 "조용히 죽는" 유형은 아니지만, **급히 파서를 느슨하게 고쳐 그물이 무력화되는 것**이 진짜 위험이다. 수정 후 R1의 "일부러 틀리게 하면 red" 증명을 반드시 한다.
-6. **drift 테스트 확장이 기존 불일치를 드러낸다** (R10) — E-3이 `common`을 추가하는 순간 이미 갈린 값이 있으면 red. 테스트를 먼저 넣지 말고 **값 대조를 수동으로 먼저** 돌린다.
-7. **⚪86 삭제의 부수효과** — `actionLog.role.*`을 지우면 drift 대조 원본이 사라진다(E-4). 감사 원문도 이걸 경고했다. 삭제 대상은 `*.dialog.title` 3키뿐이다.
+6. **drift 테스트 확장이 기존 불일치를 드러낸다** (R10) — E-3이 대조 범위를 넓히는 순간 이미 갈린 값이 있으면 red. 기획 중 실측으로는 겹치는 88키 전부 drift 0이지만, 구현 시점엔 상류가 값을 바꿨을 수 있다. 테스트를 먼저 넣지 말고 **값 대조를 수동으로 먼저** 돌린다.
+7. **⚪86 삭제의 부수효과** — `actionLog.role.*`을 지우면 drift 대조 원본이 사라진다(E-4). 감사 원문도 이걸 경고했다. 삭제 대상은 `*.dialog.title` 3키뿐이다(복제 사전엔 이 3키가 **없음**을 실측 확인 — 대조 상대 소멸 문제는 발생하지 않는다).
 
 ### 타입 게이트
 
@@ -661,3 +697,13 @@ function handleStart(frameToken?: string, theme?: "light" | "dark"): void;
 ### 스코프 침식
 
 12. **"어차피 여는 김에" 유혹** — 이 배치는 파일 수가 많고 각 변경이 작아서, 인접 코드를 함께 손대기 쉽다. CLAUDE.md의 **외과적 변경** 원칙대로 감사 항목이 지목한 줄만 건드린다. 특히 `NetworkLogContent.tsx`는 이 배치에서 **4개 항목**(20·27·79·80·85)이 걸리므로 변경 지점을 미리 특정하고 들어간다.
+
+### `docs/features/french-locale/`와의 순서 의존
+
+같은 저장소에 **프랑스어 로케일(fr) 추가 기획**이 대기 중이고, 소주제 E와 **같은 파일들을 만진다**(`i18n/namespaces/*`·`log-viewer/i18n.ts`·`log-viewer/__tests__/i18n.test.ts`). 코드 충돌은 아니지만 양방향 의존이 있다.
+
+13. **fr이 먼저 들어가면 E-3의 그물 계산이 달라진다.** french-locale 기획은 `i18n.test.ts:155`의 `MAIN_NAMESPACES = [logs, editor]`를 근거로 복제 사전 122키를 **"값 대조가 강제되는 85키 + 그물 없는 37키"** 로 쪼개 번역 공수를 잡아 놨다(`french-locale/design.md:37`·`tasks.md:88`). E-3이 먼저 들어가면 그 경계가 **88 / 34**로 바뀐다 — 방향은 같지만(그물이 넓어진다) fr 번역자가 옛 숫자를 믿고 34키를 "검증됨"으로 착각하면 안 된다. **E-3을 먼저 넣었다면 french-locale 문서의 그 두 수치를 갱신한다.**
+14. **E-3이 나중에 들어가면 fr 사전까지 대조 대상이 된다.** 대조는 `LOCALES` 순회라, fr이 등록된 뒤 E-3을 넣으면 `common.*` 3키가 **ko/en/fr 세 벌 모두** 값 대조에 걸린다. fr 복제 사전이 그 3키를 메인과 다른 문자열로 채웠으면 red다 — R10의 "먼저 값 대조를 돌린다"가 그만큼 더 중요해진다.
+15. **⚪86의 dead 키 삭제는 fr 브랜치가 도는 동안 하지 않는다.** french-locale은 875키를 파일별로 나눠 채우는 장기 브랜치라 상류 rebase로 키 목록이 흔들리는 걸 이미 자기 위험으로 잡아 놨다. 배치 5의 삭제 6줄이 그 rebase에 섞이면 "번역이 빠진 건지 삭제된 건지"가 흐려진다 — **둘 중 하나가 dev에 들어간 뒤 다른 하나를 시작**한다.
+
+> 반대로 **E-1·E-2(항목 32·33·⚪60)는 fr과 무관하다.** 캐스트 제거와 `lookup()` 폴백은 키 축이고 로케일 축을 안 건드린다 — 순서 제약 없이 병렬 가능하다. 소주제 A~D·F도 마찬가지다.

@@ -31,7 +31,7 @@
 | 52 | `DocSectionBody.emptyVariant` | **삭제** | 호출처 0, `"hide"` 분기 2곳 도달 불가 |
 | 53 | connect 폼 라벨 행 34회 | **합친다 (치환만)** | `FieldRow`가 이미 단일 출처이고 `*IssueFields` 8개가 쓴다. **새 추상화 0** — 마크업을 기존 컴포넌트로 바꾸는 것뿐 |
 | 53 | `htmlFor` 붙은 라벨 (jira-email·gitlab-instance 등 9곳) | **조건부** | `FieldRow`에 `htmlFor` prop이 없다. **prop 1개 추가는 허용**(접근성 회귀 방지). 추가가 싫으면 그 9곳은 제외 |
-| 54 | `i18n/index.ts`의 `useT` 분리 | **합친다(분리)** | `t()`는 스토어 무의존, `useT`만 훅. 파일을 쪼개면 background 그래프에서 zustand가 빠진다 |
+| 54 | `i18n/index.ts`의 `useT` 분리 | **합친다(분리)** | `t()`는 스토어 무의존, `useT`만 훅. 파일을 쪼개면 background 그래프에서 zustand가 빠지고, **store가 선언한 "store → i18n 단방향"(`settings-ui-store.ts:12-13`)이 실제로 성립한다** — 지금은 store가 `@/i18n/locales`를 값으로 쓰고 `i18n/index.ts`가 store를 값으로 써서 순환이다. 단 `locales.ts`는 **의존성 0 강제**(소스 스캔 테스트)라 그쪽으로 밀어 넣는 해법은 불가 |
 | 55 | `extractPath` → `networkLogPath` | **합친다** | 3줄 동일. `src/lib/network-log-path.ts`에 테스트까지 이미 있다 |
 | 56 | `readStoredXAuth` ×8 | **합친다** | 순수 조회, 차이는 계정 키 1개(+jira의 legacy 폴백 1건). 테이블 8행 |
 | 56 | `writeStoredXOAuthTokens` ×5 | **합친다 (필드 목록을 데이터로)** | 골격 동일, 차이는 "복사할 필드 목록 + 폴백 여부". 이걸 데이터로 들면 R8 위험이 구조적으로 사라진다 |
@@ -46,9 +46,10 @@
 | 100 | `annotation-control.ts` ↔ `recorder-control.ts`의 `send()` | **합친다** | 동일 3줄. `src/sidepanel/lib/`로 |
 | 101 | `withTimeout` ×2 | **합친다** | 동일. `src/lib/`로 (양쪽 다 브라우저 바운드 파일이지만 헬퍼 자체는 순수) |
 | 98 | `element-locator.ts:166` 테스트 전용 export | **주석만** | 삭제하면 테스트가 깨진다. `// 테스트 전용 export` 한 줄 |
-| 102 | 파일 내부 전용 export 7건 | **`export` 제거** | 외부 참조 0 확인 후 키워드만 뗀다(코드 이동 없음) |
+| 102 | 파일 내부 전용 export 7건 | **`export` 제거 (6건)** | 외부 참조 0 확인 후 키워드만 뗀다(코드 이동 없음). **`issueListUtils.ts`의 `dateLabel`은 제외** — 리베이스 후 테스트가 import하므로 ⚪98과 같이 주석만 |
 | 107·108·110 | 미참조 export·데드 함수 | **삭제** | 착수 시 grep 재확인 필수(R10) |
-| 93·94·95·96·97·99·103·104·105·106·114 | ⚪ 사소 | **감사 리포트 기재, 착수 시 재확인** | 개별 검증 생략. 주석 정리·별칭 제거·1회용 wrapper 인라인 |
+| 93·94·95·96·97·99·103·104·105·114 | ⚪ 사소 | **감사 리포트 기재, 착수 시 재확인** | 개별 검증 생략. 주석 정리·별칭 제거·1회용 wrapper 인라인 |
+| 106 | `getLocale` 사용처 0 | **무효 — 그대로 둔다** | 리베이스 후 프로덕션 사용처가 생겼다(`issueListUtils.ts:176`의 `dateMonthStyle(getLocale())` — 로케일별 월 표기). 삭제 대상 아님 |
 
 ## 변경 범위
 
@@ -106,7 +107,7 @@
 - **신규** `src/lib/app-events.ts` — `createEmitter<T>()` + emitter 7종.
 - `src/types/messages.ts`(:255~) — 위 심볼 제거, 선언만 남긴다. `BgResponse`·`BgRequest`·`BgInternalMessage`는 유지.
 - `src/types/picker.ts`(:139) — `PickerMessage` / `RecorderMessage` / `AnnotationMessage`로 분리, `ContentMessage = PickerMessage | RecorderMessage | AnnotationMessage` 합집합 유지(기존 사용처 무변경). 인라인 `import("@/types/network")` 3곳(:143 등)을 상단 `import type`으로.
-- **신규** `src/i18n/useT.ts` — `useT` 훅(스토어 의존). `src/i18n/index.ts`는 `t`·`setLocale`·`getLocale`·`dateBcp47`만(스토어 무의존).
+- **신규** `src/i18n/useT.ts` — `useT` 훅(스토어 의존). `src/i18n/index.ts`는 `t`·`setLocale`·`getLocale`·`dateBcp47`만 남고 의존은 `./ko`·`./en`·`./locales`뿐(스토어 무의존). **`getLocale`은 유지한다**(⚪106 무효 — `issueListUtils.ts:176`이 쓴다). `locales.ts`에는 아무것도 옮기지 않는다 — 의존성 0 불변식을 `locale-registry.test.ts`의 소스 스캔이 강제한다.
 - `src/sidepanel/lib/buildLogSummary.ts`(:122) — `extractPath` 삭제, `@/lib/network-log-path`의 `networkLogPath` 사용.
 - `scripts/coverage-report.mjs`(:66) — `src/types/` 제외 근거 주석을 사실에 맞게 갱신(`platform.ts` 상수 예외 명시).
 - **영향 반경 주의**: `"@/types/messages"` import는 **104개 파일**이다. 이동은 typecheck가 전량 잡지만 PR diff가 크다 — G6 안에서 커밋을 쪼갠다(bg-client / app-events / picker / i18n / network-path 각 1커밋).
@@ -119,8 +120,8 @@
 
 - `src/sidepanel/components/DocSectionBody.tsx`(:16·:20·:29·:43) — `emptyVariant` 제거.
 - `src/store/blob-db.ts`(:483·:458·:470·:551) · `src/lib/pending-log-prune.ts:66` · `src/lib/loopback-host.ts:7` · `src/store/editor-store.ts:25` · `src/store/issues-store.ts`(:133·:161·:260) · `src/store/settings-store.ts:27` · `src/lib/url-support.ts:37` · `src/lib/log-colors.ts:7` · `src/types/platform.ts:73` — grep 0 확인 후 삭제.
-- `src/i18n/index.ts:14` `getLocale` — 사용처 0이면 삭제(단 G6에서 파일을 만지므로 그때 함께).
-- 파일 내부 전용 export 7건(⚪102) — `export` 키워드만 제거.
+- ~~`src/i18n/index.ts:14` `getLocale` — 사용처 0이면 삭제~~ → **⚪106 무효. 삭제하지 않는다** — `src/sidepanel/tabs/issueListUtils.ts:176`이 `dateMonthStyle(getLocale())`로 쓴다(리베이스로 생긴 로케일별 월 표기 경로).
+- 파일 내부 전용 export 7건(⚪102) — `export` 키워드만 제거. **단 `issueListUtils.ts`의 `dateLabel`(현 `:173`)은 예외** — 테스트가 import하므로 ⚪98처럼 주석만(tasks.md Task 9-3).
 - 재진술 주석(⚪96·97·103) · 1회용 wrapper(⚪95) · `dataUrlToBlob` 로컬 사본(⚪94) · `created` 항상 true(⚪93) · 이중 단언(⚪104) · same-dir alias(⚪105) · 배치·명명(⚪114) · swatch 불변식 주석(⚪68) · `send()` 중복(⚪100) · `withTimeout` 중복(⚪101).
 
 ## 데이터 흐름
@@ -138,8 +139,11 @@
      (후처리는 각 호출처에 남음)
 
 [전] i18n/index.ts ──(값)──> settings-ui-store ──> zustand persist ──> SW 번들
+     settings-ui-store ──(값)──> i18n/locales            ← 순환(선언은 store → i18n 단방향)
 [후] i18n/useT.ts ───(값)──> settings-ui-store          (sidepanel만)
-     i18n/index.ts (t) ─── 의존 없음                     (background 공용)
+     i18n/index.ts (t) ──> ko·en·locales                (background 공용, 스토어 무의존)
+     settings-ui-store ──(값)──> i18n/locales            ← 단방향 성립
+     i18n/locales.ts ─── 의존 0 (소스 스캔 테스트가 강제)
 
 [전] types/messages.ts = 선언 + BgError + sendBg + 판독4 + emitter7
 [후] types/messages.ts = 선언
@@ -306,7 +310,8 @@ captureMode별 `confirmFreeform`·`confirmVideo`·`confirmScreenshot`·`confirmE
 - **🟡47** — 생성 측과 조회 측이 헬퍼로 갈 때 **한쪽만 옮기면** 무음 miss. `src/background/messages.ts:866`이 다른 진입점이라 놓치기 쉽다. → R3. 9곳 전수 grep을 검증 항목으로.
 - **🟡48** — 폴백 차이(`png` vs `webp`). → R6. 도달 불가 증명이 안 되면 **이 항목만 스킵**한다.
 - **🟡50** — `sendBg` 메시지 타입을 문자열 조립하면 `BgRequest` union 검사가 무력화된다. → 완성된 메시지 객체를 prop으로.
-- **🟡54** — `useT`를 옮기면 import 경로가 바뀌는 컴포넌트가 많다. typecheck가 전량 잡으므로 위험은 낮으나 diff가 크다.
+- **🟡54** — `useT`를 옮기면 import 경로가 바뀌는 컴포넌트가 많다. typecheck가 전량 잡으므로 위험은 낮으나 diff가 크다. **`src/i18n/locales.ts`에는 아무것도 얹지 않는다** — 의존성 0 불변식을 `locale-registry.test.ts`가 소스 스캔으로 강제하므로, 그쪽에 헬퍼를 옮기는 형태의 해법은 red로 잡힌다(잡히니 위험은 낮다).
+- **🟡54 + `docs/features/french-locale/` 충돌 — 같은 파일을 만진다.** fr 기획 Task 4는 `src/i18n/index.ts`(`import fr` + `locales.fr`)와 `src/i18n/locales.ts`(`LOCALES`·`BCP47`)를 **원자적 1커밋**으로 고쳐야 하고, 그 브랜치는 사전 1,001키를 다 채울 때까지 long-lived다. G6 Task 6-1이 같은 `index.ts`를 쪼개면 rebase 충돌이 확정이다. **순서를 정한다 — fr Task 4가 dev에 들어온 뒤 G6를 착수하거나(권장), 반대로 G6를 먼저 끝내고 fr 브랜치가 rebase로 흡수한다.** 동시 진행은 금지. ⚪102의 `issueListUtils.ts`·⚪114 계열도 fr Task 7이 `issueListUtils.test.ts`를 `LOCALES` 순회로 바꾸므로 같은 규칙을 따른다.
 - **🟡57** — `"@/types/messages"` import가 104개 파일. → 대안 C의 중간 재export를 쪼개기 도구로 허용.
 - **🟡57/59 + pre-arm** — content script가 새 `src/lib/` 모듈을 static import하면 `recorders-entry`가 async loader로 되돌아가 pre-arm이 무음으로 죽는다. 빌드·typecheck·유닛 전부 green인 채로. → `pnpm build` 후 `pnpm check:prearm`. G6에서 **유일하게 빌드 확인이 필요**하다.
 - **⚪107·108·110·102 (데드 코드)** — 감사의 "사용처 0"이 틀릴 수 있다. e2e·scripts·log-viewer는 별도 그래프다. → R10. `grep -rn <심볼> src/ e2e/ scripts/` 0건 확인을 삭제 태스크마다 체크박스로.
