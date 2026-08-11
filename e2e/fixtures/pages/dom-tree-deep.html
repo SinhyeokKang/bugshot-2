@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>bugshot e2e fixture — deep dom tree</title>
+    <style>
+      body {
+        margin: 24px;
+        font-family: sans-serif;
+      }
+      .deep-target-with-a-long-classname {
+        padding: 8px;
+        background-color: rgb(238, 238, 238);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 깊은 중첩 + 긴 클래스명 — DOM 트리 다이얼로그의 가로 스크롤(들여쓰기 + 말줄임 없는 라벨) 검증용.
+         선택 요소의 조상 체인이 전부 펼쳐지므로 최심 노드 라벨이 패널 폭을 반드시 넘는다. -->
+    <div class="dom-tree-depth-level-01-wrapper">
+      <div class="dom-tree-depth-level-02-wrapper">
+        <div class="dom-tree-depth-level-03-wrapper">
+          <div class="dom-tree-depth-level-04-wrapper">
+            <div class="dom-tree-depth-level-05-wrapper">
+              <div class="dom-tree-depth-level-06-wrapper">
+                <div class="dom-tree-depth-level-07-wrapper">
+                  <div class="dom-tree-depth-level-08-wrapper">
+                    <div
+                      id="deep-target"
+                      class="deep-target-with-a-long-classname"
+                    >
+                      Deep Target
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="shallow">Shallow sibling</div>
+  </body>
+</html>
