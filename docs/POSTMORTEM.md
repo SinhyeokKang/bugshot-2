@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-08-11 — 별도 번들의 alias가 prefix 매칭이라, 공용 모듈을 `@/` 경로로 못 부르고 그래서 그 모듈이 의존성 0이어야 했다
+
+- **영역**: `i18n`, `툴체인`
+- **계열**: `복제본`, `라이브러리전제`
+- **그물**: `unit`
+- **증상**: (사전 차단) 로케일 축을 `src/i18n/locales.ts`로 승격해 사이드패널·background SW·log-viewer 셋이 공유하게 만들었다. log-viewer에서 관례대로 `@/i18n/locales`로 import했다면 **모듈을 못 찾아 별도 빌드가 깨진다.** typecheck는 통과한다 — tsconfig의 `@/*`는 정상 해석되고, 깨지는 건 vite 빌드 시점이라 다른 레인이다.
+- **근본 원인**: `vite.log-viewer.config.ts`가 `"@/i18n"` → `src/log-viewer/i18n.ts`(복제 사전)로 alias하는데, vite의 **문자열 alias는 exact가 아니라 prefix 매칭**이다. 그래서 `@/i18n/locales`가 `.../log-viewer/i18n.ts/locales`로 재작성된다. alias를 "이 한 모듈만 갈아끼운다"로 읽으면 안 보이고, 실제로는 **`@/i18n` 하위 전체가 그 파일로 접힌다.** 여기서 파생 제약이 하나 더 나온다 — log-viewer는 공용 모듈을 **상대경로(`../i18n/locales`)로만** 부를 수 있고, 그러면 그 모듈이 통째로 log-viewer 번들에 들어간다. 즉 `locales.ts`의 "런타임 import 0"은 취향이 아니라 **번들 제약이 강제하는 불변식**이다. store를 하나만 import해도 zustand+chrome.storage가 별도 번들과 service worker에 딸려온다. 이 인과(alias prefix → 상대경로 강제 → 의존성 0)가 세 파일에 흩어져 있어 어느 한 파일만 읽어선 보이지 않는다.
+- **재발 방지**: (1) **log-viewer 번들이 쓰는 공용 모듈을 추가할 땐 `@/` 경로가 alias prefix에 걸리는지 먼저 본다** — `grep -n "alias" vite.log-viewer.config.ts`로 접히는 prefix를 확인하고, 걸리면 상대경로로 부른다. 현재 걸리는 건 `@/i18n` 하나지만 alias가 늘면 같은 함정이 재장전된다. (2) **상대경로로 끌어간 공용 모듈은 의존성 0을 소스 스캔 테스트로 고정한다** — `locale-registry.test.ts`의 "locales.ts 순수성" describe가 런타임 import·`chrome.`·`navigator.` 부재를 강제한다. 타입체크로는 안 잡히는 축이라(둘 다 정상 해석된다) 스캔이 유일한 자동 그물이다. (3) **"문자열 X가 소스에 없어야 한다"류 검사는 주석을 걷어낸 뒤 재고, 자기검증 앵커를 같이 둔다** — 초안이 주석의 `chrome.storage` 설명 문구에 걸려 false positive를 냈다. 주석을 지우는 쪽으로 고치면 스트리퍼가 통째로 지웠을 때 vacuous green이 되므로, 2026-07-26의 앵커 처방을 그대로 적용해 "스트리퍼 통과 후에도 `export function normalizeLocale`이 남아있다"를 별도 `it`으로 고정했다. (4) 이 계열의 선행 두 건(2026-06-28·2026-07-26)은 복제 사전의 *내용* 발산을 다뤘다 — 이번은 *모듈 해석 경로*다. 별도 번들을 건드릴 땐 **내용·경로 두 축을 따로** 확인한다.
+- **관련**: `src/i18n/locales.ts`(런타임 import 0 — 레지스트리 단일 출처), `src/log-viewer/i18n.ts`(상대경로 `../i18n/locales` + 이유 주석), `vite.log-viewer.config.ts`(`@/i18n` alias — prefix 매칭의 출처), 그물 `src/i18n/__tests__/locale-registry.test.ts`("locales.ts 순수성" describe + 주석 스트리퍼 자기검증 앵커). 계열 선행: **2026-06-28**(log-viewer 복제 dict 미동기화) · **2026-07-26**(복제 사전 그물의 스캔 범위가 번들 그래프보다 좁아 조용히 green — 앵커 처방의 출처).
+
 ## 2026-08-10 — 영속 테스트가 남의 describe에서 키 상수를 물려받아, 빈 저장소를 읽고 기본값으로 통과했다
 
 - **영역**: `store`
