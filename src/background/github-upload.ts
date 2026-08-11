@@ -10,7 +10,7 @@ export interface GithubUploadFileEntry {
 // 조금 느려지지만 active:false라 포커스는 뺏기지 않는다.
 async function ensureGithubTab(owner: string, repo: string): Promise<{ tabId: number; created: boolean }> {
   const tab = await chrome.tabs.create({
-    url: `https://github.com/${owner}/${repo}`,
+    url: `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
     active: false,
   });
   if (tab.id == null) throw new Error("tab created without id");

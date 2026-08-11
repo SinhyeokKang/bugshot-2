@@ -180,3 +180,36 @@ describe("messageForAsanaStatus", () => {
     expect(messageForAsanaStatus(418)).toContain("asana.error.generic");
   });
 });
+
+describe("URL 경로·쿼리 인코딩", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function mockFetch(data: unknown = {}) {
+    const f = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data }),
+    } as Response);
+    vi.stubGlobal("fetch", f);
+    return f;
+  }
+
+  const pat = { kind: "pat", pat: "p", viewerName: "n", viewerGid: "g1" } as const;
+
+  // 정상 gid에서 URL이 종전과 한 글자도 달라지면 안 된다(이중 인코딩·쿼리 형태 변화 금지).
+  it("영숫자 gid는 URL 문자열이 그대로다", async () => {
+    const f = mockFetch([]);
+    await searchUsers(pat, "12345", "");
+    expect(f.mock.calls[0][0]).toBe(
+      "https://app.asana.com/api/1.0/users?workspace=12345&opt_fields=name,email&limit=100",
+    );
+  });
+
+  it("특수문자가 든 gid는 인코딩된다", async () => {
+    const f = mockFetch([]);
+    await searchUsers(pat, "a b#c", "");
+    expect(f.mock.calls[0][0]).toContain("workspace=a%20b%23c");
+  });
+});

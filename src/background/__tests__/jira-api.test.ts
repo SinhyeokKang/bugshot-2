@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/i18n", () => ({
   t: (key: string, params?: Record<string, string | number>) => {
@@ -11,7 +11,7 @@ vi.mock("@/i18n", () => ({
   },
 }));
 
-import { messageForJiraStatus, parseTransitions, extractJiraDetail } from "../jira-api";
+import { messageForJiraStatus, parseTransitions, extractJiraDetail, jiraFetch } from "../jira-api";
 
 describe("parseTransitions", () => {
   it("표준 트랜지션 목록을 JiraTransition[]으로 매핑", () => {
@@ -147,5 +147,71 @@ describe("extractJiraDetail — 담당자 배정 불가 안내", () => {
 
   it("body가 없으면 빈 문자열", () => {
     expect(extractJiraDetail(null)).toBe("");
+  });
+});
+
+describe("resolveUrl egress 자격증명 게이트", () => {
+  const apiKey = {
+    kind: "apiKey",
+    email: "u@x.com",
+    apiToken: "tok",
+  } as const;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function mockFetch() {
+    const f = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    } as Response);
+    vi.stubGlobal("fetch", f);
+    return f;
+  }
+
+  // Basic 헤더에 email:apiToken이 실려 나가므로 평문 http면 그대로 샌다.
+  it("apiKey 인증의 평문 http는 fetch 전에 끊는다", async () => {
+    const f = mockFetch();
+    await expect(
+      jiraFetch({ ...apiKey, baseUrl: "http://jira.corp" }, "/rest/api/3/myself"),
+    ).rejects.toThrow("jira.workspaceUrl.insecure");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("https는 종전대로 통과한다", async () => {
+    const f = mockFetch();
+    await jiraFetch(
+      { ...apiKey, baseUrl: "https://x.atlassian.net" },
+      "/rest/api/3/myself",
+    );
+    expect(f.mock.calls[0][0]).toBe("https://x.atlassian.net/rest/api/3/myself");
+  });
+
+  it("loopback http는 통과한다", async () => {
+    const f = mockFetch();
+    await jiraFetch({ ...apiKey, baseUrl: "http://localhost:8080" }, "/rest/api/3/myself");
+    expect(f.mock.calls[0][0]).toBe("http://localhost:8080/rest/api/3/myself");
+  });
+
+  // oauth는 baseUrl을 안 쓰고 고정 호스트로 나가므로 게이트와 무관해야 한다.
+  it("oauth 인증은 게이트 영향 없이 고정 호스트로 나간다", async () => {
+    const f = mockFetch();
+    await jiraFetch(
+      {
+        kind: "oauth",
+        accessToken: "at",
+        refreshToken: "rt",
+        expiresAt: Date.now() + 3_600_000,
+        cloudId: "cid",
+        siteUrl: "https://x.atlassian.net",
+        email: "u@x.com",
+      },
+      "/rest/api/3/myself",
+    );
+    expect(f.mock.calls[0][0]).toBe(
+      "https://api.atlassian.com/ex/jira/cid/rest/api/3/myself",
+    );
   });
 });

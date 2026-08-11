@@ -8,8 +8,9 @@ vi.stubGlobal("chrome", {
   },
 });
 
-import { isGithubCancellationCode, parseCallbackParams } from "../github-oauth";
-import { OAuthError } from "../oauth";
+import { isGithubCancellationCode, parseCallbackParams, refreshGithubToken } from "../github-oauth";
+import { OAUTH_CONFIG } from "../oauth/config";
+import { OAuthError, serializeOAuthError } from "../oauth";
 
 describe("parseCallbackParams", () => {
   it("정상 — code/state 일치", () => {
@@ -120,5 +121,87 @@ describe("isGithubCancellationCode", () => {
     expect(isGithubCancellationCode("server_error")).toBe(false);
     expect(isGithubCancellationCode(null)).toBe(false);
     expect(isGithubCancellationCode("")).toBe(false);
+  });
+});
+
+// 종전엔 이 경로만 맨 OAuthError를 던져 notConfigured 플래그가 빠졌고, 그러면
+// serializeOAuthError의 401 fallthrough에 걸려 "세션 만료"로 오분류됐다.
+// 나머지 4개 플랫폼 refresh와 같은 assertConfigured 경로를 쓰는지 고정한다.
+describe("refreshGithubToken 설정 누락 분류", () => {
+  it("clientId가 없으면 notConfigured + config_missing으로 던진다", async () => {
+    const cfg = OAUTH_CONFIG.github;
+    const spy = vi.spyOn(cfg, "clientId", "get").mockReturnValue("");
+
+    try {
+      await refreshGithubToken({
+        kind: "oauth",
+        accessToken: "at",
+        refreshToken: "rt",
+        tokenType: "bearer",
+        scope: "repo",
+        viewerLogin: "u",
+        grantedAt: Date.now(),
+      });
+      expect.unreachable("설정 누락이면 throw해야 한다");
+    } catch (err) {
+      expect(err).toBeInstanceOf(OAuthError);
+      const e = err as OAuthError;
+      expect(e.notConfigured).toBe(true);
+      expect(e.reason).toBe("config_missing");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("refreshToken이 아예 없으면 재인증 안내로 갈린다(설정 누락과 구분)", async () => {
+    await expect(
+      refreshGithubToken({
+        kind: "oauth",
+        accessToken: "at",
+        tokenType: "bearer",
+        scope: "repo",
+        viewerLogin: "u",
+        grantedAt: Date.now(),
+      }),
+    ).rejects.toThrow(/refresh token/);
+  });
+});
+
+// serializeOAuthError는 cancelled·notConfigured·launchFailed가 아닌 모든 OAuthError를
+// 401 + oauthRefreshFailed로 내린다. notConfigured 플래그가 서야 400 레인으로 갈린다.
+describe("설정 누락은 401이 아니라 400 레인으로 간다", () => {
+  it("proxyUrl 누락도 notConfigured + config_missing", async () => {
+    const cfg = OAUTH_CONFIG.github;
+    const spy = vi.spyOn(cfg, "proxyUrl", "get").mockReturnValue("");
+
+    try {
+      await refreshGithubToken({
+        kind: "oauth",
+        accessToken: "at",
+        refreshToken: "rt",
+        tokenType: "bearer",
+        scope: "repo",
+        viewerLogin: "u",
+        grantedAt: Date.now(),
+      });
+      expect.unreachable("설정 누락이면 throw해야 한다");
+    } catch (err) {
+      const e = err as OAuthError;
+      expect(e.notConfigured).toBe(true);
+      expect(e.reason).toBe("config_missing");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("serializeOAuthError가 400 + oauthNotConfigured로 직렬화한다", () => {
+    const err = new OAuthError("missing", {
+      platform: "github",
+      notConfigured: true,
+      reason: "config_missing",
+    });
+    const { status, body } = serializeOAuthError(err);
+    expect(status).toBe(400);
+    expect(body).toMatchObject({ oauthNotConfigured: true });
   });
 });

@@ -78,7 +78,7 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 | `chrome.tabs.query({})` | **전 창 전 탭 열거** — pending 로그 GC가 "살아있는 탭"을 계산하는 유일한 경로(fail-closed: 조회 실패 시 prune 전체 스킵) | `lib/pending-log-prune.ts`. URL을 읽지만 `activeTab`과 무관하게 `<all_urls>`가 커버한다 |
 | `chrome.runtime.onConnect` (port disconnect) | 사이드패널이 닫히면 port가 끊기는 것을 세션 teardown 신호로 사용 — 레코더 정지(`stopRecorders`) | `background/index.ts` |
 | `chrome.windows.onRemoved` | 창이 닫힐 때 그 창에 속한 탭의 활성화 상태 정리 | `background/tab-bindings.ts` |
-| `chrome.i18n.getMessage()` | manifest `default_locale` + `__MSG_*` 치환(확장 이름·설명) | `background/index.ts` |
+| `chrome.i18n.getMessage()` | `public/_locales/<code>/messages.json`을 읽는 **두 소비자 중 런타임 쪽**(SW가 알림 제목을 조립). 다른 하나는 manifest의 `__MSG_*` 치환(확장 이름·설명·단축키 라벨)이고 둘은 같은 사전을 본다 — 한쪽만 보고 스캐너를 짜면 무음 누락이 생긴다(POSTMORTEM 2026-08-11). 그물: `src/i18n/__tests__/manifest-locales.test.ts` | `background/index.ts` |
 
 ### 만료 조건
 

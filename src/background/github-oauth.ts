@@ -6,16 +6,12 @@ import { getMyself, setGithubRefreshHook } from "./github-api";
 import { OAuthError, authorizeRejection, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
-  isConfigured as isOAuthPlatformConfigured,
   assertConfigured as assertOAuthConfigured,
   isCancellation,
 } from "./oauth/config";
 
 const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const SCOPES = ["repo", "user:email"];
-export function isGithubOAuthConfigured(): boolean {
-  return isOAuthPlatformConfigured(OAUTH_CONFIG.github);
-}
 
 function assertConfigured(): void {
   assertOAuthConfigured(OAUTH_CONFIG.github);
@@ -147,11 +143,9 @@ export async function refreshGithubToken(
       platform: "github",
     });
   }
-  if (!isGithubOAuthConfigured()) {
-    throw new OAuthError(t("oauth.error.notConfiguredProxy"), {
-      platform: "github",
-    });
-  }
+  // 나머지 4개 플랫폼 refresh와 같은 경로로 던진다 — 맨 OAuthError를 던지면 notConfigured
+  // 플래그가 빠져 401 + oauthRefreshFailed로 오분류되고, analytics reason도 other가 된다.
+  assertConfigured();
   const res = await fetch(proxyRefreshUrl(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },

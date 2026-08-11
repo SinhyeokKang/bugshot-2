@@ -659,7 +659,9 @@ describe("OpenAI 호환 경로 redirect 차단", () => {
     expect(fn.mock.calls[0][1].redirect).toBe("manual");
   });
 
-  it("fetchModels 요청에도 redirect 옵션이 없다", async () => {
+  // 종전엔 이 자리가 `toBeUndefined()`로 결함을 정답처럼 고정하고 있었다. fetchModels도
+  // 사용자 입력 baseUrl에 Authorization을 실어 보내므로 같은 방어선을 지나야 한다.
+  it("fetchModels 요청에도 redirect 옵션이 붙는다", async () => {
     const fn = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -670,7 +672,46 @@ describe("OpenAI 호환 경로 redirect 차단", () => {
 
     await fetchModels("https://api.openai.com/v1", "k");
 
-    expect(fn.mock.calls[0][1].redirect).toBeUndefined();
+    expect(fn.mock.calls[0][1].redirect).toBe("manual");
+  });
+
+  it("fetchModels가 opaqueredirect를 받으면 LlmRedirectError를 던진다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ type: "opaqueredirect", ok: false, status: 0 }),
+    );
+
+    await expect(fetchModels("https://api.openai.com/v1", "k")).rejects.toBeInstanceOf(
+      LlmRedirectError,
+    );
+  });
+
+  it("fetchModels가 status 0을 받으면 LlmRedirectError를 던진다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ type: "basic", ok: false, status: 0 }),
+    );
+
+    await expect(fetchModels("https://api.openai.com/v1", "k")).rejects.toBeInstanceOf(
+      LlmRedirectError,
+    );
+  });
+
+  it("정상 응답이면 모델 목록을 정렬해 돌려준다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: () => Promise.resolve({ data: [{ id: "b-model" }, { id: "a-model" }] }),
+      }),
+    );
+
+    await expect(fetchModels("https://api.openai.com/v1", "k")).resolves.toEqual([
+      { id: "a-model" },
+      { id: "b-model" },
+    ]);
   });
 });
 

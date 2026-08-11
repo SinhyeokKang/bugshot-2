@@ -104,7 +104,7 @@ export async function getSpaces(
 ): Promise<ClickupSpace[]> {
   const raw = await clickupFetch<{ spaces: Array<{ id: string; name: string }> }>(
     auth,
-    `/team/${teamId}/space?archived=false`,
+    `/team/${encodeURIComponent(teamId)}/space?archived=false`,
   );
   return raw.spaces.map((s) => ({ id: s.id, name: s.name }));
 }
@@ -130,11 +130,11 @@ export async function getLists(
   const [folderlessRaw, foldersRaw] = await Promise.all([
     clickupFetch<{ lists: Array<{ id: string; name: string }> }>(
       auth,
-      `/space/${spaceId}/list?archived=false`,
+      `/space/${encodeURIComponent(spaceId)}/list?archived=false`,
     ),
     clickupFetch<{
       folders: Array<{ name: string; lists: Array<{ id: string; name: string }> }>;
-    }>(auth, `/space/${spaceId}/folder?archived=false`),
+    }>(auth, `/space/${encodeURIComponent(spaceId)}/folder?archived=false`),
   ]);
   return flattenLists(folderlessRaw.lists, foldersRaw.folders);
 }
@@ -178,7 +178,7 @@ export async function createTask(
 ): Promise<ClickupCreateTaskResult> {
   const raw = await clickupFetch<{ id: string; url: string }>(
     auth,
-    `/list/${payload.listId}/task`,
+    `/list/${encodeURIComponent(payload.listId)}/task`,
     { method: "POST", body: JSON.stringify(mapCreateTaskBody(payload)) },
   );
   return { id: raw.id, url: raw.url };
@@ -194,7 +194,7 @@ export async function uploadAttachment(
   form.append("attachment", blob, filename);
   const raw = await clickupFetch<{ url?: string }>(
     auth,
-    `/task/${taskId}/attachment`,
+    `/task/${encodeURIComponent(taskId)}/attachment`,
     { method: "POST", body: form },
   );
   return { url: raw.url ?? undefined };
@@ -205,7 +205,7 @@ export async function updateTaskMarkdown(
   taskId: string,
   markdownContent: string,
 ): Promise<void> {
-  await clickupFetch(auth, `/task/${taskId}`, {
+  await clickupFetch(auth, `/task/${encodeURIComponent(taskId)}`, {
     method: "PUT",
     body: JSON.stringify({ markdown_content: markdownContent }),
   });
@@ -236,7 +236,7 @@ export async function getTaskStatus(
   auth: ClickupAuth,
   taskId: string,
 ): Promise<ClickupTaskStatus> {
-  const raw = await clickupFetch<RawTask>(auth, `/task/${taskId}`);
+  const raw = await clickupFetch<RawTask>(auth, `/task/${encodeURIComponent(taskId)}`);
   return normalizeTaskStatus(raw);
 }
 
@@ -246,13 +246,13 @@ export async function setTaskCompleted(
   taskId: string,
   completed: boolean,
 ): Promise<ClickupTaskStatus> {
-  const task = await clickupFetch<RawTask>(auth, `/task/${taskId}`);
+  const task = await clickupFetch<RawTask>(auth, `/task/${encodeURIComponent(taskId)}`);
   const listId = task.list?.id;
   let targetStatus: string | undefined;
   if (listId) {
     const list = await clickupFetch<{
       statuses?: Array<{ status: string; type: string }>;
-    }>(auth, `/list/${listId}`);
+    }>(auth, `/list/${encodeURIComponent(listId)}`);
     const statuses = list.statuses ?? [];
     targetStatus = completed
       ? statuses.find((s) => s.type === "done" || s.type === "closed")?.status
@@ -261,7 +261,7 @@ export async function setTaskCompleted(
   if (!targetStatus) {
     throw new ClickupError(400, t("clickup.error.statusMappingFailed"));
   }
-  const raw = await clickupFetch<RawTask>(auth, `/task/${taskId}`, {
+  const raw = await clickupFetch<RawTask>(auth, `/task/${encodeURIComponent(taskId)}`, {
     method: "PUT",
     body: JSON.stringify({ status: targetStatus }),
   });

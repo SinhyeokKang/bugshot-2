@@ -74,6 +74,9 @@ function networkRecorderScript(): void {
     return MASKED_HEADER_PATTERNS.some((p) => p.test(lower));
   }
 
+  // 이 형태의 단일 출처는 src/lib/masked-header.ts다. 이 파일은 recorders-entry 청크라
+  // src/content/ 밖을 import하면 동기 IIFE가 깨져 pre-arm이 죽으므로 리터럴을 복제해 두고,
+  // masked-header.test.ts의 소스 대조가 두 벌이 갈라지지 않게 묶는다.
   function maskHeaderValue(value: string): string {
     return `***[len:${value.length}]`;
   }

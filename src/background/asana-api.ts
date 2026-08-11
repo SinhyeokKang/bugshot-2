@@ -143,7 +143,7 @@ export async function searchProjects(
   // Asana /projects는 서버측 텍스트 검색이 없어 워크스페이스 프로젝트(최대 100개)를 받아 클라이언트 필터.
   const list = await asanaFetch<Array<{ gid: string; name: string }>>(
     auth,
-    `/projects?workspace=${workspaceGid}&opt_fields=name&limit=100`,
+    `/projects?workspace=${encodeURIComponent(workspaceGid)}&opt_fields=name&limit=100`,
   );
   const q = query.trim().toLowerCase();
   const projects = list.map((p) => ({ gid: p.gid, name: p.name }));
@@ -159,7 +159,7 @@ export async function searchUsers(
   // 워크스페이스 멤버(최대 100명)를 받아 클라이언트 필터 (searchProjects 패턴).
   const list = await asanaFetch<Array<{ gid: string; name: string; email?: string | null }>>(
     auth,
-    `/users?workspace=${workspaceGid}&opt_fields=name,email&limit=100`,
+    `/users?workspace=${encodeURIComponent(workspaceGid)}&opt_fields=name,email&limit=100`,
   );
   const q = query.trim().toLowerCase();
   const users = list.map((u) => ({ gid: u.gid, name: u.name, email: u.email ?? undefined }));
@@ -218,7 +218,7 @@ export async function getTaskStatus(
 ): Promise<AsanaTaskStatus> {
   const raw = await asanaFetch<RawTask>(
     auth,
-    `/tasks/${taskGid}?opt_fields=name,completed,permalink_url`,
+    `/tasks/${encodeURIComponent(taskGid)}?opt_fields=name,completed,permalink_url`,
   );
   return normalizeTaskStatus(raw);
 }
@@ -228,7 +228,7 @@ export async function updateTaskNotes(
   taskGid: string,
   htmlNotes: string,
 ): Promise<void> {
-  await asanaFetch(auth, `/tasks/${taskGid}`, {
+  await asanaFetch(auth, `/tasks/${encodeURIComponent(taskGid)}`, {
     method: "PUT",
     body: JSON.stringify({ data: { html_notes: htmlNotes } }),
   });
@@ -241,7 +241,7 @@ export async function setTaskCompleted(
 ): Promise<AsanaTaskStatus> {
   const raw = await asanaFetch<RawTask>(
     auth,
-    `/tasks/${taskGid}?opt_fields=name,completed,permalink_url`,
+    `/tasks/${encodeURIComponent(taskGid)}?opt_fields=name,completed,permalink_url`,
     { method: "PUT", body: JSON.stringify({ data: { completed } }) },
   );
   return normalizeTaskStatus(raw);

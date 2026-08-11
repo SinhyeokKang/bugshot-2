@@ -43,11 +43,8 @@ import { isReproSectionEnabled } from "@/sidepanel/lib/reproSectionEnabled";
 import { RecordingSettingsCard } from "@/sidepanel/components/RecordingSettingsCard";
 import { SettingsFooter } from "./settings/SettingsFooter";
 import { LlmConnectForm } from "./settings/LlmConnectForm";
-
-const LOCALE_OPTIONS: { value: LocaleMode; label: string }[] = [
-  { value: "ko", label: "한국어" },
-  { value: "en", label: "English" },
-];
+import { LOCALE_LABELS } from "@/sidepanel/lib/localeLabels";
+import { LOCALES } from "@/i18n/locales";
 
 export function SettingsTab({ sub, onSubChange }: { sub: string; onSubChange: (v: string) => void }) {
   const t = useT();
@@ -286,9 +283,11 @@ function GeneralSettingsContent() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {LOCALE_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
+              {/* 표시 순서는 LOCALES 단일 출처가 정한다 — 옵션 배열을 따로 두면 로케일을
+                  등록하고도 목록에 안 뜨는 무음 누락이 생긴다. */}
+              {LOCALES.map((code) => (
+                <SelectItem key={code} value={code}>
+                  {LOCALE_LABELS[code]}
                 </SelectItem>
               ))}
             </SelectContent>

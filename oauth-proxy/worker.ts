@@ -437,6 +437,8 @@ async function relayUpstream(upstream: Response, corsOrigin: string): Promise<Re
     status: upstream.status,
     headers: {
       "Content-Type": upstream.headers.get("Content-Type") ?? "application/json",
+      // 토큰이 실린 응답이라 중간 캐시에 남지 않게 한다.
+      "Cache-Control": "no-store",
       ...corsHeaders(corsOrigin),
     },
   });

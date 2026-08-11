@@ -19,6 +19,7 @@ import type { JiraOAuthAuth } from "@/types/jira";
 import { OAuthError, refreshOAuthToken, persistOAuthTokens } from "./oauth";
 import { readStoredAuth } from "@/lib/settings-storage";
 import { pickRotatedAuth } from "./lib/rotatedAuth";
+import { assertCredentialSafeBase } from "@/lib/credential-url";
 
 export class JiraError extends Error {
   constructor(
@@ -65,7 +66,13 @@ function authHeader(auth: JiraAuth): string {
 
 function resolveUrl(auth: JiraAuth, path: string): string {
   if (auth.kind === "apiKey") {
-    return `${normalizeBaseUrl(auth.baseUrl)}${path}`;
+    // baseUrl은 사용자가 자유 입력한다. Basic 헤더가 실려 나가므로 평문 http를 여기서 끊는다
+    // — 폼 가드는 안내용이고, 저장된 설정으로 도는 요청은 이 관문만 지난다.
+    const base = assertCredentialSafeBase(
+      normalizeBaseUrl(auth.baseUrl),
+      "jira.workspaceUrl",
+    );
+    return `${base}${path}`;
   }
   return `https://api.atlassian.com/ex/jira/${auth.cloudId}${path}`;
 }

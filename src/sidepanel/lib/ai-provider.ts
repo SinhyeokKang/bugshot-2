@@ -694,7 +694,8 @@ export async function fetchModels(
 ): Promise<ModelEntry[]> {
   const headers: Record<string, string> = {};
   if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
-  const res = await fetch(`${baseUrl}/models`, { headers });
+  const res = await fetch(`${baseUrl}/models`, { headers, redirect: "manual" });
+  throwIfRedirected(res);
   if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`);
   const data = await res.json();
   return (data.data ?? [])

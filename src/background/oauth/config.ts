@@ -75,7 +75,7 @@ export const OAUTH_CONFIG = {
     },
     cancelCodes: new Set(["access_denied", "user_denied"]),
     notConfiguredClientKey: "notion.oauth.notConfigured",
-    notConfiguredProxyKey: "notion.oauth.notConfigured",
+    notConfiguredProxyKey: "notion.oauth.notConfiguredProxy",
   },
   gitlab: {
     platform: "gitlab",
@@ -98,7 +98,7 @@ export const OAUTH_CONFIG = {
     },
     cancelCodes: new Set(["access_denied"]),
     notConfiguredClientKey: "asana.oauth.notConfigured",
-    notConfiguredProxyKey: "asana.oauth.notConfigured",
+    notConfiguredProxyKey: "asana.oauth.notConfiguredProxy",
   },
   clickup: {
     platform: "clickup",
@@ -111,7 +111,7 @@ export const OAUTH_CONFIG = {
     },
     cancelCodes: new Set(["access_denied"]),
     notConfiguredClientKey: "clickup.oauth.notConfigured",
-    notConfiguredProxyKey: "clickup.oauth.notConfigured",
+    notConfiguredProxyKey: "clickup.oauth.notConfiguredProxy",
   },
   slack: {
     platform: "slack",
@@ -124,7 +124,7 @@ export const OAUTH_CONFIG = {
     },
     cancelCodes: new Set(["access_denied"]),
     notConfiguredClientKey: "slack.oauth.notConfigured",
-    notConfiguredProxyKey: "slack.oauth.notConfigured",
+    notConfiguredProxyKey: "slack.oauth.notConfiguredProxy",
   },
 } satisfies Record<PlatformId, OAuthPlatformConfig>;
 
