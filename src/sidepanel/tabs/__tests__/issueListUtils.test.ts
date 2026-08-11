@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   canEditDraftFields,
   canPromoteSlack,
+  dateLabel,
+  dateMonthStyle,
   formatIssueKey,
   isRefreshable,
   isSlackPreserved,
@@ -18,6 +20,8 @@ import {
 } from "../issueListUtils";
 import type { IssueRecord } from "@/store/issues-store";
 import type { Accounts, PlatformId } from "@/types/platform";
+import { setLocale } from "@/i18n";
+import { BASE_LOCALE, LOCALES } from "@/i18n/locales";
 
 function makeAccounts(...platforms: PlatformId[]): Accounts {
   const acc: Record<string, unknown> = {};
@@ -41,6 +45,52 @@ function makeIssue(overrides: Partial<IssueRecord> = {}): IssueRecord {
     ...overrides,
   };
 }
+
+// `locale === "ko-KR" ? "long" : "short"` 하드코딩을 대체하는 테이블. 그대로 두면 새 로케일이
+// 조용히 short로 떨어진다 — 폴백 자체는 옳지만(en의 short가 합리적 기본) 판정이 BCP47 문자열
+// 비교로 박혀 있으면 로케일별로 고를 수가 없다.
+describe("dateMonthStyle", () => {
+  it("ko는 긴 월 표기, en은 짧은 월 표기", () => {
+    expect(dateMonthStyle("ko")).toBe("long");
+    expect(dateMonthStyle("en")).toBe("short");
+  });
+
+  it("등록된 모든 로케일이 유효한 month 옵션을 낸다", () => {
+    const valid = new Set(["numeric", "2-digit", "long", "short", "narrow"]);
+    const invalid = LOCALES.filter((l) => !valid.has(dateMonthStyle(l)));
+    expect(invalid).toEqual([]);
+  });
+});
+
+// POSTMORTEM 2026-07-16: 로케일 의존 포맷은 en 하나로 끝내면 CJK 편차를 구조적으로 못 잡는다.
+describe("dateLabel", () => {
+  afterEach(() => {
+    setLocale(BASE_LOCALE);
+  });
+
+  const TS = Date.UTC(2026, 0, 15, 12, 0, 0);
+
+  it("ko에서 한국어 월 표기로 렌더한다", () => {
+    setLocale("ko");
+    const out = dateLabel(TS);
+    expect(out).toContain("2026");
+    expect(out).toContain("1월");
+  });
+
+  it("en에서 짧은 영문 월 표기로 렌더한다", () => {
+    setLocale("en");
+    const out = dateLabel(TS);
+    expect(out).toContain("2026");
+    expect(out).toContain("Jan");
+  });
+
+  it("로케일을 바꾸면 출력이 바뀐다 (모듈 상태 스냅샷이 아님)", () => {
+    setLocale("ko");
+    const ko = dateLabel(TS);
+    setLocale("en");
+    expect(dateLabel(TS)).not.toBe(ko);
+  });
+});
 
 describe("canEditDraftFields", () => {
   it("draft 상태는 편집 가능", () => {
