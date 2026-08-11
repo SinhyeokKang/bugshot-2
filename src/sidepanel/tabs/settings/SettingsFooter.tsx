@@ -2,7 +2,7 @@ import { BookOpen } from "lucide-react";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
-import { STORE_REVIEW_URL, USER_GUIDE_URLS } from "@/lib/external-links";
+import { STORE_REVIEW_URL, userGuideUrl } from "@/lib/external-links";
 import { PageFooter } from "@/sidepanel/components/Section";
 
 export function SettingsFooter() {
@@ -13,7 +13,7 @@ export function SettingsFooter() {
       <div className="flex items-center justify-between gap-2">
         <Button
           variant="outline"
-          onClick={() => chrome.tabs.create({ url: USER_GUIDE_URLS[locale], active: true })}
+          onClick={() => chrome.tabs.create({ url: userGuideUrl(locale), active: true })}
         >
           <BookOpen />
           {t("settings.guide")}

@@ -1,11 +1,13 @@
 import ko, { type TranslationKey } from "./ko";
 import en from "./en";
-import type { LocaleMode } from "@/store/settings-ui-store";
+import { BASE_LOCALE, BCP47, type LocaleMode } from "./locales";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 
-const locales: Record<LocaleMode, Record<TranslationKey, string>> = { ko, en };
+// 폴백 금지 테이블 — 사전 없는 로케일이 undefined로 조회되면 t()가 죽는다.
+// 로케일 추가 시 컴파일러가 여기를 채우게 하려고 Record를 유지한다(Partial 금지).
+export const locales: Record<LocaleMode, Record<TranslationKey, string>> = { ko, en };
 
-let currentLocale: LocaleMode = "ko";
+let currentLocale: LocaleMode = BASE_LOCALE;
 
 export function setLocale(locale: LocaleMode) {
   currentLocale = locale;
@@ -14,8 +16,6 @@ export function setLocale(locale: LocaleMode) {
 export function getLocale(): LocaleMode {
   return currentLocale;
 }
-
-const BCP47: Record<LocaleMode, string> = { ko: "ko-KR", en: "en-US" };
 
 export function dateBcp47(): string {
   return BCP47[currentLocale];

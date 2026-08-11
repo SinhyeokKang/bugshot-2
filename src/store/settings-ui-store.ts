@@ -6,9 +6,12 @@ import type { RecordingSource } from "./editor-store";
 import { obfuscateApiKey, deobfuscateApiKey } from "@/lib/key-obfuscation";
 import { normalizeAiLanguage, type AiLanguage } from "@/sidepanel/lib/aiLanguage";
 import { chromeLocalStorage } from "./chrome-storage";
+import { detectLocale, normalizeLocale, type LocaleMode } from "@/i18n/locales";
 
 export type ThemeMode = "light" | "dark" | "system";
-export type LocaleMode = "ko" | "en";
+// 정의는 @/i18n/locales가 갖는다(background·log-viewer 번들 공용). 여기서 re-export하는 건
+// 기존 import 경로를 쓰는 소비처를 안 깨뜨리려는 것 — 방향은 store → i18n 단방향이다.
+export type { LocaleMode };
 export type StyleEditorView = "form" | "code";
 
 export type IssueSectionId =
@@ -96,13 +99,8 @@ export interface LlmConfig {
   modelId: string;
 }
 
-function detectLocale(): LocaleMode {
-  const lang =
-    typeof navigator !== "undefined" && navigator.language
-      ? navigator.language.toLowerCase()
-      : "en";
-  if (lang.startsWith("ko")) return "ko";
-  return "en";
+function browserLanguage(): string | undefined {
+  return typeof navigator !== "undefined" ? navigator.language : undefined;
 }
 
 interface SettingsUiState {
@@ -151,9 +149,29 @@ export function migrateSettingsUi(
   state.autoReproPrefill = state.autoReproPrefill ?? true;
   // ??가 아니라 정규화다 — 이 값은 프롬프트 지시문으로 나가므로 오염된 문자열을 통과시키지 않는다.
   state.aiLanguage = normalizeAiLanguage(state.aiLanguage);
+  // 로케일은 v1부터 있던 필드라 version 분기가 없다. 정규화가 막는 건 다운그레이드다 —
+  // 새 로케일을 쓰던 persist가 구버전으로 롤백되면 사전 조회가 undefined가 된다.
+  state.locale = normalizeLocale(state.locale);
   // v9: 순서 배열에 미디어 엔트리 편입(레거시 앵커 위치로 backfill → 레이아웃 불변)
   state.issueSections = normalizeSections(state.issueSections ?? DEFAULT_ISSUE_SECTIONS);
   return state as SettingsUiState;
+}
+
+// migrate는 버전이 다를 때만 돈다 — 동일 버전에서 외부 오염된 값도 교정하도록 rehydrate마다
+// 재정규화한다. persist 옵션 안 익명 함수로 두면 테스트가 닿지 못해 이 방어가 무검증으로 남는다.
+export function mergePersistedSettings(
+  persisted: unknown,
+  current: SettingsUiState,
+): SettingsUiState {
+  const p = (persisted ?? {}) as Partial<SettingsUiState>;
+  return {
+    ...current,
+    ...p,
+    // 저장된 값이 없으면 detectLocale이 정한 현재 값을 유지한다(없는 걸 덮어쓰지 않는다).
+    locale: p.locale === undefined ? current.locale : normalizeLocale(p.locale),
+    issueSections: normalizeSections(p.issueSections ?? current.issueSections),
+    aiLanguage: normalizeAiLanguage(p.aiLanguage),
+  };
 }
 
 export const apiKeyObfuscatingStorage: StateStorage = {
@@ -190,7 +208,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
   persist(
     (set) => ({
       theme: "light",
-      locale: detectLocale(),
+      locale: detectLocale(browserLanguage()),
       aiLanguage: "auto",
       issueSections: DEFAULT_ISSUE_SECTIONS,
       llm: null,
@@ -250,16 +268,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       version: 10,
       storage: createJSONStorage(() => apiKeyObfuscatingStorage),
       migrate: migrateSettingsUi,
-      // migrate는 버전이 다를 때만 돈다 — 동일 버전에서 외부 오염된 배열도 교정하도록 rehydrate에서 재정규화.
-      merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<SettingsUiState>;
-        return {
-          ...current,
-          ...p,
-          issueSections: normalizeSections(p.issueSections ?? current.issueSections),
-          aiLanguage: normalizeAiLanguage(p.aiLanguage),
-        };
-      },
+      merge: mergePersistedSettings,
     },
   ),
 );

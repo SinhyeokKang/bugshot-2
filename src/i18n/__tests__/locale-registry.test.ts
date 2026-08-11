@@ -116,15 +116,27 @@ describe("locales.ts 순수성 (레이어링 불변식)", () => {
     ...source.matchAll(/\bimport\s+(?!type\s)[\s\S]*?\bfrom\s*["']([^"']+)["']/g),
   ].map((m) => m[1]);
 
+  // 검사 대상은 코드다. 주석이 `chrome.storage`를 설명으로 언급하는 건 위반이 아니라
+  // 오히려 이 불변식의 근거 서술이므로, 스캔 전에 주석을 걷어낸다.
+  const code = source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+
   it("런타임 의존이 없다 (store·sidepanel·zustand·chrome 래퍼 전부)", () => {
     expect(runtimeImports).toEqual([]);
   });
 
   it("chrome API를 직접 만지지 않는다", () => {
-    expect(source).not.toMatch(/\bchrome\./);
+    expect(code).not.toMatch(/\bchrome\s*\./);
   });
 
   it("navigator를 직접 읽지 않는다 (detectLocale이 인자로 받는 이유)", () => {
-    expect(source).not.toMatch(/\bnavigator\b/);
+    expect(code).not.toMatch(/\bnavigator\s*\./);
+  });
+
+  // 위 두 단언은 주석을 걷어낸 뒤 재므로, 스트리퍼가 통째로 지워버리면 vacuous green이 된다.
+  it("주석 스트리퍼가 코드를 남긴다 (자기검증 앵커)", () => {
+    expect(code).toMatch(/export function normalizeLocale/);
+    expect(code).toMatch(/export const LOCALES/);
   });
 });

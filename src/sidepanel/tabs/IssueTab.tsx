@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/tooltip";
 import { isCaptureEntryScreen } from "@/lib/capture-commands";
 import { PLATFORM_TAB_KEYS } from "@/types/platform";
-import { USER_GUIDE_URLS } from "@/lib/external-links";
+import { userGuideUrl } from "@/lib/external-links";
 import { SubmitSuccessView } from "@/sidepanel/components/SubmitSuccessView";
 import { useEditorStore } from "@/store/editor-store";
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
@@ -360,7 +360,7 @@ export function EmptyState({ onStartElement, onStartElementShot, onStartScreensh
           <Button
             variant="outline"
             data-testid="open-guide"
-            onClick={() => chrome.tabs.create({ url: USER_GUIDE_URLS[locale], active: true })}
+            onClick={() => chrome.tabs.create({ url: userGuideUrl(locale), active: true })}
           >
             <BookOpen />
             {t("settings.guide")}
