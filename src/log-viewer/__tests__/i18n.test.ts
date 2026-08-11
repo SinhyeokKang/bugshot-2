@@ -15,44 +15,26 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
-import { koDict, enDict, t } from "../i18n";
+import { DICTS, t } from "../i18n";
 import { logs } from "../../i18n/namespaces/logs";
 import { editor } from "../../i18n/namespaces/editor";
+import { BASE_LOCALE, LOCALES } from "../../i18n/locales";
 import { NET_VERB_KEYS } from "../timeline-merge";
+import { findExtraneous, findParityViolations, findUncovered } from "@/test/locale-parity";
 
 describe("log viewer i18n — 사전 구조", () => {
-  it("ko/en 키 동일", () => {
-    const koKeys = Object.keys(koDict).sort();
-    const enKeys = Object.keys(enDict).sort();
-    expect(koKeys).toEqual(enKeys);
+  // koDict/enDict를 하드 import해 둘만 비교하던 이전 버전은 3번째 로케일을 못 봤다.
+  // 이 사전은 별도 빌드라 i18n 저장 훅도 안 걸리므로, N-way 검사가 유일한 그물이다.
+  it("등록된 모든 로케일이 기준 로케일과 키·값·토큰이 대칭이다", () => {
+    expect(findParityViolations(DICTS, BASE_LOCALE)).toEqual([]);
   });
 
-  it("빈 값 없음", () => {
-    const koEmpty = Object.entries(koDict)
-      .filter(([, v]) => !v || !String(v).trim())
-      .map(([k]) => k);
-    const enEmpty = Object.entries(enDict)
-      .filter(([, v]) => !v || !String(v).trim())
-      .map(([k]) => k);
-    expect(koEmpty).toEqual([]);
-    expect(enEmpty).toEqual([]);
+  it("LOCALES의 모든 코드가 복제 사전을 갖는다", () => {
+    expect(findUncovered(LOCALES, DICTS)).toEqual([]);
   });
 
-  it("placeholder 토큰 ko/en 동일", () => {
-    function tokens(s: string): string[] {
-      return [...s.matchAll(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g)]
-        .map((m) => m[1])
-        .sort();
-    }
-    const mismatches: string[] = [];
-    for (const k of Object.keys(koDict)) {
-      const kt = tokens(koDict[k] ?? "");
-      const et = tokens(enDict[k] ?? "");
-      if (JSON.stringify(kt) !== JSON.stringify(et)) {
-        mismatches.push(`${k}: ko=[${kt}] en=[${et}]`);
-      }
-    }
-    expect(mismatches).toEqual([]);
+  it("LOCALES에 없는 사전이 남아있지 않다", () => {
+    expect(findExtraneous(LOCALES, DICTS)).toEqual([]);
   });
 });
 
@@ -146,9 +128,11 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
     );
   });
 
-  it("코드가 t()로 참조하는 리터럴 키는 dict에 모두 존재", () => {
-    const missing = referencedKeys.filter(
-      (k) => !(k in koDict) || !(k in enDict),
+  it("코드가 t()로 참조하는 리터럴 키는 모든 로케일 사전에 존재", () => {
+    const missing = referencedKeys.flatMap((key) =>
+      Object.keys(DICTS)
+        .filter((locale) => !(key in DICTS[locale]))
+        .map((locale) => `${locale} ${key}`),
     );
     expect(missing).toEqual([]);
   });
@@ -156,23 +140,26 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
   // netVerbKey는 t(`timeline.net.verb.${...}`) 동적 조립이라 위 리터럴 스캐너를 우회한다.
   // 가능한 키를 NET_VERB_KEYS 닫힌 집합(netVerbKey 반환 타입이 바인딩)으로 고정하고
   // dict 존재를 강제해 verb 추가 시 키 누락(raw 노출)을 잡는다.
-  it("동적 조립 net.verb 키(NET_VERB_KEYS)가 dict에 모두 존재", () => {
+  it("동적 조립 net.verb 키(NET_VERB_KEYS)가 모든 로케일 사전에 존재", () => {
     const missing = NET_VERB_KEYS.flatMap((v) => {
       const key = `timeline.net.verb.${v}`;
-      return !(key in koDict) || !(key in enDict) ? [key] : [];
+      return Object.keys(DICTS)
+        .filter((locale) => !(key in DICTS[locale]))
+        .map((locale) => `${locale} ${key}`);
     });
     expect(missing).toEqual([]);
   });
 
   // 이 사전이 복제하는 키는 두 네임스페이스에 걸쳐 있다(logs의 로그 문구 + editor의 codeBlock.*).
   // 한쪽만 대조하면 나머지 쪽 drift가 무방비다.
-  const MAIN_NAMESPACES = [logs, editor];
+  const MAIN_NAMESPACES: Record<string, Record<string, string>>[] = [logs, editor];
 
   it("메인 테이블과 공통인 키는 값도 일치 (stale drift 방지)", () => {
-    const drift = (["ko", "en"] as const).flatMap((locale) => {
-      const dict = locale === "ko" ? koDict : enDict;
+    const drift = Object.keys(DICTS).flatMap((locale) => {
+      const dict = DICTS[locale];
       return MAIN_NAMESPACES.flatMap((ns) => {
-        const table = ns[locale] as Record<string, string>;
+        const table = ns[locale];
+        if (!table) return [`${locale}: 메인 네임스페이스에 이 로케일 테이블이 없다`];
         return Object.keys(dict)
           .filter((k) => k in table && table[k] !== dict[k])
           .map((k) => `${locale} ${k}`);

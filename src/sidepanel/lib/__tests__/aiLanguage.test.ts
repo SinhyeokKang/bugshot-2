@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   AI_LANGUAGE_OPTIONS,
   aiLanguageLabel,
+  localeAiPreset,
   normalizeAiLanguage,
   resolveAiLanguage,
 } from "../aiLanguage";
+import { LOCALES } from "@/i18n/locales";
 
 describe("AI_LANGUAGE_OPTIONS", () => {
   it("프리셋 9개를 프롬프트용 영어 이름으로 노출한다 (auto는 미포함 — UI가 별도 행으로 얹는다)", () => {
@@ -67,6 +69,29 @@ describe("resolveAiLanguage", () => {
   it("알 수 없는 값은 auto로 폴백한다", () => {
     expect(resolveAiLanguage("Klingon" as never, "ko")).toBe("Korean");
     expect(resolveAiLanguage("" as never, "en")).toBe("English");
+  });
+});
+
+// `locale === "ko" ? "Korean" : "English"` 3항 연산자를 대체하는 맵. 3항으로 두면 새 로케일이
+// 조용히 English로 해석돼 UI는 그 언어인데 AI 초안만 영어로 나온다 — 타입이 안 잡는 무음 실패다.
+describe("localeAiPreset", () => {
+  it("현재 로케일을 각자의 프리셋으로 옮긴다", () => {
+    expect(localeAiPreset("ko")).toBe("Korean");
+    expect(localeAiPreset("en")).toBe("English");
+  });
+
+  // 로케일을 추가하고 이 맵을 안 채우면 여기서 걸린다.
+  it("등록된 모든 로케일이 유효한 프리셋을 갖는다", () => {
+    const valid = new Set<string>(AI_LANGUAGE_OPTIONS.map((o) => o.value));
+    const missing = LOCALES.filter((locale) => !valid.has(localeAiPreset(locale)));
+    expect(missing).toEqual([]);
+  });
+
+  it("auto 해석이 이 맵과 일치한다 (resolveAiLanguage에 3항 잔존 적발)", () => {
+    for (const locale of LOCALES) {
+      expect(resolveAiLanguage("auto", locale)).toBe(localeAiPreset(locale));
+      expect(resolveAiLanguage(undefined, locale)).toBe(localeAiPreset(locale));
+    }
   });
 });
 
