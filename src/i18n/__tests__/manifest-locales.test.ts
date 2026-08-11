@@ -33,7 +33,33 @@ const registry: LocaleRegistry = Object.fromEntries(
     }),
 );
 
-const referencedKeys = [...manifestSource.matchAll(/__MSG_(\w+)__/g)].map((m) => m[1]);
+// 이 사전의 소비자는 둘이다 — manifest의 __MSG_ 치환과 런타임 chrome.i18n.getMessage.
+// manifest만 훑으면 후자로만 쓰이는 키가 "죽은 문자열"로 오탐되고, 더 나쁘게는 런타임에서
+// 부르면서 사전에 없는 키를 아무도 못 잡는다(POSTMORTEM 2026-07-26 — 스캔 범위가 실제
+// 참조 그래프보다 좁으면 검사 내용이 정교해도 무의미). chrome.i18n은 번들과 무관하게 같은
+// 사전을 보므로 import 그래프 BFS까지 갈 것 없이 src/ 전체 텍스트 스캔이면 충분하다.
+const manifestKeys = [...manifestSource.matchAll(/__MSG_(\w+)__/g)].map((m) => m[1]);
+
+function walk(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === "__tests__") continue;
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...walk(full));
+    else if (/\.tsx?$/.test(entry.name)) out.push(full);
+  }
+  return out;
+}
+
+const runtimeKeys = walk(join(repoRoot, "src")).flatMap((file) =>
+  [
+    ...readFileSync(file, "utf8").matchAll(
+      /chrome\.i18n\.getMessage\(\s*["'`](\w+)["'`]/g,
+    ),
+  ].map((m) => m[1]),
+);
+
+const referencedKeys = [...new Set([...manifestKeys, ...runtimeKeys])];
 
 describe("manifest _locales — 커버리지", () => {
   it("등록된 모든 로케일이 messages.json을 갖는다", () => {
@@ -54,13 +80,21 @@ describe("manifest _locales — 대칭", () => {
 describe("manifest __MSG_ 참조", () => {
   // 정규식이 조용히 0건을 반환하면 아래 대조가 vacuous green이 된다.
   it("추출기가 실제로 참조 키를 찾는다 (자기검증 앵커)", () => {
-    expect(referencedKeys).toContain("EXT_NAME");
-    expect(referencedKeys.length).toBeGreaterThanOrEqual(4);
+    expect(manifestKeys).toContain("EXT_NAME");
+    expect(manifestKeys.length).toBeGreaterThanOrEqual(4);
   });
 
-  // 진짜 회귀는 이쪽이다 — manifest에 __MSG_ 키를 새로 쓰고 사전에 안 넣는 것.
-  it("manifest가 참조하는 키가 모든 로케일 사전에 존재한다", () => {
-    const missing = [...new Set(referencedKeys)].flatMap((key) =>
+  // manifest만 훑으면 런타임 참조를 놓친다 — chrome.i18n.getMessage로 부르고 사전에 안 넣은
+  // 키가 무검출로 남고, 반대로 런타임 전용 키가 "죽은 문자열"로 오탐된다.
+  // 두 소스를 따로 노출해, manifest를 빼고도 런타임 스캔이 실제로 뭔가를 찾는지 고정한다.
+  it("런타임 참조(chrome.i18n.getMessage)도 따로 수집한다 (자기검증 앵커)", () => {
+    expect(runtimeKeys.length).toBeGreaterThan(0);
+    expect(runtimeKeys).toContain("EXT_NAME_SHORT");
+  });
+
+  // 진짜 회귀는 이쪽이다 — 키를 새로 참조하고 사전에 안 넣는 것.
+  it("참조되는 키가 모든 로케일 사전에 존재한다", () => {
+    const missing = referencedKeys.flatMap((key) =>
       LOCALES.filter((locale) => !(key in (registry[locale] ?? {}))).map(
         (locale) => `${locale} ${key}`,
       ),
@@ -68,7 +102,7 @@ describe("manifest __MSG_ 참조", () => {
     expect(missing).toEqual([]);
   });
 
-  it("사전에만 있고 manifest가 안 쓰는 키가 없다 (죽은 문자열)", () => {
+  it("사전에만 있고 아무도 안 쓰는 키가 없다 (죽은 문자열)", () => {
     const referenced = new Set(referencedKeys);
     const unused = Object.keys(registry[BASE_LOCALE] ?? {}).filter((k) => !referenced.has(k));
     expect(unused).toEqual([]);
