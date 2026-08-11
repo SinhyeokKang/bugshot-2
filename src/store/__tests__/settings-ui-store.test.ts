@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   apiKeyObfuscatingStorage,
   DEFAULT_ISSUE_SECTIONS,
+  mergePersistedSettings,
   migrateSettingsUi,
   normalizeSections,
   sectionHelpKey,
@@ -14,6 +15,7 @@ import {
   type TextSectionId,
   type LlmConfig,
 } from "../settings-ui-store";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
 
 const section = (
   id: IssueSectionId,
@@ -402,6 +404,60 @@ describe("settings-ui-store", () => {
     it("알 수 없는 값은 'auto'로 정규화한다", () => {
       expect(migrateSettingsUi({ aiLanguage: "Klingon" }, 9).aiLanguage).toBe("auto");
       expect(migrateSettingsUi({ aiLanguage: 42 as never }, 9).aiLanguage).toBe("auto");
+    });
+  });
+
+  // 로케일은 v1부터 있던 필드고 ko/en 값은 그대로 유효하다 — 값 확장은 하위호환이라
+  // version bump가 없다. 대신 정규화가 필요한 건 반대 방향이다: 새 로케일을 쓰던
+  // 사용자가 구버전으로 롤백되면 persist에 미지 코드가 남고, 그대로 통과시키면
+  // locales[locale]이 undefined라 t()가 죽는다.
+  describe("locale 정규화", () => {
+    it("등록된 로케일은 보존한다", () => {
+      expect(migrateSettingsUi({ locale: "ko" }, 10).locale).toBe("ko");
+      expect(migrateSettingsUi({ locale: "en" }, 10).locale).toBe("en");
+    });
+
+    it("미등록 로케일(다운그레이드 잔재)은 기본 로케일로 되돌린다", () => {
+      expect(migrateSettingsUi({ locale: "ja" as never }, 10).locale).toBe(DEFAULT_LOCALE);
+    });
+
+    it("비문자열·누락도 기본 로케일로 정규화한다", () => {
+      expect(migrateSettingsUi({ locale: 42 as never }, 10).locale).toBe(DEFAULT_LOCALE);
+      expect(migrateSettingsUi({}, 10).locale).toBe(DEFAULT_LOCALE);
+    });
+
+    it("구버전에서 올라올 때도 정규화한다", () => {
+      expect(migrateSettingsUi({ locale: "ja" as never }, 1).locale).toBe(DEFAULT_LOCALE);
+    });
+  });
+
+  // migrate는 버전이 다를 때만 돈다 — 같은 버전에서 외부 오염된 값은 rehydrate의 merge가
+  // 잡아야 한다. aiLanguage·issueSections가 이미 그 경로에 있고 locale도 같은 자리에 붙는다.
+  // merge를 persist 옵션 안 익명 함수로 두면 테스트가 닿지 못해 이 방어가 무검증으로 남는다.
+  describe("mergePersistedSettings (rehydrate 재정규화)", () => {
+    const current = useSettingsUiStore.getState();
+
+    it("미등록 로케일을 기본 로케일로 교정한다", () => {
+      const merged = mergePersistedSettings({ locale: "ja" }, current);
+      expect(merged.locale).toBe(DEFAULT_LOCALE);
+    });
+
+    it("등록된 로케일은 보존한다", () => {
+      expect(mergePersistedSettings({ locale: "ko" }, current).locale).toBe("ko");
+    });
+
+    it("persist에 locale이 없으면 현재 값을 유지한다", () => {
+      expect(mergePersistedSettings({}, current).locale).toBe(current.locale);
+    });
+
+    it("aiLanguage 정규화도 기존대로 유지한다", () => {
+      expect(mergePersistedSettings({ aiLanguage: "Klingon" }, current).aiLanguage).toBe("auto");
+      expect(mergePersistedSettings({ aiLanguage: "French" }, current).aiLanguage).toBe("French");
+    });
+
+    it("issueSections 정규화도 기존대로 유지한다 (미디어 엔트리 보강)", () => {
+      const merged = mergePersistedSettings({ issueSections: [] }, current);
+      expect(ids(merged.issueSections)).toEqual(["media"]);
     });
   });
 

@@ -204,16 +204,24 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
   }
 
   return (
-    <Card className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background py-2 font-mono text-mono shadow-none">
-      <DomTreeNode
-        node={tree}
-        depth={0}
-        currentSelector={currentSelector}
-        expanded={expanded}
-        onHover={handleHover}
-        onSelect={handleSelect}
-        onToggle={handleToggle}
-      />
+    <Card
+      className="min-h-0 flex-1 overflow-auto overscroll-contain bg-background py-2 font-mono text-mono shadow-none"
+      data-testid="dom-tree-scroll"
+    >
+      {/* w-max로 가장 넓은 행에 맞춰 폭을 잡고, 그 안의 행은 block이라 그 폭을 채운다 —
+          안 그러면 가로 스크롤 시 짧은 행의 hover 배경이 컨테이너 폭에서 끊긴다.
+          min-w-full은 트리가 좁을 때 행이 쪼그라드는 걸 막는다. */}
+      <div className="w-max min-w-full">
+        <DomTreeNode
+          node={tree}
+          depth={0}
+          currentSelector={currentSelector}
+          expanded={expanded}
+          onHover={handleHover}
+          onSelect={handleSelect}
+          onToggle={handleToggle}
+        />
+      </div>
     </Card>
   );
 }
@@ -274,9 +282,11 @@ function DomTreeNode({
         ) : (
           <span className="inline-block h-4 w-4 shrink-0" />
         )}
-        {/* 크기는 Card의 text-mono에 맡긴다 — mono는 sans보다 넓어 좁은 패널에서 truncate가 잦다. */}
+        {/* 크기는 Card의 text-mono에 맡긴다. 말줄임 대신 nowrap — 들여쓰기가 폭을 먹은
+            깊은 노드에서 태그명까지 잘려나가던 걸 Card의 가로 스크롤로 대체했다. */}
         <span
-          className="min-w-0 flex-1 truncate"
+          className="whitespace-nowrap"
+          data-testid="dom-tree-label"
           title={formatElementName({
             tag: node.tag,
             classList: node.classes,

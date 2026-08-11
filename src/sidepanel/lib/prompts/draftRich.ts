@@ -1,5 +1,6 @@
 import type { CaptureMode } from "@/store/editor-store";
-import type { LocaleMode, TextSectionId } from "@/store/settings-ui-store";
+import type { TextSectionId } from "@/store/settings-ui-store";
+import { localeValue, type LocaleMode, type LocaleTable } from "@/i18n/locales";
 import type { AiDraftSessionContext } from "@/sidepanel/lib/buildAiDraftPrompt";
 import { resolveAiLanguage } from "@/sidepanel/lib/aiLanguage";
 import {
@@ -14,7 +15,9 @@ import { MAX_TITLE_LENGTH, PROMPT_CAPS } from "./caps";
 import { oneLine, selectDraftSections } from "./context";
 import { canRequestLogRefs, selectLogCandidates } from "./logCandidates";
 
-const SECTION_DESC_BASE: Record<LocaleMode, Record<TextSectionId, string>> = {
+// 폴백 허용 테이블 — 프롬프트 뼈대가 영어라 신규 로케일은 en 스캐폴딩 + "Write in X"로
+// 커버한다(CLAUDE.md "AI 출력 언어"). 언어별 번역본을 늘리지 않는 게 의도다.
+const SECTION_DESC_BASE: LocaleTable<Record<TextSectionId, string>> = {
   ko: {
     description: "현재 관찰되는 문제 현상만 구체적으로 (기대 동작·해결책은 쓰지 말 것)",
     stepsToReproduce: "재현 과정을 줄바꿈으로 구분된 단계로 작성 (번호 없이)",
@@ -29,7 +32,7 @@ const SECTION_DESC_BASE: Record<LocaleMode, Record<TextSectionId, string>> = {
   },
 };
 
-const MODE_HINTS: Record<CaptureMode, Record<LocaleMode, Partial<Record<TextSectionId, string>>>> = {
+const MODE_HINTS: Record<CaptureMode, LocaleTable<Partial<Record<TextSectionId, string>>>> = {
   element: {
     ko: { description: " (current 값이 현재 문제 상태)", expectedResult: " (desired 값 기준으로 작성)" },
     en: { description: " (current value is the problem)", expectedResult: " (use the desired value)" },
@@ -59,7 +62,7 @@ const HAS_FAILURE_PATH: Record<CaptureMode, boolean> = {
 
 // 로그가 0건인 리포트(레이아웃 깨짐 등)에도 붙으므로 조건형이다 — 명령형이면 없는
 // 오류 UX를 짓게 유도해 "Never invent details not given"과 경합한다.
-const EXPECTED_SPLIT_HINT: Record<LocaleMode, string> = {
+const EXPECTED_SPLIT_HINT: LocaleTable<string> = {
   ko: " (정상 동작을 쓰고, 실패 동작이 얽혀 있으면 그때 사용자에게 보여야 할 오류 안내까지 각각 별도 줄로 분리)",
   en: " (put the intended behavior and, when a failed operation is involved, the failure-path UX the user should get on separate lines)",
 };
@@ -68,13 +71,16 @@ function getSectionDesc(
   locale: LocaleMode,
   mode: CaptureMode,
 ): Record<TextSectionId, string> {
-  const base = { ...SECTION_DESC_BASE[locale] };
-  const hints = MODE_HINTS[mode]?.[locale] ?? {};
+  const base = { ...localeValue(SECTION_DESC_BASE, locale) };
+  // MODE_HINTS[mode]의 존재 확인은 기존 `?.` 방어를 유지한 것 — 오염된 세션에서 CaptureMode가
+  // union 밖 값으로 들어와도 프롬프트 조립이 죽지 않는다.
+  const modeHints = MODE_HINTS[mode];
+  const hints = modeHints ? localeValue(modeHints, locale) : {};
   for (const [key, suffix] of Object.entries(hints)) {
     base[key as TextSectionId] += suffix;
   }
   if (HAS_FAILURE_PATH[mode]) {
-    base.expectedResult += EXPECTED_SPLIT_HINT[locale];
+    base.expectedResult += localeValue(EXPECTED_SPLIT_HINT, locale);
   }
   return base;
 }

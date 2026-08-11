@@ -1,4 +1,6 @@
-import type { LocaleMode, TextSectionId } from "@/store/settings-ui-store";
+import type { TextSectionId } from "@/store/settings-ui-store";
+import { localeValue, type LocaleTable } from "@/i18n/locales";
+import { localeAiPreset } from "@/sidepanel/lib/aiLanguage";
 import type { FewShotExample } from "../ai-provider";
 import type { AiDraftSessionContext } from "@/sidepanel/lib/buildAiDraftPrompt";
 import { resolveAiDraftStyleElements } from "./draftStyleElements";
@@ -14,7 +16,7 @@ import { canRequestLogRefs, selectLogCandidates } from "./logCandidates";
 // JSON 형식 규칙("output only JSON" / "no extra fields" / "빈 문자열 사용")은
 // responseConstraint가 구조적으로 강제하므로 넣지 않는다 — 순수 토큰 낭비다.
 // 이미지 언급도 0이다 — 이 본문을 쓰는 프로바이더는 이미지를 못 받는다.
-const SECTION_DESC: Record<LocaleMode, Record<TextSectionId, string>> = {
+const SECTION_DESC: LocaleTable<Record<TextSectionId, string>> = {
   ko: {
     description: "지금 무엇이 잘못됐는지",
     stepsToReproduce: "한 줄에 한 동작씩",
@@ -51,8 +53,8 @@ export const COMPACT_DRAFT_FEW_SHOT_LOGREFS: FewShotExample[] = [
 
 export function buildCompactDraftPrompt(ctx: AiDraftSessionContext): string {
   const caps = PROMPT_CAPS.compact;
-  const lang = ctx.locale === "ko" ? "Korean" : "English";
-  const desc = SECTION_DESC[ctx.locale];
+  const lang = localeAiPreset(ctx.locale);
+  const desc = localeValue(SECTION_DESC, ctx.locale);
   const lines: string[] = [];
 
   lines.push("You are a QA engineer. Write a bug report from the context below.");
