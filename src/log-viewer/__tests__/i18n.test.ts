@@ -130,9 +130,9 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
 
   it("코드가 t()로 참조하는 리터럴 키는 모든 로케일 사전에 존재", () => {
     const missing = referencedKeys.flatMap((key) =>
-      Object.keys(DICTS)
-        .filter((locale) => !(key in DICTS[locale]))
-        .map((locale) => `${locale} ${key}`),
+      LOCALES.filter((locale) => !(key in DICTS[locale])).map(
+        (locale) => `${locale} ${key}`,
+      ),
     );
     expect(missing).toEqual([]);
   });
@@ -143,9 +143,9 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
   it("동적 조립 net.verb 키(NET_VERB_KEYS)가 모든 로케일 사전에 존재", () => {
     const missing = NET_VERB_KEYS.flatMap((v) => {
       const key = `timeline.net.verb.${v}`;
-      return Object.keys(DICTS)
-        .filter((locale) => !(key in DICTS[locale]))
-        .map((locale) => `${locale} ${key}`);
+      return LOCALES.filter((locale) => !(key in DICTS[locale])).map(
+        (locale) => `${locale} ${key}`,
+      );
     });
     expect(missing).toEqual([]);
   });
@@ -155,7 +155,7 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
   const MAIN_NAMESPACES: Record<string, Record<string, string>>[] = [logs, editor];
 
   it("메인 테이블과 공통인 키는 값도 일치 (stale drift 방지)", () => {
-    const drift = Object.keys(DICTS).flatMap((locale) => {
+    const drift = LOCALES.flatMap((locale) => {
       const dict = DICTS[locale];
       return MAIN_NAMESPACES.flatMap((ns) => {
         const table = ns[locale];

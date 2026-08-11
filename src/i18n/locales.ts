@@ -30,11 +30,26 @@ export function normalizeLocale(value: unknown): LocaleMode {
   return isLocale(value) ? value : DEFAULT_LOCALE;
 }
 
+// 가장 구체적인(=긴) 후보가 이긴다. 선언 순서로 고르면 `pt` 다음에 `pt-BR`을 추가했을 때
+// 짧은 쪽이 먼저 먹어 긴 쪽이 영구 도달 불가가 된다 — 로케일 추가를 안전하게 만드는 게
+// 이 모듈의 목적이라 그 함정을 규칙으로 막는다.
+export function matchLocaleTag<T extends string>(
+  tag: string,
+  candidates: readonly T[],
+): T | undefined {
+  let best: T | undefined;
+  for (const candidate of candidates) {
+    if (!tag.startsWith(candidate)) continue;
+    if (best === undefined || candidate.length > best.length) best = candidate;
+  }
+  return best;
+}
+
 // 브라우저가 주는 언어 태그 해석 — 이쪽은 관용적이다(지역 서브태그·대소문자 흡수).
 // 전역을 직접 읽지 않고 인자로 받아 순수 함수로 남긴다(호출부가 존재 여부를 판단).
 export function detectLocale(languageTag: string | undefined): LocaleMode {
   const tag = languageTag?.toLowerCase() ?? "";
-  return LOCALES.find((locale) => tag.startsWith(locale)) ?? DEFAULT_LOCALE;
+  return matchLocaleTag(tag, LOCALES) ?? DEFAULT_LOCALE;
 }
 
 // 폴백 **허용** 테이블의 형태. 기본 로케일 항목은 필수고 나머지는 선택이다 —

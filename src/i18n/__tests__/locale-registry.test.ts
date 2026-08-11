@@ -8,6 +8,7 @@ import {
   DEFAULT_LOCALE,
   LOCALES,
   detectLocale,
+  matchLocaleTag,
   normalizeLocale,
 } from "../locales";
 
@@ -43,6 +44,33 @@ describe("normalizeLocale", () => {
     for (const locale of LOCALES) {
       expect(normalizeLocale(normalizeLocale(locale))).toBe(locale);
     }
+  });
+});
+
+// LOCALES 선언 순서에 매칭이 좌우되면, `pt` 다음에 `pt-BR`을 추가했을 때 짧은 쪽이 먼저
+// 먹어 긴 쪽이 영구 도달 불가가 된다. 로케일 추가를 안전하게 만드는 게 이 모듈의 목적이라
+// 확장 시점의 함정을 규칙 자체로 막는다 — 가장 구체적인(=긴) 코드가 이긴다.
+describe("matchLocaleTag", () => {
+  it("겹치는 후보 중 가장 긴 것을 고른다", () => {
+    expect(matchLocaleTag("pt-br", ["pt", "pt-br"])).toBe("pt-br");
+  });
+
+  it("후보 배열 순서에 좌우되지 않는다", () => {
+    expect(matchLocaleTag("pt-br", ["pt-br", "pt"])).toBe("pt-br");
+    expect(matchLocaleTag("pt-br", ["pt", "pt-br"])).toBe("pt-br");
+  });
+
+  it("더 구체적인 후보가 없으면 짧은 쪽으로 떨어진다", () => {
+    expect(matchLocaleTag("pt-pt", ["pt", "pt-br"])).toBe("pt");
+  });
+
+  it("접두 일치가 없으면 undefined", () => {
+    expect(matchLocaleTag("fr-fr", ["pt", "en"])).toBeUndefined();
+    expect(matchLocaleTag("", ["ko", "en"])).toBeUndefined();
+  });
+
+  it("후보가 비면 undefined", () => {
+    expect(matchLocaleTag("ko-kr", [])).toBeUndefined();
   });
 });
 

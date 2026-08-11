@@ -1,6 +1,6 @@
 // 상대경로 필수 — vite.log-viewer.config.ts가 `@/i18n`을 이 파일로 alias하는데 그게
 // prefix 매칭이라 `@/i18n/locales`는 `.../i18n.ts/locales`로 깨진다.
-import { DEFAULT_LOCALE, detectLocale } from "../i18n/locales";
+import { detectLocale, type LocaleMode } from "../i18n/locales";
 
 export type TranslationFn = (
   key: string,
@@ -275,8 +275,9 @@ export const enDict: Record<string, string> = {
   "common.clearSearch": "Clear search",
 };
 
-// 이 사전은 등록 로케일 전부를 커버해야 한다(테스트가 LOCALES 대비 강제).
-export const DICTS: Record<string, Record<string, string>> = {
+// 폴백 금지 테이블 — 로케일을 추가하고 복제 사전을 안 만들면 그 사용자에게 raw 키가
+// 노출된다. locales·BCP47·LOCALE_AI_PRESET과 같은 등급이라 컴파일이 강제하게 둔다.
+export const DICTS: Record<LocaleMode, Record<string, string>> = {
   ko: koDict,
   en: enDict,
 };
@@ -285,8 +286,7 @@ export const DICTS: Record<string, Record<string, string>> = {
 // **읽는 사람의 브라우저 언어**를 따르는 게 맞다. 사용자 locale 주입은 의도적으로 안 한다.
 // Node 20(전역 navigator 없음)에서 vitest가 이 모듈을 로드해도 깨지지 않게 가드.
 const dict =
-  DICTS[detectLocale(typeof navigator !== "undefined" ? navigator.language : undefined)] ??
-  DICTS[DEFAULT_LOCALE];
+  DICTS[detectLocale(typeof navigator !== "undefined" ? navigator.language : undefined)];
 
 export function t(key: string, params?: Record<string, string | number>): string {
   let text = dict[key];
