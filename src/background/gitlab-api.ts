@@ -11,6 +11,7 @@ import type {
   GitlabProject,
 } from "@/types/gitlab";
 import { createRefreshRunner } from "./lib/createRefreshRunner";
+import { assertCredentialSafeBase } from "@/lib/credential-url";
 
 export class GitlabError extends Error {
   constructor(
@@ -102,9 +103,11 @@ export async function gitlabFetch<T = unknown>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
+  // self-managed baseUrl은 사용자 입력이다. PAT가 헤더로 나가므로 상대 경로 조립 전에
+  // 평문 http를 끊는다 — 사이드패널 폼을 우회하는 경로(gitlab.testPat 등)도 여기를 지난다.
   const url = path.startsWith("https://")
     ? path
-    : `${auth.baseUrl}/api/v4${path}`;
+    : `${assertCredentialSafeBase(auth.baseUrl, "gitlab.instanceUrl")}/api/v4${path}`;
   const res = await authedFetch(auth, url, init);
   if (!res.ok) {
     throw new GitlabError(

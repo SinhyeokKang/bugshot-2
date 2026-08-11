@@ -19,11 +19,11 @@ import { useSettingsStore, jiraHostLabel } from "@/store/settings-store";
 import type { JiraAccount } from "@/types/platform";
 import type {
   JiraApiKeyAuth,
-  JiraAuth,
   JiraMyself,
   JiraOAuthAuth,
   JiraSite,
 } from "@/types/jira";
+import { isCredentialSafeUrl } from "@/lib/loopback-host";
 import { isOAuthCancelled, sendBg, type OAuthStartResultMsg } from "@/types/messages";
 import { AssigneeField } from "@/sidepanel/tabs/jiraFields/AssigneeField";
 import { IssueTypeCombobox } from "@/sidepanel/tabs/IssueTypeCombobox";
@@ -302,11 +302,23 @@ function ApiKeyDialog({
 
   async function handleValidate() {
     if (validating) return;
+    let parsed: URL;
+    try {
+      parsed = new URL(trimmed.baseUrl);
+    } catch {
+      toast.error(t("jira.workspaceUrl.invalid"));
+      return;
+    }
+    // API 토큰이 Basic 헤더로 나가므로 평문 http는 loopback(로컬 인스턴스)만 허용한다.
+    if (!isCredentialSafeUrl(parsed)) {
+      toast.error(t("jira.workspaceUrl.insecure"));
+      return;
+    }
     setValidating(true);
     try {
       await sendBg<JiraMyself>({
         type: "jira.myself",
-        config: trimmed as JiraAuth,
+        config: trimmed,
       });
       const next: JiraAccount = {
         platform: "jira",

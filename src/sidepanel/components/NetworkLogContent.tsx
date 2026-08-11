@@ -5,6 +5,7 @@ import type { NetworkRequest, NetworkRequestBody, WebSocketFrame } from "@/types
 import { formatBytes } from "@/sidepanel/lib/formatBytes";
 import { networkLogPath } from "@/lib/network-log-path";
 import { isStatusHidden, isNetworkError, isNetworkPending } from "@/lib/network-status";
+import { isMaskedHeaderValue } from "@/lib/masked-header";
 import { requestMatchesQuery } from "@/lib/network-search";
 import { networkMethodTextClass, TONE_BG } from "@/lib/log-colors";
 import { useDebouncedValue } from "@/sidepanel/lib/useDebouncedValue";
@@ -130,7 +131,7 @@ function buildCurl(req: NetworkRequest): string {
   const parts: string[] = [`curl '${req.url}'`];
   parts.push(`  -X ${req.method}`);
   for (const [k, v] of Object.entries(req.requestHeaders)) {
-    if (v.startsWith("***")) {
+    if (isMaskedHeaderValue(v)) {
       parts.push(`  # -H '${k}: [masked by BugShot]'`);
     } else {
       parts.push(`  -H '${k}: ${v}'`);
@@ -562,7 +563,7 @@ function HeadersTable({ headers, query }: { headers: Record<string, string>; que
         <Fragment key={k}>
           <dt className="text-muted-foreground"><HighlightedText text={k} query={query} /></dt>
           <dd className="break-all">
-            {v.startsWith("***") ? (
+            {isMaskedHeaderValue(v) ? (
               <span className="italic text-muted-foreground">{v}</span>
             ) : (
               <HighlightedText text={v} query={query} />

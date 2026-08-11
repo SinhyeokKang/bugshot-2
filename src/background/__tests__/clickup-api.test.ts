@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { clickupAuthHeader, flattenLists } from "../clickup-api";
+import { clickupAuthHeader, flattenLists, getSpaces } from "../clickup-api";
 import type { ClickupAuth } from "@/types/clickup";
 
 describe("clickupAuthHeader — raw token (Bearer 없음)", () => {
@@ -76,5 +76,43 @@ describe("flattenLists — folderless + folder list 평탄화", () => {
 
   it("입력이 모두 비면 빈 배열", () => {
     expect(flattenLists([], [])).toEqual([]);
+  });
+});
+
+describe("URL 경로 인코딩", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function mockFetch(body: unknown = {}) {
+    const f = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => body,
+    } as Response);
+    vi.stubGlobal("fetch", f);
+    return f;
+  }
+
+  const auth: ClickupAuth = {
+    kind: "pat",
+    pat: "pk_123",
+    viewerId: "u1",
+    viewerName: "Me",
+  };
+
+  // 정상 id에서 URL이 종전과 동일해야 한다(이중 인코딩 금지).
+  it("영숫자 id는 URL 문자열이 그대로다", async () => {
+    const f = mockFetch({ spaces: [] });
+    await getSpaces(auth, "9001");
+    expect(f.mock.calls[0][0]).toBe(
+      "https://api.clickup.com/api/v2/team/9001/space?archived=false",
+    );
+  });
+
+  it("특수문자가 든 id는 인코딩된다", async () => {
+    const f = mockFetch({ spaces: [] });
+    await getSpaces(auth, "a b#c");
+    expect(f.mock.calls[0][0]).toContain("/team/a%20b%23c/space");
   });
 });

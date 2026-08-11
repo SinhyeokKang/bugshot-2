@@ -8,7 +8,8 @@ vi.stubGlobal("chrome", {
   },
 });
 
-import { isGithubCancellationCode, parseCallbackParams } from "../github-oauth";
+import { isGithubCancellationCode, parseCallbackParams, refreshGithubToken } from "../github-oauth";
+import { OAUTH_CONFIG } from "../oauth/config";
 import { OAuthError } from "../oauth";
 
 describe("parseCallbackParams", () => {
@@ -120,5 +121,48 @@ describe("isGithubCancellationCode", () => {
     expect(isGithubCancellationCode("server_error")).toBe(false);
     expect(isGithubCancellationCode(null)).toBe(false);
     expect(isGithubCancellationCode("")).toBe(false);
+  });
+});
+
+// 종전엔 이 경로만 맨 OAuthError를 던져 notConfigured 플래그가 빠졌고, 그러면
+// serializeOAuthError의 401 fallthrough에 걸려 "세션 만료"로 오분류됐다.
+// 나머지 4개 플랫폼 refresh와 같은 assertConfigured 경로를 쓰는지 고정한다.
+describe("refreshGithubToken 설정 누락 분류", () => {
+  it("clientId가 없으면 notConfigured + config_missing으로 던진다", async () => {
+    const cfg = OAUTH_CONFIG.github;
+    const spy = vi.spyOn(cfg, "clientId", "get").mockReturnValue("");
+
+    try {
+      await refreshGithubToken({
+        kind: "oauth",
+        accessToken: "at",
+        refreshToken: "rt",
+        tokenType: "bearer",
+        scope: "repo",
+        viewerLogin: "u",
+        grantedAt: Date.now(),
+      });
+      expect.unreachable("설정 누락이면 throw해야 한다");
+    } catch (err) {
+      expect(err).toBeInstanceOf(OAuthError);
+      const e = err as OAuthError;
+      expect(e.notConfigured).toBe(true);
+      expect(e.reason).toBe("config_missing");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("refreshToken이 아예 없으면 재인증 안내로 갈린다(설정 누락과 구분)", async () => {
+    await expect(
+      refreshGithubToken({
+        kind: "oauth",
+        accessToken: "at",
+        tokenType: "bearer",
+        scope: "repo",
+        viewerLogin: "u",
+        grantedAt: Date.now(),
+      }),
+    ).rejects.toThrow(/refresh token/);
   });
 });

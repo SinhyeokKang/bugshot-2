@@ -195,13 +195,23 @@ const OAUTH_AVAILABLE_PLATFORM = {
 
 export async function handleMessage(
   message: BgRequest,
-  _sender: chrome.runtime.MessageSender,
+  sender: chrome.runtime.MessageSender,
 ): Promise<unknown> {
   switch (message.type) {
     case "ping":
       return { pong: true, at: Date.now() };
 
     case "captureVisibleTab": {
+      // 발신처는 전량 사이드패널이다. content script가 페이로드 tabId로 남의 탭 화면을
+      // 받아가는 경로를 막는다 — captureOwnedTab의 활성 탭 확인만으론 자기 탭이 아닌
+      // 활성 탭을 걸러내지 못한다.
+      //
+      // 판별은 origin으로 한다. `sender.tab`은 "탭에서 열린 연결"이면 채워지므로
+      // 확장 페이지를 탭으로 띄우는 e2e(fixtures/extension.ts의 openPanel)까지 막힌다.
+      // content script의 origin은 페이지 origin이라 이쪽이 위협과 정확히 일치한다.
+      if (sender.origin !== `chrome-extension://${chrome.runtime.id}`) {
+        throw new Error("captureVisibleTab: sender is not an extension page");
+      }
       const format = message.format ?? "png";
       const opts: chrome.tabs.CaptureVisibleTabOptions = { format };
       if (format === "jpeg" && message.quality != null) {
@@ -877,7 +887,8 @@ async function submitIssue(
         content,
       });
     } catch (err) {
-      console.warn("[bugshot] description update with images failed", err, JSON.stringify([...uploadMap.entries()]));
+      // 실패한 첨부 식별에는 파일명이면 충분하다 — mediaId·URL은 SW 콘솔에 남길 이유가 없다.
+      console.warn("[bugshot] description update with images failed", err, [...uploadMap.keys()]);
     }
   }
 

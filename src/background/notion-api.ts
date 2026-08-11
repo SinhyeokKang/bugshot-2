@@ -257,7 +257,7 @@ export async function getDatabaseSchema(
 ): Promise<NotionDatabaseSchema> {
   const data = await notionFetch<NotionDatabaseRaw>(
     auth,
-    `/databases/${databaseId}`,
+    `/databases/${encodeURIComponent(databaseId)}`,
   );
   return parseDatabaseSchema(data);
 }
@@ -689,7 +689,7 @@ export async function getPageStatus(
   auth: NotionAuth,
   pageId: string,
 ): Promise<NotionPageStatus> {
-  const data = await notionFetch<NotionPageRaw>(auth, `/pages/${pageId}`);
+  const data = await notionFetch<NotionPageRaw>(auth, `/pages/${encodeURIComponent(pageId)}`);
   return parsePageStatus(data);
 }
 
@@ -701,7 +701,7 @@ export async function updatePageStatus(
 ): Promise<NotionPageStatus> {
   const data = await notionFetch<NotionPageRaw>(
     auth,
-    `/pages/${pageId}`,
+    `/pages/${encodeURIComponent(pageId)}`,
     {
       method: "PATCH",
       body: {

@@ -2,16 +2,9 @@ import { t } from "@/i18n";
 import { initBgLocale } from "@/i18n/bg-init";
 import { PANEL_PORT_PREFIX, sessionKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
-import { GithubError } from "./github-api";
-import { JiraError } from "./jira-api";
-import { LinearError } from "./linear-api";
-import { NotionError } from "./notion-api";
-import { GitlabError } from "./gitlab-api";
-import { AsanaError } from "./asana-api";
-import { ClickupError } from "./clickup-api";
-import { SlackError } from "./slack-api";
 import { handleMessage } from "./messages";
 import { BG_REQUEST_TYPES } from "./bgRequestTypes";
+import { serializePlatformError } from "./platformErrors";
 import { captureEvent } from "./analytics";
 import { OAuthError, serializeOAuthError } from "./oauth";
 import { pruneOrphanPendingLogsOncePerSession } from "@/lib/pending-log-prune";
@@ -137,7 +130,7 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
     chrome.tabs
       .sendMessage(details.tabId, { type: "actionRecorder.sync" })
       .catch(() => {});
-  });
+  }).catch(() => {});
 });
 
 chrome.webNavigation.onCommitted.addListener((details) => {
@@ -182,7 +175,7 @@ chrome.webNavigation.onCommitted.addListener((details) => {
     chrome.runtime
       .sendMessage({ type: "logClear", tabId: details.tabId } satisfies BgInternalMessage)
       .catch(() => {});
-  });
+  }).catch(() => {});
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -191,61 +184,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleMessage(message, sender)
     .then((result) => sendResponse({ ok: true, result }))
     .catch((error: unknown) => {
-      if (error instanceof JiraError) {
+      // 플랫폼 에러 8종은 satisfies로 컴파일 강제되는 테이블 한 곳에서 판정한다.
+      // OAuth 분기가 반드시 뒤에 와야 한다 — serializePlatformError가 OAuthError에
+      // null을 돌려주는 것도 이 순서를 전제로 한 계약이다.
+      const platform = serializePlatformError(error);
+      if (platform) {
         sendResponse({
           ok: false,
-          error: error.message,
-          status: error.status,
-          body: error.body,
-        });
-      } else if (error instanceof GithubError) {
-        sendResponse({
-          ok: false,
-          error: error.message,
-          status: error.status,
-          body: error.body,
-        });
-      } else if (error instanceof LinearError) {
-        sendResponse({
-          ok: false,
-          error: error.message,
-          status: error.status,
-          body: error.body,
-        });
-      } else if (error instanceof NotionError) {
-        sendResponse({
-          ok: false,
-          error: error.message,
-          status: error.status,
-          body: error.body,
-        });
-      } else if (error instanceof GitlabError) {
-        sendResponse({
-          ok: false,
-          error: error.message,
-          status: error.status,
-          body: error.body,
-        });
-      } else if (error instanceof AsanaError) {
-        sendResponse({
-          ok: false,
-          error: error.message,
-          status: error.status,
-          body: error.body,
-        });
-      } else if (error instanceof ClickupError) {
-        sendResponse({
-          ok: false,
-          error: error.message,
-          status: error.status,
-          body: error.body,
-        });
-      } else if (error instanceof SlackError) {
-        sendResponse({
-          ok: false,
-          error: error.message,
-          status: error.status,
-          body: error.body,
+          error: error instanceof Error ? error.message : String(error),
+          status: platform.status,
+          body: platform.body,
         });
       } else if (error instanceof OAuthError) {
         const { status, body } = serializeOAuthError(error);

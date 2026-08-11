@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildAuthHeader,
   mapCreateIssueBody,
   messageForGitlabStatus,
   normalizeIssueStatus,
   normalizeProject,
+  gitlabFetch,
 } from "../gitlab-api";
 
 vi.mock("@/i18n", () => ({
@@ -149,5 +150,66 @@ describe("messageForGitlabStatus", () => {
 
   it("알려지지 않은 상태 코드는 generic 메시지 반환", () => {
     expect(messageForGitlabStatus(418)).toContain("gitlab.error.generic");
+  });
+});
+
+describe("gitlabFetch egress 자격증명 게이트", () => {
+  const pat = {
+    kind: "pat",
+    pat: "glpat_xyz",
+    viewerUsername: "u",
+  } as const;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function mockFetch() {
+    const f = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    } as Response);
+    vi.stubGlobal("fetch", f);
+    return f;
+  }
+
+  it("평문 http 인스턴스는 fetch 전에 끊는다", async () => {
+    const f = mockFetch();
+    await expect(
+      gitlabFetch({ ...pat, baseUrl: "http://gitlab.corp" }, "/user"),
+    ).rejects.toThrow("gitlab.instanceUrl.insecure");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  // 사이드패널 폼(normalizeInstanceUrl)을 우회하는 경로도 이 관문을 지난다.
+  it("폼을 우회해 들어온 baseUrl도 같은 게이트에 걸린다", async () => {
+    const f = mockFetch();
+    await expect(
+      gitlabFetch({ ...pat, baseUrl: "http://evil.example" }, "/user"),
+    ).rejects.toThrow("gitlab.instanceUrl.insecure");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("loopback http는 통과한다(로컬 인스턴스)", async () => {
+    const f = mockFetch();
+    await gitlabFetch({ ...pat, baseUrl: "http://localhost:8929" }, "/user");
+    expect(f.mock.calls[0][0]).toBe("http://localhost:8929/api/v4/user");
+  });
+
+  it("https는 종전대로 통과한다", async () => {
+    const f = mockFetch();
+    await gitlabFetch({ ...pat, baseUrl: "https://gitlab.com" }, "/user");
+    expect(f.mock.calls[0][0]).toBe("https://gitlab.com/api/v4/user");
+  });
+
+  // 업로드 URL 같은 절대 경로는 baseUrl을 안 쓰므로 게이트 밖이다.
+  it("절대 URL 경로는 게이트를 거치지 않는다", async () => {
+    const f = mockFetch();
+    await gitlabFetch(
+      { ...pat, baseUrl: "http://gitlab.corp" },
+      "https://cdn.example/uploads/x",
+    );
+    expect(f.mock.calls[0][0]).toBe("https://cdn.example/uploads/x");
   });
 });

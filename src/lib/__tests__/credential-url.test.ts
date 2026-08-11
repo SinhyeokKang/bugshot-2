@@ -22,8 +22,8 @@ describe("assertCredentialSafeBase", () => {
     expect(assertCredentialSafeBase("http://localhost:8929", "gitlab.instanceUrl")).toBe(
       "http://localhost:8929",
     );
-    expect(assertCredentialSafeBase("http://127.0.0.1:11434", "llm.baseUrl")).toBe(
-      "http://127.0.0.1:11434",
+    expect(assertCredentialSafeBase("http://127.0.0.1:8080", "jira.workspaceUrl")).toBe(
+      "http://127.0.0.1:8080",
     );
   });
 
