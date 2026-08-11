@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   estimateBodySize,
   findOldestBodyIndex,
@@ -312,6 +312,81 @@ describe("maskBody — 부분일치 오탐 방지 (exact-match 유지)", () => {
     expect(maskBody("error_code=429&author=kim", "application/x-www-form-urlencoded")).toBe(
       "error_code=429&author=kim",
     );
+  });
+});
+
+// MAIN world 레코더는 페이지와 같은 realm이라 페이지가 내장을 갈아끼울 수 있다.
+// maskBody가 호출 시점의 전역을 쓰면 마스킹이 무음으로 무력화돼 원문이 이슈 본문·LLM으로 샌다.
+describe("maskBody — 전역 오염 내성 (document_start 스냅샷)", () => {
+  const realParse = JSON.parse;
+  const realStringify = JSON.stringify;
+  const realURLSearchParams = globalThis.URLSearchParams;
+
+  afterEach(() => {
+    JSON.parse = realParse;
+    JSON.stringify = realStringify;
+    globalThis.URLSearchParams = realURLSearchParams;
+  });
+
+  // 오염 상태에서 expect를 돌리면 실패 리포트 자체가 깨질 수 있어 호출만 오염 구간에 둔다.
+  function whilePolluted<T>(pollute: () => void, run: () => T): T {
+    pollute();
+    try {
+      return run();
+    } finally {
+      JSON.parse = realParse;
+      JSON.stringify = realStringify;
+      globalThis.URLSearchParams = realURLSearchParams;
+    }
+  }
+
+  it("페이지가 JSON.parse를 throw로 바꿔도 JSON 본문이 마스킹된다", () => {
+    const out = whilePolluted(
+      () => {
+        JSON.parse = () => {
+          throw new Error("page hijacked JSON.parse");
+        };
+      },
+      () => maskBody('{"token":"x","q":1}', "application/json"),
+    );
+    expect(out).toBe('{"token":"***","q":1}');
+  });
+
+  it("페이지가 JSON.stringify를 오염시켜도 결과가 정상이다", () => {
+    const out = whilePolluted(
+      () => {
+        JSON.stringify = () => "POLLUTED";
+      },
+      () => maskBody('{"password":"p","q":1}', "application/json"),
+    );
+    expect(out).toBe('{"password":"***","q":1}');
+  });
+
+  it("contentType 없이 형태로 추론하는 경로도 오염에 견딘다", () => {
+    const out = whilePolluted(
+      () => {
+        JSON.parse = () => {
+          throw new Error("page hijacked JSON.parse");
+        };
+      },
+      () => maskBody('[{"secret":"s"}]', ""),
+    );
+    expect(out).toBe('[{"secret":"***"}]');
+  });
+
+  it("페이지가 URLSearchParams를 오염시켜도 urlencoded 본문이 마스킹된다", () => {
+    const out = whilePolluted(
+      () => {
+        globalThis.URLSearchParams = class {
+          constructor() {
+            throw new Error("page hijacked URLSearchParams");
+          }
+        } as unknown as typeof URLSearchParams;
+      },
+      () => maskBody("password=p&plain=1", "application/x-www-form-urlencoded"),
+    );
+    expect(out).toContain("password=***");
+    expect(out).toContain("plain=1");
   });
 });
 

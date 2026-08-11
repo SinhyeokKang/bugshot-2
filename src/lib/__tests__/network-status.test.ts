@@ -67,3 +67,61 @@ describe("isStatusHidden", () => {
     );
   });
 });
+
+// statusText는 UI 번역을 위해 statusKind로 분류를 병기하지만, 이미 저장된 로그
+// (IndexedDB networkLogs · chrome.storage.session)에는 statusKind가 없다.
+describe("isStatusHidden — statusKind 우선 + statusText 폴백", () => {
+  it("statusKind가 networkError면 statusText와 무관하게 true", () => {
+    expect(
+      isStatusHidden(
+        req({ phase: "error", status: 0, statusText: "", statusKind: "networkError" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("statusKind가 aborted면 false", () => {
+    expect(
+      isStatusHidden(
+        req({ phase: "error", status: 0, statusText: "Aborted", statusKind: "aborted" }),
+      ),
+    ).toBe(false);
+  });
+
+  it("statusKind가 timeout이면 false", () => {
+    expect(
+      isStatusHidden(
+        req({ phase: "error", status: 0, statusText: "Timeout", statusKind: "timeout" }),
+      ),
+    ).toBe(false);
+  });
+
+  it("statusKind가 있으면 statusText 폴백을 타지 않는다", () => {
+    expect(
+      isStatusHidden(
+        req({
+          phase: "error",
+          status: 0,
+          statusText: "Network Error",
+          statusKind: "aborted",
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("statusKind가 없는 옛 저장 로그는 statusText 폴백으로 판정한다", () => {
+    expect(
+      isStatusHidden(req({ phase: "error", status: 0, statusText: "Network Error" })),
+    ).toBe(true);
+    expect(
+      isStatusHidden(req({ phase: "error", status: 0, statusText: "Aborted" })),
+    ).toBe(false);
+  });
+
+  it("networkError여도 phase가 error가 아니면 false", () => {
+    expect(
+      isStatusHidden(
+        req({ phase: "complete", status: 200, statusText: "OK", statusKind: "networkError" }),
+      ),
+    ).toBe(false);
+  });
+});
