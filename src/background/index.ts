@@ -86,7 +86,8 @@ chrome.runtime.onConnect.addListener((port) => {
     .catch(() => false)
     .then((supported) =>
       captureEvent("sidepanel_opened", { page_supported: String(supported) }),
-    );
+    )
+    .catch(() => {});
   port.onDisconnect.addListener(() => {
     // 보존 phase(drafting/previewing/done/video)는 패널을 닫았다 열어도 복원돼야 하므로
     // 세션·picker 상태를 남긴다 (tab-bindings의 phase별 보존 정책과 동일 기준).

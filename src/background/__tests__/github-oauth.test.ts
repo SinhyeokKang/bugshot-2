@@ -10,7 +10,7 @@ vi.stubGlobal("chrome", {
 
 import { isGithubCancellationCode, parseCallbackParams, refreshGithubToken } from "../github-oauth";
 import { OAUTH_CONFIG } from "../oauth/config";
-import { OAuthError } from "../oauth";
+import { OAuthError, serializeOAuthError } from "../oauth";
 
 describe("parseCallbackParams", () => {
   it("정상 — code/state 일치", () => {
@@ -164,5 +164,44 @@ describe("refreshGithubToken 설정 누락 분류", () => {
         grantedAt: Date.now(),
       }),
     ).rejects.toThrow(/refresh token/);
+  });
+});
+
+// serializeOAuthError는 cancelled·notConfigured·launchFailed가 아닌 모든 OAuthError를
+// 401 + oauthRefreshFailed로 내린다. notConfigured 플래그가 서야 400 레인으로 갈린다.
+describe("설정 누락은 401이 아니라 400 레인으로 간다", () => {
+  it("proxyUrl 누락도 notConfigured + config_missing", async () => {
+    const cfg = OAUTH_CONFIG.github;
+    const spy = vi.spyOn(cfg, "proxyUrl", "get").mockReturnValue("");
+
+    try {
+      await refreshGithubToken({
+        kind: "oauth",
+        accessToken: "at",
+        refreshToken: "rt",
+        tokenType: "bearer",
+        scope: "repo",
+        viewerLogin: "u",
+        grantedAt: Date.now(),
+      });
+      expect.unreachable("설정 누락이면 throw해야 한다");
+    } catch (err) {
+      const e = err as OAuthError;
+      expect(e.notConfigured).toBe(true);
+      expect(e.reason).toBe("config_missing");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("serializeOAuthError가 400 + oauthNotConfigured로 직렬화한다", () => {
+    const err = new OAuthError("missing", {
+      platform: "github",
+      notConfigured: true,
+      reason: "config_missing",
+    });
+    const { status, body } = serializeOAuthError(err);
+    expect(status).toBe(400);
+    expect(body).toMatchObject({ oauthNotConfigured: true });
   });
 });
