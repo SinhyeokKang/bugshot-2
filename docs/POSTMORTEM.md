@@ -36,6 +36,42 @@
 
 ---
 
+## 2026-08-12 — 설계가 처방한 "대칭 수정"이 대칭이 아니었고, 그대로 넣었으면 없던 회귀를 만들었다
+
+- **영역**: `content`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: 액션 로그 네비게이션 유형 기능의 설계 문서가 곁다리로 `clear` 핸들러에 `entryNavEmitted = false`를 넣으라고 처방했다("grace 만료 경로와 동일한 대칭"). 그대로 구현해 유닛 5231개가 전부 green이었는데, 검증 에이전트가 **녹화 중 탭 전환 후 복귀하면 일어나지도 않은 새로고침 항목이 녹화 중간 시각으로 찍힌다**는 걸 잡았다. 하류 `mergeLogItems`는 id로만 dedup해 흡수 장치가 없어 이슈 본문·JSON·AI 요약까지 그대로 나간다.
+- **근본 원인**: 처방의 근거인 "대칭"이 **성립하지 않는 전제**였다. grace 만료 경로는 `if (armedOnce) return;` 가드를 달고 **arm 이전에만** 돌고, `clear` 리스너는 `setSentinel` **안에서만** 등록되며 같은 함수가 `armedOnce = true`를 세운다 — 즉 clear 핸들러가 도는 시점엔 `armedOnce`가 **항상 true**라 두 경로는 배타적 구간에서 돈다. 그래서 grace의 가드를 그대로 옮기면 죽은 코드가 되고, 가드 없이 리셋만 옮기면 회귀가 된다. 더 근본은 **`clear` 발신자가 둘인데 의미가 반대**라는 걸 아무도 안 센 것이다 — `logClear`(네비게이션 경계, 패널 로그도 비움 → 보충해야 함)와 `video-capture.prepareRecorders`(세션 준비, 같은 문서 유지 → 보충하면 안 됨). MAIN world는 "패널 로그도 비워졌는가"를 **원리적으로 알 수 없어서**, 수신자에서 판정하려는 시도는 어떤 형태든 틀린다. 손익도 뒤집혀 있었다 — 막으려던 유실은 이 기능 이전부터 있던 조건이고(같은 race에서 `load` 항목을 잃었다), 유령 항목은 새로 생기는 회귀다.
+- **재발 방지**: (1) **설계가 "X와 동일한 대칭"이라고 쓰면 두 경로의 가드와 실행 구간을 실제로 대조한다** — 리셋문만 복사하고 그 앞의 조건을 빼면 대칭이 아니라 다른 코드다. `grep -n "armedOnce\|entryNavEmitted" src/content/action-recorder.ts`로 래치를 건드리는 지점을 전수한다. (2) **수신자가 판정할 수 없는 건 발신자가 의도를 실어 보낸다** — `PickerMessage`의 `actionRecorder.clear`가 `resupplyEntryNav`를 싣고, **필드 부재 = 안 함**이 fail-safe 방향이다(새 발신자가 잊으면 회귀가 아니라 기존 동작으로 떨어진다). 발신자를 늘릴 때 `grep -rn "clearActionRecorder" src`로 의미를 다시 가른다. (3) **설계 문서의 실패한 처방을 지우지 말고 왜 틀렸는지와 함께 남긴다** — 지우면 다음 사람이 같은 처방을 다시 제안한다(design.md "1차 처방이 왜 틀렸나"). (4) **부수적으로 딸려온 처방("겸사겸사 이것도 고치자")은 본 기능과 손익을 따로 센다** — 이 항목은 기능의 요구가 아니라 리뷰가 발견한 별건이었고, 선재 조건을 못 고치는 것보다 새 거짓말을 만드는 게 나쁘다.
+- **관련**: `src/content/action-recorder.ts`(`clear` 핸들러 — `detail.resupplyEntryNav`일 때만 래치 리셋), 발신자 `src/store/editor-store.ts:clearActionLog`(켬)·`src/sidepanel/video-capture.ts:prepareRecorders`(안 켬), 계약 `src/types/picker.ts`·`src/sidepanel/recorder-control.ts`·`src/content/recorder-bridge.ts:handleActionClear`, 그물 `e2e/action-log-nav-type.spec.ts` E7(유닛으로는 안 잡힌다 — 뮤테이션으로 확인) + U6(발신자 의도).
+
+---
+
+## 2026-08-12 — popstate를 "히스토리 이동 신호"로 전제해, 링크 클릭이 "앞으로가기"로 기록됐다
+
+- **영역**: `content`
+- **계열**: `미검증단언`, `라이브러리전제`
+- **그물**: `e2e`
+- **증상**: `<a href="#x">` 클릭 한 번에 액션 로그가 `Clicked hash x` 바로 뒤에 **`Went forward to …#x`** 를 찍었다. 사용자는 앞으로가기를 누른 적이 없다. 유닛 5245개·타입체크 전부 green이었고, e2e를 쓰면서 행을 덤프해 보고서야 드러났다.
+- **근본 원인**: 설계가 "같은 문서 traverse는 `popstate` 시점의 히스토리 인덱스 델타로 방향까지 판정"으로 잡았고, 그 전제는 **popstate가 히스토리 이동에서만 발화한다**는 것이었다. 실제로는 HTML 스펙상 **같은 문서 프래그먼트 네비게이션도 popstate를 쏘고** 인덱스를 +1 한다. 그래서 부호만 보면 링크 클릭이 forward가 된다 — 이 기능이 가른다고 선언한 축(히스토리 조작 여부)과 **정반대**이고, 정보가 없는 게 아니라 **틀린 정보**라 폴백(`"popstate"`)보다 나쁘다. 설계가 대안 검토에서 `navigate` 이벤트를 기각하며 popstate 경로를 "이미 존재하는 리스너에 몇 줄"이라고 평가할 때도 이 전제는 재확인되지 않았다. 인접한 함정 하나를 더 깔고 있었다 — 같은 문서의 `<a href="#x">`가 popstate 없이 인덱스를 올린다고 적힌 부분(미러 변수 금지 처방)은 **맞는 방향의 처방이지만 이유가 틀렸다**(popstate는 발화한다). 처방이 우연히 옳아 그 오해가 e2e까지 살아남았다.
+- **재발 방지**: (1) **브라우저 이벤트의 발화 조건을 "내가 아는 용도"로 전제하지 않는다** — 이벤트 이름이 용도를 좁혀 읽히게 만든다(popstate = pop = 이동). 판정에 쓰기 전에 **의도한 트리거 외의 경로로도 발화하는지** 실제 페이지에서 한 번 찍어 본다. (2) **방향·부호처럼 값이 뒤집히는 판정은 "판정 불가"보다 "틀린 값"이 훨씬 비싸다** — 게이트를 하나 더 요구한다. 여기선 도착 `NavigationHistoryEntry.id`를 전에 본 적 있어야 이동으로 인정하고(밀어 넣어진 엔트리는 새 id), 모르면 기존 값으로 접는다. (3) **레코더 본문처럼 유닛이 못 닿는 곳은 e2e에서 단언을 쓰기 전에 행을 통째로 덤프해 눈으로 읽는다** — 기대한 항목의 존재만 단언하면 **옆에 생긴 틀린 항목은 영원히 안 보인다**(E1·E2·E6이 전부 green인 채로 이 버그가 살아 있었다). (4) 그물이 실제로 무는지는 **뮤테이션으로 확인한다** — 판정을 인덱스 델타만으로 되돌려 E5가 red가 되는 걸 봤다.
+- **관련**: `src/content/action-recorder-helpers.ts:popstateNavType`(id 게이트 + 폴백), `src/content/action-recorder.ts`(`seenEntryIds` 적재 지점 — `recordNavigation` 진입마다), `src/content/recorder-globals.ts`(`NavigationLike.currentEntry.id`), 그물 `e2e/action-log-nav-type.spec.ts` E5(`forward` 0건 단언) + 유닛 `popstateNavType`.
+
+---
+
+## 2026-08-12 — 페이지가 조작 가능한 값을 객체 리터럴 키로 쓰면 `Object.prototype`이 렌더를 죽인다
+
+- **영역**: `컴포넌트`, `lib`
+- **계열**: `라이브러리전제`
+- **그물**: `jsdom`
+- **증상**: (사전 차단 — 같은 라운드의 `/code-review`가 잡음) 액션 로그 항목의 `navType`으로 아이콘을 고르는 룩업 `NAV_ICON[navType]`이 객체 리터럴이라, `navType: "constructor"`면 truthy 함수가 잡히고 React가 그걸 컴포넌트로 호출해 *"Objects are not valid as a React child"* 로 throw했다. 저장소에 ErrorBoundary가 0건이라 **패널 트리 전체가 내려간다**. 같은 `KindIcon`을 로그뷰어가 쓰므로 이슈에 첨부된 `logs.html`을 여는 팀원 쪽도 백지가 된다. 짝으로 `buildLogSummary`의 `NAV_VERB_EN[...] ?? "…"`은 `??`가 undefined만 걸러서 함수 소스가 LLM 프롬프트에 보간됐다.
+- **근본 원인**: `navType`이 **페이지가 통제하는 값**이라는 걸 렌더 시점에 잊었다. sentinel은 비밀이 아니고(ARCHITECTURE "등록 핸드셰이크"가 인정), 위조 `__bugshot_action_data__`로 임의 엔트리를 밀어 넣을 수 있으며, 브리지·`mergeLogItems` 어디도 엔트리 필드를 검증하지 않는다. 기존 선례(`CONSOLE_LEVEL_TONE[level]`)도 같은 형태지만 결과가 className **문자열**이라 프로토타입 값이 무해하게 흡수됐다 — 이번에 처음으로 룩업 결과가 **컴포넌트 타입**으로 쓰이면서 같은 패턴의 위험 등급이 바뀌었다. 게다가 직전 리뷰에서 "캐스트로 두면 오타가 조용히 폴백된다"는 지적을 받고 `Partial<Record<…>>`로 **타입만** 조인 게 안전해졌다는 착각을 더했다(타입은 런타임 프로토타입 체인과 무관하다). ARCHITECTURE가 위조 주입의 영향을 "해당 탭 로그 무결성 한정"으로 못박아 둔 경계를 렌더 크래시로 넓힌 것이다.
+- **재발 방지**: (1) **외부·페이지 유래 문자열로 조회하는 테이블은 `Map`을 쓴다**(또는 `Object.create(null)`·`hasOwnProperty` 게이트). 객체 리터럴은 `constructor`·`__proto__`·`toString`·`valueOf`에 전부 truthy를 돌려준다. `grep -rnE "\[(e\.|entry\.|msg\.|payload\.)" src/sidepanel src/log-viewer`로 외부 값 인덱싱을 훑는다. (2) **`??` 폴백은 프로토타입 오염을 못 막는다** — 상속 값은 `undefined`가 아니다. 폴백을 방어로 쓰려면 `||`도 부족하고 조회 자체가 안전해야 한다. (3) **룩업 결과가 컴포넌트·함수로 쓰이면 위험 등급이 문자열일 때와 다르다** — 같은 패턴이 저장소에 있다고 안전 근거로 삼지 않는다. (4) 회귀 테스트는 **위조 키를 실제로 렌더**해 크래시 부재 + 폴백 아이콘을 단언한다(`ActionLogContent.test.tsx`). 타입 단언은 이 축을 못 잡는다.
+- **관련**: `src/sidepanel/components/ActionLogContent.tsx:NAV_ICON`(Map), `src/sidepanel/lib/buildLogSummary.ts:NAV_VERB_EN`(Map), 주입 경로 `src/content/recorder-bridge.ts:handleActionData`·`src/sidepanel/hooks/usePickerMessages.ts`(엔트리 필드 미검증 — 수용된 설계), 경계 서술 `docs/ARCHITECTURE.md` "등록 핸드셰이크".
+
+---
+
 ## 2026-08-12 — 방어를 넣으면서 "이제 막힌다"를 실측 없이 문장으로 먼저 확정했고, 세 번 다 틀렸다
 
 - **영역**: `content`
