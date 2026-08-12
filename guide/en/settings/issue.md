@@ -2,11 +2,31 @@
 
 Set up the parts that repeat on every issue here, and each one gets a little lighter on your hands.
 
-## Title prefix
+## Common issue settings
 
-![Title prefix setting](../assets/settings-issue-1.jpg)
+![Common issue settings — title prefix and issue body language](../assets/settings-issue-1.jpg)
+
+Two things that apply to every issue, no matter how you captured it.
+
+### Title prefix
 
 A string automatically prepended to issue titles. Set it to `[QA] `, for example, and every title starts with `[QA] `. Pretty handy if your team uses label conventions.
+
+### Issue body language
+
+This sets **the language of section headings and table headers** in the body you submit or copy. Great for teams who work in one language but file issues in another.
+
+The default is **Auto**, with the language it currently resolves to shown in parentheses (e.g. `Auto (English)`). Leave it on Auto and it follows your display language, so switching the interface later won't leave your issue bodies stuck on the old one.
+
+Only the scaffolding BugShot generates changes.
+
+- **Changes** — section headings like `Description` and `Steps to reproduce`, the headers on the environment and style-change tables, and the log summary lines.
+- **Doesn't change** — anything you wrote yourself, and anything the AI wrote. It ships exactly as you left it, never translated.
+- **Your screen stays put** — the side panel's tabs, buttons, and preview keep using your display language. Only the body you copy or submit changes.
+
+> Renamed a section label yourself (under **Body composition** below)? That name wins. Switching the body language leaves your own labels alone.
+
+> The language the AI writes in is a separate setting. To get the whole issue in one language, set both this and [AI writing language](./ai.md).
 
 ## Recording mode
 

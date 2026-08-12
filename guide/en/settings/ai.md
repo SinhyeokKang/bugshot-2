@@ -45,7 +45,16 @@ Jot the bug down in a line or two (you can leave it blank in element mode) and h
 
 ## AI writing language
 
-**AI writing language** sets the language the AI writes in, separately from your display language — keep the interface in English and get the issue body in French, if that's what your team reads. Handy when you file into a tracker your teammates read in another language.
+**AI writing language** sets the language the AI writes in, separately from your display language — keep the interface in English and get the AI draft in French, if that's what your team reads. Handy when you file into a tracker your teammates read in another language.
+
+What you set here is **the language of the prose AI writes**. The scaffolding around it — section headings like `Description`, table headers — is handled separately by [Issue body language](./issue.md). Here's the split.
+
+| Setting | What it controls |
+|---|---|
+| AI writing language | The **content** AI fills into the title and body |
+| Issue body language | The **scaffolding** BugShot generates — section headings, table headers |
+
+> Want the whole issue in one language? Set **both**. Change only one and you'll end up with English headings around French prose, or the other way round.
 
 The default is **Auto**, with the language it currently resolves to shown in parentheses (e.g. `Auto (English)`). Leave it on Auto and it follows your display language, so switching the interface later won't leave the AI stuck on the old one.
 
