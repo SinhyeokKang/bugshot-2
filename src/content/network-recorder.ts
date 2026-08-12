@@ -1,8 +1,9 @@
+import { objectEntries } from "./recorder-globals";
 import { BODY_CAP, beaconStatus, classifyBeaconBody, classifyResponseBody, createPatchedFetch, createPatchedSetRequestHeader, fetchFailureStatus, headersToRecord, maskBody, maskUrl, classifyWsFrameData, maskWsFrame, estimateBodySize, findOldestBodyIndex, reclaimableSize, xhrFailureStatus } from "./network-recorder-helpers";
 import type { FetchRecordHook } from "./network-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
-import { addEventListener, CustomEventCtor, dispatchEvent, removeEventListener } from "./recorder-globals";
+import { addEventListener, CustomEventCtor, dispatchEvent, randomUUID, removeEventListener } from "./recorder-globals";
 import { createSentinelRegistry } from "./sentinel-registry";
 import type { NetworkRequestBody, NetworkRequestPhase, NetworkStatusKind, WebSocketFrame, WebSocketFrameDirection, WebSocketMeta } from "@/types/network";
 
@@ -65,10 +66,10 @@ function networkRecorderScript(): void {
   type NetworkWarning = "MEMORY_CAPPED" | "ENTRY_CAPPED" | "BODY_TRUNCATED" | "WS_FRAMES_CAPPED";
   const warnings = new Set<NetworkWarning>();
 
+  // 페이지가 crypto를 갈아끼워 모든 id를 같게 만들면 사이드패널 log-merge의 id dedup이
+  // 로그 전체를 1건으로 접는다 — 스냅샷 경유.
   function genId(): string {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
+    if (randomUUID) return randomUUID();
     return `nr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
@@ -85,9 +86,11 @@ function networkRecorderScript(): void {
     return `***[len:${value.length}]`;
   }
 
+  // 순회도 스냅샷 경유 — 페이지가 Object.entries를 키를 살짝 바꿔 돌려주는 함수로 갈면
+  // isMaskedHeader가 빗나가 Authorization·Cookie 원문이 그대로 로그에 남는다.
   function maskHeaders(headers: Record<string, string>): Record<string, string> {
     const result: Record<string, string> = {};
-    for (const [k, v] of Object.entries(headers)) {
+    for (const [k, v] of objectEntries(headers)) {
       result[k] = isMaskedHeader(k) ? maskHeaderValue(v) : v;
     }
     return result;
@@ -126,11 +129,12 @@ function networkRecorderScript(): void {
     }
   }
 
-  // console/action의 pushEntry와 맞춘 첫 줄 게이트 — 지금은 호출부 4곳이 모두 게이트→push를
-  // 동기로 잇고 있어 도달하지 않는 이중 방어다. 호출부 게이트를 지우면 안 된다: 그쪽은
-  // totalSeen·memoryUsed 갱신까지 함께 막으므로, 여기만 남기면 계측이 버퍼와 갈라진다.
+  // console/action의 pushEntry와 맞춘 첫 줄 게이트. 호출부 게이트와 이 게이트 사이에 페이지
+  // 코드가 낀다(maskUrl의 URL 생성자·url.toString) — 그 창에서 위조 stop이 capturing을 뒤집으면
+  // 여기가 발화하므로 memoryUsed 갱신도 게이트 뒤에 둬야 계측이 버퍼와 갈라지지 않는다.
   function pushEntry(entry: CapturedRequest): void {
     if (!capturing) return;
+    memoryUsed += estimateBodySize(entry.requestBody);
     buffer.push(entry);
     enforceEntryCap();
   }
@@ -203,7 +207,6 @@ function networkRecorderScript(): void {
       phase: "pending",
     };
     if (!recording) entry.preArm = true;
-    memoryUsed += estimateBodySize(entry.requestBody);
     pushEntry(entry);
     enforceMemoryCap();
     throttle.schedule();
@@ -211,8 +214,10 @@ function networkRecorderScript(): void {
     return async ({ response, error }) => {
       if (error || !response) {
         // 네트워크 실패·CORS 차단 등도 기록한다 (DevTools와 동일).
+        const failure = fetchFailureStatus(error);
         entry.status = 0;
-        Object.assign(entry, fetchFailureStatus(error));
+        entry.statusText = failure.statusText;
+        entry.statusKind = failure.statusKind;
         entry.durationMs = Date.now() - startTime;
         entry.phase = "error";
         return;
@@ -358,7 +363,6 @@ function networkRecorderScript(): void {
       phase: "pending",
     };
     if (!recording) entry.preArm = true;
-    memoryUsed += estimateBodySize(entry.requestBody);
     pushEntry(entry);
     enforceMemoryCap();
     throttle.schedule();
@@ -411,8 +415,10 @@ function networkRecorderScript(): void {
           entry.responseBody = { kind: "binary", contentType, size: 0 };
         }
       } else {
+        const failure = xhrFailureStatus(kind);
         entry.status = 0;
-        Object.assign(entry, xhrFailureStatus(kind));
+        entry.statusText = failure.statusText;
+        entry.statusKind = failure.statusKind;
         entry.phase = "error";
       }
 
@@ -422,10 +428,16 @@ function networkRecorderScript(): void {
       }
     }
 
-    addEventListener(xhr, "load", () => captureXhr("load"));
-    addEventListener(xhr, "error", () => captureXhr("error"));
-    addEventListener(xhr, "abort", () => captureXhr("abort"));
-    addEventListener(xhr, "timeout", () => captureXhr("timeout"));
+    // 기록 throw를 페이지 XHR의 리스너 체인으로 흘리지 않는다 — 흘리면 페이지 에러 모니터링이
+    // 오염되고, 우리 console 레코더가 그걸 페이지 에러로 되받아 리포트에 허위 신호를 남긴다
+    // (무간섭 3원칙 ②, POSTMORTEM 2026-07-23 계열).
+    const safeCapture = (kind: "load" | "error" | "abort" | "timeout") => () => {
+      try { captureXhr(kind); } catch { /* 레코더 오류는 무시 */ }
+    };
+    addEventListener(xhr, "load", safeCapture("load"));
+    addEventListener(xhr, "error", safeCapture("error"));
+    addEventListener(xhr, "abort", safeCapture("abort"));
+    addEventListener(xhr, "timeout", safeCapture("timeout"));
   }
 
   // --- sendBeacon wrap ---
@@ -469,7 +481,6 @@ function networkRecorderScript(): void {
           phase: queued ? "complete" : "error",
         };
         if (!recording) entry.preArm = true;
-        memoryUsed += estimateBodySize(entry.requestBody);
         pushEntry(entry);
         enforceMemoryCap();
         throttle.schedule();
@@ -542,13 +553,12 @@ function networkRecorderScript(): void {
       meta.protocol = ws.protocol || "";
       pushFrame({ direction: "open", ts: Date.now(), size: 0 });
     });
-    addEventListener(ws, "message", (ev: Event) => {
+    addEventListener(ws, "message", (ev: MessageEvent) => {
       if (!capturing) return;
-      recordData("receive", (ev as MessageEvent).data);
+      recordData("receive", ev.data);
     });
-    addEventListener(ws, "close", (ev: Event) => {
+    addEventListener(ws, "close", (close: CloseEvent) => {
       if (!capturing) return;
-      const close = ev as CloseEvent;
       pushFrame({
         direction: "close",
         ts: Date.now(),
@@ -586,7 +596,7 @@ function networkRecorderScript(): void {
   }
 
   // --- Sentinel-bound dispatch ---
-  // 페이지가 고정 이름 부트스트랩 이벤트를 위조해도 진짜 세션을 밀어내지 못하도록 다중 등록한다.
+  // 다중 등록 — 무엇을 막고 무엇이 남는지는 sentinel-registry.ts 헤더 참조.
   const sentinels = createSentinelRegistry();
   const sentinelHandlers = new Map<string, { stop: () => void; sync: () => void; clear: () => void }>();
 
@@ -594,10 +604,8 @@ function networkRecorderScript(): void {
     const registered = sentinels.list();
     if (!registered.length) return;
     for (const sentinel of registered) {
-      // 배열은 sentinel마다 새로 뜬다. 같은 realm의 CustomEvent detail은 구조화 복제를 안 거치므로
-      // 배열을 공유하면 먼저 등록된 위조 sentinel의 리스너가 그걸 비워 진짜 세션 배치를 지운다.
-      // 격리는 배열까지다 — 엔트리 객체는 여전히 공유 참조라 in-place 위조는 남는다(로그 무결성
-      // 한정, ARCHITECTURE.md가 수용한 범위).
+      // 배열은 sentinel마다 새로 뜬다(공유하면 먼저 등록된 위조 리스너가 비운다). 격리는
+      // 배열까지 — 엔트리 객체는 공유 참조다. sentinel-registry.ts 헤더 참조.
       dispatchEvent(
         document,
         new CustomEventCtor("__bugshot_net_data__" + sentinel, {
@@ -621,10 +629,16 @@ function networkRecorderScript(): void {
   // pre-arm은 패널이 열린 origin의 reload이고 재arm은 tabs.onUpdated status==="complete"에
   // 걸려 있다 — 즉 상한은 document_start부터 **페이지 load 완료까지**를 덮어야 정상 로그를 안 자른다.
   const PREARM_GRACE_MS = 60000;
+  let armedOnce = false;
   let graceTimer: ReturnType<typeof setTimeout> | null = null;
   if (preArm) {
     graceTimer = setTimeout(() => {
       graceTimer = null;
+      // 해제는 clearTimeout에 의존할 수 없다 — 페이지가 그걸 no-op으로 바꾸면 정당하게
+      // arm된 세션이 만료 시점에 죽는다. recording이 아니라 armedOnce를 보는 이유: arm 후
+      // stop된 상태에서도 이 타이머가 남의 버퍼를 비우면 안 된다(타이머의 조건은 "arm이
+      // 한 번도 안 왔다"이지 "지금 녹화 중이 아니다"가 아니다).
+      if (armedOnce) return;
       capturing = false;
       clearBuffer();
       throttle.cancel();
@@ -665,6 +679,7 @@ function networkRecorderScript(): void {
       addEventListener(document, "__bugshot_net_clear__" + sentinel, handlers.clear);
     }
     // 재발행(같은 sentinel)에서도 arm 상태는 다시 세운다 — 리스너만 멱등이다.
+    armedOnce = true;
     recording = true;
     capturing = true;
     setPreArmFlag(); // 이후 reload/same-origin 네비에서 pre-arm 적재가 켜지도록 active 표시.
@@ -687,8 +702,7 @@ function networkRecorderScript(): void {
     if (document.visibilityState === "hidden") throttle.flushNow();
   });
 
-  // 값이 아니라 마커다 — 페이지에서 읽을 수 있는 전역에 setSentinel·clearBuffer를 걸어두면
-  // 그게 곧 직접 호출 지름길이 된다. 용도는 위쪽 중복 초기화 가드뿐.
+  // 함수가 아니라 마커다 — 걸어두면 페이지가 부를 수 있다. 용도는 위쪽 중복 초기화 가드뿐.
   (window as any)[CTRL_KEY] = true;
 }
 

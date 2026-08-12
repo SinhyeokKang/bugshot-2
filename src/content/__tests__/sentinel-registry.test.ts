@@ -5,7 +5,7 @@ describe("createSentinelRegistry", () => {
   it("새 sentinel을 등록하면 true, list에 들어간다", () => {
     const reg = createSentinelRegistry();
     expect(reg.add("a")).toBe(true);
-    expect(reg.has("a")).toBe(true);
+    expect(reg.list()).toContain("a");
     expect(reg.list()).toEqual(["a"]);
   });
 
@@ -39,7 +39,7 @@ describe("createSentinelRegistry", () => {
     reg.add("b");
     reg.add("c");
     expect(reg.list()).toEqual(["b", "c"]);
-    expect(reg.has("a")).toBe(false);
+    expect(reg.list()).not.toContain("a");
   });
 
   it("evicted()는 밀려난 항목을 돌려주고 비운다(리스너 해제 1회 보장)", () => {
@@ -65,7 +65,7 @@ describe("createSentinelRegistry", () => {
     reg.add("s8");
     expect(reg.list()).toHaveLength(8);
     expect(reg.evicted()).toEqual(["s0"]);
-    expect(reg.has("s8")).toBe(true);
+    expect(reg.list()).toContain("s8");
   });
 
   it("캡을 여러 번 초과하면 evicted()가 밀려난 순서대로 누적한다", () => {

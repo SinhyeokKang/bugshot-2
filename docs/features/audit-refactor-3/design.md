@@ -12,8 +12,8 @@ MAIN world 레코더 3종이 페이지와 같은 realm을 공유한다는 사실
 
 - **원리적 한계**: MAIN 레코더는 자기가 arm될 sentinel(UUID)을 **모르는 상태로** document_start에 뜬다. ISOLATED 브리지(`recorder-bridge.ts:33`)가 그 값을 처음 건네는 채널은 필연적으로 **양쪽이 미리 아는 고정 이름**이어야 한다. 이름을 랜덤화하려면 그 랜덤값을 다시 고정 채널로 합의해야 해서 문제가 한 단계 뒤로 밀릴 뿐이다.
 - **`isTrusted`로 못 가른다**: 브리지도 `document.dispatchEvent(new CustomEvent(...))`로 쏘므로 `isTrusted === false`다. 페이지 이벤트와 구별되지 않는다.
-- **그러나 완화는 실효적이다.** 지금 피해가 큰 이유는 부트스트랩 채널이 뚫려서가 아니라, `setSentinel`이 **기존 세션을 파괴**하기 때문이다(`detachSentinelListeners()` + `currentSentinel` 단일 슬롯 교체). 이 둘을 없애면 위조 sentinel은 "무해한 추가 구독자"로 격하된다.
-- **채택**: (a) sentinel을 **다중 등록**(`Set`, FIFO 캡 8)으로 바꿔 위조가 진짜 세션을 밀어내지 못하게 하고, (b) 레코더가 `EventTarget.prototype.addEventListener/removeEventListener/dispatchEvent`와 `CustomEvent` 생성자를 **document_start에 스냅샷**해 그것만 사용한다. (b)가 없으면 페이지가 나중에 `document.addEventListener`를 후킹해 진짜 sentinel 문자열(`__bugshot_net_stop__<uuid>` 등)을 관측하고 (a)를 그대로 우회한다 — 두 조치는 **짝**이다.
+- **그러나 완화는 실효적이다.** 지금 피해가 큰 이유는 부트스트랩 채널이 뚫려서가 아니라, `setSentinel`이 **기존 세션을 파괴**하기 때문이다(`detachSentinelListeners()` + `currentSentinel` 단일 슬롯 교체). 이 둘을 없애면 **그 파괴 경로 하나**가 사라진다. (구현 시점 정정 — 초안은 여기서 위조가 "무해한 추가 구독자"로 격하된다고 썼으나 과장이다. 위조 sentinel도 자기 stop/clear 핸들러로 world 전역을 끌 수 있고 캡을 넘기면 진짜 sentinel을 evict한다. 게다가 브리지가 sentinel을 평문 detail로 dispatch하고 `document_idle`이라, 페이지가 고정 이름에 리스너 하나만 걸면 후킹 없이 진짜 UUID를 읽어 1이벤트로 `clear`를 쏠 수 있다 — 아래 (b) 스냅샷은 UUID 은닉이 아니라 우리 등록·발화의 가로채기·억제를 막는 조치로 읽어야 한다.)
+- **채택**: (a) sentinel을 **다중 등록**(`Set`, FIFO 캡 8)으로 바꿔 위조가 진짜 세션을 밀어내지 못하게 하고, (b) 레코더가 `EventTarget.prototype.addEventListener/removeEventListener/dispatchEvent`와 `CustomEvent` 생성자를 **document_start에 스냅샷**해 그것만 사용한다. (b)가 없으면 페이지가 나중에 `document.addEventListener`를 후킹해 우리 등록 자체를 가로채거나 억제할 수 있다. **다만 sentinel 은닉 효과는 없다** — 위 정정대로 브리지가 UUID를 평문으로 흘리므로, (b)의 값은 "우리 배선을 페이지가 못 건드리게"이지 "UUID를 못 보게"가 아니다.
 - **남는 위험(수용)**: 페이지는 여전히 자기 프레임 버퍼를 위조 sentinel로 구독해 읽을 수 있다. 그 내용은 그 프레임 자신의 fetch/console/action이라 페이지가 이미 접근 가능한 정보에 거의 수렴하고, 이는 ARCHITECTURE.md:212가 이미 수용한 "탭 로그 무결성 한정" 범위다. 위조 sentinel로 `capturing`이 켜지는 문제는 항목 9와 같은 성격이라 거기서 함께 다룬다.
 
 ### 항목 7 — `window.__bugshot_*_ctrl__` 함수 노출 (실질 **차단 가능**)
@@ -36,8 +36,9 @@ MAIN world 레코더 3종이 페이지와 같은 realm을 공유한다는 사실
 
 - **역할**: document_start에 내장(built-in)을 스냅샷해 페이지 monkeypatch로부터 격리하는 단일 출처. **`src/content/` 안에 두고 레코더 3종 + 헬퍼만 import**하므로 self-contained 청크 제약을 깨지 않는다(현재 `log-throttle.ts`·`recorder-prearm.ts`·`*-recorder-helpers.ts`와 동일한 위치).
 - **내용**: 모듈 평가 시점(= document_start, 페이지 인라인 스크립트보다 먼저)에 캡처.
-  - `jsonParse` / `jsonStringify` — 항목 8
-  - `URLSearchParamsCtor` — 항목 8(`maskBody`의 urlencoded 분기)
+  - `jsonParse` / `jsonStringify` / `objectEntries` / `isArray` — 항목 8(마스킹은 파싱·순회·직렬화가 모두 스냅샷이어야 우회가 닫힌다)
+  - `URLCtor` / `URLSearchParamsCtor` — 항목 8(`maskBody`의 urlencoded 분기 + `maskUrl` 전체)
+  - `randomUUID`(`crypto`에 bind) — 엔트리 id 고정 공격 차단(구현 시점 추가)
   - `addEventListener` / `removeEventListener` / `dispatchEvent`(모두 `EventTarget.prototype`에서) + `CustomEventCtor` — 항목 6(b)
 - **주의**: 이 모듈은 **부수효과 없는 상수 캡처만** 한다. import 순서에 의존하지 않도록 `recorders-entry.ts`가 바꾸지 않아도 되게, 각 레코더가 자기 import로 끌어온다(rollup이 같은 청크에 인라인).
 
@@ -56,7 +57,7 @@ MAIN world 레코더 3종이 페이지와 같은 realm을 공유한다는 사실
   - `:448` — `queued ? "queued" : "queueFull"`.
   - `:204`(fetch 실패) — **`error instanceof Error`가 아닐 때만** `"networkError"`. Error면 `statusText`가 실제 메시지라 지금도 `isStatusHidden`이 false이므로 `statusKind`도 부여하지 않는다(회귀 감시 지점 7).
 - 항목 35: `recordXhrSend`(:308) 첫 부분에서 `meta`가 없으면 **엔트리를 만들지 않고 return**한다(`totalSeen++`도 스킵). url·method를 모르는 엔트리는 로그 가치가 0이고, `captureXhr`의 `!meta` 가드(:358) 때문에 어차피 영구 pending이다.
-- 항목 67: `pushEntry`(:122) 첫 줄에 `if (!capturing) return;` 추가. 호출부 4곳(`recordHook`:160 / `recordXhrSend`:296 게이트 / sendBeacon:426 / `attachWsRecorder`:568)의 기존 방어는 **그대로 둔다** — 호출부 게이트는 `totalSeen++`·`memoryUsed` 갱신까지 함께 막으므로 제거하면 계측이 바뀐다(외과적 범위).
+- 항목 67: `pushEntry`(:122) 첫 줄에 `if (!capturing) return;` 추가. 호출부 4곳(`recordHook` / `recordXhrSend` 게이트 / sendBeacon / `attachWsRecorder`)의 기존 방어는 **그대로 둔다** — 거기서 `totalSeen++`까지 함께 막기 때문이다. (구현 시점 정정 — 초안은 `memoryUsed` 갱신도 호출부에 남는다고 썼으나, 그러면 두 게이트 사이에 `capturing`이 뒤집힐 때 크기만 더해지고 엔트리는 안 들어가 계측이 갈린다. `memoryUsed` 가산은 `pushEntry` 안 게이트 뒤로 옮겼다.)
 
 ### `src/content/console-recorder.ts`
 

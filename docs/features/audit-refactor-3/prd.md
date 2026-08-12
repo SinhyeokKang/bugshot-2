@@ -34,9 +34,9 @@ console/network/action 레코더는 MAIN world `document_start`에 주입돼 **�
 
 ## 목표
 
-1. **가용성 — 위조 1회 사망 경로 제거**(부분 달성, 수용 위험 2건): `setSentinel` 한 번이 진짜 세션의 `data`/`stop`/`sync`/`clear` 리스너를 떼어내던 파괴적 교체를 없앤다(항목 6). **원천 차단은 아니다** — 비목표대로 위조 자체를 막을 수 없어 두 경로가 남는다: ① 위조 `setSentinel` 8회면 캡 FIFO가 진짜 sentinel을 evict한다(design.md 위험 요소 3), ② 위조 sentinel의 `stop`/`clear` 핸들러가 world 전역을 건드려 2이벤트면 적재가 멈춘다. 이 배치가 올리는 건 공격 비용(1 → 8 또는 2 이벤트)이다.
+1. **가용성 — 위조 1회 사망 경로 제거**(부분 달성, 수용 위험 2건): `setSentinel` 한 번이 진짜 세션의 `data`/`stop`/`sync`/`clear` 리스너를 떼어내던 파괴적 교체를 없앤다(항목 6). **원천 차단은 아니고 공격 비용도 사실상 안 오른다** — 비목표대로 위조 자체를 막을 수 없다: ① 위조 `setSentinel` 8회면 캡 FIFO가 진짜 sentinel을 evict한다(design.md 위험 요소 3), ② 위조 sentinel의 `stop`/`clear` 핸들러가 world 전역을 건드려 2이벤트면 적재가 멈춘다, ③ **가장 싼 경로** — 브리지가 sentinel을 평문 `detail`로 dispatch하고 `document_idle`이라, 페이지가 고정 이름에 리스너 하나만 걸면 진짜 UUID를 읽어 `__bugshot_*_clear__<real>` **1이벤트**로 버퍼를 비운다. 이 항목이 실제로 없애는 건 "**단일 슬롯 파괴적 교체**" 하나이고, 그건 위조 없이 iframe 재발행 같은 정상 경로에서도 터지던 결함이다.
 2. **직접 호출 경로 제거**: 페이지에서 `setSentinel`·`clearBuffer`를 호출할 수단이 사라진다(항목 7).
-3. **마스킹 무결성**: 페이지가 `JSON`·`URLSearchParams`를 바꿔도 `maskBody`의 민감 키 마스킹이 유지된다(항목 8).
+3. **마스킹 무결성**: 페이지가 `JSON`·`Object.entries`·`Array.isArray`·`URL`·`URLSearchParams`를 통째로 교체해도 `maskBody`·`maskUrl`·`maskHeaders`의 마스킹이 유지된다(항목 8. 구현 시점 확대 — 초안은 `maskBody`만 스코프였으나 순회·URL·헤더 경로가 같은 우회를 열어둔 채였다). prototype 메서드 재정의까지는 막지 못한다.
 4. **오염 창 유한화**: 위조된 pre-arm 플래그로 켜진 wrap·적재가 무한정 지속되지 않는다(항목 9).
 5. **게이트 일관성**: capturing 게이트 밖에서 무한 증가하는 상태가 없고(항목 15), network `pushEntry`도 console/action과 같은 첫 줄 게이트를 갖는다(항목 67).
 6. **로그 정확성**: 연속 타이핑이 실시간 반영되고(16), BugShot 저작 상태 라벨이 UI에서 번역되며(31), arm 경계 XHR이 유령 pending을 남기지 않는다(35).

@@ -14,7 +14,7 @@ import {
 import type { EwState } from "./console-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
-import { addEventListener, CustomEventCtor, dispatchEvent, removeEventListener } from "./recorder-globals";
+import { addEventListener, CustomEventCtor, dispatchEvent, randomUUID, removeEventListener } from "./recorder-globals";
 import { createSentinelRegistry } from "./sentinel-registry";
 import { maskUrl } from "./network-recorder-helpers";
 
@@ -46,10 +46,10 @@ function consoleRecorderScript(): void {
   const preArm = readPreArmFlag();
   let capturing = preArm;
 
+  // 페이지가 crypto를 갈아끼워 모든 id를 같게 만들면 사이드패널 log-merge의 id dedup이
+  // 로그 전체를 1건으로 접는다 — 스냅샷 경유.
   function genId(): string {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
+    if (randomUUID) return randomUUID();
     return `cl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
@@ -175,8 +175,7 @@ function consoleRecorderScript(): void {
     };
   }
 
-  // count/time의 상태 갱신은 capturing 게이트 밖에 남긴다 — 미armed 구간에 세지 않으면 arm 후
-  // console.count 값이 DevTools와 어긋나고 timeEnd가 "?"로 찍힌다. 무한 증가만 캡으로 막는다.
+  // 게이트 밖 누적을 유지하는 이유는 capLabelMap 옆(console-recorder-helpers.ts) 참조.
   const MAX_LABELS = 200;
 
   const counters = new Map<string, number>();
@@ -256,8 +255,7 @@ function consoleRecorderScript(): void {
   addEventListener(
     window,
     "error",
-    (ev: Event) => {
-      const e = ev as ErrorEvent;
+    (e: ErrorEvent) => {
       // 에러 리스너 안에서 throw하면 새 error 이벤트가 나 우리 리스너를 다시 태운다 — 반드시 격리.
       safeRecord(() => {
         const { args, stack } = formatErrorEvent({
@@ -276,9 +274,9 @@ function consoleRecorderScript(): void {
   addEventListener(
     window,
     "unhandledrejection",
-    (ev: Event) => {
+    (e: PromiseRejectionEvent) => {
       safeRecord(() => {
-        const { args, stack } = formatRejectionReason((ev as PromiseRejectionEvent).reason);
+        const { args, stack } = formatRejectionReason(e.reason);
         pushEntry("error", args, stack);
       });
     },
@@ -286,7 +284,7 @@ function consoleRecorderScript(): void {
   );
 
   // --- Sentinel-bound dispatch ---
-  // 페이지가 고정 이름 부트스트랩 이벤트를 위조해도 진짜 세션을 밀어내지 못하도록 다중 등록한다.
+  // 다중 등록 — 무엇을 막고 무엇이 남는지는 sentinel-registry.ts 헤더 참조.
   const sentinels = createSentinelRegistry();
   const sentinelHandlers = new Map<string, { stop: () => void; sync: () => void; clear: () => void }>();
 
@@ -294,10 +292,8 @@ function consoleRecorderScript(): void {
     const registered = sentinels.list();
     if (!registered.length) return;
     for (const sentinel of registered) {
-      // 배열은 sentinel마다 새로 뜬다. 같은 realm의 CustomEvent detail은 구조화 복제를 안 거치므로
-      // 배열을 공유하면 먼저 등록된 위조 sentinel의 리스너가 그걸 비워 진짜 세션 배치를 지운다.
-      // 격리는 배열까지다 — 엔트리 객체는 여전히 공유 참조라 in-place 위조는 남는다(로그 무결성
-      // 한정, ARCHITECTURE.md가 수용한 범위).
+      // 배열은 sentinel마다 새로 뜬다(공유하면 먼저 등록된 위조 리스너가 비운다). 격리는
+      // 배열까지 — 엔트리 객체는 공유 참조다. sentinel-registry.ts 헤더 참조.
       dispatchEvent(
         document,
         new CustomEventCtor("__bugshot_console_data__" + sentinel, {
@@ -313,13 +309,23 @@ function consoleRecorderScript(): void {
   // 페이지가 sessionStorage pre-arm 플래그를 위조하면 error/warn wrap이 상시 설치된 채 남아
   // chrome://extensions에 확장 attribution 경고가 계속 쌓인다. 그 창을 유한하게 끊는다.
   const PREARM_GRACE_MS = 60000;
+  let armedOnce = false;
   let graceTimer: ReturnType<typeof setTimeout> | null = null;
   if (preArm) {
     graceTimer = setTimeout(() => {
       graceTimer = null;
+      // 해제는 clearTimeout에 의존할 수 없다 — 페이지가 그걸 no-op으로 바꾸면 정당하게
+      // arm된 세션이 만료 시점에 죽는다. recording이 아니라 armedOnce를 보는 이유: arm 후
+      // stop된 상태에서도 이 타이머가 남의 버퍼를 비우면 안 된다(타이머의 조건은 "arm이
+      // 한 번도 안 왔다"이지 "지금 녹화 중이 아니다"가 아니다).
+      if (armedOnce) return;
       capturing = false;
       restoreConsoleWrap(console, ewState);
-      clearBuffer();
+      // clearBuffer가 아니라 버퍼만 비운다 — counters·timers를 지우면 만료 뒤 정당한 arm에서
+      // console.count가 1부터 다시 세고 timeEnd가 "?"를 찍어, 위 MAX_LABELS 주석이 지키겠다고
+      // 한 DevTools 일치가 깨진다. 명시적 clear 핸들러는 세션 리셋이라 현행대로 전부 비운다.
+      buffer.length = 0;
+      totalSeen = 0;
       throttle.cancel();
     }, PREARM_GRACE_MS);
   }
@@ -360,6 +366,7 @@ function consoleRecorderScript(): void {
       addEventListener(document, "__bugshot_console_clear__" + sentinel, handlers.clear);
     }
     // 재발행(같은 sentinel)에서도 arm 상태는 다시 세운다 — 리스너만 멱등이다.
+    armedOnce = true;
     recording = true;
     capturing = true;
     setPreArmFlag(); // 이후 reload/same-origin 네비에서 pre-arm 적재가 켜지도록 active 표시.
@@ -388,8 +395,7 @@ function consoleRecorderScript(): void {
     if (document.visibilityState === "hidden") throttle.flushNow();
   });
 
-  // 값이 아니라 마커다 — 페이지에서 읽을 수 있는 전역에 setSentinel·clearBuffer를 걸어두면
-  // 그게 곧 직접 호출 지름길이 된다. 용도는 위쪽 중복 초기화 가드뿐.
+  // 함수가 아니라 마커다 — 걸어두면 페이지가 부를 수 있다. 용도는 위쪽 중복 초기화 가드뿐.
   (window as any)[CTRL_KEY] = true;
 }
 

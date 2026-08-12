@@ -79,22 +79,6 @@ describe("isStatusHidden — statusKind 우선 + statusText 폴백", () => {
     ).toBe(true);
   });
 
-  it("statusKind가 aborted면 false", () => {
-    expect(
-      isStatusHidden(
-        req({ phase: "error", status: 0, statusText: "Aborted", statusKind: "aborted" }),
-      ),
-    ).toBe(false);
-  });
-
-  it("statusKind가 timeout이면 false", () => {
-    expect(
-      isStatusHidden(
-        req({ phase: "error", status: 0, statusText: "Timeout", statusKind: "timeout" }),
-      ),
-    ).toBe(false);
-  });
-
   it("statusKind가 있으면 statusText 폴백을 타지 않는다", () => {
     expect(
       isStatusHidden(
@@ -108,15 +92,20 @@ describe("isStatusHidden — statusKind 우선 + statusText 폴백", () => {
     ).toBe(false);
   });
 
-  it("statusKind가 없는 옛 저장 로그는 statusText 폴백으로 판정한다", () => {
+  // 같은 statusText에서 statusKind 유무가 답을 가르는 쌍 — 폴백을 지우면 앞이, statusKind
+  // 우선을 지우면 뒤가 깨진다. 옛 저장 로그(statusKind 없음) 하위호환이 이 앞줄이다.
+  it("같은 statusText라도 statusKind 유무로 판정이 갈린다", () => {
     expect(
       isStatusHidden(req({ phase: "error", status: 0, statusText: "Network Error" })),
     ).toBe(true);
     expect(
-      isStatusHidden(req({ phase: "error", status: 0, statusText: "Aborted" })),
+      isStatusHidden(
+        req({ phase: "error", status: 0, statusText: "Network Error", statusKind: "timeout" }),
+      ),
     ).toBe(false);
   });
 
+  // statusKind 검사를 phase 검사 위로 올리면 깨지는 순서 가드.
   it("networkError여도 phase가 error가 아니면 false", () => {
     expect(
       isStatusHidden(

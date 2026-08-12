@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 // 아직 미구현 모듈 — import 실패가 첫 red (interface 모드).
 import { AI_LOGS_MANUAL } from "../aiLogsManual";
+import type { NetworkStatusKind } from "@/types/network";
 
 describe("AI_LOGS_MANUAL", () => {
   it("비어있지 않은 문자열", () => {
@@ -66,5 +67,21 @@ describe("AI_LOGS_MANUAL", () => {
 
   it("출력 언어를 사용자 언어로 위임한다", () => {
     expect(AI_LOGS_MANUAL.toLowerCase()).toContain("user's language");
+  });
+
+  // 이 매뉴얼은 닫힌 enum을 전부 열거하는 관례다. 값을 손으로 적어둔 문자열이라 union이 늘면
+  // 조용히 갈리는데, logs.html에 박히고 나면 소급 수정이 안 된다.
+  it("statusKind 값 5종을 빠짐없이 열거한다", () => {
+    // 배열 리터럴이면 union이 늘어도 컴파일러가 안 잡는다 — Record로 전수를 강제한다.
+    const ALL_KINDS: Record<NetworkStatusKind, true> = {
+      networkError: true,
+      aborted: true,
+      timeout: true,
+      queued: true,
+      queueFull: true,
+    };
+    const kinds = Object.keys(ALL_KINDS) as NetworkStatusKind[];
+    expect(AI_LOGS_MANUAL).toContain("statusKind");
+    for (const kind of kinds) expect(AI_LOGS_MANUAL).toContain(kind);
   });
 });
