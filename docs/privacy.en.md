@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: August 8, 2026
+**Effective date**: August 12, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -76,7 +76,7 @@ User action logs record, in addition to the clicked element, input field, and na
 
 Every action also records the **page address** it happened on. Sensitive query and fragment parameters are masked for every action, including navigation, click, input, toggle, select, shortcut-key, and drag. Ordinary address information that is not identified as sensitive remains in the log for reproduction.
 
-The **value-shape rule above applies not just to what you type, but to the element's on-screen text and field labels as well** — if the name of the element you clicked looks like an email address or a long digit run, it is masked too.
+The **value-shape rule above applies not just to what you type, but to the element's on-screen text and field labels as well** — if the name of the element you clicked looks like an email address or a long digit run, it is masked with `***` too.
 
 In addition, content typed into rich-text editors (`contenteditable` — mail bodies, documents, message composers) is **never recorded, neither as a value nor as an element name**; only the fact that you typed is kept. Keystrokes while a sensitive field is focused are not recorded either. However, **a value with no sensitive signal in either its label or its shape (a search term, ordinary text) is recorded verbatim**, so on screens where you enter sensitive content, please turn off log attachment before submitting.
 
@@ -88,7 +88,7 @@ On the drafting screen you can also **pick a single captured network or console 
 
 While a capture is in progress (screenshot, report drafting, or video recording), navigating away (including to another site) does not interrupt the console/network/action logs — they are preserved, so an issue created that way may include debug logs from the pages visited during the capture.
 
-When you reload a page on which you have previously started debug capture, resuming capture may retroactively include console/network/action logs from the early part of that page load (just before resuming). These early-load logs are held only temporarily in device memory until capture is restarted, and are not stored or transmitted.
+When you reload a page on which you have previously started debug capture, resuming capture may retroactively include console/network/action logs from the early part of that page load (just before resuming). These early-load logs are held only temporarily in device memory until capture is restarted, and are not stored or transmitted. **If capture is not resumed within 60 seconds, this temporary buffer is discarded automatically.**
 
 ### App Settings
 
