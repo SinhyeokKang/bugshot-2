@@ -268,7 +268,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 | `OriginFilterBar.tsx` | 출처별 로그 필터 바 — Console/Network/Action 로그 공용, origin 2개+ 일 때만 노출 |
 | `{Console,Network,Action}LogContent.tsx` + `*LogPreviewDialog.tsx` | 로그 목록·상세 렌더와 그 다이얼로그 셸 — 사이드패널 로그 탭·리플레이 트림·로그 추가 다이얼로그·log-viewer가 공유(§14 로그 행 심각도 규칙의 구현체). `NetworkLogContent`는 `onActiveChange`, `ConsoleLogContent`는 `selectedId`+`onActiveChange`로 선택을 노출한다(미공급 시 표시 전용 — 비침습) |
 | `LogAttachmentCards.tsx` | logs.html 단일 첨부 토글 카드(Switch + 스위치 영역 hover-suppress — **`IssueRow`와 공유하는 건 이 hover-suppress 로직뿐**이고 카드 골격은 `AttachmentList`와 동일[`Card`+`p-3`, 제목 `text-sm font-medium`]. `IssueRow`는 Card가 아닌 div에 `px-4 py-3`·제목 `text-base`) — 클릭 시 LogPreviewDialog |
-| `IssuePreviewView.tsx` | 이슈 본문 프리뷰 — 제목·재현 환경·섹션 + 마크다운 복사, `media`/`logCards` 슬롯. PreviewPanel과 log-viewer Report 탭 공용(두 표면이 같은 본문을 그리도록 강제) |
+| `IssuePreviewView.tsx` | 이슈 본문 프리뷰 — 제목·재현 환경·섹션 + 마크다운 복사, `media`/`logCards` 슬롯. PreviewPanel과 log-viewer Report 탭 공용(두 표면이 같은 본문 **구조**를 그리도록 강제). **언어 정책은 표면별로 갈린다** — PreviewPanel은 화면 언어, log-viewer Report 탭은 제출물과 맞춘 이슈 본문 언어(`bodyLocale`)로 박제된다. 같은 컴포넌트가 다른 언어를 렌더할 수 있는 게 의도다 |
 | `SubmitSuccessView.tsx` | 제출 완료 화면 — 성공 아이콘 + 이슈 링크 + 후기·확인 버튼. IssueTab(작성)·IssueListTab(목록) 공용 |
 | `AttachmentSection.tsx` / `AttachmentList.tsx` | 사용자 파일 첨부 — 편집형(추가·삭제 카드) / 읽기 전용 카드 목록(클릭 시 로컬 재다운로드, `CATEGORY_ICON` 보유). 후자는 PreviewPanel·DraftDetailDialog 공용 |
 | `lib/blockActions.ts`(표 헤더의 `components/`가 아니다) + `block-actions.css` | React 밖 DOM(코드블럭 접기·Tiptap 인라인 이미지)의 우상단 아이콘 ButtonGroup primitive. `h-8 w-8`·semantic token·focus/hover·aria-label/title을 shadcn `TooltipIconButton`/`ButtonGroup`과 수동 동기화한다. 원본 버튼 규칙을 바꾸면 vanilla CSS도 함께 대조 |

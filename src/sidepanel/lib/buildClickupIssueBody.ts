@@ -1,4 +1,4 @@
-import { t } from "@/i18n";
+import { t, withLocale } from "@/i18n";
 import { escapeTableCell as escapeCell } from "./markdownCell";
 import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
 import { bodyBlocks } from "./bodyBlocks";
@@ -54,6 +54,12 @@ function footerMarkdown(): string {
 }
 
 export function buildClickupIssueBody(
+  input: ClickupBuildInput,
+): ClickupBuildResult {
+  return withLocale(input.ctx.bodyLocale, () => buildClickupIssueBodyInner(input));
+}
+
+function buildClickupIssueBodyInner(
   input: ClickupBuildInput,
 ): ClickupBuildResult {
   const { ctx, images = [], video, logs = [] } = input;

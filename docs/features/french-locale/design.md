@@ -266,6 +266,7 @@ BCP47 ─→ dateBcp47() ─→ formatTimestamp · issueListUtils  ※ <html lan
 - **`EXT_DESCRIPTION` 길이** — 위 사전 ③ 참조. 실패가 `test`·`typecheck`를 통과해 **스토어에서만 나타난다.** 이 프로젝트는 privacy 미갱신으로 심사 탈락한 전례가 있는 영역이다.
 - **프랑스어 텍스트 팽창** — 위 "팽창 대응" 표. 구조적 안전판을 친 뒤에도 **레이아웃은 jsdom 밖이라 수동 확인이 유일한 그물**이다(400px 기준).
 - **`integrations.ts` 271키가 전체의 31%** — 플랫폼 8개의 에러 문구·다이얼로그가 몰려 있고, 실질 고유명사 단언 78개 중 57개가 여기다.
+- **상류 키 churn** — `issue-body-locale` 기획이 `src/i18n/namespaces/settings.ts`에서 `settings.titleSettings`를 **삭제**하고 `settings.issueCommon`·`settings.titlePrefix.label`·`settings.bodyLocale{,.auto,.help}` 5키를 **추가**했다. 이 브랜치가 1,001키 완성까지 dev에 못 들어가는 장기 브랜치라, 리베이스 때 git이 ko/en append를 무음 자동머지하고 **fr에만 키가 빠질 수 있다**(`locales.test.ts`가 잡지만 red를 만난 뒤다). 리베이스 직후 `pnpm test`를 먼저 돌린다.
 - **log-viewer drift 대조의 방향** — 메인 사전 fr을 고치고 복제 사전을 안 고치면 red다. 두 벌을 항상 같이 만진다. 반대로 34키는 그물이 없어 **안 고쳐도 green**이라는 게 더 위험하다.
 - **프랑스어 개발 머신에서만 red가 나는 e2e** — `code-block-collapse.spec.ts`가 ko|en 교대 정규식을 쓴다. 등록 전에는 `fr-*` 머신도 en으로 떨어져 우연히 green이었지만, 등록 후엔 `fr`로 hydrate돼 안 맞는다. CI(ubuntu, en_US)는 통과하므로 발견이 늦다.
 - **e2e 샤드 전역 상태** — `ext` fixture가 `{ scope: "worker" }` + `workers: 1`이라 한 샤드의 모든 spec이 하나의 프로필·`chrome.storage`를 공유한다. 언어 spec에서 `Français`를 실제로 선택하고 복원하지 않으면 후속 spec 전부가 fr UI로 돈다.

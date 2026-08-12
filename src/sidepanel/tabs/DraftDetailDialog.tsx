@@ -7,6 +7,7 @@ import type { UserAttachmentMeta } from "@/types/attachment";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
 import { Pencil } from "lucide-react";
 import { useT } from "@/i18n";
+import { resolveBodyLocale } from "@/i18n/locales";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -140,6 +141,9 @@ export function DraftDetailDialog({
   const markSlackShared = useIssuesStore((s) => s.markSlackShared);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
   const sectionConfig = useSettingsUiStore((s) => s.issueSections);
+  // 이슈 목록에서 과거 draft를 재제출하는 경로 — MarkdownContext의 세 번째 생산지다.
+  // 저장 시점 스냅샷이 아니라 재제출 시점 해석이라 지금 설정한 본문 언어로 다시 빌드된다.
+  const bodyLocale = useSettingsUiStore((s) => resolveBodyLocale(s.bodyLocale, s.locale));
 
   const [fields, setFields] = useState<SubmitFields>({});
   const [submitOpen, setSubmitOpen] = useState(false);
@@ -332,6 +336,7 @@ export function DraftDetailDialog({
       ? resolveDraftStyleElements(issue, styleImages)
       : [];
     const ctx = {
+      bodyLocale,
       os: getOsInfo(),
       browser: parseChromeVersion(navigator.userAgent),
       captureMode: legacyNoDiff ? "screenshot" : issue.captureMode,

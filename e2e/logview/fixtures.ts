@@ -95,6 +95,25 @@ export function makeActionLog(): ActionLog {
   return { id: "act", startedAt: T0, endedAt: T0 + 600, totalSeen: entries.length, captured: entries.length, entries };
 }
 
+/**
+ * navigation 유형 4종 + 구 값 1종. makeActionLog와 분리한 이유는 그쪽 엔트리 수(6)를 여러
+ * 단언이 하드코딩하기 때문이다.
+ *
+ * 로그뷰어는 사이드패널과 별도 standalone 번들이라 **복제 사전**(src/log-viewer/i18n.ts)을 쓴다.
+ * 그 사전에 키가 빠지면 raw 키가 그대로 노출되는데, 사이드패널 spec은 이 표면을 못 덮는다.
+ */
+export function makeNavTypeActionLog(): ActionLog {
+  const entries: ActionLog["entries"] = [
+    { id: "nv-back", kind: "navigation", timestamp: T0 + 100, pageUrl: ORIGIN_A, navType: "back", toUrl: "http://alpha.e2e/list" },
+    { id: "nv-forward", kind: "navigation", timestamp: T0 + 200, pageUrl: ORIGIN_A, navType: "forward", toUrl: "http://alpha.e2e/detail" },
+    { id: "nv-reload", kind: "navigation", timestamp: T0 + 300, pageUrl: ORIGIN_A, navType: "reload", toUrl: "http://alpha.e2e/detail" },
+    { id: "nv-traverse", kind: "navigation", timestamp: T0 + 400, pageUrl: ORIGIN_A, navType: "traverse", toUrl: "http://alpha.e2e/a" },
+    // 구 로그 하위호환 — IndexedDB에 남은 초안이 기존 문구·MapPin으로 떠야 한다.
+    { id: "nv-legacy", kind: "navigation", timestamp: T0 + 500, pageUrl: ORIGIN_A, navType: "popstate", toUrl: "http://alpha.e2e/old" },
+  ];
+  return { id: "act-nav", startedAt: T0, endedAt: T0 + 500, totalSeen: entries.length, captured: entries.length, entries };
+}
+
 /** error/warn/info/log/debug 5종 + 2 origin. 본문 검색용 마커 포함. */
 export function makeConsoleLog(): ConsoleLog {
   const entries: ConsoleLog["entries"] = [

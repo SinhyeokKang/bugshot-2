@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 //
 // inline 이미지 resolve만 외부 의존(IndexedDB)이라 모킹한다.
 vi.mock("../resolveInlineImages", () => ({
+  extractInlineRefs: () => [],
   resolveInlineImages: vi.fn(async (markdown: string) => ({ resolved: markdown, images: [] })),
   resolveSectionImages: vi.fn(async (sections: Record<string, string>) => ({ ...sections })),
 }));

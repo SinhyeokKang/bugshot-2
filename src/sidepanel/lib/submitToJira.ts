@@ -45,6 +45,7 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
   const result = await sendBg<JiraSubmitResult>({
     type: "jira.submitIssue",
     payload: {
+      bodyLocale: input.ctx.bodyLocale,
       projectKey: input.projectKey,
       summary: input.summary,
       description: buildIssueAdf(input.ctx, inlineImages.map((i) => i.refId), input.cc),

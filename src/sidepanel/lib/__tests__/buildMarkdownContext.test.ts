@@ -29,6 +29,7 @@ const sectionConfig: IssueSection[] = [
 
 function baseArgs(overrides: Record<string, unknown> = {}) {
   return {
+    bodyLocale: "ko" as const,
     captureMode: "screenshot" as const,
     title: "Test Issue",
     resolvedSections: { description: "본문", stepsToReproduce: "1단계\n2단계" },

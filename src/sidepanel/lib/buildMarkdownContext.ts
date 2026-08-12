@@ -1,4 +1,5 @@
 import type { IssueSection } from "@/store/settings-ui-store";
+import type { LocaleMode } from "@/i18n/locales";
 import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import type { BufferedElement, EditorStyleEdits } from "@/store/editor-store";
 import {
@@ -20,6 +21,8 @@ export interface MarkdownContextSelection {
 
 export interface BuildMarkdownContextArgs {
   captureMode: "element" | "screenshot" | "video" | "freeform";
+  // 이미 해석된 값 — 이 모듈은 store에 접근하지 않으므로 호출부(PreviewPanel)가 주입한다.
+  bodyLocale: LocaleMode;
   title: string;
   resolvedSections: Record<string, string>;
   sectionConfig: IssueSection[];
@@ -50,6 +53,7 @@ export interface BuildMarkdownContextArgs {
 
 export function buildMarkdownContext(args: BuildMarkdownContextArgs): MarkdownContext {
   const base = {
+    bodyLocale: args.bodyLocale,
     os: args.os,
     browser: args.browser,
     title: args.title,

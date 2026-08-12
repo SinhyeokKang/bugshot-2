@@ -1,3 +1,4 @@
+import type { LocaleMode } from "@/i18n/locales";
 import type { PlatformAccountBase } from "./platform";
 
 export interface NotionApiKeyAuth {
@@ -134,6 +135,8 @@ export interface NotionSelectFieldValue {
 }
 
 export interface NotionCreatePagePayload {
+  // 첨부 섹션 제목이 background에서만 생성된다 — 위 JiraCreateIssuePayload와 같은 이유로 싣는다.
+  bodyLocale?: LocaleMode;
   databaseId: string;
   title: string;
   titlePropertyName: string;

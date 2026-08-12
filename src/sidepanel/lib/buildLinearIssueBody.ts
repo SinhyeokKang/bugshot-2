@@ -1,4 +1,4 @@
-import { t } from "@/i18n";
+import { t, withLocale } from "@/i18n";
 import { escapeTableCell as escapeCell } from "./markdownCell";
 import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
 import { bodyBlocks } from "./bodyBlocks";
@@ -51,6 +51,12 @@ function imageCell(media: LinearMediaInput | undefined): string {
 }
 
 export function buildLinearIssueBody(
+  input: LinearBuildInput,
+): LinearBuildResult {
+  return withLocale(input.ctx.bodyLocale, () => buildLinearIssueBodyInner(input));
+}
+
+function buildLinearIssueBodyInner(
   input: LinearBuildInput,
 ): LinearBuildResult {
   const { ctx, images = [], video } = input;

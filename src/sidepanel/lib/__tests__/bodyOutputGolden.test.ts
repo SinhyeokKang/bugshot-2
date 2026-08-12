@@ -13,6 +13,8 @@ vi.mock("../formatTimestamp", () => ({
 }));
 
 vi.mock("@/i18n", () => ({
+  // 빌더 진입점이 withLocale로 감싸져 있다 — 모킹에서 빠지면 통째로 죽는다(패스스루).
+  withLocale: <T>(_locale: string, fn: () => T): T => fn(),
   t: (key: string, params?: Record<string, string | number>) => {
     if (params) {
       let s = key;
@@ -69,6 +71,7 @@ const LOG_SUMMARIES = {
 
 function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   return {
+    bodyLocale: "ko",
     os: "macOS 15.5",
     browser: "Chrome 138",
     captureMode: "element",

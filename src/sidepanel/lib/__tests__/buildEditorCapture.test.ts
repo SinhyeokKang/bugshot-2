@@ -23,6 +23,8 @@ vi.mock("@/store/blob-db", () => ({
   dataUrlToBlob: () => new Blob(),
 }));
 vi.mock("@/i18n", () => ({
+  // 빌더 진입점이 withLocale로 감싸져 있다 — 모킹에서 빠지면 통째로 죽는다(패스스루).
+  withLocale: <T>(_locale: string, fn: () => T): T => fn(),
   t: (key: string) => key,
   dateBcp47: () => "en-US",
 }));
@@ -168,6 +170,7 @@ describe("buildEditorMarkdownContext — element annotated 전달", () => {
 describe("buildEditorLogsCaptureInput — before/after 이미지 resolve", () => {
   function ctxWith(styleElements: MarkdownContext["styleElements"]): MarkdownContext {
     return {
+      bodyLocale: "ko",
       captureMode: "element",
       title: "T",
       sections: {},

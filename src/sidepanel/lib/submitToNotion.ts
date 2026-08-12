@@ -144,6 +144,7 @@ export async function submitToNotion(
   const result = await sendBg<NotionCreatePageResult>({
     type: "notion.submitPage",
     payload: {
+      bodyLocale: input.ctx.bodyLocale,
       databaseId: input.databaseId,
       titlePropertyName: input.titlePropertyName,
       title: input.ctx.title.trim(),

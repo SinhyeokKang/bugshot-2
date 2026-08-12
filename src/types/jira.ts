@@ -1,3 +1,4 @@
+import type { LocaleMode } from "@/i18n/locales";
 export interface JiraApiKeyAuth {
   kind: "apiKey";
   baseUrl: string;
@@ -78,6 +79,9 @@ export interface JiraAdfDoc {
 }
 
 export interface JiraCreateIssuePayload {
+  // 본문 언어. background는 currentLocale 인스턴스가 별도라 사이드패널 래핑이 안 닿는다.
+  // 구버전 메시지엔 없으므로 optional — 누락 시 background 화면 언어로 떨어진다.
+  bodyLocale?: LocaleMode;
   projectKey: string;
   summary: string;
   description: JiraAdfDoc;

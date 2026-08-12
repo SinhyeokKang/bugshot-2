@@ -1,4 +1,4 @@
-import { t } from "@/i18n";
+import { t, withLocale } from "@/i18n";
 import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
 import { networkErrorCount } from "./buildLogSummary";
 import { bodyBlocks } from "./bodyBlocks";
@@ -90,6 +90,12 @@ function categorize(
 }
 
 export function buildNotionIssueBody(
+  input: NotionBuildInput,
+): NotionBuildResult {
+  return withLocale(input.ctx.bodyLocale, () => buildNotionIssueBodyInner(input));
+}
+
+function buildNotionIssueBodyInner(
   input: NotionBuildInput,
 ): NotionBuildResult {
   const { ctx, images = [], video, logs = [] } = input;

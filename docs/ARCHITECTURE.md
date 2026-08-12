@@ -267,7 +267,28 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **그 alias는 exact가 아니라 prefix 매칭이다.** `@/i18n` 하위 전체가 복제 사전 파일로 접히므로 `@/i18n/locales`는 `.../i18n.ts/locales`가 되어 깨진다 — log-viewer가 로케일 레지스트리(`src/i18n/locales.ts`)를 쓰려면 **상대경로 `../i18n/locales`로만** 부를 수 있고, 그러면 그 모듈이 통째로 log-viewer 번들에 들어간다. 그래서 `locales.ts`의 **런타임 import 0은 취향이 아니라 번들 제약이 강제하는 불변식**이다(store를 하나만 끌어와도 zustand+chrome.storage가 이 번들과 service worker에 딸려온다). `src/i18n/__tests__/locale-registry.test.ts`의 "순수성" describe가 소스 스캔으로 고정한다 — tsconfig의 `@/*`는 두 경로 모두 정상 해석하므로 타입체크로는 안 잡히는 축이다. 상세: POSTMORTEM 2026-08-11.
 
-**로케일 축은 `src/i18n/locales.ts`가 단일 출처다** — `LOCALES`에서 `LocaleMode`가 파생되고, `normalizeLocale`(저장값 게이트·관용 없음)과 `detectLocale`(브라우저 태그·관용적, `matchLocaleTag`로 최장 매칭)이 엄격도를 나눠 갖는다. 로케일별 테이블은 **폴백 금지 5개**(`i18n/index.ts:locales` · `locales.ts:BCP47` · `aiLanguage.ts:LOCALE_AI_PRESET` · `localeLabels.ts:LOCALE_LABELS` · `log-viewer/i18n.ts:DICTS` — `Record<LocaleMode, …>`를 유지해 컴파일러가 채우게 한다. 폴백하면 각각 `t()` 크래시 / 날짜 포맷 오류 / 무음 영어 AI 초안 / 셀렉터에 안 떠서 못 고름 / raw 키 노출)와 **폴백 허용**(프롬프트 스캐폴딩 `SECTION_DESC*`·`MODE_HINTS`·`EXPECTED_SPLIT_HINT`, 표시 스타일 `MONTH_STYLE`·`USER_GUIDE_URLS` — `LocaleTable<T>` + `localeValue()`로 en에 떨어진다. 영어 뼈대 + `Write in X`가 설계이거나, 누락이 "잘못된 언어"가 아니라 "덜 예쁜 포맷"에 그치는 축이다)로 갈린다. **새 로케일 테이블은 만들기 전에 어느 쪽인지 정한다** — 잘못 분류하면 타입도 테스트도 안 잡는다.
+**로케일 축은 `src/i18n/locales.ts`가 단일 출처다** — `LOCALES`에서 `LocaleMode`가 파생되고, `normalizeLocale`(저장값 게이트·관용 없음)과 `detectLocale`(브라우저 태그·관용적, `matchLocaleTag`로 최장 매칭)이 엄격도를 나눠 갖는다. 여기에 **이슈 본문 언어 축**(`BodyLocale = "auto" | LocaleMode`, `normalizeBodyLocale`·`resolveBodyLocale`)도 얹혀 있다 — `aiLanguage`의 3종 세트(저장값 정규화 + 호출 시점 해석 + `자동 (X)` 표기)를 복제하되, 도메인이 AI 프리셋이 아니라 `LocaleMode`이고 background·log-viewer가 이 파일을 이미 공유하므로 `aiLanguage.ts`가 아니라 여기 둔다(두 함수 모두 순수라 런타임 import 0 제약은 그대로다). `normalizeLocale`이 미등록 값을 `DEFAULT_LOCALE`로 떨어뜨리는 것과 달리 `normalizeBodyLocale`은 **`"auto"`로 떨어뜨린다** — 오염값을 영어로 굳히면 화면 언어를 따르던 사용자의 제출 본문이 조용히 영어가 되기 때문이다. 로케일별 테이블은 **폴백 금지 5개**(`i18n/index.ts:locales` · `locales.ts:BCP47` · `aiLanguage.ts:LOCALE_AI_PRESET` · `localeLabels.ts:LOCALE_LABELS` · `log-viewer/i18n.ts:DICTS` — `Record<LocaleMode, …>`를 유지해 컴파일러가 채우게 한다. 폴백하면 각각 `t()` 크래시 / 날짜 포맷 오류 / 무음 영어 AI 초안 / 셀렉터에 안 떠서 못 고름 / raw 키 노출)와 **폴백 허용**(프롬프트 스캐폴딩 `SECTION_DESC*`·`MODE_HINTS`·`EXPECTED_SPLIT_HINT`, 표시 스타일 `MONTH_STYLE`·`USER_GUIDE_URLS` — `LocaleTable<T>` + `localeValue()`로 en에 떨어진다. 영어 뼈대 + `Write in X`가 설계이거나, 누락이 "잘못된 언어"가 아니라 "덜 예쁜 포맷"에 그치는 축이다)로 갈린다. **새 로케일 테이블은 만들기 전에 어느 쪽인지 정한다** — 잘못 분류하면 타입도 테스트도 안 잡는다.
+
+### 본문 언어 전역 스왑 (`withLocale`)
+
+`t()`는 모듈 전역 `currentLocale`을 읽는다. 이슈 본문만 다른 언어로 내보내려면 빌더 8곳 + 하위 헬퍼 수십 개에 `TranslationFn`을 스레딩하거나 **빌드 동기 구간 동안 전역을 임시로 바꾸는** 두 길뿐이고, 후자를 택했다(시그니처를 안 건드리고 새 진입점이 자동으로 따라온다). 전역 스왑의 위험은 **누출**이고 네 겹으로 막는다.
+
+- **`try/finally` 복원** — `i18n/index.ts:withLocale`. 정상·예외 종료 양쪽에서 진입 전 값으로 되돌린다.
+- **동기 전용** — `fn`이 `Promise`를 반환하면 즉시 throw한다. `await`가 끼면 복원 시점과 실행 시점이 어긋나 감싼 구간 밖까지 로케일이 샌다. **한계: 반환된 Promise만 잡는다** — `void asyncFn()`·`setTimeout`·`queueMicrotask`는 무음 통과이고, 이 한계는 `withLocale.test.ts`에 명시적 케이스로 고정돼 있다.
+- **래핑 지점은 호출부가 아니라 빌더 진입점** — `build*.ts` 8파일 9함수. 호출부(`submitToX` 10곳+)에 두면 새 어댑터가 감싸는 걸 잊었을 때 무음으로 화면 언어가 샌다. `buildGithub`/`buildGitlab`은 `t()` 0회 + `buildMarkdownIssueBody` 위임이라 자동으로 따라온다.
+- **소스 스캔 게이트** — `sidepanel/lib/__tests__/builderLocaleWrap.test.ts`가 `@/i18n`에서 `t`를 import하는 `build*.ts`는 `withLocale(`도 포함해야 한다고 강제한다(자기검증 앵커로 현재 9개 도달 확인). 앞의 세 겹만으로는 "잊을 자리가 없다"가 검증되지 않은 주장으로 남는다.
+
+`withLocale`은 인자를 **정규화하지 않는다**(trusted by construction). 게이트는 store(`normalizeBodyLocale`)와 생산지(`resolveBodyLocale`) 두 곳이고, 여기서 방어하면 무음 폴백이 생겨 배선 오류가 숨는다. 전파 경로는 `MarkdownContext.bodyLocale`이고 **required**다 — optional로 두면 미지정 생산지가 현재 로케일로 무음 폴백하므로, 컴파일러가 생산지 3곳(`buildMarkdownContext` / `buildEditorMarkdownContext` / `DraftDetailDialog`의 인라인 리터럴)을 전부 지목하게 만든다. 셋 다 `resolveBodyLocale`을 통과한 값을 넣으므로 **`ctx.bodyLocale`에 `"auto"`는 오지 않는다**(해석 지점이 셋으로 갈리는 걸 막는다).
+
+**불변식 — 래핑 구간 안에서 settings store에 write하지 않는다.** `TiptapEditor.tsx`의 zustand `subscribe` 콜백은 `set()` 호출 스택에서 **동기로** 발화해 `setLocale(화면 언어)`를 덮어쓴다. 즉 `withLocale` 구간 안에서 store write가 일어나면 `finally` 복원은 정상인데 **그 지점 이후의 빌드만 화면 언어로 돈다**. 현재 빌더는 전부 read-only이고 `bodyLocaleIntegration.test.ts`가 이를 회귀 케이스로 고정한다.
+
+**`buildReportData`는 async라 tail만 감싼다.** `await resolveSectionImages` 하나뿐이고 그 뒤가 단절 없는 동기 구간이라, 섹션 라벨·`envTitle`·copy 페이로드를 한 덩어리로 감싼다. `deriveContextEnvRows`는 동기라 전체를 감싸고, 그래서 `formatTimestamp`가 타는 `dateBcp47()`까지 본문 언어를 따라가 `Captured` 값 포맷이 제출물과 일치한다.
+
+**감싸면 안 되는 자리**: `prepareUpload.ts`의 업로드 실패 토스트는 UI라 화면 언어가 정답이다. "일관성 있게" 감싸지 말 것.
+
+**background realm은 빌더 래핑이 안 닿는다.** `currentLocale`은 realm마다 별도 인스턴스이고 background는 `i18n/bg-init.ts`가 화면 언어로 세팅한다. 그런데 제출물 본문 문자열을 background에서 만드는 자리가 셋 있다 — Jira 스냅샷 행 라벨(`styleTable.snapshot`)·Jira 영상 폴백 문단(`md.videoAttached`)·Notion 첨부 섹션 제목(`notion.attachmentSection`, **빌더에 아예 없고 여기서만 생성된다**). 그래서 submit payload에 `bodyLocale`을 optional로 실어 보내고, 그 realm의 동기 구간을 `messages.ts:buildJiraDescriptionContent`·`notion-api.ts:expandPageBlocks`로 뽑아 다시 감싼다(누락 시 `getLocale()` 폴백 — 구버전 메시지 호환). 안 메우면 영어 본문 안에 한국어 한 줄이 섞인다.
+
+**골든 스냅샷은 이 축에 눈이 멀어 있다.** `bodyOutputGolden.test.ts`는 `@/i18n`을 통째로 모킹해 `t`를 키 에코로, `dateBcp47`을 `"en-US"` 고정으로 바꾼다 — 62장 무수정 통과는 "블록 순서·구조 불변"만 뜻하고 로케일 회귀는 탐지하지 못한다. 로케일 그물은 **모킹 없이 실사전을 쓰는** `bodyLocaleIntegration.test.ts` 하나뿐이다(같은 이유로, `vi.mock("@/i18n")`을 두면서 빌더를 태우는 테스트 파일은 모킹 객체에 `withLocale` 패스스루를 넣어야 한다).
 
 **사전은 셋이고 셋 다 그물이 다르다.** `src/i18n/namespaces/*.ts`(8파일·875키, 진입점 spread가 컴파일로 강제 + `locales.test.ts` 대칭) · `src/log-viewer/i18n.ts`(복제본 122키, `DICTS` 타입 + 전용 대칭 테스트) · `public/_locales/<code>/messages.json`(manifest `__MSG_`와 런타임 `chrome.i18n.getMessage` 4키 — TS 밖 JSON이라 컴파일이 못 보고 `manifest-locales.test.ts`가 유일한 그물이다). 세 번째를 잊기 쉬운데 여기 값은 **웹스토어 등록정보로도 나간다**.
 

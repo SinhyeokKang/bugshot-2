@@ -17,6 +17,7 @@ import type { MarkdownContext } from "../buildIssueMarkdown";
 
 function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   return {
+    bodyLocale: "ko",
     captureMode: "screenshot",
     title: "Test",
     sections: { description: "본문" },

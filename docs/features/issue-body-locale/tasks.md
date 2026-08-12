@@ -14,23 +14,23 @@
 - **변경 대상**: `src/i18n/index.ts`, `src/i18n/__tests__/` (신규 테스트)
 - **작업 내용**: `withLocale<T>(locale: LocaleMode, fn: () => T): T` 추가. `currentLocale`을 스왑하고 `try/finally`로 복원한다. 반환값이 `Promise`면 던져서 비동기 사용을 즉시 실패시킨다. **인자는 정규화하지 않는다**(trusted by construction — 방어하면 무음 폴백이 생겨 배선 오류가 숨는다).
 - **검증**:
-  - [ ] 테스트 먼저 작성(TDD). `fn` 안에서 `t()`가 지정 로케일 값을 반환
-  - [ ] 종료 후 `getLocale()`이 진입 전 값으로 복원
-  - [ ] `fn`이 throw해도 복원 (throw는 호출부로 전파)
-  - [ ] 중첩 호출이 각 층의 이전 값으로 복원
-  - [ ] async 함수를 넘기면 throw. **한계도 테스트로 고정**: `void asyncFn()`·`setTimeout`은 잡히지 **않는다**는 걸 명시적 케이스로 남겨 다음 사람이 과신하지 않게 한다
-  - [ ] `dateBcp47()`도 스왑된 로케일을 반환
+  - [x] 테스트 먼저 작성(TDD). `fn` 안에서 `t()`가 지정 로케일 값을 반환
+  - [x] 종료 후 `getLocale()`이 진입 전 값으로 복원
+  - [x] `fn`이 throw해도 복원 (throw는 호출부로 전파)
+  - [x] 중첩 호출이 각 층의 이전 값으로 복원
+  - [x] async 함수를 넘기면 throw. **한계도 테스트로 고정**: `void asyncFn()`·`setTimeout`은 잡히지 **않는다**는 걸 명시적 케이스로 남겨 다음 사람이 과신하지 않게 한다
+  - [x] `dateBcp47()`도 스왑된 로케일을 반환
 
 ### Task 2: `BodyLocale` 타입과 정규화·해석 함수
 
 - **변경 대상**: `src/i18n/locales.ts`, `src/i18n/__tests__/` (신규 또는 기존 파일에 추가)
 - **작업 내용**: `BodyLocale = "auto" | LocaleMode`, `normalizeBodyLocale(value: unknown): BodyLocale`, `resolveBodyLocale(value, locale): LocaleMode` 추가. `src/sidepanel/lib/aiLanguage.ts`의 `normalizeAiLanguage`/`resolveAiLanguage` 골격을 복제한다(경로 주의 — `src/i18n/`이 아니다).
 - **검증**:
-  - [ ] 테스트 먼저 작성
-  - [ ] 미등록 코드(`"jp"`)·`null`·`undefined`·객체·빈 문자열 → `"auto"`
-  - [ ] 등록 로케일 문자열은 그대로 통과
-  - [ ] `resolveBodyLocale("auto", "ko")` → `"ko"`, `resolveBodyLocale("en", "ko")` → `"en"`, `resolveBodyLocale(undefined, "en")` → `"en"`
-  - [ ] `locale-registry.test.ts`가 여전히 green (런타임 import 0 유지)
+  - [x] 테스트 먼저 작성
+  - [x] 미등록 코드(`"jp"`)·`null`·`undefined`·객체·빈 문자열 → `"auto"`
+  - [x] 등록 로케일 문자열은 그대로 통과
+  - [x] `resolveBodyLocale("auto", "ko")` → `"ko"`, `resolveBodyLocale("en", "ko")` → `"en"`, `resolveBodyLocale(undefined, "en")` → `"en"`
+  - [x] `locale-registry.test.ts`가 여전히 green (런타임 import 0 유지)
 
 ### Task 3: 스토어 필드 + 마이그레이션 v11
 
@@ -38,20 +38,20 @@
 - **작업 내용**: `bodyLocale: BodyLocale`(기본 `"auto"`) + `setBodyLocale` 추가. `migrateSettingsUi`(`:133`)에 `state.bodyLocale = normalizeBodyLocale(state.bodyLocale)` 추가하고 persist `version`을 10→11로 올린다(주석 이력에 `v11: bodyLocale 추가` 한 줄). `mergePersistedSettings`(`:162`)에도 재정규화 추가.
   **주석 한 줄 남길 것**: `mergePersistedSettings`가 rehydrate마다 재정규화하므로 migrate 라인은 기능적으로 중복이다. `aiLanguage` 선례와의 일관성 + 필드 도입 시점 기록용으로 둔다.
 - **검증**:
-  - [ ] 테스트 먼저 작성
-  - [ ] v10 persist에서 올라오면 `"auto"`
-  - [ ] 오염값(`"jp"`)이 rehydrate에서 `"auto"`로 교정
-  - [ ] **멱등**: 이미 v11이고 `bodyLocale: "en"`인 상태를 재수화해도 `"en"` 보존
-  - [ ] **역방향**: v11 → (다운그레이드로 v10 코드가 읽음) → 재업그레이드 시 오염 없이 `"auto"`로 안착 (PRD S7 경로)
-  - [ ] 기존 필드(`aiLanguage`·`issueSections`·`locale`)의 마이그레이션 결과 불변
+  - [x] 테스트 먼저 작성
+  - [x] v10 persist에서 올라오면 `"auto"`
+  - [x] 오염값(`"jp"`)이 rehydrate에서 `"auto"`로 교정
+  - [x] **멱등**: 이미 v11이고 `bodyLocale: "en"`인 상태를 재수화해도 `"en"` 보존
+  - [x] **역방향**: v11 → (다운그레이드로 v10 코드가 읽음) → 재업그레이드 시 오염 없이 `"auto"`로 안착 (PRD S7 경로)
+  - [x] 기존 필드(`aiLanguage`·`issueSections`·`locale`)의 마이그레이션 결과 불변
 
 ### Task 4: `@/i18n` 모킹 보강 — **required 필드 도입보다 먼저**
 
 - **변경 대상**: `vi.mock("@/i18n"` 하는 파일 중 빌더를 태우는 전부
 - **작업 내용**: 모킹 객체에 `withLocale: (_locale, fn) => fn()` 추가. 없으면 `undefined is not a function`으로 골든 62장이 한꺼번에 죽는다. **Task 5(required 필드) 앞에 두는 이유**: 이 편집은 단독으로 무해하고, 먼저 넣으면 red 창이 픽스처 편집 한 번으로 줄어든다.
 - **검증**:
-  - [ ] `grep -rl 'vi.mock("@/i18n"' src`로 전수 확인 — 현재 **55개 파일**. 그중 빌더/`buildReportData`를 태우는 파일만 대상
-  - [ ] 이 태스크만 적용한 상태에서 `pnpm test` green (동작 변화 0)
+  - [x] `grep -rl 'vi.mock("@/i18n"' src`로 전수 확인 — 현재 **55개 파일**. 그중 빌더/`buildReportData`를 태우는 파일만 대상
+  - [x] 이 태스크만 적용한 상태에서 `pnpm test` green (동작 변화 0)
 
 ### Task 5: `MarkdownContext.bodyLocale` 도입 + 생산지 3곳
 
@@ -61,10 +61,10 @@
   - `buildEditorMarkdownContext` — 내부에서 `useSettingsUiStore.getState()`로 읽는다.
   - `DraftDetailDialog` — **타입 주석 없는 인라인 객체 리터럴**이라 누락이 이 파일이 아니라 빌더 호출부에서 컴파일 에러로 뜬다. `useSettingsUiStore` 접근 + `resolveBodyLocale` 호출을 새로 넣어야 한다. 이슈 목록의 과거 draft 재제출 경로(PRD S3).
 - **검증**:
-  - [ ] `pnpm typecheck`가 픽스처 누락 지점을 전부 지목(이 시점엔 red여도 됨 — 픽스처 **22개** + `DraftDetailDialog`)
-  - [ ] `buildMarkdownContext.test.ts`에 `bodyLocale` 통과 케이스 추가
-  - [ ] `buildEditorCapture.test.ts`에 스토어 `bodyLocale: "en"` + `locale: "ko"` → `ctx.bodyLocale === "en"` 케이스 추가
-  - [ ] `"auto"` 저장 상태에서 `ctx.bodyLocale`이 화면 언어와 같음
+  - [x] `pnpm typecheck`가 픽스처 누락 지점을 전부 지목(이 시점엔 red여도 됨 — 픽스처 **22개** + `DraftDetailDialog`)
+  - [x] `buildMarkdownContext.test.ts`에 `bodyLocale` 통과 케이스 추가
+  - [x] `buildEditorCapture.test.ts`에 스토어 `bodyLocale: "en"` + `locale: "ko"` → `ctx.bodyLocale === "en"` 케이스 추가
+  - [x] `"auto"` 저장 상태에서 `ctx.bodyLocale`이 화면 언어와 같음
   - [ ] `DraftDetailDialog` 경로에도 같은 단언 (컴포넌트 테스트가 과하면 최소 typecheck + 수동 확인으로 대체하고 그 사실을 명시)
 
 ### Task 6: 빌더 진입점 래핑 (8파일 / 9진입 함수)
@@ -74,41 +74,41 @@
   `buildGithubIssueBody.ts`·`buildGitlabIssueBody.ts`는 손대지 않는다(`t()` 0회 + 위임).
   **`prepareUpload.ts:93`은 감싸지 않는다** — 에러 토스트는 화면 언어가 정답.
 - **검증**:
-  - [ ] `bodyOutputGolden.test.ts` 스냅샷 **62장 무수정** 통과 — 바뀌면 코드가 잘못된 것이다
-  - [ ] 실제 로케일 단언은 Task 8에서 (이 파일들의 mock `t`는 키를 에코하므로 여기선 불가능)
+  - [x] `bodyOutputGolden.test.ts` 스냅샷 **62장 무수정** 통과 — 바뀌면 코드가 잘못된 것이다
+  - [x] 실제 로케일 단언은 Task 8에서 (이 파일들의 mock `t`는 키를 에코하므로 여기선 불가능)
 
 ### Task 7: 소스 스캔 게이트 — 래핑 누락을 red로
 
 - **변경 대상**: `src/sidepanel/lib/__tests__/` (신규 테스트)
 - **작업 내용**: `src/sidepanel/lib/build*.ts` 중 `@/i18n`에서 `t`를 import하는 파일은 `withLocale(`도 포함해야 한다 — 정규식 소스 스캔. `src/i18n/__tests__/locale-registry.test.ts`의 "순수성" describe 방식을 복제한다.
 - **검증**:
-  - [ ] **자기검증 앵커**: 스캔이 실제로 대상 파일에 도달하는지 개수로 단언(현재 9개). 앵커 없으면 0개를 훑고도 green
-  - [ ] 임의 빌더에서 `withLocale`을 지우면 red
-  - [ ] `buildGithub`/`buildGitlab`(t 0회)은 대상에서 제외됨
+  - [x] **자기검증 앵커**: 스캔이 실제로 대상 파일에 도달하는지 개수로 단언(현재 9개). 앵커 없으면 0개를 훑고도 green
+  - [x] 임의 빌더에서 `withLocale`을 지우면 red
+  - [x] `buildGithub`/`buildGitlab`(t 0회)은 대상에서 제외됨
 
 ### Task 8: 실사전 통합 테스트 — 이 축의 유일한 진짜 그물
 
 - **변경 대상**: `src/sidepanel/lib/__tests__/` (신규 파일, **`vi.mock("@/i18n")` 없음**)
 - **작업 내용**: 기존 빌더 테스트 20개는 전부 `@/i18n`을 모킹하고 `t`가 키를 에코하므로 로케일을 관측할 수 없다. 모킹 없이 실사전을 쓰는 전용 파일을 신설한다.
 - **검증**:
-  - [ ] `setLocale("ko")` 상태에서 `bodyLocale: "en"` ctx로 10개 빌더(8 + github/gitlab 위임)를 순회 → 출력에 `Environment` 등 영어 헤딩, `재현 환경` 부재
-  - [ ] `bodyLocale: "auto"`로 해석된 `"ko"` → 한국어 헤딩 (기본값 경로 파리티)
-  - [ ] 각 빌드 직후 `getLocale() === "ko"` 복원
-  - [ ] 빌더가 throw하는 케이스에서도 복원
-  - [ ] **래핑 구간 안 store write 회귀 케이스** — `withLocale` 안에서 `useSettingsUiStore.setState`가 불리면 `TiptapEditor` 구독이 동기로 `setLocale`을 덮는다는 걸 재현하고, 빌더가 그런 write를 하지 않음을 고정
-  - [ ] **빈 그물 방지**: `withLocale`의 `finally`를 일시 제거해 이 파일이 실제로 red가 되는지 확인하고, 확인했다는 사실을 커밋 메시지나 PR에 남긴다
+  - [x] `setLocale("ko")` 상태에서 `bodyLocale: "en"` ctx로 10개 빌더(8 + github/gitlab 위임)를 순회 → 출력에 `Environment` 등 영어 헤딩, `재현 환경` 부재
+  - [x] `bodyLocale: "auto"`로 해석된 `"ko"` → 한국어 헤딩 (기본값 경로 파리티)
+  - [x] 각 빌드 직후 `getLocale() === "ko"` 복원
+  - [x] 빌더가 throw하는 케이스에서도 복원
+  - [x] **래핑 구간 안 store write 회귀 케이스** — `withLocale` 안에서 `useSettingsUiStore.setState`가 불리면 `TiptapEditor` 구독이 동기로 `setLocale`을 덮는다는 걸 재현하고, 빌더가 그런 write를 하지 않음을 고정
+  - [x] **빈 그물 방지**: `withLocale`의 `finally`를 일시 제거해 이 파일이 실제로 red가 되는지 확인하고, 확인했다는 사실을 커밋 메시지나 PR에 남긴다
 
 ### Task 9: `logs.html` Report 데이터 박제
 
 - **변경 대상**: `src/sidepanel/lib/buildReportData.ts`, `src/sidepanel/lib/__tests__/buildReportData.test.ts`
 - **작업 내용**: `deriveContextEnvRows`는 `ctx`를 받는 동기 함수라 전체를 `withLocale(ctx.bodyLocale, …)`로 감싼다. `buildReportData`는 async라 **`await resolveSectionImages`(`:52`) 이후 동기 tail만** 감싼다(`:56` 섹션 라벨 · `:66` `envTitle` · `:70`/`:71` copy 페이로드). `input.markdownContext.bodyLocale`을 읽는다 — 새 파라미터를 추가하지 않는다.
 - **검증**:
-  - [ ] 테스트 먼저 작성
-  - [ ] `bodyLocale: "en"` + 화면 `ko` → `envTitle === "Environment"`, 섹션 label 영어
-  - [ ] `copy.markdown`에 **리터럴 단언** — `## Environment` 포함 / `## 재현 환경` 미포함. (`:70`이 문자 그대로 `buildIssueMarkdown(copyCtx)`를 호출하므로 "출력이 서로 같다"는 단언은 항진명제다)
-  - [ ] `labelOverride`가 있으면 본문 언어와 무관하게 그 문자열 유지
-  - [ ] `buildReportData` 완료 후 `getLocale()` 복원
-  - [ ] `envTitle`이 md 키셋(`md.section.env`), 섹션 라벨이 미리보기 키셋(`section.*`)이라는 현 구조는 유지 — 통일하지 않는다
+  - [x] 테스트 먼저 작성
+  - [x] `bodyLocale: "en"` + 화면 `ko` → `envTitle === "Environment"`, 섹션 label 영어
+  - [x] `copy.markdown`에 **리터럴 단언** — `## Environment` 포함 / `## 재현 환경` 미포함. (`:70`이 문자 그대로 `buildIssueMarkdown(copyCtx)`를 호출하므로 "출력이 서로 같다"는 단언은 항진명제다)
+  - [x] `labelOverride`가 있으면 본문 언어와 무관하게 그 문자열 유지
+  - [x] `buildReportData` 완료 후 `getLocale()` 복원
+  - [x] `envTitle`이 md 키셋(`md.section.env`), 섹션 라벨이 미리보기 키셋(`section.*`)이라는 현 구조는 유지 — 통일하지 않는다
 
 ### Task 10: background realm 3곳
 
@@ -118,11 +118,11 @@
   - `messages.ts:863` — Jira 영상 폴백 문단 `t("md.videoAttached")`
   - `notion-api.ts:595` — Notion 첨부 섹션 제목 `t("notion.attachmentSection")` (**빌더에 없고 여기서만 생성**)
 - **검증**:
-  - [ ] 테스트 먼저 작성
-  - [ ] `bodyLocale: "en"` payload + background 전역 `ko` → 세 문자열이 전부 영어
-  - [ ] payload 누락(구버전 메시지) 시 화면 언어로 폴백하고 크래시하지 않음
-  - [ ] 호출 후 background `getLocale()` 복원
-  - [ ] `injectSnapshotRows.test.ts` 기존 green — 표 식별은 하드코딩 `As is`/`To be`라 이 변경과 무관함을 확인
+  - [x] 테스트 먼저 작성
+  - [x] `bodyLocale: "en"` payload + background 전역 `ko` → 세 문자열이 전부 영어
+  - [x] payload 누락(구버전 메시지) 시 화면 언어로 폴백하고 크래시하지 않음
+  - [x] 호출 후 background `getLocale()` 복원
+  - [x] `injectSnapshotRows.test.ts` 기존 green — 표 식별은 하드코딩 `As is`/`To be`라 이 변경과 무관함을 확인
 
 ### Task 11: 두 키셋 값 일치 가드
 
@@ -130,9 +130,9 @@
 - **작업 내용**: `sectionLabelKey(id)`와 `sectionMdLabelKey(id)`의 값이 등록 로케일 전부에서 일치하는지 검사한다. **대상 id는 하드코딩하지 않고 `IssueSectionId`에서 파생**시킨다 — 두 함수가 받는 게 그 타입이고, 섹션이 늘면 자동 편입된다.
   **함정(하드코딩 금지 이유)**: `env`·`attachments`·`styleChanges`는 섹션 id가 아니라 각 표면의 리터럴 키다. 그리고 `section.attachments`(ko `"첨부 파일"`)와 `md.section.attachments`(ko `"첨부"`)는 **이미 값이 다르므로**, 목록에 끼워 넣으면 작성 즉시 red다.
 - **검증**:
-  - [ ] `IssueSectionId` 5종(`description`·`stepsToReproduce`·`media`·`expectedResult`·`notes`)에서 ko·en 값 일치 — 현재 실제로 일치하므로 첫날 green
-  - [ ] 한쪽 값을 일부러 바꾸면 red
-  - [ ] `IssueSectionId`에 항목을 추가하면 검사 대상이 자동으로 늘어난다(파생 확인)
+  - [x] `IssueSectionId` 5종(`description`·`stepsToReproduce`·`media`·`expectedResult`·`notes`)에서 ko·en 값 일치 — 현재 실제로 일치하므로 첫날 green
+  - [x] 한쪽 값을 일부러 바꾸면 red
+  - [x] `IssueSectionId`에 항목을 추가하면 검사 대상이 자동으로 늘어난다(파생 확인)
 
 ### Task 12: 설정 UI — 이슈 공통 설정 섹션
 
@@ -142,11 +142,11 @@
   - **접근성 — 새 선례**: `aria-label` 부착 + 도움말을 `aria-describedby`로 연결. 기존 `Select` 3개는 전부 결손 상태지만 소급 수정은 스코프 밖.
   - **e2e testid**: 신규 셀렉터에 `data-testid` 부착. 현재 설정 화면엔 `settings-sub-issue`만 있어 Task 15의 e2e가 셀렉터를 못 잡는다. 화면 언어 Select와 `settings-sub-general` 트리거에도 필요하면 함께 부착.
 - **검증**:
-  - [ ] i18n PostToolUse 훅의 `locales.test.ts`가 green(대칭·빈 값·placeholder)
-  - [ ] `manifest-locales.test.ts` 영향 없음(이 축은 `_locales`와 무관)
+  - [x] i18n PostToolUse 훅의 `locales.test.ts`가 green(대칭·빈 값·placeholder)
+  - [x] `manifest-locales.test.ts` 영향 없음(이 축은 `_locales`와 무관)
   - [ ] 화면 언어 ko + 본문 언어 auto → 셀렉터가 `자동 (한국어)`
   - [ ] 본문 언어 `en` 선택 → `English`가 선택 표시
-  - [ ] `settings.titleSettings` 잔존 참조 0 — `grep -rn titleSettings src e2e guide` (현재 참조 3건: `SettingsTab.tsx:172`, `settings.ts` ko `:5`/en `:111`)
+  - [x] `settings.titleSettings` 잔존 참조 0 — `grep -rn titleSettings src e2e guide` (현재 참조 3건: `SettingsTab.tsx:172`, `settings.ts` ko `:5`/en `:111`)
 
 ### Task 13: 상시 문서 갱신
 
@@ -156,8 +156,8 @@
   - `docs/ARCHITECTURE.md` — `withLocale`의 전역 스왑 규약을 절로 추가: 왜 동기 전용인지, 왜 래핑이 빌더 진입점인지, **래핑 구간 안 store write 금지** 불변식, background realm이 별도 인스턴스라 payload로 전달한다는 것. 266행 "로케일 축은 `locales.ts`가 단일 출처" 서술에 `BodyLocale`·`normalizeBodyLocale`·`resolveBodyLocale` 편입.
   - `docs/DESIGN.md`(271행 부근) — `IssuePreviewView`가 "두 표면이 같은 본문을 그리도록 강제"라는 괄호 문구를 갱신. **PreviewPanel은 화면 언어, log-viewer Report 탭은 본문 언어**로 표면별 언어 정책이 갈린다는 사실을 명시.
 - **검증**:
-  - [ ] 세 문서를 나란히 읽었을 때 로케일 축 서술이 모순되지 않는다
-  - [ ] `pnpm sync:agents:check` green (CLAUDE.md 편집 시 PostToolUse 훅이 자동 실행)
+  - [x] 세 문서를 나란히 읽었을 때 로케일 축 서술이 모순되지 않는다
+  - [x] `pnpm sync:agents:check` green (CLAUDE.md 편집 시 PostToolUse 훅이 자동 실행)
 
 ### Task 14: `french-locale` 문서 갱신
 
@@ -168,8 +168,8 @@
   - **품질 정책 43–45줄(실패 반경)은 건드리지 않는다** — 이 기획 PRD에서 "안전 밸브" 논거를 뺐으므로(미출시 기능에 가치를 종속시키지 않기 위해), fr 쪽에서도 그 연결을 새로 만들지 않는다.
   - 상류 키 churn 위험을 fr 쪽 위험 요소에 한 줄 추가(`settings.ts` 키 4개 추가 + 1개 삭제).
 - **검증**:
-  - [ ] 두 PRD를 나란히 읽었을 때 모순되는 문장이 없다
-  - [ ] `french-locale` 문서의 나머지(사전 세 벌·폴백 테이블·릴리스 전략)는 무수정
+  - [x] 두 PRD를 나란히 읽었을 때 모순되는 문장이 없다
+  - [x] `french-locale` 문서의 나머지(사전 세 벌·폴백 테이블·릴리스 전략)는 무수정
 
 ### Task 15: e2e 시나리오
 

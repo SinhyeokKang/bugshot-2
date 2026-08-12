@@ -1,4 +1,5 @@
-import { t } from "@/i18n";
+import { t, withLocale } from "@/i18n";
+import type { LocaleMode } from "@/i18n/locales";
 import { escapeTableCell as escapeCell } from "./markdownCell";
 import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
 import { bodyBlocks } from "./bodyBlocks";
@@ -30,6 +31,8 @@ export interface MergeCurrentSelection {
 }
 
 export interface MarkdownContext {
+  // 이미 해석된 값 — "auto"가 여기까지 오지 않는다. required라 생산지 누락을 컴파일러가 잡는다.
+  bodyLocale: LocaleMode;
   os?: string | null;
   browser?: string | null;
   captureMode?: "element" | "screenshot" | "video" | "freeform";
@@ -230,7 +233,13 @@ function listItems(content: string): string[] {
     .filter(Boolean);
 }
 
+// 래핑은 호출부가 아니라 진입점에 둔다 — 새 어댑터가 감싸는 걸 잊어도 위임 대상이 감싸져 있고,
+// 잊을 자리가 생기면 builderLocaleWrap.test.ts가 red로 잡는다.
 export function buildIssueMarkdown(ctx: MarkdownContext): string {
+  return withLocale(ctx.bodyLocale, () => buildIssueMarkdownInner(ctx));
+}
+
+function buildIssueMarkdownInner(ctx: MarkdownContext): string {
   const lines: string[] = [];
 
   lines.push(buildMetaComment(ctx));
@@ -328,6 +337,10 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
 }
 
 export function buildIssueHtml(ctx: MarkdownContext): string {
+  return withLocale(ctx.bodyLocale, () => buildIssueHtmlInner(ctx));
+}
+
+function buildIssueHtmlInner(ctx: MarkdownContext): string {
   const parts: string[] = [];
 
   parts.push(buildMetaComment(ctx));

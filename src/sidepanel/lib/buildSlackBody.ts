@@ -1,4 +1,4 @@
-import { t } from "@/i18n";
+import { t, withLocale } from "@/i18n";
 import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
 import { bodyBlocks } from "./bodyBlocks";
 import {
@@ -39,6 +39,10 @@ function footerMarkdown(): string {
 }
 
 export function buildSlackBody(input: SlackBuildInput): SlackBuildResult {
+  return withLocale(input.ctx.bodyLocale, () => buildSlackBodyInner(input));
+}
+
+function buildSlackBodyInner(input: SlackBuildInput): SlackBuildResult {
   const { ctx } = input;
   const lines: string[] = [];
 

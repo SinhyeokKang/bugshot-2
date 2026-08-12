@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/i18n", () => ({
+  // 빌더 진입점이 withLocale로 감싸져 있다 — 모킹에서 빠지면 통째로 죽는다(패스스루).
+  withLocale: <T>(_locale: string, fn: () => T): T => fn(),
   t: (key: string, params?: Record<string, string | number>) => {
     if (params) {
       let s = key;
@@ -31,6 +33,7 @@ import type { MarkdownContext } from "../buildIssueMarkdown";
 
 function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   return {
+    bodyLocale: "ko",
     captureMode: "element",
     title: "Test",
     sections: { description: "본문" },

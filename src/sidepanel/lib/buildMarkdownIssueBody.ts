@@ -1,4 +1,4 @@
-import { t } from "@/i18n";
+import { t, withLocale } from "@/i18n";
 import { escapeTableCell as escapeCell } from "./markdownCell";
 import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
 import { bodyBlocks } from "./bodyBlocks";
@@ -68,6 +68,13 @@ function defaultVideoEmbed(media: { filename: string; url: string }): string {
 }
 
 export function buildMarkdownIssueBody(
+  input: MarkdownIssueBuildInput,
+  opts: MarkdownIssueBuildOpts,
+): MarkdownIssueBuildResult {
+  return withLocale(input.ctx.bodyLocale, () => buildMarkdownIssueBodyInner(input, opts));
+}
+
+function buildMarkdownIssueBodyInner(
   input: MarkdownIssueBuildInput,
   opts: MarkdownIssueBuildOpts,
 ): MarkdownIssueBuildResult {
