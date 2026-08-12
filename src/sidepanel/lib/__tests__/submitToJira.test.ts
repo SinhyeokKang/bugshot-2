@@ -50,6 +50,20 @@ function attachmentFilenames(): string[] {
 }
 
 describe("submitToJira", () => {
+  // realm 경계 배선. 이 한 줄이 빠지면 background가 화면 언어로 폴백해 영어 본문 안에 한국어
+  // 한 줄(영상 폴백·스냅샷 행 라벨)이 섞이는데, background 테스트는 값을 직접 넘겨 호출하고
+  // 빌더 테스트는 ctx만 보므로 이 이음매를 보는 그물이 여기 말고 없다.
+  it("ctx.bodyLocale을 제출 payload에 싣는다", async () => {
+    await submitToJira({
+      ctx: { ...makeCtx(), bodyLocale: "en" },
+      projectKey: "P",
+      summary: "s",
+      issueTypeId: "1",
+    });
+    const arg = sendBg.mock.calls[0][0] as { payload: { bodyLocale?: string } };
+    expect(arg.payload.bodyLocale).toBe("en");
+  });
+
   it("결과를 NormalizedSubmitResult로 매핑 (key/url/logsDropped)", async () => {
     sendBg.mockResolvedValue({ ...RESULT, logsDropped: true });
     const res = await submitToJira({

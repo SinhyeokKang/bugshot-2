@@ -271,14 +271,14 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 ### 본문 언어 전역 스왑 (`withLocale`)
 
-`t()`는 모듈 전역 `currentLocale`을 읽는다. 이슈 본문만 다른 언어로 내보내려면 빌더 8곳 + 하위 헬퍼 수십 개에 `TranslationFn`을 스레딩하거나 **빌드 동기 구간 동안 전역을 임시로 바꾸는** 두 길뿐이고, 후자를 택했다(시그니처를 안 건드리고 새 진입점이 자동으로 따라온다). 전역 스왑의 위험은 **누출**이고 네 겹으로 막는다.
+`t()`는 모듈 전역 `currentLocale`을 읽는다. 이슈 본문만 다른 언어로 내보내려면 빌더 9곳 + 하위 헬퍼 수십 개에 `TranslationFn`을 스레딩하거나 **빌드 동기 구간 동안 전역을 임시로 바꾸는** 두 길뿐이고, 후자를 택했다(시그니처를 안 건드리고 새 진입점이 자동으로 따라온다). 전역 스왑의 위험은 **누출**이고 네 겹으로 막는다.
 
 - **`try/finally` 복원** — `i18n/index.ts:withLocale`. 정상·예외 종료 양쪽에서 진입 전 값으로 되돌린다.
 - **동기 전용** — `fn`이 `Promise`를 반환하면 즉시 throw한다. `await`가 끼면 복원 시점과 실행 시점이 어긋나 감싼 구간 밖까지 로케일이 샌다. **한계: 반환된 Promise만 잡는다** — `void asyncFn()`·`setTimeout`·`queueMicrotask`는 무음 통과이고, 이 한계는 `withLocale.test.ts`에 명시적 케이스로 고정돼 있다.
-- **래핑 지점은 호출부가 아니라 빌더 진입점** — `build*.ts` 8파일 9함수. 호출부(`submitToX` 10곳+)에 두면 새 어댑터가 감싸는 걸 잊었을 때 무음으로 화면 언어가 샌다. `buildGithub`/`buildGitlab`은 `t()` 0회 + `buildMarkdownIssueBody` 위임이라 자동으로 따라온다.
-- **소스 스캔 게이트** — `sidepanel/lib/__tests__/builderLocaleWrap.test.ts`가 `@/i18n`에서 `t`를 import하는 `build*.ts`는 `withLocale(`도 포함해야 한다고 강제한다(자기검증 앵커로 현재 9개 도달 확인). 앞의 세 겹만으로는 "잊을 자리가 없다"가 검증되지 않은 주장으로 남는다.
+- **래핑 지점은 호출부가 아니라 빌더 진입점** — `build*.ts` 9파일 11함수. 호출부(`submitToX` 10곳+)에 두면 새 어댑터가 감싸는 걸 잊었을 때 무음으로 화면 언어가 샌다. `buildGithub`/`buildGitlab`은 `t()` 0회 + `buildMarkdownIssueBody` 위임이라 자동으로 따라온다.
+- **소스 스캔 게이트** — `sidepanel/lib/__tests__/builderLocaleWrap.test.ts`. 두 축을 함께 잰다: ① **대상 집합의 완전성** — `sidepanel/lib` 전체에서 `@/i18n`의 `t`·`dateBcp47`을 import하는 파일을 열거해 **래핑(9) 또는 면제(4, 이유 문자열 포함)** 중 하나로 분류돼 있어야 한다. 파일명 규칙(`build*`)에 맡기면 `markdownToAdf.ts`처럼 본문 문자열을 만드는 파일이, `t` 기준만 보면 `formatTimestamp.ts`처럼 날짜만 로케일을 타는 파일이 사정권 밖으로 샌다. ② **함수 단위 + 래퍼 안팎** — 래핑 파일의 `export` 선언에서 `withLocale(...)` 호출을 괄호 매칭으로 도려낸 뒤, 남은 텍스트에 `t()`가 있으면 red. 파일 단위로만 보면 진입점이 2개인 `buildIssueMarkdown.ts`에 3번째가 추가되고 안 감싸져도 green이고, "`t`와 `withLocale`이 한 함수에 같이 있다"만 보면 `const h = t(…); return withLocale(l, () => inner(h))` 형태가 통과해 `h`만 화면 언어로 굳는다. 앞의 세 겹만으로는 "잊을 자리가 없다"가 검증되지 않은 주장으로 남는다. **남은 한계는 직접 import 기준이라는 것** — `t`를 파라미터(`TranslationFn`)로 받거나 `t` 없이 `formatTimestamp`만 타는 파일은 분류 강제를 우회한다(현재 그 형태의 본문 진입점은 없다).
 
-`withLocale`은 인자를 **정규화하지 않는다**(trusted by construction). 게이트는 store(`normalizeBodyLocale`)와 생산지(`resolveBodyLocale`) 두 곳이고, 여기서 방어하면 무음 폴백이 생겨 배선 오류가 숨는다. 전파 경로는 `MarkdownContext.bodyLocale`이고 **required**다 — optional로 두면 미지정 생산지가 현재 로케일로 무음 폴백하므로, 컴파일러가 생산지 3곳(`buildMarkdownContext` / `buildEditorMarkdownContext` / `DraftDetailDialog`의 인라인 리터럴)을 전부 지목하게 만든다. 셋 다 `resolveBodyLocale`을 통과한 값을 넣으므로 **`ctx.bodyLocale`에 `"auto"`는 오지 않는다**(해석 지점이 셋으로 갈리는 걸 막는다).
+`withLocale`은 인자를 **정규화하지 않는다**(trusted by construction). 게이트는 store(`normalizeBodyLocale`)·생산지(`resolveBodyLocale`)와 아래 background realm 진입 셋이고, `withLocale` 자신이 방어하면 무음 폴백이 생겨 배선 오류가 숨는다. 전파 경로는 `MarkdownContext.bodyLocale`이고 **required**다 — optional로 두면 미지정 생산지가 현재 로케일로 무음 폴백하므로, 컴파일러가 생산지 3곳(`buildMarkdownContext` / `buildEditorMarkdownContext` / `DraftDetailDialog`의 인라인 리터럴)을 전부 지목하게 만든다. 셋 다 `resolveBodyLocale`을 통과한 값을 넣으므로 **`ctx.bodyLocale`에 `"auto"`는 오지 않는다**(해석 지점이 셋으로 갈리는 걸 막는다).
 
 **불변식 — 래핑 구간 안에서 settings store에 write하지 않는다.** `TiptapEditor.tsx`의 zustand `subscribe` 콜백은 `set()` 호출 스택에서 **동기로** 발화해 `setLocale(화면 언어)`를 덮어쓴다. 즉 `withLocale` 구간 안에서 store write가 일어나면 `finally` 복원은 정상인데 **그 지점 이후의 빌드만 화면 언어로 돈다**. 현재 빌더는 전부 read-only이고 `bodyLocaleIntegration.test.ts`가 이를 회귀 케이스로 고정한다.
 
@@ -286,7 +286,11 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **감싸면 안 되는 자리**: `prepareUpload.ts`의 업로드 실패 토스트는 UI라 화면 언어가 정답이다. "일관성 있게" 감싸지 말 것.
 
-**background realm은 빌더 래핑이 안 닿는다.** `currentLocale`은 realm마다 별도 인스턴스이고 background는 `i18n/bg-init.ts`가 화면 언어로 세팅한다. 그런데 제출물 본문 문자열을 background에서 만드는 자리가 셋 있다 — Jira 스냅샷 행 라벨(`styleTable.snapshot`)·Jira 영상 폴백 문단(`md.videoAttached`)·Notion 첨부 섹션 제목(`notion.attachmentSection`, **빌더에 아예 없고 여기서만 생성된다**). 그래서 submit payload에 `bodyLocale`을 optional로 실어 보내고, 그 realm의 동기 구간을 `messages.ts:buildJiraDescriptionContent`·`notion-api.ts:expandPageBlocks`로 뽑아 다시 감싼다(누락 시 `getLocale()` 폴백 — 구버전 메시지 호환). 안 메우면 영어 본문 안에 한국어 한 줄이 섞인다.
+**background realm은 빌더 래핑이 안 닿는다.** `currentLocale`은 realm마다 별도 인스턴스이고 background는 `i18n/bg-init.ts`가 화면 언어로 세팅한다. 그런데 제출물 본문 문자열을 background에서 만드는 자리가 셋 있다 — Jira 스냅샷 행 라벨(`styleTable.snapshot`)·Jira 영상 폴백 문단(`md.videoAttached`)·Notion 첨부 섹션 제목(`notion.attachmentSection`, **빌더에 아예 없고 여기서만 생성된다**). 그래서 submit payload에 `bodyLocale`을 optional로 실어 보내고, 그 realm의 동기 구간을 `messages.ts:buildJiraDescriptionContent`·`notion-api.ts:expandPageBlocks`로 뽑아 다시 감싼다. 안 메우면 영어 본문 안에 한국어 한 줄이 섞인다.
+
+**단, background 진입은 `resolveBodyLocale(payload.bodyLocale, getLocale())`로 받는다** — 사이드패널 안의 "정규화하지 않는다"와 갈리는 지점이다. 여기엔 `chrome.runtime` 메시지 경계가 하나 더 있고 그 게이트(`BG_REQUEST_TYPES`)는 `type`만 보므로, 누락(구버전 메시지)뿐 아니라 오염값도 이 realm까지 온다. 통과시키면 `locales[bad]`가 undefined라 `t()`가 죽는데, **Jira 경로의 throw는 `submitIssue`의 `try/catch`가 삼켜서 placeholder 센티널이 남은 본문이 그대로 등록된다**(무음 손상). 한 호출로 둘 다 흡수한다.
+
+**background 쪽 그물은 키 화이트리스트다.** 사이드패널의 래핑 게이트가 여기엔 안 닿으므로, `bodyLocaleBackground.test.ts`가 `src/background/**`를 재귀로 훑어 **본문 키가 위 셋뿐임**을 고정한다. 넷째가 생기면 red가 되어 래핑 여부를 확인하게 만든다 — 새 어댑터가 제출 후처리에서 본문 문자열을 찍는 것이 이 realm의 재발 형태다. 판정은 접두사(`md.`·`styleTable.`·`logSummary.`)와 **접미사(`.attachmentSection`)를 함께** 본다: 첨부 섹션 제목은 플랫폼 접두 키(`notion.attachmentSection`)라 접두사만 보면 `asana.attachmentSection` 같은 복제가 그대로 새고, `logSummary.`는 아직 background에 없지만 빌더가 쓰는 본문 네임스페이스라 미리 편입해 뒀다.
 
 **골든 스냅샷은 이 축에 눈이 멀어 있다.** `bodyOutputGolden.test.ts`는 `@/i18n`을 통째로 모킹해 `t`를 키 에코로, `dateBcp47`을 `"en-US"` 고정으로 바꾼다 — 62장 무수정 통과는 "블록 순서·구조 불변"만 뜻하고 로케일 회귀는 탐지하지 못한다. 로케일 그물은 **모킹 없이 실사전을 쓰는** `bodyLocaleIntegration.test.ts` 하나뿐이다(같은 이유로, `vi.mock("@/i18n")`을 두면서 빌더를 태우는 테스트 파일은 모킹 객체에 `withLocale` 패스스루를 넣어야 한다).
 

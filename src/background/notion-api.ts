@@ -1,4 +1,5 @@
 import { getLocale, t, withLocale } from "@/i18n";
+import { resolveBodyLocale } from "@/i18n/locales";
 import type {
   NotionAuth,
   NotionCreatePagePayload,
@@ -566,7 +567,8 @@ interface NotionPageCreatedRaw {
 export function expandPageBlocks(
   payload: NotionCreatePagePayload,
 ): NotionBlockObject[] {
-  return withLocale(payload.bodyLocale ?? getLocale(), () => {
+  // messages.ts와 같은 이유로 누락·오염을 함께 흡수한다 (메시지 경계가 마지막 관문).
+  return withLocale(resolveBodyLocale(payload.bodyLocale, getLocale()), () => {
     const attachmentMap = new Map<
       string,
       { fileUploadId: string; filename: string; category: string }

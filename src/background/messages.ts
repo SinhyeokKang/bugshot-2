@@ -1,5 +1,5 @@
 import { getLocale, t, withLocale } from "@/i18n";
-import type { LocaleMode } from "@/i18n/locales";
+import { resolveBodyLocale, type LocaleMode } from "@/i18n/locales";
 import type { PlatformId } from "@/types/platform";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
@@ -868,7 +868,9 @@ export function buildJiraDescriptionContent(input: {
   bodyLocale?: LocaleMode;
 }): unknown[] {
   const { description, uploadMap, logsUrl } = input;
-  return withLocale(input.bodyLocale ?? getLocale(), () => {
+  // 누락(구버전 메시지)과 오염을 한 호출로 흡수한다 — 메시지 게이트는 type만 보므로 여기가
+  // 이 realm의 마지막 관문이고, 통과시키면 사전 조회가 undefined라 t()가 죽는다.
+  return withLocale(resolveBodyLocale(input.bodyLocale, getLocale()), () => {
     const content: unknown[] = [...description.content];
     const screenshotFile = uploadMap.get("screenshot.webp");
     if (screenshotFile) {

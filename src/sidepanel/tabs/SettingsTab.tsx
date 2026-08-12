@@ -190,7 +190,7 @@ function IssueSettingsContent() {
                 autoComplete="off"
                 spellCheck={false}
               />
-              <p className="text-[0.8rem] text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {t("settings.titlePrefix.help")}
               </p>
             </FieldRow>
