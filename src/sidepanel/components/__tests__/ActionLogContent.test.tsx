@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { ActionLogContent } from "../ActionLogContent";
+import { ActionLogContent, NAV_ICON } from "../ActionLogContent";
 import type { ActionEntry } from "@/types/action";
 
 const VERB_TEMPLATES: Record<string, string> = {
@@ -98,5 +98,20 @@ describe("ActionLogContent — 영상 seek 동기화(onSeek 공급)", () => {
 
     expect(onSeek).toHaveBeenCalledTimes(1);
     expect(onSeek).toHaveBeenCalledWith(1000);
+  });
+});
+
+// ko 문구는 {target}이 문두라 TimelineRow의 truncate가 판별어를 통째로 자른다(en은 동사 선두라
+// 무사 — 로케일 비대칭). 즉 ko에선 아이콘이 유일한 판별축이라 두 유형이 같은 아이콘을 받으면
+// 화면상 완전히 동일해진다. 타입은 오타만 잡고 "같은 아이콘 배정"은 못 잡아서 여기서 고정한다.
+describe("NAV_ICON", () => {
+  it("navigation 유형 4종이 서로 다른 아이콘을 쓴다", () => {
+    const icons = Object.values(NAV_ICON);
+    expect(icons).toHaveLength(4);
+    expect(new Set(icons).size).toBe(4);
+  });
+
+  it("방향 판정이 되는 4종에만 배정된다 — 구 값은 MapPin 폴백으로 남는다", () => {
+    expect(Object.keys(NAV_ICON).sort()).toEqual(["back", "forward", "reload", "traverse"]);
   });
 });

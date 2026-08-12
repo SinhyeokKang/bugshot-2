@@ -55,7 +55,7 @@ export const TimelineRow = memo(function TimelineRow({
 
         {item.kind === "action" && (
           <>
-            <KindIcon kind={item.entry.kind} />
+            <KindIcon kind={item.entry.kind} navType={item.entry.navType} />
             <span className="min-w-0 flex-1 truncate font-mono text-mono">{renderActionContent(t, item.entry)}</span>
           </>
         )}

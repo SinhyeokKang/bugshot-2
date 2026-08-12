@@ -27,6 +27,19 @@ export const randomUUID: (() => string) | undefined =
     ? crypto.randomUUID.bind(crypto)
     : undefined;
 
+// 네비게이션 유형 판정이 읽는 두 전역. 페이지가 나중에 덮어써도 레코더는 원본을 본다.
+// 하나만 스냅샷하면 위협모델이 비대칭이 된다.
+// lib.dom에 Navigation API 타입이 없다 — `declare var navigation`도 없어 `typeof navigation`
+// 형태는 컴파일되지 않으므로 globalThis 캐스팅 + 히스토리 인덱스만 읽는 최소 구조적 타입으로 받는다.
+interface NavigationLike {
+  currentEntry?: { index?: number };
+}
+export const navigationRef: NavigationLike | undefined = (
+  globalThis as unknown as { navigation?: NavigationLike }
+).navigation;
+export const performanceRef: Performance | undefined =
+  typeof performance !== "undefined" ? performance : undefined;
+
 // 인스턴스 속성으로 덮인 document.addEventListener도 우회하도록 prototype에서 뗀다.
 const rawAddEventListener = EventTarget.prototype.addEventListener;
 const rawRemoveEventListener = EventTarget.prototype.removeEventListener;

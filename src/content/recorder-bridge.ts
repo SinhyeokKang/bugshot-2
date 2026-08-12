@@ -131,9 +131,11 @@ function handleActionSync(): void {
   document.dispatchEvent(new CustomEvent("__bugshot_action_sync__" + actionSentinel));
 }
 
-function handleActionClear(): void {
+function handleActionClear(resupplyEntryNav: boolean): void {
   if (!actionSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_action_clear__" + actionSentinel));
+  document.dispatchEvent(
+    new CustomEvent("__bugshot_action_clear__" + actionSentinel, { detail: { resupplyEntryNav } }),
+  );
 }
 
 // 정적(document_idle all_frames) 주입과 capture 시작 시 programmatic 재주입(picker-control:
@@ -185,7 +187,7 @@ function registerBridgeListener(): void {
             handleActionSync();
             break;
           case "actionRecorder.clear":
-            handleActionClear();
+            handleActionClear(msg.resupplyEntryNav === true);
             break;
           // picker.* 등 그 외 메시지는 picker.ts(top only)가 처리 — 무응답으로 흘려 이중 응답 방지.
           default:

@@ -1125,7 +1125,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ actionLog: null });
     if (tabId != null) {
       deleteActionLog(pendingKey(tabId)).catch(() => {});
-      clearActionRecorder(tabId).catch(() => {});
+      // 이 경로는 logClear(네비게이션 경계)뿐이고 패널 로그도 바로 위에서 비운다 — 그러니
+      // MAIN도 새 문서의 진입 항목을 다시 실어야 한다(design.md "clear가 의도를 실어 나른다").
+      clearActionRecorder(tabId, { resupplyEntryNav: true }).catch(() => {});
     }
   },
   // 파일 선택 즉시 Blob을 pending:${tabId}에 저장하고 메타만 state에 둔다(임의 크기라 session 불가).

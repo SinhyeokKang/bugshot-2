@@ -36,10 +36,14 @@ vi.mock("../picker-control", () => ({
   activateConsoleRecorder: vi.fn(() => Promise.resolve()),
   activateActionRecorder: vi.fn(() => Promise.resolve()),
 }));
+// rest로 포워딩해야 호출 인자 개수가 보존된다 — 명시 전달하면 안 준 opts가 undefined로
+// 기록돼 "플래그를 싣지 않았다"를 인자 개수로 못 센다.
+type ClearActionArgs = [tabId: number, opts?: { resupplyEntryNav?: boolean }];
+const clearActionRecorder = vi.fn((..._a: ClearActionArgs) => Promise.resolve());
 vi.mock("../recorder-control", () => ({
   clearNetworkRecorder: vi.fn(() => Promise.resolve()),
   clearConsoleRecorder: vi.fn(() => Promise.resolve()),
-  clearActionRecorder: vi.fn(() => Promise.resolve()),
+  clearActionRecorder: (...a: ClearActionArgs) => clearActionRecorder(...a),
 }));
 vi.mock("../annotation-control", () => ({ showAnnotation: vi.fn() }));
 
@@ -159,5 +163,20 @@ describe("탭 → 화면 폴백 경로", () => {
     await startVideoCapture(1);
     expect(startRecording).not.toHaveBeenCalled();
     expect(startScreenRecording).not.toHaveBeenCalled();
+  });
+});
+
+// prepareRecorders는 activate → clear 순서라 clear 시점에 이미 armed다. 그 뒤 녹화 중 탭 전환
+// 복귀가 visibilitychange → inject로 **같은 문서를 재arm**하므로, 이 clear가 진입 항목 래치를
+// 내리면 보충이 한 번 더 돌아 "일어나지도 않은 새로고침"을 녹화 중간 시각으로 단언하는 유령
+// 항목이 생긴다. MAIN 핸들러 본문은 유닛 불가라 발신자 쪽 의도를 여기서 고정한다.
+describe("prepareRecorders — 진입 항목 보충 의도를 주지 않는다", () => {
+  it("녹화 준비 clear는 resupplyEntryNav를 싣지 않는다 (유령 항목 회귀 방지)", async () => {
+    await startVideoCapture(1);
+
+    expect(clearActionRecorder).toHaveBeenCalledWith(1);
+    for (const call of clearActionRecorder.mock.calls) {
+      expect(call[1]).toBeUndefined();
+    }
   });
 });

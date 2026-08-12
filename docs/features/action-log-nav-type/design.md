@@ -34,13 +34,45 @@ bfcache 복원은 **비목표**(PRD 참조)라 `pageshow` 후크를 두지 않�
   - 이 래치 확장이 중복의 **유일한 방어**다. 하류 `mergeLogItems`는 `id`만으로 dedup하고 액션 경로에 타임윈도·kind별 collapse가 전무해서, 레코더가 내보낸 중복은 UI·타임라인·JSON·AI 요약에 그대로 간다.
   - 래치는 pre-arm grace 만료 경로에서 `entryNavEmitted = false`로 리셋된다. 진입 계열로 넓힌 뒤에도 리셋 후 재arm이 `entryType`으로 합성하는지 확인한다.
 
-#### `clear` 핸들러 대칭 수정 (신규 — 리뷰에서 발견)
+#### `clear`가 의도를 실어 나른다 (개정 — 구현 중 1차 처방이 회귀를 만들어 재설계)
 
-`logClear`는 사이드패널 store만 비우는 게 아니라 `editor-store.clearActionLog` → `clearActionRecorder` → 브리지를 거쳐 **새 문서의 MAIN world 버퍼까지** 지운다. 그런데 MAIN의 `clear` 핸들러는 `clearBuffer()`만 하고 **`entryNavEmitted`를 되돌리지 않는다** — pre-arm grace 만료 경로는 같은 상황에서 명시적으로 내리고 그 이유를 주석으로 못박아 뒀는데, clear 경로에만 그 대칭이 없다.
+`logClear`는 사이드패널 store만 비우는 게 아니라 `editor-store.clearActionLog` → `clearActionRecorder` → 브리지를 거쳐 **새 문서의 MAIN world 버퍼까지** 지운다. 그런데 MAIN의 `clear` 핸들러는 `clearBuffer()`만 하고 **`entryNavEmitted`를 되돌리지 않는다**.
 
 결과: reload 항목이 버퍼에 들어가 `entryNavEmitted = true`가 된 뒤 clear가 도착하면 버퍼가 비워지고, 이어지는 `setSentinel` 보충(`entryNavOnBind`)이 "이미 실었다"고 판단해 **reload 항목이 영구 유실**된다. 도달 여부는 `onCommitted → Promise.all 2홉 → logClear` 체인과 `tabs.onUpdated → setSentinel` 체인의 경합에 달렸다.
 
-- 변경: `clear` 핸들러가 `clearBuffer()`와 함께 `entryNavEmitted = false`로 되돌린다(grace 만료 경로와 동일한 대칭).
+##### 1차 처방(`clear`에서 무조건 래치 리셋)이 왜 틀렸나
+
+> 이 항목은 실패한 설계를 남겨 둔다 — 지우면 다음 사람이 같은 처방을 다시 제안한다.
+
+"grace 만료 경로와 동일한 대칭"이라는 근거 자체가 성립하지 않는다. **두 경로는 배타적 구간에서 돈다**:
+
+- grace 만료는 `if (armedOnce) return;` 가드를 달고 **arm 이전**에만 동작한다.
+- `clear` 리스너는 `setSentinel` **안에서만** 등록되고 같은 함수가 `armedOnce = true`를 세운다 → clear 핸들러가 도는 시점엔 `armedOnce`가 **항상 true**다. 즉 grace의 가드를 그대로 옮기면 죽은 코드가 된다.
+
+가드 없이 리셋만 옮기면 **새 회귀**가 생긴다. `clear` 발신자가 둘인데 의미가 반대이기 때문이다:
+
+- `video-capture.ts:prepareRecorders`는 **activate → clear 순서**라 clear 시점에 이미 armed다. 그 뒤 `useBackgroundRecorder`의 `visibilitychange → inject()`가 **같은 문서를 재arm**한다(녹화 중 탭 전환 복귀. `recordersStopped`가 false).
+- 그때 래치가 내려가 있으면 보충이 한 번 더 돌아, **일어나지도 않은 새로고침을 녹화 중간 시각(`Date.now()`)으로 단언하는 유령 항목**이 생긴다. 하류에 흡수 장치가 없어 이슈 본문·JSON·AI 요약까지 나간다.
+- `rejectUnsupported`·`chrome.tabs.get` throw 경로는 `cancelRecording` → `preserveLogs`로 패널 로그를 남기므로 **진짜 중복**(같은 from/to, 다른 id)이 된다.
+
+손익도 뒤집힌다: 막으려던 **유실은 이 기능 이전부터 있던 조건**이고(예전엔 같은 race에서 `load` 항목을 잃었다 — 라벨만 `reload`로 바뀐다), 유령 항목은 **이번에 새로 생기는 회귀**다.
+
+##### 개정 설계 — 판정을 발신자로 올린다
+
+MAIN world는 "패널 로그도 함께 비워졌는가"를 알 수 없다. 알 수 있는 건 **보내는 쪽**이다. 그러니 `clear`에 의도를 실어 보낸다. 발신자는 정확히 둘이고 1:1로 갈린다:
+
+| 발신자 | 상황 | 진입 항목 |
+|---|---|---|
+| `usePickerMessages`의 `logClear` → `editor-store.clearActionLog` | 네비게이션 경계. 패널 로그도 같은 블록에서 비워진다 | **보충해야 함** |
+| `video-capture.ts:prepareRecorders` | 녹화 세션 준비. 같은 문서가 계속 살아 있다 | **보충하면 안 됨** |
+
+`clearActionLog`의 비테스트 호출자는 `usePickerMessages.ts`의 `logClear` 분기 **하나뿐**이라 이 매핑에 예외가 없다.
+
+- `PickerMessage`의 `actionRecorder.clear`에 `resupplyEntryNav?: boolean` 추가. **기본값(필드 부재) = 보충 안 함** — 새 발신자가 생겼을 때 잊으면 "유령 항목"이 아니라 "기존 동작"으로 떨어지는 fail-safe 방향을 고른다.
+- `clearActionRecorder(tabId, opts?)` → 브리지가 `CustomEvent.detail`로 중계 → MAIN `clear` 핸들러가 그 플래그일 때만 `entryNavEmitted = false`.
+- **`network`/`console`의 clear는 건드리지 않는다** — 진입 항목 개념이 액션 로그에만 있다.
+
+이 설계는 액션 로그에만 있는 비대칭(진입 항목 합성)을 발신자 의도로 해소하는 것이고, 래치의 의미("이 문서의 진입 항목이 패널에 살아 있다")를 바꾸지 않는다.
 
 ### `src/content/action-recorder-helpers.ts` — 판정 순수 함수 (신규 2개)
 
@@ -233,7 +265,10 @@ export function KindIcon({ kind, navType }: {
 
 1. **조기 반환 가드 2개**(`fromUrl === toUrl`, `entryNavEmitted` 래치)가 이 기능의 주된 무음 실패 지점이다. 전자는 새로고침 항목을 통째로 삼키고, 후자는 새로고침 진입에서 중복 항목을 만든다. 둘 다 **유닛으로 잡히지 않는다**(레코더 본문은 브라우저 바인딩) — e2e가 유일한 그물이다.
 2. **중복을 흡수할 하류 장치가 없다.** `mergeLogItems`는 `id`만으로 dedup하고 액션 경로에 타임윈도·collapse가 없다. `entryNavEmitted` 래치 확장이 **유일한 방어**다.
-3. **`logClear`가 새 문서 MAIN 버퍼까지 지운다** — 위 "clear 핸들러 대칭 수정"이 이 위험의 처방이다. 처방 없이 두면 reload 항목이 경합 결과에 따라 유실되고, 성공기준이 타이밍 운에 걸린다.
+3. **`logClear`가 새 문서 MAIN 버퍼까지 지운다** — 위 "clear가 의도를 실어 나른다"가 이 위험의 처방이다. **다만 경합의 한쪽 순서만 덮는다** — 래치 리셋 자체는 항목을 만들지 않고, 보충은 `setSentinel` 본문 안에만 있기 때문이다.
+   - clear가 `setSentinel`보다 **먼저**: 버퍼 비움 → 래치 false → 뒤이은 `setSentinel`이 보충 → **복구된다.**
+   - `setSentinel`이 **먼저**: 보충분이 버퍼에 들어가 flush가 예약되고, clear의 `clearBuffer()` + `throttle.cancel()`이 둘 다 날린다. 래치는 내려가지만 **다음 재arm이 올 때까지 아무도 다시 만들지 않는다** → 기존과 동일하게 유실.
+   - 실사용의 지배적 순서는 `onCommitted`(→`logClear`)가 `onUpdated status==="complete"`(→`inject`→`setSentinel`)보다 앞서므로 앞쪽이고, 그래서 처방이 값을 한다. 역순은 **수용된 잔여 위험**이다 — E3가 실측할 자리.
 4. **reload는 (일부 phase에서) 로그를 클리어한다.** 그래서 reload 항목은 pre-arm 버퍼를 타고 **클리어 이후에** 도착해야 보인다. pre-arm이 죽으면(청크 강등) 이 항목이 조용히 사라진다 — `check:prearm`을 반드시 태운다.
 5. **`performance.getEntriesByType("navigation")[0]`이 document_start에 존재하는지 실측 전이다.** 스펙상 문서 생성 시 엔트리가 큐잉되지만 코드베이스에 선례가 0건이다. `entryNavType`이 레거시 `performance.navigation.type`(0/1/2)도 받게 해 폴백을 둔다 — 실측은 Task 3 e2e에서 확인한다.
 6. **`window.navigation` 타입 부재**: TS lib.dom에 Navigation API 타입이 없다(`declare var navigation`도 없어 `typeof navigation !== "undefined"` 형태는 컴파일되지 않는다). `recorder-globals.ts`에서 `globalThis` 캐스팅 + 최소 구조적 타입으로 선언하고 `any`를 흘리지 않는다.

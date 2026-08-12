@@ -19,8 +19,8 @@
   - `action-recorder.ts`의 내부 `type NavType`을 동일하게 확장.
   - **`src/content/` 밖 import를 추가하지 않는다.**
 - **검증**:
-  - [ ] `pnpm test` — 신규 유닛 U1·U2 green
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm test` — 신규 유닛 U1·U2 green
+  - [x] `pnpm typecheck` 통과
 
 ### Task 2: `window.navigation` + `performance` 전역 스냅샷
 
@@ -30,8 +30,8 @@
   - 같은 위협모델로 `performanceRef`도 export — 하나만 스냅샷하면 비대칭이 된다.
   - lib.dom에 Navigation 타입이 없으므로 `(globalThis as unknown as { navigation?: NavigationLike }).navigation` 형태로 받는다. **`typeof navigation !== "undefined"` 형태는 컴파일 안 된다**(`declare var navigation`이 없음). `any` 노출 금지.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과 (lib.dom에 Navigation 타입이 없어도 컴파일)
-  - [ ] 이 파일이 `src/content/` 밖을 import하지 않음 — 수동 확인
+  - [x] `pnpm typecheck` 통과 (lib.dom에 Navigation 타입이 없어도 컴파일)
+  - [x] 이 파일이 `src/content/` 밖을 import하지 않음 — 수동 확인
 
 ### Task 3: 레코더 판정 지점 배선
 
@@ -42,15 +42,29 @@
   3. `setSentinel`의 `entryNavOnBind` 보충 경로도 `"load"` 대신 같은 `entryType`.
   4. `recordNavigation`의 조기 반환(`navType !== "load" && fromUrl === toUrl`)을 진입 계열(`load`/`reload`/`traverse`) 통과로 확장.
   5. `entryNavEmitted` 세팅 조건을 같은 진입 계열 집합으로 확장. grace 만료 리셋 경로 뒤 재arm이 `entryType`으로 합성하는지 확인.
-  6. **`clear` 핸들러 대칭 수정** — `clearBuffer()`와 함께 `entryNavEmitted = false`로 되돌린다(grace 만료 경로와 동일). 없으면 `logClear`가 pre-arm 버퍼를 지운 뒤 보충도 건너뛰어 reload 항목이 유실된다.
+  6. **`clear` 핸들러은 발신자가 실어 보낸 의도를 따른다** — `detail.resupplyEntryNav`가 참일 때만 `entryNavEmitted = false`. 자세한 근거와 폐기된 1차 처방은 design.md 동명 섹션. **무조건 리셋하면 안 된다** — `prepareRecorders`가 activate 뒤에 clear를 보내고 녹화 중 탭 복귀가 같은 문서를 재arm하므로 유령 진입 항목이 생긴다. 배선은 Task 3.5.
   7. **히스토리 인덱스는 미러 변수로 유지하지 않는다** — 각 판정 시점(`recordNavigation` 진입 또는 각 핸들러 첫 줄)에 `navigationRef?.currentEntry?.index`를 읽어 직전 값과 비교하고 즉시 덮어쓴다. 갱신 지점을 열거하면 `<a href="#x">`(popstate 없이 인덱스 +1)에서 드리프트가 나 HashRouter 앱의 방향 판정이 통째로 죽는다.
      - `pushState`/`replaceState` 패치 안에서 다룰 때는 **원본 호출 뒤에 읽어서 대입**한다(카운터 증가가 아니다 — `replaceState`는 인덱스를 올리지 않는다).
   8. `popstate` 리스너가 `traverseDirection` 결과를 쓰고, `null`이면 `"popstate"` 폴백.
   - **`pageshow` 리스너는 만들지 않는다** — bfcache는 비목표(PRD).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] Task 6 e2e green (이 태스크의 실질 검증은 e2e뿐 — 레코더 본문은 유닛 불가)
   - [ ] Task 6에서 `pnpm build:e2e && pnpm check:prearm dist-e2e` — recorders-entry가 동기 IIFE·world=MAIN·document_start 유지
+
+### Task 3.5: `clear` 의도 배선 (개정 — design.md "clear가 의도를 실어 나른다")
+
+- **변경 대상**: `src/types/picker.ts`, `src/sidepanel/recorder-control.ts`, `src/content/recorder-bridge.ts`, `src/store/editor-store.ts` (+ `src/sidepanel/video-capture.ts`는 **무변경 확인 대상** — 인자를 주지 않는 쪽이 정답이라 diff가 0이어야 한다)
+- **작업 내용**:
+  - `PickerMessage`의 `actionRecorder.clear`에 `resupplyEntryNav?: boolean` 추가. **필드 부재 = 보충 안 함**(fail-safe 방향 — 새 발신자가 잊으면 기존 동작으로 떨어진다).
+  - `clearActionRecorder(tabId, opts?: { resupplyEntryNav?: boolean })`가 그 필드를 실어 보낸다.
+  - `recorder-bridge.ts:handleActionClear`가 메시지의 플래그를 `CustomEvent.detail`로 중계.
+  - `editor-store.clearActionLog`(= `logClear` 경로)만 `{ resupplyEntryNav: true }`로 호출. `video-capture.prepareRecorders`는 인자 없이 그대로 둔다.
+  - **network·console의 clear는 건드리지 않는다** — 진입 항목 개념이 액션 로그 전용이다.
+- **검증**:
+  - [x] `pnpm test` — 신규 유닛 U6(발신자 2개의 의도 대조) green
+  - [x] `pnpm typecheck` 통과
+  - [x] `clearActionLog`의 비테스트 호출자가 `usePickerMessages`의 `logClear` 분기 하나뿐임을 재확인(grep) — 늘어나 있으면 매핑 재검토
 
 ### Task 4: 문구 키 단일 출처 + 사전 2벌
 
@@ -62,9 +76,9 @@
   - 신규 키 4개를 ko/en × 사전 2벌 = 16 엔트리로 추가(값은 design.md 표 그대로). 슬롯은 `{target}` 하나만.
   - `src/log-viewer/__tests__/i18n.test.ts`에 `NAV_VERB_KEYS` 전용 `it()` 추가 — **동적 키는 기존 리터럴 스캐너를 우회하고, 값 drift 검사도 복제 사전에 키가 없으면 그냥 통과**한다. `NET_VERB_KEYS`·`STATUS_KIND_LABEL_KEYS`가 선례.
 - **검증**:
-  - [ ] `pnpm test` — `src/i18n/__tests__/locales.test.ts`(키 대칭·placeholder) green
-  - [ ] `pnpm test` — `src/log-viewer/__tests__/i18n.test.ts`(ko/en 대칭 + 메인 테이블 값 일치 + 신규 `NAV_VERB_KEYS` 커버리지) green
-  - [ ] 신규 유닛 U3 green
+  - [x] `pnpm test` — `src/i18n/__tests__/locales.test.ts`(키 대칭·placeholder) green
+  - [x] `pnpm test` — `src/log-viewer/__tests__/i18n.test.ts`(ko/en 대칭 + 메인 테이블 값 일치 + 신규 `NAV_VERB_KEYS` 커버리지) green
+  - [x] 신규 유닛 U3 green
 
 ### Task 5: 표시 분기 (목록 + 타임라인 + AI 요약)
 
@@ -78,10 +92,10 @@
     - **`markers.ts`는 `t()`를 2회 호출한다**(보간판 → `label`, 미보간판 → `labelParts`). **둘 다 교체할 것** — 한쪽만 바꾸면 `TimelineMarkers.tsx`의 `aria-label`과 화면 문구가 갈리는 무음 a11y 회귀이고, `markers.test.ts`의 "parts 이어붙이면 label과 같다" 불변식이 깨진다.
   - `buildActionLogSummary`의 navigation 분기를 유형별 영문 문구로(`Went back to:` / `Went forward to:` / `Reloaded:` / `Navigated via history to:`). **i18n을 끌어오지 않는다**(이 함수는 영어 고정이 기존 규칙).
 - **검증**:
-  - [ ] `pnpm test` — `markers.test.ts` 기존 케이스 green(구 `load` 항목이 기존 문구 유지) + 신규 유닛 U4
-  - [ ] `pnpm test` — U5(`buildLogSummary.test.ts`)
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `ACTION_FILTERS`·검색(`actionSearchText`)이 변경되지 않았음을 확인
+  - [x] `pnpm test` — `markers.test.ts` 기존 케이스 green(구 `load` 항목이 기존 문구 유지) + 신규 유닛 U4
+  - [x] `pnpm test` — U5(`buildLogSummary.test.ts`)
+  - [x] `pnpm typecheck` 통과
+  - [x] `ACTION_FILTERS`·검색(`actionSearchText`)이 변경되지 않았음을 확인
 
 ### Task 6: e2e
 
@@ -127,7 +141,14 @@
 - **U5 `buildActionLogSummary`** (`src/sidepanel/lib/__tests__/buildLogSummary.test.ts` — `describe("buildActionLogSummary")`가 이미 존재)
   - 유형별 영문 문구 4종 + 구 값(`pushState`·`load`) 폴백
 
+- **U6 `clear` 의도 배선** (`src/store/__tests__/` 또는 발신자별 기존 테스트)
+  - `editor-store.clearActionLog(tabId)`가 `clearActionRecorder`를 `{ resupplyEntryNav: true }`로 부른다
+  - `video-capture.prepareRecorders`(= `startVideoCapture` 경로)의 `clearActionRecorder` 호출엔 그 플래그가 없다 — **유령 항목 회귀의 유일한 유닛 그물**
+  - `clearActionRecorder`가 그 값을 `PickerMessage`에 그대로 싣는다
+
 > `navType` 축의 exhaustive 검사가 저장소에 0건이라 렌더 분기 누락은 컴파일러가 못 잡는다. **U3·U4의 폴백 케이스를 필수로 취급한다.**
+>
+> `clear` 의도 배선도 같은 성격이다 — MAIN 핸들러 본문은 유닛 불가라 **발신자 쪽 의도(U6)만 고정**할 수 있고, 실제 래치 동작은 e2e E3·E7이 본다.
 
 ### e2e 시나리오 (`/e2e-write` 입력)
 
@@ -139,6 +160,7 @@
 - **E4** — same-origin 멀티페이지에서 A→B 이동 후 `page.goBack()`(문서 재로드)을 하면 `data-nav-type="traverse"` 항목이 뜨고, 이전 페이지 로그가 보존된다.
 - **E5** — 해시 링크로 이동 후 `page.goBack()`을 하면 **해당 해시 URL의 navigation 항목 수가 기존 동작과 동일**하다(popstate 유래 + hashchange 유래 2개). 절대 카운트가 아니라 해시 URL로 좁힌 상대 카운트로 센다 — 페이지 진입 `load` 항목이 항상 하나 깔려 베이스라인이 0이 아니다. 이번 변경이 개수를 바꾸지 않았음을 고정하는 보존 테스트다.
 - **E6** — HashRouter 형태(`#/a` → `#/b`)로 이동 후 `page.goBack()`을 하면 `data-nav-type="back"`이다(인덱스 드리프트 회귀 방지).
+- **E7** — **유령 진입 항목 회귀 방지**(Task 3.5). 캡처를 시작한 뒤 네비게이션 없이 다른 탭으로 갔다가(`otherPage.bringToFront()`) 돌아오면(`page.bringToFront()`), 액션 로그의 **navigation 항목 수가 늘지 않는다**. `visibilitychange → inject`가 같은 문서를 재arm하는 경로라, `clear`가 의도 없이 래치를 내리면 여기서 항목이 하나 더 생긴다. 절대 개수가 아니라 **복귀 전후 delta 0**으로 센다.
 
 ### 수동 테스트 (Chrome, 자동화 불가)
 

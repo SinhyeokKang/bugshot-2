@@ -31,8 +31,12 @@ export interface ActionEntry {
   // click 전용: 접근성 이름이 없을 때 태그 폴백 표시용.
   tagName?: string;
   tagType?: string;
-  // navigation
-  navType?: "load" | "pushState" | "replaceState" | "popstate" | "hashchange";
+  // navigation. 구 5개는 하위호환(IndexedDB 초안)과 Navigation API 실패 시 popstate 폴백 때문에
+  // 남는다. 이 축엔 exhaustive 검사가 저장소에 0건이라 렌더 분기 누락을 컴파일러가 못 잡는다 —
+  // navVerbKey/buildActionLogSummary의 폴백이 유일한 그물이다.
+  navType?:
+    | "load" | "pushState" | "replaceState" | "popstate" | "hashchange"
+    | "reload" | "traverse" | "back" | "forward";
   fromUrl?: string;
   toUrl?: string;
   // input / toggle / select(fieldLabel), keypress(value=키 조합)

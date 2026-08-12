@@ -5,6 +5,8 @@ import {
   shouldMaskField,
   isSensitiveValue,
   entryNavOnBind,
+  entryNavType,
+  traverseDirection,
   formatKeyCombo,
   exceedsDragThreshold,
   matchesOwnHost,
@@ -12,7 +14,7 @@ import {
 } from "./action-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
-import { addEventListener, CustomEventCtor, dispatchEvent, randomUUID, removeEventListener } from "./recorder-globals";
+import { addEventListener, CustomEventCtor, dispatchEvent, navigationRef, performanceRef, randomUUID, removeEventListener } from "./recorder-globals";
 import { createSentinelRegistry } from "./sentinel-registry";
 import { maskUrl } from "./network-recorder-helpers";
 
@@ -31,7 +33,10 @@ function actionRecorderScript(): void {
   const OWN_HOST_IDS = [HOST_ID, ANNOTATION_HOST_ID];
 
   type Kind = "click" | "navigation" | "input" | "keypress" | "toggle" | "select" | "drag";
-  type NavType = "load" | "pushState" | "replaceState" | "popstate" | "hashchange";
+  // src/types/action.ts ActionEntry.navType와 동기화 — MAIN world라 import 대신 리터럴 복제.
+  type NavType =
+    | "load" | "pushState" | "replaceState" | "popstate" | "hashchange"
+    | "reload" | "traverse" | "back" | "forward";
 
   // src/types/action.ts ActionNode와 동기화 — MAIN world라 import 대신 리터럴 복제.
   interface DragNode {
@@ -91,7 +96,7 @@ function actionRecorderScript(): void {
   // const라 같은 이유로 throttle보다 먼저 초기화돼야 한다.
   // 다중 등록 — 무엇을 막고 무엇이 남는지는 sentinel-registry.ts 헤더 참조.
   const sentinels = createSentinelRegistry();
-  const sentinelHandlers = new Map<string, { stop: () => void; sync: () => void; clear: () => void }>();
+  const sentinelHandlers = new Map<string, { stop: () => void; sync: () => void; clear: (e: Event) => void }>();
   const throttle = createTrailingThrottle(dispatch, FLUSH_INTERVAL_MS);
 
   // 페이지가 sessionStorage pre-arm 플래그를 위조하면 적재가 무기한 켜진 채 남는다. 정당한
@@ -311,12 +316,38 @@ function actionRecorderScript(): void {
     });
   }
 
-  // pre-arm으로 init load(아래 recordNavigation("load"))가 적재되면 true가 되어,
-  // setSentinel의 entryNavOnBind 보충을 스킵 → 진입 load 액션 중복 방지.
+  // pre-arm으로 init 진입 네비게이션(아래 recordNavigation(entryType, …))이 적재되면 true가 되어,
+  // setSentinel의 entryNavOnBind 보충을 스킵 → 진입 액션 중복 방지.
   let entryNavEmitted = false;
 
+  // 문서 진입 판정은 1회면 족하다 — 이 문서가 어떻게 생겼는지는 변하지 않는다.
+  // 진입·보충 두 경로가 같은 값을 써야 한다. 보충에 "load"를 하드코딩해 두면 pre-arm이 놓친
+  // 새로고침이 일반 이동으로 강등된다.
+  const navEntry = performanceRef?.getEntriesByType("navigation")[0] as
+    | PerformanceNavigationTiming
+    | undefined;
+  const entryType = entryNavType(navEntry?.type, performanceRef?.navigation?.type);
+
+  // 문서가 새로 실행된 계열. 새로고침은 document.referrer가 비어 fromUrl === toUrl이 되기 쉬워
+  // dedup 가드에 삼켜지고, 래치를 안 넓히면 setSentinel 보충이 항목을 한 번 더 합성한다.
+  // 하류 mergeLogItems는 id로만 dedup해 중복을 흡수할 장치가 없다 — 이 래치가 유일한 방어다.
+  function isEntryNav(navType: NavType): boolean {
+    return navType === "load" || navType === "reload" || navType === "traverse";
+  }
+
+  // 갱신 지점을 열거하지 않는다 — <a href="#x">는 popstate 없이 히스토리 인덱스를 +1 하므로,
+  // 열거하면 HashRouter 앱에서 인덱스가 한 스텝 뒤처져 이후 방향 판정이 통째로 죽는다.
+  // 판정 시점마다 읽고 즉시 덮어쓴다.
+  let historyIndex = navigationRef?.currentEntry?.index;
+  function syncHistoryIndex(): [number | undefined, number | undefined] {
+    const prev = historyIndex;
+    historyIndex = navigationRef?.currentEntry?.index;
+    return [prev, historyIndex];
+  }
+
   function recordNavigation(navType: NavType, fromUrl: string, toUrl: string): void {
-    if (navType !== "load" && fromUrl === toUrl) return;
+    syncHistoryIndex();
+    if (!isEntryNav(navType) && fromUrl === toUrl) return;
     // 저장 필드만 마스킹(#access_token·?token= 등 URL 시크릿). lastUrl은 raw 유지 — dedup 비교 정확도 보존.
     const maskedTo = maskUrl(toUrl);
     pushAction({
@@ -329,7 +360,7 @@ function actionRecorderScript(): void {
       toUrl: maskedTo,
     });
     lastUrl = toUrl;
-    if (navType === "load" && capturing) entryNavEmitted = true;
+    if (isEntryNav(navType) && capturing) entryNavEmitted = true;
   }
 
   function isToggleControl(el: Element | null): el is HTMLInputElement {
@@ -582,7 +613,7 @@ function actionRecorderScript(): void {
   addEventListener(document, "change", onInput, true);
 
   // --- Navigation ---
-  recordNavigation("load", document.referrer || lastUrl, location.href);
+  recordNavigation(entryType, document.referrer || lastUrl, location.href);
 
   // 페이지가 직접 호출하는 함수이므로 recordNavigation throw가 페이지 라우팅 호출자로
   // 전파되지 않도록 격리한다 (원본은 이미 호출됐으니 네비게이션 동작은 보존).
@@ -601,7 +632,10 @@ function actionRecorderScript(): void {
     return ret;
   };
   addEventListener(window, "popstate", () => {
-    recordNavigation("popstate", lastUrl, location.href);
+    // 방향은 recordNavigation이 인덱스를 덮어쓰기 전에 확정해야 한다. 판정 불가(페이지가
+    // navigation을 덮었거나 인덱스가 이상)면 기존 popstate로 폴백 — 기능이 죽지 않고 정보만 준다.
+    const dir = traverseDirection(...syncHistoryIndex());
+    recordNavigation(dir ?? "popstate", lastUrl, location.href);
   });
   addEventListener(window, "hashchange", (e: HashChangeEvent) => {
     recordNavigation("hashchange", e.oldURL, e.newURL);
@@ -644,7 +678,19 @@ function actionRecorderScript(): void {
       const handlers = {
         stop: () => { recording = false; capturing = false; throttle.flushNow(); },
         sync: () => { throttle.flushNow(); },
-        clear: () => { clearBuffer(); throttle.cancel(); },
+        // 래치는 발신자가 의도를 밝힌 clear에서만 내린다. logClear(네비게이션 경계)는 패널
+        // 로그도 함께 비우므로 새 문서의 진입 항목을 다시 실어야 하고, 안 내리면 아래
+        // entryNavOnBind 보충이 "이미 실었다"고 판단해 그 항목이 영구 유실된다.
+        // **무조건 내리면 안 된다** — prepareRecorders는 activate 뒤에 clear를 보내고 녹화 중
+        // 탭 복귀가 visibilitychange → inject로 같은 문서를 재arm하므로, 그때 보충이 한 번 더
+        // 돌아 일어나지도 않은 새로고침을 녹화 중간 시각으로 단언하는 유령 항목이 된다.
+        // (grace 만료 경로와 대칭으로 보이지만 아니다 — 거긴 arm 이전, 여긴 arm 이후에만 돈다.)
+        clear: (e: Event) => {
+          clearBuffer();
+          const detail = (e as CustomEvent).detail as { resupplyEntryNav?: boolean } | undefined;
+          if (detail?.resupplyEntryNav) entryNavEmitted = false;
+          throttle.cancel();
+        },
       };
       sentinelHandlers.set(sentinel, handlers);
       addEventListener(document, "__bugshot_action_stop__" + sentinel, handlers.stop);
@@ -664,7 +710,7 @@ function actionRecorderScript(): void {
     const entryNav = entryNavOnBind(entryNavEmitted, document.referrer, lastUrl, location.href);
     if (entryNav) {
       entryNavEmitted = true;
-      recordNavigation("load", entryNav.fromUrl, entryNav.toUrl);
+      recordNavigation(entryType, entryNav.fromUrl, entryNav.toUrl);
     }
     if (buffer.length) throttle.schedule(); // pre-arm 초반 버퍼 소급 flush.
   }
