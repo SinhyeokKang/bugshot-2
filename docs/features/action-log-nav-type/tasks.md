@@ -117,9 +117,9 @@
   - privacy: 액션 로그 상세 서술과 수집 항목 표의 "페이지 이동"에 뒤로가기·앞으로가기·새로고침 구분이 기록됨을 반영. **ko가 원본, en은 번역 — 양쪽 본문과 상단 시행일을 함께 갱신.**
   - `docs/ARCHITECTURE.md`의 "액션 레코더" 단락은 **필수 갱신 대상**이다(조건부 아님) — `pushState`/`replaceState`/`popstate`/`hashchange` 기록 범위와 `entryNavOnBind` 보충을 이미 명시하고 있으므로, 판정 소스 2갈래와 `clear` 핸들러의 `entryNavEmitted` 대칭을 한 줄씩 추가.
 - **검증**:
-  - [ ] ko/en 본문이 같은 내용을 말하는지 대조
-  - [ ] 시행일 bump 반영
-  - [ ] ARCHITECTURE 액션 레코더 단락 갱신 완료
+  - [x] ko/en 본문이 같은 내용을 말하는지 대조
+  - [x] 시행일 bump 반영 (이미 2026-08-12 — 변경 불필요)
+  - [x] ARCHITECTURE 액션 레코더 단락 갱신 완료
 
 ## 테스트 계획
 

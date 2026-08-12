@@ -6,7 +6,7 @@
 
 판정 소스를 **두 갈래**로 나눈다. 문서가 새로 실행되는 경로(최초 로드·새로고침·문서 재로드 traverse)는 도착 문서의 내비게이션 타이밍 엔트리 하나로 판정하고, 같은 문서 안에서 히스토리를 오가는 경로(SPA traverse)는 `popstate` 시점에 Navigation API의 히스토리 인덱스 델타로 **방향까지** 판정한다.
 
-판정 자체는 전부 **순수 함수 2개**로 뽑아 `action-recorder-helpers.ts`에 두고 유닛으로 고정한다. 레코더 본문에는 "무엇을 읽어 그 함수에 넘기는가"만 남는다. 표시 문구 선택도 순수 함수 1개(`navVerbKey`)로 뽑아 액션 로그 목록과 log-viewer 타임라인이 **같은 출처**를 쓰게 한다.
+판정 자체는 전부 **순수 함수 3개**로 뽑아 `action-recorder-helpers.ts`에 두고 유닛으로 고정한다. 레코더 본문에는 "무엇을 읽어 그 함수에 넘기는가"만 남는다. 표시 문구 선택도 순수 함수 1개(`navVerbKey`)로 뽑아 액션 로그 목록과 log-viewer 타임라인이 **같은 출처**를 쓰게 한다.
 
 bfcache 복원은 **비목표**(PRD 참조)라 `pageshow` 후크를 두지 않는다.
 
@@ -24,9 +24,18 @@ bfcache 복원은 **비목표**(PRD 참조)라 `pageshow` 후크를 두지 않�
 - 변경:
   1. 내부 `type NavType` 미러를 `types/action.ts`와 동일하게 확장.
   2. 진입 판정: 모듈 초기화에서 `entryNavType(...)`을 1회 계산해 `entryType` 상수로 잡고, `recordNavigation("load", …)` 자리와 `setSentinel`의 `entryNavOnBind` 보충 경로에서 **같은 값**을 쓴다 — 후자에 `"load"`를 하드코딩한 채 두면 pre-arm이 놓친 새로고침이 일반 이동으로 강등된다.
-  3. `popstate` 리스너: `popstateNavType(prevIndex, idx, entryId, seenEntryIds)`로 방향을 얻고, 판정이 안 서면 기존 `"popstate"`로 폴백.
+  3. `popstate` 리스너: `popstateNavType(prevIndex, idx, entryId, seenEntryIds)`로 방향을 얻고, 판정이 안 서면 기존 `"popstate"`로 폴백(아래 별도 항목).
+  4. **`clear`가 실어 온 의도를 따른다** — 아래 별도 항목.
+- **인덱스는 미러 변수로 유지하지 않는다.** `<a href="#x">` 클릭은 `popstate` 없이 히스토리 인덱스를 +1 하므로, `초기화 / pushState·replaceState / popstate` 세 지점만 갱신하면 HashRouter 앱에서 인덱스가 한 스텝 뒤처져 이후 방향 판정이 전부 `null` 폴백된다. 대신 **`recordNavigation` 진입 시(또는 각 핸들러 첫 줄) 현재 인덱스를 매번 읽어 직전 값과 비교하고 곧바로 덮어쓴다.** 갱신 지점을 열거하지 않으므로 새 히스토리 경로가 생겨도 드리프트가 없다.
+  - 부수 효과: `pushState`/`replaceState` 패치 안에서 인덱스를 다룰 때는 **원본 호출 뒤에 읽어서 대입**한다(카운터 증가가 아니다 — `replaceState`는 인덱스를 올리지 않는다). 앞에서 읽으면 항상 한 스텝 뒤처진다.
+- **두 개의 조기 반환 가드를 함께 넓혀야 한다.** 놓치면 기능이 무음으로 죽는다:
+  - `recordNavigation`의 `if (navType !== "load" && fromUrl === toUrl) return;` — 새로고침은 `document.referrer`가 비어 `fromUrl === toUrl`이 되기 쉬워 **여기서 버려진다.** 조건을 "문서 진입 계열(`load`/`reload`/`traverse`)이면 통과"로 바꾼다.
+  - `if (navType === "load" && capturing) entryNavEmitted = true;` — 같은 진입 계열 집합으로 넓힌다. 안 넓히면 새로고침 진입 후 `setSentinel`이 `load` 항목을 한 번 더 합성해 **중복**이 생긴다.
+  - 이 래치 확장이 중복의 **유일한 방어**다. 하류 `mergeLogItems`는 `id`만으로 dedup하고 액션 경로에 타임윈도·kind별 collapse가 전무해서, 레코더가 내보낸 중복은 UI·타임라인·JSON·AI 요약에 그대로 간다.
+  - 래치는 pre-arm grace 만료 경로에서 `entryNavEmitted = false`로 리셋된다. 진입 계열로 넓힌 뒤에도 리셋 후 재arm이 `entryType`으로 합성하는지 확인한다.
 
-##### popstate는 "히스토리 이동" 전용 신호가 아니다 (e2e 실측으로 발견)
+
+#### popstate는 "히스토리 이동" 전용 신호가 아니다 (e2e 실측으로 발견)
 
 착수 시엔 `popstate` = 이동으로 전제하고 인덱스 델타의 **부호만** 봤다. 실제로는 **같은 문서 프래그먼트 네비게이션**(`<a href="#x">` 클릭)도 popstate를 쏘고 인덱스를 +1 한다(HTML 스펙의 same-document navigation). 그래서 부호만 보면 **링크 클릭이 "앞으로가기"로 오라벨**된다 — 이 기능이 가른다고 선언한 축(히스토리 조작 여부)과 정반대이고, 바로 위 `click` 항목과 나란히 놓여 리포트를 읽는 사람을 오도한다.
 
@@ -35,14 +44,6 @@ bfcache 복원은 **비목표**(PRD 참조)라 `pageshow` 후크를 두지 않�
 - 판정 기준을 하나 더 둔다: **도착 엔트리의 `NavigationHistoryEntry.id`를 전에 본 적 있는가.** 이동으로 되돌아온 엔트리는 같은 id를 유지하고, 새로 밀어 넣어진 엔트리는 처음 보는 id다.
 - `id`가 없거나(Navigation API 부재·페이지 훼손) 처음 보는 id면 `"popstate"`로 폴백한다 — **틀린 방향보다 정보 없는 쪽**이 낫다.
 - `seenEntryIds` 크기는 브라우저가 상한을 두는 히스토리 엔트리 수에 묶인다.
-  4. **`clear` 핸들러 대칭 수정** — 아래 별도 항목.
-- **인덱스는 미러 변수로 유지하지 않는다.** `<a href="#x">` 클릭은 `popstate` 없이 히스토리 인덱스를 +1 하므로, `초기화 / pushState·replaceState / popstate` 세 지점만 갱신하면 HashRouter 앱에서 인덱스가 한 스텝 뒤처져 이후 방향 판정이 전부 `null` 폴백된다. 대신 **`recordNavigation` 진입 시(또는 각 핸들러 첫 줄) 현재 인덱스를 매번 읽어 직전 값과 비교하고 곧바로 덮어쓴다.** 갱신 지점을 열거하지 않으므로 새 히스토리 경로가 생겨도 드리프트가 없다.
-  - 부수 효과: `pushState`/`replaceState` 패치 안에서 인덱스를 다룰 때는 **원본 호출 뒤에 읽어서 대입**한다(카운터 증가가 아니다 — `replaceState`는 인덱스를 올리지 않는다). 앞에서 읽으면 항상 한 스텝 뒤처진다.
-- **두 개의 조기 반환 가드를 함께 넓혀야 한다.** 놓치면 기능이 무음으로 죽는다:
-  - `recordNavigation`의 `if (navType !== "load" && fromUrl === toUrl) return;` — 새로고침은 `document.referrer`가 비어 `fromUrl === toUrl`이 되기 쉬워 **여기서 버려진다.** 조건을 "문서 진입 계열(`load`/`reload`/`traverse`)이면 통과"로 바꾼다.
-  - `if (navType === "load" && capturing) entryNavEmitted = true;` — 같은 진입 계열 집합으로 넓힌다. 안 넓히면 새로고침 진입 후 `setSentinel`이 `load` 항목을 한 번 더 합성해 **중복**이 생긴다.
-  - 이 래치 확장이 중복의 **유일한 방어**다. 하류 `mergeLogItems`는 `id`만으로 dedup하고 액션 경로에 타임윈도·kind별 collapse가 전무해서, 레코더가 내보낸 중복은 UI·타임라인·JSON·AI 요약에 그대로 간다.
-  - 래치는 pre-arm grace 만료 경로에서 `entryNavEmitted = false`로 리셋된다. 진입 계열로 넓힌 뒤에도 리셋 후 재arm이 `entryType`으로 합성하는지 확인한다.
 
 #### `clear`가 의도를 실어 나른다 (개정 — 구현 중 1차 처방이 회귀를 만들어 재설계)
 
@@ -84,10 +85,10 @@ MAIN world는 "패널 로그도 함께 비워졌는가"를 알 수 없다. 알 �
 
 이 설계는 액션 로그에만 있는 비대칭(진입 항목 합성)을 발신자 의도로 해소하는 것이고, 래치의 의미("이 문서의 진입 항목이 패널에 살아 있다")를 바꾸지 않는다.
 
-### `src/content/action-recorder-helpers.ts` — 판정 순수 함수 (신규 2개)
+### `src/content/action-recorder-helpers.ts` — 판정 순수 함수 (신규 3개)
 
 - 현재 역할: 레코더가 쓰는 순수 헬퍼 모음. `entryNavOnBind`가 같은 성격(네비게이션 결정)의 선례다.
-- 변경: `entryNavType` / `traverseDirection` 추가. **`src/content/` 밖을 import하지 않는다** — 이 파일은 recorders-entry 청크에 인라인되고, 밖을 물면 `scripts/check-prearm-chunk.mjs`가 막는다(막지 못하면 pre-arm이 조용히 죽는다).
+- 변경: `entryNavType` / `traverseDirection` / `popstateNavType` 추가. **`src/content/` 밖을 import하지 않는다** — 이 파일은 recorders-entry 청크에 인라인되고, 밖을 물면 `scripts/check-prearm-chunk.mjs`가 막는다(막지 못하면 pre-arm이 조용히 죽는다).
 
 ### `src/content/recorder-globals.ts` — 전역 스냅샷
 
