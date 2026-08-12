@@ -66,7 +66,7 @@ export function SettingsTab({ sub, onSubChange }: { sub: string; onSubChange: (v
             <Sparkles className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("settings.tab.ai")}</TabLabel>
           </TabsTrigger>
-          <TabsTrigger value="general" className="min-w-0 gap-1.5">
+          <TabsTrigger value="general" className="min-w-0 gap-1.5" data-testid="settings-sub-general">
             <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("settings.tab.general")}</TabLabel>
           </TabsTrigger>
@@ -319,7 +319,7 @@ function GeneralSettingsContent() {
       <PageScroll>
         <Section title={t("settings.language")}>
           <Select value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full" data-testid="settings-locale">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
