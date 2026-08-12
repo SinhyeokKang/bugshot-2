@@ -7,6 +7,7 @@ import {
   entryNavOnBind,
   entryNavType,
   traverseDirection,
+  popstateNavType,
   formatKeyCombo,
   exceedsDragThreshold,
   matchesOwnHost,
@@ -410,5 +411,40 @@ describe("traverseDirection", () => {
 
   it("0 인덱스는 유효하다 (첫 엔트리로 뒤로가기)", () => {
     expect(traverseDirection(1, 0)).toBe("back");
+  });
+});
+
+// popstate는 히스토리 이동에서만 발화하지 않는다 — HTML 스펙상 **같은 문서 프래그먼트
+// 네비게이션**(<a href="#x"> 클릭)도 popstate를 쏘고, 그때 히스토리 인덱스도 +1 된다.
+// 그래서 인덱스 델타만 보면 링크 클릭이 "앞으로가기"로 오라벨된다(e2e에서 실측).
+// 도착 엔트리 id를 전에 본 적 있으면 이동, 처음 보면 새로 밀어 넣어진 엔트리다.
+describe("popstateNavType", () => {
+  const seen = new Set(["e0", "e1", "e2"]);
+
+  it("본 적 있는 엔트리로 인덱스가 줄면 back", () => {
+    expect(popstateNavType(2, 1, "e1", seen)).toBe("back");
+  });
+
+  it("본 적 있는 엔트리로 인덱스가 늘면 forward", () => {
+    expect(popstateNavType(1, 2, "e2", seen)).toBe("forward");
+  });
+
+  // 이 케이스가 핵심 — 프래그먼트 링크 클릭. 인덱스는 +1이지만 엔트리는 처음 본다.
+  it("처음 보는 엔트리는 인덱스가 늘어도 popstate (프래그먼트 push를 앞으로가기로 오라벨 금지)", () => {
+    expect(popstateNavType(2, 3, "brand-new", seen)).toBe("popstate");
+  });
+
+  it("엔트리 id가 없으면 popstate로 폴백 (Navigation API 부재·페이지 훼손)", () => {
+    expect(popstateNavType(2, 1, undefined, seen)).toBe("popstate");
+  });
+
+  it("id는 알지만 인덱스가 판정 불가면 popstate", () => {
+    expect(popstateNavType(undefined, 1, "e1", seen)).toBe("popstate");
+    expect(popstateNavType(1, 1, "e1", seen)).toBe("popstate");
+    expect(popstateNavType(3, -1, "e1", seen)).toBe("popstate");
+  });
+
+  it("seen이 비면 항상 popstate", () => {
+    expect(popstateNavType(2, 1, "e1", new Set())).toBe("popstate");
   });
 });

@@ -112,6 +112,20 @@ function isHistoryIndex(v: number | undefined): v is number {
   return typeof v === "number" && Number.isInteger(v) && v >= 0;
 }
 
+// popstate는 히스토리 이동 전용 신호가 아니다 — 같은 문서 프래그먼트 네비게이션(<a href="#x">)도
+// popstate를 쏘고 인덱스를 +1 한다. 인덱스 델타만 보면 그 링크 클릭이 "앞으로가기"가 된다.
+// 도착 엔트리 id를 전에 본 적 있어야 이동이고, 처음 보는 id는 새로 밀어 넣어진 엔트리다.
+// 판정이 안 서면 기존 "popstate"로 — 틀린 방향보다 정보 없는 쪽이 낫다.
+export function popstateNavType(
+  fromIndex: number | undefined,
+  toIndex: number | undefined,
+  entryId: string | undefined,
+  seenEntryIds: ReadonlySet<string>,
+): "back" | "forward" | "popstate" {
+  if (entryId === undefined || !seenEntryIds.has(entryId)) return "popstate";
+  return traverseDirection(fromIndex, toIndex) ?? "popstate";
+}
+
 // 접근가능한 이름을 trim·길이 cap. 역할(button/link 등)은 ActionEntry.role로 따로 들고
 // 렌더 레이어(i18n)에서 로케일에 맞춰 조립한다.
 export function truncateName(name: string | null | undefined): string | undefined {

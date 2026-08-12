@@ -49,8 +49,8 @@
   - **`pageshow` 리스너는 만들지 않는다** — bfcache는 비목표(PRD).
 - **검증**:
   - [x] `pnpm typecheck` 통과
-  - [ ] Task 6 e2e green (이 태스크의 실질 검증은 e2e뿐 — 레코더 본문은 유닛 불가)
-  - [ ] Task 6에서 `pnpm build:e2e && pnpm check:prearm dist-e2e` — recorders-entry가 동기 IIFE·world=MAIN·document_start 유지
+  - [x] Task 6 e2e green (이 태스크의 실질 검증은 e2e뿐 — 레코더 본문은 유닛 불가)
+  - [x] Task 6에서 `pnpm build:e2e && pnpm check:prearm dist-e2e` — recorders-entry가 동기 IIFE·world=MAIN·document_start 유지
 
 ### Task 3.5: `clear` 의도 배선 (개정 — design.md "clear가 의도를 실어 나른다")
 
@@ -106,9 +106,9 @@
   - `captureVisibleTab` cold-start·quota flake 이력이 있으므로 `mode-freeform` 진입이 더 안전.
   - E1·E2용 픽스처가 필요하면 `e2e/fixtures/`에 pushState 버튼이 있는 페이지를 추가. E4는 기존 `basic.html`/`second.html`로 충분.
 - **검증**:
-  - [ ] `pnpm build:e2e && pnpm test:e2e` — 신규 spec green
-  - [ ] `pnpm check:prearm dist-e2e` 통과 (Task 3의 pre-arm 게이트를 여기서 태운다 — `/implement`는 `dist` 빌드를 돌리지 않는다)
-  - [ ] `e2e/logs-prearm.spec.ts`·`logs-cross-page.spec.ts` 기존 spec 회귀 없음
+  - [x] `pnpm build:e2e && pnpm test:e2e` — 신규 spec green
+  - [x] `pnpm check:prearm dist-e2e` 통과 (Task 3의 pre-arm 게이트를 여기서 태운다 — `/implement`는 `dist` 빌드를 돌리지 않는다)
+  - [x] `e2e/logs-prearm.spec.ts`·`logs-cross-page.spec.ts` 기존 spec 회귀 없음
 
 ### Task 7: 문서 갱신
 
@@ -158,7 +158,7 @@
 - **E2** — E1 직후 `page.goForward()`를 하면 `data-nav-type="forward"` 항목이 뜬다.
 - **E3** — `page.reload()` 후 액션 로그가 클리어되고(idle/capturing phase), 남은 첫 항목이 `data-nav-type="reload"`다. 빈 상태 → 첫 항목 전이를 명시적으로 대기한다.
 - **E4** — same-origin 멀티페이지에서 A→B 이동 후 `page.goBack()`(문서 재로드)을 하면 `data-nav-type="traverse"` 항목이 뜨고, 이전 페이지 로그가 보존된다.
-- **E5** — 해시 링크로 이동 후 `page.goBack()`을 하면 **해당 해시 URL의 navigation 항목 수가 기존 동작과 동일**하다(popstate 유래 + hashchange 유래 2개). 절대 카운트가 아니라 해시 URL로 좁힌 상대 카운트로 센다 — 페이지 진입 `load` 항목이 항상 하나 깔려 베이스라인이 0이 아니다. 이번 변경이 개수를 바꾸지 않았음을 고정하는 보존 테스트다.
+- **E5** — 해시 링크로 이동 후 `page.goBack()`을 하면 **해당 해시 URL의 navigation 항목 수가 기존 동작과 동일**하고, 그 popstate 유래 항목이 `forward`로 오라벨되지 않는다(프래그먼트 네비게이션도 popstate를 쏜다 — design.md "popstate는 이동 전용 신호가 아니다")(popstate 유래 + hashchange 유래 2개). 절대 카운트가 아니라 해시 URL로 좁힌 상대 카운트로 센다 — 페이지 진입 `load` 항목이 항상 하나 깔려 베이스라인이 0이 아니다. 이번 변경이 개수를 바꾸지 않았음을 고정하는 보존 테스트다.
 - **E6** — HashRouter 형태(`#/a` → `#/b`)로 이동 후 `page.goBack()`을 하면 `data-nav-type="back"`이다(인덱스 드리프트 회귀 방지).
 - **E7** — **유령 진입 항목 회귀 방지**(Task 3.5). 캡처를 시작한 뒤 네비게이션 없이 다른 탭으로 갔다가(`otherPage.bringToFront()`) 돌아오면(`page.bringToFront()`), 액션 로그의 **navigation 항목 수가 늘지 않는다**. `visibilitychange → inject`가 같은 문서를 재arm하는 경로라, `clear`가 의도 없이 래치를 내리면 여기서 항목이 하나 더 생긴다. 절대 개수가 아니라 **복귀 전후 delta 0**으로 센다.
 

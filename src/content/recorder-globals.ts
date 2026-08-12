@@ -34,7 +34,8 @@ export const randomUUID: (() => string) | undefined =
 // lib.dom에 Navigation API 타입이 없다 — `declare var navigation`도 없어 `typeof navigation`
 // 형태는 컴파일되지 않으므로 globalThis 캐스팅 + 히스토리 인덱스만 읽는 최소 구조적 타입으로 받는다.
 interface NavigationLike {
-  currentEntry?: { index?: number };
+  // id는 엔트리 인스턴스 식별자다 — 이동으로 되돌아오면 같고, 새로 밀어 넣으면 새 값이다.
+  currentEntry?: { index?: number; id?: string };
 }
 export const navigationRef: NavigationLike | undefined = (
   globalThis as unknown as { navigation?: NavigationLike }

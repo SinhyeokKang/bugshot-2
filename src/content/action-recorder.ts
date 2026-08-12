@@ -6,7 +6,7 @@ import {
   isSensitiveValue,
   entryNavOnBind,
   entryNavType,
-  traverseDirection,
+  popstateNavType,
   formatKeyCombo,
   exceedsDragThreshold,
   matchesOwnHost,
@@ -337,14 +337,23 @@ function actionRecorderScript(): void {
   // 열거하면 HashRouter 앱에서 인덱스가 한 스텝 뒤처져 이후 방향 판정이 통째로 죽는다.
   // 판정 시점마다 읽고 즉시 덮어쓴다.
   let historyIndex = navigationRef?.currentEntry?.index;
+  // 본 적 있는 엔트리 id — 프래그먼트 push를 앞으로가기로 오라벨하지 않기 위한 유일한 단서다.
+  // 크기는 히스토리 엔트리 수(브라우저가 상한을 둔다)에 묶인다.
+  const seenEntryIds = new Set<string>();
   function syncHistoryIndex(): [number | undefined, number | undefined] {
     const prev = historyIndex;
     historyIndex = navigationRef?.currentEntry?.index;
     return [prev, historyIndex];
   }
+  function rememberEntryId(): void {
+    const id = navigationRef?.currentEntry?.id;
+    if (id !== undefined) seenEntryIds.add(id);
+  }
+  rememberEntryId();
 
   function recordNavigation(navType: NavType, fromUrl: string, toUrl: string): void {
     syncHistoryIndex();
+    rememberEntryId();
     if (!isEntryNav(navType) && fromUrl === toUrl) return;
     // 저장 필드만 마스킹(#access_token·?token= 등 URL 시크릿). lastUrl은 raw 유지 — dedup 비교 정확도 보존.
     const maskedTo = maskUrl(toUrl);
@@ -630,10 +639,13 @@ function actionRecorderScript(): void {
     return ret;
   };
   addEventListener(window, "popstate", () => {
-    // 방향은 recordNavigation이 인덱스를 덮어쓰기 전에 확정해야 한다. 판정 불가(페이지가
-    // navigation을 덮었거나 인덱스가 이상)면 기존 popstate로 폴백 — 기능이 죽지 않고 정보만 준다.
-    const dir = traverseDirection(...syncHistoryIndex());
-    recordNavigation(dir ?? "popstate", lastUrl, location.href);
+    // recordNavigation이 인덱스·id를 덮어쓰기 전에 확정해야 한다.
+    const navType = popstateNavType(
+      ...syncHistoryIndex(),
+      navigationRef?.currentEntry?.id,
+      seenEntryIds,
+    );
+    recordNavigation(navType, lastUrl, location.href);
   });
   addEventListener(window, "hashchange", (e: HashChangeEvent) => {
     recordNavigation("hashchange", e.oldURL, e.newURL);

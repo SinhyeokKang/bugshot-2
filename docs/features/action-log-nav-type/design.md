@@ -24,7 +24,17 @@ bfcache 복원은 **비목표**(PRD 참조)라 `pageshow` 후크를 두지 않�
 - 변경:
   1. 내부 `type NavType` 미러를 `types/action.ts`와 동일하게 확장.
   2. 진입 판정: 모듈 초기화에서 `entryNavType(...)`을 1회 계산해 `entryType` 상수로 잡고, `recordNavigation("load", …)` 자리와 `setSentinel`의 `entryNavOnBind` 보충 경로에서 **같은 값**을 쓴다 — 후자에 `"load"`를 하드코딩한 채 두면 pre-arm이 놓친 새로고침이 일반 이동으로 강등된다.
-  3. `popstate` 리스너: 히스토리 인덱스를 읽어 `traverseDirection(prevIndex, idx)`로 방향을 얻고, `null`이면 기존 `"popstate"`로 폴백.
+  3. `popstate` 리스너: `popstateNavType(prevIndex, idx, entryId, seenEntryIds)`로 방향을 얻고, 판정이 안 서면 기존 `"popstate"`로 폴백.
+
+##### popstate는 "히스토리 이동" 전용 신호가 아니다 (e2e 실측으로 발견)
+
+착수 시엔 `popstate` = 이동으로 전제하고 인덱스 델타의 **부호만** 봤다. 실제로는 **같은 문서 프래그먼트 네비게이션**(`<a href="#x">` 클릭)도 popstate를 쏘고 인덱스를 +1 한다(HTML 스펙의 same-document navigation). 그래서 부호만 보면 **링크 클릭이 "앞으로가기"로 오라벨**된다 — 이 기능이 가른다고 선언한 축(히스토리 조작 여부)과 정반대이고, 바로 위 `click` 항목과 나란히 놓여 리포트를 읽는 사람을 오도한다.
+
+유닛으로는 잡히지 않았다(레코더 본문이 브라우저 바인딩). `e2e/action-log-nav-type.spec.ts`의 행 덤프에서 `Clicked hash x` 바로 뒤에 `forward` 항목이 찍히는 걸 보고 드러났다.
+
+- 판정 기준을 하나 더 둔다: **도착 엔트리의 `NavigationHistoryEntry.id`를 전에 본 적 있는가.** 이동으로 되돌아온 엔트리는 같은 id를 유지하고, 새로 밀어 넣어진 엔트리는 처음 보는 id다.
+- `id`가 없거나(Navigation API 부재·페이지 훼손) 처음 보는 id면 `"popstate"`로 폴백한다 — **틀린 방향보다 정보 없는 쪽**이 낫다.
+- `seenEntryIds` 크기는 브라우저가 상한을 두는 히스토리 엔트리 수에 묶인다.
   4. **`clear` 핸들러 대칭 수정** — 아래 별도 항목.
 - **인덱스는 미러 변수로 유지하지 않는다.** `<a href="#x">` 클릭은 `popstate` 없이 히스토리 인덱스를 +1 하므로, `초기화 / pushState·replaceState / popstate` 세 지점만 갱신하면 HashRouter 앱에서 인덱스가 한 스텝 뒤처져 이후 방향 판정이 전부 `null` 폴백된다. 대신 **`recordNavigation` 진입 시(또는 각 핸들러 첫 줄) 현재 인덱스를 매번 읽어 직전 값과 비교하고 곧바로 덮어쓴다.** 갱신 지점을 열거하지 않으므로 새 히스토리 경로가 생겨도 드리프트가 없다.
   - 부수 효과: `pushState`/`replaceState` 패치 안에서 인덱스를 다룰 때는 **원본 호출 뒤에 읽어서 대입**한다(카운터 증가가 아니다 — `replaceState`는 인덱스를 올리지 않는다). 앞에서 읽으면 항상 한 스텝 뒤처진다.
@@ -185,6 +195,15 @@ export function traverseDirection(
   fromIndex: number | undefined,
   toIndex: number | undefined,
 ): "back" | "forward" | null;
+
+// popstate 시점의 최종 navType. 프래그먼트 네비게이션도 popstate를 쏘므로 인덱스 델타만으로는
+// 링크 클릭이 forward로 오라벨된다 — 도착 엔트리 id를 전에 본 적 있어야 이동으로 인정한다.
+export function popstateNavType(
+  fromIndex: number | undefined,
+  toIndex: number | undefined,
+  entryId: string | undefined,
+  seenEntryIds: ReadonlySet<string>,
+): "back" | "forward" | "popstate";
 ```
 
 ```ts

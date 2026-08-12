@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>nav history fixture</title>
+  </head>
+  <body>
+    <h1 id="title">Nav history fixture</h1>
+
+    <!-- SPA 경로 이동 — popstate 없이 히스토리 인덱스만 올린다. -->
+    <button id="push-a" onclick="history.pushState({}, '', '/spa/a')">push /spa/a</button>
+    <button id="push-b" onclick="history.pushState({}, '', '/spa/b')">push /spa/b</button>
+
+    <!-- HashRouter 형태 — <a href="#..."> 클릭은 popstate 없이 인덱스를 +1 한다.
+         레코더가 인덱스를 미러 변수로 들고 있으면 여기서 드리프트가 나 방향 판정이 죽는다. -->
+    <a id="hash-a" href="#/a">hash /a</a>
+    <a id="hash-b" href="#/b">hash /b</a>
+    <a id="hash-x" href="#x">hash x</a>
+  </body>
+</html>
