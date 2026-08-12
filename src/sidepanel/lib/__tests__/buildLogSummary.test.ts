@@ -545,3 +545,50 @@ describe("networkErrorCount", () => {
     expect(networkErrorCount({ captured: 5, errors: [] })).toBe(0);
   });
 });
+
+// AI 재현 단계 자동채움 입력. 이 함수는 로케일 무관 영어 고정이 기존 규칙이라 i18n을 끌어오지
+// 않는다. traverse 문구는 UI en 값과 같은 표현을 써서 표기가 갈리지 않게 한다.
+describe("buildActionLogSummary — navigation 유형", () => {
+  function summarize(navType: ActionEntry["navType"]): string {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [
+        makeAction({
+          id: "1",
+          kind: "navigation",
+          navType,
+          toUrl: "https://example.com/next",
+        }),
+      ],
+    });
+    return buildActionLogSummary(log)[0];
+  }
+
+  it.each([
+    ["back", "Went back to: https://example.com/next"],
+    ["forward", "Went forward to: https://example.com/next"],
+    ["reload", "Reloaded: https://example.com/next"],
+    ["traverse", "Navigated via history to: https://example.com/next"],
+  ] as const)("navType %s는 '%s'", (navType, expected) => {
+    expect(summarize(navType)).toBe(expected);
+  });
+
+  it.each(["load", "pushState", "replaceState", "popstate", "hashchange"] as const)(
+    "구 값 %s는 기존 'Navigated to:' 유지",
+    (navType) => {
+      expect(summarize(navType)).toBe("Navigated to: https://example.com/next");
+    },
+  );
+
+  it("navType이 없으면 기존 'Navigated to:' 유지", () => {
+    expect(summarize(undefined)).toBe("Navigated to: https://example.com/next");
+  });
+
+  it("toUrl이 없어도 유형 문구는 유지된다", () => {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [makeAction({ id: "1", kind: "navigation", navType: "reload" })],
+    });
+    expect(buildActionLogSummary(log)[0]).toBe("Reloaded: ");
+  });
+});
