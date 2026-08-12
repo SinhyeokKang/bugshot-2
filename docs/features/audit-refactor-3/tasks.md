@@ -14,28 +14,28 @@
 - **변경 대상**: `src/content/recorder-globals.ts` (신규)
 - **작업 내용**: 모듈 평가 시점에 `JSON.parse`/`JSON.stringify`/`URLSearchParams`/`EventTarget.prototype.{addEventListener,removeEventListener,dispatchEvent}`/`CustomEvent`를 캡처해 export. 부수효과 없음. **`src/content/` 밖 import 0**.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 파일에 `@/`로 시작하는 런타임 import가 없다(`import type`만 허용)
-  - [ ] `grep -rn "recorder-globals" src/` 결과가 `src/content/` 안으로만 한정된다
+  - [x] `pnpm typecheck` 통과
+  - [x] 파일에 `@/`로 시작하는 런타임 import가 없다(`import type`만 허용)
+  - [x] `grep -rn "recorder-globals" src/` 결과가 `src/content/` 안으로만 한정된다
 
 ### Task 2: `maskBody` 마스킹 무결성 (항목 8)
 
 - **변경 대상**: `src/content/network-recorder-helpers.ts:98-146`
 - **작업 내용**: `maskBody`·`maskJsonBody`의 `JSON.parse`/`JSON.stringify`/`new URLSearchParams`를 Task 1 스냅샷으로 교체. 시그니처·반환 동작 불변.
 - **검증**:
-  - [ ] 신규 유닛: `globalThis.JSON.parse`를 throw로 바꾼 뒤에도 `maskBody('{"token":"x"}', "application/json")`이 `***` 마스킹을 유지
-  - [ ] 신규 유닛: `globalThis.JSON.stringify`를 오염시켜도 결과가 정상
-  - [ ] 신규 유닛: `globalThis.URLSearchParams`를 오염시켜도 urlencoded 분기의 `password=***` 마스킹 유지
-  - [ ] 기존 `network-recorder-helpers.test.ts` 전부 통과
+  - [x] 신규 유닛: `globalThis.JSON.parse`를 throw로 바꾼 뒤에도 `maskBody('{"token":"x"}', "application/json")`이 `***` 마스킹을 유지
+  - [x] 신규 유닛: `globalThis.JSON.stringify`를 오염시켜도 결과가 정상
+  - [x] 신규 유닛: `globalThis.URLSearchParams`를 오염시켜도 urlencoded 분기의 `password=***` 마스킹 유지
+  - [x] 기존 `network-recorder-helpers.test.ts` 전부 통과
 
 ### Task 3: sentinel 다중 등록 레지스트리 (항목 6-a)
 
 - **변경 대상**: `src/content/sentinel-registry.ts`(신규), `src/content/network-recorder.ts:576-637`, `src/content/console-recorder.ts:275-336`, `src/content/action-recorder.ts:560-623`(각 파일의 sentinel 블록)
 - **작업 내용**: `createSentinelRegistry(cap = 8)` 순수 함수 작성. 각 레코더에서 `currentSentinel` 단일 슬롯 + `detachSentinelListeners()`를 레지스트리로 교체 — `dispatch()`는 등록된 모든 sentinel로 발화, `stop`/`sync`/`clear` 리스너는 sentinel별로 유지, 캡 evict 시 그 sentinel의 리스너 3종을 해제. 같은 sentinel 재등록은 멱등 no-op(`rebroadcastSentinelsToFrame` 대응).
 - **검증**:
-  - [ ] 신규 유닛(`sentinel-registry.test.ts`): 멱등 add / FIFO evict / `list()` 순서 / `evicted()` 반환
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 코드 리뷰: `detachSentinelListeners`가 세 파일 모두에서 사라졌다
+  - [x] 신규 유닛(`sentinel-registry.test.ts`): 멱등 add / FIFO evict / `list()` 순서 / `evicted()` 반환
+  - [x] `pnpm typecheck` 통과
+  - [x] 코드 리뷰: `detachSentinelListeners`가 세 파일 모두에서 사라졌다
   - [ ] e2e `logs-iframe.spec.ts`(같은 sentinel 재발행) 통과
   - [ ] e2e `log-capture.spec.ts`(arm→stop→재arm) 통과
 
@@ -44,7 +44,7 @@
 - **변경 대상**: `src/content/network-recorder.ts`·`console-recorder.ts`·`action-recorder.ts`의 모든 `document.addEventListener`/`removeEventListener`/`document.dispatchEvent`/`new CustomEvent` 호출
 - **작업 내용**: Task 1 스냅샷 경유로 교체. **`window.addEventListener("pagehide")`·`document.addEventListener("visibilitychange")`·`window.addEventListener("error"/"unhandledrejection")`도 포함** — 페이지가 후킹하면 flush·에러 캡처가 죽는다.
 - **검증**:
-  - [ ] `grep -n "document.addEventListener\|document.dispatchEvent\|new CustomEvent" src/content/{network,console,action}-recorder.ts` 결과 0
+  - [x] `grep -n "document.addEventListener\|document.dispatchEvent\|new CustomEvent" src/content/{network,console,action}-recorder.ts` 결과 0
   - [ ] e2e `log-capture.spec.ts`·`logs-error-warn.spec.ts`·`logs-cross-page.spec.ts` 통과
   - [ ] 수동: 페이지가 `EventTarget.prototype.addEventListener`를 후킹해도 로그가 계속 잡힌다
 
@@ -53,16 +53,16 @@
 - **변경 대상**: `src/content/network-recorder.ts:646`, `console-recorder.ts:350`, `action-recorder.ts:632`
 - **작업 내용**: `= { setSentinel, clearBuffer }` → `= true`. 각 파일 첫 줄의 중복 가드(`if ((window as any)[CTRL_KEY]) return;`)는 그대로 동작.
 - **검증**:
-  - [ ] `grep -rn "__bugshot_.*_ctrl__" src/ e2e/` 결과가 각 파일의 선언·가드뿐(외부 소비처 0 재확인)
+  - [x] `grep -rn "__bugshot_.*_ctrl__" src/ e2e/` 결과가 각 파일의 선언·가드뿐(외부 소비처 0 재확인)
   - [ ] e2e `log-capture.spec.ts` 통과(중복 초기화 가드가 여전히 동작)
 
 ### Task 6: pre-arm 유예 시한 (항목 9)
 
 - **변경 대상**: `src/content/network-recorder.ts`·`console-recorder.ts`·`action-recorder.ts`(각 init + `setSentinel`)
-- **작업 내용**: `capturing`이 `readPreArmFlag()` 유래로 켜진 경우에만 `PREARM_GRACE_MS = 15000` 타이머 설치. 만료 시 `capturing = false` + 버퍼 clear(+ console은 `restoreConsoleWrap(console, ewState)`). `setSentinel`에서 타이머 해제.
+- **작업 내용**: `capturing`이 `readPreArmFlag()` 유래로 켜진 경우에만 `PREARM_GRACE_MS = 60000` 타이머 설치. 만료 시 `capturing = false` + 버퍼 clear(+ console은 `restoreConsoleWrap(console, ewState)`). `setSentinel`에서 타이머 해제.
 - **검증**:
   - [ ] e2e `logs-prearm.spec.ts` 2케이스 통과(정상 pre-arm은 무영향)
-  - [ ] 수동: 패널을 열지 않은 채 페이지에서 `sessionStorage.setItem("__bugshot_recorder_active__","1")` 후 reload → 15초 뒤 `chrome://extensions`에 확장 attribution 경고가 더 누적되지 않는다
+  - [ ] 수동: 패널을 열지 않은 채 페이지에서 `sessionStorage.setItem("__bugshot_recorder_active__","1")` 후 reload → 60초 뒤 `chrome://extensions`에 확장 attribution 경고가 더 누적되지 않는다
   - [ ] 수동: 위 상태에서 패널을 열면 정상 arm된다(타이머 만료 후에도 `setSentinel`이 살아 있음)
 
 ### Task 7: console counters/timers 라벨 캡 (항목 15)
@@ -90,7 +90,7 @@
   - sendBeacon: `queued`/`queueFull`
   - fetch 실패: `error instanceof Error`가 **아닐 때만** `networkError`(현행 `isStatusHidden` 판정과 정확히 일치)
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] `pnpm build && pnpm check:prearm` → `✓ pre-arm 청크 정상`(type-only import라 청크 무영향 확인)
   - [ ] e2e `log-capture.spec.ts`·`websocket-log.spec.ts` 통과
 
@@ -99,16 +99,16 @@
 - **변경 대상**: `src/lib/network-status.ts:5-9`
 - **작업 내용**: `statusKind === "networkError"` 우선, `statusKind`가 `undefined`일 때만 기존 `statusText === "Network Error"` 폴백.
 - **검증**:
-  - [ ] 신규 유닛(`network-status.test.ts` 확장): `statusKind:"networkError"` → true / `statusKind` 없고 `statusText:"Network Error"` → true(옛 저장 로그) / `statusKind:"aborted"` → false / `statusKind:"timeout"` → false
-  - [ ] 기존 6케이스 전부 통과
+  - [x] 신규 유닛(`network-status.test.ts` 확장): `statusKind:"networkError"` → true / `statusKind` 없고 `statusText:"Network Error"` → true(옛 저장 로그) / `statusKind:"aborted"` → false / `statusKind:"timeout"` → false
+  - [x] 기존 6케이스 전부 통과
 
 ### Task 11: UI 번역 + 두 사전 (항목 31 후반부)
 
 - **변경 대상**: `src/sidepanel/components/NetworkLogContent.tsx:504-513`, `src/i18n/namespaces/logs.ts`(ko·en), `src/log-viewer/i18n.ts`(`koDict`·`enDict`), `src/sidepanel/lib/aiLogsManual.ts:46`
 - **작업 내용**: `networkLog.display.{queued,queueFull,aborted,timeout}` 4키를 **네 곳 모두** 추가. 상태 줄을 "`statusKind` 있으면 라벨, 없으면 `${status} ${statusText}`"로 분기. `aiLogsManual`의 networkLog 필드 목록에 `statusKind` 한 줄 추가.
 - **검증**:
-  - [ ] i18n 훅(`src/i18n/` 저장 시 자동 실행)이 ko/en 대칭·placeholder 검사 통과
-  - [ ] `pnpm test`의 `src/log-viewer/__tests__/i18n.test.ts` 통과(복제 사전 값 일치)
+  - [x] i18n 훅(`src/i18n/` 저장 시 자동 실행)이 ko/en 대칭·placeholder 검사 통과
+  - [x] `pnpm test`의 `src/log-viewer/__tests__/i18n.test.ts` 통과(복제 사전 값 일치)
   - [ ] 수동: ko 로케일에서 sendBeacon 요청 상세가 `0 Queued`가 아닌 번역 라벨로 보인다
   - [ ] 수동: CORS 실패 행이 여전히 "실패 · 상태 가려짐" + `blockedHint`로 보인다
 
@@ -126,7 +126,7 @@
 - **변경 대상**: `src/content/network-recorder.ts:122-125`
 - **작업 내용**: `if (!capturing) return;` 추가. 호출부 4곳의 기존 게이트는 유지.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] e2e `log-capture.spec.ts`·`logs-origin-filter.spec.ts` 통과(적재 자체가 안 막혔는지)
 
 ### Task 14: 부수 정리 (항목 77)
@@ -134,7 +134,7 @@
 - **변경 대상**: `src/content/action-recorder.ts:258`(주석), `src/content/picker.ts:621-659`(`handleClear`)
 - **작업 내용**: 주석의 "recording 게이트" → `capturing` 게이트로 정정. `handleClear`에서 `selectionUpdateTimer`(`picker.ts:1181`) 취소 + null화.
 - **검증**:
-  - [ ] `grep -n "recording 게이트" src/content/action-recorder.ts` 결과 0
+  - [x] `grep -n "recording 게이트" src/content/action-recorder.ts` 결과 0
   - [ ] e2e `picker-guard.spec.ts`·`style-edit-flow.spec.ts` 통과(선택 해제 후 잔여 타이머 부작용 없음)
 
 ### Task 15: 문서 정합 (항목 66 + 6·9 반영)
@@ -145,8 +145,8 @@
   - `:212` — 위조 주입 수용 서술에 "수집 무력화는 sentinel 다중 등록으로 막는다"를 추가.
   - `:214` — "미armed origin에 일절 간섭하지 않는다"를 "페이지가 pre-arm 플래그를 위조하지 않는 한"으로 한정하고 `PREARM_GRACE_MS` 유예를 명시.
 - **검증**:
-  - [ ] `frame-geometry.ts:86-91`(`postMessage(..., "*")`)과 `:167` 서술이 모순되지 않는다
-  - [ ] `:214` 서술이 Task 6 구현과 일치한다
+  - [x] `frame-geometry.ts:86-91`(`postMessage(..., "*")`)과 `:167` 서술이 모순되지 않는다
+  - [x] `:214` 서술이 Task 6 구현과 일치한다
 
 ## 테스트 계획
 
@@ -175,7 +175,7 @@
 - [ ] 페이지 콘솔에서 `window.__bugshot_net_ctrl__` → `true`(함수 없음), `.clearBuffer` 호출 불가.
 - [ ] 페이지가 `JSON.parse = () => { throw 1 }` 후 `fetch("/x",{method:"POST",headers:{"content-type":"application/json"},body:'{"password":"p"}'})` → 로그 본문의 `password`가 `***`.
 - [ ] 페이지가 `EventTarget.prototype.addEventListener`를 후킹해 이름을 로깅해도 sentinel 문자열이 노출되지 않고 수집이 유지된다.
-- [ ] 미armed origin에서 `sessionStorage.setItem("__bugshot_recorder_active__","1")` + reload → 15초 후 wrap 철수(`chrome://extensions` 경고 누적 중단), 이후 패널을 열면 정상 arm.
+- [ ] 미armed origin에서 `sessionStorage.setItem("__bugshot_recorder_active__","1")` + reload → 60초 후 wrap 철수(`chrome://extensions` 경고 누적 중단), 이후 패널을 열면 정상 arm.
 - [ ] arm 직전 `open()` → arm 후 `send()`한 XHR이 빈 pending 행을 남기지 않는다.
 - [ ] `console.time("a")`(미armed) → arm → `console.timeEnd("a")`가 정확한 ms를 찍는다.
 - [ ] 네트워크 상세의 상태 라벨이 ko/en 양쪽에서 번역되고, **내보낸 logs.html의 네트워크 탭에서도** 같은 라벨로 보인다(복제 사전 확인).

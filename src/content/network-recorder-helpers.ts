@@ -1,4 +1,32 @@
-import type { NetworkRequestBody } from "@/types/network";
+import type { NetworkRequestBody, NetworkStatusKind } from "@/types/network";
+import { jsonParse, jsonStringify, URLSearchParamsCtor } from "./recorder-globals";
+
+// BugShot이 만들어 넣는 실패·큐 상태. statusText는 HAR·이슈 본문·LLM 프롬프트가 그대로 읽는
+// 안정 토큰이라 바꾸지 않고 분류(statusKind)만 병기한다. 둘이 어긋나면 UI의 "상태 가려짐" 표시가
+// 조용히 늘거나 줄기 때문에(isStatusHidden이 "Network Error" 문자열을 센티널로 쓴다) 한 함수에서
+// 함께 정한다 — 레코더 IIFE는 유닛으로 못 부르므로 여기가 유일한 그물이다.
+export interface NetworkStatusFields {
+  statusText: string;
+  statusKind?: NetworkStatusKind;
+}
+
+export function xhrFailureStatus(kind: "error" | "abort" | "timeout"): NetworkStatusFields {
+  if (kind === "error") return { statusText: "Network Error", statusKind: "networkError" };
+  if (kind === "abort") return { statusText: "Aborted", statusKind: "aborted" };
+  return { statusText: "Timeout", statusKind: "timeout" };
+}
+
+// Error면 statusText가 실제 메시지라 지금도 "가려짐" 대상이 아니다 — statusKind도 주지 않는다.
+export function fetchFailureStatus(error: unknown): NetworkStatusFields {
+  if (error instanceof Error) return { statusText: error.message };
+  return { statusText: "Network Error", statusKind: "networkError" };
+}
+
+export function beaconStatus(queued: boolean): NetworkStatusFields {
+  return queued
+    ? { statusText: "Queued", statusKind: "queued" }
+    : { statusText: "Queue Full", statusKind: "queueFull" };
+}
 
 export type NetworkBodyOmission = Exclude<NetworkRequestBody, string>;
 
@@ -115,16 +143,18 @@ function maskJsonBody(val: unknown, depth: number): unknown {
 }
 
 // 요청·응답 본문 공용 민감 키 마스킹 (json/urlencoded만, 그 외 타입은 원문 유지).
+// 파싱·직렬화는 document_start 스냅샷으로만 한다 — 호출 시점 전역을 쓰면 페이지가 JSON.parse를
+// throw로 바꾸는 것만으로 catch 경로가 원문을 그대로 통과시킨다.
 export function maskBody(body: string, contentType: string): string {
   if (/^application\/json/i.test(contentType)) {
     try {
-      const parsed = JSON.parse(body);
-      return JSON.stringify(maskJsonBody(parsed, 0));
+      const parsed = jsonParse(body);
+      return jsonStringify(maskJsonBody(parsed, 0));
     } catch { return body; }
   }
   if (/^application\/x-www-form-urlencoded/i.test(contentType)) {
     try {
-      const params = new URLSearchParams(body);
+      const params = new URLSearchParamsCtor(body);
       let changed = false;
       for (const key of params.keys()) {
         if (MASKED_BODY_KEYS.has(key.toLowerCase())) {
@@ -139,7 +169,7 @@ export function maskBody(body: string, contentType: string): string {
   const head = body.trimStart()[0];
   if (head === "{" || head === "[") {
     try {
-      return JSON.stringify(maskJsonBody(JSON.parse(body), 0));
+      return jsonStringify(maskJsonBody(jsonParse(body), 0));
     } catch { return body; }
   }
   return body;

@@ -34,7 +34,7 @@ console/network/action 레코더는 MAIN world `document_start`에 주입돼 **�
 
 ## 목표
 
-1. **가용성 보전**: 페이지가 고정 이름 sentinel 이벤트를 위조해도 진짜 세션의 `data`/`stop`/`sync`/`clear` 경로가 살아 있다(항목 6).
+1. **가용성 — 위조 1회 사망 경로 제거**(부분 달성, 수용 위험 2건): `setSentinel` 한 번이 진짜 세션의 `data`/`stop`/`sync`/`clear` 리스너를 떼어내던 파괴적 교체를 없앤다(항목 6). **원천 차단은 아니다** — 비목표대로 위조 자체를 막을 수 없어 두 경로가 남는다: ① 위조 `setSentinel` 8회면 캡 FIFO가 진짜 sentinel을 evict한다(design.md 위험 요소 3), ② 위조 sentinel의 `stop`/`clear` 핸들러가 world 전역을 건드려 2이벤트면 적재가 멈춘다. 이 배치가 올리는 건 공격 비용(1 → 8 또는 2 이벤트)이다.
 2. **직접 호출 경로 제거**: 페이지에서 `setSentinel`·`clearBuffer`를 호출할 수단이 사라진다(항목 7).
 3. **마스킹 무결성**: 페이지가 `JSON`·`URLSearchParams`를 바꿔도 `maskBody`의 민감 키 마스킹이 유지된다(항목 8).
 4. **오염 창 유한화**: 위조된 pre-arm 플래그로 켜진 wrap·적재가 무한정 지속되지 않는다(항목 9).

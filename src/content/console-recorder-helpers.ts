@@ -232,3 +232,13 @@ export function restoreConsoleWrap(target: EwTarget, state: EwState): void {
   state.prior = null;
   state.ours = null;
 }
+
+// console.count/time의 라벨 Map은 capturing 게이트 밖에서 자란다(미armed 구간에도 카운트·시작
+// 시각이 정확해야 arm 후 값이 DevTools와 맞는다). 무한 증가만 insertion order FIFO로 막는다.
+export function capLabelMap(map: Map<string, unknown>, max: number): void {
+  while (map.size > max) {
+    const oldest = map.keys().next();
+    if (oldest.done) break;
+    map.delete(oldest.value);
+  }
+}

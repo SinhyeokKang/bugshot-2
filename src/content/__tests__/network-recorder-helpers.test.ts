@@ -1,5 +1,10 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
+import type { NetworkStatusKind } from "@/types/network";
+import { isStatusHidden } from "@/lib/network-status";
 import {
+  beaconStatus,
+  fetchFailureStatus,
+  xhrFailureStatus,
   estimateBodySize,
   findOldestBodyIndex,
   reclaimableSize,
@@ -387,6 +392,56 @@ describe("maskBody — 전역 오염 내성 (document_start 스냅샷)", () => {
     );
     expect(out).toContain("password=***");
     expect(out).toContain("plain=1");
+  });
+});
+
+// statusText(HAR·이슈 본문·LLM이 읽는 안정 토큰)와 statusKind(UI 번역 키)가 어긋나면
+// "상태 가려짐" 표시 대상이 조용히 늘거나 준다. 레코더 IIFE는 유닛으로 못 부르므로 여기가 그물이다.
+describe("실패·큐 상태 매핑 (statusText + statusKind)", () => {
+  it("XHR 종류별로 기존 statusText 문구를 그대로 유지한다", () => {
+    expect(xhrFailureStatus("error")).toEqual({
+      statusText: "Network Error",
+      statusKind: "networkError",
+    });
+    expect(xhrFailureStatus("abort")).toEqual({ statusText: "Aborted", statusKind: "aborted" });
+    expect(xhrFailureStatus("timeout")).toEqual({ statusText: "Timeout", statusKind: "timeout" });
+  });
+
+  it("fetch reject가 Error면 메시지를 싣고 statusKind를 주지 않는다", () => {
+    expect(fetchFailureStatus(new TypeError("Failed to fetch"))).toEqual({
+      statusText: "Failed to fetch",
+    });
+  });
+
+  it("fetch reject가 Error가 아니면 Network Error + networkError", () => {
+    expect(fetchFailureStatus("cors")).toEqual({
+      statusText: "Network Error",
+      statusKind: "networkError",
+    });
+    expect(fetchFailureStatus(undefined)).toEqual({
+      statusText: "Network Error",
+      statusKind: "networkError",
+    });
+  });
+
+  it("sendBeacon은 큐 성공·실패를 나눠 싣는다", () => {
+    expect(beaconStatus(true)).toEqual({ statusText: "Queued", statusKind: "queued" });
+    expect(beaconStatus(false)).toEqual({ statusText: "Queue Full", statusKind: "queueFull" });
+  });
+
+  // 이 왕복이 회귀 감시 지점 7 그 자체다 — 매핑을 바꾸면 blocked 판정이 따라 움직이는지 여기서 깨진다.
+  it("매핑 결과를 isStatusHidden에 그대로 먹여도 판정이 기존과 같다", () => {
+    const hidden = (fields: { statusText: string; statusKind?: NetworkStatusKind }, phase: "error" | "complete") =>
+      isStatusHidden({ phase, status: 0, ...fields });
+
+    expect(hidden(xhrFailureStatus("error"), "error")).toBe(true);
+    expect(hidden(xhrFailureStatus("abort"), "error")).toBe(false);
+    expect(hidden(xhrFailureStatus("timeout"), "error")).toBe(false);
+    expect(hidden(fetchFailureStatus("cors"), "error")).toBe(true);
+    // TypeError: Failed to fetch는 statusKind가 없고 statusText도 센티널이 아니라 지금도 false다.
+    expect(hidden(fetchFailureStatus(new TypeError("Failed to fetch")), "error")).toBe(false);
+    expect(hidden(beaconStatus(false), "error")).toBe(false);
+    expect(hidden(beaconStatus(true), "complete")).toBe(false);
   });
 });
 

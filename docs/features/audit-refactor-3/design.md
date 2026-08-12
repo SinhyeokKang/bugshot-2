@@ -26,9 +26,9 @@ MAIN world 레코더 3종이 페이지와 같은 realm을 공유한다는 사실
 
 - **원리적 한계**: pre-arm은 document_start에 **동기로** 읽을 수 있어야 한다(`readPreArmFlag()`가 `capturing` 초기값을 정한다). 동기 접근 가능한 저장소는 `sessionStorage`/`localStorage`/`document.cookie`뿐이고 셋 다 same-origin 페이지가 읽고 쓴다. `chrome.storage.session`은 비동기, ISOLATED 브리지 왕복도 비동기라 그 시점에 못 쓴다. 키 변경·값 서명은 확장 번들이 공개돼 무의미.
 - **실제 피해**는 "위조가 가능하다" 자체가 아니라 **그 상태가 무기한 지속된다**는 것이다: `installEwWrap()`으로 `error/warn` wrap이 상시 설치돼 `chrome://extensions`에 확장 attribution 경고가 누적되고(ARCHITECTURE.md:226이 명시한 바로 그 오염), `createPatchedFetch`가 `new Request` 재구성 경로로 들어가며(POSTMORTEM 2026-07-23 계열의 회귀 표면), 버퍼가 계속 자란다.
-- **채택**: **pre-arm 유예 시한**. pre-arm으로 켜진 `capturing`은 `PREARM_GRACE_MS`(15초) 안에 `setSentinel`이 오지 않으면 자진 철수한다 — `capturing=false`, console은 `restoreConsoleWrap`, 버퍼는 비운다. 정당한 pre-arm은 "패널이 이미 열린 origin의 reload"라 arm이 수백 ms 내 도착하므로 정상 경로는 무변화다.
+- **채택**: **pre-arm 유예 시한**. pre-arm으로 켜진 `capturing`은 `PREARM_GRACE_MS`(60초) 안에 `setSentinel`이 오지 않으면 자진 철수한다 — `capturing=false`, console은 `restoreConsoleWrap`, 버퍼는 비운다. 정당한 pre-arm은 "패널이 이미 열린 origin의 reload"이고, 재arm 트리거는 `useBackgroundRecorder`의 `tabs.onUpdated` `status === "complete"`다 — 즉 arm은 document_start 직후가 아니라 **페이지 load 완료** 시점에 온다(`rebroadcastSentinelsToFrame`은 `onCommitted` 시점이라 `document_idle`인 브리지가 아직 없어 무음 실패하고 재시도가 없다). 상한은 그 load까지를 덮어야 정상 로그를 안 자르므로 60초로 잡는다(구현 시점 정정 — 초안의 "수백 ms" 전제는 틀렸다).
 - **문서 조정 동반**: ARCHITECTURE.md:214의 *"미armed origin·미활성 탭 트래픽에 일절 간섭하지 않는다"* 를 "페이지가 pre-arm 플래그를 위조하지 않는 한"으로 한정하고, 유예 시한을 명시한다.
-- **남는 위험(수용)**: 15초 창 안의 wrap 오염·적재는 막지 못한다. 그 이상을 하려면 pre-arm 기능 자체를 포기해야 한다.
+- **남는 위험(수용)**: 60초 창 안의 wrap 오염·적재는 막지 못한다. 그 이상을 하려면 pre-arm 기능 자체를 포기해야 한다.
 
 ## 변경 범위
 
@@ -125,7 +125,7 @@ document_start: capturing = readPreArmFlag()
   ├─ false → 아무 일 없음(기존과 동일)
   └─ true  → armGraceTimer = setTimeout(PREARM_GRACE_MS)
                 ├─ setSentinel 도착 → clearTimeout, 정상 arm (정상 경로)
-                └─ 15s 경과      → capturing=false, 버퍼 clear,
+                └─ 60s 경과      → capturing=false, 버퍼 clear,
                                     console은 restoreConsoleWrap
 ```
 
@@ -187,7 +187,7 @@ export function isStatusHidden(
 ): boolean;
 ```
 
-`console-recorder.ts`의 라벨 캡은 파일 내부 인라인(`MAX_LABELS = 200`)으로 두고, pre-arm 유예 상수도 각 레코더에 리터럴로 복제한다(`PREARM_GRACE_MS = 15000`) — `MAX_ENTRIES`가 이미 같은 이유로 3파일에 복제돼 있다(`console-recorder.ts:22-24` 주석).
+`console-recorder.ts`의 라벨 캡은 파일 내부 인라인(`MAX_LABELS = 200`)으로 두고, pre-arm 유예 상수도 각 레코더에 리터럴로 복제한다(`PREARM_GRACE_MS = 60000`) — `MAX_ENTRIES`가 이미 같은 이유로 3파일에 복제돼 있다(`console-recorder.ts:22-24` 주석).
 
 ## 기존 패턴 준수
 
@@ -210,9 +210,9 @@ export function isStatusHidden(
 
 1. **pre-arm self-contained 청크 제약 (최우선)** — 신규 `recorder-globals.ts`·`sentinel-registry.ts`가 `src/content/` 밖 런타임 값을 import하거나, 반대로 사이드패널 쪽에서 이 모듈을 import하면 crxjs가 `recorders-entry`를 async loader로 emit해 **pre-arm이 조용히 죽는다**(빌드·typecheck·유닛 전부 green). 그물은 `pnpm check:prearm`(형태) + `e2e/logs-prearm.spec.ts`(행동) 2단. 태스크마다 이 검사를 검증 항목에 넣는다.
 2. **로그 스키마 하위호환** — `statusKind`는 optional 추가라 IndexedDB(`blob-db.ts`, `DB_VERSION=8`) 스키마 버전을 올릴 필요가 없다. 다만 **옛 저장 로그에는 필드가 없다**: `isStatusHidden`이 `statusText` 폴백을 잃으면 과거 draft의 CORS 실패 행이 "실패 · 상태 가려짐" 대신 `0 Network Error` 원문으로 퇴행한다. 폴백을 반드시 유지하고 테스트로 고정한다. `logs.html`로 **이미 내보낸 파일**은 빌드 시점 i18n·데이터가 박혀 소급 수정되지 않는다(POSTMORTEM 2026-08-05 계열).
-3. **sentinel 캡 FIFO로 진짜 sentinel이 밀려날 수 있다** — 페이지가 8회 이상 위조하면 진짜 항목이 evict된다. 그 경우에도 다음 `sync`/재arm에서 복구되지만(사이드패널 1500ms 폴링이 병행 — ARCHITECTURE.md:240), 그 사이 dispatch가 유실된다. 캡을 낮추면 정상 재arm이 밀리고 높이면 위조 여지가 는다 — 8은 "정상 세션 수 « 캡 « 무제한"의 절충이며 evict 시 해당 sentinel의 stop/sync/clear 리스너를 함께 해제해 누수를 막는다.
+3. **sentinel 캡 FIFO로 진짜 sentinel이 밀려날 수 있다** — 페이지가 8회 이상 위조하면 진짜 항목이 evict된다. 그 경우 복구 경로는 **재arm뿐이다** — evict는 그 sentinel의 `sync` 리스너도 함께 떼므로 사이드패널 1500ms 폴링(ARCHITECTURE.md:240)은 아무것도 못 한다(구현 시점 정정 — 초안의 "다음 sync에서 복구" 근거는 틀렸다. 이 근거를 남겨두면 다음 사람이 "sync가 받쳐준다"고 믿고 캡을 더 낮춘다). 재arm은 `tabs.onUpdated complete`·패널 visibilitychange·탭 활성화라 주기적이지 않고, 그 사이 dispatch가 유실된다. 캡을 낮추면 정상 재arm이 밀리고 높이면 위조 여지가 는다 — 8은 "정상 세션 수 « 캡 « 무제한"의 절충이며 evict 시 해당 sentinel의 stop/sync/clear 리스너를 함께 해제해 누수를 막는다.
 4. **`EventTarget.prototype` 스냅샷의 부작용** — `addEventListener`를 `EventTarget.prototype`에서 떼어 `call`로 쓰면 페이지가 `document.addEventListener`를 **인스턴스 속성으로** 덮은 경우를 우회한다. 다만 페이지가 document_start **이전에** prototype 자체를 바꿀 수는 없다(레코더가 먼저 실행). 리팩터로 레코더가 loader 경유가 되면 이 전제가 깨진다 — 위험 1과 같은 뿌리.
-5. **pre-arm 유예 타이머가 정상 로그를 자르는 경우** — arm이 15초 넘게 걸리는 환경(극도로 느린 페이지, `ensureMainWorldRecorders` 주입 지연)에서 로드 초반 로그가 유실된다. `e2e/logs-prearm.spec.ts`는 reload 후 즉시 arm되는 시나리오라 통과하지만, 실사용 회귀는 e2e로 안 잡힌다. 상한 값을 넉넉히 두고 수동 체크리스트에 포함.
+5. **pre-arm 유예 타이머가 정상 로그를 자르는 경우** — arm이 60초 넘게 걸리는 환경(극도로 느린 페이지, load 이벤트가 영영 안 오는 페이지)에서 로드 초반 로그가 유실된다. action은 만료 시 `entryNavEmitted` 래치도 함께 내려야 진입 load 액션이 영구 유실되지 않는다. `e2e/logs-prearm.spec.ts`는 reload 후 즉시 arm되는 시나리오라 통과하지만, 실사용 회귀는 e2e로 안 잡힌다. 상한 값을 넉넉히 두고 수동 체크리스트에 포함.
 6. **action 실시간 flush 부하** — 항목 16이 타이핑마다 `schedule()`을 켜면 200ms마다 **버퍼 전량**(`dispatch()`의 `buffer.slice()`)이 나간다. 수신부 IDB 가드(`log-persist-guard`, ~1s trailing)가 흡수하지만 대량 입력 시 메시지 크기를 수동 확인한다.
 7. **레코더 IIFE 본체는 유닛 테스트 불가** — `networkRecorderScript`·`consoleRecorderScript`·`actionRecorderScript`는 export되지 않고 파일 끝에서 즉시 호출된다(`network-recorder.ts:649` 등). 기존 `__tests__/network-recorder.test.ts`도 **헬퍼만** 검증한다. 항목 6·9·15·16·35의 실제 배선은 e2e/수동이 유일한 그물이다(CLAUDE.md의 "브라우저 실동작은 jsdom으로도 못 잡는다" 계열).
 8. **POSTMORTEM 2026-07-23 재발** — MAIN world 레코더 wrap 순서(비활성 gate → 원본 호출 우선 → 기록 전체 try/catch)를 깨면 페이지 요청이 깨진다. 항목 35(`recordXhrSend` 조기 return)와 항목 67(`pushEntry` 게이트)이 그 함수들을 직접 건드리므로, 원본 `send` 호출이 **어떤 경로에서도** 보장되는지 재확인한다(현재 `XHR.send`:295-306은 `recordXhrSend`를 try/catch로 감싸고 `originalSend`를 항상 호출 — 이 구조를 유지).

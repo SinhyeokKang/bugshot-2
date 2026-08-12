@@ -43,7 +43,7 @@ export const AI_LOGS_MANUAL = [
   "  parsing the structure is awkward, just read report.copy.markdown. Tells you WHAT the bug is.",
   "- consoleLog.entries[] — console messages: level (log/info/warn/error/debug),",
   "  timestamp (epoch ms), args (text, may include a stack), stack?, pageUrl.",
-  "- networkLog.requests[] — requests: method, url, status, statusText, durationMs,",
+  "- networkLog.requests[] — requests: method, url, status, statusText, statusKind?, durationMs,",
   "  startTime (epoch ms), requestHeaders, responseHeaders, requestBody?, responseBody?,",
   "  contentType, phase (pending/complete/error). Sensitive header values are masked as",
   "  ***[len:N]. Bodies may be objects like { kind: \"truncated\"|\"binary\"|... } when not",
