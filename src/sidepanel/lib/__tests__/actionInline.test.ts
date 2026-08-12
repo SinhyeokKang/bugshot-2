@@ -185,6 +185,19 @@ describe("navVerbKey", () => {
 // 동적 키는 log-viewer의 리터럴 스캐너를 우회하고, 값 drift 검사도 복제 사전에 키가 아예 없으면
 // 통과한다. 닫힌 집합 상수가 그 구멍을 막는 유일한 장치라 집합 자체를 고정한다.
 describe("NAV_VERB_KEYS", () => {
+  // 아래 두 케이스는 기대값을 navVerbKey(=SUT)로 만든다 — 집합 정합성을 보는 게 목적이라
+  // 의도된 형태지만, 그것만 두면 둘이 함께 틀렸을 때 항진명제가 된다(POSTMORTEM 2026-08-06).
+  // 내용 자체는 리터럴로 못박아 그 구멍을 막는다.
+  it("집합 내용이 리터럴과 일치한다", () => {
+    expect([...NAV_VERB_KEYS].sort()).toEqual([
+      "actionLog.verb.navigate",
+      "actionLog.verb.navigateBack",
+      "actionLog.verb.navigateForward",
+      "actionLog.verb.navigateReload",
+      "actionLog.verb.navigateTraverse",
+    ]);
+  });
+
   it("navVerbKey가 반환할 수 있는 키를 전부 담는다", () => {
     const reachable = new Set(
       (["back", "forward", "reload", "traverse", "load", "pushState", "replaceState", "popstate", "hashchange", undefined] as const)

@@ -46,13 +46,15 @@ export function kindBgColor(kind: ActionEntryKind): string {
 // navigation 유형 아이콘. ko 문구는 {target}이 문두라 TimelineRow의 truncate에서 판별어가
 // 통째로 잘린다(en은 동사 선두라 무사 — 로케일 비대칭). 그래서 아이콘이 유형의 1차 판별축이고,
 // reload와 traverse는 반드시 서로 달라야 한다.
-// 키를 navType 유니온에 바인딩한다 — 캐스트로 두면 오타가 조용히 MapPin 폴백으로 흡수된다.
-export const NAV_ICON: Partial<Record<NonNullable<ActionEntry["navType"]>, LucideIcon>> = {
-  back: ArrowLeft,
-  forward: ArrowRight,
-  reload: RotateCw,
-  traverse: History,
-};
+// Map이라야 한다 — 객체 리터럴은 Object.prototype을 상속해서, 페이지가 위조한 엔트리의
+// navType이 "constructor"면 truthy 함수가 잡히고 React가 그걸 컴포넌트로 호출해 패널 트리를
+// 통째로 내린다(ErrorBoundary 없음). 로그뷰어도 같은 KindIcon을 쓴다.
+export const NAV_ICON = new Map<NonNullable<ActionEntry["navType"]>, LucideIcon>([
+  ["back", ArrowLeft],
+  ["forward", ArrowRight],
+  ["reload", RotateCw],
+  ["traverse", History],
+]);
 
 export function KindIcon({ kind, navType }: {
   kind: ActionEntryKind;
@@ -63,7 +65,7 @@ export function KindIcon({ kind, navType }: {
     case "click": return <MousePointerClick className={base} />;
     case "input": return <Keyboard className={base} />;
     case "navigation": {
-      const Icon = (navType && NAV_ICON[navType]) || MapPin;
+      const Icon = (navType && NAV_ICON.get(navType)) || MapPin;
       return <Icon className={`${base} ${TONE_TEXT.blue}`} />;
     }
     case "keypress": return <CornerDownLeft className={base} />;

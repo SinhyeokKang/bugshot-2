@@ -320,16 +320,14 @@ function actionRecorderScript(): void {
   // setSentinel의 entryNavOnBind 보충을 스킵 → 진입 액션 중복 방지.
   let entryNavEmitted = false;
 
-  // 문서 진입 판정은 1회면 족하다 — 이 문서가 어떻게 생겼는지는 변하지 않는다.
-  // 진입·보충 두 경로가 같은 값을 써야 한다. 보충에 "load"를 하드코딩해 두면 pre-arm이 놓친
+  // 진입·보충 두 경로가 같은 값을 써야 한다 — 보충에 "load"를 하드코딩하면 pre-arm이 놓친
   // 새로고침이 일반 이동으로 강등된다.
+  // 캐스트의 실질 하중은 `| undefined`다 — noUncheckedIndexedAccess가 없어 빈 배열을 TS가 못 본다.
   const navEntry = performanceRef?.getEntriesByType("navigation")[0] as
     | PerformanceNavigationTiming
     | undefined;
   const entryType = entryNavType(navEntry?.type, performanceRef?.navigation?.type);
 
-  // 문서가 새로 실행된 계열. 새로고침은 document.referrer가 비어 fromUrl === toUrl이 되기 쉬워
-  // dedup 가드에 삼켜지고, 래치를 안 넓히면 setSentinel 보충이 항목을 한 번 더 합성한다.
   // 하류 mergeLogItems는 id로만 dedup해 중복을 흡수할 장치가 없다 — 이 래치가 유일한 방어다.
   function isEntryNav(navType: NavType): boolean {
     return navType === "load" || navType === "reload" || navType === "traverse";
@@ -678,18 +676,13 @@ function actionRecorderScript(): void {
       const handlers = {
         stop: () => { recording = false; capturing = false; throttle.flushNow(); },
         sync: () => { throttle.flushNow(); },
-        // 래치는 발신자가 의도를 밝힌 clear에서만 내린다. logClear(네비게이션 경계)는 패널
-        // 로그도 함께 비우므로 새 문서의 진입 항목을 다시 실어야 하고, 안 내리면 아래
-        // entryNavOnBind 보충이 "이미 실었다"고 판단해 그 항목이 영구 유실된다.
-        // **무조건 내리면 안 된다** — prepareRecorders는 activate 뒤에 clear를 보내고 녹화 중
-        // 탭 복귀가 visibilitychange → inject로 같은 문서를 재arm하므로, 그때 보충이 한 번 더
-        // 돌아 일어나지도 않은 새로고침을 녹화 중간 시각으로 단언하는 유령 항목이 된다.
-        // (grace 만료 경로와 대칭으로 보이지만 아니다 — 거긴 arm 이전, 여긴 arm 이후에만 돈다.)
+        // 래치는 발신자가 의도를 밝힌 clear에서만 내린다 — 무조건 내리면 재arm이 유령 진입
+        // 항목을 만든다(design.md "clear가 의도를 실어 나른다").
         clear: (e: Event) => {
           clearBuffer();
+          throttle.cancel();
           const detail = (e as CustomEvent).detail as { resupplyEntryNav?: boolean } | undefined;
           if (detail?.resupplyEntryNav) entryNavEmitted = false;
-          throttle.cancel();
         },
       };
       sentinelHandlers.set(sentinel, handlers);

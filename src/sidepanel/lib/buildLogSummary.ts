@@ -1,6 +1,6 @@
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
-import type { ActionLog, ActionLogSummary, ActionNode } from "@/types/action";
+import type { ActionEntry, ActionLog, ActionLogSummary, ActionNode } from "@/types/action";
 
 const MAX_ERRORS = 5;
 const MAX_ACTIONS = 20;
@@ -79,20 +79,21 @@ export function buildConsoleLogSummary(log: ConsoleLog): ConsoleLogSummary {
   return { captured: log.captured, errorCount, warnCount, topErrors };
 }
 
-// 이 함수는 로케일 무관 영어 고정이 기존 규칙이라 i18n을 끌어오지 않는다. traverse 문구는
-// UI en 값과 같은 표현을 써서 표기가 갈리지 않게 한다. 구 값·미상은 기존 "Navigated to"로 폴백.
-const NAV_VERB_EN = {
-  back: "Went back to",
-  forward: "Went forward to",
-  reload: "Reloaded",
-  traverse: "Navigated via history to",
-} as const;
+// 이 함수는 로케일 무관 영어 고정이 기존 규칙이라 i18n을 끌어오지 않는다.
+// Map인 이유는 ActionLogContent.NAV_ICON과 같다 — navType은 페이지가 위조할 수 있고, 객체
+// 리터럴이면 "constructor"가 함수 소스로 보간돼 LLM 프롬프트를 오염시킨다(`??`로는 못 막는다).
+const NAV_VERB_EN = new Map<NonNullable<ActionEntry["navType"]>, string>([
+  ["back", "Went back to"],
+  ["forward", "Went forward to"],
+  ["reload", "Reloaded"],
+  ["traverse", "Navigated via history to"],
+]);
 
 // 최근 MAX_ACTIONS개 액션을 자연어 줄로. AI 프롬프트 참고 메타용(masked input은 값 *** 그대로).
 export function buildActionLogSummary(log: ActionLog): ActionLogSummary {
   return log.entries.slice(-MAX_ACTIONS).map((e) => {
     if (e.kind === "navigation") {
-      return `${NAV_VERB_EN[e.navType as keyof typeof NAV_VERB_EN] ?? "Navigated to"}: ${e.toUrl ?? ""}`;
+      return `${(e.navType && NAV_VERB_EN.get(e.navType)) || "Navigated to"}: ${e.toUrl ?? ""}`;
     }
     if (e.kind === "input") {
       return `Typed in "${e.fieldLabel ?? ""}": "${e.value ?? ""}"`;

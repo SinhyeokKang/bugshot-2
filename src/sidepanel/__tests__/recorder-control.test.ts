@@ -17,7 +17,7 @@ beforeEach(() => {
 // clear가 의도를 싣고, MAIN 핸들러는 그 플래그일 때만 진입 항목 래치를 내린다.
 // 무조건 내리면 prepareRecorders(activate→clear 순서) 뒤의 재arm에서 유령 항목이 생긴다.
 describe("clearActionRecorder — 진입 항목 보충 의도", () => {
-  it("기본값은 보충 안 함 — 필드를 싣지 않는다", () => {
+  it("기본값이면 플래그가 와이어에 실리지 않는다", () => {
     void clearActionRecorder(7);
     expect(sendMessage).toHaveBeenCalledWith(7, { type: "actionRecorder.clear" });
   });
@@ -30,8 +30,8 @@ describe("clearActionRecorder — 진입 항목 보충 의도", () => {
     });
   });
 
-  // 새 발신자가 플래그를 잊으면 "유령 항목"이 아니라 "기존 동작"으로 떨어져야 한다.
-  it("false를 명시해도 보충 안 함 쪽이다", () => {
+  // 실제 "보충 안 함" 동작은 MAIN 핸들러에 있고 유닛 불가다 — 여기선 값이 그대로 실리는지만 본다.
+  it("false를 명시하면 false가 실린다", () => {
     void clearActionRecorder(7, { resupplyEntryNav: false });
     expect(sendMessage).toHaveBeenCalledWith(7, {
       type: "actionRecorder.clear",

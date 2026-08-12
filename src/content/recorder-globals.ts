@@ -27,8 +27,10 @@ export const randomUUID: (() => string) | undefined =
     ? crypto.randomUUID.bind(crypto)
     : undefined;
 
-// 네비게이션 유형 판정이 읽는 두 전역. 페이지가 나중에 덮어써도 레코더는 원본을 본다.
-// 하나만 스냅샷하면 위협모델이 비대칭이 된다.
+// 네비게이션 유형 판정이 읽는 두 전역. 전역 **교체**(navigation = {})만 막는다 —
+// navigationRef는 객체만 떼어둬서 currentEntry 속성 재정의로 인덱스를 위조하는 건 그대로 통한다
+// (위 randomUUID가 함수를 뗀 것과 대비). 위조로 얻는 건 방향 오라벨뿐이라 수용한다 —
+// 인덱스는 엔트리 어디에도 실리지 않고, 위조 data 이벤트로 엔트리를 지어내는 기존 경로가 더 강하다.
 // lib.dom에 Navigation API 타입이 없다 — `declare var navigation`도 없어 `typeof navigation`
 // 형태는 컴파일되지 않으므로 globalThis 캐스팅 + 히스토리 인덱스만 읽는 최소 구조적 타입으로 받는다.
 interface NavigationLike {

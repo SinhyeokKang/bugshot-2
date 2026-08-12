@@ -106,12 +106,59 @@ describe("ActionLogContent — 영상 seek 동기화(onSeek 공급)", () => {
 // 화면상 완전히 동일해진다. 타입은 오타만 잡고 "같은 아이콘 배정"은 못 잡아서 여기서 고정한다.
 describe("NAV_ICON", () => {
   it("navigation 유형 4종이 서로 다른 아이콘을 쓴다", () => {
-    const icons = Object.values(NAV_ICON);
+    const icons = [...NAV_ICON.values()];
     expect(icons).toHaveLength(4);
     expect(new Set(icons).size).toBe(4);
   });
 
-  it("방향 판정이 되는 4종에만 배정된다 — 구 값은 MapPin 폴백으로 남는다", () => {
-    expect(Object.keys(NAV_ICON).sort()).toEqual(["back", "forward", "reload", "traverse"]);
+  it("방향 판정이 되는 4종에만 배정된다", () => {
+    expect([...NAV_ICON.keys()].sort()).toEqual(["back", "forward", "reload", "traverse"]);
   });
+});
+
+function navEntry(id: string, navType?: string): ActionEntry {
+  return {
+    id,
+    kind: "navigation",
+    timestamp: 1000,
+    pageUrl: "https://example.com/",
+    toUrl: "https://example.com/",
+    navType: navType as ActionEntry["navType"],
+  };
+}
+
+function iconClass(id: string): string {
+  return row(id).querySelector("svg")?.getAttribute("class") ?? "";
+}
+
+describe("KindIcon — navigation 유형별 아이콘", () => {
+  it("판정된 유형은 전용 아이콘, 구 값·미상은 MapPin 폴백", () => {
+    render(
+      <ActionLogContent
+        entries={[
+          navEntry("back", "back"),
+          navEntry("reload", "reload"),
+          navEntry("legacy", "load"),
+          navEntry("none"),
+        ]}
+      />,
+    );
+    expect(iconClass("back")).toContain("lucide-arrow-left");
+    expect(iconClass("reload")).toContain("lucide-rotate-cw");
+    expect(iconClass("legacy")).toContain("lucide-map-pin");
+    expect(iconClass("none")).toContain("lucide-map-pin");
+  });
+
+  // navType은 페이지가 위조한 __bugshot_action_data__로 임의 문자열이 될 수 있고(ARCHITECTURE
+  // "등록 핸드셰이크" — sentinel은 페이지가 읽는다), 패널은 엔트리 필드를 검증하지 않는다.
+  // 룩업 테이블이 Object.prototype을 상속하면 "constructor"가 truthy 함수로 잡혀 React가
+  // 그걸 컴포넌트로 호출하고, ErrorBoundary가 저장소에 0건이라 패널 트리 전체가 내려간다.
+  // 같은 KindIcon을 로그뷰어가 쓰므로 이슈에 첨부된 logs.html을 여는 팀원도 백지를 본다.
+  it.each(["constructor", "__proto__", "toString", "valueOf", "hasOwnProperty"])(
+    "위조된 navType %s도 크래시 없이 MapPin으로 접힌다",
+    (forged) => {
+      expect(() => render(<ActionLogContent entries={[navEntry("f", forged)]} />)).not.toThrow();
+      expect(iconClass("f")).toContain("lucide-map-pin");
+    },
+  );
 });

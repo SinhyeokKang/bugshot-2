@@ -1125,8 +1125,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ actionLog: null });
     if (tabId != null) {
       deleteActionLog(pendingKey(tabId)).catch(() => {});
-      // 이 경로는 logClear(네비게이션 경계)뿐이고 패널 로그도 바로 위에서 비운다 — 그러니
-      // MAIN도 새 문서의 진입 항목을 다시 실어야 한다(design.md "clear가 의도를 실어 나른다").
+      // 이 경로는 logClear(네비게이션 경계)뿐 — 패널 로그를 비웠으니 MAIN도 진입 항목을 다시 싣는다.
       clearActionRecorder(tabId, { resupplyEntryNav: true }).catch(() => {});
     }
   },

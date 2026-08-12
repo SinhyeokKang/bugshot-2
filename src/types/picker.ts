@@ -149,10 +149,7 @@ export type PickerMessage =
   | { type: "actionRecorder.setSentinel"; sentinel: string }
   | { type: "actionRecorder.stop" }
   | { type: "actionRecorder.sync" }
-  // resupplyEntryNav: MAIN이 진입 네비게이션 항목을 다시 실어야 하는지. MAIN world는 패널
-  // 로그도 함께 비워졌는지 알 수 없어서 발신자가 의도를 싣는다(design.md "clear가 의도를
-  // 실어 나른다"). **필드 부재 = 보충 안 함** — 새 발신자가 잊으면 유령 항목이 아니라
-  // 기존 동작으로 떨어지는 fail-safe 방향.
+  // resupplyEntryNav 부재 = 진입 항목 보충 안 함(fail-safe 방향). 발신자별 의미는 recorder-control.ts.
   | { type: "actionRecorder.clear"; resupplyEntryNav?: boolean }
   | { type: "actionRecorder.data"; payload: { entries: import("@/types/action").ActionEntry[]; totalSeen: number } }
   | { type: "annotation.show" }

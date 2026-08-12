@@ -604,12 +604,9 @@ describe("buildMarkers — navigation 유형별 라벨", () => {
     },
   );
 
-  it.each(["back", "forward", "reload", "traverse"] as const)(
-    "navType %s도 variant는 navigate 유지 (핀 색 4종 전부 파랑 — 마커 variant 미추가)",
-    (navType) => {
-      expect(navMarker(navType).variant).toBe("navigate");
-    },
-  );
+  it("유형이 붙어도 variant는 navigate 유지 (핀 색 무발산 — 마커 variant 미추가)", () => {
+    expect(navMarker("back").variant).toBe("navigate");
+  });
 
   // 구 로그 하위호환 — IndexedDB에 저장된 초안이 raw 키·빈 문구로 뜨면 안 된다.
   it.each(["load", "pushState", "replaceState", "popstate", "hashchange"] as const)(

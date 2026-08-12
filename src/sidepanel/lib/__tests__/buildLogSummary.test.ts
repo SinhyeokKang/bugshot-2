@@ -591,4 +591,16 @@ describe("buildActionLogSummary — navigation 유형", () => {
     });
     expect(buildActionLogSummary(log)[0]).toBe("Reloaded: ");
   });
+
+  // navType은 페이지가 위조 가능하고(위조 __bugshot_action_data__), 이 요약은 LLM 프롬프트로
+  // 나간다. 룩업이 Object.prototype을 상속하면 "constructor"가 함수 소스로 보간돼 프롬프트를
+  // 오염시킨다 — `??`는 null/undefined만 걸러서 못 막는다.
+  it.each(["constructor", "__proto__", "toString", "valueOf"])(
+    "위조된 navType %s도 기존 'Navigated to:'로 접힌다",
+    (forged) => {
+      expect(summarize(forged as ActionEntry["navType"])).toBe(
+        "Navigated to: https://example.com/next",
+      );
+    },
+  );
 });
