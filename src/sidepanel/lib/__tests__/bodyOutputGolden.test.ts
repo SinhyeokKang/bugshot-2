@@ -71,6 +71,9 @@ const LOG_SUMMARIES = {
 
 function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   return {
+    // 이 값은 출력에 영향이 없다 — 위 vi.mock이 t를 키 에코로, withLocale을 패스스루로
+    // 바꾸므로 골든은 본문 언어 축에 눈이 멀어 있다. 필드가 required라 채운 것뿐이고,
+    // 로케일 회귀를 잡는 건 실사전을 쓰는 bodyLocaleIntegration.test.ts 하나다.
     bodyLocale: "ko",
     os: "macOS 15.5",
     browser: "Chrome 138",

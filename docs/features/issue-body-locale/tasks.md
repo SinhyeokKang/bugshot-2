@@ -137,7 +137,7 @@
 ### Task 12: 설정 UI — 이슈 공통 설정 섹션
 
 - **변경 대상**: `src/sidepanel/tabs/SettingsTab.tsx`(`:172`), `src/i18n/namespaces/settings.ts`
-- **작업 내용**: `IssueSettingsContent`의 `settings.titleSettings` 섹션 제목을 `settings.issueCommon`(이슈 공통 설정)으로 교체하고, 제목 접두어 아래에 이슈 본문 언어 셀렉터를 추가한다. 옵션은 `["auto", ...LOCALES]` 순회 — `GeneralSettingsContent`의 `LOCALES.map` + `LOCALE_LABELS` 패턴을 그대로 따른다. `auto` 라벨은 `settings.bodyLocale.auto`(`자동 ({lang})`)에 해석 결과를 넣는다. 도움말: "복사·제출되는 본문의 섹션 제목·표 헤더 언어입니다. 사이드패널 화면과 AI 초안 언어는 따로 설정합니다" 취지 한 줄. 신규 키 4개를 ko·en 동시 추가하고 `settings.titleSettings`는 제거한다.
+- **작업 내용**: `IssueSettingsContent`의 `settings.titleSettings` 섹션 제목을 `settings.issueCommon`(이슈 공통 설정)으로 교체하고, 제목 접두어 아래에 이슈 본문 언어 셀렉터를 추가한다. 옵션은 `["auto", ...LOCALES]` 순회 — `GeneralSettingsContent`의 `LOCALES.map` + `LOCALE_LABELS` 패턴을 그대로 따른다. `auto` 라벨은 `settings.bodyLocale.auto`(`자동 ({lang})`)에 해석 결과를 넣는다. 도움말: "복사·제출되는 본문의 섹션 제목·표 헤더 언어입니다. 사이드패널 화면과 AI 초안 언어는 따로 설정합니다" 취지 한 줄. 신규 키 5개(`settings.issueCommon`·`settings.titlePrefix.label`·`settings.bodyLocale{,.auto,.help}`)를 ko·en 동시 추가하고 `settings.titleSettings`는 제거한다 — 섹션 제목이 바뀌면 접두어 Input이 라벨을 잃으므로 `titlePrefix.label`이 함께 필요하다.
   - **렌더**: `FieldRow`(DESIGN.md §13). 도움말은 셀렉터 선례를 따라 `text-sm text-muted-foreground`이고, 같은 섹션의 titlePrefix 도움말이 `text-[0.8rem]`이라 **두 항목을 시각적으로 분리된 행으로** 배치한다.
   - **접근성 — 새 선례**: `aria-label` 부착 + 도움말을 `aria-describedby`로 연결. 기존 `Select` 3개는 전부 결손 상태지만 소급 수정은 스코프 밖.
   - **e2e testid**: 신규 셀렉터에 `data-testid` 부착. 현재 설정 화면엔 `settings-sub-issue`만 있어 Task 15의 e2e가 셀렉터를 못 잡는다. 화면 언어 Select와 `settings-sub-general` 트리거에도 필요하면 함께 부착.

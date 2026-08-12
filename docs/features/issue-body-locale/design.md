@@ -110,7 +110,8 @@
 
 ### `src/i18n/namespaces/settings.ts`
 
-- 신규 키: `settings.issueCommon`(섹션 제목) · `settings.bodyLocale`(항목 라벨) · `settings.bodyLocale.help` · `settings.bodyLocale.auto`(`자동 ({lang})` — `llm.outputLanguage.auto`와 같은 형태).
+- 신규 키 **5개**: `settings.issueCommon`(섹션 제목) · `settings.titlePrefix.label`(항목 라벨) · `settings.bodyLocale`(항목 라벨) · `settings.bodyLocale.help` · `settings.bodyLocale.auto`(`자동 ({lang})` — `llm.outputLanguage.auto`와 같은 형태).
+  `titlePrefix.label`은 구현 중에 드러난 것이다 — 섹션 제목이 "제목 설정"에서 "이슈 공통 설정"으로 바뀌는 순간 접두어 Input이 자기 라벨을 잃는다(그전엔 섹션 제목이 라벨 노릇을 했다). 두 항목을 `FieldRow`로 나란히 놓으려면 각자 라벨이 있어야 한다.
 - 제거 키: `settings.titleSettings`(ko `:5` / en `:111`). 현재 참조는 그 둘 + `SettingsTab.tsx:172` 총 3건이고 `e2e`·`guide`엔 0건이다.
 - ko·en 동시 갱신 — PostToolUse 훅이 `locales.test.ts`를 자동 실행해 대칭을 강제한다.
 
