@@ -516,7 +516,7 @@ function HeadersPanel({ req, query }: { req: NetworkRequest; query: string }) {
           <dt className="text-muted-foreground">{t("networkLog.detail.method")}</dt>
           <dd>{req.method}</dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.status")}</dt>
-          <dd className="flex flex-col gap-0.5">
+          <dd className="flex flex-col gap-0.5" data-testid="network-status-value">
             <span className="flex items-center gap-1">
               <span className={`inline-block h-2.5 w-2.5 rounded-full ${
                 isPending(req) ? "bg-amber-500" : isError(req) ? "bg-red-500" : "bg-green-500"
@@ -528,7 +528,9 @@ function HeadersPanel({ req, query }: { req: NetworkRequest; query: string }) {
                   : statusLabel(req, t)}
             </span>
             {isStatusHidden(req) && (
-              <span className="text-xs text-muted-foreground">{t("networkLog.display.blockedHint")}</span>
+              <span className="text-xs text-muted-foreground" data-testid="network-status-hint">
+                {t("networkLog.display.blockedHint")}
+              </span>
             )}
           </dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.time")}</dt>

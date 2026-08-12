@@ -36,8 +36,8 @@
   - [x] 신규 유닛(`sentinel-registry.test.ts`): 멱등 add / FIFO evict / `list()` 순서 / `evicted()` 반환
   - [x] `pnpm typecheck` 통과
   - [x] 코드 리뷰: `detachSentinelListeners`가 세 파일 모두에서 사라졌다
-  - [ ] e2e `logs-iframe.spec.ts`(같은 sentinel 재발행) 통과
-  - [ ] e2e `log-capture.spec.ts`(arm→stop→재arm) 통과
+  - [x] e2e `logs-iframe.spec.ts`(같은 sentinel 재발행) 통과
+  - [x] e2e `log-capture.spec.ts`(arm→stop→재arm) 통과
 
 ### Task 4: 이벤트 API 스냅샷 적용 (항목 6-b)
 
@@ -45,7 +45,7 @@
 - **작업 내용**: Task 1 스냅샷 경유로 교체. **`window.addEventListener("pagehide")`·`document.addEventListener("visibilitychange")`·`window.addEventListener("error"/"unhandledrejection")`도 포함** — 페이지가 후킹하면 flush·에러 캡처가 죽는다.
 - **검증**:
   - [x] `grep -n "document.addEventListener\|document.dispatchEvent\|new CustomEvent" src/content/{network,console,action}-recorder.ts` 결과 0
-  - [ ] e2e `log-capture.spec.ts`·`logs-error-warn.spec.ts`·`logs-cross-page.spec.ts` 통과
+  - [x] e2e `log-capture.spec.ts`·`logs-error-warn.spec.ts`·`logs-cross-page.spec.ts` 통과
   - [ ] 수동: 페이지가 `EventTarget.prototype.addEventListener`를 후킹해도 로그가 계속 잡힌다
 
 ### Task 5: ctrl 전역을 불투명 마커로 (항목 7)
@@ -54,14 +54,14 @@
 - **작업 내용**: `= { setSentinel, clearBuffer }` → `= true`. 각 파일 첫 줄의 중복 가드(`if ((window as any)[CTRL_KEY]) return;`)는 그대로 동작.
 - **검증**:
   - [x] `grep -rn "__bugshot_.*_ctrl__" src/ e2e/` 결과가 각 파일의 선언·가드뿐(외부 소비처 0 재확인)
-  - [ ] e2e `log-capture.spec.ts` 통과(중복 초기화 가드가 여전히 동작)
+  - [x] e2e `log-capture.spec.ts` 통과(중복 초기화 가드가 여전히 동작)
 
 ### Task 6: pre-arm 유예 시한 (항목 9)
 
 - **변경 대상**: `src/content/network-recorder.ts`·`console-recorder.ts`·`action-recorder.ts`(각 init + `setSentinel`)
 - **작업 내용**: `capturing`이 `readPreArmFlag()` 유래로 켜진 경우에만 `PREARM_GRACE_MS = 60000` 타이머 설치. 만료 시 `capturing = false` + 버퍼 clear(+ console은 `restoreConsoleWrap(console, ewState)`). `setSentinel`에서 타이머 해제.
 - **검증**:
-  - [ ] e2e `logs-prearm.spec.ts` 2케이스 통과(정상 pre-arm은 무영향)
+  - [x] e2e `logs-prearm.spec.ts` 2케이스 통과(정상 pre-arm은 무영향)
   - [ ] 수동: 패널을 열지 않은 채 페이지에서 `sessionStorage.setItem("__bugshot_recorder_active__","1")` 후 reload → 60초 뒤 `chrome://extensions`에 확장 attribution 경고가 더 누적되지 않는다
   - [ ] 수동: 위 상태에서 패널을 열면 정상 arm된다(타이머 만료 후에도 `setSentinel`이 살아 있음)
 
@@ -72,7 +72,7 @@
 - **검증**:
   - [ ] 수동/e2e: 미armed 페이지에서 임의 라벨 500개로 `console.count` 호출 후 Map 크기가 200을 넘지 않는다(개발자도구 heap 또는 arm 후 로그 관찰)
   - [ ] 수동: `console.time("a")` → arm → `console.timeEnd("a")`가 여전히 정확한 ms를 찍는다(`"?"`가 아님)
-  - [ ] e2e `log-capture.spec.ts` 통과
+  - [x] e2e `log-capture.spec.ts` 통과
 
 ### Task 8: action input dedup throttle (항목 16)
 
@@ -92,7 +92,7 @@
 - **검증**:
   - [x] `pnpm typecheck` 통과
   - [ ] `pnpm build && pnpm check:prearm` → `✓ pre-arm 청크 정상`(type-only import라 청크 무영향 확인)
-  - [ ] e2e `log-capture.spec.ts`·`websocket-log.spec.ts` 통과
+  - [x] e2e `log-capture.spec.ts`·`websocket-log.spec.ts` 통과
 
 ### Task 10: `isStatusHidden` 하위호환 강화 (항목 31 중반부)
 
@@ -119,7 +119,7 @@
 - **검증**:
   - [ ] 수동: 패널을 열기 직전 `xhr.open()`한 뒤 arm 후 `send()` → 네트워크 로그에 `url:""` 빈 pending 행이 생기지 않는다
   - [ ] 수동: 정상 arm 상태의 XHR은 여전히 pending→complete로 전이한다
-  - [ ] e2e `log-capture.spec.ts`·`network-body-search.spec.ts` 통과
+  - [x] e2e `log-capture.spec.ts`·`network-body-search.spec.ts` 통과
 
 ### Task 13: network `pushEntry` 첫 줄 게이트 (항목 67)
 
@@ -127,7 +127,7 @@
 - **작업 내용**: `if (!capturing) return;` 추가. 호출부 4곳의 기존 게이트는 유지.
 - **검증**:
   - [x] `pnpm typecheck` 통과
-  - [ ] e2e `log-capture.spec.ts`·`logs-origin-filter.spec.ts` 통과(적재 자체가 안 막혔는지)
+  - [x] e2e `log-capture.spec.ts`·`logs-origin-filter.spec.ts` 통과(적재 자체가 안 막혔는지)
 
 ### Task 14: 부수 정리 (항목 77)
 
@@ -135,7 +135,7 @@
 - **작업 내용**: 주석의 "recording 게이트" → `capturing` 게이트로 정정. `handleClear`에서 `selectionUpdateTimer`(`picker.ts:1181`) 취소 + null화.
 - **검증**:
   - [x] `grep -n "recording 게이트" src/content/action-recorder.ts` 결과 0
-  - [ ] e2e `picker-guard.spec.ts`·`style-edit-flow.spec.ts` 통과(선택 해제 후 잔여 타이머 부작용 없음)
+  - [x] e2e `picker-guard.spec.ts`·`style-edit-flow.spec.ts` 통과(선택 해제 후 잔여 타이머 부작용 없음)
 
 ### Task 15: 문서 정합 (항목 66 + 6·9 반영)
 
