@@ -102,7 +102,8 @@ export function stripApiHostsRows(
 
 // 자동 행 동기화 판정. 변화가 없으면 입력 rows 참조를 그대로 돌려주고, 호출부는 그때 write를
 // 생략한다 — setDraft가 전체 교체라 무조건 write하면 draft identity가 매번 바뀌어 루프가 된다.
-// dismissed 전이는 여기서 하지 않는다(삭제 버튼 핸들러가 직접 세운다).
+// dismissed는 삭제 버튼 핸들러 말고 아래 promoteEditedRow()도 세운다 — 사용자가 파생 행을 고치면
+// 그 행은 손으로 쓴 행이 되고, 파생이 다시 덮으면 "고칠 수 있다"가 깨지기 때문.
 export function syncApiHostsRow(input: {
   rows: readonly EnvironmentRow[];
   apiRow: EnvironmentRow | null;
