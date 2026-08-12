@@ -91,7 +91,7 @@
   - fetch 실패: `error instanceof Error`가 **아닐 때만** `networkError`(현행 `isStatusHidden` 판정과 정확히 일치)
 - **검증**:
   - [x] `pnpm typecheck` 통과
-  - [ ] `pnpm build && pnpm check:prearm` → `✓ pre-arm 청크 정상`(type-only import라 청크 무영향 확인)
+  - [x] `pnpm build && pnpm check:prearm` → `✓ pre-arm 청크 정상`(type-only import라 청크 무영향 확인)
   - [x] e2e `log-capture.spec.ts`·`websocket-log.spec.ts` 통과
 
 ### Task 10: `isStatusHidden` 하위호환 강화 (항목 31 중반부)
