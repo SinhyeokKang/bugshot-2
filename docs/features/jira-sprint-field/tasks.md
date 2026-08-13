@@ -16,20 +16,20 @@
 
 - **변경 대상**: 없음(임시 스크립트·`curl`. 커밋하지 않는다)
 - **작업 내용**:
-  1. **createmeta 봉투 키**(R3) — `GET /rest/api/3/issue/createmeta/{projectKey}/issuetypes/{issueTypeId}?maxResults=200`의 최상위 배열 키가 `values`인지 `fields`인지, 각 원소가 `fieldId`·`schema.custom`·`schema.type`을 그대로 갖는지. **응답의 `total`과 서버가 실제로 적용한 `maxResults`도 함께 기록**(R5의 크기를 확정한다 — 서버가 상한을 자체 캡하면 "1페이지 200"이라는 전제가 깨진다).
-     - *이 답이 `values`/`fields` 둘 다 아니면*: design §1·인터페이스의 `CreateMetaFieldsResponse`를 고친다.
-  2. **sprint 필드 스키마**(R2) — `schema.custom === "com.pyxis.greenhopper.jira:gh-sprint"`인 항목의 `schema.type`. company-managed / team-managed 각각.
-  3. **create 수용 형식**(R2) — 실제 이슈 생성으로 `fields[customfield_XXXXX]`에 스칼라(`42`)와 배열(`[42]`) 중 무엇이 통하는지. **둘 다 통하면 그 사실을 기록**한다(설계가 단순해진다).
+  1. ~~**createmeta 봉투 키**(R3)~~ — **완료(2026-08-13).** 키는 `fields`. `total: 21`이고 서버가 `maxResults=200`을 자체 캡 없이 존중했다 → R3 해소, R5 크기 확정.
+  2. **sprint 필드 스키마**(R2) — company-managed는 **완료**: `fieldId: "customfield_10020"`, `schema.type: "array"`. **team-managed 프로젝트에서 같은지 남았다.**
+  3. **create 수용 형식**(R2) — 실제 이슈 생성으로 `fields.customfield_10020`에 스칼라(`42`)와 배열(`[42]`) 중 무엇이 통하는지. **둘 다 통하면 그 사실을 기록**한다(설계가 단순해진다). **미검증 — 이슈를 실제로 만들어야 하고, 스프린트 id는 5가 풀려야 얻는다.**
      - *둘 다 거부되면*(객체 `{id:42}` 요구 등): `isArray` 분기가 무의미해지므로 design §1·R2를 다시 쓴다.
-     - *`schema.type`과 수용 형식이 어긋나면*: 분기 키를 신뢰할 수 없다는 뜻이므로 **스칼라 고정 + 실패 노출**로 간다(R2).
-  4. **`autoCompleteUrl` 실측**(A7) — 1의 응답에 실린 sprint 필드의 `autoCompleteUrl` 값을 그대로 호출해 ① 인증이 통하는지 ② 응답 모양(스프린트 id·name·state·보드 정보가 있는지) ③ 상태 필터·검색어 파라미터가 있는지를 기록. **쓸 만하면 `listSprints`를 이 경로로 갈아끼운다**(팬아웃과 R1이 동시에 소멸한다 — UI는 무변경). 못 쓰면 A7이 기각 기록으로 남는다.
-  5. **OAuth scope**(R1) — 현재 OAuth 토큰으로 `GET /rest/agile/1.0/board?projectKeyOrId=…`와 `GET /rest/agile/1.0/board/{id}/sprint?state=active,future`가 200인지. 401/403이면 Atlassian 개발자 콘솔에서 **이 앱이 classic scope와 granular scope를 함께 가질 수 있는지**까지 확인한다.
-     - *혼용 가능*: `SCOPES`에 granular 2종을 추가한다. 기존 사용자는 재연동 시점에 얻는다(강제 재동의·유도 UI 없음 — PRD §OAuth scope 정책).
-     - *혼용 불가*: 제품 scope 3개를 한꺼번에 옮겨야 하므로 **작업 중단 후 재기획**. (4에서 `autoCompleteUrl`이 쓸 만하면 그쪽으로 우회해 이 갈림길을 통째로 건너뛴다 — 두 항목을 함께 판정하는 이유다.)
-  6. **칸반/보드 없음 거동** — 칸반 보드에 `board/{id}/sprint`를 호출했을 때의 status·body. 보드가 없는 프로젝트의 `board?projectKeyOrId=` 응답(빈 `values`인지 404인지).
+     - *`schema.type`이 `array`인데 스칼라만 통하면*: 분기 키를 신뢰할 수 없다는 뜻이므로 **스칼라 고정 + 실패 노출**로 간다(R2).
+  4. ~~**`autoCompleteUrl` 실측**(A7)~~ — **기각 확정(2026-08-13).** sprint 필드 항목에 `autoCompleteUrl`이 아예 없다(`allowedValues`도 없음). createmeta는 존재·ID·타입만 답하고 값은 주지 않는다 → **agile API 우회로 없음**, 5의 갈림길을 건너뛸 수단이 사라졌다.
+  5. **OAuth scope**(R1) — **401 확정(2026-08-13).** 현재 classic 토큰으로 `GET /rest/agile/1.0/board?projectKeyOrId=…`가 `{"code":401,"message":"Unauthorized; scope does not match"}`. **남은 확인은 하나** — Atlassian 개발자 콘솔(Permissions → Jira API → Configure)에서 **classic scope를 유지한 채 granular `read:board-scope:jira-software`·`read:sprint:jira-software`를 추가할 수 있는지.**
+     - *혼용 가능*: `SCOPES`(`oauth.ts:25`)에 2종 추가(콘솔이 의존으로 `read:project:jira`를 요구하면 그것도) → **본인 계정 연동 해제 후 재연결** → board·sprint GET이 200인지 재확인. 기존 사용자는 각자 재연동 시점에 얻는다(강제 재동의·유도 UI 없음 — PRD §OAuth scope 정책).
+     - *혼용 불가*: 제품 scope 3개를 한꺼번에 옮겨야 하므로 **작업 중단 후 재기획.** 4가 닫혔으므로 우회로는 없다.
+  6. **칸반/보드 없음 거동** — 칸반 보드에 `board/{id}/sprint`를 호출했을 때의 status·body. 보드가 없는 프로젝트의 `board?projectKeyOrId=` 응답(빈 `values`인지 404인지). **5가 풀려야 측정 가능하다.**
 - **검증**:
-  - [ ] 1~6 답이 전부 표에 기록됐다
-  - [ ] 5가 "혼용 불가"면 **작업 중단** — 4의 결과로 우회 가능한지 먼저 판정
+  - [x] 1·4 완료, 2 절반 완료, 5 절반 완료(401 확정) — 표 참조
+  - [ ] 2(team-managed)·3·6이 표에 기록됐다
+  - [ ] 5가 "혼용 불가"면 **작업 중단 후 재기획** — 4가 기각돼 우회로가 없다
   - [ ] 3의 결과로 `isArray` 분기를 유지할지(양쪽 다르면 유지, 한쪽으로 통일되면 상수 고정, 어긋나면 스칼라 고정) 판정됐다
   - [ ] **실측한 응답 body를 픽스처로 저장**해 Task 1·2의 단위 테스트에 그대로 넣는다 — spike 결과가 문서가 아니라 코드로 남아야 회귀 시 red가 된다
   - [ ] 확정값을 `jira-api.ts` 해당 함수 주석 + design R1·R2·R3에 반영한다
@@ -234,13 +234,15 @@ Task 0 (차단 게이트 — 사용자가 직접 수행)
 
 | 항목 | 결과 | 확인일 |
 |---|---|---|
-| createmeta 봉투 키 (`values` vs `fields`) | | |
-| createmeta 응답 `total` / 서버 적용 `maxResults` | | |
-| sprint `schema.type` (company-managed) | | |
-| sprint `schema.type` (team-managed) | | |
-| create 수용 형식 (스칼라 / 배열 / 양쪽) | | |
-| `autoCompleteUrl` 값·응답 모양·필터 파라미터 (A7) | | |
-| OAuth classic scope로 agile GET 가능 여부 | | |
-| (실패 시) classic ↔ granular 혼용 가능 여부 | | |
-| 칸반 보드 `board/{id}/sprint` 응답 | | |
-| 보드 없는 프로젝트 `board?projectKeyOrId=` 응답 | | |
+| createmeta 봉투 키 (`values` vs `fields`) | **`fields`** (`values` 아님 — 초안이 틀렸었다) | 2026-08-13 |
+| createmeta 응답 `total` / 서버 적용 `maxResults` | `total: 21` / `maxResults: 200` 존중(자체 캡 없음) | 2026-08-13 |
+| sprint `schema.type` (company-managed) | `fieldId: "customfield_10020"`, `type: "array"` | 2026-08-13 |
+| sprint `schema.type` (team-managed) | 미측정 | |
+| create 수용 형식 (스칼라 / 배열 / 양쪽) | 미측정 — 이슈 생성 필요, 스프린트 id가 scope에 막혀 있다 | |
+| `autoCompleteUrl` 값·응답 모양·필터 파라미터 (A7) | **없음**(`undefined`) → A7 기각, 우회로 소멸 | 2026-08-13 |
+| OAuth classic scope로 agile GET 가능 여부 | **불가** — 401 `Unauthorized; scope does not match` | 2026-08-13 |
+| (실패 시) classic ↔ granular 혼용 가능 여부 | 미확인 — **현재 유일한 차단 항목** | |
+| 칸반 보드 `board/{id}/sprint` 응답 | 미측정(scope 대기) | |
+| 보드 없는 프로젝트 `board?projectKeyOrId=` 응답 | 미측정(scope 대기) | |
+
+측정 환경: cloudId `5c399437-…`, 프로젝트 `FCLXP`, 이슈타입 `버그`, OAuth 연동.
