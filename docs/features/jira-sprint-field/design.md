@@ -4,7 +4,7 @@
 
 **필드의 존재 여부를 서버에 묻고, 답이 "있다"일 때만 그린다.** Sprint는 사이트마다 ID가 다른 커스텀 필드라 클라이언트가 알 수 있는 게 없다 — createmeta 상세 엔드포인트(`/rest/api/3/issue/createmeta/{projectKey}/issuetypes/{issueTypeId}`)가 그 프로젝트+이슈타입의 **create 화면에 실제로 올라간 필드 목록**을 주고, 거기서 `schema.custom === "com.pyxis.greenhopper.jira:gh-sprint"`를 찾으면 존재 판정·필드 ID·값 형식이 한 번에 나온다. 칸반·보드 미연결·team-managed·에픽 타입 같은 케이스를 **열거하지 않고** 흡수하는 게 이 선택의 핵심이다(열거하면 다음 케이스에서 구멍 난다 — CSS 캐스케이드 화이트리스트와 같은 이유).
 
-값 목록만은 createmeta가 못 준다 — sprint 필드 항목에 `allowedValues`도 **`autoCompleteUrl`도 없다**(2026-08-13 실측). 그래서 목록은 **agile API**로 간다: `board?projectKeyOrId=&type=scrum` → 보드별 `board/{id}/sprint?state=active,future`. 이건 BugShot이 처음 호출하는 API 계열이고, **현재 classic scope로는 401 `scope does not match`가 확정됐다**(R1) — 우회로였던 A7이 닫혔으므로 이 기획은 **granular scope 추가 없이는 성립하지 않는다.**
+값 목록만은 createmeta가 못 준다 — sprint 필드 항목에 `allowedValues`도 **`autoCompleteUrl`도 없다**(2026-08-13 실측). 그래서 목록은 **agile API**로 간다: `board?projectKeyOrId=` → (kanban 제외) 보드별 `board/{id}/sprint?state=active,future`. 이건 BugShot이 처음 호출하는 API 계열이고, **현재 classic scope로는 401 `scope does not match`가 확정됐다**(R1) — 우회로였던 A7이 닫혔으므로 이 기획은 **granular scope 추가 없이는 성립하지 않는다.**
 
 배치는 세 층으로 나뉜다:
 - **존재 판정(createmeta)** — 선제. `(siteId, projectKey, issueTypeId)`가 확정될 때마다 1회, **세션 캐시 히트면 0회**.
@@ -31,7 +31,11 @@ MAX_SPRINT_BOARDS = 5
 - **`isActiveSprint(state)`** (순수, export) — `state === "active" || state === "future"`. `JiraSprint.state`는 **서버 문자열이라 `string`으로 두고**(union으로 좁히면 미지 값이 타입 위에서만 사라진다) 판정을 이 함수 하나로 모은다. R9와 §9가 같은 출처를 쓴다.
 - **`mergeBoardSprints(perBoard)`** (순수, export) — 보드별 결과를 합쳐 `id` 기준 dedup(같은 스프린트가 두 보드에 걸릴 수 있다 — **먼저 온 보드의 `boardName`을 남긴다**), `active` → `future` 순, 같은 상태 안에서는 `id` 오름차순. 반환은 `{ sprints, multiBoard }` — 보드명을 그릴지 말지는 UI 신호라 `boardName: ""` 같은 센티널로 인코딩하지 않는다.
 - **`getSprintFieldMeta(auth, projectKey, issueTypeId)`** — 위 엔드포인트를 호출해 `pickSprintField`. 페이지네이션은 **하지 않는다**(R5).
-- **`listSprints(auth, projectKey)`** — `GET /rest/agile/1.0/board?projectKeyOrId={key}&type=scrum&maxResults=50` → **상위 `MAX_SPRINT_BOARDS`개**만 골라 `Promise.allSettled`로 `GET /rest/agile/1.0/board/{id}/sprint?state=active,future&maxResults=50`. 선례는 `src/background/messages.ts:719-745`(`MAX_SHEETS` 상한 + `allSettled` — 주석이 *"SW 메모리·동시 fetch 폭증 차단"*). **보드 단위 실패도, 보드 목록 조회 실패도 삼킨다** — 전자는 칸반 오분류·권한 없음, 후자는 재연동 전 OAuth 사용자(PRD §OAuth scope 정책)라 둘 다 "고를 게 없다"로 수렴시킨다. 오류를 노출하면 재연동 전 사용자 전원이 매번 오류 문구를 보게 되고, 그들이 당장 할 수 있는 일은 없다. 대가는 진단 불가이며 그 자리를 분석 축이 메운다(R6).
+- **`listSprints(auth, projectKey)`** — `GET /rest/agile/1.0/board?projectKeyOrId={key}&maxResults=50` → **`type !== "kanban"`인 보드만** 남겨 상위 `MAX_SPRINT_BOARDS`개에 `Promise.allSettled`로 `GET /rest/agile/1.0/board/{id}/sprint?state=active,future&maxResults=50`. 선례는 `src/background/messages.ts:719-745`(`MAX_SHEETS` 상한 + `allSettled` — 주석이 *"SW 메모리·동시 fetch 폭증 차단"*).
+
+  **`type=scrum`으로 서버 필터하지 않는다.** 2026-08-13 실측에서 **team-managed 프로젝트의 보드는 `type: "simple"`로 오고 그중 일부가 스프린트를 정상 반환했다**(SRE·BMD·SBDATA 보드 → 200 + 스프린트). `type=scrum`으로 좁혔으면 team-managed 스크럼 팀이 통째로, 그것도 **무음으로** 빠졌을 것이다. 반대로 칸반은 400이 확정이라(`보드는 스프린트를 지원하지 않습니다.`) 호출 자체가 낭비여서 클라이언트에서 제외한다. 이 필터가 팬아웃을 실제로 눌러준다 — 실측 사이트의 한 프로젝트는 보드가 15개인데 kanban 13개를 빼면 2개다.
+
+  **보드 단위 실패도, 보드 목록 조회 실패도 삼킨다** — 전자는 스프린트 미지원 보드·권한 없음, 후자는 재연동 전 OAuth 사용자(PRD §OAuth scope 정책)라 둘 다 "고를 게 없다"로 수렴시킨다. 오류를 노출하면 재연동 전 사용자 전원이 매번 오류 문구를 보게 되고, 그들이 당장 할 수 있는 일은 없다. 대가는 진단 불가이며 그 자리를 분석 축이 메운다(R6). **판정은 status로만 한다** — 400의 `errorMessages`가 사용자 로케일로 번역돼 오므로(위 한국어 문구) 문자열 매칭은 성립하지 않는다.
 - **`getSprint(auth, sprintId)`** — `GET /rest/agile/1.0/sprint/{id}`. 404/403이면 `null`. sticky 검증 전용(§9).
 
 `createIssue`(`jira-api.ts:267`) 수정:
@@ -202,8 +206,8 @@ export function resolveStickySprint(
         ├─(meta 확정 + sprintId 있을 때만)─→ jira.getSprint ─→ resolveStickySprint()
         │            └─ 검증 전엔 이름 미표시 → 유효할 때만 채운다           [S3]
         │
-        ├─(콤보 열 때)─→ jira.listSprints ─→ board?projectKeyOrId=WEB&type=scrum
-        │                                       └→ 상위 5개 보드 allSettled
+        ├─(콤보 열 때)─→ jira.listSprints ─→ board?projectKeyOrId=WEB
+        │                                       └→ kanban 제외 → 상위 5개 allSettled
         │                                            sprint?state=active,future
         │                                            └→ mergeBoardSprints() → {sprints, multiBoard}
         │
@@ -335,7 +339,15 @@ export function SprintField(props: {
 
 추가하되 **기존 사용자를 깨지 않는다** — `refreshOAuthToken`이 갱신 요청에 `scope`를 안 싣고 access token의 scope는 동의 시점에 고정되므로, 기존 토큰은 새 scope를 얻지 못한다. 그 사용자는 **재연동 전까지 목록이 빈 채로** 보인다(PRD §OAuth scope 정책 — 강제 재동의·유도 UI 없음).
 
-**미해결 갈림길**: Atlassian 앱이 classic과 granular scope를 **함께** 가질 수 있는지. 못 하면 제품 scope 3개를 한꺼번에 granular로 옮겨야 하고 그건 기존 사용자 전원 재연동이라 **이 기획 크기를 넘어 재기획 대상**이다. 개발자 콘솔에서 확인해야 하고, `offline_access`는 granular 세계에서도 그대로 남으므로 이전 대상은 제품 scope 3개다.
+**혼용 가능 확정(2026-08-13).** 한 앱이 classic 3종과 granular 3종을 함께 보유할 수 있고, 동의 화면에도 나란히 뜬다(*"Boards and backlogs, Sprints, jira-user, jira-work"*). 재기획 갈림길은 닫혔다.
+
+**함정 — `read:project:jira`가 빠지면 board·sprint 둘 다 안 된다.** `read:board-scope:jira-software`·`read:sprint:jira-software`만 넣고 호출했을 때 **여전히 401 `scope does not match`** 였다. 문서상 `GET /board`는 `read:board-scope:jira-software` + `read:project:jira`를 **둘 다** 요구하고, 하나라도 없으면 같은 401로 떨어져 "scope를 추가했는데도 안 된다"로 보인다. 최종 `SCOPES`는 6개다:
+
+```
+read:jira-user  read:jira-work  write:jira-work        (classic — 기존)
+read:board-scope:jira-software  read:project:jira  read:sprint:jira-software   (granular — 추가)
+offline_access
+```
 
 **R2. 값 형식(스칼라 vs 배열) — 절반 해소(2026-08-13).** company-managed 사이트에서 sprint 필드는 `fieldId: "customfield_10020"`, **`schema.type: "array"`** 로 확인됐다. 남은 건 **create가 실제로 무엇을 받는가**다 — `"customfield_10020": 25`(스칼라)로 통하는 사례가 흔해 **선언된 타입과 수용 형식이 어긋날 수 있고**, 그러면 `isArray` 분기 키 자체를 못 믿는다. 이슈 생성이 필요해 아직 미검증이며, 어긋나는 것으로 판명되면 **스칼라 고정 + 실패를 사용자에게 노출**(무음 폴백 금지)이 기본값이다. 스칼라 실패 시 배열로 자동 재시도하는 폴백은 두지 않는다.
 
@@ -345,7 +357,7 @@ export function SprintField(props: {
 
 **R5. `getSprintFieldMeta`는 페이지네이션하지 않는다 — 크기 확정(2026-08-13).** 실측 사이트의 create 화면은 `total: 21`이었고 서버가 `maxResults=200`을 그대로 존중했다(자체 캡 없음). 1페이지 200필드를 넘는 create 화면은 실재하지 않는다고 보고 감수한다. 다만 넘으면 증상이 무음 미노출이라 진단이 어렵다는 성격은 그대로다.
 
-**R6. 목록 조회 실패를 전부 삼킨다(§1).** 세 원인이 하나의 증상으로 수렴한다 — ① 보드 목록 조회 실패(재연동 전 OAuth 사용자·만료 토큰) ② 보드 단위 실패(권한 없는 보드) ③ 보드 6개 이상일 때 상한 밖 보드. 사용자에겐 전부 "고를 스프린트가 없다"로 보이고 오류 문구는 뜨지 않는다. **의도된 선택이다**(PRD S2b) — 대가는 진단 불가이며, `sprint_field_shown` × `sprint_selected` 축이 사후 관측을 맡는다. agile 두 호출도 페이지네이션하지 않으므로(보드 51개·스프린트 51개) 같은 계열의 무음 누락이 하나 더 있다.
+**R6. 목록 조회 실패를 전부 삼킨다(§1).** 네 원인이 하나의 증상으로 수렴한다 — ① 보드 목록 조회 실패(재연동 전 OAuth 사용자·만료 토큰) ② 보드 단위 400(스프린트 미지원 보드) ③ kanban 제외 후에도 보드가 5개를 넘을 때의 상한 밖 보드 ④ 보드 목록 1페이지(50) 초과. ④는 실재한다 — 실측 사이트의 **전체** 보드가 `total: 71`·`isLast: false`였다(단, `projectKeyOrId`로 좁히면 한 프로젝트 최대치는 15개였다). 사용자에겐 전부 "고를 스프린트가 없다"로 보이고 오류 문구는 뜨지 않는다. **의도된 선택이다**(PRD S2b) — 대가는 진단 불가이며, `sprint_field_shown` × `sprint_selected` 축이 사후 관측을 맡는다.
 
 **R7. 제출 시점 재해석이 판정과 어긋날 수 있다.** 패널이 meta를 본 뒤 제출까지 사이에 Jira 화면 구성이 바뀌거나 createmeta 조회가 실패하면(§1의 `.catch`) **사용자가 고른 스프린트가 조용히 빠진 채 이슈가 생성된다.** 창이 좁고 제출 전체 실패보다 낫다고 판단해 감수하지만, 무음 누락이라는 성격은 기록해 둔다.
 

@@ -18,7 +18,7 @@ Jira 제출 다이얼로그의 Jira 탭(`JiraIssueFields`)에는 이슈타입·�
 
 이 기능이 실제로 닿는 사용자는 **4중 교집합**이다:
 
-1. Jira를 쓰고, **2.** 스크럼 보드를 운용하며(칸반 전용이면 필드 자체가 없다), **3.** 등록 시점에 스프린트를 정하는 사람(백로그에 쌓아두고 플래닝에서 일괄 배정하는 팀은 해당 없음), **4.** 그 프로젝트+이슈타입의 create 화면에 스프린트 필드가 올라가 있는 사이트.
+1. Jira를 쓰고, **2.** 스프린트를 쓰는 보드를 운용하며(칸반 전용이면 필드 자체가 없다 — company-managed `scrum`과 team-managed `simple` 보드가 모두 해당하고, 후자도 스프린트를 반환하는 것이 실측됐다), **3.** 등록 시점에 스프린트를 정하는 사람(백로그에 쌓아두고 플래닝에서 일괄 배정하는 팀은 해당 없음), **4.** 그 프로젝트+이슈타입의 create 화면에 스프린트 필드가 올라가 있는 사이트.
 
 여기에 **OAuth 연동 사용자는 재연동 전까지 제외**된다(아래 §OAuth scope 정책). 수요 신호 0건에서 출발하는 기획이므로 사정거리를 먼저 적어둔다 — Task 0의 비용 대비 판단이 여기에 걸린다.
 
@@ -33,9 +33,11 @@ Jira 제출 다이얼로그의 Jira 탭(`JiraIssueFields`)에는 이슈타입·�
 
 선행 기획이 먼저 머지돼야 한다. 순서가 뒤집히면 이 문서의 §변경 범위 절반이 존재하지 않는 파일을 가리킨다.
 
-### OAuth scope 정책 (Task 0 결과에 따라 발동)
+### OAuth scope 정책 (발동 확정 — 2026-08-13 실측)
 
-agile API가 현재 classic scope(`read:jira-user`·`read:jira-work`·`write:jira-work`)로 커버되지 않으면 granular scope를 `SCOPES`에 추가한다. 다만 `refreshOAuthToken`은 갱신 요청에 `scope`를 싣지 않으므로 **기존 OAuth 사용자의 토큰은 새 scope를 얻지 못한다.**
+agile API는 classic scope로 덮이지 않는다(401 `scope does not match`). granular 3종을 `SCOPES`에 추가해야 하고, 그 조합은 **`read:board-scope:jira-software` + `read:project:jira` + `read:sprint:jira-software`** 다 — 가운데 것이 빠지면 나머지 둘이 있어도 여전히 401이다. classic 3종과의 혼용은 가능하다(동의 화면에 6종이 나란히 뜬다).
+
+다만 `refreshOAuthToken`은 갱신 요청에 `scope`를 싣지 않고 access token의 scope는 **동의 시점에 고정**되므로, **기존 OAuth 사용자의 토큰은 새 scope를 얻지 못한다.**
 
 정책은 **보수적**이다: 강제 재동의도, 연동 무효화도, 재연동 유도 UI도 만들지 않는다. 기존 사용자는 스스로 Jira를 다시 연동하는 시점에 이 기능을 얻고, 그 전까지는 스프린트 목록이 비어 보인다(오류 표시 없음 — design R6). API 토큰(Basic) 연동은 scope 개념이 없어 처음부터 정상 동작한다.
 

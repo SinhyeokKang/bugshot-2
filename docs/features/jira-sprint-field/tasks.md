@@ -5,6 +5,7 @@
 1. **`jira-project-switch` 구현이 main에 있어야 한다.** 문서가 아니라 **코드** 기준이다 — `tabs/jiraFields/project-change.ts`(`resolveProjectChange`)·`ProjectField.tsx`·`FieldCombobox`의 `ariaLabel`/`testId` prop·`EditorIssueFields.projectKey`가 실재해야 Task 5·7·8이 성립한다. (착수 시점에 그 기획이 아직 작업 트리에만 있으면 대기한다 — 같은 파일·같은 테스트를 고치므로 충돌한다.)
 2. **Jira 실계정 2개 이상의 프로젝트**: 스크럼 보드가 있는 프로젝트 1개(company-managed), 칸반 전용 또는 보드 없는 프로젝트 1개. 가능하면 team-managed 스크럼 프로젝트도. 보드가 2개 이상인 프로젝트가 있으면 `multiBoard` 경로까지 덮인다.
 3. **OAuth 연동과 API 토큰 연동 양쪽**: R1(scope)이 인증 방식에 따라 갈리므로 둘 다 필요하다.
+   - **Atlassian 콘솔 작업은 이미 끝났다**(2026-08-13): granular 3종을 앱에 추가해 뒀다. 코드 쪽 `SCOPES` 3줄 추가는 **Task 2와 함께 커밋**한다 — 기능 없이 먼저 넣으면 신규 사용자가 쓰지도 않는 권한에 동의하게 된다.
 4. **권한·manifest 변경 없음**을 전제로 시작한다. 새 host_permissions·optional permission이 필요 없고(`<all_urls>`가 이미 덮는다), manifest diff는 0이다. privacy 대조는 Task 10에서 판정한다(무변경 결론이어도 판단을 기록한다 — 심사 탈락 전례).
 5. Task 0을 통과하지 못하면 **Task 1 이후는 착수하지 않는다**(설계가 뒤집힌다).
 
@@ -22,14 +23,14 @@
      - *둘 다 거부되면*(객체 `{id:42}` 요구 등): `isArray` 분기가 무의미해지므로 design §1·R2를 다시 쓴다.
      - *`schema.type`이 `array`인데 스칼라만 통하면*: 분기 키를 신뢰할 수 없다는 뜻이므로 **스칼라 고정 + 실패 노출**로 간다(R2).
   4. ~~**`autoCompleteUrl` 실측**(A7)~~ — **기각 확정(2026-08-13).** sprint 필드 항목에 `autoCompleteUrl`이 아예 없다(`allowedValues`도 없음). createmeta는 존재·ID·타입만 답하고 값은 주지 않는다 → **agile API 우회로 없음**, 5의 갈림길을 건너뛸 수단이 사라졌다.
-  5. **OAuth scope**(R1) — **401 확정(2026-08-13).** 현재 classic 토큰으로 `GET /rest/agile/1.0/board?projectKeyOrId=…`가 `{"code":401,"message":"Unauthorized; scope does not match"}`. **남은 확인은 하나** — Atlassian 개발자 콘솔(Permissions → Jira API → Configure)에서 **classic scope를 유지한 채 granular `read:board-scope:jira-software`·`read:sprint:jira-software`를 추가할 수 있는지.**
-     - *혼용 가능*: `SCOPES`(`oauth.ts:25`)에 2종 추가(콘솔이 의존으로 `read:project:jira`를 요구하면 그것도) → **본인 계정 연동 해제 후 재연결** → board·sprint GET이 200인지 재확인. 기존 사용자는 각자 재연동 시점에 얻는다(강제 재동의·유도 UI 없음 — PRD §OAuth scope 정책).
-     - *혼용 불가*: 제품 scope 3개를 한꺼번에 옮겨야 하므로 **작업 중단 후 재기획.** 4가 닫혔으므로 우회로는 없다.
-  6. **칸반/보드 없음 거동** — 칸반 보드에 `board/{id}/sprint`를 호출했을 때의 status·body. 보드가 없는 프로젝트의 `board?projectKeyOrId=` 응답(빈 `values`인지 404인지). **5가 풀려야 측정 가능하다.**
+  5. ~~**OAuth scope**(R1)~~ — **해소(2026-08-13).** classic만으로는 401 `scope does not match`가 확정됐고, **classic 3종 + granular 3종 혼용이 가능**했다(동의 화면에 나란히 표시). 함정: `read:board-scope:jira-software`·`read:sprint:jira-software`만 넣으면 **여전히 401**이고 `read:project:jira`까지 넣어야 200이다(`GET /board`가 둘을 동시에 요구). `SCOPES`(`oauth.ts:25`)에 3종 추가 → 재빌드 → 연동 해제·재연결로 200 확인 완료.
+     - ⚠️ **확장을 `chrome://extensions`에서 새로고침하지 않으면 옛 SW 번들이 남아 동의 화면에 새 scope가 안 뜬다** — 실제로 한 번 헛다리를 짚었다.
+  6. ~~**칸반/보드 없음 거동**~~ — **완료(2026-08-13).** 칸반 보드 → **400** + `errorMessages: ["보드는 스프린트를 지원하지 않습니다."]`(**사용자 로케일로 번역돼 오므로 문자열 매칭 불가 — status로만 판정**). 보드가 없는(또는 스크럼 보드가 없는) 프로젝트 → **404가 아니라 200 + 빈 `values`**.
+  7. **team-managed 보드 — 설계 변경을 유발한 발견(2026-08-13).** team-managed 프로젝트 보드는 `type: "simple"`로 오고 **그중 일부가 스프린트를 정상 반환한다**(SRE·BMD·SBDATA → 200). 초안의 `?type=scrum` 서버 필터는 이들을 **무음 누락**시켰을 것이다 → design §1을 "필터 없이 받고 클라이언트에서 `type !== "kanban"` 제외"로 고쳤다. 실측: 한 프로젝트 보드 15개 중 kanban 13개 → 필터 후 2개. 사이트 전체는 `total: 71`·`isLast: false`(페이지 상한 실재).
 - **검증**:
-  - [x] 1·4 완료, 2 절반 완료, 5 절반 완료(401 확정) — 표 참조
-  - [ ] 2(team-managed)·3·6이 표에 기록됐다
-  - [ ] 5가 "혼용 불가"면 **작업 중단 후 재기획** — 4가 기각돼 우회로가 없다
+  - [x] 1·4·5·6·7 완료 — 표 참조. **차단 게이트는 해제됐다**(R1 해소)
+  - [x] 2 company-managed 완료 / **team-managed `schema.type`은 미측정**(보드는 확인됐으나 createmeta는 안 봤다)
+  - [ ] 3(create 수용 형식)이 표에 기록됐다 — **미검증으로 남길지 결정 필요**(§spike 잔여 참조)
   - [ ] 3의 결과로 `isArray` 분기를 유지할지(양쪽 다르면 유지, 한쪽으로 통일되면 상수 고정, 어긋나면 스칼라 고정) 판정됐다
   - [ ] **실측한 응답 body를 픽스처로 저장**해 Task 1·2의 단위 테스트에 그대로 넣는다 — spike 결과가 문서가 아니라 코드로 남아야 회귀 시 red가 된다
   - [ ] 확정값을 `jira-api.ts` 해당 함수 주석 + design R1·R2·R3에 반영한다
@@ -49,13 +50,14 @@
 ## Task 2: agile·createmeta 네트워크 함수 3개
 
 - **변경 대상**: `src/background/jira-api.ts`, `src/background/__tests__/jira-api.test.ts`
-- **작업 내용**: `getSprintFieldMeta`·`listSprints`·`getSprint` 추가. `listSprints`는 보드 목록에서 상위 `MAX_SPRINT_BOARDS`(5)개만 골라 `Promise.allSettled`로 팬아웃하고, **보드 단위 실패도 보드 목록 실패도 삼킨다**(`{sprints: [], multiBoard: false}`). `getSprint`는 404/403 → `null`. Task 0의 실측값(봉투 키·경로·필터)을 반영한다.
+- **작업 내용**: `getSprintFieldMeta`·`listSprints`·`getSprint` 추가. `listSprints`는 보드 목록에서 `type !== "kanban"`만 남긴 뒤 상위 `MAX_SPRINT_BOARDS`(5)개를 골라 `Promise.allSettled`로 팬아웃하고, **보드 단위 실패도 보드 목록 실패도 삼킨다**(`{sprints: [], multiBoard: false}`). `getSprint`는 404/403 → `null`. Task 0의 실측값(봉투 키·경로·필터)을 반영한다.
   - **먼저 목 헬퍼를 만든다**: 기존 헬퍼(`jira-api.test.ts`)는 `vi.fn().mockResolvedValue(...)` **단일 응답**이라 URL별 분기가 없다. 이 태스크와 Task 4가 둘 다 URL 라우팅을 요구하므로 `mockFetchByUrl(routes)` 형태의 헬퍼를 추가하고 기존 `vi.unstubAllGlobals()` afterEach를 재사용한다.
 - **검증**:
   - [ ] `pnpm typecheck` 통과
-  - [ ] 보드 2개 중 1개가 400 → 나머지 보드 스프린트만 반환, throw 없음
+  - [ ] 보드 2개 중 1개가 400 → 나머지 보드 스프린트만 반환, throw 없음 (실측: 칸반·미지원 보드가 400을 준다)
   - [ ] 보드 목록 자체가 403 → `{sprints: [], multiBoard: false}`, throw 없음 (재연동 전 OAuth 사용자 경로)
-  - [ ] 보드 7개 → **fetch가 board 1회 + sprint 5회, 총 6회**(상한 적용)
+  - [ ] `type: "kanban"` 보드는 **fetch 자체를 안 한다**; `"scrum"`·`"simple"`은 호출한다 (team-managed 누락 방지 — Task 0 항목 7)
+  - [ ] kanban 제외 후 보드 7개 → **fetch가 board 1회 + sprint 5회, 총 6회**(상한 적용)
   - [ ] `getSprint` 404 → `null`(throw 아님)
   - [ ] Task 0 픽스처로 `getSprintFieldMeta`가 실제 응답에서 `fieldId`를 뽑아낸다
 
@@ -238,11 +240,21 @@ Task 0 (차단 게이트 — 사용자가 직접 수행)
 | createmeta 응답 `total` / 서버 적용 `maxResults` | `total: 21` / `maxResults: 200` 존중(자체 캡 없음) | 2026-08-13 |
 | sprint `schema.type` (company-managed) | `fieldId: "customfield_10020"`, `type: "array"` | 2026-08-13 |
 | sprint `schema.type` (team-managed) | 미측정 | |
-| create 수용 형식 (스칼라 / 배열 / 양쪽) | 미측정 — 이슈 생성 필요, 스프린트 id가 scope에 막혀 있다 | |
+| create 수용 형식 (스칼라 / 배열 / 양쪽) | **미측정** — 실제 이슈 생성이 필요하고, 스프린트가 있는 프로젝트가 회사 실 프로젝트뿐 | |
 | `autoCompleteUrl` 값·응답 모양·필터 파라미터 (A7) | **없음**(`undefined`) → A7 기각, 우회로 소멸 | 2026-08-13 |
 | OAuth classic scope로 agile GET 가능 여부 | **불가** — 401 `Unauthorized; scope does not match` | 2026-08-13 |
-| (실패 시) classic ↔ granular 혼용 가능 여부 | 미확인 — **현재 유일한 차단 항목** | |
-| 칸반 보드 `board/{id}/sprint` 응답 | 미측정(scope 대기) | |
-| 보드 없는 프로젝트 `board?projectKeyOrId=` 응답 | 미측정(scope 대기) | |
+| classic ↔ granular 혼용 가능 여부 | **가능** — 동의 화면에 6종 동시 표시 | 2026-08-13 |
+| agile GET에 필요한 granular 조합 | `read:board-scope:jira-software` + **`read:project:jira`** + `read:sprint:jira-software`. 가운데 것이 빠지면 **여전히 401** | 2026-08-13 |
+| 칸반 보드 `board/{id}/sprint` 응답 | **400** + 로케일 번역된 `errorMessages` → status로만 판정 | 2026-08-13 |
+| 보드 없는 프로젝트 `board?projectKeyOrId=` 응답 | **200 + 빈 `values`**(404 아님) | 2026-08-13 |
+| team-managed 보드 type / 스프린트 반환 | `type: "simple"`, **일부가 스프린트를 정상 반환** → `type=scrum` 서버 필터 폐기 | 2026-08-13 |
+| 보드 페이지네이션 | 사이트 전체 `total: 71`·`isLast: false`(1페이지 50). 한 프로젝트 최대 15개 관측 | 2026-08-13 |
 
-측정 환경: cloudId `5c399437-…`, 프로젝트 `FCLXP`, 이슈타입 `버그`, OAuth 연동.
+측정 환경: cloudId `5c399437-…`, createmeta는 프로젝트 `FCLXP`·이슈타입 `버그`, 보드/스프린트는 사이트 전역, OAuth 연동.
+
+### spike 잔여 (구현 착수를 막지는 않는다)
+
+**create 수용 형식(항목 3)만 열려 있다.** 측정하려면 스프린트가 실재하는 프로젝트에 테스트 이슈를 만들었다 지워야 하는데, 그런 프로젝트가 전부 회사 실 프로젝트다. 두 선택지:
+
+- **측정 후 확정** — 스프린트가 있는 프로젝트(예: 연습용 스프린트가 있는 보드)에 이슈를 만들어 스칼라·배열을 각각 시도하고 즉시 삭제.
+- **`schema.type: "array"`를 신뢰하고 배열로 구현**(권장) — 틀려도 제출이 400으로 **즉시 드러나고** 무음으로 잘못 저장되지 않는다. 첫 실사용이 곧 검증이며, Task 4의 `isArray` 분기는 그대로 둔다(team-managed에서 값이 다를 수 있으므로 분기 자체는 필요하다).
