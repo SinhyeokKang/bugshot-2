@@ -36,6 +36,29 @@
 
 ---
 
+## 2026-08-13 — 분석 축 하나를 훅으로 "구독"했더니, 미리보기를 여는 것만으로 Jira 요청이 나가고 무관한 사용자에게 재로그인 안내가 떴다
+
+- **영역**: `컴포넌트`
+- **계열**: `라이브러리전제`
+- **그물**: `jsdom`
+- **증상**: Jira를 연동해 둔 사용자가 **이슈 미리보기를 열기만 해도** `GET /rest/api/3/issue/createmeta/…`가 나간다. 제출 다이얼로그를 연 적이 없어도, GitHub·Slack으로만 제출하는 사용자여도 마찬가지다. 토큰이 만료된 상태면 그 401이 전역 **"Jira 인증이 만료되었습니다"** 모달까지 띄운다 — 사용자는 Jira를 건드린 적이 없는데 재로그인을 요구받는다.
+- **근본 원인**: 제출 시점에 **한 번 읽으면 되는 값**(`sprint_field_shown` 분석 축)에 조회 훅을 붙였다. 훅은 값을 읽는 게 아니라 **구독**하므로, 그 부수효과(네트워크 요청)가 컴포넌트 렌더 수명 전체로 퍼진다. 그 위에 두 전제가 겹쳐 폭이 커졌다 — ① `SubmitFieldsDialog`는 `<Dialog open={open}>` 형태라 **닫혀 있어도 함수 본문(=훅)이 매 렌더 실행**되고, 부모 `IssueCreateModal`은 미리보기 패널에서 **상시 마운트**다 ② 훅에 플랫폼 게이트가 없어 `platform !== "jira"`에서도 돌았다. 결정타는 실패 경로다: `jira.*` 읽기 메시지의 401은 `serializeOAuthError`가 `oauthRefreshFailed`를 실어 `sendBg`가 **reject 이전에 `onOAuthExpired`를 전역 발화**시키므로, 훅의 `.catch(() => {})`로는 막을 수 없다. 즉 "값 하나 읽기"가 조용한 요청 하나가 아니라 **다른 플랫폼 사용자에게 뜨는 모달**로 끝났다.
+- **재발 방지**: (1) **제출·전송 시점에 한 번 필요한 값은 훅으로 구독하지 말고 동기 조회 함수로 읽는다** — 캐시가 이미 있으면 `peek*` 형태로 노출한다(`peekSprintFieldMeta`). 판별 질문은 "이 값이 렌더에 영향을 주나?"이고, 답이 아니오면 훅이 아니다. `grep -rn "use[A-Z].*(" src/sidepanel/tabs/SubmitFieldsDialog.tsx`로 제출 다이얼로그가 구독하는 훅을 전수하고, 각각 **닫힌 상태에서도 요청을 내는지** 확인한다. (2) **`open` prop을 받는 다이얼로그 컴포넌트는 닫혀 있어도 본문이 돈다** — 마운트 여부와 열림 여부를 혼동하지 말 것. `grep -rn "open={.*}" src/sidepanel/tabs/*.tsx | grep -i dialog`로 상시 마운트 다이얼로그를 훑는다. (3) **플랫폼 전용 조회에는 플랫폼 게이트를 붙인다** — 8개 어댑터 중 하나의 요청이 나머지 7개 사용자에게 새면 증상이 그 플랫폼과 무관한 자리에서 나타난다. (4) 그물: `useSprintFieldMeta.test.tsx`의 "peek은 캐시만 읽고 요청하지 않는다". 다만 **"컴포넌트가 훅을 구독한다"는 훅 테스트로는 못 잡는다** — `SubmitFieldsDialog` 렌더 테스트가 없어서 4관점 자체 검증(4명 전원 🔴)이 유일한 발견 경로였다. 같은 계열 401→전역 안내 오발화는 아래 e2e 회고와 같은 뿌리다.
+- **관련**: `src/sidepanel/tabs/SubmitFieldsDialog.tsx`(`handleSubmit`의 `sprintFieldShown`), `src/sidepanel/tabs/jiraFields/useSprintFieldMeta.ts`(`peekSprintFieldMeta` — 캐시 키 조립을 훅과 공유), `src/types/messages.ts:sendBg`(`isOAuthRefreshFailed` → `onOAuthExpired.fire`), 그물 `src/sidepanel/tabs/jiraFields/__tests__/useSprintFieldMeta.test.tsx`.
+
+---
+
+## 2026-08-13 — 가짜 토큰을 seed한 e2e에서 스파이가 앱 부팅보다 늦어, 401이 띄운 전역 모달이 이후 모든 클릭을 삼켰다
+
+- **영역**: `e2e`
+- **계열**: `라이브러리전제`
+- **그물**: `e2e`
+- **증상**: 새 spec의 **두 번째 케이스부터** 60초 타임아웃. 실패 지점이 `enterDebug` → `mode-freeform` → `to-preview`로 실행할 때마다 옮겨 다녀 클릭 대상 쪽을 아무리 봐도 원인이 안 보였다. 첫 케이스만 green이라 "패널을 여러 개 열어서 그런가" 쪽으로 세 번 헛다리를 짚었다(탭 분리·`bringToFront`·앞 케이스 탭 닫기 — 전부 증상을 옮기기만 했다).
+- **근본 원인**: 진짜 원인은 클릭이 아니라 **오버레이**였다. 앞 케이스가 이슈를 하나 남기면 다음 패널이 부팅될 때 이슈 목록의 상태 뱃지가 즉시 `jira.getIssueStatus`를 쏘는데, `openPanel`(goto) **뒤에** `page.evaluate`로 심은 스파이는 그때 아직 없다. 그래서 그 요청만 진짜 background로 나가 seed한 가짜 토큰이 401을 받고 → `onOAuthExpired` → 전역 "인증이 만료되었습니다" 다이얼로그 → 그 `fixed inset-0 z-50` 오버레이가 이후 **모든** 클릭을 `intercepts pointer events`로 가로챘다. 첫 케이스가 green이었던 건 그때는 남은 이슈가 없어 뱃지 조회 자체가 없었기 때문이다. `page.evaluate`가 "페이지가 로드된 뒤"에 도는 건 자명한데, **앱 부팅 시 자동으로 나가는 요청**이 있다는 걸 전제에서 빠뜨렸다.
+- **재발 방지**: (1) **가짜 자격증명을 storage seed하는 spec은 스파이를 `addInitScript` + `reload`로 심는다** — `page.evaluate`는 부팅 시 자동 발사되는 요청(상태 뱃지·목록 새로고침)을 놓치고, 그 하나가 401이면 전역 모달이 뜬다. `grep -rn "openPanel" e2e/*.spec.ts | xargs -I{} grep -l "evaluate.*sendMessage" ` 류로 seed+evaluate 조합을 전수하고, 각 spec이 `*.getIssueStatus`·목록 조회까지 fake 목록에 넣었는지 확인한다. (2) **"클릭이 타임아웃"의 원인을 클릭 대상에서 찾지 마라** — actionability 로그의 `intercepts pointer events` 줄이 범인을 이미 말하고 있다. 진단은 `document.querySelectorAll("body > *")`를 덤프해 **열린 레이어의 텍스트를 읽는 것**이 가장 빠르다. `[role=dialog]` 조회는 **시점이 어긋나면 빈 배열**이 나와(레이어가 나중에 열린다) 두 번 오판하게 만들었다. (3) 곁들여 밟은 것: 케이스마다 탭을 가르면 뒤에 연 패널이 **배경 탭이라 rAF가 throttle**돼 Playwright 안정성 검사(연속 두 프레임 bbox 일치)가 끝나지 않는다 — `openPanel` 직후 `bringToFront()`(`pickElement`가 같은 이유로 이미 그렇게 한다). (4) 상세는 `e2e/GOTCHAS.md`에 두 항목으로 박았다.
+- **관련**: `e2e/jira-sprint-field.spec.ts`(`spySendMessage`가 `addInitScript`, `openOn`의 `bringToFront`), `e2e/GOTCHAS.md`, `src/types/messages.ts:sendBg`(401→`onOAuthExpired` 레인 — 위 회고와 같은 뿌리).
+
+
 ## 2026-08-13 — 로딩 고착을 고치려 effect deps에서 뺀 값이, 같은 가드를 stale closure로 만들어 재조회를 없앴다 (한 줄 수정이 증상만 옮김)
 
 - **영역**: `컴포넌트`
