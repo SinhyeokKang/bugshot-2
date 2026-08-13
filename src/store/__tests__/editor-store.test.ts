@@ -60,21 +60,15 @@ const settingsState = vi.hoisted(() => ({
 }));
 settingsState.current = { lastSubmitFields: {}, accounts: {} };
 
-vi.mock("@/store/settings-store", () => ({
-  useSettingsStore: {
-    getState: () => settingsState.current,
-  },
-  // confirmDraft가 initialJiraFields에 넘기는 현재 사이트 id의 출처. 실물과 같은 규칙으로 둔다
-  // (oauth는 cloudId, apiKey는 baseUrl hostname).
-  jiraSiteId: (auth: { kind: string; cloudId?: string; baseUrl?: string }) => {
-    if (auth.kind === "oauth") return auth.cloudId;
-    try {
-      return new URL(auth.baseUrl ?? "").hostname;
-    } catch {
-      return auth.baseUrl;
-    }
-  },
-}));
+// getState만 갈아끼우고 나머지는 실물을 그대로 쓴다 — confirmDraft가 쓰는 jiraSiteId를 손으로
+// 다시 구현하면 실제 규칙(oauth=cloudId / apiKey=baseUrl hostname)이 바뀌어도 이 테스트가 무음이 된다.
+vi.mock("@/store/settings-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/store/settings-store")>();
+  return {
+    ...actual,
+    useSettingsStore: { getState: () => settingsState.current },
+  };
+});
 
 vi.mock("@/store/blob-db", () => ({
   saveVideoBlob: vi.fn().mockResolvedValue(true),

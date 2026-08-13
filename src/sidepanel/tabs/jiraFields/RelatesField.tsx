@@ -24,7 +24,7 @@ export function RelatesField({
   onChange: (next: RelatesValue[]) => void;
 }) {
   const t = useT();
-  // useJiraConfig는 조회 스코프가 아니라 "연동 완료" 게이트로만 남는다 (EpicField와 동일).
+  // 조회 스코프는 prop, 이 훅은 null 여부만 본다 (EpicField의 주의사항과 동일).
   const jira = useJiraConfig();
   const [open, setOpen] = useState(false);
 

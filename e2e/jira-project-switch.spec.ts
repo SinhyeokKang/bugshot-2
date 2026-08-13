@@ -41,8 +41,9 @@ function envelope(lastJira?: Record<string, unknown>) {
 // 프로젝트별 이슈타입이 갈려야 "전환 후 B의 목록이 온다"를 판정할 수 있다.
 async function spySendMessage(panel: Page) {
   await panel.evaluate((jiraUrl) => {
-    const w = window as unknown as { __jiraSubmits?: unknown[] };
+    const w = window as unknown as { __jiraSubmits?: unknown[]; __analytics?: unknown[] };
     w.__jiraSubmits = [];
+    w.__analytics = [];
     const orig = chrome.runtime.sendMessage.bind(chrome.runtime);
     chrome.runtime.sendMessage = ((
       msg: { type?: string; query?: string; projectKey?: string },
@@ -73,6 +74,11 @@ async function spySendMessage(panel: Page) {
           (msg as unknown as { payload?: unknown }).payload,
         );
         cb?.({ ok: true, result: { key: "API-1", url: jiraUrl } });
+        return;
+      }
+      if (msg?.type === "analytics.capture") {
+        (w.__analytics as unknown[]).push(msg);
+        cb?.({ ok: true, result: undefined });
         return;
       }
       return orig(msg as never, cb as never);
@@ -187,6 +193,22 @@ test.describe.serial("Jira 프로젝트 제출 시 전환", () => {
 
     // 연동 탭 UI를 열어 판정하지 않는다 — SetupDialog 자동 오픈 같은 부작용이 낀다.
     await expect.poll(() => accountProjectKey(panel)).toBe("WEB");
+
+    // 채택 지표. 계산식이 뒤집혀도 유닛은 순수 포맷터만 보므로 여기서 값까지 고정한다.
+    await expect
+      .poll(() =>
+        panel.evaluate(
+          () =>
+            (
+              (window as unknown as {
+                __analytics?: { event?: string; properties?: Record<string, string> }[];
+              }).__analytics ?? []
+            )
+              .filter((m) => m.event === "issue_submitted")
+              .map((m) => m.properties?.project_overridden),
+        ),
+      )
+      .toContain("true");
 
     // sticky의 입력. siteId가 빠지면 sameSite 게이트가 다음 업데이트에서 무음으로 사라진다.
     await expect.poll(() => lastSubmitJira(panel)).toMatchObject({

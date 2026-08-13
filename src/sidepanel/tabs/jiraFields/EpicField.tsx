@@ -23,8 +23,9 @@ export function EpicField({
   hierarchyLevels?: number[];
 }) {
   const t = useT();
-  // useJiraConfig는 조회 스코프가 아니라 "연동 완료" 게이트로만 남는다 — 스코프는 이번 제출의
-  // 프로젝트(prop)다.
+  // 조회 스코프는 이번 제출의 프로젝트(prop)이고, 이 훅은 null 여부만 본다(반환 payload는 안 쓴다).
+  // 다만 그 null 판정이 auth뿐 아니라 **계정 기본 projectKey**도 요구한다는 점에 주의 —
+  // isJiraAccountComplete가 완화되면 여기가 무음으로 빈 목록이 된다.
   const jira = useJiraConfig();
   const [open, setOpen] = useState(false);
 

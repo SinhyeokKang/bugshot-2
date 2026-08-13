@@ -33,6 +33,18 @@ export function JiraIssueFields({
     if (!fields.projectKey && accountProjectKey) onChange({ projectKey: accountProjectKey });
   }, [fields.projectKey, accountProjectKey, onChange]);
 
+  // 잠금 단서가 프로젝트 *변경* 시점에만 걸리면, 잠긴 채로 **열리는** 경로엔 아무 단서가 없다 —
+  // 직전 제출이 계정 기본이 아닌 프로젝트였고 그 레코드에 이슈타입이 없으면(업데이트 이전 레코드가
+  // 전부 그렇다) 다이얼로그가 열리자마자 제출 버튼이 잠긴다. 계정 기본 프로젝트는 제외한다 —
+  // 거기선 IssueTypeField가 기본 이슈타입을 곧바로 채우므로 열어봐야 이미 고른 상태다.
+  const entryCueDone = useRef(false);
+  useEffect(() => {
+    if (entryCueDone.current) return;
+    if (!projectKey || fields.issueTypeId || projectKey === accountProjectKey) return;
+    entryCueDone.current = true;
+    setIssueTypeOpen(true);
+  }, [projectKey, fields.issueTypeId, accountProjectKey]);
+
   const handleIssueTypeChange = useCallback(
     (id: string, hierarchyLevel?: number) => {
       const epic = hierarchyLevel != null && hierarchyLevel >= 1;

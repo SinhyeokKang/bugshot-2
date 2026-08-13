@@ -136,8 +136,10 @@ test.describe.serial("Jira 프로젝트 sticky 복원", () => {
     await openSubmitDialog(panel, "Jira project sticky e2e");
 
     await expect(projectCombo(panel)).toContainText("API");
-    // 직전 제출 이슈타입까지 함께 복원돼 바로 제출 가능하다. 계정 기본 프로젝트(WEB)가 아니므로
-    // 계정 기본 이슈타입 Bug가 대신 채워지면 안 된다 — 그 프로젝트에 없는 값이라 400이 난다.
+    // 직전 제출 이슈타입까지 함께 복원돼 바로 제출 가능하다.
     await expect(panel.getByTestId("submit-issue-confirm")).toBeEnabled();
+    // enabled만으로는 *복원된 20001*과 *주입된 계정 기본 10001*을 구별하지 못한다 — R2 가드를
+    // 지우면 트리거 라벨이 "Bug"로 뜨므로 거기서 갈린다.
+    await expect(panel.getByTestId("jira-issue-type-combobox")).not.toContainText("Bug");
   });
 });

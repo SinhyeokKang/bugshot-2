@@ -91,6 +91,7 @@ export function IssueTypeField({
       searchPlaceholder={t("field.issueType.search")}
       emptyMessage={t("field.issueType.empty")}
       label={selected?.name ?? (effectiveValue ? defaultName : undefined)}
+      testId="jira-issue-type-combobox"
     >
       {items.map((it) => (
         <CommandItem
