@@ -1,31 +1,31 @@
 {
-  "generatedAt": "2026-08-13T01:10:36.991Z",
+  "generatedAt": "2026-08-13T05:25:18.644Z",
   "logic": {
-    "covered": 19700,
-    "total": 24017,
-    "pct": 82.0252321272432
+    "covered": 19754,
+    "total": 24063,
+    "pct": 82.09283962930641
   },
   "global": {
     "lines": {
-      "covered": 25561,
-      "total": 54119,
-      "pct": 47.23
+      "covered": 26029,
+      "total": 54324,
+      "pct": 47.91
     },
     "branches": {
-      "covered": 7698,
-      "total": 8824,
-      "pct": 87.23
+      "covered": 7819,
+      "total": 8957,
+      "pct": 87.29
     },
     "functions": {
-      "covered": 1473,
-      "total": 2220,
-      "pct": 66.35
+      "covered": 1486,
+      "total": 2236,
+      "pct": 66.45
     }
   },
   "files": {
     "src/background/analytics.ts": {
-      "covered": 68,
-      "total": 104
+      "covered": 75,
+      "total": 111
     },
     "src/background/asana-api.ts": {
       "covered": 110,
@@ -720,7 +720,7 @@
       "total": 20
     },
     "src/sidepanel/components/FieldRow.tsx": {
-      "covered": 2,
+      "covered": 17,
       "total": 17
     },
     "src/sidepanel/components/HighlightedText.tsx": {
@@ -1176,8 +1176,8 @@
       "total": 3
     },
     "src/sidepanel/lib/initialJiraFields.ts": {
-      "covered": 15,
-      "total": 15
+      "covered": 19,
+      "total": 19
     },
     "src/sidepanel/lib/inlineImageAnnotation.ts": {
       "covered": 20,
@@ -1348,8 +1348,8 @@
       "total": 7
     },
     "src/sidepanel/lib/track-submit.ts": {
-      "covered": 36,
-      "total": 36
+      "covered": 46,
+      "total": 46
     },
     "src/sidepanel/lib/trackViewport.ts": {
       "covered": 9,
@@ -1445,7 +1445,7 @@
     },
     "src/sidepanel/tabs/DraftDetailDialog.tsx": {
       "covered": 0,
-      "total": 1040
+      "total": 1049
     },
     "src/sidepanel/tabs/DraftEditDialog.tsx": {
       "covered": 0,
@@ -1461,7 +1461,7 @@
     },
     "src/sidepanel/tabs/IssueCreateModal.tsx": {
       "covered": 2,
-      "total": 529
+      "total": 532
     },
     "src/sidepanel/tabs/IssueListTab.tsx": {
       "covered": 0,
@@ -1505,7 +1505,7 @@
     },
     "src/sidepanel/tabs/SubmitFieldsDialog.tsx": {
       "covered": 22,
-      "total": 230
+      "total": 248
     },
     "src/sidepanel/tabs/TrimTimeline.tsx": {
       "covered": 0,
@@ -1652,43 +1652,51 @@
       "total": 113
     },
     "src/sidepanel/tabs/jiraFields/CcField.tsx": {
-      "covered": 2,
+      "covered": 31,
       "total": 56
     },
     "src/sidepanel/tabs/jiraFields/EpicField.tsx": {
-      "covered": 2,
-      "total": 71
+      "covered": 40,
+      "total": 72
     },
     "src/sidepanel/tabs/jiraFields/FieldCombobox.tsx": {
-      "covered": 71,
-      "total": 77
+      "covered": 80,
+      "total": 83
     },
     "src/sidepanel/tabs/jiraFields/IssueTypeField.tsx": {
-      "covered": 2,
-      "total": 75
+      "covered": 82,
+      "total": 84
     },
     "src/sidepanel/tabs/jiraFields/JiraIssueFields.tsx": {
-      "covered": 2,
-      "total": 63
+      "covered": 108,
+      "total": 108
     },
     "src/sidepanel/tabs/jiraFields/PriorityField.tsx": {
-      "covered": 2,
+      "covered": 35,
       "total": 66
     },
+    "src/sidepanel/tabs/jiraFields/ProjectField.tsx": {
+      "covered": 67,
+      "total": 67
+    },
     "src/sidepanel/tabs/jiraFields/RelatesField.tsx": {
-      "covered": 2,
-      "total": 54
+      "covered": 39,
+      "total": 55
+    },
+    "src/sidepanel/tabs/jiraFields/project-change.ts": {
+      "covered": 15,
+      "total": 15
     },
     "src/sidepanel/tabs/jiraFields/resolve-epic-parent.ts": {
       "covered": 19,
       "total": 19
     },
     "src/sidepanel/tabs/jiraFields/useDebouncedSearch.ts": {
-      "covered": 31,
+      "covered": 33,
       "total": 33
     },
     "src/sidepanel/tabs/jiraFields/useJiraConfig.ts": {
-      "covered": 2,
+      "covered": 8,
       "total": 8
     },
     "src/sidepanel/tabs/linearFields/AssigneeCombobox.tsx": {
@@ -1944,8 +1952,8 @@
       "total": 34
     },
     "src/store/editor-store.ts": {
-      "covered": 680,
-      "total": 754
+      "covered": 690,
+      "total": 764
     },
     "src/store/issues-migrations.ts": {
       "covered": 6,
