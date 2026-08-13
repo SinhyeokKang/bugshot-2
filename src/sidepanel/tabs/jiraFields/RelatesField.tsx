@@ -16,25 +16,28 @@ interface RelatesValue {
 
 export function RelatesField({
   value,
+  projectKey,
   onChange,
 }: {
   value: RelatesValue[];
+  projectKey?: string;
   onChange: (next: RelatesValue[]) => void;
 }) {
   const t = useT();
+  // 조회 스코프는 prop, 이 훅은 null 여부만 본다 (EpicField의 주의사항과 동일).
   const jira = useJiraConfig();
   const [open, setOpen] = useState(false);
 
   const fetchIssues = useCallback(
     (query: string) => {
-      if (!jira) return Promise.resolve([]);
+      if (!jira || !projectKey) return Promise.resolve([]);
       return sendBg<JiraIssueSummary[]>({
         type: "jira.searchEpics",
-        projectKey: jira.projectKey,
+        projectKey,
         query: query || undefined,
       });
     },
-    [jira],
+    [jira, projectKey],
   );
 
   const { items, loading, error, search } = useDebouncedSearch(fetchIssues);

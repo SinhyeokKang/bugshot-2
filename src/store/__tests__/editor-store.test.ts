@@ -60,11 +60,15 @@ const settingsState = vi.hoisted(() => ({
 }));
 settingsState.current = { lastSubmitFields: {}, accounts: {} };
 
-vi.mock("@/store/settings-store", () => ({
-  useSettingsStore: {
-    getState: () => settingsState.current,
-  },
-}));
+// getState만 갈아끼우고 나머지는 실물을 그대로 쓴다 — confirmDraft가 쓰는 jiraSiteId를 손으로
+// 다시 구현하면 실제 규칙(oauth=cloudId / apiKey=baseUrl hostname)이 바뀌어도 이 테스트가 무음이 된다.
+vi.mock("@/store/settings-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/store/settings-store")>();
+  return {
+    ...actual,
+    useSettingsStore: { getState: () => settingsState.current },
+  };
+});
 
 vi.mock("@/store/blob-db", () => ({
   saveVideoBlob: vi.fn().mockResolvedValue(true),
@@ -1668,9 +1672,9 @@ describe("annotationTool/Color/Thickness — 녹화 그리기 툴바 상태", ()
 /*  confirmDraft jira — 기본 담당자 prefill                            */
 /* ------------------------------------------------------------------ */
 
-// 담당자는 "직전 제출값 우선, 없으면 Connect 기본값"이다(POSTMORTEM 2026-06-27: defaults가 last를
-// 가리면 안 된다). last 복원 게이트(사용자가 이미 고른 값 보호)가 이 우선순위를 뒤집으면
-// 조용히 *다른 사람*이 담당자로 붙는다.
+// 담당자는 "직전 제출값 우선, 없으면 Connect 기본값"이다(POSTMORTEM 2026-06-30: 제출 목적지 필드는
+// last 우선, defaults는 fallback). last 복원 게이트(사용자가 이미 고른 값 보호)가 이 우선순위를
+// 뒤집으면 조용히 *다른 사람*이 담당자로 붙는다.
 describe("confirmDraft jira — 기본 담당자 prefill", () => {
   beforeEach(() => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);
@@ -1740,10 +1744,111 @@ describe("confirmDraft jira — 기본 담당자 prefill", () => {
     expect(useEditorStore.getState().issueFields.assigneeId).toBe("picked");
   });
 
-  it("issueFields에 projectKey가 새지 않는다 (EditorIssueFields에 없는 키 — 세션 영속 오염)", () => {
-    seedJira({ projectKey: "ENG", assigneeId: "lastUser" }, { projectKey: "ENG" });
+  // 프로젝트가 제출 목적지 필드로 승격되면서 세션 영속이 **의도된 동작**이 됐다
+  // (이전 계약은 정반대 — "projectKey가 issueFields로 새면 안 된다").
+  it("직전 제출 프로젝트를 issueFields.projectKey로 복원한다", () => {
+    seedJira({ projectKey: "API", assigneeId: "lastUser" }, { projectKey: "ENG" });
     useEditorStore.getState().confirmDraft();
-    expect(useEditorStore.getState().issueFields).not.toHaveProperty("projectKey");
+    expect(useEditorStore.getState().issueFields.projectKey).toBe("API");
+  });
+
+  it("직전 제출이 없으면 계정 기본 프로젝트로 연다", () => {
+    seedJira({}, { projectKey: "ENG" });
+    useEditorStore.getState().confirmDraft();
+    expect(useEditorStore.getState().issueFields.projectKey).toBe("ENG");
+  });
+
+  // 3번째 인자가 optional이라 빠뜨려도 typecheck·test가 green이고 sameSite 게이트만
+  // 무음 no-op이 된다 — 그래서 전달 사실을 동작으로 못박는다.
+  it("confirmDraft가 현재 사이트 id를 넘긴다 (다른 사이트의 직전 제출값은 버려진다)", () => {
+    seedJira(
+      { projectKey: "API", siteId: "other-cloud", assigneeId: "lastUser", assigneeName: "Last" },
+      { projectKey: "ENG", auth: { kind: "oauth", cloudId: "cloud-1" } },
+    );
+
+    useEditorStore.getState().confirmDraft();
+
+    const fields = useEditorStore.getState().issueFields;
+    expect(fields.projectKey).toBe("ENG");
+    expect(fields.assigneeId).toBeUndefined();
+  });
+
+  it("같은 사이트의 직전 제출값이면 복원한다", () => {
+    seedJira(
+      { projectKey: "API", siteId: "cloud-1" },
+      { projectKey: "ENG", auth: { kind: "oauth", cloudId: "cloud-1" } },
+    );
+    useEditorStore.getState().confirmDraft();
+    expect(useEditorStore.getState().issueFields.projectKey).toBe("API");
+  });
+
+  // restorable 게이트의 조건은 담당자·우선순위이지 프로젝트가 아니다.
+  // 이 예외가 없으면 담당자를 한 번이라도 고른 세션에서 sticky가 성립하지 않는다.
+  it("restorable=false여도 projectKey는 복원한다", () => {
+    seedJira({ projectKey: "API" }, { projectKey: "ENG" });
+    useEditorStore.setState({ issueFields: { assigneeId: "picked", assigneeName: "Picked" } });
+
+    useEditorStore.getState().confirmDraft();
+
+    const fields = useEditorStore.getState().issueFields;
+    expect(fields.projectKey).toBe("API");
+    expect(fields.assigneeId).toBe("picked");
+  });
+
+  it("세션에서 이미 고른 프로젝트는 직전 제출 프로젝트가 덮지 않는다", () => {
+    seedJira({ projectKey: "API" }, { projectKey: "ENG" });
+    useEditorStore.setState({ issueFields: { projectKey: "WEB" } });
+
+    useEditorStore.getState().confirmDraft();
+
+    expect(useEditorStore.getState().issueFields.projectKey).toBe("WEB");
+  });
+
+  // 담당자 백필은 게이트 밖 특례라 프로젝트 정합을 스스로 확인해야 한다.
+  // 없으면 다른 프로젝트의 담당자가 주입된다(R2의 담당자판).
+  it("세션 프로젝트와 init 프로젝트가 다르면 담당자 백필이 일어나지 않는다", () => {
+    seedJira(
+      { projectKey: "API", assigneeId: "lastUser", assigneeName: "Last" },
+      { projectKey: "ENG" },
+    );
+    useEditorStore.setState({ issueFields: { projectKey: "WEB", priorityId: "3" } });
+
+    useEditorStore.getState().confirmDraft();
+
+    const fields = useEditorStore.getState().issueFields;
+    expect(fields.projectKey).toBe("WEB");
+    expect(fields.assigneeId).toBeUndefined();
+  });
+
+  // 프로젝트가 필드로 승격되기 전에 저장된 세션은 issueTypeId만 들고 있고, 그 값은 계정 기본
+  // 프로젝트의 것이다. 여기에 직전 제출 프로젝트를 얹으면 짝이 어긋나 제출이 400으로 죽는다.
+  it("세션에 projectKey 없이 issueTypeId만 있으면 직전 제출 프로젝트를 얹지 않는다", () => {
+    seedJira(
+      { projectKey: "API", assigneeId: "lastUser" },
+      { projectKey: "ENG", issueTypeId: "10001" },
+    );
+    useEditorStore.setState({ issueFields: { issueTypeId: "10001" } });
+
+    useEditorStore.getState().confirmDraft();
+
+    const fields = useEditorStore.getState().issueFields;
+    expect(fields.projectKey).toBeUndefined();
+    expect(fields.issueTypeId).toBe("10001");
+    expect(fields.assigneeId).toBeUndefined();
+  });
+
+  it("세션 프로젝트와 init 프로젝트가 같으면 담당자 백필이 유지된다", () => {
+    seedJira(
+      { projectKey: "API", assigneeId: "lastUser", assigneeName: "Last" },
+      { projectKey: "ENG" },
+    );
+    useEditorStore.setState({ issueFields: { projectKey: "API", priorityId: "3" } });
+
+    useEditorStore.getState().confirmDraft();
+
+    const fields = useEditorStore.getState().issueFields;
+    expect(fields.assigneeId).toBe("lastUser");
+    expect(fields.assigneeName).toBe("Last");
   });
 });
 

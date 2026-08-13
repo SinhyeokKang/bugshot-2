@@ -160,7 +160,10 @@ export function IssueCreateModal() {
     inlineImages: InlineImageInput[],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
-    if (!jiraAccount?.auth || !jiraAccount.projectKey) {
+    // 유효 프로젝트는 이번 제출의 필드값이고 계정 설정은 fallback일 뿐이다 —
+    // accounts.jira.projectKey를 제출 payload에 직접 쓰지 않는다.
+    const projectKey = issueFields.projectKey ?? jiraAccount?.projectKey;
+    if (!jiraAccount?.auth || !projectKey) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.jira") }));
     }
     if (!issueFields.issueTypeId) throw new Error(t("create.requiredMissing"));
@@ -171,7 +174,7 @@ export function IssueCreateModal() {
       video: captureFiles.video,
       logs: captureFiles.logs,
       attachments: captureFiles.attachments,
-      projectKey: jiraAccount.projectKey,
+      projectKey,
       summary: draft!.title.trim(),
       issueTypeId: issueFields.issueTypeId,
       assigneeAccountId: issueFields.assigneeId,
@@ -192,7 +195,9 @@ export function IssueCreateModal() {
       });
     }
     useSettingsStore.getState().setLastSubmitFields("jira", {
-      projectKey: jiraAccount.projectKey,
+      projectKey,
+      issueTypeId: issueFields.issueTypeId,
+      siteId: jiraSiteId(jiraAccount.auth),
       assigneeId: issueFields.assigneeId,
       assigneeName: issueFields.assigneeName,
       priorityId: issueFields.priorityId,

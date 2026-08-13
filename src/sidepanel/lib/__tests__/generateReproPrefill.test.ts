@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { generateReproStepsWithAI } from "../generateReproPrefill";
 import {
+  AiContextOverflowError,
   LlmQuotaError,
   LlmAuthError,
   LlmEmptyResponseError,
@@ -143,6 +144,32 @@ describe("generateReproStepsWithAI", () => {
     expect(console.warn).toHaveBeenCalled();
     const logged = vi.mocked(console.warn).mock.calls.flat().join(" ");
     expect(logged).not.toContain("p@ssw0rd");
+  });
+
+  // "not json at all"은 중괄호가 없어 extractJson 단계에서 걸러진다. 중괄호는 있는데
+  // 본문이 깨진 응답은 그 다음 관문인 JSON.parse에서 던지므로 경로가 다르다 — 작은 모델이
+  // 문자열을 닫지 않고 끊는 게 흔해서 여기가 막히면 예외가 그대로 호출부로 샌다.
+  it("중괄호는 있지만 JSON.parse가 실패하는 응답도 LlmEmptyResponseError로 수렴한다", async () => {
+    const { createSession } = makeCreateSession(
+      async () => '{"stepsToReproduce": "Open X and then',
+    );
+    await expect(generateReproStepsWithAI(baseInput(createSession))).rejects.toBeInstanceOf(
+      LlmEmptyResponseError,
+    );
+  });
+
+  it("컨텍스트가 예산을 넘으면 세션을 열기 전에 AiContextOverflowError를 던진다", async () => {
+    const { createSession } = makeCreateSession(
+      async () => '{"stepsToReproduce":"Open X"}',
+    );
+    await expect(
+      generateReproStepsWithAI({
+        ...baseInput(createSession),
+        capabilities: { ...NANO_CAPABILITIES, contextBudgetChars: 1 },
+      }),
+    ).rejects.toBeInstanceOf(AiContextOverflowError);
+    // 예산 초과는 호출 자체를 막는 게 목적이다 — 세션을 열고 나서 던지면 provider 쿼터를 태운다.
+    expect(createSession).not.toHaveBeenCalled();
   });
 });
 

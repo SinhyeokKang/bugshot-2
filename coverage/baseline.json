@@ -1,127 +1,131 @@
 {
-  "generatedAt": "2026-07-24T14:59:52.863Z",
+  "generatedAt": "2026-08-13T05:25:18.644Z",
   "logic": {
-    "covered": 15601,
-    "total": 21002,
-    "pct": 74.28340158080182
+    "covered": 19754,
+    "total": 24063,
+    "pct": 82.09283962930641
   },
   "global": {
     "lines": {
-      "covered": 18877,
-      "total": 49916,
-      "pct": 37.81
+      "covered": 26029,
+      "total": 54324,
+      "pct": 47.91
     },
     "branches": {
-      "covered": 5680,
-      "total": 6524,
-      "pct": 87.06
+      "covered": 7819,
+      "total": 8957,
+      "pct": 87.29
     },
     "functions": {
-      "covered": 1045,
-      "total": 1812,
-      "pct": 57.67
+      "covered": 1486,
+      "total": 2236,
+      "pct": 66.45
     }
   },
   "files": {
     "src/background/analytics.ts": {
-      "covered": 44,
-      "total": 69
+      "covered": 75,
+      "total": 111
     },
     "src/background/asana-api.ts": {
-      "covered": 93,
+      "covered": 110,
       "total": 203
     },
     "src/background/asana-oauth.ts": {
       "covered": 30,
-      "total": 146
+      "total": 147
     },
     "src/background/bgRequestTypes.ts": {
       "covered": 0,
       "total": 110
     },
     "src/background/capture-throttle.ts": {
-      "covered": 35,
-      "total": 35
+      "covered": 50,
+      "total": 50
     },
     "src/background/clickup-api.ts": {
-      "covered": 24,
+      "covered": 69,
       "total": 217
     },
     "src/background/clickup-oauth.ts": {
       "covered": 27,
-      "total": 85
+      "total": 86
     },
     "src/background/connect-tracking.ts": {
-      "covered": 20,
-      "total": 20
+      "covered": 36,
+      "total": 36
     },
     "src/background/github-api.ts": {
       "covered": 144,
       "total": 251
     },
     "src/background/github-oauth.ts": {
-      "covered": 31,
-      "total": 174
+      "covered": 56,
+      "total": 173
     },
     "src/background/github-upload.ts": {
       "covered": 0,
-      "total": 142
+      "total": 140
     },
     "src/background/gitlab-api.ts": {
-      "covered": 49,
+      "covered": 100,
       "total": 235
     },
     "src/background/gitlab-oauth.ts": {
       "covered": 32,
-      "total": 171
+      "total": 177
     },
     "src/background/index.ts": {
       "covered": 0,
-      "total": 212
+      "total": 174
     },
     "src/background/injectSnapshotRows.ts": {
       "covered": 30,
       "total": 30
     },
     "src/background/jira-api.ts": {
-      "covered": 138,
-      "total": 407
+      "covered": 192,
+      "total": 414
     },
     "src/background/linear-api.ts": {
-      "covered": 99,
+      "covered": 106,
       "total": 267
     },
     "src/background/linear-oauth.ts": {
       "covered": 42,
-      "total": 171
+      "total": 177
     },
     "src/background/messages.ts": {
-      "covered": 0,
-      "total": 673
+      "covered": 90,
+      "total": 684
     },
     "src/background/notion-api.ts": {
-      "covered": 200,
-      "total": 553
+      "covered": 248,
+      "total": 568
     },
     "src/background/notion-oauth.ts": {
       "covered": 29,
-      "total": 93
+      "total": 94
     },
     "src/background/oauth.ts": {
-      "covered": 25,
-      "total": 165
+      "covered": 148,
+      "total": 193
+    },
+    "src/background/platformErrors.ts": {
+      "covered": 20,
+      "total": 20
     },
     "src/background/slack-api.ts": {
-      "covered": 39,
+      "covered": 47,
       "total": 185
     },
     "src/background/slack-oauth.ts": {
       "covered": 29,
-      "total": 98
+      "total": 99
     },
     "src/background/tab-bindings.ts": {
-      "covered": 46,
-      "total": 230
+      "covered": 151,
+      "total": 243
     },
     "src/background/lib/adf-logs-link.ts": {
       "covered": 16,
@@ -132,27 +136,31 @@
       "total": 27
     },
     "src/background/lib/createRefreshRunner.ts": {
-      "covered": 36,
-      "total": 36
+      "covered": 37,
+      "total": 37
     },
     "src/background/lib/readErrorBody.ts": {
       "covered": 8,
       "total": 12
     },
+    "src/background/lib/rotatedAuth.ts": {
+      "covered": 8,
+      "total": 8
+    },
     "src/background/oauth/config.ts": {
-      "covered": 98,
-      "total": 129
+      "covered": 111,
+      "total": 133
     },
     "src/background/oauth/errors.ts": {
-      "covered": 10,
-      "total": 10
+      "covered": 27,
+      "total": 27
     },
     "src/components/icons/SlackIcon.tsx": {
-      "covered": 0,
+      "covered": 2,
       "total": 26
     },
     "src/components/ui/alert-dialog.tsx": {
-      "covered": 28,
+      "covered": 63,
       "total": 98
     },
     "src/components/ui/alert.tsx": {
@@ -172,7 +180,7 @@
       "total": 45
     },
     "src/components/ui/card.tsx": {
-      "covered": 20,
+      "covered": 29,
       "total": 54
     },
     "src/components/ui/checkbox.tsx": {
@@ -184,7 +192,7 @@
       "total": 4
     },
     "src/components/ui/collapsing-tabs.tsx": {
-      "covered": 4,
+      "covered": 50,
       "total": 53
     },
     "src/components/ui/command.tsx": {
@@ -192,8 +200,8 @@
       "total": 75
     },
     "src/components/ui/dialog.tsx": {
-      "covered": 22,
-      "total": 81
+      "covered": 81,
+      "total": 87
     },
     "src/components/ui/input.tsx": {
       "covered": 16,
@@ -208,8 +216,8 @@
       "total": 13
     },
     "src/components/ui/popover.tsx": {
-      "covered": 21,
-      "total": 21
+      "covered": 22,
+      "total": 22
     },
     "src/components/ui/resizable.tsx": {
       "covered": 0,
@@ -244,7 +252,7 @@
       "total": 38
     },
     "src/components/ui/textarea.tsx": {
-      "covered": 4,
+      "covered": 14,
       "total": 14
     },
     "src/components/ui/toggle-group.tsx": {
@@ -256,16 +264,20 @@
       "total": 35
     },
     "src/components/ui/tooltip.tsx": {
-      "covered": 8,
+      "covered": 19,
       "total": 19
     },
     "src/content/action-recorder-helpers.ts": {
-      "covered": 83,
-      "total": 95
+      "covered": 114,
+      "total": 126
     },
     "src/content/action-recorder.ts": {
       "covered": 0,
-      "total": 493
+      "total": 558
+    },
+    "src/content/after-paint.ts": {
+      "covered": 18,
+      "total": 18
     },
     "src/content/annotation-draw.ts": {
       "covered": 49,
@@ -277,51 +289,67 @@
     },
     "src/content/area-select.ts": {
       "covered": 0,
-      "total": 154
+      "total": 172
+    },
+    "src/content/blocker-state.ts": {
+      "covered": 37,
+      "total": 37
+    },
+    "src/content/capture-context.ts": {
+      "covered": 46,
+      "total": 46
     },
     "src/content/console-recorder-helpers.ts": {
-      "covered": 147,
-      "total": 164
+      "covered": 165,
+      "total": 182
     },
     "src/content/console-recorder.ts": {
       "covered": 0,
-      "total": 263
+      "total": 300
     },
     "src/content/css-resolve.ts": {
-      "covered": 535,
-      "total": 1065
+      "covered": 1403,
+      "total": 1647
     },
     "src/content/css-source-cache.ts": {
-      "covered": 355,
-      "total": 787
+      "covered": 569,
+      "total": 938
     },
     "src/content/dom-describe.ts": {
-      "covered": 0,
-      "total": 119
+      "covered": 71,
+      "total": 97
+    },
+    "src/content/element-locator.ts": {
+      "covered": 165,
+      "total": 168
     },
     "src/content/frame-geometry.ts": {
-      "covered": 129,
-      "total": 134
+      "covered": 137,
+      "total": 142
+    },
+    "src/content/hover-shield.ts": {
+      "covered": 48,
+      "total": 48
     },
     "src/content/log-throttle.ts": {
       "covered": 36,
       "total": 37
     },
     "src/content/network-recorder-helpers.ts": {
-      "covered": 238,
-      "total": 255
+      "covered": 294,
+      "total": 311
     },
     "src/content/network-recorder.ts": {
       "covered": 0,
-      "total": 529
+      "total": 562
     },
     "src/content/overlay.ts": {
-      "covered": 17,
-      "total": 461
+      "covered": 26,
+      "total": 530
     },
     "src/content/picker.ts": {
       "covered": 0,
-      "total": 828
+      "total": 1084
     },
     "src/content/post-to-runtime.ts": {
       "covered": 1,
@@ -329,7 +357,11 @@
     },
     "src/content/recorder-bridge.ts": {
       "covered": 0,
-      "total": 166
+      "total": 168
+    },
+    "src/content/recorder-globals.ts": {
+      "covered": 21,
+      "total": 38
     },
     "src/content/recorder-prearm.ts": {
       "covered": 17,
@@ -343,53 +375,65 @@
       "covered": 171,
       "total": 173
     },
+    "src/content/sentinel-registry.ts": {
+      "covered": 22,
+      "total": 22
+    },
+    "src/content/style-overlay.ts": {
+      "covered": 150,
+      "total": 158
+    },
     "src/i18n/bg-init.ts": {
       "covered": 0,
-      "total": 20
+      "total": 21
     },
     "src/i18n/en.ts": {
       "covered": 19,
       "total": 19
     },
     "src/i18n/index.ts": {
-      "covered": 34,
-      "total": 34
+      "covered": 46,
+      "total": 46
     },
     "src/i18n/ko.ts": {
       "covered": 19,
       "total": 19
+    },
+    "src/i18n/locales.ts": {
+      "covered": 42,
+      "total": 42
     },
     "src/i18n/namespaces/ai.ts": {
       "covered": 63,
       "total": 63
     },
     "src/i18n/namespaces/app.ts": {
-      "covered": 101,
-      "total": 101
+      "covered": 111,
+      "total": 111
     },
     "src/i18n/namespaces/common.ts": {
-      "covered": 61,
-      "total": 61
+      "covered": 63,
+      "total": 63
     },
     "src/i18n/namespaces/editor.ts": {
-      "covered": 299,
-      "total": 299
+      "covered": 307,
+      "total": 307
     },
     "src/i18n/namespaces/integrations.ts": {
-      "covered": 539,
-      "total": 539
+      "covered": 559,
+      "total": 559
     },
     "src/i18n/namespaces/issue.ts": {
-      "covered": 237,
-      "total": 237
+      "covered": 267,
+      "total": 267
     },
     "src/i18n/namespaces/logs.ts": {
-      "covered": 239,
-      "total": 239
+      "covered": 255,
+      "total": 255
     },
     "src/i18n/namespaces/settings.ts": {
-      "covered": 193,
-      "total": 193
+      "covered": 211,
+      "total": 211
     },
     "src/lib/adf-sentinels.ts": {
       "covered": 10,
@@ -398,6 +442,14 @@
     "src/lib/capture-commands.ts": {
       "covered": 3,
       "total": 3
+    },
+    "src/lib/credential-url.ts": {
+      "covered": 16,
+      "total": 16
+    },
+    "src/lib/dismiss-guard.ts": {
+      "covered": 5,
+      "total": 5
     },
     "src/lib/element-key.ts": {
       "covered": 6,
@@ -408,8 +460,12 @@
       "total": 15
     },
     "src/lib/external-links.ts": {
-      "covered": 0,
-      "total": 6
+      "covered": 10,
+      "total": 10
+    },
+    "src/lib/external-url.ts": {
+      "covered": 8,
+      "total": 8
     },
     "src/lib/gzip-base64.ts": {
       "covered": 31,
@@ -423,6 +479,10 @@
       "covered": 31,
       "total": 31
     },
+    "src/lib/inline-ref.ts": {
+      "covered": 1,
+      "total": 1
+    },
     "src/lib/key-obfuscation.ts": {
       "covered": 28,
       "total": 28
@@ -430,6 +490,14 @@
     "src/lib/log-colors.ts": {
       "covered": 37,
       "total": 37
+    },
+    "src/lib/loopback-host.ts": {
+      "covered": 11,
+      "total": 11
+    },
+    "src/lib/masked-header.ts": {
+      "covered": 4,
+      "total": 4
     },
     "src/lib/named-colors.ts": {
       "covered": 30,
@@ -448,20 +516,20 @@
       "total": 17
     },
     "src/lib/network-status.ts": {
-      "covered": 13,
-      "total": 13
+      "covered": 15,
+      "total": 15
     },
     "src/lib/notion-page-id.ts": {
       "covered": 12,
       "total": 12
     },
     "src/lib/pending-log-prune.ts": {
-      "covered": 40,
-      "total": 79
+      "covered": 39,
+      "total": 78
     },
     "src/lib/session-keys.ts": {
-      "covered": 28,
-      "total": 28
+      "covered": 36,
+      "total": 36
     },
     "src/lib/settings-storage.ts": {
       "covered": 111,
@@ -484,16 +552,16 @@
       "total": 272
     },
     "src/log-viewer/i18n.ts": {
-      "covered": 237,
-      "total": 239
+      "covered": 282,
+      "total": 284
     },
     "src/log-viewer/main.tsx": {
       "covered": 0,
       "total": 41
     },
     "src/log-viewer/markers.ts": {
-      "covered": 139,
-      "total": 139
+      "covered": 140,
+      "total": 140
     },
     "src/log-viewer/timeline-merge.ts": {
       "covered": 55,
@@ -521,11 +589,11 @@
     },
     "src/log-viewer/components/TimelinePanel.tsx": {
       "covered": 0,
-      "total": 109
+      "total": 110
     },
     "src/log-viewer/components/TimelineRow.tsx": {
-      "covered": 76,
-      "total": 76
+      "covered": 55,
+      "total": 55
     },
     "src/log-viewer/components/VideoPlayer.tsx": {
       "covered": 0,
@@ -533,7 +601,7 @@
     },
     "src/sidepanel/App.tsx": {
       "covered": 0,
-      "total": 369
+      "total": 431
     },
     "src/sidepanel/annotation-control.ts": {
       "covered": 1,
@@ -541,47 +609,51 @@
     },
     "src/sidepanel/capture.ts": {
       "covered": 3,
-      "total": 81
+      "total": 113
     },
     "src/sidepanel/main.tsx": {
       "covered": 0,
       "total": 35
     },
     "src/sidepanel/picker-control.ts": {
-      "covered": 10,
-      "total": 615
+      "covered": 12,
+      "total": 674
     },
     "src/sidepanel/recorder-control.ts": {
-      "covered": 0,
-      "total": 15
+      "covered": 17,
+      "total": 18
     },
     "src/sidepanel/scroll-capture.ts": {
       "covered": 45,
       "total": 75
     },
     "src/sidepanel/tab-nav.ts": {
-      "covered": 0,
+      "covered": 3,
       "total": 3
     },
     "src/sidepanel/video-capture.ts": {
-      "covered": 0,
-      "total": 88
+      "covered": 99,
+      "total": 115
     },
     "src/sidepanel/video-recorder.ts": {
-      "covered": 10,
-      "total": 184
+      "covered": 32,
+      "total": 189
     },
     "src/sidepanel/30s-replay/apply-trim.ts": {
-      "covered": 39,
-      "total": 39
+      "covered": 74,
+      "total": 74
+    },
+    "src/sidepanel/30s-replay/encode-range.ts": {
+      "covered": 0,
+      "total": 225
     },
     "src/sidepanel/30s-replay/frame-buffer.ts": {
-      "covered": 32,
+      "covered": 34,
       "total": 34
     },
     "src/sidepanel/30s-replay/mp4-encoder.ts": {
-      "covered": 87,
-      "total": 175
+      "covered": 125,
+      "total": 199
     },
     "src/sidepanel/30s-replay/replay-context.ts": {
       "covered": 11,
@@ -592,24 +664,24 @@
       "total": 27
     },
     "src/sidepanel/30s-replay/trim-math.ts": {
-      "covered": 75,
-      "total": 75
+      "covered": 112,
+      "total": 112
     },
     "src/sidepanel/30s-replay/use-30s-replay.ts": {
-      "covered": 0,
-      "total": 152
+      "covered": 88,
+      "total": 158
     },
     "src/sidepanel/components/ActionLogContent.tsx": {
-      "covered": 203,
-      "total": 253
+      "covered": 218,
+      "total": 265
     },
     "src/sidepanel/components/AiLoadingText.tsx": {
       "covered": 39,
       "total": 39
     },
     "src/sidepanel/components/AnnotationOverlay.tsx": {
-      "covered": 0,
-      "total": 469
+      "covered": 177,
+      "total": 509
     },
     "src/sidepanel/components/AttachmentList.tsx": {
       "covered": 11,
@@ -628,56 +700,64 @@
       "total": 162
     },
     "src/sidepanel/components/ColorSwatch.tsx": {
-      "covered": 5,
+      "covered": 23,
       "total": 24
     },
     "src/sidepanel/components/ConnectedBadge.tsx": {
-      "covered": 0,
+      "covered": 2,
       "total": 8
     },
     "src/sidepanel/components/ConsoleLogContent.tsx": {
       "covered": 176,
-      "total": 195
+      "total": 196
     },
     "src/sidepanel/components/DocSectionBody.tsx": {
       "covered": 44,
       "total": 87
     },
     "src/sidepanel/components/DocTable.tsx": {
-      "covered": 5,
+      "covered": 20,
       "total": 20
     },
     "src/sidepanel/components/FieldRow.tsx": {
-      "covered": 2,
-      "total": 16
+      "covered": 17,
+      "total": 17
     },
     "src/sidepanel/components/HighlightedText.tsx": {
       "covered": 5,
       "total": 20
+    },
+    "src/sidepanel/components/ImageActions.tsx": {
+      "covered": 29,
+      "total": 29
     },
     "src/sidepanel/components/InlineLink.tsx": {
       "covered": 22,
       "total": 22
     },
     "src/sidepanel/components/IntegrationsCta.tsx": {
-      "covered": 0,
+      "covered": 26,
       "total": 26
     },
     "src/sidepanel/components/IssuePreviewView.tsx": {
-      "covered": 0,
+      "covered": 2,
       "total": 127
     },
     "src/sidepanel/components/JsonTreeViewer.tsx": {
-      "covered": 158,
-      "total": 219
+      "covered": 161,
+      "total": 222
     },
     "src/sidepanel/components/LinkifiedText.tsx": {
       "covered": 10,
       "total": 13
     },
+    "src/sidepanel/components/LoadingDialog.tsx": {
+      "covered": 48,
+      "total": 48
+    },
     "src/sidepanel/components/LogAttachmentCards.tsx": {
       "covered": 2,
-      "total": 51
+      "total": 55
     },
     "src/sidepanel/components/LogInsertDialog.tsx": {
       "covered": 2,
@@ -692,8 +772,8 @@
       "total": 20
     },
     "src/sidepanel/components/NetworkLogContent.tsx": {
-      "covered": 417,
-      "total": 594
+      "covered": 438,
+      "total": 610
     },
     "src/sidepanel/components/OrderedListEditor.tsx": {
       "covered": 2,
@@ -708,27 +788,27 @@
       "total": 60
     },
     "src/sidepanel/components/Section.tsx": {
-      "covered": 5,
+      "covered": 20,
       "total": 97
     },
     "src/sidepanel/components/SingleLazyCombobox.tsx": {
-      "covered": 2,
+      "covered": 89,
       "total": 93
     },
     "src/sidepanel/components/StyleChangesTable.tsx": {
-      "covered": 125,
-      "total": 232
+      "covered": 283,
+      "total": 309
     },
     "src/sidepanel/components/SubmitSuccessView.tsx": {
-      "covered": 0,
+      "covered": 2,
       "total": 33
     },
     "src/sidepanel/components/TiptapEditor.tsx": {
-      "covered": 70,
+      "covered": 39,
       "total": 647
     },
     "src/sidepanel/components/TooltipIconButton.tsx": {
-      "covered": 2,
+      "covered": 37,
       "total": 37
     },
     "src/sidepanel/components/ccOptions.ts": {
@@ -740,20 +820,24 @@
       "total": 28
     },
     "src/sidepanel/components/annotation/AnnotationToolbar.tsx": {
-      "covered": 0,
+      "covered": 3,
       "total": 162
     },
     "src/sidepanel/components/annotation/ShapeNode.tsx": {
-      "covered": 0,
+      "covered": 3,
       "total": 140
     },
     "src/sidepanel/components/annotation/ToolbarGroups.tsx": {
-      "covered": 0,
+      "covered": 34,
       "total": 161
     },
     "src/sidepanel/components/annotation/ZoomControl.tsx": {
-      "covered": 0,
+      "covered": 3,
       "total": 59
+    },
+    "src/sidepanel/components/annotation/deferredExport.ts": {
+      "covered": 29,
+      "total": 32
     },
     "src/sidepanel/components/annotation/history.ts": {
       "covered": 30,
@@ -779,6 +863,10 @@
       "covered": 12,
       "total": 12
     },
+    "src/sidepanel/hooks/tab-support-context.ts": {
+      "covered": 4,
+      "total": 4
+    },
     "src/sidepanel/hooks/useAI.ts": {
       "covered": 2,
       "total": 51
@@ -786,6 +874,10 @@
     "src/sidepanel/hooks/useAiLoadingStep.ts": {
       "covered": 14,
       "total": 14
+    },
+    "src/sidepanel/hooks/useAiRun.ts": {
+      "covered": 84,
+      "total": 84
     },
     "src/sidepanel/hooks/useBackgroundRecorder.ts": {
       "covered": 9,
@@ -796,8 +888,8 @@
       "total": 32
     },
     "src/sidepanel/hooks/useBufferThenSwitch.ts": {
-      "covered": 0,
-      "total": 22
+      "covered": 36,
+      "total": 39
     },
     "src/sidepanel/hooks/useCodeCollapse.ts": {
       "covered": 26,
@@ -808,23 +900,23 @@
       "total": 39
     },
     "src/sidepanel/hooks/useEditorSessionSync.ts": {
-      "covered": 0,
-      "total": 238
+      "covered": 58,
+      "total": 239
     },
     "src/sidepanel/hooks/useIssueImages.ts": {
       "covered": 0,
       "total": 65
     },
     "src/sidepanel/hooks/useLazyListOnOpen.ts": {
-      "covered": 3,
+      "covered": 41,
       "total": 41
     },
     "src/sidepanel/hooks/usePickerMessages.ts": {
       "covered": 0,
-      "total": 322
+      "total": 377
     },
     "src/sidepanel/hooks/usePlatformFields.ts": {
-      "covered": 0,
+      "covered": 2,
       "total": 110
     },
     "src/sidepanel/hooks/useRecorderSyncInterval.ts": {
@@ -832,39 +924,55 @@
       "total": 22
     },
     "src/sidepanel/hooks/useReproPrefill.ts": {
-      "covered": 114,
-      "total": 114
+      "covered": 106,
+      "total": 106
+    },
+    "src/sidepanel/hooks/useTabSupport.ts": {
+      "covered": 34,
+      "total": 34
     },
     "src/sidepanel/hooks/useThemeEffect.ts": {
       "covered": 0,
       "total": 19
     },
     "src/sidepanel/lib/actionInline.ts": {
-      "covered": 34,
-      "total": 34
+      "covered": 50,
+      "total": 50
     },
     "src/sidepanel/lib/ai-provider.ts": {
-      "covered": 282,
-      "total": 402
+      "covered": 424,
+      "total": 515
+    },
+    "src/sidepanel/lib/aiCancelSlot.ts": {
+      "covered": 2,
+      "total": 2
+    },
+    "src/sidepanel/lib/aiLanguage.ts": {
+      "covered": 35,
+      "total": 35
     },
     "src/sidepanel/lib/aiLoadingPhrases.ts": {
       "covered": 38,
       "total": 38
     },
     "src/sidepanel/lib/aiLogsManual.ts": {
-      "covered": 68,
-      "total": 68
+      "covered": 70,
+      "total": 70
     },
     "src/sidepanel/lib/aiStylingPostProcess.ts": {
       "covered": 249,
       "total": 249
+    },
+    "src/sidepanel/lib/apiHostRow.ts": {
+      "covered": 96,
+      "total": 96
     },
     "src/sidepanel/lib/applyDraftFieldEdit.ts": {
       "covered": 21,
       "total": 21
     },
     "src/sidepanel/lib/attachmentDimensions.ts": {
-      "covered": 0,
+      "covered": 3,
       "total": 43
     },
     "src/sidepanel/lib/attachmentLimits.ts": {
@@ -888,32 +996,32 @@
       "total": 85
     },
     "src/sidepanel/lib/buildAiDraftRequest.ts": {
-      "covered": 7,
-      "total": 7
+      "covered": 23,
+      "total": 23
     },
     "src/sidepanel/lib/buildAiStylingPrompt.ts": {
-      "covered": 86,
-      "total": 88
+      "covered": 119,
+      "total": 121
     },
     "src/sidepanel/lib/buildAsanaIssueBody.ts": {
-      "covered": 115,
-      "total": 117
+      "covered": 118,
+      "total": 120
     },
     "src/sidepanel/lib/buildCaptureFiles.ts": {
       "covered": 80,
       "total": 80
     },
     "src/sidepanel/lib/buildClickupIssueBody.ts": {
-      "covered": 127,
-      "total": 138
+      "covered": 132,
+      "total": 143
     },
     "src/sidepanel/lib/buildConsoleLogJson.ts": {
       "covered": 23,
       "total": 23
     },
     "src/sidepanel/lib/buildEditorCapture.ts": {
-      "covered": 82,
-      "total": 161
+      "covered": 161,
+      "total": 173
     },
     "src/sidepanel/lib/buildGithubIssueBody.ts": {
       "covered": 9,
@@ -928,44 +1036,48 @@
       "total": 154
     },
     "src/sidepanel/lib/buildIssueAdf.ts": {
-      "covered": 236,
-      "total": 238
+      "covered": 243,
+      "total": 245
     },
     "src/sidepanel/lib/buildIssueMarkdown.ts": {
-      "covered": 397,
-      "total": 401
+      "covered": 400,
+      "total": 404
     },
     "src/sidepanel/lib/buildLinearIssueBody.ts": {
-      "covered": 136,
-      "total": 139
+      "covered": 141,
+      "total": 144
     },
     "src/sidepanel/lib/buildLogSummary.ts": {
-      "covered": 75,
-      "total": 75
+      "covered": 88,
+      "total": 88
     },
     "src/sidepanel/lib/buildLogsHtml.ts": {
       "covered": 44,
       "total": 44
     },
     "src/sidepanel/lib/buildMarkdownContext.ts": {
-      "covered": 55,
-      "total": 62
+      "covered": 57,
+      "total": 64
     },
     "src/sidepanel/lib/buildMarkdownIssueBody.ts": {
-      "covered": 185,
-      "total": 187
+      "covered": 191,
+      "total": 193
     },
     "src/sidepanel/lib/buildNotionIssueBody.ts": {
-      "covered": 229,
-      "total": 238
+      "covered": 234,
+      "total": 243
     },
     "src/sidepanel/lib/buildReportData.ts": {
-      "covered": 46,
-      "total": 46
+      "covered": 53,
+      "total": 53
     },
     "src/sidepanel/lib/buildSlackBody.ts": {
-      "covered": 94,
-      "total": 97
+      "covered": 97,
+      "total": 100
+    },
+    "src/sidepanel/lib/capture-basis.ts": {
+      "covered": 29,
+      "total": 29
     },
     "src/sidepanel/lib/capture-error.ts": {
       "covered": 7,
@@ -988,8 +1100,8 @@
       "total": 8
     },
     "src/sidepanel/lib/codeCollapseShell.ts": {
-      "covered": 109,
-      "total": 114
+      "covered": 129,
+      "total": 134
     },
     "src/sidepanel/lib/compactImage.ts": {
       "covered": 15,
@@ -1003,8 +1115,16 @@
       "covered": 17,
       "total": 17
     },
+    "src/sidepanel/lib/cssDeclaration.ts": {
+      "covered": 16,
+      "total": 18
+    },
+    "src/sidepanel/lib/diffAnnotation.ts": {
+      "covered": 23,
+      "total": 23
+    },
     "src/sidepanel/lib/downloadAttachment.ts": {
-      "covered": 0,
+      "covered": 1,
       "total": 12
     },
     "src/sidepanel/lib/downloadCapture.ts": {
@@ -1014,6 +1134,10 @@
     "src/sidepanel/lib/environmentRows.ts": {
       "covered": 39,
       "total": 39
+    },
+    "src/sidepanel/lib/escapeHtml.ts": {
+      "covered": 7,
+      "total": 7
     },
     "src/sidepanel/lib/extractJson.ts": {
       "covered": 9,
@@ -1036,8 +1160,8 @@
       "total": 23
     },
     "src/sidepanel/lib/generateReproPrefill.ts": {
-      "covered": 43,
-      "total": 45
+      "covered": 57,
+      "total": 59
     },
     "src/sidepanel/lib/hasStyleChange.ts": {
       "covered": 15,
@@ -1052,8 +1176,8 @@
       "total": 3
     },
     "src/sidepanel/lib/initialJiraFields.ts": {
-      "covered": 15,
-      "total": 15
+      "covered": 19,
+      "total": 19
     },
     "src/sidepanel/lib/inlineImageAnnotation.ts": {
       "covered": 20,
@@ -1067,9 +1191,17 @@
       "covered": 8,
       "total": 8
     },
+    "src/sidepanel/lib/liteSnapshot.ts": {
+      "covered": 19,
+      "total": 19
+    },
     "src/sidepanel/lib/llmErrorToast.ts": {
-      "covered": 24,
-      "total": 24
+      "covered": 26,
+      "total": 26
+    },
+    "src/sidepanel/lib/localeLabels.ts": {
+      "covered": 4,
+      "total": 4
     },
     "src/sidepanel/lib/log-merge.ts": {
       "covered": 106,
@@ -1112,12 +1244,12 @@
       "total": 154
     },
     "src/sidepanel/lib/markdownToAsanaHtml.ts": {
-      "covered": 180,
-      "total": 192
+      "covered": 177,
+      "total": 189
     },
     "src/sidepanel/lib/markdownToMrkdwn.ts": {
-      "covered": 54,
-      "total": 54
+      "covered": 57,
+      "total": 57
     },
     "src/sidepanel/lib/markdownToNotionBlocks.ts": {
       "covered": 154,
@@ -1144,8 +1276,8 @@
       "total": 59
     },
     "src/sidepanel/lib/renderMarkdown.ts": {
-      "covered": 21,
-      "total": 21
+      "covered": 14,
+      "total": 14
     },
     "src/sidepanel/lib/reproSectionEnabled.ts": {
       "covered": 3,
@@ -1156,8 +1288,8 @@
       "total": 42
     },
     "src/sidepanel/lib/resolveInlineImages.ts": {
-      "covered": 59,
-      "total": 80
+      "covered": 58,
+      "total": 79
     },
     "src/sidepanel/lib/scroll-capture-plan.ts": {
       "covered": 77,
@@ -1176,8 +1308,8 @@
       "total": 51
     },
     "src/sidepanel/lib/styleChangeGroups.ts": {
-      "covered": 91,
-      "total": 91
+      "covered": 92,
+      "total": 92
     },
     "src/sidepanel/lib/submitToAsana.ts": {
       "covered": 148,
@@ -1196,24 +1328,28 @@
       "total": 63
     },
     "src/sidepanel/lib/submitToJira.ts": {
-      "covered": 31,
-      "total": 31
+      "covered": 32,
+      "total": 32
     },
     "src/sidepanel/lib/submitToLinear.ts": {
       "covered": 105,
       "total": 121
     },
     "src/sidepanel/lib/submitToNotion.ts": {
-      "covered": 96,
-      "total": 110
+      "covered": 97,
+      "total": 111
     },
     "src/sidepanel/lib/submitToSlack.ts": {
       "covered": 53,
       "total": 53
     },
+    "src/sidepanel/lib/tab-scope.ts": {
+      "covered": 7,
+      "total": 7
+    },
     "src/sidepanel/lib/track-submit.ts": {
-      "covered": 33,
-      "total": 33
+      "covered": 46,
+      "total": 46
     },
     "src/sidepanel/lib/trackViewport.ts": {
       "covered": 9,
@@ -1239,33 +1375,41 @@
       "covered": 24,
       "total": 25
     },
+    "src/sidepanel/lib/video-thumbnail.ts": {
+      "covered": 1,
+      "total": 42
+    },
     "src/sidepanel/lib/zipLogsHtml.ts": {
       "covered": 94,
       "total": 94
     },
     "src/sidepanel/lib/prompts/caps.ts": {
-      "covered": 25,
-      "total": 25
+      "covered": 29,
+      "total": 29
     },
     "src/sidepanel/lib/prompts/context.ts": {
-      "covered": 136,
-      "total": 136
+      "covered": 139,
+      "total": 139
     },
     "src/sidepanel/lib/prompts/draftCompact.ts": {
-      "covered": 102,
-      "total": 105
+      "covered": 108,
+      "total": 111
     },
     "src/sidepanel/lib/prompts/draftRich.ts": {
-      "covered": 184,
-      "total": 184
+      "covered": 216,
+      "total": 216
+    },
+    "src/sidepanel/lib/prompts/draftStyleElements.ts": {
+      "covered": 80,
+      "total": 80
     },
     "src/sidepanel/lib/prompts/logCandidates.ts": {
-      "covered": 109,
-      "total": 115
+      "covered": 115,
+      "total": 121
     },
     "src/sidepanel/lib/prompts/promptBudget.ts": {
-      "covered": 78,
-      "total": 78
+      "covered": 97,
+      "total": 97
     },
     "src/sidepanel/lib/prompts/queryTokens.ts": {
       "covered": 33,
@@ -1280,44 +1424,44 @@
       "total": 43
     },
     "src/sidepanel/lib/prompts/stylingRich.ts": {
-      "covered": 60,
-      "total": 60
+      "covered": 50,
+      "total": 50
     },
     "src/sidepanel/tabs/AiDraftDialog.tsx": {
-      "covered": 18,
-      "total": 223
+      "covered": 248,
+      "total": 285
     },
     "src/sidepanel/tabs/ConsoleSubTab.tsx": {
       "covered": 0,
       "total": 33
     },
     "src/sidepanel/tabs/DebugTab.tsx": {
-      "covered": 0,
-      "total": 79
+      "covered": 80,
+      "total": 83
     },
     "src/sidepanel/tabs/DomTreeDialog.tsx": {
-      "covered": 0,
-      "total": 255
+      "covered": 3,
+      "total": 261
     },
     "src/sidepanel/tabs/DraftDetailDialog.tsx": {
       "covered": 0,
-      "total": 1038
+      "total": 1049
     },
     "src/sidepanel/tabs/DraftEditDialog.tsx": {
       "covered": 0,
       "total": 93
     },
     "src/sidepanel/tabs/DraftingPanel.tsx": {
-      "covered": 6,
-      "total": 690
+      "covered": 9,
+      "total": 802
     },
     "src/sidepanel/tabs/IntegrationsTab.tsx": {
       "covered": 0,
       "total": 198
     },
     "src/sidepanel/tabs/IssueCreateModal.tsx": {
-      "covered": 0,
-      "total": 529
+      "covered": 2,
+      "total": 532
     },
     "src/sidepanel/tabs/IssueListTab.tsx": {
       "covered": 0,
@@ -1328,11 +1472,11 @@
       "total": 131
     },
     "src/sidepanel/tabs/IssueTab.tsx": {
-      "covered": 0,
-      "total": 515
+      "covered": 139,
+      "total": 547
     },
     "src/sidepanel/tabs/IssueTypeCombobox.tsx": {
-      "covered": 0,
+      "covered": 2,
       "total": 120
     },
     "src/sidepanel/tabs/NetworkSubTab.tsx": {
@@ -1340,28 +1484,28 @@
       "total": 30
     },
     "src/sidepanel/tabs/PreviewPanel.tsx": {
-      "covered": 0,
-      "total": 377
+      "covered": 2,
+      "total": 391
     },
     "src/sidepanel/tabs/ProjectCombobox.tsx": {
-      "covered": 0,
+      "covered": 2,
       "total": 114
     },
     "src/sidepanel/tabs/ReplayTrimDialog.tsx": {
       "covered": 0,
-      "total": 278
+      "total": 319
     },
     "src/sidepanel/tabs/SettingsTab.tsx": {
       "covered": 0,
-      "total": 346
+      "total": 374
     },
     "src/sidepanel/tabs/StyleEditorPanel.tsx": {
-      "covered": 0,
-      "total": 569
+      "covered": 75,
+      "total": 602
     },
     "src/sidepanel/tabs/SubmitFieldsDialog.tsx": {
-      "covered": 0,
-      "total": 226
+      "covered": 22,
+      "total": 248
     },
     "src/sidepanel/tabs/TrimTimeline.tsx": {
       "covered": 0,
@@ -1372,8 +1516,8 @@
       "total": 17
     },
     "src/sidepanel/tabs/issueListUtils.ts": {
-      "covered": 118,
-      "total": 146
+      "covered": 131,
+      "total": 152
     },
     "src/sidepanel/tabs/notionStatusColors.ts": {
       "covered": 11,
@@ -1385,7 +1529,7 @@
     },
     "src/sidepanel/tabs/asanaFields/AssigneeCombobox.tsx": {
       "covered": 2,
-      "total": 114
+      "total": 40
     },
     "src/sidepanel/tabs/asanaFields/CcCombobox.tsx": {
       "covered": 2,
@@ -1393,11 +1537,11 @@
     },
     "src/sidepanel/tabs/asanaFields/ProjectCombobox.tsx": {
       "covered": 2,
-      "total": 111
+      "total": 32
     },
     "src/sidepanel/tabs/asanaFields/WorkspaceCombobox.tsx": {
       "covered": 2,
-      "total": 99
+      "total": 21
     },
     "src/sidepanel/tabs/clickupFields/AssigneeCombobox.tsx": {
       "covered": 2,
@@ -1432,7 +1576,7 @@
       "total": 310
     },
     "src/sidepanel/tabs/connect/ConnectMethodDialog.tsx": {
-      "covered": 0,
+      "covered": 2,
       "total": 46
     },
     "src/sidepanel/tabs/connect/GithubConnectForm.tsx": {
@@ -1441,11 +1585,11 @@
     },
     "src/sidepanel/tabs/connect/GitlabConnectForm.tsx": {
       "covered": 0,
-      "total": 313
+      "total": 317
     },
     "src/sidepanel/tabs/connect/JiraConnectForm.tsx": {
-      "covered": 0,
-      "total": 403
+      "covered": 41,
+      "total": 414
     },
     "src/sidepanel/tabs/connect/LinearConnectForm.tsx": {
       "covered": 0,
@@ -1460,12 +1604,12 @@
       "total": 108
     },
     "src/sidepanel/tabs/connect/gitlabInstanceUrl.ts": {
-      "covered": 12,
-      "total": 12
+      "covered": 26,
+      "total": 26
     },
     "src/sidepanel/tabs/githubFields/AssigneeCombobox.tsx": {
       "covered": 2,
-      "total": 109
+      "total": 38
     },
     "src/sidepanel/tabs/githubFields/CcCombobox.tsx": {
       "covered": 2,
@@ -1476,16 +1620,16 @@
       "total": 61
     },
     "src/sidepanel/tabs/githubFields/LabelCombobox.tsx": {
-      "covered": 2,
-      "total": 100
+      "covered": 33,
+      "total": 34
     },
     "src/sidepanel/tabs/githubFields/RepoCombobox.tsx": {
       "covered": 2,
       "total": 103
     },
     "src/sidepanel/tabs/gitlabFields/AssigneeCombobox.tsx": {
-      "covered": 2,
-      "total": 110
+      "covered": 36,
+      "total": 37
     },
     "src/sidepanel/tabs/gitlabFields/CcCombobox.tsx": {
       "covered": 2,
@@ -1497,7 +1641,7 @@
     },
     "src/sidepanel/tabs/gitlabFields/LabelCombobox.tsx": {
       "covered": 2,
-      "total": 96
+      "total": 29
     },
     "src/sidepanel/tabs/gitlabFields/ProjectCombobox.tsx": {
       "covered": 2,
@@ -1508,43 +1652,51 @@
       "total": 113
     },
     "src/sidepanel/tabs/jiraFields/CcField.tsx": {
-      "covered": 0,
+      "covered": 31,
       "total": 56
     },
     "src/sidepanel/tabs/jiraFields/EpicField.tsx": {
-      "covered": 0,
-      "total": 71
+      "covered": 40,
+      "total": 72
     },
     "src/sidepanel/tabs/jiraFields/FieldCombobox.tsx": {
-      "covered": 71,
-      "total": 77
+      "covered": 80,
+      "total": 83
     },
     "src/sidepanel/tabs/jiraFields/IssueTypeField.tsx": {
-      "covered": 0,
-      "total": 75
+      "covered": 82,
+      "total": 84
     },
     "src/sidepanel/tabs/jiraFields/JiraIssueFields.tsx": {
-      "covered": 0,
-      "total": 63
+      "covered": 108,
+      "total": 108
     },
     "src/sidepanel/tabs/jiraFields/PriorityField.tsx": {
-      "covered": 0,
+      "covered": 35,
       "total": 66
     },
+    "src/sidepanel/tabs/jiraFields/ProjectField.tsx": {
+      "covered": 67,
+      "total": 67
+    },
     "src/sidepanel/tabs/jiraFields/RelatesField.tsx": {
-      "covered": 0,
-      "total": 54
+      "covered": 39,
+      "total": 55
+    },
+    "src/sidepanel/tabs/jiraFields/project-change.ts": {
+      "covered": 15,
+      "total": 15
     },
     "src/sidepanel/tabs/jiraFields/resolve-epic-parent.ts": {
       "covered": 19,
       "total": 19
     },
     "src/sidepanel/tabs/jiraFields/useDebouncedSearch.ts": {
-      "covered": 31,
+      "covered": 33,
       "total": 33
     },
     "src/sidepanel/tabs/jiraFields/useJiraConfig.ts": {
-      "covered": 0,
+      "covered": 8,
       "total": 8
     },
     "src/sidepanel/tabs/linearFields/AssigneeCombobox.tsx": {
@@ -1605,11 +1757,11 @@
     },
     "src/sidepanel/tabs/settings/LlmConnectDialog.tsx": {
       "covered": 0,
-      "total": 323
+      "total": 329
     },
     "src/sidepanel/tabs/settings/LlmConnectForm.tsx": {
       "covered": 0,
-      "total": 173
+      "total": 210
     },
     "src/sidepanel/tabs/settings/SettingsFooter.tsx": {
       "covered": 0,
@@ -1648,7 +1800,7 @@
       "total": 59
     },
     "src/sidepanel/tabs/statusBadges/GithubStatusBadge.tsx": {
-      "covered": 64,
+      "covered": 79,
       "total": 88
     },
     "src/sidepanel/tabs/statusBadges/GithubSubmittedBadge.tsx": {
@@ -1665,7 +1817,7 @@
     },
     "src/sidepanel/tabs/statusBadges/JiraStatusBadge.tsx": {
       "covered": 45,
-      "total": 99
+      "total": 100
     },
     "src/sidepanel/tabs/statusBadges/JiraSubmittedBadge.tsx": {
       "covered": 55,
@@ -1673,7 +1825,7 @@
     },
     "src/sidepanel/tabs/statusBadges/LinearStatusBadge.tsx": {
       "covered": 2,
-      "total": 92
+      "total": 93
     },
     "src/sidepanel/tabs/statusBadges/LinearSubmittedBadge.tsx": {
       "covered": 2,
@@ -1681,7 +1833,7 @@
     },
     "src/sidepanel/tabs/statusBadges/NotionStatusBadge.tsx": {
       "covered": 2,
-      "total": 101
+      "total": 102
     },
     "src/sidepanel/tabs/statusBadges/NotionSubmittedBadge.tsx": {
       "covered": 2,
@@ -1708,40 +1860,44 @@
       "total": 4
     },
     "src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx": {
-      "covered": 0,
-      "total": 181
+      "covered": 193,
+      "total": 231
     },
     "src/sidepanel/tabs/styleEditor/CssCodeMirror.tsx": {
       "covered": 0,
-      "total": 578
+      "total": 579
     },
     "src/sidepanel/tabs/styleEditor/StyleChangesDialog.tsx": {
-      "covered": 0,
-      "total": 224
+      "covered": 2,
+      "total": 226
     },
     "src/sidepanel/tabs/styleEditor/StyleCssView.tsx": {
-      "covered": 0,
-      "total": 64
+      "covered": 3,
+      "total": 84
     },
     "src/sidepanel/tabs/styleEditor/StylePropEditors.tsx": {
       "covered": 94,
-      "total": 680
+      "total": 677
     },
     "src/sidepanel/tabs/styleEditor/TokenChip.tsx": {
-      "covered": 3,
+      "covered": 57,
       "total": 61
     },
     "src/sidepanel/tabs/styleEditor/ValueCombobox.tsx": {
-      "covered": 2,
-      "total": 346
+      "covered": 322,
+      "total": 377
     },
     "src/sidepanel/tabs/styleEditor/colorLiteral.ts": {
       "covered": 10,
       "total": 10
     },
     "src/sidepanel/tabs/styleEditor/cssBlock.ts": {
-      "covered": 138,
-      "total": 138
+      "covered": 142,
+      "total": 142
+    },
+    "src/sidepanel/tabs/styleEditor/cssDraftStatus.ts": {
+      "covered": 68,
+      "total": 68
     },
     "src/sidepanel/tabs/styleEditor/cssSwatch.ts": {
       "covered": 9,
@@ -1756,8 +1912,8 @@
       "total": 23
     },
     "src/sidepanel/tabs/styleEditor/inlineCssText.ts": {
-      "covered": 48,
-      "total": 48
+      "covered": 92,
+      "total": 92
     },
     "src/sidepanel/tabs/styleEditor/propMetadata.ts": {
       "covered": 140,
@@ -1772,15 +1928,15 @@
       "total": 10
     },
     "src/sidepanel/tabs/styleEditor/styleHooks.ts": {
-      "covered": 4,
+      "covered": 18,
       "total": 36
     },
     "src/sidepanel/tabs/styleEditor/tokenSuggest.ts": {
-      "covered": 54,
-      "total": 54
+      "covered": 70,
+      "total": 70
     },
     "src/sidepanel/tabs/styleEditor/tokenUtils.ts": {
-      "covered": 70,
+      "covered": 72,
       "total": 72
     },
     "src/sidepanel/tabs/styleEditor/valueFormat.ts": {
@@ -1788,36 +1944,36 @@
       "total": 62
     },
     "src/store/blob-db.ts": {
-      "covered": 232,
-      "total": 642
+      "covered": 333,
+      "total": 641
     },
     "src/store/chrome-storage.ts": {
-      "covered": 19,
-      "total": 25
+      "covered": 34,
+      "total": 34
     },
     "src/store/editor-store.ts": {
-      "covered": 572,
-      "total": 653
+      "covered": 690,
+      "total": 764
     },
     "src/store/issues-migrations.ts": {
       "covered": 6,
       "total": 6
     },
     "src/store/issues-store.ts": {
-      "covered": 146,
-      "total": 244
+      "covered": 202,
+      "total": 251
     },
     "src/store/settings-store.ts": {
-      "covered": 143,
+      "covered": 147,
       "total": 224
     },
     "src/store/settings-ui-store.ts": {
-      "covered": 165,
-      "total": 170
+      "covered": 175,
+      "total": 179
     },
     "src/types/messages.ts": {
-      "covered": 68,
-      "total": 90
+      "covered": 76,
+      "total": 98
     },
     "src/types/platform.ts": {
       "covered": 12,

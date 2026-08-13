@@ -180,4 +180,23 @@ describe("captureOwnedTab", () => {
     await expect(second).rejects.toThrow(/no longer the active tab/);
     expect(captureVisibleTab).not.toHaveBeenCalled();
   });
+
+  // 위 케이스는 전부 가짜 deps를 넣어 기본 배선을 건너뛴다. 기본 deps는 프로덕션에서만 도는
+  // 유일한 경로인데, captureVisibleTab이 받는 건 tabId가 아니라 windowId라 인자를 바꿔 넣어도
+  // 타입이 둘 다 number라 컴파일러가 안 잡는다.
+  it("deps를 생략하면 chrome.tabs를 tabId가 아닌 windowId로 호출한다", async () => {
+    const get = vi.fn(async () => ({ active: true, windowId: 42 }));
+    const captureVisibleTab = vi.fn(async () => "shot");
+    const prev = (globalThis as { chrome?: unknown }).chrome;
+    (globalThis as { chrome?: unknown }).chrome = {
+      tabs: { get, captureVisibleTab },
+    };
+    try {
+      await expect(captureOwnedTab(7, opts)).resolves.toBe("shot");
+      expect(get).toHaveBeenCalledWith(7);
+      expect(captureVisibleTab).toHaveBeenCalledWith(42, opts);
+    } finally {
+      (globalThis as { chrome?: unknown }).chrome = prev;
+    }
+  });
 });

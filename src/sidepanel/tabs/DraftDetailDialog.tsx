@@ -102,6 +102,7 @@ import { initialJiraFields } from "@/sidepanel/lib/initialJiraFields";
 import { SubmitFieldsDialog } from "@/sidepanel/tabs/SubmitFieldsDialog";
 
 type SubmitFields = {
+  projectKey?: string;
   issueTypeId?: string;
   assigneeId?: string;
   assigneeName?: string;
@@ -214,7 +215,13 @@ export function DraftDetailDialog({
     if (!open) return;
     // 캡처→제출 경로(editor-store.confirmDraft)와 같은 단일 출처를 쓴다 — 여기서 갈리면
     // Connect 탭의 기본 담당자가 드래프트 재제출에만 안 붙는다.
-    setFields(initialJiraFields(lastJiraSubmit, jiraAccount));
+    setFields(
+      initialJiraFields(
+        lastJiraSubmit,
+        jiraAccount,
+        jiraAccount?.auth ? jiraSiteId(jiraAccount.auth) : undefined,
+      ),
+    );
     const picked =
       issue && accounts[issue.platform]
         ? issue.platform
@@ -410,7 +417,9 @@ export function DraftDetailDialog({
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
     if (!issue) throw new Error(t("create.requiredMissing"));
-    if (!jiraAccount?.auth || !jiraAccount.projectKey) {
+    // 유효 프로젝트는 이번 제출의 필드값이고 계정 설정은 fallback일 뿐이다 (IssueCreateModal과 동일).
+    const projectKey = fields.projectKey ?? jiraAccount?.projectKey;
+    if (!jiraAccount?.auth || !projectKey) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.jira") }));
     }
     if (!fields.issueTypeId) throw new Error(t("create.requiredMissing"));
@@ -423,7 +432,7 @@ export function DraftDetailDialog({
       video: captureFiles.video,
       logs: captureFiles.logs,
       attachments: captureFiles.attachments,
-      projectKey: jiraAccount.projectKey,
+      projectKey,
       summary: issue.draft.title.trim(),
       issueTypeId: fields.issueTypeId,
       assigneeAccountId: fields.assigneeId,
@@ -449,7 +458,9 @@ export function DraftDetailDialog({
       useEditorStore.getState().reset();
     }
     useSettingsStore.getState().setLastSubmitFields("jira", {
-      projectKey: jiraAccount.projectKey,
+      projectKey,
+      issueTypeId: fields.issueTypeId,
+      siteId: jiraSiteId(jiraAccount.auth),
       assigneeId: fields.assigneeId,
       assigneeName: fields.assigneeName,
       priorityId: fields.priorityId,

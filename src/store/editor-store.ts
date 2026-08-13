@@ -9,7 +9,7 @@ import type { EnvironmentRow } from "@/types/environment";
 import type { UserAttachmentMeta } from "@/types/attachment";
 import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
-import { useSettingsStore } from "./settings-store";
+import { jiraSiteId, useSettingsStore } from "./settings-store";
 import { initialJiraFields } from "@/sidepanel/lib/initialJiraFields";
 import { saveVideoBlob, deleteVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
 import { takeWithinLimits, type TakeWithinLimitsResult } from "@/sidepanel/lib/attachmentLimits";
@@ -125,6 +125,7 @@ export interface EditorDraft {
 }
 
 export interface EditorIssueFields {
+  projectKey?: string;
   issueTypeId?: string;
   assigneeId?: string;
   assigneeName?: string;
@@ -850,13 +851,30 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const jiraAccount = accounts.jira;
       // 세션 중 사용자가 이미 고른 값이 있으면 직전 제출값 전체를 덮어 복원하지 않는다(기존 게이트).
       const restorable = !state.issueFields.assigneeId && !state.issueFields.priorityId;
-      const init = initialJiraFields(lastSubmitFields.jira, jiraAccount);
+      const init = initialJiraFields(
+        lastSubmitFields.jira,
+        jiraAccount,
+        jiraAccount?.auth ? jiraSiteId(jiraAccount.auth) : undefined,
+      );
       set((s) => {
-        const merged = { ...(restorable ? init : {}), ...s.issueFields };
+        // 세션에 projectKey 없이 issueTypeId만 있으면 프로젝트가 필드로 승격되기 전의 스냅샷이다
+        // — 그 이슈타입은 계정 기본 프로젝트의 것이라, 직전 제출 프로젝트를 얹으면 짝이 어긋나
+        // 제출이 400으로 죽는다. 복원을 통째로 건너뛰고 JiraIssueFields 백필이 계정 기본
+        // 프로젝트를 채우게 둔다.
+        const preUpgradeSession = !s.issueFields.projectKey && !!s.issueFields.issueTypeId;
+        // 게이트 조건은 담당자·우선순위이지 프로젝트가 아니다 — projectKey는 게이트와 무관하게
+        // init을 밑에 깔아 sticky를 살린다(세션에서 이미 고른 값이 있으면 그쪽이 이긴다).
+        const merged = preUpgradeSession
+          ? { ...s.issueFields }
+          : {
+              ...(restorable ? init : { projectKey: init.projectKey }),
+              ...s.issueFields,
+            };
         // 담당자는 게이트와 무관하게 비어 있을 때만 채우되, 우선순위는 init을 따른다
         // (직전 제출값 우선 · Connect 기본값 fallback). 여기서 account만 보면 기본 담당자가
-        // 직전 담당자를 가로채 *다른 사람*이 붙는다 — POSTMORTEM 2026-06-27과 같은 계열.
-        if (!merged.assigneeId && init.assigneeId) {
+        // 직전 담당자를 가로채 *다른 사람*이 붙는다 — POSTMORTEM 2026-06-30과 같은 계열.
+        // 프로젝트가 갈리면 다른 프로젝트의 담당자를 심는 셈이라 정합 조건도 함께 건다.
+        if (!merged.assigneeId && init.assigneeId && merged.projectKey === init.projectKey) {
           merged.assigneeId = init.assigneeId;
           merged.assigneeName = init.assigneeName;
         }

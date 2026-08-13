@@ -59,6 +59,26 @@ describe("submitEventProperties", () => {
     ]);
   });
 
+  // Jira 전용 차원. 프로젝트 키가 아니라 "기본값과 달랐나"만 나간다.
+  it("projectOverridden을 넘기면 문자열 boolean 1개만 늘어난다 (프로젝트 키는 안 나간다)", () => {
+    const out = submitEventProperties("jira", "element", "success", false, null, false);
+    expect(out.project_overridden).toBe("false");
+    expect(Object.keys(out).sort()).toEqual([
+      "capture_mode",
+      "platform",
+      "project_overridden",
+      "replay_trimmed",
+      "result",
+      "trim_source",
+    ]);
+  });
+
+  it("projectOverridden을 안 넘기면 키 자체가 없다 (Jira 외 플랫폼)", () => {
+    expect(submitEventProperties("github", "element", "success")).not.toHaveProperty(
+      "project_overridden",
+    );
+  });
+
   it("replay_trimmed 플래그 — 기본 false, 전달 시 문자열 'true'", () => {
     expect(submitEventProperties("github", "video", "success").replay_trimmed).toBe("false");
     expect(submitEventProperties("github", "video", "success", true).replay_trimmed).toBe("true");
