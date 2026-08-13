@@ -334,6 +334,65 @@ describe("스프린트 조회", () => {
       body: { values: boards, total: boards.length, isLast: true },
     });
 
+    // 서버 파라미터가 유일한 관문이다 — 목록 경로엔 클라이언트 상태 필터가 없어서
+    // state가 빠지면 closed 스프린트가 그대로 콤보에 뜨고, projectKeyOrId가 빠지면
+    // 사이트 전역 보드에서 상위 5개를 긁어 다른 프로젝트 스프린트가 섞인다.
+    it("보드는 프로젝트로, 스프린트는 active·future로 좁혀 요청한다", async () => {
+      const f = mockFetchByUrl([
+        { match: /\/board\/1\/sprint/, body: { values: [] } },
+        boardList([{ id: 1, name: "A", type: "scrum" }]),
+      ]);
+
+      await listSprints(OAUTH_AUTH, "WEB");
+
+      const [boardUrl, sprintUrl] = urls(f);
+      expect(boardUrl).toContain("projectKeyOrId=WEB");
+      expect(sprintUrl).toContain("state=active,future");
+    });
+
+    // scope 미비 401은 영구 조건이라 refresh로 안 풀린다. 재시도 레인을 타면 콤보를 열 때마다
+    // refresh token이 회전하고, 그 직후 persist가 실패하면 멀쩡하던 연동이 끊긴다.
+    // 팬아웃 5개가 각자 401을 받으면 회전 폭주가 가장 큰 지점이다(refreshInFlight가 1회로
+    // 모으더라도 그물이 없으면 이 자리만 조용히 되돌아갈 수 있다).
+    it("보드별 스프린트 조회가 401이어도 토큰 갱신을 시도하지 않는다", async () => {
+      const f = mockFetchByUrl([
+        {
+          match: "/token",
+          body: { access_token: "new", refresh_token: "new-rt", expires_in: 3600 },
+        },
+        { match: /\/board\/\d+\/sprint/, status: 401, body: {} },
+        boardList([{ id: 1, name: "A", type: "scrum" }]),
+      ]);
+
+      await expect(listSprints(OAUTH_AUTH, "WEB")).resolves.toEqual({
+        sprints: [],
+        multiBoard: false,
+      });
+      expect(urls(f).some((u) => u.includes("/token"))).toBe(false);
+      expect(f).toHaveBeenCalledTimes(2);
+    });
+
+    it("보드 목록이 401이어도 토큰 갱신을 시도하지 않는다", async () => {
+      const f = mockFetchByUrl([
+        {
+          match: "/token",
+          body: { access_token: "new", refresh_token: "new-rt", expires_in: 3600 },
+        },
+        {
+          match: /\/rest\/agile\/1\.0\/board\?/,
+          status: 401,
+          body: { code: 401, message: "Unauthorized; scope does not match" },
+        },
+      ]);
+
+      await expect(listSprints(OAUTH_AUTH, "WEB")).resolves.toEqual({
+        sprints: [],
+        multiBoard: false,
+      });
+      expect(urls(f).some((u) => u.includes("/token"))).toBe(false);
+      expect(f).toHaveBeenCalledTimes(1);
+    });
+
     it("보드 하나의 스프린트를 보드명과 함께 돌려준다", async () => {
       mockFetchByUrl([
         {
@@ -495,6 +554,66 @@ describe("스프린트 조회", () => {
 
       await expect(getSprint(OAUTH_AUTH, 99)).rejects.toThrow();
     });
+
+    // 401이 갱신 레인을 타면 OAuthError가 되고, 그건 sendBg가 reject 전에 onOAuthExpired를
+    // 전역 발화시킨다 — 사용자가 누른 적 없는 sticky 검증이 "세션 만료" 모달을 띄운다.
+    it("401이어도 토큰 갱신을 시도하지 않는다", async () => {
+      const f = mockFetchByUrl([
+        {
+          match: "/token",
+          body: { access_token: "new", refresh_token: "new-rt", expires_in: 3600 },
+        },
+        { match: "/rest/agile/1.0/sprint/99", status: 401, body: {} },
+      ]);
+
+      await expect(getSprint(OAUTH_AUTH, 99)).rejects.toThrow();
+      expect(urls(f).some((u) => u.includes("/token"))).toBe(false);
+      expect(f).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+// agile만 재시도를 끄는 것이므로 반대편도 고정한다 — 기본값이 뒤집히면 classic 경로 전체가
+// 401 자동 갱신을 잃고 사용자가 만료 때마다 재로그인을 요구받는데, 그 회귀엔 그물이 없었다.
+describe("classic 경로 401 자동 갱신", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("401을 받으면 토큰을 갱신하고 한 번 더 시도한다", async () => {
+    // 갱신본 저장이 실제로 일어나는 경로라 storage가 필요하다.
+    vi.stubGlobal("chrome", {
+      storage: { local: { get: async () => ({}), set: async () => {} } },
+    });
+    let served = 0;
+    const f = vi.fn(async (url: string) => {
+      if (String(url).includes("/token")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            access_token: "new",
+            refresh_token: "new-rt",
+            expires_in: 3600,
+          }),
+          text: async () => "",
+        } as Response;
+      }
+      const status = served++ === 0 ? 401 : 200;
+      return {
+        ok: status === 200,
+        status,
+        json: async () => ({ accountId: "a1" }),
+        text: async () => "{}",
+      } as Response;
+    });
+    vi.stubGlobal("fetch", f);
+
+    await expect(
+      jiraFetch(OAUTH_AUTH, "/rest/api/3/myself"),
+    ).resolves.toMatchObject({ accountId: "a1" });
+    expect(f.mock.calls.filter((c) => String(c[0]).includes("/token"))).toHaveLength(1);
+    expect(served).toBe(2);
   });
 });
 

@@ -6,7 +6,7 @@ import { resolveStickySprint } from "../sprint-sticky";
 // 쪽이라(닫힌 상태를 열거해 거르는 게 아니라) 미지 상태 문자열이 유효로 새지 않는다(R9).
 
 function sprint(state: string, name = "Sprint 24"): JiraSprint {
-  return { id: 42, name, state, boardId: 1 };
+  return { id: 42, name, state };
 }
 
 describe("resolveStickySprint", () => {

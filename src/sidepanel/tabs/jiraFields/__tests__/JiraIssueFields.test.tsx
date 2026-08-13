@@ -16,12 +16,16 @@ const JIRA_ACCOUNT = {
   auth: { kind: "oauth" as const, cloudId: "cloud-1" },
 };
 
+// settings store는 chrome.storage에서 비동기로 하이드레이트되므로 마운트 직후 auth가 잠깐
+// 비는 프레임이 실재한다 — 그 상태를 재현하려면 계정이 상수가 아니어야 한다.
+let account: unknown = JIRA_ACCOUNT;
+
 vi.mock("@/store/settings-store", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/store/settings-store")>();
   return {
     ...actual,
     useSettingsStore: (sel: (s: { accounts: Record<string, unknown> }) => unknown) =>
-      sel({ accounts: { jira: JIRA_ACCOUNT } }),
+      sel({ accounts: { jira: account } }),
   };
 });
 
@@ -74,6 +78,7 @@ function defaultRoutes(req: { type: string; projectKey?: string }) {
 }
 
 beforeEach(() => {
+  account = JIRA_ACCOUNT;
   sendBg.mockReset();
   sendBg.mockImplementation(defaultRoutes);
 });
@@ -420,7 +425,7 @@ describe("JiraIssueFields — 스프린트 값 정리·검증", () => {
     await waitFor(() => expect(sprintTrigger()).not.toBeNull());
     expect(sprintTrigger()!.textContent).not.toContain("Sprint 24");
 
-    release?.({ id: 42, name: "Sprint 24", state: "active", boardId: 1 });
+    release?.({ id: 42, name: "Sprint 24", state: "active" });
 
     await waitFor(() =>
       expect(sprintTrigger()!.textContent).toContain("Sprint 24"),
@@ -430,7 +435,7 @@ describe("JiraIssueFields — 스프린트 값 정리·검증", () => {
   it("검증에서 닫힌 스프린트로 판명되면 값을 비운다", async () => {
     routeSprint({
       meta: SPRINT_META,
-      sprint: { id: 42, name: "Sprint 24", state: "closed", boardId: 1 },
+      sprint: { id: 42, name: "Sprint 24", state: "closed" },
     });
     const onPatch = vi.fn();
     render(
@@ -477,6 +482,64 @@ describe("JiraIssueFields — 스프린트 값 정리·검증", () => {
     });
   });
 
+  // 값은 남는데 행이 없으면 사용자는 그 스프린트를 보지도 해제하지도 못한 채 제출한다.
+  // 행만 뜨고 라벨이 비어도 "무엇이 실려 나가는가"는 여전히 안 보이므로 이름까지 봐야 한다.
+  it("판정 요청이 실패해도 값이 남아 있으면 행과 이름을 보여준다", async () => {
+    routeSprint({ meta: () => Promise.reject(new Error("boom")) });
+    render(
+      <Harness
+        initial={{
+          projectKey: "SPG",
+          issueTypeId: "10001",
+          sprintId: 42,
+          sprintName: "Sprint 24",
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(sprintTrigger()).not.toBeNull());
+    expect(sprintTrigger()!.textContent).toContain("Sprint 24");
+  });
+
+  // settings store 하이드레이트 전 프레임은 auth가 없어 판정 키를 만들 수 없다. 그걸
+  // "서버가 없다고 답했다"로 읽으면 복원된 스프린트가 마운트 직후 지워진다.
+  it("인증이 아직 없으면 판정을 안 물어본 것이므로 값을 비우지 않는다", async () => {
+    account = { platform: "jira", projectKey: "WEB", issueTypeId: "10001" };
+    const onPatch = vi.fn();
+    render(
+      <Harness
+        onPatch={onPatch}
+        initial={{
+          projectKey: "SPI",
+          issueTypeId: "10001",
+          sprintId: 42,
+          sprintName: "Sprint 24",
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("jira-issue-type-combobox")).toBeTruthy(),
+    );
+    expect(
+      sendBg.mock.calls.some(
+        (c) => (c[0] as { type: string }).type === "jira.sprintFieldMeta",
+      ),
+    ).toBe(false);
+    expect(onPatch).not.toHaveBeenCalledWith({
+      sprintId: undefined,
+      sprintName: undefined,
+    });
+  });
+
+  it("판정 요청이 실패했고 값도 없으면 행을 그리지 않는다", async () => {
+    routeSprint({ meta: () => Promise.reject(new Error("boom")) });
+    render(<Harness initial={{ projectKey: "SPH", issueTypeId: "10001" }} />);
+
+    await waitFor(() => expect(screen.queryByText("common.loading")).toBeNull());
+    expect(sprintTrigger()).toBeNull();
+  });
+
   // 검증 응답이 오는 사이 사용자가 목록에서 다른 스프린트를 고를 수 있다. 늦게 온 판정이
   // 그 선택을 덮으면 방금 고른 값이 사라지거나 id/name 쌍이 어긋난다.
   it("검증 응답이 늦게 와도 그 사이 사용자가 고른 스프린트를 덮지 않는다", async () => {
@@ -491,7 +554,7 @@ describe("JiraIssueFields — 스프린트 값 정리·검증", () => {
       if (req.type === "jira.listSprints")
         return Promise.resolve({
           sprints: [
-            { id: 43, name: "Sprint 25", state: "active", boardId: 1 },
+            { id: 43, name: "Sprint 25", state: "active" },
           ],
           multiBoard: false,
         });
@@ -515,7 +578,7 @@ describe("JiraIssueFields — 스프린트 값 정리·검증", () => {
     await user.click(await screen.findByText("Sprint 25"));
 
     // 뒤늦게 도착한 42번 검증 결과(닫힘)는 이미 사용자 선택에 밀렸다.
-    release?.({ id: 42, name: "Sprint 24", state: "closed", boardId: 1 });
+    release?.({ id: 42, name: "Sprint 24", state: "closed" });
 
     await waitFor(() =>
       expect(sprintTrigger()!.textContent).toContain("Sprint 25"),
@@ -547,7 +610,6 @@ describe("JiraIssueFields — 스프린트 값 정리·검증", () => {
           id: 42,
           name: "Sprint 24",
           state: "active",
-          boardId: 1,
         });
       return defaultRoutes(req);
     });

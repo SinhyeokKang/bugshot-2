@@ -51,11 +51,30 @@ describe("useSprintFieldMeta", () => {
     });
   });
 
-  it("프로젝트가 없으면 요청하지 않는다", () => {
+  // "안 물어봤다"와 "서버가 없다고 답했다"가 같은 값이면 상위의 값 비우기가 인증·입력이
+  // 잠깐 빈 순간에 사용자 선택을 지운다. 키 입력을 상위가 손으로 다시 세지 않게 훅이 답한다.
+  it("판정을 물어볼 입력이 없으면 answered가 아니다", () => {
     const { result } = renderHook(() => useSprintFieldMeta(undefined, "T1"));
 
     expect(sendBg).not.toHaveBeenCalled();
     expect(result.current.loading).toBe(false);
+    expect(result.current.answered).toBe(false);
+  });
+
+  it("인증이 없으면 answered가 아니다", () => {
+    ACCOUNT = { platform: "jira", projectKey: "WEB" };
+    const { result } = renderHook(() => useSprintFieldMeta("P1b", "T1"));
+
+    expect(sendBg).not.toHaveBeenCalled();
+    expect(result.current.answered).toBe(false);
+  });
+
+  it("서버가 답하면 answered가 된다", async () => {
+    sendBg.mockResolvedValue(null);
+    const { result } = renderHook(() => useSprintFieldMeta("P1c", "T1"));
+
+    await waitFor(() => expect(result.current.answered).toBe(true));
+    expect(result.current.meta).toBeNull();
   });
 
   it("이슈타입이 없으면 요청하지 않는다", () => {
@@ -111,6 +130,37 @@ describe("useSprintFieldMeta", () => {
 
     await waitFor(() => expect(sendBg).toHaveBeenCalledTimes(2));
     expect(second.result.current.meta).toEqual(META);
+  });
+
+  // 실패는 캐시에 안 남으므로 entry에만 기록된다. 그 사이 캐시 히트 키를 거쳐 돌아오면
+  // entry가 갱신되지 않아 옛 실패가 "이미 답을 받았다"로 읽힌다.
+  it("실패한 키로 되돌아오면 옛 실패 기록을 쓰지 않고 다시 물어본다", async () => {
+    let failKeyCalls = 0;
+    sendBg.mockImplementation((req: { issueTypeId?: string }) => {
+      if (req.issueTypeId !== "TF") return Promise.resolve(META);
+      failKeyCalls++;
+      return failKeyCalls === 1
+        ? Promise.reject(new Error("boom"))
+        : Promise.resolve(META);
+    });
+
+    // 경유할 키를 먼저 캐시에 올린다 — 캐시 히트 경로는 entry를 건드리지 않는다.
+    const warm = renderHook(() => useSprintFieldMeta("P7", "TG"));
+    await waitFor(() => expect(warm.result.current.answered).toBe(true));
+    warm.unmount();
+
+    const { result, rerender } = renderHook(
+      ({ issueTypeId }: { issueTypeId: string }) =>
+        useSprintFieldMeta("P7", issueTypeId),
+      { initialProps: { issueTypeId: "TF" } },
+    );
+    await waitFor(() => expect(result.current.failed).toBe(true));
+
+    rerender({ issueTypeId: "TG" });
+    rerender({ issueTypeId: "TF" });
+
+    expect(result.current.answered).toBe(false);
+    await waitFor(() => expect(result.current.meta).toEqual(META));
   });
 
   // 제출 시점 분석 축을 훅으로 구독하면 다이얼로그가 닫혀 있어도, Jira가 아닌 플랫폼으로

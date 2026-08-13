@@ -36,7 +36,9 @@ MAX_SPRINT_BOARDS = 5
   **`type=scrum`으로 서버 필터하지 않는다.** 2026-08-13 실측에서 **team-managed 프로젝트의 보드는 `type: "simple"`로 오고 그중 일부가 스프린트를 정상 반환했다**(SRE·BMD·SBDATA 보드 → 200 + 스프린트). `type=scrum`으로 좁혔으면 team-managed 스크럼 팀이 통째로, 그것도 **무음으로** 빠졌을 것이다. 반대로 칸반은 400이 확정이라(`보드는 스프린트를 지원하지 않습니다.`) 호출 자체가 낭비여서 클라이언트에서 제외한다. 이 필터가 팬아웃을 실제로 눌러준다 — 실측 사이트의 한 프로젝트는 보드가 15개인데 kanban 13개를 빼면 2개다.
 
   **보드 단위 실패도, 보드 목록 조회 실패도 삼킨다** — 전자는 스프린트 미지원 보드·권한 없음, 후자는 재연동 전 OAuth 사용자(PRD §OAuth scope 정책)라 둘 다 "고를 게 없다"로 수렴시킨다. 오류를 노출하면 재연동 전 사용자 전원이 매번 오류 문구를 보게 되고, 그들이 당장 할 수 있는 일은 없다. 대가는 진단 불가이며 그 자리를 분석 축이 메운다(R6). **판정은 status로만 한다** — 400의 `errorMessages`가 사용자 로케일로 번역돼 오므로(위 한국어 문구) 문자열 매칭은 성립하지 않는다.
-- **`getSprint(auth, sprintId)`** — `GET /rest/agile/1.0/sprint/{id}`. 404/403이면 `null`. sticky 검증 전용(§9).
+- **`getSprint(auth, sprintId)`** — `GET /rest/agile/1.0/sprint/{id}`. 404/403이면 `null`이고 **그 외 오류는 던진다** — 429·5xx까지 `null`로 뭉개면 일시 실패가 sticky 검증에서 "스프린트가 사라졌다"가 돼 사용자가 고른 값을 지운다. sticky 검증 전용(§9).
+
+**agile 3경로는 401 재시도를 끈다**(`jiraFetch(auth, path, init, /* retryOn401 */ false)`). `authedFetch`는 401을 만료로만 해석해 refresh 후 재시도하는데, scope 미비 401은 **영구** 조건이라 그 왕복이 전부 낭비이고 회전형 refresh token을 콤보 열 때마다 소모한다. 게다가 그 결과 `OAuthError`는 `sendBg`가 전역 "세션 만료" 안내를 발화시키는 레인을 타서, 사용자가 누른 적 없는 sticky 검증이 재로그인 모달을 띄운다. `getSprintFieldMeta`는 classic `/rest/api/3/` 경로라 401이 진짜 만료를 뜻하므로 재시도를 유지한다.
 
 `createIssue`(`jira-api.ts:267`) 수정:
 
@@ -57,7 +59,6 @@ export interface JiraSprint {
   id: number;
   name: string;
   state: string;          // 서버 문자열. 판정은 isActiveSprint() 단일 출처
-  boardId: number;
   boardName?: string;     // getSprint 경로는 보드를 모른다 — optional이어야 거짓 값을 안 만든다
 }
 
@@ -228,7 +229,7 @@ export interface JiraSprint {
   id: number;
   name: string;
   state: string;
-  boardId: number;
+  // boardId는 두지 않는다 — 쓰기만 하고 읽는 곳이 없어 getSprint 경로에서 센티널을 지어내게 된다.
   boardName?: string;
 }
 
@@ -286,7 +287,12 @@ export function resolveStickySprint(
 export function useSprintFieldMeta(
   projectKey: string | undefined,
   issueTypeId: string | undefined,
-): { meta: JiraSprintFieldMeta | null; loading: boolean };
+): {
+  meta: JiraSprintFieldMeta | null;
+  loading: boolean;
+  failed: boolean;    // 조회 실패. "없음 확정"과 갈라야 값 삭제가 안 새어나간다
+  answered: boolean;  // 이 키에 답을 받았나. 상위가 키 입력을 다시 세지 않게 한다
+};
 
 // src/sidepanel/tabs/jiraFields/SprintField.tsx
 export function SprintField(props: {

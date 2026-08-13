@@ -224,6 +224,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
         : null;
     // 스프린트 목록 조회 실패를 전부 삼키므로 이 두 축이 유일한 사후 관측 수단이다.
     // "행은 보였는데 안 골랐다"가 표현돼야 해서 축을 합치지 않는다.
+    // shown은 "판정이 필드 있음으로 확정됐나"다 — 판정이 **실패**했는데 복원값 때문에 행이
+    // 뜬 경우는 false로 남는다(필드 존재가 확인된 게 아니므로 그쪽이 축의 뜻에 맞다).
     const sprintFieldShown =
       platform === "jira"
         ? !!peekSprintFieldMeta(

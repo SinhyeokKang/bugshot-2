@@ -17,8 +17,8 @@ vi.mock("@/types/messages", () => ({
 }));
 
 const SPRINTS: JiraSprint[] = [
-  { id: 42, name: "Sprint 24", state: "active", boardId: 1, boardName: "WEB board" },
-  { id: 43, name: "Sprint 25", state: "future", boardId: 2, boardName: "API board" },
+  { id: 42, name: "Sprint 24", state: "active", boardName: "WEB board" },
+  { id: 43, name: "Sprint 25", state: "future", boardName: "API board" },
 ];
 
 function mockList(multiBoard: boolean, sprints: JiraSprint[] = SPRINTS) {

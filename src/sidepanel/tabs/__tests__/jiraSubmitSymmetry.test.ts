@@ -73,6 +73,40 @@ describe("Jira 제출 진입점 대칭", () => {
   });
 });
 
+// 제출 분석은 성공·실패 두 지점에서 같은 함수를 부른다. 인자가 전부 boolean|null 위치
+// 인자라 한쪽만 빠뜨리거나 순서가 어긋나도 타입이 못 잡고, Jira 축 3개는 목록 조회 실패를
+// 삼키는 설계의 유일한 사후 관측 수단이라 뒤집혀도 알 방법이 없다.
+describe("제출 분석 축 대칭", () => {
+  const DIALOG = "src/sidepanel/tabs/SubmitFieldsDialog.tsx";
+
+  function trackSubmitArgs(src: string): string[][] {
+    return [...src.matchAll(/trackSubmit\(([\s\S]*?)\);/g)].map((m) =>
+      m[1]
+        .split(",")
+        .map((a) => a.trim())
+        .filter(Boolean),
+    );
+  }
+
+  // 앞 5개는 두 호출이 원래 다르다(result 문자열, 그리고 편집기 상태를 읽는 변수명이 갈린다).
+  // 뒤쪽 Jira 축 3개만 대조하고, 순서 자체는 track-submit.test.ts가 시그니처→property 매핑으로
+  // 고정한다 — 두 그물의 조합이라야 뒤바뀐 인자가 red가 된다.
+  it("성공·실패 두 호출이 같은 개수의 인자를 넘기고 뒤쪽 Jira 축이 일치한다", () => {
+    const calls = trackSubmitArgs(source(DIALOG));
+
+    expect(calls).toHaveLength(2);
+    const [fail, ok] = calls;
+    expect(fail).toHaveLength(ok.length);
+    expect(fail.slice(5)).toEqual(ok.slice(5));
+  });
+
+  it("두 호출 모두 sprint 축 2개를 마지막에 싣는다", () => {
+    for (const call of trackSubmitArgs(source(DIALOG))) {
+      expect(call.slice(-2)).toEqual(["sprintFieldShown", "sprintSelected"]);
+    }
+  });
+});
+
 // `key,` / `key: value,` 최상위 항목만 (중첩 객체는 이 payload에 없다).
 function keysOf(payload: string): string[] {
   return [...payload.matchAll(/^\s{6}(\w+)[,:]/gm)].map((m) => m[1]).sort();

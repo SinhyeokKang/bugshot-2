@@ -112,10 +112,11 @@ async function authedFetch(
   path: string,
   init: RequestInit,
   multipart: boolean,
+  retryOn401 = true,
 ): Promise<Response> {
   let current = await ensureFreshAuth(auth);
   let res = await doFetch(current, path, init, multipart);
-  if (res.status === 401 && current.kind === "oauth") {
+  if (res.status === 401 && current.kind === "oauth" && retryOn401) {
     current = await refreshOnce(current);
     res = await doFetch(current, path, init, multipart);
     if (res.status === 401) {
@@ -131,8 +132,12 @@ export async function jiraFetch<T = unknown>(
   auth: JiraAuth,
   path: string,
   init: RequestInit = {},
+  // 401을 만료로 보고 갱신·재시도할지. agile은 scope 미비 401이 **영구** 조건이라 재시도가
+  // 전부 낭비이고, 회전형 refresh token을 콤보 열 때마다 소모하는 부작용까지 붙는다.
+  // 게다가 그 결과 OAuthError는 sendBg가 전역 "세션 만료" 안내를 띄우는 레인을 탄다.
+  retryOn401 = true,
 ): Promise<T> {
-  const res = await authedFetch(auth, path, init, false);
+  const res = await authedFetch(auth, path, init, false, retryOn401);
   if (!res.ok) {
     throw new JiraError(res.status, messageForJiraStatus(res.status), await readErrorBody(res));
   }
@@ -315,7 +320,10 @@ export function mergeBoardSprints(
     const order = stateRank(a.state) - stateRank(b.state);
     return order !== 0 ? order : a.id - b.id;
   });
-  return { sprints, multiBoard: perBoard.length > 1 };
+  // "보드명을 그릴까"라는 UI 신호다. 조회에 성공한 보드 수를 세면 스프린트를 0개 준 보드
+  // 하나 때문에 이름이 하나뿐인 목록에 2줄 스택이 그려진다.
+  const boardNames = new Set(sprints.map((s) => s.boardName));
+  return { sprints, multiBoard: boardNames.size > 1 };
 }
 
 export async function getSprintFieldMeta(
@@ -342,7 +350,6 @@ interface RawSprint {
   id: number;
   name: string;
   state: string;
-  originBoardId?: number;
 }
 
 export async function listSprints(
@@ -354,6 +361,8 @@ export async function listSprints(
   const boards = await jiraFetch<{ values?: AgileBoard[] }>(
     auth,
     `/rest/agile/1.0/board?projectKeyOrId=${encodeURIComponent(projectKey)}&maxResults=50`,
+    {},
+    false,
   )
     .then((res) => res.values ?? [])
     .catch(() => [] as AgileBoard[]);
@@ -368,14 +377,15 @@ export async function listSprints(
     targets.map((board) =>
       jiraFetch<{ values?: RawSprint[] }>(
         auth,
-        `/rest/agile/1.0/board/${board.id}/sprint?state=active,future&maxResults=50`,
+        `/rest/agile/1.0/board/${encodeURIComponent(board.id)}/sprint?state=active,future&maxResults=50`,
+        {},
+        false,
       ).then((res) => ({
         boardName: board.name,
         sprints: (res.values ?? []).map((s) => ({
           id: s.id,
           name: s.name,
           state: s.state,
-          boardId: s.originBoardId ?? board.id,
         })),
       })),
     ),
@@ -392,7 +402,9 @@ export async function getSprint(
 ): Promise<JiraSprint | null> {
   const raw = await jiraFetch<RawSprint>(
     auth,
-    `/rest/agile/1.0/sprint/${sprintId}`,
+    `/rest/agile/1.0/sprint/${encodeURIComponent(sprintId)}`,
+    {},
+    false,
   ).catch((err: unknown) => {
     // "없어졌다"로 읽어도 되는 건 404/403뿐이다. 429·5xx까지 null로 뭉개면 일시 실패가
     // sticky 검증에서 "스프린트가 사라졌다"가 돼 사용자가 고른 값을 지운다 — 그쪽은 던져서
@@ -403,12 +415,7 @@ export async function getSprint(
     throw err;
   });
   if (!raw) return null;
-  return {
-    id: raw.id,
-    name: raw.name,
-    state: raw.state,
-    boardId: raw.originBoardId ?? 0,
-  };
+  return { id: raw.id, name: raw.name, state: raw.state };
 }
 
 export async function createIssue(

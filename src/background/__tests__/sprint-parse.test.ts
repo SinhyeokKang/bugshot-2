@@ -150,19 +150,14 @@ describe("isActiveSprint", () => {
   });
 });
 
-function sprint(
-  id: number,
-  name: string,
-  state: string,
-  boardId: number,
-): JiraSprint {
-  return { id, name, state, boardId };
+function sprint(id: number, name: string, state: string): JiraSprint {
+  return { id, name, state };
 }
 
 describe("mergeBoardSprints", () => {
   it("보드가 하나면 그 목록을 그대로 주고 multiBoard는 false", () => {
     const out = mergeBoardSprints([
-      { boardName: "WEB board", sprints: [sprint(1, "Sprint 1", "active", 10)] },
+      { boardName: "WEB board", sprints: [sprint(1, "Sprint 1", "active")] },
     ]);
 
     expect(out.multiBoard).toBe(false);
@@ -172,8 +167,8 @@ describe("mergeBoardSprints", () => {
 
   it("보드가 둘이면 multiBoard가 true", () => {
     const out = mergeBoardSprints([
-      { boardName: "A", sprints: [sprint(1, "S1", "active", 10)] },
-      { boardName: "B", sprints: [sprint(2, "S2", "active", 20)] },
+      { boardName: "A", sprints: [sprint(1, "S1", "active")] },
+      { boardName: "B", sprints: [sprint(2, "S2", "active")] },
     ]);
 
     expect(out.multiBoard).toBe(true);
@@ -183,8 +178,8 @@ describe("mergeBoardSprints", () => {
   // 같은 스프린트가 두 보드에 걸릴 수 있다. 먼저 온 보드의 이름을 남긴다.
   it("id가 겹치면 1건으로 합치고 먼저 온 보드명을 남긴다", () => {
     const out = mergeBoardSprints([
-      { boardName: "먼저", sprints: [sprint(7, "Sprint 7", "active", 10)] },
-      { boardName: "나중", sprints: [sprint(7, "Sprint 7", "active", 20)] },
+      { boardName: "먼저", sprints: [sprint(7, "Sprint 7", "active")] },
+      { boardName: "나중", sprints: [sprint(7, "Sprint 7", "active")] },
     ]);
 
     expect(out.sprints).toHaveLength(1);
@@ -196,12 +191,12 @@ describe("mergeBoardSprints", () => {
       {
         boardName: "A",
         sprints: [
-          sprint(30, "future b", "future", 10),
-          sprint(20, "active b", "active", 10),
-          sprint(10, "future a", "future", 10),
+          sprint(30, "future b", "future"),
+          sprint(20, "active b", "active"),
+          sprint(10, "future a", "future"),
         ],
       },
-      { boardName: "B", sprints: [sprint(5, "active a", "active", 20)] },
+      { boardName: "B", sprints: [sprint(5, "active a", "active")] },
     ]);
 
     expect(out.sprints.map((s) => s.id)).toEqual([5, 20, 10, 30]);
@@ -209,5 +204,25 @@ describe("mergeBoardSprints", () => {
 
   it("빈 입력이면 빈 목록에 multiBoard는 false", () => {
     expect(mergeBoardSprints([])).toEqual({ sprints: [], multiBoard: false });
+  });
+
+  // multiBoard는 "보드명을 그릴까"라는 UI 신호다. 조회에 성공한 보드 수를 세면 스프린트를
+  // 0개 준 보드 하나 때문에 이름이 하나뿐인 목록에 2줄 스택이 그려진다.
+  it("스프린트를 준 보드가 하나뿐이면 multiBoard는 false", () => {
+    const out = mergeBoardSprints([
+      { boardName: "A", sprints: [sprint(1, "S1", "active")] },
+      { boardName: "B", sprints: [] },
+    ]);
+
+    expect(out.multiBoard).toBe(false);
+  });
+
+  it("겹치는 스프린트뿐이면 보드가 둘이어도 multiBoard는 false", () => {
+    const out = mergeBoardSprints([
+      { boardName: "먼저", sprints: [sprint(7, "S7", "active")] },
+      { boardName: "나중", sprints: [sprint(7, "S7", "active")] },
+    ]);
+
+    expect(out.multiBoard).toBe(false);
   });
 });

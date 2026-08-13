@@ -78,7 +78,6 @@ export interface JiraSprint {
   // 서버 문자열 그대로 둔다. union으로 좁히면 미지 값이 타입 위에서만 사라지고 런타임에서는
   // 그대로 흘러 닫힌 스프린트가 유효로 샌다 — 판정은 isActiveSprint() 단일 출처.
   state: string;
-  boardId: number;
   // 단건 조회(getSprint) 경로는 보드를 모른다.
   boardName?: string;
 }

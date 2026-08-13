@@ -82,6 +82,7 @@ export function JiraIssueFields({
     meta: sprintMeta,
     loading: sprintLoading,
     failed: sprintFailed,
+    answered: sprintAnswered,
   } = useSprintFieldMeta(projectKey, fields.issueTypeId);
   // 재검증 래치는 boolean이 아니라 검증한 sprintId 값이다 — boolean이면 프로젝트를 바꿔 새
   // sticky 값이 들어와도 재검증이 안 돈다.
@@ -91,20 +92,12 @@ export function JiraIssueFields({
   // 판정이 "없음"으로 **확정**됐을 때만 비운다. 판정 중의 임시 null도, 조회 실패(failed)도
   // 확정이 아니다 — 실패를 확정으로 읽으면 429 한 번에 사용자가 고른 스프린트가 사라진다.
   useEffect(() => {
-    // 판정을 물어볼 입력이 아직 없으면 "없음"도 아니다 — 여기서 안 막으면 이슈타입이 잠깐 빈
-    // 순간에 값이 지워지고 그 write가 세션 영속까지 나간다.
-    if (!projectKey || !fields.issueTypeId) return;
-    if (sprintLoading || sprintFailed || sprintMeta || fields.sprintId == null) return;
+    // 서버가 "없다"고 **답했을 때만** 비운다. 아직 안 물어봤거나(입력·인증 미비) 조회가
+    // 실패한 건 확정이 아니다 — 확정으로 읽으면 429 한 번에, 혹은 이슈타입이 잠깐 빈 순간에
+    // 사용자가 고른 스프린트가 지워지고 그 write가 세션 영속까지 나간다.
+    if (!sprintAnswered || sprintFailed || sprintMeta || fields.sprintId == null) return;
     onChange({ sprintId: undefined, sprintName: undefined });
-  }, [
-    projectKey,
-    fields.issueTypeId,
-    sprintLoading,
-    sprintFailed,
-    sprintMeta,
-    fields.sprintId,
-    onChange,
-  ]);
+  }, [sprintAnswered, sprintFailed, sprintMeta, fields.sprintId, onChange]);
 
   // 검증은 meta가 확정된 뒤에만 돈다 — meta가 null이면 요청 0회라 위 비우기와 경합하지 않는다.
   useEffect(() => {
@@ -186,12 +179,19 @@ export function JiraIssueFields({
             {t("common.loading")}
           </div>
         </FieldRow>
-      ) : sprintMeta ? (
+      ) : sprintMeta || (sprintFailed && fields.sprintId != null) ? (
+        // 판정이 실패해도 값이 남아 있으면 행을 그린다 — 안 그리면 사용자는 제출되는 스프린트를
+        // 보지도 해제하지도 못한다. fieldId는 몰라도 되고, 제출 시 background가 재해석한다.
         <FieldRow label={t("create.sprint")}>
           <SprintField
             projectKey={projectKey}
             value={fields.sprintId}
-            fallbackLabel={sprintVerified ? fields.sprintName : undefined}
+            // 검증 전에는 이름을 숨긴다(무효 판정에서 "골라놨던 게 사라졌다"로 읽히므로).
+            // 단 판정 자체가 실패한 경로는 검증이 아예 안 도므로 그 예외를 열어야 한다 —
+            // 안 그러면 행만 뜨고 라벨이 비어 무엇이 실려 나가는지 여전히 안 보인다.
+            fallbackLabel={
+              sprintVerified || sprintFailed ? fields.sprintName : undefined
+            }
             onChange={handleSprintChange}
           />
         </FieldRow>

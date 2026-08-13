@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { jiraSiteId, useSettingsStore } from "@/store/settings-store";
 import type { JiraAuth, JiraSprintFieldMeta } from "@/types/jira";
 import { sendBg } from "@/types/messages";
@@ -41,7 +41,14 @@ export function peekSprintFieldMeta(
 export function useSprintFieldMeta(
   projectKey: string | undefined,
   issueTypeId: string | undefined,
-): { meta: JiraSprintFieldMeta | null; loading: boolean; failed: boolean } {
+): {
+  meta: JiraSprintFieldMeta | null;
+  loading: boolean;
+  failed: boolean;
+  // 이 (사이트, 프로젝트, 이슈타입)에 대해 답을 받았나. "아직 안 물어봤다"와 "서버가 없다고
+  // 답했다"를 상위가 구분해야 값 비우기가 인증·입력이 잠깐 빈 순간에 선택을 지우지 않는다.
+  answered: boolean;
+} {
   const auth = useSettingsStore((s) => s.accounts.jira?.auth);
   const key = cacheKey(auth, projectKey, issueTypeId);
   const [entry, setEntry] = useState<{
@@ -49,11 +56,12 @@ export function useSprintFieldMeta(
     meta: JiraSprintFieldMeta | null;
     failed?: boolean;
   } | null>(null);
-  const seqRef = useRef(0);
 
   useEffect(() => {
-    const seq = ++seqRef.current;
     if (!key || !projectKey || !issueTypeId || cache.has(key)) return;
+    // 실패는 캐시에 안 남으므로 같은 키로 되돌아오면 entry에 남은 옛 실패가 "이미 답을 받았다"로
+    // 읽힌다 — 재요청을 내면서 그 기록을 비워야 로딩 자리 예약이 다시 걸린다.
+    setEntry(null);
     sendBg<JiraSprintFieldMeta | null>({
       type: "jira.sprintFieldMeta",
       projectKey,
@@ -61,15 +69,17 @@ export function useSprintFieldMeta(
     })
       .then((res) => {
         cache.set(key, res ?? null);
-        if (seq === seqRef.current) setEntry({ key, meta: res ?? null });
+        setEntry({ key, meta: res ?? null });
       })
-      // 판정 실패는 화면상 "필드 없음"과 같게 두되 failed로 구분한다 — 실패를 "없음 확정"으로
-      // 읽으면 429 한 번에 사용자가 고른 스프린트가 지워진다. 캐시엔 안 남겨 다음에 재시도한다.
+      // 판정 실패는 "필드 없음 확정"과 구분한다 — 실패를 확정으로 읽으면 429 한 번에
+      // 사용자가 고른 스프린트가 지워진다. 캐시엔 안 남겨 다음에 재시도한다.
       .catch(() => {
-        if (seq === seqRef.current) setEntry({ key, meta: null, failed: true });
+        setEntry({ key, meta: null, failed: true });
       });
   }, [key, projectKey, issueTypeId]);
 
+  // stale 응답 방어는 seq 카운터가 아니라 이 키 대조가 한다 — entry가 자기 키를 들고 다니므로
+  // 늦게 도착한 이전 키의 응답은 렌더에서 그대로 탈락한다(성공분은 캐시가 한 겹 더 앞선다).
   const resolved = !key
     ? null
     : cache.has(key)
@@ -82,5 +92,6 @@ export function useSprintFieldMeta(
     meta: resolved?.meta ?? null,
     loading: !!key && !resolved,
     failed: !!resolved?.failed,
+    answered: !!resolved,
   };
 }
