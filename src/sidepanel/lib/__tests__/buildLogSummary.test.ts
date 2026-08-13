@@ -604,3 +604,25 @@ describe("buildActionLogSummary — navigation 유형", () => {
     },
   );
 });
+
+// ActionEntryKind에 kind가 늘면 컴파일러가 이 함수의 never 할당에서 막지만, 저장된 세션이나
+// 페이지가 심은 데이터처럼 타입을 안 거치고 들어오는 값은 런타임까지 온다. 그때 "Clicked: "로
+// 접히면 사실과 다른 재현 단계가 LLM 프롬프트로 나가므로, 미지 kind는 자기 이름을 달고 나와야
+// 한다(2026-08-13 커버리지 점검에서 이 분기가 한 번도 실행된 적 없던 걸 발견).
+describe("buildActionLogSummary — 미지 kind", () => {
+  it("알 수 없는 kind는 click으로 접히지 않고 kind 이름을 라벨로 쓴다", () => {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [
+        makeAction({
+          id: "1",
+          kind: "hover" as ActionEntry["kind"],
+          target: "Save",
+        }),
+      ],
+    });
+    const line = buildActionLogSummary(log)[0];
+    expect(line).toBe("hover: Save");
+    expect(line).not.toContain("Clicked");
+  });
+});
