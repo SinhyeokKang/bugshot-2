@@ -83,8 +83,8 @@
 - **검증**
   - [x] 제출 다이얼로그 Jira 탭 최상단에 프로젝트 행이 보인다.
   - [x] 프로젝트를 바꾸면 이슈타입·담당자·에픽·연결 이슈 표시가 비고, **우선순위와 참조(cc)는 남는다**.
-  - [ ] 프로젝트를 바꾼 직후 제출 버튼이 잠기고 이슈타입 콤보가 열린다.
-  - [ ] 이슈타입을 고르면 제출 버튼이 다시 활성화된다.
+  - [x] 프로젝트를 바꾼 직후 제출 버튼이 잠기고 이슈타입 콤보가 열린다.
+  - [x] 이슈타입을 고르면 제출 버튼이 다시 활성화된다.
   - [x] `isEpicType` 로컬 상태도 함께 초기화된다(에픽 프로젝트에서 일반 프로젝트로 옮길 때 상위 에픽 행이 숨은 채 남지 않는다).
 
 ### Task 6: 하위 필드 스코프 전환
@@ -115,9 +115,9 @@
   - `accounts.jira.projectKey`를 제출 payload·`lastSubmitFields` 어디에서도 직접 쓰지 않는다. (`jiraAccount.auth`는 연결 가드·`jiraSiteId`에, `jiraAccount.issueTypeName`은 `markSubmitted`에 계속 쓰인다 — 그건 R3 소관.)
   - `issue_submitted`에 `project_overridden`(boolean, 유효 프로젝트 ≠ `jiraAccount.projectKey`) 추가 + `analytics.ts:26`의 허용 프로퍼티 화이트리스트에 등록.
 - **검증**
-  - [ ] 프로젝트를 바꿔 제출하면 그 프로젝트로 등록된다(스파이로 `jira.submitIssue` payload의 `projectKey` 확인).
-  - [ ] 제출 후 `accounts.jira.projectKey`가 불변이다.
-  - [ ] 제출 후 `lastSubmitFields.jira`에 `projectKey`·`issueTypeId`·`siteId`가 기록된다 — **두 진입점 각각에서**.
+  - [x] 프로젝트를 바꿔 제출하면 그 프로젝트로 등록된다(스파이로 `jira.submitIssue` payload의 `projectKey` 확인).
+  - [x] 제출 후 `accounts.jira.projectKey`가 불변이다.
+  - [x] 제출 후 `lastSubmitFields.jira`에 `projectKey`·`issueTypeId`·`siteId`가 기록된다 — **두 진입점 각각에서**.
   - [x] `project_overridden`이 화이트리스트를 통과한다(등록 누락 시 값이 조용히 버려진다).
 
 ### Task 8: e2e
