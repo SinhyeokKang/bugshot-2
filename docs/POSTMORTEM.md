@@ -36,6 +36,31 @@
 
 ---
 
+## 2026-08-13 — 로딩 고착을 고치려 effect deps에서 뺀 값이, 같은 가드를 stale closure로 만들어 재조회를 없앴다 (한 줄 수정이 증상만 옮김)
+
+- **영역**: `컴포넌트`
+- **계열**: `라이브러리전제`
+- **그물**: `jsdom`
+- **증상**: Jira 제출 다이얼로그에서 프로젝트를 바꾸면 이슈타입 콤보가 자동으로 열리는데, 목록이 비고 "일치하는 이슈 타입이 없습니다"가 뜬 채 멈춘다. 이슈타입이 필수라 제출 버튼은 잠긴 채다. 콤보를 손으로 닫았다 다시 열면 복구된다. 발동 조건은 "전환 전에 이슈타입 콤보를 한 번이라도 연 적 있음"이라, 두 번째 전환부터는 항상 걸린다. **`pnpm test` 5431개가 전부 green인 상태로 커밋 직전까지 갔다.**
+- **근본 원인**: 한 가드가 **두 실패 모드 사이를 오간다.** `IssueTypeField`의 조회 effect는 `if (items.length > 0) return`으로 재조회를 막는데, `items.length`가 deps에 있으면 `setItems(list)` → 리렌더 → cleanup(`cancelled = true`) → effect 재실행이 `.finally`보다 **먼저** 끼어 `setLoading(false)`가 영영 안 불린다(로딩 고착 — jsdom/act에서 상시 재현). 그래서 deps에서 뺐더니, 이번엔 `projectKey` 변경 커밋에서 reset effect의 `setItems([])`가 **예약만 된** 시점의 옛 `items`(length>0)를 조회 effect가 읽고 조기 반환한다. 다음 렌더에서 `items`가 비어도 deps 세 개가 그대로라 재실행이 없다. **`items`는 비동기 응답으로 갱신되는 값이라 캐시 키로 쓸 수 없다** — deps에 넣으면 취소 레이스, 빼면 stale closure. 진짜 캐시 키는 "어느 프로젝트로 받은 목록인가"이지 "목록이 비었나"가 아니었다.
+  - 그 위에 **취소된 fetch가 상태를 정리하지 못하는** 3단계가 하나 더 있었다. `loadedFor` ref로 옮긴 뒤에도, A→B 전환 후 B 응답 전에 B→A로 되돌아오면 B의 `.then`·`.finally`가 `cancelled` 가드로 둘 다 no-op이라 `loadedFor`는 "A"로 남고 `loading`은 true로 굳는다 → 재실행된 effect가 `loadedFor === "A"`로 조기 반환해 **영구 로딩**. CTO 게이트가 잡았고, reset effect에서 `loadedFor`를 함께 비워야 닫힌다.
+- **재발 방지**: (1) **비동기로 채워지는 state를 "이미 받았나" 판정에 쓰지 마라** — deps에 넣으면 취소 레이스, 빼면 stale closure로 양쪽 다 깨진다. 판정 키는 **요청을 규정한 입력**(여기선 `projectKey`)이어야 하고, 그건 ref/state로 따로 들되 **입력이 바뀔 때 함께 비운다**. `grep -rn "items.length > 0) return\|\.length > 0) return" src/sidepanel`로 같은 형태를 전수. (2) **cleanup의 `cancelled` 가드는 `.then`뿐 아니라 `.finally`·캐시 키 갱신까지 막는다** — 취소된 요청이 남긴 `loading: true`와 stale 캐시 키를 **다음 요청이 덮는다는 보장이 없다**. 취소 가능한 fetch에 캐시 키를 붙이면 "입력 변경 → 키 무효화"를 cleanup이 아니라 **입력 effect**에 둔다. (3) **증상이 바뀌면 고쳐진 게 아니다** — 로딩 고착이 "빈 목록"으로 바뀐 걸 green 스위트가 승인했다. 한 줄로 deps를 건드릴 때 그 값이 가드에도 쓰이면 두 실패 모드를 모두 재현 테스트로 박는다. (4) 그물: `IssueTypeField.test.tsx`의 `SwitchHarness` 2케이스(전환 후 재조회 / A→B→A 취소 응답이 로딩을 안 붙듦). 둘 다 **뮤테이션으로 red 확인**하고 넣었다 — 순수 함수로는 원리적으로 못 잡는 부류다.
+- **관련**: `src/sidepanel/tabs/jiraFields/IssueTypeField.tsx`(`loadedFor` ref + reset effect의 무효화), 그물 `src/sidepanel/tabs/jiraFields/__tests__/IssueTypeField.test.tsx`("프로젝트 전환" describe). 계열 선행: **2026-07-14**(같은 `jiraFields/` 콤보에서 두 값의 **수명**이 어긋난 건 — 그때는 uncontrolled 입력 vs 살아남는 state, 이번엔 비동기 state vs effect 클로저).
+
+---
+
+## 2026-08-13 — 콤보를 닫으며 다음 콤보를 열었더니, Radix 포커스 복원이 갓 열린 레이어를 즉시 dismiss했다
+
+- **영역**: `컴포넌트`
+- **계열**: `라이브러리전제`
+- **그물**: `jsdom`
+- **증상**: Jira 제출 다이얼로그에서 프로젝트를 바꾸면 이슈타입 콤보가 자동으로 열려야 하는데(제출 버튼이 즉시 잠기는 것에 대한 **유일한 단서**로 설계됨) 열리자마자 닫힌다. `aria-expanded`는 `false`인데 `jira.listIssueTypes` 요청은 나가 있다 — 한 프레임 열렸다 닫힌다는 뜻. 화면상으로는 "아무 일도 안 일어났는데 제출 버튼만 잠긴" 상태가 된다.
+- **근본 원인**: 프로젝트 항목 선택 → `onChange`로 부모가 `setIssueTypeOpen(true)` → 같은 흐름에서 프로젝트 팝오버가 닫힌다. Radix `PopoverContent`는 닫히면서 `onCloseAutoFocus`로 **트리거에 포커스를 되돌리는데**, 그 포커스 이동이 이미 열린 이슈타입 레이어의 바깥 포커스로 판정돼 dismiss된다. **타이밍 문제가 아니다** — `setTimeout(…, 0)`으로 미뤄도 그대로 닫히고 120ms를 줘야 열린다(실측). 즉 "한 틱 미루기"류 완화는 우연히 통과할 뿐 원인을 안 건드린다.
+- **재발 방지**: (1) **레이어를 닫으며 다른 레이어를 여는 흐름은 `onCloseAutoFocus`에서 `event.preventDefault()` + 열기**로 연결한다 — 포커스 복원 자체를 막아야 dismiss 트리거가 사라진다. 여는 시점을 지연시키는 방식은 재현 환경에 따라 통과·실패가 갈린다. `grep -rn "onOpenChange" src/sidepanel/tabs/*Fields src/sidepanel/components`로 연쇄 오픈이 있는 곳을 전수. (2) **"열렸다"를 요청 발생으로 확인하지 마라** — fetch가 나간 것은 `open`이 한 프레임 true였다는 뜻일 뿐이다. 단언은 `aria-expanded`나 실제 렌더된 `option`으로 한다. (3) 그물: `JiraIssueFields.test.tsx`("프로젝트를 바꾸면 이슈타입 콤보가 열린 채로 새 프로젝트의 목록을 보여준다") — 뮤테이션으로 red 확인. jsdom에서 재현되는 이유가 Radix 포커스 복원이라 실브라우저에서도 같은 원인이고, e2e가 붙으면 이중으로 덮인다.
+- **관련**: `src/sidepanel/tabs/jiraFields/JiraIssueFields.tsx`(`pendingIssueTypeOpen` ref + `handleProjectClosed`), `src/sidepanel/tabs/jiraFields/FieldCombobox.tsx`(`onCloseAutoFocus` 패스스루), `src/sidepanel/tabs/jiraFields/ProjectField.tsx`. 설계 근거: `docs/features/jira-project-switch/design.md` §6·§12(자동 오픈이 유일한 단서인 이유 — i18n 신규 키 0 제약으로 보조 문구를 못 넣었다).
+
+---
+
 ## 2026-08-12 — 누출을 막겠다고 깐 그물 세 겹이 전부 "있기만 하면 통과"였다: 공허한 실증·공존 판정·없는 realm
 
 - **영역**: `i18n`, `background`, `툴체인`
