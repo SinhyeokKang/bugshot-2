@@ -2,9 +2,9 @@
 
 Set up the parts that repeat on every issue here, and each one gets a little lighter on your hands.
 
-## Common issue settings
+## Common
 
-![Common issue settings — title prefix and issue body language](../assets/settings-issue-1.jpg)
+![Common section — title prefix and issue body language](../assets/settings-issue-1.jpg)
 
 Two things that apply to every issue, no matter how you captured it.
 
