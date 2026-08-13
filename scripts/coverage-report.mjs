@@ -56,7 +56,11 @@ const BROWSER_BOUND_EXACT = new Set([
   "src/sidepanel/tab-nav.ts",
   "src/sidepanel/lib/video-thumbnail.ts",
   // 재생 기반 구간 재인코딩 — <video>+requestVideoFrameCallback+WebCodecs. 순수 부분은
-  // trim-math.ts에 있어 로직 분모에 남는다(mp4-encoder.ts가 미등록인 이유도 같다).
+  // trim-math.ts에 있어 로직 분모에 남는다. mp4-encoder.ts도 미등록인데, WebCodecs를 쓰는
+  // createMp4Sink조차 VideoEncoder 스텁 + mp4-muxer 모킹으로 유닛에 들어온다("브라우저 API를
+  // 부른다"와 "유닛으로 못 고정한다"는 다르다 — 콜백으로 오는 error를 래치했다 던지는 시점,
+  // close된 인코더에서 drain이 안 풀리는 가드 같은 판정이 그 안에 있다). 반면 encode-range는
+  // <video> 실제 디코드 타이밍에 걸려 있어 스텁이 의미를 못 만든다.
   "src/sidepanel/30s-replay/encode-range.ts",
   // 기타 글루
   "src/i18n/bg-init.ts",
