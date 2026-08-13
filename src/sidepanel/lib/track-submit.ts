@@ -12,6 +12,8 @@ export function submitEventProperties(
   result: "success" | "failure",
   replayTrimmed = false,
   trimSource: TrimSourceKind | null = null,
+  // Jira 한정 — 이번 제출의 프로젝트가 계정 기본값과 달랐나. 다른 플랫폼은 축이 없어 안 싣는다.
+  projectOverridden: boolean | null = null,
 ): Record<string, string> {
   return {
     platform,
@@ -19,6 +21,7 @@ export function submitEventProperties(
     result,
     replay_trimmed: String(replayTrimmed),
     trim_source: trimSource ?? "none",
+    ...(projectOverridden === null ? {} : { project_overridden: String(projectOverridden) }),
   };
 }
 
@@ -28,11 +31,19 @@ export function trackSubmit(
   result: "success" | "failure",
   replayTrimmed = false,
   trimSource: TrimSourceKind | null = null,
+  projectOverridden: boolean | null = null,
 ): void {
   sendBg({
     type: "analytics.capture",
     event: "issue_submitted",
-    properties: submitEventProperties(platform, captureMode, result, replayTrimmed, trimSource),
+    properties: submitEventProperties(
+      platform,
+      captureMode,
+      result,
+      replayTrimmed,
+      trimSource,
+      projectOverridden,
+    ),
   }).catch(() => {});
 }
 

@@ -11,30 +11,34 @@ import { useJiraConfig } from "./useJiraConfig";
 
 export function EpicField({
   value,
+  projectKey,
   fallbackLabel,
   onChange,
   hierarchyLevels,
 }: {
   value?: string;
+  projectKey?: string;
   fallbackLabel?: string;
   onChange: (key: string | undefined, label?: string) => void;
   hierarchyLevels?: number[];
 }) {
   const t = useT();
+  // useJiraConfig는 조회 스코프가 아니라 "연동 완료" 게이트로만 남는다 — 스코프는 이번 제출의
+  // 프로젝트(prop)다.
   const jira = useJiraConfig();
   const [open, setOpen] = useState(false);
 
   const fetchEpics = useCallback(
     (query: string) => {
-      if (!jira) return Promise.resolve([]);
+      if (!jira || !projectKey) return Promise.resolve([]);
       return sendBg<JiraIssueSummary[]>({
         type: "jira.searchEpics",
-        projectKey: jira.projectKey,
+        projectKey,
         query: query || undefined,
         hierarchyLevels,
       });
     },
-    [jira, hierarchyLevels],
+    [jira, projectKey, hierarchyLevels],
   );
 
   const { items, loading, error, search } = useDebouncedSearch(fetchEpics);

@@ -23,7 +23,16 @@ function posthogHost(): string {
 // 받으므로 런타임 방어가 없으면 Privacy 코어밸류의 유일한 무방비 지점이 된다 — 목록 밖 event는
 // 통째로 드롭하고, 목록 밖 property 키도 payload에서 뺀다(값은 원문 유지).
 const ALLOWED_EVENTS: Record<string, readonly string[]> = {
-  issue_submitted: ["platform", "capture_mode", "result", "replay_trimmed", "trim_source"],
+  // project_overridden: Jira 한정. 이번 제출의 프로젝트가 계정 기본값과 달랐는지만 보낸다
+  // (프로젝트 키 자체는 보내지 않는다).
+  issue_submitted: [
+    "platform",
+    "capture_mode",
+    "result",
+    "replay_trimmed",
+    "trim_source",
+    "project_overridden",
+  ],
   // reason에는 ConnectReason 고정 enum만 온다 — 상류 error_description·응답 본문을
   // 이 목록에 얹지 말 것(원문이 나가는 유일한 경로가 된다).
   platform_connect: ["platform", "result", "reason"],

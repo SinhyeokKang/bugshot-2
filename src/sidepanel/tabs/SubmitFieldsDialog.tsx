@@ -196,7 +196,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
   const fieldsReady = ((): boolean => {
     switch (platform) {
-      case "jira": return !!jiraFields.issueTypeId;
+      case "jira": return !!jiraFields.projectKey && !!jiraFields.issueTypeId;
       case "github": return !!ghFields.owner && !!ghFields.repo;
       case "linear": return !!linearFields.teamId;
       case "gitlab": return !!gitlabFields.projectId;
@@ -216,6 +216,11 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
   async function handleSubmit() {
     if (!canSubmit) return;
+    // 프로젝트 전환 기능의 채택 측정. Jira 외에는 축이 없어 null로 둔다.
+    const projectOverridden =
+      platform === "jira"
+        ? (jiraFields.projectKey ?? jiraAccount?.projectKey) !== jiraAccount?.projectKey
+        : null;
     setSubmit({ status: "submitting" });
     let result: NormalizedSubmitResult;
     try {
@@ -225,7 +230,14 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       // failure로 오집계·toast 오표시되지 않게 try를 onSubmit으로 좁힌다.
       {
         const s = useEditorStore.getState();
-        trackSubmit(platform, captureMode, "failure", s.videoTrimmed, s.videoTrimSource);
+        trackSubmit(
+          platform,
+          captureMode,
+          "failure",
+          s.videoTrimmed,
+          s.videoTrimSource,
+          projectOverridden,
+        );
       }
       const ccCount = {
         jira: jiraFields.cc?.length,
@@ -245,7 +257,14 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       return;
     }
     const submitted = useEditorStore.getState();
-    trackSubmit(platform, captureMode, "success", submitted.videoTrimmed, submitted.videoTrimSource);
+    trackSubmit(
+      platform,
+      captureMode,
+      "success",
+      submitted.videoTrimmed,
+      submitted.videoTrimSource,
+      projectOverridden,
+    );
     onOpenChange(false);
     onSuccess?.(result);
   }

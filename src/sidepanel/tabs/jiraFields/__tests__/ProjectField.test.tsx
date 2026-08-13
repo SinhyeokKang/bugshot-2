@@ -6,11 +6,8 @@ import { ProjectField } from "../ProjectField";
 
 vi.mock("@/i18n", () => ({ useT: () => (key: string) => key }));
 
-// 실제 훅은 useMemo로 참조를 고정한다 — 매 렌더 새 객체를 주면 디바운스 타이머가 계속 취소돼 로딩에 갇힌다.
-const JIRA_CONFIG = { projectKey: "WEB" };
-vi.mock("../useJiraConfig", () => ({
-  useJiraConfig: () => JIRA_CONFIG,
-}));
+// ProjectField는 형제 필드와 달리 useJiraConfig 게이트가 없다 — 프로젝트 자체가 조회 스코프라
+// 걸 게 없고, SubmitFieldsDialog가 jiraConfigured일 때만 렌더한다.
 
 const sendBg = vi.fn();
 vi.mock("@/types/messages", () => ({
@@ -130,6 +127,19 @@ describe("ProjectField — 표시", () => {
     await user.click(trigger());
 
     await waitFor(() => expect(trigger().textContent).toContain("API Service (API)"));
+  });
+
+  // 서버 검색이라 검색 결과에서 선택된 프로젝트가 빠진다 — 그때 라벨이 키만 남게 퇴화하면 안 된다.
+  it("검색으로 선택된 프로젝트가 결과에서 빠져도 트리거 라벨이 유지된다", async () => {
+    const user = userEvent.setup();
+    render(<ProjectField value="API" fallbackLabel="API" onChange={vi.fn()} />);
+
+    await user.click(trigger());
+    await waitFor(() => expect(trigger().textContent).toContain("API Service (API)"));
+    await user.type(screen.getByPlaceholderText("project.search"), "Web");
+    await waitFor(() => expect(optionNames().length).toBe(1));
+
+    expect(trigger().textContent).toContain("API Service (API)");
   });
 
   it("선택이 없으면 placeholder를 보여준다", () => {

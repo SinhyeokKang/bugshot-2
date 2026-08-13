@@ -31,6 +31,9 @@ export function FieldCombobox({
   onClear,
   onSearch,
   groupLabel,
+  ariaLabel,
+  testId,
+  onCloseAutoFocus,
   children,
 }: {
   open: boolean;
@@ -46,6 +49,13 @@ export function FieldCombobox({
   onClear?: () => void;
   onSearch?: (query: string) => void;
   groupLabel?: string;
+  // FieldRow의 <label>은 htmlFor로 연결되지 않아 콤보에 접근 이름이 없다. 행이 여럿이면
+  // 이름 없는 combobox가 그 수만큼 나열되므로 필요한 필드가 직접 붙인다.
+  ariaLabel?: string;
+  testId?: string;
+  // 닫히면서 트리거로 포커스를 되돌리는 시점. 이 콤보를 닫고 곧바로 다른 콤보를 여는 흐름은
+  // 여기서 preventDefault를 해야 새로 열린 레이어가 포커스 복원에 dismiss되지 않는다.
+  onCloseAutoFocus?: (event: Event) => void;
   children: ReactNode;
 }) {
   const t = useT();
@@ -56,6 +66,8 @@ export function FieldCombobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-label={ariaLabel}
+          data-testid={testId}
           className="w-full min-w-0 justify-between font-normal"
         >
           <span
@@ -72,6 +84,7 @@ export function FieldCombobox({
       <PopoverContent
         className="w-[var(--radix-popover-trigger-width)] p-0"
         onWheel={(e) => e.stopPropagation()}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <Command shouldFilter={!onSearch}>
           <CommandInput

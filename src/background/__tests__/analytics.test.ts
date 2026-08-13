@@ -98,6 +98,14 @@ describe("허용목록", () => {
     expect(filterProperties("issue_submitted", sent)).toEqual(sent);
   });
 
+  // Jira 전용 차원이라 기본 인자 경로에는 키 자체가 없다 — 그 경로만 대조하면 허용목록의
+  // 오타를 못 잡는다(위 케이스가 이 차원에 대해선 그물이 아니다).
+  it("issue_submitted 허용목록이 project_overridden까지 통과시킨다", () => {
+    const sent = submitEventProperties("jira", "video", "success", false, null, true);
+    expect(sent.project_overridden).toBe("true");
+    expect(filterProperties("issue_submitted", sent)).toEqual(sent);
+  });
+
   it("목록 밖 property는 payload에서 빠진다", () => {
     expect(
       filterProperties("platform_disconnected", {

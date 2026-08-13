@@ -1826,6 +1826,23 @@ describe("confirmDraft jira — 기본 담당자 prefill", () => {
     expect(fields.assigneeId).toBeUndefined();
   });
 
+  // 프로젝트가 필드로 승격되기 전에 저장된 세션은 issueTypeId만 들고 있고, 그 값은 계정 기본
+  // 프로젝트의 것이다. 여기에 직전 제출 프로젝트를 얹으면 짝이 어긋나 제출이 400으로 죽는다.
+  it("세션에 projectKey 없이 issueTypeId만 있으면 직전 제출 프로젝트를 얹지 않는다", () => {
+    seedJira(
+      { projectKey: "API", assigneeId: "lastUser" },
+      { projectKey: "ENG", issueTypeId: "10001" },
+    );
+    useEditorStore.setState({ issueFields: { issueTypeId: "10001" } });
+
+    useEditorStore.getState().confirmDraft();
+
+    const fields = useEditorStore.getState().issueFields;
+    expect(fields.projectKey).toBeUndefined();
+    expect(fields.issueTypeId).toBe("10001");
+    expect(fields.assigneeId).toBeUndefined();
+  });
+
   it("세션 프로젝트와 init 프로젝트가 같으면 담당자 백필이 유지된다", () => {
     seedJira(
       { projectKey: "API", assigneeId: "lastUser", assigneeName: "Last" },
