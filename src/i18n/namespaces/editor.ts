@@ -143,6 +143,7 @@ const ko = {
   "annotation.canvasViewport": "캔버스",
 
   "create.issueType": "이슈 타입",
+  "create.sprint": "스프린트",
   "create.assignee": "담당자",
   "create.priority": "우선순위",
   "create.parentEpic": "부모 에픽",
@@ -311,6 +312,7 @@ const en = {
   "annotation.canvasViewport": "Canvas",
 
   "create.issueType": "Issue type",
+  "create.sprint": "Sprint",
   "create.assignee": "Assignee",
   "create.priority": "Priority",
   "create.parentEpic": "Parent epic",

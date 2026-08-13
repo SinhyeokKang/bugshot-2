@@ -98,6 +98,9 @@ export type BgRequest =
       query?: string;
       hierarchyLevels?: number[];
     }
+  | { type: "jira.sprintFieldMeta"; projectKey: string; issueTypeId: string }
+  | { type: "jira.listSprints"; projectKey: string }
+  | { type: "jira.getSprint"; sprintId: number }
   | {
       type: "jira.submitIssue";
       payload: JiraCreateIssuePayload;

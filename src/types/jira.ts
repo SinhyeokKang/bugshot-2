@@ -72,6 +72,23 @@ export interface JiraIssueSummary {
   };
 }
 
+export interface JiraSprint {
+  id: number;
+  name: string;
+  // 서버 문자열 그대로 둔다. union으로 좁히면 미지 값이 타입 위에서만 사라지고 런타임에서는
+  // 그대로 흘러 닫힌 스프린트가 유효로 샌다 — 판정은 isActiveSprint() 단일 출처.
+  state: string;
+  boardId: number;
+  // 단건 조회(getSprint) 경로는 보드를 모른다.
+  boardName?: string;
+}
+
+export interface JiraSprintFieldMeta {
+  // 사이트마다 다르다("customfield_10020"은 실측 사이트의 값일 뿐).
+  fieldId: string;
+  isArray: boolean;
+}
+
 export interface JiraAdfDoc {
   version: 1;
   type: "doc";
@@ -89,6 +106,9 @@ export interface JiraCreateIssuePayload {
   assigneeAccountId?: string;
   priorityId?: string;
   parentKey?: string;
+  // fieldId·isArray는 싣지 않는다 — 다이얼로그를 연 뒤 이슈타입이 바뀌면 stale해지므로
+  // background가 제출 시점에 다시 해석한다(design A1).
+  sprintId?: number;
 }
 
 export interface JiraCreateIssueResult {

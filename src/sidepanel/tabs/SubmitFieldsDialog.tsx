@@ -63,6 +63,7 @@ import {
   type SlackIssueFieldsValue,
 } from "./slackFields/SlackIssueFields";
 import { JiraIssueFields } from "./jiraFields/JiraIssueFields";
+import { peekSprintFieldMeta } from "./jiraFields/useSprintFieldMeta";
 
 type SubmitState =
   | { status: "idle" }
@@ -221,6 +222,17 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       platform === "jira"
         ? (jiraFields.projectKey ?? jiraAccount?.projectKey) !== jiraAccount?.projectKey
         : null;
+    // 스프린트 목록 조회 실패를 전부 삼키므로 이 두 축이 유일한 사후 관측 수단이다.
+    // "행은 보였는데 안 골랐다"가 표현돼야 해서 축을 합치지 않는다.
+    const sprintFieldShown =
+      platform === "jira"
+        ? !!peekSprintFieldMeta(
+            jiraAccount?.auth,
+            jiraFields.projectKey ?? jiraAccount?.projectKey,
+            jiraFields.issueTypeId,
+          )
+        : null;
+    const sprintSelected = platform === "jira" ? jiraFields.sprintId != null : null;
     setSubmit({ status: "submitting" });
     let result: NormalizedSubmitResult;
     try {
@@ -237,6 +249,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
           s.videoTrimmed,
           s.videoTrimSource,
           projectOverridden,
+          sprintFieldShown,
+          sprintSelected,
         );
       }
       const ccCount = {
@@ -264,6 +278,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       submitted.videoTrimmed,
       submitted.videoTrimSource,
       projectOverridden,
+      sprintFieldShown,
+      sprintSelected,
     );
     onOpenChange(false);
     onSuccess?.(result);

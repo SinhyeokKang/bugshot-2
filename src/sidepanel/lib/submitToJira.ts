@@ -22,6 +22,7 @@ export interface JiraSubmitInput {
   assigneeAccountId?: string;
   priorityId?: string;
   parentKey?: string;
+  sprintId?: number;
   relates?: { key: string; label: string }[];
   cc?: { accountId: string; displayName: string }[];
 }
@@ -53,6 +54,7 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
       assigneeAccountId: input.assigneeAccountId,
       priorityId: input.priorityId,
       parentKey: input.parentKey,
+      sprintId: input.sprintId,
     },
     attachments,
     relates: input.relates?.map((r) => r.key),

@@ -32,6 +32,8 @@ const ALLOWED_EVENTS: Record<string, readonly string[]> = {
     "replay_trimmed",
     "trim_source",
     "project_overridden",
+    "sprint_field_shown",
+    "sprint_selected",
   ],
   // reason에는 ConnectReason 고정 enum만 온다 — 상류 error_description·응답 본문을
   // 이 목록에 얹지 말 것(원문이 나가는 유일한 경로가 된다).

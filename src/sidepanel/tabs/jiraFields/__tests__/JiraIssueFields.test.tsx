@@ -267,9 +267,10 @@ describe("JiraIssueFields — 프로젝트 전환", () => {
 
 const SPRINT_META = { fieldId: "customfield_10020", isArray: true };
 
+// 필수 행은 라벨 안에 별표 span이 있어 textContent에 "*"가 붙는다.
 function rowLabels(): string[] {
-  return Array.from(document.querySelectorAll("label")).map(
-    (el) => el.textContent ?? "",
+  return Array.from(document.querySelectorAll("label")).map((el) =>
+    (el.textContent ?? "").replace(/\*$/, ""),
   );
 }
 
@@ -450,6 +451,79 @@ describe("JiraIssueFields — 스프린트 값 정리·검증", () => {
         sprintName: undefined,
       }),
     );
+  });
+
+  // 판정 요청이 실패한 건 "필드가 없다"가 아니다. 실패를 확정으로 읽으면 429 한 번에
+  // 사용자가 고른 스프린트가 사라지고, 그 사실이 화면에 드러나지도 않는다.
+  it("판정 요청이 실패하면 스프린트 값을 지우지 않는다", async () => {
+    routeSprint({ meta: () => Promise.reject(new Error("boom")) });
+    const onPatch = vi.fn();
+    render(
+      <Harness
+        onPatch={onPatch}
+        initial={{
+          projectKey: "SPF",
+          issueTypeId: "10001",
+          sprintId: 42,
+          sprintName: "Sprint 24",
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(screen.queryByText("common.loading")).toBeNull());
+    expect(onPatch).not.toHaveBeenCalledWith({
+      sprintId: undefined,
+      sprintName: undefined,
+    });
+  });
+
+  // 검증 응답이 오는 사이 사용자가 목록에서 다른 스프린트를 고를 수 있다. 늦게 온 판정이
+  // 그 선택을 덮으면 방금 고른 값이 사라지거나 id/name 쌍이 어긋난다.
+  it("검증 응답이 늦게 와도 그 사이 사용자가 고른 스프린트를 덮지 않는다", async () => {
+    const user = userEvent.setup();
+    let release: ((v: unknown) => void) | undefined;
+    sendBg.mockImplementation((req: { type: string; projectKey?: string }) => {
+      if (req.type === "jira.sprintFieldMeta") return Promise.resolve(SPRINT_META);
+      if (req.type === "jira.getSprint")
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      if (req.type === "jira.listSprints")
+        return Promise.resolve({
+          sprints: [
+            { id: 43, name: "Sprint 25", state: "active", boardId: 1 },
+          ],
+          multiBoard: false,
+        });
+      return defaultRoutes(req);
+    });
+    const onPatch = vi.fn();
+    render(
+      <Harness
+        onPatch={onPatch}
+        initial={{
+          projectKey: "SPX",
+          issueTypeId: "10001",
+          sprintId: 42,
+          sprintName: "Sprint 24",
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(sprintTrigger()).not.toBeNull());
+    await user.click(sprintTrigger()!);
+    await user.click(await screen.findByText("Sprint 25"));
+
+    // 뒤늦게 도착한 42번 검증 결과(닫힘)는 이미 사용자 선택에 밀렸다.
+    release?.({ id: 42, name: "Sprint 24", state: "closed", boardId: 1 });
+
+    await waitFor(() =>
+      expect(sprintTrigger()!.textContent).toContain("Sprint 25"),
+    );
+    expect(onPatch).not.toHaveBeenCalledWith({
+      sprintId: undefined,
+      sprintName: undefined,
+    });
   });
 
   // S4: 이슈타입을 왕복하면 비우기가 한 번 돌고 다시 필드가 생긴다. 이때 값이 되살아나면

@@ -180,6 +180,7 @@ export function IssueCreateModal() {
       assigneeAccountId: issueFields.assigneeId,
       priorityId: issueFields.priorityId,
       parentKey: issueFields.parentKey,
+      sprintId: issueFields.sprintId,
       relates: issueFields.relates,
       cc: issueFields.cc,
     });
@@ -204,6 +205,8 @@ export function IssueCreateModal() {
       priorityName: issueFields.priorityName,
       parentKey: issueFields.parentKey,
       parentLabel: issueFields.parentLabel,
+      sprintId: issueFields.sprintId,
+      sprintName: issueFields.sprintName,
       relates: issueFields.relates,
       cc: issueFields.cc,
     });

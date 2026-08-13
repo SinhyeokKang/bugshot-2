@@ -477,6 +477,24 @@ describe("스프린트 조회", () => {
 
       await expect(getSprint(OAUTH_AUTH, 99)).resolves.toBeNull();
     });
+
+    // null은 sticky 검증에서 "스프린트가 사라졌다"로 읽혀 사용자가 고른 값을 지운다.
+    // 일시 실패를 거기에 섞으면 429 한 번에 선택이 날아간다 — 던져서 검증을 건너뛰게 한다.
+    it("429는 null로 뭉개지 않고 그대로 던진다", async () => {
+      mockFetchByUrl([
+        { match: "/rest/agile/1.0/sprint/99", status: 429, body: {} },
+      ]);
+
+      await expect(getSprint(OAUTH_AUTH, 99)).rejects.toThrow();
+    });
+
+    it("5xx도 그대로 던진다", async () => {
+      mockFetchByUrl([
+        { match: "/rest/agile/1.0/sprint/99", status: 503, body: {} },
+      ]);
+
+      await expect(getSprint(OAUTH_AUTH, 99)).rejects.toThrow();
+    });
   });
 });
 

@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { JiraSprintFieldMeta } from "@/types/jira";
-import { useSprintFieldMeta } from "../useSprintFieldMeta";
+import { peekSprintFieldMeta, useSprintFieldMeta } from "../useSprintFieldMeta";
 
 vi.mock("@/i18n", () => ({ useT: () => (key: string) => key }));
 
@@ -64,12 +64,22 @@ describe("useSprintFieldMeta", () => {
     expect(sendBg).not.toHaveBeenCalled();
   });
 
-  it("판정 실패는 삼키고 필드 없음과 같은 상태로 수렴한다", async () => {
+  // 화면은 "필드 없음"과 같게 두되 값 삭제 판정과는 갈라야 한다 — 실패를 "없음 확정"으로
+  // 읽으면 429 한 번에 사용자가 고른 스프린트가 지워진다.
+  it("판정 실패는 삼키되 '없음 확정'과 구분된다", async () => {
     sendBg.mockRejectedValue(new Error("boom"));
     const { result } = renderHook(() => useSprintFieldMeta("P2", "T1"));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.meta).toBeNull();
+    expect(result.current.failed).toBe(true);
+  });
+
+  it("판정에 성공하면 failed가 아니다", async () => {
+    const { result } = renderHook(() => useSprintFieldMeta("P2b", "T1"));
+
+    await waitFor(() => expect(result.current.meta).toEqual(META));
+    expect(result.current.failed).toBe(false);
   });
 
   // Jira의 create 화면 구성은 세션 중 거의 바뀌지 않고, stale이 400으로 이어지지도 않는다
@@ -101,6 +111,29 @@ describe("useSprintFieldMeta", () => {
 
     await waitFor(() => expect(sendBg).toHaveBeenCalledTimes(2));
     expect(second.result.current.meta).toEqual(META);
+  });
+
+  // 제출 시점 분석 축을 훅으로 구독하면 다이얼로그가 닫혀 있어도, Jira가 아닌 플랫폼으로
+  // 제출해도 createmeta가 나간다. peek은 읽기만 한다.
+  it("peekSprintFieldMeta는 캐시만 읽고 요청하지 않는다", async () => {
+    const auth = { kind: "oauth", cloudId: "cloud-1" } as never;
+
+    expect(peekSprintFieldMeta(auth, "P6", "T1")).toBeNull();
+    expect(sendBg).not.toHaveBeenCalled();
+
+    const { result } = renderHook(() => useSprintFieldMeta("P6", "T1"));
+    await waitFor(() => expect(result.current.meta).toEqual(META));
+
+    expect(peekSprintFieldMeta(auth, "P6", "T1")).toEqual(META);
+    expect(sendBg).toHaveBeenCalledTimes(1);
+  });
+
+  it("peekSprintFieldMeta는 인자가 비면 null", () => {
+    const auth = { kind: "oauth", cloudId: "cloud-1" } as never;
+
+    expect(peekSprintFieldMeta(auth, undefined, "T1")).toBeNull();
+    expect(peekSprintFieldMeta(undefined, "P6", "T1")).toBeNull();
+    expect(sendBg).not.toHaveBeenCalled();
   });
 
   // 이슈타입을 빠르게 바꾸면 먼저 보낸 요청이 나중에 도착한다.

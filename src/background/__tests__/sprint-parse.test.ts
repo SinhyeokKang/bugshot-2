@@ -4,7 +4,8 @@ vi.mock("@/i18n", () => ({
   t: (key: string) => key,
 }));
 
-import { isActiveSprint, mergeBoardSprints, pickSprintField } from "../jira-api";
+import { mergeBoardSprints, pickSprintField } from "../jira-api";
+import { isActiveSprint } from "@/lib/jira-sprint";
 import type { JiraSprint } from "@/types/jira";
 
 // 2026-08-13 실측(cloudId 5c399437-…, 프로젝트 FCLXP, 이슈타입 "버그") 응답의 축약본.

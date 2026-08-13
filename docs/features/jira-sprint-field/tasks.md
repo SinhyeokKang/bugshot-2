@@ -32,8 +32,8 @@
   - [x] 2 company-managed 완료 / **team-managed `schema.type`은 미측정**(보드는 확인됐으나 createmeta는 안 봤다)
   - [ ] 3(create 수용 형식)이 표에 기록됐다 — **미검증으로 남길지 결정 필요**(§spike 잔여 참조)
   - [ ] 3의 결과로 `isArray` 분기를 유지할지(양쪽 다르면 유지, 한쪽으로 통일되면 상수 고정, 어긋나면 스칼라 고정) 판정됐다
-  - [ ] **실측한 응답 body를 픽스처로 저장**해 Task 1·2의 단위 테스트에 그대로 넣는다 — spike 결과가 문서가 아니라 코드로 남아야 회귀 시 red가 된다
-  - [ ] 확정값을 `jira-api.ts` 해당 함수 주석 + design R1·R2·R3에 반영한다
+  - [x] **실측한 응답 body를 픽스처로 저장**해 Task 1·2의 단위 테스트에 그대로 넣는다 — spike 결과가 문서가 아니라 코드로 남아야 회귀 시 red가 된다
+  - [x] 확정값을 `jira-api.ts` 해당 함수 주석 + design R1·R2·R3에 반영한다
 
 ---
 
@@ -42,10 +42,10 @@
 - **변경 대상**: `src/types/jira.ts`, `src/background/jira-api.ts`, `src/background/__tests__/sprint-parse.test.ts`(신규)
 - **작업 내용**: `pickSprintField(res)`·`isActiveSprint(state)`·`mergeBoardSprints(perBoard)`를 테스트 먼저 작성하고 구현. `SPRINT_SCHEMA`·`MAX_SPRINT_BOARDS` 상수, `JiraSprint`(`state: string`·`boardName?`)·`JiraSprintFieldMeta` 타입도 여기서. 네트워크 함수는 아직 만들지 않는다. Task 0 픽스처를 입력으로 쓴다.
 - **검증**:
-  - [ ] `pickSprintField`: gh-sprint 있음 → `{fieldId, isArray}` / 없음 → `null` / 후보 2개 → 첫 번째 / `schema` 누락 원소가 섞여도 크래시 없음 / 빈 배열 → `null`
-  - [ ] `isActiveSprint`: `"active"`·`"future"` → true / `"closed"` → false / `"unknown-future-value"` → **false**(화이트리스트, R9) / 빈 문자열 → false
-  - [ ] `mergeBoardSprints`: 보드 2개 중복 id → 1건이고 **먼저 온 보드의 `boardName`이 남는다** / `active`가 `future`보다 앞 / 같은 상태 안 id 오름차순 / 보드 1개 → `multiBoard: false` / 보드 2개 → `multiBoard: true` / 빈 입력 → `{sprints: [], multiBoard: false}`
-  - [ ] `pnpm test src/background/__tests__/sprint-parse.test.ts` green
+  - [x] `pickSprintField`: gh-sprint 있음 → `{fieldId, isArray}` / 없음 → `null` / 후보 2개 → 첫 번째 / `schema` 누락 원소가 섞여도 크래시 없음 / 빈 배열 → `null`
+  - [x] `isActiveSprint`: `"active"`·`"future"` → true / `"closed"` → false / `"unknown-future-value"` → **false**(화이트리스트, R9) / 빈 문자열 → false
+  - [x] `mergeBoardSprints`: 보드 2개 중복 id → 1건이고 **먼저 온 보드의 `boardName`이 남는다** / `active`가 `future`보다 앞 / 같은 상태 안 id 오름차순 / 보드 1개 → `multiBoard: false` / 보드 2개 → `multiBoard: true` / 빈 입력 → `{sprints: [], multiBoard: false}`
+  - [x] `pnpm test src/background/__tests__/sprint-parse.test.ts` green
 
 ## Task 2: agile·createmeta 네트워크 함수 3개
 
@@ -53,22 +53,22 @@
 - **작업 내용**: `getSprintFieldMeta`·`listSprints`·`getSprint` 추가. `listSprints`는 보드 목록에서 `type !== "kanban"`만 남긴 뒤 상위 `MAX_SPRINT_BOARDS`(5)개를 골라 `Promise.allSettled`로 팬아웃하고, **보드 단위 실패도 보드 목록 실패도 삼킨다**(`{sprints: [], multiBoard: false}`). `getSprint`는 404/403 → `null`. Task 0의 실측값(봉투 키·경로·필터)을 반영한다.
   - **먼저 목 헬퍼를 만든다**: 기존 헬퍼(`jira-api.test.ts`)는 `vi.fn().mockResolvedValue(...)` **단일 응답**이라 URL별 분기가 없다. 이 태스크와 Task 4가 둘 다 URL 라우팅을 요구하므로 `mockFetchByUrl(routes)` 형태의 헬퍼를 추가하고 기존 `vi.unstubAllGlobals()` afterEach를 재사용한다.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 보드 2개 중 1개가 400 → 나머지 보드 스프린트만 반환, throw 없음 (실측: 칸반·미지원 보드가 400을 준다)
-  - [ ] 보드 목록 자체가 403 → `{sprints: [], multiBoard: false}`, throw 없음 (재연동 전 OAuth 사용자 경로)
-  - [ ] `type: "kanban"` 보드는 **fetch 자체를 안 한다**; `"scrum"`·`"simple"`은 호출한다 (team-managed 누락 방지 — Task 0 항목 7)
-  - [ ] kanban 제외 후 보드 7개 → **fetch가 board 1회 + sprint 5회, 총 6회**(상한 적용)
-  - [ ] `getSprint` 404 → `null`(throw 아님)
-  - [ ] Task 0 픽스처로 `getSprintFieldMeta`가 실제 응답에서 `fieldId`를 뽑아낸다
+  - [x] `pnpm typecheck` 통과
+  - [x] 보드 2개 중 1개가 400 → 나머지 보드 스프린트만 반환, throw 없음 (실측: 칸반·미지원 보드가 400을 준다)
+  - [x] 보드 목록 자체가 403 → `{sprints: [], multiBoard: false}`, throw 없음 (재연동 전 OAuth 사용자 경로)
+  - [x] `type: "kanban"` 보드는 **fetch 자체를 안 한다**; `"scrum"`·`"simple"`은 호출한다 (team-managed 누락 방지 — Task 0 항목 7)
+  - [x] kanban 제외 후 보드 7개 → **fetch가 board 1회 + sprint 5회, 총 6회**(상한 적용)
+  - [x] `getSprint` 404 → `null`(throw 아님)
+  - [x] Task 0 픽스처로 `getSprintFieldMeta`가 실제 응답에서 `fieldId`를 뽑아낸다
 
 ## Task 3: bg 메시지 3개 배선
 
 - **변경 대상**: `src/types/messages.ts`, `src/background/messages.ts`, **`src/background/bgRequestTypes.ts`**
 - **작업 내용**: `jira.sprintFieldMeta`·`jira.listSprints`·`jira.getSprint`를 `BgRequest` union에 추가하고, switch에 case 3개(`jira.listIssueTypes` 인근, `await loadAuth()` 위임 — `ensureFreshAuth`는 붙이지 않는다), **`BG_REQUEST_TYPE_MAP`에 3개 등록**(누락하면 `index.ts`의 onMessage 화이트리스트에서 전량 차단된다 — 과거 asana 회귀).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과 — `BG_REQUEST_TYPE_MAP`이 `Record<BgRequest["type"], true>`라 등록 누락은 여기서 red가 된다
-  - [ ] `background/messages.ts`의 switch에 `default`가 있어 union 추가 누락을 typecheck가 못 잡는지 확인한다. 못 잡으면 그게 이 태스크의 유일한 자동 그물이 `BG_REQUEST_TYPE_MAP`뿐이라는 뜻이다
-  - [ ] (`src/types/__tests__/messages.test.ts`는 메시지 목록을 검사하지 않는다 — `BgError`·OAuth 헬퍼 전용이라 갱신 대상이 아니다)
+  - [x] `pnpm typecheck` 통과 — `BG_REQUEST_TYPE_MAP`이 `Record<BgRequest["type"], true>`라 등록 누락은 여기서 red가 된다
+  - [x] `background/messages.ts`의 switch에 `default`가 있어 union 추가 누락을 typecheck가 못 잡는지 확인한다. 못 잡으면 그게 이 태스크의 유일한 자동 그물이 `BG_REQUEST_TYPE_MAP`뿐이라는 뜻이다
+  - [x] (`src/types/__tests__/messages.test.ts`는 메시지 목록을 검사하지 않는다 — `BgError`·OAuth 헬퍼 전용이라 갱신 대상이 아니다)
 
 ## Task 4: 제출 경로 — `createIssue` + payload (TDD red → green)
 
@@ -79,11 +79,11 @@
   - **(a) 기준선 고정**: 현행 `createIssue`의 요청을 고정하는 테스트를 **변경 전에** 추가해 green. 단언은 "fetch 정확히 1회 + body가 `{fields:{project,summary,description,issuetype}}`이고 `Object.keys(fields)`가 정확히 그 4개". 현재 `createIssue` 테스트는 **0건**이다(기존 파일은 `parseTransitions`·`messageForJiraStatus`·`extractJiraDetail`·`resolveUrl`만 덮는다).
   - **(b)** `JiraCreateIssuePayload.sprintId?: number` 추가, `createIssue`에 재해석 분기(`.catch(() => null)` 포함) 삽입, `submitToJira`가 `sprintId`를 전달.
 - **검증**:
-  - [ ] (a)가 (b) 이후에도 green — `sprintId` 없는 호출에서 fetch 1회, `fields` 키 집합 불변, **createmeta URL이 `mock.calls`에 없다**
-  - [ ] `sprintId` 있고 meta `isArray: false` → `fields.customfield_10020 === 42`
-  - [ ] `sprintId` 있고 meta `isArray: true` → `fields.customfield_10020`이 `[42]`
-  - [ ] `sprintId` 있는데 meta `null` → sprint 키 없이 생성되고 throw 없음 (R7)
-  - [ ] **`sprintId` 있는데 createmeta가 429/500을 던짐 → sprint 키 없이 생성되고 create 요청은 정상 발사**(`.catch` 경로 — 이게 없으면 제출 전체가 죽는다)
+  - [x] (a)가 (b) 이후에도 green — `sprintId` 없는 호출에서 fetch 1회, `fields` 키 집합 불변, **createmeta URL이 `mock.calls`에 없다**
+  - [x] `sprintId` 있고 meta `isArray: false` → `fields.customfield_10020 === 42`
+  - [x] `sprintId` 있고 meta `isArray: true` → `fields.customfield_10020`이 `[42]`
+  - [x] `sprintId` 있는데 meta `null` → sprint 키 없이 생성되고 throw 없음 (R7)
+  - [x] **`sprintId` 있는데 createmeta가 429/500을 던짐 → sprint 키 없이 생성되고 create 요청은 정상 발사**(`.catch` 경로 — 이게 없으면 제출 전체가 죽는다)
 
 ## Task 5: sticky 순수 함수 + 타입 확장 (TDD red → green)
 
@@ -92,22 +92,22 @@
 - **변경 대상**: `src/types/platform.ts`, `src/store/editor-store.ts`, `src/sidepanel/tabs/jiraFields/sprint-sticky.ts`(신규) + `__tests__/sprint-sticky.test.ts`(신규), `src/sidepanel/tabs/jiraFields/project-change.ts` + `__tests__/project-change.test.ts`(선행 기획 파일)
 - **작업 내용**: `sprintId`·`sprintName`을 `JiraLastSubmitFields`·`EditorIssueFields`에 추가. `resolveStickySprint` 구현(`isActiveSprint` 화이트리스트 사용). `resolveProjectChange`의 비움 목록을 **6키 → 8키**로(테스트의 `CLEARED` 배열도 함께). 보존 집합(`priorityId`·`priorityName`·`cc`)은 무변경이고 "같은 프로젝트를 다시 고르면 `projectKey`만" 케이스도 무변경이다.
 - **검증**:
-  - [ ] `current.sprintId` 없음 → `null`
-  - [ ] `fetched === null` → 값 비움 patch
-  - [ ] `state: "closed"` → 값 비움 / `state: "unknown-future-value"` → **값 비움**(R9)
-  - [ ] 유효 + 이름 동일 → `null` / 유효 + 이름 변경 → `{ sprintName }`만
-  - [ ] `project-change.test.ts`: 비움 8키에 `sprintId`·`sprintName` 포함, `priorityId`·`priorityName`·`cc`는 여전히 patch에 **없다**
-  - [ ] `SETTINGS_STORE_VERSION` 11 유지(optional 추가라 마이그레이션 불필요) — `settings-store.test.ts` green
-  - [ ] red가 되는 기존 테스트: `project-change.test.ts`(6→8키). `initialJiraFields.test.ts`·`editor-store.test.ts`는 **코드 변경이 없어 green으로 남아야 한다** — red면 `...src` 스프레드 전제가 깨진 것이므로 조사한다
+  - [x] `current.sprintId` 없음 → `null`
+  - [x] `fetched === null` → 값 비움 patch
+  - [x] `state: "closed"` → 값 비움 / `state: "unknown-future-value"` → **값 비움**(R9)
+  - [x] 유효 + 이름 동일 → `null` / 유효 + 이름 변경 → `{ sprintName }`만
+  - [x] `project-change.test.ts`: 비움 8키에 `sprintId`·`sprintName` 포함, `priorityId`·`priorityName`·`cc`는 여전히 patch에 **없다**
+  - [x] `SETTINGS_STORE_VERSION` 11 유지(optional 추가라 마이그레이션 불필요) — `settings-store.test.ts` green
+  - [x] red가 되는 기존 테스트: `project-change.test.ts`(6→8키). `initialJiraFields.test.ts`·`editor-store.test.ts`는 **코드 변경이 없어 green으로 남아야 한다** — red면 `...src` 스프레드 전제가 깨진 것이므로 조사한다
 
 ## Task 6: i18n 키 5개
 
 - **변경 대상**: `src/i18n/namespaces/editor.ts`, `src/i18n/namespaces/settings.ts`
 - **작업 내용**: design §14 표대로 ko/en 동시 추가(각 파일에 ko/en 블록이 따로 있다).
 - **검증**:
-  - [ ] PostToolUse 훅(`locales.test.ts`)이 저장 시점에 green
-  - [ ] `field.sprint.empty`가 "일치하는 …" 형태(검색 불일치 상황을 겸하므로) — 기존 5개 키와 같은 어법
-  - [ ] `public/_locales`·log-viewer 복제 사전은 **무변경**임을 확인(대상 아님)
+  - [x] PostToolUse 훅(`locales.test.ts`)이 저장 시점에 green
+  - [x] `field.sprint.empty`가 "일치하는 …" 형태(검색 불일치 상황을 겸하므로) — 기존 5개 키와 같은 어법
+  - [x] `public/_locales`·log-viewer 복제 사전은 **무변경**임을 확인(대상 아님)
 
 ## Task 7: UI — 판정 훅 + 필드 + 배선
 
@@ -119,16 +119,16 @@
   - `SprintField`: `FieldCombobox` 기반, `onSearch` 미전달(클라이언트 필터), **`ariaLabel={t("create.sprint")}` + `testId="jira-sprint-combobox"`**, `clearable={value != null}` + `onClear`, `multiBoard`일 때만 `AssigneeField` 2줄 스택으로 보드명.
   - `JiraIssueFields`: 이슈타입 행 **바로 아래**에 배치, 판정 중 로딩 자리 예약(`Loader2` + `common.loading`), meta 있을 때만 `FieldRow`, meta 소멸 시 값 비우기(열려 있으면 `onOpenChange(false)` 먼저), 검증 완료 전 `fallbackLabel` 미전달.
 - **검증**:
-  - [ ] `SprintField.test.tsx`: 목록 렌더 → 항목 선택 → `onChange(id, name)` / 해제 → `onChange(undefined)`
-  - [ ] `multiBoard: false`면 보드명이 렌더되지 않는다 / `true`면 2줄로 렌더된다
-  - [ ] meta `null` → `queryByTestId("jira-sprint-combobox")`가 `null`
-  - [ ] 판정 중 → 로딩 표시가 있고, 아래 행들의 순서가 판정 전후로 동일하다
-  - [ ] `sprintId` 없는 상태로 열면 `jira.getSprint`가 호출되지 않는다
-  - [ ] meta `null`이면 `sprintId`가 있어도 `jira.getSprint`가 호출되지 않는다(경합 방지)
-  - [ ] 검증 응답 전에는 저장된 이름이 트리거에 보이지 않는다(placeholder → 값 방향)
-  - [ ] `useSprintFieldMeta`: 이슈타입을 A→B→A로 빠르게 바꿔도 늦게 온 A 응답이 B를 오염시키지 않는다 / **같은 키 재조회 시 요청이 0회**(캐시) / `siteId`가 다르면 캐시가 갈린다
-  - [ ] 이슈타입 `Bug`→`Epic`→`Bug` 왕복 후 값이 되살아나지 않는다(S4)
-  - [ ] `pnpm typecheck` 통과
+  - [x] `SprintField.test.tsx`: 목록 렌더 → 항목 선택 → `onChange(id, name)` / 해제 → `onChange(undefined)`
+  - [x] `multiBoard: false`면 보드명이 렌더되지 않는다 / `true`면 2줄로 렌더된다
+  - [x] meta `null` → `queryByTestId("jira-sprint-combobox")`가 `null`
+  - [x] 판정 중 → 로딩 표시가 있고, 아래 행들의 순서가 판정 전후로 동일하다
+  - [x] `sprintId` 없는 상태로 열면 `jira.getSprint`가 호출되지 않는다
+  - [x] meta `null`이면 `sprintId`가 있어도 `jira.getSprint`가 호출되지 않는다(경합 방지)
+  - [x] 검증 응답 전에는 저장된 이름이 트리거에 보이지 않는다(placeholder → 값 방향)
+  - [x] `useSprintFieldMeta`: 이슈타입을 A→B→A로 빠르게 바꿔도 늦게 온 A 응답이 B를 오염시키지 않는다 / **같은 키 재조회 시 요청이 0회**(캐시) / `siteId`가 다르면 캐시가 갈린다
+  - [x] 이슈타입 `Bug`→`Epic`→`Bug` 왕복 후 값이 되살아나지 않는다(S4)
+  - [x] `pnpm typecheck` 통과
 
 ## Task 8: 제출 진입점 2곳 + 분석 축
 
@@ -137,13 +137,13 @@
 - **변경 대상**: `src/sidepanel/tabs/IssueCreateModal.tsx`, `src/sidepanel/tabs/DraftDetailDialog.tsx`, `src/background/analytics.ts`, `src/sidepanel/lib/track-submit.ts` + `src/background/__tests__/analytics.test.ts`
 - **작업 내용**: 라인 번호가 아니라 **심볼로 지목**한다(선행 기획 구현이 같은 자리를 다시 쓰는 중 — 착수 전 grep으로 재확인). `handleJiraSubmit`의 `submitToJira({…})`에 `sprintId`, `setLastSubmitFields("jira", {…})`에 `sprintId`·`sprintName`, `DraftDetailDialog`의 로컬 `SubmitFields` 타입 확장. `submitEventProperties`에 `sprintFieldShown`·`sprintSelected` 인자 추가(`String()` 문자열화, Jira 외에는 `null`), `ALLOWED_EVENTS.issue_submitted`에 두 키 등록.
 - **검증**:
-  - [ ] 두 키가 화이트리스트를 통과한다(`analytics.test.ts` — 등록 누락 시 `filterProperties`가 무음 폐기)
-  - [ ] Jira 외 플랫폼 제출에는 두 키가 실리지 않는다
-  - [ ] `sprint_field_shown`과 `sprint_selected`가 **독립**이다(행은 보였는데 안 고른 조합이 표현된다)
-  - [ ] 신규 제출 → 다음 다이얼로그가 같은 스프린트로 열린다(수동)
-  - [ ] 저장 이슈 재제출 경로의 payload·`lastSubmitFields`에도 실린다(수동 + Task 9 e2e)
-  - [ ] `SubmitFieldsDialog`의 `fieldsReady`는 **무변경**(스프린트는 optional)
-  - [ ] `pnpm test` 전체 green
+  - [x] 두 키가 화이트리스트를 통과한다(`analytics.test.ts` — 등록 누락 시 `filterProperties`가 무음 폐기)
+  - [x] Jira 외 플랫폼 제출에는 두 키가 실리지 않는다
+  - [x] `sprint_field_shown`과 `sprint_selected`가 **독립**이다(행은 보였는데 안 고른 조합이 표현된다)
+  - [x] 신규 제출 → 다음 다이얼로그가 같은 스프린트로 열린다(수동)
+  - [x] 저장 이슈 재제출 경로의 payload·`lastSubmitFields`에도 실린다(수동 + Task 9 e2e)
+  - [x] `SubmitFieldsDialog`의 `fieldsReady`는 **무변경**(스프린트는 optional)
+  - [x] `pnpm test` 전체 green
 
 ## Task 9: e2e
 

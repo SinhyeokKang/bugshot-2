@@ -11,6 +11,8 @@ import type {
   JiraMyself,
   JiraPriority,
   JiraProject,
+  JiraSprint,
+  JiraSprintFieldMeta,
   JiraTransition,
   JiraUser,
 } from "@/types/jira";
@@ -264,6 +266,151 @@ interface JiraSearchResponse {
   total: number;
 }
 
+// Sprint는 사이트마다 id가 다른 커스텀 필드라 클라이언트가 미리 알 수 있는 게 없다 —
+// 이 스키마 문자열이 유일한 식별자다.
+const SPRINT_SCHEMA = "com.pyxis.greenhopper.jira:gh-sprint";
+// 보드가 많은 프로젝트에서 SW 메모리·동시 fetch가 폭증하지 않게 자른다(messages.ts MAX_SHEETS 선례).
+const MAX_SPRINT_BOARDS = 5;
+
+interface CreateMetaFieldsResponse {
+  // 봉투 키는 `fields`다(2026-08-13 실측). 이슈타입 목록 엔드포인트의 `issueTypes`와도,
+  // 페이지네이션 관용구 `values`와도 다르다.
+  fields?: {
+    fieldId: string;
+    name?: string;
+    schema?: { type?: string; custom?: string };
+  }[];
+  total?: number;
+}
+
+export function pickSprintField(
+  res: CreateMetaFieldsResponse,
+): JiraSprintFieldMeta | null {
+  // 후보가 둘 이상인 사이트가 있다(마이그레이션 잔재). 어느 쪽이 맞는지 판정할 근거가
+  // 클라이언트에 없으므로 우선순위 규칙을 발명하지 않고 첫 번째를 쓴다.
+  const hit = (res.fields ?? []).find((f) => f.schema?.custom === SPRINT_SCHEMA);
+  if (!hit) return null;
+  return { fieldId: hit.fieldId, isArray: hit.schema?.type === "array" };
+}
+
+const SPRINT_STATE_ORDER = ["active", "future"];
+
+function stateRank(state: string): number {
+  const i = SPRINT_STATE_ORDER.indexOf(state);
+  return i === -1 ? SPRINT_STATE_ORDER.length : i;
+}
+
+export function mergeBoardSprints(
+  perBoard: { boardName: string; sprints: JiraSprint[] }[],
+): { sprints: JiraSprint[]; multiBoard: boolean } {
+  const byId = new Map<number, JiraSprint>();
+  for (const board of perBoard) {
+    for (const sprint of board.sprints) {
+      // 같은 스프린트가 두 보드에 걸릴 수 있다 — 먼저 온 보드의 이름을 남긴다.
+      if (byId.has(sprint.id)) continue;
+      byId.set(sprint.id, { ...sprint, boardName: board.boardName });
+    }
+  }
+  const sprints = [...byId.values()].sort((a, b) => {
+    const order = stateRank(a.state) - stateRank(b.state);
+    return order !== 0 ? order : a.id - b.id;
+  });
+  return { sprints, multiBoard: perBoard.length > 1 };
+}
+
+export async function getSprintFieldMeta(
+  auth: JiraAuth,
+  projectKey: string,
+  issueTypeId: string,
+): Promise<JiraSprintFieldMeta | null> {
+  // 페이지네이션하지 않는다 — 실측 create 화면이 21필드였고 서버가 maxResults를 자체 캡 없이
+  // 존중했다. 기본값(50)에 맡기면 필드가 많은 화면에서 sprint가 무음으로 잘린다.
+  const res = await jiraFetch<CreateMetaFieldsResponse>(
+    auth,
+    `/rest/api/3/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes/${encodeURIComponent(issueTypeId)}?maxResults=200`,
+  );
+  return pickSprintField(res);
+}
+
+interface AgileBoard {
+  id: number;
+  name: string;
+  type?: string;
+}
+
+interface RawSprint {
+  id: number;
+  name: string;
+  state: string;
+  originBoardId?: number;
+}
+
+export async function listSprints(
+  auth: JiraAuth,
+  projectKey: string,
+): Promise<{ sprints: JiraSprint[]; multiBoard: boolean }> {
+  // 보드 목록 조회 실패는 재연동 전 OAuth 사용자(granular scope 없음) 경로다. 오류를 노출해도
+  // 당장 할 수 있는 일이 없으므로 "고를 게 없다"로 수렴시킨다(design R6 — 사후 관측은 분석 축).
+  const boards = await jiraFetch<{ values?: AgileBoard[] }>(
+    auth,
+    `/rest/agile/1.0/board?projectKeyOrId=${encodeURIComponent(projectKey)}&maxResults=50`,
+  )
+    .then((res) => res.values ?? [])
+    .catch(() => [] as AgileBoard[]);
+
+  // team-managed 보드는 type "simple"로 오고 그중 일부가 스프린트를 정상 반환한다 —
+  // 서버에서 type=scrum으로 좁히면 그 팀들이 통째로 무음 누락된다. 칸반만 뺀다(400 확정).
+  const targets = boards
+    .filter((b) => b.type !== "kanban")
+    .slice(0, MAX_SPRINT_BOARDS);
+
+  const results = await Promise.allSettled(
+    targets.map((board) =>
+      jiraFetch<{ values?: RawSprint[] }>(
+        auth,
+        `/rest/agile/1.0/board/${board.id}/sprint?state=active,future&maxResults=50`,
+      ).then((res) => ({
+        boardName: board.name,
+        sprints: (res.values ?? []).map((s) => ({
+          id: s.id,
+          name: s.name,
+          state: s.state,
+          boardId: s.originBoardId ?? board.id,
+        })),
+      })),
+    ),
+  );
+
+  return mergeBoardSprints(
+    results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])),
+  );
+}
+
+export async function getSprint(
+  auth: JiraAuth,
+  sprintId: number,
+): Promise<JiraSprint | null> {
+  const raw = await jiraFetch<RawSprint>(
+    auth,
+    `/rest/agile/1.0/sprint/${sprintId}`,
+  ).catch((err: unknown) => {
+    // "없어졌다"로 읽어도 되는 건 404/403뿐이다. 429·5xx까지 null로 뭉개면 일시 실패가
+    // sticky 검증에서 "스프린트가 사라졌다"가 돼 사용자가 고른 값을 지운다 — 그쪽은 던져서
+    // 호출부가 검증을 건너뛰게 한다.
+    if (err instanceof JiraError && (err.status === 404 || err.status === 403)) {
+      return null;
+    }
+    throw err;
+  });
+  if (!raw) return null;
+  return {
+    id: raw.id,
+    name: raw.name,
+    state: raw.state,
+    boardId: raw.originBoardId ?? 0,
+  };
+}
+
 export async function createIssue(
   auth: JiraAuth,
   payload: JiraCreateIssuePayload,
@@ -282,6 +429,18 @@ export async function createIssue(
   }
   if (payload.parentKey) {
     fields.parent = { key: payload.parentKey };
+  }
+  if (payload.sprintId != null) {
+    // .catch가 없으면 createmeta의 429/5xx가 create 요청 자체를 막아 스프린트를 고른 제출만
+    // 통째로 죽는다 — 스프린트가 빠진 채 생성되는 쪽이 낫다(design R7).
+    const meta = await getSprintFieldMeta(
+      auth,
+      payload.projectKey,
+      payload.issueTypeId,
+    ).catch(() => null);
+    if (meta) {
+      fields[meta.fieldId] = meta.isArray ? [payload.sprintId] : payload.sprintId;
+    }
   }
   return jiraFetch<JiraCreateIssueResult>(auth, "/rest/api/3/issue", {
     method: "POST",

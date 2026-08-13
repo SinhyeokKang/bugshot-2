@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { useT } from "@/i18n";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
 import type { EditorIssueFields } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
+import type { JiraSprint } from "@/types/jira";
+import { sendBg } from "@/types/messages";
 import { AssigneeField } from "./AssigneeField";
 import { CcField } from "./CcField";
 import { EpicField } from "./EpicField";
@@ -10,8 +13,11 @@ import { IssueTypeField } from "./IssueTypeField";
 import { PriorityField } from "./PriorityField";
 import { ProjectField } from "./ProjectField";
 import { RelatesField } from "./RelatesField";
+import { SprintField } from "./SprintField";
 import { resolveEpicParentConflict } from "./resolve-epic-parent";
 import { resolveProjectChange } from "./project-change";
+import { resolveStickySprint } from "./sprint-sticky";
+import { useSprintFieldMeta } from "./useSprintFieldMeta";
 
 export function JiraIssueFields({
   fields,
@@ -70,6 +76,71 @@ export function JiraIssueFields({
     setIssueTypeOpen(true);
   }, []);
 
+  // 스프린트는 사이트마다 id가 다른 커스텀 필드라 존재 여부를 서버에 묻는다. 칸반·보드 미연결·
+  // team-managed·에픽 타입을 열거하지 않고 흡수하는 게 이 판정의 값이다.
+  const {
+    meta: sprintMeta,
+    loading: sprintLoading,
+    failed: sprintFailed,
+  } = useSprintFieldMeta(projectKey, fields.issueTypeId);
+  // 재검증 래치는 boolean이 아니라 검증한 sprintId 값이다 — boolean이면 프로젝트를 바꿔 새
+  // sticky 값이 들어와도 재검증이 안 돈다.
+  const verifiedSprintRef = useRef<number | null>(null);
+  const [sprintVerified, setSprintVerified] = useState(false);
+
+  // 판정이 "없음"으로 **확정**됐을 때만 비운다. 판정 중의 임시 null도, 조회 실패(failed)도
+  // 확정이 아니다 — 실패를 확정으로 읽으면 429 한 번에 사용자가 고른 스프린트가 사라진다.
+  useEffect(() => {
+    // 판정을 물어볼 입력이 아직 없으면 "없음"도 아니다 — 여기서 안 막으면 이슈타입이 잠깐 빈
+    // 순간에 값이 지워지고 그 write가 세션 영속까지 나간다.
+    if (!projectKey || !fields.issueTypeId) return;
+    if (sprintLoading || sprintFailed || sprintMeta || fields.sprintId == null) return;
+    onChange({ sprintId: undefined, sprintName: undefined });
+  }, [
+    projectKey,
+    fields.issueTypeId,
+    sprintLoading,
+    sprintFailed,
+    sprintMeta,
+    fields.sprintId,
+    onChange,
+  ]);
+
+  // 검증은 meta가 확정된 뒤에만 돈다 — meta가 null이면 요청 0회라 위 비우기와 경합하지 않는다.
+  useEffect(() => {
+    const sprintId = fields.sprintId;
+    if (!sprintMeta || sprintId == null) return;
+    if (verifiedSprintRef.current === sprintId) return;
+    verifiedSprintRef.current = sprintId;
+    const name = fields.sprintName;
+    sendBg<JiraSprint | null>({ type: "jira.getSprint", sprintId })
+      .then((sprint) => {
+        // 응답을 기다리는 사이 사용자가 다른 스프린트를 골랐으면 그 선택이 이긴다.
+        if (verifiedSprintRef.current !== sprintId) return;
+        const patch = resolveStickySprint({ sprintId, sprintName: name }, sprint);
+        if (patch) onChange(patch);
+        setSprintVerified(true);
+      })
+      .catch(() => {
+        // 검증 불가는 "유효하지 않다"가 아니다. 값은 그대로 두고 이름도 보여준다 —
+        // payload엔 실리는데 화면만 비면 고르지도 않은 스프린트로 제출한 꼴이 된다.
+        // 래치는 닫아 둔다: 실패 원인이 429일 때 재시도를 여는 게 가장 해롭고, onChange가
+        // 매 렌더 새 identity인 호출부가 있어 풀어두면 필드를 건드릴 때마다 다시 나간다.
+        if (verifiedSprintRef.current !== sprintId) return;
+        setSprintVerified(true);
+      });
+  }, [sprintMeta, fields.sprintId, fields.sprintName, onChange]);
+
+  const handleSprintChange = useCallback(
+    (id: number | undefined, name?: string) => {
+      // 방금 목록에서 고른 값은 검증 대상이 아니다 — 래치를 미리 닫아 요청 한 번을 아낀다.
+      verifiedSprintRef.current = id ?? null;
+      setSprintVerified(true);
+      onChange({ sprintId: id, sprintName: name });
+    },
+    [onChange],
+  );
+
   const handleProjectChange = useCallback(
     (next: string) => {
       // 비교 대상은 표시값이다. fields.projectKey는 백필 effect 전 undefined일 수 있고, 그 상태로
@@ -104,6 +175,27 @@ export function JiraIssueFields({
           onChange={handleIssueTypeChange}
         />
       </FieldRow>
+      {/* 판정 중에도 자리를 잡아두므로 아래 행들이 밀리지 않고, 판정이 돌긴 했는지가 눈에 보인다.
+          (SprintField는 자기 open을 직접 쥔다 — meta가 바뀌려면 프로젝트·이슈타입 콤보를 열어야
+          하고 그 사이 스프린트 팝오버는 이미 닫혀 있다.) */}
+      {!projectKey ? null : sprintLoading ? (
+        <FieldRow label={t("create.sprint")}>
+          {/* 콤보와 같은 높이를 잡아야 판정이 끝날 때 아래 5개 행이 안 밀린다. */}
+          <div className="flex h-9 items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t("common.loading")}
+          </div>
+        </FieldRow>
+      ) : sprintMeta ? (
+        <FieldRow label={t("create.sprint")}>
+          <SprintField
+            projectKey={projectKey}
+            value={fields.sprintId}
+            fallbackLabel={sprintVerified ? fields.sprintName : undefined}
+            onChange={handleSprintChange}
+          />
+        </FieldRow>
+      ) : null}
       <FieldRow label={t("create.assignee")}>
         <AssigneeField
           value={fields.assigneeId}
