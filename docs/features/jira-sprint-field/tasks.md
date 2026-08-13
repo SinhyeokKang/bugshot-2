@@ -150,11 +150,11 @@
 - **변경 대상**: `e2e/jira-sprint-field.spec.ts`(신규), **`e2e/COVERAGE.md`**
 - **작업 내용**: settings envelope seed + `chrome.runtime.sendMessage` 스파이로 `jira.sprintFieldMeta`·`jira.listSprints`·`jira.submitIssue` 응답 주입. **seed 필수 3개**: `projectKey`(없으면 `SetupDialog`가 자동으로 열려 다른 판정을 가린다), **`auth.cloudId`**(없으면 `jiraSiteId`가 `undefined`가 돼 선행 기획의 `sameSite` 게이트가 공허 통과 — `e2e/`에 선례 0건인 새 요구), **envelope `version: 11`**(기존 spec은 `version: 10`이라 마이그레이션 체인을 탄다). 콤보 특정은 `getByTestId`만 쓴다(`role=combobox` nth 금지 — 콤보 8개 + 팝오버 오픈 시 `CommandInput`이 추가된다). `e2e/COVERAGE.md`에 시나리오 추가(`e2e/README.md` 규정).
 - **검증**:
-  - [ ] meta 있음 → 스프린트 행이 보이고, 선택 후 제출 payload에 `sprintId`가 실린다
-  - [ ] meta `null` → 행이 없고 제출 payload에 `sprintId` 키가 **없다**
-  - [ ] 이슈타입을 스프린트 없는 타입으로 바꾸면 행이 사라지고 이미 고른 값이 payload에서 빠진다
-  - [ ] 재제출 경로(`DraftDetailDialog`)에서도 payload에 `sprintId`가 실린다
-  - [ ] `pnpm build:e2e && pnpm test:e2e e2e/jira-sprint-field.spec.ts` green
+  - [x] meta 있음 → 스프린트 행이 보이고, 선택 후 제출 payload에 `sprintId`가 실린다
+  - [x] meta `null` → 행이 없고 제출 payload에 `sprintId` 키가 **없다**
+  - [x] 이슈타입을 스프린트 없는 타입으로 바꾸면 행이 사라지고 이미 고른 값이 payload에서 빠진다
+  - [x] 재제출 경로(`DraftDetailDialog`)에서도 payload에 `sprintId`가 실린다
+  - [x] `pnpm build:e2e && pnpm test:e2e e2e/jira-sprint-field.spec.ts` green
 
 ## Task 10: 문서 (구현 후)
 

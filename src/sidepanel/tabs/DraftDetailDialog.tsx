@@ -1001,6 +1001,7 @@ export function DraftDetailDialog({
                   </Button>
                   <Button
                     disabled={available.length === 0}
+                    data-testid="detail-submit-open"
                     onClick={() => setSubmitOpen(true)}
                   >
                     {t("issue.submit")}
