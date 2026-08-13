@@ -61,6 +61,8 @@ You can also pre-fill the **values that go into the issue**. Pick a default **As
 
 One thing worth knowing: **changing the location clears** the assignee and label defaults under it. A different repository or project probably means a different set of members, and we'd rather clear the field than quietly assign someone who doesn't belong there. Just pick again in the new location.
 
+> **For Jira, you can also switch the project at submission time.** What you pick here is your usual destination; while writing an issue you can move it to a different project from the **Project** field at the top of the submit dialog. Your connection settings stay put, so the default project you set here doesn't change. Switching projects clears the issue type, assignee, parent epic, and linked issues (they may not exist over there) — priority and CC have nothing to do with the project, so they stay. Right after the switch the issue type list opens on its own so you can pick one straight away, and the submit button stays locked until you do. And the "whoever you picked on your last submission wins" rule above applies **to the project too**, so the next issue you write opens on the project you just filed to.
+
 ## Disconnecting
 
 In "My integrations" you can disconnect each platform (the unplug icon), or disconnect everything at once. Don't worry — disconnecting has no effect on issues you've already submitted.

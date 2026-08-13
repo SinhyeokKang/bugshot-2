@@ -20,8 +20,8 @@
   - `EditorIssueFields`에 `projectKey?: string` 추가.
   - `SETTINGS_STORE_VERSION`·`EDITOR_SNAPSHOT_KEYS` 변경 없음(optional 추가 / `issueFields`는 이미 스냅샷 대상 — `editor-store.ts:339`).
 - **검증**
-  - [ ] `src/sidepanel/hooks/useEditorSessionSync.ts:92`의 `snapshotFromState`가 `issueFields`를 **통째로** 복사하는지 확인 — 이게 키를 손나열하는 형태면 `projectKey`가 세션에 안 실려 sticky 세션 층(PRD 목표 2)이 조용히 죽는다.
-  - [ ] `pnpm test src/store/__tests__/editor-store.test.ts` — **`:1743`의 `it("issueFields에 projectKey가 새지 않는다 …")`가 red로 뜨는지 확인.** green이면 타입 추가가 실제로 반영되지 않은 것이다. (이 케이스는 Task 2에서 뒤집는다.)
+  - [x] `src/sidepanel/hooks/useEditorSessionSync.ts:92`의 `snapshotFromState`가 `issueFields`를 **통째로** 복사하는지 확인 — 이게 키를 손나열하는 형태면 `projectKey`가 세션에 안 실려 sticky 세션 층(PRD 목표 2)이 조용히 죽는다.
+  - [x] `pnpm test src/store/__tests__/editor-store.test.ts` — **`:1743`의 `it("issueFields에 projectKey가 새지 않는다 …")`가 red로 뜨는지 확인.** green이면 타입 추가가 실제로 반영되지 않은 것이다. (이 케이스는 Task 2에서 뒤집는다.)
 
 ### Task 2: `initialJiraFields` 재정의 + `confirmDraft` 배선 (TDD)
 
@@ -36,26 +36,26 @@
   - **`confirmDraft:858-861` 담당자 백필에 `merged.projectKey === init.projectKey` 조건 추가.**
   - `editor-store.ts:858`의 stale POSTMORTEM 참조 주석(2026-06-27)을 실재 항목(2026-06-30)으로 교체.
 - **검증**
-  - [ ] 직전 제출이 `API`면 `projectKey: "API"` + 하위 필드가 함께 복원된다.
-  - [ ] 직전 제출이 없으면 `account.projectKey` + 계정 기본 이슈타입·담당자.
-  - [ ] `last.siteId`가 현재 사이트와 다르면 `last`를 통째로 버리고 계정 기본으로 연다.
-  - [ ] `last.siteId`가 없거나 `currentSiteId`가 없으면 사이트 검증을 건너뛴다. **이건 예외 케이스가 아니라 업데이트 직후 기존 사용자 전원이 타는 경로다**(design R1-b).
-  - [ ] 복원 프로젝트가 계정 기본과 다르면 계정 기본 이슈타입·담당자가 **주입되지 않는다**.
-  - [ ] 담당자가 `last`에 있으면 이름도 `last` 것이 붙는다(다른 사람 이름이 섞이지 않는다).
-  - [ ] **`confirmDraft`가 현재 사이트 id를 넘긴다** — 다른 사이트의 `lastSubmitFields`를 심어두고 `confirmDraft`를 돌렸을 때 계정 기본 프로젝트로 열리는지 스토어 테스트로 고정.
-  - [ ] **`restorable=false`(세션에 assigneeId 존재)여도 `projectKey`는 복원된다.**
-  - [ ] **세션 프로젝트와 `init` 프로젝트가 다르면 담당자 백필이 일어나지 않는다.**
-  - [ ] `editor-store.test.ts:1743`의 "projectKey가 새지 않는다" 케이스를 새 의도로 뒤집어 재작성(세션 영속이 이제 의도된 동작).
-  - [ ] `pnpm test src/sidepanel/lib/__tests__/initialJiraFields.test.ts src/store/__tests__/editor-store.test.ts` green.
+  - [x] 직전 제출이 `API`면 `projectKey: "API"` + 하위 필드가 함께 복원된다.
+  - [x] 직전 제출이 없으면 `account.projectKey` + 계정 기본 이슈타입·담당자.
+  - [x] `last.siteId`가 현재 사이트와 다르면 `last`를 통째로 버리고 계정 기본으로 연다.
+  - [x] `last.siteId`가 없거나 `currentSiteId`가 없으면 사이트 검증을 건너뛴다. **이건 예외 케이스가 아니라 업데이트 직후 기존 사용자 전원이 타는 경로다**(design R1-b).
+  - [x] 복원 프로젝트가 계정 기본과 다르면 계정 기본 이슈타입·담당자가 **주입되지 않는다**.
+  - [x] 담당자가 `last`에 있으면 이름도 `last` 것이 붙는다(다른 사람 이름이 섞이지 않는다).
+  - [x] **`confirmDraft`가 현재 사이트 id를 넘긴다** — 다른 사이트의 `lastSubmitFields`를 심어두고 `confirmDraft`를 돌렸을 때 계정 기본 프로젝트로 열리는지 스토어 테스트로 고정.
+  - [x] **`restorable=false`(세션에 assigneeId 존재)여도 `projectKey`는 복원된다.**
+  - [x] **세션 프로젝트와 `init` 프로젝트가 다르면 담당자 백필이 일어나지 않는다.**
+  - [x] `editor-store.test.ts:1743`의 "projectKey가 새지 않는다" 케이스를 새 의도로 뒤집어 재작성(세션 영속이 이제 의도된 동작).
+  - [x] `pnpm test src/sidepanel/lib/__tests__/initialJiraFields.test.ts src/store/__tests__/editor-store.test.ts` green.
 
 ### Task 3: 프로젝트 전환 리셋 규칙 (TDD)
 
 - **변경 대상**: `src/sidepanel/tabs/jiraFields/project-change.ts`(신규), `src/sidepanel/tabs/jiraFields/__tests__/project-change.test.ts`(신규)
 - **작업 내용**: `resolveProjectChange(current, nextProjectKey)` 순수 함수. 프로젝트가 실제로 바뀔 때만 `issueTypeId`·`assigneeId`·`assigneeName`·`parentKey`·`parentLabel`·`relates` **6개**를 `undefined`로 하는 patch를 반환. `priorityId`·`priorityName`·`cc`는 patch에 포함하지 않는다(사이트 전역 — design §4).
 - **검증**
-  - [ ] 다른 프로젝트로 바꾸면 위 6개 키가 patch에 `undefined`로 들어간다.
-  - [ ] `priorityId`·`priorityName`·`cc`가 patch에 없다(기존 값 보존).
-  - [ ] 같은 프로젝트를 다시 고르면 `projectKey`만 있는 patch — 입력이 날아가지 않는다.
+  - [x] 다른 프로젝트로 바꾸면 위 6개 키가 patch에 `undefined`로 들어간다.
+  - [x] `priorityId`·`priorityName`·`cc`가 patch에 없다(기존 값 보존).
+  - [x] 같은 프로젝트를 다시 고르면 `projectKey`만 있는 patch — 입력이 날아가지 않는다.
 
 ### Task 4: `ProjectField` 컴포넌트
 
@@ -64,10 +64,10 @@
   - **표시**: 트리거는 `` `${name} (${KEY})` `` **1행**(`FieldCombobox` 트리거는 단일 span truncate 고정이라 2행 불가). 리스트 항목은 `children`에 `flex-col`로 이름 + 키 **2행**(`AssigneeField.tsx:129-136` 선례). `fallbackLabel`로 목록 로드 전 선택된 키 표시.
   - **`aria-label={t("jira.project")}` + `data-testid="jira-project-combobox"` 를 트리거에 붙인다.** 전자는 접근성(행이 7개가 되면 접근 이름 없는 combobox가 7개 나열), 후자는 e2e 판정 수단 — `jiraFields/`에 testid가 0개이고 `FieldRow`의 `<label>`에 `htmlFor`가 없어 `getByLabel`이 실패한다.
 - **검증**
-  - [ ] 콤보를 열면 목록을 조회하고, 검색어 입력 시 서버 검색(`query`)이 나간다 — `EpicField`와 동일한 디바운스 경로. **S4(51번째 프로젝트)의 존재 이유가 이 경로이므로 수동이 아니라 단위로 고정한다.**
-  - [ ] 조회 실패 시 **콤보를 연 상태에서** 에러 문구가 뜨고, 트리거에는 선택된 키가 유지된다.
-  - [ ] 빈 목록(접근 가능한 프로젝트 0개)이면 `project.empty` 문구가 뜬다.
-  - [ ] 목록 로드 전에도 이미 선택된 프로젝트 키가 트리거에 보인다.
+  - [x] 콤보를 열면 목록을 조회하고, 검색어 입력 시 서버 검색(`query`)이 나간다 — `EpicField`와 동일한 디바운스 경로. **S4(51번째 프로젝트)의 존재 이유가 이 경로이므로 수동이 아니라 단위로 고정한다.**
+  - [x] 조회 실패 시 **콤보를 연 상태에서** 에러 문구가 뜨고, 트리거에는 선택된 키가 유지된다.
+  - [x] 빈 목록(접근 가능한 프로젝트 0개)이면 `project.empty` 문구가 뜬다.
+  - [x] 목록 로드 전에도 이미 선택된 프로젝트 키가 트리거에 보인다.
 
 ### Task 5: `JiraIssueFields` 배선 + 제출 게이트
 
@@ -81,11 +81,11 @@
   - `fields.projectKey`(없으면 계정 기본값)를 `IssueTypeField`·`EpicField`·`RelatesField`에 prop으로 전달.
   - `SubmitFieldsDialog.tsx:199`의 jira `fieldsReady`를 `!!jiraFields.projectKey && !!jiraFields.issueTypeId`로 (다른 7개와 정합).
 - **검증**
-  - [ ] 제출 다이얼로그 Jira 탭 최상단에 프로젝트 행이 보인다.
-  - [ ] 프로젝트를 바꾸면 이슈타입·담당자·에픽·연결 이슈 표시가 비고, **우선순위와 참조(cc)는 남는다**.
+  - [x] 제출 다이얼로그 Jira 탭 최상단에 프로젝트 행이 보인다.
+  - [x] 프로젝트를 바꾸면 이슈타입·담당자·에픽·연결 이슈 표시가 비고, **우선순위와 참조(cc)는 남는다**.
   - [ ] 프로젝트를 바꾼 직후 제출 버튼이 잠기고 이슈타입 콤보가 열린다.
   - [ ] 이슈타입을 고르면 제출 버튼이 다시 활성화된다.
-  - [ ] `isEpicType` 로컬 상태도 함께 초기화된다(에픽 프로젝트에서 일반 프로젝트로 옮길 때 상위 에픽 행이 숨은 채 남지 않는다).
+  - [x] `isEpicType` 로컬 상태도 함께 초기화된다(에픽 프로젝트에서 일반 프로젝트로 옮길 때 상위 에픽 행이 숨은 채 남지 않는다).
 
 ### Task 6: 하위 필드 스코프 전환
 
@@ -98,11 +98,11 @@
   - `IssueTypeField.tsx:26-29`의 캐시 비우기 `useEffect` 의존성을 prop 기준으로 교체.
   - **`EpicField`·`RelatesField`의 목록 잔존 처리.** 이 둘의 목록은 `useDebouncedSearch` 내부 `items`에 있고 훅이 `{items, loading, error, search}`만 노출해 reset 수단이 없다 — 그대로 두면 전환 후 다음 fetch resolve까지 이전 프로젝트의 에픽·연결 이슈가 목록에 남는다. `key={projectKey}` remount(변경 면적 작음) 또는 훅에 reset 노출.
 - **검증**
-  - [ ] 프로젝트 A→B 전환 후 이슈타입 콤보를 열면 **B의** 이슈타입이 나온다(A 목록이 캐시로 남지 않는다).
-  - [ ] 계정 기본 프로젝트가 아닌 곳에서 이슈타입을 비우면 계정 기본 이슈타입이 **자동으로 다시 채워지지 않는다** — 값도, **트리거 라벨·체크마크 표시도**.
-  - [ ] 계정 기본 프로젝트에서는 기존대로 기본 이슈타입이 자동 선택된다(기존 동작 보존).
+  - [x] 프로젝트 A→B 전환 후 이슈타입 콤보를 열면 **B의** 이슈타입이 나온다(A 목록이 캐시로 남지 않는다).
+  - [x] 계정 기본 프로젝트가 아닌 곳에서 이슈타입을 비우면 계정 기본 이슈타입이 **자동으로 다시 채워지지 않는다** — 값도, **트리거 라벨·체크마크 표시도**.
+  - [x] 계정 기본 프로젝트에서는 기존대로 기본 이슈타입이 자동 선택된다(기존 동작 보존).
   - [ ] 에픽·연결 이슈 검색이 전환한 프로젝트 기준으로 나가고, **이전 프로젝트의 에픽이 목록에 남지 않는다**(요청만이 아니라 표시까지).
-  - [ ] 프로젝트를 A→B→A로 빠르게 바꿔도 늦게 도착한 응답이 목록을 오염시키지 않는다(`IssueTypeField`의 `cancelled` 가드 + `if (items.length > 0) return`(`:33`) 조합 확인).
+  - [x] 프로젝트를 A→B→A로 빠르게 바꿔도 늦게 도착한 응답이 목록을 오염시키지 않는다(`IssueTypeField`의 `cancelled` 가드 + `if (items.length > 0) return`(`:33`) 조합 확인).
 
 ### Task 7: 제출 경로 2곳 + 채택 측정
 
@@ -118,7 +118,7 @@
   - [ ] 프로젝트를 바꿔 제출하면 그 프로젝트로 등록된다(스파이로 `jira.submitIssue` payload의 `projectKey` 확인).
   - [ ] 제출 후 `accounts.jira.projectKey`가 불변이다.
   - [ ] 제출 후 `lastSubmitFields.jira`에 `projectKey`·`issueTypeId`·`siteId`가 기록된다 — **두 진입점 각각에서**.
-  - [ ] `project_overridden`이 화이트리스트를 통과한다(등록 누락 시 값이 조용히 버려진다).
+  - [x] `project_overridden`이 화이트리스트를 통과한다(등록 누락 시 값이 조용히 버려진다).
 
 ### Task 8: e2e
 
