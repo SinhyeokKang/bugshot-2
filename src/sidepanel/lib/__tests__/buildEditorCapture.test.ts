@@ -7,8 +7,13 @@ const editorState = vi.hoisted(() => ({ current: {} as Record<string, unknown> }
 vi.mock("@/store/editor-store", () => ({
   useEditorStore: { getState: () => editorState.current },
 }));
+// 본문 언어는 이 함수가 store에서 직접 읽는다 — 케이스마다 갈아끼울 수 있게 ref로 둔다.
+const settingsState = vi.hoisted(() => ({
+  current: { issueSections: [], locale: "ko", bodyLocale: "auto" } as Record<string, unknown>,
+}));
+
 vi.mock("@/store/settings-ui-store", () => ({
-  useSettingsUiStore: { getState: () => ({ issueSections: [] }) },
+  useSettingsUiStore: { getState: () => settingsState.current },
 }));
 vi.mock("@/sidepanel/lib/osInfo", () => ({
   getOsInfo: () => ({ name: "macOS", version: "15" }),
@@ -18,6 +23,8 @@ vi.mock("@/store/blob-db", () => ({
   dataUrlToBlob: () => new Blob(),
 }));
 vi.mock("@/i18n", () => ({
+  // 빌더 진입점이 withLocale로 감싸져 있다 — 모킹에서 빠지면 통째로 죽는다(패스스루).
+  withLocale: <T>(_locale: string, fn: () => T): T => fn(),
   t: (key: string) => key,
   dateBcp47: () => "en-US",
 }));
@@ -163,6 +170,7 @@ describe("buildEditorMarkdownContext — element annotated 전달", () => {
 describe("buildEditorLogsCaptureInput — before/after 이미지 resolve", () => {
   function ctxWith(styleElements: MarkdownContext["styleElements"]): MarkdownContext {
     return {
+      bodyLocale: "ko",
       captureMode: "element",
       title: "T",
       sections: {},
@@ -280,5 +288,32 @@ describe("buildEditorLogsCaptureInput — before/after 이미지 resolve", () =>
 
     expect(input.beforeImages).toEqual(["data:only-ann"]);
     expect(input.afterImages).toEqual([null]);
+  });
+});
+
+// 제출 경로의 MarkdownContext 생산지. "auto"는 여기서 화면 언어로 해석돼 들어가야 한다 —
+// ctx에 "auto"가 실리면 해석 지점이 생산지마다 갈린다.
+describe("buildEditorMarkdownContext — bodyLocale (제출 경로 생산지)", () => {
+  beforeEach(() => {
+    editorState.current = baseState({ captureMode: "screenshot" });
+    settingsState.current = { issueSections: [], locale: "ko", bodyLocale: "auto" };
+  });
+
+  it("bodyLocale en + 화면 ko → ctx.bodyLocale은 en", () => {
+    settingsState.current = { issueSections: [], locale: "ko", bodyLocale: "en" };
+    expect(buildEditorMarkdownContext()?.bodyLocale).toBe("en");
+  });
+
+  it("bodyLocale auto → 화면 언어로 해석된다", () => {
+    settingsState.current = { issueSections: [], locale: "ko", bodyLocale: "auto" };
+    expect(buildEditorMarkdownContext()?.bodyLocale).toBe("ko");
+
+    settingsState.current = { issueSections: [], locale: "en", bodyLocale: "auto" };
+    expect(buildEditorMarkdownContext()?.bodyLocale).toBe("en");
+  });
+
+  it("오염된 저장값은 auto로 교정된 뒤 화면 언어로 해석된다", () => {
+    settingsState.current = { issueSections: [], locale: "ko", bodyLocale: "jp" };
+    expect(buildEditorMarkdownContext()?.bodyLocale).toBe("ko");
   });
 });

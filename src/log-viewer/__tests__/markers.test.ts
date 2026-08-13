@@ -558,3 +558,65 @@ describe("buildMarkers — positionPct 계산", () => {
     expect(markers[0].positionPct).toBe(100);
   });
 });
+
+// ---------- Action 탭 — navigation 유형 ----------
+
+// markers.ts는 t()를 2회 호출한다(보간판 → label, 미보간판 → labelParts). 한쪽만 갈면
+// TimelineMarkers의 aria-label과 화면 문구가 갈리는 무음 a11y 회귀가 된다.
+describe("buildMarkers — navigation 유형별 라벨", () => {
+  const url = "https://example.com/page";
+
+  function navMarker(navType: ActionEntry["navType"]) {
+    const data = makeData({
+      actionLog: makeActionLog([
+        makeActionEntry({ kind: "navigation", toUrl: url, navType }),
+      ]),
+    });
+    return buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT)[0];
+  }
+
+  it.each([
+    ["back", "actionLog.verb.navigateBack"],
+    ["forward", "actionLog.verb.navigateForward"],
+    ["reload", "actionLog.verb.navigateReload"],
+    ["traverse", "actionLog.verb.navigateTraverse"],
+  ] as const)("navType %s는 %s 키로 label을 만든다", (navType, key) => {
+    expect(navMarker(navType).label).toBe(t(key, { target: url }));
+  });
+
+  // 미보간판(labelParts)까지 같은 키로 갈렸는지 — 두 t() 호출 중 하나만 바꾸면 여기서 깨진다.
+  it.each(["back", "forward", "reload", "traverse"] as const)(
+    "navType %s: labelParts를 이어붙이면 label과 같다",
+    (navType) => {
+      const m = navMarker(navType);
+      expect(m.labelParts.map((p) => p.text).join("")).toBe(m.label);
+    },
+  );
+
+  it.each(["back", "forward", "reload", "traverse"] as const)(
+    "navType %s: URL 슬롯만 파랑, 나머지는 기본색",
+    (navType) => {
+      const parts = navMarker(navType).labelParts;
+      expect(parts.find((p) => p.text === url)?.className).toBe(TONE_TEXT.blue);
+      for (const p of parts) {
+        if (p.text !== url) expect(p.className).toBeUndefined();
+      }
+    },
+  );
+
+  it("유형이 붙어도 variant는 navigate 유지 (핀 색 무발산 — 마커 variant 미추가)", () => {
+    expect(navMarker("back").variant).toBe("navigate");
+  });
+
+  // 구 로그 하위호환 — IndexedDB에 저장된 초안이 raw 키·빈 문구로 뜨면 안 된다.
+  it.each(["load", "pushState", "replaceState", "popstate", "hashchange"] as const)(
+    "구 값 %s는 기존 navigate 문구를 유지한다",
+    (navType) => {
+      expect(navMarker(navType).label).toBe(t("actionLog.verb.navigate", { target: url }));
+    },
+  );
+
+  it("navType이 없으면 기존 navigate 문구를 유지한다", () => {
+    expect(navMarker(undefined).label).toBe(t("actionLog.verb.navigate", { target: url }));
+  });
+});

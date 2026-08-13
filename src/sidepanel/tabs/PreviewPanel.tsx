@@ -3,6 +3,7 @@ import { Download } from "lucide-react";
 import { formatTimestamp } from "@/sidepanel/lib/formatTimestamp";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
+import { resolveBodyLocale } from "@/i18n/locales";
 import {
   sectionLabelKey,
   useSettingsUiStore,
@@ -76,6 +77,8 @@ export function PreviewPanel() {
   const currentIssueId = useEditorStore((s) => s.currentIssueId);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
+  // 미리보기 화면은 종전대로 화면 언어로 그린다 — 이 값이 가는 곳은 복사·제출 본문뿐이다.
+  const bodyLocale = useSettingsUiStore((s) => resolveBodyLocale(s.bodyLocale, s.locale));
   const accounts = useSettingsStore((s) => s.accounts);
   const navTo = useTabNav();
   const noPlatformConnected = connectedPlatforms(accounts).length === 0;
@@ -293,6 +296,7 @@ export function PreviewPanel() {
     let ctx: MarkdownContext;
     if (isFreeformMode) {
       ctx = buildMarkdownContext({
+        bodyLocale,
         captureMode: "freeform",
         title: draft.title,
         resolvedSections: resolved,
@@ -309,6 +313,7 @@ export function PreviewPanel() {
       });
     } else if (isVideoMode) {
       ctx = buildMarkdownContext({
+        bodyLocale,
         captureMode: "video",
         title: draft.title,
         resolvedSections: resolved,
@@ -325,6 +330,7 @@ export function PreviewPanel() {
       });
     } else if (isElementMode && selection) {
       ctx = buildMarkdownContext({
+        bodyLocale,
         captureMode: "element",
         title: draft.title,
         resolvedSections: resolved,
@@ -349,6 +355,7 @@ export function PreviewPanel() {
       });
     } else if (captureMode === "screenshot") {
       ctx = buildMarkdownContext({
+        bodyLocale,
         captureMode: "screenshot",
         title: draft.title,
         resolvedSections: resolved,

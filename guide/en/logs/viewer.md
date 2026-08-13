@@ -20,6 +20,16 @@ The screen has a timeline alongside the video, with logs plotted on it as marker
 - **Network** — Network requests.
 - **Action** — User actions: clicks, text input, and navigation, plus keyboard shortcuts and special keys, checkbox and radio toggles, dropdown selections, and drag-and-drop. (Navigation shows up as a kind of action marker.)
 
+### Does it tell back and reload apart?
+
+Yes. Navigation entries record **how** you moved — browser back and forward, reload, and history moves of unknown direction each get their own wording and their own icon, distinct from an ordinary navigation.
+
+The browser's back button is Chrome UI, so it leaves no click on the page. Without this distinction, whoever reads the report only sees the address suddenly return to a previous page. Bugs like "the form clears when I press back" or "it only reproduces after a reload" have the **navigation method itself as the reproduction step** — leave it out and the person on the other end cannot reproduce it.
+
+Reload is especially useful. Reloading before a capture clears the log so far, and the new log now opens with a reload entry — so **the log explains its own emptiness**.
+
+> Moves within the same document (SPA routing) come with a back/forward direction, but a move that reopens the page entirely gets no direction from the browser and stays a plain "history move." Clicking a link and typing in the address bar are not told apart; both are ordinary navigation.
+
 ### How much of what you typed gets recorded
 
 Action logs capture **which value you entered**, not just that you entered one. "Put -1 in the quantity field and it broke" only reproduces if the value is there. So values you type into fields and pick from dropdowns are recorded **as-is (up to 500 characters)** and attached to the issue — unless they trip one of the rules below.

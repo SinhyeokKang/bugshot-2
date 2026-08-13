@@ -140,3 +140,58 @@ describe("NetworkLogContent — 영상 seek 동기화(onSeek 공급)", () => {
     expect(chip.tagName).toBe("SPAN");
   });
 });
+
+// BugShot이 만든 상태 라벨만 번역한다. 옛 저장 로그는 statusKind가 없어 영문 statusText로 남고,
+// 그 비대칭이 의도임을 여기서 고정한다(HAR·이슈 본문·프롬프트도 같은 영문을 쓴다).
+describe("NetworkLogContent — statusKind 상태 라벨", () => {
+  async function statusText(over: Partial<NetworkRequest>): Promise<string> {
+    const req = makeRequest({ id: "s1", status: 0, ...over });
+    render(<NetworkLogContent requests={[req]} />);
+    await userEvent.click(row("s1"));
+    const dd = document.querySelectorAll("dd")[2] as HTMLElement;
+    return dd.textContent ?? "";
+  }
+
+  it("queued는 번역 키로 렌더된다", async () => {
+    expect(
+      await statusText({ phase: "complete", statusText: "Queued", statusKind: "queued" }),
+    ).toContain("networkLog.display.queued");
+  });
+
+  it("queueFull은 번역 키로 렌더된다", async () => {
+    expect(
+      await statusText({ phase: "error", statusText: "Queue Full", statusKind: "queueFull" }),
+    ).toContain("networkLog.display.queueFull");
+  });
+
+  it("aborted는 번역 키로 렌더된다", async () => {
+    expect(
+      await statusText({ phase: "error", statusText: "Aborted", statusKind: "aborted" }),
+    ).toContain("networkLog.display.aborted");
+  });
+
+  it("timeout은 번역 키로 렌더된다", async () => {
+    expect(
+      await statusText({ phase: "error", statusText: "Timeout", statusKind: "timeout" }),
+    ).toContain("networkLog.display.timeout");
+  });
+
+  it("networkError는 라벨 대신 blocked 문구로 간다(isStatusHidden이 먼저 잡는다)", async () => {
+    const out = await statusText({
+      phase: "error",
+      statusText: "Network Error",
+      statusKind: "networkError",
+    });
+    expect(out).toContain("networkLog.display.blocked");
+  });
+
+  it("statusKind 없는 옛 로그는 영문 statusText 원문을 그대로 보여준다", async () => {
+    expect(await statusText({ phase: "error", statusText: "Aborted" })).toContain("0 Aborted");
+  });
+
+  it("서버 유래 응답은 status + statusText 그대로다", async () => {
+    expect(
+      await statusText({ phase: "complete", status: 503, statusText: "Service Unavailable" }),
+    ).toContain("503 Service Unavailable");
+  });
+});

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   ARG_CAP,
+  capLabelMap,
   cleanStack,
   createSafeRecorder,
   formatErrorEvent,
@@ -473,5 +474,36 @@ describe("arm-스코프 wrap 라이프사이클 — 페이지 override 보존", 
     target.error("after");
     expect(pageError).toHaveBeenCalledWith("after");
     expect(record).toHaveBeenCalledTimes(1);
+  });
+});
+
+// 미armed 페이지가 임의 라벨로 console.count를 호출하면 Map이 무한히 자란다.
+describe("capLabelMap", () => {
+  it("상한 이하면 아무것도 지우지 않는다", () => {
+    const map = new Map([["a", 1], ["b", 2]]);
+    capLabelMap(map, 2);
+    expect([...map.keys()]).toEqual(["a", "b"]);
+  });
+
+  it("상한을 넘으면 가장 먼저 들어온 라벨부터 지운다", () => {
+    const map = new Map([["a", 1], ["b", 2], ["c", 3]]);
+    capLabelMap(map, 2);
+    expect([...map.keys()]).toEqual(["b", "c"]);
+  });
+
+  it("여러 개가 넘쳐도 상한까지 줄인다", () => {
+    const map = new Map(Array.from({ length: 500 }, (_, i) => [`l${i}`, i] as const));
+    capLabelMap(map, 200);
+    expect(map.size).toBe(200);
+    expect(map.has("l0")).toBe(false);
+    expect(map.has("l499")).toBe(true);
+  });
+
+  it("갱신된 기존 라벨은 순서를 유지한다 — Map.set은 재삽입이 아니다", () => {
+    const map = new Map([["a", 1], ["b", 2]]);
+    map.set("a", 9);
+    map.set("c", 3);
+    capLabelMap(map, 2);
+    expect([...map.keys()]).toEqual(["b", "c"]);
   });
 });

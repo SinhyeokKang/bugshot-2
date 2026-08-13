@@ -1,4 +1,5 @@
-import { t } from "@/i18n";
+import { getLocale, t, withLocale } from "@/i18n";
+import { resolveBodyLocale, type LocaleMode } from "@/i18n/locales";
 import type { PlatformId } from "@/types/platform";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
@@ -8,7 +9,7 @@ import { injectSnapshotRows } from "./injectSnapshotRows";
 import { captureOwnedTab, captureThrottle } from "./capture-throttle";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
 import { isFetchableSheetUrl } from "@/lib/ssrf-guard";
-import type { JiraAttachmentInput, JiraAuth, JiraCreateIssuePayload, JiraSubmitResult } from "@/types/jira";
+import type { JiraAdfDoc, JiraAttachmentInput, JiraAuth, JiraCreateIssuePayload, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
 import type { BgRequest } from "@/types/messages";
 import {
@@ -828,58 +829,12 @@ async function submitIssue(
 
   if (uploadMap.size > 0) {
     try {
-      const desc = payload.description;
-      const content: unknown[] = [...desc.content];
-      const screenshotFile = uploadMap.get("screenshot.webp");
-      if (screenshotFile) {
-        const mediaPlaceholderIdx = content.findIndex(
-          (n) => {
-            const node = n as { type: string; content?: { text?: string }[] };
-            return node.type === "paragraph" && node.content?.[0]?.text === IMAGE_PLACEHOLDER;
-          },
-        );
-        if (mediaPlaceholderIdx >= 0) {
-          const mediaNode = adfMediaNode(mediaSrc(screenshotFile), screenshotFile);
-          content[mediaPlaceholderIdx] = adfMediaSingle(mediaNode);
-        }
-      }
-
-      // recording.{webm,mp4} — extension follows whatever the MediaRecorder produced.
-      let videoFile: UploadedFile | undefined;
-      for (const [name, file] of uploadMap) {
-        if (/^recording\.(webm|mp4)$/i.test(name)) { videoFile = file; break; }
-      }
-      const videoPlaceholderIdx = content.findIndex(
-        (n) => {
-          const node = n as { type: string; content?: { text?: string }[] };
-          return node.type === "paragraph" && node.content?.[0]?.text === VIDEO_PLACEHOLDER;
-        },
-      );
-      if (videoFile?.kind === "media" && videoPlaceholderIdx >= 0) {
-        content[videoPlaceholderIdx] = adfVideoMediaSingle(mediaSrc(videoFile));
-      } else if (videoPlaceholderIdx >= 0) {
-        content[videoPlaceholderIdx] = {
-          type: "paragraph",
-          content: [{ type: "text", text: t("md.videoAttached") }],
-        };
-      }
-
-      if (!screenshotFile) {
-        injectSnapshotRows(content, (name) => uploadMap.get(name), snapshotRow);
-      }
-
-      for (let i = 0; i < content.length; i++) {
-        const node = content[i] as { type: string; content?: { text?: string }[] };
-        if (node.type !== "paragraph" || !node.content?.[0]?.text) continue;
-        const refId = parseInlinePlaceholder(node.content[0].text);
-        if (!refId) continue;
-        const file = uploadMap.get(`inline-${refId}.webp`);
-        if (!file) continue;
-        const mediaNode = adfMediaNode(mediaSrc(file), file);
-        content[i] = adfMediaSingle(mediaNode);
-      }
-
-      if (logsUrl) injectLogsLink(content, logsUrl);
+      const content = buildJiraDescriptionContent({
+        description: payload.description,
+        uploadMap,
+        logsUrl,
+        bodyLocale: payload.bodyLocale,
+      });
 
       await updateIssueDescription(auth, issue.key, {
         version: 1,
@@ -901,6 +856,75 @@ async function submitIssue(
   }
 
   return { key: issue.key, url: issueUrl, logsDropped };
+}
+
+// background는 currentLocale 인스턴스가 사이드패널과 별도라(bg-init이 화면 언어로 세팅) 빌더
+// 래핑이 여기 안 닿는다. 제출 payload에 실려 온 본문 언어로 이 동기 구간을 다시 감싼다 —
+// 안 감싸면 영어 본문 안에 한국어 한 줄(영상 폴백·스냅샷 행 라벨)이 섞인다.
+export function buildJiraDescriptionContent(input: {
+  description: JiraAdfDoc;
+  uploadMap: Map<string, UploadedFile>;
+  logsUrl?: string;
+  bodyLocale?: LocaleMode;
+}): unknown[] {
+  const { description, uploadMap, logsUrl } = input;
+  // 누락(구버전 메시지)과 오염을 한 호출로 흡수한다 — 메시지 게이트는 type만 보므로 여기가
+  // 이 realm의 마지막 관문이고, 통과시키면 사전 조회가 undefined라 t()가 죽는다.
+  return withLocale(resolveBodyLocale(input.bodyLocale, getLocale()), () => {
+    const content: unknown[] = [...description.content];
+    const screenshotFile = uploadMap.get("screenshot.webp");
+    if (screenshotFile) {
+      const mediaPlaceholderIdx = content.findIndex(
+        (n) => {
+          const node = n as { type: string; content?: { text?: string }[] };
+          return node.type === "paragraph" && node.content?.[0]?.text === IMAGE_PLACEHOLDER;
+        },
+      );
+      if (mediaPlaceholderIdx >= 0) {
+        const mediaNode = adfMediaNode(mediaSrc(screenshotFile), screenshotFile);
+        content[mediaPlaceholderIdx] = adfMediaSingle(mediaNode);
+      }
+    }
+
+    // recording.{webm,mp4} — extension follows whatever the MediaRecorder produced.
+    let videoFile: UploadedFile | undefined;
+    for (const [name, file] of uploadMap) {
+      if (/^recording\.(webm|mp4)$/i.test(name)) { videoFile = file; break; }
+    }
+    const videoPlaceholderIdx = content.findIndex(
+      (n) => {
+        const node = n as { type: string; content?: { text?: string }[] };
+        return node.type === "paragraph" && node.content?.[0]?.text === VIDEO_PLACEHOLDER;
+      },
+    );
+    if (videoFile?.kind === "media" && videoPlaceholderIdx >= 0) {
+      content[videoPlaceholderIdx] = adfVideoMediaSingle(mediaSrc(videoFile));
+    } else if (videoPlaceholderIdx >= 0) {
+      content[videoPlaceholderIdx] = {
+        type: "paragraph",
+        content: [{ type: "text", text: t("md.videoAttached") }],
+      };
+    }
+
+    if (!screenshotFile) {
+      injectSnapshotRows(content, (name) => uploadMap.get(name), snapshotRow);
+    }
+
+    for (let i = 0; i < content.length; i++) {
+      const node = content[i] as { type: string; content?: { text?: string }[] };
+      if (node.type !== "paragraph" || !node.content?.[0]?.text) continue;
+      const refId = parseInlinePlaceholder(node.content[0].text);
+      if (!refId) continue;
+      const file = uploadMap.get(`inline-${refId}.webp`);
+      if (!file) continue;
+      const mediaNode = adfMediaNode(mediaSrc(file), file);
+      content[i] = adfMediaSingle(mediaNode);
+    }
+
+    if (logsUrl) injectLogsLink(content, logsUrl);
+
+    return content;
+  });
 }
 
 function snapshotRow(

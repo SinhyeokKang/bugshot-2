@@ -39,6 +39,8 @@ const BROWSER_BOUND_EXACT = new Set([
   "src/content/action-recorder.ts",
   "src/content/recorder-bridge.ts",
   "src/content/recorders-entry.ts",
+  // document_start에 내장을 떼어 두는 스냅샷 — 값 자체가 브라우저 전역이라 유닛으로 못 고정한다.
+  "src/content/recorder-globals.ts",
   // background: SW 엔트리·메시지 라우터·타입 테이블·MAIN world 주입
   "src/background/index.ts",
   "src/background/messages.ts",

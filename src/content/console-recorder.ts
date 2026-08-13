@@ -1,4 +1,5 @@
 import {
+  capLabelMap,
   cleanStack,
   createSafeRecorder,
   formatErrorEvent,
@@ -13,6 +14,8 @@ import {
 import type { EwState } from "./console-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
+import { addEventListener, CustomEventCtor, dispatchEvent, randomUUID, removeEventListener } from "./recorder-globals";
+import { createSentinelRegistry } from "./sentinel-registry";
 import { maskUrl } from "./network-recorder-helpers";
 
 function consoleRecorderScript(): void {
@@ -43,10 +46,10 @@ function consoleRecorderScript(): void {
   const preArm = readPreArmFlag();
   let capturing = preArm;
 
+  // 페이지가 crypto를 갈아끼워 모든 id를 같게 만들면 사이드패널 log-merge의 id dedup이
+  // 로그 전체를 1건으로 접는다 — 스냅샷 경유.
   function genId(): string {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
+    if (randomUUID) return randomUUID();
     return `cl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
@@ -172,6 +175,9 @@ function consoleRecorderScript(): void {
     };
   }
 
+  // 게이트 밖 누적을 유지하는 이유는 capLabelMap 옆(console-recorder-helpers.ts) 참조.
+  const MAX_LABELS = 200;
+
   const counters = new Map<string, number>();
   const originalCount = console.count?.bind(console);
   if (originalCount) {
@@ -180,6 +186,7 @@ function consoleRecorderScript(): void {
       const key = label ?? "default";
       const next = (counters.get(key) ?? 0) + 1;
       counters.set(key, next);
+      capLabelMap(counters, MAX_LABELS);
       safeRecord(() => pushEntry("log", `${key}: ${next}`));
     };
   }
@@ -188,6 +195,7 @@ function consoleRecorderScript(): void {
     console.countReset = function (label?: string) {
       originalCountReset(label);
       counters.set(label ?? "default", 0);
+      capLabelMap(counters, MAX_LABELS);
     };
   }
 
@@ -197,6 +205,7 @@ function consoleRecorderScript(): void {
     console.time = function (label?: string) {
       originalTime(label);
       timers.set(label ?? "default", Date.now());
+      capLabelMap(timers, MAX_LABELS);
     };
   }
   const originalTimeEnd = console.timeEnd?.bind(console);
@@ -243,7 +252,8 @@ function consoleRecorderScript(): void {
 
   // --- Uncaught error / Unhandled rejection ---
   // capture phase — 페이지 핸들러가 stopPropagation해도 우리 listener는 통과.
-  window.addEventListener(
+  addEventListener(
+    window,
     "error",
     (e: ErrorEvent) => {
       // 에러 리스너 안에서 throw하면 새 error 이벤트가 나 우리 리스너를 다시 태운다 — 반드시 격리.
@@ -261,7 +271,8 @@ function consoleRecorderScript(): void {
     true,
   );
 
-  window.addEventListener(
+  addEventListener(
+    window,
     "unhandledrejection",
     (e: PromiseRejectionEvent) => {
       safeRecord(() => {
@@ -273,26 +284,51 @@ function consoleRecorderScript(): void {
   );
 
   // --- Sentinel-bound dispatch ---
-  let currentSentinel: string | null = null;
-  let stopHandler: (() => void) | null = null;
-  let syncHandler: (() => void) | null = null;
-  let clearHandler: (() => void) | null = null;
+  // 다중 등록 — 무엇을 막고 무엇이 남는지는 sentinel-registry.ts 헤더 참조.
+  const sentinels = createSentinelRegistry();
+  const sentinelHandlers = new Map<string, { stop: () => void; sync: () => void; clear: () => void }>();
 
   function dispatch(): void {
-    if (!currentSentinel) return;
-    document.dispatchEvent(
-      new CustomEvent("__bugshot_console_data__" + currentSentinel, {
-        detail: {
-          sentinel: currentSentinel,
-          entries: buffer.slice(),
-          totalSeen,
-        },
-      }),
-    );
+    const registered = sentinels.list();
+    if (!registered.length) return;
+    for (const sentinel of registered) {
+      // 배열은 sentinel마다 새로 뜬다(공유하면 먼저 등록된 위조 리스너가 비운다). 격리는
+      // 배열까지 — 엔트리 객체는 공유 참조다. sentinel-registry.ts 헤더 참조.
+      dispatchEvent(
+        document,
+        new CustomEventCtor("__bugshot_console_data__" + sentinel, {
+          detail: { sentinel, entries: buffer.slice(), totalSeen },
+        }),
+      );
+    }
   }
 
   // 녹화 중 pushEntry마다 schedule → 최대 FLUSH_INTERVAL_MS마다 전체 버퍼를 실시간 dispatch.
   const throttle = createTrailingThrottle(dispatch, FLUSH_INTERVAL_MS);
+
+  // 페이지가 sessionStorage pre-arm 플래그를 위조하면 error/warn wrap이 상시 설치된 채 남아
+  // chrome://extensions에 확장 attribution 경고가 계속 쌓인다. 그 창을 유한하게 끊는다.
+  const PREARM_GRACE_MS = 60000;
+  let armedOnce = false;
+  let graceTimer: ReturnType<typeof setTimeout> | null = null;
+  if (preArm) {
+    graceTimer = setTimeout(() => {
+      graceTimer = null;
+      // 해제는 clearTimeout에 의존할 수 없다 — 페이지가 그걸 no-op으로 바꾸면 정당하게
+      // arm된 세션이 만료 시점에 죽는다. recording이 아니라 armedOnce를 보는 이유: arm 후
+      // stop된 상태에서도 이 타이머가 남의 버퍼를 비우면 안 된다(타이머의 조건은 "arm이
+      // 한 번도 안 왔다"이지 "지금 녹화 중이 아니다"가 아니다).
+      if (armedOnce) return;
+      capturing = false;
+      restoreConsoleWrap(console, ewState);
+      // clearBuffer가 아니라 버퍼만 비운다 — counters·timers를 지우면 만료 뒤 정당한 arm에서
+      // console.count가 1부터 다시 세고 timeEnd가 "?"를 찍어, 위 MAX_LABELS 주석이 지키겠다고
+      // 한 DevTools 일치가 깨진다. 명시적 clear 핸들러는 세션 리셋이라 현행대로 전부 비운다.
+      buffer.length = 0;
+      totalSeen = 0;
+      throttle.cancel();
+    }, PREARM_GRACE_MS);
+  }
 
   function clearBuffer(): void {
     buffer.length = 0;
@@ -301,36 +337,48 @@ function consoleRecorderScript(): void {
     timers.clear();
   }
 
-  function detachSentinelListeners(): void {
-    if (!currentSentinel) return;
-    if (stopHandler) document.removeEventListener("__bugshot_console_stop__" + currentSentinel, stopHandler);
-    if (syncHandler) document.removeEventListener("__bugshot_console_sync__" + currentSentinel, syncHandler);
-    if (clearHandler) document.removeEventListener("__bugshot_console_clear__" + currentSentinel, clearHandler);
+  function detachSentinel(sentinel: string): void {
+    const handlers = sentinelHandlers.get(sentinel);
+    if (!handlers) return;
+    sentinelHandlers.delete(sentinel);
+    removeEventListener(document, "__bugshot_console_stop__" + sentinel, handlers.stop);
+    removeEventListener(document, "__bugshot_console_sync__" + sentinel, handlers.sync);
+    removeEventListener(document, "__bugshot_console_clear__" + sentinel, handlers.clear);
   }
 
   function setSentinel(sentinel: string): void {
-    detachSentinelListeners();
-    currentSentinel = sentinel;
+    if (sentinels.add(sentinel)) {
+      for (const gone of sentinels.evicted()) detachSentinel(gone);
+      // stop은 현재 world의 적재·전송을 끄고 error/warn wrap을 원복. 플래그는 유지(reload 시 재-pre-arm).
+      const handlers = {
+        stop: () => {
+          recording = false;
+          capturing = false;
+          restoreConsoleWrap(console, ewState);
+          throttle.flushNow();
+        },
+        sync: () => { throttle.flushNow(); },
+        clear: () => { clearBuffer(); throttle.cancel(); },
+      };
+      sentinelHandlers.set(sentinel, handlers);
+      addEventListener(document, "__bugshot_console_stop__" + sentinel, handlers.stop);
+      addEventListener(document, "__bugshot_console_sync__" + sentinel, handlers.sync);
+      addEventListener(document, "__bugshot_console_clear__" + sentinel, handlers.clear);
+    }
+    // 재발행(같은 sentinel)에서도 arm 상태는 다시 세운다 — 리스너만 멱등이다.
+    armedOnce = true;
     recording = true;
     capturing = true;
     setPreArmFlag(); // 이후 reload/same-origin 네비에서 pre-arm 적재가 켜지도록 active 표시.
     installEwWrap();
+    if (graceTimer != null) {
+      clearTimeout(graceTimer);
+      graceTimer = null;
+    }
     if (buffer.length) throttle.schedule(); // pre-arm 초반 버퍼 소급 flush.
-    // stop은 현재 world의 적재·전송을 끄고 error/warn wrap을 원복. 플래그는 유지(reload 시 재-pre-arm).
-    stopHandler = () => {
-      recording = false;
-      capturing = false;
-      restoreConsoleWrap(console, ewState);
-      throttle.flushNow();
-    };
-    syncHandler = () => { throttle.flushNow(); };
-    clearHandler = () => { clearBuffer(); throttle.cancel(); };
-    document.addEventListener("__bugshot_console_stop__" + sentinel, stopHandler);
-    document.addEventListener("__bugshot_console_sync__" + sentinel, syncHandler);
-    document.addEventListener("__bugshot_console_clear__" + sentinel, clearHandler);
   }
 
-  document.addEventListener(SET_SENTINEL_EVENT, (e: Event) => {
+  addEventListener(document, SET_SENTINEL_EVENT, (e: Event) => {
     const detail = (e as CustomEvent).detail as { sentinel?: string } | undefined;
     if (detail?.sentinel) setSentinel(detail.sentinel);
   });
@@ -338,16 +386,17 @@ function consoleRecorderScript(): void {
   // 풀 네비게이션으로 MAIN world가 파괴되기 직전 버퍼 flush(보조). sentinel 없으면 dispatch no-op.
   // pre-arm으로 init에서 error/warn wrap을 깔았는데 sentinel 미도착(stopHandler 없음)인 경우를 위해
   // 여기서도 원복한다(멱등이라 stop과 중복 안전).
-  window.addEventListener("pagehide", () => {
+  addEventListener(window, "pagehide", () => {
     restoreConsoleWrap(console, ewState);
     throttle.flushNow();
   });
   // 탭 숨김 직전 최신 꼬리까지 flush(안전망 다중화). hidden 외 상태 변화는 무시.
-  document.addEventListener("visibilitychange", () => {
+  addEventListener(document, "visibilitychange", () => {
     if (document.visibilityState === "hidden") throttle.flushNow();
   });
 
-  (window as any)[CTRL_KEY] = { setSentinel, clearBuffer };
+  // 함수가 아니라 마커다 — 걸어두면 페이지가 부를 수 있다. 용도는 위쪽 중복 초기화 가드뿐.
+  (window as any)[CTRL_KEY] = true;
 }
 
 consoleRecorderScript();

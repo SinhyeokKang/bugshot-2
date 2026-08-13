@@ -41,10 +41,11 @@ import { useSettingsStore } from "@/store/settings-store";
 import { PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { isReproSectionEnabled } from "@/sidepanel/lib/reproSectionEnabled";
 import { RecordingSettingsCard } from "@/sidepanel/components/RecordingSettingsCard";
+import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { SettingsFooter } from "./settings/SettingsFooter";
 import { LlmConnectForm } from "./settings/LlmConnectForm";
 import { LOCALE_LABELS } from "@/sidepanel/lib/localeLabels";
-import { LOCALES } from "@/i18n/locales";
+import { LOCALES, resolveBodyLocale, type BodyLocale } from "@/i18n/locales";
 
 export function SettingsTab({ sub, onSubChange }: { sub: string; onSubChange: (v: string) => void }) {
   const t = useT();
@@ -65,7 +66,7 @@ export function SettingsTab({ sub, onSubChange }: { sub: string; onSubChange: (v
             <Sparkles className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("settings.tab.ai")}</TabLabel>
           </TabsTrigger>
-          <TabsTrigger value="general" className="min-w-0 gap-1.5">
+          <TabsTrigger value="general" className="min-w-0 gap-1.5" data-testid="settings-sub-general">
             <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("settings.tab.general")}</TabLabel>
           </TabsTrigger>
@@ -108,6 +109,10 @@ function IssueSettingsContent() {
   const setAutoReproPrefill = useSettingsUiStore((s) => s.setAutoReproPrefill);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
   const setTitlePrefix = useSettingsStore((s) => s.setTitlePrefix);
+  const bodyLocale = useSettingsUiStore((s) => s.bodyLocale);
+  const setBodyLocale = useSettingsUiStore((s) => s.setBodyLocale);
+  // auto 라벨의 "({lang})"는 해석 결과라 화면 언어를 읽어야 한다.
+  const locale = useSettingsUiStore((s) => s.locale);
 
   const sectionIds = issueSections.map((s) => s.id);
   const sectionLabel = (section: IssueSection) =>
@@ -161,6 +166,11 @@ function IssueSettingsContent() {
     );
   };
 
+  // auto는 저장값이 아니라 지금 화면 언어로 해석해 보여준다 — 언어를 바꾸면 같이 따라간다.
+  const autoLabel = t("settings.bodyLocale.auto", {
+    lang: LOCALE_LABELS[resolveBodyLocale("auto", locale)],
+  });
+
   // 복원 버튼은 순서만 되돌리므로 판정도 순서만 본다(enabled는 사용자 것).
   const isDefaultOrder =
     issueSections.length === DEFAULT_ISSUE_SECTIONS.length &&
@@ -169,19 +179,49 @@ function IssueSettingsContent() {
   return (
     <PageShell>
       <PageScroll>
-        <Section title={t("settings.titleSettings")}>
-          <div className="space-y-2">
-            <Input
-              id="title-prefix"
-              placeholder={t("settings.titlePrefix.placeholder")}
-              value={titlePrefix}
-              onChange={(e) => setTitlePrefix(e.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <p className="text-[0.8rem] text-muted-foreground">
-              {t("settings.titlePrefix.help")}
-            </p>
+        <Section title={t("settings.issueCommon")}>
+          <div className="space-y-4">
+            <FieldRow label={t("settings.titlePrefix.label")}>
+              <Input
+                id="title-prefix"
+                placeholder={t("settings.titlePrefix.placeholder")}
+                value={titlePrefix}
+                onChange={(e) => setTitlePrefix(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="text-sm text-muted-foreground">
+                {t("settings.titlePrefix.help")}
+              </p>
+            </FieldRow>
+
+            <FieldRow label={t("settings.bodyLocale")}>
+              <Select
+                value={bodyLocale}
+                onValueChange={(v) => setBodyLocale(v as BodyLocale)}
+              >
+                <SelectTrigger
+                  className="w-full"
+                  data-testid="settings-body-locale"
+                  aria-label={t("settings.bodyLocale")}
+                  aria-describedby="body-locale-help"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* 옵션은 LOCALES 단일 출처에서 파생 — 로케일이 등록되면 이 화면 수정 없이 늘어난다. */}
+                  <SelectItem value="auto">{autoLabel}</SelectItem>
+                  {LOCALES.map((code) => (
+                    <SelectItem key={code} value={code}>
+                      {LOCALE_LABELS[code]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p id="body-locale-help" className="text-sm text-muted-foreground">
+                {t("settings.bodyLocale.help")}
+              </p>
+            </FieldRow>
           </div>
         </Section>
 
@@ -279,7 +319,7 @@ function GeneralSettingsContent() {
       <PageScroll>
         <Section title={t("settings.language")}>
           <Select value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full" data-testid="settings-locale">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

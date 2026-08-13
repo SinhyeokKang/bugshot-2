@@ -640,6 +640,10 @@ function handleClear(): void {
     cancelAnimationFrame(rafHandle);
     rafHandle = null;
   }
+  if (selectionUpdateTimer != null) {
+    clearTimeout(selectionUpdateTimer);
+    selectionUpdateTimer = null;
+  }
   if (overlay) {
     destroyOverlay(overlay);
     overlay = null;

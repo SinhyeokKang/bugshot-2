@@ -23,6 +23,7 @@ import type { MarkdownContext } from "../buildIssueMarkdown";
 
 function makeCtx(): MarkdownContext {
   return {
+    bodyLocale: "ko",
     captureMode: "screenshot",
     title: "Test",
     sections: { description: "본문" },
@@ -280,5 +281,21 @@ describe("submitToNotion — 인라인 이미지", () => {
     });
 
     expect(sendBg.mock.calls.some((c) => c[0].type === "notion.uploadFile")).toBe(false);
+  });
+
+  // 첨부 섹션 제목은 빌더에 없고 background에서만 생성되므로 이 배선이 유일한 전달 경로다.
+  it("ctx.bodyLocale을 제출 payload에 싣는다", async () => {
+    attachments.mockReturnValue([]);
+    mockUploadOk();
+
+    await submitToNotion({
+      ctx: { ...makeCtx(), bodyLocale: "en" },
+      databaseId: "DB",
+      titlePropertyName: "Name",
+      selectValues: [],
+    });
+
+    const page = sendBg.mock.calls.find((c) => c[0].type === "notion.submitPage")![0];
+    expect(page.payload.bodyLocale).toBe("en");
   });
 });

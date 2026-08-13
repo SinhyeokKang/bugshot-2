@@ -1,4 +1,4 @@
-import { t } from "@/i18n";
+import { t, withLocale } from "@/i18n";
 import { escapeTableCell as escapeCell } from "./markdownCell";
 import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
 import { bodyBlocks } from "./bodyBlocks";
@@ -42,6 +42,10 @@ function listItems(content: string): string[] {
 }
 
 export function buildAsanaIssueBody(input: AsanaBuildInput): AsanaBuildResult {
+  return withLocale(input.ctx.bodyLocale, () => buildAsanaIssueBodyInner(input));
+}
+
+function buildAsanaIssueBodyInner(input: AsanaBuildInput): AsanaBuildResult {
   const { ctx, images = [] } = input;
   const lines: string[] = [];
   const attached: string[] = [];

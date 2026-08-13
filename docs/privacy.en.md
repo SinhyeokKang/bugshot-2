@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: August 8, 2026
+**Effective date**: August 12, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -50,7 +50,7 @@ Search terms and the candidate/profile lists returned are not stored on the devi
 | Network request logs | While the side panel is open (including before a capture starts) | Attaching to an issue (debug information). Part of each request URL — **the hostname — is also derived into the "API host list" above and written into the issue body** |
 | WebSocket messages (text frame payloads) | While the side panel is open (including before a capture starts) | Attaching to an issue (debug information — sent/received text messages, excluding binary) |
 | Console logs | While the side panel is open (including before a capture starts) | Attaching to an issue (debug information) |
-| User action logs (clicks, input, navigation, shortcut keys, toggles, dropdown selections, drag) | While the side panel is open (including before a capture starts) | Attaching to an issue (reproduction steps — attached by default in every capture mode except element style editing) |
+| User action logs (clicks, input, navigation — including whether it was a back, forward, or reload — shortcut keys, toggles, dropdown selections, drag) | While the side panel is open (including before a capture starts) | Attaching to an issue (reproduction steps — attached by default in every capture mode except element style editing) |
 | 30-second replay frames | When 30-second replay is enabled | Periodically capturing the current tab's screen and temporarily holding the last 30 seconds in memory (not stored, not transmitted; attached as video only when you explicitly capture) |
 | User-attached files | When attaching a file to an issue after enabling the file-attachment feature (optional, off by default) | Attaching an arbitrary local file you select yourself to an issue |
 
@@ -69,6 +69,8 @@ Element selection, style editing, and element capture also extend to elements in
 
 User action logs record, in addition to the clicked element, input field, and navigation, reproduction steps for shortcut/special-key input (e.g., Enter, Esc, ⌘K — a shortcut entry carries no printable characters or field values), checkbox/radio toggles, dropdown selections, and drag actions (identifying information for the dragged element and the drop-target element). To make the entry readable, it also records **the on-screen text of the element you clicked or dragged (its accessible name, up to 80 characters)** — so it reads as "clicked Save" rather than a bare selector.
 
+Navigation entries also record **how** you moved — browser back and forward, reload, and history moves whose direction cannot be determined are distinguished from ordinary navigation. Bugs like "the form clears when I press back" have the navigation method itself as the reproduction step. This distinction is derived solely from the navigation information the browser already exposes to the page; no new address or identifier is collected.
+
 **The values you type into input fields and pick from dropdowns are recorded verbatim (up to 500 characters) and attached to the issue, unless they are caught by the masking rules below.** Knowing which value triggered the bug is what makes a report reproducible. Sensitive information is masked automatically (`***`) in two ways.
 
 - **By field type and label**: `type=password`, autocomplete hints (`current-password`, `cc-*`, `one-time-code`), and sensitive keywords found in the field's name, id, `aria-label`, associated label (a `label` element or `aria-labelledby`), or placeholder (password, card, cvv, ssn, token, key, otp, passphrase, credential, and their Korean equivalents). English keywords are matched on word boundaries (so `keyword` and `monkey` are not flagged), leaving ordinary fields that merely contain a sensitive keyword as a substring unmasked.
@@ -76,7 +78,7 @@ User action logs record, in addition to the clicked element, input field, and na
 
 Every action also records the **page address** it happened on. Sensitive query and fragment parameters are masked for every action, including navigation, click, input, toggle, select, shortcut-key, and drag. Ordinary address information that is not identified as sensitive remains in the log for reproduction.
 
-The **value-shape rule above applies not just to what you type, but to the element's on-screen text and field labels as well** — if the name of the element you clicked looks like an email address or a long digit run, it is masked too.
+The **value-shape rule above applies not just to what you type, but to the element's on-screen text and field labels as well** — if the name of the element you clicked looks like an email address or a long digit run, it is masked with `***` too.
 
 In addition, content typed into rich-text editors (`contenteditable` — mail bodies, documents, message composers) is **never recorded, neither as a value nor as an element name**; only the fact that you typed is kept. Keystrokes while a sensitive field is focused are not recorded either. However, **a value with no sensitive signal in either its label or its shape (a search term, ordinary text) is recorded verbatim**, so on screens where you enter sensitive content, please turn off log attachment before submitting.
 
@@ -88,7 +90,7 @@ On the drafting screen you can also **pick a single captured network or console 
 
 While a capture is in progress (screenshot, report drafting, or video recording), navigating away (including to another site) does not interrupt the console/network/action logs — they are preserved, so an issue created that way may include debug logs from the pages visited during the capture.
 
-When you reload a page on which you have previously started debug capture, resuming capture may retroactively include console/network/action logs from the early part of that page load (just before resuming). These early-load logs are held only temporarily in device memory until capture is restarted, and are not stored or transmitted.
+When you reload a page on which you have previously started debug capture, resuming capture may retroactively include console/network/action logs from the early part of that page load (just before resuming). These early-load logs are held only temporarily in device memory until capture is restarted, and are not stored or transmitted. **If capture is not resumed within 60 seconds, this temporary buffer is discarded automatically.**
 
 ### App Settings
 

@@ -9,7 +9,9 @@ import {
   LOCALES,
   detectLocale,
   matchLocaleTag,
+  normalizeBodyLocale,
   normalizeLocale,
+  resolveBodyLocale,
 } from "../locales";
 
 describe("normalizeLocale", () => {
@@ -108,6 +110,71 @@ describe("detectLocale", () => {
   it("반환값은 항상 등록된 로케일이다", () => {
     for (const tag of ["ko-KR", "en-US", "fr", "", undefined, "xx-YY"]) {
       expect(LOCALES).toContain(detectLocale(tag));
+    }
+  });
+});
+
+// 이슈 본문 언어 축. aiLanguage 3종 세트(normalize·resolve·auto 표기)를 그대로 복제한다 —
+// 도메인이 AI 프리셋이 아니라 LocaleMode라 aiLanguage.ts가 아니라 여기에 둔다.
+describe("normalizeBodyLocale", () => {
+  it("auto는 그대로 통과한다", () => {
+    expect(normalizeBodyLocale("auto")).toBe("auto");
+  });
+
+  it("등록된 로케일 문자열은 그대로 통과한다", () => {
+    for (const locale of LOCALES) {
+      expect(normalizeBodyLocale(locale)).toBe(locale);
+    }
+  });
+
+  // normalizeLocale과 달리 미등록 값이 DEFAULT_LOCALE이 아니라 auto로 떨어진다 —
+  // 오염된 값을 영어로 굳히면 화면 언어를 따르던 사용자의 본문이 조용히 영어가 된다.
+  it("미등록 코드는 auto로 교정한다 (기본값 경로 보존)", () => {
+    expect(normalizeBodyLocale("jp")).toBe("auto");
+    expect(normalizeBodyLocale("fr")).toBe("auto");
+  });
+
+  it("비문자열·빈 값도 auto로 교정한다", () => {
+    expect(normalizeBodyLocale(undefined)).toBe("auto");
+    expect(normalizeBodyLocale(null)).toBe("auto");
+    expect(normalizeBodyLocale(42)).toBe("auto");
+    expect(normalizeBodyLocale({})).toBe("auto");
+    expect(normalizeBodyLocale("")).toBe("auto");
+  });
+
+  it("대소문자 관용이 없다 (저장값 게이트)", () => {
+    expect(normalizeBodyLocale("KO")).toBe("auto");
+    expect(normalizeBodyLocale("Auto")).toBe("auto");
+  });
+
+  it("멱등하다", () => {
+    for (const value of ["auto", ...LOCALES, "jp", undefined]) {
+      const once = normalizeBodyLocale(value);
+      expect(normalizeBodyLocale(once)).toBe(once);
+    }
+  });
+});
+
+// auto는 저장 시점 스냅샷이 아니라 호출 시점 해석 — 굳히면 화면 언어를 바꿔도 본문만 옛 언어로 남는다.
+describe("resolveBodyLocale", () => {
+  it("auto는 화면 언어로 해석한다", () => {
+    expect(resolveBodyLocale("auto", "ko")).toBe("ko");
+    expect(resolveBodyLocale("auto", "en")).toBe("en");
+  });
+
+  it("명시 로케일은 화면 언어를 무시한다", () => {
+    expect(resolveBodyLocale("en", "ko")).toBe("en");
+    expect(resolveBodyLocale("ko", "en")).toBe("ko");
+  });
+
+  it("undefined·오염값은 auto로 정규화된 뒤 화면 언어로 해석된다", () => {
+    expect(resolveBodyLocale(undefined, "en")).toBe("en");
+    expect(resolveBodyLocale("jp" as never, "ko")).toBe("ko");
+  });
+
+  it("반환값은 항상 등록된 로케일이다 (사전 조회 안전)", () => {
+    for (const value of ["auto", "ko", "en", "jp", undefined] as const) {
+      expect(LOCALES).toContain(resolveBodyLocale(value as never, "ko"));
     }
   });
 });

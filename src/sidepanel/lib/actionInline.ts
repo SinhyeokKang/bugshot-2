@@ -1,4 +1,8 @@
 import type { ActionEntry, ActionNode } from "@/types/action";
+// 반드시 `import type` — 이 파일은 log-viewer가 끌어가는 공유 모듈이고, 그 빌드의 `@/i18n`
+// alias는 prefix 매칭이라 값 import면 접힌 경로로 빌드가 깨진다(`@/i18n/locales`와 동일 함정).
+// 경로도 저장소 관례인 `@/i18n/ko`를 따른다 — 같은 제약을 이미 푼 NetworkLogContent 선례.
+import type { TranslationKey } from "@/i18n/ko";
 
 export type TemplateToken =
   | { type: "text"; value: string }
@@ -26,6 +30,28 @@ export function splitTemplate(template: string): TemplateToken[] {
         : { type: "text", value: part },
     );
 }
+
+// navigation 항목의 i18n 동사 키. 액션 로그 목록과 log-viewer 타임라인이 이걸 공유해야 문구가
+// 갈라지지 않는다(POSTMORTEM 2026-07-03). 구 값·미상은 기존 키로 폴백 — 구 로그가 raw 키로 뜨면 안 된다.
+export function navVerbKey(navType: ActionEntry["navType"]): TranslationKey {
+  switch (navType) {
+    case "back": return "actionLog.verb.navigateBack";
+    case "forward": return "actionLog.verb.navigateForward";
+    case "reload": return "actionLog.verb.navigateReload";
+    case "traverse": return "actionLog.verb.navigateTraverse";
+    default: return "actionLog.verb.navigate";
+  }
+}
+
+// 동적 선택이라 log-viewer 복제 사전의 리터럴 스캐너를 우회하고, 값 drift 검사도 키가 아예
+// 없으면 그냥 통과한다 — 이 닫힌 집합이 그 구멍을 막는 유일한 장치다(i18n.test.ts가 소비).
+export const NAV_VERB_KEYS: readonly TranslationKey[] = [
+  "actionLog.verb.navigate",
+  "actionLog.verb.navigateBack",
+  "actionLog.verb.navigateForward",
+  "actionLog.verb.navigateReload",
+  "actionLog.verb.navigateTraverse",
+];
 
 export type ClickTargetView =
   | { mode: "name"; name: string }

@@ -3,6 +3,8 @@ import {
   splitTemplate,
   resolveClickTarget,
   resolveActionNode,
+  navVerbKey,
+  NAV_VERB_KEYS,
 } from "../actionInline";
 
 describe("splitTemplate", () => {
@@ -145,5 +147,69 @@ describe("resolveActionNode", () => {
       mode: "tag",
       tagName: "div",
     });
+  });
+});
+
+// navigation 항목의 i18n 동사 키. 목록(ActionLogContent)과 타임라인(markers.ts)이 이걸 공유해야
+// 문구가 갈라지지 않는다. navType 축엔 exhaustive 검사가 저장소에 0건이라 렌더 분기 누락을
+// 컴파일러가 못 잡는다 — 아래 폴백 케이스가 유일한 그물이다.
+describe("navVerbKey", () => {
+  it("back은 전용 키", () => {
+    expect(navVerbKey("back")).toBe("actionLog.verb.navigateBack");
+  });
+
+  it("forward는 전용 키", () => {
+    expect(navVerbKey("forward")).toBe("actionLog.verb.navigateForward");
+  });
+
+  it("reload는 전용 키", () => {
+    expect(navVerbKey("reload")).toBe("actionLog.verb.navigateReload");
+  });
+
+  it("traverse는 전용 키", () => {
+    expect(navVerbKey("traverse")).toBe("actionLog.verb.navigateTraverse");
+  });
+
+  // 구 로그(IndexedDB에 저장된 초안)가 raw 키·빈 문구로 뜨지 않아야 한다.
+  it("구 값 5종은 전부 기존 navigate 키로 폴백", () => {
+    for (const legacy of ["load", "pushState", "replaceState", "popstate", "hashchange"] as const) {
+      expect(navVerbKey(legacy)).toBe("actionLog.verb.navigate");
+    }
+  });
+
+  it("navType이 없으면 기존 navigate 키로 폴백", () => {
+    expect(navVerbKey(undefined)).toBe("actionLog.verb.navigate");
+  });
+});
+
+// 동적 키는 log-viewer의 리터럴 스캐너를 우회하고, 값 drift 검사도 복제 사전에 키가 아예 없으면
+// 통과한다. 닫힌 집합 상수가 그 구멍을 막는 유일한 장치라 집합 자체를 고정한다.
+describe("NAV_VERB_KEYS", () => {
+  // 아래 두 케이스는 기대값을 navVerbKey(=SUT)로 만든다 — 집합 정합성을 보는 게 목적이라
+  // 의도된 형태지만, 그것만 두면 둘이 함께 틀렸을 때 항진명제가 된다(POSTMORTEM 2026-08-06).
+  // 내용 자체는 리터럴로 못박아 그 구멍을 막는다.
+  it("집합 내용이 리터럴과 일치한다", () => {
+    expect([...NAV_VERB_KEYS].sort()).toEqual([
+      "actionLog.verb.navigate",
+      "actionLog.verb.navigateBack",
+      "actionLog.verb.navigateForward",
+      "actionLog.verb.navigateReload",
+      "actionLog.verb.navigateTraverse",
+    ]);
+  });
+
+  it("navVerbKey가 반환할 수 있는 키를 전부 담는다", () => {
+    const reachable = new Set(
+      (["back", "forward", "reload", "traverse", "load", "pushState", "replaceState", "popstate", "hashchange", undefined] as const)
+        .map((v) => navVerbKey(v)),
+    );
+    for (const key of reachable) expect(NAV_VERB_KEYS).toContain(key);
+  });
+
+  it("도달 불가능한 키를 담지 않는다", () => {
+    const reachable = new Set(
+      (["back", "forward", "reload", "traverse", "load", undefined] as const).map((v) => navVerbKey(v)),
+    );
+    for (const key of NAV_VERB_KEYS) expect(reachable).toContain(key);
   });
 });

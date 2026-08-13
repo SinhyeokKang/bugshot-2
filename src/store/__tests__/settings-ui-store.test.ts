@@ -211,6 +211,19 @@ describe("settings-ui-store", () => {
       expect(useSettingsUiStore.getState().aiLanguage).toBe("auto");
     });
 
+    it("bodyLocale 기본값은 auto (화면 언어를 따라간다)", () => {
+      expect(useSettingsUiStore.getState().bodyLocale).toBe("auto");
+    });
+
+    it("setBodyLocale은 화면 언어를 건드리지 않는다 (독립 축)", () => {
+      const before = useSettingsUiStore.getState().locale;
+      useSettingsUiStore.getState().setBodyLocale("en");
+      expect(useSettingsUiStore.getState().bodyLocale).toBe("en");
+      expect(useSettingsUiStore.getState().locale).toBe(before);
+      useSettingsUiStore.getState().setBodyLocale("auto");
+      expect(useSettingsUiStore.getState().bodyLocale).toBe("auto");
+    });
+
     it("setIssueEnabled로 개별 섹션 토글", () => {
       useSettingsUiStore.getState().resetIssueSections();
       useSettingsUiStore.getState().setIssueEnabled("notes", true);
@@ -407,6 +420,52 @@ describe("settings-ui-store", () => {
     });
   });
 
+  // 이슈 본문 언어(bodyLocale)는 화면 언어와 독립된 세 번째 축이다. 기본값 auto는
+  // 화면 언어를 따라가므로 기존 사용자의 출력이 한 바이트도 바뀌지 않아야 한다.
+  describe("bodyLocale 마이그레이션 (v10→v11)", () => {
+    it("persist version이 11이다", () => {
+      expect(useSettingsUiStore.persist.getOptions().version).toBe(11);
+    });
+
+    it("bodyLocale 부재 시 기본값 'auto' 부여 (기존 사용자 동작 변화 0)", () => {
+      expect(migrateSettingsUi({}, 10).bodyLocale).toBe("auto");
+    });
+
+    it("기존 bodyLocale은 보존(덮어쓰지 않음)", () => {
+      expect(migrateSettingsUi({ bodyLocale: "en" }, 10).bodyLocale).toBe("en");
+      expect(migrateSettingsUi({ bodyLocale: "ko" }, 10).bodyLocale).toBe("ko");
+    });
+
+    // 다운그레이드·외부 오염 경로. 통과시키면 locales[bad]가 undefined라 t()가 죽는다.
+    it("미등록 코드는 'auto'로 교정한다", () => {
+      expect(migrateSettingsUi({ bodyLocale: "jp" as never }, 10).bodyLocale).toBe("auto");
+      expect(migrateSettingsUi({ bodyLocale: 42 as never }, 10).bodyLocale).toBe("auto");
+    });
+
+    it("멱등하다 — 이미 v11인 상태를 다시 올려도 값이 보존된다", () => {
+      const once = migrateSettingsUi({ bodyLocale: "en" }, 11);
+      expect(once.bodyLocale).toBe("en");
+      expect(migrateSettingsUi(once, 11).bodyLocale).toBe("en");
+    });
+
+    // 역방향(PRD S7): v11에서 en으로 두던 사용자가 v10으로 롤백됐다가 다시 올라오는 경로.
+    // v10 코드는 이 필드를 모르므로 값이 유실되거나 남는데, 어느 쪽이든 오염 없이 안착해야 한다.
+    it("v10으로 롤백됐다 재업그레이드해도 오염 없이 안착한다", () => {
+      expect(migrateSettingsUi({ aiLanguage: "auto" }, 10).bodyLocale).toBe("auto");
+      expect(migrateSettingsUi({ bodyLocale: "en", aiLanguage: "auto" }, 10).bodyLocale).toBe("en");
+    });
+
+    it("기존 필드의 마이그레이션 결과가 변하지 않는다", () => {
+      const migrated = migrateSettingsUi(
+        { aiLanguage: "French", locale: "ko", issueSections: DEFAULT_ISSUE_SECTIONS },
+        10,
+      );
+      expect(migrated.aiLanguage).toBe("French");
+      expect(migrated.locale).toBe("ko");
+      expect(migrated.issueSections).toEqual(DEFAULT_ISSUE_SECTIONS);
+    });
+  });
+
   // 로케일은 v1부터 있던 필드고 ko/en 값은 그대로 유효하다 — 값 확장은 하위호환이라
   // version bump가 없다. 대신 정규화가 필요한 건 반대 방향이다: 새 로케일을 쓰던
   // 사용자가 구버전으로 롤백되면 persist에 미지 코드가 남고, 그대로 통과시키면
@@ -458,6 +517,18 @@ describe("settings-ui-store", () => {
     it("issueSections 정규화도 기존대로 유지한다 (미디어 엔트리 보강)", () => {
       const merged = mergePersistedSettings({ issueSections: [] }, current);
       expect(ids(merged.issueSections)).toEqual(["media"]);
+    });
+
+    it("오염된 bodyLocale을 auto로 교정한다", () => {
+      expect(mergePersistedSettings({ bodyLocale: "jp" }, current).bodyLocale).toBe("auto");
+    });
+
+    it("유효한 bodyLocale은 보존한다", () => {
+      expect(mergePersistedSettings({ bodyLocale: "en" }, current).bodyLocale).toBe("en");
+    });
+
+    it("persist에 bodyLocale이 없으면 auto로 안착한다", () => {
+      expect(mergePersistedSettings({}, current).bodyLocale).toBe("auto");
     });
   });
 

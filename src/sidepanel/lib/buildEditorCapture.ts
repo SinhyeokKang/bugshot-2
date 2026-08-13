@@ -1,5 +1,6 @@
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
+import { resolveBodyLocale } from "@/i18n/locales";
 import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
 import { mergeStyleElements, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
@@ -19,7 +20,8 @@ import { dataUrlToBlob } from "@/store/blob-db";
 // 단일 출처로 둔다. editor/settings store에서 직접 읽는다(제출 다이얼로그가 쓰던 buildCtx 이관).
 export function buildEditorMarkdownContext(): MarkdownContext | null {
   const s = useEditorStore.getState();
-  const sectionConfig = useSettingsUiStore.getState().issueSections;
+  const settings = useSettingsUiStore.getState();
+  const sectionConfig = settings.issueSections;
   const {
     captureMode,
     draft,
@@ -44,6 +46,8 @@ export function buildEditorMarkdownContext(): MarkdownContext | null {
     actionLogCaptured: hasActionLog ? actionLog!.captured : undefined,
   };
   const common = {
+    // "auto"는 여기서 화면 언어로 해석한다 — ctx에 실려 나가면 해석 지점이 생산지마다 갈린다.
+    bodyLocale: resolveBodyLocale(settings.bodyLocale, settings.locale),
     os,
     browser,
     title: draft.title,

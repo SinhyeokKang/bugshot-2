@@ -29,6 +29,7 @@ const sectionConfig: IssueSection[] = [
 
 function baseArgs(overrides: Record<string, unknown> = {}) {
   return {
+    bodyLocale: "ko" as const,
     captureMode: "screenshot" as const,
     title: "Test Issue",
     resolvedSections: { description: "본문", stepsToReproduce: "1단계\n2단계" },
@@ -159,5 +160,32 @@ describe("요소 캡처: screenshot + selector 주입", () => {
   it("screenshot + selector 미입력(범위 캡처) → ctx.selector 빈 문자열 (회귀)", () => {
     const ctx = buildMarkdownContext(baseArgs({ captureMode: "screenshot" }));
     expect(ctx.selector).toBe("");
+  });
+});
+
+// 미리보기·클립보드 복사 경로의 생산지. store 접근이 없으므로 PreviewPanel이 해석 후 주입한다 —
+// 여기 들어오는 값은 이미 resolveBodyLocale을 통과한 LocaleMode이지 "auto"가 아니다.
+describe("buildMarkdownContext — bodyLocale", () => {
+  it("인자로 받은 bodyLocale을 ctx에 그대로 싣는다", () => {
+    expect(buildMarkdownContext(baseArgs({ bodyLocale: "en" })).bodyLocale).toBe("en");
+    expect(buildMarkdownContext(baseArgs({ bodyLocale: "ko" })).bodyLocale).toBe("ko");
+  });
+
+  it("element 모드에서도 동일하게 실린다 (분기가 둘이라 누락되기 쉽다)", () => {
+    const ctx = buildMarkdownContext(
+      baseArgs({
+        captureMode: "element",
+        bodyLocale: "en",
+        selection: {
+          selector: "button.cta",
+          tagName: "button",
+          classList: [],
+          specifiedStyles: {},
+          viewport: { width: 800, height: 600 },
+          capturedAt: 1_700_000_000_000,
+        },
+      }),
+    );
+    expect(ctx.bodyLocale).toBe("en");
   });
 });

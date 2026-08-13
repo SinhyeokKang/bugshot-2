@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useMemo, useRef, Fragment } from "react";
 import { ArrowDown, ArrowDownUp, ArrowLeftRight, ArrowUp, ChevronDown, ChevronRight, Code, File, FileText, Globe, Image, MousePointerClick, Paintbrush, Search, Type, X } from "lucide-react";
 import { useT, type TranslationFn } from "@/i18n";
-import type { NetworkRequest, NetworkRequestBody, WebSocketFrame } from "@/types/network";
+import type { TranslationKey } from "@/i18n/ko";
+import type { NetworkRequest, NetworkRequestBody, NetworkStatusKind, WebSocketFrame } from "@/types/network";
 import { formatBytes } from "@/sidepanel/lib/formatBytes";
 import { networkLogPath } from "@/lib/network-log-path";
 import { isStatusHidden, isNetworkError, isNetworkPending } from "@/lib/network-status";
@@ -23,6 +24,24 @@ import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { LogSeekChip } from "./LogSeekChip";
+
+// BugShot이 만든 상태 라벨만 번역한다. statusKind가 없으면 서버 유래 statusText라 원문 유지.
+// networkError만 빠지는 건 isStatusHidden이 먼저 걸러 blocked 문구로 보내기 때문 — Exclude로
+// 적어야 union에 값이 늘 때 컴파일러가 여기를 채우라고 한다(Partial이면 무음으로 원문 폴백).
+export const STATUS_KIND_LABEL_KEYS: Record<Exclude<NetworkStatusKind, "networkError">, TranslationKey> = {
+  queued: "networkLog.display.queued",
+  queueFull: "networkLog.display.queueFull",
+  aborted: "networkLog.display.aborted",
+  timeout: "networkLog.display.timeout",
+};
+
+function statusLabel(req: NetworkRequest, t: TranslationFn): string {
+  const key =
+    req.statusKind && req.statusKind !== "networkError"
+      ? STATUS_KIND_LABEL_KEYS[req.statusKind]
+      : undefined;
+  return key ? t(key) : `${req.status} ${req.statusText}`;
+}
 
 type RequestFilter = "all" | "ws" | "json" | "js" | "css" | "img" | "font" | "doc" | "other";
 
@@ -497,7 +516,7 @@ function HeadersPanel({ req, query }: { req: NetworkRequest; query: string }) {
           <dt className="text-muted-foreground">{t("networkLog.detail.method")}</dt>
           <dd>{req.method}</dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.status")}</dt>
-          <dd className="flex flex-col gap-0.5">
+          <dd className="flex flex-col gap-0.5" data-testid="network-status-value">
             <span className="flex items-center gap-1">
               <span className={`inline-block h-2.5 w-2.5 rounded-full ${
                 isPending(req) ? "bg-amber-500" : isError(req) ? "bg-red-500" : "bg-green-500"
@@ -506,10 +525,12 @@ function HeadersPanel({ req, query }: { req: NetworkRequest; query: string }) {
                 ? t("networkLog.display.pending")
                 : isStatusHidden(req)
                   ? t("networkLog.display.blocked")
-                  : `${req.status} ${req.statusText}`}
+                  : statusLabel(req, t)}
             </span>
             {isStatusHidden(req) && (
-              <span className="text-xs text-muted-foreground">{t("networkLog.display.blockedHint")}</span>
+              <span className="text-xs text-muted-foreground" data-testid="network-status-hint">
+                {t("networkLog.display.blockedHint")}
+              </span>
             )}
           </dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.time")}</dt>

@@ -30,6 +30,26 @@ export function normalizeLocale(value: unknown): LocaleMode {
   return isLocale(value) ? value : DEFAULT_LOCALE;
 }
 
+// 이슈 본문 언어 축 — 화면 언어와 독립이고 도메인이 LocaleMode라 aiLanguage.ts가 아니라
+// 여기 둔다(background·log-viewer가 이 파일을 이미 공유한다).
+export type BodyLocale = "auto" | LocaleMode;
+
+// normalizeLocale과 달리 미등록 값을 DEFAULT_LOCALE이 아니라 auto로 떨어뜨린다 — 오염값을
+// 영어로 굳히면 화면 언어를 따르던 사용자의 본문이 조용히 영어가 된다(교정이지 폴백이 아니다).
+export function normalizeBodyLocale(value: unknown): BodyLocale {
+  if (value === "auto") return "auto";
+  return isLocale(value) ? value : "auto";
+}
+
+// auto는 저장 시점 스냅샷이 아니라 호출 시점 해석 — 굳히면 화면 언어를 바꿔도 본문만 옛 언어로 남는다.
+export function resolveBodyLocale(
+  value: BodyLocale | undefined,
+  locale: LocaleMode,
+): LocaleMode {
+  const normalized = normalizeBodyLocale(value);
+  return normalized === "auto" ? locale : normalized;
+}
+
 // 가장 구체적인(=긴) 후보가 이긴다. 선언 순서로 고르면 `pt` 다음에 `pt-BR`을 추가했을 때
 // 짧은 쪽이 먼저 먹어 긴 쪽이 영구 도달 불가가 된다 — 로케일 추가를 안전하게 만드는 게
 // 이 모듈의 목적이라 그 함정을 규칙으로 막는다.

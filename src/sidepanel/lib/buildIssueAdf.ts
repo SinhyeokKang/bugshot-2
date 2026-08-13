@@ -1,4 +1,4 @@
-import { t } from "@/i18n";
+import { t, withLocale } from "@/i18n";
 import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
 import { bodyBlocks } from "./bodyBlocks";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
@@ -43,6 +43,14 @@ function listItems(content: string): string[] {
 }
 
 export function buildIssueAdf(
+  ctx: MarkdownContext,
+  inlineImageRefIds?: string[],
+  cc?: { accountId: string; displayName: string }[],
+): AdfDoc {
+  return withLocale(ctx.bodyLocale, () => buildIssueAdfInner(ctx, inlineImageRefIds, cc));
+}
+
+function buildIssueAdfInner(
   ctx: MarkdownContext,
   inlineImageRefIds?: string[],
   cc?: { accountId: string; displayName: string }[],

@@ -5,6 +5,9 @@ import {
   maskValue,
   truncateName,
   entryNavOnBind,
+  entryNavType,
+  traverseDirection,
+  popstateNavType,
   formatKeyCombo,
   exceedsDragThreshold,
   matchesOwnHost,
@@ -315,5 +318,133 @@ describe("matchesOwnHost", () => {
 
   it("hostIds가 비면 항상 false", () => {
     expect(matchesOwnHost([PICKER, ANNOTATION], [])).toBe(false);
+  });
+});
+
+// PerformanceNavigationTiming.type("navigate"|"reload"|"back_forward"|"prerender")을 액션 로그
+// navType으로. document_start에 그 엔트리가 있는지 실측 선례가 0건이라 레거시
+// performance.navigation.type(0/1/2) 폴백을 함께 받는다.
+describe("entryNavType", () => {
+  it("perfType 'reload'는 reload", () => {
+    expect(entryNavType("reload")).toBe("reload");
+  });
+
+  it("perfType 'back_forward'는 traverse (방향은 도착 문서에서 알 수 없다)", () => {
+    expect(entryNavType("back_forward")).toBe("traverse");
+  });
+
+  it("perfType 'navigate'는 기존 load 유지", () => {
+    expect(entryNavType("navigate")).toBe("load");
+  });
+
+  it("perfType 'prerender'는 load", () => {
+    expect(entryNavType("prerender")).toBe("load");
+  });
+
+  it("모르는 perfType 문자열도 load로 (미래 값이 raw로 새지 않게)", () => {
+    expect(entryNavType("bfcache_restore")).toBe("load");
+  });
+
+  it("perfType이 없으면 레거시 1(reload)로 폴백", () => {
+    expect(entryNavType(undefined, 1)).toBe("reload");
+  });
+
+  it("perfType이 없으면 레거시 2(back_forward)는 traverse로 폴백", () => {
+    expect(entryNavType(undefined, 2)).toBe("traverse");
+  });
+
+  it("perfType이 없고 레거시 0이면 load", () => {
+    expect(entryNavType(undefined, 0)).toBe("load");
+  });
+
+  it("둘 다 없으면 load (기존 동작 유지)", () => {
+    expect(entryNavType(undefined, undefined)).toBe("load");
+  });
+
+  // perfType이 판정 가능한 값이면 레거시를 보지 않는다 — 두 소스가 어긋날 때 최신 API가 이긴다.
+  it("perfType이 우선한다 (perfType=navigate + 레거시 1이면 load)", () => {
+    expect(entryNavType("navigate", 1)).toBe("load");
+  });
+});
+
+// same-document traverse 방향. Navigation API 히스토리 인덱스 델타의 부호.
+// NavigationHistoryEntry.index는 엔트리 리스트 밖일 때 -1을 반환하므로 음수를 명시적으로 거부한다.
+describe("traverseDirection", () => {
+  it("인덱스가 줄면 back", () => {
+    expect(traverseDirection(3, 2)).toBe("back");
+  });
+
+  it("인덱스가 늘면 forward", () => {
+    expect(traverseDirection(2, 3)).toBe("forward");
+  });
+
+  it("델타 0이면 null (판정 불가 → 호출부가 popstate 폴백)", () => {
+    expect(traverseDirection(2, 2)).toBeNull();
+  });
+
+  it("fromIndex가 undefined면 null", () => {
+    expect(traverseDirection(undefined, 2)).toBeNull();
+  });
+
+  it("toIndex가 undefined면 null", () => {
+    expect(traverseDirection(2, undefined)).toBeNull();
+  });
+
+  it("NaN은 null", () => {
+    expect(traverseDirection(NaN, 2)).toBeNull();
+  });
+
+  it("Infinity는 null", () => {
+    expect(traverseDirection(Infinity, 2)).toBeNull();
+  });
+
+  // NavigationHistoryEntry.index의 -1(엔트리 리스트 밖)이 유한수라 "유한하면 통과" 게이트를
+  // 그냥 지나 (3, -1) → back 오판이 된다. 음수를 명시적으로 거부해야 한다.
+  it("음수 인덱스(-1 = 엔트리 리스트 밖)는 null", () => {
+    expect(traverseDirection(3, -1)).toBeNull();
+    expect(traverseDirection(-1, 3)).toBeNull();
+  });
+
+  it("비정수는 null", () => {
+    expect(traverseDirection(1.5, 2)).toBeNull();
+  });
+
+  it("0 인덱스는 유효하다 (첫 엔트리로 뒤로가기)", () => {
+    expect(traverseDirection(1, 0)).toBe("back");
+  });
+});
+
+// popstate는 히스토리 이동에서만 발화하지 않는다 — HTML 스펙상 **같은 문서 프래그먼트
+// 네비게이션**(<a href="#x"> 클릭)도 popstate를 쏘고, 그때 히스토리 인덱스도 +1 된다.
+// 그래서 인덱스 델타만 보면 링크 클릭이 "앞으로가기"로 오라벨된다(e2e에서 실측).
+// 도착 엔트리 id를 전에 본 적 있으면 이동, 처음 보면 새로 밀어 넣어진 엔트리다.
+describe("popstateNavType", () => {
+  const seen = new Set(["e0", "e1", "e2"]);
+
+  it("본 적 있는 엔트리로 인덱스가 줄면 back", () => {
+    expect(popstateNavType(2, 1, "e1", seen)).toBe("back");
+  });
+
+  it("본 적 있는 엔트리로 인덱스가 늘면 forward", () => {
+    expect(popstateNavType(1, 2, "e2", seen)).toBe("forward");
+  });
+
+  // 이 케이스가 핵심 — 프래그먼트 링크 클릭. 인덱스는 +1이지만 엔트리는 처음 본다.
+  it("처음 보는 엔트리는 인덱스가 늘어도 popstate (프래그먼트 push를 앞으로가기로 오라벨 금지)", () => {
+    expect(popstateNavType(2, 3, "brand-new", seen)).toBe("popstate");
+  });
+
+  it("엔트리 id가 없으면 popstate로 폴백 (Navigation API 부재·페이지 훼손)", () => {
+    expect(popstateNavType(2, 1, undefined, seen)).toBe("popstate");
+  });
+
+  it("id는 알지만 인덱스가 판정 불가면 popstate", () => {
+    expect(popstateNavType(undefined, 1, "e1", seen)).toBe("popstate");
+    expect(popstateNavType(1, 1, "e1", seen)).toBe("popstate");
+    expect(popstateNavType(3, -1, "e1", seen)).toBe("popstate");
+  });
+
+  it("seen이 비면 항상 popstate", () => {
+    expect(popstateNavType(2, 1, "e1", new Set())).toBe("popstate");
   });
 });

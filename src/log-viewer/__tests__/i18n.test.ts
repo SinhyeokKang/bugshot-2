@@ -20,6 +20,8 @@ import { logs } from "../../i18n/namespaces/logs";
 import { editor } from "../../i18n/namespaces/editor";
 import { BASE_LOCALE, LOCALES } from "../../i18n/locales";
 import { NET_VERB_KEYS } from "../timeline-merge";
+import { NAV_VERB_KEYS } from "@/sidepanel/lib/actionInline";
+import { STATUS_KIND_LABEL_KEYS } from "@/sidepanel/components/NetworkLogContent";
 import { findExtraneous, findParityViolations, findUncovered } from "@/test/locale-parity";
 
 describe("log viewer i18n — 사전 구조", () => {
@@ -147,6 +149,29 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
         (locale) => `${locale} ${key}`,
       );
     });
+    expect(missing).toEqual([]);
+  });
+
+  // statusKind 라벨도 t("리터럴")이 아니라 테이블 값이라 위 스캐너를 우회한다. 닫힌 집합
+  // (NetworkStatusKind에서 Exclude로 파생)을 그대로 돌려 dict 존재를 강제한다 — kind가 늘면
+  // 메인 사전은 컴파일러가 잡지만 이 복제 사전은 이 검사가 유일한 그물이다.
+  it("statusKind 라벨 키(STATUS_KIND_LABEL_KEYS)가 모든 로케일 사전에 존재", () => {
+    const missing = Object.values(STATUS_KIND_LABEL_KEYS).flatMap((key) =>
+      LOCALES.filter((locale) => !(key in DICTS[locale])).map(
+        (locale) => `${locale} ${key}`,
+      ),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  // navVerbKey도 동적 선택이라 리터럴 스캐너를 우회한다. 이 사전에 키가 아예 없으면 아래
+  // 값 drift 검사(`k in table` 교집합)도 그냥 통과하므로, 닫힌 집합 존재 검사가 유일한 그물이다.
+  it("동적 선택 nav.verb 키(NAV_VERB_KEYS)가 모든 로케일 사전에 존재", () => {
+    const missing = NAV_VERB_KEYS.flatMap((key) =>
+      LOCALES.filter((locale) => !(key in DICTS[locale])).map(
+        (locale) => `${locale} ${key}`,
+      ),
+    );
     expect(missing).toEqual([]);
   });
 

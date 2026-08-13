@@ -31,12 +31,24 @@ export interface WebSocketMeta {
   framesTotal: number; // 캡처 시도 총 프레임 수(드롭된 바이너리·evict 포함)
 }
 
+// BugShot이 만든 statusText에만 붙는 분류 태그 — 서버 유래 statusText에는 없다(undefined).
+// statusText를 치환하지 않고 병기하는 이유: HAR·LLM 프롬프트·이슈 본문이 그 필드를 그대로 읽고,
+// isStatusHidden이 "Network Error" 문자열을 센티널로 쓴다.
+export type NetworkStatusKind =
+  | "networkError" // fetch reject(non-Error) / XHR error — CORS·연결 실패
+  | "aborted" // XHR abort
+  | "timeout" // XHR timeout
+  | "queued" // sendBeacon 큐 성공
+  | "queueFull"; // sendBeacon 큐 실패
+
 export interface NetworkRequest {
   id: string;
   url: string;
   method: string;
   status: number;
   statusText: string;
+  // 옛 저장 로그(IndexedDB·storage.session)에는 없다 — 읽는 쪽이 undefined를 전제해야 한다.
+  statusKind?: NetworkStatusKind;
   startTime: number;
   durationMs: number;
   requestHeaders: Record<string, string>;

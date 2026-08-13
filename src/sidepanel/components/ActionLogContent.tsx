@@ -1,6 +1,7 @@
 import { Fragment, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
-import { Keyboard, MousePointerClick, MapPin, Search, X, CornerDownLeft, SquareCheck, ListChecks, Move } from "lucide-react";
+import { Keyboard, MousePointerClick, MapPin, Search, X, CornerDownLeft, SquareCheck, ListChecks, Move, ArrowLeft, ArrowRight, RotateCw, History } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useT } from "@/i18n";
 import type { ActionEntry, ActionEntryKind, ActionNode } from "@/types/action";
 import type { TranslationFn } from "@/i18n";
@@ -12,7 +13,7 @@ import { TONE_TEXT, TONE_BG } from "@/lib/log-colors";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
-import { splitTemplate, resolveClickTarget, resolveActionNode, actionSearchText } from "@/sidepanel/lib/actionInline";
+import { splitTemplate, resolveClickTarget, resolveActionNode, actionSearchText, navVerbKey } from "@/sidepanel/lib/actionInline";
 import type { ClickTargetView } from "@/sidepanel/lib/actionInline";
 import { Kbd } from "@/components/ui/kbd";
 import { InlineLink } from "./InlineLink";
@@ -42,12 +43,31 @@ export function kindBgColor(kind: ActionEntryKind): string {
   return kind === "navigation" ? TONE_BG.blue : "";
 }
 
-export function KindIcon({ kind }: { kind: ActionEntryKind }) {
+// navigation 유형 아이콘. ko 문구는 {target}이 문두라 TimelineRow의 truncate에서 판별어가
+// 통째로 잘린다(en은 동사 선두라 무사 — 로케일 비대칭). 그래서 아이콘이 유형의 1차 판별축이고,
+// reload와 traverse는 반드시 서로 달라야 한다.
+// Map이라야 한다 — 객체 리터럴은 Object.prototype을 상속해서, 페이지가 위조한 엔트리의
+// navType이 "constructor"면 truthy 함수가 잡히고 React가 그걸 컴포넌트로 호출해 패널 트리를
+// 통째로 내린다(ErrorBoundary 없음). 로그뷰어도 같은 KindIcon을 쓴다.
+export const NAV_ICON = new Map<NonNullable<ActionEntry["navType"]>, LucideIcon>([
+  ["back", ArrowLeft],
+  ["forward", ArrowRight],
+  ["reload", RotateCw],
+  ["traverse", History],
+]);
+
+export function KindIcon({ kind, navType }: {
+  kind: ActionEntryKind;
+  navType?: ActionEntry["navType"];
+}) {
   const base = "h-4 w-4 shrink-0";
   switch (kind) {
     case "click": return <MousePointerClick className={base} />;
     case "input": return <Keyboard className={base} />;
-    case "navigation": return <MapPin className={`${base} ${TONE_TEXT.blue}`} />;
+    case "navigation": {
+      const Icon = (navType && NAV_ICON.get(navType)) || MapPin;
+      return <Icon className={`${base} ${TONE_TEXT.blue}`} />;
+    }
     case "keypress": return <CornerDownLeft className={base} />;
     case "toggle": return <SquareCheck className={base} />;
     case "select": return <ListChecks className={base} />;
@@ -144,7 +164,7 @@ export function renderActionContent(t: TranslationFn, entry: ActionEntry): React
         { field: fieldText(entry) },
       );
     case "navigation":
-      return renderVerb(t("actionLog.verb.navigate"), {
+      return renderVerb(t(navVerbKey(entry.navType)), {
         target: entry.toUrl
           ? <InlineLink href={entry.toUrl} title={entry.toUrl} data-testid="action-nav-link" />
           : "",
@@ -307,11 +327,13 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive, muted }: {
 }) {
   const t = useT();
   const base = syncBaseMs ?? startedAt;
+  // data-nav-type은 e2e 판정용 — 앱 로케일이 비결정적이라 문구 단언을 쓸 수 없다(data-drag-target 선례).
   return (
     <div
       data-entry-id={entry.id}
       data-kind={entry.kind}
       data-drag-target={entry.kind === "drag" ? (entry.dragTarget ? "1" : "0") : undefined}
+      data-nav-type={entry.kind === "navigation" ? entry.navType : undefined}
       data-muted={muted || undefined}
       className={`${syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}${muted ? " opacity-40" : ""}${onSeek ? " cursor-pointer hover:bg-accent/50" : ""}`}
       aria-current={isActive ? "true" : undefined}
@@ -321,7 +343,7 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive, muted }: {
         {base != null && (
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
-        <KindIcon kind={entry.kind} />
+        <KindIcon kind={entry.kind} navType={entry.navType} />
         <span className="min-w-0 flex-1 break-words font-mono text-mono">
           {renderActionContent(t, entry)}
         </span>

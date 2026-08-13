@@ -545,3 +545,62 @@ describe("networkErrorCount", () => {
     expect(networkErrorCount({ captured: 5, errors: [] })).toBe(0);
   });
 });
+
+// AI 재현 단계 자동채움 입력. 이 함수는 로케일 무관 영어 고정이 기존 규칙이라 i18n을 끌어오지
+// 않는다. traverse 문구는 UI en 값과 같은 표현을 써서 표기가 갈리지 않게 한다.
+describe("buildActionLogSummary — navigation 유형", () => {
+  function summarize(navType: ActionEntry["navType"]): string {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [
+        makeAction({
+          id: "1",
+          kind: "navigation",
+          navType,
+          toUrl: "https://example.com/next",
+        }),
+      ],
+    });
+    return buildActionLogSummary(log)[0];
+  }
+
+  it.each([
+    ["back", "Went back to: https://example.com/next"],
+    ["forward", "Went forward to: https://example.com/next"],
+    ["reload", "Reloaded: https://example.com/next"],
+    ["traverse", "Navigated via history to: https://example.com/next"],
+  ] as const)("navType %s는 '%s'", (navType, expected) => {
+    expect(summarize(navType)).toBe(expected);
+  });
+
+  it.each(["load", "pushState", "replaceState", "popstate", "hashchange"] as const)(
+    "구 값 %s는 기존 'Navigated to:' 유지",
+    (navType) => {
+      expect(summarize(navType)).toBe("Navigated to: https://example.com/next");
+    },
+  );
+
+  it("navType이 없으면 기존 'Navigated to:' 유지", () => {
+    expect(summarize(undefined)).toBe("Navigated to: https://example.com/next");
+  });
+
+  it("toUrl이 없어도 유형 문구는 유지된다", () => {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [makeAction({ id: "1", kind: "navigation", navType: "reload" })],
+    });
+    expect(buildActionLogSummary(log)[0]).toBe("Reloaded: ");
+  });
+
+  // navType은 페이지가 위조 가능하고(위조 __bugshot_action_data__), 이 요약은 LLM 프롬프트로
+  // 나간다. 룩업이 Object.prototype을 상속하면 "constructor"가 함수 소스로 보간돼 프롬프트를
+  // 오염시킨다 — `??`는 null/undefined만 걸러서 못 막는다.
+  it.each(["constructor", "__proto__", "toString", "valueOf"])(
+    "위조된 navType %s도 기존 'Navigated to:'로 접힌다",
+    (forged) => {
+      expect(summarize(forged as ActionEntry["navType"])).toBe(
+        "Navigated to: https://example.com/next",
+      );
+    },
+  );
+});

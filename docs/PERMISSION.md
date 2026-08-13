@@ -78,7 +78,7 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 | `chrome.tabs.query({})` | **전 창 전 탭 열거** — pending 로그 GC가 "살아있는 탭"을 계산하는 유일한 경로(fail-closed: 조회 실패 시 prune 전체 스킵) | `lib/pending-log-prune.ts`. URL을 읽지만 `activeTab`과 무관하게 `<all_urls>`가 커버한다 |
 | `chrome.runtime.onConnect` (port disconnect) | 사이드패널이 닫히면 port가 끊기는 것을 세션 teardown 신호로 사용 — 레코더 정지(`stopRecorders`) | `background/index.ts` |
 | `chrome.windows.onRemoved` | 창이 닫힐 때 그 창에 속한 탭의 활성화 상태 정리 | `background/tab-bindings.ts` |
-| `chrome.i18n.getMessage()` | `public/_locales/<code>/messages.json`을 읽는 **두 소비자 중 런타임 쪽**(SW가 알림 제목을 조립). 다른 하나는 manifest의 `__MSG_*` 치환(확장 이름·설명·단축키 라벨)이고 둘은 같은 사전을 본다 — 한쪽만 보고 스캐너를 짜면 무음 누락이 생긴다(POSTMORTEM 2026-08-11). 그물: `src/i18n/__tests__/manifest-locales.test.ts` | `background/index.ts` |
+| `chrome.i18n.getMessage()` | `public/_locales/<code>/messages.json`을 읽는 **두 소비자 중 런타임 쪽**(SW가 컨텍스트 메뉴 타이틀을 조립 — `setupContextMenu`). 다른 하나는 manifest의 `__MSG_*` 치환(확장 이름·설명·단축키 라벨)이고 둘은 같은 사전을 본다 — 한쪽만 보고 스캐너를 짜면 무음 누락이 생긴다(POSTMORTEM 2026-08-11). 그물: `src/i18n/__tests__/manifest-locales.test.ts` | `background/index.ts` |
 
 ### 만료 조건
 
@@ -344,6 +344,10 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 ### IndexedDB (Chrome 권한 불요 — 저장 데이터 레퍼런스)
 
 스크린샷·영상·사용자 첨부 **blob**, network/console/action 로그, 본문 inline 이미지와 어노테이션 전 원본은 `chrome.storage`가 아니라 IndexedDB(`src/store/blob-db.ts`)에 저장된다. `storage` 권한과 무관하지만(웹 표준 API), 정리(prune) 시 위 `chrome.storage.session`/`local`의 레코드를 역참조해 고아 blob을 지운다. privacy 문서의 "저장하는 정보"와 대조할 때 이 경로를 빠뜨리지 말 것.
+
+### 페이지 sessionStorage (Chrome 권한 불요 — 저장 데이터 레퍼런스)
+
+pre-arm 게이트 플래그 `__bugshot_recorder_active__`=`"1"`을 **방문 페이지의** sessionStorage에 쓴다(`content/recorder-prearm.ts`). `setSentinel` 시 기록하고 clear하지 않으며 탭 종료 시 소멸한다 — 다음 로드의 레코더가 document_start에 **동기로** 읽어야 해서 `chrome.storage.session`(비동기)으로 대체할 수 없다. same-origin 페이지가 읽고 쓸 수 있는 값이라 위조 가능하고, 그 오염 창은 `PREARM_GRACE_MS`(60초) 유예 타이머로 유한화한다(ARCHITECTURE.md "활성 게이트"). privacy 문서 §2의 동명 항목과 대조할 것.
 
 ### 쓰기 패턴 특이사항
 

@@ -3,6 +3,7 @@ import {
   expect,
   openViewer,
   makeActionLog,
+  makeNavTypeActionLog,
   makeConsoleLog,
   makeNetworkLog,
   makeReport,
@@ -30,6 +31,35 @@ const ACTION_LABELS = {
 
 type Lang = keyof typeof ACTION_LABELS;
 
+// navigation 유형별 문구. 이 사전은 log-viewer 전용 **복제본**이라 메인 테이블이 갱신돼도
+// 안 따라오면 raw 키가 노출된다(POSTMORTEM 2026-06-28·07-26). 여기 값은 리터럴로 박아
+// 복제본이 정본을 실제로 따라왔는지를 실 번들 렌더로 확인한다.
+const NAV_TEXT = {
+  ko: {
+    "nv-back": "(으)로 뒤로가기",
+    "nv-forward": "(으)로 앞으로가기",
+    "nv-reload": " 새로고침",
+    "nv-traverse": "(으)로 히스토리 이동",
+    "nv-legacy": "(으)로 이동",
+  },
+  en: {
+    "nv-back": "Went back to",
+    "nv-forward": "Went forward to",
+    "nv-reload": "Reloaded",
+    "nv-traverse": "Navigated via history to",
+    "nv-legacy": "Navigated to",
+  },
+} as const;
+
+// ko는 {target}이 문두라 좁은 폭에서 판별어가 잘린다 — 아이콘이 유일한 판별축이다.
+const NAV_ICON_CLASS = {
+  "nv-back": "lucide-arrow-left",
+  "nv-forward": "lucide-arrow-right",
+  "nv-reload": "lucide-rotate-cw",
+  "nv-traverse": "lucide-history",
+  "nv-legacy": "lucide-map-pin",
+} as const;
+
 // ko/en 공용 라벨·placeholder 검증 — i18n 회귀의 단일 출처.
 function labelSuite(lang: Lang, locale: string) {
   test.describe(`i18n labels — ${lang}`, () => {
@@ -45,6 +75,28 @@ function labelSuite(lang: Lang, locale: string) {
         await expect(chip).toHaveText(label);
         // raw 키("actionLog.filter.keypress")는 "Log.filter"를 포함 — 정상 라벨엔 없다.
         await expect(chip).not.toContainText("Log.filter");
+      }
+    });
+
+    // 사이드패널 spec은 이 표면을 못 덮는다 — markers.ts·TimelineRow가 별도 번들이다.
+    test("navigation 유형별 문구가 복제 사전에서 해결된다 (raw 키 미노출)", async ({ page }) => {
+      await openViewer(page, { actionLog: makeNavTypeActionLog() });
+      await page.getByTestId("logview-tab-action").click();
+
+      for (const [id, text] of Object.entries(NAV_TEXT[lang])) {
+        const row = page.locator(`[data-entry-id="${id}"]`);
+        await expect(row).toContainText(text);
+        // raw 키("actionLog.verb.navigateBack")는 "actionLog.verb"를 포함 — 정상 문구엔 없다.
+        await expect(row).not.toContainText("actionLog.verb");
+      }
+    });
+
+    test("navigation 유형별 아이콘이 서로 다르고 구 값은 MapPin 폴백", async ({ page }) => {
+      await openViewer(page, { actionLog: makeNavTypeActionLog() });
+      await page.getByTestId("logview-tab-action").click();
+
+      for (const [id, cls] of Object.entries(NAV_ICON_CLASS)) {
+        await expect(page.locator(`[data-entry-id="${id}"] svg.${cls}`)).toHaveCount(1);
       }
     });
 

@@ -78,6 +78,54 @@ export function entryNavOnBind(
   return { fromUrl: referrer || lastUrl, toUrl: currentUrl };
 }
 
+// 문서 진입 계열 판정. PerformanceNavigationTiming.type을 액션 로그 navType으로 옮긴다.
+// document_start 시점에 그 엔트리가 큐잉돼 있는지 코드베이스 선례가 0건이라 레거시
+// performance.navigation.type(0=navigate/1=reload/2=back_forward)을 폴백으로 함께 받는다.
+// back_forward는 traverse까지만 — 도착 문서는 방향을 알 수 없다.
+export function entryNavType(
+  perfType: string | undefined,
+  legacyType?: number | undefined,
+): "load" | "reload" | "traverse" {
+  if (perfType === "reload") return "reload";
+  if (perfType === "back_forward") return "traverse";
+  // 모르는 문자열은 레거시로 넘기지 않는다 — 미래에 추가될 값을 레거시 숫자가 덮어쓰면
+  // 두 소스가 어긋날 때 오래된 쪽이 이긴다.
+  if (perfType !== undefined) return "load";
+  if (legacyType === 1) return "reload";
+  if (legacyType === 2) return "traverse";
+  return "load";
+}
+
+// same-document traverse 방향. Navigation API 히스토리 인덱스 델타의 부호.
+// NavigationHistoryEntry.index는 엔트리 리스트 밖일 때 -1을 반환하는데 그건 유한수라
+// "유한하면 통과" 게이트를 그냥 지나 (3, -1)을 back으로 오판한다 — 음수를 명시적으로 거부한다.
+export function traverseDirection(
+  fromIndex: number | undefined,
+  toIndex: number | undefined,
+): "back" | "forward" | null {
+  if (!isHistoryIndex(fromIndex) || !isHistoryIndex(toIndex)) return null;
+  if (toIndex === fromIndex) return null;
+  return toIndex < fromIndex ? "back" : "forward";
+}
+
+function isHistoryIndex(v: number | undefined): v is number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0;
+}
+
+// popstate는 히스토리 이동 전용 신호가 아니다 — 같은 문서 프래그먼트 네비게이션(<a href="#x">)도
+// popstate를 쏘고 인덱스를 +1 한다. 인덱스 델타만 보면 그 링크 클릭이 "앞으로가기"가 된다.
+// 도착 엔트리 id를 전에 본 적 있어야 이동이고, 처음 보는 id는 새로 밀어 넣어진 엔트리다.
+// 판정이 안 서면 기존 "popstate"로 — 틀린 방향보다 정보 없는 쪽이 낫다.
+export function popstateNavType(
+  fromIndex: number | undefined,
+  toIndex: number | undefined,
+  entryId: string | undefined,
+  seenEntryIds: ReadonlySet<string>,
+): "back" | "forward" | "popstate" {
+  if (entryId === undefined || !seenEntryIds.has(entryId)) return "popstate";
+  return traverseDirection(fromIndex, toIndex) ?? "popstate";
+}
+
 // 접근가능한 이름을 trim·길이 cap. 역할(button/link 등)은 ActionEntry.role로 따로 들고
 // 렌더 레이어(i18n)에서 로케일에 맞춰 조립한다.
 export function truncateName(name: string | null | undefined): string | undefined {

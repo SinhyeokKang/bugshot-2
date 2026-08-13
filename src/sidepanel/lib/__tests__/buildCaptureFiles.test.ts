@@ -495,6 +495,7 @@ describe("buildCaptureFiles — report 임베드 (logs.html)", () => {
   }
 
   const reportCtx = {
+    bodyLocale: "ko" as const,
     captureMode: "screenshot" as const,
     title: "T",
     sections: {},

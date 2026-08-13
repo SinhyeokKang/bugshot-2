@@ -149,7 +149,8 @@ export type PickerMessage =
   | { type: "actionRecorder.setSentinel"; sentinel: string }
   | { type: "actionRecorder.stop" }
   | { type: "actionRecorder.sync" }
-  | { type: "actionRecorder.clear" }
+  // resupplyEntryNav 부재 = 진입 항목 보충 안 함(fail-safe 방향). 발신자별 의미는 recorder-control.ts.
+  | { type: "actionRecorder.clear"; resupplyEntryNav?: boolean }
   | { type: "actionRecorder.data"; payload: { entries: import("@/types/action").ActionEntry[]; totalSeen: number } }
   | { type: "annotation.show" }
   | { type: "annotation.hide" }

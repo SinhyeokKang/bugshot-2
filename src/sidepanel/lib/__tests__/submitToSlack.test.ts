@@ -14,6 +14,7 @@ import type { MarkdownContext } from "../buildIssueMarkdown";
 
 function makeCtx(): MarkdownContext {
   return {
+    bodyLocale: "ko",
     captureMode: "screenshot",
     title: "Button broken",
     sections: { description: "본문" },

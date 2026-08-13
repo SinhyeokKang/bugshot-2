@@ -1,4 +1,5 @@
-import { t } from "@/i18n";
+import { getLocale, t, withLocale } from "@/i18n";
+import { resolveBodyLocale } from "@/i18n/locales";
 import type {
   NotionAuth,
   NotionCreatePagePayload,
@@ -561,54 +562,67 @@ interface NotionPageCreatedRaw {
   url: string;
 }
 
+// 첨부 섹션 제목은 빌더에 아예 없고 여기서만 생성된다 — 사이드패널 래핑으로는 절대 안 닿으므로
+// payload에 실려 온 본문 언어로 이 동기 구간을 감싼다(background는 별도 currentLocale 인스턴스).
+export function expandPageBlocks(
+  payload: NotionCreatePagePayload,
+): NotionBlockObject[] {
+  // messages.ts와 같은 이유로 누락·오염을 함께 흡수한다 (메시지 경계가 마지막 관문).
+  return withLocale(resolveBodyLocale(payload.bodyLocale, getLocale()), () => {
+    const attachmentMap = new Map<
+      string,
+      { fileUploadId: string; filename: string; category: string }
+    >();
+    for (const a of payload.attachments) {
+      attachmentMap.set(a.placeholderId, {
+        fileUploadId: a.fileUploadId,
+        filename: a.filename,
+        category: a.category,
+      });
+    }
+
+    const expanded: NotionBlockObject[] = [];
+    for (const b of payload.blocks) {
+      const out = expandBlock(b, attachmentMap);
+      if (out) expanded.push(out);
+    }
+
+    // image와 video는 본문에 inline 블록으로 이미 emit됨 — 첨부 섹션 file 블록 중복 방지.
+    // log/other 카테고리만 첨부 섹션으로 보냄.
+    const nonInline = payload.attachments.filter(
+      (a) => a.category !== "image" && a.category !== "video",
+    );
+    if (nonInline.length) {
+      expanded.push({
+        object: "block",
+        type: "heading_2",
+        heading_2: { rich_text: richText(t("notion.attachmentSection")) },
+      });
+      for (const a of nonInline) {
+        expanded.push({
+          object: "block",
+          type: "file",
+          file: {
+            type: "file_upload",
+            file_upload: { id: a.fileUploadId },
+            name: a.filename,
+          },
+        });
+      }
+    }
+
+    // Reported via *BugShot* 푸터 — 본문 + 첨부 섹션 모두 emit한 뒤 가장 마지막에.
+    for (const b of footerBlockObjects()) expanded.push(b);
+
+    return expanded;
+  });
+}
+
 export async function createPage(
   auth: NotionAuth,
   payload: NotionCreatePagePayload,
 ): Promise<NotionCreatePageResult> {
-  const attachmentMap = new Map<
-    string,
-    { fileUploadId: string; filename: string; category: string }
-  >();
-  for (const a of payload.attachments) {
-    attachmentMap.set(a.placeholderId, {
-      fileUploadId: a.fileUploadId,
-      filename: a.filename,
-      category: a.category,
-    });
-  }
-
-  const expanded: NotionBlockObject[] = [];
-  for (const b of payload.blocks) {
-    const out = expandBlock(b, attachmentMap);
-    if (out) expanded.push(out);
-  }
-
-  // image와 video는 본문에 inline 블록으로 이미 emit됨 — 첨부 섹션 file 블록 중복 방지.
-  // log/other 카테고리만 첨부 섹션으로 보냄.
-  const nonInline = payload.attachments.filter(
-    (a) => a.category !== "image" && a.category !== "video",
-  );
-  if (nonInline.length) {
-    expanded.push({
-      object: "block",
-      type: "heading_2",
-      heading_2: { rich_text: richText(t("notion.attachmentSection")) },
-    });
-    for (const a of nonInline) {
-      expanded.push({
-        object: "block",
-        type: "file",
-        file: {
-          type: "file_upload",
-          file_upload: { id: a.fileUploadId },
-          name: a.filename,
-        },
-      });
-    }
-  }
-
-  // Reported via *BugShot* 푸터 — 본문 + 첨부 섹션 모두 emit한 뒤 가장 마지막에.
-  for (const b of footerBlockObjects()) expanded.push(b);
+  const expanded = expandPageBlocks(payload);
 
   const properties: Record<string, unknown> = {
     [payload.titlePropertyName]: {

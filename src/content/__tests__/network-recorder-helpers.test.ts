@@ -1,5 +1,10 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import type { NetworkStatusKind } from "@/types/network";
+import { isStatusHidden } from "@/lib/network-status";
 import {
+  beaconStatus,
+  fetchFailureStatus,
+  xhrFailureStatus,
   estimateBodySize,
   findOldestBodyIndex,
   reclaimableSize,
@@ -312,6 +317,188 @@ describe("maskBody — 부분일치 오탐 방지 (exact-match 유지)", () => {
     expect(maskBody("error_code=429&author=kim", "application/x-www-form-urlencoded")).toBe(
       "error_code=429&author=kim",
     );
+  });
+});
+
+// MAIN world 레코더는 페이지와 같은 realm이라 페이지가 내장을 갈아끼울 수 있다.
+// maskBody가 호출 시점의 전역을 쓰면 마스킹이 무음으로 무력화돼 원문이 이슈 본문·LLM으로 샌다.
+describe("maskBody·maskUrl — 전역 오염 내성 (document_start 스냅샷)", () => {
+  const realParse = JSON.parse;
+  const realStringify = JSON.stringify;
+  const realURLSearchParams = globalThis.URLSearchParams;
+  const realURL = globalThis.URL;
+  const realEntries = Object.entries;
+  const realIsArray = Array.isArray;
+
+  function restoreAll(): void {
+    JSON.parse = realParse;
+    JSON.stringify = realStringify;
+    globalThis.URLSearchParams = realURLSearchParams;
+    globalThis.URL = realURL;
+    Object.entries = realEntries;
+    Array.isArray = realIsArray;
+  }
+
+  afterEach(restoreAll);
+
+  // 오염 상태에서 expect를 돌리면 실패 리포트 자체가 깨질 수 있어 호출만 오염 구간에 둔다.
+  function whilePolluted<T>(pollute: () => void, run: () => T): T {
+    pollute();
+    try {
+      return run();
+    } finally {
+      restoreAll();
+    }
+  }
+
+  const throwingCtor = () =>
+    class {
+      constructor() {
+        throw new Error("page hijacked ctor");
+      }
+    } as unknown as typeof URL;
+
+  it("페이지가 JSON.parse를 throw로 바꿔도 JSON 본문이 마스킹된다", () => {
+    const out = whilePolluted(
+      () => {
+        JSON.parse = () => {
+          throw new Error("page hijacked JSON.parse");
+        };
+      },
+      () => maskBody('{"token":"x","q":1}', "application/json"),
+    );
+    expect(out).toBe('{"token":"***","q":1}');
+  });
+
+  it("페이지가 JSON.stringify를 오염시켜도 결과가 정상이다", () => {
+    const out = whilePolluted(
+      () => {
+        JSON.stringify = () => "POLLUTED";
+      },
+      () => maskBody('{"password":"p","q":1}', "application/json"),
+    );
+    expect(out).toBe('{"password":"***","q":1}');
+  });
+
+  it("contentType 없이 형태로 추론하는 경로도 오염에 견딘다", () => {
+    const out = whilePolluted(
+      () => {
+        JSON.parse = () => {
+          throw new Error("page hijacked JSON.parse");
+        };
+      },
+      () => maskBody('[{"secret":"s"}]', ""),
+    );
+    expect(out).toBe('[{"secret":"***"}]');
+  });
+
+  it("페이지가 URLSearchParams를 오염시켜도 urlencoded 본문이 마스킹된다", () => {
+    const out = whilePolluted(
+      () => {
+        globalThis.URLSearchParams = throwingCtor() as unknown as typeof URLSearchParams;
+      },
+      () => maskBody("password=p&plain=1", "application/x-www-form-urlencoded"),
+    );
+    expect(out).toContain("password=***");
+    expect(out).toContain("plain=1");
+  });
+
+  // JSON.parse만 스냅샷하면 순회 쪽 내장이 그대로 남아 같은 우회가 성립한다 — 마스킹 경로는
+  // 파싱·순회·직렬화 셋 다 스냅샷이어야 닫힌다.
+  it("페이지가 Object.entries를 오염시켜도 JSON 본문이 마스킹된다", () => {
+    const out = whilePolluted(
+      () => {
+        Object.entries = () => {
+          throw new Error("page hijacked Object.entries");
+        };
+      },
+      () => maskBody('{"token":"x","q":1}', "application/json"),
+    );
+    expect(out).toBe('{"token":"***","q":1}');
+  });
+
+  it("페이지가 Array.isArray를 오염시켜도 배열 안의 민감 키가 마스킹된다", () => {
+    const out = whilePolluted(
+      () => {
+        Array.isArray = (() => false) as unknown as typeof Array.isArray;
+      },
+      () => maskBody('[{"secret":"s"}]', "application/json"),
+    );
+    expect(out).toBe('[{"secret":"***"}]');
+  });
+
+  // maskUrl은 저장되는 모든 pageUrl·요청 URL·navigation from/to를 지난다 — 여기가 뚫리면
+  // ?token=·#access_token= 이 원문으로 남는다.
+  it("페이지가 URL 생성자를 오염시켜도 query 토큰이 마스킹된다", () => {
+    const out = whilePolluted(
+      () => {
+        globalThis.URL = throwingCtor();
+      },
+      () => maskUrl("https://x.test/cb?token=abc&page=2"),
+    );
+    expect(out).toContain("token=***");
+    expect(out).toContain("page=2");
+  });
+
+  it("페이지가 URLSearchParams를 오염시켜도 fragment 토큰이 마스킹된다", () => {
+    const out = whilePolluted(
+      () => {
+        globalThis.URLSearchParams = throwingCtor() as unknown as typeof URLSearchParams;
+      },
+      () => maskUrl("https://x.test/cb#access_token=abc&state=1"),
+    );
+    expect(out).toContain("access_token=***");
+    expect(out).toContain("state=1");
+  });
+});
+
+// statusText(HAR·이슈 본문·LLM이 읽는 안정 토큰)와 statusKind(UI 번역 키)가 어긋나면
+// "상태 가려짐" 표시 대상이 조용히 늘거나 준다. 레코더 IIFE는 유닛으로 못 부르므로 여기가 그물이다.
+describe("실패·큐 상태 매핑 (statusText + statusKind)", () => {
+  it("XHR 종류별로 기존 statusText 문구를 그대로 유지한다", () => {
+    expect(xhrFailureStatus("error")).toEqual({
+      statusText: "Network Error",
+      statusKind: "networkError",
+    });
+    expect(xhrFailureStatus("abort")).toEqual({ statusText: "Aborted", statusKind: "aborted" });
+    expect(xhrFailureStatus("timeout")).toEqual({ statusText: "Timeout", statusKind: "timeout" });
+  });
+
+  it("fetch reject가 Error면 메시지를 싣고 statusKind를 주지 않는다", () => {
+    expect(fetchFailureStatus(new TypeError("Failed to fetch"))).toEqual({
+      statusText: "Failed to fetch",
+    });
+  });
+
+  it("fetch reject가 Error가 아니면 Network Error + networkError", () => {
+    expect(fetchFailureStatus("cors")).toEqual({
+      statusText: "Network Error",
+      statusKind: "networkError",
+    });
+    expect(fetchFailureStatus(undefined)).toEqual({
+      statusText: "Network Error",
+      statusKind: "networkError",
+    });
+  });
+
+  it("sendBeacon은 큐 성공·실패를 나눠 싣는다", () => {
+    expect(beaconStatus(true)).toEqual({ statusText: "Queued", statusKind: "queued" });
+    expect(beaconStatus(false)).toEqual({ statusText: "Queue Full", statusKind: "queueFull" });
+  });
+
+  // 이 왕복이 회귀 감시 지점 7 그 자체다 — 매핑을 바꾸면 blocked 판정이 따라 움직이는지 여기서 깨진다.
+  it("매핑 결과를 isStatusHidden에 그대로 먹여도 판정이 기존과 같다", () => {
+    const hidden = (fields: { statusText: string; statusKind?: NetworkStatusKind }, phase: "error" | "complete") =>
+      isStatusHidden({ phase, status: 0, ...fields });
+
+    expect(hidden(xhrFailureStatus("error"), "error")).toBe(true);
+    expect(hidden(xhrFailureStatus("abort"), "error")).toBe(false);
+    expect(hidden(xhrFailureStatus("timeout"), "error")).toBe(false);
+    expect(hidden(fetchFailureStatus("cors"), "error")).toBe(true);
+    // TypeError: Failed to fetch는 statusKind가 없고 statusText도 센티널이 아니라 지금도 false다.
+    expect(hidden(fetchFailureStatus(new TypeError("Failed to fetch")), "error")).toBe(false);
+    expect(hidden(beaconStatus(false), "error")).toBe(false);
+    expect(hidden(beaconStatus(true), "complete")).toBe(false);
   });
 });
 

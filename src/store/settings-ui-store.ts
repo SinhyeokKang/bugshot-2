@@ -6,7 +6,13 @@ import type { RecordingSource } from "./editor-store";
 import { obfuscateApiKey, deobfuscateApiKey } from "@/lib/key-obfuscation";
 import { normalizeAiLanguage, type AiLanguage } from "@/sidepanel/lib/aiLanguage";
 import { chromeLocalStorage } from "./chrome-storage";
-import { detectLocale, normalizeLocale, type LocaleMode } from "@/i18n/locales";
+import {
+  detectLocale,
+  normalizeBodyLocale,
+  normalizeLocale,
+  type BodyLocale,
+  type LocaleMode,
+} from "@/i18n/locales";
 
 export type ThemeMode = "light" | "dark" | "system";
 // 정의는 @/i18n/locales가 갖는다(background·log-viewer 번들 공용). 여기서 re-export하는 건
@@ -108,6 +114,9 @@ interface SettingsUiState {
   locale: LocaleMode;
   // UI 언어와 독립된 축 — "auto"면 locale을 따라간다(해석은 resolveAiLanguage).
   aiLanguage: AiLanguage;
+  // 제출·복사되는 이슈 본문의 스캐폴딩 언어. 화면 언어·AI 작성 언어와 독립된 세 번째 축이고
+  // "auto"면 locale을 따라간다(해석은 resolveBodyLocale).
+  bodyLocale: BodyLocale;
   issueSections: IssueSection[];
   llm: LlmConfig | null;
   replayEnabled: boolean;
@@ -118,6 +127,7 @@ interface SettingsUiState {
   setTheme: (theme: ThemeMode) => void;
   setLocale: (locale: LocaleMode) => void;
   setAiLanguage: (aiLanguage: AiLanguage) => void;
+  setBodyLocale: (bodyLocale: BodyLocale) => void;
   setIssueEnabled: (id: IssueSectionId, enabled: boolean) => void;
   reorderIssueSections: (from: number, to: number) => void;
   resetIssueSectionOrder: () => void;
@@ -149,6 +159,9 @@ export function migrateSettingsUi(
   state.autoReproPrefill = state.autoReproPrefill ?? true;
   // ??가 아니라 정규화다 — 이 값은 프롬프트 지시문으로 나가므로 오염된 문자열을 통과시키지 않는다.
   state.aiLanguage = normalizeAiLanguage(state.aiLanguage);
+  // v11: bodyLocale 추가. mergePersistedSettings가 rehydrate마다 재정규화하므로 이 줄은
+  // 기능적으로 중복이다 — aiLanguage 선례와의 일관성 + 필드 도입 시점 기록용으로 둔다.
+  state.bodyLocale = normalizeBodyLocale(state.bodyLocale);
   // 로케일은 v1부터 있던 필드라 version 분기가 없다. 정규화가 막는 건 다운그레이드다 —
   // 새 로케일을 쓰던 persist가 구버전으로 롤백되면 사전 조회가 undefined가 된다.
   state.locale = normalizeLocale(state.locale);
@@ -171,6 +184,7 @@ export function mergePersistedSettings(
     locale: p.locale === undefined ? current.locale : normalizeLocale(p.locale),
     issueSections: normalizeSections(p.issueSections ?? current.issueSections),
     aiLanguage: normalizeAiLanguage(p.aiLanguage),
+    bodyLocale: normalizeBodyLocale(p.bodyLocale),
   };
 }
 
@@ -210,6 +224,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       theme: "light",
       locale: detectLocale(browserLanguage()),
       aiLanguage: "auto",
+      bodyLocale: "auto",
       issueSections: DEFAULT_ISSUE_SECTIONS,
       llm: null,
       replayEnabled: false,
@@ -220,6 +235,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       setTheme: (theme) => set({ theme }),
       setLocale: (locale) => set({ locale }),
       setAiLanguage: (aiLanguage) => set({ aiLanguage }),
+      setBodyLocale: (bodyLocale) => set({ bodyLocale }),
       setIssueEnabled: (id, enabled) => {
         // 미디어 카드엔 사용 여부 스위치가 없다(위치만 관장) — 오염 유입 차단.
         if (id === "media") return;
@@ -264,8 +280,8 @@ export const useSettingsUiStore = create<SettingsUiState>()(
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
-      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가, v8: autoReproPrefill 추가, v9: issueSections에 media 엔트리 편입, v10: aiLanguage 추가
-      version: 10,
+      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가, v8: autoReproPrefill 추가, v9: issueSections에 media 엔트리 편입, v10: aiLanguage 추가, v11: bodyLocale 추가
+      version: 11,
       storage: createJSONStorage(() => apiKeyObfuscatingStorage),
       migrate: migrateSettingsUi,
       merge: mergePersistedSettings,

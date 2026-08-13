@@ -17,6 +17,8 @@ const {
   mockDeleteConsoleLog,
   mockClearNetworkRecorder,
   mockClearConsoleRecorder,
+  mockClearActionRecorder,
+  mockDeleteActionLog,
 } = vi.hoisted(() => ({
   mockSaveDraft: vi.fn(),
   mockPatchDraftSnapshot: vi.fn(),
@@ -28,11 +30,14 @@ const {
   mockDeleteConsoleLog: vi.fn().mockResolvedValue(undefined),
   mockClearNetworkRecorder: vi.fn().mockResolvedValue(undefined),
   mockClearConsoleRecorder: vi.fn().mockResolvedValue(undefined),
+  mockClearActionRecorder: vi.fn().mockResolvedValue(undefined),
+  mockDeleteActionLog: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/sidepanel/recorder-control", () => ({
   clearNetworkRecorder: mockClearNetworkRecorder,
   clearConsoleRecorder: mockClearConsoleRecorder,
+  clearActionRecorder: mockClearActionRecorder,
 }));
 
 const mockSaveAttachmentBlob = vi.hoisted(() => vi.fn().mockResolvedValue(true));
@@ -73,7 +78,7 @@ vi.mock("@/store/blob-db", () => ({
   getNetworkLog: vi.fn().mockResolvedValue(null),
   getConsoleLog: vi.fn().mockResolvedValue(null),
   saveActionLog: vi.fn().mockResolvedValue(true),
-  deleteActionLog: vi.fn().mockResolvedValue(undefined),
+  deleteActionLog: mockDeleteActionLog,
   saveAttachmentBlob: mockSaveAttachmentBlob,
   deleteAttachmentBlob: mockDeleteAttachmentBlob,
   deleteAttachmentBlobs: mockDeleteAttachmentBlobs,
@@ -795,6 +800,8 @@ describe("clearNetworkLog / clearConsoleLog", () => {
     mockDeleteConsoleLog.mockClear();
     mockClearNetworkRecorder.mockClear();
     mockClearConsoleRecorder.mockClear();
+    mockClearActionRecorder.mockClear();
+    mockDeleteActionLog.mockClear();
   });
 
   it("clearNetworkLog(tabId): store null + pending 삭제 + MAIN buffer clear", () => {
@@ -835,6 +842,29 @@ describe("clearNetworkLog / clearConsoleLog", () => {
     expect(useEditorStore.getState().consoleLog).toBeNull();
     expect(mockDeleteConsoleLog).not.toHaveBeenCalled();
     expect(mockClearConsoleRecorder).not.toHaveBeenCalled();
+  });
+
+  // 이 경로의 비테스트 호출자는 usePickerMessages의 logClear 분기 하나뿐이다 — 즉 네비게이션
+  // 경계이고, 같은 블록에서 패널 로그도 비워진다. 그래서 MAIN이 진입 항목을 다시 실어야 한다.
+  // (반대편 발신자 prepareRecorders는 플래그를 안 준다 — video-capture 테스트가 고정.)
+  it("clearActionLog(tabId): 진입 항목 보충 의도를 실어 MAIN buffer clear", () => {
+    useEditorStore.setState({ actionLog: fakeActionLog });
+
+    useEditorStore.getState().clearActionLog(3);
+
+    expect(useEditorStore.getState().actionLog).toBeNull();
+    expect(mockDeleteActionLog).toHaveBeenCalledWith("pending:3");
+    expect(mockClearActionRecorder).toHaveBeenCalledWith(3, { resupplyEntryNav: true });
+  });
+
+  it("clearActionLog(null): store만 null, pending/MAIN clear는 스킵", () => {
+    useEditorStore.setState({ actionLog: fakeActionLog });
+
+    useEditorStore.getState().clearActionLog(null);
+
+    expect(useEditorStore.getState().actionLog).toBeNull();
+    expect(mockDeleteActionLog).not.toHaveBeenCalled();
+    expect(mockClearActionRecorder).not.toHaveBeenCalled();
   });
 });
 

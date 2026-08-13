@@ -1,8 +1,11 @@
-import { BODY_CAP, classifyBeaconBody, classifyResponseBody, createPatchedFetch, createPatchedSetRequestHeader, headersToRecord, maskBody, maskUrl, classifyWsFrameData, maskWsFrame, estimateBodySize, findOldestBodyIndex, reclaimableSize } from "./network-recorder-helpers";
+import { objectEntries } from "./recorder-globals";
+import { BODY_CAP, beaconStatus, classifyBeaconBody, classifyResponseBody, createPatchedFetch, createPatchedSetRequestHeader, fetchFailureStatus, headersToRecord, maskBody, maskUrl, classifyWsFrameData, maskWsFrame, estimateBodySize, findOldestBodyIndex, reclaimableSize, xhrFailureStatus } from "./network-recorder-helpers";
 import type { FetchRecordHook } from "./network-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
-import type { NetworkRequestBody, NetworkRequestPhase, WebSocketFrame, WebSocketFrameDirection, WebSocketMeta } from "@/types/network";
+import { addEventListener, CustomEventCtor, dispatchEvent, randomUUID, removeEventListener } from "./recorder-globals";
+import { createSentinelRegistry } from "./sentinel-registry";
+import type { NetworkRequestBody, NetworkRequestPhase, NetworkStatusKind, WebSocketFrame, WebSocketFrameDirection, WebSocketMeta } from "@/types/network";
 
 function networkRecorderScript(): void {
   const CTRL_KEY = "__bugshot_net_ctrl__";
@@ -48,6 +51,7 @@ function networkRecorderScript(): void {
     responseBodySize: number;
     contentType: string;
     phase: ReqPhase;
+    statusKind?: NetworkStatusKind;
     preArm?: boolean;
     webSocket?: WebSocketMeta;
   }
@@ -57,14 +61,15 @@ function networkRecorderScript(): void {
   let memoryUsed = 0;
   let recording = false;
   // pre-arm: active origin이면 sentinel 전에도 적재(capturing). dispatch는 sentinel 없으면 no-op.
-  let capturing = readPreArmFlag();
+  const preArm = readPreArmFlag();
+  let capturing = preArm;
   type NetworkWarning = "MEMORY_CAPPED" | "ENTRY_CAPPED" | "BODY_TRUNCATED" | "WS_FRAMES_CAPPED";
   const warnings = new Set<NetworkWarning>();
 
+  // 페이지가 crypto를 갈아끼워 모든 id를 같게 만들면 사이드패널 log-merge의 id dedup이
+  // 로그 전체를 1건으로 접는다 — 스냅샷 경유.
   function genId(): string {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
+    if (randomUUID) return randomUUID();
     return `nr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
@@ -81,9 +86,11 @@ function networkRecorderScript(): void {
     return `***[len:${value.length}]`;
   }
 
+  // 순회도 스냅샷 경유 — 페이지가 Object.entries를 키를 살짝 바꿔 돌려주는 함수로 갈면
+  // isMaskedHeader가 빗나가 Authorization·Cookie 원문이 그대로 로그에 남는다.
   function maskHeaders(headers: Record<string, string>): Record<string, string> {
     const result: Record<string, string> = {};
-    for (const [k, v] of Object.entries(headers)) {
+    for (const [k, v] of objectEntries(headers)) {
       result[k] = isMaskedHeader(k) ? maskHeaderValue(v) : v;
     }
     return result;
@@ -122,7 +129,12 @@ function networkRecorderScript(): void {
     }
   }
 
+  // console/action의 pushEntry와 맞춘 첫 줄 게이트. 호출부 게이트와 이 게이트 사이에 페이지
+  // 코드가 낀다(maskUrl의 URL 생성자·url.toString) — 그 창에서 위조 stop이 capturing을 뒤집으면
+  // 여기가 발화하므로 memoryUsed 갱신도 게이트 뒤에 둬야 계측이 버퍼와 갈라지지 않는다.
   function pushEntry(entry: CapturedRequest): void {
+    if (!capturing) return;
+    memoryUsed += estimateBodySize(entry.requestBody);
     buffer.push(entry);
     enforceEntryCap();
   }
@@ -195,7 +207,6 @@ function networkRecorderScript(): void {
       phase: "pending",
     };
     if (!recording) entry.preArm = true;
-    memoryUsed += estimateBodySize(entry.requestBody);
     pushEntry(entry);
     enforceMemoryCap();
     throttle.schedule();
@@ -203,8 +214,10 @@ function networkRecorderScript(): void {
     return async ({ response, error }) => {
       if (error || !response) {
         // 네트워크 실패·CORS 차단 등도 기록한다 (DevTools와 동일).
+        const failure = fetchFailureStatus(error);
         entry.status = 0;
-        entry.statusText = error instanceof Error ? error.message : "Network Error";
+        entry.statusText = failure.statusText;
+        entry.statusKind = failure.statusKind;
         entry.durationMs = Date.now() - startTime;
         entry.phase = "error";
         return;
@@ -312,15 +325,18 @@ function networkRecorderScript(): void {
     xhrInstance: XMLHttpRequest,
     body?: Document | XMLHttpRequestBodyInit | null,
   ): void {
-    totalSeen++;
+    // arm 직전에 open()된 XHR은 meta가 없다. 그대로 진행하면 url·method가 빈 엔트리가 push되고
+    // captureXhr의 meta 가드 때문에 영구 pending으로 남는다 — 아예 만들지 않는 편이 정확하다.
     const meta = (xhrInstance as any).__bugshot;
-    if (meta) meta.startTime = Date.now();
+    if (!meta) return;
+    totalSeen++;
+    meta.startTime = Date.now();
 
     let requestBody: ReqBody | undefined;
     let requestBodySize = 0;
     if (typeof body === "string") {
       requestBodySize = body.length;
-      const ct = meta?.reqHeaders?.["content-type"] || "";
+      const ct = meta.reqHeaders?.["content-type"] || "";
       if (requestBodySize <= BODY_CAP) {
         requestBody = maskBody(body, ct);
       } else {
@@ -331,13 +347,13 @@ function networkRecorderScript(): void {
     // send 시점에 phase="pending" entry를 push하고, 완료/에러 시 같은 entry를 갱신.
     const entry: CapturedRequest = {
       id: genId(),
-      url: meta?.url ?? "",
-      method: meta?.method ?? "",
+      url: meta.url,
+      method: meta.method,
       status: 0,
       statusText: "",
-      startTime: meta?.startTime ?? Date.now(),
+      startTime: meta.startTime,
       durationMs: 0,
-      requestHeaders: maskHeaders(meta?.reqHeaders ?? {}),
+      requestHeaders: maskHeaders(meta.reqHeaders ?? {}),
       responseHeaders: {},
       requestBody,
       pageUrl: maskUrl(location.href),
@@ -347,7 +363,6 @@ function networkRecorderScript(): void {
       phase: "pending",
     };
     if (!recording) entry.preArm = true;
-    memoryUsed += estimateBodySize(entry.requestBody);
     pushEntry(entry);
     enforceMemoryCap();
     throttle.schedule();
@@ -358,7 +373,7 @@ function networkRecorderScript(): void {
 
     const xhr = xhrInstance;
     function captureXhr(kind: "load" | "error" | "abort" | "timeout"): void {
-      if (captured || !meta) return;
+      if (captured) return;
       captured = true;
       entry.durationMs = Date.now() - meta.startTime;
       const contentType = xhr.getResponseHeader("content-type") || "";
@@ -400,11 +415,10 @@ function networkRecorderScript(): void {
           entry.responseBody = { kind: "binary", contentType, size: 0 };
         }
       } else {
+        const failure = xhrFailureStatus(kind);
         entry.status = 0;
-        entry.statusText =
-          kind === "error" ? "Network Error" :
-          kind === "abort" ? "Aborted" :
-          "Timeout";
+        entry.statusText = failure.statusText;
+        entry.statusKind = failure.statusKind;
         entry.phase = "error";
       }
 
@@ -414,10 +428,16 @@ function networkRecorderScript(): void {
       }
     }
 
-    xhr.addEventListener("load", () => captureXhr("load"));
-    xhr.addEventListener("error", () => captureXhr("error"));
-    xhr.addEventListener("abort", () => captureXhr("abort"));
-    xhr.addEventListener("timeout", () => captureXhr("timeout"));
+    // 기록 throw를 페이지 XHR의 리스너 체인으로 흘리지 않는다 — 흘리면 페이지 에러 모니터링이
+    // 오염되고, 우리 console 레코더가 그걸 페이지 에러로 되받아 리포트에 허위 신호를 남긴다
+    // (무간섭 3원칙 ②, POSTMORTEM 2026-07-23 계열).
+    const safeCapture = (kind: "load" | "error" | "abort" | "timeout") => () => {
+      try { captureXhr(kind); } catch { /* 레코더 오류는 무시 */ }
+    };
+    addEventListener(xhr, "load", safeCapture("load"));
+    addEventListener(xhr, "error", safeCapture("error"));
+    addEventListener(xhr, "abort", safeCapture("abort"));
+    addEventListener(xhr, "timeout", safeCapture("timeout"));
   }
 
   // --- sendBeacon wrap ---
@@ -448,7 +468,7 @@ function networkRecorderScript(): void {
           url: urlStr,
           method: "POST",
           status: 0,
-          statusText: queued ? "Queued" : "Queue Full",
+          ...beaconStatus(queued),
           startTime,
           durationMs: 0,
           requestHeaders: {},
@@ -461,7 +481,6 @@ function networkRecorderScript(): void {
           phase: queued ? "complete" : "error",
         };
         if (!recording) entry.preArm = true;
-        memoryUsed += estimateBodySize(entry.requestBody);
         pushEntry(entry);
         enforceMemoryCap();
         throttle.schedule();
@@ -529,26 +548,26 @@ function networkRecorderScript(): void {
       }
     }
 
-    ws.addEventListener("open", () => {
+    addEventListener(ws, "open", () => {
       if (!capturing) return;
       meta.protocol = ws.protocol || "";
       pushFrame({ direction: "open", ts: Date.now(), size: 0 });
     });
-    ws.addEventListener("message", (ev: MessageEvent) => {
+    addEventListener(ws, "message", (ev: MessageEvent) => {
       if (!capturing) return;
       recordData("receive", ev.data);
     });
-    ws.addEventListener("close", (ev: CloseEvent) => {
+    addEventListener(ws, "close", (close: CloseEvent) => {
       if (!capturing) return;
       pushFrame({
         direction: "close",
         ts: Date.now(),
         size: 0,
-        code: ev.code,
-        reason: ev.reason || undefined,
-        wasClean: ev.wasClean,
+        code: close.code,
+        reason: close.reason || undefined,
+        wasClean: close.wasClean,
       });
-      entry.phase = ev.wasClean ? "complete" : "error";
+      entry.phase = close.wasClean ? "complete" : "error";
       entry.durationMs = Date.now() - startTime;
     });
     // error는 별도 프레임 없음 — close 이벤트가 뒤따라 phase를 전이한다.
@@ -577,29 +596,54 @@ function networkRecorderScript(): void {
   }
 
   // --- Sentinel-bound dispatch ---
-  let currentSentinel: string | null = null;
-  let stopHandler: (() => void) | null = null;
-  let syncHandler: (() => void) | null = null;
-  let clearHandler: (() => void) | null = null;
+  // 다중 등록 — 무엇을 막고 무엇이 남는지는 sentinel-registry.ts 헤더 참조.
+  const sentinels = createSentinelRegistry();
+  const sentinelHandlers = new Map<string, { stop: () => void; sync: () => void; clear: () => void }>();
 
   function dispatch(): void {
-    if (!currentSentinel) return;
-    document.dispatchEvent(
-      new CustomEvent("__bugshot_net_data__" + currentSentinel, {
-        detail: {
-          sentinel: currentSentinel,
-          requests: buffer.slice(),
-          totalSeen,
-          warnings: Array.from(warnings),
-        },
-      }),
-    );
+    const registered = sentinels.list();
+    if (!registered.length) return;
+    for (const sentinel of registered) {
+      // 배열은 sentinel마다 새로 뜬다(공유하면 먼저 등록된 위조 리스너가 비운다). 격리는
+      // 배열까지 — 엔트리 객체는 공유 참조다. sentinel-registry.ts 헤더 참조.
+      dispatchEvent(
+        document,
+        new CustomEventCtor("__bugshot_net_data__" + sentinel, {
+          detail: {
+            sentinel,
+            requests: buffer.slice(),
+            totalSeen,
+            warnings: Array.from(warnings),
+          },
+        }),
+      );
+    }
   }
 
   // recording 게이트를 통과한 pending push 지점에서만 schedule → 최대 FLUSH_INTERVAL_MS마다 실시간 dispatch.
   // 응답 갱신(complete/error in-place)에는 schedule하지 않는다 — 다음 trailing 주기·sync·pagehide에
   // 전체 버퍼로 나가고 mergeLogItems id dedup이 최신본으로 흡수(complete 반영 최대 200ms 지연, 무손실).
   const throttle = createTrailingThrottle(dispatch, FLUSH_INTERVAL_MS);
+
+  // 페이지가 sessionStorage pre-arm 플래그를 위조하면 적재가 무기한 켜진 채 남는다. 정당한
+  // pre-arm은 패널이 열린 origin의 reload이고 재arm은 tabs.onUpdated status==="complete"에
+  // 걸려 있다 — 즉 상한은 document_start부터 **페이지 load 완료까지**를 덮어야 정상 로그를 안 자른다.
+  const PREARM_GRACE_MS = 60000;
+  let armedOnce = false;
+  let graceTimer: ReturnType<typeof setTimeout> | null = null;
+  if (preArm) {
+    graceTimer = setTimeout(() => {
+      graceTimer = null;
+      // 해제는 clearTimeout에 의존할 수 없다 — 페이지가 그걸 no-op으로 바꾸면 정당하게
+      // arm된 세션이 만료 시점에 죽는다. recording이 아니라 armedOnce를 보는 이유: arm 후
+      // stop된 상태에서도 이 타이머가 남의 버퍼를 비우면 안 된다(타이머의 조건은 "arm이
+      // 한 번도 안 왔다"이지 "지금 녹화 중이 아니다"가 아니다).
+      if (armedOnce) return;
+      capturing = false;
+      clearBuffer();
+      throttle.cancel();
+    }, PREARM_GRACE_MS);
+  }
 
   patchWebSocket();
 
@@ -610,43 +654,56 @@ function networkRecorderScript(): void {
     warnings.clear();
   }
 
-  function detachSentinelListeners(): void {
-    if (!currentSentinel) return;
-    if (stopHandler) document.removeEventListener("__bugshot_net_stop__" + currentSentinel, stopHandler);
-    if (syncHandler) document.removeEventListener("__bugshot_net_sync__" + currentSentinel, syncHandler);
-    if (clearHandler) document.removeEventListener("__bugshot_net_clear__" + currentSentinel, clearHandler);
+  function detachSentinel(sentinel: string): void {
+    const handlers = sentinelHandlers.get(sentinel);
+    if (!handlers) return;
+    sentinelHandlers.delete(sentinel);
+    removeEventListener(document, "__bugshot_net_stop__" + sentinel, handlers.stop);
+    removeEventListener(document, "__bugshot_net_sync__" + sentinel, handlers.sync);
+    removeEventListener(document, "__bugshot_net_clear__" + sentinel, handlers.clear);
   }
 
   function setSentinel(sentinel: string): void {
-    detachSentinelListeners();
-    currentSentinel = sentinel;
+    if (sentinels.add(sentinel)) {
+      for (const gone of sentinels.evicted()) detachSentinel(gone);
+      // stop은 현재 world의 적재·전송을 끈다(capturing=false). sessionStorage 플래그는 유지 —
+      // 이후 reload 시 새 world가 플래그를 읽어 pre-arm을 다시 켠다.
+      const handlers = {
+        stop: () => { recording = false; capturing = false; throttle.flushNow(); },
+        sync: () => { throttle.flushNow(); },
+        clear: () => { clearBuffer(); throttle.cancel(); },
+      };
+      sentinelHandlers.set(sentinel, handlers);
+      addEventListener(document, "__bugshot_net_stop__" + sentinel, handlers.stop);
+      addEventListener(document, "__bugshot_net_sync__" + sentinel, handlers.sync);
+      addEventListener(document, "__bugshot_net_clear__" + sentinel, handlers.clear);
+    }
+    // 재발행(같은 sentinel)에서도 arm 상태는 다시 세운다 — 리스너만 멱등이다.
+    armedOnce = true;
     recording = true;
     capturing = true;
     setPreArmFlag(); // 이후 reload/same-origin 네비에서 pre-arm 적재가 켜지도록 active 표시.
+    if (graceTimer != null) {
+      clearTimeout(graceTimer);
+      graceTimer = null;
+    }
     if (buffer.length) throttle.schedule(); // pre-arm 초반 버퍼 소급 flush.
-    // stop은 현재 world의 적재·전송을 끈다(capturing=false). sessionStorage 플래그는 유지 —
-    // 이후 reload 시 새 world가 플래그를 읽어 pre-arm을 다시 켠다.
-    stopHandler = () => { recording = false; capturing = false; throttle.flushNow(); };
-    syncHandler = () => { throttle.flushNow(); };
-    clearHandler = () => { clearBuffer(); throttle.cancel(); };
-    document.addEventListener("__bugshot_net_stop__" + sentinel, stopHandler);
-    document.addEventListener("__bugshot_net_sync__" + sentinel, syncHandler);
-    document.addEventListener("__bugshot_net_clear__" + sentinel, clearHandler);
   }
 
-  document.addEventListener(SET_SENTINEL_EVENT, (e: Event) => {
+  addEventListener(document, SET_SENTINEL_EVENT, (e: Event) => {
     const detail = (e as CustomEvent).detail as { sentinel?: string } | undefined;
     if (detail?.sentinel) setSentinel(detail.sentinel);
   });
 
   // 풀 네비게이션으로 MAIN world가 파괴되기 직전 버퍼 flush(보조). sentinel 없으면 dispatch no-op.
-  window.addEventListener("pagehide", () => throttle.flushNow());
+  addEventListener(window, "pagehide", () => throttle.flushNow());
   // 탭 숨김 직전 최신 꼬리까지 flush(안전망 다중화). hidden 외 상태 변화는 무시.
-  document.addEventListener("visibilitychange", () => {
+  addEventListener(document, "visibilitychange", () => {
     if (document.visibilityState === "hidden") throttle.flushNow();
   });
 
-  (window as any)[CTRL_KEY] = { setSentinel, clearBuffer };
+  // 함수가 아니라 마커다 — 걸어두면 페이지가 부를 수 있다. 용도는 위쪽 중복 초기화 가드뿐.
+  (window as any)[CTRL_KEY] = true;
 }
 
 networkRecorderScript();

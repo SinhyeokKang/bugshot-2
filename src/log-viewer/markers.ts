@@ -3,7 +3,7 @@ import type { ActionNode } from "@/types/action";
 import { toVideoSeconds } from "./timeline";
 import { t } from "./i18n";
 import { TONE_TEXT, consoleLevelTextClass, networkMethodTextClass } from "@/lib/log-colors";
-import { splitTemplate } from "@/sidepanel/lib/actionInline";
+import { splitTemplate, navVerbKey } from "@/sidepanel/lib/actionInline";
 
 export type MarkerType = "console" | "network" | "action";
 export type MarkerVariant = "error" | "warn" | "info" | "pending" | "navigate" | "default";
@@ -115,9 +115,12 @@ export function buildMarkers(
       case "navigation": {
         variant = "navigate";
         const url = e.toUrl ?? "";
-        label = t("actionLog.verb.navigate", { target: url });
+        // 두 호출을 함께 갈아야 한다 — 보간판은 label(TimelineMarkers의 aria-label), 미보간판은
+        // labelParts로 간다. 한쪽만 바꾸면 스크린리더 값과 화면 문구가 갈리는 무음 a11y 회귀다.
+        const verbKey = navVerbKey(e.navType);
+        label = t(verbKey, { target: url });
         // 탭(ActionLogContent)과 동일 패턴: verb 텍스트는 기본색, URL(target 슬롯)만 파랑.
-        labelParts = splitTemplate(t("actionLog.verb.navigate")).map((tok) =>
+        labelParts = splitTemplate(t(verbKey)).map((tok) =>
           tok.type === "slot"
             ? { text: url, className: TONE_TEXT.blue }
             : { text: tok.value },
