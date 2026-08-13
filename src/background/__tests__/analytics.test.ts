@@ -106,6 +106,46 @@ describe("허용목록", () => {
     expect(filterProperties("issue_submitted", sent)).toEqual(sent);
   });
 
+  // 스프린트 목록 조회 실패를 전부 삼키기로 했으므로(R6) 사후 관측은 이 두 축뿐이다 —
+  // 허용목록 등록이 빠지면 filterProperties가 무음 폐기해 관측 수단이 통째로 사라진다.
+  it("issue_submitted 허용목록이 sprint 축 2개를 통과시킨다", () => {
+    const sent = submitEventProperties(
+      "jira",
+      "screenshot",
+      "success",
+      false,
+      null,
+      false,
+      true,
+      true,
+    );
+    expect(sent.sprint_field_shown).toBe("true");
+    expect(sent.sprint_selected).toBe("true");
+    expect(filterProperties("issue_submitted", sent)).toEqual(sent);
+  });
+
+  // 행은 보였는데 안 고른 조합이 표현돼야 한다 — 한 축으로 합치면 이 구간이 사라진다.
+  it("sprint 축 2개는 서로 독립이다", () => {
+    const sent = submitEventProperties(
+      "jira",
+      "screenshot",
+      "success",
+      false,
+      null,
+      false,
+      true,
+      false,
+    );
+    expect(sent.sprint_field_shown).toBe("true");
+    expect(sent.sprint_selected).toBe("false");
+  });
+
+  it("Jira 외 플랫폼에는 sprint 축이 실리지 않는다", () => {
+    const sent = submitEventProperties("github", "screenshot", "success");
+    expect(sent).not.toHaveProperty("sprint_field_shown");
+    expect(sent).not.toHaveProperty("sprint_selected");
+  });
+
   it("목록 밖 property는 payload에서 빠진다", () => {
     expect(
       filterProperties("platform_disconnected", {

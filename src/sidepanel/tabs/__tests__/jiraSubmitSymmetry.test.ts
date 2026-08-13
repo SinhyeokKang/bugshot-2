@@ -14,17 +14,24 @@ const ENTRY_POINTS = [
 ] as const;
 
 // 유효 프로젝트는 이번 제출의 필드값이고 계정 설정은 fallback일 뿐이다 — 이 3개가 빠지면
-// sticky(프로젝트·이슈타입)와 사이트 판별자가 죽는다.
-const REQUIRED_KEYS = ["projectKey", "issueTypeId", "siteId"] as const;
+// sticky(프로젝트·이슈타입)와 사이트 판별자가 죽는다. 스프린트도 같은 sticky 계열이라
+// 한쪽만 기록하면 재제출 경로에서 조용히 값을 잃는다.
+const REQUIRED_KEYS = [
+  "projectKey",
+  "issueTypeId",
+  "siteId",
+  "sprintId",
+  "sprintName",
+] as const;
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), "utf8");
 }
 
-// `setLastSubmitFields("jira", { … })`의 객체 리터럴 본문만 잘라낸다.
-function lastSubmitPayload(src: string): string {
-  const start = src.indexOf('setLastSubmitFields("jira", {');
-  expect(start, "setLastSubmitFields(\"jira\", …) 호출을 못 찾았다").toBeGreaterThan(-1);
+// 지목한 호출에 딸린 객체 리터럴 본문만 잘라낸다.
+function objectLiteralAfter(src: string, marker: string): string {
+  const start = src.indexOf(marker);
+  expect(start, `${marker} 호출을 못 찾았다`).toBeGreaterThan(-1);
   const open = src.indexOf("{", start);
   let depth = 0;
   for (let i = open; i < src.length; i++) {
@@ -32,6 +39,10 @@ function lastSubmitPayload(src: string): string {
     else if (src[i] === "}" && --depth === 0) return src.slice(open + 1, i);
   }
   throw new Error("payload 리터럴이 닫히지 않았다");
+}
+
+function lastSubmitPayload(src: string): string {
+  return objectLiteralAfter(src, 'setLastSubmitFields("jira", {');
 }
 
 describe("Jira 제출 진입점 대칭", () => {
@@ -47,6 +58,13 @@ describe("Jira 제출 진입점 대칭", () => {
   it("두 진입점이 같은 키 집합을 기록한다", () => {
     const [a, b] = ENTRY_POINTS.map((p) => keysOf(lastSubmitPayload(source(p))));
     expect(a).toEqual(b);
+  });
+
+  // 기록만 하고 제출에 안 실으면 다음 다이얼로그엔 남는데 이번 이슈엔 안 붙는다.
+  it.each(ENTRY_POINTS)("%s의 submitToJira 호출이 sprintId를 싣는다", (path) => {
+    expect(objectLiteralAfter(source(path), "submitToJira({")).toMatch(
+      /\bsprintId\b/,
+    );
   });
 
   // 제출 payload와 lastSubmitFields 둘 다 계정 설정이 아니라 유효 프로젝트를 써야 한다.

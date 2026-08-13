@@ -60,14 +60,22 @@ function projectTrigger() {
   return screen.getByTestId("jira-project-combobox");
 }
 
+// 스프린트 판정은 다이얼로그를 열 때마다 선제로 나간다 — 기본은 "필드 없음"이라
+// 기존 시나리오의 화면 구성이 바뀌지 않는다.
+function defaultRoutes(req: { type: string; projectKey?: string }) {
+  if (req.type === "jira.listProjects") return Promise.resolve(PROJECTS);
+  if (req.type === "jira.listIssueTypes")
+    return Promise.resolve(req.projectKey === "API" ? API_TYPES : WEB_TYPES);
+  if (req.type === "jira.sprintFieldMeta") return Promise.resolve(null);
+  if (req.type === "jira.listSprints")
+    return Promise.resolve({ sprints: [], multiBoard: false });
+  if (req.type === "jira.getSprint") return Promise.resolve(null);
+  return Promise.resolve([]);
+}
+
 beforeEach(() => {
   sendBg.mockReset();
-  sendBg.mockImplementation((req: { type: string; projectKey?: string }) => {
-    if (req.type === "jira.listProjects") return Promise.resolve(PROJECTS);
-    if (req.type === "jira.listIssueTypes")
-      return Promise.resolve(req.projectKey === "API" ? API_TYPES : WEB_TYPES);
-    return Promise.resolve([]);
-  });
+  sendBg.mockImplementation(defaultRoutes);
 });
 
 describe("JiraIssueFields — 프로젝트 기본값 백필", () => {
@@ -210,6 +218,33 @@ describe("JiraIssueFields — 프로젝트 전환", () => {
     await waitFor(() => expect(screen.getByText("create.parentEpic")).toBeTruthy());
   });
 
+  it("프로젝트를 바꾸면 스프린트도 비운다", async () => {
+    const user = userEvent.setup();
+    const onPatch = vi.fn();
+    render(
+      <Harness
+        onPatch={onPatch}
+        initial={{
+          projectKey: "WEB",
+          issueTypeId: "10001",
+          sprintId: 42,
+          sprintName: "Sprint 24",
+        }}
+      />,
+    );
+
+    await user.click(projectTrigger());
+    await user.click(await screen.findByText("API Service"));
+
+    expect(onPatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectKey: "API",
+        sprintId: undefined,
+        sprintName: undefined,
+      }),
+    );
+  });
+
   it("같은 프로젝트를 다시 골라도 입력이 날아가지 않는다", async () => {
     const user = userEvent.setup();
     render(
@@ -223,5 +258,248 @@ describe("JiraIssueFields — 프로젝트 전환", () => {
 
     await waitFor(() => expect(projectTrigger().textContent).toContain("Web App (WEB)"));
     expect(screen.getByText("김철수")).toBeTruthy();
+  });
+});
+
+// ── 스프린트 행 ───────────────────────────────────────────────────────────
+// 판정 캐시가 모듈 스코프(useSprintFieldMeta)라 케이스끼리 (projectKey, issueTypeId)가 겹치면
+// 서로를 오염시킨다 — 케이스마다 다른 projectKey를 쓴다.
+
+const SPRINT_META = { fieldId: "customfield_10020", isArray: true };
+
+function rowLabels(): string[] {
+  return Array.from(document.querySelectorAll("label")).map(
+    (el) => el.textContent ?? "",
+  );
+}
+
+function sprintTrigger() {
+  return screen.queryByTestId("jira-sprint-combobox");
+}
+
+// meta·getSprint만 갈아끼우고 나머지는 기본 라우트를 그대로 쓴다.
+function routeSprint(overrides: {
+  meta?: unknown | (() => Promise<unknown>);
+  sprint?: unknown | (() => Promise<unknown>);
+}) {
+  sendBg.mockImplementation((req: { type: string; projectKey?: string }) => {
+    if (req.type === "jira.sprintFieldMeta" && overrides.meta !== undefined)
+      return typeof overrides.meta === "function"
+        ? (overrides.meta as () => Promise<unknown>)()
+        : Promise.resolve(overrides.meta);
+    if (req.type === "jira.getSprint" && overrides.sprint !== undefined)
+      return typeof overrides.sprint === "function"
+        ? (overrides.sprint as () => Promise<unknown>)()
+        : Promise.resolve(overrides.sprint);
+    return defaultRoutes(req);
+  });
+}
+
+describe("JiraIssueFields — 스프린트 행 노출", () => {
+  it("판정이 필드 있음이면 이슈타입 바로 아래에 스프린트 행이 온다", async () => {
+    routeSprint({ meta: SPRINT_META });
+    render(<Harness initial={{ projectKey: "SP1", issueTypeId: "10001" }} />);
+
+    await waitFor(() => expect(sprintTrigger()).not.toBeNull());
+    const order = rowLabels();
+    expect(order.indexOf("create.sprint")).toBe(
+      order.indexOf("create.issueType") + 1,
+    );
+  });
+
+  // 칸반·보드 미연결·에픽 타입은 열거하지 않는다 — createmeta가 "없다"고 답하면 그게 전부다.
+  it("판정이 필드 없음이면 스프린트 행이 아예 없다", async () => {
+    routeSprint({ meta: null });
+    render(<Harness initial={{ projectKey: "SP2", issueTypeId: "10001" }} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("jira-issue-type-combobox")).toBeTruthy(),
+    );
+    expect(sprintTrigger()).toBeNull();
+    expect(rowLabels()).not.toContain("create.sprint");
+  });
+
+  // 자리를 예약하지 않으면 판정이 끝나는 순간 아래 5개 행이 한 칸씩 밀린다.
+  it("판정 중에는 로딩을 그리고 아래 행들의 순서는 판정 전후로 같다", async () => {
+    let release: ((v: unknown) => void) | undefined;
+    routeSprint({
+      meta: () => new Promise((resolve) => { release = resolve; }),
+    });
+    render(<Harness initial={{ projectKey: "SP3", issueTypeId: "10001" }} />);
+
+    await waitFor(() => expect(screen.getByText("common.loading")).toBeTruthy());
+    const during = rowLabels().filter((l) => l !== "create.sprint");
+
+    release?.(SPRINT_META);
+
+    await waitFor(() => expect(sprintTrigger()).not.toBeNull());
+    expect(rowLabels().filter((l) => l !== "create.sprint")).toEqual(during);
+  });
+});
+
+describe("JiraIssueFields — 스프린트 값 정리·검증", () => {
+  it("판정이 필드 없음이면 남아 있던 스프린트 값을 비운다", async () => {
+    routeSprint({ meta: null });
+    const onPatch = vi.fn();
+    render(
+      <Harness
+        onPatch={onPatch}
+        initial={{
+          projectKey: "SP4",
+          issueTypeId: "10001",
+          sprintId: 42,
+          sprintName: "Sprint 24",
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(onPatch).toHaveBeenCalledWith({
+        sprintId: undefined,
+        sprintName: undefined,
+      }),
+    );
+  });
+
+  // 비우기와 검증이 같은 sprintId에 쓰기를 하므로 meta가 null이면 검증은 아예 돌지 않아야 한다.
+  it("판정이 필드 없음이면 sprintId가 있어도 검증을 요청하지 않는다", async () => {
+    routeSprint({ meta: null });
+    render(
+      <Harness
+        initial={{
+          projectKey: "SP5",
+          issueTypeId: "10001",
+          sprintId: 42,
+          sprintName: "Sprint 24",
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("jira-issue-type-combobox")).toBeTruthy(),
+    );
+    expect(
+      sendBg.mock.calls.some(
+        (c) => (c[0] as { type: string }).type === "jira.getSprint",
+      ),
+    ).toBe(false);
+  });
+
+  it("복원된 스프린트가 없으면 검증을 요청하지 않는다", async () => {
+    routeSprint({ meta: SPRINT_META });
+    render(<Harness initial={{ projectKey: "SP6", issueTypeId: "10001" }} />);
+
+    await waitFor(() => expect(sprintTrigger()).not.toBeNull());
+    expect(
+      sendBg.mock.calls.some(
+        (c) => (c[0] as { type: string }).type === "jira.getSprint",
+      ),
+    ).toBe(false);
+  });
+
+  // 저장된 이름을 먼저 보여주면 무효 판정에서 "골라놨던 게 사라졌다"로 읽힌다 —
+  // placeholder → 값 방향으로만 움직인다.
+  it("검증이 끝나기 전에는 저장된 스프린트 이름을 트리거에 보여주지 않는다", async () => {
+    let release: ((v: unknown) => void) | undefined;
+    routeSprint({
+      meta: SPRINT_META,
+      sprint: () => new Promise((resolve) => { release = resolve; }),
+    });
+    render(
+      <Harness
+        initial={{
+          projectKey: "SP7",
+          issueTypeId: "10001",
+          sprintId: 42,
+          sprintName: "Sprint 24",
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(sprintTrigger()).not.toBeNull());
+    expect(sprintTrigger()!.textContent).not.toContain("Sprint 24");
+
+    release?.({ id: 42, name: "Sprint 24", state: "active", boardId: 1 });
+
+    await waitFor(() =>
+      expect(sprintTrigger()!.textContent).toContain("Sprint 24"),
+    );
+  });
+
+  it("검증에서 닫힌 스프린트로 판명되면 값을 비운다", async () => {
+    routeSprint({
+      meta: SPRINT_META,
+      sprint: { id: 42, name: "Sprint 24", state: "closed", boardId: 1 },
+    });
+    const onPatch = vi.fn();
+    render(
+      <Harness
+        onPatch={onPatch}
+        initial={{
+          projectKey: "SP8",
+          issueTypeId: "10001",
+          sprintId: 42,
+          sprintName: "Sprint 24",
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(onPatch).toHaveBeenCalledWith({
+        sprintId: undefined,
+        sprintName: undefined,
+      }),
+    );
+  });
+
+  // S4: 이슈타입을 왕복하면 비우기가 한 번 돌고 다시 필드가 생긴다. 이때 값이 되살아나면
+  // 사용자가 안 고른 스프린트로 제출된다.
+  it("이슈타입을 왕복해도 비워진 스프린트 값이 되살아나지 않는다", async () => {
+    const user = userEvent.setup();
+    sendBg.mockImplementation((req: {
+      type: string;
+      projectKey?: string;
+      issueTypeId?: string;
+    }) => {
+      if (req.type === "jira.listIssueTypes")
+        return Promise.resolve([
+          { id: "10001", name: "Bug" },
+          { id: "10009", name: "Epic", hierarchyLevel: 1 },
+        ]);
+      if (req.type === "jira.sprintFieldMeta")
+        return Promise.resolve(req.issueTypeId === "10001" ? SPRINT_META : null);
+      if (req.type === "jira.getSprint")
+        return Promise.resolve({
+          id: 42,
+          name: "Sprint 24",
+          state: "active",
+          boardId: 1,
+        });
+      return defaultRoutes(req);
+    });
+    render(
+      <Harness
+        initial={{
+          projectKey: "SP9",
+          issueTypeId: "10001",
+          sprintId: 42,
+          sprintName: "Sprint 24",
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(sprintTrigger()!.textContent).toContain("Sprint 24"),
+    );
+
+    await user.click(screen.getByTestId("jira-issue-type-combobox"));
+    await user.click(await screen.findByRole("option", { name: /Epic/ }));
+    await waitFor(() => expect(sprintTrigger()).toBeNull());
+
+    await user.click(screen.getByTestId("jira-issue-type-combobox"));
+    await user.click(await screen.findByRole("option", { name: /Bug/ }));
+
+    await waitFor(() => expect(sprintTrigger()).not.toBeNull());
+    expect(sprintTrigger()!.textContent).not.toContain("Sprint 24");
   });
 });
