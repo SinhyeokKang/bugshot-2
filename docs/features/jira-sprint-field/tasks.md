@@ -164,9 +164,9 @@
   - **privacy 대조** — 신규 외부 엔드포인트가 트리거다(`.claude/commands/push.md`). 결론이 "무변경"이어도 **판단을 기록**한다: 새 수집·저장이 없고 기존 자격증명으로 같은 목적의 호출이며 §3 표가 `api.atlassian.com`을 이미 덮는다. 갱신하게 되면 ko/en 본문 + 상단 시행일을 함께 bump.
   - **가이드** — 아래 §가이드 영향.
 - **검증**:
-  - [ ] `docs/DIRECTORY.md`에서 신규 파일 3개와 순수 파서가 검색된다
-  - [ ] privacy 판정이 문서 또는 커밋 메시지에 남았다
-  - [ ] `pnpm sync:agents:check` 통과(문서 변경이 미러에 영향 없음 확인)
+  - [x] `docs/DIRECTORY.md`에서 신규 파일 3개와 순수 파서가 검색된다
+  - [x] privacy 판정이 문서 또는 커밋 메시지에 남았다
+  - [x] `pnpm sync:agents:check` 통과(문서 변경이 미러에 영향 없음 확인)
 
 ---
 
