@@ -198,14 +198,15 @@ const OVERLAY_CSS = `
     border: 1px solid var(--border);
     flex: 0 0 auto;
   }
-  @media (prefers-color-scheme: dark) {
-    .picker-label[data-mode="inspector"] {
-      /* 다크는 neutral(채도 0) — DESIGN §2. globals.css .dark 실값. */
-      --popover: hsl(0 0% 3.9%);
-      --popover-foreground: hsl(0 0% 98%);
-      --muted-foreground: hsl(0 0% 63.9%);
-      --border: hsl(0 0% 14.9%);
-    }
+  /* OS 선호가 아니라 앱 theme 설정을 따른다(picker.start가 data-theme으로 실어온다).
+     미설정 = 라이트라 위 기본 블록이 그대로 남는다. 다크는 neutral(채도 0) — DESIGN §2,
+     globals.css .dark 실값. 이 블록은 라이트 블록보다 뒤에 있어야 한다(tokens.test.ts의
+     parseOverlayTokens가 이 셀렉터로 영역을 가른다). */
+  .picker-label[data-theme="dark"][data-mode="inspector"] {
+    --popover: hsl(0 0% 3.9%);
+    --popover-foreground: hsl(0 0% 98%);
+    --muted-foreground: hsl(0 0% 63.9%);
+    --border: hsl(0 0% 14.9%);
   }
   .box-label {
     font: 10px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -362,7 +363,9 @@ export function createOverlay(): OverlayHandle {
   svg.appendChild(paddingEl);
 
   const gapEl = document.createElementNS(SVG_NS, "path");
-  gapEl.setAttribute("fill", "rgba(236, 72, 153, 0.3)");
+  // violet-500 — gap 라벨(.box-label-gap #7c3aed)과 계열을 맞춘다. margin은 amber, padding은
+  // green으로 채움·라벨이 이미 짝인데 gap만 분홍이라 3축 중 하나가 라벨과 갈려 있었다.
+  gapEl.setAttribute("fill", "rgba(139, 92, 246, 0.3)");
   gapEl.style.display = "none";
   svg.appendChild(gapEl);
 
@@ -443,6 +446,13 @@ export function updateBanner(h: OverlayHandle): void {
 export function hideBanner(h: OverlayHandle): void {
   const o = h as OverlayInternal;
   o.bannerEl.style.display = "none";
+}
+
+// 인스펙터 카드의 다크 전환은 OS(prefers-color-scheme)가 아니라 사이드패널이 실어보낸 앱
+// theme을 따른다 — 미설정이면 기본 블록(라이트)이 남는다.
+export function setOverlayTheme(h: OverlayHandle, theme: "light" | "dark"): void {
+  const o = h as OverlayInternal;
+  o.labelEl.dataset.theme = theme;
 }
 
 // 스크롤 캡처 동안 blocker의 휠 양보(yieldToScroll)를 끈다 — 페이지가 밀리면 타일이 어긋난다.
@@ -701,6 +711,8 @@ function buildInspectorHtml(info: InspectorInfo): string {
 }
 
 function selectorHtml(info: InspectorInfo): string {
+  // pl-tag/pl-class는 현재 OVERLAY_CSS에 규칙이 없다 — 태그·클래스를 나중에 색으로 구분할
+  // 훅으로 유지한다(지우면 평문이 되어 훅 자체가 사라진다).
   const tag = `<span class="pl-tag">${escapeHtml(info.tag)}</span>`;
   const classes = info.classes
     .map((c) => `<span class="pl-class">.${escapeHtml(c)}</span>`)

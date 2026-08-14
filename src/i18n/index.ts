@@ -51,11 +51,23 @@ function interpolate(
   return text;
 }
 
+// 타입상 도달 불가(TranslationKey는 닫힌 union). 여기 오면 캐스트가 뚫렸다는 뜻이라 개발 중엔
+// 콘솔로 알리고, 프로덕션에선 undefined 렌더/TypeError 대신 키를 노출한다 — 복제 사전
+// (log-viewer/i18n.ts)의 `if (!text) return key`와 실패 모드를 맞춘다.
+function lookup(locale: LocaleMode, key: TranslationKey): string {
+  const text = locales[locale][key];
+  if (text === undefined) {
+    if (import.meta.env.DEV) console.error(`[i18n] missing key: ${key}`);
+    return key;
+  }
+  return text;
+}
+
 export function t(
   key: TranslationKey,
   params?: Record<string, string | number>,
 ): string {
-  return interpolate(locales[currentLocale][key], params);
+  return interpolate(lookup(currentLocale, key), params);
 }
 
 export type TranslationFn = (
@@ -66,5 +78,6 @@ export type TranslationFn = (
 export function useT(): TranslationFn {
   const locale = useSettingsUiStore((s) => s.locale);
   if (locale !== currentLocale) currentLocale = locale;
-  return (key, params) => interpolate(locales[locale][key], params);
+  // t()와 같은 lookup을 탄다 — 두 경로가 갈리면 훅 경유 호출만 폴백이 없다.
+  return (key, params) => interpolate(lookup(locale, key), params);
 }

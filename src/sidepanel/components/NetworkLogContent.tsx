@@ -8,7 +8,8 @@ import { networkLogPath } from "@/lib/network-log-path";
 import { isStatusHidden, isNetworkError, isNetworkPending } from "@/lib/network-status";
 import { isMaskedHeaderValue } from "@/lib/masked-header";
 import { requestMatchesQuery } from "@/lib/network-search";
-import { networkMethodTextClass, TONE_BG } from "@/lib/log-colors";
+import { networkMethodTextClass, TONE_BG, TONE_BG_HOVER, TONE_BG_STRONG, TONE_DOT } from "@/lib/log-colors";
+import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/sidepanel/lib/useDebouncedValue";
 import { JsonTreeViewer } from "./JsonTreeViewer";
 import { HighlightedText } from "./HighlightedText";
@@ -69,17 +70,10 @@ const isError = isNetworkError;
 const isPending = isNetworkPending;
 
 function rowBg(req: NetworkRequest, active: boolean): string {
-  if (isError(req)) {
-    return active
-      ? "bg-red-200 dark:bg-red-950/70"
-      : `${TONE_BG.red} hover:bg-red-200/70 dark:hover:bg-red-950/70`;
-  }
-  if (isPending(req)) {
-    return active
-      ? "bg-amber-200 dark:bg-amber-950/70"
-      : `${TONE_BG.amber} hover:bg-amber-200/70 dark:hover:bg-amber-950/70`;
-  }
-  return active ? "bg-accent" : "hover:bg-accent/50";
+  // neutral 행만 log-colors 축이 아니다 — 톤이 없는 행의 선택 표현은 shadcn 관용구(accent)다.
+  const tone = isError(req) ? "red" : isPending(req) ? "amber" : null;
+  if (!tone) return active ? "bg-accent" : "hover:bg-accent/50";
+  return active ? TONE_BG_STRONG[tone] : `${TONE_BG[tone]} ${TONE_BG_HOVER[tone]}`;
 }
 
 function classifyRequest(req: NetworkRequest): Exclude<RequestFilter, "all"> {
@@ -518,9 +512,10 @@ function HeadersPanel({ req, query }: { req: NetworkRequest; query: string }) {
           <dt className="text-muted-foreground">{t("networkLog.detail.status")}</dt>
           <dd className="flex flex-col gap-0.5" data-testid="network-status-value">
             <span className="flex items-center gap-1">
-              <span className={`inline-block h-2.5 w-2.5 rounded-full ${
-                isPending(req) ? "bg-amber-500" : isError(req) ? "bg-red-500" : "bg-green-500"
-              }`} />
+              <span className={cn(
+                "inline-block h-2.5 w-2.5 rounded-full",
+                isPending(req) ? TONE_DOT.amber : isError(req) ? TONE_DOT.red : TONE_DOT.green,
+              )} />
               {isPending(req)
                 ? t("networkLog.display.pending")
                 : isStatusHidden(req)
@@ -653,11 +648,15 @@ function MessagesPanel({
               key={d}
               size="sm"
               variant="outline"
-              className={`shrink-0 h-7 px-2.5 text-[13px] font-normal${dir === d ? " bg-muted hover:bg-muted hover:brightness-95" : ""}`}
+              className={cn(
+                "shrink-0 h-7 px-2.5 text-[13px] font-normal",
+                dir === d && "bg-muted hover:bg-muted hover:brightness-95",
+              )}
               onClick={() => setDir(d)}
               data-testid="ws-dir-filter"
               data-dir={d}
               data-active={dir === d || undefined}
+              aria-pressed={dir === d}
             >
               {dirLabel[d]}
             </Button>

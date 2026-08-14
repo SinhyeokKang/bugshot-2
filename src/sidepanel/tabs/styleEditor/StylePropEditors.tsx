@@ -183,23 +183,26 @@ function LinkToggle({
 }) {
   const t = useT();
   return (
-    <button
+    <Button
       type="button"
+      size="icon"
+      variant="outline"
       onClick={onToggle}
       aria-pressed={linked}
       className={cn(
-        "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-foreground transition-colors",
-        linked ? "border-foreground bg-foreground text-background hover:bg-foreground/80" : "hover:bg-muted",
+        // h-9 w-9는 size="icon" 기본값과 같지만 남긴다 — 인접 Input(h-9)에 높이를 맞춘
+        // 컨트롤임을 코드가 말하게(DESIGN §10의 두 사이즈 중 어느 쪽인지).
+        // hover:text-background: on 상태의 어두운 면 위에서 base의 hover:text-accent-foreground가
+        // 이기면 아이콘이 사라진다.
+        "h-9 w-9 shrink-0",
+        linked &&
+          "border-foreground bg-foreground text-background hover:bg-foreground/80 hover:text-background",
       )}
       title={linked ? t("prop.editIndividual") : t("prop.editTogether")}
       aria-label={linked ? t("prop.editIndividual") : t("prop.editTogether")}
     >
-      {linked ? (
-        <Link className="h-3.5 w-3.5" />
-      ) : (
-        <Unlink className="h-3.5 w-3.5" />
-      )}
-    </button>
+      {linked ? <Link /> : <Unlink />}
+    </Button>
   );
 }
 

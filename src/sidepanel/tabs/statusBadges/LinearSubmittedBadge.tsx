@@ -82,7 +82,7 @@ export function LinearSubmittedBadge({
   }
   const stateType = status.state.type;
   const colors = LINEAR_STATE_TYPE_COLORS[stateType] ?? STATUS_CATEGORY_COLORS.new;
-  const i18nKey = LINEAR_STATE_I18N[stateType] as Parameters<typeof t>[0] | undefined;
+  const i18nKey = LINEAR_STATE_I18N[stateType];
   const label = i18nKey ? t(i18nKey) : status.state.name;
   return (
     <Badge

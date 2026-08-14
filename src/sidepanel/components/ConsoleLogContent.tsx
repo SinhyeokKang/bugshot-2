@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
 import { OriginFilterBar } from "./OriginFilterBar";
 import { findActiveIndex } from "@/log-viewer/timeline";
-import { consoleLevelTextClass, consoleLevelBgClass } from "@/lib/log-colors";
+import { consoleLevelTextClass, consoleLevelBgClass, consoleLevelBgStrongClass } from "@/lib/log-colors";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { InlineLink } from "./InlineLink";
@@ -33,15 +33,6 @@ interface ConsoleLogContentProps {
   // 선택 모드(삽입 다이얼로그 전용, optional). 미공급 시 기존 표시 전용 동작.
   selectedId?: string | null;
   onActiveChange?: (id: string) => void;
-}
-
-function levelCodeBg(level: ConsoleLevel): string {
-  switch (level) {
-    case "error": return "bg-red-200 dark:bg-red-950/70";
-    case "warn": return "bg-amber-200 dark:bg-amber-950/70";
-    case "info": return "bg-blue-200 dark:bg-blue-950/70";
-    default: return "bg-muted";
-  }
 }
 
 export function LevelIcon({ level }: { level: ConsoleLevel }) {
@@ -247,7 +238,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
         // base 있을 때 82px = px-2.5(10) + LogSeekChip w-8(32) + gap-3(12) + LevelIcon(16) + gap-3(12).
         // 없을 때 pl-10(40) ≈ 아이콘 뒤 38px.
         <div className={`space-y-2 pb-3 pr-3 pt-1 text-xs ${base != null ? "pl-[82px]" : "pl-10"}`}>
-          <pre className={`max-h-[300px] overflow-auto rounded p-2 font-mono text-mono whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
+          <pre className={`max-h-[300px] overflow-auto rounded p-2 font-mono text-mono whitespace-pre-wrap break-all ${consoleLevelBgStrongClass(entry.level)}`}>
             <LinkifiedText text={entry.args} />
           </pre>
           {entry.stack && (
@@ -255,7 +246,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
               <div className="mb-1 text-xs font-medium">
                 {t("consoleLog.detail.stackTrace")}
               </div>
-              <pre data-testid="console-stack" className={`max-h-[200px] overflow-auto rounded p-2 font-mono text-mono whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
+              <pre data-testid="console-stack" className={`max-h-[200px] overflow-auto rounded p-2 font-mono text-mono whitespace-pre-wrap break-all ${consoleLevelBgStrongClass(entry.level)}`}>
                 <LinkifiedText text={entry.stack} />
               </pre>
             </div>

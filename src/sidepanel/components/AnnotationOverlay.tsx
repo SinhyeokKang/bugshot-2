@@ -664,6 +664,7 @@ export default function AnnotationOverlay({
       {editing ? (
         <textarea
           ref={(el) => el?.focus()}
+          aria-label={t("annotation.textInput")}
           value={editing.value}
           onChange={(e) => setEditing({ ...editing, value: e.target.value })}
           onBlur={commitText}

@@ -1,8 +1,10 @@
 import { classifyTabSupport } from "@/lib/url-support";
 import { pageKeyOf } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
+import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { onPickerPermissionExpired, onPickerUnavailable } from "@/types/messages";
 import { isActiveTabPermissionError } from "./lib/capture-error";
+import { resolveDark } from "./lib/resolveDark";
 import { sameCaptureBasis } from "./lib/capture-basis";
 import type {
   DescribeChildrenResponse,
@@ -128,6 +130,16 @@ async function sendAll<R = void>(
   }
 }
 
+// 페이지 오버레이는 CSS 변수를 못 받아 OS 선호만 보면 앱 설정과 갈린다 — picker.start를
+// 보내는 3곳이 전부 같은 값을 싣도록 여기 한 벌로 둔다.
+function currentTheme(): "light" | "dark" {
+  const dark = resolveDark(
+    useSettingsUiStore.getState().theme,
+    window.matchMedia("(prefers-color-scheme: dark)").matches,
+  );
+  return dark ? "dark" : "light";
+}
+
 // picking 세션의 PRESENT 등록 token — 커밋된 iframe에 picker.start를 재전송할 때 같은
 // token을 실어야 top registry 검증을 통과한다(tabSentinels와 동형의 탭별 보유).
 const tabFrameTokens = new Map<number, string>();
@@ -226,6 +238,7 @@ export async function startPicker(tabId: number): Promise<void> {
     await chrome.tabs.sendMessage<PickerMessage>(tabId, {
       type: "picker.start",
       frameToken: newFrameToken(tabId),
+      theme: currentTheme(),
     });
   } catch (err) {
     if (err instanceof PickerUnavailableError) {
@@ -294,7 +307,7 @@ export async function restartPickerInFrame(
     if (tabFrameTokens.get(tabId) !== frameToken) return;
     const res = await send<{ ok?: boolean }>(
       tabId,
-      { type: "picker.start", frameToken },
+      { type: "picker.start", frameToken, theme: currentTheme() },
       frameId,
     );
     if (res?.ok) return;
@@ -632,6 +645,7 @@ export async function startElementShot(tabId: number): Promise<void> {
     await chrome.tabs.sendMessage<PickerMessage>(tabId, {
       type: "picker.start",
       frameToken: newFrameToken(tabId),
+      theme: currentTheme(),
     });
   } catch (err) {
     if (err instanceof PickerUnavailableError) {

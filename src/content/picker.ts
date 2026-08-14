@@ -37,6 +37,7 @@ import {
 import { buildStableSelector, reuseStableSelector } from "./element-locator";
 import {
   createOverlay,
+  setOverlayTheme,
   destroyOverlay,
   HOST_ID,
   renderOutline,
@@ -211,7 +212,7 @@ function handlePickerMessage(
   try {
     switch (msg.type) {
       case "picker.start":
-        handleStart(msg.frameToken);
+        handleStart(msg.frameToken, msg.theme);
         break;
       case "picker.stop":
         handleStop();
@@ -588,10 +589,15 @@ function handleEndCapture(cleanupOnly: boolean): void {
   }
 }
 
-function handleStart(frameToken?: string): void {
+// 사이드패널이 picker.start로 실어보낸 앱 theme. overlay는 handleStart 말고도 rebind 복귀·
+// area-select 경로에서 재생성되므로, 인자로만 넘기면 그 두 경로가 theme을 잃는다.
+let pickerTheme: "light" | "dark" = "light";
+
+function handleStart(frameToken?: string, theme?: "light" | "dark"): void {
   // 사이드패널이 chrome 경로로 broadcast한 token — top은 PRESENT 등록 검증에, 자식은
   // announce에 쓴다(무인증 postMessage 위조 등록 차단).
   setFrameToken(frameToken ?? null);
+  pickerTheme = theme ?? "light";
   activePickerSessionId = frameToken ?? null;
   selectionDetachedNotified = false;
   // iframe이면 부모 registry에 등록 — 부모 blocker가 이 프레임 위에서 핸드오프한다.
@@ -600,6 +606,9 @@ function handleStart(frameToken?: string): void {
     removeOrphanOverlay();
     overlay = createOverlay();
   }
+  // 생성 시점이 아니라 매 start마다 적용한다 — handleStop은 overlay를 destroy하지 않으므로
+  // (destroy는 handleClear뿐) 살아있는 overlay로 두 번째 start가 오면 옛 theme이 남는다.
+  setOverlayTheme(overlay, pickerTheme);
   // 누적 프리뷰: 이전 element 변경은 유지(복원 안 함). 변경 없는 현재 element만 정리.
   leaveCurrent();
   selectedEl = null;
@@ -1227,6 +1236,7 @@ function handleSelectByPath(selector: string): { found: boolean } {
   if (!overlay) {
     removeOrphanOverlay();
     overlay = createOverlay();
+    setOverlayTheme(overlay, pickerTheme);
     // handleClear가 null화하고 지나간 뒤라 handleStart의 4단(등록·observer·load·priming)을
     // 여기서 다시 세운다 — 등록만 되살리면 inspectorCache가 다음 시트 변경까지 옛 값을 준다.
     setOnCacheReloaded(scheduleInspectorRefresh);
@@ -1266,6 +1276,7 @@ function handleStartAreaSelect(restoreAfter?: boolean): void {
   if (!overlay) {
     removeOrphanOverlay();
     overlay = createOverlay();
+    setOverlayTheme(overlay, pickerTheme);
   }
   hideOutline(overlay);
   hideBanner(overlay);

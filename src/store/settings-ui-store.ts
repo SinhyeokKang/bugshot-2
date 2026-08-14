@@ -88,16 +88,16 @@ export function normalizeSections(sections: IssueSection[]): IssueSection[] {
 }
 
 export function sectionLabelKey(id: IssueSectionId): TranslationKey {
-  return `section.${id}` as TranslationKey;
+  return `section.${id}`;
 }
 export function sectionMdLabelKey(id: IssueSectionId): TranslationKey {
-  return `md.section.${id}` as TranslationKey;
+  return `md.section.${id}`;
 }
 export function sectionPlaceholderKey(id: TextSectionId): TranslationKey {
-  return `draft.${id}Placeholder` as TranslationKey;
+  return `draft.${id}Placeholder`;
 }
 export function sectionHelpKey(id: TextSectionId): TranslationKey {
-  return `section.${id}.help` as TranslationKey;
+  return `section.${id}.help`;
 }
 
 export interface LlmConfig {

@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  CornerLeftUp,
-  CornerRightDown,
-} from "lucide-react";
+import { CornerLeftUp, CornerRightDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useT } from "@/i18n";
@@ -19,6 +14,7 @@ import { formatElementName, visibleClasses } from "@/lib/element-label";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
 import type { TreeNode } from "@/types/picker";
+import { TreeChevronButton } from "@/sidepanel/components/TreeChevronButton";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useBufferThenSwitch } from "@/sidepanel/hooks/useBufferThenSwitch";
 import {
@@ -264,21 +260,14 @@ function DomTreeNode({
         onClick={() => onSelect(node.selector)}
       >
         {node.childCount > 0 ? (
-          <button
-            type="button"
-            onClick={(e) => {
+          <TreeChevronButton
+            open={isOpen}
+            label={isOpen ? t("dom.collapse") : t("dom.expand")}
+            onToggle={(e) => {
               e.stopPropagation();
               void onToggle(node);
             }}
-            className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/15"
-            aria-label={isOpen ? t("dom.collapse") : t("dom.expand")}
-          >
-            {isOpen ? (
-              <ChevronDown className="h-3 w-3" />
-            ) : (
-              <ChevronRight className="h-3 w-3" />
-            )}
-          </button>
+          />
         ) : (
           <span className="inline-block h-4 w-4 shrink-0" />
         )}

@@ -105,6 +105,9 @@ export function buildMarkers(
     switch (e.kind) {
       case "click": {
         const name = e.target ?? e.selector ?? "";
+        // role은 DOM role 속성이라 열린 집합이다(암묵 role은 button·link 둘뿐이고 나머지는
+        // 페이지가 준 explicit role). 미등재 role은 raw 키를 노출하지 않고 단어를 생략한다 —
+        // 의도된 동작이라 전량 등재로 사전을 부풀리지 않는다.
         const roleKey = e.role ? `actionLog.role.${e.role}` : "";
         const rw = roleKey ? t(roleKey) : "";
         const target = rw && rw !== roleKey ? `"${name}" ${rw}` : `"${name}"`;
