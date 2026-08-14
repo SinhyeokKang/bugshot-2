@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-08-15 — `toEqual`을 엄격함의 최대치로 골라놓고, 그게 무엇을 배제하는지는 안 물었다
+
+- **영역**: `어댑터`, `lib`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 제출 인자 매핑 어댑터의 유닛 테스트 21케이스가 전부 green인데, **그중 9개가 자기가 지킨다고 이름 붙인 실패 모드를 못 잡고 있었다.** ① `*LastSubmitFields` 8케이스 중 7개는 어댑터 본문을 `(f) => ({ ...f })`로 통째 접어도 green이다 — 그 함수의 존재 이유가 "화이트리스트"인데. ② `requireMediaUpload` pass-through는 3경로 중 2개를 상수 `false`로 바꿔도 green이다 — Slack 승격 시 원본 유실을 막는 가드의 배선인데. 둘 다 **뮤테이션을 넣어보고서야** 드러났고, 그전까지는 `toEqual`(정확 일치)을 썼다는 사실이 엄밀함의 증거처럼 읽혔다.
+- **근본 원인**: 메커니즘이 둘인데 뿌리는 하나다. ① **fixture의 키 집합이 출력 키 집합과 정확히 같으면 화이트리스트 검증은 항등식이 된다.** 화이트리스트가 막겠다는 건 "입력에 목록 밖 키가 있을 때 그게 안 새는 것"인데 fixture에 그 키가 없으니 그 상황이 **재현조차 안 된다**. 타입도 안 도와준다 — 변수 전달이라 excess property check가 안 걸린다(이 배치가 사흘 전 기록한 바로 그 항목). ② **`toEqual`은 값이 `undefined`인 키를 무시한다.** 그래서 "이 플랫폼엔 이 키가 없어야 한다"를 `toEqual`로는 못 고정하고, `x ?? false`류 pass-through도 **기대값이 `false`인 케이스만 있으면** 상수 `false`와 구별되지 않는다. 공통 뿌리: `toEqual`이 `toMatchObject`보다 강하다는 건 맞고 그 근거를 커밋 메시지에 길게 적기까지 했는데, **"그래서 이 단언이 배제하는 입력이 무엇인가"를 한 번도 안 물었다.** 강한 도구를 골랐다는 사실이 그 질문을 대신해버렸다.
+- **재발 방지**: (1) **매핑·필터 함수의 fixture에는 "통과하면 안 되는 입력"을 반드시 섞는다** — 화이트리스트면 목록 밖 키를, 블랙리스트면 목록 안 키를. 판정법: fixture 키 집합과 기대 출력 키 집합이 **같으면 그 테스트는 항등식**이다. 전수 대상은 "입력을 골라 담는" 함수 전부 — `grep -rn "LastSubmitFields\|Args(" src/sidepanel/lib/__tests__/`. (2) **`toEqual`로는 "키가 없어야 한다"를 못 고정한다** — 값이 `undefined`인 키를 무시하므로 `expect("k" in obj).toBe(false)`를 따로 쓴다. (3) **pass-through 인자는 기본값 케이스만 두면 상수와 구별되지 않는다** — `input.x ?? false` 형태는 **`true`를 넣어 `true`가 나오는** 케이스가 있어야 고정된다. 전수: `grep -rn "?? false\|?? true" src/sidepanel/lib/`. (4) **판별자는 뮤테이션뿐이다** — 새 테스트에 "이걸 막는다"는 이름표를 붙이기 전에 그 형태를 실제로 주입해 red를 본다. 이 배치에서만 세 번째 사례다.
+- **관련**: `src/sidepanel/lib/submitAdapters.ts`(`*LastSubmitFields` 8종 화이트리스트 · `MediaGuard` pass-through 3종), 그물 `src/sidepanel/lib/__tests__/submitAdapters.test.ts`(fixture에 `UI_ONLY` 키 주입 + `requireMediaUpload: true` pass-through 3경로 + 키 부재 축 describe), 계획 `docs/features/audit-refactor-6/tasks.md`(G3 — 검증 항목에 "뮤테이션으로 비공허성 확인"을 추가했다). 계열 선행: **2026-08-14**(골든 스냅샷에 `inline:`이 0회라 공허 — 같은 *그물이 그 축을 안 덮는다* 축) · **2026-07-31**(다단 게이트의 앞 항이 잘라서 뒤 항 단언이 공허) · **2026-08-14**(excess property check가 스프레드·변수 전달에서 사라진다 — 이번 ①의 타입 쪽 절반).
+
+---
+
 ## 2026-08-14 — 중복을 이름으로 세면 매번 모자란다: 한 배치에서 네 번 틀렸고, 마지막 한 번은 그 교훈을 문서에 박은 직후였다
 
 - **영역**: `어댑터`, `lib`
