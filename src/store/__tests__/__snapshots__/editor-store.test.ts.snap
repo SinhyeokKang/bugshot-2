@@ -1,0 +1,329 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷 > element × 로그 attach — saveDraft 인자 스냅샷 1`] = `
+{
+  "apiHostsDerived": "api.example.com",
+  "bufferedElements": undefined,
+  "createdAt": 1763000000000,
+  "draft": {
+    "sections": {
+      "description": "본문",
+    },
+    "title": "Bug title",
+  },
+  "frameId": 2,
+  "id": "issue-fixed",
+  "pageTitle": "Test",
+  "pageUrl": "https://example.com",
+  "platform": "github",
+  "selectionSnapshot": {
+    "capturedAt": 1700000000000,
+    "classList": [
+      "title",
+    ],
+    "computedStyles": {
+      "color": "rgb(255,0,0)",
+    },
+    "specifiedStyles": {
+      "color": "red",
+    },
+    "text": "제목",
+    "viewport": {
+      "height": 900,
+      "width": 1440,
+    },
+  },
+  "selector": "#title",
+  "snapshot": {
+    "after": false,
+    "before": true,
+  },
+  "status": "draft",
+  "styleEdits": {
+    "classList": [
+      "title",
+    ],
+    "inlineStyle": {
+      "color": "blue",
+    },
+    "text": "제목",
+  },
+  "tagName": "h1",
+  "title": "Bug title",
+  "tokensSnapshot": [
+    {
+      "name": "--brand",
+      "value": "#123456",
+    },
+  ],
+  "updatedAt": 1763000000000,
+  "viewport": {
+    "height": 900,
+    "width": 1440,
+  },
+}
+`;
+
+exports[`confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷 > element × 로그 미attach — saveDraft 인자 스냅샷 1`] = `
+{
+  "apiHostsDerived": "api.example.com",
+  "bufferedElements": undefined,
+  "createdAt": 1763000000000,
+  "draft": {
+    "sections": {
+      "description": "본문",
+    },
+    "title": "Bug title",
+  },
+  "frameId": 2,
+  "id": "issue-fixed",
+  "pageTitle": "Test",
+  "pageUrl": "https://example.com",
+  "platform": "github",
+  "selectionSnapshot": {
+    "capturedAt": 1700000000000,
+    "classList": [
+      "title",
+    ],
+    "computedStyles": {
+      "color": "rgb(255,0,0)",
+    },
+    "specifiedStyles": {
+      "color": "red",
+    },
+    "text": "제목",
+    "viewport": {
+      "height": 900,
+      "width": 1440,
+    },
+  },
+  "selector": "#title",
+  "snapshot": {
+    "after": false,
+    "before": true,
+  },
+  "status": "draft",
+  "styleEdits": {
+    "classList": [
+      "title",
+    ],
+    "inlineStyle": {
+      "color": "blue",
+    },
+    "text": "제목",
+  },
+  "tagName": "h1",
+  "title": "Bug title",
+  "tokensSnapshot": [
+    {
+      "name": "--brand",
+      "value": "#123456",
+    },
+  ],
+  "updatedAt": 1763000000000,
+  "viewport": {
+    "height": 900,
+    "width": 1440,
+  },
+}
+`;
+
+exports[`confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷 > freeform × 로그 attach — saveDraft 인자 스냅샷 1`] = `
+{
+  "actionLogBlobKey": "issue-fixed",
+  "apiHostsDerived": "api.example.com",
+  "captureMode": "freeform",
+  "consoleLogBlobKey": "issue-fixed",
+  "createdAt": 1763000000000,
+  "draft": {
+    "sections": {
+      "description": "본문",
+    },
+    "title": "Bug title",
+  },
+  "id": "issue-fixed",
+  "networkLogBlobKey": "issue-fixed",
+  "pageTitle": "Test",
+  "pageUrl": "https://example.com",
+  "platform": "github",
+  "snapshot": {
+    "after": false,
+    "before": false,
+  },
+  "status": "draft",
+  "title": "Bug title",
+  "updatedAt": 1763000000000,
+  "viewport": {
+    "height": 768,
+    "width": 1024,
+  },
+}
+`;
+
+exports[`confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷 > freeform × 로그 미attach — saveDraft 인자 스냅샷 1`] = `
+{
+  "actionLogBlobKey": undefined,
+  "apiHostsDerived": "api.example.com",
+  "captureMode": "freeform",
+  "consoleLogBlobKey": undefined,
+  "createdAt": 1763000000000,
+  "draft": {
+    "sections": {
+      "description": "본문",
+    },
+    "title": "Bug title",
+  },
+  "id": "issue-fixed",
+  "networkLogBlobKey": undefined,
+  "pageTitle": "Test",
+  "pageUrl": "https://example.com",
+  "platform": "github",
+  "snapshot": {
+    "after": false,
+    "before": false,
+  },
+  "status": "draft",
+  "title": "Bug title",
+  "updatedAt": 1763000000000,
+  "viewport": {
+    "height": 768,
+    "width": 1024,
+  },
+}
+`;
+
+exports[`confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷 > screenshot × 로그 attach — saveDraft 인자 스냅샷 1`] = `
+{
+  "actionLogBlobKey": "issue-fixed",
+  "apiHostsDerived": "api.example.com",
+  "captureMode": "screenshot",
+  "consoleLogBlobKey": "issue-fixed",
+  "createdAt": 1763000000000,
+  "draft": {
+    "sections": {
+      "description": "본문",
+    },
+    "title": "Bug title",
+  },
+  "id": "issue-fixed",
+  "networkLogBlobKey": "issue-fixed",
+  "pageTitle": "Test",
+  "pageUrl": "https://example.com",
+  "platform": "github",
+  "selector": "button.cta",
+  "snapshot": {
+    "after": false,
+    "before": true,
+  },
+  "status": "draft",
+  "tagName": "button",
+  "title": "Bug title",
+  "updatedAt": 1763000000000,
+  "viewport": {
+    "height": 600,
+    "width": 800,
+  },
+}
+`;
+
+exports[`confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷 > screenshot × 로그 미attach — saveDraft 인자 스냅샷 1`] = `
+{
+  "actionLogBlobKey": undefined,
+  "apiHostsDerived": "api.example.com",
+  "captureMode": "screenshot",
+  "consoleLogBlobKey": undefined,
+  "createdAt": 1763000000000,
+  "draft": {
+    "sections": {
+      "description": "본문",
+    },
+    "title": "Bug title",
+  },
+  "id": "issue-fixed",
+  "networkLogBlobKey": undefined,
+  "pageTitle": "Test",
+  "pageUrl": "https://example.com",
+  "platform": "github",
+  "selector": "button.cta",
+  "snapshot": {
+    "after": false,
+    "before": true,
+  },
+  "status": "draft",
+  "tagName": "button",
+  "title": "Bug title",
+  "updatedAt": 1763000000000,
+  "viewport": {
+    "height": 600,
+    "width": 800,
+  },
+}
+`;
+
+exports[`confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷 > video × 로그 attach — saveDraft 인자 스냅샷 1`] = `
+{
+  "actionLogBlobKey": "issue-fixed",
+  "apiHostsDerived": "api.example.com",
+  "captureMode": "video",
+  "consoleLogBlobKey": "issue-fixed",
+  "createdAt": 1763000000000,
+  "draft": {
+    "sections": {
+      "description": "본문",
+    },
+    "title": "Bug title",
+  },
+  "id": "issue-fixed",
+  "networkLogBlobKey": "issue-fixed",
+  "pageTitle": "Test",
+  "pageUrl": "https://example.com",
+  "platform": "github",
+  "snapshot": {
+    "after": false,
+    "before": true,
+  },
+  "status": "draft",
+  "title": "Bug title",
+  "updatedAt": 1763000000000,
+  "videoEndedAt": 5000,
+  "videoStartedAt": 1000,
+  "viewport": {
+    "height": 720,
+    "width": 1280,
+  },
+}
+`;
+
+exports[`confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷 > video × 로그 미attach — saveDraft 인자 스냅샷 1`] = `
+{
+  "actionLogBlobKey": undefined,
+  "apiHostsDerived": "api.example.com",
+  "captureMode": "video",
+  "consoleLogBlobKey": undefined,
+  "createdAt": 1763000000000,
+  "draft": {
+    "sections": {
+      "description": "본문",
+    },
+    "title": "Bug title",
+  },
+  "id": "issue-fixed",
+  "networkLogBlobKey": undefined,
+  "pageTitle": "Test",
+  "pageUrl": "https://example.com",
+  "platform": "github",
+  "snapshot": {
+    "after": false,
+    "before": true,
+  },
+  "status": "draft",
+  "title": "Bug title",
+  "updatedAt": 1763000000000,
+  "videoEndedAt": 5000,
+  "videoStartedAt": 1000,
+  "viewport": {
+    "height": 720,
+    "width": 1280,
+  },
+}
+`;

@@ -3015,3 +3015,184 @@ describe("confirmDraft — apiHostsDerived 4개 분기 기록", () => {
     expect(record.apiHostsDerived).toBeNull();
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  confirmDraft — 4 captureMode 레코드 스냅샷 (G0-4 / R9)               */
+/* ------------------------------------------------------------------ */
+
+// audit-refactor-6 G7이 공통 필드를 baseDraftRecord로 뽑기 전에 박는 그물이다.
+// 리팩터 후 스냅샷이 달라지면 스냅샷을 갱신하는 게 아니라 리팩터가 틀린 것이다(prd.md R9).
+describe("confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷", () => {
+  // saveDraft는 병합이라 "키 없음 = 기존값 유지", "값이 undefined = 덮어써서 비움"으로 갈린다
+  // (POSTMORTEM 2026-08-13). 그래서 공통 필드는 값이 아니라 키 존재로도 단언한다.
+  const COMMON_KEYS = [
+    "id",
+    "status",
+    "platform",
+    "title",
+    "createdAt",
+    "updatedAt",
+    "pageUrl",
+    "pageTitle",
+    "draft",
+    "apiHostsDerived",
+  ] as const;
+
+  const NOW = 1_763_000_000_000;
+  const FIXED_ID = "issue-fixed";
+
+  const logsOn = {
+    networkLog: fakeNetworkLog,
+    consoleLog: fakeConsoleLog,
+    actionLog: fakeActionLog,
+    logsAttach: true,
+  };
+  const logsOff = { ...logsOn, logsAttach: false };
+
+  function selection() {
+    return {
+      selector: "#title",
+      tagName: "h1",
+      frameId: 2,
+      classList: ["title"],
+      specifiedStyles: { color: "red" },
+      computedStyles: { color: "rgb(255,0,0)" },
+      propSources: {},
+      hasParent: true,
+      hasChild: false,
+      text: "제목",
+      viewport: { width: 1440, height: 900 },
+      capturedAt: 1700000000000,
+    };
+  }
+
+  // captureMode별 고유 상태. 공통 상태(target·draft·platform·currentIssueId·apiHostsDerived)는
+  // setup이 얹는다 — 분기 간 차이가 "고유 필드뿐"임을 스냅샷이 드러내야 하므로.
+  const MODE_STATE: Record<string, Record<string, unknown>> = {
+    freeform: {
+      captureMode: "freeform",
+      freeformViewport: { width: 1024, height: 768 },
+    },
+    video: {
+      captureMode: "video",
+      videoViewport: { width: 1280, height: 720 },
+      videoStartedAt: 1000,
+      videoEndedAt: 5000,
+      videoThumbnail: "data:image/png;base64,thumb",
+    },
+    screenshot: {
+      captureMode: "screenshot",
+      screenshotRaw: "data:image/png;base64,shot",
+      screenshotViewport: { width: 800, height: 600 },
+      shotSelector: { selector: "button.cta", tagName: "button" },
+    },
+    element: {
+      captureMode: "element",
+      selection: selection(),
+      styleEdits: { classList: ["title"], inlineStyle: { color: "blue" }, text: "제목" },
+      beforeImage: "data:image/png;base64,before",
+      tokens: [{ name: "--brand", value: "#123456" }],
+    },
+  };
+
+  function setup(mode: string, logs: Record<string, unknown>) {
+    useEditorStore.setState({
+      phase: "drafting" as const,
+      targetPlatform: "github" as const,
+      target,
+      currentIssueId: FIXED_ID,
+      draft: { title: "Bug title", sections: { description: "본문" } },
+      apiHostsDerived: "api.example.com",
+      ...logs,
+      ...MODE_STATE[mode],
+    } as never);
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    mockSaveDraft.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const MODES = ["freeform", "video", "screenshot", "element"] as const;
+
+  for (const mode of MODES) {
+    for (const [logLabel, logs] of [["로그 attach", logsOn], ["로그 미attach", logsOff]] as const) {
+      it(`${mode} × ${logLabel} — saveDraft 인자 스냅샷`, () => {
+        setup(mode, logs);
+
+        useEditorStore.getState().confirmDraft();
+
+        expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+        expect(mockSaveDraft.mock.calls[0][0]).toMatchSnapshot();
+      });
+    }
+  }
+
+  it.each(MODES)("%s 분기가 공통 필드 10개를 전부 싣는다", (mode) => {
+    setup(mode, logsOn);
+
+    useEditorStore.getState().confirmDraft();
+
+    const record = mockSaveDraft.mock.calls[0][0];
+    for (const key of COMMON_KEYS) {
+      expect(Object.keys(record)).toContain(key);
+    }
+    expect(record.id).toBe(FIXED_ID);
+    expect(record.status).toBe("draft");
+    expect(record.platform).toBe("github");
+    expect(record.createdAt).toBe(NOW);
+    expect(record.updatedAt).toBe(NOW);
+    expect(record.apiHostsDerived).toBe("api.example.com");
+  });
+
+  // element는 로그를 안 붙인다(tasks.md Task 7-1 정정 — persistAttachedLogs는 3분기 공통).
+  // 공통화하면서 blobKey 3종을 base로 올리면 element 레코드에 `undefined` 값 키가 생기고,
+  // saveDraft 병합에서 그건 "기존 blobKey를 지운다"가 된다 — 키 존재로 단언하는 이유.
+  it("element 분기는 logsAttach여도 로그 blobKey 키 자체가 없다", () => {
+    setup("element", logsOn);
+
+    useEditorStore.getState().confirmDraft();
+
+    const keys = Object.keys(mockSaveDraft.mock.calls[0][0]);
+    expect(keys).not.toContain("networkLogBlobKey");
+    expect(keys).not.toContain("consoleLogBlobKey");
+    expect(keys).not.toContain("actionLogBlobKey");
+  });
+
+  it.each(["freeform", "video", "screenshot"] as const)(
+    "%s 분기는 logsAttach일 때 로그 blobKey 3종을 id로 채운다",
+    (mode) => {
+      setup(mode, logsOn);
+
+      useEditorStore.getState().confirmDraft();
+
+      const record = mockSaveDraft.mock.calls[0][0];
+      expect(record.networkLogBlobKey).toBe(FIXED_ID);
+      expect(record.consoleLogBlobKey).toBe(FIXED_ID);
+      expect(record.actionLogBlobKey).toBe(FIXED_ID);
+    },
+  );
+
+  it.each(["freeform", "video", "screenshot"] as const)(
+    "%s 분기는 미attach일 때 로그 blobKey 키를 undefined로 명시한다",
+    (mode) => {
+      setup(mode, logsOff);
+
+      useEditorStore.getState().confirmDraft();
+
+      const record = mockSaveDraft.mock.calls[0][0];
+      const keys = Object.keys(record);
+      // 키를 빼면 saveDraft 병합이 직전 세션 blobKey를 되살린다 — 값 undefined로 남아야 한다.
+      expect(keys).toContain("networkLogBlobKey");
+      expect(record.networkLogBlobKey).toBeUndefined();
+      expect(record.consoleLogBlobKey).toBeUndefined();
+      expect(record.actionLogBlobKey).toBeUndefined();
+    },
+  );
+});
