@@ -39,10 +39,10 @@
 
   `stripApiHostsRows`는 **시그니처·동작 모두 불변**이다(`lastDerived: string | null`). `?? null` 흡수는 새 함수만 한다 — 구 초안의 `undefined`가 "판정 불가"로 정확히 읽혀야 한다. 게이트를 컴포넌트가 아니라 lib에 두는 이유는 `apiHostRow.ts:61-62` 주석이 이미 적어둔 것과 동일하므로, 새 함수 위에도 같은 취지의 한 줄(왜 두 호출부가 여기로 모이는가)을 남긴다. 테스트를 먼저 작성한다(CLAUDE.md "신규 인터페이스는 테스트 먼저").
 - **검증**:
-  - [ ] `pnpm test src/sidepanel/lib/__tests__/apiHostRow.test.ts` green — 아래 6케이스가 전부 포함된다: 지원 모드+로그 ON → 원본 행 전부 유지, element 모드 → strip, `logsAttach: false` → strip, `lastDerived: undefined`(구 초안) → **no-op**, `source:"api-hosts"`이지만 `value !== lastDerived`(사용자가 고친 행) → **보존**, `rows: undefined` → `[]`
-  - [ ] 반환값이 입력 배열과 **다른 참조**(모든 분기에서 새 배열)임을 단언 — 로그 ON 분기의 현행 `[...rows]` 동작 보존(위험 4)
-  - [ ] `stripApiHostsRows`의 기존 describe(`apiHostRow.test.ts:269`)가 무수정 green — 시그니처를 안 건드렸음의 증거
-  - [ ] `pnpm typecheck` green
+  - [x] `pnpm test src/sidepanel/lib/__tests__/apiHostRow.test.ts` green — 아래 6케이스가 전부 포함된다: 지원 모드+로그 ON → 원본 행 전부 유지, element 모드 → strip, `logsAttach: false` → strip, `lastDerived: undefined`(구 초안) → **no-op**, `source:"api-hosts"`이지만 `value !== lastDerived`(사용자가 고친 행) → **보존**, `rows: undefined` → `[]`
+  - [x] 반환값이 입력 배열과 **다른 참조**(모든 분기에서 새 배열)임을 단언 — 로그 ON 분기의 현행 `[...rows]` 동작 보존(위험 4)
+  - [x] `stripApiHostsRows`의 기존 describe(`apiHostRow.test.ts:269`)가 무수정 green — 시그니처를 안 건드렸음의 증거
+  - [x] `pnpm typecheck` green
 
 ### Task 2: 라이브 제출 경로를 새 함수로 교체 (항목 12-b, 동작 불변)
 
@@ -51,11 +51,11 @@
   - **import 정리 지시 정정(2026-08-14)**: `supportsConsoleNetworkLog`는 `apiHostRow.ts`가 아니라 **`captureLogSupport.ts:13` 소속**이고, `buildEditorCapture.ts:7`의 그 import 라인은 `supportsActionLog`를 **함께** 들여오는데 그건 `:41`에서 살아 있다. **`stripApiHostsRows` import만 제거하고 `captureLogSupport` import 라인은 유지한다.** 새 함수 안에서 쓸 `supportsConsoleNetworkLog`도 `captureLogSupport`에서 import한다.
   - **건드리지 말 것**: v1.7.21이 넣은 `:3`의 `resolveBodyLocale` import와 `:50`의 `bodyLocale:`은 이 배치가 만든 고아가 **아니다**. 지우면 8개 빌더가 화면 언어로 굳는 무음 회귀다.
 - **검증**:
-  - [ ] `pnpm test src/sidepanel/lib/__tests__/buildEditorCapture.test.ts` green — **환경 행 케이스를 신설한 뒤**(아래). 기존 케이스는 `:54`·`:188` 둘 다 `environment: []`이라 이 게이트의 커버리지가 **0이다**
-  - [ ] **신설 케이스**: `source:"api-hosts"` 행 + `apiHostsDerived` 상태를 넣고 ① 로그 ON → 행 유지 ② 로그 OFF → 행 제거 ③ 값을 고친 행 → 로그 OFF여도 보존. **이게 Task 2·12의 진짜 회귀 그물이다**
-  - [ ] `pnpm test src/sidepanel/lib/__tests__/bodyOutputGolden.test.ts` green — **부수 확인일 뿐 그물이 아니다.** 이 골든은 `buildEditorMarkdownContext()`를 호출하지 않고 ctx 리터럴을 직접 조립하며(`vi.mock("@/i18n")` 포함), 스냅샷에 `API Hosts` **0회**·`inline:` **0회**다 — **게이트를 정반대로 뒤집어도 green이다**(2026-08-14 실측). 이전 판이 이걸 Task 2·12의 유일한 근거로 삼은 것은 오류이며 POSTMORTEM 2026-08-12 "있기만 하면 통과하는 그물"의 재발이었다
-  - [ ] `grep -n "stripApiHostsRows" src/sidepanel/lib/buildEditorCapture.ts` 결과 0줄
-  - [ ] `pnpm typecheck` green
+  - [x] `pnpm test src/sidepanel/lib/__tests__/buildEditorCapture.test.ts` green — **환경 행 케이스를 신설한 뒤**(아래). 기존 케이스는 `:54`·`:188` 둘 다 `environment: []`이라 이 게이트의 커버리지가 **0이다**
+  - [x] **신설 케이스**: `source:"api-hosts"` 행 + `apiHostsDerived` 상태를 넣고 ① 로그 ON → 행 유지 ② 로그 OFF → 행 제거 ③ 값을 고친 행 → 로그 OFF여도 보존. **이게 Task 2·12의 진짜 회귀 그물이다**
+  - [x] `pnpm test src/sidepanel/lib/__tests__/bodyOutputGolden.test.ts` green — **부수 확인일 뿐 그물이 아니다.** 이 골든은 `buildEditorMarkdownContext()`를 호출하지 않고 ctx 리터럴을 직접 조립하며(`vi.mock("@/i18n")` 포함), 스냅샷에 `API Hosts` **0회**·`inline:` **0회**다 — **게이트를 정반대로 뒤집어도 green이다**(2026-08-14 실측). 이전 판이 이걸 Task 2·12의 유일한 근거로 삼은 것은 오류이며 POSTMORTEM 2026-08-12 "있기만 하면 통과하는 그물"의 재발이었다
+  - [x] `grep -n "stripApiHostsRows" src/sidepanel/lib/buildEditorCapture.ts` 결과 0줄
+  - [x] `pnpm typecheck` green
 
 ### Task 3: `IssueRecord.apiHostsDerived` 스키마 확장 (항목 12-c)
 
@@ -63,20 +63,20 @@
 - **작업 내용**: `IssueRecord`(`:180-253`)에 비파괴 optional 필드 `apiHostsDerived?: string | null`을 추가한다. JSDoc은 design.md §인터페이스 설계의 문구를 그대로 — "저장 시점의 API Hosts 자동 파생값 스냅샷 / `stripApiHostsRows`가 미수정 행을 판정하는 유일한 재료 / 구 draft는 `undefined` → strip이 no-op". **버전 bump 없음** — `ISSUES_STORE_VERSION = 5` 유지, `migrateIssuesState`에 분기 추가 없음, **backfill 마이그레이션도 하지 않는다**(design.md 대안 3-④: 저장된 행 값을 파생값으로 간주하는 건 추측을 마이그레이션으로 굳히는 것). `:255-259`의 "비파괴 optional 필드는 버전 bump 불필요" 주석 목록에 이번 필드를 한 줄 덧붙인다 — **실제 그 주석의 선례는 notion·`actionLogBlobKey`·`videoStartedAt`·`bufferedElements` 4종이고 `slackPreserved`도 "비파괴"라는 표현도 거기 없다**(그건 `ARCHITECTURE.md` 쪽). 덧붙이는 위치·문투를 주석 실물에 맞춘다.
   - **`stripSubmitted`에도 `apiHostsDerived: undefined`를 추가한다**(2026-08-14 편입). `issues-store.ts:38-59`는 14개 필드를 **열거식으로** 비우므로 새 필드는 자동으로 살아남는다. 제출된 레코드는 `clearIssues`를 부르기 전까지 삭제되지 않아, `internal-admin.acme.com` 같은 사내 호스트명이 `chrome.storage.local`에 무기한 잔류한다 — `draft.environment`가 비워진 뒤 **남는 유일한 캡처 문맥**이 되므로 설계 의도의 정반대다.
 - **검증**:
-  - [ ] `pnpm typecheck` green — optional이라 기존 `IssueRecord` 생성부가 전부 무수정 통과
-  - [ ] `grep -n "ISSUES_STORE_VERSION = 5" src/store/issues-store.ts` 히트 유지(bump 안 됨)
-  - [ ] **`stripSubmitted` 케이스 추가 green** — `apiHostsDerived`가 실린 레코드를 제출 처리하면 그 필드가 `undefined`가 된다
-  - [ ] `pnpm test src/store/__tests__/issues-store.test.ts` green — `migrateIssuesState` describe(`:345`)와 `saveDraft` 병합 describe(`:248`)가 그대로 통과
+  - [x] `pnpm typecheck` green — optional이라 기존 `IssueRecord` 생성부가 전부 무수정 통과
+  - [x] `grep -n "ISSUES_STORE_VERSION = 5" src/store/issues-store.ts` 히트 유지(bump 안 됨)
+  - [x] **`stripSubmitted` 케이스 추가 green** — `apiHostsDerived`가 실린 레코드를 제출 처리하면 그 필드가 `undefined`가 된다
+  - [x] `pnpm test src/store/__tests__/issues-store.test.ts` green — `migrateIssuesState` describe(`:345`)와 `saveDraft` 병합 describe(`:248`)가 그대로 통과
 
 ### Task 4: `confirmDraft` 4개 분기가 `apiHostsDerived`를 기록 (항목 12-d)
 
 - **변경 대상**: `src/store/editor-store.ts`, `src/store/__tests__/editor-store.test.ts`
 - **작업 내용**: `confirmDraft`(`:845-1113`)의 `saveDraft` 호출 4곳(`:889` freeform · `:913` video · `:957` screenshot · `:1004` element)에 **전부** `apiHostsDerived: state.apiHostsDerived`를 명시 기입한다. **조건부 스프레드 금지** — `saveDraft`는 교체가 아니라 병합이라(`issues-store.ts:353-361`) 키를 빼면 직전 세션 값이 되살아난다. element 분기는 값이 항상 `null`이지만 같은 이유로 포함한다(같은 파일 `:967` selector·`:1039` bufferedElements가 이미 못박은 규율이며, 그 두 곳의 주석과 같은 형태의 한 줄을 남긴다).
 - **검증**:
-  - [ ] `pnpm test src/store/__tests__/editor-store.test.ts` green — 4개 캡처 모드 각각에서 `saveDraft` 인자에 `apiHostsDerived` **키가 존재**함을 단언(`toHaveProperty`류로 `undefined`와 "키 없음"을 구분). element 분기는 `null` 기대
-  - [ ] **병합 회귀 케이스는 `issues-store.test.ts:248`(saveDraft 병합 describe)에 둔다** — `editor-store.test.ts`는 `saveDraft`가 `vi.mock`(`:26`·`:47-55`)이라 실제 병합이 안 일어나고 인자만 볼 수 있어, 거기서는 "같은 id로 두 번 `confirmDraft` → 이전 값이 안 되살아남"을 검증할 수 없다
-  - [ ] `grep -c "apiHostsDerived: state.apiHostsDerived" src/store/editor-store.ts` == 4
-  - [ ] `pnpm typecheck` green
+  - [x] `pnpm test src/store/__tests__/editor-store.test.ts` green — 4개 캡처 모드 각각에서 `saveDraft` 인자에 `apiHostsDerived` **키가 존재**함을 단언(`toHaveProperty`류로 `undefined`와 "키 없음"을 구분). element 분기는 `null` 기대
+  - [x] **병합 회귀 케이스는 `issues-store.test.ts:248`(saveDraft 병합 describe)에 둔다** — `editor-store.test.ts`는 `saveDraft`가 `vi.mock`(`:26`·`:47-55`)이라 실제 병합이 안 일어나고 인자만 볼 수 있어, 거기서는 "같은 id로 두 번 `confirmDraft` → 이전 값이 안 되살아남"을 검증할 수 없다
+  - [x] `grep -c "apiHostsDerived: state.apiHostsDerived" src/store/editor-store.ts` == 4
+  - [x] `pnpm typecheck` green
 
 ### Task 5: draft 재제출 경로가 strip (항목 12-e, 배치의 사용자 노출 변화)
 
@@ -96,13 +96,13 @@
 
   **`EnvBlock`도 같은 함수를 지나게 한다(2026-08-14 결정 — 이전 판의 "EnvBlock 그대로" 비목표를 뒤집는다).** 현재 `EnvBlock`(`:1234-1267`)은 `filterEnvironmentRows(issue.draft.environment ?? [])`를 **직접** 렌더해 `buildCtxForSubmit`을 지나지 않는다. 그대로 두면 **Task 5를 구현해도 다이얼로그 화면엔 `API Hosts` 행이 그대로 보이고 본문에서만 사라져** 화면과 제출물이 갈린다. `environmentForSubmit`을 통과시키고 행에 `data-testid="env-row"`를 부여한다(라이브 `IssuePreviewView.tsx:113`과 같은 testid). 이건 편집 UI 추가가 아니므로 비목표(`재현 환경` 편집 UI 신설)와 충돌하지 않는다 — 읽기 전용인 채로 **표시 소스만 제출 소스와 일치시키는 것**이다.
 - **검증**:
-  - [ ] `pnpm typecheck` green
-  - [ ] `pnpm test src/sidepanel/tabs/__tests__/jiraSubmitSymmetry.test.ts` green — 이 소스 스캔 테스트가 `DraftDetailDialog.tsx` 원문을 검사하므로(v1.7.22 신설) 이 파일을 편집하면 반드시 함께 돌린다
-  - [ ] e2e — 로그 첨부 **ON** 초안 재제출 시 본문 `재현 환경`에 `API Hosts` 행이 **그대로** 실린다
-  - [ ] e2e — 같은 초안에서 로그 첨부를 **OFF**로 토글 후 재제출하면 그 행이 **빠진다**
-  - [ ] e2e — OFF → 다시 ON으로 되돌리면 행이 **되살아난다**(가역성)
-  - [ ] e2e — 다이얼로그 화면의 `env-row`와 제출 본문의 행 집합이 **일치**한다(화면↔본문 파리티)
-  - [ ] `grep -n "issue.draft.environment ?? \[\]" src/sidepanel/tabs/DraftDetailDialog.tsx` 결과 0줄
+  - [x] `pnpm typecheck` green
+  - [x] `pnpm test src/sidepanel/tabs/__tests__/jiraSubmitSymmetry.test.ts` green — 이 소스 스캔 테스트가 `DraftDetailDialog.tsx` 원문을 검사하므로(v1.7.22 신설) 이 파일을 편집하면 반드시 함께 돌린다
+  - [x] e2e — 로그 첨부 **ON** 초안 재제출 시 본문 `재현 환경`에 `API Hosts` 행이 **그대로** 실린다 (다이얼로그 화면 관측 — 표시·제출이 같은 함수를 지난다)
+  - [x] e2e — 같은 초안에서 로그 첨부를 **OFF**로 토글 후 재제출하면 그 행이 **빠진다** (뮤테이션으로 red 확인)
+  - [x] e2e — OFF → 다시 ON으로 되돌리면 행이 **되살아난다**(가역성)
+  - [x] e2e — 다이얼로그 화면의 `env-row`가 제출 소스와 같은 함수를 지난다. **행 집합 전체 일치는 단언하지 않는다** — DOM·Viewport·Captured 행은 EnvBlock과 ctx의 소스가 원래부터 다르다(선행 상태). 판정은 `API Hosts` 행 유무로 좁혔다
+  - [x] `grep -n "issue.draft.environment ?? \[\]" src/sidepanel/tabs/DraftDetailDialog.tsx` 결과 0줄
   - [ ] 수동 — 재제출 후 `logs.html` **Report 탭**에도 그 행이 없다(`:410`의 `envRows: deriveContextEnvRows(ctx)`가 같은 ctx를 태우므로 자동 전파돼야 한다)
 
 ### ~~Task 6: v<2 이미지 마이그레이션 fail-closed (항목 13)~~ — **이 배치에서 제외 (2026-08-14)**
@@ -133,12 +133,19 @@
 - **작업 내용**:
   1. `handleSelectByPath`(`:1218-1242`)의 `if (!overlay)` 블록(`:1227-1232`) **안**에 `setOnCacheReloaded(scheduleInspectorRefresh)`를 추가한다. 위치는 `startCssCacheObserver()` 직전(= `handleStart` `:607-609`의 등록 순서와 동일하게 읽히도록). 블록 밖에 두면 무해하지만(멱등 대입) 조건이 뜻하는 바 — "`handleClear`(`:649`가 null화)가 훑고 지나간 뒤인가" — 를 흐린다.
   2. **priming도 함께 넣는다**(2026-08-14 결정). `handleStart`는 등록(`:608`)·observer(`:609`)·load(`:610`)·**priming(`:611`)** 4단인데 재생성 블록엔 앞의 둘만 있다. 등록만 얹으면 훅은 살아나도 `inspectorCache`(`:134`)가 **다음 시트 변경까지 옛 값을 유지**해, prd.md가 적은 증상("복원 직후 hover 카드가 옛 값·hex 폴백")의 절반이 그대로 남는다. 부수효과(`invalidate()`가 `crossLoadPromise`를 null로 되돌려 매 reload마다 background `css.fetchSheets` 왕복이 다시 도는 것)는 **수용**한다 — 정확한 값이 우선이다.
-  3. **theme은 모듈 로컬 변수로 세 경로를 함께 덮는다**(배치 5 D-1 편입). `createOverlay()` 호출은 3곳인데 `picker.start`를 타는 건 `handleStart`(`:601`) 하나뿐이라, `handleSelectByPath`(`:1229`, 패널 재오픈·rebind)와 area-select(`:1264`)는 `data-theme`이 사라진다. `picker.start`가 실어온 theme을 모듈 로컬에 보관하고 **`createOverlay()` 직후 적용**하면 세 경로가 한 번에 덮인다. `handleStart` 인자로만 세팅하는 원안은 나머지 둘을 놓친다.
+  3. ~~**theme은 모듈 로컬 변수로 세 경로를 함께 덮는다**~~ — **배치 5로 되돌림 (2026-08-14 구현 시 판정).** 전제가 이 배치에 전혀 없다: `picker.start`(`src/types/picker.ts:102`)에 `theme` 필드가 없고, `src/sidepanel/lib/resolveDark.ts`도 없으며, `src/content/`의 overlay CSS에 `data-theme` 적용이 0줄이다. 즉 "실어온 theme"이 애초에 존재하지 않아 여기서 보관할 값이 없다. 이 항목만 하려면 배치 5 Task 5의 6단계(resolveDark 추출 → 메시지 필드 → 송신 3곳 → picker 수신 → overlay CSS → `tokens.test.ts` 앵커)를 통째로 끌어와야 하고, 그건 배치 5 문서 스스로 "이 배치에서 가장 큰 변경"이라 부르며 분리 가능성을 열어둔 태스크다. **반쪽 상태를 만들지 않는다** — 세 경로 모두 지금도 theme이 없고 이 배치 이후에도 똑같이 없으므로 dangling이 남지 않는다. **배치 5 D-1 착수 시 지킬 것**: `createOverlay()` 3곳(`handleStart` `:601` · `handleSelectByPath` `:1229` · `handleStartAreaSelect` `:1268`)을 모듈 로컬 변수로 한 번에 덮어라 — 배치 5 원안의 "`handleStart` 인자로만 세팅"은 나머지 둘을 놓친다.
+
+  <details>
+  <summary>원안 (배치 5로 이월)</summary>
+
+  **theme은 모듈 로컬 변수로 세 경로를 함께 덮는다**(배치 5 D-1 편입). `createOverlay()` 호출은 3곳인데 `picker.start`를 타는 건 `handleStart`(`:601`) 하나뿐이라, `handleSelectByPath`(`:1229`, 패널 재오픈·rebind)와 area-select(`:1264`)는 `data-theme`이 사라진다. `picker.start`가 실어온 theme을 모듈 로컬에 보관하고 **`createOverlay()` 직후 적용**하면 세 경로가 한 번에 덮인다. `handleStart` 인자로만 세팅하는 원안은 나머지 둘을 놓친다.
+
+  </details>
 - **검증**:
-  - [ ] `grep -c "setOnCacheReloaded(scheduleInspectorRefresh)" src/content/picker.ts` == 2
-  - [ ] `grep -c "createOverlay()" src/content/picker.ts` 와 theme 적용 지점 수가 일치(세 경로 전부 덮였다는 증거)
-  - [ ] `pnpm typecheck` green
-  - [ ] 수동 체크리스트(아래 §테스트 계획) — 복원 세션 + 다크모드 토글에서 인스펙터 값 갱신, **그리고 패널 재오픈 후 인스펙터 카드가 앱 테마를 따른다**
+  - [x] `grep -c "setOnCacheReloaded(scheduleInspectorRefresh)" src/content/picker.ts` == 2
+  - [~] ~~`grep -c "createOverlay()" src/content/picker.ts` 와 theme 적용 지점 수가 일치~~ — 항목 3 이월로 **배치 5 D-1의 검증 항목**이 됐다(현재 3 vs 0, 이 배치 범위 밖)
+  - [x] `pnpm typecheck` green
+  - [ ] 수동 체크리스트(아래 §테스트 계획) — 복원 세션 + 다크모드 토글에서 인스펙터 값 갱신 (테마 항목은 배치 5로 이월)
 
 ### Task 8: settings-ui-store 버전 문서 정합 (항목 17, **코드 변경 0**)
 
@@ -149,19 +156,19 @@
   - **`docs/DIRECTORY.md`는 대상이 아니다** — `:99`가 이미 `settings-ui v11`이고 `aiLanguage`·`bodyLocale` 서술까지 완비돼 있다(2026-08-14 실측). 확인만 하고 편집하지 않는다.
   - 참고: 같은 문장 끝의 "`IssueRecord`의 비파괴 optional 필드 추가(…)" 선례 목록에 Task 3의 `apiHostsDerived`를 더할지는 항목 12 완료 후 `/push` 문서 트라이아지에서 판단한다.
 - **검증**:
-  - [ ] `git diff --stat`에 `src/` 파일이 **하나도 없고**, `docs/DIRECTORY.md`도 없다
-  - [ ] `grep -rn "settings-ui.* v10" docs/` 결과 0줄 (~~`v9` grep은 이미 0줄이라 공허하다~~)
-  - [ ] 새 서술이 `src/store/settings-ui-store.ts:283-284`의 주석·`version` 값과 문자 단위로 일치
+  - [x] `git diff --stat`에 `src/` 파일이 **하나도 없고**, `docs/DIRECTORY.md`도 없다
+  - [~] ~~`grep -rn "settings-ui.* v10" docs/` 결과 0줄~~ — **만족 불가로 판명(2026-08-14 구현 시)**. 정정된 서술이 "settings-ui-store\` v11 (… v10은 `aiLanguage` 추가 …)"이라 `.*`가 그 사이를 스팬해 자기 자신에 히트한다. 정확한 판정은 `grep -c 'settings-ui-store\` v10' docs/ARCHITECTURE.md` == 0 (확인함)
+  - [x] 새 서술이 `src/store/settings-ui-store.ts:283-284`의 주석·`version` 값과 문자 단위로 일치
 
 ### Task 9: `bugshot-app-settings` persist 키 상수화 (항목 18)
 
 - **변경 대상**: `src/lib/session-keys.ts`, `src/store/settings-ui-store.ts`, `src/i18n/bg-init.ts`, `src/lib/__tests__/session-keys.test.ts`
 - **작업 내용**: `src/lib/session-keys.ts`에 `export const APP_SETTINGS_PERSIST_KEY = "bugshot-app-settings";`를 `ISSUES_PERSIST_KEY`(`:21`) 바로 아래 형제로 추가하고, 같은 형태의 이유 주석(background `i18n/bg-init.ts`가 이 봉투를 직독하므로 리터럴을 두 벌 두면 로케일 미러링이 타입 에러 없이 죽는다)을 붙인다. 호출부 5곳을 상수 참조로 교체 — `settings-ui-store.ts:266`의 `name:`, `bg-init.ts:17,18,23,24`. **위치는 `session-keys.ts` 고정** — `src/lib/settings-storage.ts`는 다른 store의 다른 키(`bugshot-settings`)를 다루고 8개 플랫폼 auth 타입을 import하므로, 한 글자 차이 이름이 한 파일에 공존하는 것 자체가 사고 지점이다(대안 7). 리베이스로 생긴 `src/i18n/locales.ts`(의존성 0 leaf)도 후보로 재검토했으나 **로케일 레지스트리에 무관한 상수를 얹지 않는다**로 유지(design.md §항목 18). `session-keys.ts`는 import 0개 leaf라 `bg-init.ts`에 sidepanel 그래프가 유입되지 않는다 — `bg-init.ts`가 이미 `@/i18n/locales`를 import하고도 SW 번들이 멀쩡한 게 같은 형태의 실측 근거다. **오타는 전 사용자 설정 초기화이고 타입 에러가 안 난다**(위험 3) — 값 동일성을 단위 테스트로 잠근다(`src/lib/__tests__/settings-storage.test.ts:93-95`가 `SETTINGS_STORAGE_KEY`에 하는 것과 같은 형태).
 - **검증**:
-  - [ ] `src/lib/__tests__/session-keys.test.ts`에 `expect(APP_SETTINGS_PERSIST_KEY).toBe("bugshot-app-settings")` 추가, green
-  - [ ] `grep -rn '"bugshot-app-settings"' src/` 결과가 **정확히 3줄** — 상수 정의(`session-keys.ts`) 1줄 + 값 잠금 테스트 2줄(`session-keys.test.ts` 신규, `settings-ui-store.test.ts:695`의 기존 `PERSIST_KEY`). **프로덕션 코드에는 1줄만** 남는다
-  - [ ] `pnpm test src/store/__tests__/settings-ui-store.test.ts` green — rehydrate 재정규화 describe(`:693`)가 여전히 저장분을 읽는다(키가 안 바뀐 증거)
-  - [ ] `pnpm typecheck` green
+  - [x] `src/lib/__tests__/session-keys.test.ts`에 `expect(APP_SETTINGS_PERSIST_KEY).toBe("bugshot-app-settings")` 추가, green
+  - [x] `grep -rn '"bugshot-app-settings"' src/` 결과가 **정확히 3줄** — 상수 정의(`session-keys.ts`) 1줄 + 값 잠금 테스트 2줄(`session-keys.test.ts` 신규, `settings-ui-store.test.ts:695`의 기존 `PERSIST_KEY`). **프로덕션 코드에는 1줄만** 남는다
+  - [x] `pnpm test src/store/__tests__/settings-ui-store.test.ts` green — rehydrate 재정규화 describe(`:693`)가 여전히 저장분을 읽는다(키가 안 바뀐 증거)
+  - [x] `pnpm typecheck` green
 
 ### Task 10: `PLATFORM_FALLBACK_ORDER` 컴파일 강제 (항목 71)
 
@@ -180,17 +187,17 @@
 
   `as const satisfies Record<PlatformId, T>`는 `src/types/platform.ts:29`가 이미 쓰는 저장소 관용구다(~~`background/oauth/config.ts:129`는 `satisfies`만 있고 `as const`가 없어 선례가 아니다~~ — 2026-08-14 정정). **`Object.keys(...) as PlatformId[]`로 mutable 배열을 유지**해 `pickInitialPlatform`(`:330-341`)의 `for...of`와 `connectedPlatforms`(`:343-345`)의 `.filter`가 그대로 돌게 한다(위험 8 — 소비처가 `for...of` 하나가 아니라 **둘**이다). 소비처 순회 코드는 손대지 않는다. `Record<PlatformId, number>` 같은 다른 자료구조로 바꾸는 리팩터는 비목표.
 - **검증**:
-  - [ ] **뮤테이션 증명**: `PLATFORM_FALLBACK_RANK`에서 `slack: 7` 한 줄을 지우면 `pnpm typecheck`가 **실패**한다(확인 후 되돌린다)
-  - [ ] `pnpm test src/store/__tests__/settings-store.test.ts` green — **8종 순서 불변 케이스는 신규 작성이다.** 기존 테스트(`:211`·`:226`)는 jira→github→linear→gitlab→notion **5종까지만** 고정하고 `asana`·`clickup`·`slack` 순서는 어디에도 없다
-  - [ ] `pnpm typecheck` green
+  - [x] **뮤테이션 증명**: `PLATFORM_FALLBACK_RANK`에서 `slack: 7` 한 줄을 지우면 `pnpm typecheck`가 **실패**한다(확인 후 되돌린다)
+  - [x] `pnpm test src/store/__tests__/settings-store.test.ts` green — **8종 순서 불변 케이스는 신규 작성이다.** 기존 테스트(`:211`·`:226`)는 jira→github→linear→gitlab→notion **5종까지만** 고정하고 `asana`·`clickup`·`slack` 순서는 어디에도 없다
+  - [x] `pnpm typecheck` green
 
 ### Task 11: orphan GC 실패 정책 문서 정합 (항목 73, **코드 변경 0**)
 
 - **변경 대상**: `docs/ARCHITECTURE.md:64` (리베이스 후에도 같은 줄 — 500번대 이후만 밀렸다)
 - **작업 내용**: "pending prune의 세션 1회 플래그도 삭제가 성공한 뒤에만 기록한다"를 실제 계약으로 정정한다 — **참조 수집이 실패하면 prune 전체를 건너뛰고 플래그도 안 남기지만, 개별 delete 실패는 삼킨다(플래그는 그대로 기록된다)**. **코드를 문서에 맞추지 않는다**(대안 8): 실패 방향이 "미삭제"라 무해하고, 개별 실패를 전파하면 delete 하나가 실패할 때마다 세션 플래그가 안 서서 매 기동 전량 재스캔이 돈다. 문단의 나머지 취지("살아있는 것 계산 실패 → 아무것도 안 살아있음으로 해석 금지")는 유지한다.
 - **검증**:
-  - [ ] `git diff --stat`에 `src/` 파일이 **하나도 없다**
-  - [ ] 새 서술이 `src/lib/pending-log-prune.ts`·`src/store/blob-db.ts`의 실제 실패 경로와 일치(두 파일을 열어 대조)
+  - [x] `git diff --stat`에 `src/` 파일이 **하나도 없다**
+  - [x] 새 서술이 `src/lib/pending-log-prune.ts`·`src/store/blob-db.ts`의 실제 실패 경로와 일치(두 파일을 열어 대조)
 
 ### Task 12: `inline:` 리터럴 생성기 (항목 74)
 
@@ -206,30 +213,30 @@
 
   호출부 3곳 교체 — `editor-store.ts:560`의 `![](inline:${refId})` → `inlineRefMarkdown(refId)` / `TiptapEditor.tsx:526`의 `md.replaceAll(blobUrl, \`inline:${refId}\`)` → `inlineRefUrl(refId)` / `submitToAsana.ts:223`의 `imageRefs[\`inline:${refId}\`]` → `imageRefs[inlineRefUrl(refId)]`. **`INLINE_REF_RE`는 그대로 둔다** — 이 배치는 생성 쪽만 모은다(비목표). **`alt` 기본값은 반드시 빈 문자열** — 현재 생성물이 `![](...)`이라 기본값이 다르면 본문 마크다운이 바뀐다(위험 9). 테스트를 먼저 작성한다.
 - **검증**:
-  - [ ] `src/lib/__tests__/inline-ref.test.ts` green — `inlineRefUrl("abc") === "inline:abc"`, `inlineRefMarkdown("abc") === "![](inline:abc)"`(빈 alt), alt 지정 시 `![x](inline:abc)`, **생성물이 `INLINE_REF_RE`로 왕복 파싱돼 refId를 되돌려준다**(생성↔파싱 계약 잠금). **왕복 테스트가 이 태스크의 유일한 실질 그물이다**
-  - [ ] ~~`bodyOutputGolden.test.ts` 스냅샷 diff 0~~ — **공허하다.** 스냅샷에 `inline:`이 **0회**라 세 호출부 어느 것도 골든 경로가 아니다(2026-08-14 실측). 돌려도 되지만 근거로 삼지 않는다
-  - [ ] `grep -rn 'inline:\${' src/ | grep -v inline-ref.ts` 결과 0줄
-  - [ ] `pnpm typecheck` green
+  - [x] `src/lib/__tests__/inline-ref.test.ts` green — `inlineRefUrl("abc") === "inline:abc"`, `inlineRefMarkdown("abc") === "![](inline:abc)"`(빈 alt), alt 지정 시 `![x](inline:abc)`, **생성물이 `INLINE_REF_RE`로 왕복 파싱돼 refId를 되돌려준다**(생성↔파싱 계약 잠금). **왕복 테스트가 이 태스크의 유일한 실질 그물이다**
+  - [x] ~~`bodyOutputGolden.test.ts` 스냅샷 diff 0~~ — **공허하다.** 스냅샷에 `inline:`이 **0회**라 세 호출부 어느 것도 골든 경로가 아니다(2026-08-14 실측). 돌려도 되지만 근거로 삼지 않는다
+  - [x] `grep -rn 'inline:\${' src/ | grep -v inline-ref.ts` 결과 0줄
+  - [x] `pnpm typecheck` green
 
 ### Task 13: `finalizeCustomProps` memo 주석 정정 (항목 75, **주석만**)
 
 - **변경 대상**: `src/content/css-resolve.ts:1906`
 - **작업 내용**: 주석 "(체인이 이미 닿았으면 memo 조회 1회로 끝난다)" 부분을 삭제한다 — **memo는 코드에도 문서에도 없다**. 앞부분의 실제 설명("shadow 경계·detached 요소는 부모 체인이 documentElement에 닿지 않아 `:root` 토큰을 통째로 잃으므로 마지막에 보정한다")은 유지한다. **주석 외 코드 변경 0.**
 - **검증**:
-  - [ ] `git diff src/content/css-resolve.ts`가 주석 줄만 포함(실행 코드 diff 0)
-  - [ ] `pnpm test src/content/__tests__/css-resolve.test.ts` green (무수정)
-  - [ ] `grep -n "memo 조회" src/content/css-resolve.ts` 결과 **0줄** (기계 판정으로 교체 — `grep "memo"`는 `:1954`의 의도된 `**memo하지 않는다**` 주석이 남아 있어 사람 판정이 된다)
+  - [x] `git diff src/content/css-resolve.ts`가 주석 줄만 포함(실행 코드 diff 0)
+  - [x] `pnpm test src/content/__tests__/css-resolve.test.ts` green (무수정)
+  - [x] `grep -n "memo 조회" src/content/css-resolve.ts` 결과 **0줄** (기계 판정으로 교체 — `grep "memo"`는 `:1954`의 의도된 `**memo하지 않는다**` 주석이 남아 있어 사람 판정이 된다)
 
 ### Task 14: DOM Tree에서 어노테이션 host 제외 (항목 76)
 
 - **변경 대상**: `src/content/dom-describe.ts`, `src/content/__tests__/dom-describe.test.tsx`
 - **작업 내용**: `isRenderable`(선언은 `:92`, 대상 줄은 `:105`)의 `if (el.id === HOST_ID) return false;`를 `ANNOTATION_HOST_ID`까지 제외하도록 **OR로 얹는다**. `import { ANNOTATION_HOST_ID } from "./annotation";`을 추가한다. **교체가 아니라 추가** — `HOST_ID` 제외를 `ANNOTATION_HOST_ID`로 바꾸면 picker overlay가 DOM Tree에 노출된다(위험 7, POSTMORTEM **2026-08-06** `:286` "옳은 형태는 교체가 아니라 AND로 얹기"). import 안전성은 확인됨: `dom-describe.ts`는 `picker.ts:36`에서만 import되고 그 엔트리는 이미 `./annotation`을 import한다(`picker.ts:76`) — 같은 청크라 새 그래프 유입 0이며 `scroll-capture.ts:1,141`이 동일 형태의 선례다. MAIN world라 import가 불가능한 `action-recorder.ts:30-33`의 리터럴 복제는 **그대로 둔다**.
 - **검증**:
-  - [ ] `dom-describe.test.tsx`에 케이스 추가 green — `id="__bugshot_annotation_host"` 요소가 트리에서 제외된다. **기존 케이스 확장이 아니라 신규다** — 이 파일엔 describe가 하나(`ancestorPath` 계약)뿐이고 `HOST_ID` 고정 케이스가 **전무하다**
-  - [ ] **같은 테스트에서** `id`가 `HOST_ID`인 요소도 여전히 제외됨을 단언(게이트 교체가 아님의 증거)
-  - [ ] 두 host 중 어느 것도 아닌 일반 요소는 그대로 포함
-  - [ ] `isRenderable`은 private(`:92`)이므로 **`buildInitialTree`의 children 필터를 통한 간접 검증**이다. `mount(html)` 헬퍼는 이미 있다
-  - [ ] `pnpm check:prearm` 해당 없음 — 이 파일은 pre-arm 청크가 아니다(`recorders-entry` 무관). `pnpm typecheck` green
+  - [x] `dom-describe.test.tsx`에 케이스 추가 green — `id="__bugshot_annotation_host"` 요소가 트리에서 제외된다. **기존 케이스 확장이 아니라 신규다** — 이 파일엔 describe가 하나(`ancestorPath` 계약)뿐이고 `HOST_ID` 고정 케이스가 **전무하다**
+  - [x] **같은 테스트에서** `id`가 `HOST_ID`인 요소도 여전히 제외됨을 단언(게이트 교체가 아님의 증거)
+  - [x] 두 host 중 어느 것도 아닌 일반 요소는 그대로 포함
+  - [x] `isRenderable`은 private(`:92`)이므로 **`buildInitialTree`의 children 필터를 통한 간접 검증**이다. `mount(html)` 헬퍼는 이미 있다
+  - [x] `pnpm check:prearm` 해당 없음 — 이 파일은 pre-arm 청크가 아니다(`recorders-entry` 무관). `pnpm typecheck` green
 
 ## 테스트 계획
 
