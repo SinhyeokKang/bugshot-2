@@ -95,6 +95,7 @@ vi.mock("@/types/messages", () => ({
 
 import type { ActionLog } from "@/types/action";
 import type { CaptureContext } from "@/types/picker";
+import { onBlobSaveFailed } from "@/types/messages";
 import {
   useEditorStore,
   mergeSelectionStyles,
@@ -554,6 +555,7 @@ describe("confirmDraft screenshot — IIFE 사이드 이펙트", () => {
     mockSaveConsoleLog.mockClear();
     mockDeleteNetworkLog.mockClear();
     mockDeleteConsoleLog.mockClear();
+    vi.mocked(onBlobSaveFailed.fire).mockClear();
   });
 
   function setupScreenshotDrafting(overrides: Record<string, unknown> = {}) {
@@ -614,6 +616,26 @@ describe("confirmDraft screenshot — IIFE 사이드 이펙트", () => {
 
     expect(mockSaveNetworkLog).not.toHaveBeenCalled();
     expect(mockDeleteNetworkLog).not.toHaveBeenCalled();
+  });
+
+  // 영속 꼬리의 순서 계약: 이미지 저장이 실패해도 로그 저장은 그대로 돌고, 실패 보고는 한 번이다.
+  // blob 실패와 logsAttach가 겹치는 조합이 없어서, 두 일을 한 식으로 합치다 단축 평가로
+  // 로그 저장을 건너뛰어도 스위트가 전부 green이던 자리다.
+  it("이미지 저장 실패 + logsAttach → 로그는 저장되고 실패 보고는 1회", async () => {
+    mockSaveImageBlob.mockResolvedValueOnce(false);
+    setupScreenshotDrafting({
+      networkLog: fakeNetworkLog,
+      logsAttach: true,
+    });
+
+    useEditorStore.getState().confirmDraft();
+    await vi.waitFor(() => {
+      expect(onBlobSaveFailed.fire).toHaveBeenCalled();
+    });
+
+    const issueId = mockSaveDraft.mock.calls[0][0].id;
+    expect(mockSaveNetworkLog).toHaveBeenCalledWith(issueId, fakeNetworkLog);
+    expect(onBlobSaveFailed.fire).toHaveBeenCalledTimes(1);
   });
 });
 
