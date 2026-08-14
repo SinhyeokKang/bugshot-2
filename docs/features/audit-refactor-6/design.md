@@ -318,3 +318,60 @@ captureMode별 `confirmFreeform`·`confirmVideo`·`confirmScreenshot`·`confirmE
 - **⚪98** — `element-locator.ts:166`은 테스트 전용 export다. **삭제하면 테스트가 깨진다** — 주석만 붙인다.
 - **커버리지 하락** — G6이 분모를 늘린다. → R11. 이동과 테스트를 같은 PR에.
 - **머지 충돌** — 다른 audit-refactor 배치와 파일이 겹칠 수 있다(특히 배치 5의 UI 항목이 connect 폼·배지를 건드리면 G4·G5와 충돌). → 배치 5가 진행 중이면 G4·G5를 뒤로 미룬다.
+
+---
+
+## 2026-08-14 재검증 편입 사항
+
+`/feature-review`(CTO·QA 2인 + 하위 검증)로 v1.7.23(`34ac3380`) 기준 재검증했다. **이 배치는 세 배치 중 stale에 가장 취약했다** — "이 둘은 중복이다"·"이건 아무도 안 쓴다"는 그 시점 스냅샷이고, 그 사이 v1.7.21~23이 73개 소스 파일을 바꿨기 때문이다.
+
+**집계: 유효 24 / 줄번호만 이동 12 / 사실오류 8 / 삭제금지 재분류 1덩어리(16심볼) / 신규 중복 3 / 이미 해소 0**
+
+### 배치에서 뺀 것
+
+- **G6-1(`useT` 분리, 🟡54)** — log-viewer의 `@/i18n` alias가 **prefix 매칭**이라 `@/i18n/useT`가 `log-viewer/i18n.ts/useT`로 재작성된다(POSTMORTEM 2026-08-11 `:173`에 기록된 함정). `typecheck`·`test`는 전부 green이고 `build:log-viewer`만 깨지는데, 원안 검증 목록에 그게 없었다. design 원문이 "이 배치는 i18n 키를 추가·리네임하지 않으므로 복제 사전은 무관"이라며 이 위험을 기각한 것은 **위험 축을 사전 내용으로 오독**한 결과다(실제 축은 모듈 해석 경로).
+- **항목 59의 `PickerMessage` 좁히기** — `ContentMessage`는 **코드에 존재하지 않는다**(grep 0건). "합집합을 유지해 기존 사용처를 안 건드린다"는 전제가 거짓이고, 실제로는 recorder·annotation 수신부 ~40곳 치환이 붙는다. **⚪111(인라인 `import()` 3곳 → 상단 import)만 남긴다.**
+
+### 재작성한 것
+
+- **Task 9-2** — 16개 심볼 중 **순수 데드는 4개뿐**. (a) 삭제 / (b) `export` 제거 / (c) 유지+주석 세 갈래로 재작성. 이전 목록대로면 "grep 0건일 때만 삭제" 규칙과 목록이 자기모순이라 첫 태스크에서 멈춘다. `types/platform.ts:73` 앵커는 v1.7.23이 넣은 살아있는 `sprintName?`이므로 `:78`·`:100`·`:119`·`:129`로 교체.
+- **G3 어댑터 입력** — `requireMediaUpload?: boolean` 추가. github·notion·gitlab **3개만** 이 가드를 넘기는데 원안의 5필드 입력에 없어, 그대로 구현하면 Slack 승격 경로의 데이터 보호 가드가 무음으로 사라진다.
+- **G4 `FieldRow`** — "새 추상화 0 / prop 1개"가 성립하지 않는다. `labelAction` prop이 추가로 필요하고(7곳이 `justify-between` 형제 `<a>` 보유), 원본 34곳의 컨테이너가 `flex flex-col`인데 `FieldRow`는 `grid`라 클래스가 바뀐다. `htmlFor` 대상도 9 → **10곳**.
+
+### 새로 걸린 그물 (문서에 언급이 0이었다)
+
+두 소스 스캔 테스트가 **확정 red**를 낸다. 둘 다 v1.7.21~22에 신설돼 이 문서보다 나중에 생겼다.
+
+| 테스트 | 무엇을 스캔하나 | 걸리는 태스크 | 대응 |
+|---|---|---|---|
+| `builderLocaleWrap.test.ts:81-88` | `sidepanel/lib` 전체에서 `@/i18n`의 `t`/`dateBcp47`를 import하는 파일이 `WRAPPED`·`EXEMPT`에 있는지 | **G2**(신규 `issueBodyShared.ts`의 `sectionLabel`이 `t` 호출) | `EXEMPT` 등록 + 사유 문자열 |
+| `jiraSubmitSymmetry.test.ts:34` | `IssueCreateModal`·`DraftDetailDialog` **원문**에서 `submitToJira({`·`setLastSubmitFields("jira", {` 리터럴 | **G3**(어댑터로 옮기면 마커 소실) | 스캔 대상을 `submitAdapters.ts`로 교체 + "어댑터 1곳에 5키" 로 축소 |
+
+### 편입한 신규 중복 (v1.7.22·23이 만든 것)
+
+- **D1. `useLazyListOnOpen` 훅이 있는데 같은 open-gated fetch를 손으로 5벌** — `SprintField:30`(v1.7.23) · `IssueTypeField:45` · `PriorityField:26` · `ProjectCombobox:33` · `IssueTypeCombobox:42`. **주의: 그 훅에 로딩 고착 버그가 있다**(`IssueTypeField.tsx:39-43` 주석이 명시). 순수 리팩터가 아니므로 **훅을 먼저 고치고** 이행한다.
+- **D2. `FieldCombobox`가 있는데 Popover+Command 셸을 open-code한 2벌** — `ProjectCombobox`·`IssueTypeCombobox`. v1.7.22가 `ProjectField`로 **세 번째 Jira 프로젝트 피커**를 추가했다. 이 배치의 "이름만 다름" 기준을 통과한다.
+
+### 사실 정정 (판정은 유지, 근거·수치만)
+
+- **항목 47** — `.webp` 하드코딩 "9곳"이 아니라 **10곳 + asana 동적 1곳 = 11곳**. `background/messages.ts`는 `:866`이 아니라 **`:934`**.
+- **항목 46** — 통합 대상이 4개가 아니라 **5개다.** `buildIssueMarkdown.ts:513 emitLogSummaryMd`가 linear/asana판과 **출력이 동일**한 5번째 사본이다(push 배칭만 다름). 그리고 `buildReportData.ts:66`이 `sectionLabel`의 **9번째 재구현**인데 키 함수가 `sectionLabelKey`(화면용) vs `sectionMdLabelKey`(본문용)로 달라 단순 치환이 안 된다 — **왜 제외하는지를 판정표에 한 줄 남긴다**(안 남기면 다음 세션이 다시 묻는다).
+- **항목 43** — "두 파일의 인자 매핑이 문자 단위 동일"은 **절반만 참**. `setLastSubmitFields`는 8/8 동일하지만 `submitToX` 인자는 위 `requireMediaUpload` 때문에 3곳이 다르다. v1.7.22/23의 `projectKey`·`sprintId`·`sprintName`은 **양쪽에 대칭 반영**돼 동일성이 유지됐다.
+- **항목 50** — jira `*ConnectFlow`는 "~100줄"이 아니라 **144줄**, diff 축은 6개가 아니라 **8~9개**(`dark:invert` 아이콘 클래스·계정 타입 제네릭 누락 포함). 6개 폼이 각 86줄인 것은 정확.
+- **항목 51** — error/deleted 블록은 7/7 byte-identical이 맞지만 **loading은 6/7**이다. `JiraSubmittedBadge.tsx:62`가 `if (!status) return null`로 다르다 — 일괄 치환하면 Jira 배지에 없던 플레이스홀더가 깜빡인다. **error/deleted만 셸로 뽑거나 jira를 loading 대상에서 제외.**
+- **항목 55** — `extractPath`는 `buildLogSummary.ts:132`(문서 `:122`)이고 **외부 소비자 `src/sidepanel/lib/prompts/logCandidates.ts:5,151`이 있다.** 변경 대상에 없어서 `grep 0건` 검증을 못 넘긴다.
+- **항목 101** — `withTimeout` 2벌은 "동일"이 아니다(3인자 vs 2인자+모듈 상수). 둘 다 `window.setTimeout`을 쓰므로 "순수 함수"도 틀렸다. `dataUrlToBlob`도 동치가 아니다(notion판만 `{blob, contentType}` + percent-encoding).
+- **항목 57** — `@/types/messages` import 반경은 104개가 아니라 **90개**(테스트 제외 87).
+- **G6-4 "이 태스크의 최대 위험"** — 근거가 없다. `recorders-entry` 전이 그래프(10파일)는 `@/types/messages`·`@/types/picker`를 **전혀 import하지 않고**, `check:prearm`은 그 청크 하나만 검사한다(`scripts/check-prearm-chunk.mjs:20`). 유일한 값 import는 `css-source-cache.ts:15`의 `sendBg`이고 그건 picker(document_idle) 그래프라 pre-arm 제약 밖이다. **Task 9-5가 `css-source-cache.ts`를 "pre-arm 청크"라 부른 것도 같은 오류.**
+
+### 커버리지 주의 (R11 확장)
+
+`send()`·`withTimeout` 승격(Task 9-4)은 **로직 스코프 분모를 늘린다.** `annotation-control.ts`·`recorder-control.ts`·`video-thumbnail.ts`·`encode-range.ts` 넷 다 현재 `scripts/coverage-report.mjs`의 `BROWSER_BOUND_EXACT`에 있어 분모 밖인데, `src/lib/`·`src/sidepanel/lib/`로 옮기면 편입된다. R11이 G6만 언급하고 9-4는 빠져 있었다 — **`withTimeout`뿐 아니라 `send()`에도 테스트를 붙인다.**
+
+### e2e 커버 실측 (근거 정정)
+
+"기존 e2e 스위트가 그물"이라는 주장은 과하다. 73개 spec 중 G3 제출 경로를 끝까지 태우는 건 **`e2e/slack-promote-media-guard.spec.ts` 하나뿐**이고, `clickup-submit-gating.spec.ts:5-6`·`slack-submit-gating.spec.ts:3-5`는 스스로 "실연결 미진입"이라 밝히며 버튼 활성 상태만 본다. **G4(커넥트 폼)·G5(배지)는 전용 spec이 0개다.** "e2e 없음" 결론은 유지하되 근거를 **"커버가 얇아 수동이 유일한 그물"**로 정정한다.
+
+### 수동 검증 부담 (미해결 — 착수 전 결정 필요)
+
+R4(6회)·R5(6플랫폼 재연결)는 `.env.local`에 8개 플랫폼 client ID가 전부 있어 `isConfigured()`가 true이므로 **실제 OAuth 동의 화면 + 실계정 로그인**이 필요하다. 에이전트가 대신할 수 없고, 이 체크리스트가 미완인 채 `/merge`로 가면 게이트가 공허해진다. **누가 언제 수행할지를 G3 착수 전에 정한다.** 특히 위 `requireMediaUpload` 때문에 수동 대상을 jira·github·slack이 아니라 **github·notion·gitlab 중 최소 1개 + slack 승격 경로**로 재조정한다.
