@@ -4,20 +4,20 @@
 
 **앞선 배치들과 달리 이 배치는 사용자에게 보인다.** 접근성 속성 추가는 스크린리더·키보드 사용자에게, 색상 통일은 **모든 사용자에게 픽셀 단위로** 보인다. "동작 변경 없음"이라고 뭉뚱그리면 안 되므로 여기 명시한다.
 
+> **2026-08-14 재검증으로 이 표를 design.md 결론에 맞춰 다시 썼다.** 이전 판은 10행 중 3행(🟡26·27, ⚪78, ⚪72)이 design.md가 **명시적으로 기각한** 변경을 "보이는 변화"로 서술하고 있었다. 🟡24·25도 실제로 바뀌는 축이 아니었다.
+
 | 항목 | 사용자에게 보이는 변화 |
 |---|---|
 | 🟡19·20 | 로그 필터 pill(출처·WS 방향)이 스크린리더에서 "눌림/안 눌림"으로 읽힌다. 시각 변화 없음. |
 | 🟡21 | 스타일링 AI 배너가 진행 중일 때 흐려지고 커서가 `not-allowed`가 된다(초안 AI 배너와 동일). |
-| 🟡22·23 | 재현 절차 삭제 버튼·어노테이션 텍스트 입력이 스크린리더에서 이름을 갖는다. 시각 변화 없음. |
-| 🟡24·25 | 스타일 편집기의 link 토글·값 콤보박스가 shadcn `Button`으로 바뀐다 — **높이·radius·hover·포커스 링이 미세하게 달라질 수 있다.** |
-| 🟡26·27 | 콘솔 로그 상세의 코드블럭 배경, 네트워크 선택 행 배경이 **한 단계 옅어진다**(`-200` → `-100` 계열). 라이트에서 눈에 띈다. |
-| 🟡28 | CSS 뷰 경고 배너의 amber가 앱 전역 amber 관용구로 바뀐다(배경 진해지고 글자 색조 변경). |
-| 🟡29 | **OS는 다크인데 앱 설정이 라이트**인 사용자: 페이지 위 picker 인스펙터 카드가 이제 앱과 같이 흰 카드로 뜬다(반대 조합도 대칭). |
+| 🟡22·23·⚪83 | 재현 절차 삭제 버튼·어노테이션 텍스트 입력이 스크린리더에서 이름을 갖고, DOM Tree chevron이 펼침 상태를 읽어준다. 시각 변화 없음. |
+| 🟡24·25 | 스타일 편집기의 link 토글·값 콤보박스가 shadcn `Button`으로 바뀐다. **실제로 바뀌는 축은 넷**: ① 아이콘이 14 → **16px**(base의 `[&_svg]:size-4`가 자손 셀렉터라 특이도로 이긴다 — 수용하기로 결정) ② `shadow-sm`이 붙는다 ③ non-compact 콤보박스 3곳에 base `gap-2`가 새로 붙어 아이콘↔값 간격이 0 → 8px ④ off 상태에 `bg-background`와 `hover:text-accent-foreground`가 얹혀 hover 글자색이 미세하게 옅어진다. ~~높이·radius·포커스 링~~은 **안 바뀐다**(h-9→h-9, rounded-md→rounded-md, ring-2→ring-2). |
+| 🟡28 | CSS 뷰 경고 배너의 **배경만** 앱 전역 amber 관용구로 바뀐다. **글자는 `text-amber-800` 유지** — 문서 원안(`amber-700`)대로면 대비가 6.84:1 → 4.61:1로 떨어져 AA 여유가 0.11pp만 남는다. |
+| 🟡29 | **OS는 다크인데 앱 설정이 라이트**인 사용자: 페이지 위 picker 인스펙터 카드가 이제 앱과 같이 흰 카드로 뜬다(반대 조합도 대칭). **패널을 닫았다 여는 경로에서도** 유지된다(재생성 3경로 전부 적용 — 배치 4 Task 7과 통합). |
 | 🟡30 | box-model gap 채움색이 pink → violet 계열로 바뀌어 gap 라벨 색과 맞는다. |
-| ⚪72 | 프리뷰 빈 섹션 문구가 제출 본문과 같아진다(택일에 따라 `비어 있음` 또는 `(없음)`). |
-| ⚪78 | AI 배너 그라디언트에서 indigo/cyan이 빠지면 배너 글자 그라디언트가 단색조로 보인다. |
-| ⚪80 | 네트워크 상세 상태 dot이 다크에서 한 톤 밝아진다. |
-| ⚪84 | 검색 하이라이트·Slack DM 아바타 모서리가 1px 덜 둥글어진다(사실상 인지 불가). |
+| ⚪80 | 네트워크 상세 상태 dot이 다크에서 한 톤 밝아진다. **`TONE_DOT`으로 승격**해 처리한다(로컬에 새 `dark:`를 심으면 같은 파일에서 행 배경만 단일 출처로 올리는 C-1 원칙과 어긋난다). |
+
+**화면이 안 바뀌는 것으로 정정된 항목** — ⚪72(프리뷰 빈 섹션 문구는 **갈린 채로 둔다**, 코드 변경 0) · ⚪78(AI 배너 그라디언트는 **코드를 안 고치고** DESIGN.md에 등재만) · 🟡26·27(로그 색은 **값을 안 내리고** 단일 출처를 넓히기만 하므로 **시각 변화 0**) · ⚪84(`rounded-[3px]` 통일 **취소** — 유일 선례 `ColorSwatch.tsx:28`은 overlay `.pl-swatch`와의 cross-file 앵커라 무관한 표면을 끌어오면 앵커 의미가 희석된다. 대신 DESIGN §6에 4px을 등재한다).
 
 나머지(32~34·60·81~83·85~92)는 내부 타입 강제·중복 제거·문서 갱신이라 화면에 나타나지 않는다.
 
@@ -30,7 +30,7 @@
 | ~~audit-refactor-1~~ (완료·문서 삭제) | 요청 경계·자격증명 가드 | 🔴1 · 🟡3~5,10,11,36~41 · ⚪63~65,69,70 | 소 |
 | ~~audit-refactor-2~~ (완료·문서 삭제) | 콤보박스 race·lazy-load 단일 출처 이행 | 🔴2 · 🟡42 | 중 |
 | ~~audit-refactor-3~~ (완료·문서 삭제) | 레코더 게이트·무결성 | 🟡6~9,15,16,31,35 · ⚪66,67,77 | 중 |
-| audit-refactor-4 | 세션·데이터 정합 | 🟡12~14,17,18 · ⚪71,73~76 | 중 |
+| audit-refactor-4 | 세션·데이터 정합 | 🟡12,14,17,18 · ⚪71,73~76 (13 제외) | 중 |
 | **audit-refactor-5** | **UI 접근성·디자인 토큰·i18n 정합** | **🟡19~30,32~34,60 · ⚪72,78~92** | **중** |
 | audit-refactor-6 | 중복 제거·데드 코드 | 🟡43~59,61,62 · ⚪68,93~114 | 대 |
 
@@ -56,7 +56,7 @@
 
 `ConsoleLogContent.tsx:38`의 `levelCodeBg`는 같은 레벨 축(error/warn/info)에 `bg-red-200 dark:bg-red-950/70`이라는 **제3의 스케일**을 로컬 정의한다(🟡26). `NetworkLogContent.tsx:50-62`는 더 노골적이다 — 같은 함수 안에서 비선택 행은 `TONE_BG.red`를 쓰고 선택 행은 `bg-red-200 dark:bg-red-950/70`을 손으로 적는다(🟡27). amber는 §2 등재 관용구(`IntegrationsCta`)와 `StyleCssView`가 갈려 표면이 2종이다(🟡28).
 
-**(4) 타입이 있는데 `as`로 뚫려 있다.** `src/i18n/ko.ts:21`이 `TranslationKey = keyof typeof ko`로 닫힌 union을 만들어 놨는데, 두 곳이 캐스트로 그걸 무력화한다 — `LINEAR_STATE_I18N`(🟡33)과 `settings-ui-store.ts`의 섹션 키 헬퍼 4종(⚪60). 그리고 `src/i18n/index.ts:39`의 `t()`에는 폴백이 없어(🟡32), 캐스트로 들어온 키가 미정의면 params 유무에 따라 **TypeError 또는 `undefined` 렌더**로 갈린다. 복제 사전 `src/log-viewer/i18n.ts:293`은 `if (!text) return key;`가 있어 같은 상황에서 키 문자열을 렌더한다 — **두 사전의 실패 모드가 다르다.**
+**(4) 타입이 있는데 `as`로 뚫려 있다.** `src/i18n/ko.ts:21`이 `TranslationKey = keyof typeof ko`로 닫힌 union을 만들어 놨는데, 두 곳이 캐스트로 그걸 무력화한다 — `LINEAR_STATE_I18N`(🟡33)과 `settings-ui-store.ts`의 섹션 키 헬퍼 4종(⚪60). 그리고 `src/i18n/index.ts:58`의 `t()`에는 폴백이 없어(🟡32), 캐스트로 들어온 키가 미정의면 params 유무에 따라 **TypeError 또는 `undefined` 렌더**로 갈린다. 복제 사전 `src/log-viewer/i18n.ts:309`는 `if (!text) return key;`가 있어 같은 상황에서 키 문자열을 렌더한다 — **두 사전의 실패 모드가 다르다.**
 
 여기에 content script 오버레이 계열(🟡29·30·⚪88·89), shadcn 미사용 raw 마크업(🟡24·25·⚪81~83), 잔여 raw 색·radius·복제(⚪78~80·84·86·87·90·91), DESIGN.md 자체의 수치 드리프트(⚪92)를 얹었다.
 
@@ -69,16 +69,18 @@
 - `src/i18n/__tests__/translate.test.ts`(신규) — `t()`의 런타임 동작(치환·로케일 전환·`dateBcp47`) 그물. 감사 시점엔 없던 파일이다.
 - `src/log-viewer/__tests__/i18n.test.ts` — `koDict`/`enDict` 2자 비교에서 `DICTS`·`LOCALES` 순회 N-way로 전면 재작성.
 
-**감사 항목 자체는 이 변경으로 하나도 해소되지 않았다**(전수 재확인):
+**v1.7.20 시점 재확인에서는 하나도 해소되지 않았고, v1.7.23 재검증(2026-08-14)에서 ⚪60만 절반 해소됐다:**
 
-| 항목 | 현재 코드 | 상태 |
+| 항목 | 현재 코드 (v1.7.23) | 상태 |
 |---|---|---|
-| 🟡32 | `src/i18n/index.ts:39` — `return interpolate(locales[currentLocale][key], params)` | 폴백 없음, **유효** |
+| 🟡32 | `src/i18n/index.ts:58` — `return interpolate(locales[currentLocale][key], params)` | 폴백 없음, **유효**. v1.7.21이 `withLocale`(`:29-41`)을 위에 얹어 +19 밀렸을 뿐 `t()` 자체는 무변경 |
 | 🟡33 | `statusBadges/constants.ts:41` — `LINEAR_STATE_I18N: Record<string, string>` | **유효** |
-| 🟡34 | `log-viewer/__tests__/i18n.test.ts:155` — `MAIN_NAMESPACES = [logs, editor]` | `common` 누락, **유효**(줄만 169→155 이동) |
-| ⚪60 | `settings-ui-store.ts:84,87,90,93` — `as TranslationKey` 4곳 | **유효**(줄만 80·83·86·89 → 84·87·90·93) |
+| 🟡34 | `log-viewer/__tests__/i18n.test.ts:180` — `MAIN_NAMESPACES = [logs, editor]` | `common` 누락, **유효**(줄만 155→180 이동) |
+| ⚪60 | `settings-ui-store.ts:90,93,96,99` — `as TranslationKey` 4곳 | **절반 해소** — v1.7.21의 `sectionKeyParity.test.ts`가 `sectionLabelKey`/`sectionMdLabelKey`를 런타임 고정했다. `sectionPlaceholderKey`·`sectionHelpKey`만 무방비이고, `TextSectionId`는 **이미 `:32`에 존재**한다(신설 대상 아님). → "캐스트 4줄 삭제"로 축소 |
 
-로케일은 여전히 **ko/en 2개**다(`LOCALES = ["ko", "en"]`). 프랑스어는 `docs/features/french-locale/`에 기획만 있고 코드에 없다 — 그 기획과의 순서 의존은 design.md "위험 요소"·tasks.md "선행 조건" 참조. ⚪87의 실측치(875키·52 prefix·34 리프-겸-prefix)도 재측정 결과 **그대로**다.
+**`useT()`도 함께 고쳐야 한다는 점이 v1.7.21로 더 중요해졌다**(🟡32): `t()`는 모듈 전역 `currentLocale`을 읽지만 `useT()` 클로저는 **훅 인자 locale을 캡처**한다. `withLocale` 스왑 중 `useT` 경로가 화면 언어로 남는 것이 **현재 설계된 동작**이므로, 폴백을 `lookup()`으로 통합할 때 로케일을 인자화(`lookup(locale, key)`)해 두 호출부가 각자 자기 로케일을 넘기게 한다. 통합하면서 이 차이를 지우면 본문 언어 기능이 조용히 깨진다.
+
+로케일은 여전히 **ko/en 2개**다(`LOCALES = ["ko", "en"]`). 프랑스어는 `docs/features/french-locale/`에 기획만 있고 코드에 없다 — 그 기획과의 순서 의존은 design.md "위험 요소"·tasks.md "선행 조건" 참조. ⚪87의 실측치는 **2026-08-14 재측정에서 바뀌었다** — 총 키 **898개**(v1.7.21이 8키 추가), top-level prefix 52개, 리프-겸-prefix **36개**. 이 항목은 "측정치를 기록"하는 게 산출물의 전부이므로 **구현 시점에 다시 세어 확정한다**.
 
 ### 감사 리포트와 실제 코드가 어긋난 6곳 (기획 중 확인)
 
@@ -92,7 +94,7 @@
 
 4. **⚪92의 FieldRow "실측 34곳"은 세는 단위가 다르다.** DESIGN §13의 "42곳"은 `grep -c "flex flex-col gap-1.5" tabs/connect/*.tsx` = **42**와 정확히 일치한다. 감사의 34는 `grep -c "<label"` = **34**(라벨을 실제로 동반한 필드 쌍)다. 즉 둘 다 맞고 **세는 대상이 다르다** — 문서를 고칠 게 아니라 문장을 정밀화해야 한다("동일 마크업 42곳 중 라벨 동반 필드 쌍 34곳").
 
-5. **⚪87의 수치가 과소하다.** 실측(8개 namespace 파일 파싱): 총 키 **875개**, top-level prefix **52개**(감사 "27+"), 리프이자 prefix인 키 **34개**(감사 "4쌍"). `logViewer.*` 소유권 분산은 사실 — 메인 `logs.ts`에 **1키**(`logViewer.seekTo`), `log-viewer/i18n.ts`에 **19키**. (기존 "2개/38개"는 ko/en 두 테이블의 **줄 수**를 센 값이라 키 수로는 절반이다.)
+5. **⚪87의 수치가 과소하다.** 실측(8개 namespace 파일 파싱, 2026-08-14 재측정): 총 키 **898개**, top-level prefix **52개**(감사 "27+"), 리프이자 prefix인 키 **36개**(감사 "4쌍"). `logViewer.*` 소유권 분산은 사실 — 메인 `logs.ts`에 **1키**(`logViewer.seekTo`), `log-viewer/i18n.ts`에 **19키**. (기존 "2개/38개"는 ko/en 두 테이블의 **줄 수**를 센 값이라 키 수로는 절반이다.)
 
 6. **⚪83의 "바이트 동일 복제"는 className 한정이다.** `JsonTreeViewer.tsx:150`과 `DomTreeDialog.tsx:273`의 className은 `inline-flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/15`로 바이트 동일하지만, **props는 갈린다** — JsonTreeViewer만 `aria-expanded`를 갖고(DomTreeDialog는 없다), i18n 키도 `common.expand/collapse` vs `dom.expand/collapse`로 다르다. 공용화하면 두 차이를 **먼저 결정**해야 한다.
 
@@ -117,7 +119,7 @@
 - **`connect/*ConnectForm.tsx`를 `FieldRow`로 이행하지 않는다**(⚪92 관련). DESIGN §13이 "**⚠ `tabs/connect/`는 아직 안 따른다** … 신규 필드는 `FieldRow`를 쓴다"로 이미 **의도된 현상 유지**를 선언했다. 이번엔 문서의 **수치만** 정밀화한다. "토큰 발급" 링크 수렴(⚪82)은 별개 판단으로 아래에서 다룬다.
 - **`lockedClass` 단일 출처화를 하지 않는다**(⚪92). DESIGN §14가 지적한 복제 3곳 + 인라인 7곳 + 변형 19곳은 **중복 제거 계열**이라 audit-refactor-6이 맞는 자리다. 이번엔 §14의 수치를 실측으로 고치고 제3 변형(`opacity-50` 없는 형)의 존재를 문서에 남긴다.
 - **`--ring`을 `--border`와 분리하지 않는다.** §9가 "개선 후보"로 남긴 항목이고, 토큰 값 변경은 `tokens.test.ts` 3표 동기 + 전 화면 시각 회귀라 이 배치의 국소 수정 성격과 규모가 다르다.
-- **i18n 네임스페이스를 재편하지 않는다**(⚪87). 875개 키의 prefix 재구성은 **전 파일 리네임 + ko/en 동시 갱신 + log-viewer 복제 사전 동기**를 부르는 대공사고, 얻는 게 정연함뿐이다. 이번엔 **측정치를 기록**하고 실제 버그가 있는 조각(86 dead key·91 열린 집합)만 고친다.
+- **i18n 네임스페이스를 재편하지 않는다**(⚪87). 898개 키의 prefix 재구성은 **전 파일 리네임 + ko/en 동시 갱신 + log-viewer 복제 사전 동기**를 부르는 대공사고, 얻는 게 정연함뿐이다. 이번엔 **측정치를 기록**하고 실제 버그가 있는 조각(86 dead key·91 열린 집합)만 고친다.
 - **`t()`를 async·lazy·plural 지원으로 확장하지 않는다**(🟡32). 폴백 한 줄만 추가한다.
 - **overlay의 폰트 스택을 semantic화하지 않는다**(⚪89). Shadow DOM `all: initial`이라 CSS 변수를 못 받는 게 원인이고, DESIGN §2가 이미 "`hsl()` 리터럴로 복제"를 불가피한 사본으로 인정했다. **문서에 등재만** 한다.
 - **`theme` 변경을 picking 세션 중에 실시간 반영하지 않는다**(🟡29). picker.start 시점 스냅샷으로 충분하다 — 요소를 고르는 중에 설정 탭으로 가서 테마를 바꾸는 플로우는 존재하지 않는다(picker 활성 중 사이드패널은 캡처 화면에 있다).
@@ -182,11 +184,17 @@ DESIGN §10 관용구 ②:
 
 - 확인: on/off 두 상태를 라이트·다크 각각에서 눈으로 확인. `aria-pressed`는 이미 있으므로 `*.test.tsx`로 상태별 클래스 존재를 고정한다.
 
-### R9. i18n 키 존재 검사가 계속 green이다 (🟡33·⚪60 리스크)
+### ~~R9~~. i18n 키 존재 검사 — **위험 소멸, 항목 축소 (2026-08-14)**
 
-`sectionLabelKey` 등에서 `as TranslationKey`를 제거하면 tsc가 템플릿 리터럴 타입(`section.${IssueSectionId}`)을 실제 union과 대조한다. **지금까지 캐스트가 가리고 있던 누락 키가 있으면 typecheck가 red로 터진다** — 그게 이 변경의 목적이지만, 그때 "키를 추가할지 / id union을 좁힐지"를 판단해야 한다.
+`sectionLabelKey` 등에서 `as TranslationKey`를 제거하면 tsc가 템플릿 리터럴 타입을 실제 union과 대조한다. **재검증 결과 이 red 시나리오는 발생하지 않는다:**
 
-- 확인: `pnpm typecheck`. red가 나면 어떤 id에 어떤 키가 없는지 나열하고 design.md의 결정 규칙을 따른다.
+- `TextSectionId`가 **이미 `settings-ui-store.ts:32`에 존재**하고 placeholder/help 헬퍼가 이미 그걸 받는다 — design.md가 "필요 시 신설"이라 적은 타입은 신설 대상이 아니다.
+- 4패턴 × 유니온 **전수 조합에서 누락 키 0**(2026-08-14 실측). Linear 5키·`section.*`/`md.section.*` 5×2·`draft.*Placeholder` 4/4·`section.*.help` 4/4 전부 존재한다.
+- v1.7.21이 신설한 `src/i18n/__tests__/sectionKeyParity.test.ts:34-41`이 `sectionLabelKey`/`sectionMdLabelKey`를 이미 **런타임으로** 전 로케일 고정한다.
+
+**따라서 ⚪60은 "캐스트 4줄 삭제"로 축소된다** — 의도된 red를 기대하는 절차가 아니라 순수 정리다. 성공 기준의 "`section.description` 리네임 → typecheck red" 증명도 **이미 공허하다**(`sectionKeyParity.test.ts`가 먼저 red를 낸다). 증명 대상을 아직 무방비인 `sectionPlaceholderKey`/`sectionHelpKey`(`draft.notesPlaceholder` 리네임)로 옮기면 살아난다.
+
+- 확인: `pnpm typecheck` green이 **기대값**이다. red가 나면 그건 이 변경의 성과가 아니라 **상류가 키를 지웠다는 신호**다.
 
 ### R10. log-viewer가 계속 빌드·통과한다 (🟡34·⚪86 리스크)
 
@@ -195,9 +203,11 @@ DESIGN §10 관용구 ②:
 - 확인: `pnpm test src/log-viewer`. 대조 범위 확장은 **먼저 값 대조를 돌려보고** 불일치가 있으면 값을 맞춘 뒤 테스트를 넣는다.
 - 추가 확인: 대조 원본을 `@/i18n`의 `locales` 레지스트리로 바꾸면 이 테스트가 **`src/i18n/index.ts` → `useSettingsUiStore` 그래프를 node 환경에서 import**하게 된다. 같은 import를 하는 `src/i18n/__tests__/locales.test.ts`가 이미 node에서 green이므로 통과가 기대값이지만, red면 design.md E-3의 대체안(8개 namespace 전량 나열)으로 내린다.
 
-### R11. `common.empty` 소비처 3곳이 함께 움직인다 (⚪72 리스크)
+### ~~R11~~. `common.empty` 소비처 3곳 — **일어나지 않는 변경의 회귀 감시 (2026-08-14)**
 
-`common.empty`는 `PreviewPanel:396`뿐 아니라 `DocSectionBody.tsx:31,44`·`DraftDetailDialog.tsx:904`도 쓴다. 프리뷰 문구를 `md.noValue`로 바꾸려면 **`IssuePreviewView`의 `emptyValue` prop을 타고 log-viewer(`App.tsx:204`의 `logViewer.report.empty`)까지** 3표면을 함께 결정해야 한다(현재 값: `common.empty`=`비어 있음`, `md.noValue`=`(없음)`, `logViewer.report.empty`=`비어 있음`).
+design.md E-6의 결론은 **"갈린 채로 둔다 — 코드 변경 없이"**이므로 이 감시는 발동하지 않는다. 소비처 목록은 나중에 ⚪72를 다시 볼 때를 위해 남긴다(줄번호는 갱신했다).
+
+`common.empty`는 `PreviewPanel:403`뿐 아니라 `DocSectionBody.tsx:31,44`·`DraftDetailDialog.tsx:925`도 쓴다. 프리뷰 문구를 `md.noValue`로 바꾸려면 **`IssuePreviewView`의 `emptyValue` prop을 타고 log-viewer(`App.tsx:204`의 `logViewer.report.empty`)까지** 3표면을 함께 결정해야 한다(현재 값: `common.empty`=`비어 있음`, `md.noValue`=`(없음)`, `logViewer.report.empty`=`비어 있음`).
 
 - 확인: design.md의 택일 결론을 따르고, 세 소비처를 grep으로 전수 확인.
 

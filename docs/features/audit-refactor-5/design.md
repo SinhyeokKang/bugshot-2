@@ -123,9 +123,12 @@ base cva와의 차이를 하나씩 확인한다:
 - `font-medium` → **`font-normal`로 덮어야** 한다(원본에 font-weight 지정 없음 = 400).
 - `rounded-md border` → base가 이미 제공(`variant="outline"`).
 - `hover:bg-muted/50` → base는 `hover:bg-accent`. §2대로 `--accent == --muted`라 **투명도만 다르다**(50% vs 100%). 원본 의도(더 옅은 hover)를 지키려면 `hover:bg-muted/50`을 명시적으로 덮는다.
-- `focus-visible:ring-2 focus-visible:ring-ring` → base가 이미 제공(`focus-visible:ring-1 ring-ring` — **ring 굵기가 2→1로 줄 수 있으니** 구현 시 `button.tsx`를 읽고 확인. 다르면 `focus-visible:ring-2`를 명시).
+- `focus-visible:ring-2 focus-visible:ring-ring` → base가 이미 **`focus-visible:ring-2 focus-visible:ring-ring`**이다(2026-08-14 실측). ~~ring 굵기가 2→1로 줄 수 있다~~는 우려는 근거가 없었다. **명시 불필요.**
+- **`[&_svg]:size-3.5` → override 필요 여부: 하지 않기로 결정(2026-08-14).** base가 `[&_svg]:size-4`(16px)를 깔고, 이건 **자손 셀렉터라 특이도 (0,1,1)**로 아이콘 자기 클래스 `h-3.5 w-3.5`(0,1,0)를 이긴다. twMerge는 다른 엘리먼트라 중재하지 못한다. 즉 `LinkToggle`(`StylePropEditors.tsx:198-202`)과 `ValueCombobox`의 `icon` prop(`:219`) 아이콘이 **14 → 16px로 커진다.** shadcn 기본값을 따르기로 했으므로 override를 넣지 않고, 대신 **prd.md 가시 변화 표에 명시**한다. quad 셀 4개에 동시에 나타나고 셀당 폭 예산을 2px씩 갉아먹는다는 점은 인지하고 수용한다.
+- **`gap-0`(또는 의도값) → override 필요.** base가 `gap-2`를 깐다. 현재 raw 버튼은 gap 미지정(0)이고 `compact && "px-1.5 gap-1"`로 compact에만 gap을 준다. 제안 className이 compact만 덮으면 **non-compact 3곳(`StylePropEditors.tsx:231,286,643`)에 base `gap-2`가 그대로 남아** 아이콘↔값 간격이 0 → 8px이 된다.
 - `outline-none` → base가 `focus-visible:outline-none` 제공.
-- `shadow-sm` → base `outline`에 있다. **원본엔 없었으므로 시각 변화가 생긴다** — §6 표는 "기본 컨트롤·인풋·outline/secondary 버튼 = `shadow-sm`"이라 오히려 관용구에 맞는 방향이다. 그대로 둔다.
+- `shadow-sm` → **base가 아니라 `outline` variant(`button.tsx:18`)에 있다**(2026-08-14 정정 — 아래 위험 2의 "base cva가 `shadow-sm`을 깐다"는 서술은 틀렸다). `variant="outline"`을 쓰므로 결과는 같다: **원본엔 없었으므로 시각 변화가 생긴다.** §6 표가 "기본 컨트롤·인풋·outline/secondary 버튼 = `shadow-sm`"이라 관용구에 맞는 방향이므로 그대로 둔다.
+- **`variant="outline"` base가 off 상태에 둘을 더 얹는다(2026-08-14 추가).** ① `bg-background` — 현재 off는 배경 투명(`border`만)이라, 얹히는 표면이 `background`가 아닌 자리면 면이 새로 생긴다. ② `hover:text-accent-foreground` — 현재 off hover는 글자색이 안 변하는데(`text-foreground` 유지), `--accent-foreground`(222.2 47.4% 11.2%) ≠ `--foreground`(222.2 84% 4.9%)라 hover 시 글자가 미세하게 옅어진다. §2가 `--accent == --muted`라 **배경**은 같다고 한 것과는 별개 축이다. POSTMORTEM 2026-07-17(`:794`)이 정확히 이 이식에서 터진 건이므로 착수 전 읽는다.
 
 ### B-3. 트리 chevron 공용화 (⚪83)
 
@@ -210,7 +213,11 @@ export function consoleLevelBgStrongClass(level: string): string {
 - **AI 배너 명도 쌍**: light `bg-<c>-100/80 text-<c>-700` / dark `bg-<c>-950 text-<c>-300`
 - **`IntegrationsCta`**: 배경은 위와 같고 글자만 `text-amber-600`/`dark:text-amber-400`
 
-**채택: AI 배너 명도 쌍**(`bg-amber-100/80 text-amber-700` / `dark:bg-amber-950 dark:text-amber-300`). 근거 — `StyleCssView`의 amber는 CTA(클릭 유도)가 아니라 **상태 경고**(`role="status" aria-live="polite"`)라 `IntegrationsCta`의 CTA 문법보다 배너 문법에 가깝고, 다크 배경은 이미 `bg-amber-950`으로 일치한다. `border-amber-300`/`dark:border-amber-800`은 §2가 다루지 않는 축이라 **그대로 유지**한다(경계선은 배너 관용구에 정의가 없다).
+**채택(2026-08-14 수정): 배경만 통일하고 글자는 `text-amber-800`을 유지한다** — `bg-amber-100/80 text-amber-800` / `dark:bg-amber-950 dark:text-amber-300`.
+
+> **왜 글자를 안 바꾸나**: 원안(`text-amber-700`)이면 대비가 **6.84:1 → 4.61:1**로 떨어진다. AA(4.5:1)는 통과하지만 여유가 0.11pp뿐이고, 배경을 순수 `bg-amber-100`(등재 관용구)으로 쓰면 **4.51:1**로 사실상 하한이다. DESIGN §2가 "새 raw 색 추가 시 대비를 눈으로라도 확인"을 규칙으로 두는데 이 항목은 색을 **교체**하면서 계산도 확인 항목도 없었다. 배경만 맞춰도 "표면 2종" 문제는 해소된다.
+
+~~원안: `bg-amber-100/80 text-amber-700`~~ 근거 — `StyleCssView`의 amber는 CTA(클릭 유도)가 아니라 **상태 경고**(`role="status" aria-live="polite"`)라 `IntegrationsCta`의 CTA 문법보다 배너 문법에 가깝고, 다크 배경은 이미 `bg-amber-950`으로 일치한다. `border-amber-300`/`dark:border-amber-800`은 §2가 다루지 않는 축이라 **그대로 유지**한다(경계선은 배너 관용구에 정의가 없다).
 
 §2가 못박은 제약 하나를 지킨다:
 > ⚠ **다크 배너 배경에 알파를 얹지 말 것**(`bg-<c>-950/50`이었다가 뺐다).
@@ -229,7 +236,7 @@ export function consoleLevelBgStrongClass(level: string): string {
 |---|---|---|
 | ⚪79 `SubmitSuccessView:19` green / `TiptapEditor:836` sky / `NetworkLogContent:351` blue / `IssueTab:627` red | **코드 유지 + DESIGN.md 등재**(→F) | 넷 다 `dark:` 짝이 **이미 있다**(실측 확인). §2 요구("가능하면 `dark:` 짝을 함께 둔다")를 만족하므로 결함이 아니라 **문서 누락**이다. |
 | ⚪80 `NetworkLogContent:502` 상태 dot | **코드 수정** | `bg-amber-500`/`bg-red-500`/`bg-green-500`에 `dark:` 짝이 없는 **유일한** 케이스. `dark:bg-<c>-400`을 추가한다(§2의 `TONE_TEXT` 원리 — "흰 배경엔 진한, 검은 배경엔 밝은"). |
-| ⚪84 `rounded-[4px]` 2곳 | **코드 수정** | `HighlightedText.tsx:18`·`ChannelIcon.tsx:16`. §6 등재값은 `rounded-sm`/`rounded-[3px]`. `--radius: 0.75rem` 기준 `rounded-sm` = 12−4 = **8px**이라 4px과 차이가 크므로 → **`rounded-[3px]`**로 통일한다(1px 차, 시각 무영향). |
+| ⚪84 `rounded-[4px]` 2곳 | **코드 수정 취소 → DESIGN §6에 4px 등재** (2026-08-14) | `HighlightedText.tsx:18`·`ChannelIcon.tsx:16`(실경로 `src/sidepanel/tabs/slackFields/`). ~~`rounded-[3px]`로 통일~~하지 않는다 — 저장소의 유일한 `rounded-[3px]` 선례 `ColorSwatch.tsx:28`은 **주석으로 overlay `.pl-swatch`(`overlay.ts:197`, `border-radius:3px`)와의 cross-file 앵커임을 못박아둔 값**이다. 무관한 두 표면(`<mark>` 하이라이트·16px Slack 아바타)을 같은 값으로 끌어오면 그 앵커의 의미가 희석된다. §6에 4px을 별도 등재하는 쪽이 정직하다. |
 
 ---
 
@@ -300,6 +307,12 @@ case "picker.start":
 
 `handleStart`가 overlay handle에 theme을 넘겨 **shadow host(또는 `labelEl`)에 `data-theme` 속성**을 세팅한다. 인스펙터 카드가 `labelEl` 하나이므로 `labelEl.dataset.theme = theme ?? "light"`이 가장 국소적이다.
 
+> **⚠ 2026-08-14 — `handleStart` 인자로만 세팅하면 재생성 경로 2곳을 놓친다.** `createOverlay()` 호출은 **3곳**인데 `picker.start`를 타는 건 `handleStart`(`:601`) 하나뿐이다. `handleSelectByPath`(`:1229` — 패널 재오픈·rebind 복귀)와 area-select(`:1264`)는 overlay를 새로 만들면서 `data-theme`을 잃는다. 후자는 인스펙터 카드를 안 띄워 실피해가 낮지만 전자는 **패널을 닫았다 여는 흔한 경로**다.
+>
+> **채택: `picker.start`가 실어온 theme을 모듈 로컬 변수에 보관하고 `createOverlay()` 직후 적용한다** — 세 경로가 한 번에 덮인다.
+>
+> **이 수정은 배치 4 Task 7과 같은 블록을 건드린다.** 배치 4 항목 14(`setOnCacheReloaded` 재등록 누락 + priming)가 정확히 `handleSelectByPath`의 재생성 블록을 고치므로, **두 배치를 합쳐 `audit-refactor-4/tasks.md` Task 7에서 한 번에 처리한다.** 이 문서는 참조만 한다 — 따로 편집하면 충돌한다.
+
 **CSS 전환** — `src/content/overlay.ts:201-206`:
 
 ```css
@@ -322,7 +335,30 @@ const darkStart = src.indexOf(DARK_ANCHOR);
 if (darkStart === -1) throw new Error("overlay.ts에 다크 인스펙터 블록이 없다");
 ```
 
-라이트 영역 추출(`region.indexOf('.picker-label[data-mode="inspector"]')`)은 `darkStart` 이전 슬라이스에서 하므로 **그대로 동작**한다(다크 셀렉터가 `[data-theme="dark"]`를 앞에 달아 라이트 앵커 문자열과 접두가 다르다 — 오탐 없음). 이 그물이 살아있음을 R1대로 한 번 증명한다.
+**⚠ 2026-08-14 정정 — 이 지시는 불완전했고, 그대로 구현하면 다크 추출이 throw한다.**
+
+파일은 `src/styles/__tests__/tokens.test.ts`다(문서가 적었던 `src/content/__tests__/`가 아니다). 파서는 앵커를 **둘** 쓴다:
+
+```ts
+:17  const darkStart = src.indexOf("@media (prefers-color-scheme: dark)");   // ① 영역 분할
+:19  const region = scope === "dark" ? src.slice(darkStart) : src.slice(0, darkStart);
+:20  const start = region.indexOf('.picker-label[data-mode="inspector"]');    // ② 블록 위치
+```
+
+- **라이트는 산다** — `slice(0, darkStart)` 안에 `:119`의 라이트 블록이 그대로 있어 ②가 찾는다. 이 부분에 한해 원안의 "그대로 동작한다"는 맞다.
+- **다크는 죽는다** — 다크 블록이 `.picker-label[data-theme="dark"][data-mode="inspector"]`가 되면 ②의 리터럴은 **부분문자열이 아니고**(`[data-theme="dark"]`가 사이에 끼어 연속 매칭이 깨진다), `:202`가 파일의 마지막 occurrence라 뒤에도 없다 → `-1` → `:21` throw.
+
+**따라서 ①·② 두 줄 모두 scope별로 분기해야 한다:**
+
+```ts
+const LIGHT_ANCHOR = '.picker-label[data-mode="inspector"]';
+const DARK_ANCHOR  = '.picker-label[data-theme="dark"][data-mode="inspector"]';
+const start = region.indexOf(scope === "dark" ? DARK_ANCHOR : LIGHT_ANCHOR);
+```
+
+**다크 블록이 라이트 블록보다 뒤에 있어야 한다는 것도 파서의 전제**다(앞으로 옮기면 라이트마저 -1). 설계에 못박는다. 이 그물이 살아있음을 R1대로 한 번 증명한다 — 그리고 증명 대상 줄은 `--border`(`:207`)이므로 인용 범위를 `:201-209`로 읽는다(`:201-206`은 그 줄을 자른다).
+
+**아래 §658의 분리 트리거 ①("파서 수정만으로 green이 안 되면 분리")은 이 정정으로 무력화됐다** — 두 줄을 고치면 green이므로 트리거로 쓰지 않는다.
 
 ### D-2. gap 채움색 (🟡30)
 
@@ -409,7 +445,7 @@ export function t(key: TranslationKey, params?: Record<string, string | number>)
 
 **`throw`를 쓰지 않는 이유**: 개발 중에 드물게 도달하는 분기 하나가 화면 전체를 흰 화면으로 만든다. `console.error`로 충분히 시끄럽고, 진짜 게이트는 tsc다. **복제 사전(`log-viewer/i18n.ts:293`)의 `if (!text) return key;`와 동작이 같아져** 두 사전의 실패 모드도 수렴한다(감사가 지적한 비대칭 해소).
 
-**`import.meta.env.DEV` 가용성 확인 필요**: `src/i18n/index.ts`는 사이드패널·background 양쪽 번들에 들어간다. Vite가 두 진입 모두에서 `import.meta.env`를 치환하는지 구현 시 확인하고, 안 되면 조건 없이 `console.error`로 단순화한다(프로덕션 콘솔 노이즈는 도달 불가 자리라 무해).
+~~**`import.meta.env.DEV` 가용성 확인 필요**~~ — **확인 완료, 조문 삭제(2026-08-14).** `background/analytics.ts:137`이 background 번들에서 이미 실사용 중이고 `src/i18n/index.ts`는 `background/index.ts:1` → `@/i18n` 경로로 SW 번들에 실제로 들어간다. 치환된다.
 
 ### E-2. 캐스트 제거 (🟡33·⚪60)
 
@@ -465,7 +501,7 @@ import { locales } from "@/i18n";
 //   판정은 그대로 "복제 사전 키 중 메인에도 있는 것만 값 비교".
 ```
 
-**넓어지는 범위는 실측으로 0이다** — 복제 사전 122키 중 메인과 겹치는 건 **88키**이고, 그 88키가 `logs`+`editor`+`common` 3 namespace로 정확히 소진된다(`logs`+`editor`만이면 85키, `common` 3키가 나머지). 즉 지금 시점에서 이 변경은 **`common` 추가와 결과가 동일하고**, 겹치는 88키 전부에 대해 **ko/en drift는 0**이다(기획 중 실측 — 그대로 green이어야 한다). 차이는 미래에만 있다: 복제 사전에 새 namespace 키가 들어와도 배열을 갱신하지 않아 생기는 무음 구멍이 **구조적으로 사라진다.**
+**넓어지는 범위는 실측으로 0이다** — 복제 사전 **130키** 중 메인과 겹치는 건 **96키**이고, 그 96키가 `logs`+`editor`+`common` 3 namespace로 정확히 소진된다(`logs`+`editor`만이면 93키, `common` 3키가 나머지). **2026-08-14 재측정치다 — 이전 판의 122/88/85는 v1.7.21 이전 값이라 셋 다 틀렸다.** 결론은 그대로 성립한다: 지금 시점에서 이 변경은 **`common` 추가와 결과가 동일하고**, 겹치는 96키 전부에 대해 **ko/en drift는 0**이다(기획 중 실측 — 그대로 green이어야 한다). 차이는 미래에만 있다: 복제 사전에 새 namespace 키가 들어와도 배열을 갱신하지 않아 생기는 무음 구멍이 **구조적으로 사라진다.**
 
 - 남는 34키(`logViewer.*` 19키 등)는 메인에 대응이 없는 log-viewer 전용이라 값 대조 대상이 아니다 — 판정 로직이 `k in table`로 이미 걸러낸다.
 - `@/i18n` import는 vitest에서 `src/i18n/index.ts`로 해석된다(log-viewer 전용 alias는 `vite.log-viewer.config.ts`에만 있다). 그 파일이 `useSettingsUiStore`를 끌어오지만 `src/i18n/__tests__/locales.test.ts`가 이미 같은 import로 node 환경에서 green이므로 통과가 기대값이다.
@@ -542,7 +578,7 @@ PRD "어긋난 6곳" 5번대로 실측치를 확정했다(N-way 인프라 도입
 | §2 AI 액센트 항목 | 배너 명도 쌍만 규정 | **+1줄** — "배너 텍스트는 액센트색 → 인접 색 그라디언트(purple→indigo / teal→cyan). 임의 색을 추가하지 않는다." (C-3) |
 | §2 세 표 항목 | "`src/content/overlay.ts`(picker 인스펙터 카드 …)" | **켜지는 조건**을 추가 — "다크 전환은 OS가 아니라 `picker.start`로 전달된 앱 theme(`data-theme` 속성)을 따른다"(D-1). `tokens.test.ts`의 파싱 앵커가 그 셀렉터임도 명시. |
 | §4 타이포그래피 | overlay 폰트 스택 언급 없음 | **+1줄** — "content script 오버레이(`overlay.ts`)는 Shadow DOM `all: initial`이라 `font-sans` 토큰을 못 받아 시스템 sans 스택을 5벌 하드코딩한다(banner/label/box-label). 불가피한 사본." (⚪89) |
-| §9 title-only 레거시 목록 | "`AnnotationToolbar`의 액션부·`IssueRow` 등" | 목록 자체를 **정리**한다 — 이번에 `OrderedListEditor`가 `aria-label`을 갖게 되므로(A) 그 사례는 목록에 넣지 않는다. 목록이 실측과 맞는지 구현 시 `grep -rn 'size="icon"' src/`로 재확인하고, 남은 title-only만 남긴다. |
+| §9 title-only 레거시 목록 | "`AnnotationToolbar`의 액션부·`IssueRow` 등" | **목록을 삭제한다(2026-08-14 확정).** 실측 결과 `size="icon"` 45곳 중 title-only는 `OrderedListEditor:93` **1곳뿐이고 그건 이 배치의 소주제 A가 고친다** — 즉 갱신 후 목록은 **공집합**이다. `AnnotationToolbar`·`IssueRow`는 이미 `aria-label`+`title` 병기다. 레거시 목록 대신 "현재 title-only 0곳" + 관용구 분포(aria-label+title 병기 38곳 / aria-label만 6곳)를 남긴다. |
 | §13 FieldRow 행 | "동일 마크업을 raw `div.flex flex-col gap-1.5` + `<label>`로 42곳 반복" | **"동일 마크업 42곳(그중 `<label>` 동반 필드 쌍 34곳)"** — 두 수치가 세는 대상이 다름을 명시(PRD "어긋난 6곳" 4번). |
 | §14 진행 중 잠금 | "잠금 클래스 상수(`lockedClass`/`LOCK_CLASS`)가 `IssueTab`·`DraftingPanel`·`annotation/ZoomControl` **3곳에 복제**" | **"명명 상수 3곳 + 인라인 리터럴 7곳(`IssueTab.tsx:375,422,505`·`tabs/ReplayTrimDialog.tsx:394,407`·`tabs/styleEditor/StyleChangesDialog.tsx:310`·`DraftingPanel.tsx:471`) + `opacity-50` 없는 축약형 19곳"** — 경로 2건 정정 포함. |
 | §14 빈 상태 | "콘텐츠 단위 빈 값은 `text-sm text-muted-foreground/70`" | **+1줄** — "문구는 표면에 따라 갈린다: 사이드패널 UI 안은 `common.empty`(`비어 있음`), 이슈 트래커로 나가는 본문은 `md.noValue`(`(없음)`). 통일하지 않는다 — 독자가 다르다." (E-6) |
@@ -674,7 +710,7 @@ function handleStart(frameToken?: string, theme?: "light" | "dark"): void;
 ### 시각 회귀 (이 배치 고유 위험)
 
 1. **색상 통일이 대비를 낮출 수 있다** — C-1이 `TONE_BG`로 하향하지 않고 `TONE_BG_STRONG`을 신설하는 이유가 이것이다. 그럼에도 리팩터 중 `neutral` 분기(빈 문자열)를 잘못 연결하면 콘솔 log/debug 코드블럭 배경이 **소리 없이 사라진다**(R5). §2가 경고한 "다크에선 사람 눈이 색조를 거의 구분 못 해 배경에 묻힌다"가 그대로 재현된다.
-2. **B의 shadcn 이행이 치수를 바꾼다** — `Button` base cva는 `h-9 px-4 text-sm font-medium justify-center shadow-sm`을 깔고, 원본 raw 버튼은 그중 일부만 갖고 있었다. 덮어야 할 항목을 B-1·B-2에 나열했지만 **`button.tsx`를 실제로 읽고 대조**해야 한다(cva 내용이 문서 §10 요약과 다를 수 있다).
+2. **B의 shadcn 이행이 치수를 바꾼다** — `Button` base cva는 `h-9 px-4 text-sm font-medium justify-center`에 **`gap-2`와 `[&_svg]:size-4`**를 깔고(`shadow-sm`은 base가 아니라 `outline` variant에 있다 — 2026-08-14 실측 정정), 원본 raw 버튼은 그중 일부만 갖고 있었다. **가장 놓치기 쉬운 둘은 `[&_svg]:size-4`(아이콘 14→16px, 자손 셀렉터라 특이도로 이긴다)와 `gap-2`(non-compact 콤보박스 3곳)**이며 둘 다 B-1·B-2에 반영했다.
 3. **§2의 hover 함정** — "`--accent` == `--secondary` == `--muted`가 라이트·다크 모두 같은 값이다. … shadcn `outline` 버튼의 `bg-background → hover:bg-accent`는 `background` 표면 위를 전제한 관용구라, muted 표면으로 옮기면 방향이 뒤집힌다." `LinkToggle`(B-1)의 on 상태가 `bg-foreground`(어두운 면)이므로 base의 `hover:bg-accent`/`hover:text-accent-foreground`가 그대로 적용되면 **on 상태 hover에서 글자가 사라진다**. B-1의 `hover:text-background` 명시가 필수다.
 4. **다크에서만 깨지는 조합** — 색 변경 항목(C 전체, D-2)은 라이트에서 멀쩡한 채 다크만 무너지는 게 §2가 기록한 반복 패턴이다. 모든 시각 확인은 **라이트·다크 두 번** 한다.
 
@@ -687,7 +723,7 @@ function handleStart(frameToken?: string, theme?: "light" | "dark"): void;
 ### 타입 게이트
 
 8. **캐스트 제거가 typecheck를 깰 수 있다** (R9) — ⚪60의 4개 헬퍼가 참조하는 키 중 하나라도 없으면 red. 이건 **의도된 red**지만, 급히 `as TranslationKey`를 되살리면 원점이다. E-2의 판단 규칙(키 추가 vs id union 좁히기)을 따른다.
-9. **`import.meta.env.DEV` 가용성** — `src/i18n/index.ts`가 background 번들에도 들어가므로 치환 여부를 확인해야 한다(E-1). 안 되면 조건 없는 `console.error`로 단순화.
+9. ~~**`import.meta.env.DEV` 가용성**~~ — **해소.** background 번들에서 이미 실사용 중임이 확인됐다(`background/analytics.ts:137`).
 
 ### 메시지 경로
 
@@ -696,14 +732,67 @@ function handleStart(frameToken?: string, theme?: "light" | "dark"): void;
 
 ### 스코프 침식
 
-12. **"어차피 여는 김에" 유혹** — 이 배치는 파일 수가 많고 각 변경이 작아서, 인접 코드를 함께 손대기 쉽다. CLAUDE.md의 **외과적 변경** 원칙대로 감사 항목이 지목한 줄만 건드린다. 특히 `NetworkLogContent.tsx`는 이 배치에서 **4개 항목**(20·27·79·80·85)이 걸리므로 변경 지점을 미리 특정하고 들어간다.
+12. **"어차피 여는 김에" 유혹** — 이 배치는 파일 수가 많고 각 변경이 작아서, 인접 코드를 함께 손대기 쉽다. CLAUDE.md의 **외과적 변경** 원칙대로 감사 항목이 지목한 줄만 건드린다. 특히 `NetworkLogContent.tsx`는 이 배치에서 **5개 항목**(20·27·79·80·85)이 걸리므로 변경 지점을 미리 특정하고 들어간다(이전 판의 "4개"는 나열과 안 맞았다).
 
 ### `docs/features/french-locale/`와의 순서 의존
 
 같은 저장소에 **프랑스어 로케일(fr) 추가 기획**이 대기 중이고, 소주제 E와 **같은 파일들을 만진다**(`i18n/namespaces/*`·`log-viewer/i18n.ts`·`log-viewer/__tests__/i18n.test.ts`). 코드 충돌은 아니지만 양방향 의존이 있다.
 
-13. **fr이 먼저 들어가면 E-3의 그물 계산이 달라진다.** french-locale 기획은 `i18n.test.ts:155`의 `MAIN_NAMESPACES = [logs, editor]`를 근거로 복제 사전 122키를 **"값 대조가 강제되는 85키 + 그물 없는 37키"** 로 쪼개 번역 공수를 잡아 놨다(`french-locale/design.md:37`·`tasks.md:88`). E-3이 먼저 들어가면 그 경계가 **88 / 34**로 바뀐다 — 방향은 같지만(그물이 넓어진다) fr 번역자가 옛 숫자를 믿고 34키를 "검증됨"으로 착각하면 안 된다. **E-3을 먼저 넣었다면 french-locale 문서의 그 두 수치를 갱신한다.**
+13. **fr이 먼저 들어가면 E-3의 그물 계산이 달라진다.** french-locale 기획은 `i18n.test.ts:180`의 `MAIN_NAMESPACES = [logs, editor]`를 근거로 복제 사전 키를 **"값 대조가 강제되는 93키 + 그물 없는 37키"** 로 쪼개 번역 공수를 잡아 놨다(`french-locale/design.md:37`·`tasks.md:88`). E-3이 먼저 들어가면 그 경계가 **96 / 34**로 바뀐다 — 방향은 같지만(그물이 넓어진다) fr 번역자가 옛 숫자를 믿고 34키를 "검증됨"으로 착각하면 안 된다. **E-3을 먼저 넣었다면 french-locale 문서의 그 두 수치를 갱신한다.**
 14. **E-3이 나중에 들어가면 fr 사전까지 대조 대상이 된다.** 대조는 `LOCALES` 순회라, fr이 등록된 뒤 E-3을 넣으면 `common.*` 3키가 **ko/en/fr 세 벌 모두** 값 대조에 걸린다. fr 복제 사전이 그 3키를 메인과 다른 문자열로 채웠으면 red다 — R10의 "먼저 값 대조를 돌린다"가 그만큼 더 중요해진다.
 15. **⚪86의 dead 키 삭제는 fr 브랜치가 도는 동안 하지 않는다.** french-locale은 875키를 파일별로 나눠 채우는 장기 브랜치라 상류 rebase로 키 목록이 흔들리는 걸 이미 자기 위험으로 잡아 놨다. 배치 5의 삭제 6줄이 그 rebase에 섞이면 "번역이 빠진 건지 삭제된 건지"가 흐려진다 — **둘 중 하나가 dev에 들어간 뒤 다른 하나를 시작**한다.
 
 > 반대로 **E-1·E-2(항목 32·33·⚪60)는 fr과 무관하다.** 캐스트 제거와 `lookup()` 폴백은 키 축이고 로케일 축을 안 건드린다 — 순서 제약 없이 병렬 가능하다. 소주제 A~D·F도 마찬가지다.
+
+---
+
+## 2026-08-14 재검증 편입 사항
+
+`/feature-review`(CTO·CDO·QA 3인 + 하위 검증)로 v1.7.23 기준 재검증한 결과 **새로 편입·축소·취소된 항목**을 여기 모은다. 위 본문의 해당 절도 각각 수정했다.
+
+### 편입 (새 작업)
+
+**N-1. `ActionLogContent.tsx`의 로컬 색 발명 — C-1 소비처에 추가.** v1.7.21(action-log-nav-type)이 만진 파일이고 🟡26·27과 **정확히 같은 문제**다.
+
+| 위치 | 현재 | 문제 |
+|---|---|---|
+| `:91` | `text-sky-600 dark:text-sky-400` | `sky`는 `LogTone`에 **없는 색**(로컬 발명) |
+| `:97` | `text-red-700 dark:text-red-400` | `TONE_TEXT.red`는 `text-red-600 dark:text-red-400` — **이미 값이 갈렸다** |
+| `:95` | `text-amber-600 dark:text-amber-400` | `TONE_TEXT.amber`와 문자열은 같으나 하드코딩 |
+
+성공 기준의 `grep "bg-\(red\|amber\|blue\|green\)-200"`은 **`text-*` 축을 안 잡으므로** 이 배치를 통과해도 그대로 남는다. C-1 소비처 목록에 이 파일을 추가하고, `TONE_TEXT` 축의 grep을 성공 기준에 더한다.
+
+**N-2. `DomTreeDialog.tsx:70-77`의 두 번째 raw button — B-3 범위에 추가.** `title`만 있고 접근명이 없다. B-3이 같은 파일의 chevron(`:267-282`)을 여는 김에 판단을 남긴다(고치거나, 명시적 비목표로 적거나).
+
+**N-3. ⚪80 상태 dot을 `TONE_DOT`으로 승격.** 원안은 `NetworkLogContent:521-523`에 `dark:` 짝을 로컬 추가하는 것이었는데, **같은 파일에서 행 배경은 `log-colors.ts`로 올리면서(C-1) dot만 로컬에 새 색을 심는 건 C-1 원칙과 어긋난다.** `TONE_DOT` 표를 `log-colors.ts`에 추가해 함께 올린다.
+
+**N-4. `resolveDark`를 `CssCodeMirror.tsx:675-688`에도 적용.** 같은 판정식이 거기에도 있고 주석이 스스로 "`useThemeEffect`와 동일 규율"이라 자칭한다. 복제본을 하나 남기면 다음 회고감이다. (`log-viewer/main.tsx:10`은 별도 빌드라 **제외가 맞다**.)
+
+**N-5. ⚪90·⚪82 이행 태스크 추가.** prd 목표 11이 "⚪ 9건이 정리된다"고 약속했는데 이 둘에 대응 태스크가 없었다.
+- **⚪90** — `editor-store.ts:16`이 `@/sidepanel/components/annotation/presets`를 **value import**한다. store가 컴포넌트 그래프를 끌어오는 형태라 CLAUDE.md의 번들 경계 규칙("store가 필요로 하는 순수 로직은 `sidepanel/lib/`으로 승격")에 정면으로 걸린다. presets를 `sidepanel/lib/` 또는 `src/lib/`로 승격한다.
+- **⚪82** — "토큰 발급" 링크 수렴. prd `:117`이 "아래에서 다룬다"고 했으나 세 문서 어디에도 없었다. F(DESIGN.md 갱신)에 판정을 적거나 명시적 비목표로 선언한다.
+
+### 축소 / 취소
+
+- **⚪60 (축소)** — `TextSectionId`가 이미 존재하고 20조합 전수 누락 0이라 R9의 red 시나리오가 없다. "캐스트 4줄 삭제"로 축소. 게이트 증명 대상은 `sectionPlaceholderKey`/`sectionHelpKey`로 옮긴다(`section.description` 리네임은 `sectionKeyParity.test.ts`가 먼저 red를 내 이미 공허하다).
+- **⚪84 (취소)** — `rounded-[3px]` 통일 대신 DESIGN §6에 4px 등재.
+- **🟡28 (축소)** — 배경만 통일, 글자는 `amber-800` 유지(대비).
+- **§9 title-only 목록 (공집합)** — 갱신이 아니라 삭제.
+- **B-2 `focus-visible:ring-2` 명시 (불필요)** — base가 이미 `ring-2`.
+- **`import.meta.env.DEV` 확인 조문 (해소)** — background 번들에서 이미 실사용.
+
+### 이미 처리돼 있던 것 (작업 불요)
+
+- `LinkToggle`(`StylePropEditors.tsx:186-202`) — `aria-pressed`(`:189`)·`aria-label`(`:195`)·`cn()`(`:190`)이 **이미 다 있다.** 남은 건 shadcn 이행뿐.
+- `JsonTreeViewer.tsx:146-154` — `aria-expanded`(`:149`)·`aria-label`(`:148) 완비.
+- `ValueCombobox.test.tsx:56`이 `min-w-0`을 **이미 자동 고정**한다(R7을 수동으로 잡을 필요 없음. 변경 후 green 유지가 검증 항목).
+- `element-locator.ts`의 테스트 전용 export에 JSDoc 주석이 이미 있다.
+
+### 신규 UI 검증 결과 (v1.7.22·23)
+
+`ProjectField`·`SprintField`·`FieldCombobox`·`EpicField`·`IssueTypeField`·`RelatesField` — **이 배치 축에서 위반 0.** 전부 shadcn `Button variant="outline" role="combobox"` + `aria-expanded` + `aria-label` + `cn()` + semantic 토큰 + 전량 `t()`다. 신규 raw 색 0, `rounded-*` 하드코딩 0, 템플릿 concat 순증 0. 형제인 `SingleLazyCombobox`·`CcMultiCombobox`보다 오히려 관용구를 강하게 지킨다. **회귀 감시 대상이지 작업 대상이 아니다.**
+
+### 회귀 감시 추가
+
+- **R13. 대비 회귀** — 🟡28의 amber 교체로 텍스트 대비가 AA(4.5:1) 아래로 떨어지지 않는지 확인. 현행 6.84:1, 배경만 교체 시 유지. DESIGN §2가 요구하는 "새 raw 색 대비 확인"의 이행이다.
+- **R14. e2e 사정권** — 아래 tasks.md 참조. B의 shadcn 이행은 spec 3개가 아니라 **19개**에 걸린다.
