@@ -73,7 +73,8 @@ Your browser ──────────────────────�
 Screenshots, recordings, logs, CSS changes, attachments, and report bodies are
 assembled in the extension and sent directly to the destination you connected.
 For Jira, GitHub, Notion, Asana, ClickUp, and Slack, the BugShot-operated OAuth
-proxy relays authorization-code exchanges and token refreshes; Linear and
+proxy relays authorization-code exchanges, and token refreshes for the three
+that expire (Jira, GitHub, Asana); Linear and
 GitLab exchange tokens directly via PKCE. Capture data never goes through the
 proxy. Anonymous analytics contain no capture or report content. Those events
 leave through `in.bug-shot.com`, a domain we own whose DNS record points
@@ -98,7 +99,8 @@ neither browser implements that API.
 3. **Connect a destination** — choose a tracker or Slack in the *Integrations* tab.
 4. **Capture** — edit an element's styles, capture an element or area, take a
    viewport or full-page screenshot, or record the tab or screen. You can also
-   start a report without a capture from the console or network log tabs.
+   start a report without a capture — from the capture screen's footer, or from
+   the console and network log tabs.
 5. **Submit** — review the evidence and send the completed report.
 
 Full walkthrough in the [Quick Start guide](https://bug-shot.com/en/docs/quick-start).
@@ -109,7 +111,7 @@ Full walkthrough in the [Quick Start guide](https://bug-shot.com/en/docs/quick-s
 
 Fix the bug visually before you even describe it.
 
-- **Element picker** — hover to highlight, click to select any DOM element on the page. Works on nested and deeply styled elements.
+- **Element picker** — hover to highlight, click to select an element on the page. Works on nested and deeply styled elements; shadow DOM interiors resolve to their host, and pseudo-elements are not hit-testable.
 - **DOM tree navigation** — can't reach it by hovering? Browse the live DOM tree in a dialog and pick the node directly, or step to its parent or first child — for wrappers and elements buried under an overlay.
 - **Live CSS editing** — edit layout, spacing, sizing, color, typography, borders, and more through structured fields, or switch to a syntax-highlighted CSS code editor — prefilled with the element's current styles (four-side longhands merged into shorthands), with autocomplete and inline color swatches — to edit raw CSS directly (arbitrary properties, `!important`). Changes apply to the live page instantly, so you can dial in the exact fix and see it in place.
 - **Class & text editing** — edit an element's class list or visible text live; those changes are tracked alongside its style diff.
@@ -169,9 +171,10 @@ selection is GitHub, Linear and GitLab only. **Slack** is a messenger rather tha
 a tracker — it sends to a channel or DM instead.
 
 Set defaults once in the *Integrations* tab — destination (project, repo, team,
-workspace) plus **assignee**, CC, label, and issue type — and every new report comes
-pre-filled. Whoever you assigned last still wins over the default, so the common
-case stays one click.
+workspace) plus **assignee**, label, and issue type (Jira) — and every new report
+comes pre-filled. Whoever you assigned last still wins over the default, so the
+common case stays one click. CC is not a default: it carries over from your last
+submission on that platform.
 
 | Platform | Auth | Highlights |
 |---|---|---|
@@ -179,7 +182,7 @@ case stays one click.
 | **GitHub** | OAuth / PAT | repo, labels, assignees, file upload |
 | **Linear** | OAuth PKCE / API Key | team, project, labels, priority |
 | **Notion** | OAuth / Internal Token | database picker, status & select properties |
-| **GitLab** | OAuth PKCE / PAT | gitlab.com + self-managed instances |
+| **GitLab** | OAuth PKCE (gitlab.com only) / PAT | gitlab.com + self-managed instances |
 | **Asana** | OAuth / PAT | workspace, project, assignee |
 | **ClickUp** | OAuth / API Token | workspace → space → list, assignee |
 | **Slack** | OAuth (user token) | channel/DM, @mentions, title + threaded details & files |
@@ -189,7 +192,7 @@ case stays one click.
 - **Markdown copy** — paste into Slack, Confluence, or anywhere with tables intact
 - **File attachments** — attach your own files to the report, uploaded natively to the tracker
 - **Local download** — save the captured screenshot/video and the `logs.html` report
-- **i18n** — Korean / English
+- **i18n** — Korean / English. The issue body has its own language setting, separate from the interface and from the AI drafting language
 - **Report body composition** — toggle which sections (description, steps to reproduce, expected result, notes) go into the issue and **drag them into the order you want**, media and logs included; plus a title prefix
 - **Theme** — light / dark / system
 
@@ -207,7 +210,10 @@ pnpm test         # unit tests (Vitest)
 pnpm test:watch   # unit tests in watch mode
 pnpm build:e2e    # e2e-only build → dist-e2e/ (test fixture — never load/upload)
 pnpm test:e2e     # Playwright e2e suite (run build:e2e first)
+pnpm test:coverage # coverage report
+pnpm check:prearm # verify the recorder pre-arm chunk stayed a sync IIFE (CI gate)
 pnpm sync:agents  # regenerate the Codex mirror (AGENTS.md, .agents/skills/)
+pnpm sync:agents:check # fail if the mirror drifted (CI gate)
 ```
 
 Load the unpacked extension from `dist/` at `chrome://extensions` (developer mode).
@@ -293,8 +299,10 @@ which means fetching cross-origin stylesheets from the background worker at a
 page-supplied URL, i.e. an SSRF surface. It runs behind
 [`src/lib/ssrf-guard.ts`](src/lib/ssrf-guard.ts): http(s) only, with loopback,
 private, link-local, CGNAT, multicast, IPv6 ULA, and IPv4-mapped-IPv6 bypasses
-all rejected, plus `credentials: "omit"`, `redirect: "manual"`, a timeout, a
-content-type check, and size caps. One residual gap is documented in that file
+all rejected. The caller in
+[`src/background/messages.ts`](src/background/messages.ts) adds the rest:
+`credentials: "omit"`, `redirect: "manual"`, a timeout, a content-type check,
+and size caps. One residual gap is documented in that file
 rather than papered over: a hostname that resolves to an internal address can't
 be caught statically, since `fetch` re-resolves DNS. The fetched CSS is used
 on-device only.
