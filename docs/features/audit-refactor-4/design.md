@@ -22,7 +22,9 @@
 
 **모드 인자로 무엇을 넘기는가**: `issue.captureMode`(원본)를 넘긴다. `buildCtxForSubmit`은 legacy no-diff draft를 `ctx.captureMode: "screenshot"`으로 **강제 변환**하는데(`:337`), 그 값을 게이트에 넣으면 element 초안이 "로그 지원 모드"로 뒤집힌다. 같은 함수의 로그 blob 로드 게이트 3개(`:313`·`:317`·`:321`)도 전부 `issue.captureMode`를 쓰므로 그 규율을 따른다.
 
-### 항목 13 — v<2 이미지 마이그레이션 fail-closed
+### ~~항목 13 — v<2 이미지 마이그레이션 fail-closed~~ (배치에서 제외 — 2026-08-14)
+
+> **대상 인구가 공집합일 가능성이 높다.** `git show v1.0.1:src/store/issues-store.ts`가 이미 `version: 2`를 기록하므로 v0/v1 봉투는 릴리스된 적이 없다. 아래 설계(비용/편익·대안 4~6·위험 1~2)는 그 전제 위에 서 있어 그대로 두되 **이번 배치에서는 실행하지 않는다.** 결함 자체와 정책 비대칭은 실재하므로, v0/v1 봉투가 실제로 관측되거나 `migrateIssuesState`에 새 이미지 이관 분기가 생기면 원안 그대로 재개한다. 아래는 그때를 위한 보존이다.
 
 | 파일 | 현재 역할 | 변경 |
 |---|---|---|
@@ -42,10 +44,10 @@
 
 | 파일 | 변경 |
 |---|---|
-| `docs/ARCHITECTURE.md:582` | `settings-ui-store` v9 → **v10**, `v10은 aiLanguage 추가` 서술 편입 |
-| `docs/DIRECTORY.md:96` | `settings-ui v9:` → **v10**, 필드 목록에 `aiLanguage` 추가 |
+| `docs/ARCHITECTURE.md:622` | `settings-ui-store` v10 → **v11**, `v11은 bodyLocale 추가` 서술 편입 |
+| ~~`docs/DIRECTORY.md`~~ | **대상 아님** — `:99`가 이미 `settings-ui v11`이고 `aiLanguage`·`bodyLocale`까지 반영돼 있다(2026-08-14 실측). 이전 판의 "v9 → v10" 지시를 실행하면 **되돌리는 커밋**이 된다 |
 
-코드(`src/store/settings-ui-store.ts:268` `version: 10`, `:267` 주석)는 이미 정확하다. `migrateSettingsUi`(`:133-158`)는 버전 비교 없는 nullish 정규화 + `mergePersistedSettings`(`:162-175`, persist 옵션 `merge:`가 `:271`에서 이 named export를 가리킨다) 재정규화라 멱등이므로 **코드는 손대지 않는다**.
+코드(`src/store/settings-ui-store.ts:284` `version: 11`, `:283` 주석)는 이미 정확하다. `migrateSettingsUi`(`:133-158`)는 버전 비교 없는 nullish 정규화 + `mergePersistedSettings`(`:162-175`, persist 옵션 `merge:`가 `:271`에서 이 named export를 가리킨다) 재정규화라 멱등이므로 **코드는 손대지 않는다**.
 
 **감사 이후 바뀐 두 가지**(문서 서술에 반영할 것): ① 재정규화 함수가 persist 옵션 안 익명 함수에서 **`mergePersistedSettings` named export로 추출**됐다(주석 근거: "persist 옵션 안 익명 함수로 두면 테스트가 닿지 못해 이 방어가 무검증으로 남는다"). ② `migrateSettingsUi`에 `state.locale = normalizeLocale(state.locale)`(`:154`)가 추가됐다 — 버전 분기 없는 정규화이고 막는 대상은 **다운그레이드**(새 로케일 persist가 구버전으로 롤백되면 사전 조회가 undefined). 둘 다 v10 서술과 함께 넣으면 문서가 현재 코드와 문자 단위로 맞는다.
 
@@ -268,7 +270,7 @@ export function inlineRefMarkdown(refId: string, alt = ""): string {
 
 1. **항목 12 / `stripApiHostsRows`를 "source 태그만 보고 지우기"로 단순화** (스키마 확장 불필요) — **기각**. `syncApiHostsRow`의 `promoteEditedRow`(`apiHostRow.ts:118-126`)는 effect가 다시 돌 때만 태그를 벗기는데 그 effect의 deps에 `draft`가 없다(`DraftingPanel.tsx:636-643`). 즉 **사용자가 값만 고치고 저장한 행은 `source:"api-hosts"`를 단 채 영속된다**(행 편집은 `{...next[idx], value}`로 source를 보존한다 — `DraftingPanel.tsx:772-776`). 태그만 보고 지우면 그 사용자 입력이 조용히 소실되고, `DraftDetailDialog`엔 `재현 환경` 편집 UI가 없어(`EnvBlock` 읽기 전용, `:1212-1245`) **복구 수단도 없다**.
 2. **항목 12 / `confirmDraft`가 저장 시점에 자동 행을 미리 걷어내기** — **기각**. `logsAttached`는 draft에서 off→on으로 되돌릴 수 있는 가역 토글인데(`:924`·`:1001`), 저장 때 지우면 다시 켜도 행을 되살릴 수 없다. 라이브 규율(로그 off로 사라지는 건 `apiHostsDismissed` 래치를 안 세운다)과도 정면으로 어긋난다.
-3. **항목 12 / 구 draft(필드 없음)에서 자동 행을 지우는 쪽** — **기각**, 남기는 쪽 채택. 근거 넷: ① `stripApiHostsRows`의 계약은 "**미수정** 행만 걷어낸다"인데 `lastDerived`가 없으면 미수정임을 증명할 수 없고, 증명 없이 지우면 대안 1과 같은 소실이 난다. ② 라이브 경로도 `apiHostsDerived === null`이면 아무것도 안 지운다 — 같은 함수·같은 입력·같은 결과이고, 구 draft만 다른 규칙을 쓰면 함수가 두 의미를 갖는다. ③ 남길 때의 노출은 **페이지와 같은 registrable domain의 hostname**뿐이고(`deriveApiHostsRow`의 `tldts` 게이트가 타 조직 hostname을 이미 배제 — POSTMORTEM 2026-07-30), 그 도메인은 `Page` 행에 이미 실려 있어 증분이 사실상 없다. 반대 방향의 피해(사용자 입력 소실)는 비대칭적으로 크다. ④ 노출 범위가 유한하다 — 이 필드가 없는 draft는 배포 이전 저장분뿐이고 새 draft부터는 정상 판정된다. **마이그레이션 backfill도 하지 않는다**(저장된 행의 값을 파생값으로 간주하는 것 = ①의 추측을 마이그레이션으로 굳히는 것).
+3. **항목 12 / 구 draft(필드 없음)에서 자동 행을 지우는 쪽** — **기각**, 남기는 쪽 채택. 근거 넷: ① `stripApiHostsRows`의 계약은 "**미수정** 행만 걷어낸다"인데 `lastDerived`가 없으면 미수정임을 증명할 수 없고, 증명 없이 지우면 대안 1과 같은 소실이 난다. ② 라이브 경로도 `apiHostsDerived === null`이면 아무것도 안 지운다 — 같은 함수·같은 입력·같은 결과이고, 구 draft만 다른 규칙을 쓰면 함수가 두 의미를 갖는다. ~~③ 남길 때의 노출은 페이지와 같은 registrable domain의 hostname뿐이고 그 도메인은 `Page` 행에 이미 실려 있어 증분이 사실상 없다.~~ **③은 삭제한다(2026-08-14) — 사실과 반대이고 자사 방침과 충돌한다.** `deriveApiHostsRow`(`apiHostRow.ts:47`)는 **페이지 hostname과 다른** 호스트만 내보내므로 겹치는 건 registrable domain뿐이고 서브도메인 라벨은 순수 신규 정보다. `docs/privacy.ko.md:89`가 직접 "사내 QA·스테이징 호스트명이 포함될 수 있는 API Hosts 행"이라고 적어뒀다. 결론(구 draft에서 안 지운다)은 ①·④만으로 충분히 서므로 근거만 뺀다 — 남겨두면 구현자가 "노출은 무해"로 읽는다. ④ 노출 범위가 유한하다 — 이 필드가 없는 draft는 배포 이전 저장분뿐이고 새 draft부터는 정상 판정된다. **마이그레이션 backfill도 하지 않는다**(저장된 행의 값을 파생값으로 간주하는 것 = ①의 추측을 마이그레이션으로 굳히는 것).
 4. **항목 13 / version만 안 올리고 다음 기동 재시도** — **불가능**. zustand persist의 `setItem`이 `{state, version: options.version}`을 고정으로 쓴다(`middleware.mjs:356-362`). 호출부에 버전 통제권이 없다.
 5. **항목 13 / 실패한 dataURL을 레코드에 보존해 재시도** — **기각**. `IssueSnapshot`은 v2에서 이미 boolean 스키마이고, 보존 자리를 새로 만들면 v5 스키마에 v1 잔재가 영구히 남는다. 저장소 봉투를 통째로 남기는 throw가 같은 목적(재시도)을 스키마 오염 없이 달성한다.
 6. **항목 13 / 모든 실패를 전파(파싱 실패 포함)** — **기각**. `dataUrlToBlob`은 못 읽는 값에 항상 같은 예외를 던지므로(`blob-db.ts:730` + `atob`), 깨진 dataURL 하나가 그 사용자의 hydrate를 **영구히** 막는다. 실패의 성질(일시/영구)로 경계를 나누는 게 fail-closed의 취지이지, 모든 예외를 위로 던지는 게 취지가 아니다.
@@ -278,13 +280,17 @@ export function inlineRefMarkdown(refId: string, alt = ""): string {
 
 ## 위험 요소
 
-1. **[치명] 항목 13 — 마이그레이션 abort 세션에서 사용자 이슈가 통째로 덮여 사라질 수 있다.** migrate가 throw하면 `set()`이 안 돌아 `issues: []`가 유지되는데, `issues-store`엔 **렌더 게이트가 없다**(`App.tsx:224`의 게이트는 `editorHydrated`·`settingsHydrated`뿐). 즉 사용자는 "이슈 목록이 비어 보이는" 패널을 정상으로 여기고, 그 상태에서 초안을 하나라도 저장하면 `api.setState`가 `setItem()`을 태워 **구버전 봉투를 `{issues:[새것], version:5}`로 덮어쓴다.** 이 창은 `failClosedLocalStorage` 읽기 실패 경로에 **이미 존재하는 기존 위험**이고 항목 13이 새로 만드는 것이 아니지만(노출은 v0/v1 잔존 사용자 × IDB 장애의 교집합), 구현 중 이 사실을 잊고 "throw했으니 안전"으로 결론내면 안 된다. 완화는 이 배치 밖이다(이슈 목록에 hydrate 실패 배너를 다는 건 별건 — `onStateSaveFailed`류 신호는 비재생 pub/sub이라 모듈 로드 시점 hydrate를 못 받는다). **구현 시 이 위험을 tasks의 수동 체크리스트로 확인만 하고, 완화를 스코프에 끌어들이지 않는다.**
+1. **[치명·보류] 항목 13 — 마이그레이션 abort 세션에서 사용자 이슈가 통째로 덮여 사라질 수 있다.** *(항목 13 제외로 이번 배치엔 해당 없음. 재개 시 창의 범위를 넓혀 읽을 것 — zustand는 `api.setState`를 패치하므로 "초안 저장"뿐 아니라 `patchIssue`·`removeIssue`·`markSubmitted`를 포함한 **모든 store 액션**이 `setItem()`을 태운다. 또 migrate가 reject하면 `finishHydrationListeners`가 영영 안 돌아, 훗날 issues-store에 렌더 게이트를 달면 `chrome-storage.ts:4-7`이 경고한 "패널 빈 화면 고착"이 재현된다.)* migrate가 throw하면 `set()`이 안 돌아 `issues: []`가 유지되는데, `issues-store`엔 **렌더 게이트가 없다**(`App.tsx:224`의 게이트는 `editorHydrated`·`settingsHydrated`뿐). 즉 사용자는 "이슈 목록이 비어 보이는" 패널을 정상으로 여기고, 그 상태에서 초안을 하나라도 저장하면 `api.setState`가 `setItem()`을 태워 **구버전 봉투를 `{issues:[새것], version:5}`로 덮어쓴다.** 이 창은 `failClosedLocalStorage` 읽기 실패 경로에 **이미 존재하는 기존 위험**이고 항목 13이 새로 만드는 것이 아니지만(노출은 v0/v1 잔존 사용자 × IDB 장애의 교집합), 구현 중 이 사실을 잊고 "throw했으니 안전"으로 결론내면 안 된다. 완화는 이 배치 밖이다(이슈 목록에 hydrate 실패 배너를 다는 건 별건 — `onStateSaveFailed`류 신호는 비재생 pub/sub이라 모듈 로드 시점 hydrate를 못 받는다). **구현 시 이 위험을 tasks의 수동 체크리스트로 확인만 하고, 완화를 스코프에 끌어들이지 않는다.**
 2. **[중] 항목 13 — 부분 성공 잔여물.** `before` 성공 후 `after`에서 abort하면 `${issueId}:before` blob이 남고, 같은 기동의 orphan prune은 스킵된다. 재시도 시 같은 키에 `put`으로 덮이므로 누수는 아니지만(`blob-db.ts:158`), 마이그레이션이 영영 성공하지 못하면 그 blob은 참조 없이 남는다. 수용한다 — 대안(부분 롤백)은 실패 경로에 삭제를 추가하는 것이라 fail-closed 원칙에 정면으로 어긋난다.
 3. **[치명] 항목 18 — persist `name` 오타는 전 사용자 설정 초기화다.** `bugshot-app-settings`가 한 글자라도 달라지면 zustand가 저장분을 못 찾아 기본값으로 뜬다(테마·로케일·본문 구성·BYOK 설정 전부). 타입 에러는 안 난다. **상수 값 동일성을 단위 테스트로 잠근다** — `src/lib/__tests__/settings-storage.test.ts:93-95`가 `SETTINGS_STORAGE_KEY`에 대해 하는 것과 같은 형태.
-4. **[중] 항목 12 — 라이브 경로 리팩터가 정상 경로를 건드린다.** `buildEditorCapture.ts:55-59`는 **모든** 제출이 지나는 자리다. 게이트를 헬퍼로 옮길 때 로그 ON 분기가 `[...rows]`(새 배열)를 반환하는 현행 동작까지 그대로 유지해야 한다 — 현재도 스프레드로 새 배열을 만든다. `bodyOutputGolden.test.ts`가 8개 빌더 출력을 통째로 잠그고 있으므로 골든 diff가 0이어야 한다.
+4. **[중] 항목 12 — 라이브 경로 리팩터가 정상 경로를 건드린다.** `buildEditorCapture.ts:57-63`은 **모든** 제출이 지나는 자리다. 게이트를 헬퍼로 옮길 때 로그 ON 분기가 `[...rows]`(새 배열)를 반환하는 현행 동작까지 그대로 유지해야 한다 — 현재도 스프레드로 새 배열을 만든다. ~~`bodyOutputGolden.test.ts`가 8개 빌더 출력을 통째로 잠그고 있으므로 골든 diff가 0이어야 한다.~~ **2026-08-14 정정: 골든은 이 위험의 그물이 아니다.** 그 테스트는 ctx 리터럴을 직접 조립하고 `buildEditorMarkdownContext()`를 호출하지 않으며(`vi.mock("@/i18n")`도 걸려 있다) 스냅샷에 `API Hosts`가 **0회**라, 게이트를 정반대로 뒤집어도 green이다. 그물은 `buildEditorCapture.test.ts`에 **신설**하는 환경 행 케이스이며, 기존 케이스도 `environment: []`뿐이라 커버리지가 0이었다(POSTMORTEM 2026-08-12 "있기만 하면 통과").
 5. **[중] 항목 12 — `logsAttach` 인자를 `issue.logsAttached`로 직접 넘기면 뒤집힌다.** 필드는 `boolean | undefined`이고 `undefined = 첨부`가 계약이다(`issues-store.ts:212-214`). 반드시 `issue.logsAttached !== false`(`DraftDetailDialog.tsx:311`의 `logsOn`)를 넘긴다.
 6. **[중] 항목 14 — 유닛으로 못 고정한다.** `picker.ts`는 브라우저 실동작(시트 주입 → `onCacheReloaded` 발화 → `requestIdleCallback`)이라 jsdom으로 재현할 수 없다. 수동 체크리스트가 유일한 그물이고, 그마저 "한 줄 추가"라 회귀가 조용하다. 대신 `handleStart`/`handleSelectByPath` 두 등록 지점을 코드에서 **서로 인접하게 읽히도록** 주석으로 묶는다.
 7. **[소] 항목 76 — 게이트 교체 함정.** `HOST_ID` 제외를 `ANNOTATION_HOST_ID`로 **바꾸면** picker overlay가 DOM Tree에 노출된다. OR로 얹는다(POSTMORTEM 2026-08-04의 "기존 게이트를 새 조건으로 대체"와 같은 계열).
 8. **[소] 항목 71 — `as const` 전환이 `PlatformId[]` 소비처를 깨뜨릴 수 있다.** `Object.keys(...) as PlatformId[]`로 mutable 배열을 유지해 `pickInitialPlatform`의 `for...of`가 그대로 돌게 한다.
-9. **[소] 항목 74 — `alt` 기본값.** 현재 생성물은 `![](...)`(빈 alt)이다. 헬퍼의 기본값을 빈 문자열로 두지 않으면 본문 마크다운이 바뀌어 골든이 깨진다.
-10. **[소] `docs/features/french-locale/`와의 충돌 — 파일 충돌 없음, 문서 줄번호만 경쟁한다.** fr 기획은 `src/i18n/{locales,index}.ts`·`aiLanguage.ts`·`localeLabels.ts`·`log-viewer/i18n.ts`를 건드리고 **`bg-init.ts`·`settings-ui-store.ts`는 안 건드리므로** 항목 18과 소스 충돌이 없다(순서 의존도 없다). 겹치는 건 Task 8·11의 문서뿐이다 — fr Task 8이 `docs/DIRECTORY.md:99-101`·`docs/ARCHITECTURE.md:256`을 고치므로, 그쪽이 먼저 들어오면 이 배치가 인용한 `ARCHITECTURE.md:582`·`DIRECTORY.md:96`이 다시 밀린다. **착수 시 줄번호를 다시 확인**한다(내용 판정은 불변).
+9. **[소] 항목 74 — `alt` 기본값.** 현재 생성물은 `![](...)`(빈 alt)이다. 헬퍼의 기본값을 빈 문자열로 두지 않으면 본문 마크다운이 바뀐다. ~~골든이 깨진다~~ — 스냅샷에 `inline:`이 0회라 골든은 이걸 못 잡는다(2026-08-14 실측). 그물은 `inline-ref.test.ts`의 왕복 파싱 케이스다.
+
+11. **[중] 항목 12 — `stripSubmitted`가 신규 필드를 안 지운다(2026-08-14 편입).** `issues-store.ts:38-59`는 14개 필드를 **열거식으로** 비우고 `draft`를 통째로 초기화하지만, 목록이 열거식이라 **새 필드는 자동으로 살아남는다.** 제출된 레코드는 `clearIssues`(`:430`) 전까지 삭제되지 않으므로 `apiHostsDerived`에 담긴 사내 호스트명이 `chrome.storage.local`에 무기한 남고, `draft.environment`가 비워진 뒤 **남는 유일한 캡처 문맥**이 된다. 필드 추가와 같은 태스크에서 비우기까지 처리한다.
+
+12. **[중] 항목 12 — 화면과 본문이 갈린다(2026-08-14 편입).** `EnvBlock`(`DraftDetailDialog.tsx:1234-1267`)은 `filterEnvironmentRows(issue.draft.environment ?? [])`를 직접 렌더해 `buildCtxForSubmit`을 지나지 않는다. 본문만 고치면 초안 상세 화면엔 행이 그대로 보인다. 표시 소스도 같은 함수를 지나게 하고 `data-testid="env-row"`를 부여한다 — 이게 e2e 관측 지점을 겸한다(그 전엔 본문 관측 시나리오를 쓸 방법이 없다: `DraftDetailDialog`엔 `copy-markdown`이 없고 제출 payload 인터셉트 선례도 0건).
+10. **[소] `docs/features/french-locale/`와의 충돌 — 파일 충돌 없음, 문서 줄번호만 경쟁한다.** fr 기획은 `src/i18n/{locales,index}.ts`·`aiLanguage.ts`·`localeLabels.ts`·`log-viewer/i18n.ts`를 건드리고 **`bg-init.ts`·`settings-ui-store.ts`는 안 건드리므로** 항목 18과 소스 충돌이 없다(순서 의존도 없다). 겹치는 건 Task 8의 문서뿐이다 — fr Task 8이 `docs/DIRECTORY.md:99-101`·`docs/ARCHITECTURE.md:256`을 고친다. **이 위험은 이미 한 번 현실화됐다**: 이 배치가 v1.7.20 기준으로 적어둔 `ARCHITECTURE.md:582`·`DIRECTORY.md:96`이 v1.7.21~23을 거치며 `:622`·`:99`로 밀렸고, DIRECTORY 쪽은 아예 남이 먼저 고쳐 대상 자체가 사라졌다. **착수 시 줄번호를 다시 확인**한다(내용 판정은 불변).
