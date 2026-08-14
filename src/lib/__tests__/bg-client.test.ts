@@ -1,0 +1,227 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/i18n", () => ({
+  t: (key: string) => key,
+}));
+
+type SendMessageCb = (res: unknown) => void;
+
+let respondWith: unknown;
+let lastError: { message: string } | undefined;
+let lastRequest: unknown;
+
+vi.stubGlobal("chrome", {
+  runtime: {
+    get lastError() {
+      return lastError;
+    },
+    sendMessage: (req: unknown, cb: SendMessageCb) => {
+      lastRequest = req;
+      cb(respondWith);
+    },
+  },
+});
+
+import { onOAuthExpired } from "@/lib/app-events";
+import {
+  BgError,
+  getOAuthErrorPlatform,
+  isOAuthCancelled,
+  isOAuthNotConfigured,
+  isOAuthRefreshFailed,
+  sendBg,
+} from "@/lib/bg-client";
+
+const req = { type: "ping" } as never;
+
+beforeEach(() => {
+  respondWith = undefined;
+  lastError = undefined;
+  lastRequest = undefined;
+});
+
+describe("sendBg", () => {
+  it("ok:true면 result만 resolve한다", async () => {
+    respondWith = { ok: true, result: { id: "1" } };
+
+    await expect(sendBg(req)).resolves.toEqual({ id: "1" });
+  });
+
+  it("요청 객체를 그대로 chrome.runtime.sendMessage에 넘긴다", async () => {
+    respondWith = { ok: true, result: null };
+
+    await sendBg(req);
+
+    expect(lastRequest).toBe(req);
+  });
+
+  it("chrome.runtime.lastError가 있으면 통신 에러로 reject한다", async () => {
+    lastError = { message: "port closed" };
+    respondWith = { ok: true, result: "ignored" };
+
+    await expect(sendBg(req)).rejects.toThrow("bg.error.communication");
+  });
+
+  // lastError 경로는 BgError가 아니라 평범한 Error다 — 판독기들이 이 에러에 걸리면 안 된다.
+  it("lastError reject는 BgError가 아니다", async () => {
+    lastError = { message: "port closed" };
+    respondWith = { ok: true, result: "ignored" };
+
+    await expect(sendBg(req)).rejects.not.toBeInstanceOf(BgError);
+  });
+
+  it("ok:false면 error·status·body를 실은 BgError로 reject한다", async () => {
+    respondWith = { ok: false, error: "boom", status: 404, body: { x: 1 } };
+
+    const err = await sendBg(req).catch((e) => e);
+
+    expect(err).toBeInstanceOf(BgError);
+    expect(err.message).toBe("boom");
+    expect(err.status).toBe(404);
+    expect(err.body).toEqual({ x: 1 });
+  });
+
+  it("응답 자체가 undefined면 unknown 에러로 reject한다", async () => {
+    respondWith = undefined;
+
+    const err = await sendBg(req).catch((e) => e);
+
+    expect(err).toBeInstanceOf(BgError);
+    expect(err.message).toBe("bg.error.unknown");
+  });
+
+  it("oauthRefreshFailed 응답이면 onOAuthExpired가 platform과 함께 발화한다", async () => {
+    const fn = vi.fn();
+    const off = onOAuthExpired.subscribe(fn);
+    respondWith = {
+      ok: false,
+      error: "expired",
+      body: { oauthRefreshFailed: true, platform: "linear" },
+    };
+
+    await sendBg(req).catch(() => {});
+    off();
+
+    expect(fn).toHaveBeenCalledWith("linear");
+  });
+
+  // 위 케이스가 게이트를 실제로 검증하려면, 플래그 없는 실패에서는 조용해야 한다.
+  it("플래그 없는 ok:false에서는 onOAuthExpired가 발화하지 않는다", async () => {
+    const fn = vi.fn();
+    const off = onOAuthExpired.subscribe(fn);
+    respondWith = { ok: false, error: "boom", body: { platform: "linear" } };
+
+    await sendBg(req).catch(() => {});
+    off();
+
+    expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+describe("OAuth 에러 판독기", () => {
+  const readers = {
+    oauthRefreshFailed: isOAuthRefreshFailed,
+    oauthCancelled: isOAuthCancelled,
+    oauthNotConfigured: isOAuthNotConfigured,
+  } as const;
+
+  for (const [flag, read] of Object.entries(readers)) {
+    describe(flag, () => {
+      it("BgError.body의 플래그가 true면 true", () => {
+        expect(read(new BgError("e", 400, { [flag]: true }))).toBe(true);
+      });
+
+      it("플래그가 없으면 false", () => {
+        expect(read(new BgError("e", 400, {}))).toBe(false);
+      });
+
+      // 서로의 플래그를 읽으면 안 된다 — isOAuthNotConfigured 주석이 "배타적"이라 못박은 축.
+      it("다른 판독기의 플래그에는 반응하지 않는다", () => {
+        for (const other of Object.keys(readers)) {
+          if (other === flag) continue;
+          expect(read(new BgError("e", 400, { [other]: true }))).toBe(false);
+        }
+      });
+
+      it("truthy 문자열은 true가 아니다 (엄격 비교)", () => {
+        expect(read(new BgError("e", 400, { [flag]: "true" }))).toBe(false);
+      });
+
+      it("body가 없거나 객체가 아니면 false", () => {
+        expect(read(new BgError("e"))).toBe(false);
+        expect(read(new BgError("e", 400, "nope"))).toBe(false);
+        expect(read(new BgError("e", 400, null))).toBe(false);
+      });
+
+      // BgError가 아닌 값은 body가 같아도 거부한다 — 이게 instanceof 가드의 존재 이유다.
+      it("BgError가 아니면 body가 같아도 false", () => {
+        const plain = Object.assign(new Error("e"), { body: { [flag]: true } });
+        expect(read(plain)).toBe(false);
+        expect(read({ body: { [flag]: true } })).toBe(false);
+        expect(read(undefined)).toBe(false);
+      });
+    });
+  }
+});
+
+describe("getOAuthErrorPlatform", () => {
+  const SUPPORTED = [
+    "jira",
+    "github",
+    "linear",
+    "notion",
+    "gitlab",
+    "asana",
+    "clickup",
+    "slack",
+  ];
+
+  it("지원 8플랫폼을 그대로 돌려준다", () => {
+    for (const p of SUPPORTED) {
+      expect(getOAuthErrorPlatform(new BgError("e", 401, { platform: p }))).toBe(p);
+    }
+  });
+
+  // 화이트리스트가 목록으로서 동작하는지 — 통과하면 안 되는 값을 섞는다.
+  it("목록 밖 문자열은 null이다", () => {
+    for (const p of ["bitbucket", "trello", "", "JIRA", "jira "]) {
+      expect(getOAuthErrorPlatform(new BgError("e", 401, { platform: p }))).toBe(null);
+    }
+  });
+
+  it("platform이 문자열이 아니면 null이다", () => {
+    expect(getOAuthErrorPlatform(new BgError("e", 401, { platform: 1 }))).toBe(null);
+    expect(getOAuthErrorPlatform(new BgError("e", 401, {}))).toBe(null);
+  });
+
+  it("body가 없거나 객체가 아니면 null이다", () => {
+    expect(getOAuthErrorPlatform(new BgError("e"))).toBe(null);
+    expect(getOAuthErrorPlatform(new BgError("e", 401, "jira"))).toBe(null);
+  });
+
+  it("BgError가 아니면 null이다", () => {
+    expect(
+      getOAuthErrorPlatform(Object.assign(new Error("e"), { body: { platform: "jira" } })),
+    ).toBe(null);
+    expect(getOAuthErrorPlatform(null)).toBe(null);
+  });
+});
+
+describe("BgError", () => {
+  it("name이 BgError이고 status·body를 보존한다", () => {
+    const err = new BgError("msg", 500, { a: 1 });
+
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe("BgError");
+    expect(err.message).toBe("msg");
+    expect(err.status).toBe(500);
+    expect(err.body).toEqual({ a: 1 });
+  });
+
+  it("status·body는 선택이다", () => {
+    const err = new BgError("msg");
+
+    expect(err.status).toBeUndefined();
+    expect(err.body).toBeUndefined();
+  });
+});
