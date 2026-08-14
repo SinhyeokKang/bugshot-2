@@ -141,8 +141,8 @@ markdown·clickup은 `emitLogSummary(lines, ctx, logsHref)`로 **링크를 건 �
 - `DraftDetailDialog` 쪽의 무조건 `markSubmitted` → 조건부로 바뀌어 재제출 기록이 안 남거나,
 - `IssueCreateModal` 쪽에 `reset()`·`clearPicker`가 유입돼 제출 직후 에디터가 날아간다.
 
-- 확인: 어댑터는 **`submitToX` 호출 + `setLastSubmitFields`까지만** 담는다. `markSubmitted`·`onSubmitted`·`reset`·`clearPicker`는 호출처에 남긴다.
-- 확인: 8개 플랫폼 × 2경로 = 16조합 중 최소 jira·github·slack 3개는 **수동 실연**(신규 제출 1회 + 목록에서 재제출 1회). 나머지는 어댑터 단위 테스트(`submitToX`를 vi.mock으로 잡고 인자 스냅샷).
+- 확인: 어댑터는 **인자 매핑만** 담는다 — 실행 0건. `submitToX` 호출·`setLastSubmitFields`·`markSubmitted`·`onSubmitted`·`reset`·`clearPicker`가 전부 호출처에 남는다(2026-08-14 정정 — 원안은 앞의 둘을 어댑터에 넣었는데, 그러면 설정 기록이 `markSubmitted`·`reset` 앞으로 당겨진다. design.md §G3 참조. 기준을 낮춘 게 아니라 올린 정정이다).
+- 확인: 어댑터 단위 테스트가 **8플랫폼 × 2매핑을 `toEqual`(정확 일치)로** 고정한다 — 순수 함수라 `vi.mock` 없이 직접 호출한다. 수동 실연은 값 매핑이 아니라 **배선**을 보는 것이므로 축을 좁힌다: ① 승격 경로 1회(`isSlackPreserved` → `requireMediaUpload`가 유일하게 값이 갈리는 축이고 e2e는 github 승격만 태우므로 **gitlab 또는 notion**) ② **jira 재제출 1회**(siteId sticky — 이 항목의 발단이자 `projectKey` 계정 fallback이 어댑터 인자로 넘어간 유일한 자리).
 - 확인: `DraftDetailDialog`의 Jira 핸들러에만 있는 "승격 가드 없음" POSTMORTEM 주석이 유실되지 않는지.
 
 ### R5. 커넥트 버튼이 8개 플랫폼 전부에서 계속 동작한다 (🟡50 리스크)

@@ -167,35 +167,38 @@
 
 #### Task 3-1: 어댑터 8개 신규 + 테스트
 - **변경 대상**: **신규** `src/sidepanel/lib/submitAdapters.ts`(또는 플랫폼별 파일) + `__tests__/`
-- **작업 내용**: 플랫폼별로 `submitToX(...)` 인자 매핑 + `setLastSubmitFields(...)` + `setLastSubmittedPlatform(...)`까지만 담는다. **`markSubmitted`·`onSubmitted`·`clearPicker`·`reset`은 넣지 않는다**(호출처마다 의미가 다르다 — R4).
+- **작업 내용 (2026-08-14 형태 변경 — 순수 매핑)**: 플랫폼별로 `xSubmitArgs`·`xLastSubmitFields` **인자 매핑 함수 2개**를 둔다. **어댑터는 아무것도 실행하지 않는다** — `submitToX` 호출도, `setLastSubmitFields`도 호출처에 남는다. ~~어댑터가 `submitToX` 호출 + `setLastSubmitFields` + `setLastSubmittedPlatform`까지 담는다~~는 원안을 버린 이유: 실행형은 `setLastSubmitFields`를 `markSubmitted`·`clearPicker`/`reset` **앞으로 당긴다**(두 컴포넌트 모두 현재 submit → markSubmitted → (재제출은 reset) → setLastSubmitFields 순). 상세는 design.md §G3의 같은 날짜 정정.
+  - `setLastSubmittedPlatform`은 인자가 플랫폼 상수뿐이라 매핑할 게 없어 어댑터에 없다.
+  - **`markSubmitted`·`onSubmitted`·`clearPicker`·`reset`은 넣지 않는다**(호출처마다 의미가 다르다 — R4). 순수 매핑은 이걸 **구조적으로** 보장한다 — 실행이 0이라 넣을 자리가 없다.
   - **⚠ 어댑터 입력에 `requireMediaUpload?: boolean`을 추가한다 (2026-08-14).** 두 컴포넌트의 인자 매핑이 8/8 동일하다는 전제가 **틀렸다** — **github(`DraftDetailDialog:506`)·notion(`:624`)·gitlab(`:675`) 셋만** `requireMediaUpload: isSlackPreserved(issue)`를 넘긴다(Slack 승격 시 미디어 업로드가 실패하면 등록 전 중단하는 **데이터 보호 가드**이고, POSTMORTEM "GitHub 승격 원본 소실"의 직계 방어선이다). 입력에 없으면 통합하는 순간 **무음으로 사라져 사용자 데이터가 유실된다.** 기본 false로 두고 호출처가 결정한다.
   - **⚠ `src/sidepanel/tabs/__tests__/jiraSubmitSymmetry.test.ts`를 함께 옮긴다 (2026-08-14).** 이 테스트(v1.7.22 신설)는 `IssueCreateModal.tsx`·`DraftDetailDialog.tsx` **소스 원문**에서 `submitToJira({`·`setLastSubmitFields("jira", {` 리터럴을 찾아(`:34` `toBeGreaterThan(-1)`) 5키 대칭을 단언한다. 어댑터로 옮기면 두 진입점에서 마커가 사라져 **확정 red**다. **지우지 말고** 스캔 대상을 `submitAdapters.ts`로 바꾸고 "어댑터 1곳에 5키가 다 있다"로 축소한다 — 대칭의 *의미*는 어댑터 통합이 구조적으로 보장하므로 단언이 약해져도 무방하다.
 - **작업 내용(위치)**: `sidepanel/lib/`에 둔다 — CLAUDE.md "store는 `sidepanel/tabs`를 import하지 않는다" 게이트와 `initialJiraFields` 선례.
 - **검증**:
-  - [ ] `submitToX`를 `vi.mock`으로 잡고 **8플랫폼 각각 인자 스냅샷** 테스트
-  - [ ] 어댑터에 `markSubmitted`·`onSubmitted`·`reset`·`clearPicker` 참조 0건 (grep)
-  - [ ] `grep -rn "requireMediaUpload" src/sidepanel/` 결과에 github·notion·gitlab 3경로가 **그대로 남아 있다**
-  - [ ] `pnpm test src/sidepanel/tabs/__tests__/jiraSubmitSymmetry.test.ts` green (스캔 대상 교체 후)
-  - [ ] `pnpm test` green
+  - [x] **8플랫폼 × 2매핑 인자 테스트** — 순수 함수라 `vi.mock` 없이 직접 호출하고 `toEqual`(정확 일치)로 고정한다. 부분 일치(`toMatchObject`)는 키가 새로 끼는 방향을 못 잡는다
+  - [x] 어댑터에 `markSubmitted`·`onSubmitted`·`reset`·`clearPicker` 참조 0건 (주석 1회 언급뿐)
+  - [x] `grep -rn "requireMediaUpload" src/sidepanel/` 결과에 github·notion·gitlab 3경로가 **그대로 남아 있다** — 이제 타입으로도 강제된다(`MediaGuard`를 그 셋의 입력 타입에만 믹스인해, 4번째 플랫폼이 물려받으면 컴파일 에러)
+  - [x] `pnpm test src/sidepanel/tabs/__tests__/jiraSubmitSymmetry.test.ts` green (스캔 대상 교체 후)
+  - [x] `pnpm test` green
+  - [x] **그물 비공허성을 뮤테이션으로 확인** — 화이트리스트를 `(f) => ({...f})`로 접기 / `requireMediaUpload` pass-through를 상수로 바꾸기 둘 다 red. **처음엔 둘 다 green이었다**: fixture 키 집합이 출력과 정확히 같으면 화이트리스트 검증이 항등식이 되고, `toEqual`은 값이 `undefined`인 키를 무시한다. fixture에 화이트리스트 밖 키를 심어 고쳤다
 
 #### Task 3-2: `IssueCreateModal` 8핸들러 치환
 - **변경 대상**: `src/sidepanel/tabs/IssueCreateModal.tsx` (:158-531)
 - **작업 내용**: 각 핸들러가 어댑터 호출 + `if (currentIssueId) markSubmitted(...)` + `onSubmitted({...})`만 남긴다.
 - **검증**:
-  - [ ] `onSubmitted` 호출이 8핸들러 전부에 남아 있다
-  - [ ] `markSubmitted`의 `currentIssueId` 가드가 유지된다
-  - [ ] `pnpm typecheck` green
+  - [x] `onSubmitted` 호출이 8핸들러 전부에 남아 있다
+  - [x] `markSubmitted`의 `currentIssueId` 가드가 유지된다 — **slack만 `markSlackShared`**(문서가 DDD에만 적었는데 ICM도 같다)
+  - [x] `pnpm typecheck` green
 
 #### Task 3-3: `DraftDetailDialog` 8핸들러 치환
 - **변경 대상**: `src/sidepanel/tabs/DraftDetailDialog.tsx` (:403-820)
 - **작업 내용**: 각 핸들러가 `resolveInlineImagesForSections(...)` + 어댑터 호출 + `markSubmitted(issue.id, ...)`(무조건) + `useEditorStore` 확인 후 `clearPicker`/`reset`만 남긴다. **POSTMORTEM 주석은 jira 단독이 아니라 asana(`:725`)·clickup(`:775`)에도 있다 — 셋 다 유실하지 않는다.**
   - **⚠ `markSubmitted`는 8핸들러가 아니라 7이다(2026-08-14 정정).** **slack은 `markSlackShared`**(`DraftDetailDialog:803-838` → `issues-store.ts:377`)로 blob을 지우지 않고 `slackPreserved: true`를 남긴다. 뭉개면 Slack 공유 후 원본 blob이 조기 삭제된다.
 - **검증**:
-  - [ ] `markSubmitted`가 **무조건** 호출된다(create 쪽의 조건부가 유입되지 않았다) — **단 slack 경로는 `markSlackShared`이며 치환 대상이 아니다**
-  - [ ] `clearPicker`/`reset` 블록이 8핸들러 전부에 남아 있다
-  - [ ] Jira 핸들러의 POSTMORTEM 주석 존재
-  - [ ] `pnpm typecheck` + `pnpm test` green
-  - [ ] **수동**: jira·github·slack 각각 신규 제출 1회 + 이슈 목록에서 재제출 1회 = 6회 (R4)
+  - [x] `markSubmitted`가 **무조건** 호출된다(create 쪽의 조건부가 유입되지 않았다) — **단 slack 경로는 `markSlackShared`이며 치환 대상이 아니다**
+  - [x] `clearPicker`/`reset` 블록이 8핸들러 전부에 남아 있다
+  - [x] POSTMORTEM 주석 존재 — jira뿐 아니라 linear·asana·clickup까지 **4건 전부** 보존
+  - [x] `pnpm typecheck` + `pnpm test` green
+  - [ ] **수동 (범위 축소 — 2026-08-14)**: 순수 매핑이라 호출 시점·순서가 안 바뀌고 인자 값은 8플랫폼 `toEqual`이 고정하므로, 원안 6회 대신 **배선만 2회** 본다 — ① 승격 경로 1회(gitlab 또는 notion. e2e가 github 승격만 태운다) ② jira 재제출 1회(siteId sticky + projectKey 계정 fallback)
 
 ---
 

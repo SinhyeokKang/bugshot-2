@@ -79,10 +79,12 @@
 
 ### G3. 제출 어댑터 (🟡43)
 
-- **신규** `src/sidepanel/lib/submitAdapters.ts`(또는 플랫폼별 8파일) — 각 플랫폼에 대해:
-  - 입력: 계정·필드·title·`ctx`·`inlineImages`·`captureFiles`
-  - 동작: `submitToX(...)` 호출 + `useSettingsStore.getState().setLastSubmitFields(...)` + `setLastSubmittedPlatform(...)`
-  - 출력: `NormalizedSubmitResult`
+- **신규** `src/sidepanel/lib/submitAdapters.ts` — 각 플랫폼에 대해 **순수 매핑 함수 2개**:
+  - 입력: 필드·가드로 좁힌 값·`ctx`·`inlineImages`·`captureFiles`
+  - 동작: **없다.** 인자 객체를 만들어 돌려줄 뿐이다
+  - 출력: `xSubmitArgs → JiraSubmitInput` 등 / `xLastSubmitFields → JiraLastSubmitFields` 등
+  - **2026-08-14 정정 — 원안(어댑터가 `submitToX` 호출 + `setLastSubmitFields` + `setLastSubmittedPlatform`까지 실행)을 버렸다.** 실행형은 `setLastSubmitFields`를 `markSubmitted`·`clearPicker`/`reset` **앞으로 당긴다**(두 컴포넌트 모두 현재 submit → markSubmitted → (재제출은 reset) → setLastSubmitFields 순). 그러면 재제출에서 `markSubmitted`가 throw할 때 "이슈는 안 생겼는데 sticky만 갱신됨"이 새로 생긴다 — 지금 순서에선 불가능한 상태다. 순수 매핑은 실행을 하나도 옮기지 않아 R4를 상한이 아니라 **원천 제거**한다. 이 정정은 아래 대안 B 기각 사유("인자 매핑만 뽑고 후처리는 보이는 곳에 남긴다")와 prd.md 배경 §5의 결론을 문자 그대로 따른 것이고, 어긋나 있던 건 이 절이다.
+  - `setLastSubmittedPlatform`은 인자가 플랫폼 상수뿐이라 **매핑할 게 없어** 어댑터에 없다
 - `src/sidepanel/tabs/IssueCreateModal.tsx`(:158-531) — 8핸들러가 어댑터 호출 + `markSubmitted`(currentIssueId 가드) + `onSubmitted`만 남긴다.
 - `src/sidepanel/tabs/DraftDetailDialog.tsx`(:403-820) — 8핸들러가 `resolveInlineImagesForSections` + 어댑터 호출 + `markSubmitted`(무조건) + `clearPicker`/`reset`만 남긴다. **Jira 핸들러의 "승격 가드 없음" POSTMORTEM 주석은 호출처에 남긴다.**
 - **CLAUDE.md 게이트 확인**: 어댑터는 `sidepanel/lib/`에 둔다. `sidepanel/tabs/`에 두면 store가 import할 수 없고(현재 store는 안 쓰지만 `initialJiraFields` 선례가 같은 이유로 `lib/`에 있다), 무엇보다 두 tabs 컴포넌트가 서로를 import하는 형태를 피한다.
