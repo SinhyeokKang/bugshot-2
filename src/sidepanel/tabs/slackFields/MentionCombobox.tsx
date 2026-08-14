@@ -6,7 +6,7 @@ import {
 } from "@/sidepanel/components/CcMultiCombobox";
 import { useLazyListOnOpen } from "@/sidepanel/hooks/useLazyListOnOpen";
 import type { SlackUser } from "@/types/slack";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 export interface MentionValue {
   id: string;

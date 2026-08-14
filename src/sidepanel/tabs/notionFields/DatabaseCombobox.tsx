@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { NotionDatabase } from "@/types/notion";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 interface Props {
   value: string | undefined;

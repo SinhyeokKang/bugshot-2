@@ -5,7 +5,7 @@ import { CommandItem } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { orderSelectedFirst } from "@/sidepanel/components/ccOptions";
 import type { JiraUser } from "@/types/jira";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { FieldCombobox } from "./FieldCombobox";
 import { useDebouncedSearch } from "./useDebouncedSearch";
 import { useJiraConfig } from "./useJiraConfig";

@@ -6,7 +6,7 @@ import {
 } from "@/sidepanel/components/CcMultiCombobox";
 import { useLazyListOnOpen } from "@/sidepanel/hooks/useLazyListOnOpen";
 import type { NotionUser } from "@/types/notion";
-import { BgError, sendBg } from "@/types/messages";
+import { BgError, sendBg } from "@/lib/bg-client";
 
 export interface CcValue {
   id: string;

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { GithubRepo } from "@/types/github";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 export interface RepoValue {
   owner: string;

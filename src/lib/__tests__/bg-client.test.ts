@@ -34,6 +34,16 @@ import {
 
 const req = { type: "ping" } as never;
 
+// resolve로 새면 케이스가 공허해지므로, reject를 강제하면서 타입을 좁힌다.
+async function rejection(p: Promise<unknown>): Promise<BgError> {
+  return p.then(
+    () => {
+      throw new Error("expected sendBg to reject");
+    },
+    (e: unknown) => e as BgError,
+  );
+}
+
 beforeEach(() => {
   respondWith = undefined;
   lastError = undefined;
@@ -73,7 +83,7 @@ describe("sendBg", () => {
   it("ok:false면 error·status·body를 실은 BgError로 reject한다", async () => {
     respondWith = { ok: false, error: "boom", status: 404, body: { x: 1 } };
 
-    const err = await sendBg(req).catch((e) => e);
+    const err = await rejection(sendBg(req));
 
     expect(err).toBeInstanceOf(BgError);
     expect(err.message).toBe("boom");
@@ -84,7 +94,7 @@ describe("sendBg", () => {
   it("응답 자체가 undefined면 unknown 에러로 reject한다", async () => {
     respondWith = undefined;
 
-    const err = await sendBg(req).catch((e) => e);
+    const err = await rejection(sendBg(req));
 
     expect(err).toBeInstanceOf(BgError);
     expect(err.message).toBe("bg.error.unknown");
@@ -131,8 +141,9 @@ describe("OAuth 에러 판독기", () => {
         expect(read(new BgError("e", 400, { [flag]: true }))).toBe(true);
       });
 
-      it("플래그가 없으면 false", () => {
+      it("플래그가 없거나 false면 false", () => {
         expect(read(new BgError("e", 400, {}))).toBe(false);
+        expect(read(new BgError("e", 400, { [flag]: false }))).toBe(false);
       });
 
       // 서로의 플래그를 읽으면 안 된다 — isOAuthNotConfigured 주석이 "배타적"이라 못박은 축.
@@ -151,6 +162,12 @@ describe("OAuth 에러 판독기", () => {
         expect(read(new BgError("e"))).toBe(false);
         expect(read(new BgError("e", 400, "nope"))).toBe(false);
         expect(read(new BgError("e", 400, null))).toBe(false);
+      });
+
+      // 판정은 body 플래그 전용이다 — 메시지 텍스트를 정규식으로 훑던 옛 구현으로
+      // 되돌아가면 이 케이스가 red가 된다.
+      it("메시지에 플래그 이름이 들어 있어도 body가 없으면 false", () => {
+        expect(read(new BgError(`user ${flag} the OAuth`))).toBe(false);
       });
 
       // BgError가 아닌 값은 body가 같아도 거부한다 — 이게 instanceof 가드의 존재 이유다.

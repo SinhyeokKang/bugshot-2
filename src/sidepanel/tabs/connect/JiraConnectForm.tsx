@@ -24,7 +24,8 @@ import type {
   JiraSite,
 } from "@/types/jira";
 import { isCredentialSafeUrl } from "@/lib/loopback-host";
-import { isOAuthCancelled, sendBg, type OAuthStartResultMsg } from "@/types/messages";
+import { type OAuthStartResultMsg } from "@/types/messages";
+import { isOAuthCancelled, sendBg } from "@/lib/bg-client";
 import { AssigneeField } from "@/sidepanel/tabs/jiraFields/AssigneeField";
 import { IssueTypeCombobox } from "@/sidepanel/tabs/IssueTypeCombobox";
 import { ProjectCombobox } from "@/sidepanel/tabs/ProjectCombobox";

@@ -7,7 +7,7 @@ import { LabelCombobox } from "../LabelCombobox";
 vi.mock("@/i18n", () => ({ useT: () => (key: string) => key }));
 
 const { sendBg } = vi.hoisted(() => ({ sendBg: vi.fn() }));
-vi.mock("@/types/messages", () => ({ sendBg }));
+vi.mock("@/lib/bg-client", () => ({ sendBg }));
 
 // 호출마다 수동 resolve 가능한 Promise를 돌려준다. 이전 스코프의 응답을
 // "실제로 늦게" 도착시켜야 race가 재현된다.

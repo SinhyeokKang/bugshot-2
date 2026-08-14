@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import type { GitlabIssueStatus } from "@/types/gitlab";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { STATUS_CATEGORY_COLORS } from "./constants";
 
 export type GitlabBadgeStatus = { kind: "opened" } | { kind: "closed" };

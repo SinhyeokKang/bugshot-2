@@ -5,7 +5,7 @@ import {
   type EditorSnapshot,
   useEditorStore,
 } from "@/store/editor-store";
-import { onSessionSaveExhausted } from "@/types/messages";
+import { onSessionSaveExhausted } from "@/lib/app-events";
 import { cancelAreaSelect, clearPicker, rebindStylingSession } from "@/sidepanel/picker-control";
 import { getNetworkLog, getConsoleLog, getActionLog, getVideoBlob, pruneOrphanInlineImages } from "@/store/blob-db";
 import { extractInlineRefs } from "@/sidepanel/lib/resolveInlineImages";

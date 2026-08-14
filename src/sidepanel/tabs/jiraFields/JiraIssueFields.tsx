@@ -5,7 +5,7 @@ import { FieldRow } from "@/sidepanel/components/FieldRow";
 import type { EditorIssueFields } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import type { JiraSprint } from "@/types/jira";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { AssigneeField } from "./AssigneeField";
 import { CcField } from "./CcField";
 import { EpicField } from "./EpicField";

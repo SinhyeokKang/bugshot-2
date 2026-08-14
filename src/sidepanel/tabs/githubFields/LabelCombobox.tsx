@@ -3,7 +3,7 @@ import { useT } from "@/i18n";
 import { ColorSwatch } from "@/sidepanel/components/ColorSwatch";
 import { SingleLazyCombobox } from "@/sidepanel/components/SingleLazyCombobox";
 import type { GithubLabel } from "@/types/github";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 interface Props {
   owner: string | undefined;

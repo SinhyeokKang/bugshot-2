@@ -5,7 +5,7 @@ import {
 import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages";
 import { guessUploadMime } from "./uploadMime";
 import type { MarkdownContext } from "./buildIssueMarkdown";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type { LinearCreateIssueResult } from "@/types/linear";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import { injectIssueUrl } from "@/lib/inject-issue-url";

@@ -5,7 +5,7 @@ import { CommandItem } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/store/settings-store";
 import type { JiraPriority } from "@/types/jira";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { FieldCombobox } from "./FieldCombobox";
 
 export function PriorityField({

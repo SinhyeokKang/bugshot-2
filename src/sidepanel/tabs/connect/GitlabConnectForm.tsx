@@ -22,7 +22,7 @@ import type {
   GitlabMyself,
   GitlabOAuthAuth,
 } from "@/types/gitlab";
-import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { isOAuthCancelled, sendBg } from "@/lib/bg-client";
 import { AssigneeCombobox } from "@/sidepanel/tabs/gitlabFields/AssigneeCombobox";
 import { LabelCombobox } from "@/sidepanel/tabs/gitlabFields/LabelCombobox";
 import { ProjectCombobox, type ProjectValue } from "@/sidepanel/tabs/gitlabFields/ProjectCombobox";

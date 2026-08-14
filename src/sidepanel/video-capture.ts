@@ -10,7 +10,7 @@ import { showAnnotation } from "./annotation-control";
 import * as videoRecorder from "./video-recorder";
 import { pendingKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
-import { onPickerUnavailable } from "@/types/messages";
+import { onPickerUnavailable } from "@/lib/app-events";
 
 // 영상 캡처만 다른 5종처럼 ensureSupportedTab 게이트가 없었다 — 패널이 미지원 페이지에서
 // 살아나면서 렌더 게이트(mode-record 미노출)가 단일 방어선이 됐다. 방어선을 두 겹으로 둔다:

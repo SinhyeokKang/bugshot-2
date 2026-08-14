@@ -7,7 +7,7 @@ import type { ActionLog } from "@/types/action";
 import type { PlatformId } from "@/types/platform";
 import type { EnvironmentRow } from "@/types/environment";
 import type { UserAttachmentMeta } from "@/types/attachment";
-import { onBlobSaveFailed } from "@/types/messages";
+import { onBlobSaveFailed } from "@/lib/app-events";
 import { useIssuesStore, type IssueRecord } from "./issues-store";
 import { jiraSiteId, useSettingsStore } from "./settings-store";
 import { initialJiraFields } from "@/sidepanel/lib/initialJiraFields";

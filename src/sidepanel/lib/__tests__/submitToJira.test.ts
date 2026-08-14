@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
-vi.mock("@/types/messages", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 
 vi.mock("../buildIssueAdf", () => ({
   buildIssueAdf: () => ({ type: "doc", content: [] }),

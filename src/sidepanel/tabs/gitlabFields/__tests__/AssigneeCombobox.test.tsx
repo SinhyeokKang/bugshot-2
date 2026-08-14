@@ -7,7 +7,7 @@ import { AssigneeCombobox } from "../AssigneeCombobox";
 vi.mock("@/i18n", () => ({ useT: () => (key: string) => key }));
 
 const { sendBg } = vi.hoisted(() => ({ sendBg: vi.fn() }));
-vi.mock("@/types/messages", () => ({ sendBg }));
+vi.mock("@/lib/bg-client", () => ({ sendBg }));
 
 const MEMBERS: GitlabMember[] = [
   { id: 7, username: "alice", name: "Alice" },

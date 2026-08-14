@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore } from "@/store/settings-store";
 import type { NotionPageStatus } from "@/types/notion";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { classifyBadgeError, type BadgeErrorKind } from "./utils";
 import { resolveNotionPageId } from "@/sidepanel/tabs/issueListUtils";
 import { notionStatusCategory } from "@/sidepanel/tabs/notionStatusColors";

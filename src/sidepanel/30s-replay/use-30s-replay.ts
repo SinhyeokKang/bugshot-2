@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { useEditorStore } from "@/store/editor-store";
 import { syncAndSettleLogs } from "@/sidepanel/picker-control";
 import { trimByTime, replayLogBounds } from "@/sidepanel/lib/log-merge";

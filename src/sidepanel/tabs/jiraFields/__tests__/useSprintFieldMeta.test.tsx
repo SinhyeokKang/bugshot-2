@@ -22,7 +22,7 @@ vi.mock("@/store/settings-store", async (importOriginal) => {
 });
 
 const sendBg = vi.fn();
-vi.mock("@/types/messages", () => ({
+vi.mock("@/lib/bg-client", () => ({
   sendBg: (req: unknown) => sendBg(req),
 }));
 

@@ -1,4 +1,4 @@
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { clampCropRect } from "@/sidepanel/lib/crop-rect";
 import {
   resolveCaptureRect,

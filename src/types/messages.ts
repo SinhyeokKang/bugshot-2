@@ -1,4 +1,3 @@
-import { t } from "@/i18n";
 import type {
   JiraAttachmentInput,
   JiraConfigPayload,
@@ -64,7 +63,6 @@ import type {
 } from "./asana";
 import type { ClickupCreateTaskPayload } from "./clickup";
 import type { SlackPostMessagePayload } from "./slack";
-import type { PlatformId } from "./platform";
 
 export interface OAuthStartResultMsg {
   sites: JiraSite[];
@@ -254,126 +252,6 @@ export type BgInternalMessage =
 export type BgResponse<T = unknown> =
   | { ok: true; result: T }
   | { ok: false; error: string; status?: number; body?: unknown };
-
-export class BgError extends Error {
-  constructor(
-    message: string,
-    public status?: number,
-    public body?: unknown,
-  ) {
-    super(message);
-    this.name = "BgError";
-  }
-}
-
-export function sendBg<T = unknown>(req: BgRequest): Promise<T> {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(req, (res: BgResponse<T>) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(t("bg.error.communication")));
-        return;
-      }
-      if (!res?.ok) {
-        const err = new BgError(
-          res?.error ?? t("bg.error.unknown"),
-          res?.status,
-          res?.body,
-        );
-        if (isOAuthRefreshFailed(err)) {
-          onOAuthExpired.fire(getOAuthErrorPlatform(err));
-        }
-        reject(err);
-        return;
-      }
-      resolve(res.result);
-    });
-  });
-}
-
-function readErrorBodyFlag(err: unknown, key: string): boolean {
-  if (!(err instanceof BgError)) return false;
-  if (!err.body || typeof err.body !== "object") return false;
-  return (err.body as Record<string, unknown>)[key] === true;
-}
-
-export function isOAuthRefreshFailed(err: unknown): boolean {
-  return readErrorBodyFlag(err, "oauthRefreshFailed");
-}
-
-export function isOAuthCancelled(err: unknown): boolean {
-  return readErrorBodyFlag(err, "oauthCancelled");
-}
-
-// 빌드에 client_id·proxy URL이 없어 OAuth를 시작조차 못 한 경우. isOAuthRefreshFailed와
-// 배타적이라 onOAuthExpired가 발화하지 않는다.
-export function isOAuthNotConfigured(err: unknown): boolean {
-  return readErrorBodyFlag(err, "oauthNotConfigured");
-}
-
-export function getOAuthErrorPlatform(err: unknown): PlatformId | null {
-  if (!(err instanceof BgError)) return null;
-  if (!err.body || typeof err.body !== "object") return null;
-  const p = (err.body as Record<string, unknown>).platform;
-  return p === "jira" ||
-    p === "github" ||
-    p === "linear" ||
-    p === "notion" ||
-    p === "gitlab" ||
-    p === "asana" ||
-    p === "clickup" ||
-    p === "slack"
-    ? p
-    : null;
-}
-
-type Listener = () => void;
-type OAuthExpiredListener = (platform: PlatformId | null) => void;
-export const onOAuthExpired = {
-  _listeners: new Set<OAuthExpiredListener>(),
-  subscribe(fn: OAuthExpiredListener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
-  fire(platform: PlatformId | null) { this._listeners.forEach((fn) => fn(platform)); },
-};
-
-export const onPickerUnavailable = {
-  _listeners: new Set<Listener>(),
-  subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
-  fire() { this._listeners.forEach((fn) => fn()); },
-};
-
-// 페이지 이동으로 activeTab grant가 만료돼 캡처가 불가한 상태. 다이얼로그가 패널 재실행을 안내한다.
-export const onPickerPermissionExpired = {
-  _listeners: new Set<Listener>(),
-  subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
-  fire() { this._listeners.forEach((fn) => fn()); },
-};
-
-export const onPickerIframeUnsupported = {
-  _listeners: new Set<Listener>(),
-  subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
-  fire() { this._listeners.forEach((fn) => fn()); },
-};
-
-export const onBlobSaveFailed = {
-  _listeners: new Set<Listener>(),
-  subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
-  fire() { this._listeners.forEach((fn) => fn()); },
-};
-
-// 레코드 본체(chrome.storage.local) 저장 실패. blob 실패에는 onBlobSaveFailed가 있는데
-// 레코드엔 알림 채널이 없어, confirmDraft가 true를 반환하며 "초안 저장됨"만 뜨고 레코드는
-// 없는 상태가 조용히 만들어졌다. rethrow는 zustand persist 경로에 unhandled rejection을
-// 낳으므로 blob 쪽과 대칭인 이벤트로 올린다.
-export const onStateSaveFailed = {
-  _listeners: new Set<Listener>(),
-  subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
-  fire() { this._listeners.forEach((fn) => fn()); },
-};
-
-export const onSessionSaveExhausted = {
-  _listeners: new Set<Listener>(),
-  subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
-  fire() { this._listeners.forEach((fn) => fn()); },
-};
 
 // Re-export common platform types for consumers
 export type {

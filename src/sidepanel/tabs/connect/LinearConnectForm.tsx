@@ -21,7 +21,7 @@ import type {
   LinearMyself,
   LinearOAuthAuth,
 } from "@/types/linear";
-import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { isOAuthCancelled, sendBg } from "@/lib/bg-client";
 import { AssigneeCombobox } from "@/sidepanel/tabs/linearFields/AssigneeCombobox";
 import { TeamCombobox, type TeamValue } from "@/sidepanel/tabs/linearFields/TeamCombobox";
 import { ProjectCombobox } from "@/sidepanel/tabs/linearFields/ProjectCombobox";

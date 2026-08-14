@@ -1,5 +1,5 @@
 import type { StateStorage } from "zustand/middleware";
-import { onStateSaveFailed } from "@/types/messages";
+import { onStateSaveFailed } from "@/lib/app-events";
 
 // 조회 실패를 삼켜 null을 주면 소비처가 "저장분 없음"으로 오독한다.
 // settings 계열은 그래도 기본값으로 뜨는 게 낫다 — 사이드패널 렌더 게이트가

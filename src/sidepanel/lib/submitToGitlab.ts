@@ -5,7 +5,7 @@ import {
   type UploadFileInput,
 } from "./prepareUpload";
 import type { InlineImageInput } from "./resolveInlineImages";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type { GitlabCreateIssueResult } from "@/types/gitlab";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import { injectIssueUrl } from "@/lib/inject-issue-url";

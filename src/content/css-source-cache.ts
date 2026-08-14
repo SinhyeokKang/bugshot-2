@@ -12,7 +12,7 @@
  * 캐시 정책: 픽커 세션 단위. ensureLoaded는 멱등. invalidate + MutationObserver로 재로드.
  */
 
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 const ruleToRaw = new Map<CSSStyleRule, Map<string, string>>();
 let loadPromise: Promise<void> | null = null;

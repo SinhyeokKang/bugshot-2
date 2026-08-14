@@ -10,7 +10,7 @@ vi.mock("@/i18n", () => ({ useT: () => (key: string) => key }));
 // 걸 게 없고, SubmitFieldsDialog가 jiraConfigured일 때만 렌더한다.
 
 const sendBg = vi.fn();
-vi.mock("@/types/messages", () => ({
+vi.mock("@/lib/bg-client", () => ({
   sendBg: (req: unknown) => sendBg(req),
 }));
 

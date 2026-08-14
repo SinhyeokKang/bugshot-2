@@ -1,4 +1,4 @@
-import { BgError } from "@/types/messages";
+import { BgError } from "@/lib/bg-client";
 
 export type BadgeErrorKind = "deleted" | "error";
 

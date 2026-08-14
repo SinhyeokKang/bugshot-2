@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSettingsStore } from "@/store/settings-store";
 import type { SlackAccount, SlackOAuthResult } from "@/types/slack";
-import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { isOAuthCancelled, sendBg } from "@/lib/bg-client";
 import { ChannelCombobox, type ChannelValue } from "@/sidepanel/tabs/slackFields/ChannelCombobox";
 import type { ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
 

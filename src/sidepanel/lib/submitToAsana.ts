@@ -12,7 +12,7 @@ import { guessUploadMime } from "./uploadMime";
 import { loadImage } from "@/sidepanel/capture";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
 import { inlineRefUrl, inlineUploadFilename } from "@/lib/inline-ref";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type { AsanaCreateTaskResult } from "@/types/asana";
 import type { NormalizedSubmitResult } from "@/types/platform";
 

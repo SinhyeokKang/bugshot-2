@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { GitlabProject } from "@/types/gitlab";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 export interface ProjectValue {
   projectId: number;

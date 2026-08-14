@@ -3,7 +3,7 @@ import type { MarkdownContext } from "./buildIssueMarkdown";
 import { type InlineImageInput } from "./resolveInlineImages";
 import { zipLogsHtml } from "./zipLogsHtml";
 import { guessUploadMime } from "./uploadMime";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type {
   NotionCreatePageResult,
   NotionFileUploadResult,

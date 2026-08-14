@@ -4,7 +4,7 @@ import { useT } from "@/i18n";
 import { CommandItem } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import type { JiraProject } from "@/types/jira";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { FieldCombobox } from "./FieldCombobox";
 import { useDebouncedSearch } from "./useDebouncedSearch";
 

@@ -5,7 +5,7 @@ import {
 import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages";
 import { toInlineUploadFiles, toUploadEntry } from "./prepareUpload";
 import { guessUploadMime } from "./uploadMime";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type { ClickupCreateTaskResult } from "@/types/clickup";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import { injectIssueUrl } from "@/lib/inject-issue-url";

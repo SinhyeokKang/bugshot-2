@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { orderSelectedFirst } from "@/sidepanel/components/ccOptions";
 import type { LinearUser } from "@/types/linear";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 interface Props {
   teamId: string | undefined;

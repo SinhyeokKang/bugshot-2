@@ -3,7 +3,7 @@ import { splitSlackText } from "./splitSlackText";
 import { escapeMrkdwn } from "./markdownToMrkdwn";
 import { toInlineUploadFiles } from "./prepareUpload";
 import type { InlineImageInput } from "./resolveInlineImages";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type {
   SlackPermalinkResult,
   SlackPostResult,

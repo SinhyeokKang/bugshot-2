@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { useIssuesStore } from "@/store/issues-store";
 import { useSettingsStore, jiraSiteId } from "@/store/settings-store";
 import type { JiraIssueStatus } from "@/types/jira";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { classifyBadgeError, type BadgeErrorKind } from "./utils";
 import { STATUS_CATEGORY_COLORS } from "./constants";
 import { JiraStatusBadge } from "./JiraStatusBadge";

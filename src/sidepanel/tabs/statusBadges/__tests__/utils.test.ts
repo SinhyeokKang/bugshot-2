@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BgError } from "@/types/messages";
+import { BgError } from "@/lib/bg-client";
 import { classifyBadgeError } from "../utils";
 
 describe("classifyBadgeError", () => {

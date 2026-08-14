@@ -2,7 +2,7 @@ import { classifyTabSupport } from "@/lib/url-support";
 import { pageKeyOf } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
-import { onPickerPermissionExpired, onPickerUnavailable } from "@/types/messages";
+import { onPickerPermissionExpired, onPickerUnavailable } from "@/lib/app-events";
 import { isActiveTabPermissionError } from "./lib/capture-error";
 import { resolveDark } from "./lib/resolveDark";
 import { sameCaptureBasis } from "./lib/capture-basis";

@@ -21,7 +21,7 @@ import type {
   GithubMyself,
   GithubOAuthAuth,
 } from "@/types/github";
-import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { isOAuthCancelled, sendBg } from "@/lib/bg-client";
 import { AssigneeCombobox } from "@/sidepanel/tabs/githubFields/AssigneeCombobox";
 import { LabelCombobox } from "@/sidepanel/tabs/githubFields/LabelCombobox";
 import { RepoCombobox, type RepoValue } from "@/sidepanel/tabs/githubFields/RepoCombobox";

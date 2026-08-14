@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useSettingsStore } from "@/store/settings-store";
 import type { AsanaAccount, AsanaMyself, AsanaOAuthAuth } from "@/types/asana";
-import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { isOAuthCancelled, sendBg } from "@/lib/bg-client";
 import { AssigneeCombobox, type AssigneeValue as AsanaAssigneeValue } from "@/sidepanel/tabs/asanaFields/AssigneeCombobox";
 import { ProjectCombobox, type ProjectValue } from "@/sidepanel/tabs/asanaFields/ProjectCombobox";
 import { WorkspaceCombobox, type WorkspaceValue } from "@/sidepanel/tabs/asanaFields/WorkspaceCombobox";

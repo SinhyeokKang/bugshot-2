@@ -23,7 +23,7 @@ import type {
   NotionOAuthAuth,
   NotionSelectFieldValue,
 } from "@/types/notion";
-import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { isOAuthCancelled, sendBg } from "@/lib/bg-client";
 import { DatabaseCombobox } from "@/sidepanel/tabs/notionFields/DatabaseCombobox";
 import { PropertiesFieldset } from "@/sidepanel/tabs/notionFields/PropertiesFieldset";
 import { StatusSelect } from "@/sidepanel/tabs/notionFields/StatusSelect";

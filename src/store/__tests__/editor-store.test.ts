@@ -89,13 +89,13 @@ vi.mock("@/store/blob-db", () => ({
   rekeyAttachmentBlobs: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/types/messages", () => ({
+vi.mock("@/lib/app-events", () => ({
   onBlobSaveFailed: { fire: vi.fn(), listen: vi.fn() },
 }));
 
 import type { ActionLog } from "@/types/action";
 import type { CaptureContext } from "@/types/picker";
-import { onBlobSaveFailed } from "@/types/messages";
+import { onBlobSaveFailed } from "@/lib/app-events";
 import {
   useEditorStore,
   mergeSelectionStyles,

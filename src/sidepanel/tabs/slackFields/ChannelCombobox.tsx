@@ -3,7 +3,7 @@ import { useT } from "@/i18n";
 import { SingleLazyCombobox } from "@/sidepanel/components/SingleLazyCombobox";
 import { ChannelIcon } from "@/sidepanel/tabs/slackFields/ChannelIcon";
 import type { SlackChannel } from "@/types/slack";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 export interface ChannelValue {
   channelId: string;

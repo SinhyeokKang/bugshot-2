@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { useT } from "@/i18n";
 import { SingleLazyCombobox } from "@/sidepanel/components/SingleLazyCombobox";
 import type { ClickupUser } from "@/types/clickup";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 export interface AssigneeValue {
   id: string;

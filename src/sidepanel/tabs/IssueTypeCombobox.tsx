@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/store/settings-store";
 import type { JiraIssueType } from "@/types/jira";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 export function IssueTypeCombobox() {
   const t = useT();

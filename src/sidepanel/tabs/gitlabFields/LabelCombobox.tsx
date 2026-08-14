@@ -3,7 +3,7 @@ import { useT } from "@/i18n";
 import { ColorSwatch } from "@/sidepanel/components/ColorSwatch";
 import { SingleLazyCombobox } from "@/sidepanel/components/SingleLazyCombobox";
 import type { GitlabLabel } from "@/types/gitlab";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 interface Props {
   projectId: number | undefined;

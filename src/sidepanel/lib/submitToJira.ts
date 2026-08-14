@@ -3,7 +3,7 @@ import { annotateAttachmentDimensions } from "./attachmentDimensions";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import type { CaptureFile } from "./buildCaptureFiles";
 import type { InlineImageInput } from "./resolveInlineImages";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type { JiraAttachmentInput, JiraSubmitResult } from "@/types/jira";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import { inlineUploadFilename } from "@/lib/inline-ref";

@@ -1,4 +1,4 @@
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 // permalink: https://<ws>.slack.com/archives/<CHANNEL>/p<ts> → "<CHANNEL>"
 // archives 세그먼트(뒤 트레일링 포함)가 없으면 null. /client/ 포맷은 미지원.

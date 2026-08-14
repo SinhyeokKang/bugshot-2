@@ -25,8 +25,8 @@ vi.mock("@/store/editor-store", () => ({
 }));
 
 const sendBg = vi.fn();
-vi.mock("@/types/messages", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/types/messages")>();
+vi.mock("@/lib/bg-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/bg-client")>();
   return { ...actual, sendBg: (req: unknown) => sendBg(req) };
 });
 

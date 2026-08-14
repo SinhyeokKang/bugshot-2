@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useSettingsStore } from "@/store/settings-store";
 import type { ClickupAccount, ClickupMyself, ClickupOAuthAuth } from "@/types/clickup";
-import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { isOAuthCancelled, sendBg } from "@/lib/bg-client";
 import { AssigneeCombobox, type AssigneeValue as ClickupAssigneeValue } from "@/sidepanel/tabs/clickupFields/AssigneeCombobox";
 import { ListCombobox, type ListValue } from "@/sidepanel/tabs/clickupFields/ListCombobox";
 import { SpaceCombobox, type SpaceValue } from "@/sidepanel/tabs/clickupFields/SpaceCombobox";
