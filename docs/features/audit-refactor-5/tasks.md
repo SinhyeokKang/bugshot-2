@@ -143,7 +143,9 @@
   - [ ] **(R1 그물 증명)** overlay의 다크 `--border` 값을 일부러 한 자리 틀리게 바꿔 `tokens.test.ts`가 **red**가 되는지 확인 후 되돌린다. 이걸 안 하면 파서를 무력화하고도 green을 볼 수 있다.
   - [ ] `grep -n 'type: "picker.start"' -A3 src/sidepanel/picker-control.ts` 결과 **송신 3곳(`:227`·`:297`·`:633`)이 전부** theme을 싣는다. ~~`grep -n "picker.start"`~~는 실측 **11건**(송신 3 + `picker.startAreaSelect` 2(`:603`·`:664`, prefix 매칭) + 주석·에러 문자열 6)이라 판정에 못 쓴다.
   - [ ] 세 송신부는 **비대칭**임을 인지하고 고친다 — `:297`은 기존 token 재사용 + `frameId` 타깃(iframe 재전송), `:227`·`:633`은 새 token broadcast.
-  - [ ] **theme 적용은 `handleStart` 인자가 아니라 모듈 로컬 변수 + `createOverlay()` 직후**다. 재생성 경로 3곳을 한 번에 덮어야 한다 — **이 작업은 `audit-refactor-4/tasks.md` Task 7과 통합됐다**(같은 블록을 배치 4 항목 14가 고친다). 착수 전 `picker.ts` 현재 상태를 확인하고, 이미 처리됐으면 이 스텝은 건너뛴다.
+  - [ ] **theme 적용은 `handleStart` 인자가 아니라 모듈 로컬 변수 + `createOverlay()` 직후**다. 재생성 경로 **3곳을 한 번에** 덮어야 한다 — `handleStart`(`:601`) · `handleSelectByPath`(`:1229`, 패널 재오픈·rebind) · `handleStartAreaSelect`(`:1268`). `handleStart` 인자로만 세팅하는 원안은 나머지 둘을 놓친다.
+    - **배치 4에서 이월받은 항목이다(2026-08-14).** 한때 `audit-refactor-4/tasks.md` Task 7로 통합돼 있었으나, 그 전제(`picker.start`의 `theme` 필드 · `resolveDark.ts` · overlay CSS의 `data-theme`)가 **전부 이 배치의 산출물**이라 배치 4에서는 실행 자체가 불가능했다 — 보관할 theme 값이 존재하지 않았다. theme 축만 여기로 되돌렸고 **이 태스크가 유일한 담당**이다(배치 4 문서는 완료 후 삭제됨). 회고: `docs/POSTMORTEM.md` 2026-08-14 「배치 문서가 "다른 배치가 만들 코드"를 전제로 태스크를 적어…」.
+    - 배치 4가 이미 한 것: `handleSelectByPath`의 재생성 블록에 캐시 훅 4단(`setOnCacheReloaded`+observer+load+priming) 복원 — dev에 반영됨. **그 블록은 이제 theme 적용의 착지점**이지 방해물이 아니다. `handleStartAreaSelect`(`:1268`)는 4단도 theme도 아직 없다.
   - [ ] **수동**: 앱 설정 theme=라이트 + OS 다크 → picker 실행 → 인스펙터 카드가 **흰색**. 앱 theme=다크 + OS 라이트 → **검은색**. 앱 theme=system → OS를 따라간다.
   - [ ] **수동(R3)**: 1-depth iframe이 있는 페이지(cross-origin 위젯)에서 iframe 내부 요소를 hover → 카드 색이 top 프레임과 같다.
   - [ ] **수동(R2)**: 확장을 리로드하지 않은 채 **기존에 열려 있던 탭**에서 picker 실행 → 카드가 깨지지 않고 라이트로 뜬다.

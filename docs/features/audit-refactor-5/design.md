@@ -311,7 +311,7 @@ case "picker.start":
 >
 > **채택: `picker.start`가 실어온 theme을 모듈 로컬 변수에 보관하고 `createOverlay()` 직후 적용한다** — 세 경로가 한 번에 덮인다.
 >
-> **이 수정은 배치 4 Task 7과 같은 블록을 건드린다.** 배치 4 항목 14(`setOnCacheReloaded` 재등록 누락 + priming)가 정확히 `handleSelectByPath`의 재생성 블록을 고치므로, **두 배치를 합쳐 `audit-refactor-4/tasks.md` Task 7에서 한 번에 처리한다.** 이 문서는 참조만 한다 — 따로 편집하면 충돌한다.
+> **배치 4와의 분담(2026-08-14 확정).** 배치 4 항목 14(`setOnCacheReloaded` 재등록 + priming)가 같은 `handleSelectByPath` 재생성 블록을 고쳤고 **이미 dev에 들어갔다**. 한때 theme 축까지 배치 4 Task 7로 합쳐 뒀으나, 그 전제(`picker.start`의 `theme` 필드·`resolveDark.ts`·overlay CSS)가 전부 이 배치 산출물이라 거기선 실행 불가였다 — **theme은 이 배치가 단독으로 처리한다.** 배치 4가 복원해 둔 4단 블록은 theme 적용의 착지점이다.
 
 **CSS 전환** — `src/content/overlay.ts:201-206`:
 
