@@ -100,6 +100,7 @@ import {
   useEditorStore,
   mergeSelectionStyles,
   selectAttachedLogs,
+  type CaptureMode,
   type EditorSnapshot,
 } from "../editor-store";
 import { dataUrlToBlob } from "../blob-db";
@@ -3090,7 +3091,9 @@ describe("confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷", () =
 
   // captureMode별 고유 상태. 공통 상태(target·draft·platform·currentIssueId·apiHostsDerived)는
   // setup이 얹는다 — 분기 간 차이가 "고유 필드뿐"임을 스냅샷이 드러내야 하므로.
-  const MODE_STATE: Record<string, Record<string, unknown>> = {
+  // 키를 CaptureMode로 조이는 이유: string이면 모드명 오타가 undefined 스프레드로 통과하고
+  // captureMode 미설정 → element 분기로 떨어져 엉뚱한 스냅샷을 green으로 찍는다.
+  const MODE_STATE: Record<CaptureMode, Record<string, unknown>> = {
     freeform: {
       captureMode: "freeform",
       freeformViewport: { width: 1024, height: 768 },
@@ -3117,7 +3120,7 @@ describe("confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷", () =
     },
   };
 
-  function setup(mode: string, logs: Record<string, unknown>) {
+  function setup(mode: CaptureMode, logs: Record<string, unknown>) {
     useEditorStore.setState({
       phase: "drafting" as const,
       targetPlatform: "github" as const,
@@ -3141,7 +3144,7 @@ describe("confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷", () =
     vi.useRealTimers();
   });
 
-  const MODES = ["freeform", "video", "screenshot", "element"] as const;
+  const MODES: CaptureMode[] = ["freeform", "video", "screenshot", "element"];
 
   for (const mode of MODES) {
     for (const [logLabel, logs] of [["로그 attach", logsOn], ["로그 미attach", logsOff]] as const) {

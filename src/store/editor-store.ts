@@ -8,7 +8,7 @@ import type { PlatformId } from "@/types/platform";
 import type { EnvironmentRow } from "@/types/environment";
 import type { UserAttachmentMeta } from "@/types/attachment";
 import { onBlobSaveFailed } from "@/types/messages";
-import { useIssuesStore } from "./issues-store";
+import { useIssuesStore, type IssueRecord } from "./issues-store";
 import { jiraSiteId, useSettingsStore } from "./settings-store";
 import { initialJiraFields } from "@/sidepanel/lib/initialJiraFields";
 import { saveVideoBlob, deleteVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
@@ -901,9 +901,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const id = state.currentIssueId ?? newId("issue");
     // 4분기 공통 필드. saveDraft가 병합이라 키를 조건부로 빼면 직전 세션 값이 되살아나므로
     // 분기는 고유 필드만 스프레드로 얹는다 — 빼는 게 아니라 덮는 방향으로만 갈린다.
-    const baseDraftRecord = () => ({
+    // 반환 타입을 박아두는 건 스프레드가 saveDraft 호출부의 excess property 검사를 지나치기
+    // 때문이다 — 리터럴이던 시절엔 컴파일러가 잡던 optional 필드 오타가 여기선 무음이 된다.
+    const baseDraftRecord = (): Pick<
+      IssueRecord,
+      | "id"
+      | "status"
+      | "platform"
+      | "title"
+      | "createdAt"
+      | "updatedAt"
+      | "pageUrl"
+      | "pageTitle"
+      | "draft"
+      | "apiHostsDerived"
+    > => ({
       id,
-      status: "draft" as const,
+      status: "draft",
       platform: state.targetPlatform,
       title: draft.title,
       createdAt: Date.now(),
