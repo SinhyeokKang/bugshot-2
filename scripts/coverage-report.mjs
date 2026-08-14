@@ -69,7 +69,10 @@ const BROWSER_BOUND_EXACT = new Set([
 
 function isBrowserBound(rel) {
   if (rel.endsWith(".tsx")) return true; // React 컴포넌트·엔트리는 선택적 렌더테스트 대상, 커버리지 다이얼 아님
-  if (rel.startsWith("src/types/")) return true; // 타입 선언 (실행 코드 없음)
+  // 타입 선언. 예외는 platform.ts의 런타임 상수 3개(PLATFORM_TAB_KEYS·CC_PREFIX·CC_SEPARATOR)
+  // 뿐이고, 값만 든 테이블이라 분모에 넣어도 다이얼이 안 움직여 의도적으로 제외에 남긴다.
+  // 로직이 이 아래로 다시 들어오면 그건 제외 사유가 아니라 src/lib/으로 옮길 신호다.
+  if (rel.startsWith("src/types/")) return true;
   if (
     rel.startsWith("src/background/") &&
     (rel.endsWith("-oauth.ts") || rel.endsWith("/oauth.ts"))

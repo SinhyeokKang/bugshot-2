@@ -2,7 +2,7 @@ import type {
   NetworkLogSummaryError,
   ConsoleLogSummaryError,
 } from "../buildLogSummary";
-import { extractPath } from "../buildLogSummary";
+import { networkLogPath } from "@/lib/network-log-path";
 // buildAiDraftPrompt가 getDraftFewShot에서 이 모듈을 값 참조한다 — 값 import는 순환.
 import type { AiDraftSessionContext } from "../buildAiDraftPrompt";
 import type { NetworkRequest } from "@/types/network";
@@ -28,7 +28,7 @@ export interface MatchedLogCandidate {
   ref: string; // "m1"…
   id: string; // 원본 NetworkRequest.id
   method: string;
-  path: string; // extractPath(r.url) 파생
+  path: string; // networkLogPath(r.url) 파생
   status: number; // 2xx만
   matchedTerm: string; // 인쇄용 provenance(최고 tier term)
   digest?: string; // shape 다이제스트(json만; 없으면 provenance만)
@@ -148,7 +148,7 @@ export function selectMatchedLogCandidates(
       ref: `m${i + 1}`,
       id: e.req.id,
       method: e.req.method,
-      path: extractPath(e.req.url),
+      path: networkLogPath(e.req.url),
       status: e.req.status,
       matchedTerm: e.term,
       digest: digestResponseShape(e.req.responseBody, e.req.contentType),

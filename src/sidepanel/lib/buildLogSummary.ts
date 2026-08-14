@@ -1,3 +1,4 @@
+import { networkLogPath } from "@/lib/network-log-path";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import type { ActionEntry, ActionLog, ActionLogSummary, ActionNode } from "@/types/action";
@@ -44,7 +45,7 @@ export function buildNetworkLogSummary(log: NetworkLog): NetworkLogSummary {
   for (const r of log.requests) {
     if (!(r.phase === "error" || r.status >= 400)) continue;
     errorCount++;
-    const path = extractPath(r.url);
+    const path = networkLogPath(r.url);
     const key = `${r.method} ${path} ${r.status}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -127,14 +128,6 @@ export function buildActionLogSummary(log: ActionLog): ActionLogSummary {
 
 function nodeName(node?: ActionNode): string {
   return node?.name?.trim() || node?.selector || "element";
-}
-
-export function extractPath(url: string): string {
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return url;
-  }
 }
 
 function firstLine(text: string): string {
