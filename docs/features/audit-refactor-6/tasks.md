@@ -53,9 +53,9 @@
 - **변경 대상**: `src/store/__tests__/` (editor-store 테스트, 없으면 신규)
 - **작업 내용**: `captureMode`를 freeform·video·screenshot·element로 두고 `confirmDraft()`를 호출해 `useIssuesStore.saveDraft`가 받은 인자를 각각 스냅샷한다. 로그 3종 attach 상태(전부 on / 전부 off) 2조합.
 - **검증**:
-  - [ ] 4 captureMode × 2 로그 조합 = 8 스냅샷
-  - [ ] 공통 12필드(`id`·`status`·`platform`·`title`·`createdAt`·`updatedAt`·`pageUrl`·`pageTitle`·`draft`·3 blobKey)가 4분기 전부에 존재함을 단언
-  - [ ] `pnpm test` green
+  - [x] 4 captureMode × 2 로그 조합 = 8 스냅샷 (`src/store/__tests__/__snapshots__/editor-store.test.ts.snap`)
+  - [x] 공통 12필드(`id`·`status`·`platform`·`title`·`createdAt`·`updatedAt`·`pageUrl`·`pageTitle`·`draft`·3 blobKey)가 4분기 전부에 존재함을 단언 — **실제 공통은 10개다**(로그 blobKey 3종을 뺀 9개 + `apiHostsDerived`). 위 "9개" 정정치는 audit-refactor-4가 넣은 `apiHostsDerived`를 못 세서 하나 낮았다. 단언은 키 존재 기준으로 건다 — `saveDraft` 병합에서 "키 없음"과 "값 undefined"의 의미가 갈리므로 값만 봐선 못 잡는다
+  - [x] `pnpm test` green
 
 ---
 
@@ -67,9 +67,9 @@
 - **변경 대상**: `src/store/editor-store.ts` (:842-1093 `confirmDraft`)
 - **작업 내용**: 공통 필드 12줄을 `baseDraftRecord(state, id, logs)` 지역 헬퍼로 뽑고, 4분기가 `{ ...baseDraftRecord(...), captureMode: "…", <고유 필드> }`로 얹게 한다. **`saveDraft`는 병합이므로 고유 필드를 조건부 스프레드로 빼지 않는다**(파일 내 주석이 명시 — 항상 명시). ~~`persistAttachedLogs` 호출 블록 4벌도 분기 밖으로 1벌.~~ **2026-08-14 정정: 4벌이 아니라 3벌이다**(`editor-store.ts:908`·`951`·`989` — element 분기는 로그를 안 붙인다). 분기 밖으로 빼면 **element 모드에 로그가 새로 붙는 동작 변경**이 된다. **3분기 공통으로만 묶는다.** 같은 이유로 Task 0-4의 "공통 12필드가 4분기 전부에 존재" 단언도 지금 red다 — 공통 필드는 **9개**(로그 blobKey 3종 제외)로 정정한다.
 - **검증**:
-  - [ ] G0-4 스냅샷 8건이 **문자 단위로 동일**(스냅샷을 갱신하지 않는다 — 다르면 리팩터가 틀린 것)
-  - [ ] `confirmDraft` 함수 길이가 줄었다(~252줄 → 목표 150줄 이하)
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] G0-4 스냅샷 8건이 **문자 단위로 동일**(스냅샷을 갱신하지 않는다 — 다르면 리팩터가 틀린 것)
+  - [ ] ~~`confirmDraft` 함수 길이가 줄었다(~252줄 → 목표 150줄 이하)~~ **목표치가 자기 설계와 모순이라 미충족으로 남긴다.** 실측 276 → 246줄(문서의 "~252줄"도 stale). 남은 246줄의 출처는 중복이 아니라 jira sticky 복원 33줄 + element 레코드 리터럴 ~75줄 + element 영속 IIFE ~35줄이고, 150에 닿으려면 분기별 함수 분리가 필요한데 그건 **design.md 대안 D가 명시적으로 기각한 방향**이다(같은 문단이 "함수 길이는 부작용이지 이 항목의 문제가 아니다"라고 못박았다). 길이를 정말 줄이려면 jira sticky 블록 추출을 G7 밖 별도 항목으로 뗀다
+  - [x] `pnpm typecheck` + `pnpm test` green
 
 ---
 
