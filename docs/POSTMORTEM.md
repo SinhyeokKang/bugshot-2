@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-08-14 — 중복을 이름으로 세면 매번 모자란다: 한 배치에서 네 번 틀렸고, 마지막 한 번은 그 교훈을 문서에 박은 직후였다
+
+- **영역**: `어댑터`, `lib`
+- **계열**: `복제본`, `미검증단언`
+- **그물**: `unit`
+- **증상**: 중복 제거 배치(audit-refactor-6)에서 **통합 대상 개수가 네 번 연속 틀렸다.** 인라인 파일명 하드코딩 9→**11**곳 · `toUploadEntry` 통합 대상 3→**2**벌(slack은 본문이 달라 제외) · `emitLogSummary` 4→**5**벌 · `footerMarkdown` 4→**5**곳. 전부 착수 후 실측에서 드러났고, 문서대로 따랐으면 사본이 조용히 남아 다음 드리프트의 씨앗이 됐다. 마지막 건이 특히 나쁘다 — 앞의 셋을 겪고 "**이름이 아니라 본문으로 세라**"를 `tasks.md` 선행 조건에 박은 **바로 그 세션에서**, `grep "function footerMarkdown"`으로 세어 함수가 아닌 asana의 인라인 리터럴 사본을 놓쳤다.
+- **근본 원인**: 열거를 **선언 형태**(`function <name>`)로 한다. 그런데 복제는 선언 형태를 안 지킨다 — ① 이름이 다르거나(`emitLogSummaryMd`는 plain `emitLogSummary` grep에 안 걸리는데 출력은 바이트 동일이었다) ② 본문이 미묘하게 다르거나(slack `toUploadEntry`는 `contentType`이 없어 "동일 3벌"이 거짓) ③ **아예 함수가 아니거나**(asana 푸터는 `lines.push(리터럴)` 인라인). grep이 찾는 건 *이름*이고 통합해야 하는 건 *본문*이라, 둘이 어긋나는 만큼이 그대로 오차가 된다. 여기에 검증 항목이 "치환한 개수"로 쓰여 있어 오차를 못 잡는다 — N곳을 고쳤는지만 세면 N+1번째가 남아도 green이다. "규칙을 알면 안 밟는다"가 성립하지 않는다는 게 네 번째 사례의 요점이다. 기계적 절차가 아니면 같은 자리에서 또 센다.
+- **재발 방지**: (1) **개수는 선언이 아니라 *산출물*로 센다** — `footerMarkdown`이면 `grep -rn "Reported via" src/`(결과 리터럴), 파일명 헬퍼면 `grep -rn 'inline-\${' src/`. 선언 grep(`grep "function X"`)은 **하한만** 준다. (2) **통합 후보는 본문 해시로 그룹핑한다** — `for f in <파일들>; do awk '/^function X/,/^}/' $f | md5; done | sort -u | wc -l`. 이름이 달라도 같은 그룹에 묶이고, 그룹 수가 곧 "진짜 몇 종인가"다(이 배치에서 `listItems` 8벌이 2종으로 나온 게 인자명 차이뿐임을 이 방법이 5초에 밝혔다). (3) **검증 항목을 "치환한 개수"가 아니라 "남아야 할 것의 화이트리스트"로 쓴다** — `grep -rn "function emitLogSummary" src/sidepanel/lib/` 결과가 정확히 `{slack, notion, adf, html}` 4개여야 한다처럼. 개수는 새 사본이 어떤 이름으로 생겨도 통과하지만 집합은 red가 된다(CLAUDE.md가 캐스케이드 판정에 박아둔 "열거가 아니라 화이트리스트"의 같은 형태). (4) **감사·설계 문서에 적힌 개수는 전부 재실측 대상**이고, 실측치가 다르면 코드가 아니라 **문서를 그 자리에서 고친다**(개수를 미충족으로 남기면 다음 세션이 "아직 할 일이 남았다"로 읽는다).
+- **관련**: `src/lib/inline-ref.ts:inlineUploadFilename`(11곳)·`src/sidepanel/lib/prepareUpload.ts:toUploadEntry`↔`submitToSlack.ts:toUploadEntry`(통합 안 한 예외)·`src/sidepanel/lib/issueBodyShared.ts:footerMarkdown`·`emitMarkdownLogSummary`(5벌씩), 잔여 화이트리스트를 검증에 쓴 예 `docs/features/audit-refactor-6/tasks.md`(Task 2-3), 배치 전역 규칙을 박은 자리 같은 문서 "선행 조건". 계열 선행: **2026-08-14**("골든 스냅샷이 생산자를 안 거쳐…" — 검증 칸 자체가 미검증 단언이라는 같은 축) · **2026-08-06**(`errors[]` 길이를 개수로 쓴 소비처 8곳 — 세는 대상을 잘못 고른 형태).
+
+---
+
 ## 2026-08-14 — 중복을 헬퍼로 모으면 그 자리에서 타입 게이트가 사라진다 — excess property check는 객체 리터럴에만 걸린다
 
 - **영역**: `store`, `어댑터`
