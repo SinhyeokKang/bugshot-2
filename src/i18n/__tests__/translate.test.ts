@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dateBcp47, getLocale, setLocale, t } from "../index";
 
 // locales.test.ts는 ko/en 딕셔너리 "표"만 대조한다 — 실제 번역 함수(치환·로케일 전환)는
@@ -67,7 +67,13 @@ describe("t — 런타임 번역", () => {
 // 안 된다 — 현재는 params 없으면 undefined 렌더, 있으면 TypeError다. 복제 사전
 // (log-viewer/i18n.ts)이 이미 하는 "키 문자열 반환"으로 수렴시킨다.
 describe("t — 미정의 키 폴백", () => {
+  // DEV 빌드에선 lookup()이 console.error로 알린다 — 테스트 출력만 조용히 시킨다.
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
   afterEach(() => {
+    vi.restoreAllMocks();
     setLocale("ko");
   });
 

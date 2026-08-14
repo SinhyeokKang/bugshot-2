@@ -14,8 +14,8 @@ export const TONE_TEXT: Record<LogTone, string> = {
   neutral: "", // 컨테이너 텍스트 색 상속
 };
 
-// 행 배경 틴트(base) — hover/active 변형은 각 소비처가 얹는다. 콘솔 레벨 틴트와
-// 타임라인 면색이 이 표를 공유한다(우측 로그 탭 ↔ 좌측 타임라인 색 sync).
+// 행 배경 틴트(base). hover는 TONE_BG_HOVER, 선택·코드블럭은 TONE_BG_STRONG이 잇는다.
+// 콘솔 레벨 틴트와 타임라인 면색이 이 표를 공유한다(우측 로그 탭 ↔ 좌측 타임라인 색 sync).
 export const TONE_BG: Record<LogTone, string> = {
   red: "bg-red-100 dark:bg-red-950/50",
   amber: "bg-amber-100 dark:bg-amber-950/50",
