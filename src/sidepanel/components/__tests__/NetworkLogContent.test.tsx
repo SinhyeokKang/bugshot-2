@@ -195,3 +195,85 @@ describe("NetworkLogContent — statusKind 상태 라벨", () => {
     ).toContain("503 Service Unavailable");
   });
 });
+
+// WS 방향 필터는 DESIGN §10 토글 관용구의 정규 선례로 문서에 이름이 박힌 pill인데
+// aria-pressed가 빠져 있었다. 시각 축(data-active)과 달리 스크린리더 축은 여기가 유일한 그물.
+describe("NetworkLogContent — WS 방향 필터 눌림 상태", () => {
+  const WS = makeRequest({
+    id: "ws1",
+    url: "wss://socket.example.com/live",
+    contentType: "",
+    webSocket: {
+      protocol: "",
+      framesTotal: 1,
+      frames: [
+        { seq: 1, direction: "send", ts: 1000, data: "hello", size: 5 },
+      ],
+    },
+  });
+
+  async function openWsDetail(): Promise<HTMLElement[]> {
+    render(<NetworkLogContent requests={[WS]} />);
+    await userEvent.click(row("ws1"));
+    return Array.from(
+      document.querySelectorAll('[data-testid="ws-dir-filter"]'),
+    ) as HTMLElement[];
+  }
+
+  it("기본 선택(all)만 aria-pressed=true다", async () => {
+    const pills = await openWsDetail();
+
+    expect(pills).toHaveLength(3);
+    expect(pills.map((p) => p.getAttribute("aria-pressed"))).toEqual([
+      "true",
+      "false",
+      "false",
+    ]);
+  });
+
+  it("다른 방향을 고르면 눌림이 옮겨간다", async () => {
+    const pills = await openWsDetail();
+
+    await userEvent.click(pills[1]);
+
+    expect(pills.map((p) => p.getAttribute("aria-pressed"))).toEqual([
+      "false",
+      "true",
+      "false",
+    ]);
+  });
+});
+
+// 행 배경은 base/hover/선택 3단계다. 단일 출처로 올리면서 선택 단계를 base로 내리면
+// 선택 행과 이웃 행이 같은 색이 되어 구별이 사라진다(로그 행 비교 대상은 페이지 배경이
+// 아니라 이웃 행이다). 3단계가 유지되는지 클래스 축으로 고정한다.
+describe("NetworkLogContent — error 행 배경 3단계", () => {
+  const ERR = makeRequest({ id: "err1", status: 500, statusText: "Server Error" });
+
+  // "bg-red-200"은 "hover:bg-red-200/70"의 부분문자열이라 toContain으로는 두 단계를
+  // 구별하지 못한다. 클래스 토큰 단위로 본다.
+  function classes(id: string): string[] {
+    return row(id).className.split(/\s+/).filter(Boolean);
+  }
+
+  it("비선택 error 행은 base 틴트 + hover 단계를 갖는다", () => {
+    render(<NetworkLogContent requests={[ERR]} />);
+
+    expect(classes("err1")).toEqual(
+      expect.arrayContaining(["bg-red-100", "hover:bg-red-200/70"]),
+    );
+    expect(classes("err1")).not.toContain("bg-red-200");
+  });
+
+  it("선택 error 행은 강조 단계라 비선택과 다르다", async () => {
+    render(<NetworkLogContent requests={[ERR]} />);
+    const before = classes("err1");
+
+    await userEvent.click(row("err1"));
+
+    const after = classes("err1");
+    expect(after).toContain("bg-red-200");
+    expect(after).not.toContain("bg-red-100");
+    expect(after).not.toEqual(before);
+  });
+});

@@ -153,3 +153,48 @@ describe("ConsoleLogContent — 영상 seek 동기화(onSeek 공급)", () => {
     expect(row("e1").querySelector(".pt-1")).toBeNull();
   });
 });
+
+// 레벨별 코드블럭 배경은 log-colors.ts 단일 출처(TONE_BG_STRONG)에서만 와야 한다. 로컬에
+// 제3의 스케일을 두면 행 배경 축과 조용히 갈린다. 특히 log/debug의 neutral은 TONE_BG가
+// 빈 문자열이라, 잘못 연결하면 코드블럭 면이 통째로 사라진다(다크에서 먼저 티가 난다).
+describe("ConsoleLogContent — 레벨별 코드블럭 배경", () => {
+  const LEVELS: { id: string; level: ConsoleEntry["level"]; bg: string }[] = [
+    { id: "L1", level: "error", bg: "bg-red-200" },
+    { id: "L2", level: "warn", bg: "bg-amber-200" },
+    { id: "L3", level: "info", bg: "bg-blue-200" },
+    { id: "L4", level: "log", bg: "bg-muted" },
+  ];
+
+  const LEVEL_ENTRIES: ConsoleEntry[] = LEVELS.map(({ id, level }) => ({
+    id,
+    level,
+    timestamp: 1000,
+    args: `msg-${id}`,
+    pageUrl: "https://example.com/",
+  }));
+
+  function codeBlock(id: string): HTMLElement {
+    const pre = row(id).querySelector("pre");
+    if (!pre) throw new Error(`code block for ${id} not found`);
+    return pre as HTMLElement;
+  }
+
+  for (const { id, level, bg } of LEVELS) {
+    it(`${level} 레벨 코드블럭이 ${bg}를 쓴다`, async () => {
+      render(<ConsoleLogContent entries={LEVEL_ENTRIES} />);
+
+      await clickRow(id);
+
+      expect(codeBlock(id).className).toContain(bg);
+    });
+  }
+
+  it("log 레벨도 면을 잃지 않는다 (neutral 빈 문자열 연결 방지)", async () => {
+    render(<ConsoleLogContent entries={LEVEL_ENTRIES} />);
+
+    await clickRow("L4");
+
+    expect(codeBlock("L4").className).not.toContain("bg-red");
+    expect(codeBlock("L4").className).toContain("bg-muted");
+  });
+});

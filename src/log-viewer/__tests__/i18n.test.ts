@@ -16,8 +16,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
 import { DICTS, t } from "../i18n";
-import { logs } from "../../i18n/namespaces/logs";
-import { editor } from "../../i18n/namespaces/editor";
+import { locales } from "../../i18n";
 import { BASE_LOCALE, LOCALES } from "../../i18n/locales";
 import { NET_VERB_KEYS } from "../timeline-merge";
 import { NAV_VERB_KEYS } from "@/sidepanel/lib/actionInline";
@@ -175,22 +174,31 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
     expect(missing).toEqual([]);
   });
 
-  // 이 사전이 복제하는 키는 두 네임스페이스에 걸쳐 있다(logs의 로그 문구 + editor의 codeBlock.*).
-  // 한쪽만 대조하면 나머지 쪽 drift가 무방비다.
-  const MAIN_NAMESPACES: Record<string, Record<string, string>>[] = [logs, editor];
-
+  // 대조 원본은 메인 i18n의 폴백 금지 레지스트리 전체다. namespace를 손으로 열거하면
+  // 그 목록 밖 키(common.* 3키가 그랬다)가 무음으로 대조를 빠져나간다 — 로케일 축에서 이미
+  // 걷어낸 열거를 namespace 축에도 두지 않는다. 겹치지 않는 log-viewer 전용 키는
+  // `k in table` 교집합이 이미 걸러낸다.
   it("메인 테이블과 공통인 키는 값도 일치 (stale drift 방지)", () => {
     const drift = LOCALES.flatMap((locale) => {
       const dict = DICTS[locale];
-      return MAIN_NAMESPACES.flatMap((ns) => {
-        const table = ns[locale];
-        if (!table) return [`${locale}: 메인 네임스페이스에 이 로케일 테이블이 없다`];
-        return Object.keys(dict)
-          .filter((k) => k in table && table[k] !== dict[k])
-          .map((k) => `${locale} ${k}`);
-      });
+      const table = locales[locale] as unknown as Record<string, string>;
+      if (!table) return [`${locale}: 메인 레지스트리에 이 로케일 사전이 없다`];
+      return Object.keys(dict)
+        .filter((k) => k in table && table[k] !== dict[k])
+        .map((k) => `${locale} ${k}`);
     });
     expect(drift).toEqual([]);
+  });
+
+  // 위 검사가 실제로 겹치는 키를 갖고 도는지 고정한다 — 레지스트리 import가 조용히 빈
+  // 객체가 되면 교집합이 0이 되어 vacuous green이 된다.
+  it("대조 교집합이 비어 있지 않다 (자기검증 앵커)", () => {
+    const shared = Object.keys(DICTS[BASE_LOCALE]).filter(
+      (k) => k in (locales[BASE_LOCALE] as unknown as Record<string, string>),
+    );
+    expect(shared.length).toBeGreaterThan(50);
+    // common.*는 열거 시절 대조 밖에 있던 그룹이다. 레지스트리 대조가 이걸 포함해야 한다.
+    expect(shared).toEqual(expect.arrayContaining(["common.expand", "common.collapse"]));
   });
 });
 

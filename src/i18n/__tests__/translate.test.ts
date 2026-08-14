@@ -61,3 +61,30 @@ describe("t — 런타임 번역", () => {
     expect(dateBcp47()).toBe("en-US");
   });
 });
+
+// TranslationKey는 닫힌 union이라 정상 호출부에선 미정의 키가 불가능하다. 도달 경로는 캐스트
+// 뿐이고(그건 별도로 제거한다), 그래도 뚫렸을 때의 실패 모드가 params 유무에 따라 갈리면
+// 안 된다 — 현재는 params 없으면 undefined 렌더, 있으면 TypeError다. 복제 사전
+// (log-viewer/i18n.ts)이 이미 하는 "키 문자열 반환"으로 수렴시킨다.
+describe("t — 미정의 키 폴백", () => {
+  afterEach(() => {
+    setLocale("ko");
+  });
+
+  it("미정의 키는 throw하지 않고 키 문자열을 돌려준다", () => {
+    setLocale("ko");
+    expect(t("this.key.does.not.exist" as never)).toBe("this.key.does.not.exist");
+  });
+
+  it("params가 있어도 TypeError 없이 키 문자열을 돌려준다", () => {
+    setLocale("ko");
+    expect(t("this.key.does.not.exist" as never, { n: 1 })).toBe(
+      "this.key.does.not.exist",
+    );
+  });
+
+  it("로케일이 en이어도 같은 실패 모드다", () => {
+    setLocale("en");
+    expect(t("nope.nope" as never)).toBe("nope.nope");
+  });
+});
