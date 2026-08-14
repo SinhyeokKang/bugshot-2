@@ -100,11 +100,9 @@ export function stripApiHostsRows(
     : rows;
 }
 
-// 제출 ctx 조립 경로의 게이트. 라이브(buildEditorCapture)와 저장 draft 재제출·표시
-// (DraftDetailDialog)이 여기로 모이는 이유는 위 apiHostRowFor와 같다 — 판정이 JSX 옆에
-// 남으면 두 경로가 갈려도 아무 그물이 안 울린다(DraftDetailDialog에도 테스트 파일이 없다).
-// 라이브 프리뷰·copy-markdown(PreviewPanel)은 DraftingPanel의 syncApiHostsRow가 행 자체를
-// 지우므로 아직 여기를 안 지난다 — PreviewPanel의 로그 카드가 readOnly인 동안만 성립한다.
+// 제출 ctx 조립 경로의 게이트 — lib에 두는 이유는 위 apiHostRowFor와 같다.
+// PreviewPanel(라이브 프리뷰·copy-markdown)은 아직 안 지난다: DraftingPanel의
+// syncApiHostsRow가 행 자체를 지워서인데, 그건 그 패널의 로그 카드가 readOnly인 동안만 성립한다.
 // lastDerived의 undefined는 여기서만 null로 흡수한다 — 구 draft의 "판정 재료 없음"이
 // stripApiHostsRows에 그대로 전달돼 no-op가 되어야 한다.
 export function environmentForSubmit(input: {

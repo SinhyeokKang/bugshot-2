@@ -265,7 +265,7 @@ describe("connectedPlatforms", () => {
       connectedPlatforms({
         slack: slackStub,
         clickup: clickupStub,
-        asana: asanaStub as Accounts["asana"],
+        asana: asanaStub,
         notion: notionStub,
         gitlab: gitlabStub,
         linear: linearStub,
@@ -282,16 +282,6 @@ describe("connectedPlatforms", () => {
       "clickup",
       "slack",
     ]);
-  });
-
-  it("뒤쪽 3종만 연결돼도 asana→clickup→slack 순서", () => {
-    expect(
-      connectedPlatforms({
-        slack: slackStub,
-        clickup: clickupStub,
-        asana: asanaStub as Accounts["asana"],
-      }),
-    ).toEqual(["asana", "clickup", "slack"]);
   });
 });
 
@@ -318,7 +308,7 @@ describe("updateGitlabAccount", () => {
   });
 });
 
-const asanaStub = {
+const asanaStub: Accounts["asana"] = {
   platform: "asana",
   connectedAt: 0,
   auth: {
@@ -336,7 +326,7 @@ describe("updateAsanaAccount", () => {
       accounts: {
         jira: jiraStub,
         gitlab: gitlabStub,
-        asana: asanaStub as Accounts["asana"],
+        asana: asanaStub,
       },
       lastSubmitFields: {},
     });

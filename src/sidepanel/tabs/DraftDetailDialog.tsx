@@ -4,6 +4,7 @@ import type { ConsoleLog } from "@/types/console";
 import type { ActionLog } from "@/types/action";
 import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, getActionLog, getAttachmentBlob, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
+import type { EnvironmentRow } from "@/types/environment";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
 import { Pencil } from "lucide-react";
 import { useT } from "@/i18n";
@@ -95,7 +96,6 @@ import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptu
 import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
 import { supportsConsoleNetworkLog, supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
-import type { EnvironmentRow } from "@/types/environment";
 import { environmentForSubmit } from "@/sidepanel/lib/apiHostRow";
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
