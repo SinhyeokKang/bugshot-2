@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { TreeNode } from "@/types/picker";
 
+import { ANNOTATION_HOST_ID } from "../annotation";
 import { buildInitialTree, buildSelector } from "../dom-describe";
 import { buildStableSelector, resetStableSelectorCache } from "../element-locator";
+import { HOST_ID } from "../overlay";
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -65,5 +67,37 @@ describe("buildInitialTree — ancestorPath 계약", () => {
     mount(`<main>x</main>`);
 
     expect(buildInitialTree(null).ancestorPath).toEqual([]);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  자체 UI overlay host 제외                                            */
+/*                                                                     */
+/*  isRenderable은 private이라 buildInitialTree의 children 필터로         */
+/*  간접 검증한다. 어노테이션 host를 추가할 때 picker host 제외가          */
+/*  교체되면(=OR가 아니라 대체) picker overlay가 트리에 노출된다.          */
+/* ------------------------------------------------------------------ */
+
+describe("buildInitialTree — 자체 overlay host 제외", () => {
+  // body를 펼치려면 선택 요소가 그 안에 있어야 한다(ancestorSet에 든 노드만 expand된다).
+  function bodyChildIds(html: string): (string | null)[] {
+    mount(`${html}<main id="app"><span id="t">x</span></main>`);
+    const { tree } = buildInitialTree(document.getElementById("t"));
+    const body = tree.children?.find((c) => c.tag === "body");
+    return body?.children?.map((c) => c.id) ?? [];
+  }
+
+  it("어노테이션 overlay host를 트리에서 제외한다", () => {
+    expect(bodyChildIds(`<div id="${ANNOTATION_HOST_ID}"></div>`)).not.toContain(
+      ANNOTATION_HOST_ID,
+    );
+  });
+
+  it("picker overlay host 제외가 유지된다 (교체가 아니라 얹기)", () => {
+    expect(bodyChildIds(`<div id="${HOST_ID}"></div>`)).not.toContain(HOST_ID);
+  });
+
+  it("두 host가 아닌 일반 요소는 그대로 포함한다", () => {
+    expect(bodyChildIds(`<div id="${ANNOTATION_HOST_ID}"></div>`)).toContain("app");
   });
 });

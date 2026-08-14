@@ -11,6 +11,7 @@ import {
   syncApiHostsRow,
   isApiHostsUndetermined,
   stripApiHostsRows,
+  environmentForSubmit,
 } from "../apiHostRow";
 
 const PAGE = "https://app.acme.com/orders/42";
@@ -505,5 +506,109 @@ describe("syncApiHostsRow", () => {
       lastDerived: null,
     });
     expect(out.rows[0]).toBe(userRow);
+  });
+});
+
+// 라이브(buildEditorCapture)와 draft 재제출(DraftDetailDialog)이 통과하는 단일 초크포인트.
+// 두 경로가 갈리면 같은 초안이 저장 전후로 다른 본문을 낳는다.
+describe("environmentForSubmit", () => {
+  const userRow: EnvironmentRow = { label: "Locale", value: "ko-KR" };
+  const autoRow: EnvironmentRow = {
+    label: API_HOSTS_LABEL,
+    value: "api.acme.com",
+    source: "api-hosts",
+  };
+
+  it("지원 모드 + 로그 ON이면 자동 행을 포함해 원본을 유지한다", () => {
+    expect(
+      environmentForSubmit({
+        captureMode: "screenshot",
+        logsAttach: true,
+        rows: [userRow, autoRow],
+        lastDerived: "api.acme.com",
+      }),
+    ).toEqual([userRow, autoRow]);
+  });
+
+  it("element 모드는 로그 ON이어도 자동 행을 걷어낸다 (모드 게이트)", () => {
+    expect(
+      environmentForSubmit({
+        captureMode: "element",
+        logsAttach: true,
+        rows: [userRow, autoRow],
+        lastDerived: "api.acme.com",
+      }),
+    ).toEqual([userRow]);
+  });
+
+  it("logsAttach가 false면 자동 행을 걷어낸다", () => {
+    expect(
+      environmentForSubmit({
+        captureMode: "screenshot",
+        logsAttach: false,
+        rows: [userRow, autoRow],
+        lastDerived: "api.acme.com",
+      }),
+    ).toEqual([userRow]);
+  });
+
+  // 구 초안엔 apiHostsDerived가 없다. 판정 재료 없이 지우면 사용자가 고친 값을 지울 수 있다.
+  it("lastDerived가 undefined면(구 초안) strip이 no-op다", () => {
+    expect(
+      environmentForSubmit({
+        captureMode: "screenshot",
+        logsAttach: false,
+        rows: [userRow, autoRow],
+        lastDerived: undefined,
+      }),
+    ).toEqual([userRow, autoRow]);
+  });
+
+  it("source가 api-hosts여도 값이 파생값과 다르면 보존한다 (사용자가 고친 행)", () => {
+    const edited: EnvironmentRow = {
+      label: API_HOSTS_LABEL,
+      value: "내가-고친.acme.com",
+      source: "api-hosts",
+    };
+    expect(
+      environmentForSubmit({
+        captureMode: "screenshot",
+        logsAttach: false,
+        rows: [edited],
+        lastDerived: "api.acme.com",
+      }),
+    ).toEqual([edited]);
+  });
+
+  it("rows가 undefined면 빈 배열", () => {
+    expect(
+      environmentForSubmit({
+        captureMode: "screenshot",
+        logsAttach: true,
+        rows: undefined,
+        lastDerived: null,
+      }),
+    ).toEqual([]);
+  });
+
+  // 호출부가 ctx.environment로 그대로 싣는다 — 입력 참조를 돌려주면 draft 배열이 공유된다.
+  it("모든 분기에서 입력과 다른 배열 참조를 반환한다", () => {
+    const rows = [userRow];
+    expect(
+      environmentForSubmit({
+        captureMode: "screenshot",
+        logsAttach: true,
+        rows,
+        lastDerived: null,
+      }),
+    ).not.toBe(rows);
+    expect(
+      environmentForSubmit({
+        captureMode: "element",
+        logsAttach: false,
+        rows,
+        lastDerived: null,
+      }),
+    ).not.toBe(rows);
   });
 });

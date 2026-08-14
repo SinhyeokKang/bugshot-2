@@ -317,3 +317,78 @@ describe("buildEditorMarkdownContext — bodyLocale (제출 경로 생산지)", 
     expect(buildEditorMarkdownContext()?.bodyLocale).toBe("ko");
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  environment — API Hosts 자동 행 게이트 (제출 ctx의 2차 방어)          */
+/* ------------------------------------------------------------------ */
+
+// 이 게이트의 진짜 그물. bodyOutputGolden은 ctx 리터럴을 직접 조립해 이 경로를 지나지 않고,
+// 기존 케이스도 environment: []뿐이라 커버리지가 0이었다.
+describe("buildEditorMarkdownContext — environment API Hosts 게이트", () => {
+  const userRow = { label: "Locale", value: "ko-KR" };
+  const autoRow = {
+    label: "API Hosts",
+    value: "api.acme.com",
+    source: "api-hosts" as const,
+  };
+
+  function envState(overrides: Record<string, unknown> = {}) {
+    return baseState({
+      captureMode: "screenshot",
+      draft: { title: "T", sections: {}, environment: [userRow, autoRow] },
+      apiHostsDerived: "api.acme.com",
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    editorState.current = {};
+    settingsState.current = { issueSections: [], locale: "ko", bodyLocale: "auto" };
+  });
+
+  it("로그 첨부 ON이면 자동 행이 본문 ctx에 남는다", () => {
+    editorState.current = envState({ logsAttach: true });
+
+    expect(buildEditorMarkdownContext()?.environment).toEqual([userRow, autoRow]);
+  });
+
+  it("로그 첨부 OFF면 자동 행이 제거된다", () => {
+    editorState.current = envState({ logsAttach: false });
+
+    expect(buildEditorMarkdownContext()?.environment).toEqual([userRow]);
+  });
+
+  it("사용자가 값을 고친 행은 로그 첨부 OFF여도 남는다", () => {
+    const edited = { ...autoRow, value: "내가-고친.acme.com" };
+    editorState.current = envState({
+      logsAttach: false,
+      draft: { title: "T", sections: {}, environment: [userRow, edited] },
+    });
+
+    expect(buildEditorMarkdownContext()?.environment).toEqual([userRow, edited]);
+  });
+
+  it("element 모드는 로그 첨부 ON이어도 자동 행이 제거된다 (모드 게이트)", () => {
+    editorState.current = envState({
+      captureMode: "element",
+      logsAttach: true,
+      selection: {
+        selector: "button.cta",
+        frameId: 0,
+        tagName: "button",
+        classList: [],
+        computedStyles: {},
+        specifiedStyles: {},
+        propSources: {},
+        text: null,
+        viewport: { width: 800, height: 600 },
+        capturedAt: 0,
+      },
+      styleEdits: { classList: [], inlineStyle: {}, text: "" },
+      bufferedElements: [],
+      tokens: [],
+    });
+
+    expect(buildEditorMarkdownContext()?.environment).toEqual([userRow]);
+  });
+});

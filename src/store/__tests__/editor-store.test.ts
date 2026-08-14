@@ -2925,3 +2925,93 @@ describe("confirmDraft element — 주석본 resolve", () => {
     expect(b.hasAfter).toBe(false);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  confirmDraft — apiHostsDerived 기록 (재제출 strip의 판정 재료)        */
+/* ------------------------------------------------------------------ */
+
+// saveDraft는 교체가 아니라 병합이라, 키를 조건부로 빼면 직전 세션 값이 되살아난다.
+// 4개 캡처 모드 분기 전부가 키를 명시해야 draft 재제출 strip이 옳게 판정한다.
+// (병합 자체의 회귀는 issues-store.test.ts에서 — 여기선 saveDraft가 mock이라 인자만 관측한다.)
+describe("confirmDraft — apiHostsDerived 4개 분기 기록", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    mockSaveDraft.mockClear();
+  });
+
+  const derived = "api.acme.com";
+
+  it("freeform 분기가 apiHostsDerived를 싣는다", () => {
+    useEditorStore.setState({
+      captureMode: "freeform",
+      phase: "drafting",
+      target,
+      draft: { title: "T", sections: {} },
+      apiHostsDerived: derived,
+    });
+
+    useEditorStore.getState().confirmDraft();
+
+    expect(mockSaveDraft.mock.calls[0][0]).toHaveProperty("apiHostsDerived", derived);
+  });
+
+  it("video 분기가 apiHostsDerived를 싣는다", () => {
+    useEditorStore.setState({
+      captureMode: "video",
+      phase: "drafting",
+      target,
+      draft: { title: "T", sections: {} },
+      apiHostsDerived: derived,
+    });
+
+    useEditorStore.getState().confirmDraft();
+
+    expect(mockSaveDraft.mock.calls[0][0]).toHaveProperty("apiHostsDerived", derived);
+  });
+
+  it("screenshot 분기가 apiHostsDerived를 싣는다", () => {
+    useEditorStore.setState({
+      captureMode: "screenshot",
+      phase: "drafting",
+      target,
+      screenshotRaw: "data:image/png;base64,abc",
+      screenshotViewport: { width: 800, height: 600 },
+      draft: { title: "T", sections: {} },
+      apiHostsDerived: derived,
+    });
+
+    useEditorStore.getState().confirmDraft();
+
+    expect(mockSaveDraft.mock.calls[0][0]).toHaveProperty("apiHostsDerived", derived);
+  });
+
+  // element는 자동 행을 주입하지 않아 값이 항상 null이지만, 키를 빼면 병합이 이전 값을 살린다.
+  it("element 분기는 키를 실은 채 null이다 (조건부 스프레드 금지)", () => {
+    useEditorStore.setState({
+      captureMode: "element",
+      phase: "drafting",
+      target,
+      selection: {
+        selector: "button.cta",
+        tagName: "button",
+        classList: ["cta"],
+        computedStyles: { color: "#000000" },
+        specifiedStyles: {},
+        propSources: {},
+        hasParent: true,
+        hasChild: false,
+        text: null,
+        viewport: { width: 1440, height: 900 },
+        capturedAt: 1700000000000,
+      },
+      styleEdits: { classList: ["cta"], inlineStyle: {}, text: "" },
+      draft: { title: "T", sections: {} },
+    });
+
+    useEditorStore.getState().confirmDraft();
+
+    const record = mockSaveDraft.mock.calls[0][0];
+    expect(record).toHaveProperty("apiHostsDerived");
+    expect(record.apiHostsDerived).toBeNull();
+  });
+});
