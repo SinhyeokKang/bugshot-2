@@ -1,15 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  createEmitter,
-  onBlobSaveFailed,
-  onOAuthExpired,
-  onPickerIframeUnsupported,
-  onPickerPermissionExpired,
-  onPickerUnavailable,
-  onSessionSaveExhausted,
-  onStateSaveFailed,
-} from "@/lib/app-events";
+import * as appEvents from "@/lib/app-events";
+import { createEmitter, onOAuthExpired } from "@/lib/app-events";
 
 describe("createEmitter", () => {
   it("subscribe한 리스너가 fire 인자를 그대로 받는다", () => {
@@ -101,40 +93,41 @@ describe("createEmitter", () => {
   });
 });
 
+type LooseEvent = {
+  subscribe(fn: (...args: unknown[]) => void): () => void;
+  fire(...args: unknown[]): void;
+};
+
 describe("app-events 인스턴스", () => {
-  const emitters = {
-    onOAuthExpired,
-    onPickerUnavailable,
-    onPickerPermissionExpired,
-    onPickerIframeUnsupported,
-    onBlobSaveFailed,
-    onStateSaveFailed,
-    onSessionSaveExhausted,
-  };
+  // 로스터를 모듈에서 파생한다. 손으로 쓴 리터럴을 세면 삭제 방향만 잡히고(named import
+  // 실패) 추가 방향은 그물이 0이라, 8번째 emitter가 카운트에도 아래 독립성 루프에도 안 걸린다.
+  const emitters = Object.entries(appEvents).filter(
+    ([name]) => name !== "createEmitter",
+  ) as Array<[string, LooseEvent]>;
 
   it("emitter 7종이 전부 subscribe·fire를 가진 객체다", () => {
-    const names = Object.keys(emitters) as (keyof typeof emitters)[];
-    expect(names).toHaveLength(7);
-    for (const n of names) {
-      expect(typeof emitters[n]?.subscribe, n).toBe("function");
-      expect(typeof emitters[n]?.fire, n).toBe("function");
+    expect(emitters.map(([n]) => n)).toHaveLength(7);
+    for (const [name, e] of emitters) {
+      expect(typeof e?.subscribe, name).toBe("function");
+      expect(typeof e?.fire, name).toBe("function");
     }
   });
 
-  it("각 emitter는 독립이다 — 하나를 fire해도 다른 6개는 조용하다", () => {
-    const names = Object.keys(emitters) as (keyof typeof emitters)[];
-    for (const fired of names) {
+  it("각 emitter는 독립이다 — 하나를 fire해도 나머지는 조용하다", () => {
+    for (const [firedName, fired] of emitters) {
       const spies = new Map<string, ReturnType<typeof vi.fn>>();
-      const offs = names.map((n) => {
+      const offs = emitters.map(([name, e]) => {
         const fn = vi.fn();
-        spies.set(n, fn);
-        return emitters[n].subscribe(fn as never);
+        spies.set(name, fn);
+        return e.subscribe(fn);
       });
 
-      emitters[fired].fire(null as never);
+      fired.fire(null);
 
-      for (const n of names) {
-        expect(spies.get(n)).toHaveBeenCalledTimes(n === fired ? 1 : 0);
+      for (const [name] of emitters) {
+        expect(spies.get(name), `${firedName} → ${name}`).toHaveBeenCalledTimes(
+          name === firedName ? 1 : 0,
+        );
       }
       offs.forEach((off) => off());
     }

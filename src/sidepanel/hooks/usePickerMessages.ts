@@ -3,7 +3,7 @@ import { useEditorStore } from "@/store/editor-store";
 import { sameElementKey } from "@/lib/element-key";
 import { originOf, pendingKey } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
-import { type BgInternalMessage } from "@/types/messages";
+import type { BgInternalMessage } from "@/types/messages";
 import { sendBg } from "@/lib/bg-client";
 import { onPickerIframeUnsupported, onPickerPermissionExpired } from "@/lib/app-events";
 import { captureElementSnapshot, cropImage } from "@/sidepanel/capture";

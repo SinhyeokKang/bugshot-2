@@ -115,6 +115,25 @@ describe("sendBg", () => {
     expect(fn).toHaveBeenCalledWith("linear");
   });
 
+  // 위 케이스만으로는 "화이트리스트를 통과시켰다"와 "body.platform을 그냥 실어 보냈다"가
+  // 구별되지 않는다(fixture가 통과값 하나뿐이라 인자 쪽이 항등식이 된다). 목록 밖 값을 넣어
+  // getOAuthErrorPlatform이 실제로 경로에 끼어 있음을 고정한다 — 새면 App.tsx가 재연결
+  // 다이얼로그를 못 골라 무음이 된다.
+  it("목록 밖 platform이면 null로 발화한다 (생 필드 통과가 아니다)", async () => {
+    const fn = vi.fn();
+    const off = onOAuthExpired.subscribe(fn);
+    respondWith = {
+      ok: false,
+      error: "expired",
+      body: { oauthRefreshFailed: true, platform: "trello" },
+    };
+
+    await sendBg(req).catch(() => {});
+    off();
+
+    expect(fn).toHaveBeenCalledWith(null);
+  });
+
   // 위 케이스가 게이트를 실제로 검증하려면, 플래그 없는 실패에서는 조용해야 한다.
   it("플래그 없는 ok:false에서는 onOAuthExpired가 발화하지 않는다", async () => {
     const fn = vi.fn();
