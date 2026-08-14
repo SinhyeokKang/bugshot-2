@@ -206,6 +206,10 @@
 
 > import 반경이 104개 파일. 커밋을 5개로 쪼갠다.
 > **⚪106은 무효**라 G6에서 빠졌다(아래 Task 6-1).
+>
+> **완료 (2026-08-15) — 커밋 4개**(6-1 제외 + 6-2·6-3 결합). 계획에 없던 실측 소득 2건:
+> ① **실재하던 런타임 순환 1건이 끊겼다** — `i18n/index.ts → store/settings-ui-store.ts → store/chrome-storage.ts → types/messages.ts → i18n/index.ts`. `chrome-storage`가 물던 대상이 `t()`를 부르는 `types/messages`에서 의존성 0인 `lib/app-events`로 바뀌면서 고리가 열렸다. 남은 순환 3건(`editor-store↔issues-store` 등)은 이 배치 이전부터 있던 것이라 무관.
+> ② **`store/editor-store.ts`의 런타임 그래프가 35 → 23 모듈.** `types/messages → @/i18n` 경유로 딸려오던 `i18n/{index,ko,en}` + namespace 8개가 통째로 빠졌다. 🟡57은 "타입 파일에 런타임이 있다"는 위생 항목으로 적혀 있었는데, 실제 이득은 번들 쪽이 더 컸다.
 
 #### ~~Task 6-1: `useT` 분리 (🟡54)~~ — **배치에서 제외 (2026-08-14)**
 
