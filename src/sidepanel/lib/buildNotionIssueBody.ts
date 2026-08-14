@@ -21,6 +21,7 @@ import {
   stripInlineImageRefs,
 } from "./resolveInlineImages";
 import type { StyleDiffSegment } from "./classDiff";
+import { inlinePlaceholderId } from "@/lib/inline-ref";
 
 export interface NotionMediaInput {
   filename: string;
@@ -272,7 +273,7 @@ function buildNotionIssueBodyInner(
         blocks.push({ type: "paragraph", text: t("md.noValue") });
       }
       for (const refId of sectionRefs) {
-        blocks.push({ type: "image", placeholderId: `inline-${refId}` });
+        blocks.push({ type: "image", placeholderId: inlinePlaceholderId(refId) });
       }
     }
   }

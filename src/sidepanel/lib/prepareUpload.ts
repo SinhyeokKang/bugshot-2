@@ -3,6 +3,7 @@ import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages"
 import { guessUploadMime } from "./uploadMime";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import type { MarkdownMediaInput } from "./buildMarkdownIssueBody";
+import { inlineUploadFilename } from "@/lib/inline-ref";
 
 export interface UploadFileInput {
   filename: string;
@@ -49,6 +50,18 @@ export function someUploadMissing(
   return filenames.some((f) => !hrefMap.get(f));
 }
 
+// refId를 함께 돌려주는 이유: 호출부가 업로드 결과를 되찾을 때 파일명을 두 번째로 조립하면
+// 그 자리에서 다시 갈릴 수 있다. 짝을 여기서 한 번만 만든다.
+export function toInlineUploadFiles(
+  inlineImages: readonly InlineImageInput[] | undefined,
+): Array<UploadFileInput & { refId: string }> {
+  return (inlineImages ?? []).map((img) => ({
+    refId: img.refId,
+    filename: inlineUploadFilename(img.refId),
+    dataUrl: img.dataUrl,
+  }));
+}
+
 export function toUploadEntry(f: UploadFileInput): UploadEntry {
   return {
     filename: f.filename,
@@ -65,10 +78,7 @@ export async function prepareUpload(
   const imageInputs = input.images ?? [];
   const logs = input.logs ?? [];
   const userAttachments = input.attachments ?? [];
-  const inlineFiles = (input.inlineImages ?? []).map((img) => ({
-    filename: `inline-${img.refId}.webp`,
-    dataUrl: img.dataUrl,
-  }));
+  const inlineFiles = toInlineUploadFiles(input.inlineImages);
   const allFiles = [
     ...imageInputs,
     ...(input.video ? [input.video] : []),
@@ -97,9 +107,9 @@ export async function prepareUpload(
   let resolvedCtx = input.ctx;
   if (inlineFiles.length > 0) {
     const refToUrl = new Map<string, string>();
-    for (const img of input.inlineImages ?? []) {
-      const href = hrefMap.get(`inline-${img.refId}.webp`);
-      if (href) refToUrl.set(img.refId, href);
+    for (const f of inlineFiles) {
+      const href = hrefMap.get(f.filename);
+      if (href) refToUrl.set(f.refId, href);
     }
     if (refToUrl.size > 0) {
       resolvedCtx = {

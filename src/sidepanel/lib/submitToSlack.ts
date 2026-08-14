@@ -1,6 +1,7 @@
 import { buildSlackBody } from "./buildSlackBody";
 import { splitSlackText } from "./splitSlackText";
 import { escapeMrkdwn } from "./markdownToMrkdwn";
+import { toInlineUploadFiles } from "./prepareUpload";
 import type { InlineImageInput } from "./resolveInlineImages";
 import { sendBg } from "@/types/messages";
 import type {
@@ -29,6 +30,8 @@ export interface SlackSubmitInput {
   mentions?: { id: string; name: string }[];
 }
 
+// prepareUpload의 공용판을 쓰지 않는다 — slack.uploadFiles 페이로드는 {filename, dataUrl}뿐이라
+// 공용판이 얹는 contentType이 쓰이지 않은 채 메시지 경계를 넘는다.
 function toUploadEntry(f: SlackFileInput) {
   return {
     filename: f.filename,
@@ -40,10 +43,7 @@ export async function submitToSlack(
   input: SlackSubmitInput,
 ): Promise<NormalizedSubmitResult> {
   const logs = input.logs ?? [];
-  const inlineFiles = (input.inlineImages ?? []).map((img) => ({
-    filename: `inline-${img.refId}.webp`,
-    dataUrl: img.dataUrl,
-  }));
+  const inlineFiles = toInlineUploadFiles(input.inlineImages);
   const allFiles = [
     ...(input.images ?? []),
     ...(input.video ? [input.video] : []),
