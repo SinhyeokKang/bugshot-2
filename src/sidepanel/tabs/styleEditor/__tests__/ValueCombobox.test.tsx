@@ -56,6 +56,15 @@ describe("ValueCombobox 토큰 chip 폭 봉쇄", () => {
     expect(trigger.className).toContain("min-w-0");
   });
 
+  // shadcn Button base는 inline-flex다. 블록 래퍼(MergedSideField의 div.min-w-0.flex-1) 안에
+  // 놓이면 인라인 박스가 되어 디센더만큼 행이 높아지고 옆 LinkToggle(h-9)과 정렬이 어긋난다.
+  // twMerge display 그룹 중재에 걸린 값이라 className을 정리하다 지우면 무음으로 되돌아간다.
+  it("트리거가 blockify돼 라인박스 여백을 만들지 않는다", () => {
+    render(<ValueCombobox prop="background-color" />);
+    const trigger = screen.getByRole("button");
+    expect(trigger.className.split(/\s+/)).toContain("flex");
+  });
+
   it("chip과 그 이름 span이 축소·말줄임 가능하다", () => {
     render(<ValueCombobox prop="background-color" />);
     const name = screen.getByText(LONG_TOKEN);

@@ -28,7 +28,7 @@ export function LinearStatusBadge({
   const [updating, setUpdating] = useState(false);
 
   const stateColors = LINEAR_STATE_TYPE_COLORS[currentState.type] ?? STATUS_CATEGORY_COLORS.new;
-  const i18nKey = LINEAR_STATE_I18N[currentState.type] as Parameters<typeof t>[0] | undefined;
+  const i18nKey = LINEAR_STATE_I18N[currentState.type];
   const currentLabel = i18nKey ? t(i18nKey) : currentState.name;
 
   const handleOpenChange = (v: boolean) => {

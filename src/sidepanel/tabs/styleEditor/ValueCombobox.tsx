@@ -13,6 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { ColorSwatch } from "@/sidepanel/components/ColorSwatch";
@@ -200,12 +201,16 @@ export function ValueCombobox({
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <button
+        <Button
           type="button"
+          variant="outline"
           className={cn(
             // min-w-0: grid item(FieldRow/quad 4-col)의 automatic minimum size를 풀어야
             // 안쪽 TokenChip의 truncate가 살아난다 — 없으면 버튼이 트랙을 뚫는다.
-            "flex h-9 w-full min-w-0 items-center rounded-md border px-2 text-sm outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring",
+            // flex: base는 inline-flex다. MergedSideField의 래퍼(div.min-w-0.flex-1)처럼
+            // 블록 컨테이너 안에 놓이면 인라인 박스가 되어 디센더만큼 행이 높아지고
+            // 옆 LinkToggle(h-9)과 세로 정렬이 어긋난다.
+            "flex h-9 w-full min-w-0 justify-start px-2 text-sm font-normal hover:bg-muted/50",
             compact && "px-1.5 gap-1",
           )}
           title={buildTriggerTitle({
@@ -307,7 +312,7 @@ export function ValueCombobox({
                 : placeholder || "—"}
             </span>
           )}
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent
         className={cn(

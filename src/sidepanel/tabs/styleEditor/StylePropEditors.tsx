@@ -183,23 +183,26 @@ function LinkToggle({
 }) {
   const t = useT();
   return (
-    <button
+    <Button
       type="button"
+      size="icon"
+      variant="outline"
       onClick={onToggle}
       aria-pressed={linked}
       className={cn(
-        "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-foreground transition-colors",
-        linked ? "border-foreground bg-foreground text-background hover:bg-foreground/80" : "hover:bg-muted",
+        // h-9 w-9는 size="icon" 기본값과 같지만 남긴다 — 인접 Input(h-9)에 높이를 맞춘
+        // 컨트롤임을 코드가 말하게(DESIGN §10의 두 사이즈 중 어느 쪽인지).
+        // hover:text-background: on 상태의 어두운 면 위에서 base의 hover:text-accent-foreground가
+        // 이기면 아이콘이 사라진다.
+        "h-9 w-9 shrink-0",
+        linked &&
+          "border-foreground bg-foreground text-background hover:bg-foreground/80 hover:text-background",
       )}
       title={linked ? t("prop.editIndividual") : t("prop.editTogether")}
       aria-label={linked ? t("prop.editIndividual") : t("prop.editTogether")}
     >
-      {linked ? (
-        <Link className="h-3.5 w-3.5" />
-      ) : (
-        <Unlink className="h-3.5 w-3.5" />
-      )}
-    </button>
+      {linked ? <Link /> : <Unlink />}
+    </Button>
   );
 }
 
@@ -691,25 +694,25 @@ export function QuadProp({
             <ValueCombobox
               prop={props[0]}
               compact
-              icon={<SideEdgeIcon side="top" className="h-3.5 w-3.5" />}
+              icon={<SideEdgeIcon side="top" />}
               iconTitle={t("prop.side.top")}
             />
             <ValueCombobox
               prop={props[1]}
               compact
-              icon={<SideEdgeIcon side="right" className="h-3.5 w-3.5" />}
+              icon={<SideEdgeIcon side="right" />}
               iconTitle={t("prop.side.right")}
             />
             <ValueCombobox
               prop={props[2]}
               compact
-              icon={<SideEdgeIcon side="bottom" className="h-3.5 w-3.5" />}
+              icon={<SideEdgeIcon side="bottom" />}
               iconTitle={t("prop.side.bottom")}
             />
             <ValueCombobox
               prop={props[3]}
               compact
-              icon={<SideEdgeIcon side="left" className="h-3.5 w-3.5" />}
+              icon={<SideEdgeIcon side="left" />}
               iconTitle={t("prop.side.left")}
             />
           </div>
@@ -771,13 +774,13 @@ export function GapPairProp() {
             <ValueCombobox
               prop="row-gap"
               compact
-              icon={<Rows2 className="h-3.5 w-3.5" />}
+              icon={<Rows2 />}
               iconTitle={t("prop.gap.row")}
             />
             <ValueCombobox
               prop="column-gap"
               compact
-              icon={<Columns2 className="h-3.5 w-3.5" />}
+              icon={<Columns2 />}
               iconTitle={t("prop.gap.column")}
             />
           </div>
@@ -814,25 +817,25 @@ export function RadiusProp() {
             <ValueCombobox
               prop={RADIUS_PROPS[0]}
               compact
-              icon={<CornerRadiusIcon corner="tl" className="h-3.5 w-3.5" />}
+              icon={<CornerRadiusIcon corner="tl" />}
               iconTitle={t("prop.corner.topLeft")}
             />
             <ValueCombobox
               prop={RADIUS_PROPS[1]}
               compact
-              icon={<CornerRadiusIcon corner="tr" className="h-3.5 w-3.5" />}
+              icon={<CornerRadiusIcon corner="tr" />}
               iconTitle={t("prop.corner.topRight")}
             />
             <ValueCombobox
               prop={RADIUS_PROPS[2]}
               compact
-              icon={<CornerRadiusIcon corner="br" className="h-3.5 w-3.5" />}
+              icon={<CornerRadiusIcon corner="br" />}
               iconTitle={t("prop.corner.bottomRight")}
             />
             <ValueCombobox
               prop={RADIUS_PROPS[3]}
               compact
-              icon={<CornerRadiusIcon corner="bl" className="h-3.5 w-3.5" />}
+              icon={<CornerRadiusIcon corner="bl" />}
               iconTitle={t("prop.corner.bottomLeft")}
             />
           </div>

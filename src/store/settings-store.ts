@@ -312,16 +312,14 @@ export function jiraHostLabel(auth: JiraAuth): string {
   }
 }
 
-const PLATFORM_FALLBACK_ORDER: PlatformId[] = [
-  "jira",
-  "github",
-  "linear",
-  "gitlab",
-  "notion",
-  "asana",
-  "clickup",
-  "slack",
-];
+// 새 플랫폼이 PlatformId에 추가되면 키 누락으로 컴파일 에러 — 폴백 목록이 조용히 빠지는 걸 막는다.
+const PLATFORM_FALLBACK_RANK = {
+  jira: 0, github: 1, linear: 2, gitlab: 3,
+  notion: 4, asana: 5, clickup: 6, slack: 7,
+} as const satisfies Record<PlatformId, number>;
+
+const PLATFORM_FALLBACK_ORDER = (Object.keys(PLATFORM_FALLBACK_RANK) as PlatformId[])
+  .sort((a, b) => PLATFORM_FALLBACK_RANK[a] - PLATFORM_FALLBACK_RANK[b]);
 
 // 다이얼로그가 열릴 때 어느 플랫폼 탭을 default로 보여줄지 결정.
 // 1) lastSubmittedPlatform이 여전히 연결돼 있으면 그것

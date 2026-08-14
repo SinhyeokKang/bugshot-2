@@ -36,6 +36,66 @@
 
 ---
 
+## 2026-08-14 — "생성 직후 적용"이라는 지시를 그대로 따랐더니 재사용 경로가 통째로 빠졌다
+
+- **영역**: `content`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: picker 인스펙터 카드의 다크 전환을 OS가 아니라 앱 theme에 묶는 작업에서, 요소를 한 번 고른 뒤 설정에서 theme을 바꾸고 다시 선택(repick)하거나 element shot을 시작하면 카드가 **옛 톤 그대로** 떴다. 확장을 리로드하고 첫 picker를 띄우는 흐름에선 항상 맞게 나와서, 수동 검증 체크리스트(앱 theme × OS theme 조합)를 그대로 돌면 안 보인다.
+- **근본 원인**: 설계 문서가 "`picker.start`가 실어온 theme을 모듈 로컬에 보관하고 **`createOverlay()` 직후** 적용한다"고 지시했고 그대로 구현했다. 그런데 `handleStop`은 overlay를 파괴하지 않는다(파괴는 `handleClear`뿐). 선택 확정마다 `picker.stop`이 뿌려지므로 **overlay가 살아있는 채 두 번째 `picker.start`가 도착하는 경로가 오히려 흔한 쪽**이고, 그 경로는 `if (!overlay)` 블록에 안 들어가 `pickerTheme`만 갱신되고 DOM은 안 바뀐다. 지시가 값의 **수명**이 아니라 **생성 시점**만 말한 형태다 — "재생성 3경로를 한 번에 덮어라"라는 요구가 워낙 뚜렷해서, 정작 "재생성이 없는 경우"가 사각에 남았다.
+- **재발 방지**: (1) **"X 직후 적용"류 지시를 받으면 X가 안 일어나는 재진입 경로를 먼저 센다** — 여기선 `grep -n "overlay = createOverlay()" src/content/picker.ts`(생성 3곳)와 `grep -n "destroyOverlay\|overlay = null" src/content/picker.ts`(파괴 경로)를 대조해 "생성 없이 재진입"이 가능한지 본다. 생성보다 진입이 잦으면 적용 지점은 생성부가 아니라 **진입부**다. (2) 상태를 모듈 로컬로 승격하는 수정은 **보관과 적용을 같은 줄에서 보지 말 것** — `pickerTheme = …`(매 start)과 `setOverlayTheme(…)`(생성 시)이 서로 다른 빈도로 도는 걸 그 자리에서 눈치채기 어렵다. (3) 이 축은 유닛·jsdom 사정권 밖이다(`picker.ts`·`overlay.ts`가 로직 스코프 제외). 자동으로 잡으려면 확장을 띄워 theme 전환 → repick → shadow root의 `data-theme`을 읽는 e2e가 필요하고 현재는 없다 — 수동 확인 항목에 **"두 번째 picker"** 를 명시해 두는 게 그 전까지의 대체물이다.
+- **관련**: `src/content/picker.ts:handleStart`(적용 지점 — `if (!overlay)` 밖), `src/content/overlay.ts:setOverlayTheme`, `src/sidepanel/picker-control.ts:currentTheme`(송신 3곳), `src/sidepanel/lib/resolveDark.ts`. 이 작업 자체가 **2026-08-14 "배치 문서가 다른 배치가 만들 코드를 전제로…"** 항목이 배치 5로 이월한 그 태스크다(전제 6단계 중 앞 5단계를 이번에 만들었다).
+
+---
+
+## 2026-08-14 — shadcn `Button` 이행에서 base cva의 `display` 축만 대조 목록에서 빠졌다
+
+- **영역**: `컴포넌트`, `디자인`
+- **계열**: `라이브러리전제`
+- **그물**: `시각`
+- **증상**: 스타일 편집기에서 `margin`·`padding` 같은 4면 속성을 **묶어서(linked)** 편집할 때만 값 콤보박스 행이 몇 px 높아져, 옆 링크 토글 버튼(`h-9`)과 세로 중심이 어긋났다. 개별 편집(unlinked)으로 풀면 정상이라 재현 조건이 좁다.
+- **근본 원인**: raw `<button>`(`flex`)을 shadcn `Button`으로 이행하면서 base cva의 **`inline-flex`** 를 안 덮었다. 설계 문서는 base와의 차이를 `justify-center`·`font-medium`·`gap-2`·`[&_svg]:size-4`·`shadow-sm`·`bg-background`·`hover:*`까지 **하나씩 열거**해 뒀는데 `display` 축만 그 목록에 없었다 — 눈에 띄는 축(색·크기·간격)은 세고 가장 기본적인 축은 안 센 형태다. 대부분의 호출부는 부모가 grid/flex라 인라인 박스가 blockify돼 무해했고, 하필 `MergedSideField`의 래퍼만 블록 컨테이너(`div.min-w-0.flex-1`)라 line-box strut의 디센더만큼 여백이 생겼다.
+- **재발 방지**: (1) **프리미티브 교체 시 대조 목록의 첫 줄은 `display`다** — cva base 문자열을 열어 `inline-flex`/`inline-block`/`grid` 여부를 먼저 보고, 교체 대상이 블록 컨테이너 안에 놓일 수 있으면 명시적으로 덮는다. 전수: `grep -rn "variant=\"outline\"" src/sidepanel | ...`로 이행된 트리거를 뽑아 각각의 부모가 flex/grid인지 확인. (2) **이 축은 jsdom으로 원리상 못 잡는다**(레이아웃이 없어 line box가 생기지 않는다). 그래서 className 토큰 대조가 유일한 자동 그물이고, 그 단언은 **뮤테이션으로 이름표를 확정해야** 의미가 있다 — `flex`를 지웠을 때 정확히 그 테스트만 red가 되는 걸 실측했다. 주석만 남기면 다음 사람이 className을 정리하다 무음으로 되돌린다. (3) 같은 이행에서 `[&_svg]:size-4`가 **자손 셀렉터(0,1,1)라 자식의 `h-3.5`(0,1,0)를 이긴다**는 것도 같은 계열이다 — twMerge는 다른 엘리먼트라 중재하지 못한다. 크기를 수용하기로 했으면 **죽은 `h-3.5`를 남기지 말 것**(코드가 14px이라고 거짓말한다).
+- **관련**: `src/sidepanel/tabs/styleEditor/ValueCombobox.tsx`(트리거 className — `flex` 오버라이드 + 이유 주석), `src/sidepanel/tabs/styleEditor/StylePropEditors.tsx:MergedSideField`(블록 래퍼)·`LinkToggle`, 그물 `src/sidepanel/tabs/styleEditor/__tests__/ValueCombobox.test.tsx`("트리거가 blockify돼 라인박스 여백을 만들지 않는다"), base `src/components/ui/button.tsx`. 계열 선행: **2026-07-20**(shadcn `Kbd`의 `inline-flex`+`justify-center`가 `truncate`를 무력화 — 같은 프리미티브의 같은 축).
+
+---
+
+## 2026-08-14 — 한 배치의 설계 문서와 태스크 문서가 갈려, 재검증으로 편입한 작업이 태스크에 없었다
+
+- **영역**: `툴체인`
+- **계열**: `드리프트`
+- **그물**: `없음`
+- **증상**: 배치 착수 직전 계획 문서를 읽는데, `design.md`의 "재검증 편입 사항"이 **새 작업으로 편입**했다고 명시한 항목 셋(N-1 로그 텍스트 색 단일 출처 확장 / N-4 다크 판정 세 번째 복제본 제거 / N-5 번들 경계 위반 승격)이 같은 배치의 `tasks.md` 어느 태스크에도 없었다. 태스크 목록만 보고 구현했으면 "⚪ 9건이 정리된다"는 PRD 약속과 실제 결과가 조용히 어긋난 채 배치가 닫혔을 것이다.
+- **근본 원인**: 한 배치의 문서가 셋(`prd.md`·`design.md`·`tasks.md`)인데, 재검증이 `design.md` **본문**과 그 문서의 "편입" 절을 갱신하면서 `tasks.md`에는 일부만(N-3 같은 항목만) 반영했다. `design.md` 안에서도 갈렸다 — C-1 소비처 목록은 안 고치고 편입 절에만 "소비처에 추가하라"고 적혀 있었다. 즉 **"결정을 적은 곳"과 "실행 목록"이 다른 파일이고, 갱신이 전자에서 멈춘다**. 2026-08-14의 배치 간 드리프트("다른 배치가 만들 코드를 전제")와 같은 뿌리이고, 이번엔 축이 배치 **안**이다.
+- **재발 방지**: (1) **착수 전 `design.md`의 "편입/취소" 절과 `tasks.md`의 태스크 목록을 1:1로 대조한다** — `grep -n "편입\|축소\|취소\|N-[0-9]" docs/features/<slug>/design.md`로 결정 항목을 뽑고, 각각이 tasks.md에 태스크나 명시적 비목표로 존재하는지 센다. 어느 쪽에도 없으면 그게 구멍이다. (2) **결정을 두 파일에 적었으면 갱신도 두 파일에 한다** — 재검증이 design 본문만 고치고 tasks를 안 고치면 실행자는 tasks만 본다. (3) **이 축은 코드로 못 막는다**(문서 대 문서). 사람이 착수 시점에 grep하는 게 유일한 그물이고, 갈린 걸 발견하면 임의로 넓히지 말고 **범위를 사용자에게 확인**한다 — 이번엔 그렇게 배치 6으로 이월했다. (4) 이월 결정은 문서가 아니라 **다음 배치의 태스크**로 남겨야 같은 사고가 반복되지 않는다.
+- **관련**: `docs/features/audit-refactor-5/design.md`("2026-08-14 재검증 편입 사항" N-1·N-4·N-5)·`tasks.md`(대응 태스크 부재), 이월 대상 `src/sidepanel/components/ActionLogContent.tsx`(로컬 `text-sky-600`·`text-red-700` — `TONE_TEXT`와 값이 갈렸다)·`src/sidepanel/tabs/styleEditor/CssCodeMirror.tsx`(`resolveDark` 세 번째 복제본)·`src/store/editor-store.ts`(`annotation/presets` value import). 계열 선행: **2026-08-14**(배치 간 문서 드리프트 — 같은 형태의 배치 내 판).
+
+---
+
+## 2026-08-14 — 골든 스냅샷이 생산자를 안 거쳐 "게이트를 정반대로 뒤집어도 green"이었고, 설계 문서가 그걸 유일한 검증 근거로 인용하고 있었다
+
+- **영역**: `store`, `lib`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 재현 환경 `API Hosts` 행의 제출 게이트를 리팩터하는 태스크가 "본문 골든 스냅샷 diff 0"을 회귀 그물로 지정하고 있었다. 실측하니 `bodyOutputGolden.test.ts`의 스냅샷엔 `API Hosts`가 **0회**, `inline:`도 **0회**다 — 게이트를 정반대로 뒤집어도, 인라인 이미지 생성기를 바꿔도 그 골든은 green이다. 같은 배치의 다른 태스크(`inline:` 리터럴 생성기 통합)도 같은 골든을 근거로 삼고 있었다.
+- **근본 원인**: 그 골든은 **생산자를 호출하지 않는다.** `buildEditorMarkdownContext()`(제출 ctx 조립 = 게이트가 사는 자리)를 거치지 않고 `ctx` 리터럴을 손으로 조립해 빌더에 직접 먹인다(`vi.mock("@/i18n")`까지 걸려 있다). 그래서 실제로 잠그는 건 "**ctx가 주어진 뒤의** 빌더 출력"이고 ctx를 **만드는** 코드는 사정거리 밖이다. 이름(`bodyOutputGolden` = 본문 출력 골든)이 그 경계를 안 드러내서, 본문에 영향을 주는 변경이면 무엇이든 이 골든이 잡아준다고 읽히는 게 함정이다. 2026-08-12 "그물 세 겹이 전부 있기만 하면 통과"의 재발이고, 이번엔 **설계 문서가 그 공허한 그물을 처방으로 적어 두어** 구현자가 문서를 그대로 따르면 반드시 밟는 형태였다.
+- **재발 방지**: (1) **골든·스냅샷을 회귀 그물로 지정하기 전에 스냅샷 본문에 그 문자열이 실제로 있는지 센다** — `grep -c "<대상 문자열>" src/**/__snapshots__/*` 또는 인라인 스냅샷 본문. 0이면 그 골든은 이 축의 그물이 아니다. (2) **테스트가 "생산자를 호출하는가"를 먼저 본다** — 입력을 리터럴로 조립하는 테스트는 그 리터럴을 만드는 코드를 원리상 검증하지 못한다. 전수: `grep -rln "const ctx" src/sidepanel/lib/__tests__/`처럼 입력을 손으로 짓는 테스트를 뽑고, 각각 "이 테스트가 지키는 건 생산자인가 소비자인가"를 한 줄로 답한다. (3) **설계 문서(`docs/features/*/tasks.md`)의 "검증" 칸도 미검증 단언이다** — 2026-07-31이 "대안 기각 사유"에, 2026-07-18이 "위험표의 완화 칸"에 낸 처방을 **검증 칸까지** 확장한다. 착수 시 각 검증 항목이 red를 만들 수 있는지(mutation) 확인하고, 못 만들면 그 항목을 문서에서 정정한다. (4) 이번 대체 그물: `buildEditorCapture.test.ts`에 환경 행 케이스를 신설했다(기존 케이스는 전부 `environment: []`라 커버리지가 0이었다) + `inline-ref.test.ts`의 생성↔파싱 왕복.
+- **관련**: 공허한 그물 `src/sidepanel/lib/__tests__/bodyOutputGolden.test.ts`(ctx 리터럴 직접 조립 + `vi.mock("@/i18n")`), 실제 생산자 `src/sidepanel/lib/buildEditorCapture.ts:buildEditorMarkdownContext`, 대체 그물 `src/sidepanel/lib/__tests__/buildEditorCapture.test.ts`("environment API Hosts 게이트")·`src/lib/__tests__/inline-ref.test.ts`, 잘못된 처방 원문은 `docs/features/audit-refactor-4/tasks.md`(Task 2·12)였고 배치 완료와 함께 삭제됐다 — 그 문서를 만든 배치는 v1.7.24 커밋 `64eea020`, 선행 회고 `2026-08-12`·`2026-07-31`.
+
+---
+
+## 2026-08-14 — 배치 문서가 "다른 배치가 만들 코드"를 전제로 태스크를 적어, 구현 착수 시점에야 실행 불가로 드러났다
+
+- **영역**: `content`, `툴체인`
+- **계열**: `미검증단언`, `드리프트`
+- **그물**: `없음`
+- **증상**: 감사 후속 배치 4의 한 태스크가 "`picker.start`가 실어온 theme을 모듈 로컬에 보관하고 `createOverlay()` 직후 적용해 세 경로를 한 번에 덮는다"를 지시했는데, 착수해 보니 `picker.start` 메시지 타입에 `theme` 필드가 **없고**, `resolveDark.ts`도 **없고**, overlay CSS에 `data-theme` 적용이 **0줄**이었다. 보관할 값 자체가 존재하지 않아 태스크를 실행할 수 없었다. 그 전제를 만드는 작업은 **아직 착수도 안 된 배치 5**의 태스크였다.
+- **근본 원인**: 두 배치가 `picker.ts`의 같은 블록을 고치는 걸 발견하고 "충돌을 막으려" 배치 5의 항목을 배치 4로 **합쳐 적었는데**, 합쳐진 항목의 **전제(메시지 필드·헬퍼 모듈·CSS)는 배치 5에 남겨둔 채**였다. 문서상으로는 "배치 5 D-1은 이 태스크를 참조만 한다"로 정리돼 한 곳에서 읽히지만, 실행 순서로 보면 후행 배치의 산출물에 선행 배치가 의존하는 역전이다. 배치 문서가 서로를 인용할 때 **"무엇을 고치나"만 옮기고 "그게 성립하려면 무엇이 먼저 있어야 하나"를 안 옮긴** 형태다. 같은 배치의 인용 줄번호가 v1.7.21~23을 거치며 전부 밀린 것도 같은 뿌리(문서가 코드의 현재 상태를 실측 없이 전제)이고, 이번 재검증에서 이미 한 번 정정된 이력이 있다.
+- **재발 방지**: (1) **배치 간 태스크를 합칠 때는 "이 태스크가 읽는 값·부르는 함수·import하는 모듈"을 나열하고 각각이 *지금 코드에* 있는지 grep으로 확인한다** — 없으면 합치는 방향이 반대다(전제를 가진 배치로 옮겨야 한다). 전수: `grep -rn "편입\|D-[0-9]\|배치 [0-9]" docs/features/*/tasks.md`로 교차 참조 태스크를 뽑고 각각의 전제를 대조. (2) **설계 문서가 인용하는 심볼은 착수 전 존재 확인이 기본이다** — 줄번호는 밀려도 읽으면 되지만 심볼 부재는 태스크를 통째로 못 하게 만든다. 그 배치가 **만드는 것**과 **이미 있는 것**을 문서에서 분리해 적는다. (3) **이 축은 코드로 막을 수 없다** — 문서 대 문서의 순서 의존이라 테스트·타입이 관여하지 않는다. 착수 시 tasks.md의 인용 심볼을 grep하는 것이 유일한 그물이고, 이번엔 그 grep이 착수 직후에 잡아 중단 없이 스코프 분리로 처리했다. (4) 분리 결정은 문서에 남긴다 — 무엇을 왜 이월했는지, 이월받는 배치가 지킬 것(`createOverlay()` 3경로를 모듈 로컬로 한 번에 덮기)까지.
+- **관련**: 이월 사유·후속 지시는 **`docs/features/audit-refactor-5/tasks.md` Task 5**로 옮겨 두었다(배치 4 문서는 완료와 함께 삭제 — 그게 이 회고의 요지이기도 하다: 배치 문서는 수명이 짧아 교차 참조가 남으면 끊긴다). 전제 6단계 중 앞 5단계가 그 배치 소관, 대상 코드 `src/content/picker.ts:handleSelectByPath`·`handleStart`·`handleStartAreaSelect`(`createOverlay()` 3경로), 부재 확인한 심볼 `src/types/picker.ts`의 `picker.start`.
+
+---
+
 ## 2026-08-13 — 분석 축 하나를 훅으로 "구독"했더니, 미리보기를 여는 것만으로 Jira 요청이 나가고 무관한 사용자에게 재로그인 안내가 떴다
 
 - **영역**: `컴포넌트`

@@ -99,7 +99,10 @@ export type PickerMessage =
   | { type: "ping" }
   // frameToken: 전 프레임 broadcast로 공유되는 PRESENT 등록 인증 토큰 — 자식 announce에
   // 실리고 top이 검증한다(페이지가 볼 수 없는 chrome 경로라 위조 등록 차단).
-  | { type: "picker.start"; frameToken?: string }
+  // theme: 사이드패널이 해석한 최종 다크 여부(설정 theme + system이면 matchMedia).
+  // content script는 사이드패널 store를 못 읽고 OS 설정만 보면 앱 설정과 갈린다.
+  // 미전달(구버전 content script·재전송 누락)이면 라이트가 기본이라 undefined 안전.
+  | { type: "picker.start"; frameToken?: string; theme?: "light" | "dark" }
   | { type: "picker.stop" }
   | { type: "picker.clear" }
   | { type: "picker.navigate"; direction: "parent" | "child" }

@@ -183,6 +183,13 @@ describe("stripSubmitted (제출 시 record 정리)", () => {
     const out = stripSubmitted(preserved, { platform: "jira", key: "BUG-1" });
     expect(out.slackPreserved).toBeUndefined();
   });
+
+  // draft.environment가 비워진 뒤 남는 유일한 캡처 문맥 — 사내 호스트명이 제출 후에도
+  // chrome.storage.local에 무기한 잔류한다. 비우기 목록이 열거식이라 새 필드는 자동으로 살아남는다.
+  it("apiHostsDerived를 비운다 (제출 후 사내 호스트명 잔류 방지)", () => {
+    const withDerived = { ...draft, apiHostsDerived: "internal-admin.acme.com" } as IssueRecord;
+    expect(stripSubmitted(withDerived, { key: "BUG-1" }).apiHostsDerived).toBeUndefined();
+  });
 });
 
 describe("markSlackShared (Slack 제출 데이터 보존)", () => {
@@ -283,6 +290,24 @@ describe("saveDraft (재확정 시 optional 필드 보존)", () => {
     store.saveDraft({ ...base, networkLogBlobKey: undefined });
 
     expect(useIssuesStore.getState().issues[0].networkLogBlobKey).toBeUndefined();
+  });
+
+  it("apiHostsDerived를 저장·보존한다 (재제출 strip의 판정 재료)", () => {
+    const store = useIssuesStore.getState();
+    store.saveDraft({ ...base, apiHostsDerived: "api.acme.com" });
+
+    expect(useIssuesStore.getState().issues[0].apiHostsDerived).toBe("api.acme.com");
+  });
+
+  // confirmDraft가 키를 조건부로 빼면 병합이 직전 세션 값을 되살린다 — editor-store.test.ts는
+  // saveDraft가 mock이라 인자만 볼 수 있어 여기서만 검증 가능하다.
+  it("같은 id 재확정 시 null을 명시하면 이전 파생값이 되살아나지 않는다", () => {
+    const store = useIssuesStore.getState();
+    store.saveDraft({ ...base, apiHostsDerived: "api.acme.com" });
+
+    store.saveDraft({ ...base, apiHostsDerived: null });
+
+    expect(useIssuesStore.getState().issues[0].apiHostsDerived).toBeNull();
   });
 
   it("createdAt은 최초 생성 시각을 유지하고 updatedAt만 갱신한다", () => {

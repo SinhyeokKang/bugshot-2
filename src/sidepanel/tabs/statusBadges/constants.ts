@@ -1,3 +1,5 @@
+import type { TranslationKey } from "@/i18n/ko";
+
 export const STATUS_CATEGORY_COLORS: Record<
   string,
   { bg: string; text: string; darkBg: string; darkText: string }
@@ -38,7 +40,7 @@ export const LINEAR_STATE_TYPE_COLORS: Record<string, typeof STATUS_CATEGORY_COL
   cancelled: STATUS_CATEGORY_COLORS.new,
 };
 
-export const LINEAR_STATE_I18N: Record<string, string> = {
+export const LINEAR_STATE_I18N: Record<string, TranslationKey> = {
   backlog: "issueList.linear.backlog",
   unstarted: "issueList.linear.unstarted",
   started: "issueList.linear.started",

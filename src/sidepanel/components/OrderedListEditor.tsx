@@ -96,6 +96,7 @@ export function OrderedListEditor({
               disabled={items.length <= 1}
               onClick={() => removeAt(idx)}
               title={t("common.delete")}
+              aria-label={t("common.delete")}
             >
               <Trash2 />
             </Button>

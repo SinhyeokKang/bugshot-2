@@ -3,13 +3,19 @@
 ## 선행 조건
 
 - 새 권한·env·의존성·shadcn 설치 **없음**. 모든 변경이 기존 컴포넌트·토큰·메시지 안에서 끝난다.
-- **문서 기준 코드**: 이 3문서는 `225efb7b`(v1.7.18)로 감사됐고, v1.7.19 + 후속 커밋의 **N-way 로케일 인프라** 도입 후 i18n 항목(🟡32·33·34·⚪60·86·87·91)을 재검증해 갱신했다(prd.md "코드 기준 갱신"). **그 이후 상류가 또 움직였을 수 있으니 Task 7·8 착수 전 인용된 줄번호를 한 번 재확인**한다.
+- **문서 기준 코드**: 이 3문서는 `225efb7b`(v1.7.18)로 감사돼 v1.7.20까지 리베이스됐고, **2026-08-14에 v1.7.23(`34ac3380`) 기준으로 `/feature-review` 전수 재검증**을 거쳤다(prd.md "코드 기준 갱신" + design.md "2026-08-14 재검증 편입 사항"). **드리프트는 Task 7·8에 국한되지 않았다** — Task 1·2·3·4·5·6 전부에 걸렸고 `NetworkLogContent.tsx`가 +16~21로 가장 컸다. 그래도 착수 전 대상 줄을 한 번 더 확인한다.
+  - 주요 이동: `NetworkLogContent` WS pill `:634-639`→**`:650-665`** · `rowBg` `:50-62`→**`:71-83`** · 상태 dot `:502`→**`:521-523`** · 리사이저 `:351`→**`:371`** / `i18n/index.ts` `t()` `:35-40`→**`:54-59`**, `useT()` `:47-51`→**`:66-70`** / `settings-ui-store` 캐스트 `:84,87,90,93`→**`:90,93,96,99`** / `log-viewer/__tests__/i18n.test.ts` `:155`→**`:180`** / 복제 사전 `common.*` `:140-142`·`:273-275`→**`:148-150`·`:289-291`** / dead 키 `logs.ts` `5,48,69`·`135,178,199`→**`5,52,73`·`143,190,211`** / `AnnotationOverlay` textarea `:664-666`→**`:665-684`** / `editor-store` `aiStylingLoading` `:198`→**`:201`** / overlay 다크 블록 `:201-206`→**`:201-209`**(`--border` `:207`을 포함해야 R1의 뮤턴트 대상이 들어온다) / `PreviewPanel:396`→**`:403`** · `DraftDetailDialog:904`→**`:925`**
 - **`docs/features/french-locale/`와의 순서**: 프랑스어 로케일 기획이 대기 중이고 Task 8과 같은 파일을 만진다. **둘을 동시에 진행하지 않는다** — Task 8(특히 8-3 dead 키 삭제)은 fr 장기 브랜치가 도는 동안 넣지 않고, 순서가 어떻게 되든 **먼저 들어간 쪽이 상대 문서의 수치를 갱신**한다(design.md 위험 요소 13~15). Task 1~7·9는 fr과 무관해 순서 제약이 없다.
 - 착수 전 읽을 것:
   - `docs/DESIGN.md` §1·§2·§3·§4·§6·§9·§10·§13·§14·§15 — 이 배치의 ground truth.
   - `src/components/ui/button.tsx` — Task 2의 cva 대조 대상(설계는 §10 요약을 인용했지만 **실제 cva를 읽고** 덮을 항목을 확정한다).
   - `src/i18n/locales.ts` + `src/test/locale-parity.ts` — Task 7·8의 ground truth. 폴백 금지/허용 테이블 구분과 N-way 대칭 검사기의 단일 출처다.
-  - `docs/POSTMORTEM.md`를 `overlay`·`theme`·`i18n`·`log-colors`·`aria`로 grep — CLAUDE.md의 소환 회로.
+  - `docs/POSTMORTEM.md`를 `overlay`·`theme`·`i18n`·`log-colors`·`aria`·**`accent`·`muted`**로 grep — CLAUDE.md의 소환 회로. **이 배치에 실제로 걸리는 항목은 다섯이고, 이전 판이 인용한 "2026-08-04 게이트 교체"는 존재하지 않는다**(그날 3건은 Escape 판정·`null→null` 폐기·`userEvent.tab()`으로 전부 무관):
+    - **2026-07-17**(`:794`) — `--accent`가 `--muted`와 같은 값이라 관용구대로 넣은 `hover:bg-accent`가 pill을 코드블럭에 녹였다. **Task 2의 `LinkToggle`·`ValueCombobox` shadcn 이식이 정확히 그 형태다.**
+    - **2026-08-12**(`:87`) — 그물 세 겹이 전부 "있기만 하면 통과"였다. Task 5·8의 red 실측 요구가 여기서 왔다.
+    - **2026-07-03** — 로그 색이 두 렌더 경로에서 발산했다. Task 3의 log-viewer 소비처 확인.
+    - **2026-07-26**(`:644`)·**2026-06-28** — 복제 사전 그물의 스캔 범위가 번들 그래프보다 좁으면 조용히 green. Task 8.
+    - **2026-08-04**(`:300`) — 오버레이 Escape 순서. `AnnotationOverlay.test.tsx`가 그 산물이라 Task 1이 그 파일을 건드린다.
 - **라이트/다크 두 테마로 확장을 실물 확인할 준비**: 시각 판정 태스크(Task 2·3·4)는 `pnpm build` 후 로드해야 한다. dist가 stale이면 헛테스트다.
 - 브랜치: `dev`.
 
@@ -36,11 +42,11 @@
   - `OrderedListEditor`: `title` 유지 + `aria-label={t("common.delete")}` 추가.
   - `AnnotationOverlay`: `<textarea>`에 `aria-label={t("annotation.textInput")}`. **placeholder는 넣지 않는다**(R12).
 - **검증**
-  - [ ] `src/sidepanel/components/__tests__/OriginFilterBar.test.tsx`(신규) — origin 2개일 때 렌더 후 활성 pill이 `aria-pressed="true"`, 비활성이 `"false"`.
-  - [ ] `src/sidepanel/components/__tests__/NetworkLogContent.test.tsx`(기존 확장) — WS 방향 필터 3개 중 선택된 것만 `aria-pressed="true"`.
-  - [ ] `src/sidepanel/components/__tests__/OrderedListEditor.test.tsx`(신규) — 삭제 버튼이 `getByRole("button", { name: <common.delete 값> })`로 잡힌다.
+  - [x] `src/sidepanel/components/__tests__/OriginFilterBar.test.tsx`(신규) — origin 2개일 때 렌더 후 활성 pill이 `aria-pressed="true"`, 비활성이 `"false"`.
+  - [x] `src/sidepanel/components/__tests__/NetworkLogContent.test.tsx`(기존 확장) — WS 방향 필터 3개 중 선택된 것만 `aria-pressed="true"`.
+  - [x] `src/sidepanel/components/__tests__/OrderedListEditor.test.tsx`(신규) — 삭제 버튼이 `getByRole("button", { name: <common.delete 값> })`로 잡힌다.
   - [ ] `src/sidepanel/components/__tests__/AnnotationOverlay.test.tsx`(기존 확장) — 텍스트 편집 진입 시 `getByRole("textbox", { name: … })`가 존재. **기존 테스트가 Konva 마운트를 어떻게 다루는지 먼저 확인**하고, 진입 경로 시뮬레이션이 불가하면 이 항목만 수동으로 내린다.
-  - [ ] `pnpm test src/i18n` green (PostToolUse 훅이 자동 실행 — ko/en 대칭).
+  - [x] `pnpm test src/i18n` green (PostToolUse 훅이 자동 실행 — ko/en 대칭).
   - [ ] 수동: `aria-pressed` 추가 전후로 pill 모양이 **픽셀 동일**한지(라이트·다크).
   - [ ] 수동(R6): 스타일링 AI 실행 중 배너가 흐려지고 다시 눌리지 않는다. 완료 후 정상 복귀한다.
 
@@ -60,10 +66,10 @@
   - `ValueCombobox` 트리거 → `Button variant="outline"` + `cn(…)`. **`min-w-0`과 그 주석을 반드시 이관**(R7). `justify-start`·`font-normal`·`hover:bg-muted/50`을 명시적으로 덮는다.
   - `TreeChevronButton` 신설 — raw `<button>` 유지, className은 기존 바이트 동일 문자열, `aria-expanded={open}` **양쪽 다** 갖게, 라벨은 `label` prop 주입(i18n 키는 호출부가 유지).
 - **검증**
-  - [ ] `src/sidepanel/tabs/styleEditor/__tests__/StylePropEditors.test.tsx`(신규 또는 확장) — `LinkToggle`의 `aria-pressed` on/off와 on일 때 `bg-foreground` 클래스 존재.
-  - [ ] `src/sidepanel/components/__tests__/JsonTreeViewer.test.tsx`(기존 확장) — chevron이 `aria-expanded`를 갖고 토글 시 값이 뒤집힌다.
-  - [ ] `src/sidepanel/tabs/__tests__/DomTreeDialog.test.tsx`(존재 확인 필요, 없으면 신규) — 동일.
-  - [ ] `pnpm typecheck` green.
+  - [x] `src/sidepanel/tabs/styleEditor/__tests__/StylePropEditors.test.tsx`(신규 또는 확장) — `LinkToggle`의 `aria-pressed` on/off와 on일 때 `bg-foreground` 클래스 존재.
+  - [x] `src/sidepanel/components/__tests__/JsonTreeViewer.test.tsx`(기존 확장) — chevron이 `aria-expanded`를 갖고 토글 시 값이 뒤집힌다.
+  - [x] `src/sidepanel/tabs/__tests__/DomTreeDialog.test.tsx` — **확인 완료: 없다. 신규 작성이다.**
+  - [x] `pnpm typecheck` green.
   - [ ] **수동(R7, 최우선)**: 스타일 편집기 → `margin` 4방향 개별 편집 펼치기 → 긴 토큰 값 입력 → 4열 트랙이 안 뚫린다. **사이드패널 폭 320px**로 좁혀서도 확인.
   - [ ] **수동(R8)**: `LinkToggle` on/off × 라이트/다크 4조합에서 글자·아이콘이 보인다(특히 **on + hover**).
   - [ ] 수동: `ValueCombobox` 트리거의 높이·정렬·hover가 형제 `SingleLazyCombobox`와 나란히 놓았을 때 어색하지 않다.
@@ -82,10 +88,10 @@
   - `rowBg`가 세 표만 조합하도록 재작성. neutral 행의 `bg-accent`/`hover:bg-accent/50`은 semantic 토큰이므로 **그대로 둔다**.
   - **값은 그대로 옮긴다** — 이 태스크의 결과 픽셀 변화는 0이어야 한다.
 - **검증**
-  - [ ] `src/lib/__tests__/log-colors.test.ts`(존재 확인 필요, 없으면 신규) — `TONE_BG_STRONG`의 5키 전부가 빈 문자열이 아니다(특히 `neutral`).
-  - [ ] `src/sidepanel/components/__tests__/ConsoleLogContent.test.tsx`(기존 확장) — error/warn/info/log 4레벨의 `<pre>`가 각각 기대 클래스를 갖는다. **`log` 레벨이 `bg-muted`인지**를 명시적으로 고정(R5).
-  - [ ] `src/sidepanel/components/__tests__/NetworkLogContent.test.tsx`(기존 확장) — error 행의 선택/비선택 클래스가 다르다.
-  - [ ] `grep -rn "bg-\(red\|amber\|blue\|green\)-200" src/sidepanel/components/` 결과가 비어 있다.
+  - [x] `src/lib/__tests__/log-colors.test.ts` — **확인 완료: 존재한다(65줄).** `TONE_BG` 계열 케이스가 0이므로 **기존 파일 확장**이다. `TONE_BG_STRONG`의 5키 전부가 빈 문자열이 아니다(특히 `neutral`).
+  - [x] `src/sidepanel/components/__tests__/ConsoleLogContent.test.tsx`(기존 확장) — error/warn/info/log 4레벨의 `<pre>`가 각각 기대 클래스를 갖는다. **`log` 레벨이 `bg-muted`인지**를 명시적으로 고정(R5).
+  - [x] `src/sidepanel/components/__tests__/NetworkLogContent.test.tsx`(기존 확장) — error 행의 선택/비선택 클래스가 다르다.
+  - [x] `grep -rn "bg-\(red\|amber\|blue\|green\)-200" src/sidepanel/components/` 결과가 비어 있다.
   - [ ] **수동(R4)**: 라이트·다크 각각에서 network 로그의 error 행을 선택 → 이웃 hover 행과 구별된다. console 로그의 error 항목을 펼쳐 코드블럭이 행 배경 위에 떠 보인다.
 
 ---
@@ -93,17 +99,20 @@
 ### Task 4: 잔여 색상·radius (소주제 C-2·C-4 — 🟡28 + ⚪80·84)
 
 - **변경 대상**
-  - `src/sidepanel/tabs/styleEditor/StyleCssView.tsx:110`
-  - `src/sidepanel/components/NetworkLogContent.tsx:502`
-  - `src/sidepanel/components/HighlightedText.tsx:18`
-  - `src/sidepanel/tabs/slackFields/ChannelIcon.tsx:16`
-- **작업 내용**
-  - 🟡28: `bg-amber-50 text-amber-800 dark:text-amber-200` → `bg-amber-100/80 text-amber-700 dark:text-amber-300`. **`dark:bg-amber-950`은 이미 맞으므로 유지**, `border-amber-300`/`dark:border-amber-800`도 유지(§2에 경계선 규정 없음).
-  - ⚪80: 상태 dot 3색에 `dark:bg-amber-400`/`dark:bg-red-400`/`dark:bg-green-400` 추가.
-  - ⚪84: `rounded-[4px]` 2곳 → `rounded-[3px]`(§6 등재값).
+  - `src/sidepanel/tabs/styleEditor/StyleCssView.tsx:108-110`
+  - `src/lib/log-colors.ts` (⚪80 — `TONE_DOT` 추가)
+  - `src/sidepanel/components/NetworkLogContent.tsx:521-523`
+  - ~~`HighlightedText.tsx:18`·`ChannelIcon.tsx:16`~~ — ⚪84 취소로 대상 아님
+  - `docs/DESIGN.md` §6 (⚪84 대체 — 4px 등재)
+- **작업 내용** *(2026-08-14 재검증 반영)*
+  - 🟡28: **배경만** 통일한다 — `bg-amber-50` → `bg-amber-100/80`. **`text-amber-800`은 유지**한다(원안의 `text-amber-700`은 대비를 6.84:1 → 4.61:1로 떨어뜨려 AA 여유가 0.11pp만 남는다). `dark:bg-amber-950`·`dark:text-amber-300`은 이미 맞으므로 유지, `border-amber-300`/`dark:border-amber-800`도 유지(§2에 경계선 규정 없음).
+  - ⚪80: **`TONE_DOT` 표를 `log-colors.ts`에 추가**하고 상태 dot 3색을 거기서 가져온다. ~~로컬에 `dark:bg-*-400`을 직접 추가~~하지 않는다 — 같은 파일에서 행 배경만 단일 출처로 올리면서(Task 3) dot만 로컬에 새 색을 심는 건 C-1 원칙과 어긋난다.
+  - ⚪84: **코드 수정 취소.** `rounded-[3px]` 통일 대신 **DESIGN §6에 4px을 등재**한다 — 유일 선례 `ColorSwatch.tsx:28`은 overlay `.pl-swatch`(`overlay.ts:197`)와의 cross-file 앵커임을 주석으로 못박아둔 값이라, 무관한 두 표면(`<mark>` 하이라이트·16px Slack 아바타)을 끌어오면 앵커 의미가 희석된다.
 - **검증**
-  - [ ] `pnpm typecheck` green.
-  - [ ] `grep -rn "rounded-\[4px\]" src/` 결과가 비어 있다.
+  - [x] `pnpm typecheck` green.
+  - [ ] ~~`grep -rn "rounded-\[4px\]" src/`가 비어 있다~~ — ⚪84 취소로 **2건이 그대로 남는 것이 기대값**이다.
+  - [x] `grep -rn "dark:bg-amber-400\|dark:bg-red-400\|dark:bg-green-400" src/sidepanel/components/NetworkLogContent.tsx` 결과 0줄(로컬이 아니라 `TONE_DOT`을 쓴다는 증거)
+  - [x] **대비 확인(R13)**: 변경 후 `text-amber-800` on `bg-amber-100/80` 조합이 4.5:1 이상. DESIGN §2가 요구하는 "새 raw 색 대비 확인"의 이행이다.
   - [ ] 수동: CSS 뷰에서 미적용 draft 상태를 만들어 경고 배너를 띄우고, 라이트·다크에서 글자가 읽히는지 확인(§2의 "다크 배너 배경에 알파를 얹지 말 것" 위반이 없는지도).
   - [ ] 수동: 네트워크 상세를 다크에서 열어 pending/error/ok dot 3종이 배경에 묻히지 않는다.
 
@@ -129,10 +138,14 @@
   5. `OVERLAY_CSS`의 `@media (prefers-color-scheme: dark)` 블록 → `.picker-label[data-theme="dark"][data-mode="inspector"]`.
   6. `tokens.test.ts`의 `parseOverlayTokens` 앵커 교체.
 - **검증**
-  - [ ] `src/sidepanel/lib/__tests__/resolveDark.test.ts`(신규) — `("light", true)=false` / `("dark", false)=true` / `("system", true)=true` / `("system", false)=false` 4케이스.
-  - [ ] `pnpm test src/styles` green.
-  - [ ] **(R1 그물 증명)** overlay의 다크 `--border` 값을 일부러 한 자리 틀리게 바꿔 `tokens.test.ts`가 **red**가 되는지 확인 후 되돌린다. 이걸 안 하면 파서를 무력화하고도 green을 볼 수 있다.
-  - [ ] `grep -n "picker.start" src/sidepanel/picker-control.ts` 결과 3곳이 **전부** theme을 싣는다.
+  - [x] `src/sidepanel/lib/__tests__/resolveDark.test.ts`(신규) — `("light", true)=false` / `("dark", false)=true` / `("system", true)=true` / `("system", false)=false` 4케이스.
+  - [x] `pnpm test src/styles` green.
+  - [x] **(R1 그물 증명)** overlay의 다크 `--border` 값을 일부러 한 자리 틀리게 바꿔 `tokens.test.ts`가 **red**가 되는지 확인 후 되돌린다. 이걸 안 하면 파서를 무력화하고도 green을 볼 수 있다.
+  - [x] `grep -n 'type: "picker.start"' -A3 src/sidepanel/picker-control.ts` 결과 **송신 3곳(`:227`·`:297`·`:633`)이 전부** theme을 싣는다. ~~`grep -n "picker.start"`~~는 실측 **11건**(송신 3 + `picker.startAreaSelect` 2(`:603`·`:664`, prefix 매칭) + 주석·에러 문자열 6)이라 판정에 못 쓴다.
+  - [x] 세 송신부는 **비대칭**임을 인지하고 고친다 — `:297`은 기존 token 재사용 + `frameId` 타깃(iframe 재전송), `:227`·`:633`은 새 token broadcast.
+  - [x] **theme 적용은 `handleStart` 인자가 아니라 모듈 로컬 변수 + `createOverlay()` 직후**다. 재생성 경로 **3곳을 한 번에** 덮어야 한다 — `handleStart`(`:601`) · `handleSelectByPath`(`:1229`, 패널 재오픈·rebind) · `handleStartAreaSelect`(`:1268`). `handleStart` 인자로만 세팅하는 원안은 나머지 둘을 놓친다.
+    - **배치 4에서 이월받은 항목이다(2026-08-14).** 한때 `audit-refactor-4/tasks.md` Task 7로 통합돼 있었으나, 그 전제(`picker.start`의 `theme` 필드 · `resolveDark.ts` · overlay CSS의 `data-theme`)가 **전부 이 배치의 산출물**이라 배치 4에서는 실행 자체가 불가능했다 — 보관할 theme 값이 존재하지 않았다. theme 축만 여기로 되돌렸고 **이 태스크가 유일한 담당**이다(배치 4 문서는 완료 후 삭제됨). 회고: `docs/POSTMORTEM.md` 2026-08-14 「배치 문서가 "다른 배치가 만들 코드"를 전제로 태스크를 적어…」.
+    - 배치 4가 이미 한 것: `handleSelectByPath`의 재생성 블록에 캐시 훅 4단(`setOnCacheReloaded`+observer+load+priming) 복원 — dev에 반영됨. **그 블록은 이제 theme 적용의 착지점**이지 방해물이 아니다. `handleStartAreaSelect`(`:1268`)는 4단도 theme도 아직 없다.
   - [ ] **수동**: 앱 설정 theme=라이트 + OS 다크 → picker 실행 → 인스펙터 카드가 **흰색**. 앱 theme=다크 + OS 라이트 → **검은색**. 앱 theme=system → OS를 따라간다.
   - [ ] **수동(R3)**: 1-depth iframe이 있는 페이지(cross-origin 위젯)에서 iframe 내부 요소를 hover → 카드 색이 top 프레임과 같다.
   - [ ] **수동(R2)**: 확장을 리로드하지 않은 채 **기존에 열려 있던 탭**에서 picker 실행 → 카드가 깨지지 않고 라이트로 뜬다.
@@ -146,7 +159,7 @@
   - gap 채움 `rgba(236, 72, 153, 0.3)` → `rgba(139, 92, 246, 0.3)`(violet-500, 알파 유지). 라벨 `#7c3aed`(violet-600)와 계열 일치.
   - `.pl-tag`/`.pl-class`에 `// 현재 스타일 규칙 없음 — 태그/클래스 구분 훅으로 유지` 주석 추가(**삭제하지 않는다**).
 - **검증**
-  - [ ] `pnpm typecheck` green.
+  - [x] `pnpm typecheck` green.
   - [ ] **수동**: flex/grid `gap`이 있는 요소를 hover → 채움색과 `gap` 라벨색이 같은 보라 계열로 읽힌다. margin(주황/amber)·padding(초록/green)과 3축이 구별된다.
   - [ ] 수동: 라이트·다크 페이지 배경 양쪽에서 채움이 보인다(알파 0.3이라 밝은 배경에서 옅을 수 있다).
 
@@ -168,10 +181,10 @@
   - **7-2**: `lookup(locale, key)` 헬퍼 도입 — `t()`와 `useT()`의 **두 경로가 함께** 쓰게 한다(한쪽만 고치면 훅 경유만 폴백이 없다). `import.meta.env.DEV`에서 `console.error`, 항상 `return key`.
   - `import.meta.env.DEV`가 background 번들에서 치환되지 않으면 조건을 제거하고 무조건 `console.error`로 단순화.
 - **검증**
-  - [ ] `grep -rn "as TranslationKey\|as Parameters<typeof t>" src/` 결과가 비어 있다.
-  - [ ] `src/i18n/__tests__/translate.test.ts`(**기존 파일 확장** — 감사 이후 신설됐다) — 미정의 키를 `as any`로 넘겨도 **throw하지 않고** 키 문자열을 반환한다. params가 있어도 동일(현재는 TypeError). `useT()` 경로도 같은 케이스를 건다.
+  - [x] `grep -rn "as TranslationKey\|as Parameters<typeof t>" src/` 결과가 비어 있다.
+  - [x] `src/i18n/__tests__/translate.test.ts`(**기존 파일 확장** — 감사 이후 신설됐다) — 미정의 키를 `as any`로 넘겨도 **throw하지 않고** 키 문자열을 반환한다. params가 있어도 동일(현재는 TypeError). `useT()` 경로도 같은 케이스를 건다.
   - [ ] `pnpm typecheck` green (7-1 red 처리 완료 후).
-  - [ ] **(게이트 증명)** `src/i18n/namespaces/issue.ts`의 `section.description`을 임시 리네임 → `settings-ui-store.ts`에서 typecheck red 확인 → 되돌린다.
+  - [x] **(게이트 증명)** `src/i18n/namespaces/issue.ts`의 `section.description`을 임시 리네임 → `settings-ui-store.ts`에서 typecheck red 확인 → 되돌린다.
   - [ ] 수동: Linear 이슈 목록에서 상태 배지 5종(backlog/unstarted/started/completed/cancelled) 라벨이 정상 렌더된다.
 
 ---
@@ -195,11 +208,11 @@
   - **8-4**: `actionLog.role.*` 위에 보존 사유 주석(design.md E-4 문구).
   - **8-5**: `markers.ts`의 role 폴백에 "미등재 role은 단어를 생략한다(의도)" 주석. 액션 레코더가 실제로 기록하는 role 집합을 확인해 **기록되는데 미등재인 role이 있으면 그것만** 전 로케일에 추가.
 - **검증**
-  - [ ] `pnpm test src/log-viewer` green.
-  - [ ] **(R10 그물 증명)** `log-viewer/i18n.ts`의 `common.expand` 값을 일부러 바꿔 drift 테스트가 **red**가 되는지 확인 후 되돌린다. 감사 시점엔 이 조작이 **green으로 통과**했다 — 그게 항목 34의 본체다.
-  - [ ] `grep -n "MAIN_NAMESPACES" src/log-viewer/__tests__/i18n.test.ts` 결과가 비어 있다(열거 제거 확인). 대체안으로 내렸으면 대신 8개 namespace가 전부 나열됐는지 확인.
-  - [ ] `grep -rn "dialog.title" src/` 결과에 `networkLog/consoleLog/actionLog`가 없다.
-  - [ ] `pnpm test src/i18n` green (N-way 대칭 유지 — `findParityViolations`·`findUncovered`·`findExtraneous` 전부).
+  - [x] `pnpm test src/log-viewer` green.
+  - [x] **(R10 그물 증명)** `log-viewer/i18n.ts`의 `common.expand` 값을 일부러 바꿔 drift 테스트가 **red**가 되는지 확인 후 되돌린다. 감사 시점엔 이 조작이 **green으로 통과**했다 — 그게 항목 34의 본체다.
+  - [x] `grep -n "MAIN_NAMESPACES" src/log-viewer/__tests__/i18n.test.ts` 결과가 비어 있다(열거 제거 확인). 대체안으로 내렸으면 대신 8개 namespace가 전부 나열됐는지 확인.
+  - [x] `grep -rn "dialog.title" src/` 결과에 `networkLog/consoleLog/actionLog`가 없다.
+  - [x] `pnpm test src/i18n` green (N-way 대칭 유지 — `findParityViolations`·`findUncovered`·`findExtraneous` 전부).
   - [ ] 수동: log-viewer(`logs.html`)를 다운로드해 열어 액션 타임라인 마커 툴팁의 role 단어가 정상 표시된다.
 
 ---
@@ -216,7 +229,7 @@
   - §4에 **overlay 폰트 스택 5벌 하드코딩** 1줄
   - §9 title-only 레거시 목록 **실측 재확인**(`OrderedListEditor`는 Task 1로 해소되므로 제외)
   - §13 FieldRow **"42곳 / 그중 라벨 동반 34곳"**으로 정밀화
-  - §14 `lockedClass` **"명명 상수 3곳 + 인라인 7곳 + `opacity-50` 없는 축약형 19곳"** + 경로 2건 정정
+  - §14 `lockedClass` **"명명 상수 3곳 + 인라인 7곳 + `opacity-50` 없는 축약형 19곳"** — 단 셋 다 주의가 붙는다: ① **Task 1이 `StyleEditorPanel` 배너에 인라인 쌍을 하나 더 만들면 7 → 8**이 되므로 **Task 1 반영 후 재측정**한다 ② 19곳 중 `StyleEditorPanel.tsx:206-207`은 `!nextBusy && "aria-disabled:opacity-50"` **조건부**로, §14의 "스피너 든 버튼은 `opacity-50`을 뺀다"의 **정규 구현**이다 → "무조건 누락 18곳 + 조건부 1곳"으로 적는다 ③ 명명 상수 3곳은 **값이 동일하지 않다** — `ZoomControl:22`만 `bg-transparent` 접두가 붙는다. ~~경로 2건 정정~~은 **대상이 없다**(DESIGN.md `:148`·`:149`·`:294`는 두 컴포넌트를 경로 없이 적는다 — 감사 리포트의 오기였다)
   - §14 빈 상태에 **`common.empty` vs `md.noValue` 경계** 1줄
 - **검증**
   - [ ] 갱신한 모든 수치가 **grep 한 줄로 재확인 가능**하다(문서에 확인 명령을 적을 필요는 없지만, 작성자가 실제로 돌려서 맞춘다).
@@ -232,7 +245,7 @@
 | 대상 | 케이스 |
 |---|---|
 | `src/sidepanel/lib/__tests__/resolveDark.test.ts` (신규) | `("light", true)` / `("dark", false)` / `("system", true)` / `("system", false)` 4조합 |
-| `src/lib/__tests__/log-colors.test.ts` (신규 또는 확장) | `TONE_BG_STRONG` 5키 전부 non-empty(특히 `neutral === "bg-muted"`), `TONE_BG`와 키 집합 일치 |
+| `src/lib/__tests__/log-colors.test.ts` (**기존 확장** — 파일 존재, `TONE_BG` 케이스 0) | `TONE_BG_STRONG` 5키 전부 non-empty(특히 `neutral === "bg-muted"`), `TONE_BG`와 키 집합 일치 |
 | `src/i18n/__tests__/translate.test.ts` (**기존 확장** — 감사 이후 신설) | 미정의 키 + params → throw 없이 키 문자열 반환. 정의된 키 + params → 치환 정상. `useT()` 경로도 동일 |
 | `src/log-viewer/__tests__/i18n.test.ts` (**수정 = 항목 34 본체**) | 대조 원본을 메인 사전 레지스트리로 교체(namespace 열거 제거). 겹치는 88키 전부 값 일치 |
 | `src/styles/__tests__/tokens.test.ts` (**수정**) | `parseOverlayTokens` 앵커 교체. 기존 3표 대조 케이스는 그대로 통과해야 한다 |
@@ -248,18 +261,23 @@
 | `ConsoleLogContent.test.tsx` (확장) | 레벨 4종(error/warn/info/**log**)의 코드블럭 배경 클래스 |
 | `OrderedListEditor.test.tsx` (신규) | 삭제 버튼이 접근명으로 조회된다 |
 | `StylePropEditors.test.tsx` (신규/확장) | `LinkToggle` `aria-pressed` on/off + on일 때 강대비 클래스 |
-| `JsonTreeViewer.test.tsx` (확장) · `DomTreeDialog.test.tsx` (확인 후 신규) | chevron `aria-expanded` 존재·토글 |
+| `JsonTreeViewer.test.tsx` (확장) · `DomTreeDialog.test.tsx` (**신규 — 파일 없음 확인**) | chevron `aria-expanded` 존재·토글 |
 | `AnnotationOverlay.test.tsx` (확장, **가능하면**) | 텍스트 편집 `<textarea>`의 접근명. Konva 마운트 제약으로 불가하면 수동으로 내린다 |
 
 ### e2e 시나리오 (`/e2e-write` 입력)
 
-**이 배치는 신규 e2e를 만들지 않는다.** 이유: 변경이 전부 속성·클래스·색 값이라 Playwright로 판정하면 **구현 세부를 그대로 복사한 동어반복 assertion**이 된다(색 hex를 스펙에 박으면 다음 색 변경 때마다 spec을 고쳐야 한다). 다만 **기존 spec의 green 유지**가 게이트다:
+**이 배치는 신규 e2e를 만들지 않는다.** 이유: 변경이 전부 속성·클래스·색 값이라 Playwright로 판정하면 **구현 세부를 그대로 복사한 동어반복 assertion**이 된다(색 hex를 스펙에 박으면 다음 색 변경 때마다 spec을 고쳐야 한다). 다만 **기존 spec의 green 유지**가 게이트다.
+
+> **⚠ Task 2의 사정권은 3개가 아니라 19개다 (2026-08-14 실측).** `e2e/fixtures/extension.ts`의 공용 헬퍼 둘이 prop row 안 **버튼의 위치·개수**에 의존한다:
+> - `typeStyleValue`(`:361`) — `row.locator("button").first()`
+> - `setQuadLinkedValue`(`:375-377`) — `buttons.last()` + `aria-pressed` 읽기
+>
+> 즉 `LinkToggle`·`ValueCombobox`를 shadcn `Button`으로 바꾸면서 `asChild`나 래퍼가 **하나만 끼어도 19개 spec이 동시에 죽는다.** 이 헬퍼를 쓰는 spec을 먼저 세고 들어간다.
 
 - [ ] 스타일 편집기 진입·값 편집 spec (Task 2가 트리거를 교체하므로 셀렉터 회귀 가능)
 - [ ] `e2e/style-shorthand-var.spec.ts` (CLAUDE.md가 "유일한 그물"로 지목 — `ValueCombobox` 변경이 걸린다)
 - [ ] picker 요소 선택 spec (Task 5가 `picker.start`를 바꾼다)
-
-**확인 필요**: 위 spec의 정확한 파일명은 `e2e/` 디렉터리를 읽고 확정한다. `/e2e-run`으로 전체 스위트를 한 번 돌리는 게 안전하다.
+- [ ] **Task 2 착수 후에는 `/e2e-run` 전체 스위트를 게이트로 쓴다** — 위 19개 사정권 때문에 부분 실행으로는 안전을 못 판단한다.
 
 ### 수동 테스트 (Chrome, `pnpm build` 선행 필수)
 

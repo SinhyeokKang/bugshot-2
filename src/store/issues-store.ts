@@ -56,6 +56,8 @@ export function stripSubmitted(
     actionLogBlobKey: undefined,
     attachments: undefined,
     slackPreserved: undefined,
+    // draft.environment가 비워진 뒤 남는 유일한 캡처 문맥 — 사내 호스트명을 무기한 남기지 않는다.
+    apiHostsDerived: undefined,
   };
 }
 
@@ -250,6 +252,14 @@ export interface IssueRecord {
   // submitted이면서 Slack 공유로 원본 데이터(draft/snapshot/blob)를 보존 중인 이슈.
   // 일반 트래커로 승격(markSubmitted→stripSubmitted)되면 함께 폐기된다.
   slackPreserved?: boolean;
+
+  /**
+   * 저장 시점의 API Hosts 자동 파생값(editor-store.apiHostsDerived 스냅샷).
+   * stripApiHostsRows가 "사용자가 손 안 댄 자동 행"을 판정하는 유일한 재료다.
+   * 구 draft는 undefined → null로 읽혀 어떤 행과도 일치하지 않으므로 strip이 no-op가 된다
+   * (판정 재료 없이 지우면 사용자가 고친 값을 지울 수 있다).
+   */
+  apiHostsDerived?: string | null;
 }
 
 // v5: notion 플랫폼 추가 — IssueRecord에 notionPageId/notionDatabaseId/notionDatabaseTitle/notionStatusOption optional 필드.
@@ -257,6 +267,8 @@ export interface IssueRecord {
 // action-recorder: IssueRecord에 actionLogBlobKey optional 추가. optional이라 마이그레이션·버전 bump 불필요.
 // video-report: IssueRecord에 videoStartedAt/videoEndedAt optional 추가. 동일하게 버전 bump 불필요.
 // multi-element-buffer: IssueRecord에 bufferedElements optional 추가. optional이라 버전 bump 불필요.
+// audit-refactor-4: IssueRecord에 apiHostsDerived optional 추가. 동일하게 버전 bump 불필요 —
+// 구 draft는 undefined로 읽혀 자동 행 strip이 no-op가 되므로 backfill 마이그레이션도 하지 않는다.
 export const ISSUES_STORE_VERSION = 5;
 
 interface LegacyIssueRecord extends Omit<IssueRecord, "platform"> {

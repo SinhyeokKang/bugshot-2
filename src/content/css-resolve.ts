@@ -1903,7 +1903,7 @@ function finalizeCustomProps(
     last = cur;
   }
   // shadow 경계·detached 요소는 부모 체인이 documentElement에 닿지 않는다 — :root 토큰을
-  // 통째로 잃으므로 마지막에 보정한다(체인이 이미 닿았으면 memo 조회 1회로 끝난다).
+  // 통째로 잃으므로 마지막에 보정한다.
   const docEl = el.ownerDocument?.documentElement;
   if (docEl && docEl !== el && docEl !== last) {
     gapFill(customProps, collectCustomPropsFor(docEl, candidates));

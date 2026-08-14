@@ -137,6 +137,7 @@ export function SelectedPanel() {
   const setAfterImage = useEditorStore((s) => s.setAfterImage);
   const beforeCapturePending = useEditorStore((s) => s.beforeCapturePending);
   const confirmStyles = useEditorStore((s) => s.confirmStyles);
+  const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
   const reset = useEditorStore((s) => s.reset);
   const styleEditorView = useSettingsUiStore((s) => s.styleEditorView);
   const setStyleEditorView = useSettingsUiStore((s) => s.setStyleEditorView);
@@ -526,8 +527,9 @@ export function SelectedPanel() {
       {aiStatus === "available" && (
         <button
           data-testid="ai-styling-trigger"
-          className="flex items-center justify-between rounded-t-lg bg-teal-100/80 px-3.5 py-2.5 text-teal-700 transition-colors hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring dark:bg-teal-950 dark:text-teal-300 dark:hover:bg-teal-900"
-          onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
+          className="flex items-center justify-between rounded-t-lg bg-teal-100/80 px-3.5 py-2.5 text-teal-700 transition-colors hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-50 dark:bg-teal-950 dark:text-teal-300 dark:hover:bg-teal-900"
+          onClick={() => { if (aiStylingLoading) return; (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
+          aria-disabled={aiStylingLoading}
         >
           <span className="flex min-w-0 items-center gap-1.5">
             <Badge variant="outline" className="shrink-0 font-normal border-teal-500 text-teal-600 dark:border-teal-400 dark:text-teal-300">{providerLabel ?? t("ai.badge.chromeAI")}</Badge>

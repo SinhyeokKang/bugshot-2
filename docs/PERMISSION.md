@@ -62,15 +62,15 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 
 | 트리거 | 코드 위치 |
 |---|---|
-| 툴바 아이콘 클릭 | `tab-bindings.ts:253` — `chrome.action.onClicked → activateTab()` |
+| 툴바 아이콘 클릭 | `tab-bindings.ts:299` — `chrome.action.onClicked → activateTab()`(정의는 `:253`) |
 | `Cmd+Shift+E` 단축키 | `_execute_action` → 아이콘 클릭과 동일하게 `action.onClicked` 발화 |
-| 컨텍스트 메뉴 "BugShot" 클릭 | `background/index.ts:80` — `contextMenus.onClicked → activateTab()` |
+| 컨텍스트 메뉴 "BugShot" 클릭 | `background/index.ts:73` — `contextMenus.onClicked → activateTab()` |
 
 ### 의존 API
 
 | API | 용도 | 사용 위치 |
 |---|---|---|
-| `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:204` (bg handler — 모든 호출이 `capture-throttle` 직렬 큐 경유). 호출처: `sidepanel/capture.ts:captureElementSnapshot`(요소), `usePickerMessages.ts`(영역·인라인), `sidepanel/scroll-capture.ts`(페이지 전체 타일 루프), `30s-replay/use-30s-replay.ts`(폴링 프레임) |
+| `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:208` (bg handler — 모든 호출이 `capture-throttle` 직렬 큐 경유). 호출처: `sidepanel/capture.ts:captureElementSnapshot`(요소), `usePickerMessages.ts`(영역·인라인), `sidepanel/scroll-capture.ts`(페이지 전체 타일 루프), `30s-replay/use-30s-replay.ts`(폴링 프레임) |
 | `chrome.tabCapture.getMediaStreamId()` | 수동 영상 녹화 스트림 (실패 시 `getDisplayMedia` 폴백) | `video-recorder.ts:startTabStream` |
 | `chrome.tabs.get() → tab.url` | 탭 URL 읽기 | `tab-bindings.ts`, `picker-control.ts`(`pageKeyOf` 등), `video-capture.ts`, `video-recorder.ts`, `30s-replay/use-30s-replay.ts` |
 | `chrome.scripting.executeScript()` | content script 재주입(picker·recorder-bridge는 `allFrames:true`)·뷰포트 측정 | `picker-control.ts` (`ensureMainWorldRecorders`·`getTopViewport` 등) |
@@ -100,8 +100,8 @@ url-support.ts:classifyTabSupport()
     └── 미지원/응답 없음 → "unsupported"
 ```
 
-- `picker-control.ts:183` — `ensureSupportedTab()`: 모든 캡처 진입점(picker, area, inline, freeform, video)에서 호출
-- `tab-bindings.ts:159` — `deactivatePanelIfCrossOrigin()`: URL 판독 불가 시 cross-origin으로 간주하고, 닫을지 유지할지는 **출발지 URL**로 가른다(§ 패널 종료/유지 정책)
+- `picker-control.ts:204` — `ensureSupportedTab()`: 모든 캡처 진입점(picker, area, inline, freeform, video)에서 호출
+- `tab-bindings.ts:171` — `deactivatePanelIfCrossOrigin()`: URL 판독 불가 시 cross-origin으로 간주하고, 닫을지 유지할지는 **출발지 URL**로 가른다(§ 패널 종료/유지 정책)
 
 #### 2단계: 캡처 시점 에러 매칭 (런타임 가드)
 
@@ -114,9 +114,9 @@ capture-error.ts:isActiveTabPermissionError()
 └── "extension has not been invoked" 포함
 ```
 
-- `picker-control.ts:195` — `maybeSurfacePermissionExpired()`: captureVisibleTab 실패 시 호출
-- `capture.ts:96` — 요소 스냅샷 실패
-- `usePickerMessages.ts:364·392` — 영역 캡처·인라인 캡처 실패 분기
+- `picker-control.ts:216` — `maybeSurfacePermissionExpired()`: captureVisibleTab 실패 시 호출
+- `capture.ts:109` — 요소 스냅샷 실패
+- `usePickerMessages.ts:435·463` — 영역 캡처·인라인 캡처 실패 분기
 
 #### 3단계: tabCapture 에러 매칭 (영상 녹화)
 
@@ -127,7 +127,7 @@ video-capture.ts:isTabCaptureUnavailable()
 └── "activetab"
 ```
 
-- `video-capture.ts:154` — `isTabCaptureUnavailable()` 정의(호출부 `:41`, `startTabStream` 실패 분기)
+- `video-capture.ts:154` — `isTabCaptureUnavailable()` 정의(호출부 `:65`, `startTabStream` 실패 분기)
 
 ### 만료 시 동작
 
@@ -169,11 +169,11 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 
 | 모드 | world | 코드 위치 | 설명 |
 |---|---|---|---|
-| Picker 재주입 | ISOLATED | `picker-control.ts:39` | `ping` 실패 시 `manifest.content_scripts[0].js`를 `allFrames:true`(top+iframe)로 재주입 (`ensureContentScript` — iframe picker 자가복구) |
-| Recorder bridge 재주입 | ISOLATED | `picker-control.ts:75` | `recorder-bridge.ts` (sentinel 수신·중계)를 `allFrames:true`로 재주입 |
+| Picker 재주입 | ISOLATED | `picker-control.ts:34` | `ping` 실패 시 `manifest.content_scripts[0].js`를 `allFrames:true`(top+iframe)로 재주입 (`ensureContentScript` — iframe picker 자가복구) |
+| Recorder bridge 재주입 | ISOLATED | `picker-control.ts:66` | `recorder-bridge.ts` (sentinel 수신·중계)를 `allFrames:true`로 재주입 |
 | Recorder entry 재주입 | MAIN | `picker-control.ts:ensureMainWorldRecorders` | `recorders-entry.ts` (network/console/action 후크) 재주입 (MAIN world). **정적 엔트리는 `all_frames: true`로 전 프레임 주입**이고, 여기 프로그래매틱 재주입만 `allFrames` 미지정이라 top 한정이다 |
 | 뷰포트 측정 | ISOLATED | `picker-control.ts` | Freeform 진입·iframe 요소 선택 시 top 프레임 `innerWidth/Height` 읽기 (`getTopViewport` — world 미지정 → 기본 ISOLATED) |
-| GitHub 업로드 | MAIN | `background/github-upload.ts:154` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수). 업로드마다 **전용 비활성 탭을 새로 열고 끝나면 닫는다** — 기존 github.com 탭에 붙으면 다른 확장의 MAIN world 후크가 base64 미디어와 `asset_upload_authenticity_token`을 가져갈 수 있다. 사용자가 연 탭이 아니라 `activeTab`이 아닌 `<all_urls>`에 의존 |
+| GitHub 업로드 | MAIN | `background/github-upload.ts:157` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수). 업로드마다 **전용 비활성 탭을 새로 열고 끝나면 닫는다** — 기존 github.com 탭에 붙으면 다른 확장의 MAIN world 후크가 base64 미디어와 `asset_upload_authenticity_token`을 가져갈 수 있다. 사용자가 연 탭이 아니라 `activeTab`이 아닌 `<all_urls>`에 의존 |
 
 ### 주입 실패 시
 
@@ -183,7 +183,7 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 ### 주의사항
 
 - MAIN world에서 `chrome.scripting.executeScript({ func })` 사용 시 함수는 직렬화·재평가됨 — **클로저 참조 불가**, 헬퍼는 함수 내부에 inline 정의 필수 (`github-upload.ts:pageBatchUploadFn` 참고)
-- 주입 차단 호스트: `chromewebstore.google.com` 전체, `chrome.google.com/webstore/*` (`url-support.ts:8-22`)
+- 주입 차단 호스트: `chromewebstore.google.com` 전체, `chrome.google.com/webstore/*` (`url-support.ts:8-16`)
 
 ---
 
@@ -197,7 +197,8 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 video-capture.ts:startVideoCapture(tabId)
   → video-recorder.ts:startTabStream(tabId)
     → chrome.tabCapture.getMediaStreamId({ targetTabId })
-    → navigator.mediaDevices.getUserMedia({ audio: false, video: { chromeMediaSource: "tab" } })
+    → navigator.mediaDevices.getUserMedia({ audio: false, video: { chromeMediaSource: "tab",
+                                                              maxWidth: 1280, maxHeight: 720, maxFrameRate: 12 } })
     → MediaRecorder 생성 (2Mbps, 1초 chunk, 최대 60초)
     → recorder.onstop → Blob 조립 → 썸네일 생성 → editor store 저장
 ```
@@ -246,7 +247,7 @@ video-capture.ts:startVideoCapture(tabId)
 ### 전역 비활성화 패턴
 
 ```
-background/index.ts:32 — disableGlobalSidePanel()
+background/index.ts:25 — disableGlobalSidePanel()
 ├── chrome.runtime.onInstalled → 호출
 └── chrome.runtime.onStartup  → 호출
 ```
@@ -266,7 +267,7 @@ background/index.ts:32 — disableGlobalSidePanel()
 `sidePanel.open()`은 user gesture 컨텍스트에서만 호출 가능. 코드베이스에서 **단 한 곳**에서만 호출:
 
 ```
-tab-bindings.ts:227 — activateTab() 내부
+tab-bindings.ts:266 — activateTab() 내부
 ```
 
 트리거: `action.onClicked` (아이콘 클릭 / `_execute_action` 단축키) 또는 `contextMenus.onClicked`. 둘 다 동기 이벤트 핸들러에서 즉시 호출 → user gesture 유지.
@@ -330,7 +331,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 | `sidePanel:activated` | `number[]` (tab ID 목록) | `tab-bindings.ts:13` — 패널 활성화 탭 추적. **미지원 탭도 들어온다**(`activateTab`이 URL을 보지 않으므로). `onRemoved`가 무조건 정리 |
 | `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:14` — idle 상태 origin 비교 fallback. `chrome://` 등 `tab.url`을 못 읽는 탭에서는 **기록되지 않고**, 그 부재가 `deactivatePanelIfCrossOrigin`의 조기 return으로 이어져 패널이 유지된다 |
 | `editor:{tabId}` | `EditorSnapshot` 전체 에디터 상태 | `useEditorSessionSync.ts` — 300ms 디바운스 저장·수화 |
-| `pendingPrunedAt` | `number` (timestamp) | `pending-log-prune.ts:93` — 브라우저 세션당 1회 정리 가드 |
+| `pendingPrunedAt` | `number` (timestamp) | `pending-log-prune.ts:89` — 브라우저 세션당 1회 정리 가드 |
 
 ### chrome.storage.local (브라우저 재시작 후에도 유지)
 
@@ -338,7 +339,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 |---|---|---|
 | `bugshot-settings` | 플랫폼 계정·OAuth 토큰·submit 기본값·titlePrefix | `settings-store.ts` (Zustand persist), `settings-storage.ts` (bg 직접 접근) |
 | `bugshot-issues` | `IssueRecord[]` 이슈 기록 | `issues-store.ts` (Zustand persist) |
-| `bugshot-app-settings` | 테마·언어·이슈 섹션·LLM 설정·replay 활성화 | `settings-ui-store.ts` (Zustand persist) |
+| `bugshot-app-settings` | 테마·언어(UI/AI 출력/이슈 본문 3축)·이슈 섹션 구성·LLM 설정·replay 활성화·**파일 첨부 활성화**(`attachmentsEnabled`, 기본 off)·**재현 과정 AI 자동 채움**(`autoReproPrefill`, 기본 on)·녹화 모드(tab/screen)·스타일 편집 뷰 | `settings-ui-store.ts` (Zustand persist) |
 | `bugshot:install-id` | 익명 설치 ID (UUID, 최초 1회 생성) | `background/analytics.ts` — PostHog `distinct_id` |
 
 ### IndexedDB (Chrome 권한 불요 — 저장 데이터 레퍼런스)
@@ -353,7 +354,7 @@ pre-arm 게이트 플래그 `__bugshot_recorder_active__`=`"1"`을 **방문 페�
 
 - **session quota 초과 대응** (`useEditorSessionSync.ts`): 이미지 필드를 제거한 "lite" 스냅샷으로 폴백. 3연속 실패 시 저장 중단 + `onSessionSaveExhausted` 발화
 - **bg ↔ sidepanel 동기화** (`main.tsx`): bg가 OAuth 토큰을 `chrome.storage.local`에 직접 쓰면 `onChanged` 리스너가 Zustand 재수화 트리거
-- **세션 외부 삭제 감지** (`useEditorSessionSync.ts:201`): `session` area의 editor 키가 null이 되면(bg에서 `remove` 호출) 세션 만료/리셋 처리
+- **세션 외부 삭제 감지** (`useEditorSessionSync.ts:203`): `session` area의 editor 키가 null이 되면(bg에서 `remove` 호출) 세션 만료/리셋 처리
 
 ---
 
@@ -399,7 +400,7 @@ bg service worker에서 직접 읽기/쓰기:
 ### OAuth 에러 처리
 
 - `OAuthError` (`oauth/errors.ts` — `oauth.ts`가 re-export): `cancelled`, `platform`, `notConfigured` 필드 포함
-- bg에서 시리얼라이즈: `body.oauthCancelled` 또는 `body.oauthRefreshFailed` 플래그 (`background/oauth.ts:26` `serializeOAuthError` — `background/index.ts`에서 호출)
+- bg에서 시리얼라이즈: `body.oauthCancelled` 또는 `body.oauthRefreshFailed` 플래그 (`background/oauth.ts:43` `serializeOAuthError` — `background/index.ts`에서 호출)
 - `notConfigured`(env 미설정)는 401이 아니라 **400 + `oauthNotConfigured`**로 직렬화한다 — 401로 내면 연동한 적도 없는 사용자에게 재로그인 프롬프트가 뜬다
 - `onOAuthExpired` 이벤트 (`types/messages.ts`): refresh 실패 시 발화 → 재인증 UI 표시
 - 사용자 취소 코드: `access_denied` (전 플랫폼), `user_cancelled_login`/`user_cancelled_authorize` (Jira), `user_denied` (Notion)
@@ -461,7 +462,7 @@ API Key/PAT 모드는 OAuth 인프라(refresh, proxy, identity API)를 일절 �
 ### 설정
 
 ```
-background/index.ts:49 — setupContextMenu()
+background/index.ts:42 — setupContextMenu()
 ├── runtime.onInstalled → 호출
 ├── runtime.onStartup  → 호출
 └── 직렬화 Promise 체인으로 중복 ID 방지
@@ -472,7 +473,7 @@ background/index.ts:49 — setupContextMenu()
 ### 클릭 핸들러
 
 ```
-background/index.ts:80 — contextMenus.onClicked
+background/index.ts:73 — contextMenus.onClicked
   → activateTab(tab) — 사이드 패널 활성화 (user gesture 제공)
 ```
 
@@ -485,7 +486,7 @@ background/index.ts:80 — contextMenus.onClicked
 #### onBeforeNavigate — 로그 꼬리 보존
 
 ```
-background/index.ts:122 — webNavigation.onBeforeNavigate
+background/index.ts:111 — webNavigation.onBeforeNavigate
 ├── frameId !== 0 → 무시 (메인 프레임만)
 ├── 현재 tab.url을 navUrlPromise Map에 저장 (onCommitted에서 사용 — 세션 검사보다 먼저, 무조건)
 ├── editor:{tabId} 세션 없음 → 무시 (패널 미바인딩 탭)
@@ -497,7 +498,7 @@ background/index.ts:122 — webNavigation.onBeforeNavigate
 #### onCommitted — iframe sentinel 재발행 + 로그 초기화 판정
 
 ```
-background/index.ts:136 — webNavigation.onCommitted
+background/index.ts:137 — webNavigation.onCommitted
 ├── frameId !== 0 (iframe) → 활성 세션 있으면 frameCommitted 메시지 전송
 │   └── 사이드패널이 보유 sentinel을 그 프레임에 재발행
 │       (broadcast 이후 커밋된 cross-origin iframe을 로그 캡처에 합류)
@@ -531,6 +532,7 @@ background/index.ts:136 — webNavigation.onCommitted
 | `github.com` | GitHub 파일 업로드 page injection + 에셋 업로드 정책(`github.com/upload/policies/assets`) | `github-upload.ts` — 전용 비활성 탭을 열어 `executeScript({world:"MAIN"})` |
 | GitHub 발급 S3 업로드 URL | 정책 응답의 동적 `policy.upload_url`로 실제 바이트 PUT (고정 host 아님) | `github-upload.ts` — `policy.upload_url` |
 | `api.linear.app` | Linear GraphQL + OAuth token | `linear-api.ts`, `linear-oauth.ts` |
+| `linear.app` | Linear OAuth authorize (launchWebAuthFlow라 host_permission 불요) | `linear-oauth.ts` |
 | Linear 발급 업로드 URL | `requestFileUpload`가 반환하는 pre-signed URL로 첨부 바이트 PUT (고정 host 아님) | `linear-api.ts` — `uploadUrl` |
 | `api.notion.com` | Notion REST + OAuth authorize (token 교환은 proxy) | `notion-api.ts`, `notion-oauth.ts` |
 | Notion 발급 업로드 URL | `/file_uploads` 응답의 동적 `upload_url`로 스크린샷·영상·logs.html·사용자 첨부 multipart POST | `notion-api.ts` — `sendFileUpload` |
@@ -538,7 +540,7 @@ background/index.ts:136 — webNavigation.onCommitted
 | `app.asana.com` | Asana REST + OAuth authorize (token 교환은 proxy) | `asana-api.ts`, `asana-oauth.ts` |
 | `api.clickup.com` | ClickUp REST (task 생성·첨부 업로드·본문 갱신) | `clickup-api.ts`, `clickup-oauth.ts` |
 | `slack.com` | Slack Web API (메시지 전송·채널/DM·멤버 조회·files 2-step 업로드) + OAuth authorize. files 업로드 2단계의 multipart POST는 Slack이 런타임 반환하는 `upload_url`(`*.slack.com` 등)로 나가고 이것도 `<all_urls>` 커버 | `slack-api.ts`, `slack-oauth.ts` |
-| `in.bug-shot.com` (`VITE_POSTHOG_HOST` — PostHog 관리형 리버스 프록시, CNAME으로 PostHog Cloud 직결. env 미설정 시 코드 기본값 `us.i.posthog.com`) | 익명 분석 — 이슈 제출·연동 해제·설치(`extension_installed`, 확장 버전 동봉)·패널 열기(`sidepanel_opened`, `page_supported` 동봉) 집계(`$ip:"0.0.0.0"`·geoip 비활성·person profile 미생성) | `background/analytics.ts` — `/capture/` fetch |
+| `in.bug-shot.com` (`VITE_POSTHOG_HOST` — PostHog 관리형 리버스 프록시, CNAME으로 PostHog Cloud 직결. env 미설정 시 코드 기본값 `us.i.posthog.com`) | 익명 분석 — 이슈 제출·**플랫폼 연결 시도**(`platform_connect`, 플랫폼·성공/취소/실패 + 사유 분류 동봉)·연동 해제·설치(`extension_installed`, 확장 버전 동봉)·패널 열기(`sidepanel_opened`, `page_supported` 동봉) 집계(`$ip:"0.0.0.0"`·geoip 비활성·person profile 미생성) | `background/analytics.ts` — `/capture/` fetch |
 | OAuth proxy origin | OAuth proxy (client_secret 은닉) | `oauth.ts`, `github-oauth.ts`, `notion-oauth.ts`, `asana-oauth.ts`, `clickup-oauth.ts`, `slack-oauth.ts` |
 
 ### OAuth Proxy 엔드포인트

@@ -8,8 +8,9 @@
 - 새 의존성·권한·env 없음. shadcn 컴포넌트 추가 없음.
 - 다른 audit-refactor 배치(특히 5)가 진행 중이면 **G4·G5를 뒤로 미룬다**(connect 폼·배지 파일 충돌).
 - **`docs/features/french-locale/`와 G6는 같은 `src/i18n/index.ts`를 만진다 — 동시 진행 금지.** fr Task 4(`LOCALES`·`locales.fr` 등록)는 쪼갤 수 없는 원자 커밋이고 그 브랜치는 long-lived다. **fr Task 4가 dev에 들어온 뒤 G6를 착수하거나(권장), G6를 먼저 끝내고 fr 브랜치가 rebase로 흡수한다.** ⚪102의 `issueListUtils.ts`도 fr Task 7이 그 테스트를 `LOCALES` 순회로 바꾸므로 같은 규칙을 따른다. 배치 4는 무관하다(만지는 i18n 파일이 `bg-init.ts`뿐).
-- **줄번호·항목 유효성은 v1.7.19 + N-way 로케일 인프라 기준으로 재검증했다**(prd.md §코드 기준 갱신). 요약: ⚪106 무효 · ⚪102에서 `issueListUtils.ts` 제외 · 🟡54는 근거 추가.
-- 리팩터 시작 전 `docs/POSTMORTEM.md`를 변경 영역 키워드로 grep한다(`saveDraft`·`inline`·`submitTo`·`prearm`·`settings-storage`).
+- **줄번호·항목 유효성은 2026-08-14에 v1.7.23(`34ac3380`) 기준으로 `/feature-review` 전수 재검증했다.** 요약: ⚪106 무효 · ⚪102에서 `issueListUtils.ts` 제외 · **🟡54(G6-1)는 배치에서 제외** · **Task 9-2는 세 갈래로 재작성**(순수 데드 4개뿐) · **항목 59의 `ContentMessage`는 코드에 없어 전제가 거짓** · G3에 `requireMediaUpload` 축 추가 · 신규 중복 2건 편입. 상세는 design.md §2026-08-14 재검증 편입 사항.
+  - **주요 줄번호 이동**: `background/messages.ts` `:866`→**`:934`** · `i18n/index.ts` `useT` `:47`→**`:66`** · `buildLogSummary.ts` `extractPath` `:122`→**`:132`** · `confirmDraft` `:842-1093`→**`:845-1113`** · `buildIssueMarkdown` `sectionLabel` `:222`→**`:225`**·`listItems` `:226`→**`:229`** · `coverage-report.mjs` `:66`→**`:72`** · `picker.ts` `PickerMessage` `:139`→**`:98`** · `types/platform.ts` `:73`→**`:78`·`:100`·`:119`·`:129`** · `network-recorder.ts` `:9`→**`:12`** · `buildEditorCapture.ts` same-dir alias **6건→9건(`:5-16`)** · DDD/ICM 범위 `:158-531`/`:403-820`→**`:158-538`/`:417-838`**
+- 리팩터 시작 전 `docs/POSTMORTEM.md`를 변경 영역 키워드로 grep한다(`saveDraft`·`inline`·`submitTo`·`prearm`·`settings-storage`·**`markSlackShared`·`승격`·`connect`·`번들`·`alias`·`log-viewer`**). 마지막 셋이 G6-1을 걸러냈을 키워드다.
 
 ---
 
@@ -29,7 +30,11 @@
   - [ ] 패턴을 임의로 좁혀보면(예: alt를 `[^\]]+`로) 테스트가 red — 확인 후 되돌린다
   - [ ] `src/sidepanel/lib/resolveInlineImages.ts`와 `src/store/blob-db.ts:565`가 같은 상수를 쓰는지 grep으로 재확인
 
-#### Task 0-2: 본문 빌더 골든 출력 고정 (R1·R2)
+#### Task 0-2: 본문 빌더 골든 출력 고정 (R1·R2) — **축소 (2026-08-14)**
+
+> **`src/sidepanel/lib/__tests__/bodyOutputGolden.test.ts`(341줄) + 189KB 스냅샷이 이미 존재하고 8빌더 × 4 captureMode + 섹션 변주까지 고정한다.** 새로 만들지 말고 **누락 케이스 보강**(`logsHref` 유무 2케이스)만 한다 — 이중화하면 리팩터마다 두 벌을 갱신해야 한다.
+>
+> **다만 이 골든은 로케일 회귀에 눈이 멀었다** — `:15`가 `vi.mock("@/i18n")`으로 `t`를 키 에코, `withLocale`을 패스스루로 대체한다(`builderLocaleWrap.test.ts:7-8`이 그 사실을 명시). G2가 `sectionLabel`을 옮길 때의 로케일 스왑 회귀는 **`builderLocaleWrap.test.ts` + `e2e/issue-body-locale.spec.ts`**가 그물이므로 G2 검증 항목에 둘 다 넣는다.
 - **변경 대상**: `src/sidepanel/lib/__tests__/` — 빌더별 테스트(없으면 신규)
 - **작업 내용**: 8개 빌더 각각에 대해 **로그 요약 3종(network·console·action)이 모두 있는 ctx**로 전체 출력 스냅샷을 고정한다. `logsHref`가 있는 경우(markdown·clickup)와 없는 경우(linear·asana)를 **둘 다** 넣는다. slack의 `*`/`•` 마크업, notion의 `NotionBlock[]`, adf 노드 구조도 각자 고정.
 - **검증**:
@@ -60,7 +65,7 @@
 
 #### Task 7-1: `baseDraftRecord` 헬퍼 추출
 - **변경 대상**: `src/store/editor-store.ts` (:842-1093 `confirmDraft`)
-- **작업 내용**: 공통 필드 12줄을 `baseDraftRecord(state, id, logs)` 지역 헬퍼로 뽑고, 4분기가 `{ ...baseDraftRecord(...), captureMode: "…", <고유 필드> }`로 얹게 한다. **`saveDraft`는 병합이므로 고유 필드를 조건부 스프레드로 빼지 않는다**(파일 내 주석이 명시 — 항상 명시). `persistAttachedLogs` 호출 블록 4벌도 분기 밖으로 1벌.
+- **작업 내용**: 공통 필드 12줄을 `baseDraftRecord(state, id, logs)` 지역 헬퍼로 뽑고, 4분기가 `{ ...baseDraftRecord(...), captureMode: "…", <고유 필드> }`로 얹게 한다. **`saveDraft`는 병합이므로 고유 필드를 조건부 스프레드로 빼지 않는다**(파일 내 주석이 명시 — 항상 명시). ~~`persistAttachedLogs` 호출 블록 4벌도 분기 밖으로 1벌.~~ **2026-08-14 정정: 4벌이 아니라 3벌이다**(`editor-store.ts:908`·`951`·`989` — element 분기는 로그를 안 붙인다). 분기 밖으로 빼면 **element 모드에 로그가 새로 붙는 동작 변경**이 된다. **3분기 공통으로만 묶는다.** 같은 이유로 Task 0-4의 "공통 12필드가 4분기 전부에 존재" 단언도 지금 red다 — 공통 필드는 **9개**(로그 blobKey 3종 제외)로 정정한다.
 - **검증**:
   - [ ] G0-4 스냅샷 8건이 **문자 단위로 동일**(스냅샷을 갱신하지 않는다 — 다르면 리팩터가 틀린 것)
   - [ ] `confirmDraft` 함수 길이가 줄었다(~252줄 → 목표 150줄 이하)
@@ -79,7 +84,7 @@
   - [ ] 기본 확장자 webp / 명시 확장자(asana의 `png`·`jpg`) 케이스
   - [ ] `pnpm test` green
 
-#### Task 1-2: 9곳 하드코딩 치환
+#### Task 1-2: **11곳** 하드코딩 치환 (2026-08-14 재실측 — `.webp` 10곳 + asana 동적 1곳. 이전 판의 "9곳"은 과소였고 전수 개수가 틀리면 R3 검증이 무력해진다)
 - **변경 대상**: `src/sidepanel/lib/prepareUpload.ts`(:69·:101) · `submitToClickup.ts`(:48·:122) · `submitToNotion.ts`(:48·:139) · `submitToLinear.ts:60` · `submitToSlack.ts:44` · `submitToJira.ts:37` · `submitToAsana.ts:137` · `src/background/messages.ts:866`
 - **작업 내용**: 전부 `inlineUploadFilename(...)` 호출로. `submitToNotion.ts:137`의 `placeholderId`(확장자 없는 `inline-${refId}`)와 `buildNotionIssueBody.ts:269`의 같은 형태는 **파일명이 아니라 placeholder id**라 별개 — 함께 묶을지 판단하고, 묶는다면 `inlinePlaceholderId(refId)`를 따로 둔다.
 - **검증**:
@@ -113,7 +118,11 @@
 > G0-2 완료 후 착수.
 
 #### Task 2-1: `issueBodyShared.ts` 신규
-- **변경 대상**: **신규** `src/sidepanel/lib/issueBodyShared.ts` + `__tests__/issueBodyShared.test.ts`
+- **변경 대상**: **신규** `src/sidepanel/lib/issueBodyShared.ts` + `__tests__/issueBodyShared.test.ts` + **`src/sidepanel/lib/__tests__/builderLocaleWrap.test.ts`(EXEMPT 등록)**
+- **⚠ `builderLocaleWrap.test.ts` 갱신을 빠뜨리면 확정 red다 (2026-08-14).** 그 테스트 `:81-88`("대상 집합 완전성")은 `sidepanel/lib` 전체를 재귀 스캔해 `@/i18n`에서 `t`/`dateBcp47`를 import하는 **모든** 파일이 `WRAPPED`(9) 또는 `EXEMPT`(4) 목록에 있어야 통과시킨다. `issueBodyShared.ts`는 `sectionLabel`이 `t()`를 부르므로 필연적으로 걸린다.
+  - **`EXEMPT`에 등록한다** — 사유 문자열: `"빌더 내부 헬퍼 — 진입점이 아니라 감싸진 구간 안에서만 불린다"`(`markdownToAdf.ts`와 동일 분류).
+  - 역방향도 red다 — 목록에만 있고 `t`를 안 쓰면 유령 항목으로 잡힌다.
+  - **`submitAdapters.ts`(G3)는 `t`를 직접 import하지 않도록 설계 제약으로 못박는다** — 가드 메시지는 호출처에 남긴다. import하게 되면 같은 처리가 필요하다.
 - **작업 내용**: `sectionLabel`·`listItems`·`emitMarkdownLogSummary` 3개. `emitMarkdownLogSummary`는 `logsHref?` optional을 **반드시 유지**(없으면 평문 `logs.html`, 있으면 `[logs.html](href)` — R2).
 - **검증**:
   - [ ] 3함수 단위 테스트(`labelOverride` 우선 / 빈 문자열 trim / `logsHref` 유무 2케이스 / 로그 3종 조합)
@@ -152,10 +161,14 @@
 #### Task 3-1: 어댑터 8개 신규 + 테스트
 - **변경 대상**: **신규** `src/sidepanel/lib/submitAdapters.ts`(또는 플랫폼별 파일) + `__tests__/`
 - **작업 내용**: 플랫폼별로 `submitToX(...)` 인자 매핑 + `setLastSubmitFields(...)` + `setLastSubmittedPlatform(...)`까지만 담는다. **`markSubmitted`·`onSubmitted`·`clearPicker`·`reset`은 넣지 않는다**(호출처마다 의미가 다르다 — R4).
+  - **⚠ 어댑터 입력에 `requireMediaUpload?: boolean`을 추가한다 (2026-08-14).** 두 컴포넌트의 인자 매핑이 8/8 동일하다는 전제가 **틀렸다** — **github(`DraftDetailDialog:506`)·notion(`:624`)·gitlab(`:675`) 셋만** `requireMediaUpload: isSlackPreserved(issue)`를 넘긴다(Slack 승격 시 미디어 업로드가 실패하면 등록 전 중단하는 **데이터 보호 가드**이고, POSTMORTEM "GitHub 승격 원본 소실"의 직계 방어선이다). 입력에 없으면 통합하는 순간 **무음으로 사라져 사용자 데이터가 유실된다.** 기본 false로 두고 호출처가 결정한다.
+  - **⚠ `src/sidepanel/tabs/__tests__/jiraSubmitSymmetry.test.ts`를 함께 옮긴다 (2026-08-14).** 이 테스트(v1.7.22 신설)는 `IssueCreateModal.tsx`·`DraftDetailDialog.tsx` **소스 원문**에서 `submitToJira({`·`setLastSubmitFields("jira", {` 리터럴을 찾아(`:34` `toBeGreaterThan(-1)`) 5키 대칭을 단언한다. 어댑터로 옮기면 두 진입점에서 마커가 사라져 **확정 red**다. **지우지 말고** 스캔 대상을 `submitAdapters.ts`로 바꾸고 "어댑터 1곳에 5키가 다 있다"로 축소한다 — 대칭의 *의미*는 어댑터 통합이 구조적으로 보장하므로 단언이 약해져도 무방하다.
 - **작업 내용(위치)**: `sidepanel/lib/`에 둔다 — CLAUDE.md "store는 `sidepanel/tabs`를 import하지 않는다" 게이트와 `initialJiraFields` 선례.
 - **검증**:
   - [ ] `submitToX`를 `vi.mock`으로 잡고 **8플랫폼 각각 인자 스냅샷** 테스트
   - [ ] 어댑터에 `markSubmitted`·`onSubmitted`·`reset`·`clearPicker` 참조 0건 (grep)
+  - [ ] `grep -rn "requireMediaUpload" src/sidepanel/` 결과에 github·notion·gitlab 3경로가 **그대로 남아 있다**
+  - [ ] `pnpm test src/sidepanel/tabs/__tests__/jiraSubmitSymmetry.test.ts` green (스캔 대상 교체 후)
   - [ ] `pnpm test` green
 
 #### Task 3-2: `IssueCreateModal` 8핸들러 치환
@@ -168,9 +181,10 @@
 
 #### Task 3-3: `DraftDetailDialog` 8핸들러 치환
 - **변경 대상**: `src/sidepanel/tabs/DraftDetailDialog.tsx` (:403-820)
-- **작업 내용**: 각 핸들러가 `resolveInlineImagesForSections(...)` + 어댑터 호출 + `markSubmitted(issue.id, ...)`(무조건) + `useEditorStore` 확인 후 `clearPicker`/`reset`만 남긴다. **Jira 핸들러의 "승격 가드 없음"(POSTMORTEM) 주석을 유실하지 않는다.**
+- **작업 내용**: 각 핸들러가 `resolveInlineImagesForSections(...)` + 어댑터 호출 + `markSubmitted(issue.id, ...)`(무조건) + `useEditorStore` 확인 후 `clearPicker`/`reset`만 남긴다. **POSTMORTEM 주석은 jira 단독이 아니라 asana(`:725`)·clickup(`:775`)에도 있다 — 셋 다 유실하지 않는다.**
+  - **⚠ `markSubmitted`는 8핸들러가 아니라 7이다(2026-08-14 정정).** **slack은 `markSlackShared`**(`DraftDetailDialog:803-838` → `issues-store.ts:377`)로 blob을 지우지 않고 `slackPreserved: true`를 남긴다. 뭉개면 Slack 공유 후 원본 blob이 조기 삭제된다.
 - **검증**:
-  - [ ] `markSubmitted`가 **무조건** 호출된다(create 쪽의 조건부가 유입되지 않았다)
+  - [ ] `markSubmitted`가 **무조건** 호출된다(create 쪽의 조건부가 유입되지 않았다) — **단 slack 경로는 `markSlackShared`이며 치환 대상이 아니다**
   - [ ] `clearPicker`/`reset` 블록이 8핸들러 전부에 남아 있다
   - [ ] Jira 핸들러의 POSTMORTEM 주석 존재
   - [ ] `pnpm typecheck` + `pnpm test` green
@@ -183,8 +197,19 @@
 > import 반경이 104개 파일. 커밋을 5개로 쪼갠다.
 > **⚪106은 무효**라 G6에서 빠졌다(아래 Task 6-1).
 
-#### Task 6-1: `useT` 분리 (🟡54)
-- **변경 대상**: `src/i18n/index.ts`(:4·:47-51) + **신규** `src/i18n/useT.ts` + `useT` 사용처
+#### ~~Task 6-1: `useT` 분리 (🟡54)~~ — **배치에서 제외 (2026-08-14)**
+
+> **`docs/POSTMORTEM.md` 2026-08-11(`:173`)에 이미 기록된 함정으로 직행한다.** `vite.log-viewer.config.ts:10`이 `"@/i18n"` → `src/log-viewer/i18n.ts`로 alias하는데 **vite 문자열 alias는 prefix 매칭**이라, `@/i18n/useT`는 `.../log-viewer/i18n.ts/useT`로 재작성된다. log-viewer는 `NetworkLogContent`·`ConsoleLogContent`·`ActionLogContent`를 재사용하고 셋 다 `import { useT } from "@/i18n"`를 쓰므로, 별도 빌드가 깨지거나 실물 store 모듈이 log-viewer 번들에 유입된다.
+>
+> **`pnpm typecheck`·`pnpm test`는 전부 green으로 통과한다** — `pnpm build:log-viewer`만 깨지는데 이전 판의 6-1 검증 체크리스트엔 그게 **없었다**(6-2에만 있다). design.md도 "이 배치는 i18n 키를 추가·리네임하지 않으므로 복제 사전은 무관"이라며 이 위험을 명시적으로 기각했는데, **위험 축이 사전 내용이 아니라 모듈 해석 경로**라 그 기각이 빗나갔다.
+>
+> 항목 54(`index.ts:4`의 store 값 import → 순환)의 이득이 이 위험을 정당화하지 못한다. **다시 볼 조건**: log-viewer가 `@/i18n` alias를 쓰지 않게 되거나, alias가 정확 매칭으로 바뀌면. 그때는 아래 원안을 쓰되 검증에 `pnpm build:log-viewer`를 반드시 넣는다.
+
+<details>
+<summary>원안 (보류)</summary>
+
+- **변경 대상**: `src/i18n/index.ts`(:4·**:66-70**) + **신규** `src/i18n/useT.ts` + `useT` 사용처
+- **추가 주의(보류 해제 시)**: `currentLocale`은 `index.ts:10`의 **비-export 모듈 스코프 `let`**이고 `useT`가 직접 대입한다(`:68`). 분리하면 대입이 불가능해 `setLocale()` 경유로 바꿔야 하고, 그 순간 `withLocale` 구간 중 렌더가 끼면 임시 로케일이 영구화될 수 있다.
 - **작업 내용**: `useT`를 `src/i18n/useT.ts`로 옮긴다(스토어 값 import는 이쪽만). `index.ts`는 `t`·`setLocale`·`getLocale`·`dateBcp47`만 남기고 **`@/store/settings-ui-store` 값 import를 제거**한다(`LocaleMode`는 이제 `@/i18n/locales`가 정의하므로 store에서 가져올 이유 자체가 없다 — `./locales`에서 `import type`). **이 분리가 성립시키는 것**: `settings-ui-store.ts:9`가 `@/i18n/locales`를 값으로 import하고 같은 파일 `:12-13`이 "방향은 store → i18n 단방향"이라 선언해뒀는데, `index.ts:4`의 값 import가 그걸 깨고 있다. 즉 이 태스크는 번들 감량이자 **선언된 불변식 복구**다.
 - **`src/i18n/locales.ts`는 건드리지 않는다** — 의존성 0을 `src/i18n/__tests__/locale-registry.test.ts`가 소스 스캔으로 강제한다(log-viewer 별도 번들이 상대경로로 직접 끌어간다). 공용 심볼을 그쪽으로 옮기는 해법은 즉시 red.
 - **⚪106 `getLocale` 삭제는 무효 — 하지 않는다.** 리베이스 후 프로덕션 사용처가 생겼다: `src/sidepanel/tabs/issueListUtils.ts:176`의 `dateMonthStyle(getLocale())`(로케일별 월 표기).
@@ -193,10 +218,13 @@
   - [ ] `grep -n "settings-ui-store" src/i18n/index.ts` 결과 0줄
   - [ ] `grep -rn "getLocale" src/ e2e/ scripts/`에 `issueListUtils.ts:176`이 그대로 있다(삭제하지 않았다는 증거)
   - [ ] `pnpm typecheck` + `pnpm test` green — `locale-registry.test.ts` 포함
+  - [ ] **`pnpm build:log-viewer` 통과** ← 이 항목이 원안에 없어서 alias 함정을 못 걸렀다. 보류 해제 시 필수.
   - [ ] `pnpm build` 후 `pnpm check:prearm` 통과
 
+</details>
+
 #### Task 6-2: `bg-client.ts` 분리 (🟡57)
-- **변경 대상**: **신규** `src/lib/bg-client.ts` + `__tests__/bg-client.test.ts`, `src/types/messages.ts`(:255-326), `"@/types/messages"` import 파일들
+- **변경 대상**: **신규** `src/lib/bg-client.ts` + `__tests__/bg-client.test.ts`, `src/types/messages.ts`(:255-326), `"@/types/messages"` import 파일들 — **반경은 104개가 아니라 90개**(테스트 제외 87). `src/content/`에서 값 import는 **`css-source-cache.ts:15`(`sendBg`) 하나뿐**이고 변경 대상에 명시한다
 - **작업 내용**: `BgError`·`sendBg`·`isOAuthRefreshFailed`·`isOAuthCancelled`·`isOAuthNotConfigured`·`getOAuthErrorPlatform`을 옮긴다. import 반경이 크면 **중간 커밋에서 `export * from "@/lib/bg-client"` 재export를 두었다가 마지막 커밋에서 제거**한다(대안 C).
 - **검증**:
   - [ ] `sendBg` 테스트 추가(`chrome.runtime.sendMessage` 목킹 — `lastError` / `ok:false` / 성공 3케이스)
@@ -215,15 +243,17 @@
 
 #### Task 6-4: `PickerMessage` 분리 (🟡59 + ⚪111)
 - **변경 대상**: `src/types/picker.ts`(:139-159) + 사용처
-- **작업 내용**: `PickerMessage`(picker.*) / `RecorderMessage`(networkRecorder·consoleRecorder·actionRecorder.*) / `AnnotationMessage`(annotation.*)로 쪼개고 `ContentMessage` 합집합을 유지해 **기존 사용처를 안 건드린다**. 인라인 `import("@/types/network")`·`import("@/types/console")`·`import("@/types/action")` 3곳을 상단 `import type`으로.
+- **작업 내용 (2026-08-14 축소): 쪼개기를 포기하고 ⚪111만 한다.** 인라인 `import("@/types/network")`·`import("@/types/console")`·`import("@/types/action")` **3곳(`picker.ts:143`·`:148`·`:154`)을 상단 `import type`으로** 올리는 것까지.
+  - **왜 쪼개지 않나**: 원안은 "`ContentMessage` 합집합을 유지해 기존 사용처를 안 건드린다"고 했는데 **`ContentMessage`는 코드에 존재하지 않는다**(grep 0건). 지금은 `PickerMessage`가 곧 전체 합집합이라, 그걸 `picker.*`로 좁히는 순간 `recorder-bridge.ts:152`·`recorder-control.ts:5`·`annotation-control.ts:8`·`usePickerMessages.ts:297·321·344` 등 recorder·annotation 수신부가 전부 깨진다. typecheck가 잡아주긴 하나 기계적 치환 ~40곳이 붙고, 항목 59의 실이득이 그 diff를 정당화하지 못한다.
+  - 정직하게 하려면 "`ContentMessage`를 **신설**하고 사용처 ~40곳을 치환한다"로 써야 한다. 그건 별건으로 미룬다.
 - **검증**:
-  - [ ] 기존 `PickerMessage` 사용처가 컴파일 에러 없이 남거나 `ContentMessage`로 명시 치환됨
+  - [ ] 기존 `PickerMessage` 사용처가 **전부 무변경**(쪼개지 않았으므로 diff 0이어야 한다)
   - [ ] `pnpm typecheck` green
   - [ ] `pnpm build` 후 `pnpm check:prearm` 통과 (**content script가 새 import를 타지 않는지** — 이 태스크의 최대 위험)
 
 #### Task 6-5: `extractPath` 제거 + coverage 근거 갱신 (🟡55·58)
 - **변경 대상**: `src/sidepanel/lib/buildLogSummary.ts:122` · `scripts/coverage-report.mjs:66`
-- **작업 내용**: `extractPath` 삭제, 호출처를 `@/lib/network-log-path`의 `networkLogPath`로. `networkLogPath`에만 있는 `if (!url) return url` 가드는 **유지**(둘 다 `""`를 반환하므로 실동작 동일). `isBrowserBound()`의 `src/types/` 제외 근거 주석을 사실에 맞게 갱신하고, `src/types/platform.ts`의 런타임 상수 3개(`PLATFORM_TAB_KEYS`·`CC_PREFIX`·`CC_SEPARATOR`)를 **의도적 예외로 명시**한다.
+- **작업 내용**: `extractPath`(`buildLogSummary.ts:132`) 삭제, 호출처를 `@/lib/network-log-path`의 `networkLogPath`로. **⚠ 외부 호출처가 하나 더 있다(2026-08-14): `src/sidepanel/lib/prompts/logCandidates.ts:5,151`.** 변경 대상에 없어서 그대로 두면 아래 `grep 0건` 검증을 못 넘는다. 테스트는 `logCandidates.test.ts:179`. `networkLogPath`에만 있는 `if (!url) return url` 가드는 **유지**(둘 다 `""`를 반환하므로 실동작 동일). `isBrowserBound()`의 `src/types/` 제외 근거 주석(`coverage-report.mjs` **`:72`** — `:66` 아님)을 사실에 맞게 갱신하고, `src/types/platform.ts`의 런타임 상수 3개(`PLATFORM_TAB_KEYS`·`CC_PREFIX`·`CC_SEPARATOR`)를 **의도적 예외로 명시**한다.
 - **검증**:
   - [ ] `grep -rn "extractPath" src/` 0건
   - [ ] `grep -n "^export \(class\|function\|const\)" src/types/*.ts` 결과가 `platform.ts`의 상수 3개뿐
@@ -251,11 +281,11 @@
 
 #### Task 4-3: connect 폼 라벨 34곳 → `FieldRow` (🟡53)
 - **변경 대상**: `src/sidepanel/components/FieldRow.tsx`(prop 추가) + connect 폼 8개
-- **작업 내용**: `FieldRow`에 `htmlFor?: string` 추가(입력 연결이 있는 9곳 커버). `<label className="text-xs text-muted-foreground">` 34곳을 `FieldRow`로 치환. **새 추상화 없음 — 기존 단일 출처로의 치환뿐.**
+- **작업 내용 (2026-08-14 정정 — prop이 1개가 아니라 2개다)**: `FieldRow`에 `htmlFor?: string`(입력 연결 **10곳** 커버)과 **`labelAction?: ReactNode`**를 추가한다. 34곳 중 **7곳은 라벨이 `flex items-center justify-between` 안에서 "토큰 발급" `<a>`와 나란히** 있어 `FieldRow`의 label→children 세로 구조로 표현할 수 없다. 또 **원본 34곳은 전부 `flex flex-col gap-1.5`인데 `FieldRow`는 `grid gap-1.5`**라 컨테이너 클래스가 바뀐다 — 명시적 수용 사항으로 적거나 해당 7곳을 대상에서 제외한다. "새 추상화 0 / prop 1개"는 성립하지 않는다.
   - 감사의 "27회"는 실측 34회(asana 4·clickup 5·github 4·gitlab 5·jira 7·linear 5·notion 3·slack 1).
 - **검증**:
   - [ ] `grep -c '<label' src/sidepanel/tabs/connect/*ConnectForm.tsx` 합계 0
-  - [ ] `htmlFor`가 있던 9곳이 여전히 입력과 연결됨(렌더 테스트 또는 수동 라벨 클릭 → 포커스 이동)
+  - [ ] `htmlFor`가 있던 **10곳**이 여전히 입력과 연결됨(렌더 테스트 또는 수동 라벨 클릭 → 포커스 이동)
   - [ ] `pnpm typecheck` + `pnpm test` green
 
 ---
@@ -306,11 +336,27 @@
   - [ ] `grep -rn "emptyVariant" src/ e2e/` 0건
   - [ ] `pnpm typecheck` + `pnpm test` green
 
-### Task 9-2: 미참조 export 삭제 (⚪107·108·110·109)
-- **변경 대상**: `src/store/blob-db.ts`(:483 `clearInlineImages` · :458 · :470 · :551) · `src/lib/pending-log-prune.ts:66` · `src/lib/loopback-host.ts:7` · `src/store/editor-store.ts:25`(`SubmitResult`·`EditorTarget`·`ShotSelector`·`ReplayTrim`) · `src/store/issues-store.ts`(:133·:161·:260) · `src/store/settings-store.ts:27` · `src/lib/url-support.ts:37` · `src/lib/log-colors.ts:7` · `src/types/platform.ts:73`(미참조 타입 4종)
-- **작업 내용**: **감사 리포트 기재 — 착수 시 재확인.** 심볼마다 `grep -rn "<심볼>" src/ e2e/ scripts/` 0건일 때만 삭제. `src/types/platform.ts:20`의 런타임 상수 3개는 **삭제하지 않는다**(design.md 판정표 — types/ 콜로케이션이 합리적).
+### Task 9-2: 미참조 export **재분류** (⚪107·108·110·109)
+
+> **⚠ 2026-08-14 전면 재작성.** 이전 판은 16개 심볼을 "삭제" 대상으로 나열하고 규칙을 "`grep` 0건일 때만 삭제"로 뒀는데, **실측 결과 순수 데드는 4개뿐이고 나머지는 전부 내부·테스트 참조를 갖는다.** 즉 규칙을 성실히 지키면 **한 건도 안 지워지고 태스크가 통째로 빈 PR이 된다** — 문서가 자기모순이었다. 세 갈래로 나눈다.
+
+**(a) 순수 삭제 — 참조 0**
+- `src/store/blob-db.ts:458` `deleteInlineImages` · `:470` `getInlineImageKeys`
+- `src/store/editor-store.ts`의 `IssueStatus`·`IssueTokenSnapshot` 계열(착수 시 재확인)
+
+**(b) `export` 키워드만 제거 — 파일 내부에서 쓰인다** (→ 성격상 Task 9-3과 같다)
+- `src/store/blob-db.ts:551` · `src/lib/pending-log-prune.ts:66`(`pruneOrphanPendingLogs` — 같은 파일 `:97`이 호출) · `src/store/issues-store.ts:133`·`:161` · `src/store/settings-store.ts:27` · `src/lib/url-support.ts:37` · `src/lib/log-colors.ts:7` · `src/store/editor-store.ts`의 `SubmitResult`·`EditorTarget`·`ShotSelector`·`ReplayTrim`(내부 15참조)
+
+**(c) 유지 + 주석 — 테스트·e2e 계약이 참조한다** (⚪98과 같은 취급)
+- `blob-db.ts:483` `clearInlineImages`(`blob-db-inline-origins.test.ts`가 호출) · `getInlineOriginKeys`(동일) · `src/lib/loopback-host.ts:7` `isLoopbackHost`(테스트 12참조) · `issues-store.ts:260` `ISSUES_STORE_VERSION` · `settings-store` `SETTINGS_STORE_VERSION`(둘 다 `e2e/GOTCHAS.md`가 계약으로 문서화) · `TabSupport` · `LogTone`
+- **`blob-db.ts:497`의 "`clearInlineImages`는 호출처 0(dead)" 주석은 지금 거짓이다** — 테스트가 부른다. 주석을 정정한다.
+
+**앵커 정정**: `src/types/platform.ts:73`은 **v1.7.23이 넣은 살아있는 `sprintName?: string`**이다. 의도한 미참조 타입 4종은 `:78`·`:100`·`:119`·`:129`이고 **넷 다 `:159~163`에서 내부 참조**되므로 (b)에 속한다. `:20`의 런타임 상수 3개는 그대로 유지(design.md 판정표).
+
 - **검증**:
-  - [ ] 삭제한 심볼마다 grep 0건 기록(삭제 전)
+  - [ ] (a)는 삭제 전 `grep -rn "<심볼>" src/ e2e/ scripts/` **0건 기록**
+  - [ ] (b)는 `export` 제거 후 `pnpm typecheck` green — 외부 참조가 있었으면 여기서 red
+  - [ ] (c)는 코드 변경 0, 주석만
   - [ ] `pnpm typecheck` + `pnpm test` green
   - [ ] `pnpm build` + `pnpm build:log-viewer` 통과 (별도 그래프 확인)
 
@@ -324,15 +370,18 @@
 
 ### Task 9-4: 중복 헬퍼 2건 (⚪100·101·94)
 - **변경 대상**: `src/sidepanel/annotation-control.ts:8` ↔ `src/sidepanel/recorder-control.ts:5`(`send()`) · `src/sidepanel/lib/video-thumbnail.ts:8` ↔ `src/sidepanel/30s-replay/encode-range.ts:75`(`withTimeout`) · `src/background/notion-api.ts:291`(`dataUrlToBlob` 로컬 사본)
-- **작업 내용**: 각각 단일 출처로. `withTimeout`은 순수 함수라 `src/lib/`으로 승격 가능(테스트 추가). `dataUrlToBlob`은 `src/store/blob-db.ts`의 export판이 background 그래프에 이미 있으므로 그걸 쓴다.
+- **작업 내용 (2026-08-14 정정 — 둘 다 "동일"이 아니다)**:
+  - **`withTimeout`은 시그니처가 다르다** — `encode-range.ts:75`는 `(p, timeoutMs, label)` **3인자**, `video-thumbnail.ts:8`은 `(p, label)` **2인자 + 모듈 상수 `LOAD_TIMEOUT_MS`**. 3인자로 통일하고 **video-thumbnail 호출 2곳을 함께 고친다.** 또 둘 다 `window.setTimeout`을 쓰므로 "순수 함수"가 아니다 — `src/lib/` 승격은 가능하되 근거를 "순수"로 적지 않는다.
+  - **`dataUrlToBlob`은 동치가 아니다** — notion판(`notion-api.ts:291`)은 `{blob, contentType}`를 반환하고 percent-encoding을 지원하는데, blob-db판(`:728-739`)은 `Blob`만 반환하고 base64 전용이다. **Task 1-4가 `imageExtFromDataUrl`에 요구한 "도달 불가 증명 또는 스킵"과 같은 게이트를 여기에도 건다.**
+  - **커버리지 분모 주의**: `annotation-control.ts`·`recorder-control.ts`·`video-thumbnail.ts`·`encode-range.ts` 넷 다 현재 `scripts/coverage-report.mjs`의 `BROWSER_BOUND_EXACT`에 있어 로직 스코프 밖이다. `src/lib/`·`src/sidepanel/lib/`로 옮기면 분모에 편입되므로 `send()`에도 테스트를 붙인다.
 - **검증**:
   - [ ] `grep -c "function withTimeout\|const withTimeout" src/` = 1, `send` / `dataUrlToBlob`도 각 1
   - [ ] `withTimeout` 단위 테스트 추가(타임아웃 / 정상 resolve / reject)
   - [ ] `pnpm typecheck` + `pnpm test` green
 
 ### Task 9-5: 주석·별칭·미세 정리 (⚪68·93·95·96·97·103·104·105·114)
-- **변경 대상**: `src/content/overlay.ts:678`(swatch 불변식 주석 추가) · `src/background/github-upload.ts:39`(`created` 항상 true) · `src/background/github-oauth.ts:20`(1회용 wrapper 군집) · `src/content/css-source-cache.ts:624`(WHAT 재진술 영어 주석 5건) · `src/content/network-recorder.ts:9`(재진술 주석) · `src/sidepanel/components/AnnotationOverlay.tsx:231`(재진술 주석) · `src/sidepanel/lib/trailing-throttle.ts:17`(이중 단언) · `src/sidepanel/lib/buildEditorCapture.ts:4`(same-dir alias 6건) · ⚪114 배치·명명 8곳
-- **작업 내용**: **감사 리포트 기재 — 착수 시 각 라인 재확인.** 리포트와 다르면 스킵 + 사유. `css-source-cache.ts`·`network-recorder.ts`는 **회고 1위 영역 / pre-arm 청크**라 주석만 건드리고 코드는 손대지 않는다.
+- **변경 대상**: `src/content/overlay.ts:678`(swatch 불변식 주석 추가) · `src/background/github-upload.ts:39`(`created` 항상 true) · `src/background/github-oauth.ts:20`(1회용 wrapper 군집) · `src/content/css-source-cache.ts:624`(WHAT 재진술 영어 주석 5건) · `src/content/network-recorder.ts:12`(재진술 주석 — `:9`는 빈 줄) · `src/sidepanel/components/AnnotationOverlay.tsx:231`(재진술 주석) · `src/sidepanel/lib/trailing-throttle.ts:17`(이중 단언) · `src/sidepanel/lib/buildEditorCapture.ts`(same-dir alias **9건**, `:5-16`) · ⚪114 배치·명명 8곳
+- **작업 내용**: **감사 리포트 기재 — 착수 시 각 라인 재확인.** 리포트와 다르면 스킵 + 사유. `css-source-cache.ts`·`network-recorder.ts`는 **회고 1위 영역 / pre-arm 청크**라(단 `css-source-cache.ts`는 pre-arm 청크가 **아니라 picker 그래프**다 — 2026-08-14 정정. 주의 수준은 그대로 유지) 주석만 건드리고 코드는 손대지 않는다.
 - **⚪114의 `src/lib/external-url.ts`는 미변경이다.** 리베이스로 바뀐 건 이름이 비슷한 **`src/lib/external-links.ts`**(로케일별 가이드 URL — `USER_GUIDE_URLS`·`userGuideUrl`이 `@/i18n/locales`의 `LocaleTable`을 쓴다)이고, ⚪114 대상이 아니다. 두 파일을 혼동하지 말 것.
 - **검증**:
   - [ ] `src/content/` 파일들은 주석 외 diff 0

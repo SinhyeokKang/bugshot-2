@@ -100,6 +100,22 @@ export function stripApiHostsRows(
     : rows;
 }
 
+// 제출 ctx 조립 경로의 게이트 — lib에 두는 이유는 위 apiHostRowFor와 같다.
+// PreviewPanel(라이브 프리뷰·copy-markdown)은 아직 안 지난다: DraftingPanel의
+// syncApiHostsRow가 행 자체를 지워서인데, 그건 그 패널의 로그 카드가 readOnly인 동안만 성립한다.
+// lastDerived의 undefined는 여기서만 null로 흡수한다 — 구 draft의 "판정 재료 없음"이
+// stripApiHostsRows에 그대로 전달돼 no-op가 되어야 한다.
+export function environmentForSubmit(input: {
+  captureMode: CaptureMode | undefined;
+  logsAttach: boolean;
+  rows: readonly EnvironmentRow[] | undefined;
+  lastDerived: string | null | undefined;
+}): EnvironmentRow[] {
+  const rows = input.rows ?? [];
+  if (supportsConsoleNetworkLog(input.captureMode) && input.logsAttach) return [...rows];
+  return [...stripApiHostsRows(rows, input.lastDerived ?? null)];
+}
+
 // 자동 행 동기화 판정. 변화가 없으면 입력 rows 참조를 그대로 돌려주고, 호출부는 그때 write를
 // 생략한다 — setDraft가 전체 교체라 무조건 write하면 draft identity가 매번 바뀌어 루프가 된다.
 // dismissed는 삭제 버튼 핸들러 말고 아래 promoteEditedRow()도 세운다 — 사용자가 파생 행을 고치면

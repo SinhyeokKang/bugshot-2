@@ -58,6 +58,28 @@ const gitlabStub: Accounts["gitlab"] = {
   defaults: {},
 };
 
+const clickupStub: Accounts["clickup"] = {
+  platform: "clickup",
+  connectedAt: 0,
+  auth: { kind: "pat", pat: "pk_x", viewerId: "1", viewerName: "u" },
+  defaults: {},
+};
+
+const slackStub: Accounts["slack"] = {
+  platform: "slack",
+  connectedAt: 0,
+  auth: {
+    kind: "oauth",
+    accessToken: "xoxp-x",
+    grantedAt: 0,
+    viewerId: "U1",
+    viewerName: "u",
+  },
+  teamId: "T1",
+  teamName: "acme",
+  defaults: {},
+};
+
 describe("settings-store v2→v3 마이그레이션", () => {
   it("jiraConfig 있음 + lastSubmitFields 있음 → accounts.jira + lastSubmitFields.jira", () => {
     const out = migrateV2ToV3({
@@ -235,6 +257,32 @@ describe("connectedPlatforms", () => {
       }),
     ).toEqual(["jira", "github", "linear", "gitlab", "notion"]);
   });
+
+  // 랭크 맵 파생 후에도 순서가 그대로여야 한다. 기존 케이스는 5종까지만 고정하고
+  // asana·clickup·slack의 상대 순서는 어디에도 없었다.
+  it("8종 전부 연결 시 폴백 순서가 불변이다", () => {
+    expect(
+      connectedPlatforms({
+        slack: slackStub,
+        clickup: clickupStub,
+        asana: asanaStub,
+        notion: notionStub,
+        gitlab: gitlabStub,
+        linear: linearStub,
+        github: githubStub,
+        jira: jiraStub,
+      }),
+    ).toEqual([
+      "jira",
+      "github",
+      "linear",
+      "gitlab",
+      "notion",
+      "asana",
+      "clickup",
+      "slack",
+    ]);
+  });
 });
 
 describe("updateGitlabAccount", () => {
@@ -260,7 +308,7 @@ describe("updateGitlabAccount", () => {
   });
 });
 
-const asanaStub = {
+const asanaStub: Accounts["asana"] = {
   platform: "asana",
   connectedAt: 0,
   auth: {
@@ -278,7 +326,7 @@ describe("updateAsanaAccount", () => {
       accounts: {
         jira: jiraStub,
         gitlab: gitlabStub,
-        asana: asanaStub as Accounts["asana"],
+        asana: asanaStub,
       },
       lastSubmitFields: {},
     });

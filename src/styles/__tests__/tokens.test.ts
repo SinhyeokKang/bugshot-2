@@ -11,13 +11,20 @@ const TAILWIND_CONFIG = resolve(__dirname, "../../../tailwind.config.js");
 // CSS 문자열 안에 hsl() 리터럴로 복제돼 있다 — 사본 자체는 불가피하니 값만 대조해 잠근다.
 const OVERLAY = resolve(__dirname, "../../content/overlay.ts");
 
+// overlay 카드의 다크 전환은 OS(prefers-color-scheme)가 아니라 picker.start로 전달된 앱
+// theme(data-theme 속성)을 따른다. 두 앵커가 다르고 라이트 앵커는 다크 앵커의 부분문자열이
+// 아니므로(사이에 [data-theme="dark"]가 낀다) 영역 분할·블록 탐색 둘 다 scope로 갈라야 한다.
+// 전제: 다크 블록이 라이트 블록보다 뒤에 있어야 한다(앞으로 옮기면 라이트가 -1이 된다).
+const LIGHT_ANCHOR = '.picker-label[data-mode="inspector"]';
+const DARK_ANCHOR = '.picker-label[data-theme="dark"][data-mode="inspector"]';
+
 // overlay.ts의 `--x: hsl(a b% c%);` 리터럴을 globals.css와 같은 `a b% c%` 표기로 되돌린다.
 function parseOverlayTokens(scope: "light" | "dark"): Record<string, string> {
   const src = readFileSync(OVERLAY, "utf8");
-  const darkStart = src.indexOf("@media (prefers-color-scheme: dark)");
-  if (darkStart === -1) throw new Error("overlay.ts에 다크 미디어쿼리가 없다");
+  const darkStart = src.indexOf(DARK_ANCHOR);
+  if (darkStart === -1) throw new Error("overlay.ts에 다크 인스펙터 블록이 없다");
   const region = scope === "dark" ? src.slice(darkStart) : src.slice(0, darkStart);
-  const start = region.indexOf('.picker-label[data-mode="inspector"]');
+  const start = region.indexOf(scope === "dark" ? DARK_ANCHOR : LIGHT_ANCHOR);
   if (start === -1) throw new Error(`overlay.ts ${scope} 인스펙터 블록이 없다`);
   const body = region.slice(start, region.indexOf("}", start));
   const out: Record<string, string> = {};

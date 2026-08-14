@@ -1,6 +1,7 @@
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
+import { cn } from "@/lib/utils";
 import { originHostLabel, UNKNOWN_ORIGIN } from "@/sidepanel/lib/logOrigin";
 
 interface OriginFilterBarProps {
@@ -24,11 +25,15 @@ export function OriginFilterBar({ originKeys, counts, value, onChange, flush }: 
             key={k}
             size="sm"
             variant="outline"
-            className={`shrink-0 gap-1 font-normal h-7 px-2.5 text-[13px]${value === k ? " bg-muted hover:bg-muted hover:brightness-95" : ""}`}
+            className={cn(
+              "shrink-0 gap-1 font-normal h-7 px-2.5 text-[13px]",
+              value === k && "bg-muted hover:bg-muted hover:brightness-95",
+            )}
             onClick={() => onChange(value === k ? null : k)}
             data-testid="origin-filter"
             data-origin={k}
             data-active={value === k || undefined}
+            aria-pressed={value === k}
           >
             {k === UNKNOWN_ORIGIN ? t("log.originFilter.unknown") : originHostLabel(k)}
             {counts && <span className="text-xs text-muted-foreground">{counts[k] ?? 0}</span>}

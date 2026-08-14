@@ -17,6 +17,7 @@ import { DEFAULT_COLOR, DEFAULT_THICKNESS, type ThicknessKey } from "@/sidepanel
 import type { RecordingPenTool } from "@/sidepanel/components/annotation/recording-pen";
 import type { TrimSource } from "@/sidepanel/30s-replay/trim-source";
 import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "@/sidepanel/recorder-control";
+import { inlineRefMarkdown } from "@/lib/inline-ref";
 import { pendingKey } from "@/lib/session-keys";
 
 export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
@@ -557,7 +558,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...s.draft,
           sections: {
             ...s.draft.sections,
-            [sectionId]: `${prev}${separator}![](inline:${refId})`,
+            [sectionId]: `${prev}${separator}${inlineRefMarkdown(refId)}`,
           },
         },
       };
@@ -902,6 +903,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         networkLogBlobKey: logs.networkLog ? id : undefined,
         consoleLogBlobKey: logs.consoleLog ? id : undefined,
         actionLogBlobKey: logs.actionLog ? id : undefined,
+        // saveDraft가 병합이라 키를 조건부로 빼면 직전 세션 파생값이 되살아난다 — 항상 명시.
+        apiHostsDerived: state.apiHostsDerived,
       });
       const targetTabId = state.target.tabId;
       void (async () => {
@@ -931,6 +934,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         networkLogBlobKey: logs.networkLog ? id : undefined,
         consoleLogBlobKey: logs.consoleLog ? id : undefined,
         actionLogBlobKey: logs.actionLog ? id : undefined,
+        apiHostsDerived: state.apiHostsDerived,
       });
       const targetTabId = state.target.tabId;
       void (async () => {
@@ -976,6 +980,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         networkLogBlobKey: logs.networkLog ? id : undefined,
         consoleLogBlobKey: logs.consoleLog ? id : undefined,
         actionLogBlobKey: logs.actionLog ? id : undefined,
+        apiHostsDerived: state.apiHostsDerived,
       });
       const targetTabId = state.target.tabId;
       void (async () => {
@@ -1061,6 +1066,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 hasAfter: !!(b.afterAnnotated ?? b.afterImage),
               }))
             : undefined,
+        // element는 자동 행을 주입하지 않아 항상 null이지만, 위 selector·bufferedElements와
+        // 같은 이유로 키를 빼지 않는다 — 병합이 직전 세션 값을 되살린다.
+        apiHostsDerived: state.apiHostsDerived,
       });
       const bufferedSnapshot = state.bufferedElements;
       void (async () => {

@@ -1,7 +1,7 @@
 import { useState, useCallback, useContext, useEffect } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import { useT } from "@/i18n";
 import { HighlightedText, HighlightQueryContext } from "./HighlightedText";
+import { TreeChevronButton } from "./TreeChevronButton";
 import { JSON_TOKEN_CLASS } from "@/sidepanel/lib/highlightJson";
 
 const ARRAY_CHUNK_SIZE = 100;
@@ -143,15 +143,11 @@ function JsonNode({
         style={{ paddingLeft: indent }}
         onClick={() => onToggle(path)}
       >
-        <button
-          type="button"
-          aria-label={isOpen ? t("common.collapse") : t("common.expand")}
-          aria-expanded={isOpen}
-          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/15"
-          onClick={(e) => { e.stopPropagation(); onToggle(path); }}
-        >
-          {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        </button>
+        <TreeChevronButton
+          open={isOpen}
+          label={isOpen ? t("common.collapse") : t("common.expand")}
+          onToggle={(e) => { e.stopPropagation(); onToggle(path); }}
+        />
         {keyName !== undefined && <KeyLabel keyName={keyName} />}
         <span className="text-muted-foreground">{isArray ? `Array(${entries.length})` : `{${entries.length}}`}</span>
       </div>

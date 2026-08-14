@@ -9,6 +9,7 @@ import type { InlineImageInput } from "./resolveInlineImages";
 import { guessUploadMime } from "./uploadMime";
 import { loadImage } from "@/sidepanel/capture";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
+import { inlineRefUrl } from "@/lib/inline-ref";
 import { sendBg } from "@/types/messages";
 import type { AsanaCreateTaskResult } from "@/types/asana";
 import type { NormalizedSubmitResult } from "@/types/platform";
@@ -220,7 +221,7 @@ export async function submitToAsana(
     await Promise.all(
       inlineEntries.map(async ({ refId, file }) => {
         const uploaded = byName.get(file.filename);
-        if (uploaded) imageRefs[`inline:${refId}`] = await buildInlineRef(uploaded, file.dataUrl);
+        if (uploaded) imageRefs[inlineRefUrl(refId)] = await buildInlineRef(uploaded, file.dataUrl);
       }),
     );
     if (Object.keys(imageRefs).length > 0) {

@@ -2,7 +2,6 @@ const ko = {
   "networkLog.clear": "로그 지우기",
   "networkLog.search": "URL·본문 검색…",
   "logViewer.seekTo": "{time} 지점으로 이동",
-  "networkLog.dialog.title": "네트워크 로그",
   "networkLog.dialog.selectRequest": "요청을 선택하세요",
   "networkLog.detail.general": "일반",
   "networkLog.detail.url": "URL",
@@ -49,7 +48,6 @@ const ko = {
 
   "consoleLog.clear": "로그 지우기",
   "consoleLog.search": "메시지 검색…",
-  "consoleLog.dialog.title": "콘솔 로그",
   "consoleLog.detail.stackTrace": "스택 트레이스",
   "consoleLog.filter.all": "전체",
   "consoleLog.filter.error": "Error",
@@ -70,7 +68,6 @@ const ko = {
   "actionLog.filter.select": "선택",
   "actionLog.filter.drag": "드래그",
   "actionLog.empty": "캡처된 액션이 없습니다",
-  "actionLog.dialog.title": "액션 로그",
   "actionLog.verb.click": "{target} 클릭",
   "actionLog.verb.input": "{field}에 {value} 입력",
   "actionLog.verb.navigate": "{target}(으)로 이동",
@@ -85,6 +82,8 @@ const ko = {
   "actionLog.verb.drag": "{source} 드래그",
   "actionLog.verb.dragTo": "{source}을(를) {target}(으)로 드래그",
   "actionLog.maskedValue": "가려진 값",
+  // actionLog.role.*: 메인 dict 소비처는 없다(실소비는 log-viewer/markers.ts의 복제 사전).
+  // drift 테스트(log-viewer/__tests__/i18n.test.ts)의 대조 원본이므로 지우지 말 것.
   "actionLog.role.button": "버튼",
   "actionLog.role.link": "링크",
   "actionLog.role.checkbox": "체크박스",
@@ -140,7 +139,6 @@ const en = {
   "networkLog.clear": "Clear Log",
   "networkLog.search": "Search URL & body…",
   "logViewer.seekTo": "Jump to {time}",
-  "networkLog.dialog.title": "Network Logs",
   "networkLog.dialog.selectRequest": "Select a request",
   "networkLog.detail.general": "General",
   "networkLog.detail.url": "URL",
@@ -187,7 +185,6 @@ const en = {
 
   "consoleLog.clear": "Clear Log",
   "consoleLog.search": "Search messages…",
-  "consoleLog.dialog.title": "Console Logs",
   "consoleLog.detail.stackTrace": "Stack Trace",
   "consoleLog.filter.all": "All",
   "consoleLog.filter.error": "Error",
@@ -208,7 +205,6 @@ const en = {
   "actionLog.filter.select": "Select",
   "actionLog.filter.drag": "Drag",
   "actionLog.empty": "No actions captured",
-  "actionLog.dialog.title": "Action Logs",
   "actionLog.verb.click": "Clicked {target}",
   "actionLog.verb.input": "Entered {value} in {field}",
   "actionLog.verb.navigate": "Navigated to {target}",
@@ -223,6 +219,8 @@ const en = {
   "actionLog.verb.drag": "Dragged {source}",
   "actionLog.verb.dragTo": "Dragged {source} to {target}",
   "actionLog.maskedValue": "masked value",
+  // actionLog.role.*: 메인 dict 소비처는 없다(실소비는 log-viewer/markers.ts의 복제 사전).
+  // drift 테스트(log-viewer/__tests__/i18n.test.ts)의 대조 원본이므로 지우지 말 것.
   "actionLog.role.button": "button",
   "actionLog.role.link": "link",
   "actionLog.role.checkbox": "checkbox",

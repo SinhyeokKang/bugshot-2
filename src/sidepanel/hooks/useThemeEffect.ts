@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { resolveDark } from "@/sidepanel/lib/resolveDark";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 
 export function useThemeEffect(): void {
@@ -6,10 +7,10 @@ export function useThemeEffect(): void {
   useEffect(() => {
     const root = document.documentElement;
     const apply = () => {
-      const dark =
-        theme === "dark" ||
-        (theme === "system" &&
-          window.matchMedia("(prefers-color-scheme: dark)").matches);
+      const dark = resolveDark(
+        theme,
+        window.matchMedia("(prefers-color-scheme: dark)").matches,
+      );
       root.classList.toggle("dark", dark);
     };
     apply();

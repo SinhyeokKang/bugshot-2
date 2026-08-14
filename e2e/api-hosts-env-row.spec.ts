@@ -65,6 +65,33 @@ const autoRow = (panel: Page) =>
 const previewRow = (panel: Page) =>
   panel.locator('[data-testid="env-row"][data-env-label="API Hosts"]');
 
+// 저장 초안 상세(DraftDetailDialog)의 재현 환경 행. `env-row` testid는 라이브 미리보기
+// (IssuePreviewView)에도 있고 App이 비활성 탭을 언마운트하지 않아 둘이 동시에 잡힌다 —
+// 반드시 다이얼로그로 스코프한다.
+const detailRow = (panel: Page) =>
+  panel
+    .getByTestId("draft-detail-dialog")
+    .locator('[data-testid="env-row"][data-env-label="API Hosts"]');
+
+// 이슈 목록 탭 진입. hydration 전 클릭이 유실되므로 active 폴링으로 흡수(draft-resume 관례).
+async function openIssueList(panel: Page): Promise<void> {
+  await expect(async () => {
+    await panel.getByTestId("tab-issue-list").click();
+    await expect(panel.getByTestId("tab-issue-list")).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+  }).toPass();
+}
+
+async function openDraftDetail(panel: Page, title: string): Promise<void> {
+  await openIssueList(panel);
+  const row = panel.getByTestId("issue-row").filter({ hasText: title });
+  await expect(row).toHaveCount(1);
+  await row.click();
+  await expect(panel.getByTestId("draft-detail-dialog")).toBeVisible();
+}
+
 test.describe.serial("API Hosts 자동 행", () => {
   let fixture: Page;
   let panel: Page;
@@ -163,6 +190,133 @@ test("element 모드는 로그가 보존돼 있어도 API Hosts 행을 만들지
   // 재현 환경 섹션 자체는 뜨지만(readonly 행) 자동 행은 없어야 한다.
   await expect(panel.getByTestId("section-repro-env")).toBeVisible();
   await expect(autoRow(panel)).toHaveCount(0);
+
+  // 저장 후 재제출 경로에서도 없어야 한다. **이 단언은 재제출 쪽 모드 게이트를 물지 않는다**
+  // — 주입 게이트가 이미 잘라서 element 초안의 draft.environment엔 행 자체가 없고,
+  // 상세의 captureMode 인자를 "screenshot"으로 뒤집어도 지울 행이 없어 green이다(실측).
+  // 미래에 주입 게이트가 뚫렸을 때를 대비한 2차 방어일 뿐이므로 이름표를 그렇게 단다.
+  await panel.getByTestId("draft-title").fill("API hosts element e2e");
+  await panel.getByTestId("to-preview").click();
+  await openDraftDetail(panel, "API hosts element e2e");
+  await expect(detailRow(panel)).toHaveCount(0);
+
+  await panel.close();
+  await fixture.close();
+});
+
+// 저장 초안 재제출 경로 — 라이브 제출엔 로그 첨부 게이트가 있는데 저장 draft엔 없어서,
+// 로그를 끈 초안이 8개 플랫폼 본문에 자동 행을 그대로 실어 보내던 결함(audit-refactor-4 항목 12).
+//
+// 관측은 다이얼로그 화면(`env-row`)으로 한다. DraftDetailDialog엔 copy-markdown이 없고 제출
+// payload 인터셉트 선례도 없어서, 표시 소스를 제출 소스와 같은 함수(`submitEnvironmentRows`)로
+// 모은 것 자체가 관측 지점이다 — 화면에서 사라지면 본문에서도 사라진다.
+//
+// 캡처 대신 freeform으로 진입한다: console/network 로그를 지원하는 모드이면서
+// captureVisibleTab quota를 안 쓴다.
+test.describe.serial("저장 초안 재제출 — API Hosts 로그 게이트", () => {
+  const TITLE = "API hosts resubmit e2e";
+  let fixture: Page;
+  let panel: Page;
+
+  test.beforeAll(async ({ ext }) => {
+    fixture = await ext.context.newPage();
+    await fixture.goto(ext.fixtureHostUrl(PAGE_HOST, "api-hosts.html"));
+    const tabId = await ext.fixtureTabId(TAB_PATTERN);
+    panel = await ext.openPanel(tabId);
+    await enterDebug(panel);
+    await seedApiRequests(fixture, panel, new URL(ext.fixtureUrl("")).port);
+
+    await panel.getByTestId("subtab-issue").click();
+    await panel.getByTestId("mode-freeform").click();
+    await expect(panel.getByTestId("drafting-panel")).toBeVisible();
+    await expect(autoRow(panel)).toHaveCount(1);
+    await panel.getByTestId("draft-title").fill(TITLE);
+    // to-preview = confirmDraft → IssueRecord 저장(apiHostsDerived 스냅샷 포함).
+    await panel.getByTestId("to-preview").click();
+    await expect(previewRow(panel)).toHaveCount(1);
+  });
+
+  test.afterAll(async () => {
+    await panel?.close();
+    await fixture?.close();
+  });
+
+  test("로그 첨부 ON으로 저장한 초안은 상세에서 API Hosts 행을 그대로 싣는다", async () => {
+    await openDraftDetail(panel, TITLE);
+
+    await expect(detailRow(panel)).toHaveCount(1);
+    await expect(detailRow(panel)).toContainText(
+      "api.bugshot.test, auth.bugshot.test",
+    );
+  });
+
+  test("로그 첨부를 끄면 행이 빠지고, 다시 켜면 되살아난다 (가역성)", async () => {
+    const dialog = panel.getByTestId("draft-detail-dialog");
+    const attach = dialog.getByTestId("logs-attach-switch");
+
+    await attach.click();
+    await expect(attach).toHaveAttribute("data-state", "unchecked");
+    await expect(detailRow(panel)).toHaveCount(0);
+
+    // 행은 draft.environment에 저장된 채로 남고 제출 시점에만 걸러진다 — 설계 전제.
+    await attach.click();
+    await expect(attach).toHaveAttribute("data-state", "checked");
+    await expect(detailRow(panel)).toHaveCount(1);
+  });
+
+  test("패널을 닫았다 열어도 판정이 유지된다 (apiHostsDerived 영속)", async ({ ext }) => {
+    const dialog = panel.getByTestId("draft-detail-dialog");
+    await dialog.getByTestId("logs-attach-switch").click();
+    await expect(detailRow(panel)).toHaveCount(0);
+
+    const tabId = await ext.fixtureTabId(TAB_PATTERN);
+    await panel.close();
+    panel = await ext.openPanel(tabId);
+
+    await openDraftDetail(panel, TITLE);
+    // 스냅샷이 안 실렸으면 lastDerived가 undefined로 읽혀 strip이 no-op가 되고 행이 살아난다.
+    await expect(detailRow(panel)).toHaveCount(0);
+  });
+});
+
+// 사용자가 값을 고친 행은 자동 행이 아니다 — 로그를 꺼도 제출물에서 지우면 안 된다
+// (`value === lastDerived` 비교가 그걸 지키는 유일한 장치이고, DraftDetailDialog엔
+// 재현 환경 편집 UI가 없어 복구 수단도 없다).
+test("사용자가 고친 API Hosts 행은 로그 첨부를 꺼도 초안 상세에 남는다", async ({ ext }) => {
+  const TITLE = "API hosts edited row e2e";
+  const EDITED = "edited.bugshot.test";
+  const fixture = await ext.context.newPage();
+  await fixture.goto(ext.fixtureHostUrl(PAGE_HOST, "api-hosts.html"));
+  const tabId = await ext.fixtureTabId(TAB_PATTERN);
+  const panel = await ext.openPanel(tabId);
+
+  await enterDebug(panel);
+  await seedApiRequests(fixture, panel, new URL(ext.fixtureUrl("")).port);
+  await panel.getByTestId("subtab-issue").click();
+  await panel.getByTestId("mode-freeform").click();
+  await expect(panel.getByTestId("drafting-panel")).toBeVisible();
+
+  await expect(autoRow(panel)).toHaveCount(1);
+  const valueInput = autoRow(panel).locator("input").nth(1);
+  await valueInput.fill(EDITED);
+  await expect(valueInput).toHaveValue(EDITED);
+
+  await panel.getByTestId("draft-title").fill(TITLE);
+  await panel.getByTestId("to-preview").click();
+
+  await openDraftDetail(panel, TITLE);
+  const dialog = panel.getByTestId("draft-detail-dialog");
+  const editedRow = dialog.locator(
+    '[data-testid="env-row"][data-env-label="API Hosts"]',
+  );
+  await expect(editedRow).toContainText(EDITED);
+
+  await dialog.getByTestId("logs-attach-switch").click();
+  await expect(dialog.getByTestId("logs-attach-switch")).toHaveAttribute(
+    "data-state",
+    "unchecked",
+  );
+  await expect(editedRow).toContainText(EDITED);
 
   await panel.close();
   await fixture.close();

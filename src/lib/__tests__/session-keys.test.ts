@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  APP_SETTINGS_PERSIST_KEY,
   PANEL_PORT_PREFIX,
   PICKER_PORT_NAME,
   originOf,
@@ -78,5 +79,11 @@ describe("상수", () => {
 
   it("PANEL_PORT_PREFIX", () => {
     expect(PANEL_PORT_PREFIX).toBe("bugshot-panel:");
+  });
+
+  // 값이 한 글자라도 달라지면 zustand가 저장분을 못 찾아 테마·로케일·본문 구성·BYOK 설정이
+  // 전부 기본값으로 돌아간다. 타입 에러는 안 나므로 값 자체를 잠근다.
+  it("APP_SETTINGS_PERSIST_KEY", () => {
+    expect(APP_SETTINGS_PERSIST_KEY).toBe("bugshot-app-settings");
   });
 });
