@@ -23,6 +23,7 @@ vi.stubGlobal("chrome", {
 });
 
 import { onOAuthExpired } from "@/lib/app-events";
+import { PLATFORM_TAB_KEYS } from "@/types/platform";
 import {
   BgError,
   getOAuthErrorPlatform,
@@ -201,18 +202,13 @@ describe("OAuth 에러 판독기", () => {
 });
 
 describe("getOAuthErrorPlatform", () => {
-  const SUPPORTED = [
-    "jira",
-    "github",
-    "linear",
-    "notion",
-    "gitlab",
-    "asana",
-    "clickup",
-    "slack",
-  ];
+  // 로스터를 PlatformId 축에서 파생한다. 손으로 쓰면 9번째 플랫폼이 붙어도 green인데,
+  // bg-client의 화이트리스트는 8개 그대로라 null을 돌려주고 App.tsx가 재연결 다이얼로그를
+  // 못 고른다. 컴파일러는 이 화살표를 못 잡는다 — 반환이 8리터럴 union이라 넓은
+  // PlatformId에 그냥 대입된다.
+  const SUPPORTED = Object.keys(PLATFORM_TAB_KEYS);
 
-  it("지원 8플랫폼을 그대로 돌려준다", () => {
+  it("지원 플랫폼 전량을 그대로 돌려준다", () => {
     for (const p of SUPPORTED) {
       expect(getOAuthErrorPlatform(new BgError("e", 401, { platform: p }))).toBe(p);
     }

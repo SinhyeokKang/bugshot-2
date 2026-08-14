@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it, vi } from "vitest";
 
 import * as appEvents from "@/lib/app-events";
@@ -141,5 +145,40 @@ describe("app-events 인스턴스", () => {
     off();
 
     expect(fn).toHaveBeenCalledWith("github");
+  });
+});
+
+// 이 파일이 `src/types/messages.ts`에서 나온 이유의 절반은 번들이다. store(chrome-storage·
+// editor-store)가 emitter를 물어야 하는데, 옛 자리는 `t()` 때문에 `@/i18n`을 끌었고 그게
+// `i18n/index → settings-ui-store → chrome-storage → types/messages → i18n/index` 런타임
+// 순환을 만들고 있었다. 값 import를 하나만 얻어도 그 순환이 되살아나고 store 소비처 전체가
+// i18n 12모듈을 다시 끌어오는데, typecheck·test·check:prearm은 전부 green이다. 스캔이 유일한
+// 그물이라는 점에서 i18n/locales.ts의 "순수성" describe와 같은 형태다.
+describe("app-events.ts 순수성 (순환을 끊어둔 근거)", () => {
+  const source = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "app-events.ts"),
+    "utf8",
+  );
+
+  const runtimeImports = [
+    ...source.matchAll(/\bimport\s+(?!type\s)[\s\S]*?\bfrom\s*["']([^"']+)["']/g),
+  ].map((m) => m[1]);
+
+  const code = source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+
+  it("런타임 의존이 없다 (i18n·store·chrome 래퍼 전부)", () => {
+    expect(runtimeImports).toEqual([]);
+  });
+
+  it("chrome API를 직접 만지지 않는다", () => {
+    expect(code).not.toMatch(/\bchrome\s*\./);
+  });
+
+  // 주석을 걷어낸 뒤 재므로 스트리퍼가 통째로 지우면 위 단언이 공허해진다.
+  it("주석 스트리퍼가 코드를 남긴다 (자기검증 앵커)", () => {
+    expect(code).toMatch(/export function createEmitter/);
+    expect(code).toMatch(/export const onOAuthExpired/);
   });
 });

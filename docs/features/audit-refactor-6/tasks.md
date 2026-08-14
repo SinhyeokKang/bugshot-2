@@ -278,7 +278,7 @@
   - [x] `grep -rn "extractPath" src/` 0건
   - [x] `grep -n "^export \(class\|function\|const\)" src/types/*.ts` 결과가 `platform.ts`의 상수 3개뿐
   - [x] `pnpm test` green
-  - [x] `pnpm coverage:report` — 로직 스코프 라인 82.3% → **82.6%**(+0.3pp). 같은 리포트의 래칫 경고 6건(`submitToAsana`·`buildClickupIssueBody`·`settings-store` 등)은 **G6 diff가 만든 게 아니다** — 해당 파일들의 라인 수가 그대로이고 `settings-store.ts`는 이 그룹에서 한 줄도 안 바뀌었다. 앞선 그룹 이후 베이스라인 미래칫으로 누적된 드리프트라 여기서 손대지 않는다
+  - [x] `pnpm coverage:report` — 로직 스코프 라인 82.3% → **82.6%**(+0.3pp). **`coverage/baseline.json` 래칫은 배치 끝(P2 완료 후 `/merge` 직전)에 한 번만 한다** — 그룹마다 래칫하면 그룹 간 비교 기준이 매번 움직여 어느 그룹이 무엇을 올렸는지 못 센다. 그때까지 G4·G5·P2 리포트는 **2026-08-14 스탬프(82.3415) 기준의 누적치**로 읽는다. 같은 리포트의 래칫 경고 6건(`submitToAsana`·`buildClickupIssueBody`·`settings-store` 등)은 **G6 diff가 만든 게 아니다** — 해당 파일들의 라인 수가 그대로이고 `settings-store.ts`는 이 그룹에서 한 줄도 안 바뀌었다. 앞선 그룹 이후 베이스라인 미래칫으로 누적된 드리프트라 여기서 손대지 않는다
 
 ---
 
