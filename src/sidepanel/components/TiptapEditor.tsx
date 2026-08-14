@@ -58,6 +58,7 @@ import {
 } from "@/sidepanel/lib/resolveInlineImages";
 import { shouldLiftListItem } from "@/sidepanel/lib/listKeymap";
 import { shouldInsertHrAfterBreak } from "@/sidepanel/lib/hrInputRule";
+import { inlineRefUrl } from "@/lib/inline-ref";
 import "./tiptap-editor.css";
 
 const AnnotationOverlay = lazy(() => import("./AnnotationOverlay"));
@@ -523,7 +524,7 @@ export function editorMarkdown(editor: Editor, urlToRef: Map<string, string>): s
   if (!storage.markdown) return "";
   let md = storage.markdown.getMarkdown();
   for (const [blobUrl, refId] of urlToRef) {
-    md = md.replaceAll(blobUrl, `inline:${refId}`);
+    md = md.replaceAll(blobUrl, inlineRefUrl(refId));
   }
   return md;
 }

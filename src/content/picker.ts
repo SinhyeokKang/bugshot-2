@@ -1227,8 +1227,12 @@ function handleSelectByPath(selector: string): { found: boolean } {
   if (!overlay) {
     removeOrphanOverlay();
     overlay = createOverlay();
+    // handleClear가 null화하고 지나간 뒤라 handleStart의 4단(등록·observer·load·priming)을
+    // 여기서 다시 세운다 — 등록만 되살리면 inspectorCache가 다음 시트 변경까지 옛 값을 준다.
+    setOnCacheReloaded(scheduleInspectorRefresh);
     startCssCacheObserver();
     void ensureCssCacheLoaded();
+    scheduleInspectorRefresh();
   }
   leaveCurrent();
   selectedEl = target;

@@ -95,6 +95,8 @@ import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptu
 import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
 import { supportsConsoleNetworkLog, supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
+import type { EnvironmentRow } from "@/types/environment";
+import { environmentForSubmit } from "@/sidepanel/lib/apiHostRow";
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { extractInlineRefs, resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
@@ -363,7 +365,7 @@ export function DraftDetailDialog({
       capturedAt: sel?.capturedAt ?? issue.createdAt,
       diffs,
       styleElements: isElement ? styleElementsForSubmit : undefined,
-      environment: issue.draft.environment ?? [],
+      environment: submitEnvironmentRows(issue),
       networkLogSummary: networkLog ? buildNetworkLogSummary(networkLog) : undefined,
       consoleLogSummary: consoleLogForSubmit ? buildConsoleLogSummary(consoleLogForSubmit) : undefined,
       actionLogCaptured: actionLogForSubmit && actionLogForSubmit.captured > 0 ? actionLogForSubmit.captured : undefined,
@@ -1231,6 +1233,19 @@ function DraftDetailSections({
   return <>{out}</>;
 }
 
+// 표시(EnvBlock)와 제출(buildCtxForSubmit)이 같은 행 집합을 보게 하는 IssueRecord→인자 매핑.
+// 인자 조립을 두 벌 두면 이 배치가 고친 것과 같은 형태로 화면·본문이 다시 갈린다.
+function submitEnvironmentRows(issue: IssueRecord): EnvironmentRow[] {
+  return environmentForSubmit({
+    // legacyNoDiff 강제 변환 이전의 원본 모드 — 변환값을 넣으면 element 초안이 지원 모드로 뒤집힌다.
+    captureMode: issue.captureMode,
+    // 필드는 boolean | undefined이고 undefined = 첨부가 계약이라 그대로 넘기면 뒤집힌다.
+    logsAttach: issue.logsAttached !== false,
+    rows: issue.draft.environment,
+    lastDerived: issue.apiHostsDerived,
+  });
+}
+
 function EnvBlock({ issue }: { issue: IssueRecord }) {
   const os = getOsInfo();
   const browser = parseChromeVersion(navigator.userAgent);
@@ -1252,12 +1267,17 @@ function EnvBlock({ issue }: { issue: IssueRecord }) {
     rows.push({ label: "Viewport", value: `${vp.width}×${vp.height}` });
   }
   rows.push({ label: "Captured", value: formatTimestamp(issue.createdAt) });
-  rows.push(...filterEnvironmentRows(issue.draft.environment ?? []));
+  rows.push(...filterEnvironmentRows(submitEnvironmentRows(issue)));
 
   return (
     <div className="space-y-1 text-sm leading-relaxed">
       {rows.map((r, i) => (
-        <div key={`${r.label}-${i}`} className="flex gap-3">
+        <div
+          key={`${r.label}-${i}`}
+          className="flex gap-3"
+          data-testid="env-row"
+          data-env-label={r.label}
+        >
           <span className="w-20 shrink-0 text-muted-foreground">{r.label}</span>
           <span className="break-all">{r.value}</span>
         </div>

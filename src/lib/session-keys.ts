@@ -20,6 +20,11 @@ export function isPendingKey(key: string): boolean {
 // 리터럴을 두 벌 두면 이름이 바뀌는 순간 GC가 참조 집합을 통째로 놓친다.
 export const ISSUES_PERSIST_KEY = "bugshot-issues";
 
+// settings-ui-store의 zustand persist 키. background의 i18n/bg-init이 이 봉투에서 locale을
+// 직접 뽑아 미러링하므로, 리터럴을 두 벌 두면 이름이 바뀌는 순간 background 에러 문자열만
+// 타입 에러 없이 조용히 영어로 굳는다.
+export const APP_SETTINGS_PERSIST_KEY = "bugshot-app-settings";
+
 export function sessionKey(tabId: number): string {
   return `${EDITOR_SESSION_PREFIX}${tabId}`;
 }

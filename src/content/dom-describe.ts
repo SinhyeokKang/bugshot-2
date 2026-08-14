@@ -5,6 +5,7 @@ import type {
   TreeNode,
 } from "@/types/picker";
 
+import { ANNOTATION_HOST_ID } from "./annotation";
 import { pathSelector } from "./element-locator";
 import { HOST_ID } from "./overlay";
 
@@ -102,7 +103,8 @@ function isRenderable(el: Element): boolean {
   ) {
     return false;
   }
-  if (el.id === HOST_ID) return false;
+  // 자체 UI overlay는 둘이다 — 교체가 아니라 OR로 얹는다(하나만 남기면 나머지가 트리에 샌다).
+  if (el.id === HOST_ID || el.id === ANNOTATION_HOST_ID) return false;
   return true;
 }
 

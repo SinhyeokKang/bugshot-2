@@ -4,6 +4,7 @@ import type { StateStorage } from "zustand/middleware";
 import type { TranslationKey } from "@/i18n/ko";
 import type { RecordingSource } from "./editor-store";
 import { obfuscateApiKey, deobfuscateApiKey } from "@/lib/key-obfuscation";
+import { APP_SETTINGS_PERSIST_KEY } from "@/lib/session-keys";
 import { normalizeAiLanguage, type AiLanguage } from "@/sidepanel/lib/aiLanguage";
 import { chromeLocalStorage } from "./chrome-storage";
 import {
@@ -279,7 +280,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
     }),
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
-      name: "bugshot-app-settings",
+      name: APP_SETTINGS_PERSIST_KEY,
       // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가, v8: autoReproPrefill 추가, v9: issueSections에 media 엔트리 편입, v10: aiLanguage 추가, v11: bodyLocale 추가
       version: 11,
       storage: createJSONStorage(() => apiKeyObfuscatingStorage),

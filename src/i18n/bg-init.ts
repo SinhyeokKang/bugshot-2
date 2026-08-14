@@ -1,3 +1,4 @@
+import { APP_SETTINGS_PERSIST_KEY } from "@/lib/session-keys";
 import { setLocale } from "./index";
 import { normalizeLocale, type LocaleMode } from "./locales";
 
@@ -14,14 +15,14 @@ function extractLocale(raw: unknown): LocaleMode | undefined {
 }
 
 export function initBgLocale() {
-  chrome.storage.local.get("bugshot-app-settings", (result) => {
-    const locale = extractLocale(result["bugshot-app-settings"]);
+  chrome.storage.local.get(APP_SETTINGS_PERSIST_KEY, (result) => {
+    const locale = extractLocale(result[APP_SETTINGS_PERSIST_KEY]);
     if (locale) setLocale(locale);
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local" || !changes["bugshot-app-settings"]) return;
-    const locale = extractLocale(changes["bugshot-app-settings"].newValue);
+    if (area !== "local" || !changes[APP_SETTINGS_PERSIST_KEY]) return;
+    const locale = extractLocale(changes[APP_SETTINGS_PERSIST_KEY].newValue);
     if (locale) setLocale(locale);
   });
 }
