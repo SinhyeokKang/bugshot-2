@@ -81,33 +81,34 @@
 - **변경 대상**: `src/lib/inline-ref.ts`(추가) + **신규** `src/lib/__tests__/inline-ref.test.ts`에 케이스 추가
 - **작업 내용**: `inlineUploadFilename(refId, ext = "webp")` 추가. **`src/lib/inline-ref.ts`에 두는 이유**: background(`messages.ts:866`)·store(`blob-db.ts:5`)·sidepanel 셋 다 import 가능한 유일한 중립 위치이고, 파일 상단 주석이 이미 그 역할을 선언했다.
 - **검증**:
-  - [ ] 기본 확장자 webp / 명시 확장자(asana의 `png`·`jpg`) 케이스
-  - [ ] `pnpm test` green
+  - [x] 기본 확장자 webp / 명시 확장자(asana의 `png`·`jpg`) 케이스
+  - [x] `pnpm test` green
+  - [x] **2026-08-14 추가**: `inlinePlaceholderId(refId)`도 함께 뒀다(Task 1-2 판단 결과 — 아래). `inlineUploadFilename`이 그 접두사를 빌려 쓰므로 접두사 정의는 한 곳이다
 
 #### Task 1-2: **11곳** 하드코딩 치환 (2026-08-14 재실측 — `.webp` 10곳 + asana 동적 1곳. 이전 판의 "9곳"은 과소였고 전수 개수가 틀리면 R3 검증이 무력해진다)
 - **변경 대상**: `src/sidepanel/lib/prepareUpload.ts`(:69·:101) · `submitToClickup.ts`(:48·:122) · `submitToNotion.ts`(:48·:139) · `submitToLinear.ts:60` · `submitToSlack.ts:44` · `submitToJira.ts:37` · `submitToAsana.ts:137` · `src/background/messages.ts:866`
 - **작업 내용**: 전부 `inlineUploadFilename(...)` 호출로. `submitToNotion.ts:137`의 `placeholderId`(확장자 없는 `inline-${refId}`)와 `buildNotionIssueBody.ts:269`의 같은 형태는 **파일명이 아니라 placeholder id**라 별개 — 함께 묶을지 판단하고, 묶는다면 `inlinePlaceholderId(refId)`를 따로 둔다.
 - **검증**:
-  - [ ] `grep -rn 'inline-\${' src/` 결과가 헬퍼 정의 + placeholder 경로만 남는다
-  - [ ] 생성 측(업로드 filename)과 조회 측(`hrefMap.get`)이 **같은 함수**를 부르는지 파일별 확인
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] `grep -rn 'inline-\${' src/` 결과가 헬퍼 정의 1곳만 남는다(placeholder도 `inlinePlaceholderId`로 묶었다 — 두 축이 접두사를 공유해 한쪽만 바꾸면 조용히 갈린다)
+  - [x] 생성 측(업로드 filename)과 조회 측(`hrefMap`·`urlMap`·`uploadMap.get`)이 **같은 함수**를 부르는지 파일별 확인 — 8경로 전수. linear·slack은 이름 조회 자체가 없어(반환 URL 직결) 갈릴 표면이 없다
+  - [x] `pnpm typecheck` + `pnpm test` green
 
 #### Task 1-3: `toUploadEntry` 로컬 재정의 제거 (🟡49)
 - **변경 대상**: `src/sidepanel/lib/submitToClickup.ts:33` · `submitToAsana.ts:63` · `submitToSlack.ts:32`
-- **작업 내용**: `prepareUpload.ts:52`의 export판을 import한다. 로컬판은 입력 타입만 좁혔을 뿐 본문이 동일 — 필요하면 `UploadFileInput`을 구조적으로 만족하는지 확인 후 제네릭 완화. `inlineFiles` 매핑 3중 복제도 `toInlineUploadFiles(inlineImages)` 하나로.
+- **작업 내용**: `prepareUpload.ts:52`의 export판을 import한다. ~~로컬판은 입력 타입만 좁혔을 뿐 본문이 동일~~ **2026-08-14 정정 — Slack은 본문이 다르다.** clickup·asana 2벌은 3필드 동일이라 통합했지만, `submitToSlack.ts`의 로컬판은 `contentType`이 **없다**: `slack.uploadFiles` 페이로드 타입(`types/messages.ts`)이 `Array<{filename, dataUrl}>`뿐이라 공용판을 쓰면 미사용 필드가 메시지 경계를 넘고, `.map()` 결과라 excess property check도 그걸 안 잡는다. **대상은 clickup·asana 2벌이고 slack은 예외로 남긴다**(파일에 사유 주석). `inlineFiles` 매핑 3중 복제는 `toInlineUploadFiles(inlineImages)` 하나로 — 반환에 `refId`를 실어 호출부가 파일명을 두 번째로 조립하지 않게 한다.
 - **검증**:
-  - [ ] `grep -c "function toUploadEntry" src/` = 1
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] `grep -c "function toUploadEntry" src/` = **2** (prepareUpload 공용판 + slack 예외 1). ~~= 1~~은 위 거짓 전제에서 나온 수치라 정정한다 — 미충족이 아니라 목표치가 틀렸다
+  - [x] `pnpm typecheck` + `pnpm test` green
 
 #### Task 1-4: `imageExtFromDataUrl` 통합 (🟡48) — **조건부**
 - **변경 대상**: `src/sidepanel/lib/submitToAsana.ts:39` 삭제 → `src/sidepanel/lib/downloadCapture.ts:6` export판 import
 - **작업 내용**: **먼저 R6 확인**. Asana 경로의 `img.dataUrl`이 항상 `data:image/*`인지 역추적한다(인라인 이미지 출처: 에디터 캡처 blob / 붙여넣기 이미지). 증명되면 폴백 차이(`png` vs `webp`)는 도달 불가이므로 통합한다. **증명 안 되면 이 태스크만 스킵하고 사유를 커밋 메시지에 남긴다.**
   - 감사 리포트의 경로 `src/lib/downloadCapture.ts`는 오류 — 실제는 `src/sidepanel/lib/downloadCapture.ts`.
 - **검증**:
-  - [ ] 도달 불가 증명 또는 스킵 사유가 기록됨
-  - [ ] `grep -c "function imageExtFromDataUrl" src/` = 1 (통합 시)
-  - [ ] `submitToAsana` 테스트에 인라인 확장자 케이스 1건 추가
-  - [ ] `pnpm test` green
+  - [x] 도달 불가 증명 기록됨 — `saveInlineImage` 호출처 4곳이 전부 `data:image/*`를 만든다: `compactImage.ts:shouldCompact`가 `image/webp`·`image/jpeg`(폭 상한 이하)에만 false를 주고 나머지는 `convertToBlob({type:"image/webp"})`로 재인코딩, 인라인 캡처·어노테이션은 canvas 산출물. 더해 `dataUrlToBlob`이 `;base64,` 없는 URL에 throw해 파싱 불가 dataUrl은 저장에 도달조차 못 한다. **폴백값이 `webpToJpeg`의 `/\.webp$/i` 게이트와 연동된다는 사실은 호출부 주석에 남겼다**(도달하면 확장자뿐 아니라 변환 여부까지 갈린다)
+  - [x] `grep -c "function imageExtFromDataUrl" src/` = 1
+  - [x] `submitToAsana` 테스트에 인라인 확장자 케이스 1건 — 기존 `submitToAsana.test.ts`가 이미 `inline-REF1.png`를 단언해 동적 확장자 축을 덮는다(신규 추가 불요)
+  - [x] `pnpm test` green
 
 ---
 
