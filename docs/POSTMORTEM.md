@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-08-14 — 부수효과 실행을 boolean 식으로 접자 문법이 강제하던 순서가 단축 평가에 걸렸고, 조합이 없어 스위트는 전부 green이었다
+
+- **영역**: `store`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: `confirmDraft`의 영속 꼬리(모드별 blob 저장 → 로그 3종 저장 → 실패 보고 1회)를 3분기 공통 헬퍼로 뽑자, **blob 저장이 이미 실패한 세션에서 로그 저장과 pending 로그 정리가 통째로 건너뛰어질 수 있는 형태**가 됐다. 사용자에겐 같은 에러 토스트가 뜨므로 구분되지 않는다. `pnpm typecheck`·전체 스위트 5,645건이 전부 green이라 출하 전 자체 검증에서만 드러났다.
+- **근본 원인**: 원래 코드는 `if (await persistAttachedLogs(...)) failed = true;` 라는 **독립 문**이었다 — 로그 저장이 먼저 실행되는 것이 문법으로 강제된다. 헬퍼가 "로그를 저장했나"와 "blob이 실패했나" 두 사실을 한 boolean 식(`(await persistAttachedLogs(...)) || blobFailed`)으로 합치면서, **피연산자 순서가 유일한 안전장치**가 됐다. 다음 사람이 가독성을 이유로 `blobFailed || await persistAttachedLogs(...)`로 뒤집으면 단축 평가가 부수효과째로 건너뛴다. 그물이 없던 이유는 따로다 — 테스트의 blob mock이 전부 `true`를 resolve해 **`blobFailed=true` × `logsAttach=true` 조합이 스위트에 0건**이었고 `onBlobSaveFailed.fire`를 단언하는 테스트도 0건이었다. 같은 리팩터를 덮으려고 먼저 박아둔 골든 스냅샷 8건은 관측면이 **`saveDraft` 인자**라 async 꼬리를 원리적으로 못 본다 — "스냅샷이 있으니 덮였다"가 이번의 미검증 전제였다.
+- **재발 방지**: (1) **`await`를 논리 연산자의 피연산자로 옮기는 리팩터는 순서가 곧 동작이다** — 전수: `grep -rn "await [^;]*||\|||[^|;]*await\|await [^;]*&&\|&&[^&;]*await" src/`로 뽑고, 각각 "좌항이 조건과 무관하게 반드시 실행돼야 하나"를 답한다. 반드시면 식으로 합치지 말고 **문으로 남긴다**(문법이 지켜주는 걸 주석으로 대체하지 않는다). (2) **부수효과 실행을 boolean으로 접기 전에 "실패 플래그 × 부수효과" 조합이 테스트에 있는지 먼저 센다** — `src/store/blob-db.ts`의 저장 함수는 throw가 아니라 **falsy를 resolve**하므로 `mockRejectedValue`가 아니라 `mockResolvedValueOnce(false)`로 걸어야 그 조합이 생긴다(그래서 "에러 케이스는 있겠지"가 빗나간다). (3) **골든 스냅샷을 안전망으로 삼기 전에 그 관측면을 한 줄로 적어라** — 여기선 "`saveDraft`에 넘어간 인자"였고, 리팩터가 건드린 코드(async IIFE)는 그 면 밖이었다. 면 밖이면 스냅샷 개수와 무관하게 별도 그물이 필요하다.
+- **관련**: `src/store/editor-store.ts:confirmDraft`(영속 꼬리 3분기 — freeform·video·screenshot. element는 로그를 안 붙여 이 꼬리가 없다)·`persistAttachedLogs`, 그물 `src/store/__tests__/editor-store.test.ts`("이미지 저장 실패 + logsAttach → 로그는 저장되고 실패 보고는 1회" — 뒤집기를 주입해 red 확인), 관측면이 좁았던 골든 `src/store/__tests__/__snapshots__/editor-store.test.ts.snap`(G0-4 8건), 계획 `docs/features/audit-refactor-6/tasks.md`(G7). 계열 선행: **2026-07-31**("다단 게이트의 안 생긴다 테스트" — 같은 *조합이 없어 green* 축의 e2e 판).
+
+---
+
 ## 2026-08-14 — "생성 직후 적용"이라는 지시를 그대로 따랐더니 재사용 경로가 통째로 빠졌다
 
 - **영역**: `content`
