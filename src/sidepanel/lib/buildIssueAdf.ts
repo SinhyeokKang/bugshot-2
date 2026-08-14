@@ -1,5 +1,4 @@
 import { t, withLocale } from "@/i18n";
-import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
 import { bodyBlocks } from "./bodyBlocks";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
 import { LOGS_LINK_LABEL } from "@/background/lib/adf-logs-link";
@@ -14,6 +13,7 @@ import { networkErrorCount } from "./buildLogSummary";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
+import { listItems, sectionLabel } from "./issueBodyShared";
 import { markdownToAdf } from "./markdownToAdf";
 import { extractInlineRefs, stripInlineImageRefs } from "./resolveInlineImages";
 
@@ -29,17 +29,6 @@ export interface AdfDoc {
   version: 1;
   type: "doc";
   content: AdfNode[];
-}
-
-function sectionLabel(section: IssueSection): string {
-  return section.labelOverride?.trim() || t(sectionMdLabelKey(section.id));
-}
-
-function listItems(content: string): string[] {
-  return content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
 }
 
 export function buildIssueAdf(

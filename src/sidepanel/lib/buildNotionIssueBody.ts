@@ -1,5 +1,4 @@
 import { t, withLocale } from "@/i18n";
-import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
 import { networkErrorCount } from "./buildLogSummary";
 import { bodyBlocks } from "./bodyBlocks";
 import type {
@@ -22,6 +21,7 @@ import {
 } from "./resolveInlineImages";
 import type { StyleDiffSegment } from "./classDiff";
 import { inlinePlaceholderId } from "@/lib/inline-ref";
+import { listItems, sectionLabel } from "./issueBodyShared";
 
 export interface NotionMediaInput {
   filename: string;
@@ -43,17 +43,6 @@ export interface NotionBuildInput {
 export interface NotionBuildResult {
   blocks: NotionBlock[];
   attachments: NotionAttachmentInput[];
-}
-
-function sectionLabel(section: IssueSection): string {
-  return section.labelOverride?.trim() || t(sectionMdLabelKey(section.id));
-}
-
-function listItems(content: string): string[] {
-  return content
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
 }
 
 // class 줄: "prop: " 뒤에 토큰을 잇되 changed 토큰만 bold annotation.
