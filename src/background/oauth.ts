@@ -22,10 +22,17 @@ export {
 const AUTHORIZE_URL = "https://auth.atlassian.com/authorize";
 const RESOURCES_URL =
   "https://api.atlassian.com/oauth/token/accessible-resources";
+// classic 3종만으로는 agile API(board·sprint)가 401 `scope does not match`를 준다.
+// granular 3종을 함께 요청한다 — `read:project:jira`가 빠지면 GET /board가 나머지 둘을 갖고도
+// 같은 401로 떨어져 "scope를 추가했는데도 안 된다"로 보인다. 기존 토큰은 동의 시점 scope에
+// 고정돼 있어 재연동 전까지 스프린트 목록이 빈 채로 남는다(강제 재동의는 하지 않는다).
 const SCOPES = [
   "read:jira-user",
   "read:jira-work",
   "write:jira-work",
+  "read:board-scope:jira-software",
+  "read:project:jira",
+  "read:sprint:jira-software",
   "offline_access",
 ];
 

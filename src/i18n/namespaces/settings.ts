@@ -67,6 +67,10 @@ const ko = {
   "field.epic.search": "이슈 검색...",
   "field.epic.empty": "일치하는 이슈가 없습니다.",
   "field.epic.label": "이슈 목록",
+  "field.sprint.select": "스프린트 선택 (선택사항)",
+  "field.sprint.search": "스프린트 검색...",
+  "field.sprint.empty": "일치하는 스프린트가 없습니다.",
+  "field.sprint.label": "스프린트",
 
   "llm.onboarding.title": "AI 모델을 연결하세요",
   "llm.onboarding.body": "내 AI 모델을 연결해 활용할 수 있습니다",
@@ -177,6 +181,10 @@ const en = {
   "field.epic.search": "Search issues...",
   "field.epic.empty": "No matching issues.",
   "field.epic.label": "Issues",
+  "field.sprint.select": "Select sprint (optional)",
+  "field.sprint.search": "Search sprints...",
+  "field.sprint.empty": "No matching sprints.",
+  "field.sprint.label": "Sprints",
 
   "llm.onboarding.title": "Connect an AI model",
   "llm.onboarding.body": "Connect your own AI model to use with Bugshot",

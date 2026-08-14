@@ -1,31 +1,31 @@
 {
-  "generatedAt": "2026-08-13T05:25:18.644Z",
+  "generatedAt": "2026-08-14T01:40:47.406Z",
   "logic": {
-    "covered": 19754,
-    "total": 24063,
-    "pct": 82.09283962930641
+    "covered": 19981,
+    "total": 24266,
+    "pct": 82.341547844721
   },
   "global": {
     "lines": {
-      "covered": 26029,
-      "total": 54324,
-      "pct": 47.91
+      "covered": 26436,
+      "total": 54706,
+      "pct": 48.32
     },
     "branches": {
-      "covered": 7819,
-      "total": 8957,
-      "pct": 87.29
+      "covered": 7968,
+      "total": 9113,
+      "pct": 87.43
     },
     "functions": {
-      "covered": 1486,
-      "total": 2236,
-      "pct": 66.45
+      "covered": 1502,
+      "total": 2263,
+      "pct": 66.37
     }
   },
   "files": {
     "src/background/analytics.ts": {
-      "covered": 75,
-      "total": 111
+      "covered": 77,
+      "total": 113
     },
     "src/background/asana-api.ts": {
       "covered": 110,
@@ -37,7 +37,7 @@
     },
     "src/background/bgRequestTypes.ts": {
       "covered": 0,
-      "total": 110
+      "total": 113
     },
     "src/background/capture-throttle.ts": {
       "covered": 50,
@@ -84,8 +84,8 @@
       "total": 30
     },
     "src/background/jira-api.ts": {
-      "covered": 192,
-      "total": 414
+      "covered": 324,
+      "total": 522
     },
     "src/background/linear-api.ts": {
       "covered": 106,
@@ -97,7 +97,7 @@
     },
     "src/background/messages.ts": {
       "covered": 90,
-      "total": 684
+      "total": 694
     },
     "src/background/notion-api.ts": {
       "covered": 248,
@@ -108,8 +108,8 @@
       "total": 94
     },
     "src/background/oauth.ts": {
-      "covered": 148,
-      "total": 193
+      "covered": 156,
+      "total": 196
     },
     "src/background/platformErrors.ts": {
       "covered": 20,
@@ -416,8 +416,8 @@
       "total": 63
     },
     "src/i18n/namespaces/editor.ts": {
-      "covered": 307,
-      "total": 307
+      "covered": 309,
+      "total": 309
     },
     "src/i18n/namespaces/integrations.ts": {
       "covered": 559,
@@ -432,8 +432,8 @@
       "total": 255
     },
     "src/i18n/namespaces/settings.ts": {
-      "covered": 211,
-      "total": 211
+      "covered": 219,
+      "total": 219
     },
     "src/lib/adf-sentinels.ts": {
       "covered": 10,
@@ -482,6 +482,10 @@
     "src/lib/inline-ref.ts": {
       "covered": 1,
       "total": 1
+    },
+    "src/lib/jira-sprint.ts": {
+      "covered": 3,
+      "total": 3
     },
     "src/lib/key-obfuscation.ts": {
       "covered": 28,
@@ -804,7 +808,7 @@
       "total": 33
     },
     "src/sidepanel/components/TiptapEditor.tsx": {
-      "covered": 39,
+      "covered": 70,
       "total": 647
     },
     "src/sidepanel/components/TooltipIconButton.tsx": {
@@ -1328,8 +1332,8 @@
       "total": 63
     },
     "src/sidepanel/lib/submitToJira.ts": {
-      "covered": 32,
-      "total": 32
+      "covered": 33,
+      "total": 33
     },
     "src/sidepanel/lib/submitToLinear.ts": {
       "covered": 105,
@@ -1348,8 +1352,8 @@
       "total": 7
     },
     "src/sidepanel/lib/track-submit.ts": {
-      "covered": 46,
-      "total": 46
+      "covered": 54,
+      "total": 54
     },
     "src/sidepanel/lib/trackViewport.ts": {
       "covered": 9,
@@ -1445,7 +1449,7 @@
     },
     "src/sidepanel/tabs/DraftDetailDialog.tsx": {
       "covered": 0,
-      "total": 1049
+      "total": 1053
     },
     "src/sidepanel/tabs/DraftEditDialog.tsx": {
       "covered": 0,
@@ -1461,7 +1465,7 @@
     },
     "src/sidepanel/tabs/IssueCreateModal.tsx": {
       "covered": 2,
-      "total": 532
+      "total": 535
     },
     "src/sidepanel/tabs/IssueListTab.tsx": {
       "covered": 0,
@@ -1505,7 +1509,7 @@
     },
     "src/sidepanel/tabs/SubmitFieldsDialog.tsx": {
       "covered": 22,
-      "total": 248
+      "total": 261
     },
     "src/sidepanel/tabs/TrimTimeline.tsx": {
       "covered": 0,
@@ -1660,7 +1664,7 @@
       "total": 72
     },
     "src/sidepanel/tabs/jiraFields/FieldCombobox.tsx": {
-      "covered": 80,
+      "covered": 83,
       "total": 83
     },
     "src/sidepanel/tabs/jiraFields/IssueTypeField.tsx": {
@@ -1668,8 +1672,8 @@
       "total": 84
     },
     "src/sidepanel/tabs/jiraFields/JiraIssueFields.tsx": {
-      "covered": 108,
-      "total": 108
+      "covered": 162,
+      "total": 164
     },
     "src/sidepanel/tabs/jiraFields/PriorityField.tsx": {
       "covered": 35,
@@ -1683,13 +1687,21 @@
       "covered": 39,
       "total": 55
     },
+    "src/sidepanel/tabs/jiraFields/SprintField.tsx": {
+      "covered": 84,
+      "total": 87
+    },
     "src/sidepanel/tabs/jiraFields/project-change.ts": {
-      "covered": 15,
-      "total": 15
+      "covered": 17,
+      "total": 17
     },
     "src/sidepanel/tabs/jiraFields/resolve-epic-parent.ts": {
       "covered": 19,
       "total": 19
+    },
+    "src/sidepanel/tabs/jiraFields/sprint-sticky.ts": {
+      "covered": 12,
+      "total": 12
     },
     "src/sidepanel/tabs/jiraFields/useDebouncedSearch.ts": {
       "covered": 33,
@@ -1698,6 +1710,10 @@
     "src/sidepanel/tabs/jiraFields/useJiraConfig.ts": {
       "covered": 8,
       "total": 8
+    },
+    "src/sidepanel/tabs/jiraFields/useSprintFieldMeta.ts": {
+      "covered": 57,
+      "total": 57
     },
     "src/sidepanel/tabs/linearFields/AssigneeCombobox.tsx": {
       "covered": 2,

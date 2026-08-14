@@ -7,6 +7,7 @@ import { resolveProjectChange } from "../project-change";
 // 담당자는 검색 API가 site-wide지만 배정 가능 여부가 프로젝트 권한에 묶여 비우는 쪽이다
 // (JiraConnectForm.tsx:53-54 주석과 같은 근거).
 
+// 스프린트는 보드에, 보드는 프로젝트에 묶이므로 프로젝트 스코프다.
 const CLEARED = [
   "issueTypeId",
   "assigneeId",
@@ -14,10 +15,12 @@ const CLEARED = [
   "parentKey",
   "parentLabel",
   "relates",
+  "sprintId",
+  "sprintName",
 ] as const;
 
 describe("resolveProjectChange", () => {
-  it("다른 프로젝트로 바꾸면 프로젝트 스코프 6개를 undefined로 비운다", () => {
+  it("다른 프로젝트로 바꾸면 프로젝트 스코프 8개를 undefined로 비운다", () => {
     const patch = resolveProjectChange({ projectKey: "WEB" }, "API");
 
     expect(patch.projectKey).toBe("API");

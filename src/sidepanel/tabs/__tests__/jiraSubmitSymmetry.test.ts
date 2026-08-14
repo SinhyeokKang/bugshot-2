@@ -14,17 +14,24 @@ const ENTRY_POINTS = [
 ] as const;
 
 // 유효 프로젝트는 이번 제출의 필드값이고 계정 설정은 fallback일 뿐이다 — 이 3개가 빠지면
-// sticky(프로젝트·이슈타입)와 사이트 판별자가 죽는다.
-const REQUIRED_KEYS = ["projectKey", "issueTypeId", "siteId"] as const;
+// sticky(프로젝트·이슈타입)와 사이트 판별자가 죽는다. 스프린트도 같은 sticky 계열이라
+// 한쪽만 기록하면 재제출 경로에서 조용히 값을 잃는다.
+const REQUIRED_KEYS = [
+  "projectKey",
+  "issueTypeId",
+  "siteId",
+  "sprintId",
+  "sprintName",
+] as const;
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), "utf8");
 }
 
-// `setLastSubmitFields("jira", { … })`의 객체 리터럴 본문만 잘라낸다.
-function lastSubmitPayload(src: string): string {
-  const start = src.indexOf('setLastSubmitFields("jira", {');
-  expect(start, "setLastSubmitFields(\"jira\", …) 호출을 못 찾았다").toBeGreaterThan(-1);
+// 지목한 호출에 딸린 객체 리터럴 본문만 잘라낸다.
+function objectLiteralAfter(src: string, marker: string): string {
+  const start = src.indexOf(marker);
+  expect(start, `${marker} 호출을 못 찾았다`).toBeGreaterThan(-1);
   const open = src.indexOf("{", start);
   let depth = 0;
   for (let i = open; i < src.length; i++) {
@@ -32,6 +39,10 @@ function lastSubmitPayload(src: string): string {
     else if (src[i] === "}" && --depth === 0) return src.slice(open + 1, i);
   }
   throw new Error("payload 리터럴이 닫히지 않았다");
+}
+
+function lastSubmitPayload(src: string): string {
+  return objectLiteralAfter(src, 'setLastSubmitFields("jira", {');
 }
 
 describe("Jira 제출 진입점 대칭", () => {
@@ -49,9 +60,50 @@ describe("Jira 제출 진입점 대칭", () => {
     expect(a).toEqual(b);
   });
 
+  // 기록만 하고 제출에 안 실으면 다음 다이얼로그엔 남는데 이번 이슈엔 안 붙는다.
+  it.each(ENTRY_POINTS)("%s의 submitToJira 호출이 sprintId를 싣는다", (path) => {
+    expect(objectLiteralAfter(source(path), "submitToJira({")).toMatch(
+      /\bsprintId\b/,
+    );
+  });
+
   // 제출 payload와 lastSubmitFields 둘 다 계정 설정이 아니라 유효 프로젝트를 써야 한다.
   it.each(ENTRY_POINTS)("%s가 계정 기본 프로젝트를 제출에 직접 쓰지 않는다", (path) => {
     expect(source(path)).not.toMatch(/projectKey:\s*jiraAccount[?.]*\.projectKey/);
+  });
+});
+
+// 제출 분석은 성공·실패 두 지점에서 같은 함수를 부른다. 인자가 전부 boolean|null 위치
+// 인자라 한쪽만 빠뜨리거나 순서가 어긋나도 타입이 못 잡고, Jira 축 3개는 목록 조회 실패를
+// 삼키는 설계의 유일한 사후 관측 수단이라 뒤집혀도 알 방법이 없다.
+describe("제출 분석 축 대칭", () => {
+  const DIALOG = "src/sidepanel/tabs/SubmitFieldsDialog.tsx";
+
+  function trackSubmitArgs(src: string): string[][] {
+    return [...src.matchAll(/trackSubmit\(([\s\S]*?)\);/g)].map((m) =>
+      m[1]
+        .split(",")
+        .map((a) => a.trim())
+        .filter(Boolean),
+    );
+  }
+
+  // 앞 5개는 두 호출이 원래 다르다(result 문자열, 그리고 편집기 상태를 읽는 변수명이 갈린다).
+  // 뒤쪽 Jira 축 3개만 대조하고, 순서 자체는 track-submit.test.ts가 시그니처→property 매핑으로
+  // 고정한다 — 두 그물의 조합이라야 뒤바뀐 인자가 red가 된다.
+  it("성공·실패 두 호출이 같은 개수의 인자를 넘기고 뒤쪽 Jira 축이 일치한다", () => {
+    const calls = trackSubmitArgs(source(DIALOG));
+
+    expect(calls).toHaveLength(2);
+    const [fail, ok] = calls;
+    expect(fail).toHaveLength(ok.length);
+    expect(fail.slice(5)).toEqual(ok.slice(5));
+  });
+
+  it("두 호출 모두 sprint 축 2개를 마지막에 싣는다", () => {
+    for (const call of trackSubmitArgs(source(DIALOG))) {
+      expect(call.slice(-2)).toEqual(["sprintFieldShown", "sprintSelected"]);
+    }
   });
 });
 

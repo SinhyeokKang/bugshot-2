@@ -14,6 +14,10 @@ export function submitEventProperties(
   trimSource: TrimSourceKind | null = null,
   // Jira 한정 — 이번 제출의 프로젝트가 계정 기본값과 달랐나. 다른 플랫폼은 축이 없어 안 싣는다.
   projectOverridden: boolean | null = null,
+  // Jira 한정 — 스프린트 행이 떴나 / 실제로 골랐나. 목록 조회 실패를 전부 삼키므로(design R6)
+  // 이 두 축이 유일한 사후 관측 수단이고, 둘은 독립이어야 "떴는데 안 골랐다"가 표현된다.
+  sprintFieldShown: boolean | null = null,
+  sprintSelected: boolean | null = null,
 ): Record<string, string> {
   return {
     platform,
@@ -22,6 +26,8 @@ export function submitEventProperties(
     replay_trimmed: String(replayTrimmed),
     trim_source: trimSource ?? "none",
     ...(projectOverridden === null ? {} : { project_overridden: String(projectOverridden) }),
+    ...(sprintFieldShown === null ? {} : { sprint_field_shown: String(sprintFieldShown) }),
+    ...(sprintSelected === null ? {} : { sprint_selected: String(sprintSelected) }),
   };
 }
 
@@ -32,6 +38,8 @@ export function trackSubmit(
   replayTrimmed = false,
   trimSource: TrimSourceKind | null = null,
   projectOverridden: boolean | null = null,
+  sprintFieldShown: boolean | null = null,
+  sprintSelected: boolean | null = null,
 ): void {
   sendBg({
     type: "analytics.capture",
@@ -43,6 +51,8 @@ export function trackSubmit(
       replayTrimmed,
       trimSource,
       projectOverridden,
+      sprintFieldShown,
+      sprintSelected,
     ),
   }).catch(() => {});
 }

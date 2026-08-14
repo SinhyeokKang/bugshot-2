@@ -175,7 +175,7 @@ case stays one click.
 
 | Platform | Auth | Highlights |
 |---|---|---|
-| **Jira** | OAuth 3LO / API Token | project metadata, auto-upload attachments |
+| **Jira** | OAuth 3LO / API Token | project metadata, sprint picker, auto-upload attachments |
 | **GitHub** | OAuth / PAT | repo, labels, assignees, file upload |
 | **Linear** | OAuth PKCE / API Key | team, project, labels, priority |
 | **Notion** | OAuth / Internal Token | database picker, status & select properties |

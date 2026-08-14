@@ -363,16 +363,18 @@ pre-arm 게이트 플래그 `__bugshot_recorder_active__`=`"1"`을 **방문 페�
 
 ### 플랫폼별 OAuth 흐름
 
-| 플랫폼 | 인증 URL | 토큰 교환 | PKCE | Proxy 필요 | Refresh |
-|---|---|---|---|---|---|
-| Jira | `auth.atlassian.com/authorize` | `${PROXY}/token` | X | O | `${PROXY}/token` (refresh_token) |
-| GitHub | `github.com/login/oauth/authorize` | `${PROXY}/github/token` | X | O | `${PROXY}/github/refresh` |
-| Linear | `linear.app/oauth/authorize` | `api.linear.app/oauth/token` | O (S256) | X | `api.linear.app/oauth/token` |
-| Notion | `api.notion.com/v1/oauth/authorize` | `${PROXY}/notion/token` | X | O | 없음 (토큰 무기한) |
-| GitLab | `gitlab.com/oauth/authorize` | `gitlab.com/oauth/token` | O (S256) | X | `gitlab.com/oauth/token` |
-| Asana | `app.asana.com/-/oauth_authorize` | `${PROXY}/asana/token` | X | O | `${PROXY}/asana/refresh` (refresh_token 비회전) |
-| ClickUp | `app.clickup.com/api` | `${PROXY}/clickup/token` | X | O | 없음 (토큰 만료 없음) |
-| Slack | `slack.com/oauth/v2/authorize` | `${PROXY}/slack/token` (oauth.v2.access) | X | O | 없음 (user token 만료 없음) |
+| 플랫폼 | 인증 URL | 토큰 교환 | PKCE | Proxy 필요 | Refresh | 요청 scope |
+|---|---|---|---|---|---|---|
+| Jira | `auth.atlassian.com/authorize` | `${PROXY}/token` | X | O | `${PROXY}/token` (refresh_token) | `read:jira-user` `read:jira-work` `write:jira-work` + granular 3종 `read:board-scope:jira-software` `read:project:jira` `read:sprint:jira-software` + `offline_access` (`oauth.ts:29`) |
+| GitHub | `github.com/login/oauth/authorize` | `${PROXY}/github/token` | X | O | `${PROXY}/github/refresh` | `repo` `user:email` (`github-oauth.ts:14`) |
+| Linear | `linear.app/oauth/authorize` | `api.linear.app/oauth/token` | O (S256) | X | `api.linear.app/oauth/token` | `read` `write` `issues:create` (쉼표 구분 — `linear-oauth.ts:15`) |
+| Notion | `api.notion.com/v1/oauth/authorize` | `${PROXY}/notion/token` | X | O | 없음 (토큰 무기한) | — (scope 파라미터 없음. `owner=user`만 보내고 권한은 integration 설정이 정한다) |
+| GitLab | `gitlab.com/oauth/authorize` | `gitlab.com/oauth/token` | O (S256) | X | `gitlab.com/oauth/token` | `api` (`gitlab-oauth.ts:16`) |
+| Asana | `app.asana.com/-/oauth_authorize` | `${PROXY}/asana/token` | X | O | `${PROXY}/asana/refresh` (refresh_token 비회전) | `default` (`asana-oauth.ts:13`) |
+| ClickUp | `app.clickup.com/api` | `${PROXY}/clickup/token` | X | O | 없음 (토큰 만료 없음) | — (scope 파라미터 없음. 앱 설정이 정한다) |
+| Slack | `slack.com/oauth/v2/authorize` | `${PROXY}/slack/token` (oauth.v2.access) | X | O | 없음 (user token 만료 없음) | **user_scope** `chat:write` `channels:read` `groups:read` `im:read` `mpim:read` `files:write` `users:read` (`slack-oauth.ts:12` — bot token이 아니라 user token이라 `user_scope` 파라미터) |
+
+**scope 확대는 기존 토큰에 소급되지 않는다.** access token의 scope는 동의 시점에 고정되고 refresh 요청은 `scope`를 싣지 않으므로(`refreshOAuthToken`), scope를 늘려도 **이미 연결한 사용자는 재연동 전까지 새 권한을 못 받는다**. 그 사용자에겐 새 기능이 빈 결과로 degrade되고(Jira 스프린트 목록이 그 사례) 강제 재동의는 하지 않는다. 반대로 필요한 scope 하나가 빠지면 관련 호출이 전부 같은 401 `scope does not match`로 떨어져 "추가했는데도 안 된다"로 보인다 — Jira agile은 `read:board-scope:jira-software`만으로는 부족하고 `read:project:jira`까지 있어야 `GET /board`가 200을 준다.
 
 ### 토큰 저장
 
@@ -385,7 +387,7 @@ bg service worker에서 직접 읽기/쓰기:
 
 | 플랫폼 | Pre-refresh 임계값 | 401 재시도 | 갱신 중복 방지 |
 |---|---|---|---|
-| Jira | 60초 (`jira-api.ts:73`) | O (`authedFetch`) | `refreshInFlight` Promise 중복 제거 |
+| Jira | 60초 (`jira-api.ts:82`) | O (`authedFetch`) — **단 agile 3경로는 제외**(`jiraFetch(…, retryOn401=false)`: board 목록·보드별 sprint·sprint 단건. scope 미비 401은 refresh로 안 풀리는 영구 조건이라 재시도가 회전형 refresh token만 소모하고 전역 재인증 안내를 오발화한다) | `refreshInFlight` Promise 중복 제거 |
 | GitHub | 60초 (`github-api.ts:97` → `background/lib/createRefreshRunner.ts`) | O (`authedFetch`) | `refreshOnceWithLock` 훅 주입 |
 | Linear | 60초 (`linear-api.ts:52`) | O (`authedGraphQL`) | `refreshOnceWithLock` 훅 주입 |
 | Notion | — | 401 시 `OAuthError` throw → 재인증 안내 | — |
@@ -521,8 +523,8 @@ background/index.ts:136 — webNavigation.onCommitted
 | 호스트 (트래픽 대상) | 사용 기능 | API 호출 위치 |
 |---|---|---|
 | 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM 동봉 프리셋 8종(OpenAI·Anthropic·Gemini·Mistral·Groq·Together·OpenRouter·Ollama(localhost))·사용자 임의 baseUrl·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강) | `picker.ts`, `recorder-bridge.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab·fetchCssSheets), `ai-provider.ts` |
-| `*.atlassian.net` | Jira REST API (API Key 모드) | `jira-api.ts` — `${baseUrl}/rest/api/3/*` |
-| `api.atlassian.com` | Jira OAuth API + accessible-resources | `jira-api.ts`, `oauth.ts` |
+| `*.atlassian.net` | Jira REST API (API Key 모드) | `jira-api.ts` — `${baseUrl}/rest/api/3/*` + `${baseUrl}/rest/agile/1.0/*`(board·sprint 조회) |
+| `api.atlassian.com` | Jira OAuth API + accessible-resources | `jira-api.ts` — `/ex/jira/{cloudId}/rest/{api/3,agile/1.0}/*`, `oauth.ts` — `/oauth/token/accessible-resources` |
 | Jira 발급 media/CDN URL | 첨부 업로드 후 redirect를 따라 byte-range GET/HEAD로 media ID 판별(고정 host 아님) | `jira-api.ts` — `getMediaFileId` |
 | `auth.atlassian.com` | Jira OAuth authorize (launchWebAuthFlow — host_permission 불요) | `oauth.ts` — `launchWebAuthFlow` URL |
 | `api.github.com` | GitHub REST API | `github-api.ts` — repos, issues, users |
@@ -669,7 +671,9 @@ required 권한이라 설치 시 "모든 사이트의 데이터 읽기/변경"�
   ├─ 만료 60초 전 → pre-refresh (자동)
   ├─ 401 응답 → refresh 재시도 (자동)
   ├─ refresh 실패 → onOAuthExpired → 재인증 안내
-  └─ Notion: refresh 없음, 401 시 재인증 안내
+  ├─ Notion: refresh 없음, 401 시 재인증 안내
+  └─ Jira agile(board/sprint): 401 재시도 안 함 — scope 미비는 영구 조건이라
+     재시도가 refresh token만 태우고 위 재인증 안내를 오발화한다
   │
   │ 연결 해제 버튼
   ▼

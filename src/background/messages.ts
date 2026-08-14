@@ -19,8 +19,11 @@ import {
   getIssueTypes,
   getMyself,
   getPriorities,
+  getSprint,
+  getSprintFieldMeta,
   getTransitions as getJiraTransitions,
   getUsersByAccountIds,
+  listSprints,
   searchEpics,
   searchProjects,
   searchUsers,
@@ -266,6 +269,19 @@ export async function handleMessage(
       await jiraTransitionIssue(auth, message.issueKey, message.transitionId);
       return getIssueStatus(auth, message.issueKey);
     }
+
+    case "jira.sprintFieldMeta":
+      return getSprintFieldMeta(
+        await loadAuth(),
+        message.projectKey,
+        message.issueTypeId,
+      );
+
+    case "jira.listSprints":
+      return listSprints(await loadAuth(), message.projectKey);
+
+    case "jira.getSprint":
+      return getSprint(await loadAuth(), message.sprintId);
 
     case "jira.searchEpics":
       return searchEpics(

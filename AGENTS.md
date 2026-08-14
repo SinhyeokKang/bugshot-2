@@ -187,6 +187,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - `BUGSHOT_STORE_BUILD=1`: 스토어 업로드용 빌드 (manifest `key` 제거)
 - `BUGSHOT_E2E_BUILD=1`: e2e 전용 빌드 — `dist-e2e/` 분리 산출. dev `key` 유지. (`<all_urls>`는 이제 prod·e2e 공통 required라 e2e 빌드가 권한을 별도 추가하지 않음 — 분리 이유는 outDir 격리뿐.) **dist-e2e는 테스트 전용 — Chrome 수동 로드·스토어 업로드 금지.** 배포 산출물(dist)은 무오염(분리 outDir)
 - **store는 `sidepanel/tabs`를 import하지 않는다** — store가 컴포넌트 그래프를 끌어들이면 순환·번들 오염이 생긴다. store가 필요로 하는 순수 로직은 `sidepanel/lib/`으로 승격한다. 사례: `initialJiraFields`(Jira 필드 prefill 단일 출처 — `editor-store.confirmDraft`가 쓰므로 `tabs/jiraFields/`가 아니라 `lib/`에 둔다. 다른 플랫폼의 `initial*Fields`는 store가 안 써서 각 `*IssueFields.tsx`에 콜로케이션).
+- **역방향도 같다 — 사이드패널·store는 `@/background/*`를 value import하지 않는다.** 끌면 OAuth 런처·설정 저장소가 패널 번들 그래프에 딸려온다. 양쪽이 함께 쓰는 순수 술어는 `src/lib/` leaf로 승격한다(`lib/jira-sprint.ts:isActiveSprint` — 사이드패널 sticky 검증과 background가 같은 화이트리스트를 써야 해서 뗐다). 예외는 상수만 든 leaf(`buildIssueAdf.ts → @/background/lib/adf-logs-link`). **typecheck도 테스트도 안 잡는 경계라** 어기면 번들만 조용히 커진다.
 - `chrome.scripting.executeScript({..., func})`: 직렬화·재평가라 **클로저가 안 살아남는다**(world와 무관 — `files:` 형태 주입은 규칙 무관). 주입 함수는 self-contained, 헬퍼는 nested로 inline. `func` 형태 사용처는 `github-upload.ts:pageBatchUploadFn`·`picker-control.ts:getTopViewport` 둘뿐이고 **리팩터 시 실제 탭 회귀 필수**. 상세: [ARCHITECTURE.md](./docs/ARCHITECTURE.md) 동명 섹션
 
 ## 메모리 & 참고 문서

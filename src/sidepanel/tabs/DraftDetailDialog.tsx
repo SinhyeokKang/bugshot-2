@@ -110,6 +110,8 @@ type SubmitFields = {
   priorityName?: string;
   parentKey?: string;
   parentLabel?: string;
+  sprintId?: number;
+  sprintName?: string;
   relates?: { key: string; label: string }[];
   cc?: { accountId: string; displayName: string }[];
 };
@@ -438,6 +440,7 @@ export function DraftDetailDialog({
       assigneeAccountId: fields.assigneeId,
       priorityId: fields.priorityId,
       parentKey: fields.parentKey,
+      sprintId: fields.sprintId,
       relates: fields.relates,
       cc: fields.cc,
     });
@@ -467,6 +470,8 @@ export function DraftDetailDialog({
       priorityName: fields.priorityName,
       parentKey: fields.parentKey,
       parentLabel: fields.parentLabel,
+      sprintId: fields.sprintId,
+      sprintName: fields.sprintName,
       relates: fields.relates,
       cc: fields.cc,
     });
@@ -996,6 +1001,7 @@ export function DraftDetailDialog({
                   </Button>
                   <Button
                     disabled={available.length === 0}
+                    data-testid="detail-submit-open"
                     onClick={() => setSubmitOpen(true)}
                   >
                     {t("issue.submit")}

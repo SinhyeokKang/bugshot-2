@@ -101,6 +101,19 @@ describe("trackSubmit", () => {
     sendBg.mockReset();
   });
 
+  // boolean|null 위치 인자가 3연속이라 순서가 어긋나도 타입이 못 잡는다. 중계 구간에
+  // 그물이 없으면 관측치가 통째로 뒤집혀도 전 스위트가 green이다.
+  it("Jira 전용 boolean 축 3개를 순서 그대로 중계한다", () => {
+    sendBg.mockResolvedValue({ ok: true });
+    trackSubmit("jira", "screenshot", "success", false, null, true, false, true);
+
+    const props = (sendBg.mock.calls[0][0] as { properties: Record<string, string> })
+      .properties;
+    expect(props.project_overridden).toBe("true");
+    expect(props.sprint_field_shown).toBe("false");
+    expect(props.sprint_selected).toBe("true");
+  });
+
   it("analytics.capture 메시지를 issue_submitted 이벤트로 전송", () => {
     sendBg.mockResolvedValue({ ok: true });
     trackSubmit("github", "element", "success");

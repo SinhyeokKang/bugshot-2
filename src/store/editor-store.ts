@@ -133,6 +133,8 @@ export interface EditorIssueFields {
   priorityName?: string;
   parentKey?: string;
   parentLabel?: string;
+  sprintId?: number;
+  sprintName?: string;
   relates?: { key: string; label: string }[];
   cc?: { accountId: string; displayName: string }[];
 }
