@@ -402,7 +402,7 @@ bg service worker에서 직접 읽기/쓰기:
 - `OAuthError` (`oauth/errors.ts` — `oauth.ts`가 re-export): `cancelled`, `platform`, `notConfigured` 필드 포함
 - bg에서 시리얼라이즈: `body.oauthCancelled` 또는 `body.oauthRefreshFailed` 플래그 (`background/oauth.ts:43` `serializeOAuthError` — `background/index.ts`에서 호출)
 - `notConfigured`(env 미설정)는 401이 아니라 **400 + `oauthNotConfigured`**로 직렬화한다 — 401로 내면 연동한 적도 없는 사용자에게 재로그인 프롬프트가 뜬다
-- `onOAuthExpired` 이벤트 (`types/messages.ts`): refresh 실패 시 발화 → 재인증 UI 표시
+- `onOAuthExpired` 이벤트 (`lib/app-events.ts`): refresh 실패 시 `lib/bg-client.ts`의 `sendBg`가 reject **이전에** 발화 → 재인증 UI 표시
 - 사용자 취소 코드: `access_denied` (전 플랫폼), `user_cancelled_login`/`user_cancelled_authorize` (Jira), `user_denied` (Notion)
 
 ### Env 가드

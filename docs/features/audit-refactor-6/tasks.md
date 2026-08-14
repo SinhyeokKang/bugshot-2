@@ -234,22 +234,28 @@
 </details>
 
 #### Task 6-2: `bg-client.ts` 분리 (🟡57)
-- **변경 대상**: **신규** `src/lib/bg-client.ts` + `__tests__/bg-client.test.ts`, `src/types/messages.ts`(:255-326), `"@/types/messages"` import 파일들 — **반경은 104개가 아니라 90개**(테스트 제외 87). `src/content/`에서 값 import는 **`css-source-cache.ts:15`(`sendBg`) 하나뿐**이고 변경 대상에 명시한다
-- **작업 내용**: `BgError`·`sendBg`·`isOAuthRefreshFailed`·`isOAuthCancelled`·`isOAuthNotConfigured`·`getOAuthErrorPlatform`을 옮긴다. import 반경이 크면 **중간 커밋에서 `export * from "@/lib/bg-client"` 재export를 두었다가 마지막 커밋에서 제거**한다(대안 C).
+- **변경 대상**: **신규** `src/lib/bg-client.ts` + `__tests__/bg-client.test.ts`, `src/types/messages.ts`(:255-326), `"@/types/messages"` import 파일들
+- **⚠ 반경 실측 (2026-08-15) — 90/87도 틀렸다. 실제는 79(테스트 제외 77)이고, 문서에 아예 없던 축이 하나 더 있다.**
+  - 6개 심볼을 **import하는** 파일 **79개**(테스트 2). 90은 `"@/types/messages"`를 import하는 전체 파일 수에 가깝고(115), 6심볼 사용 여부로 거른 수가 아니다.
+  - **`vi.mock("@/types/messages")`로 `sendBg`를 스텁하는 테스트 22개** — import가 아니라 모듈 문자열이라 어떤 import grep에도 안 걸린다. 심볼이 옮겨가면 이 mock들은 무효가 되고 실제 `chrome.runtime`을 때린다. **실측: 21파일 119케이스가 red**가 됐다(무음이 아닌 게 다행인 실패 모드). 총 접촉 파일 ≈ 101.
+  - **`src/types/__tests__/messages.test.ts`는 상대경로(`"../messages"`)로 import해 alias 기반 실측에도 안 잡혔다.** "이름이 아니라 본문으로 세라"의 경로 판본 — 모듈을 옮길 땐 alias·상대경로·`vi.mock` 문자열 **세 축**을 따로 센다.
+  - `src/content/`에서 값 import가 `css-source-cache.ts:15`(`sendBg`) 하나뿐이라는 것만 맞았다.
+- **작업 내용**: `BgError`·`sendBg`·`isOAuthRefreshFailed`·`isOAuthCancelled`·`isOAuthNotConfigured`·`getOAuthErrorPlatform`을 옮긴다. ~~import 반경이 크면 **중간 커밋에서 `export * from "@/lib/bg-client"` 재export**를 둔다(대안 C)~~ **재export 없이 한 커밋에 전량 치환했다** — 79건이 기계적이라 중간 상태를 둘 이득이 없고, 재export를 두면 `bg-client → types/messages → bg-client` 순환이 생긴다(`sendBg`가 `onOAuthExpired`를 발화한다).
 - **검증**:
-  - [ ] `sendBg` 테스트 추가(`chrome.runtime.sendMessage` 목킹 — `lastError` / `ok:false` / 성공 3케이스)
-  - [ ] 에러 판독 4개 테스트 추가
-  - [ ] `src/types/messages.ts`에 재export가 남아 있지 않다
-  - [ ] `pnpm typecheck` + `pnpm test` green
-  - [ ] `pnpm build:log-viewer` 통과
+  - [x] `sendBg` 테스트 추가(`chrome.runtime.sendMessage` 목킹 — `lastError` / `ok:false` / 성공 3케이스)
+  - [x] 에러 판독 4개 테스트 추가
+  - [x] `src/types/messages.ts`에 재export가 남아 있지 않다 (애초에 두지 않았다)
+  - [x] `pnpm typecheck` + `pnpm test` green (335 files / 5722 tests)
+  - [x] `pnpm build:log-viewer` 통과
 
 #### Task 6-3: `app-events.ts` + `createEmitter` (🟡57 + ⚪112)
 - **변경 대상**: **신규** `src/lib/app-events.ts` + `__tests__/app-events.test.ts`, `src/types/messages.ts`(:328-375)
 - **작업 내용**: `createEmitter<A>()` 팩토리 + emitter 7종. 각 emitter 위의 설명 주석(`onStateSaveFailed` 등)은 **그대로 옮긴다**(WHY 주석이라 삭제 대상 아님).
+- **⚠ 순서를 6-2 앞으로 당겼고, 결국 6-2와 한 커밋이 됐다 (2026-08-15).** `sendBg`가 `onOAuthExpired.fire()`를 부르므로 6-2를 먼저 하면 순환이 생긴다. 그리고 `usePickerMessages.ts:6`이 `sendBg`와 emitter 2개를 **한 import 줄**에 담고 있어, 두 커밋으로 가르면 중간 커밋이 깨진다. 문서의 "커밋 5개"는 이 결합 때문에 4개가 된다.
 - **검증**:
-  - [ ] `createEmitter` 테스트(subscribe/fire/unsubscribe/다중 리스너)
-  - [ ] emitter 7개 전부 이동, `src/types/messages.ts`에 `export const` 0건
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] `createEmitter` 테스트(subscribe/fire/unsubscribe/다중 리스너 + **팩토리 인스턴스 간 리스너 집합 비공유** — 모듈 스코프 `Set`으로 잘못 짜면 7종이 한 통이 되는데 이 케이스만 잡는다)
+  - [x] emitter 7개 전부 이동, `src/types/messages.ts`에 `export const` 0건
+  - [x] `pnpm typecheck` + `pnpm test` green
 
 #### Task 6-4: `PickerMessage` 분리 (🟡59 + ⚪111)
 - **변경 대상**: `src/types/picker.ts`(:139-159) + 사용처
@@ -257,18 +263,18 @@
   - **왜 쪼개지 않나**: 원안은 "`ContentMessage` 합집합을 유지해 기존 사용처를 안 건드린다"고 했는데 **`ContentMessage`는 코드에 존재하지 않는다**(grep 0건). 지금은 `PickerMessage`가 곧 전체 합집합이라, 그걸 `picker.*`로 좁히는 순간 `recorder-bridge.ts:152`·`recorder-control.ts:5`·`annotation-control.ts:8`·`usePickerMessages.ts:297·321·344` 등 recorder·annotation 수신부가 전부 깨진다. typecheck가 잡아주긴 하나 기계적 치환 ~40곳이 붙고, 항목 59의 실이득이 그 diff를 정당화하지 못한다.
   - 정직하게 하려면 "`ContentMessage`를 **신설**하고 사용처 ~40곳을 치환한다"로 써야 한다. 그건 별건으로 미룬다.
 - **검증**:
-  - [ ] 기존 `PickerMessage` 사용처가 **전부 무변경**(쪼개지 않았으므로 diff 0이어야 한다)
-  - [ ] `pnpm typecheck` green
-  - [ ] `pnpm build` 후 `pnpm check:prearm` 통과 (**content script가 새 import를 타지 않는지** — 이 태스크의 최대 위험)
+  - [x] 기존 `PickerMessage` 사용처가 **전부 무변경** (커밋 diff가 `src/types/picker.ts` 단일 파일)
+  - [x] `pnpm typecheck` green
+  - [x] `pnpm build` 후 `pnpm check:prearm` 통과 — `recorders-entry.ts-CH4VCjlo.js` 동기 IIFE·world=MAIN·document_start 유지
 
 #### Task 6-5: `extractPath` 제거 + coverage 근거 갱신 (🟡55·58)
 - **변경 대상**: `src/sidepanel/lib/buildLogSummary.ts:122` · `scripts/coverage-report.mjs:66`
 - **작업 내용**: `extractPath`(`buildLogSummary.ts:132`) 삭제, 호출처를 `@/lib/network-log-path`의 `networkLogPath`로. **⚠ 외부 호출처가 하나 더 있다(2026-08-14): `src/sidepanel/lib/prompts/logCandidates.ts:5,151`.** 변경 대상에 없어서 그대로 두면 아래 `grep 0건` 검증을 못 넘는다. 테스트는 `logCandidates.test.ts:179`. `networkLogPath`에만 있는 `if (!url) return url` 가드는 **유지**(둘 다 `""`를 반환하므로 실동작 동일). `isBrowserBound()`의 `src/types/` 제외 근거 주석(`coverage-report.mjs` **`:72`** — `:66` 아님)을 사실에 맞게 갱신하고, `src/types/platform.ts`의 런타임 상수 3개(`PLATFORM_TAB_KEYS`·`CC_PREFIX`·`CC_SEPARATOR`)를 **의도적 예외로 명시**한다.
 - **검증**:
-  - [ ] `grep -rn "extractPath" src/` 0건
-  - [ ] `grep -n "^export \(class\|function\|const\)" src/types/*.ts` 결과가 `platform.ts`의 상수 3개뿐
-  - [ ] `pnpm test` green
-  - [ ] `pnpm coverage:report` — 로직 스코프 라인 % **하락 없음**(R11)
+  - [x] `grep -rn "extractPath" src/` 0건
+  - [x] `grep -n "^export \(class\|function\|const\)" src/types/*.ts` 결과가 `platform.ts`의 상수 3개뿐
+  - [x] `pnpm test` green
+  - [x] `pnpm coverage:report` — 로직 스코프 라인 82.3% → **82.6%**(+0.3pp). 같은 리포트의 래칫 경고 6건(`submitToAsana`·`buildClickupIssueBody`·`settings-store` 등)은 **G6 diff가 만든 게 아니다** — 해당 파일들의 라인 수가 그대로이고 `settings-store.ts`는 이 그룹에서 한 줄도 안 바뀌었다. 앞선 그룹 이후 베이스라인 미래칫으로 누적된 드리프트라 여기서 손대지 않는다
 
 ---
 
