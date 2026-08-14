@@ -1,3 +1,7 @@
+import type { NetworkLog, NetworkRequest } from "@/types/network";
+import type { ConsoleEntry } from "@/types/console";
+import type { ActionEntry } from "@/types/action";
+
 export interface PickerSelectionUpdatePayload {
   selector: string;
   specifiedStyles: Record<string, string>;
@@ -143,18 +147,18 @@ export type PickerMessage =
   | { type: "networkRecorder.stop" }
   | { type: "networkRecorder.sync" }
   | { type: "networkRecorder.clear" }
-  | { type: "networkRecorder.data"; payload: { requests: import("@/types/network").NetworkRequest[]; totalSeen: number; warnings: import("@/types/network").NetworkLog["warnings"] } }
+  | { type: "networkRecorder.data"; payload: { requests: NetworkRequest[]; totalSeen: number; warnings: NetworkLog["warnings"] } }
   | { type: "consoleRecorder.setSentinel"; sentinel: string }
   | { type: "consoleRecorder.stop" }
   | { type: "consoleRecorder.sync" }
   | { type: "consoleRecorder.clear" }
-  | { type: "consoleRecorder.data"; payload: { entries: import("@/types/console").ConsoleEntry[]; totalSeen: number } }
+  | { type: "consoleRecorder.data"; payload: { entries: ConsoleEntry[]; totalSeen: number } }
   | { type: "actionRecorder.setSentinel"; sentinel: string }
   | { type: "actionRecorder.stop" }
   | { type: "actionRecorder.sync" }
   // resupplyEntryNav 부재 = 진입 항목 보충 안 함(fail-safe 방향). 발신자별 의미는 recorder-control.ts.
   | { type: "actionRecorder.clear"; resupplyEntryNav?: boolean }
-  | { type: "actionRecorder.data"; payload: { entries: import("@/types/action").ActionEntry[]; totalSeen: number } }
+  | { type: "actionRecorder.data"; payload: { entries: ActionEntry[]; totalSeen: number } }
   | { type: "annotation.show" }
   | { type: "annotation.hide" }
   // pen/highlight면 color/strokeWidth/opacity(sidepanel 계산)를 싣고, off는 tool:null만 보낸다.
