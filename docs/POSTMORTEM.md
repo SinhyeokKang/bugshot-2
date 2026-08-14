@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-08-14 — 중복을 헬퍼로 모으면 그 자리에서 타입 게이트가 사라진다 — excess property check는 객체 리터럴에만 걸린다
+
+- **영역**: `store`, `어댑터`
+- **계열**: `라이브러리전제`
+- **그물**: `unit`
+- **증상**: 같은 배치의 **독립된 두 리팩터가 같은 구멍을 만들었다.** ① `confirmDraft`의 공통 필드를 `baseDraftRecord()`로 뽑아 `saveDraft({...baseDraftRecord(), …})`로 넘기자, 헬퍼 안에서 `pageTitle`을 `pageTitl`로 오타내도 `pnpm typecheck`가 통과하고 필드만 조용히 빠졌다(리터럴이던 직전까지는 TS2561로 잡히던 자리다). ② `submitToSlack`의 로컬 `toUploadEntry`를 공용판으로 통합하려 했는데, `slack.uploadFiles`의 페이로드 타입은 `{filename, dataUrl}`뿐이라 공용판이 얹는 `contentType`이 **타입 검사 없이** 메시지 경계를 넘어간다. 둘 다 커밋 전 리뷰에서 잡혔고 출시되지 않았다.
+- **근본 원인**: TypeScript의 excess property check는 **객체 리터럴을 직접 할당·전달할 때만** 돈다. 스프레드 소스(`...helper()`)나 `.map(fn)` 결과처럼 **한 단계를 거친 값**에는 안 걸린다. 필수 필드 누락은 여전히 잡히므로, 구멍은 정확히 **optional 필드**에서 열린다 — ①의 `pageTitle`·`apiHostsDerived`는 `IssueRecord`에서 optional이고, ②의 `contentType`은 좁은 쪽 타입에 아예 없다. 이 배치의 주제가 "복제된 조립을 한 곳으로 모으기"라 **모든 태스크가 리터럴을 함수 뒤로 옮기는 형태**였고, 그때마다 같은 게이트가 조용히 내려간다. 중복 제거의 대가로 타입 안전을 내주는데 그 거래가 diff에 안 보인다.
+- **재발 방지**: (1) **리터럴을 헬퍼 뒤로 옮기면 반환 타입을 명시한다** — `function base(): Pick<Target, "a"|"b"> => ({…})`. 그래야 오타가 헬퍼 안에서 TS2561로 잡힌다. 전수: `grep -rn '\.\.\.[a-zA-Z_]*(' src/ --include=*.ts --include=*.tsx`로 스프레드 호출을 뽑아 **반환 타입이 명시됐는지**만 본다(추론에 맡긴 것이 위험군). (2) **좁은 메시지 페이로드에 넓은 객체를 넣지 않는다** — `sendBg({… files: xs.map(toEntry)})` 형태는 `BgRequest` union이 좁아도 통과한다. 전수: `grep -rn '\.map(to[A-Z]' src/sidepanel`로 뽑고, 각 페이로드 타입(`src/types/messages.ts`)과 매퍼 반환 필드를 대조한다. (3) **타입이 못 지키는 걸 알았으면 그 자리에 테스트를 둔다** — ①은 `Object.keys(record)` 키 존재 단언, ②는 `expect(upload.files).toEqual([...])`(부분 일치가 아니라 **정확 일치**)가 각각 유일한 그물이다. `toMatchObject`·`objectContaining`은 넓어진 객체를 통과시키므로 이 축에선 쓰지 않는다. (4) **판정 기준은 "필드가 optional인가"** — 필수 필드는 컴파일러가 계속 지켜주므로 헬퍼로 옮겨도 안전하다. optional만 세면 된다.
+- **관련**: `src/store/editor-store.ts:baseDraftRecord`(반환 타입 `Pick<IssueRecord, …>` 명시 — 오타 주입으로 전후 실측), `src/sidepanel/lib/prepareUpload.ts:toUploadEntry`↔`src/sidepanel/lib/submitToSlack.ts:toUploadEntry`(통합하지 않고 남긴 예외 + 사유 주석), 계약 `src/types/messages.ts`(`slack.uploadFiles` 페이로드), 그물 `src/store/__tests__/editor-store.test.ts`(공통 필드 키 존재)·`src/sidepanel/lib/__tests__/submitToSlack.test.ts`(`toEqual` 정확 일치), 계획 `docs/features/audit-refactor-6/tasks.md`(G7·G1 — 이 배치의 남은 그룹 G2~G8도 전부 같은 형태라 착수 시 이 항목을 먼저 읽는다).
+
+---
+
 ## 2026-08-14 — 부수효과 실행을 boolean 식으로 접자 문법이 강제하던 순서가 단축 평가에 걸렸고, 조합이 없어 스위트는 전부 green이었다
 
 - **영역**: `store`
