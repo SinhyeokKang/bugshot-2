@@ -5,6 +5,7 @@
 - **이 배치는 "한 번에 다 한다"가 목표가 아니다.** 아래 그룹 하나가 **독립 PR 하나**에 대응한다. 그룹 간 파일 충돌이 없도록 묶었으므로 순서를 바꿔도 되고, P0만 하고 멈춰도 유효하다. 세션 한도로 중단되면 **그룹 경계에서 끊는다**(그룹 중간에서 끊지 않는다).
 - **CLAUDE.md "기존 dead code는 언급만 하고 삭제하지 않는다"의 명시적 예외 배치다.** 이 배치는 감사가 연번으로 지목한 데드 코드 정리가 목적이다. 단 **감사 연번이 붙은 것만** 대상이고, 삭제 전 grep 재확인이 모든 삭제 태스크의 검증 항목이다. 이 문단을 읽고 시작한다 — 원칙 위반이 아니다.
 - **⚪ 항목(68·93~114)은 감사 리포트 기재이고 개별 검증을 생략했다. 착수 시 해당 파일·라인을 재확인**하고, 리포트와 다르면 그 항목을 스킵하고 사유를 남긴다.
+- **감사가 적은 *개수*는 전부 재실측 대상이다 (2026-08-14 — 이 배치에서만 세 번 틀렸다).** Task 1-2 9→**11**곳 · Task 1-3 `toUploadEntry` 1→**2**벌 · Task 2-3 4→**5**벌. 세 번 다 원인이 같다 — 감사가 **이름으로 열거**해서, 이름이 다르거나(`emitLogSummaryMd`) 본문이 미묘하게 다른(slack `toUploadEntry`) 것을 놓쳤다. **이름이 아니라 본문으로 센다.** 그리고 검증 항목은 "치환한 개수"가 아니라 **"남아야 할 것의 화이트리스트"**로 쓴다 — 개수는 다음 사본이 생겨도 green이지만 화이트리스트는 red가 된다(CLAUDE.md가 캐스케이드 판정에 박아둔 "열거가 아니라 화이트리스트"와 같은 형태).
 - 새 의존성·권한·env 없음. shadcn 컴포넌트 추가 없음.
 - 다른 audit-refactor 배치(특히 5)가 진행 중이면 **G4·G5를 뒤로 미룬다**(connect 폼·배지 파일 충돌).
 - **`docs/features/french-locale/`와 G6는 같은 `src/i18n/index.ts`를 만진다 — 동시 진행 금지.** fr Task 4(`LOCALES`·`locales.fr` 등록)는 쪼갤 수 없는 원자 커밋이고 그 브랜치는 long-lived다. **fr Task 4가 dev에 들어온 뒤 G6를 착수하거나(권장), G6를 먼저 끝내고 fr 브랜치가 rebase로 흡수한다.** ⚪102의 `issueListUtils.ts`도 fr Task 7이 그 테스트를 `LOCALES` 순회로 바꾸므로 같은 규칙을 따른다. 배치 4는 무관하다(만지는 i18n 파일이 `bg-init.ts`뿐).
@@ -126,32 +127,37 @@
   - **`submitAdapters.ts`(G3)는 `t`를 직접 import하지 않도록 설계 제약으로 못박는다** — 가드 메시지는 호출처에 남긴다. import하게 되면 같은 처리가 필요하다.
 - **작업 내용**: `sectionLabel`·`listItems`·`emitMarkdownLogSummary` 3개. `emitMarkdownLogSummary`는 `logsHref?` optional을 **반드시 유지**(없으면 평문 `logs.html`, 있으면 `[logs.html](href)` — R2).
 - **검증**:
-  - [ ] 3함수 단위 테스트(`labelOverride` 우선 / 빈 문자열 trim / `logsHref` 유무 2케이스 / 로그 3종 조합)
-  - [ ] `pnpm test` green
+  - [x] 3함수 단위 테스트(`labelOverride` 우선 / 빈 문자열 trim / `logsHref` 유무 2케이스 / 로그 3종 조합)
+  - [x] `pnpm test` green
+  - [x] **`builderLocaleWrap.test.ts` EXEMPT 등록** — 문서 예고대로 등록 전 확정 red였고(`expected ['issueBodyShared.ts'] to deeply equal []`), 등록 후 green
 
 #### Task 2-2: `sectionLabel`·`listItems` 8곳 치환
 - **변경 대상**: `buildIssueMarkdown.ts`(:222·:226) · `buildMarkdownIssueBody.ts`(:46·:50) · `buildNotionIssueBody.ts`(:47·:51) · `buildLinearIssueBody.ts`(:33·:37) · `buildSlackBody.ts`(:26·:30) · `buildAsanaIssueBody.ts`(:33·:37) · `buildIssueAdf.ts`(:34·:38) · `buildClickupIssueBody.ts`(:36·:40)
 - **작업 내용**: 로컬 정의 삭제 후 import. 인자명 차이(`l` vs `line`)는 본문 동일이라 무관.
 - **검증**:
-  - [ ] `grep -c "function sectionLabel" src/sidepanel/lib/` = 1, `listItems`도 1
-  - [ ] G0-2 골든 스냅샷 8건 **무변경**
-  - [ ] `pnpm test` green
+  - [x] `grep -c "function sectionLabel" src/sidepanel/lib/` = 1, `listItems`도 1
+  - [x] G0-2 골든 스냅샷 8건 **무변경**(`git diff -- '**/__snapshots__/*'`가 0줄. 착수 전 이 골든이 이 축의 진짜 그물인지 먼저 셌다 — `md.section` 306회·`^- ` 359회·`logs.html` 링크형 25/평문 45. G1의 `inline:` 0회 건과 달리 실재한다)
+  - [x] `pnpm test` green
 
-#### Task 2-3: `emitLogSummary` 4곳만 치환 (🟡46)
-- **변경 대상**: `buildMarkdownIssueBody.ts:233` · `buildClickupIssueBody.ts:172` · `buildLinearIssueBody.ts:164` · `buildAsanaIssueBody.ts:146`
-- **작업 내용**: 4개 로컬 정의 삭제 후 `emitMarkdownLogSummary` import. **`buildSlackBody.ts:113`(mrkdwn 마크업)·`buildNotionIssueBody.ts:284`(NotionBlock[])·`buildIssueAdf.ts:262`(`emitLogSummaryAdf`)는 건드리지 않는다** — 감사가 말한 "8개 빌더"는 통합 대상이 아니다.
+#### Task 2-3: `emitLogSummary` ~~4곳~~ **5곳** 치환 (🟡46)
+- **변경 대상**: `buildMarkdownIssueBody` · `buildClickupIssueBody` · `buildLinearIssueBody` · `buildAsanaIssueBody` + **`buildIssueMarkdown.ts:emitLogSummaryMd`(2026-08-14 추가)**
+- **작업 내용**: 로컬 정의 삭제 후 `emitMarkdownLogSummary` import. **`buildSlackBody`(mrkdwn 마크업)·`buildNotionIssueBody`(NotionBlock[])·`buildIssueAdf`(`emitLogSummaryAdf`)·`buildIssueMarkdown:emitLogSummaryHtml`(HTML)은 건드리지 않는다** — 출력 매체가 다르다.
+  - **2026-08-14 정정 — 4벌이 아니라 5벌이었다.** 감사가 plain `emitLogSummary`라는 **이름으로** 열거해 접미사가 붙은 둘(`emitLogSummaryMd`·`emitLogSummaryHtml`)을 안 열어봤다. `Md`판은 `lines.push(a); lines.push("")` vs `lines.push(a, "")` 차이뿐 **출력이 바이트 동일**이라 통합 대상이었고, `Html`판은 진짜로 다르다. 이름이 아니라 본문으로 세라(선행 조건 참조).
 - **검증**:
-  - [ ] slack·notion·adf 파일에 `emitLogSummary` 로컬 정의가 그대로 남아 있다
-  - [ ] G0-2 골든 스냅샷 8건 무변경(특히 slack의 `•`·`*` 마크업)
-  - [ ] `markdown-logs-link.test.ts` green
-  - [ ] `pnpm test` green
+  - [x] **잔여 화이트리스트**: `grep -rn "function emitLogSummary" src/sidepanel/lib/` 결과가 정확히 **{slack, notion, adf, html} 4개** — 개수 대신 집합으로 단언한다(개수만 세면 새 사본이 어떤 이름으로 생겨도 green이다)
+  - [x] G0-2 골든 스냅샷 8건 무변경(특히 slack의 `•`·`*` 마크업 — 골든에 slack형 푸터 5회가 실재)
+  - [x] `markdown-logs-link.test.ts` green
+  - [x] `pnpm test` green
 
 #### Task 2-4: ⚪99·103 정리
 - **변경 대상**: `buildClickupIssueBody.ts`(:52 `footerMarkdown`·:47 `imageCell`) · `buildNotionIssueBody.ts:119` · `submitToNotion.ts:43,134` · `buildEditorCapture.ts:110`
 - **작업 내용**: 미세 복제 통합 + 재진술 주석 삭제. **감사 리포트 기재 — 착수 시 해당 라인 재확인.**
-- **검증**:
-  - [ ] 각 라인이 리포트 기술과 일치(불일치 시 스킵 + 사유)
-  - [ ] `pnpm test` green
+- **검증 (2026-08-14 — 부분 완료)**:
+  - [x] 각 라인이 리포트 기술과 일치(불일치 시 스킵 + 사유) — **인용 라인이 전부 어긋나 내용으로 재확인했다.**
+    - **`footerMarkdown` — 통합함.** 마크다운형 **5곳**(함수 4 + asana의 인라인 리터럴 1)이 바이트 동일이라 모았다. slack은 mrkdwn 링크 문법(`<url|text>`), adf는 노드, buildIssueMarkdown의 HTML판은 `<a href>`라 각자 유지. **처음엔 `function footerMarkdown`을 이름으로 세서 asana를 놓쳤다** — 위 선행 조건의 규칙을 그 규칙을 쓴 배치가 곧바로 어긴 형태다(`grep -n "Reported via"`로 본문을 세면 6곳이 나오고 그중 매체가 같은 게 5곳이다).
+    - **`imageCell` — 스킵.** linear가 `media.assetUrl`, clickup·markdown이 `media.url`로 **필드명이 다르다.** 통합하려면 접근자를 주입해야 하는데 그건 요청하지 않은 추상화다(clickup·markdown 2벌만 동일 — 남은 복제는 그 한 쌍).
+    - **`buildNotionIssueBody`·`submitToNotion`·`buildEditorCapture`의 "재진술 주석" — 스킵.** 그 자리에 리포트가 기술한 주석이 없다(현재 각각 `// 환경 섹션`·없음·`// element`로, 전부 정상적인 구획 주석이다).
+  - [x] `pnpm test` green
 
 ---
 
