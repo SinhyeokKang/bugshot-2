@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-08-16 — fixture가 호출부의 *값*만 흉내내고 *모양*은 안 흉내내자, 셸이 새로 연 구멍 두 개가 나란히 안 잡혔다
+
+- **영역**: `컴포넌트`, `어댑터`
+- **계열**: `미검증단언`, `라이브러리전제`
+- **그물**: `jsdom`
+- **증상**: 6개 커넥트 폼의 공통 셸(`PlatformConnectFlow`)을 뽑으면서 구멍 두 개를 만들었고, **둘 다 내가 그 자리에 깐 그물이 통과시켰다.** ① OAuth 요청 prop을 `BgRequest`로만 타이핑해 `platform="github"` + `startOAuthRequest={{type:"notion.startOAuth"}}`가 컴파일을 통과했다 — 남의 플랫폼 토큰이 이 계정 슬롯에 저장되는 경로다. ② `availableRequest`를 `useEffect` 의존성에 둬서, 호출부 6곳이 전부 인라인 리터럴이라 조상이 리렌더할 때마다 `oauth.available`을 다시 조회했다(`IntegrationsTab`은 CSS `hidden`으로만 감춰져 **언마운트되지 않는다** — 리뷰어 실측으로 트림 인코딩 진행률 틱 한 번에 수백 회 왕복이 날 경로였다). ②의 회귀 테스트를 쓴 **직후에도** 의존성을 되돌리는 뮤테이션이 11/11 green이었다.
+- **근본 원인**: fixture가 호출부의 **값**은 같게 주면서 **모양**을 다르게 줬고, 두 구멍이 정확히 그 모양 축에 살았다. ①의 렌더 테스트는 요청 3개를 `as never`로 넘긴다 — 편의를 위한 캐스트인데 그게 *컴파일 시점 계약*을 통째로 우회하므로, 타입 게이트가 있든 없든 테스트는 같은 결과를 낸다. ②의 fixture는 요청 객체를 **모듈 상수**로 넘긴다 — 값은 같지만 참조가 고정되고, 재현하려던 버그가 바로 *참조가 매번 새로 생긴다*는 것이라 실패 모드가 애초에 재현되지 않는다. 한 겹 더 있다: ①을 고치려고 `Extract<BgRequest, {type: \`${P}.startOAuth\`}>`를 넣었는데 **아무것도 안 잡았고**, 교차 타입으로 바꿔도 마찬가지였다 — `P`가 그 자리에서도 추론 후보를 얻어 넓어지기 때문이고, 조건부 타입은 미해결 상태에서 할당 검사가 관대하기까지 하다. 즉 **타입을 조였다고 믿은 두 번의 시도가 연속으로 무음**이었고, 최소 재현으로 명시 인스턴스화와 비교해보고서야 `NoInfer<P>`가 필요하다는 게 드러났다.
+- **재발 방지**: (1) **공용 셸을 뽑을 땐 "호출부가 이 prop을 어떤 *모양*으로 넘기는가"를 fixture에 그대로 옮긴다** — 인라인 리터럴이면 인라인 리터럴로(부모 컴포넌트를 하나 두고 `rerender`), 캐스트 없이. `as never`·`as any`가 fixture에 있으면 **그 prop의 타입 계약은 이 테스트의 사정거리 밖**임을 주석으로 남기고 별도 그물을 판다. 전수: `grep -rn "as never\|as any" src/**/__tests__/*.tsx`. (2) **참조 동일성이 계약인 값(effect 의존성·memo 키·`useCallback` 인자)은 fixture를 모듈 상수로 두면 항등식이 된다** — 렌더마다 새 객체가 오는 상황을 만들어야 잰다. 판정법: 그 값을 상수로 바꿨을 때 테스트가 여전히 통과하면 그 축은 안 재고 있다. (3) **제네릭으로 두 prop을 상관시킬 땐 추론원을 한쪽으로 못 박는다** — `NoInfer<P>`. `Extract<…>`·교차 타입은 추론 후보를 막지 못해 무력하다(둘 다 실측). 조인 뒤엔 **반드시 어긋난 조합을 주입해 `error TS`를 눈으로 본다** — 타입은 테스트가 못 도는 레인이라 "썼으니 된다"가 유일한 검증이 되기 쉽다. (4) **컴파일 시점 계약엔 소스 스캔 그물을 같이 둔다** — 누가 `NoInfer`를 군더더기로 빼도 `pnpm test`는 green이다. 이 저장소는 `ts-expect-error` 선례가 0건이므로(`styles/__tests__/tokens.test.ts:47`) 억제 주석 대신 스캔 + 자기검증 앵커를 쓴다(`locale-registry.test.ts` 형태).
+- **관련**: `src/sidepanel/tabs/connect/PlatformConnectFlow.tsx`(요청 2개 `BgRequest & { type: \`${NoInfer<P>}.…\` }` · `availableRef` + `[platform]` 의존 · 계정 리터럴은 `buildAccount` prop으로 호출부 잔류), 그물 `src/sidepanel/tabs/connect/__tests__/PlatformConnectFlow.test.tsx`(`InlinePropParent` 부모 리렌더 케이스 + "요청 prop의 platform 결속" 소스 스캔 describe + 앵커), 계획 `docs/features/audit-refactor-6/tasks.md`(Task 4-1 — 세 함정을 본문에 편입). 계열 선행: **2026-08-15**(`toEqual`이 배제하는 입력을 안 물었다 — fixture 키 집합이 출력과 같으면 항등식이라는 *값* 축) · **2026-08-14**(excess property check는 객체 리터럴에만 걸린다 — 같은 셸 추출이 타입 게이트를 내리는 형태) · **2026-08-12**(그물 세 겹이 전부 "있기만 하면 통과").
+
+---
+
 ## 2026-08-15 — 모듈을 옮기며 반경을 import로만 셌더니, `vi.mock` 문자열과 상대경로 import가 통째로 빠졌다
 
 - **영역**: `툴체인`, `lib`
