@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
@@ -50,18 +50,19 @@ export function PlatformConnectFlow<P extends PlatformId, A>({
   const [methodOpen, setMethodOpen] = useState(false);
   const [tokenOpen, setTokenOpen] = useState(false);
 
-  // availableRequest는 호출부의 인라인 리터럴이라 렌더마다 새 참조다 — 의존성에 두면
-  // 상태가 하나 바뀔 때마다 oauth.available을 다시 조회한다. 요청의 실제 정체는 platform이다.
-  const availableRef = useRef(availableRequest);
-  availableRef.current = availableRequest;
+  // 의존성은 platform이지 availableRequest가 아니다 — 후자는 호출부의 인라인 리터럴이라
+  // 렌더마다 새 참조이고, 의존성에 두면 조상이 리렌더할 때마다 oauth.available을 다시
+  // 조회한다(IntegrationsTab은 CSS hidden으로만 감춰져 언마운트되지 않는다). 요청은
+  // platform의 순수 함수이고 그건 위 prop 타입이 강제한다.
   useEffect(() => {
     let cancelled = false;
-    sendBg<{ available: boolean }>(availableRef.current)
+    sendBg<{ available: boolean }>(availableRequest)
       .then((res) => !cancelled && setOauthAvailable(res.available))
       .catch(() => !cancelled && setOauthAvailable(false));
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platform]);
 
   async function startOAuth() {
