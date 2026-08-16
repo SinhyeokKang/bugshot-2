@@ -335,18 +335,22 @@
 #### Task 8a-1: read 8종 테이블화
 - **변경 대상**: `src/lib/settings-storage.ts`(:43·:50·:83·:102·:107·:126·:144·:149)
 - **작업 내용**: `AuthReadSpec` 테이블 8행 + 제네릭 read 1개. **jira의 legacy 폴백(`envelope?.state?.jiraConfig?.auth`)을 테이블의 `legacy` 필드로 보전한다.** 기존 export 이름 8개는 **그대로 유지**(호출처 무변경).
+- **⚠ 착수 전 그물을 먼저 보강했다 (2026-08-16).** G0-3은 갱신되는 필드의 *값*만 재서, 이 태스크가 정확히 만드는 실패 모드 — **`fields` 목록이 넓어져 신원 필드까지 대입되는 것** — 을 못 잡는다. 추가한 축 4개: ①플랫폼별 envelope **전량 정확 일치**(신원 필드를 심고 들어오는 auth엔 전부 다른 값을 실어 보낸다) ②키 부재 별도 단언(`toEqual`은 값이 `undefined`인 키를 무시한다) ③`keepIfAbsent`는 github 전용 ④github 폴백이 단순 대입으로 퇴화하지 않음. 케이스 10 → **69**.
 - **검증**:
-  - [ ] 8개 export 이름·시그니처 무변경
-  - [ ] jira legacy 폴백 테스트 green (G0-3)
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] 8개 export 이름·시그니처 무변경 (13개 전량 이름 집합 대조)
+  - [x] jira legacy 폴백 테스트 green (G0-3) — 폴백 제거 뮤테이션으로 red 실측
+  - [x] `pnpm typecheck` + `pnpm test` green
 
 #### Task 8a-2: write 5종 테이블화
 - **변경 대상**: `src/lib/settings-storage.ts`(:55·:68·:88·:112·:131)
 - **작업 내용**: `OAuthWriteSpec{ account, fields, keepIfAbsent? }` 테이블 5행. **github의 `tokenType`·`scope`와 `refreshToken`/`expiresAt`의 `?? cur.X` 폴백을 `keepIfAbsent`로 데이터화한다** — 뭉개면 토큰 갱신 시 필드가 지워져 재로그인이 필요해진다(R8).
+- **⚠ `fields`는 화이트리스트이고 `keyof A`는 오타만 막는다.** 목록이 넓어지는 방향(신원 필드 편입)은 타입이 못 잡으므로 envelope 전량 대조가 유일한 그물이다. 특히 **gitlab `baseUrl`**(self-managed 인스턴스 주소)이 갱신 응답으로 덮이면 그 계정으로 요청이 안 나간다.
+- **`??` 연산자를 그대로 옮겼는지 확인할 것** — `||`로 바뀌면 `expiresAt: 0`이 기존 값으로 되돌아간다. 실측: 옛 코드도 `??`였고 `undefined·null·0·""·false·NaN` 6개 입력군에서 동치.
 - **검증**:
-  - [ ] G0-3 envelope 스냅샷 5종 + github 폴백 케이스 **문자 단위 동일**
-  - [ ] 저장 포맷 변경 0(마이그레이션 불필요 확인)
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] G0-3 envelope 스냅샷 5종 + github 폴백 케이스 **문자 단위 동일** (envelope 전량 `toEqual`이 통과 = 포맷 동일)
+  - [x] 저장 포맷 변경 0(마이그레이션 불필요 확인)
+  - [x] `pnpm typecheck` + `pnpm test` green — 152 → **119줄**
+  - [x] 뮤테이션 4종(신원 필드 편입 / keepIfAbsent 전파 / keepIfAbsent 소실 / legacy 폴백 제거)을 **테이블화 이후 구조에 재주입**해 전부 red 확인
 
 ---
 
