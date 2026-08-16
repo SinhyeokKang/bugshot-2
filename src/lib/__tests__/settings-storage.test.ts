@@ -280,6 +280,28 @@ describe("플랫폼별 write 계열 (토큰 갱신 영속)", () => {
     },
   );
 
+  // 폴백은 `??`(nullish)이지 `||`(falsy)가 아니다. `||`로 바뀌면 빈 문자열·0이 "값 없음"으로
+  // 취급돼 옛 값이 되살아난다 — GitHub이 회전으로 refreshToken을 ""로 비운 경우 만료된
+  // 토큰이 계속 쓰인다. 위 keepIfAbsent 케이스들은 undefined만 넣어서 이 축을 못 가른다.
+  it("github: falsy지만 nullish가 아닌 값(''·0)은 그대로 덮어쓴다", async () => {
+    stored = envelope({
+      accounts: { github: { auth: { kind: "oauth", accessToken: "old", tokenType: "bearer", scope: "s", refreshToken: "old-refresh", expiresAt: 42 } } },
+    });
+
+    await writeStoredGithubOAuthTokens({
+      kind: "oauth",
+      accessToken: "new",
+      tokenType: "bearer",
+      scope: "s",
+      refreshToken: "",
+      expiresAt: 0,
+    } as never);
+
+    const auth = readBack().state.accounts.github.auth;
+    expect(auth.refreshToken).toBe("");
+    expect(auth.expiresAt).toBe(0);
+  });
+
   // `?? cur.X` 폴백은 github 전용이다. 나머지 4개로 번지면, 갱신 응답이 토큰 회전으로
   // refreshToken을 비운 경우 옛 값이 살아남아 다음 갱신이 만료된 토큰으로 나간다.
   it.each(WHITELIST.filter((c) => c.platform !== "github"))(
