@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { useSettingsStore } from "@/store/settings-store";
 import type { SlackAccount, SlackOAuthResult } from "@/types/slack";
 import { isOAuthCancelled, sendBg } from "@/lib/bg-client";
@@ -95,8 +96,7 @@ function DefaultChannelField() {
         }
       : null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("slack.section.channel")}</label>
+    <FieldRow label={t("slack.section.channel")}>
       <ChannelCombobox
         value={value}
         onChange={(next) =>
@@ -107,7 +107,7 @@ function DefaultChannelField() {
           })
         }
       />
-    </div>
+    </FieldRow>
   );
 }
 

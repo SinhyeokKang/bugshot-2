@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { useT } from "@/i18n";
 import { Badge } from "@/components/ui/badge";
 import { useIssuesStore } from "@/store/issues-store";
 import { useSettingsStore, jiraSiteId } from "@/store/settings-store";
 import type { JiraIssueStatus } from "@/types/jira";
 import { sendBg } from "@/lib/bg-client";
 import { classifyBadgeError, type BadgeErrorKind } from "./utils";
+import { BadgeFallback } from "./BadgeFallback";
 import { STATUS_CATEGORY_COLORS } from "./constants";
 import { JiraStatusBadge } from "./JiraStatusBadge";
 
@@ -22,7 +22,6 @@ export function JiraSubmittedBadge({
   refreshKey: number;
   onLoaded: () => void;
 }) {
-  const t = useT();
   const jiraAccount = useSettingsStore((s) => s.accounts.jira);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
   const currentSiteId = jiraAccount?.auth ? jiraSiteId(jiraAccount.auth) : null;
@@ -48,16 +47,7 @@ export function JiraSubmittedBadge({
   }, [jiraAccount?.auth, issueKey, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
 
   if (status === "error" || status === "deleted") {
-    const deleted = status === "deleted";
-    const colors = deleted ? STATUS_CATEGORY_COLORS.deleted : undefined;
-    return (
-      <Badge
-        variant="outline"
-        className={`w-fit shrink-0 text-[11px] ${colors ? `border-transparent ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}` : ""}`}
-      >
-        {t(deleted ? "issueList.deleted" : "issueList.unknown")}
-      </Badge>
-    );
+    return <BadgeFallback kind={status} />;
   }
   if (!status) return null;
   if (jiraAccount?.auth && siteMatch) {

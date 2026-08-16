@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -55,6 +59,25 @@ function renderFlow(connected = false) {
   );
 }
 
+/** 6개 폼과 같은 모양 — 요청 객체를 인라인 리터럴로 넘겨 렌더마다 새 참조가 되게 한다. */
+function InlinePropParent({ tick }: { tick: number }) {
+  return (
+    <div data-tick={tick}>
+      <PlatformConnectFlow
+        connected={false}
+        onConnected={onConnected}
+        platform="asana"
+        icon={<svg />}
+        tokenLabelKey="asana.patButton"
+        availableRequest={{ type: "asana.oauth.available" }}
+        startOAuthRequest={{ type: "asana.startOAuth" }}
+        buildAccount={buildAccount as never}
+        renderTokenDialog={() => null}
+      />
+    </div>
+  );
+}
+
 /** oauth.available 응답을 정해두고 그 조회가 끝날 때까지 기다린다. */
 async function settleAvailability(available: boolean) {
   sendBg.mockImplementation((req: { type: string }) =>
@@ -73,12 +96,63 @@ beforeEach(() => {
   cancelled = false;
 });
 
+// 요청 prop이 platform에 묶여 있다는 건 컴파일 시점 계약이라 렌더 테스트로는 못 잰다
+// (여기 fixture도 `as never`로 그 게이트를 우회한다). NoInfer를 빼도 typecheck는 green이
+// 되므로 — Extract<…>·교차 타입 둘 다 무력한 게 실측됐다 — 소스 스캔이 유일한 그물이다.
+// 컴파일러 억제 주석(ts-expect-error류)은 이 저장소에 선례가 0건이라 쓰지 않는다
+// (styles/__tests__/tokens.test.ts:47이 그 사실과 우회 기법을 적어뒀다).
+describe("요청 prop의 platform 결속 (타입 게이트)", () => {
+  const source = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "PlatformConnectFlow.tsx"),
+    "utf8",
+  );
+
+  it("두 요청 prop이 NoInfer<P>로 platform에 묶여 있다", () => {
+    expect(source).toContain(
+      "availableRequest: BgRequest & { type: `${NoInfer<P>}.oauth.available` }",
+    );
+    expect(source).toContain(
+      "startOAuthRequest: BgRequest & { type: `${NoInfer<P>}.startOAuth` }",
+    );
+  });
+
+  // 위 단언은 파일을 읽었다는 전제에 걸려 있다 — 경로가 틀어지면 공허해진다.
+  it("스캔 대상이 실제 셸 파일이다 (자기검증 앵커)", () => {
+    expect(source).toContain("export function PlatformConnectFlow");
+  });
+});
+
 describe("PlatformConnectFlow — 연결 수단 판정", () => {
   it("oauth.available 조회 중에는 버튼이 disabled다", () => {
     sendBg.mockReturnValue(new Promise(() => {}));
     renderFlow();
 
     expect(screen.getByRole("button")).toHaveProperty("disabled", true);
+  });
+
+  // 실제 6개 폼은 availableRequest를 **인라인 리터럴**로 넘기므로 부모가 리렌더할 때마다
+  // 참조가 새로 생긴다. 그걸 effect 의존성에 두면 그때마다 background를 다시 왕복한다
+  // (원본 폼들은 의존성이 빈 배열이었다). 모듈 상수를 넘기는 fixture로는 재현되지 않아
+  // 여기서만 호출부 모양을 그대로 흉내낸다.
+  it("부모가 리렌더해도 oauth.available 조회는 1회다", async () => {
+    sendBg.mockImplementation((req: { type: string }) =>
+      req.type === AVAILABLE.type
+        ? Promise.resolve({ available: true })
+        : Promise.resolve(AUTH),
+    );
+    const { rerender } = render(<InlinePropParent tick={0} />);
+    await waitFor(() =>
+      expect(screen.getByRole("button")).not.toHaveProperty("disabled", true),
+    );
+
+    rerender(<InlinePropParent tick={1} />);
+    rerender(<InlinePropParent tick={2} />);
+
+    await waitFor(() =>
+      expect(
+        sendBg.mock.calls.filter(([r]) => r.type === AVAILABLE.type),
+      ).toHaveLength(1),
+    );
   });
 
   it("이미 연결됐으면 버튼이 disabled고 connected 문구가 뜬다", async () => {

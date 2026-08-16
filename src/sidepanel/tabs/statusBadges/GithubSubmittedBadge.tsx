@@ -7,6 +7,7 @@ import type { GithubIssueStatus } from "@/types/github";
 import { sendBg } from "@/lib/bg-client";
 import { classifyBadgeError, type BadgeErrorKind } from "./utils";
 import { resolveGithubCoords } from "@/sidepanel/tabs/issueListUtils";
+import { BadgeFallback } from "./BadgeFallback";
 import { STATUS_CATEGORY_COLORS } from "./constants";
 import { GithubStatusBadge, type GithubBadgeStatus } from "./GithubStatusBadge";
 
@@ -67,24 +68,9 @@ export function GithubSubmittedBadge({
   }, [ghAccount, ghCoords, refreshKey, onLoaded, issueId, patchIssue, githubOwner, githubRepo]);
 
   if (status === "error" || status === "deleted") {
-    const deleted = status === "deleted";
-    const colors = deleted ? STATUS_CATEGORY_COLORS.deleted : undefined;
-    return (
-      <Badge
-        variant="outline"
-        className={`w-fit shrink-0 text-[11px] ${colors ? `border-transparent ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}` : ""}`}
-      >
-        {t(deleted ? "issueList.deleted" : "issueList.unknown")}
-      </Badge>
-    );
+    return <BadgeFallback kind={status} />;
   }
-  if (!status) {
-    return (
-      <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
-        {t("issueList.submitted")}
-      </Badge>
-    );
-  }
+  if (!status) return <BadgeFallback kind="loading" />;
   if (ghCoords) {
     return (
       <GithubStatusBadge

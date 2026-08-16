@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useT } from "@/i18n";
-import { Badge } from "@/components/ui/badge";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore } from "@/store/settings-store";
 import type { AsanaTaskStatus } from "@/types/asana";
 import { sendBg } from "@/lib/bg-client";
 import { classifyBadgeError, type BadgeErrorKind } from "./utils";
 import { resolveAsanaCoords } from "@/sidepanel/tabs/issueListUtils";
-import { STATUS_CATEGORY_COLORS } from "./constants";
+import { BadgeFallback } from "./BadgeFallback";
 import { AsanaStatusBadge, type AsanaBadgeStatus } from "./AsanaStatusBadge";
 
 export function AsanaSubmittedBadge({
@@ -21,7 +19,6 @@ export function AsanaSubmittedBadge({
   refreshKey: number;
   onLoaded: () => void;
 }) {
-  const t = useT();
   const asanaAccount = useSettingsStore((s) => s.accounts.asana);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
   const [status, setStatus] = useState<AsanaBadgeStatus | BadgeErrorKind | null>(null);
@@ -52,24 +49,9 @@ export function AsanaSubmittedBadge({
   }, [asanaAccount, coords, refreshKey, onLoaded, issueId, patchIssue]);
 
   if (status === "error" || status === "deleted") {
-    const deleted = status === "deleted";
-    const colors = deleted ? STATUS_CATEGORY_COLORS.deleted : undefined;
-    return (
-      <Badge
-        variant="outline"
-        className={`w-fit shrink-0 text-[11px] ${colors ? `border-transparent ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}` : ""}`}
-      >
-        {t(deleted ? "issueList.deleted" : "issueList.unknown")}
-      </Badge>
-    );
+    return <BadgeFallback kind={status} />;
   }
-  if (!status) {
-    return (
-      <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
-        {t("issueList.submitted")}
-      </Badge>
-    );
-  }
+  if (!status) return <BadgeFallback kind="loading" />;
   return (
     <AsanaStatusBadge
       asStatus={status}
