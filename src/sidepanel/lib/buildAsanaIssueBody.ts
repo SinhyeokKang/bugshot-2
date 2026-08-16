@@ -1,6 +1,5 @@
 import { t, withLocale } from "@/i18n";
 import { escapeTableCell as escapeCell } from "./markdownCell";
-import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
 import { bodyBlocks } from "./bodyBlocks";
 import {
   mdInlineCode,
@@ -8,11 +7,11 @@ import {
   styleDomLabel,
   type MarkdownContext,
 } from "./buildIssueMarkdown";
-import { networkErrorCount } from "./buildLogSummary";
 import { CC_SENTINEL } from "./ccMention";
 import { segmentsToMarkdown } from "./classDiff";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
+import { emitMarkdownLogSummary, footerMarkdown, listItems, sectionLabel } from "./issueBodyShared";
 
 export interface AsanaMediaInput {
   filename: string;
@@ -28,17 +27,6 @@ export interface AsanaBuildInput {
 export interface AsanaBuildResult {
   body: string;
   attached: string[];
-}
-
-function sectionLabel(section: IssueSection): string {
-  return section.labelOverride?.trim() || t(sectionMdLabelKey(section.id));
-}
-
-function listItems(content: string): string[] {
-  return content
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
 }
 
 export function buildAsanaIssueBody(input: AsanaBuildInput): AsanaBuildResult {
@@ -113,7 +101,7 @@ function buildAsanaIssueBodyInner(input: AsanaBuildInput): AsanaBuildResult {
       for (const img of rest) inlineImage(img);
     }
 
-    emitLogSummary(lines, ctx);
+    emitMarkdownLogSummary(lines, ctx);
   };
 
   for (const block of bodyBlocks(ctx.sectionConfig)) {
@@ -142,32 +130,8 @@ function buildAsanaIssueBodyInner(input: AsanaBuildInput): AsanaBuildResult {
   if (input.hasCc) lines.push(CC_SENTINEL, "");
 
   lines.push("---", "");
-  lines.push(`_Reported via [BugShot](https://bug-shot.com)_`, "");
+  lines.push(footerMarkdown(), "");
 
   return { body: lines.join("\n"), attached };
 }
 
-function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
-  const { networkLogSummary: net, consoleLogSummary: con, actionLogCaptured: act } = ctx;
-  if (!net && !con && !act) return;
-  lines.push(`## ${t("logSummary.title")}`, "");
-  lines.push(`**${t("logSummary.logs.lead")}** ${t("logSummary.logs.detail", { file: "logs.html" })}`, "");
-  if (net) {
-    lines.push(
-      networkErrorCount(net) > 0
-        ? `- ${t("logSummary.network.line", { n: net.captured, errors: networkErrorCount(net) })}`
-        : `- ${t("logSummary.network.lineNoError", { n: net.captured })}`,
-    );
-  }
-  if (con) {
-    lines.push(
-      con.errorCount > 0 || con.warnCount > 0
-        ? `- ${t("logSummary.console.line", { n: con.captured, errors: con.errorCount, warns: con.warnCount })}`
-        : `- ${t("logSummary.console.lineNoError", { n: con.captured })}`,
-    );
-  }
-  if (act) {
-    lines.push(`- ${t("logSummary.action.line", { n: act })}`);
-  }
-  lines.push("");
-}

@@ -166,10 +166,12 @@ const MONTH_STYLE: LocaleTable<Intl.DateTimeFormatOptions["month"]> = {
   ko: "long",
 };
 
+// 테스트 전용 export — 프로덕션 소비처는 같은 파일의 dateLabel뿐이다.
 export function dateMonthStyle(locale: LocaleMode): Intl.DateTimeFormatOptions["month"] {
   return localeValue(MONTH_STYLE, locale);
 }
 
+// 테스트 전용 export — 로케일별 날짜 표기 회귀를 issueListUtils.test.ts가 직접 단언한다.
 export function dateLabel(ts: number): string {
   return new Date(ts).toLocaleDateString(dateBcp47(), {
     year: "numeric",

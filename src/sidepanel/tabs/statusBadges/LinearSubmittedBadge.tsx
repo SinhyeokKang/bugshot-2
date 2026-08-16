@@ -4,8 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore } from "@/store/settings-store";
 import type { LinearIssueStatus } from "@/types/linear";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { classifyBadgeError, type BadgeErrorKind } from "./utils";
+import { BadgeFallback } from "./BadgeFallback";
 import {
   LINEAR_STATE_I18N,
   LINEAR_STATE_TYPE_COLORS,
@@ -52,24 +53,9 @@ export function LinearSubmittedBadge({
   }, [linearAccount?.auth, linearIdentifier, issueKey, refreshKey, onLoaded, issueId, patchIssue]);
 
   if (status === "error" || status === "deleted") {
-    const deleted = status === "deleted";
-    const colors = deleted ? STATUS_CATEGORY_COLORS.deleted : undefined;
-    return (
-      <Badge
-        variant="outline"
-        className={`w-fit shrink-0 text-[11px] ${colors ? `border-transparent ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}` : ""}`}
-      >
-        {t(deleted ? "issueList.deleted" : "issueList.unknown")}
-      </Badge>
-    );
+    return <BadgeFallback kind={status} />;
   }
-  if (!status) {
-    return (
-      <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
-        {t("issueList.submitted")}
-      </Badge>
-    );
-  }
+  if (!status) return <BadgeFallback kind="loading" />;
   if (linearAccount?.auth && status.id) {
     return (
       <LinearStatusBadge

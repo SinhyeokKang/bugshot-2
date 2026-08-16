@@ -34,7 +34,7 @@ const DENIED_STYLE_PROPS = new Set(["content", "animation", "will-change"]);
 
 // animation-*/counter-*는 prefix로 차단 — 열거하면 animation-composition·-range·-timeline
 // 같은 신규 longhand가 빠진다. -- prop은 토큰 정의 변조라 별도 차단.
-export function isDeniedStyleProp(prop: string): boolean {
+function isDeniedStyleProp(prop: string): boolean {
   if (prop.startsWith("--")) return true;
   if (DENIED_STYLE_PROPS.has(prop)) return true;
   return prop.startsWith("animation-") || prop.startsWith("counter-");

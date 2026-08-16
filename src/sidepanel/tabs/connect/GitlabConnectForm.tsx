@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { SiGitlab } from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { ConnectedBadge } from "@/sidepanel/components/ConnectedBadge";
+import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -22,12 +23,12 @@ import type {
   GitlabMyself,
   GitlabOAuthAuth,
 } from "@/types/gitlab";
-import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { AssigneeCombobox } from "@/sidepanel/tabs/gitlabFields/AssigneeCombobox";
 import { LabelCombobox } from "@/sidepanel/tabs/gitlabFields/LabelCombobox";
 import { ProjectCombobox, type ProjectValue } from "@/sidepanel/tabs/gitlabFields/ProjectCombobox";
-import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
-import { ConnectMethodDialog } from "./ConnectMethodDialog";
+import type { ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
+import { PlatformConnectFlow } from "./PlatformConnectFlow";
 import { InstanceUrlError, normalizeInstanceUrl } from "./gitlabInstanceUrl";
 
 const GITLAB_COM = "https://gitlab.com";
@@ -43,89 +44,25 @@ export function GitlabConnectedBody() {
 }
 
 export function GitlabConnectFlow({ connected, onConnected }: ConnectFlowProps) {
-  const t = useT();
-  const setAccount = useSettingsStore((s) => s.setAccount);
-  const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  const [methodOpen, setMethodOpen] = useState(false);
-  const [patOpen, setPatOpen] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    sendBg<{ available: boolean }>({ type: "gitlab.oauth.available" })
-      .then((res) => !cancelled && setOauthAvailable(res.available))
-      .catch(() => !cancelled && setOauthAvailable(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function startOAuth() {
-    setConnecting(true);
-    try {
-      const auth = await sendBg<GitlabOAuthAuth>({ type: "gitlab.startOAuth" });
-      const next: GitlabAccount = {
+  return (
+    <PlatformConnectFlow
+      connected={connected}
+      onConnected={onConnected}
+      platform="gitlab"
+      icon={<SiGitlab className="h-4 w-4" color="default" />}
+      tokenLabelKey="gitlab.patButton"
+      availableRequest={{ type: "gitlab.oauth.available" }}
+      startOAuthRequest={{ type: "gitlab.startOAuth" }}
+      buildAccount={(auth: GitlabOAuthAuth): GitlabAccount => ({
         platform: "gitlab",
         connectedAt: Date.now(),
         auth,
         defaults: {},
-      };
-      setAccount("gitlab", next);
-      onConnected();
-    } catch (err) {
-      if (!isOAuthCancelled(err)) {
-        toast.error(err instanceof Error ? err.message : String(err));
-      }
-    } finally {
-      setConnecting(false);
-    }
-  }
-
-  const methods = connectMethods(oauthAvailable);
-
-  function handleClick() {
-    if (methods.length === 0) return;
-    if (connecting) return;
-    if (methods.includes("oauth")) {
-      setMethodOpen(true);
-    } else {
-      setPatOpen(true);
-    }
-  }
-
-  return (
-    <>
-      <Button
-        variant="outline"
-        onClick={handleClick}
-        disabled={connected || methods.length === 0}
-        aria-disabled={connecting}
-        className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
-      >
-        {connecting && (
-          <span className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="h-4 w-4 animate-spin" />
-          </span>
-        )}
-        <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
-          <SiGitlab className="h-4 w-4" color="default" />
-          {connected
-            ? t("platform.connected", { platform: t("platform.tab.gitlab") })
-            : t("platform.connectPlatform", { platform: t("platform.tab.gitlab") })}
-        </span>
-      </Button>
-
-      <ConnectMethodDialog
-        open={methodOpen}
-        onOpenChange={setMethodOpen}
-        platformLabel={t("platform.tab.gitlab")}
-        oauthLabel={t("platform.connectMethod.oauth")}
-        tokenLabel={t("gitlab.patButton")}
-        onChooseOAuth={() => void startOAuth()}
-        onChooseToken={() => setPatOpen(true)}
-      />
-      <PatDialog open={patOpen} onOpenChange={setPatOpen} onConnected={onConnected} />
-    </>
+      })}
+      renderTokenDialog={({ open, onOpenChange }) => (
+        <PatDialog open={open} onOpenChange={onOpenChange} onConnected={onConnected} />
+      )}
+    />
   );
 }
 
@@ -142,8 +79,7 @@ function DefaultProjectField() {
         }
       : null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("gitlab.section.project")}</label>
+    <FieldRow label={t("gitlab.section.project")}>
       <ProjectCombobox
         value={value}
         onChange={(next) =>
@@ -160,7 +96,7 @@ function DefaultProjectField() {
           })
         }
       />
-    </div>
+    </FieldRow>
   );
 }
 
@@ -171,8 +107,7 @@ function DefaultIssueSettingsFields() {
   if (!account) return null;
   return (
     <>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-muted-foreground">{t("gitlab.field.labels")}</label>
+      <FieldRow label={t("gitlab.field.labels")}>
         <LabelCombobox
           projectId={account.defaults.projectId}
           value={account.defaults.label}
@@ -182,9 +117,8 @@ function DefaultIssueSettingsFields() {
             })
           }
         />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-muted-foreground">{t("gitlab.field.assignee")}</label>
+      </FieldRow>
+      <FieldRow label={t("gitlab.field.assignee")}>
         <AssigneeCombobox
           projectId={account.defaults.projectId}
           value={
@@ -202,7 +136,7 @@ function DefaultIssueSettingsFields() {
             })
           }
         />
-      </div>
+      </FieldRow>
     </>
   );
 }
@@ -295,10 +229,7 @@ function PatDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="gitlab-instance" className="text-xs text-muted-foreground">
-              {t("gitlab.instanceUrl.label")}
-            </label>
+          <FieldRow label={t("gitlab.instanceUrl.label")} htmlFor="gitlab-instance">
             <Input
               id="gitlab-instance"
               placeholder={t("gitlab.instanceUrl.placeholder")}
@@ -307,13 +238,12 @@ function PatDialog({
               autoComplete="off"
               spellCheck={false}
             />
-          </div>
+          </FieldRow>
 
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <label htmlFor="gitlab-pat" className="text-xs text-muted-foreground">
-                {t("gitlab.patLabel")}
-              </label>
+          <FieldRow
+            label={t("gitlab.patLabel")}
+            htmlFor="gitlab-pat"
+            labelAction={
               <a
                 href={tokenSettingsHref(instanceUrl)}
                 target="_blank"
@@ -323,7 +253,8 @@ function PatDialog({
                 {t("platform.getToken")}
                 <ExternalLink className="h-3 w-3" />
               </a>
-            </div>
+            }
+          >
             <Input
               id="gitlab-pat"
               placeholder={t("gitlab.patPlaceholder")}
@@ -332,7 +263,7 @@ function PatDialog({
               autoComplete="off"
               spellCheck={false}
             />
-          </div>
+          </FieldRow>
         </div>
 
         <DialogFooter className="flex-row justify-end">

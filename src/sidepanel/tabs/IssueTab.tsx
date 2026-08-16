@@ -465,7 +465,7 @@ function PickingState({ onCancel }: { onCancel: () => void }) {
   );
 }
 
-function CapturingState({
+export function CapturingState({
   onCancel,
   onViewport,
   onFullPage,
@@ -515,10 +515,19 @@ function CapturingState({
       >
         {progress ? (
           <>
-            <p className="mt-2 text-sm tabular-nums text-muted-foreground" aria-live="polite">
+            {/* 알림은 아래 progressbar가 맡는다 — 이 텍스트에 aria-live를 겹쳐 걸면 타일마다
+                낭독이 큐에 쌓인다(DESIGN.md §14). */}
+            <p className="mt-2 text-sm tabular-nums text-muted-foreground">
               {t("issue.capturing.progress", { percent })}
             </p>
-            <div className="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-muted">
+            <div
+              className="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-valuenow={percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={t("issue.capturing.progressLabel")}
+            >
               <div
                 className="h-full rounded-full bg-foreground transition-all duration-300"
                 style={{ width: `${percent}%` }}
@@ -634,7 +643,14 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
         <h3 className="text-lg font-semibold">
           {t(source === "screen" ? "issue.recording.titleScreen" : "issue.recording.titleTab", { time: timeStr })}
         </h3>
-        <div className="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-muted">
+        <div
+          className="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+          aria-valuenow={Math.round(progress * 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={t("issue.recording.progressLabel")}
+        >
           <div
             className="h-full rounded-full bg-foreground transition-all duration-500"
             style={{ width: `${progress * 100}%` }}

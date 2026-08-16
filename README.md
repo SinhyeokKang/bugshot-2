@@ -73,9 +73,12 @@ Your browser ──────────────────────�
 Screenshots, recordings, logs, CSS changes, attachments, and report bodies are
 assembled in the extension and sent directly to the destination you connected.
 For Jira, GitHub, Notion, Asana, ClickUp, and Slack, the BugShot-operated OAuth
-proxy relays authorization-code exchanges, and token refreshes for the three
-that expire (Jira, GitHub, Asana); Linear and
-GitLab exchange tokens directly via PKCE. Capture data never goes through the
+proxy relays authorization-code exchanges, and token refreshes for those three
+(Jira, GitHub, Asana). Linear and GitLab exchange *and* refresh tokens directly
+via PKCE, with no proxy in the path — five of the eight expire and refresh;
+Notion, ClickUp, and Slack issue tokens that don't. (GitHub depends on how its
+OAuth app is configured: with token expiration off, its tokens don't expire
+either.) Capture data never goes through the
 proxy. Anonymous analytics contain no capture or report content. Those events
 leave through `in.bug-shot.com`, a domain we own whose DNS record points
 straight at PostHog Cloud — it exists so ad and DNS blockers don't silently
@@ -95,7 +98,7 @@ no Firefox or Safari build — the whole UI is a Chrome MV3 side panel, and
 neither browser implements that API.
 
 1. **Install** from the [Chrome Web Store](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig).
-2. **Open the panel** — click the toolbar icon or press `Cmd/Ctrl+Shift+E`.
+2. **Open the panel** — click the toolbar icon, press `Cmd/Ctrl+Shift+E`, or pick **BugShot** from the page's right-click menu.
 3. **Connect a destination** — choose a tracker or Slack in the *Integrations* tab.
 4. **Capture** — edit an element's styles, capture an element or area, take a
    viewport or full-page screenshot, or record the tab or screen. You can also
@@ -111,7 +114,7 @@ Full walkthrough in the [Quick Start guide](https://bug-shot.com/en/docs/quick-s
 
 Fix the bug visually before you even describe it.
 
-- **Element picker** — hover to highlight, click to select an element on the page. Works on nested and deeply styled elements; shadow DOM interiors resolve to their host, and pseudo-elements are not hit-testable.
+- **Element picker** — hover to highlight, click to select an element on the page. The hover overlay paints margin (amber), padding (green), and flex/grid gaps (purple) with per-side pixel labels, beside an info card carrying the tag and classes, `w × h`, color and background swatches, font, and radius — the DevTools trip you're not taking. Works on nested and deeply styled elements; elements inside a shadow root resolve to their host (the browser's own hit-testing, not something we special-case), and pseudo-elements are not hit-testable.
 - **DOM tree navigation** — can't reach it by hovering? Browse the live DOM tree in a dialog and pick the node directly, or step to its parent or first child — for wrappers and elements buried under an overlay.
 - **Live CSS editing** — edit layout, spacing, sizing, color, typography, borders, and more through structured fields, or switch to a syntax-highlighted CSS code editor — prefilled with the element's current styles (four-side longhands merged into shorthands), with autocomplete and inline color swatches — to edit raw CSS directly (arbitrary properties, `!important`). Changes apply to the live page instantly, so you can dial in the exact fix and see it in place.
 - **Class & text editing** — edit an element's class list or visible text live; those changes are tracked alongside its style diff.
@@ -135,7 +138,7 @@ Grab exactly what's on screen and mark it up.
 When a still image isn't enough, record the behavior.
 
 - **Tab recording** — record the current tab, up to 60 seconds, encoded to MP4 (WebM fallback where MP4 isn't supported).
-- **Screen recording** — record any window or the full screen via the system picker, up to 60 seconds.
+- **Screen recording** — record any window or the full screen via the system picker, up to 60 seconds. Which of the two the record button starts is a setting (Settings → Issue settings → Recording), not two separate buttons.
 - **Draw while recording** — a mini toolbar (pen, box, or highlighter; up to 5 colors, fewer on a narrow panel; three thicknesses) lets you mark up the page during tab/screen recording. Freehand strokes fade tail-first in draw order over ~3s; a box fades all at once. Either way it's baked into the video.
 - **30s Replay** — an opt-in, always-on buffer that keeps the **last 30 seconds** as MP4. It looks back across page navigations, so you can catch the bug even *after* spotting it — no need to hit record beforehand.
 - **Trim before you file** — stopping any recording (tab, screen, or 30s Replay) opens a trim screen. Drag the handles to keep just the bug moment, and the attached console, network, and action logs are narrowed to the same range. Leave the handles alone and nothing is re-encoded; if re-encoding fails, the original clip is attached as is.
@@ -144,42 +147,48 @@ When a still image isn't enough, record the behavior.
 
 Reproduction context, collected for you in the background.
 
-- **Network & console logs** — captured automatically while the panel is open and attached to the issue. Includes **WebSocket frames** and logs from **cross-origin iframes** (payment widgets, embeds), all filterable by origin.
+- **Network & console logs** — captured automatically while the panel is open and attached to the issue. Includes **WebSocket frames** and logs from **cross-origin iframes** (payment widgets, embeds), all filterable by origin. Sensitive headers (`authorization`, `cookie`, CSRF and `x-*-token` families), secrets in URL queries and fragments, and body keys like `token` / `password` / `client_secret` are masked at capture time — and the masking survives into Copy as cURL.
 - **Action log** — clicks, text input, navigations, keyboard shortcuts, checkbox/radio toggles, dropdown selections, and drag & drop recorded as step-by-step reproduction. Sensitive values are masked, both by field label and by value shape (emails, long digit runs); rich-text editor content is never recorded.
 - **Add a log to the body** — pick one console or network entry and drop it into the issue body as a code block (JSON pretty-printed and highlighted), right where you're describing the symptom. The attachment only opens after a download; this reads in the issue itself.
 - **API hosts in the environment** — hosts from the network log that share a domain with the page are filled into the issue environment automatically, so a reader knows which server to look at without downloading the attachment. It is an ordinary row, so edit or delete it if it is not what you want.
+- **Live inspector in the panel** — console and network logs are readable while you work, not only after export: live counts, type and level filters, URL and body search, request/response headers and payloads in a JSON tree, stack traces, and **Copy as cURL**.
+- **Reproduction environment** — OS, browser version, page URL, the element's selector, viewport `W × H`, and capture time are filled into every report. Labels and values are editable and rows can be added or deleted.
 - **Log viewer** — a standalone `logs.html` report with a **video-synced timeline**: click any console/network/action entry to jump to that exact moment in the recording. It also carries a **Report tab** (issue body preview + copy as markdown) and per-tab exports (HAR, console/action JSON).
 
 All three logs ride along with every capture except element style editing, and the whole logs.html bundle can be toggled off with one switch before you submit (also toggleable on already-saved issues).
 
 ### 🤖 AI
 
-- **AI draft** — BYOK (Bring Your Own Key) with OpenAI, Anthropic, Gemini, and more; falls back to Chrome Built-in AI when no key is set. Drafts the title and body from your capture (styles, screenshot, or log summary) in one go. When the AI cites a relevant error log, the actual console/network entry is inserted into the body as a code block — serialized by the app, so log contents can't be hallucinated. Drafts can be written in a language of your choosing, set independently of the interface language.
+- **AI draft** — BYOK (Bring Your Own Key) with OpenAI, Anthropic, Gemini, and more — or a local endpoint like Ollama, so the AI step can stay on your machine too; falls back to Chrome Built-in AI when no key is set. Drafts the title and body from your capture (styles, screenshot, or log summary) in one go. When the AI cites a relevant error log, the actual console/network entry is inserted into the body as a code block — serialized by the app, so log contents can't be hallucinated. With your own remote key, the capture screenshot goes in as an image and the drafting language is yours to pick, set independently of the interface language; Chrome Built-in AI and local endpoints are text-only and follow the interface language.
 - **AI styling** — describe the fix in words and the AI writes the CSS onto the selected element, live on the page.
 - **Repro auto-fill** — **on by default** once you connect an AI: after a recording, the steps-to-reproduce section is written for you from the action log, which means the action log is sent to that AI. Turn it off under Settings → Issue settings → Other.
 
 ### 📥 Issue list & drafts
 
-- **Submitted issues** — every report you've filed stays in the *Issue list* tab with its platform badge, searchable and filterable by submitted/draft. Refresh to pull the current state back from the tracker, or change the status right from the panel and have it written back. Reports shared to Slack can be **promoted to a tracker issue later**, and the original Slack thread gets a reply with the new issue's URL.
+- **Submitted issues** — every report you've filed stays in the *Issues* tab with its platform badge, searchable and filterable by submitted/draft. Refresh to pull the current state back from the tracker, or change the status right from the panel and have it written back. Reports shared to Slack can be **promoted to a tracker issue later**, and the original Slack thread gets a reply with the new issue's URL.
 - **Drafts** — not ready to file? Save the report as a draft, reopen it later, edit any field, and submit when it's ready.
 
 ### 🔗 Integrations
 
 Connect via OAuth or a token. Every **tracker** supports destination selection
-and attachment upload. Assignee covers every tracker except Notion; label
+and attachment upload — GitHub and GitLab upload through your signed-in session
+on their own site, and when that session is missing the report falls back to a
+download-and-drag note instead of an inline attachment. Assignee covers every tracker except Notion; label
 selection is GitHub, Linear and GitLab only. **Slack** is a messenger rather than
 a tracker — it sends to a channel or DM instead.
 
 Set defaults once in the *Integrations* tab — destination (project, repo, team,
-workspace) plus **assignee**, label, and issue type (Jira) — and every new report
-comes pre-filled. Whoever you assigned last still wins over the default, so the
-common case stays one click. CC is not a default: it carries over from your last
-submission on that platform.
+workspace, database, channel) plus **assignee**, label, issue type (Jira), and
+status / select properties (Notion) — and every new report comes pre-filled.
+File to the same destination again and whoever you assigned last wins over the
+default, so the common case stays one click; switch destination and the default
+takes over. CC is not a default either: it carries over from your last
+submission *to that same destination*, and is dropped when you switch.
 
 | Platform | Auth | Highlights |
 |---|---|---|
 | **Jira** | OAuth 3LO / API Token | project metadata, sprint picker, auto-upload attachments |
-| **GitHub** | OAuth / PAT | repo, labels, assignees, file upload |
+| **GitHub** | OAuth / PAT | repo, labels, assignees, file upload (needs a signed-in github.com session) |
 | **Linear** | OAuth PKCE / API Key | team, project, labels, priority |
 | **Notion** | OAuth / Internal Token | database picker, status & select properties |
 | **GitLab** | OAuth PKCE (gitlab.com only) / PAT | gitlab.com + self-managed instances |
@@ -190,7 +199,7 @@ submission on that platform.
 ### 🌐 Export & i18n
 
 - **Markdown copy** — paste into Slack, Confluence, or anywhere with tables intact
-- **File attachments** — attach your own files to the report, uploaded natively to the tracker
+- **File attachments** — attach your own files to the report, uploaded natively to the tracker (opt-in — Settings → Issue settings → Other)
 - **Local download** — save the captured screenshot/video and the `logs.html` report
 - **i18n** — Korean / English. The issue body has its own language setting, separate from the interface and from the AI drafting language
 - **Report body composition** — toggle which sections (description, steps to reproduce, expected result, notes) go into the issue and **drag them into the order you want**, media and logs included; plus a title prefix
@@ -235,7 +244,7 @@ pnpm build
 ```
 
 Then load `dist/` as an unpacked extension. Every key in `.env.example` is
-optional: without OAuth client IDs the OAuth buttons are hidden and you connect
+optional: without the OAuth client IDs — or the proxy URL — the OAuth buttons are hidden and you connect
 platforms with a personal access token instead, and without a PostHog key
 analytics is a no-op. So a build from an empty `.env.local` is fully functional
 *and* makes zero analytics requests.
@@ -302,7 +311,7 @@ private, link-local, CGNAT, multicast, IPv6 ULA, and IPv4-mapped-IPv6 bypasses
 all rejected. The caller in
 [`src/background/messages.ts`](src/background/messages.ts) adds the rest:
 `credentials: "omit"`, `redirect: "manual"`, a timeout, a content-type check,
-and size caps. One residual gap is documented in that file
+and size caps. One residual gap is documented in `ssrf-guard.ts` itself
 rather than papered over: a hostname that resolves to an internal address can't
 be caught statically, since `fetch` re-resolves DNS. The fetched CSS is used
 on-device only.

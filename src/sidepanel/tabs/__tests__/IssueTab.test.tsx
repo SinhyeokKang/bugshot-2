@@ -22,7 +22,7 @@ vi.mock("@/store/settings-ui-store", async (importOriginal) => {
   };
 });
 
-import { EmptyState } from "../IssueTab";
+import { CapturingState, EmptyState } from "../IssueTab";
 
 const CAPTURE_BUTTONS = [
   "mode-element",
@@ -145,5 +145,52 @@ describe("EmptyState — 미지원 페이지 (unsupported=true)", () => {
     accounts = { github: { login: "octocat" } };
     render(<EmptyState {...handlers()} unsupported />);
     expect(screen.queryByTestId("integrations-cta")).toBeNull();
+  });
+});
+
+// 스크롤 캡처는 최대 20타일이라 진행률이 초 단위로 여러 번 바뀐다. 알림은 progressbar
+// role이 맡고, 퍼센트 텍스트에 aria-live를 겹쳐 걸지 않는다(DESIGN.md §14) — 겹치면 값이
+// 바뀔 때마다 낭독이 큐에 쌓인다.
+describe("CapturingState 진행률 접근성", () => {
+  function capturingHandlers() {
+    return { onCancel: vi.fn(), onViewport: vi.fn(), onFullPage: vi.fn() };
+  }
+
+  it("진행률 바가 progressbar role과 현재값을 노출한다", () => {
+    render(
+      <CapturingState
+        {...capturingHandlers()}
+        progress={{ done: 5, total: 20 }}
+        busy
+        canceling={false}
+      />,
+    );
+
+    const bar = screen.getByRole("progressbar");
+    expect(bar.getAttribute("aria-valuenow")).toBe("25");
+    expect(bar.getAttribute("aria-valuemin")).toBe("0");
+    expect(bar.getAttribute("aria-valuemax")).toBe("100");
+    expect(bar.getAttribute("aria-label")).toBeTruthy();
+  });
+
+  it("퍼센트 텍스트에 aria-live를 걸지 않는다", () => {
+    const { container } = render(
+      <CapturingState
+        {...capturingHandlers()}
+        progress={{ done: 5, total: 20 }}
+        busy
+        canceling={false}
+      />,
+    );
+
+    expect(container.querySelector("[aria-live]")).toBeNull();
+  });
+
+  it("progress가 null이면 진행률 바가 없다", () => {
+    render(
+      <CapturingState {...capturingHandlers()} progress={null} busy={false} canceling={false} />,
+    );
+
+    expect(screen.queryByRole("progressbar")).toBeNull();
   });
 });

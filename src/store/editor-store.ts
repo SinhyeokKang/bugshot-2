@@ -7,8 +7,8 @@ import type { ActionLog } from "@/types/action";
 import type { PlatformId } from "@/types/platform";
 import type { EnvironmentRow } from "@/types/environment";
 import type { UserAttachmentMeta } from "@/types/attachment";
-import { onBlobSaveFailed } from "@/types/messages";
-import { useIssuesStore } from "./issues-store";
+import { onBlobSaveFailed } from "@/lib/app-events";
+import { useIssuesStore, type IssueRecord } from "./issues-store";
 import { jiraSiteId, useSettingsStore } from "./settings-store";
 import { initialJiraFields } from "@/sidepanel/lib/initialJiraFields";
 import { saveVideoBlob, deleteVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
@@ -513,10 +513,23 @@ export function selectAttachedLogs(state: EditorState): {
   };
 }
 
+type AttachedLogs = ReturnType<typeof selectAttachedLogs>;
+
+// 로그를 붙이는 3분기(freeform·video·screenshot) 공통. element는 로그를 안 붙이므로 이 키들을
+// 공통 레코드가 아니라 여기로 뗐다 — 값이 undefined인 키는 saveDraft 병합이 그대로 덮어써서
+// "기존 blobKey를 지운다"가 되므로, element에 키가 생기면 그건 동작 변경이다.
+function logBlobKeys(id: string, logs: AttachedLogs) {
+  return {
+    networkLogBlobKey: logs.networkLog ? id : undefined,
+    consoleLogBlobKey: logs.consoleLog ? id : undefined,
+    actionLogBlobKey: logs.actionLog ? id : undefined,
+  };
+}
+
 async function persistAttachedLogs(
   issueId: string,
   targetTabId: number,
-  logs: { networkLog: NetworkLog | null; consoleLog: ConsoleLog | null; actionLog: ActionLog | null },
+  logs: AttachedLogs,
 ): Promise<boolean> {
   let failed = false;
   if (logs.networkLog) {
@@ -845,7 +858,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   confirmDraft: () => {
     const state = get();
-    if (!state.draft || !state.target) {
+    const { draft, target } = state;
+    if (!draft || !target) {
       set({ phase: "previewing" });
       return false;
     }
@@ -885,28 +899,44 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       });
     }
     const id = state.currentIssueId ?? newId("issue");
+    // 4분기 공통 필드. saveDraft가 병합이라 키를 조건부로 빼면 직전 세션 값이 되살아나므로
+    // 분기는 고유 필드만 스프레드로 얹는다 — 빼는 게 아니라 덮는 방향으로만 갈린다.
+    // 반환 타입을 박아두는 건 스프레드가 saveDraft 호출부의 excess property 검사를 지나치기
+    // 때문이다 — 리터럴이던 시절엔 컴파일러가 잡던 optional 필드 오타가 여기선 무음이 된다.
+    const baseDraftRecord = (): Pick<
+      IssueRecord,
+      | "id"
+      | "status"
+      | "platform"
+      | "title"
+      | "createdAt"
+      | "updatedAt"
+      | "pageUrl"
+      | "pageTitle"
+      | "draft"
+      | "apiHostsDerived"
+    > => ({
+      id,
+      status: "draft",
+      platform: state.targetPlatform,
+      title: draft.title,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      pageUrl: target.url,
+      pageTitle: target.title,
+      draft: { ...draft },
+      apiHostsDerived: state.apiHostsDerived,
+    });
     if (state.captureMode === "freeform") {
       const logs = selectAttachedLogs(state);
       useIssuesStore.getState().saveDraft({
-        id,
-        status: "draft",
-        platform: state.targetPlatform,
-        title: state.draft.title,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        pageUrl: state.target.url,
-        pageTitle: state.target.title,
+        ...baseDraftRecord(),
         captureMode: "freeform",
         viewport: state.freeformViewport ?? undefined,
-        draft: { ...state.draft },
         snapshot: { before: false, after: false },
-        networkLogBlobKey: logs.networkLog ? id : undefined,
-        consoleLogBlobKey: logs.consoleLog ? id : undefined,
-        actionLogBlobKey: logs.actionLog ? id : undefined,
-        // saveDraft가 병합이라 키를 조건부로 빼면 직전 세션 파생값이 되살아난다 — 항상 명시.
-        apiHostsDerived: state.apiHostsDerived,
+        ...logBlobKeys(id, logs),
       });
-      const targetTabId = state.target.tabId;
+      const targetTabId = target.tabId;
       void (async () => {
         const failed = await persistAttachedLogs(id, targetTabId, logs);
         if (failed) onBlobSaveFailed.fire();
@@ -914,29 +944,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     } else if (state.captureMode === "video") {
       const logs = selectAttachedLogs(state);
       useIssuesStore.getState().saveDraft({
-        id,
-        status: "draft",
-        platform: state.targetPlatform,
-        title: state.draft.title,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        pageUrl: state.target.url,
-        pageTitle: state.target.title,
+        ...baseDraftRecord(),
         captureMode: "video",
         viewport: state.videoViewport ?? undefined,
         videoStartedAt: state.videoStartedAt ?? undefined,
         videoEndedAt: state.videoEndedAt ?? undefined,
-        draft: { ...state.draft },
         snapshot: {
           before: !!state.videoThumbnail,
           after: false,
         },
-        networkLogBlobKey: logs.networkLog ? id : undefined,
-        consoleLogBlobKey: logs.consoleLog ? id : undefined,
-        actionLogBlobKey: logs.actionLog ? id : undefined,
-        apiHostsDerived: state.apiHostsDerived,
+        ...logBlobKeys(id, logs),
       });
-      const targetTabId = state.target.tabId;
+      const targetTabId = target.tabId;
       void (async () => {
         let failed = false;
         if (state.videoBlob) {
@@ -959,30 +978,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const screenshotImage = state.screenshotAnnotated ?? state.screenshotRaw;
       const logs = selectAttachedLogs(state);
       useIssuesStore.getState().saveDraft({
-        id,
-        status: "draft",
-        platform: state.targetPlatform,
-        title: state.draft.title,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        pageUrl: state.target.url,
-        pageTitle: state.target.title,
+        ...baseDraftRecord(),
         captureMode: "screenshot",
         // 조건부 스프레드로 키를 빼면 saveDraft 병합이 이전 selector를 살려낸다 — 항상 명시.
         selector: state.shotSelector?.selector,
         tagName: state.shotSelector?.tagName,
         viewport: state.screenshotViewport ?? undefined,
-        draft: { ...state.draft },
         snapshot: {
           before: !!screenshotImage,
           after: false,
         },
-        networkLogBlobKey: logs.networkLog ? id : undefined,
-        consoleLogBlobKey: logs.consoleLog ? id : undefined,
-        actionLogBlobKey: logs.actionLog ? id : undefined,
-        apiHostsDerived: state.apiHostsDerived,
+        ...logBlobKeys(id, logs),
       });
-      const targetTabId = state.target.tabId;
+      const targetTabId = target.tabId;
       void (async () => {
         let failed = false;
         if (screenshotImage) {
@@ -998,7 +1006,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!state.selection) {
         // selection 없으면 draft 미저장 → 첨부도 issueId로 못 옮기므로 pending 정리(고아 방지).
         if (state.attachments.length) {
-          deleteAttachmentBlobs(pendingKey(state.target.tabId)).catch(() => {});
+          deleteAttachmentBlobs(pendingKey(target.tabId)).catch(() => {});
         }
         set({ phase: "previewing" });
         return false;
@@ -1007,19 +1015,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const beforeResolved = state.beforeAnnotated ?? state.beforeImage;
       const afterResolved = state.afterAnnotated ?? state.afterImage;
       useIssuesStore.getState().saveDraft({
-        id,
-        status: "draft",
-        platform: state.targetPlatform,
-        title: state.draft.title,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        pageUrl: state.target.url,
-        pageTitle: state.target.title,
+        ...baseDraftRecord(),
         selector: state.selection.selector,
         tagName: state.selection.tagName,
         frameId: state.selection.frameId ?? 0,
         viewport: { ...state.selection.viewport },
-        draft: { ...state.draft },
         styleEdits: {
           classList: [...state.styleEdits.classList],
           inlineStyle: { ...state.styleEdits.inlineStyle },
@@ -1066,9 +1066,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 hasAfter: !!(b.afterAnnotated ?? b.afterImage),
               }))
             : undefined,
-        // element는 자동 행을 주입하지 않아 항상 null이지만, 위 selector·bufferedElements와
-        // 같은 이유로 키를 빼지 않는다 — 병합이 직전 세션 값을 되살린다.
-        apiHostsDerived: state.apiHostsDerived,
       });
       const bufferedSnapshot = state.bufferedElements;
       void (async () => {

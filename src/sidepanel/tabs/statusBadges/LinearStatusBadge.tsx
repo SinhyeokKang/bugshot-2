@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import type { LinearIssueStatus, LinearWorkflowState } from "@/types/linear";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { LINEAR_STATE_TYPE_COLORS, STATUS_CATEGORY_COLORS, LINEAR_STATE_I18N } from "./constants";
 
 export function LinearStatusBadge({

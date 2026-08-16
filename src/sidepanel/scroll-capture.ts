@@ -6,7 +6,7 @@ import {
   tilePixelRect,
   type ScrollPlan,
 } from "@/sidepanel/lib/scroll-capture-plan";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 import type { PageMetrics, PickerMessage, ScrollAck } from "@/types/picker";
 

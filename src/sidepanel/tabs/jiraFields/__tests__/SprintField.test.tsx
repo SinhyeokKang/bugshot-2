@@ -12,7 +12,7 @@ vi.mock("../useJiraConfig", () => ({
 }));
 
 const sendBg = vi.fn();
-vi.mock("@/types/messages", () => ({
+vi.mock("@/lib/bg-client", () => ({
   sendBg: (req: unknown) => sendBg(req),
 }));
 

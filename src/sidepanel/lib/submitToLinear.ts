@@ -5,11 +5,12 @@ import {
 import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages";
 import { guessUploadMime } from "./uploadMime";
 import type { MarkdownContext } from "./buildIssueMarkdown";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type { LinearCreateIssueResult } from "@/types/linear";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
 import { injectLogsMarkdownLink } from "./markdown-logs-link";
+import { inlineUploadFilename } from "@/lib/inline-ref";
 
 export interface LinearFileInput {
   filename: string;
@@ -57,7 +58,7 @@ export async function submitToLinear(
     Promise.all(
       (input.inlineImages ?? []).map(async (img) => {
         const result = await uploadFile({
-          filename: `inline-${img.refId}.webp`,
+          filename: inlineUploadFilename(img.refId),
           dataUrl: img.dataUrl,
         });
         return { refId: img.refId, assetUrl: result.assetUrl };

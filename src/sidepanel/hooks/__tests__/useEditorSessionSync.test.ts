@@ -45,7 +45,7 @@ vi.mock("@/store/issues-store", () => ({
 vi.mock("@/store/settings-store", () => ({
   useSettingsStore: { getState: () => ({ lastSubmitFields: {}, accounts: {} }) },
 }));
-vi.mock("@/types/messages", () => ({
+vi.mock("@/lib/app-events", () => ({
   onBlobSaveFailed: { fire: vi.fn(), listen: vi.fn() },
   onSessionSaveExhausted: { fire: vi.fn(), listen: vi.fn() },
 }));

@@ -1,16 +1,18 @@
 import { buildAsanaIssueBody, type AsanaMediaInput } from "./buildAsanaIssueBody";
 import { resolveStyleElements, type MarkdownContext } from "./buildIssueMarkdown";
 import { injectAsanaCc } from "./ccMention";
+import { imageExtFromDataUrl } from "./downloadCapture";
 import {
   markdownToAsanaHtml,
   type AsanaInlineImage,
 } from "./markdownToAsanaHtml";
 import type { InlineImageInput } from "./resolveInlineImages";
+import { toUploadEntry } from "./prepareUpload";
 import { guessUploadMime } from "./uploadMime";
 import { loadImage } from "@/sidepanel/capture";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
-import { inlineRefUrl } from "@/lib/inline-ref";
-import { sendBg } from "@/types/messages";
+import { inlineRefUrl, inlineUploadFilename } from "@/lib/inline-ref";
+import { sendBg } from "@/lib/bg-client";
 import type { AsanaCreateTaskResult } from "@/types/asana";
 import type { NormalizedSubmitResult } from "@/types/platform";
 
@@ -37,13 +39,6 @@ export interface AsanaSubmitInput {
   cc?: { gid: string }[];
 }
 
-function imageExtFromDataUrl(dataUrl: string): string {
-  const subtype = (/^data:image\/([a-zA-Z0-9.+-]+)/.exec(dataUrl)?.[1] ?? "png").toLowerCase();
-  if (subtype === "jpeg") return "jpg";
-  if (subtype === "svg+xml") return "svg";
-  return subtype;
-}
-
 async function buildInlineRef(
   uploaded: { gid: string; viewUrl?: string },
   dataUrl: string,
@@ -59,14 +54,6 @@ async function buildInlineRef(
     // 크기 측정 실패해도 gid만으로 인라인 (graceful).
   }
   return ref;
-}
-
-function toUploadEntry(f: AsanaFileInput) {
-  return {
-    filename: f.filename,
-    contentType: guessUploadMime(f.filename),
-    dataUrl: f.dataUrl,
-  };
 }
 
 function toMedia(f: AsanaFileInput): AsanaMediaInput {
@@ -131,11 +118,12 @@ export async function submitToAsana(
   });
   const ctx = renameStyleElementFilenames(input.ctx, renames);
   // 인라인 이미지는 refId 기반 파일명을 부여해 업로드하고, 본문 src(`inline:refId`)로 ref 매핑한다.
+  // 확장자가 곧 아래 webpToJpeg의 게이트라 imageExtFromDataUrl의 폴백값이 변환 여부까지 정한다.
   const inlineEntries = await Promise.all(
     (input.inlineImages ?? []).map(async (img) => ({
       refId: img.refId,
       file: await webpToJpeg({
-        filename: `inline-${img.refId}.${imageExtFromDataUrl(img.dataUrl)}`,
+        filename: inlineUploadFilename(img.refId, imageExtFromDataUrl(img.dataUrl)),
         dataUrl: img.dataUrl,
       }),
     })),

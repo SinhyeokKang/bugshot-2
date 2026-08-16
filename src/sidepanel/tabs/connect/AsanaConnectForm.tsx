@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { SiAsana } from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { ConnectedBadge } from "@/sidepanel/components/ConnectedBadge";
+import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -17,12 +18,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { useSettingsStore } from "@/store/settings-store";
 import type { AsanaAccount, AsanaMyself, AsanaOAuthAuth } from "@/types/asana";
-import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { AssigneeCombobox, type AssigneeValue as AsanaAssigneeValue } from "@/sidepanel/tabs/asanaFields/AssigneeCombobox";
 import { ProjectCombobox, type ProjectValue } from "@/sidepanel/tabs/asanaFields/ProjectCombobox";
 import { WorkspaceCombobox, type WorkspaceValue } from "@/sidepanel/tabs/asanaFields/WorkspaceCombobox";
-import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
-import { ConnectMethodDialog } from "./ConnectMethodDialog";
+import type { ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
+import { PlatformConnectFlow } from "./PlatformConnectFlow";
 
 const ASANA_TOKEN_SETTINGS = "https://app.asana.com/0/my-apps";
 
@@ -38,89 +39,25 @@ export function AsanaConnectedBody() {
 }
 
 export function AsanaConnectFlow({ connected, onConnected }: ConnectFlowProps) {
-  const t = useT();
-  const setAccount = useSettingsStore((s) => s.setAccount);
-  const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  const [methodOpen, setMethodOpen] = useState(false);
-  const [patOpen, setPatOpen] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    sendBg<{ available: boolean }>({ type: "asana.oauth.available" })
-      .then((res) => !cancelled && setOauthAvailable(res.available))
-      .catch(() => !cancelled && setOauthAvailable(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function startOAuth() {
-    setConnecting(true);
-    try {
-      const auth = await sendBg<AsanaOAuthAuth>({ type: "asana.startOAuth" });
-      const next: AsanaAccount = {
+  return (
+    <PlatformConnectFlow
+      connected={connected}
+      onConnected={onConnected}
+      platform="asana"
+      icon={<SiAsana className="h-4 w-4" color="default" />}
+      tokenLabelKey="asana.patButton"
+      availableRequest={{ type: "asana.oauth.available" }}
+      startOAuthRequest={{ type: "asana.startOAuth" }}
+      buildAccount={(auth: AsanaOAuthAuth): AsanaAccount => ({
         platform: "asana",
         connectedAt: Date.now(),
         auth,
         defaults: {},
-      };
-      setAccount("asana", next);
-      onConnected();
-    } catch (err) {
-      if (!isOAuthCancelled(err)) {
-        toast.error(err instanceof Error ? err.message : String(err));
-      }
-    } finally {
-      setConnecting(false);
-    }
-  }
-
-  const methods = connectMethods(oauthAvailable);
-
-  function handleClick() {
-    if (methods.length === 0) return;
-    if (connecting) return;
-    if (methods.includes("oauth")) {
-      setMethodOpen(true);
-    } else {
-      setPatOpen(true);
-    }
-  }
-
-  return (
-    <>
-      <Button
-        variant="outline"
-        onClick={handleClick}
-        disabled={connected || methods.length === 0}
-        aria-disabled={connecting}
-        className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
-      >
-        {connecting && (
-          <span className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="h-4 w-4 animate-spin" />
-          </span>
-        )}
-        <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
-          <SiAsana className="h-4 w-4" color="default" />
-          {connected
-            ? t("platform.connected", { platform: t("platform.tab.asana") })
-            : t("platform.connectPlatform", { platform: t("platform.tab.asana") })}
-        </span>
-      </Button>
-
-      <ConnectMethodDialog
-        open={methodOpen}
-        onOpenChange={setMethodOpen}
-        platformLabel={t("platform.tab.asana")}
-        oauthLabel={t("platform.connectMethod.oauth")}
-        tokenLabel={t("asana.patButton")}
-        onChooseOAuth={() => void startOAuth()}
-        onChooseToken={() => setPatOpen(true)}
-      />
-      <PatDialog open={patOpen} onOpenChange={setPatOpen} onConnected={onConnected} />
-    </>
+      })}
+      renderTokenDialog={({ open, onOpenChange }) => (
+        <PatDialog open={open} onOpenChange={onOpenChange} onConnected={onConnected} />
+      )}
+    />
   );
 }
 
@@ -137,8 +74,7 @@ function DefaultWorkspaceField() {
         }
       : null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("asana.section.workspace")}</label>
+    <FieldRow label={t("asana.section.workspace")}>
       <WorkspaceCombobox
         value={value}
         onChange={(next) =>
@@ -156,7 +92,7 @@ function DefaultWorkspaceField() {
           })
         }
       />
-    </div>
+    </FieldRow>
   );
 }
 
@@ -173,8 +109,7 @@ function DefaultProjectField() {
         }
       : null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("asana.section.project")}</label>
+    <FieldRow label={t("asana.section.project")}>
       <ProjectCombobox
         workspaceGid={account.defaults.workspaceGid}
         value={value}
@@ -186,7 +121,7 @@ function DefaultProjectField() {
           })
         }
       />
-    </div>
+    </FieldRow>
   );
 }
 
@@ -200,8 +135,7 @@ function DefaultAssigneeField() {
       ? { gid: account.defaults.assigneeGid, name: account.defaults.assigneeName }
       : null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("asana.field.assignee")}</label>
+    <FieldRow label={t("asana.field.assignee")}>
       <AssigneeCombobox
         workspaceGid={account.defaults.workspaceGid}
         value={value}
@@ -215,7 +149,7 @@ function DefaultAssigneeField() {
           })
         }
       />
-    </div>
+    </FieldRow>
   );
 }
 
@@ -275,11 +209,10 @@ function PatDialog({
           <DialogDescription>{t("asana.patDialog.body")}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <label htmlFor="asana-pat" className="text-xs text-muted-foreground">
-              {t("asana.patLabel")}
-            </label>
+        <FieldRow
+          label={t("asana.patLabel")}
+          htmlFor="asana-pat"
+          labelAction={
             <a
               href={ASANA_TOKEN_SETTINGS}
               target="_blank"
@@ -289,7 +222,8 @@ function PatDialog({
               {t("platform.getToken")}
               <ExternalLink className="h-3 w-3" />
             </a>
-          </div>
+          }
+        >
           <Input
             id="asana-pat"
             placeholder={t("asana.patPlaceholder")}
@@ -298,7 +232,7 @@ function PatDialog({
             autoComplete="off"
             spellCheck={false}
           />
-        </div>
+        </FieldRow>
 
         <DialogFooter className="flex-row justify-end">
           <Button variant="outline" onClick={() => onOpenChange(false)}>

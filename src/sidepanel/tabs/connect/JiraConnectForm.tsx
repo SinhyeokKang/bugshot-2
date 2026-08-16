@@ -4,6 +4,7 @@ import { SiJirasoftware as Jira } from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { ConnectedBadge } from "@/sidepanel/components/ConnectedBadge";
+import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -24,7 +25,8 @@ import type {
   JiraSite,
 } from "@/types/jira";
 import { isCredentialSafeUrl } from "@/lib/loopback-host";
-import { isOAuthCancelled, sendBg, type OAuthStartResultMsg } from "@/types/messages";
+import type { OAuthStartResultMsg } from "@/types/messages";
+import { isOAuthCancelled, sendBg } from "@/lib/bg-client";
 import { AssigneeField } from "@/sidepanel/tabs/jiraFields/AssigneeField";
 import { IssueTypeCombobox } from "@/sidepanel/tabs/IssueTypeCombobox";
 import { ProjectCombobox } from "@/sidepanel/tabs/ProjectCombobox";
@@ -36,14 +38,12 @@ export function JiraConnectedBody() {
   return (
     <>
       <JiraSummary />
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-muted-foreground">{t("jira.project")}</label>
+      <FieldRow label={t("jira.project")}>
         <ProjectCombobox />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-muted-foreground">{t("jira.defaultIssueType")}</label>
+      </FieldRow>
+      <FieldRow label={t("jira.defaultIssueType")}>
         <IssueTypeCombobox />
-      </div>
+      </FieldRow>
       <DefaultAssigneeField />
       <SetupDialog />
     </>
@@ -58,8 +58,7 @@ function DefaultAssigneeField() {
   const updateJiraAccount = useSettingsStore((s) => s.updateJiraAccount);
   if (!account) return null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("field.assignee.label")}</label>
+    <FieldRow label={t("field.assignee.label")}>
       <AssigneeField
         value={account.assigneeId}
         fallbackLabel={account.assigneeName}
@@ -67,7 +66,7 @@ function DefaultAssigneeField() {
           updateJiraAccount({ assigneeId, assigneeName })
         }
       />
-    </div>
+    </FieldRow>
   );
 }
 
@@ -346,10 +345,7 @@ function ApiKeyDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="jira-baseUrl" className="text-xs text-muted-foreground">
-              {t("jira.workspaceUrl")}
-            </label>
+          <FieldRow label={t("jira.workspaceUrl")} htmlFor="jira-baseUrl">
             <Input
               id="jira-baseUrl"
               placeholder={t("jira.workspaceUrlPlaceholder")}
@@ -358,12 +354,9 @@ function ApiKeyDialog({
               autoComplete="off"
               spellCheck={false}
             />
-          </div>
+          </FieldRow>
 
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="jira-email" className="text-xs text-muted-foreground">
-              {t("jira.email")}
-            </label>
+          <FieldRow label={t("jira.email")} htmlFor="jira-email">
             <Input
               id="jira-email"
               type="email"
@@ -372,13 +365,12 @@ function ApiKeyDialog({
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="off"
             />
-          </div>
+          </FieldRow>
 
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <label htmlFor="jira-token" className="text-xs text-muted-foreground">
-                {t("jira.apiToken")}
-              </label>
+          <FieldRow
+            label={t("jira.apiToken")}
+            htmlFor="jira-token"
+            labelAction={
               <a
                 href="https://id.atlassian.com/manage-profile/security/api-tokens"
                 target="_blank"
@@ -388,7 +380,8 @@ function ApiKeyDialog({
                 {t("platform.getToken")}
                 <ExternalLink className="h-3 w-3" />
               </a>
-            </div>
+            }
+          >
             <Input
               id="jira-token"
               placeholder={t("jira.apiTokenPlaceholder")}
@@ -397,7 +390,7 @@ function ApiKeyDialog({
               autoComplete="off"
               spellCheck={false}
             />
-          </div>
+          </FieldRow>
 
         </div>
 
@@ -462,12 +455,9 @@ function SetupDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted-foreground">
-            {t("jira.projectDialog.label")}
-          </label>
+        <FieldRow label={t("jira.projectDialog.label")}>
           <ProjectCombobox />
-        </div>
+        </FieldRow>
 
         <DialogFooter className="flex-row justify-end">
           <Button variant="outline" onClick={handleCancel}>

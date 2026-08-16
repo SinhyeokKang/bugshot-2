@@ -5,7 +5,7 @@ import type {
   NotionDatabaseSchema,
   NotionDefaults,
 } from "@/types/notion";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { CcCombobox, type CcValue } from "./CcCombobox";
 import { DatabaseCombobox } from "./DatabaseCombobox";

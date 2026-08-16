@@ -1,6 +1,31 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { analyticsEnabled, buildCaptureBody, postCapture, resolveInstallationId, isAllowedEvent, filterProperties } from "../analytics";
+import { analyticsEnabled, buildCaptureBody, postCapture, resolveInstallationId, isAllowedEvent, filterProperties, resolvePostHogHost } from "../analytics";
 import { submitEventProperties } from "@/sidepanel/lib/track-submit";
+
+// env가 비었을 때 어디로 나가느냐가 privacy 문서의 단언(`in.bug-shot.com`으로만 나간다)과
+// 직결된다 — 폴백이 PostHog Cloud 직행이면 문서가 거짓이 되므로 기본값을 못으로 박는다.
+describe("resolvePostHogHost", () => {
+  it("env 값이 있으면 그걸 쓴다", () => {
+    expect(resolvePostHogHost("https://in.example.com")).toBe("https://in.example.com");
+  });
+
+  it("후행 슬래시를 지운다", () => {
+    expect(resolvePostHogHost("https://in.example.com///")).toBe("https://in.example.com");
+  });
+
+  it("앞뒤 공백을 지운다", () => {
+    expect(resolvePostHogHost("  https://in.example.com  ")).toBe("https://in.example.com");
+  });
+
+  it("undefined면 BugShot 프록시로 폴백한다 (PostHog Cloud 직행 금지)", () => {
+    expect(resolvePostHogHost(undefined)).toBe("https://in.bug-shot.com");
+  });
+
+  it("빈 문자열·공백만이어도 같은 폴백", () => {
+    expect(resolvePostHogHost("")).toBe("https://in.bug-shot.com");
+    expect(resolvePostHogHost("   ")).toBe("https://in.bug-shot.com");
+  });
+});
 
 describe("analyticsEnabled", () => {
   it("키가 있으면 true", () => {

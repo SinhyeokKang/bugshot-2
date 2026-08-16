@@ -4,7 +4,7 @@ import {
   type CcUserOption,
 } from "@/sidepanel/components/CcMultiCombobox";
 import type { JiraUser } from "@/types/jira";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { useDebouncedSearch } from "./useDebouncedSearch";
 import { useJiraConfig } from "./useJiraConfig";
 

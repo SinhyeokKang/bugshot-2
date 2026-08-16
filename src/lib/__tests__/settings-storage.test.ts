@@ -205,6 +205,119 @@ describe("플랫폼별 write 계열 (토큰 갱신 영속)", () => {
     expect(readBack().state.accounts[platform].auth.scope).toBe("new-scope");
   });
 
+  // 각 write가 대입하는 필드 목록은 "갱신 대상 화이트리스트"다 — 나머지(신원 필드)는
+  // 갱신 응답에 뭐가 실려 오든 건드리면 안 된다. 특히 gitlab의 baseUrl은 self-managed
+  // 인스턴스 주소라 덮이면 그 계정으로 다시는 요청이 안 나간다. 위 케이스들은 갱신되는
+  // 필드의 *값*만 재서, 목록이 넓어지는 방향(신원 필드까지 대입)을 잡지 못한다.
+  const WHITELIST = [
+    {
+      platform: "jira",
+      write: writeStoredOAuthTokens,
+      stored: { kind: "oauth", cloudId: "c-old", siteUrl: "https://old.atlassian.net", email: "old@x.io", accessToken: "old", refreshToken: "r0", expiresAt: 1 },
+      incoming: { kind: "oauth", cloudId: "c-NEW", siteUrl: "https://NEW.atlassian.net", email: "NEW@x.io", accessToken: "new", refreshToken: "r1", expiresAt: 999 },
+      renewed: { accessToken: "new", refreshToken: "r1", expiresAt: 999 },
+      absent: ["scope", "tokenType"],
+    },
+    {
+      platform: "github",
+      write: writeStoredGithubOAuthTokens,
+      stored: { kind: "oauth", accessToken: "old", tokenType: "bearer", scope: "old-scope", refreshToken: "r0", expiresAt: 1, viewerLogin: "old-login", grantedAt: 100 },
+      incoming: { kind: "oauth", accessToken: "new", tokenType: "mac", scope: "new-scope", refreshToken: "r1", expiresAt: 999, viewerLogin: "NEW-login", grantedAt: 777 },
+      renewed: { accessToken: "new", tokenType: "mac", scope: "new-scope", refreshToken: "r1", expiresAt: 999 },
+      absent: [],
+    },
+    {
+      platform: "linear",
+      write: writeStoredLinearOAuthTokens,
+      stored: { kind: "oauth", accessToken: "old", refreshToken: "r0", expiresAt: 1, scope: "old-scope", viewerName: "old-name", grantedAt: 100 },
+      incoming: { kind: "oauth", accessToken: "new", refreshToken: "r1", expiresAt: 999, scope: "new-scope", viewerName: "NEW-name", grantedAt: 777 },
+      renewed: { accessToken: "new", refreshToken: "r1", expiresAt: 999, scope: "new-scope" },
+      absent: ["tokenType"],
+    },
+    {
+      platform: "gitlab",
+      write: writeStoredGitlabOAuthTokens,
+      stored: { kind: "oauth", accessToken: "old", refreshToken: "r0", expiresAt: 1, scope: "old-scope", baseUrl: "https://gitlab.self.io", viewerUsername: "old-user", grantedAt: 100 },
+      incoming: { kind: "oauth", accessToken: "new", refreshToken: "r1", expiresAt: 999, scope: "new-scope", baseUrl: "https://gitlab.com", viewerUsername: "NEW-user", grantedAt: 777 },
+      renewed: { accessToken: "new", refreshToken: "r1", expiresAt: 999, scope: "new-scope" },
+      absent: ["tokenType"],
+    },
+    {
+      platform: "asana",
+      write: writeStoredAsanaOAuthTokens,
+      stored: { kind: "oauth", accessToken: "old", refreshToken: "r0", expiresAt: 1, grantedAt: 100, viewerGid: "g-old", viewerName: "old-name" },
+      incoming: { kind: "oauth", accessToken: "new", refreshToken: "r1", expiresAt: 999, grantedAt: 777, viewerGid: "g-NEW", viewerName: "NEW-name" },
+      renewed: { accessToken: "new", refreshToken: "r1", expiresAt: 999 },
+      absent: ["scope", "tokenType"],
+    },
+  ] as const;
+
+  it.each(WHITELIST)(
+    "$platform: 갱신 목록 밖 필드는 응답에 실려와도 그대로 둔다 (envelope 전량 대조)",
+    async ({ platform, write, stored: seed, incoming, renewed }) => {
+      stored = envelope({ accounts: { [platform]: { auth: { ...seed } } } });
+
+      await write(incoming as never);
+
+      // 부분 일치가 아니라 정확 일치 — 목록이 넓어지면(신원 필드 대입) 여기서 갈린다.
+      expect(readBack()).toEqual(
+        envelope({ accounts: { [platform]: { auth: { ...seed, ...renewed } } } }),
+      );
+    },
+  );
+
+  // toEqual은 값이 undefined인 키를 무시하므로 "이 플랫폼엔 이 키가 없어야 한다"를 못 잡는다
+  // (POSTMORTEM 2026-08-15). 테이블이 필드를 공유하면 jira에 scope: undefined가 생긴다.
+  it.each(WHITELIST.filter((c) => c.absent.length > 0))(
+    "$platform: 남의 플랫폼 필드가 키로도 생기지 않는다",
+    async ({ platform, write, stored: seed, incoming, absent }) => {
+      stored = envelope({ accounts: { [platform]: { auth: { ...seed } } } });
+
+      await write({ ...incoming, scope: "leak", tokenType: "leak" } as never);
+
+      const auth = readBack().state.accounts[platform].auth;
+      for (const key of absent) expect(key in auth, `${platform}.${key}`).toBe(false);
+    },
+  );
+
+  // 폴백은 `??`(nullish)이지 `||`(falsy)가 아니다. `||`로 바뀌면 빈 문자열·0이 "값 없음"으로
+  // 취급돼 옛 값이 되살아난다 — GitHub이 회전으로 refreshToken을 ""로 비운 경우 만료된
+  // 토큰이 계속 쓰인다. 위 keepIfAbsent 케이스들은 undefined만 넣어서 이 축을 못 가른다.
+  it("github: falsy지만 nullish가 아닌 값(''·0)은 그대로 덮어쓴다", async () => {
+    stored = envelope({
+      accounts: { github: { auth: { kind: "oauth", accessToken: "old", tokenType: "bearer", scope: "s", refreshToken: "old-refresh", expiresAt: 42 } } },
+    });
+
+    await writeStoredGithubOAuthTokens({
+      kind: "oauth",
+      accessToken: "new",
+      tokenType: "bearer",
+      scope: "s",
+      refreshToken: "",
+      expiresAt: 0,
+    } as never);
+
+    const auth = readBack().state.accounts.github.auth;
+    expect(auth.refreshToken).toBe("");
+    expect(auth.expiresAt).toBe(0);
+  });
+
+  // `?? cur.X` 폴백은 github 전용이다. 나머지 4개로 번지면, 갱신 응답이 토큰 회전으로
+  // refreshToken을 비운 경우 옛 값이 살아남아 다음 갱신이 만료된 토큰으로 나간다.
+  it.each(WHITELIST.filter((c) => c.platform !== "github"))(
+    "$platform: 응답에 refreshToken이 없으면 지운다 (keepIfAbsent는 github 전용)",
+    async ({ platform, write, stored: seed, incoming }) => {
+      stored = envelope({ accounts: { [platform]: { auth: { ...seed } } } });
+      const { refreshToken: _r, expiresAt: _e, ...withoutRenewable } = incoming;
+
+      await write(withoutRenewable as never);
+
+      const auth = readBack().state.accounts[platform].auth;
+      expect(auth.refreshToken).toBeUndefined();
+      expect(auth.expiresAt).toBeUndefined();
+    },
+  );
+
   // 저장된 envelope이 문자열이면 문자열로 되돌려야 한다 — 타입이 바뀌면 zustand persist가 못 읽는다.
   it.each(cases)("%s: 문자열로 저장돼 있었다면 문자열로 돌려쓴다", async (platform, write) => {
     stored = JSON.stringify(

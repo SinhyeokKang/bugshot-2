@@ -455,7 +455,7 @@ export async function getInlineImage(refId: string): Promise<Blob | null> {
   }
 }
 
-export async function deleteInlineImages(refIds: string[]): Promise<void> {
+async function deleteInlineImages(refIds: string[]): Promise<void> {
   try {
     const db = await openDb();
     const tx = db.transaction(STORE_INLINE_IMAGES, "readwrite");
@@ -467,7 +467,7 @@ export async function deleteInlineImages(refIds: string[]): Promise<void> {
   }
 }
 
-export async function getInlineImageKeys(): Promise<string[]> {
+async function getInlineImageKeys(): Promise<string[]> {
   try {
     const db = await openDb();
     const tx = db.transaction(STORE_INLINE_IMAGES, "readonly");
@@ -480,6 +480,7 @@ export async function getInlineImageKeys(): Promise<string[]> {
   }
 }
 
+// 테스트 전용 export — 프로덕션 호출처 0, blob-db-inline-origins.test.ts가 부른다.
 export async function clearInlineImages(): Promise<void> {
   try {
     const db = await openDb();
@@ -494,7 +495,8 @@ export async function clearInlineImages(): Promise<void> {
 // --- Inline image origin backup API ---
 // 어노테이션 직전 원본 백업. inlineImages와 refId 공간을 공유하되 별도 store라 prune 대상 밖
 // (markdown에 안 나타나므로). 초기화(reset)로 원본 복원 후 삭제한다. clearInlineOrigins는
-// 두지 않는다 — 대칭인 clearInlineImages가 이미 호출처 0(dead)이라 대칭 추가도 dead code.
+// 두지 않는다 — 대칭인 clearInlineImages가 프로덕션 호출처 0이라 대칭 추가도 쓰이지 않는다
+// (clearInlineImages 자체는 blob-db-inline-origins.test.ts가 부르므로 dead는 아니다).
 
 export async function saveInlineOrigin(refId: string, blob: Blob): Promise<boolean> {
   try {
@@ -548,6 +550,8 @@ export async function deleteInlineOrigins(refIds: string[]): Promise<void> {
   }
 }
 
+// 테스트 전용 export — 프로덕션 호출처는 같은 파일의 pruneOrphanInlineImages뿐이고,
+// blob-db-inline-origins.test.ts가 밖에서 부른다.
 export async function getInlineOriginKeys(): Promise<string[]> {
   try {
     const db = await openDb();

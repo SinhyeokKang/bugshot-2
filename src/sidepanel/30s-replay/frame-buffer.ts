@@ -3,7 +3,7 @@ export interface CapturedFrame {
   timestamp: number;
 }
 
-export const REPLAY_MAX_FRAMES = 60;
+const REPLAY_MAX_FRAMES = 60;
 export const REPLAY_MAX_DURATION_MS = 30000;
 
 export class FrameBuffer {

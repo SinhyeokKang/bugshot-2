@@ -12,7 +12,12 @@ vi.mock("@/i18n", () => ({
   dateBcp47: () => "en-US",
 }));
 
-import { prepareUpload, type PrepareUploadInput, type UploadFn } from "../prepareUpload";
+import {
+  prepareUpload,
+  toInlineUploadFiles,
+  type PrepareUploadInput,
+  type UploadFn,
+} from "../prepareUpload";
 import type { MarkdownContext } from "../buildIssueMarkdown";
 
 function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
@@ -161,5 +166,24 @@ describe("prepareUpload — logsDropped / requireMediaUpload", () => {
         { platform: "github" },
       ),
     ).resolves.toMatchObject({ logsDropped: true });
+  });
+});
+
+// 업로드 목록과 업로드 후 조회가 같은 짝을 봐야 인라인 이미지가 본문에 남는다.
+describe("toInlineUploadFiles", () => {
+  it("refId·filename·dataUrl을 짝지어 입력 순서대로 돌려준다", () => {
+    expect(
+      toInlineUploadFiles([
+        { refId: "r1", dataUrl: "data:IMG1" },
+        { refId: "r2", dataUrl: "data:IMG2" },
+      ]),
+    ).toEqual([
+      { refId: "r1", filename: "inline-r1.webp", dataUrl: "data:IMG1" },
+      { refId: "r2", filename: "inline-r2.webp", dataUrl: "data:IMG2" },
+    ]);
+  });
+
+  it("undefined면 빈 배열 (인라인 이미지 없는 제출 경로)", () => {
+    expect(toInlineUploadFiles(undefined)).toEqual([]);
   });
 });

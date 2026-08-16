@@ -176,7 +176,7 @@ describe("selectMatchedLogCandidates — 200 매칭 후보", () => {
     expect(out[0].ref).toBe("m1");
     expect(out[0].matchedTerm).toBe("orderstatus");
     expect(out[0].status).toBe(200);
-    expect(out[0].path).toBe("/api/orders"); // extractPath(url) — 쿼리 스트립
+    expect(out[0].path).toBe("/api/orders"); // networkLogPath(url) — 쿼리 스트립
     expect(out[0].digest).toContain("orderStatus:str"); // 키 이름은 원형 유지
     expect(out[0].digest).not.toContain("SHIPPED"); // 값 부재
   });

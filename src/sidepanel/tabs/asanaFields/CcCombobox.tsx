@@ -6,7 +6,7 @@ import {
 } from "@/sidepanel/components/CcMultiCombobox";
 import { useLazyListOnOpen } from "@/sidepanel/hooks/useLazyListOnOpen";
 import type { AsanaUser } from "@/types/asana";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 export interface CcValue {
   gid: string;

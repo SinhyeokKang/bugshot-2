@@ -13,10 +13,16 @@ export function analyticsEnabled(key: string | undefined): boolean {
   return !!(key ?? "").trim();
 }
 
+// 폴백이 `us.i.posthog.com`(PostHog Cloud 직행)이면 env가 빠진 빌드가 docs/privacy의 단언과
+// 다른 호스트로 나간다 — 문서가 약속하는 건 BugShot 소유 프록시뿐이라 폴백도 거기로 둔다.
+// (vite.config.ts가 define으로 값을 박아 넣지만, 그 env 자체가 비어 있는 경우가 이 폴백이다.)
+export function resolvePostHogHost(raw: string | undefined): string {
+  const trimmed = (raw ?? "").trim().replace(/\/+$/, "");
+  return trimmed || "https://in.bug-shot.com";
+}
+
 function posthogHost(): string {
-  return (import.meta.env.VITE_POSTHOG_HOST ?? "https://us.i.posthog.com")
-    .trim()
-    .replace(/\/+$/, "");
+  return resolvePostHogHost(import.meta.env.VITE_POSTHOG_HOST);
 }
 
 // 허용목록. `analytics.capture`는 사이드패널에서 임의 문자열·임의 Record<string,string>을

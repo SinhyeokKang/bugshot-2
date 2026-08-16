@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import type { GithubIssueStatus } from "@/types/github";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { STATUS_CATEGORY_COLORS } from "./constants";
 
 export type GithubBadgeStatus =
@@ -15,7 +15,7 @@ export type GithubBadgeStatus =
 
 export type GithubTargetState = "open" | "closed_completed" | "closed_not_planned";
 
-export function toGithubTargetState(s: GithubBadgeStatus): GithubTargetState {
+function toGithubTargetState(s: GithubBadgeStatus): GithubTargetState {
   if (s.kind === "open") return "open";
   return s.reason === "not_planned" ? "closed_not_planned" : "closed_completed";
 }

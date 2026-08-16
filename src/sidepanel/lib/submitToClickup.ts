@@ -3,8 +3,9 @@ import {
   type ClickupMediaInput,
 } from "./buildClickupIssueBody";
 import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages";
+import { toInlineUploadFiles, toUploadEntry } from "./prepareUpload";
 import { guessUploadMime } from "./uploadMime";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type { ClickupCreateTaskResult } from "@/types/clickup";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
@@ -30,24 +31,13 @@ export interface ClickupSubmitInput {
   cc?: { id: string; name?: string }[];
 }
 
-function toUploadEntry(f: ClickupFileInput) {
-  return {
-    filename: f.filename,
-    contentType: guessUploadMime(f.filename),
-    dataUrl: f.dataUrl,
-  };
-}
-
 export async function submitToClickup(
   input: ClickupSubmitInput,
 ): Promise<NormalizedSubmitResult> {
   const imageInputs = input.images ?? [];
   const logs = input.logs ?? [];
   const userAttachments = input.attachments ?? [];
-  const inlineFiles = (input.inlineImages ?? []).map((img) => ({
-    filename: `inline-${img.refId}.webp`,
-    dataUrl: img.dataUrl,
-  }));
+  const inlineFiles = toInlineUploadFiles(input.inlineImages);
   const allFiles = [
     ...imageInputs,
     ...(input.video ? [input.video] : []),
@@ -118,9 +108,9 @@ export async function submitToClickup(
     let resolvedCtx = input.ctx;
     if (inlineFiles.length > 0) {
       const refToUrl = new Map<string, string>();
-      for (const img of input.inlineImages ?? []) {
-        const url = urlMap.get(`inline-${img.refId}.webp`);
-        if (url) refToUrl.set(img.refId, url);
+      for (const f of inlineFiles) {
+        const url = urlMap.get(f.filename);
+        if (url) refToUrl.set(f.refId, url);
       }
       if (refToUrl.size > 0) {
         resolvedCtx = {

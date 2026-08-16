@@ -63,7 +63,7 @@ export async function getActiveTabIds(): Promise<Set<number>> {
   return ids;
 }
 
-export async function pruneOrphanPendingLogs(): Promise<void> {
+async function pruneOrphanPendingLogs(): Promise<void> {
   const activeTabIds = await getActiveTabIds();
   const [networkKeys, consoleKeys, actionKeys, videoKeys, attachmentKeys] = await Promise.all([
     getNetworkLogKeys(),

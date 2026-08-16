@@ -1,4 +1,4 @@
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type { PlatformId } from "@/types/platform";
 import type { CaptureMode } from "@/store/editor-store";
 

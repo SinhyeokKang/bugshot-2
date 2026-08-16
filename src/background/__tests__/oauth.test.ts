@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isAtlassianCancellationCode, OAuthError, serializeOAuthError } from "../oauth";
-import { BgError, isOAuthCancelled, isOAuthRefreshFailed, getOAuthErrorPlatform, isOAuthNotConfigured } from "@/types/messages";
+import { BgError, isOAuthCancelled, isOAuthRefreshFailed, getOAuthErrorPlatform, isOAuthNotConfigured } from "@/lib/bg-client";
 
 describe("OAuthError options", () => {
   it("기본 — cancelled false, platform undefined", () => {

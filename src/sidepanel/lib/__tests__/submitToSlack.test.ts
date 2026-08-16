@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
-vi.mock("@/types/messages", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 
 // 스레드 본문 빌더는 mock — MarkdownContext 처리는 buildSlackBody 자체 테스트의 몫.
 let mockBody = "BODY";

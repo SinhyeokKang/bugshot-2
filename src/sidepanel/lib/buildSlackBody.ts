@@ -1,5 +1,4 @@
 import { t, withLocale } from "@/i18n";
-import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
 import { bodyBlocks } from "./bodyBlocks";
 import {
   mdInlineCode,
@@ -10,7 +9,12 @@ import {
 import { networkErrorCount } from "./buildLogSummary";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
+import { listItems, sectionLabel } from "./issueBodyShared";
 import { escapeMrkdwn, markdownToMrkdwn } from "./markdownToMrkdwn";
+
+// Slack mrkdwn은 헤딩 문법이 없어 섹션 제목을 *볼드 줄*로, 테이블이 없어 스타일 diff를
+// `prop: as-is → to-be` 텍스트 줄로 낸다. 이미지/영상/첨부는 본문에 넣지 않고 스레드 첨부로 보낸다.
+// 링크도 `<url|label>` 문법이라, 이 파일의 로컬 헬퍼들은 공용판을 쓰지 않고 남는다.
 
 export interface SlackBuildInput {
   ctx: MarkdownContext;
@@ -19,19 +23,6 @@ export interface SlackBuildInput {
 export interface SlackBuildResult {
   body: string;
   attached: string[];
-}
-
-// Slack mrkdwn은 헤딩 문법이 없어 섹션 제목을 *볼드 줄*로, 테이블이 없어 스타일 diff를
-// `prop: as-is → to-be` 텍스트 줄로 낸다. 이미지/영상/첨부는 본문에 넣지 않고 스레드 첨부로 보낸다.
-function sectionLabel(section: IssueSection): string {
-  return section.labelOverride?.trim() || t(sectionMdLabelKey(section.id));
-}
-
-function listItems(content: string): string[] {
-  return content
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
 }
 
 function footerMarkdown(): string {

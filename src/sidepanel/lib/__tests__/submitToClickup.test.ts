@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
-vi.mock("@/types/messages", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 
 // url이 채워지면 다른 본문을 반환 → 2차 갱신(updateTaskMarkdown) 트리거 검증용.
 const buildBody = vi.fn(

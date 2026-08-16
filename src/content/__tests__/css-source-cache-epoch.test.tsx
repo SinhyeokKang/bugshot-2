@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock("@/types/messages", () => ({ sendBg: vi.fn(async () => ({ sheets: [] })) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: vi.fn(async () => ({ sheets: [] })) }));
 
 import { ensureLoaded, invalidate, isCacheReady } from "../css-source-cache";
 

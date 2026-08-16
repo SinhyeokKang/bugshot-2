@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { SiClickup } from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { ConnectedBadge } from "@/sidepanel/components/ConnectedBadge";
+import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -17,13 +18,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { useSettingsStore } from "@/store/settings-store";
 import type { ClickupAccount, ClickupMyself, ClickupOAuthAuth } from "@/types/clickup";
-import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { AssigneeCombobox, type AssigneeValue as ClickupAssigneeValue } from "@/sidepanel/tabs/clickupFields/AssigneeCombobox";
 import { ListCombobox, type ListValue } from "@/sidepanel/tabs/clickupFields/ListCombobox";
 import { SpaceCombobox, type SpaceValue } from "@/sidepanel/tabs/clickupFields/SpaceCombobox";
 import { WorkspaceCombobox, type WorkspaceValue } from "@/sidepanel/tabs/clickupFields/WorkspaceCombobox";
-import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
-import { ConnectMethodDialog } from "./ConnectMethodDialog";
+import type { ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
+import { PlatformConnectFlow } from "./PlatformConnectFlow";
 
 const CLICKUP_TOKEN_SETTINGS = "https://app.clickup.com/settings/apps";
 
@@ -40,89 +41,25 @@ export function ClickupConnectedBody() {
 }
 
 export function ClickupConnectFlow({ connected, onConnected }: ConnectFlowProps) {
-  const t = useT();
-  const setAccount = useSettingsStore((s) => s.setAccount);
-  const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  const [methodOpen, setMethodOpen] = useState(false);
-  const [patOpen, setPatOpen] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    sendBg<{ available: boolean }>({ type: "clickup.oauth.available" })
-      .then((res) => !cancelled && setOauthAvailable(res.available))
-      .catch(() => !cancelled && setOauthAvailable(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function startOAuth() {
-    setConnecting(true);
-    try {
-      const auth = await sendBg<ClickupOAuthAuth>({ type: "clickup.startOAuth" });
-      const next: ClickupAccount = {
+  return (
+    <PlatformConnectFlow
+      connected={connected}
+      onConnected={onConnected}
+      platform="clickup"
+      icon={<SiClickup className="h-4 w-4" color="default" />}
+      tokenLabelKey="clickup.patButton"
+      availableRequest={{ type: "clickup.oauth.available" }}
+      startOAuthRequest={{ type: "clickup.startOAuth" }}
+      buildAccount={(auth: ClickupOAuthAuth): ClickupAccount => ({
         platform: "clickup",
         connectedAt: Date.now(),
         auth,
         defaults: {},
-      };
-      setAccount("clickup", next);
-      onConnected();
-    } catch (err) {
-      if (!isOAuthCancelled(err)) {
-        toast.error(err instanceof Error ? err.message : String(err));
-      }
-    } finally {
-      setConnecting(false);
-    }
-  }
-
-  const methods = connectMethods(oauthAvailable);
-
-  function handleClick() {
-    if (methods.length === 0) return;
-    if (connecting) return;
-    if (methods.includes("oauth")) {
-      setMethodOpen(true);
-    } else {
-      setPatOpen(true);
-    }
-  }
-
-  return (
-    <>
-      <Button
-        variant="outline"
-        onClick={handleClick}
-        disabled={connected || methods.length === 0}
-        aria-disabled={connecting}
-        className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
-      >
-        {connecting && (
-          <span className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="h-4 w-4 animate-spin" />
-          </span>
-        )}
-        <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
-          <SiClickup className="h-4 w-4" color="default" />
-          {connected
-            ? t("platform.connected", { platform: t("platform.tab.clickup") })
-            : t("platform.connectPlatform", { platform: t("platform.tab.clickup") })}
-        </span>
-      </Button>
-
-      <ConnectMethodDialog
-        open={methodOpen}
-        onOpenChange={setMethodOpen}
-        platformLabel={t("platform.tab.clickup")}
-        oauthLabel={t("platform.connectMethod.oauth")}
-        tokenLabel={t("clickup.patButton")}
-        onChooseOAuth={() => void startOAuth()}
-        onChooseToken={() => setPatOpen(true)}
-      />
-      <PatDialog open={patOpen} onOpenChange={setPatOpen} onConnected={onConnected} />
-    </>
+      })}
+      renderTokenDialog={({ open, onOpenChange }) => (
+        <PatDialog open={open} onOpenChange={onOpenChange} onConnected={onConnected} />
+      )}
+    />
   );
 }
 
@@ -139,8 +76,7 @@ function DefaultWorkspaceField() {
         }
       : null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("clickup.section.workspace")}</label>
+    <FieldRow label={t("clickup.section.workspace")}>
       <WorkspaceCombobox
         value={value}
         onChange={(next) =>
@@ -160,7 +96,7 @@ function DefaultWorkspaceField() {
           })
         }
       />
-    </div>
+    </FieldRow>
   );
 }
 
@@ -174,8 +110,7 @@ function DefaultSpaceField() {
       ? { spaceId: account.defaults.spaceId, spaceName: account.defaults.spaceName }
       : null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("clickup.section.space")}</label>
+    <FieldRow label={t("clickup.section.space")}>
       <SpaceCombobox
         workspaceId={account.defaults.workspaceId}
         value={value}
@@ -187,7 +122,7 @@ function DefaultSpaceField() {
           })
         }
       />
-    </div>
+    </FieldRow>
   );
 }
 
@@ -201,8 +136,7 @@ function DefaultListField() {
       ? { listId: account.defaults.listId, listName: account.defaults.listName }
       : null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("clickup.section.list")}</label>
+    <FieldRow label={t("clickup.section.list")}>
       <ListCombobox
         spaceId={account.defaults.spaceId}
         value={value}
@@ -214,7 +148,7 @@ function DefaultListField() {
           })
         }
       />
-    </div>
+    </FieldRow>
   );
 }
 
@@ -228,8 +162,7 @@ function DefaultAssigneeField() {
       ? { id: account.defaults.assigneeId, name: account.defaults.assigneeName }
       : null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("clickup.field.assignee")}</label>
+    <FieldRow label={t("clickup.field.assignee")}>
       <AssigneeCombobox
         workspaceId={account.defaults.workspaceId}
         value={value}
@@ -243,7 +176,7 @@ function DefaultAssigneeField() {
           })
         }
       />
-    </div>
+    </FieldRow>
   );
 }
 
@@ -303,11 +236,10 @@ function PatDialog({
           <DialogDescription>{t("clickup.patDialog.body")}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <label htmlFor="clickup-pat" className="text-xs text-muted-foreground">
-              {t("clickup.patLabel")}
-            </label>
+        <FieldRow
+          label={t("clickup.patLabel")}
+          htmlFor="clickup-pat"
+          labelAction={
             <a
               href={CLICKUP_TOKEN_SETTINGS}
               target="_blank"
@@ -317,7 +249,8 @@ function PatDialog({
               {t("platform.getToken")}
               <ExternalLink className="h-3 w-3" />
             </a>
-          </div>
+          }
+        >
           <Input
             id="clickup-pat"
             placeholder={t("clickup.patPlaceholder")}
@@ -326,7 +259,7 @@ function PatDialog({
             autoComplete="off"
             spellCheck={false}
           />
-        </div>
+        </FieldRow>
 
         <DialogFooter className="flex-row justify-end">
           <Button variant="outline" onClick={() => onOpenChange(false)}>

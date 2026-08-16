@@ -102,6 +102,24 @@ import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { extractInlineRefs, resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
 import { initialJiraFields } from "@/sidepanel/lib/initialJiraFields";
 import { SubmitFieldsDialog } from "@/sidepanel/tabs/SubmitFieldsDialog";
+import {
+  jiraSubmitArgs,
+  jiraLastSubmitFields,
+  githubSubmitArgs,
+  githubLastSubmitFields,
+  linearSubmitArgs,
+  linearLastSubmitFields,
+  notionSubmitArgs,
+  notionLastSubmitFields,
+  gitlabSubmitArgs,
+  gitlabLastSubmitFields,
+  asanaSubmitArgs,
+  asanaLastSubmitFields,
+  clickupSubmitArgs,
+  clickupLastSubmitFields,
+  slackSubmitArgs,
+  slackLastSubmitFields,
+} from "@/sidepanel/lib/submitAdapters";
 
 type SubmitFields = {
   projectKey?: string;
@@ -429,23 +447,17 @@ export function DraftDetailDialog({
     if (!fields.issueTypeId) throw new Error(t("create.requiredMissing"));
 
     const jiraInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    const result = await submitToJira({
-      ctx,
-      inlineImages: jiraInline,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      projectKey,
-      summary: issue.draft.title.trim(),
-      issueTypeId: fields.issueTypeId,
-      assigneeAccountId: fields.assigneeId,
-      priorityId: fields.priorityId,
-      parentKey: fields.parentKey,
-      sprintId: fields.sprintId,
-      relates: fields.relates,
-      cc: fields.cc,
-    });
+    const result = await submitToJira(
+      jiraSubmitArgs({
+        ctx,
+        inlineImages: jiraInline,
+        captureFiles,
+        fields,
+        projectKey,
+        issueTypeId: fields.issueTypeId,
+        summary: issue.draft.title,
+      }),
+    );
     // 승격 가드 없음: submitToJira는 업로드+생성이 단일 atomic 호출(jira.submitIssue)이라
     // 프론트가 첨부 부분 실패를 신호받지 못한다. 가드하려면 background 핸들러 수정 필요. (docs/POSTMORTEM.md)
     markSubmitted(issue.id, {
@@ -462,21 +474,15 @@ export function DraftDetailDialog({
       if (tabId != null) void clearPicker(tabId);
       useEditorStore.getState().reset();
     }
-    useSettingsStore.getState().setLastSubmitFields("jira", {
-      projectKey,
-      issueTypeId: fields.issueTypeId,
-      siteId: jiraSiteId(jiraAccount.auth),
-      assigneeId: fields.assigneeId,
-      assigneeName: fields.assigneeName,
-      priorityId: fields.priorityId,
-      priorityName: fields.priorityName,
-      parentKey: fields.parentKey,
-      parentLabel: fields.parentLabel,
-      sprintId: fields.sprintId,
-      sprintName: fields.sprintName,
-      relates: fields.relates,
-      cc: fields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields(
+      "jira",
+      jiraLastSubmitFields({
+        fields,
+        projectKey,
+        issueTypeId: fields.issueTypeId,
+        siteId: jiraSiteId(jiraAccount.auth),
+      }),
+    );
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
     return { key: result.key, url: result.url, logsDropped: result.logsDropped };
   }
@@ -492,21 +498,18 @@ export function DraftDetailDialog({
     if (!ghFields.owner || !ghFields.repo) throw new Error(t("create.requiredMissing"));
 
     const ghInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    const result = await submitToGithub({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages: ghInline,
-      owner: ghFields.owner,
-      repo: ghFields.repo,
-      label: ghFields.label,
-      assignee: ghFields.assignee,
-      cc: ghFields.cc,
-      // 승격은 markSubmitted가 Slack 원본을 파괴하므로 미디어 업로드 실패 시 등록 전 중단.
-      requireMediaUpload: isSlackPreserved(issue),
-    });
+    const result = await submitToGithub(
+      githubSubmitArgs({
+        ctx,
+        inlineImages: ghInline,
+        captureFiles,
+        fields: ghFields,
+        owner: ghFields.owner,
+        repo: ghFields.repo,
+        // 승격은 markSubmitted가 Slack 원본을 파괴하므로 미디어 업로드 실패 시 등록 전 중단.
+        requireMediaUpload: isSlackPreserved(issue),
+      }),
+    );
     markSubmitted(issue.id, {
       platform: "github",
       key: result.key,
@@ -520,13 +523,7 @@ export function DraftDetailDialog({
       if (tabId != null) void clearPicker(tabId);
       useEditorStore.getState().reset();
     }
-    useSettingsStore.getState().setLastSubmitFields("github", {
-      owner: ghFields.owner,
-      repo: ghFields.repo,
-      label: ghFields.label,
-      assignee: ghFields.assignee,
-      cc: ghFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields("github", githubLastSubmitFields(ghFields));
     useSettingsStore.getState().setLastSubmittedPlatform("github");
     return result;
   }
@@ -542,20 +539,15 @@ export function DraftDetailDialog({
     if (!linearFields.teamId) throw new Error(t("create.requiredMissing"));
 
     const linearInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    const result = await submitToLinear({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages: linearInline,
-      teamId: linearFields.teamId,
-      projectId: linearFields.projectId,
-      labelId: linearFields.labelId,
-      assigneeId: linearFields.assigneeId,
-      priority: linearFields.priority,
-      cc: linearFields.cc,
-    });
+    const result = await submitToLinear(
+      linearSubmitArgs({
+        ctx,
+        inlineImages: linearInline,
+        captureFiles,
+        fields: linearFields,
+        teamId: linearFields.teamId,
+      }),
+    );
     // 승격 가드 불필요: submitToLinear는 이미지·비디오·인라인을 생성 전 업로드하고 실패 시 throw하므로
     // (href:null soft-fail 없음) 미디어 실패는 markSubmitted에 도달하지 못한다 — 원본 보존됨.
     markSubmitted(issue.id, {
@@ -571,19 +563,7 @@ export function DraftDetailDialog({
       if (tabId != null) void clearPicker(tabId);
       useEditorStore.getState().reset();
     }
-    useSettingsStore.getState().setLastSubmitFields("linear", {
-      teamId: linearFields.teamId,
-      teamName: linearFields.teamName,
-      teamKey: linearFields.teamKey,
-      projectId: linearFields.projectId,
-      projectName: linearFields.projectName,
-      labelId: linearFields.labelId,
-      labelName: linearFields.labelName,
-      assigneeId: linearFields.assigneeId,
-      assigneeName: linearFields.assigneeName,
-      priority: linearFields.priority,
-      cc: linearFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields("linear", linearLastSubmitFields(linearFields));
     useSettingsStore.getState().setLastSubmittedPlatform("linear");
     return result;
   }
@@ -603,28 +583,19 @@ export function DraftDetailDialog({
     }
 
     const notionInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    const result = await submitToNotion({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages: notionInline,
-      databaseId: notionFields.databaseId,
-      titlePropertyName: notionSchema.titlePropertyName,
-      statusOption:
-        notionFields.statusOption && notionSchema.statusProperty
-          ? {
-              propertyName: notionSchema.statusProperty.name,
-              optionName: notionFields.statusOption,
-            }
-          : undefined,
-      selectValues: notionFields.selectValues,
-      cc: notionFields.cc?.map((u) => u.id),
-      // 승격은 markSubmitted가 Slack 원본을 파괴하므로 사용자 첨부 업로드 실패 시 등록 전 중단.
-      // (이미지·비디오는 submitToNotion에서 상시 strict라 별도 가드 불필요.)
-      requireMediaUpload: isSlackPreserved(issue),
-    });
+    const result = await submitToNotion(
+      notionSubmitArgs({
+        ctx,
+        inlineImages: notionInline,
+        captureFiles,
+        fields: notionFields,
+        databaseId: notionFields.databaseId,
+        schema: notionSchema,
+        // 승격은 markSubmitted가 Slack 원본을 파괴하므로 사용자 첨부 업로드 실패 시 등록 전 중단.
+        // (이미지·비디오는 submitToNotion에서 상시 strict라 별도 가드 불필요.)
+        requireMediaUpload: isSlackPreserved(issue),
+      }),
+    );
     const pageId = extractNotionPageId(result.url);
     markSubmitted(issue.id, {
       platform: "notion",
@@ -640,13 +611,7 @@ export function DraftDetailDialog({
       if (tabId != null) void clearPicker(tabId);
       useEditorStore.getState().reset();
     }
-    useSettingsStore.getState().setLastSubmitFields("notion", {
-      databaseId: notionFields.databaseId,
-      databaseTitle: notionFields.databaseTitle,
-      statusOption: notionFields.statusOption,
-      selectValues: notionFields.selectValues,
-      cc: notionFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields("notion", notionLastSubmitFields(notionFields));
     useSettingsStore.getState().setLastSubmittedPlatform("notion");
     return result;
   }
@@ -662,20 +627,17 @@ export function DraftDetailDialog({
     if (!gitlabFields.projectId) throw new Error(t("create.requiredMissing"));
 
     const gitlabInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    const result = await submitToGitlab({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages: gitlabInline,
-      projectId: gitlabFields.projectId,
-      label: gitlabFields.label,
-      assigneeId: gitlabFields.assigneeId,
-      cc: gitlabFields.cc?.map((u) => u.username),
-      // 승격은 markSubmitted가 Slack 원본을 파괴하므로 미디어 업로드 실패 시 등록 전 중단.
-      requireMediaUpload: isSlackPreserved(issue),
-    });
+    const result = await submitToGitlab(
+      gitlabSubmitArgs({
+        ctx,
+        inlineImages: gitlabInline,
+        captureFiles,
+        fields: gitlabFields,
+        projectId: gitlabFields.projectId,
+        // 승격은 markSubmitted가 Slack 원본을 파괴하므로 미디어 업로드 실패 시 등록 전 중단.
+        requireMediaUpload: isSlackPreserved(issue),
+      }),
+    );
     markSubmitted(issue.id, {
       platform: "gitlab",
       key: result.key,
@@ -689,14 +651,7 @@ export function DraftDetailDialog({
       if (tabId != null) void clearPicker(tabId);
       useEditorStore.getState().reset();
     }
-    useSettingsStore.getState().setLastSubmitFields("gitlab", {
-      projectId: gitlabFields.projectId,
-      projectPath: gitlabFields.projectPath,
-      label: gitlabFields.label,
-      assigneeId: gitlabFields.assigneeId,
-      assigneeName: gitlabFields.assigneeName,
-      cc: gitlabFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields("gitlab", gitlabLastSubmitFields(gitlabFields));
     useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
     return result;
   }
@@ -712,18 +667,15 @@ export function DraftDetailDialog({
     if (!asanaFields.workspaceGid) throw new Error(t("create.requiredMissing"));
 
     const asanaInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    const result = await submitToAsana({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages: asanaInline,
-      workspaceGid: asanaFields.workspaceGid,
-      projectGid: asanaFields.projectGid,
-      assigneeGid: asanaFields.assigneeGid,
-      cc: asanaFields.cc,
-    });
+    const result = await submitToAsana(
+      asanaSubmitArgs({
+        ctx,
+        inlineImages: asanaInline,
+        captureFiles,
+        fields: asanaFields,
+        workspaceGid: asanaFields.workspaceGid,
+      }),
+    );
     // 승격 가드 없음: submitToAsana는 task를 먼저 생성하고(attachment에 parent gid 필요) 그 뒤 업로드해서,
     // 업로드 부분 실패를 등록 전에 막을 수 없다(생성→업로드 역순). 보호하려면 사전 probe/롤백 설계 필요. (docs/POSTMORTEM.md)
     markSubmitted(issue.id, {
@@ -737,15 +689,7 @@ export function DraftDetailDialog({
       if (tabId != null) void clearPicker(tabId);
       useEditorStore.getState().reset();
     }
-    useSettingsStore.getState().setLastSubmitFields("asana", {
-      workspaceGid: asanaFields.workspaceGid,
-      workspaceName: asanaFields.workspaceName,
-      projectGid: asanaFields.projectGid,
-      projectName: asanaFields.projectName,
-      assigneeGid: asanaFields.assigneeGid,
-      assigneeName: asanaFields.assigneeName,
-      cc: asanaFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields("asana", asanaLastSubmitFields(asanaFields));
     useSettingsStore.getState().setLastSubmittedPlatform("asana");
     return result;
   }
@@ -763,17 +707,15 @@ export function DraftDetailDialog({
     }
 
     const clickupInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    const result = await submitToClickup({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages: clickupInline,
-      listId: clickupFields.listId,
-      assigneeId: clickupFields.assigneeId,
-      cc: clickupFields.cc,
-    });
+    const result = await submitToClickup(
+      clickupSubmitArgs({
+        ctx,
+        inlineImages: clickupInline,
+        captureFiles,
+        fields: clickupFields,
+        listId: clickupFields.listId,
+      }),
+    );
     // 승격 가드 없음: submitToClickup은 task를 먼저 생성하고(attachment에 task id 필요) 그 뒤 업로드해서,
     // 업로드 부분 실패를 등록 전에 막을 수 없다(생성→업로드 역순). 보호하려면 사전 probe/롤백 설계 필요. (docs/POSTMORTEM.md)
     markSubmitted(issue.id, {
@@ -787,17 +729,7 @@ export function DraftDetailDialog({
       if (tabId != null) void clearPicker(tabId);
       useEditorStore.getState().reset();
     }
-    useSettingsStore.getState().setLastSubmitFields("clickup", {
-      workspaceId: clickupFields.workspaceId,
-      workspaceName: clickupFields.workspaceName,
-      spaceId: clickupFields.spaceId,
-      spaceName: clickupFields.spaceName,
-      listId: clickupFields.listId,
-      listName: clickupFields.listName,
-      assigneeId: clickupFields.assigneeId,
-      assigneeName: clickupFields.assigneeName,
-      cc: clickupFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields("clickup", clickupLastSubmitFields(clickupFields));
     useSettingsStore.getState().setLastSubmittedPlatform("clickup");
     return result;
   }
@@ -813,16 +745,15 @@ export function DraftDetailDialog({
     if (!slackFields.channelId) throw new Error(t("create.requiredMissing"));
 
     const slackInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    const result = await submitToSlack({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages: slackInline,
-      channelId: slackFields.channelId,
-      mentions: slackFields.mentions,
-    });
+    const result = await submitToSlack(
+      slackSubmitArgs({
+        ctx,
+        inlineImages: slackInline,
+        captureFiles,
+        fields: slackFields,
+        channelId: slackFields.channelId,
+      }),
+    );
     markSlackShared(issue.id, {
       key: result.key,
       url: result.url,
@@ -832,11 +763,7 @@ export function DraftDetailDialog({
       if (tabId != null) void clearPicker(tabId);
       useEditorStore.getState().reset();
     }
-    useSettingsStore.getState().setLastSubmitFields("slack", {
-      channelId: slackFields.channelId,
-      channelName: slackFields.channelName,
-      mentions: slackFields.mentions,
-    });
+    useSettingsStore.getState().setLastSubmitFields("slack", slackLastSubmitFields(slackFields));
     useSettingsStore.getState().setLastSubmittedPlatform("slack");
     return result;
   }

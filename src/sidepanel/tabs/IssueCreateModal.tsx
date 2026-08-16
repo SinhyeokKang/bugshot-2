@@ -30,6 +30,24 @@ import type { NotionDatabaseSchema } from "@/types/notion";
 import { extractNotionPageId } from "@/lib/notion-page-id";
 import { SubmitFieldsDialog } from "@/sidepanel/tabs/SubmitFieldsDialog";
 import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
+import {
+  jiraSubmitArgs,
+  jiraLastSubmitFields,
+  githubSubmitArgs,
+  githubLastSubmitFields,
+  linearSubmitArgs,
+  linearLastSubmitFields,
+  notionSubmitArgs,
+  notionLastSubmitFields,
+  gitlabSubmitArgs,
+  gitlabLastSubmitFields,
+  asanaSubmitArgs,
+  asanaLastSubmitFields,
+  clickupSubmitArgs,
+  clickupLastSubmitFields,
+  slackSubmitArgs,
+  slackLastSubmitFields,
+} from "@/sidepanel/lib/submitAdapters";
 
 export function IssueCreateModal() {
   const t = useT();
@@ -167,23 +185,17 @@ export function IssueCreateModal() {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.jira") }));
     }
     if (!issueFields.issueTypeId) throw new Error(t("create.requiredMissing"));
-    const result = await submitToJira({
-      ctx,
-      inlineImages,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      projectKey,
-      summary: draft!.title.trim(),
-      issueTypeId: issueFields.issueTypeId,
-      assigneeAccountId: issueFields.assigneeId,
-      priorityId: issueFields.priorityId,
-      parentKey: issueFields.parentKey,
-      sprintId: issueFields.sprintId,
-      relates: issueFields.relates,
-      cc: issueFields.cc,
-    });
+    const result = await submitToJira(
+      jiraSubmitArgs({
+        ctx,
+        inlineImages,
+        captureFiles,
+        fields: issueFields,
+        projectKey,
+        issueTypeId: issueFields.issueTypeId,
+        summary: draft!.title,
+      }),
+    );
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
         platform: "jira",
@@ -195,21 +207,15 @@ export function IssueCreateModal() {
         assigneeName: issueFields.assigneeName,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("jira", {
-      projectKey,
-      issueTypeId: issueFields.issueTypeId,
-      siteId: jiraSiteId(jiraAccount.auth),
-      assigneeId: issueFields.assigneeId,
-      assigneeName: issueFields.assigneeName,
-      priorityId: issueFields.priorityId,
-      priorityName: issueFields.priorityName,
-      parentKey: issueFields.parentKey,
-      parentLabel: issueFields.parentLabel,
-      sprintId: issueFields.sprintId,
-      sprintName: issueFields.sprintName,
-      relates: issueFields.relates,
-      cc: issueFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields(
+      "jira",
+      jiraLastSubmitFields({
+        fields: issueFields,
+        projectKey,
+        issueTypeId: issueFields.issueTypeId,
+        siteId: jiraSiteId(jiraAccount.auth),
+      }),
+    );
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
     onSubmitted({ key: result.key, url: result.url, platform: "jira", logsDropped: result.logsDropped });
     return { key: result.key, url: result.url, logsDropped: result.logsDropped };
@@ -225,19 +231,16 @@ export function IssueCreateModal() {
     }
     if (!ghFields.owner || !ghFields.repo) throw new Error(t("create.requiredMissing"));
 
-    const result = await submitToGithub({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages,
-      owner: ghFields.owner,
-      repo: ghFields.repo,
-      label: ghFields.label,
-      assignee: ghFields.assignee,
-      cc: ghFields.cc,
-    });
+    const result = await submitToGithub(
+      githubSubmitArgs({
+        ctx,
+        inlineImages,
+        captureFiles,
+        fields: ghFields,
+        owner: ghFields.owner,
+        repo: ghFields.repo,
+      }),
+    );
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
         platform: "github",
@@ -248,13 +251,7 @@ export function IssueCreateModal() {
         githubLabels: ghFields.label ? [ghFields.label] : undefined,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("github", {
-      owner: ghFields.owner,
-      repo: ghFields.repo,
-      label: ghFields.label,
-      assignee: ghFields.assignee,
-      cc: ghFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields("github", githubLastSubmitFields(ghFields));
     useSettingsStore.getState().setLastSubmittedPlatform("github");
     onSubmitted({ key: result.key, url: result.url, platform: "github", logsDropped: result.logsDropped });
     return result;
@@ -270,20 +267,15 @@ export function IssueCreateModal() {
     }
     if (!linearFields.teamId) throw new Error(t("create.requiredMissing"));
 
-    const result = await submitToLinear({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages,
-      teamId: linearFields.teamId,
-      projectId: linearFields.projectId,
-      labelId: linearFields.labelId,
-      assigneeId: linearFields.assigneeId,
-      priority: linearFields.priority,
-      cc: linearFields.cc,
-    });
+    const result = await submitToLinear(
+      linearSubmitArgs({
+        ctx,
+        inlineImages,
+        captureFiles,
+        fields: linearFields,
+        teamId: linearFields.teamId,
+      }),
+    );
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
         platform: "linear",
@@ -294,19 +286,7 @@ export function IssueCreateModal() {
         linearLabelName: linearFields.labelName,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("linear", {
-      teamId: linearFields.teamId,
-      teamName: linearFields.teamName,
-      teamKey: linearFields.teamKey,
-      projectId: linearFields.projectId,
-      projectName: linearFields.projectName,
-      labelId: linearFields.labelId,
-      labelName: linearFields.labelName,
-      assigneeId: linearFields.assigneeId,
-      assigneeName: linearFields.assigneeName,
-      priority: linearFields.priority,
-      cc: linearFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields("linear", linearLastSubmitFields(linearFields));
     useSettingsStore.getState().setLastSubmittedPlatform("linear");
     onSubmitted({ key: result.key, url: result.url, platform: "linear", logsDropped: result.logsDropped });
     return result;
@@ -323,24 +303,16 @@ export function IssueCreateModal() {
     if (!notionFields.databaseId || !notionSchema) {
       throw new Error(t("create.requiredMissing"));
     }
-    const result = await submitToNotion({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages,
-      databaseId: notionFields.databaseId,
-      titlePropertyName: notionSchema.titlePropertyName,
-      statusOption: notionFields.statusOption && notionSchema.statusProperty
-        ? {
-            propertyName: notionSchema.statusProperty.name,
-            optionName: notionFields.statusOption,
-          }
-        : undefined,
-      selectValues: notionFields.selectValues,
-      cc: notionFields.cc?.map((u) => u.id),
-    });
+    const result = await submitToNotion(
+      notionSubmitArgs({
+        ctx,
+        inlineImages,
+        captureFiles,
+        fields: notionFields,
+        databaseId: notionFields.databaseId,
+        schema: notionSchema,
+      }),
+    );
     if (currentIssueId) {
       const pageId = extractNotionPageId(result.url);
       markSubmitted(currentIssueId, {
@@ -353,13 +325,7 @@ export function IssueCreateModal() {
         notionStatusOption: notionFields.statusOption,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("notion", {
-      databaseId: notionFields.databaseId,
-      databaseTitle: notionFields.databaseTitle,
-      statusOption: notionFields.statusOption,
-      selectValues: notionFields.selectValues,
-      cc: notionFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields("notion", notionLastSubmitFields(notionFields));
     useSettingsStore.getState().setLastSubmittedPlatform("notion");
     onSubmitted({ key: result.key, url: result.url, platform: "notion", logsDropped: result.logsDropped });
     return result;
@@ -375,18 +341,15 @@ export function IssueCreateModal() {
     }
     if (!gitlabFields.projectId) throw new Error(t("create.requiredMissing"));
 
-    const result = await submitToGitlab({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages,
-      projectId: gitlabFields.projectId,
-      label: gitlabFields.label,
-      assigneeId: gitlabFields.assigneeId,
-      cc: gitlabFields.cc?.map((u) => u.username),
-    });
+    const result = await submitToGitlab(
+      gitlabSubmitArgs({
+        ctx,
+        inlineImages,
+        captureFiles,
+        fields: gitlabFields,
+        projectId: gitlabFields.projectId,
+      }),
+    );
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
         platform: "gitlab",
@@ -397,14 +360,7 @@ export function IssueCreateModal() {
         gitlabLabels: gitlabFields.label ? [gitlabFields.label] : undefined,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("gitlab", {
-      projectId: gitlabFields.projectId,
-      projectPath: gitlabFields.projectPath,
-      label: gitlabFields.label,
-      assigneeId: gitlabFields.assigneeId,
-      assigneeName: gitlabFields.assigneeName,
-      cc: gitlabFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields("gitlab", gitlabLastSubmitFields(gitlabFields));
     useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
     onSubmitted({ key: result.key, url: result.url, platform: "gitlab", logsDropped: result.logsDropped });
     return result;
@@ -420,18 +376,15 @@ export function IssueCreateModal() {
     }
     if (!asanaFields.workspaceGid) throw new Error(t("create.requiredMissing"));
 
-    const result = await submitToAsana({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages,
-      workspaceGid: asanaFields.workspaceGid,
-      projectGid: asanaFields.projectGid,
-      assigneeGid: asanaFields.assigneeGid,
-      cc: asanaFields.cc,
-    });
+    const result = await submitToAsana(
+      asanaSubmitArgs({
+        ctx,
+        inlineImages,
+        captureFiles,
+        fields: asanaFields,
+        workspaceGid: asanaFields.workspaceGid,
+      }),
+    );
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
         platform: "asana",
@@ -440,15 +393,7 @@ export function IssueCreateModal() {
         asanaTaskGid: result.key,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("asana", {
-      workspaceGid: asanaFields.workspaceGid,
-      workspaceName: asanaFields.workspaceName,
-      projectGid: asanaFields.projectGid,
-      projectName: asanaFields.projectName,
-      assigneeGid: asanaFields.assigneeGid,
-      assigneeName: asanaFields.assigneeName,
-      cc: asanaFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields("asana", asanaLastSubmitFields(asanaFields));
     useSettingsStore.getState().setLastSubmittedPlatform("asana");
     onSubmitted({ key: result.key, url: result.url, platform: "asana", logsDropped: result.logsDropped });
     return result;
@@ -466,17 +411,15 @@ export function IssueCreateModal() {
       throw new Error(t("create.requiredMissing"));
     }
 
-    const result = await submitToClickup({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages,
-      listId: clickupFields.listId,
-      assigneeId: clickupFields.assigneeId,
-      cc: clickupFields.cc,
-    });
+    const result = await submitToClickup(
+      clickupSubmitArgs({
+        ctx,
+        inlineImages,
+        captureFiles,
+        fields: clickupFields,
+        listId: clickupFields.listId,
+      }),
+    );
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
         platform: "clickup",
@@ -485,17 +428,7 @@ export function IssueCreateModal() {
         clickupTaskId: result.key,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("clickup", {
-      workspaceId: clickupFields.workspaceId,
-      workspaceName: clickupFields.workspaceName,
-      spaceId: clickupFields.spaceId,
-      spaceName: clickupFields.spaceName,
-      listId: clickupFields.listId,
-      listName: clickupFields.listName,
-      assigneeId: clickupFields.assigneeId,
-      assigneeName: clickupFields.assigneeName,
-      cc: clickupFields.cc,
-    });
+    useSettingsStore.getState().setLastSubmitFields("clickup", clickupLastSubmitFields(clickupFields));
     useSettingsStore.getState().setLastSubmittedPlatform("clickup");
     onSubmitted({ key: result.key, url: result.url, platform: "clickup", logsDropped: result.logsDropped });
     return result;
@@ -511,27 +444,22 @@ export function IssueCreateModal() {
     }
     if (!slackFields.channelId) throw new Error(t("create.requiredMissing"));
 
-    const result = await submitToSlack({
-      ctx,
-      images: captureFiles.images,
-      video: captureFiles.video,
-      logs: captureFiles.logs,
-      attachments: captureFiles.attachments,
-      inlineImages,
-      channelId: slackFields.channelId,
-      mentions: slackFields.mentions,
-    });
+    const result = await submitToSlack(
+      slackSubmitArgs({
+        ctx,
+        inlineImages,
+        captureFiles,
+        fields: slackFields,
+        channelId: slackFields.channelId,
+      }),
+    );
     if (currentIssueId) {
       markSlackShared(currentIssueId, {
         key: result.key,
         url: result.url,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("slack", {
-      channelId: slackFields.channelId,
-      channelName: slackFields.channelName,
-      mentions: slackFields.mentions,
-    });
+    useSettingsStore.getState().setLastSubmitFields("slack", slackLastSubmitFields(slackFields));
     useSettingsStore.getState().setLastSubmittedPlatform("slack");
     onSubmitted({ key: result.key, url: result.url, platform: "slack", logsDropped: result.logsDropped });
     return result;

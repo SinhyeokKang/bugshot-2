@@ -48,8 +48,8 @@ vi.mock("../recorder-control", () => ({
 vi.mock("../annotation-control", () => ({ showAnnotation: vi.fn() }));
 
 const pickerUnavailableFire = vi.fn();
-vi.mock("@/types/messages", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/types/messages")>();
+vi.mock("@/lib/app-events", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/app-events")>();
   return {
     ...actual,
     onPickerUnavailable: { fire: () => pickerUnavailableFire(), subscribe: () => () => {} },

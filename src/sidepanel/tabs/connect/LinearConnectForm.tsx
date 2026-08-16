@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { SiLinear } from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { ConnectedBadge } from "@/sidepanel/components/ConnectedBadge";
+import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -21,13 +22,13 @@ import type {
   LinearMyself,
   LinearOAuthAuth,
 } from "@/types/linear";
-import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { AssigneeCombobox } from "@/sidepanel/tabs/linearFields/AssigneeCombobox";
 import { TeamCombobox, type TeamValue } from "@/sidepanel/tabs/linearFields/TeamCombobox";
 import { ProjectCombobox } from "@/sidepanel/tabs/linearFields/ProjectCombobox";
 import { LabelCombobox } from "@/sidepanel/tabs/linearFields/LabelCombobox";
-import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
-import { ConnectMethodDialog } from "./ConnectMethodDialog";
+import type { ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
+import { PlatformConnectFlow } from "./PlatformConnectFlow";
 
 export function LinearConnectedBody() {
   return (
@@ -40,89 +41,25 @@ export function LinearConnectedBody() {
 }
 
 export function LinearConnectFlow({ connected, onConnected }: ConnectFlowProps) {
-  const t = useT();
-  const setAccount = useSettingsStore((s) => s.setAccount);
-  const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  const [methodOpen, setMethodOpen] = useState(false);
-  const [apiKeyOpen, setApiKeyOpen] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    sendBg<{ available: boolean }>({ type: "linear.oauth.available" })
-      .then((res) => !cancelled && setOauthAvailable(res.available))
-      .catch(() => !cancelled && setOauthAvailable(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function startOAuth() {
-    setConnecting(true);
-    try {
-      const auth = await sendBg<LinearOAuthAuth>({ type: "linear.startOAuth" });
-      const next: LinearAccount = {
+  return (
+    <PlatformConnectFlow
+      connected={connected}
+      onConnected={onConnected}
+      platform="linear"
+      icon={<SiLinear className="h-4 w-4" color="default" />}
+      tokenLabelKey="linear.apiKeyButton"
+      availableRequest={{ type: "linear.oauth.available" }}
+      startOAuthRequest={{ type: "linear.startOAuth" }}
+      buildAccount={(auth: LinearOAuthAuth): LinearAccount => ({
         platform: "linear",
         connectedAt: Date.now(),
         auth,
         defaults: {},
-      };
-      setAccount("linear", next);
-      onConnected();
-    } catch (err) {
-      if (!isOAuthCancelled(err)) {
-        toast.error(err instanceof Error ? err.message : String(err));
-      }
-    } finally {
-      setConnecting(false);
-    }
-  }
-
-  const methods = connectMethods(oauthAvailable);
-
-  function handleClick() {
-    if (methods.length === 0) return;
-    if (connecting) return;
-    if (methods.includes("oauth")) {
-      setMethodOpen(true);
-    } else {
-      setApiKeyOpen(true);
-    }
-  }
-
-  return (
-    <>
-      <Button
-        variant="outline"
-        onClick={handleClick}
-        disabled={connected || methods.length === 0}
-        aria-disabled={connecting}
-        className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
-      >
-        {connecting && (
-          <span className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="h-4 w-4 animate-spin" />
-          </span>
-        )}
-        <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
-          <SiLinear className="h-4 w-4" color="default" />
-          {connected
-            ? t("platform.connected", { platform: t("platform.tab.linear") })
-            : t("platform.connectPlatform", { platform: t("platform.tab.linear") })}
-        </span>
-      </Button>
-
-      <ConnectMethodDialog
-        open={methodOpen}
-        onOpenChange={setMethodOpen}
-        platformLabel={t("platform.tab.linear")}
-        oauthLabel={t("platform.connectMethod.oauth")}
-        tokenLabel={t("linear.apiKeyButton")}
-        onChooseOAuth={() => void startOAuth()}
-        onChooseToken={() => setApiKeyOpen(true)}
-      />
-      <ApiKeyDialog open={apiKeyOpen} onOpenChange={setApiKeyOpen} onConnected={onConnected} />
-    </>
+      })}
+      renderTokenDialog={({ open, onOpenChange }) => (
+        <ApiKeyDialog open={open} onOpenChange={onOpenChange} onConnected={onConnected} />
+      )}
+    />
   );
 }
 
@@ -142,8 +79,7 @@ function DefaultTeamField() {
       : null;
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("linear.section.team")}</label>
+    <FieldRow label={t("linear.section.team")}>
       <TeamCombobox
         value={value}
         onChange={(next) =>
@@ -164,7 +100,7 @@ function DefaultTeamField() {
           })
         }
       />
-    </div>
+    </FieldRow>
   );
 }
 
@@ -176,8 +112,7 @@ function DefaultIssueSettingsFields() {
 
   return (
     <>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-muted-foreground">{t("linear.field.project")}</label>
+      <FieldRow label={t("linear.field.project")}>
         <ProjectCombobox
           teamId={account.defaults.teamId}
           value={account.defaults.projectId}
@@ -188,9 +123,8 @@ function DefaultIssueSettingsFields() {
             })
           }
         />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-muted-foreground">{t("linear.field.labels")}</label>
+      </FieldRow>
+      <FieldRow label={t("linear.field.labels")}>
         <LabelCombobox
           teamId={account.defaults.teamId}
           value={account.defaults.labelId}
@@ -201,9 +135,8 @@ function DefaultIssueSettingsFields() {
             })
           }
         />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-muted-foreground">{t("linear.field.assignee")}</label>
+      </FieldRow>
+      <FieldRow label={t("linear.field.assignee")}>
         <AssigneeCombobox
           teamId={account.defaults.teamId}
           value={account.defaults.assigneeId}
@@ -214,7 +147,7 @@ function DefaultIssueSettingsFields() {
             })
           }
         />
-      </div>
+      </FieldRow>
     </>
   );
 }
@@ -277,11 +210,10 @@ function ApiKeyDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <label htmlFor="linear-api-key" className="text-xs text-muted-foreground">
-                {t("linear.apiKeyLabel")}
-              </label>
+          <FieldRow
+            label={t("linear.apiKeyLabel")}
+            htmlFor="linear-api-key"
+            labelAction={
               <a
                 href="https://linear.app/settings/account/security"
                 target="_blank"
@@ -291,7 +223,8 @@ function ApiKeyDialog({
                 {t("platform.getToken")}
                 <ExternalLink className="h-3 w-3" />
               </a>
-            </div>
+            }
+          >
             <Input
               id="linear-api-key"
               placeholder={t("linear.apiKeyPlaceholder")}
@@ -300,7 +233,7 @@ function ApiKeyDialog({
               autoComplete="off"
               spellCheck={false}
             />
-          </div>
+          </FieldRow>
 
         </div>
 

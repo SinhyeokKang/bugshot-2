@@ -136,6 +136,7 @@ import type { GitlabAuth } from "@/types/gitlab";
 import type { AsanaAuth } from "@/types/asana";
 import type { ClickupAuth } from "@/types/clickup";
 import type { SlackAuth } from "@/types/slack";
+import { inlineUploadFilename } from "@/lib/inline-ref";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
@@ -931,7 +932,7 @@ export function buildJiraDescriptionContent(input: {
       if (node.type !== "paragraph" || !node.content?.[0]?.text) continue;
       const refId = parseInlinePlaceholder(node.content[0].text);
       if (!refId) continue;
-      const file = uploadMap.get(`inline-${refId}.webp`);
+      const file = uploadMap.get(inlineUploadFilename(refId));
       if (!file) continue;
       const mediaNode = adfMediaNode(mediaSrc(file), file);
       content[i] = adfMediaSingle(mediaNode);

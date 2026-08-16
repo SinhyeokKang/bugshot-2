@@ -14,7 +14,7 @@ import { extractCodeBlocks } from "./markdownBlocks";
 
 // 상한이자 "나열해버림" 임계값. 근거 없는 임의값 — 조정 신호는 실사용에서 안 쌓이고
 // (초과 폐기와 후보 없음이 화면상 동일 + warn은 로컬 전용) dogfooding만이 트리거다.
-export const MAX_LOG_REFS = 3;
+const MAX_LOG_REFS = 3;
 
 export interface LogRefSource {
   // 프롬프트에 인쇄된 집합 — 요약을 직접 넘기면 안 된다. 위조된 [n2] 텍스트는 후보를

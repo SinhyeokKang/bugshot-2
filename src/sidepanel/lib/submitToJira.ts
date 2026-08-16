@@ -3,9 +3,10 @@ import { annotateAttachmentDimensions } from "./attachmentDimensions";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import type { CaptureFile } from "./buildCaptureFiles";
 import type { InlineImageInput } from "./resolveInlineImages";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type { JiraAttachmentInput, JiraSubmitResult } from "@/types/jira";
 import type { NormalizedSubmitResult } from "@/types/platform";
+import { inlineUploadFilename } from "@/lib/inline-ref";
 
 export type { NormalizedSubmitResult } from "@/types/platform";
 
@@ -35,7 +36,7 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
     ...(input.logs ?? []),
   ];
   for (const img of inlineImages) {
-    rawAttachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
+    rawAttachments.push({ filename: inlineUploadFilename(img.refId), dataUrl: img.dataUrl });
   }
   // 사용자 첨부: Jira는 업로드 시 attachment 영역에 자동 등록(본문 placeholder 불필요). 표시명=원본.
   for (const a of input.attachments ?? []) {

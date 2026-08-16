@@ -3,13 +3,14 @@ import type { MarkdownContext } from "./buildIssueMarkdown";
 import { type InlineImageInput } from "./resolveInlineImages";
 import { zipLogsHtml } from "./zipLogsHtml";
 import { guessUploadMime } from "./uploadMime";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type {
   NotionCreatePageResult,
   NotionFileUploadResult,
   NotionSelectFieldValue,
 } from "@/types/notion";
 import type { NormalizedSubmitResult } from "@/types/platform";
+import { inlinePlaceholderId, inlineUploadFilename } from "@/lib/inline-ref";
 
 export interface NotionFileInput {
   filename: string;
@@ -45,7 +46,7 @@ export async function submitToNotion(
   for (const img of inlineImages) {
     const res = await sendBg<NotionFileUploadResult>({
       type: "notion.uploadFile",
-      filename: `inline-${img.refId}.webp`,
+      filename: inlineUploadFilename(img.refId),
       contentType: "image/webp",
       dataUrl: img.dataUrl,
     });
@@ -134,9 +135,9 @@ export async function submitToNotion(
   // 4. inline uploads를 uploaded 배열에 추가
   for (const iu of inlineUploaded) {
     uploaded.push({
-      placeholderId: `inline-${iu.refId}`,
+      placeholderId: inlinePlaceholderId(iu.refId),
       fileUploadId: iu.fileUploadId,
-      filename: `inline-${iu.refId}.webp`,
+      filename: inlineUploadFilename(iu.refId),
       category: "image",
     });
   }

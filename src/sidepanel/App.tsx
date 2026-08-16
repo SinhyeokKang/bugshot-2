@@ -31,7 +31,7 @@ import {
   onPickerPermissionExpired,
   onPickerUnavailable,
   onSessionSaveExhausted,
-} from "@/types/messages";
+} from "@/lib/app-events";
 import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
 import { useBoundTabId } from "./hooks/useBoundTabId";
 import { useEditorSessionSync } from "./hooks/useEditorSessionSync";

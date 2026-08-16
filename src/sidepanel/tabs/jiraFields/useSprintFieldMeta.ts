@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { jiraSiteId, useSettingsStore } from "@/store/settings-store";
 import type { JiraAuth, JiraSprintFieldMeta } from "@/types/jira";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 // 세션 캐시. Jira의 create 화면 구성은 세션 중 거의 바뀌지 않고, stale이 400으로 이어지지도
 // 않는다(제출 시 background가 어차피 재해석한다). siteId를 키에 넣는 건 연동을 갈아끼운 뒤

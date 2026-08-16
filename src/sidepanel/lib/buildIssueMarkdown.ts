@@ -1,7 +1,7 @@
 import { t, withLocale } from "@/i18n";
 import type { LocaleMode } from "@/i18n/locales";
 import { escapeTableCell as escapeCell } from "./markdownCell";
-import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
+import type { IssueSection } from "@/store/settings-ui-store";
 import { bodyBlocks } from "./bodyBlocks";
 import {
   buildStyleDiff,
@@ -16,6 +16,7 @@ import { filterEnvironmentRows, type EnvironmentRow } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 import { renderMarkdown } from "./renderMarkdown";
 import { escapeHtml } from "./escapeHtml";
+import { emitMarkdownLogSummary, footerMarkdown, listItems, sectionLabel } from "./issueBodyShared";
 
 // mergeStyleElements가 현재 element에서 실제로 읽는 필드만(EditorSelection의 구조적 부분집합).
 // PreviewPanel/buildMarkdownContext가 EditorSelection 전체 없이도 호출 가능.
@@ -222,17 +223,6 @@ export const mdInlineCode = (selector: string): string => `\`${selector}\``;
 export const escapeMdLinkText = (text: string): string =>
   text.replace(/[\\[\]]/g, "\\$&");
 
-function sectionLabel(section: IssueSection): string {
-  return section.labelOverride?.trim() || t(sectionMdLabelKey(section.id));
-}
-
-function listItems(content: string): string[] {
-  return content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
 // 래핑은 호출부가 아니라 진입점에 둔다 — 새 어댑터가 감싸는 걸 잊어도 위임 대상이 감싸져 있고,
 // 잊을 자리가 생기면 builderLocaleWrap.test.ts가 red로 잡는다.
 export function buildIssueMarkdown(ctx: MarkdownContext): string {
@@ -300,7 +290,7 @@ function buildIssueMarkdownInner(ctx: MarkdownContext): string {
         lines.push("");
       }
     }
-    emitLogSummaryMd(lines, ctx);
+    emitMarkdownLogSummary(lines, ctx);
   };
 
   for (const block of bodyBlocks(ctx.sectionConfig)) {
@@ -440,10 +430,6 @@ function buildIssueHtmlInner(ctx: MarkdownContext): string {
   return parts.join("\n");
 }
 
-function footerMarkdown(): string {
-  return `_Reported via [BugShot](https://bug-shot.com)_`;
-}
-
 function footerHtml(): string {
   return `<p><em>Reported via <a href="https://bug-shot.com">BugShot</a></em></p>`;
 }
@@ -508,33 +494,6 @@ function segmentsToHtmlCell(segs: StyleDiffSegment[]): string {
   return segs
     .map((s) => (s.changed ? `<strong>${escapeHtml(s.text)}</strong>` : escapeHtml(s.text)))
     .join(" ");
-}
-
-function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {
-  const { networkLogSummary: net, consoleLogSummary: con, actionLogCaptured: act } = ctx;
-  if (!net && !con && !act) return;
-  lines.push(`## ${t("logSummary.title")}`);
-  lines.push("");
-  lines.push(`**${t("logSummary.logs.lead")}** ${t("logSummary.logs.detail", { file: "logs.html" })}`);
-  lines.push("");
-  if (net) {
-    lines.push(
-      networkErrorCount(net) > 0
-        ? `- ${t("logSummary.network.line", { n: net.captured, errors: networkErrorCount(net) })}`
-        : `- ${t("logSummary.network.lineNoError", { n: net.captured })}`,
-    );
-  }
-  if (con) {
-    lines.push(
-      con.errorCount > 0 || con.warnCount > 0
-        ? `- ${t("logSummary.console.line", { n: con.captured, errors: con.errorCount, warns: con.warnCount })}`
-        : `- ${t("logSummary.console.lineNoError", { n: con.captured })}`,
-    );
-  }
-  if (act) {
-    lines.push(`- ${t("logSummary.action.line", { n: act })}`);
-  }
-  lines.push("");
 }
 
 function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {

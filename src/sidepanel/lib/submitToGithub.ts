@@ -1,7 +1,7 @@
 import { buildGithubIssueBody } from "./buildGithubIssueBody";
 import { prepareUpload, type UploadFileInput } from "./prepareUpload";
 import type { InlineImageInput } from "./resolveInlineImages";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import type { GithubCreateIssueResult } from "@/types/github";
 import type { NormalizedSubmitResult } from "@/types/platform";
 

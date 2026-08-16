@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { LinearProject } from "@/types/linear";
-import { sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 
 interface Props {
   teamId: string | undefined;

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { chromeLocalStorage, failClosedLocalStorage } from "../chrome-storage";
-import { onStateSaveFailed } from "@/types/messages";
+import { onStateSaveFailed } from "@/lib/app-events";
 
 const get = vi.fn();
 const set = vi.fn();

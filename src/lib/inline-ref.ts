@@ -12,3 +12,15 @@ export function inlineRefUrl(refId: string): string {
 export function inlineRefMarkdown(refId: string, alt = ""): string {
   return `![${alt}](${inlineRefUrl(refId)})`;
 }
+
+// 업로드 파일명의 단일 출처. 생성 측(업로드 엔트리)과 조회 측(업로드 결과 맵)이 문자열을 따로
+// 조립하면 갈리는 순간 이미지가 본문에서 무음으로 사라진다 — 양쪽이 이 함수를 부른다.
+// ext 기본값은 캡처 기본 포맷이고, 원본 포맷을 보존하는 플랫폼만 넘긴다.
+export function inlineUploadFilename(refId: string, ext = "webp"): string {
+  return `${inlinePlaceholderId(refId)}.${ext}`;
+}
+
+// 확장자 없는 참조 id. 위 파일명과 접두사를 공유하므로 접두사 정의는 여기 한 곳뿐이다.
+export function inlinePlaceholderId(refId: string): string {
+  return `inline-${refId}`;
+}

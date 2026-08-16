@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { SiGithub as Github } from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { ConnectedBadge } from "@/sidepanel/components/ConnectedBadge";
+import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -21,12 +22,12 @@ import type {
   GithubMyself,
   GithubOAuthAuth,
 } from "@/types/github";
-import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { sendBg } from "@/lib/bg-client";
 import { AssigneeCombobox } from "@/sidepanel/tabs/githubFields/AssigneeCombobox";
 import { LabelCombobox } from "@/sidepanel/tabs/githubFields/LabelCombobox";
 import { RepoCombobox, type RepoValue } from "@/sidepanel/tabs/githubFields/RepoCombobox";
-import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
-import { ConnectMethodDialog } from "./ConnectMethodDialog";
+import type { ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
+import { PlatformConnectFlow } from "./PlatformConnectFlow";
 
 export function GithubConnectedBody() {
   return (
@@ -39,89 +40,25 @@ export function GithubConnectedBody() {
 }
 
 export function GithubConnectFlow({ connected, onConnected }: ConnectFlowProps) {
-  const t = useT();
-  const setAccount = useSettingsStore((s) => s.setAccount);
-  const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  const [methodOpen, setMethodOpen] = useState(false);
-  const [patOpen, setPatOpen] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    sendBg<{ available: boolean }>({ type: "github.oauth.available" })
-      .then((res) => !cancelled && setOauthAvailable(res.available))
-      .catch(() => !cancelled && setOauthAvailable(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function startOAuth() {
-    setConnecting(true);
-    try {
-      const auth = await sendBg<GithubOAuthAuth>({ type: "github.startOAuth" });
-      const next: GithubAccount = {
+  return (
+    <PlatformConnectFlow
+      connected={connected}
+      onConnected={onConnected}
+      platform="github"
+      icon={<Github className="h-4 w-4 dark:invert" color="default" />}
+      tokenLabelKey="github.patButton"
+      availableRequest={{ type: "github.oauth.available" }}
+      startOAuthRequest={{ type: "github.startOAuth" }}
+      buildAccount={(auth: GithubOAuthAuth): GithubAccount => ({
         platform: "github",
         connectedAt: Date.now(),
         auth,
         defaults: {},
-      };
-      setAccount("github", next);
-      onConnected();
-    } catch (err) {
-      if (!isOAuthCancelled(err)) {
-        toast.error(err instanceof Error ? err.message : String(err));
-      }
-    } finally {
-      setConnecting(false);
-    }
-  }
-
-  const methods = connectMethods(oauthAvailable);
-
-  function handleClick() {
-    if (methods.length === 0) return;
-    if (connecting) return;
-    if (methods.includes("oauth")) {
-      setMethodOpen(true);
-    } else {
-      setPatOpen(true);
-    }
-  }
-
-  return (
-    <>
-      <Button
-        variant="outline"
-        onClick={handleClick}
-        disabled={connected || methods.length === 0}
-        aria-disabled={connecting}
-        className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
-      >
-        {connecting && (
-          <span className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="h-4 w-4 animate-spin" />
-          </span>
-        )}
-        <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
-          <Github className="h-4 w-4 dark:invert" color="default" />
-          {connected
-            ? t("platform.connected", { platform: t("platform.tab.github") })
-            : t("platform.connectPlatform", { platform: t("platform.tab.github") })}
-        </span>
-      </Button>
-
-      <ConnectMethodDialog
-        open={methodOpen}
-        onOpenChange={setMethodOpen}
-        platformLabel={t("platform.tab.github")}
-        oauthLabel={t("platform.connectMethod.oauth")}
-        tokenLabel={t("github.patButton")}
-        onChooseOAuth={() => void startOAuth()}
-        onChooseToken={() => setPatOpen(true)}
-      />
-      <PatDialog open={patOpen} onOpenChange={setPatOpen} onConnected={onConnected} />
-    </>
+      })}
+      renderTokenDialog={({ open, onOpenChange }) => (
+        <PatDialog open={open} onOpenChange={onOpenChange} onConnected={onConnected} />
+      )}
+    />
   );
 }
 
@@ -135,8 +72,7 @@ function DefaultRepoField() {
       ? { owner: account.defaults.owner, repo: account.defaults.repo }
       : null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("github.section.repo")}</label>
+    <FieldRow label={t("github.section.repo")}>
       <RepoCombobox
         value={value}
         onChange={(next) =>
@@ -152,7 +88,7 @@ function DefaultRepoField() {
           })
         }
       />
-    </div>
+    </FieldRow>
   );
 }
 
@@ -163,8 +99,7 @@ function DefaultIssueSettingsFields() {
   if (!account) return null;
   return (
     <>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-muted-foreground">{t("github.field.labels")}</label>
+      <FieldRow label={t("github.field.labels")}>
         <LabelCombobox
           owner={account.defaults.owner}
           repo={account.defaults.repo}
@@ -175,9 +110,8 @@ function DefaultIssueSettingsFields() {
             })
           }
         />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-muted-foreground">{t("github.field.assignee")}</label>
+      </FieldRow>
+      <FieldRow label={t("github.field.assignee")}>
         <AssigneeCombobox
           owner={account.defaults.owner}
           repo={account.defaults.repo}
@@ -188,7 +122,7 @@ function DefaultIssueSettingsFields() {
             })
           }
         />
-      </div>
+      </FieldRow>
     </>
   );
 }
@@ -251,11 +185,10 @@ function PatDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <label htmlFor="github-pat" className="text-xs text-muted-foreground">
-                {t("github.patLabel")}
-              </label>
+          <FieldRow
+            label={t("github.patLabel")}
+            htmlFor="github-pat"
+            labelAction={
               <a
                 href="https://github.com/settings/tokens"
                 target="_blank"
@@ -265,7 +198,8 @@ function PatDialog({
                 {t("platform.getToken")}
                 <ExternalLink className="h-3 w-3" />
               </a>
-            </div>
+            }
+          >
             <Input
               id="github-pat"
               placeholder={t("github.patPlaceholder")}
@@ -274,7 +208,7 @@ function PatDialog({
               autoComplete="off"
               spellCheck={false}
             />
-          </div>
+          </FieldRow>
 
         </div>
 
