@@ -87,7 +87,7 @@ e2e 스위트가 **무엇을 커버하고 무엇이 빠졌는지**의 단일 출
 
 스크립트로 판정 불가하거나 e2e 환경 제약으로 빠진 항목. 새로 자동화하면 위 맵으로 옮긴다.
 
-> 이 중 **환경 제약으로 빠진 일부**(loopback이라 SSRF 가드가 막는 cross-origin 보강 · quota로 금지된 캡처 진입 · 실 광고 iframe · 픽셀·시각 판정)은 [`MANUAL-SMOKE.md`](./MANUAL-SMOKE.md)의 S1~S6이 Aside 브라우저로 실사이트에서 스윙한다(`/manual-smoke`). **항목 자체는 여기 그대로 둔다** — e2e 미커버라는 사실이 바뀜 게 아니고, 그쪽은 게이트가 아닌 별개 실행체다.
+> 이 중 **환경 제약으로 빠진 일부**(loopback이라 SSRF 가드가 막는 cross-origin 보강 · quota로 금지된 캡처 진입 · 실 광고 iframe · 픽셀·시각 판정)는 [`MANUAL-SMOKE.md`](./MANUAL-SMOKE.md)의 S1~S6이 Aside 브라우저로 실사이트에서 훑는다(`/manual-smoke`). **항목 자체는 여기 그대로 둔다** — e2e 미커버라는 사실이 바뀌는 게 아니고, 그쪽은 게이트가 아닌 별개 실행체다.
 
 - **액션 로그 연속 타이핑 실시간 갱신**(audit-refactor-3 항목 16) — dedup 분기의 `throttle.schedule()` 추가로 "다른 액션 없이 타이핑만 해도 200ms 안에 값이 갱신된다"가 됐지만, **판정 경로가 없다**. `DebugTab` 서브탭은 issue/console/network뿐이라 idle에서 액션 로그를 관측할 수 없고(GOTCHAS "action 로그는 idle에 전용 서브탭이 없다"), 값을 볼 수 있는 유일한 표면인 drafting의 `log-preview-dialog` action 탭은 **캡처를 거쳐야** 열리는데 그 캡처 자체가 flush를 일으켜 "다른 액션 없이"라는 전제를 파괴한다. 레코더 IIFE라 유닛도 불가(`design.md` 위험 7). 수동: 입력 필드에 길게 타이핑하며 패널 액션 로그가 2초 안에 최신 값으로 바뀌는지, 그리고 대량 입력 시 패널 프리즈가 없는지(`prd.md` 회귀 감시 11).
 - **element 캡처 컨텍스트 확장 — 나머지 축** — 테이블 행(`tr`) 확장·`display:none` 0×0 폴백·40% 초과 과확장 차단·selector 재결합 거부는 `capture-context.test.{ts,tsx}`·`capture-basis.test.ts` 단위가 판정을 고정한다. e2e로 옮기면 `captureVisibleTab` 호출이 18회+로 늘어 30s Replay와 같은 quota flaky를 진다(그 함정으로 캡처 spec 5개가 전량 삭제된 전례). 추가로 **"`display:none` 후 after가 24×24보다 크다"는 현행 폴백에서도 통과하는 공허한 단언**이라 e2e 대상이 아니다 — 실제 판정은 "이미지가 아예 없는가"이고 수동 육안 확인 대상. **확장 이미지에 인접 개인정보가 불필요하게 포함되지 않는지**와 **`buildSelector` 동기 블로킹(선택당 최대 2회) 체감**도 수동 전용(tasks.md 수동 테스트).
