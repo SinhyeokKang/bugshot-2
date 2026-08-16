@@ -6,6 +6,63 @@
 
 ---
 
+## 2026-08-16 — audit-refactor-6이 **의도적으로 안 하고 남긴 것 6건**
+
+배치 자체는 8그룹 전부 dev에 들어갔고 기획 문서는 삭제했다. 여기 남기는 건 그 안에서 **착수했다가/계획에 있었다가 안 하기로 판정한 것들**이다 — 전부 사유가 실측이라, 안 적어두면 다음에 같은 계산을 다시 한다.
+
+**① `useT`를 `src/i18n/index.ts`에서 분리 (항목 🟡54)** — 착수 직전 제외.
+`index.ts:4`가 store를 값으로 import해 `settings-ui-store`가 선언한 "store → i18n 단방향"을 깨고 있고, 떼면 번들도 준다. 그런데 `vite.log-viewer.config.ts:10`이 `"@/i18n"` → `src/log-viewer/i18n.ts`로 alias하는데 **vite 문자열 alias는 prefix 매칭**이라 `@/i18n/useT`가 `.../log-viewer/i18n.ts/useT`로 재작성된다. log-viewer는 `NetworkLogContent`·`ConsoleLogContent`·`ActionLogContent`를 재사용하고 셋 다 `import { useT } from "@/i18n"`를 쓴다. **`pnpm typecheck`·`pnpm test`는 전부 green이고 `pnpm build:log-viewer`만 깨진다** — 원안 검증 체크리스트에 그게 없어서 못 걸렀다(POSTMORTEM 2026-08-11이 같은 함정의 선례).
+파생 함정 하나 더: `currentLocale`은 `index.ts:10`의 비-export 모듈 스코프 `let`이고 `useT`가 직접 대입한다. 분리하면 `setLocale()` 경유로 바꿔야 하고, 그 순간 `withLocale` 구간 중 렌더가 끼면 임시 로케일이 영구화될 수 있다.
+**다시 볼 조건**: log-viewer가 `@/i18n` alias를 안 쓰게 되거나 alias가 정확 매칭으로 바뀌면. 그때도 검증에 `pnpm build:log-viewer`를 반드시 넣는다.
+
+**② `ContentMessage` 신설 + `PickerMessage` 쪼개기 (항목 🟡59)** — 전제가 거짓이라 축소.
+원안은 "`ContentMessage` 합집합을 유지해 기존 사용처를 안 건드린다"였는데 **`ContentMessage`는 코드에 없다**(grep 0). 지금은 `PickerMessage`가 곧 전체 합집합이라, 그걸 `picker.*`로 좁히는 순간 recorder·annotation 수신부가 전부 깨진다 — typecheck가 잡아주긴 하나 기계적 치환 ~40곳이 붙는다. 배치에선 인라인 `import("@/types/network")` 3곳을 상단 `import type`으로 올리는 것만 했다.
+**다시 볼 조건**: content 메시지 union이 더 커져 `PickerMessage` 하나로는 수신부에서 분기가 안 읽힐 때. 그땐 "`ContentMessage`를 신설하고 사용처 ~40곳을 치환한다"로 정직하게 쓴다.
+
+**③ `ConnectButton` 추출 (G4 잔여)** — 사정거리가 이름값보다 좁다.
+연결 버튼 마크업(`relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed` + absolute 스피너 + `opacity-0` 스왑)이 `PlatformConnectFlow`·`JiraConnectForm`·`SlackConnectForm` **3벌 바이트 동일**이다. 그런데 `JiraConnectForm.tsx:401`(토큰 검증 버튼)이 같은 골격을 다른 모양으로 또 쓰고, Slack은 술어가 다르다(`disabled={connected || !oauthAvailable}` + 인라인 클릭 가드). **connect 전용 추출은 4벌 중 3만 걷고 패턴 중복은 남긴다.**
+**다시 볼 조건**: 스피너 오버레이 셸을 일반화할 때 — 그때 4벌을 한 번에 걷는다. 버튼 스타일을 바꿔야 할 일이 생기면 그게 신호다(지금은 3벌이 갈려도 브라우저 없이 아무도 못 잡는다).
+
+**④ `dataUrlToBlob` 통합 (항목 ⚪94)** — 동치가 아니다.
+`background/notion-api.ts:292`판은 percent-encoding 페이로드를 처리하고 `{blob, contentType}`을 반환하는데, `store/blob-db.ts:728`판은 정규식이 `/^data:(.*?);base64,(.+)$/`로 base64 전용이고 `Blob`만 반환한다. 통합하면 한쪽 파싱을 넓히거나(동작 변경) 좁혀야(회귀) 하고, notion 경로에 percent-encoded가 도달 불가하다는 걸 증명할 수 없다.
+**다시 볼 조건**: notion 첨부 경로의 입력이 base64로 좁혀졌음을 실측할 수 있을 때. (같은 형태의 선례: `submitToSlack.ts:toUploadEntry`도 `contentType` 차이 때문에 통합 안 하고 사유 주석만 남겼다.)
+
+**⑤ `confirmDraft` 150줄 목표 (G7)** — 목표치가 자기 설계와 모순이다.
+실측 276 → 246줄로 줄었고 남은 246줄의 출처는 중복이 아니라 jira sticky 복원 33줄 + element 레코드 리터럴 ~75줄 + element 영속 IIFE ~35줄이다. 150에 닿으려면 분기별 함수 분리가 필요한데 **그건 같은 기획의 design.md 대안 D가 명시적으로 기각한 방향**이고, 그 문단이 "함수 길이는 부작용이지 이 항목의 문제가 아니다"라고 못박았다.
+**다시 볼 조건**: 길이를 정말 줄여야 하면 jira sticky 블록 추출을 별도 항목으로 뗀다 — 그건 중복 제거이지 분기 분리가 아니라 대안 D에 안 걸린다.
+
+**⑥ `github-upload.ts`의 항상-true `created`·`github-oauth.ts`의 1회용 wrapper 군집 (항목 ⚪95·96)** — ⚪ 이득 vs 실탭 회귀 비용.
+`ensureGithubTab`은 반환 타입이 `{tabId, created: boolean}`인데 `created: true` 하나뿐이고, 호출부 `:170`이 정리 조건으로 쓴다. 그런데 그 파일은 `chrome.scripting.executeScript({func})` 주입 대상이라 CLAUDE.md가 **리팩터 시 실제 탭 회귀를 필수로** 요구한다. `github-oauth.ts`의 wrapper 4개(`assertConfigured`·`redirectUri`·`proxyTokenUrl`·`proxyRefreshUrl`)도 OAuth 경로다.
+**다시 볼 조건**: 같은 파일을 다른 이유로 손대며 실탭 회귀를 어차피 돌릴 때 곁들인다.
+
+---
+
+## 2026-08-16 — audit-refactor-5가 **의도적으로 안 하고 남긴 것 6건**
+
+배치는 v1.7.24(`7c5e1cfa`)로 머지됐고 기획 문서는 삭제했다. 아래는 그 안에서 **하지 않기로 판정한 것들**이다. 전부 "지금은 안 한다"이고 "영원히"는 없다.
+
+**① i18n 네임스페이스 재편 (⚪87)** — 898개 키의 prefix 재구성은 전 파일 리네임 + ko/en 동시 갱신 + log-viewer 복제 사전 동기를 부르는 대공사인데 얻는 게 정연함뿐이다. 배치에선 측정치만 기록하고 실제 버그인 조각(dead key·열린 집합)만 고쳤다.
+**다시 볼 조건**: 네임스페이스 혼선이 실제 키 충돌·오배치를 낳을 때. 그 전까진 정연함이 근거가 못 된다.
+
+**② `--ring`을 `--border`에서 분리 (DESIGN §9 "개선 후보")** — 토큰 값 변경이라 `tokens.test.ts` 3표 동기 + 전 화면 시각 회귀가 붙는다. 이 배치의 국소 수정 성격과 규모가 다르다.
+**다시 볼 조건**: 포커스 링이 테두리와 구별 안 돼 접근성 리포트가 올 때.
+
+**③ `t()`를 async·lazy·plural 지원으로 확장 (🟡32)** — 폴백 한 줄만 추가했다.
+**다시 볼 조건**: 복수형이 실제로 어색한 언어를 추가할 때(현재 로케일 집합엔 없다).
+
+**④ overlay 폰트 스택 semantic화 (⚪89)** — Shadow DOM `all: initial`이라 CSS 변수를 못 받는 게 원인이고, DESIGN §2가 이미 "`hsl()` 리터럴로 복제"를 불가피한 사본으로 인정했다. 문서 등재만 했다.
+**다시 볼 조건**: Shadow DOM에 변수를 주입하는 경로가 생기면(그 자체가 별건 기획이다).
+
+**⑤ picking 세션 중 `theme` 실시간 반영 (🟡29)** — `picker.start` 시점 스냅샷으로 충분하다. **요소를 고르는 중에 설정 탭으로 가서 테마를 바꾸는 플로우가 제품에 존재하지 않는다**(picker 활성 중 사이드패널은 캡처 화면에 있다).
+**다시 볼 조건**: picking 중에도 설정에 닿는 경로가 생기면.
+
+**⑥ `rounded-[4px]`를 `rounded-[3px]`로 통일 (⚪84, 취소)** — 유일 선례인 `ColorSwatch.tsx:28`은 overlay `.pl-swatch`와의 **cross-file 앵커**라, 무관한 표면을 끌어오면 앵커 의미가 희석된다. 대신 DESIGN §6에 4px을 등재했다. **`grep -rn "rounded-\[4px\]" src/`에 2건이 남는 것이 기대값이다**(실측 확인: 3px 1건 · 4px 2건).
+**다시 볼 조건**: overlay와 사이드패널의 swatch가 더 이상 시각적으로 짝지어지지 않게 되면.
+
+**해소된 항목 하나** — "`connect/*ConnectForm.tsx`를 `FieldRow`로 이행하지 않는다"(⚪92 관련)는 **audit-refactor-6 G4가 실제로 했다**(34곳 전량, `htmlFor`·`labelAction` 두 prop 추가). DESIGN §13의 "`tabs/connect/`는 아직 안 따른다" 문구는 이 커밋에서 함께 정리했다 — G4 push 때 놓쳤던 stale이다. 여기 남기는 건 "안 한다고 적혀 있던 게 나중에 됐다"는 기록이 다음 독자를 헷갈리게 하지 않도록.
+
+---
+
 ## 2026-08-10 — 요소 식별 정보 표시 재설계 (`stable-element-locator`의 절반)
 
 이슈 본문의 재현 환경 `DOM` 행을 selector 쉼표 나열에서 번호 붙은 목록(`Element 1 · [data-e2e="card"] › span`)으로 바꾸고, 각 Style changes 제목을 요소 참조로 연결하며, 전체 selector를 제목에서 빼 별도 행으로 내리려던 절반. **같은 기획의 나머지 절반(selector 생성 알고리즘)은 진행했다** — `src/content/element-locator.ts`로 착지(기획 문서는 구현 완료 후 삭제).
