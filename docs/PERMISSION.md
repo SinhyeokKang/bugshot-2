@@ -556,7 +556,7 @@ background/index.ts:137 — webNavigation.onCommitted
 | `app.asana.com` | Asana REST + OAuth authorize (token 교환은 proxy) | `asana-api.ts`, `asana-oauth.ts` |
 | `api.clickup.com` | ClickUp REST (task 생성·첨부 업로드·본문 갱신) | `clickup-api.ts`, `clickup-oauth.ts` |
 | `slack.com` | Slack Web API (메시지 전송·채널/DM·멤버 조회·files 2-step 업로드) + OAuth authorize. files 업로드 2단계의 multipart POST는 Slack이 런타임 반환하는 `upload_url`(`*.slack.com` 등)로 나가고 이것도 `<all_urls>` 커버 | `slack-api.ts`, `slack-oauth.ts` |
-| `in.bug-shot.com` (`VITE_POSTHOG_HOST` — PostHog 관리형 리버스 프록시, CNAME으로 PostHog Cloud 직결. env 미설정 시 코드 기본값 `us.i.posthog.com`) | 익명 분석 — 이슈 제출·**플랫폼 연결 시도**(`platform_connect`, 플랫폼·성공/취소/실패 + 사유 분류 동봉)·연동 해제·설치(`extension_installed`, 확장 버전 동봉)·패널 열기(`sidepanel_opened`, `page_supported` 동봉) 집계(`$ip:"0.0.0.0"`·geoip 비활성·person profile 미생성) | `background/analytics.ts` — `/capture/` fetch |
+| `in.bug-shot.com` (`VITE_POSTHOG_HOST` — PostHog 관리형 리버스 프록시, CNAME으로 PostHog Cloud 직결. `vite.config.ts`가 define으로 값을 박고, env가 비어도 `resolvePostHogHost` 폴백이 같은 프록시라 **PostHog Cloud로 직행하는 경로가 없다**) | 익명 분석 — 이슈 제출·**플랫폼 연결 시도**(`platform_connect`, 플랫폼·성공/취소/실패 + 사유 분류 동봉)·연동 해제·설치(`extension_installed`, 확장 버전 동봉)·패널 열기(`sidepanel_opened`, `page_supported` 동봉) 집계(`$ip:"0.0.0.0"`·geoip 비활성·person profile 미생성) | `background/analytics.ts` — `/capture/` fetch |
 | OAuth proxy origin | OAuth proxy (client_secret 은닉) | `oauth.ts`, `github-oauth.ts`, `notion-oauth.ts`, `asana-oauth.ts`, `clickup-oauth.ts`, `slack-oauth.ts` |
 
 ### OAuth Proxy 엔드포인트
