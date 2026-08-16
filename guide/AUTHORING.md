@@ -104,6 +104,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
 | 로그 URL 마스킹 | `src/content/network-recorder-helpers.ts`(`maskUrl`·민감 query/fragment 키 단일 출처), 적용면 `console-recorder.ts`·`network-recorder.ts`·`action-recorder.ts` |
 | 로그 출처 필터(iframe) | `src/sidepanel/lib/logOrigin.ts` (`originKey`/`originHostLabel`/`originCounts`/`UNKNOWN_ORIGIN`), `src/sidepanel/components/OriginFilterBar.tsx`, 라벨 `src/i18n/namespaces/logs.ts` (`log.originFilter.unknown`) |
 | iframe 요소 선택 지원 | picker `all_frames`(`manifest.config.ts`), 거부 문구 `src/i18n/namespaces/app.ts` (`app.iframeUnsupported.*`) |
+| 요소 DOM 트리 이동(부모/첫 자식/다시 선택) | `src/sidepanel/tabs/DomTreeDialog.tsx`(`DomNavButton`/`DomTreeTitle`), 배선 `src/sidepanel/tabs/StyleEditorPanel.tsx`, 라벨 `src/i18n/namespaces/editor.ts`(`dom.parent`/`dom.child`/`dom.repick`). **트리 노드의 selector와 선택 요소의 selector는 다른 빌더가 만든 다른 문자열**이라 가이드에서 둘을 같은 값처럼 쓰지 않는다(CLAUDE.md "요소 selector 생성") |
 | 이슈 목록의 상태 조회·변경 | 트래커 **7개**가 각자 다른 메시지를 쓴다 — `src/types/messages.ts`의 `jira.transitionIssue`·`github.updateIssueState`·`linear.updateIssueState`·`notion.updatePageStatus`·`gitlab.updateIssueState`·`asana.setCompleted`·`clickup.setCompleted`. 배지 렌더는 `src/sidepanel/tabs/statusBadges/`. **Slack은 제외** — 상태 개념이 없어 정적 "전송됨" 배지다 |
 | 로그 뷰어 마커 | `src/log-viewer/markers.ts` (`MarkerType`: console/network/action, navigate는 action variant) |
 | 액션 로그 동작 종류 | `src/types/action.ts` (`ActionEntryKind`), 라벨 `src/i18n/namespaces/logs.ts` (`actionLog.filter.*`/`verb.*`), 렌더 `src/sidepanel/components/ActionLogContent.tsx` |
