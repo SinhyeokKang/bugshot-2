@@ -60,10 +60,9 @@ export function LoadingDialog({
                 style={{ width: `${percent}%` }}
               />
             </div>
-            <span
-              className="text-sm tabular-nums text-muted-foreground"
-              aria-live="polite"
-            >
+            {/* aria-live 없음이 의도다 — 위 progressbar가 값 변경을 알리므로, 겹쳐 걸면
+                퍼센트가 바뀔 때마다 낭독이 큐에 쌓인다(DESIGN.md §14). */}
+            <span className="text-sm tabular-nums text-muted-foreground">
               {percent}%
             </span>
           </div>

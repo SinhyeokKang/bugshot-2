@@ -18,6 +18,14 @@ describe("LoadingDialog", () => {
     expect(screen.queryByText("47%")).toBeTruthy();
   });
 
+  // 진행률 알림은 progressbar role이 맡는다. 퍼센트 텍스트에 aria-live를 겹쳐 걸면 값이
+  // 바뀔 때마다 낭독이 큐에 쌓여, 한 번에 한 값만 읽으면 되는 자리에서 폭주한다.
+  it("퍼센트 텍스트에 aria-live를 걸지 않는다", () => {
+    render(<LoadingDialog {...BASE} percent={47} progressLabel="자르기 진행률" />);
+
+    expect(screen.getByText("47%").closest("[aria-live]")).toBeNull();
+  });
+
   it("percent가 없으면 진행률 바를 그리지 않는다", () => {
     render(<LoadingDialog {...BASE} />);
 
