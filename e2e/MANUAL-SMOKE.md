@@ -149,8 +149,12 @@ const ratio = (r.width * r.height) / (innerWidth * innerHeight);
 - picking 중 인접 링크로 오네비게이션이 발생하지 않는다.
 - **미등록 iframe(2-depth·srcdoc·sandbox) 클릭 시 안내 다이얼로그가 뜨고 idle로 복귀한다.**
 - 프레임 수십 개에서 선택 반응이 체감상 멈추지 않는다(진입 소요를 기록).
+- **뷰포트 크기 배너(`.banner`)는 top 프레임에만 있다** — 등록된 자식 프레임의 shadow root에서 `.banner`를 찾으면 없어야 한다(있으면 좁은 iframe에서 콘텐츠를 통째로 가린다).
+- **등록 iframe 안 hover 라벨(`.picker-label`)의 `left`가 0 이상이고 폭이 프레임 폭을 넘지 않는다** — 넘치면 왼쪽이 잘려 `#303038`이 `03038`로 읽힌다.
 
 **2026-08-16 실측 (news.naver.com)** — iframe 9개(렌더 3개) 환경에서 picker 진입 1,542ms, 일반 요소 hover 라벨 `div.comp_news_feed.comp_news_none 344 × 227`, 광고 iframe(300×250) hover 시 iframe 요소 자체를 잡고, 클릭하니 `이 iframe은 선택할 수 없습니다` 안내 후 idle 복귀. 전부 PASS.
+
+**2026-08-17 실측 (news.naver.com, 1.7.25)** — same-origin `news.naver.com/aside` iframe(145×454)에서 **FAIL 2건**: 자식 프레임이 자기 배너 `145 × 454`를 그려 top의 `1440 × 900`과 동시 노출·콘텐츠 가림, 자식 `.picker-label`이 `left = -123px`(라벨 260px > 프레임 145px)로 좌측 잘림. 위 판정 문장 2개는 이 실측에서 나왔다. 픽스는 배너 top-프레임 전용 + 라벨 폭 접기(`src/content/overlay-layout.ts`).
 
 ---
 
@@ -244,3 +248,4 @@ COVERAGE는 이 축을 *"en에서만 발생"*으로 적지만 **로케일이 아
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-08-16 | 1.7.24 | 재작성됨 — `f456445d`에 포함 | PASS | **FAIL** | 부분 | PASS | PASS | **FAIL** | 스킬 작성 **전** 예비 실행이라 이 문서의 절차를 따른 것이 아니다. S2=위키 sticky 사이드바 타일 반복(`isRepeatedPositionedElement` 조건 4 성립 불가) / S6=ko·320px 네트워크 필터 탭 잘림 / S3=확장은 동작하나 after에 호버카드 유입. ⚠️ **관측 대상 dist가 stale이었다**(1.7.24 빌드, 17:42) — 그 뒤 `f456445d`가 `IssueTab.tsx`·`issue.ts`를 바꿔(진행률 a11y) **S2 진행률·S6 idle 축은 최신 빌드에서 재확인이 필요**하고, 결함 3건은 해당 모듈(`content/scroll-capture.ts`·`NetworkLogContent.tsx`)이 그 커밋에서 안 바뀜어 유효로 본다. S5 자동복구·S2 scrollY 원복·S3 `form` 제외·S6 en 376px은 미검증 |
 | 2026-08-16 | 1.7.25 | `63521601` | — | **FAIL** | — | — | PASS | **FAIL** | 스킬 절차대로 돌린 첫 실행(미검증 항목 보충 + 2회차 결정론 확인). **판정이 뒤집힌 항목 0개** — S2 sticky 반복과 S6 필터 잘림은 새 빌드에서도 동일하고 S2 결과는 `614×6519`로 바이트 일치. 보충 결과: S5 자동복구 PASS / S2 `scrollY` 2500 원복·인라인 `style` 잔여 0 PASS / S6 필터 잘림이 **en·320px에서도 재현**(로케일이 아니라 폭이 지배변수) / S3 `form` 제외은 **항목에서 제거**(유닛이 덮는 상수이고 실사이트에 전제가 0건). 미검증 잔여: S6 en·376px·액션 필터 6종 |
+| 2026-08-17 | 1.7.25 | `37b3a8c0` | PASS | **FAIL** | 부분 | 부분 | PASS | **FAIL** | 3회차. **판정이 뒤집힌 항목 1개** — S6 en·376px가 이전 실행의 PASS에서 **FAIL로**(이전은 네트워크 필터 2종, 이번은 네트워크 3종 `All`/`JSON`/`Other`와 액션 4종 `All`/`Click`/`Navigation`/`Keys`에서 둘 다 잘림 → 문서가 적은 대로 **폭 × 필터 개수**의 함수이고 376px는 3종부터 깨진다). COVERAGE 잔여였던 **en·376px·액션 필터를 처음 검증**했고 결과는 FAIL. S2 sticky 반복·S6 320px 잘림·S3 after 호버카드 오염은 그대로 재현(S2 결과 `614×6519` 4연속 바이트 일치, 진행률 6%×17 + `캡처 진행률` a11y 라벨 신규 확인, truncated toast 문구 관측). S1은 naver만 전제 성립(승자 규칙이 cross-origin 시트에만 존재함을 확인 — `1.4rem`·`auto`·`inherit`·`margin: 0 auto` 전부 PASS)이고 **github·ui.shadcn.com은 전제 불성립**(githubassets는 CORS 허용이라 CSSOM 판독 가능, shadcn은 전부 same-origin) → 대상 사이트 표 재검토 필요. S1 토큰 축은 naver 정의가 `:where(:root,:host)`라 `GLOBAL_CUSTOM_PROP_SELECTORS` 정확일치 화이트리스트를 못 통과 — **2026-06-28 회고가 수용한 부분해 그대로**라 결함 아님. S4는 명시 판정 문장 전부 PASS(진입 374ms)지만 같은 축에서 **신규 2건**: 등록 iframe 안에서 자식 프레임이 자기 뷰포트 배너(`145 × 454`)를 중복으로 그리고, 자식 `.picker-label`이 `x=-123`(폭 260px > 프레임 145px)이라 좌측이 잘려 판독 불가. 부수 관찰: 380px 이하 아이콘 전용 탭바가 라벨 span을 `hidden`(display:none)으로 죽여 **접근가능한 이름이 사라진다**(`sr-only`여야). `integrations-cta`는 연동 0개 전제가 필요해 `skip(환경)` |
