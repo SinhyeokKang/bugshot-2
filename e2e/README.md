@@ -6,6 +6,7 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 
 - **[COVERAGE.md](./COVERAGE.md)** — 커버리지 맵(spec별 시나리오) · 수동 잔여(자동화 못 한 것 + 이유).
 - **[GOTCHAS.md](./GOTCHAS.md)** — 함정(실전에서 밟은 것 누적). **새 spec 쓰기 전 필독.**
+- **[MANUAL-SMOKE.md](./MANUAL-SMOKE.md)** — Aside 실사이트 스모크 S1~S6(시나리오·전제 단언·판정 문장·대상 사이트·실행 이력). **Playwright 스위트가 아니다** — 수동 잔여 중 환경 제약분을 실제 브라우저로 훑는 리포트 전용 도구고 절차는 `/manual-smoke` 스킬이 갖는다.
 - 이 문서(README) — 개요 · 실행법 · project 구성 · 헬퍼/fixture 빠른 참조.
 - 작성 절차·금지·실행-수정 루프는 `/e2e-write` 스킬(`.claude/commands/e2e-write.md`)이 단일 출처 — 여기서 중복하지 않는다.
 

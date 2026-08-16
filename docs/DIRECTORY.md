@@ -119,6 +119,7 @@ e2e/                     # Playwright e2e 스위트 (@playwright/test, BUGSHOT_E
 ├── README.md            # 개요 · 실행법 · project 구성 · 헬퍼/fixture 빠른 참조 (커버리지·함정은 아래 분리 문서) — /e2e-write가 함께 갱신
 ├── COVERAGE.md          # 커버리지 맵(spec별 시나리오) · 수동 잔여(자동화 못 한 것 + 이유)
 ├── GOTCHAS.md           # 실전 함정 누적 — 새 spec 쓰기 전 필독
+├── MANUAL-SMOKE.md      # Aside 실사이트 스모크 S1~S6 — 수동 잔여 중 환경 제약분(실 cross-origin CSS·실 sticky 사이트·실 광고 iframe·픽셀 판정)의 시나리오 정의·전제 단언·판정 문장·대상 사이트·실행 이력. Playwright 자산이 아니라 `/manual-smoke` 스킬이 읽는 데이터 문서(testMatch가 `.spec.ts`라 스위트엔 안 걸린다). **파일이 3개를 넘거나 `.mjs`가 생기면 최상위 `smoke/`로 승격**
 ├── playwright.config.ts # workers:1 · retries 로컬 0/CI 1 · forbidOnly CI 한정 · headed · trace retain-on-failure · reporter CI에 github 추가 · 2 projects — sidepanel(확장 구동, e2e/*.spec.ts) / logview(확장 없이 dist-log-viewer standalone, e2e/logview/, viewport 1280×800). logview에 dependencies를 두지 않는 이유: 실제 의존이 아닌데 --shard 사용 시 의존 project가 샤드마다 전량 실행돼 샤딩 효과를 지운다
 ├── fixtures/
 │   ├── extension.ts     # worker-scoped ext fixture (ephemeral 포트 정적 서버·persistent context·extension id·teardown) + 헬퍼 (enterDebug/pickElement/typeStyleValue/… — README 참조)
@@ -152,6 +153,6 @@ coverage/                # 커버리지 산출물 — 리포트 본체는 .gitig
 └── pull_request_template.md  # PR 체크리스트 — main 기준 브랜치 안내 + typecheck/test/build + privacy ko/en 동시 갱신 조건
 .agents/                 # Codex 런타임 미러 (전부 생성물 — PREAMBLE.md만 수기)
 ├── PREAMBLE.md       # AGENTS.md 상단에 붙는 Codex 런타임 차이 (스킬 매핑·미제공 스킬·훅 부재·커밋 트레일러)
-└── skills/           # .claude/commands/ 미러 17개 (push·merge·deploy·sync 제외)
+└── skills/           # .claude/commands/ 미러 18개 (push·merge·deploy·sync 제외)
 guide/AUTHORING.md       # 가이드 작성 매뉴얼 (docs-portal 서빙 밖, 레포 전용 — ko/en 상위). 운영 방식·IA·톤·사실 대조 소스·UI 라벨 규칙·footer·검증 = 가이드 작업의 단일 출처. /guide·/push가 가이드 갱신 시 필독
 ```
