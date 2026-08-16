@@ -147,7 +147,13 @@
 
 **Task 1·2·9 완료.** 산출물 2개(`e2e/MANUAL-SMOKE.md`·`.claude/commands/manual-smoke.md`) + 미러 생성 + 주변 문서 4개 갱신. `pnpm sync:agents:check`·`pnpm typecheck` green.
 
-**Task 3~8·10은 차단** — `dist`가 stale이다(1.7.24 빌드 / package 1.7.25). `f456445d`가 `IssueTab.tsx`·`i18n/namespaces/issue.ts`를 바꿔 새 키 `issue.capturing.progressLabel`이 산출물에 없다. 스킬 절차 2단계가 규정한 대로 중단한 상태고, `pnpm build` 후 재개한다.
+**Task 3·5·6·8·10 실행분 완료(1.7.25).** 스킬 절차대로 1회 돌렸고 결과는 `e2e/MANUAL-SMOKE.md` 이력 표 2행차다. **판정이 뒤집힌 항목 0개**로 Task 10의 성공 기준을 만족한다 — S2 결과는 두 빌드에서 `614×6519`로 바이트까지 같았다.
+
+그 전에 **`dist` stale로 한 번 차단됐었다**(1.7.24 빌드 / package 1.7.25 — `f456445d`가 `IssueTab.tsx`·`issue.ts`를 바꿔 `issue.capturing.progressLabel`이 산출물에 없었다). 스킬 절차 2단계가 mtime 대신 문자열 grep을 요구한 덕에 잡혔고, 빌드 후 재개했다.
+
+**남은 것**: S1·S3·S4는 1.7.25에서 재실행하지 않았고(해당 모듈이 그 커밋에서 안 바뀜), S6의 **en·376px·액션 필터 6종**만 미검증으로 남았다 — 액션 로그가 idle에 전용 서브탭이 없어 캐프처→drafting→로그 다이얼로그를 거치고 6종 액션을 생성해야 한다.
+
+**Task 6의 `form`·`fieldset` 검증 항목은 물렸다.** 제외가 `CONTEXT_SELECTOR`에 둘을 안 적는 방식이라 사이트와 무관한 상수이고, `capture-context.test.tsx`가 이미 덮으며, 실사이트에선 판별이 서는 전제(form은 게이트 통과 + form 외 후보 없음 + 크기 상이)를 위키백과 전체에서 0건 찾았다.
 
 스킬 작성 **전**에 S1~S6을 1회 예비 실행해 결함 3건을 찾았고(이력 표 참조), 그 실측이 이 문서의 판정 기준 셋을 교정했다 — **아래 세 항목은 원문이 틀렸으므로 `e2e/MANUAL-SMOKE.md` 쪽을 따른다**:
 
