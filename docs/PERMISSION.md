@@ -50,6 +50,14 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 
 `<all_urls>`가 required인 이유: `captureVisibleTab`은 일반 host 패턴(`https://*/*`)을 캡처 권한으로 인정하지 않고 `<all_urls>` 또는 activeTab만 받는다. 30s Replay가 cross-origin 이동 후에도 캡처하려면 `<all_urls>`가 필요한데, activeTab은 cross-document 네비게이션에서 회수돼 프로그램적 재취득이 불가하므로 광역 host 권한을 **설치 시 상시 보유**(required)한다. BYOK LLM·GitLab self-managed의 임의 origin fetch도 이 권한으로 커버된다.
 
+### web_accessible_resources (빌드가 자동 주입 — manifest.config.ts에 없음)
+
+`manifest.config.ts`에는 이 키가 없지만 **crxjs가 배포 산출물에 넣는다**. `dist/manifest.json`을 열면 content script가 동적으로 import하는 청크 6개(picker·recorder-bridge·recorders-entry 엔트리와 element-label·post-to-runtime·index)가 `matches: ["<all_urls>"]`·`use_dynamic_url: false`로 등재돼 있다.
+
+의미는 **임의 웹페이지가 고정 URL로 이 리소스를 fetch할 수 있다**는 것 — 즉 BugShot 설치 여부가 페이지에서 탐지 가능하다(fingerprinting 표면). `use_dynamic_url: true`면 URL이 세션마다 바뀌어 이를 막지만, content script가 동적 import로 그 청크를 로드하는 구조라 현재는 고정 URL이 필요하다.
+
+**개발자가 쓴 선언이 아니라 빌드 툴 생성물이라 manifest diff 트라이아지에 안 걸린다** — 권한 심사·프라이버시 검토 때는 `manifest.config.ts`가 아니라 `dist/manifest.json`을 봐야 한다.
+
 > **과거 모델(폐기)**: `<all_urls>`는 한때 `optional_host_permissions`에 있었고 30s Replay·BYOK·GitLab 연결 시 `chrome.permissions.request()`로 런타임 획득했다. required로 승격하며 설치 시 "모든 사이트의 데이터 읽기/변경" 경고가 상시 노출되고 런타임 권한 프롬프트는 사라졌다. BYOK/GitLab의 `requestHostPermission` 호출은 코드에 남아있으나 이미 보유라 즉시 grant(프롬프트 없음). `chrome.permissions.contains`/`BROAD_HOST_ORIGINS`는 코드에서 제거됐다.
 
 ---
@@ -70,9 +78,9 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 
 | API | 용도 | 사용 위치 |
 |---|---|---|
-| `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:208` (bg handler — 모든 호출이 `capture-throttle` 직렬 큐 경유). 호출처: `sidepanel/capture.ts:captureElementSnapshot`(요소), `usePickerMessages.ts`(영역·인라인), `sidepanel/scroll-capture.ts`(페이지 전체 타일 루프), `30s-replay/use-30s-replay.ts`(폴링 프레임) |
+| `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:209` (bg handler — 모든 호출이 `capture-throttle` 직렬 큐 경유. 큐를 통과한 뒤 `captureOwnedTab`이 `tabs.get(tabId)`로 **소유권을 다시 확인**하고 `tab.active`가 아니면 throw한다 — 큐 대기가 최대 ~2.6s라 그동안 사용자가 탭을 바꿨으면 남의 페이지를 찍게 된다). 호출처: `sidepanel/capture.ts:captureElementSnapshot`(요소), `usePickerMessages.ts`(영역·인라인), `sidepanel/scroll-capture.ts`(페이지 전체 타일 루프), `30s-replay/use-30s-replay.ts`(폴링 프레임) |
 | `chrome.tabCapture.getMediaStreamId()` | 수동 영상 녹화 스트림 (실패 시 `getDisplayMedia` 폴백) | `video-recorder.ts:startTabStream` |
-| `chrome.tabs.get() → tab.url` | 탭 URL 읽기 | `tab-bindings.ts`, `picker-control.ts`(`pageKeyOf` 등), `video-capture.ts`, `video-recorder.ts`, `30s-replay/use-30s-replay.ts` |
+| `chrome.tabs.get() → tab.url` | 탭 URL 읽기 | `tab-bindings.ts`, `picker-control.ts`(`pageKeyOf` 등), `video-capture.ts`, `video-recorder.ts`, `30s-replay/use-30s-replay.ts`, `hooks/useTabSupport.ts`(지원/만료 판정 — 아래 만료 감지 1단계의 URL 판독부), `hooks/useBackgroundRecorder.ts`, `sidepanel/scroll-capture.ts`, `background/capture-throttle.ts`(캡처 직전 소유권 확인), `background/index.ts` |
 | `chrome.scripting.executeScript()` | content script 재주입(picker·recorder-bridge는 `allFrames:true`)·뷰포트 측정 | `picker-control.ts` (`ensureMainWorldRecorders`·`getTopViewport` 등) |
 | `chrome.tabs.create()` / `chrome.tabs.remove()` | ① GitHub 업로드용 비활성 탭 생성·정리(`background/github-upload.ts`) ② 외부 링크 열기 — 등록된 이슈 URL·가이드·스토어 리뷰·플랫폼 토큰 발급 페이지(`IssueTab`·`SettingsFooter`·`SubmitSuccessView`·`IssueRow`) | 권한 불요(확장 기본 제공) |
 | `chrome.tabs.query({})` | **전 창 전 탭 열거** — pending 로그 GC가 "살아있는 탭"을 계산하는 유일한 경로(fail-closed: 조회 실패 시 prune 전체 스킵) | `lib/pending-log-prune.ts`. URL을 읽지만 `activeTab`과 무관하게 `<all_urls>`가 커버한다 |
@@ -115,8 +123,8 @@ capture-error.ts:isActiveTabPermissionError()
 ```
 
 - `picker-control.ts:216` — `maybeSurfacePermissionExpired()`: captureVisibleTab 실패 시 호출
-- `capture.ts:109` — 요소 스냅샷 실패
-- `usePickerMessages.ts:435·463` — 영역 캡처·인라인 캡처 실패 분기
+- `capture.ts:108` — 요소 스냅샷 실패
+- `usePickerMessages.ts:437·465` — 영역 캡처·인라인 캡처 실패 분기
 
 #### 3단계: tabCapture 에러 매칭 (영상 녹화)
 
@@ -173,7 +181,7 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 | Recorder bridge 재주입 | ISOLATED | `picker-control.ts:66` | `recorder-bridge.ts` (sentinel 수신·중계)를 `allFrames:true`로 재주입 |
 | Recorder entry 재주입 | MAIN | `picker-control.ts:ensureMainWorldRecorders` | `recorders-entry.ts` (network/console/action 후크) 재주입 (MAIN world). **정적 엔트리는 `all_frames: true`로 전 프레임 주입**이고, 여기 프로그래매틱 재주입만 `allFrames` 미지정이라 top 한정이다 |
 | 뷰포트 측정 | ISOLATED | `picker-control.ts` | Freeform 진입·iframe 요소 선택 시 top 프레임 `innerWidth/Height` 읽기 (`getTopViewport` — world 미지정 → 기본 ISOLATED) |
-| GitHub 업로드 | MAIN | `background/github-upload.ts:157` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수). 업로드마다 **전용 비활성 탭을 새로 열고 끝나면 닫는다** — 기존 github.com 탭에 붙으면 다른 확장의 MAIN world 후크가 base64 미디어와 `asset_upload_authenticity_token`을 가져갈 수 있다. 사용자가 연 탭이 아니라 `activeTab`이 아닌 `<all_urls>`에 의존 |
+| GitHub 업로드 | MAIN | `background/github-upload.ts:155` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수). 업로드마다 **전용 비활성 탭을 새로 열고 끝나면 닫는다** — 기존 github.com 탭에 붙으면 다른 확장의 MAIN world 후크가 base64 미디어와 `asset_upload_authenticity_token`을 가져갈 수 있다. 사용자가 연 탭이 아니라 `activeTab`이 아닌 `<all_urls>`에 의존 |
 
 ### 주입 실패 시
 
@@ -350,6 +358,14 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 
 pre-arm 게이트 플래그 `__bugshot_recorder_active__`=`"1"`을 **방문 페이지의** sessionStorage에 쓴다(`content/recorder-prearm.ts`). `setSentinel` 시 기록하고 clear하지 않으며 탭 종료 시 소멸한다 — 다음 로드의 레코더가 document_start에 **동기로** 읽어야 해서 `chrome.storage.session`(비동기)으로 대체할 수 없다. same-origin 페이지가 읽고 쓸 수 있는 값이라 위조 가능하고, 그 오염 창은 `PREARM_GRACE_MS`(60초) 유예 타이머로 유한화한다(ARCHITECTURE.md "활성 게이트"). privacy 문서 §2의 동명 항목과 대조할 것.
 
+### 클립보드 (Chrome 권한 불요 — 전송 데이터 레퍼런스)
+
+`navigator.clipboard.write`로 **스크린샷 blob과 이슈 본문 HTML이 OS 클립보드로 나간다**(`sidepanel/tabs/PreviewPanel.tsx`의 이미지·본문 복사, `components/NetworkLogContent.tsx`의 Copy as cURL, `log-viewer/App.tsx` — 여기는 확장 밖 웹 페이지 컨텍스트). `clipboardWrite` 권한 없이 동작하는 건 전부 user gesture 경유라서다. 확장이 통제하지 못하는 표면으로 데이터가 나가는 경로이므로 privacy 문서와 대조할 것.
+
+### navigator.userAgent (Chrome 권한 불요 — 전송 데이터 레퍼런스)
+
+`navigator.userAgent`/`userAgentData`로 브라우저·OS 버전을 읽어 **재현 환경 표에 실어 8개 플랫폼으로 제출**한다(`sidepanel/lib/buildEditorCapture.ts`, `lib/osInfo.ts`). 권한은 불요지만 이슈 본문에 실제로 나가는 값이다.
+
 ### 쓰기 패턴 특이사항
 
 - **session quota 초과 대응** (`useEditorSessionSync.ts`): 이미지 필드를 제거한 "lite" 스냅샷으로 폴백. 3연속 실패 시 저장 중단 + `onSessionSaveExhausted` 발화
@@ -486,7 +502,7 @@ background/index.ts:73 — contextMenus.onClicked
 #### onBeforeNavigate — 로그 꼬리 보존
 
 ```
-background/index.ts:111 — webNavigation.onBeforeNavigate
+background/index.ts:116 — webNavigation.onBeforeNavigate
 ├── frameId !== 0 → 무시 (메인 프레임만)
 ├── 현재 tab.url을 navUrlPromise Map에 저장 (onCommitted에서 사용 — 세션 검사보다 먼저, 무조건)
 ├── editor:{tabId} 세션 없음 → 무시 (패널 미바인딩 탭)
@@ -573,8 +589,8 @@ Linear·GitLab은 PKCE 지원으로 proxy 불필요 — 각각 `api.linear.app/o
 | `tab-bindings.ts` (`deactivatePanelIfCrossOrigin`) | cross-origin 커버 URL(http/https) 이동 시 패널 유지 — `broadGranted=true` 고정(§ 패널 종료/유지 정책 분기표) |
 | `LlmConnectDialog.tsx` (`ai-provider.ts:requestHostPermission` 경유) | BYOK LLM 프로바이더 연결 — 임의 baseUrl origin 요청이 `<all_urls>`에 포섭돼 **즉시 grant**(프롬프트 없음) |
 | `GitlabConnectForm.tsx` | GitLab self-managed 인스턴스 PAT 연결 — `requestHostPermission` 공유, 동일하게 즉시 grant |
-| `content/css-source-cache.ts` | **content(페이지 컨텍스트) stylesheet fetch** — same-origin·CORS 허용 `<link rel=stylesheet>` 원문을 `fetch(href, {credentials:"omit"})`로 직접 읽는다. **`isFetchableSheetUrl` SSRF 가드는 아래 background 경로 전용이라 여기엔 안 걸린다** — 페이지 자신의 권한으로 나가는 요청이라 확장 권한 상승이 없고(브라우저 CORS가 경계), background 경로는 그 경계를 우회하므로 가드가 거기 붙는다 |
-| `background/messages.ts` (`fetchCssSheets`) | cross-origin stylesheet 원문 fetch — content가 보낸 page-controlled href를 CORS 우회로 읽어 스타일 specified 값 보강. http(s) 공개 호스트 한정(SSRF 가드 `lib/ssrf-guard.ts` `isFetchableSheetUrl` — loopback·사설·link-local 차단), `credentials:omit` · `redirect:manual` · CSS content-type · 2MB 캡 |
+| `content/css-source-cache.ts` | **content(페이지 컨텍스트) stylesheet fetch** — **same-origin 한정**으로 `<link rel=stylesheet>` 원문을 `fetch(href, {credentials:"omit"})`로 직접 읽는다(cross-origin href는 fetch 전에 origin 대조로 스킵하고 아래 background 경로에 위임한다 — CORS가 허용된 cross-origin이라도 이 경로로는 안 읽는다). **`isFetchableSheetUrl` SSRF 가드는 아래 background 경로 전용이라 여기엔 안 걸린다** — 페이지 자신의 권한으로 나가는 요청이라 확장 권한 상승이 없고(브라우저 CORS가 경계), background 경로는 그 경계를 우회하므로 가드가 거기 붙는다 |
+| `background/messages.ts` (`fetchCssSheets`) | cross-origin stylesheet 원문 fetch — content가 보낸 page-controlled href를 CORS 우회로 읽어 스타일 specified 값 보강. http(s) 공개 호스트 한정(SSRF 가드 `lib/ssrf-guard.ts` `isFetchableSheetUrl` — loopback·사설·link-local 차단), `credentials:omit` · `redirect:manual` · CSS content-type(빈 content-type도 거부) · 2MB 캡 · 요청당 시트 50개 캡 |
 
 ### requestHostPermission 잔존 호출
 
