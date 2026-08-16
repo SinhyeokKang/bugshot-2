@@ -362,8 +362,8 @@
 - **변경 대상**: `src/sidepanel/components/DocSectionBody.tsx`(:16·:20·:29·:43)
 - **작업 내용**: prop과 `"hide"` 분기 2곳 삭제.
 - **검증**:
-  - [ ] `grep -rn "emptyVariant" src/ e2e/` 0건
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] `grep -rn "emptyVariant" src/ e2e/` 0건
+  - [x] `pnpm typecheck` + `pnpm test` green
 
 ### Task 9-2: 미참조 export **재분류** (⚪107·108·110·109)
 
@@ -382,20 +382,27 @@
 
 **앵커 정정**: `src/types/platform.ts:73`은 **v1.7.23이 넣은 살아있는 `sprintName?: string`**이다. 의도한 미참조 타입 4종은 `:78`·`:100`·`:119`·`:129`이고 **넷 다 `:159~163`에서 내부 참조**되므로 (b)에 속한다. `:20`의 런타임 상수 3개는 그대로 유지(design.md 판정표).
 
+- **⚠ 재분류가 또 틀렸다 (2026-08-16 실측). 이번엔 양방향으로 틀렸다.**
+  - **(a) 순수 삭제는 0개다.** `deleteInlineImages`(`blob-db.ts:597`이 호출) · `getInlineImageKeys`(`:595`) · `IssueStatus`(`issues-store.ts:184`) · `IssueTokenSnapshot`(`:207`) — 넷 다 자기 파일 안에서 쓰인다. 전부 (b)로 내린다.
+  - **(b)의 `blob-db.ts:551`은 `getInlineOriginKeys`이고 테스트가 부른다** → (c).
+  - **(c)의 `TabSupport`·`LogTone`은 테스트·e2e 참조가 0이다** → (b)로 내려 unexport.
+  - **앵커 `issues-store.ts:133`·`:161`은 둘 다 `}`** — 실제 심볼은 `:135`·`:163`.
+  - **`platform.ts`의 `*LastSubmitFields` 4종은 이제 외부 참조가 있다** — 같은 배치의 **G3가 만든 `submitAdapters.ts`**가 import한다. 문서가 쓰인 시점엔 내부 전용이 맞았다. `export` 제거 → `pnpm typecheck` red로 잡혔고 복구했다. **아래 (b) 검증 항목이 정확히 이 용도였다.**
 - **검증**:
-  - [ ] (a)는 삭제 전 `grep -rn "<심볼>" src/ e2e/ scripts/` **0건 기록**
-  - [ ] (b)는 `export` 제거 후 `pnpm typecheck` green — 외부 참조가 있었으면 여기서 red
-  - [ ] (c)는 코드 변경 0, 주석만
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] ~~(a)는 삭제 전 grep 0건 기록~~ — **(a)가 비어 삭제 0건**
+  - [x] (b)는 `export` 제거 후 `pnpm typecheck` green — 12건 적용, `*LastSubmitFields` 4종은 red로 걸려 복구
+  - [x] (c)는 코드 변경 0, 주석만 — 6건에 "테스트 전용 export" 명시 + `blob-db.ts`의 "clearInlineImages는 dead" **거짓 주석 정정**
+  - [x] `pnpm typecheck` + `pnpm test` green
   - [ ] `pnpm build` + `pnpm build:log-viewer` 통과 (별도 그래프 확인)
 
 ### Task 9-3: 파일 내부 전용 export의 `export` 제거 (⚪102·98)
 - **변경 대상**: `src/sidepanel/picker-control.ts:459` · ~~`src/sidepanel/tabs/issueListUtils.ts:161`~~(아래 참조) · `src/sidepanel/30s-replay/frame-buffer.ts:6` · `src/sidepanel/lib/markdown-logs-link.ts:5` · `src/sidepanel/lib/renderLogRefs.ts:17` · `src/sidepanel/lib/buildAiStylingPrompt.ts:37` · `src/sidepanel/tabs/statusBadges/GithubStatusBadge.tsx:18` · `src/content/element-locator.ts:166`
 - **작업 내용**: 외부 참조 0 확인 후 `export` 키워드만 제거(코드 이동 없음). **`element-locator.ts:166`은 테스트 전용 export라 삭제하면 테스트가 깨진다 — `// 테스트 전용 export` 주석만 붙인다.**
 - **`issueListUtils.ts`는 대상에서 뺀다(리베이스 재확인 결과).** 감사가 지목한 `:161`은 `dateLabel`이었고 지금은 `:173`으로 밀렸는데, 로케일 인프라 공사로 `src/sidepanel/tabs/__tests__/issueListUtils.test.ts`가 이걸 직접 import해 단언한다(ko/en 날짜 표기 회귀). 같은 공사로 생긴 형제 `dateMonthStyle`(`:169`)도 테스트 전용 export다. **둘 다 ⚪98과 같은 취급 — `export`를 떼지 말고 `// 테스트 전용 export` 주석만 붙인다.**
+- **⚠ `picker-control.ts:459`는 대상에서 뺀다 (2026-08-16).** `releaseDetachedSelection`을 `src/sidepanel/hooks/usePickerMessages.ts:10,264`가 import해 쓴다. `element-locator.ts:166`은 이미 `/** 테스트 전용 */` 주석이 있어 무변경.
 - **검증**:
-  - [ ] 심볼마다 `grep -rn "<심볼>" src/ e2e/` 결과가 자기 파일(+ `element-locator`·`dateLabel`·`dateMonthStyle`은 테스트)뿐
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] 심볼마다 참조가 자기 파일(+ 테스트)뿐임을 **분류 스크립트로 전수 확인** — 결과가 문서와 다른 5건은 위 9-2에 기록
+  - [x] `pnpm typecheck` + `pnpm test` green
 
 ### Task 9-4: 중복 헬퍼 2건 (⚪100·101·94)
 - **변경 대상**: `src/sidepanel/annotation-control.ts:8` ↔ `src/sidepanel/recorder-control.ts:5`(`send()`) · `src/sidepanel/lib/video-thumbnail.ts:8` ↔ `src/sidepanel/30s-replay/encode-range.ts:75`(`withTimeout`) · `src/background/notion-api.ts:291`(`dataUrlToBlob` 로컬 사본)
@@ -403,18 +410,26 @@
   - **`withTimeout`은 시그니처가 다르다** — `encode-range.ts:75`는 `(p, timeoutMs, label)` **3인자**, `video-thumbnail.ts:8`은 `(p, label)` **2인자 + 모듈 상수 `LOAD_TIMEOUT_MS`**. 3인자로 통일하고 **video-thumbnail 호출 2곳을 함께 고친다.** 또 둘 다 `window.setTimeout`을 쓰므로 "순수 함수"가 아니다 — `src/lib/` 승격은 가능하되 근거를 "순수"로 적지 않는다.
   - **`dataUrlToBlob`은 동치가 아니다** — notion판(`notion-api.ts:291`)은 `{blob, contentType}`를 반환하고 percent-encoding을 지원하는데, blob-db판(`:728-739`)은 `Blob`만 반환하고 base64 전용이다. **Task 1-4가 `imageExtFromDataUrl`에 요구한 "도달 불가 증명 또는 스킵"과 같은 게이트를 여기에도 건다.**
   - **커버리지 분모 주의**: `annotation-control.ts`·`recorder-control.ts`·`video-thumbnail.ts`·`encode-range.ts` 넷 다 현재 `scripts/coverage-report.mjs`의 `BROWSER_BOUND_EXACT`에 있어 로직 스코프 밖이다. `src/lib/`·`src/sidepanel/lib/`로 옮기면 분모에 편입되므로 `send()`에도 테스트를 붙인다.
+- **결과 (2026-08-16)**: `withTimeout` → `src/lib/with-timeout.ts` 3인자 통일(video-thumbnail 호출 2곳이 `LOAD_TIMEOUT_MS`를 명시로 넘긴다). `send()` → `src/sidepanel/lib/sendToTab.ts`(본문 바이트 동일이었다). **`dataUrlToBlob`은 통합 스킵** — notion판은 percent-encoding 페이로드를 처리하고 `{blob, contentType}`를 반환하는데 blob-db판은 base64 전용 `Blob`이라 동치가 아니고, 도달 불가를 증명할 수 없다(Task 1-3 slack `toUploadEntry`와 같은 예외 처리).
+- **`window.setTimeout` → 전역 `setTimeout`으로 바꿨다** — 브라우저에선 같은 함수이고, 이러면 모듈이 실행 환경에 안 묶여 node 트랙으로 시한을 고정할 수 있다.
 - **검증**:
-  - [ ] `grep -c "function withTimeout\|const withTimeout" src/` = 1, `send` / `dataUrlToBlob`도 각 1
-  - [ ] `withTimeout` 단위 테스트 추가(타임아웃 / 정상 resolve / reject)
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] `withTimeout` 정의 1벌, 로컬 `send()` 정의 0벌 — `dataUrlToBlob`은 위 사유로 2벌 유지
+  - [x] `withTimeout` 단위 테스트 추가(타임아웃 / 정상 resolve / reject / **타이머 정리** — `clearTimeout` 제거 뮤테이션으로 red 실측)
+  - [x] `pnpm typecheck` + `pnpm test` green · 로직 스코프 커버리지 82.6% 유지
 
 ### Task 9-5: 주석·별칭·미세 정리 (⚪68·93·95·96·97·103·104·105·114)
 - **변경 대상**: `src/content/overlay.ts:678`(swatch 불변식 주석 추가) · `src/background/github-upload.ts:39`(`created` 항상 true) · `src/background/github-oauth.ts:20`(1회용 wrapper 군집) · `src/content/css-source-cache.ts:624`(WHAT 재진술 영어 주석 5건) · `src/content/network-recorder.ts:12`(재진술 주석 — `:9`는 빈 줄) · `src/sidepanel/components/AnnotationOverlay.tsx:231`(재진술 주석) · `src/sidepanel/lib/trailing-throttle.ts:17`(이중 단언) · `src/sidepanel/lib/buildEditorCapture.ts`(same-dir alias **9건**, `:5-16`) · ⚪114 배치·명명 8곳
 - **작업 내용**: **감사 리포트 기재 — 착수 시 각 라인 재확인.** 리포트와 다르면 스킵 + 사유. `css-source-cache.ts`·`network-recorder.ts`는 **회고 1위 영역 / pre-arm 청크**라(단 `css-source-cache.ts`는 pre-arm 청크가 **아니라 picker 그래프**다 — 2026-08-14 정정. 주의 수준은 그대로 유지) 주석만 건드리고 코드는 손대지 않는다.
 - **⚪114의 `src/lib/external-url.ts`는 미변경이다.** 리베이스로 바뀐 건 이름이 비슷한 **`src/lib/external-links.ts`**(로케일별 가이드 URL — `USER_GUIDE_URLS`·`userGuideUrl`이 `@/i18n/locales`의 `LocaleTable`을 쓴다)이고, ⚪114 대상이 아니다. 두 파일을 혼동하지 말 것.
+- **결과 (2026-08-16) — 대부분 스킵, 사유 명시**:
+  - **적용**: same-dir alias — 문서의 **9건이 아니라 10건**(`downloadAttachment.ts` 1건 누락). 관례가 상대경로 187 vs `@/sidepanel/lib/` 10이라 후자가 이상치임을 실측하고 고쳤다.
+  - **스킵 — 앵커 stale**: `overlay.ts:678`은 `}`.
+  - **스킵 — 위험 대비 이득**: `github-upload.ts`의 항상-true `created`(그 파일은 `chrome.scripting` `func` 주입 제약이 걸려 CLAUDE.md가 실탭 회귀를 요구한다) · `github-oauth.ts`의 1회용 wrapper 군집(OAuth 경로). 둘 다 ⚪ 이득이라 실탭 회귀 비용을 정당화하지 못한다.
+  - **스킵 — 제거하면 깨진다**: `trailing-throttle.ts:17`의 이중 단언은 **필요하다**(단일 단언으로 바꾸면 typecheck 에러 1건 — DOM/node `setTimeout` 반환 타입 차이).
+  - **스킵 — 주석이 불변식을 담는다**: `css-source-cache.ts:624`(“preserves source order”는 Map 삽입 순서 불변식) · `network-recorder.ts:12` · `AnnotationOverlay.tsx:231`. 앞의 둘은 회고 1위 영역/pre-arm 인접이라 이득 없는 편집을 하지 않는다.
 - **검증**:
-  - [ ] `src/content/` 파일들은 주석 외 diff 0
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] `src/content/` 파일들은 diff 0 (주석도 안 건드렸다)
+  - [x] `pnpm typecheck` + `pnpm test` green
   - [ ] `pnpm build` 후 `pnpm check:prearm` 통과
 
 ---
