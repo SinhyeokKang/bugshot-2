@@ -233,7 +233,7 @@
   - [ ] `grep -rn "getLocale" src/ e2e/ scripts/`에 `issueListUtils.ts:176`이 그대로 있다(삭제하지 않았다는 증거)
   - [ ] `pnpm typecheck` + `pnpm test` green — `locale-registry.test.ts` 포함
   - [ ] **`pnpm build:log-viewer` 통과** ← 이 항목이 원안에 없어서 alias 함정을 못 걸렀다. 보류 해제 시 필수.
-  - [ ] `pnpm build` 후 `pnpm check:prearm` 통과
+  - [x] `pnpm build` 후 `pnpm check:prearm` 통과
 
 </details>
 
@@ -393,7 +393,7 @@
   - [x] (b)는 `export` 제거 후 `pnpm typecheck` green — 12건 적용, `*LastSubmitFields` 4종은 red로 걸려 복구
   - [x] (c)는 코드 변경 0, 주석만 — 6건에 "테스트 전용 export" 명시 + `blob-db.ts`의 "clearInlineImages는 dead" **거짓 주석 정정**
   - [x] `pnpm typecheck` + `pnpm test` green
-  - [ ] `pnpm build` + `pnpm build:log-viewer` 통과 (별도 그래프 확인)
+  - [x] `pnpm build` + `pnpm build:log-viewer` 통과 (별도 그래프 확인)
 
 ### Task 9-3: 파일 내부 전용 export의 `export` 제거 (⚪102·98)
 - **변경 대상**: `src/sidepanel/picker-control.ts:459` · ~~`src/sidepanel/tabs/issueListUtils.ts:161`~~(아래 참조) · `src/sidepanel/30s-replay/frame-buffer.ts:6` · `src/sidepanel/lib/markdown-logs-link.ts:5` · `src/sidepanel/lib/renderLogRefs.ts:17` · `src/sidepanel/lib/buildAiStylingPrompt.ts:37` · `src/sidepanel/tabs/statusBadges/GithubStatusBadge.tsx:18` · `src/content/element-locator.ts:166`
@@ -430,7 +430,7 @@
 - **검증**:
   - [x] `src/content/` 파일들은 diff 0 (주석도 안 건드렸다)
   - [x] `pnpm typecheck` + `pnpm test` green
-  - [ ] `pnpm build` 후 `pnpm check:prearm` 통과
+  - [x] `pnpm build` 후 `pnpm check:prearm` 통과
 
 ---
 
@@ -461,7 +461,7 @@
 - [ ] **R4** jira·github·slack 각각: 신규 제출 1회 + 이슈 목록에서 재제출 1회 (6회)
 - [ ] **R5** linear·asana·clickup·github·gitlab·notion 각각 연결 해제 → 재연결
 - [ ] **R6** Asana 인라인 이미지 1건 제출 후 첨부 확장자 확인 (Task 1-4 수행 시)
-- [ ] **R7** `pnpm build` 후 `pnpm check:prearm` + `pnpm build:log-viewer`
+- [x] **R7** `pnpm build` 후 `pnpm check:prearm` + `pnpm build:log-viewer` (2026-08-16, HEAD 12fa12e3)
 - [ ] 이슈 목록에서 8플랫폼 배지가 정상/삭제/오류 상태로 렌더 (G5 이후)
 
 ---
