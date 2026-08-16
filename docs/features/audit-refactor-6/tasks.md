@@ -287,26 +287,30 @@
 #### Task 4-1: `PlatformConnectFlow` 신규
 - **변경 대상**: **신규** `src/sidepanel/tabs/connect/PlatformConnectFlow.tsx` + `__tests__/PlatformConnectFlow.test.tsx`
 - **작업 내용**: 6개 폼의 공통 86줄. **`sendBg` 메시지는 완성된 `BgRequest` 객체를 prop으로 받는다** — 문자열 조립(`` `${id}.startOAuth` ``)하면 union 타입 검사가 죽는다.
+- **⚠ "공통 86줄"은 부정확했다 (2026-08-16 실측).** 토큰 치환 후 본문 해시로 그룹핑하면 **3그룹 + 단독 3개**로 갈리고, Asana 대비 22~30줄이 다르다. 다만 **차이가 전부 *값*이라** prop 6개(플랫폼 id·아이콘·토큰 라벨 키·요청 2개·토큰 다이얼로그)로 흡수된다 — 구조는 실제로 공통이라 태스크 자체는 성립한다.
+- **⚠ 요청 prop을 `BgRequest`로만 두면 타입 게이트가 절반만 선다.** union은 *존재하지 않는* 타입 문자열만 잡고, **다른 플랫폼의 유효한 문자열**(`platform="github"` + `startOAuthRequest={{type:"notion.startOAuth"}}`)은 통과해 남의 OAuth 토큰이 이 계정 슬롯에 저장된다. `BgRequest & { type: \`${NoInfer<P>}.startOAuth\` }`로 묶는다 — **`NoInfer`가 핵심**이고, 없으면 `P`가 그 자리에서도 추론 후보를 얻어 넓어져 `Extract<…>`·교차 타입 **둘 다 무력했다**(실측). 두 뮤테이션으로 red 확인.
+- **⚠ 요청 객체를 `useEffect` 의존성에 두지 않는다.** 호출부 6곳이 전부 인라인 리터럴이라 렌더마다 새 참조이고, 조상(`IntegrationsTab`은 CSS `hidden`으로만 감춰져 **언마운트되지 않는다**)이 리렌더할 때마다 `oauth.available`을 다시 조회한다. `[platform]` + latest-ref로 고정. 그물은 **인라인 리터럴을 넘기는 부모 컴포넌트**로 짜야 한다 — 모듈 상수를 넘기면 참조가 고정돼 항등식이 된다(초안이 그랬고 뮤테이션에 green이었다).
 - **검증**:
-  - [ ] jsdom 렌더 테스트: `oauthAvailable === null` 동안 버튼 disabled / OAuth 있으면 `ConnectMethodDialog` 열림 / 없으면 토큰 다이얼로그 직행 / `connecting` 중 스피너 + `aria-disabled`
-  - [ ] `pnpm test` green
+  - [x] jsdom 렌더 테스트: `oauthAvailable === null` 동안 버튼 disabled / OAuth 있으면 `ConnectMethodDialog` 열림 / 없으면 토큰 다이얼로그 직행 / `connecting` 중 스피너 + `aria-disabled`
+  - [x] `pnpm test` green (11 케이스)
 
 #### Task 4-2: 6개 폼 치환
 - **변경 대상**: `LinearConnectForm.tsx`(:42) · `AsanaConnectForm.tsx` · `ClickupConnectForm.tsx` · `GithubConnectForm.tsx` · `GitlabConnectForm.tsx` · `NotionConnectForm.tsx`
 - **작업 내용**: 각 `*ConnectFlow`를 `PlatformConnectFlow` 호출 1개로. **`JiraConnectForm.tsx`·`SlackConnectForm.tsx`는 건드리지 않는다.**
 - **검증**:
-  - [ ] jira·slack 두 파일 diff 0
-  - [ ] `pnpm typecheck` green
+  - [x] jira·slack **flow 함수** diff 0 (두 파일 자체는 Task 4-3의 라벨 치환으로 바뀐다 — 원 검증 문구가 4-3과 겹쳐 부정확했다)
+  - [x] `pnpm typecheck` green — 86줄 × 6 → 22줄 × 6 (**384줄 감소**)
   - [ ] **수동**: 6개 플랫폼 각각 연결 해제 → 재연결(OAuth env가 있으면 OAuth 1회 + 토큰 1회, 없으면 토큰만) (R5)
 
 #### Task 4-3: connect 폼 라벨 34곳 → `FieldRow` (🟡53)
 - **변경 대상**: `src/sidepanel/components/FieldRow.tsx`(prop 추가) + connect 폼 8개
 - **작업 내용 (2026-08-14 정정 — prop이 1개가 아니라 2개다)**: `FieldRow`에 `htmlFor?: string`(입력 연결 **10곳** 커버)과 **`labelAction?: ReactNode`**를 추가한다. 34곳 중 **7곳은 라벨이 `flex items-center justify-between` 안에서 "토큰 발급" `<a>`와 나란히** 있어 `FieldRow`의 label→children 세로 구조로 표현할 수 없다. 또 **원본 34곳은 전부 `flex flex-col gap-1.5`인데 `FieldRow`는 `grid gap-1.5`**라 컨테이너 클래스가 바뀐다 — 명시적 수용 사항으로 적거나 해당 7곳을 대상에서 제외한다. "새 추상화 0 / prop 1개"는 성립하지 않는다.
   - 감사의 "27회"는 실측 34회(asana 4·clickup 5·github 4·gitlab 5·jira 7·linear 5·notion 3·slack 1).
+- **결정 (2026-08-16)**: 열어둔 갈림길에서 **`labelAction` prop 추가 → 34곳 전부** 쪽을 택했다(7곳이 이미 같은 시각 패턴을 손으로 반복 중이라 prop이 새 개념을 만드는 게 아니다). 컨테이너 클래스 `flex flex-col gap-1.5` → `grid gap-1.5`는 **명시적 수용** — 34곳 중 자식이 2개 이상인 건 `NotionConnectForm`의 Input+`<p>` 하나뿐이고 row-gap 6px로 등가다. 같은 콤보박스들이 `*IssueFields.tsx`에서 이미 grid `FieldRow` 안에 렌더된다는 게 추가 근거.
 - **검증**:
-  - [ ] `grep -c '<label' src/sidepanel/tabs/connect/*ConnectForm.tsx` 합계 0
-  - [ ] `htmlFor`가 있던 **10곳**이 여전히 입력과 연결됨(렌더 테스트 또는 수동 라벨 클릭 → 포커스 이동)
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] `grep -c '<label' src/sidepanel/tabs/connect/*ConnectForm.tsx` 합계 0
+  - [x] `htmlFor`가 있던 **10곳**이 여전히 입력과 연결됨 (`FieldRow.test.tsx`가 `getByLabelText`로 고정 + htmlFor 없으면 연결 안 된다는 음성 케이스 짝)
+  - [x] `pnpm typecheck` + `pnpm test` green
 
 ---
 
@@ -315,11 +319,12 @@
 #### Task 5-1: `BadgeFallback` 신규 + 7곳 치환
 - **변경 대상**: **신규** `src/sidepanel/tabs/statusBadges/BadgeFallback.tsx` + `__tests__/`, `Asana`·`Clickup`·`Github`·`Gitlab`·`Jira`·`Linear`·`Notion` `SubmittedBadge.tsx`
 - **작업 내용**: error/deleted 블록(`STATUS_CATEGORY_COLORS.deleted` + `issueList.deleted`/`issueList.unknown`)과 loading 블록(`issueList.submitted`)을 `<BadgeFallback kind="…" />`로. **`*StatusBadge` 7개와 `SubmittedBadge.tsx`(디스패처)·`SlackSubmittedBadge.tsx`(17줄)는 건드리지 않는다.**
+- **⚠ loading 블록은 7곳이 아니라 6곳이다 (2026-08-16 실측).** 블록 해시로 그룹핑하면 error/deleted는 1그룹 ×7(바이트 동일)인데 loading은 **6벌 + `JiraSubmittedBadge` 단독 1벌**로 갈린다 — Jira는 로딩 중 배지를 안 그리고 `return null`이다. **고치지 않는다**(동작 변경이고 G5 스코프 밖). Jira의 error/deleted만 치환한다.
 - **검증**:
-  - [ ] `grep -rn "STATUS_CATEGORY_COLORS.deleted" src/sidepanel/tabs/statusBadges/` = 1 (BadgeFallback만)
-  - [ ] `*StatusBadge.tsx` 7개 diff 0
-  - [ ] jsdom 렌더 테스트: kind 3종 각각의 문구·색상 클래스
-  - [ ] `pnpm typecheck` + `pnpm test` green
+  - [x] `grep -rn "STATUS_CATEGORY_COLORS.deleted" src/sidepanel/tabs/statusBadges/` = 1 (BadgeFallback만 — 테스트 제외)
+  - [x] `*StatusBadge.tsx` 7개 diff 0 · `SubmittedBadge.tsx` 디스패처 · `SlackSubmittedBadge.tsx` diff 0
+  - [x] jsdom 렌더 테스트: kind 3종 각각의 문구·색상 클래스 (+ error·loading에 **색 클래스 부재** 음성 케이스)
+  - [x] `pnpm typecheck` + `pnpm test` green
 
 ---
 

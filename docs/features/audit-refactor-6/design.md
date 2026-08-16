@@ -91,16 +91,16 @@
 
 ### G4. 커넥트 폼 통합 (🟡50 + 🟡53)
 
-- **신규** `src/sidepanel/tabs/connect/PlatformConnectFlow.tsx` — 6개 폼의 공통 86줄.
+- **신규** `src/sidepanel/tabs/connect/PlatformConnectFlow.tsx` — 6개 폼의 `*ConnectFlow` 86줄. **2026-08-16 정정: "공통 86줄"은 부정확했다** — 본문 해시로 그룹핑하면 3그룹 + 단독 3개이고 22~30줄이 갈린다. 다만 차이가 전부 *값*이라 prop 6개로 흡수됐다.
 - `LinearConnectForm.tsx`(:42) · `AsanaConnectForm.tsx` · `ClickupConnectForm.tsx` · `GithubConnectForm.tsx` · `GitlabConnectForm.tsx` · `NotionConnectForm.tsx` — `*ConnectFlow`를 `PlatformConnectFlow` 호출 1개로.
 - `JiraConnectForm.tsx` · `SlackConnectForm.tsx` — **변경 없음**(50 제외).
-- `src/sidepanel/components/FieldRow.tsx` — `htmlFor?: string` prop 추가(53의 9곳 커버).
+- `src/sidepanel/components/FieldRow.tsx` — **2026-08-16 정정: prop이 1개가 아니라 2개, 커버는 9곳이 아니라 10곳.** `htmlFor?: string`(입력 연결 10곳) + `labelAction?: ReactNode`(라벨 우측 링크 7곳 — 이게 없으면 34곳 중 7곳을 치환할 수 없어 "`<label` 합계 0" 검증이 미충족으로 남는다).
 - connect 폼 8개 — `<label className="text-xs text-muted-foreground">` 34곳을 `FieldRow`로 치환.
 
 ### G5. 배지 셸 (🟡51)
 
 - **신규** `src/sidepanel/tabs/statusBadges/BadgeFallback.tsx` — `{ kind: "error" | "deleted" | "loading" }` 한 축.
-- `AsanaSubmittedBadge.tsx`(:54-71) · `ClickupSubmittedBadge` · `GithubSubmittedBadge` · `GitlabSubmittedBadge` · `JiraSubmittedBadge` · `LinearSubmittedBadge` · `NotionSubmittedBadge` — 두 블록을 `<BadgeFallback>` 호출로.
+- `AsanaSubmittedBadge.tsx`(:54-71) · `ClickupSubmittedBadge` · `GithubSubmittedBadge` · `GitlabSubmittedBadge` · `JiraSubmittedBadge` · `LinearSubmittedBadge` · `NotionSubmittedBadge` — 두 블록을 `<BadgeFallback>` 호출로. **2026-08-16 정정: 두 블록이 7곳에 다 있는 게 아니다** — error/deleted는 7벌 바이트 동일이지만 loading은 **6벌**이고 `JiraSubmittedBadge`는 로딩 중 배지를 안 그리고 `return null`이다. 그건 동작 차이라 그대로 둔다.
 - `*StatusBadge.tsx` 7개 — **변경 없음**.
 
 ### G6. 타입 경계 (🟡54·55·57·58·59 + ⚪111·112)
