@@ -15,7 +15,7 @@ export type GithubBadgeStatus =
 
 export type GithubTargetState = "open" | "closed_completed" | "closed_not_planned";
 
-export function toGithubTargetState(s: GithubBadgeStatus): GithubTargetState {
+function toGithubTargetState(s: GithubBadgeStatus): GithubTargetState {
   if (s.kind === "open") return "open";
   return s.reason === "not_planned" ? "closed_not_planned" : "closed_completed";
 }

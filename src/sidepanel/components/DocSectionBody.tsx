@@ -13,11 +13,9 @@ import "./doc-section-body.css";
 export function DocSectionBody({
   section,
   value,
-  emptyVariant = "muted",
 }: {
   section: IssueSection;
   value: string;
-  emptyVariant?: "muted" | "hide";
 }) {
   const t = useT();
   if (section.renderAs === "orderedList") {
@@ -26,7 +24,6 @@ export function DocSectionBody({
       .map((s) => s.trim())
       .filter(Boolean);
     if (items.length === 0) {
-      if (emptyVariant === "hide") return null;
       return (
         <p className="text-sm text-muted-foreground/70">{t("common.empty")}</p>
       );
@@ -40,7 +37,6 @@ export function DocSectionBody({
     );
   }
   if (!value.trim()) {
-    if (emptyVariant === "hide") return null;
     return <p className="text-sm text-muted-foreground/70">{t("common.empty")}</p>;
   }
   return <MarkdownBody value={value} />;

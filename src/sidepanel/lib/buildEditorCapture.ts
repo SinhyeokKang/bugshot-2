@@ -2,18 +2,18 @@ import { useEditorStore } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { resolveBodyLocale } from "@/i18n/locales";
 import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
-import { mergeStyleElements, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
-import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
-import { supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
-import { environmentForSubmit } from "@/sidepanel/lib/apiHostRow";
-import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
-import { parseChromeVersion } from "@/sidepanel/lib/environmentRows";
-import { getOsInfo } from "@/sidepanel/lib/osInfo";
+import { mergeStyleElements, type MarkdownContext } from "./buildIssueMarkdown";
+import { buildNetworkLogSummary, buildConsoleLogSummary } from "./buildLogSummary";
+import { supportsActionLog } from "./captureLogSupport";
+import { environmentForSubmit } from "./apiHostRow";
+import { deriveContextEnvRows } from "./buildReportData";
+import { parseChromeVersion } from "./environmentRows";
+import { getOsInfo } from "./osInfo";
 import {
   buildCaptureFiles,
   type BuildCaptureFilesInput,
-} from "@/sidepanel/lib/buildCaptureFiles";
-import { triggerDownload } from "@/sidepanel/lib/downloadCapture";
+} from "./buildCaptureFiles";
+import { triggerDownload } from "./downloadCapture";
 import { dataUrlToBlob } from "@/store/blob-db";
 
 // 이슈 제출(IssueCreateModal)과 패널 로그 다운로드가 동일한 logs.html을 만들도록 ctx·캡처 입력을

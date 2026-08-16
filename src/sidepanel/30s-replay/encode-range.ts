@@ -1,3 +1,4 @@
+import { withTimeout } from "@/lib/with-timeout";
 import {
   CODEC_CANDIDATES,
   KEYFRAME_INTERVAL,
@@ -69,13 +70,6 @@ function onceEvent(
     }
     el.addEventListener(event, onOk, { once: true });
     el.addEventListener("error", onErr, { once: true });
-  });
-}
-
-function withTimeout<T>(p: Promise<T>, timeoutMs: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs);
-    p.then(resolve, reject).finally(() => window.clearTimeout(timer));
   });
 }
 

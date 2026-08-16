@@ -34,7 +34,7 @@ export function isSupportedUrl(url: string | undefined): boolean {
   }
 }
 
-export type TabSupport = "supported" | "permission-expired" | "unsupported";
+type TabSupport = "supported" | "permission-expired" | "unsupported";
 
 // tab.url이 비어 있으면 activeTab grant가 만료돼 URL을 못 읽는 상태다 (미지원 페이지와 구분 불가).
 // 이때 content script가 보고한 실제 location.href로 판정한다: 지원 페이지면 권한만 풀린

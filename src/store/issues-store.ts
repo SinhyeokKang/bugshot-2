@@ -132,7 +132,7 @@ function resetEditorIfEditing(removedId: string | null): void {
   }
 }
 
-export type IssueStatus = "draft" | "submitted";
+type IssueStatus = "draft" | "submitted";
 
 export interface IssueSnapshot {
   before: boolean;
@@ -160,7 +160,7 @@ export interface IssueSelectionSnapshot {
   capturedAt: number;
 }
 
-export interface IssueTokenSnapshot {
+interface IssueTokenSnapshot {
   name: string;
   value: string;
 }

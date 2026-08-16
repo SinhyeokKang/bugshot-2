@@ -45,14 +45,18 @@ describe("withTimeout", () => {
 
   // clearTimeout을 빠뜨려도 위 케이스들은 전부 통과한다 — 남은 타이머는 이미 settle된
   // Promise를 다시 reject하려 들고, 그게 unhandled rejection으로 샌다.
+  // 정리는 `.finally`라 await 재개보다 한 마이크로태스크 뒤다(원본 2벌도 동일) — 그래서
+  // 바로 세면 항상 1이 나온다. flush 후에 센다.
   it("resolve한 뒤에는 타이머가 남아있지 않다", async () => {
     await withTimeout(Promise.resolve("ok"), 1000, "load");
+    await Promise.resolve();
 
     expect(vi.getTimerCount()).toBe(0);
   });
 
   it("reject한 뒤에도 타이머가 남아있지 않다", async () => {
     await withTimeout(Promise.reject(new Error("x")), 1000, "load").catch(() => {});
+    await Promise.resolve();
 
     expect(vi.getTimerCount()).toBe(0);
   });

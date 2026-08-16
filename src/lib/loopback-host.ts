@@ -4,6 +4,7 @@
 // ssrf-guard와 반대 방향이다: 저쪽은 background가 페이지 제어 href를 fetch하기 전 loopback을
 // **차단**하고, 여기는 사용자가 직접 입력한 로컬 엔드포인트(ollama `http://localhost:11434/v1`)를
 // **허용**한다. 목적이 달라 판정을 공유하지 않는다.
+// 테스트 전용 export — 프로덕션 소비처는 같은 파일의 isCredentialSafeUrl뿐이다.
 export function isLoopbackHost(hostname: string): boolean {
   let host = hostname.toLowerCase();
   if (host.endsWith(".")) host = host.slice(0, -1); // FQDN 후행 점 (localhost.)

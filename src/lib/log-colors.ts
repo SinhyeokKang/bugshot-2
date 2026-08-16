@@ -4,7 +4,7 @@
 // 핀 색·콘텐츠타입 아이콘·syntax highlight는 레벨/메서드 시맨틱 톤이 아니라 각자 다른 색 축을
 // 써서(콘텐츠타입 축·syntax 팔레트 등) 여기에 넣지 않는다.
 
-export type LogTone = "red" | "amber" | "blue" | "green" | "neutral";
+type LogTone = "red" | "amber" | "blue" | "green" | "neutral";
 
 export const TONE_TEXT: Record<LogTone, string> = {
   red: "text-red-600 dark:text-red-400",
