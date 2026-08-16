@@ -1,9 +1,9 @@
-import { withTimeout } from "@/lib/with-timeout";
 // video-recorder에서 분리 — apply-trim(로직 스코프·유닛 테스트 대상)이 트림 결과 블롭의 썸네일을
 // 만들어야 하는데, video-recorder를 정적 import하면 picker-control·annotation-control까지
 // 테스트 그래프에 딸려 온다.
 // 극단적으로 짧은 구간(0.1초)까지 트림할 수 있어, seek이 영영 안 끝나면 확정 버튼이 스피너로
 // 고착된다(인코딩 중 취소가 없다). 두 단계 모두 시한을 건다.
+import { withTimeout } from "@/lib/with-timeout";
 const LOAD_TIMEOUT_MS = 10_000;
 
 export async function generateThumbnail(blob: Blob): Promise<string> {

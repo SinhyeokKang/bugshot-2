@@ -1,5 +1,5 @@
 import { t } from "@/i18n";
-import { onOAuthExpired } from "@/lib/app-events";
+import { onOAuthExpired } from "./app-events";
 import type { BgRequest, BgResponse } from "@/types/messages";
 import type { PlatformId } from "@/types/platform";
 

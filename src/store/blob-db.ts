@@ -550,7 +550,8 @@ export async function deleteInlineOrigins(refIds: string[]): Promise<void> {
   }
 }
 
-// 테스트 전용 export — 프로덕션 호출처 0, blob-db-inline-origins.test.ts가 부른다.
+// 테스트 전용 export — 프로덕션 호출처는 같은 파일의 pruneOrphanInlineImages뿐이고,
+// blob-db-inline-origins.test.ts가 밖에서 부른다.
 export async function getInlineOriginKeys(): Promise<string[]> {
   try {
     const db = await openDb();
