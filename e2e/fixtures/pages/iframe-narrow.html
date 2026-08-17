@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>bugshot e2e fixture — narrow iframe</title>
+    <style>
+      body {
+        margin: 24px;
+        font-family: sans-serif;
+      }
+      #top-title {
+        color: rgb(17, 24, 39);
+        padding: 8px;
+      }
+      /* 라벨 자연 폭(인스펙터 카드 min-width 260px)보다 좁아야 폭 접기가 발동한다.
+         iframe.html(#frame 320px)은 접힘이 안 걸려 이 축을 재현하지 못한다.
+         iframe.html을 넓히지 않고 페이지를 따로 두는 건 그쪽을 4개 spec이 공유하기 때문이다
+         (프레임 수·origin 버킷이 로그 계열 판정에 걸린다). */
+      #narrow {
+        width: 150px;
+        height: 400px;
+        border: 1px solid #cccccc;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="top-title">Top Frame Title</h1>
+    <iframe id="narrow" src="narrow-child.html"></iframe>
+  </body>
+</html>

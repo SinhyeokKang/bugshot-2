@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>bugshot e2e fixture — narrow child</title>
+    <style>
+      body {
+        margin: 12px;
+        font-family: sans-serif;
+      }
+      /* 라벨(인스펙터 카드 min-width 260px)보다 프레임이 확실히 좁아야 폭 접기가 발동한다.
+         badge 모드로 떨어져도 넓도록 클래스 문자열을 길게 잡는다 — selector가 길수록 라벨이 넓다. */
+      #chip {
+        display: block;
+        width: 110px;
+        height: 56px;
+        margin-top: 40px;
+        padding: 8px;
+        color: rgb(17, 24, 39);
+        background: #eef2ff;
+      }
+    </style>
+  </head>
+  <body>
+    <span
+      id="chip"
+      class="promotion-chip promotion-chip--highlighted analytics-tracked-element"
+      >Narrow</span
+    >
+  </body>
+</html>

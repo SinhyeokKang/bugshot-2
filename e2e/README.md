@@ -6,6 +6,7 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 
 - **[COVERAGE.md](./COVERAGE.md)** — 커버리지 맵(spec별 시나리오) · 수동 잔여(자동화 못 한 것 + 이유).
 - **[GOTCHAS.md](./GOTCHAS.md)** — 함정(실전에서 밟은 것 누적). **새 spec 쓰기 전 필독.**
+- **[MANUAL-SMOKE.md](./MANUAL-SMOKE.md)** — Aside 실사이트 스모크 S1~S6(시나리오·전제 단언·판정 문장·대상 사이트·실행 이력). **Playwright 스위트가 아니다** — 수동 잔여 중 환경 제약분을 실제 브라우저로 훑는 리포트 전용 도구고 절차는 `/manual-smoke` 스킬이 갖는다.
 - 이 문서(README) — 개요 · 실행법 · project 구성 · 헬퍼/fixture 빠른 참조.
 - 작성 절차·금지·실행-수정 루프는 `/e2e-write` 스킬(`.claude/commands/e2e-write.md`)이 단일 출처 — 여기서 중복하지 않는다.
 
@@ -61,6 +62,7 @@ fixture 페이지(`fixtures/pages/`):
 - `capture-context.html` — element 캡처 컨텍스트 확장용. `#modal`(`role=dialog` + `aria-modal`, `position:fixed` 60vw×80px — 확장 게이트 G1/G2/G3를 전부 만족하도록 크기를 잡았다) 안의 `#modal-btn`(40×40 정사각 — 크롭 종횡비가 모달과 확실히 갈린다), 그리고 시맨틱 조상이 없는 `.plain-wrap > div > #plain-btn`(폴백 확인용). **`inset:0` 백드롭을 두지 않는다** — 전면 오버레이는 picker 클릭을 가로챈다. 모달 높이를 `vh`/`vw`로 잡으면 창 비율에 따라 크롭이 정사각형이 되거나 버튼이 박스 밖으로 밀려 게이트가 깨진다(GOTCHAS 참조).
 - `api-hosts.html` — 재현 환경 `API Hosts` 자동 행용. `#box`(320×200, element 픽 대상)와 `__fetchApis(port)`(spec이 arm 확인 후 호출 — `api.bugshot.test` 2건 + `auth.bugshot.test` 1건을 `/e2e-json-*` 경로로 요청해 요청 수 내림차순 정렬까지 판정 가능하게 둔다). 로드 시 자동 발사하지 않는 이유는 레코더 fetch 후크의 `capturing` 게이트(websocket.html과 같은 계열).
 - `iframe.html` — top frame + `#frame` iframe(src=basic.html, picker iframe 내부 선택·iframe 로그 캡처용).
+- `iframe-narrow.html` — top + `#narrow` iframe(**150×400**, src=narrow-child.html). **오버레이 프레임 소유 축 전용**(배너 top 단독 / 좁은 프레임 라벨 폭 접기). `iframe.html`을 넓히거나 iframe을 얹지 않고 페이지를 따로 둔 이유는 그쪽을 **4개 spec이 공유**하기 때문이다(프레임 수·origin 버킷이 로그 계열 판정에 걸린다). `narrow-child.html`의 `#chip`은 클래스 문자열이 길어 badge 모드로 떨어져도 라벨 자연 폭이 프레임 폭을 넘는다 — **넓히면 폭 접기가 발동하지 않아 spec이 조용히 green이 된다**(전제 단언이 그때 red를 낸다).
 - `iframe-nested.html` — `#outer`(src=iframe-child.html, 1-depth 등록 대상) + `#inert`(srcdoc — 미주입·거부 대상). `iframe-child.html`은 그 안에 `#inner`(2-depth, 거부 대상) 보유. picker 거부 게이트용.
 - `cross-origin.html` — `http://localhost:<port>/basic.html` iframe을 JS로 주입(동적 포트). 서버는 전 인터페이스 바인딩이라 localhost로도 접속돼 127.0.0.1 top과 origin이 갈라진다 — origin 필터용.
 - `websocket.html` — `__openWs(tag)`(arm 후 spec이 호출 — `ws://location.host/` 연결 + open 시 `{ping:tag}` 송신, echo를 promise로 resolve, `__lastWs` 저장) / `__closeWs()`(마지막 연결 close) / `__wsCheck()`(무간섭 — `WebSocket.OPEN===1` + 새 인스턴스 `instanceof WebSocket`). ws echo 서버는 `extension.ts`의 http `upgrade` 핸들(raw, `ws` devDep 없음).

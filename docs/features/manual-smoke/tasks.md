@@ -17,24 +17,24 @@
 - **변경 대상**: `e2e/MANUAL-SMOKE.md` (신규)
 - **작업 내용**: 4개 절 — (1) 개요·승격 기준 (2) 시나리오 정의 S1~S6(각각 목적·대상 사이트·전제 단언·절차·판정 문장·COVERAGE 매핑 인용) (3) 대상 사이트 표 (4) 최근 실행 이력 표(헤더만). 판정 문장은 **관측 가능한 형태**로 쓴다 — "정상인지 확인" 금지, "specified에 author 값이 뜨고 source 라벨에 셀렉터가 표시된다" 형태.
 - **검증**:
-  - [ ] S1~S6 각각에 **전제 단언**이 있다(사이트 붕괴를 회귀로 오판하지 않기 위한 것 — `design.md` 위험 4)
-  - [ ] 각 시나리오가 `e2e/COVERAGE.md` 수동 잔여의 **원문 일부를 인용**한다(매핑 없는 시나리오 0개)
-  - [ ] 사이트 표에 시나리오별 사이트와 "왜 이 사이트인가" 한 줄이 있다
-  - [ ] 승격 기준(파일 3개 초과 또는 `.mjs` 등장 → `smoke/`)이 명시돼 있다
-  - [ ] 이력 표 컬럼: 날짜 · 버전 · 커밋 · S1~S6 결과 · 비고
+  - [x] S1~S6 각각에 **전제 단언**이 있다(사이트 붕괴를 회귀로 오판하지 않기 위한 것 — `design.md` 위험 4)
+  - [x] 각 시나리오가 `e2e/COVERAGE.md` 수동 잔여의 **원문 일부를 인용**한다(매핑 없는 시나리오 0개)
+  - [x] 사이트 표에 시나리오별 사이트와 "왜 이 사이트인가" 한 줄이 있다
+  - [x] 승격 기준(파일 3개 초과 또는 `.mjs` 등장 → `smoke/`)이 명시돼 있다
+  - [x] 이력 표 컬럼: 날짜 · 버전 · 커밋 · S1~S6 결과 · 비고
 
 ### Task 2: `.claude/commands/manual-smoke.md` 스킬
 
 - **변경 대상**: `.claude/commands/manual-smoke.md` (신규), `.agents/skills/source-command-manual-smoke/SKILL.md` (sync 자동 생성)
 - **작업 내용**: frontmatter `description` + 본문. 본문 구성은 `e2e-run.md`를 형식 참조. 절차 5단계(런타임 확인 → 전제 확인 → reload → 시나리오 루프 → 리포트+이력). **상수 4개**(확장 ID·패널 경로·`?tabId=`·picker host)와 **포커스 규칙**을 본문에 박는다. 시나리오 절차는 여기 복제하지 않고 `e2e/MANUAL-SMOKE.md`를 가리킨다.
 - **검증**:
-  - [ ] `pnpm sync:agents` 후 `.agents/skills/source-command-manual-smoke/SKILL.md`가 생성된다
-  - [ ] `pnpm sync:agents:check` green
-  - [ ] 본문에 **런타임 분기**가 있다 — 비-Aside 런타임은 즉시 중단(`ship.md`의 "런타임별 종착점" 형식 차용)
-  - [ ] 금지 사항에 **빌드 금지**·**코드 수정 금지**·**push 금지**·**후속 스킬 자동 제안 금지**가 있다
-  - [ ] 허용 쓰기가 `e2e/MANUAL-SMOKE.md` 이력 표 1행으로 한정돼 있다
-  - [ ] `dist-e2e` 로드 금지가 명시돼 있다
-  - [ ] 시나리오 절차가 본문에 복제돼 있지 않다(단일 출처 = `e2e/MANUAL-SMOKE.md`)
+  - [x] `pnpm sync:agents` 후 `.agents/skills/source-command-manual-smoke/SKILL.md`가 생성된다
+  - [x] `pnpm sync:agents:check` green
+  - [x] 본문에 **런타임 분기**가 있다 — 비-Aside 런타임은 즉시 중단(`ship.md`의 "런타임별 종착점" 형식 차용)
+  - [x] 금지 사항에 **빌드 금지**·**코드 수정 금지**·**push 금지**·**후속 스킬 자동 제안 금지**가 있다
+  - [x] 허용 쓰기가 `e2e/MANUAL-SMOKE.md` 이력 표 1행으로 한정돼 있다
+  - [x] `dist-e2e` 로드 금지가 명시돼 있다
+  - [x] 시나리오 절차가 본문에 복제돼 있지 않다(단일 출처 = `e2e/MANUAL-SMOKE.md`)
 
 ### Task 3: S5 배선 스모크 (가장 싼 시나리오로 파이프라인 검증)
 
@@ -114,11 +114,11 @@
 - **변경 대상**: `docs/DIRECTORY.md`, `e2e/COVERAGE.md`, `e2e/README.md`, `CLAUDE.md`
 - **작업 내용**: `design.md`의 "변경 범위 > 갱신" 표대로. **`e2e/COVERAGE.md`의 수동 잔여 항목 자체는 옮기지 않는다** — 여전히 e2e 미커버라는 사실이 바뀌지 않았고, Aside 스윕은 별개 실행체다. 도입부 포인터 한 줄만 넣는다.
 - **검증**:
-  - [ ] `DIRECTORY.md`에 `e2e/MANUAL-SMOKE.md` 한 줄과 스킬 수 갱신이 반영됐다
-  - [ ] `COVERAGE.md` 수동 잔여 목록의 **줄 수가 그대로다**(항목 이동 0)
-  - [ ] `CLAUDE.md` 권장 흐름에 `/manual-smoke`가 `/merge` 전 권고로 들어갔다
-  - [ ] `CLAUDE.md` 편집 후 `pnpm sync:agents:check` green (훅이 없는 런타임이면 손으로 `pnpm sync:agents`)
-  - [ ] `pnpm typecheck` green (문서만 바꿨으므로 무변화 확인용)
+  - [x] `DIRECTORY.md`에 `e2e/MANUAL-SMOKE.md` 한 줄과 스킬 수 갱신이 반영됐다
+  - [x] `COVERAGE.md` 수동 잔여 목록의 **줄 수가 그대로다**(항목 이동 0)
+  - [x] `CLAUDE.md` 권장 흐름에 `/manual-smoke`가 `/merge` 전 권고로 들어갔다
+  - [x] `CLAUDE.md` 편집 후 `pnpm sync:agents:check` green (훅이 없는 런타임이면 손으로 `pnpm sync:agents`)
+  - [x] `pnpm typecheck` green (문서만 바꿨으므로 무변화 확인용)
 
 ### Task 10: 전체 1회 실행 + 이력 기록
 
@@ -142,6 +142,24 @@
   - [ ] 확장을 비활성화한 상태로 호출하면 중단하고 수동 로드 안내가 나온다
   - [ ] `dist`가 stale일 때 호출하면 중단하고 `/build` 안내가 나온다
   - [ ] `dist-e2e`를 로드한 프로필에서 호출하면 ID 불일치로 중단하고 "store/e2e 빌드 아닌가" 안내가 나온다
+
+## 진행 상황 (2026-08-16)
+
+**Task 1·2·9 완료.** 산출물 2개(`e2e/MANUAL-SMOKE.md`·`.claude/commands/manual-smoke.md`) + 미러 생성 + 주변 문서 4개 갱신. `pnpm sync:agents:check`·`pnpm typecheck` green.
+
+**Task 3·5·6·8·10 실행분 완료(1.7.25).** 스킬 절차대로 1회 돌렸고 결과는 `e2e/MANUAL-SMOKE.md` 이력 표 2행차다. **판정이 뒤집힌 항목 0개**로 Task 10의 성공 기준을 만족한다 — S2 결과는 두 빌드에서 `614×6519`로 바이트까지 같았다.
+
+그 전에 **`dist` stale로 한 번 차단됐었다**(1.7.24 빌드 / package 1.7.25 — `f456445d`가 `IssueTab.tsx`·`issue.ts`를 바꿔 `issue.capturing.progressLabel`이 산출물에 없었다). 스킬 절차 2단계가 mtime 대신 문자열 grep을 요구한 덕에 잡혔고, 빌드 후 재개했다.
+
+**남은 것**: S1·S3·S4는 1.7.25에서 재실행하지 않았고(해당 모듈이 그 커밋에서 안 바뀜), S6의 **en·376px·액션 필터 6종**만 미검증으로 남았다 — 액션 로그가 idle에 전용 서브탭이 없어 캐프처→drafting→로그 다이얼로그를 거치고 6종 액션을 생성해야 한다.
+
+**Task 6의 `form`·`fieldset` 검증 항목은 물렸다.** 제외가 `CONTEXT_SELECTOR`에 둘을 안 적는 방식이라 사이트와 무관한 상수이고, `capture-context.test.tsx`가 이미 덮으며, 실사이트에선 판별이 서는 전제(form은 게이트 통과 + form 외 후보 없음 + 크기 상이)를 위키백과 전체에서 0건 찾았다.
+
+스킬 작성 **전**에 S1~S6을 1회 예비 실행해 결함 3건을 찾았고(이력 표 참조), 그 실측이 이 문서의 판정 기준 셋을 교정했다 — **아래 세 항목은 원문이 틀렸으므로 `e2e/MANUAL-SMOKE.md` 쪽을 따른다**:
+
+- `design.md` 상수표의 `picker host: __bugshot_picker_host`는 **태그명이 아니라 id**다(`#__bugshot_picker_host`).
+- Task 5의 "sticky/fixed가 반복되지 않는다"는 **현재 코드에서 FAIL**로 떨어진다(위키 `.vector-sticky-pinned-container`).
+- Task 8의 "action 로그 필터 탭 376px·en"은 좌표가 다르다 — **ko·320px·네트워크 필터**에서도 발생한다.
 
 ## 구현 순서 권장
 

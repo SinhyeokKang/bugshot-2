@@ -10,6 +10,11 @@ import {
   type HoverShield,
   type HoverShieldReason,
 } from "./hover-shield";
+import {
+  computeLabelPlacement,
+  constrainLabelWidth,
+  isTopFrame,
+} from "./overlay-layout";
 
 import type { InspectorInfo } from "./css-resolve";
 
@@ -115,6 +120,9 @@ const OVERLAY_CSS = `
     border-radius: 3px;
     font: 11px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     white-space: nowrap;
+    /* 좁은 프레임에서 폭이 접히면 nowrap 텍스트가 배경 밖으로 새어나간다 — 말줄임으로 접는다. */
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .picker-label[data-mode="inspector"] {
     /* globals.css :root 실값과 일치시킨다 — content script라 CSS 변수를 import할 수 없어
@@ -397,7 +405,10 @@ export function createOverlay(): OverlayHandle {
   const bannerEl = document.createElement("div");
   bannerEl.className = "banner";
   bannerEl.textContent = `${window.innerWidth} × ${window.innerHeight}`;
-  shadow.appendChild(bannerEl);
+  // 자식 프레임은 붙이지 않는다 — 배너는 top 뷰포트 크기 안내라 프레임마다 그리면 값이
+  // 둘이 되고, 좁은 iframe에서는 그 pill이 콘텐츠를 통째로 가린다. updateBanner가 뒤에
+  // display를 되살려도 detached라 무해하다.
+  if (isTopFrame(window)) shadow.appendChild(bannerEl);
 
   const handle: OverlayInternal = {
     hostEl,
@@ -621,26 +632,29 @@ function placeLabel(o: OverlayInternal, target: Element): void {
   labelEl.style.display = "block";
   labelEl.style.top = "0px";
   labelEl.style.left = "0px";
-  const labelRect = labelEl.getBoundingClientRect();
-  const lw = labelRect.width;
-  const lh = labelRect.height;
+  // 이전 프레임/모드에서 걸어둔 폭 제약을 먼저 푼다 — 안 풀면 자연 폭을 못 잰다.
+  labelEl.style.maxWidth = "";
+  labelEl.style.minWidth = "";
 
-  const rect = target.getBoundingClientRect();
   const vpW = window.innerWidth;
   const vpH = window.innerHeight;
-  const gap = 2;
-  const margin = 8;
 
-  let top = rect.top - lh - gap;
-  if (top < margin) {
-    const below = rect.bottom + gap;
-    top = below + lh > vpH - margin ? margin : below;
+  // 좁은 iframe에서는 좌표 클램프만으로 부족하다(라벨이 프레임보다 넓으면 어느 좌표든
+  // 잘린다). 폭을 먼저 프레임 안쪽으로 접고 다시 재서 높이까지 반영한다.
+  const fitted = constrainLabelWidth(labelEl.getBoundingClientRect().width, vpW);
+  if (fitted != null) {
+    labelEl.style.maxWidth = `${fitted}px`;
+    labelEl.style.minWidth = "0";
   }
 
-  let left = rect.left;
-  if (left + lw > vpW - margin) left = rect.right - lw;
-  if (left < margin) left = margin;
-  if (left + lw > vpW - margin) left = vpW - margin - lw;
+  const labelRect = labelEl.getBoundingClientRect();
+  const { top, left } = computeLabelPlacement({
+    rect: target.getBoundingClientRect(),
+    labelW: labelRect.width,
+    labelH: labelRect.height,
+    vpW,
+    vpH,
+  });
 
   labelEl.style.top = `${top}px`;
   labelEl.style.left = `${left}px`;
