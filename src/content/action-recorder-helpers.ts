@@ -204,3 +204,21 @@ export function buildLightSelector(el: Element): string {
   const idx = Array.prototype.indexOf.call(parent.children, el) + 1;
   return `${tag}:nth-child(${idx})`;
 }
+
+export function cleanText(el: Element | null): string | undefined {
+  return el?.textContent?.replace(/\s+/g, " ").trim() || undefined;
+}
+
+// 마스킹 판정용 라벨 수집 — label[for]·암묵 라벨(래핑)·aria-labelledby 전부.
+export function labelForText(el: Element): string | undefined {
+  if (el.id) {
+    const forLabel = cleanText(document.querySelector(`label[for="${CSS.escape(el.id)}"]`));
+    if (forLabel) return forLabel;
+  }
+  const labelledBy = el.getAttribute("aria-labelledby");
+  if (labelledBy) {
+    const ref = cleanText(document.getElementById(labelledBy));
+    if (ref) return ref;
+  }
+  return cleanText(el.closest("label"));
+}
