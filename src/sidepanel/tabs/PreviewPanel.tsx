@@ -290,7 +290,7 @@ export function PreviewPanel() {
     </Section>
   ) : null;
 
-  const handleCopyMarkdown = async () => {
+  const buildForCopy = async (): Promise<{ md: string; html: string }> => {
     const resolved = await resolveSectionImages(draft.sections, issueSections);
 
     let ctx: MarkdownContext;
@@ -373,19 +373,29 @@ export function PreviewPanel() {
         actionLogCaptured: attachedAction ? attachedAction.captured : undefined,
       });
     } else {
-      return;
+      throw new Error("unsupported capture mode");
     }
-    const md = buildIssueMarkdown(ctx);
-    const html = buildIssueHtml(ctx);
+    return { md: buildIssueMarkdown(ctx), html: buildIssueHtml(ctx) };
+  };
+
+  // 본문 조립의 첫 await가 IndexedDB 왕복이라, 그 사이 창 포커스가 빠지면 clipboard.write의
+  // hasFocus() 검사가 무음 실패한다. write를 클릭 시점에 동기로 걸고 조립은 promise로 넘긴다.
+  // 두 flavor는 하나의 공유 promise에서 파생시킨다 — 따로 만들면 IDB 왕복이 2회다.
+  const handleCopyMarkdown = () => {
+    const built = buildForCopy();
+    const fallback = () => built.then((b) => navigator.clipboard.writeText(b.md));
+    // 생성자·write 부재는 동기 throw라 .catch에 안 걸린다 — 기존 try 블록과 같은 폭으로 감싼다.
     try {
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          "text/plain": new Blob([md], { type: "text/plain" }),
-          "text/html": new Blob([html], { type: "text/html" }),
-        }),
-      ]);
+      return navigator.clipboard
+        .write([
+          new ClipboardItem({
+            "text/plain": built.then((b) => new Blob([b.md], { type: "text/plain" })),
+            "text/html": built.then((b) => new Blob([b.html], { type: "text/html" })),
+          }),
+        ])
+        .catch(fallback);
     } catch {
-      await navigator.clipboard.writeText(md);
+      return fallback();
     }
   };
 
