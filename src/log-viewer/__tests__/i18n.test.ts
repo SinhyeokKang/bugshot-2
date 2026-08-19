@@ -190,6 +190,21 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
     expect(drift).toEqual([]);
   });
 
+  // 스캐너는 `t("literal")` 형태만 본다 — 키를 테이블에 담거나 삼항으로 고르면 그 키는
+  // 참조 목록에서 사라져 사전에서 지워도 아무도 red를 안 낸다. 사각이 다시 생기면 여기가 red.
+  it("테이블·삼항에 숨어 있던 키가 참조 목록에 잡힌다 (자기검증 앵커)", () => {
+    expect(referencedKeys).toEqual(
+      expect.arrayContaining([
+        "timeline.filter.all",
+        "timeline.filter.console",
+        "timeline.filter.network",
+        "timeline.filter.action",
+        "actionLog.verb.toggle.check",
+        "actionLog.verb.toggle.uncheck",
+      ]),
+    );
+  });
+
   // 위 검사가 실제로 겹치는 키를 갖고 도는지 고정한다 — 레지스트리 import가 조용히 빈
   // 객체가 되면 교집합이 0이 되어 vacuous green이 된다.
   it("대조 교집합이 비어 있지 않다 (자기검증 앵커)", () => {
