@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-08-19 — 원형 도형의 offset을 abs로 만들어 좌·상 드래그에서 원이 앵커 반대편에 그려졌고, 주석과 테스트 제목이 그걸 계약으로 굳히고 있었다
+
+- **영역**: `미디어`, `e2e`
+- **계열**: `라이브러리전제`, `미검증단언`
+- **그물**: `unit`
+- **증상**: 어노테이션 원형 도구로 커서를 **왼쪽 위로** 드래그하면 원이 앵커 기준 거울 반사돼 반대편에 그려졌다. 우하단 드래그는 정상이라 "가끔 이상하다"로 보였다. (100,100)→(60,60) 드래그가 60..100이 아니라 100..140에 그려졌다.
+- **근본 원인**: Konva Ellipse는 로컬 원점에 중심을 그리고 노드 변환이 `translate(x,y)` → `translate(-offset)`이라 **절대 중심 = position − offset**이다. `ShapeNode`가 offset을 `-Math.abs(width)/2`로 만들어 중심이 `x + |width|/2`가 됐는데 올바른 값은 `x + width/2`(부호 보존)다. `updateShapeDraft`는 좌/상 드래그에서 `width = pt.x − shape.x`로 **음수**를 담고 `shape.x`는 시각적 top-left가 아니라 **드래그 앵커**로 남으므로, abs가 중심을 앵커 반대편으로 밀었다. **비자명한 게 셋이다.** ① **rect는 같은 음수 width로 무증상이다** — Konva `Rect`가 음의 방향 렌더를 native로 처리한다. 그래서 "음수 width는 안전하다"는 잘못된 일반화가 성립해 보였고, ellipse가 **손으로 기하를 조립하는 유일한 도형**이라는 사실이 가려졌다(`<Ellipse>` 1곳, `offsetX/offsetY` 사용도 그 1곳뿐 — 역방향 grep으로 확인). ② **주석이 틀린 전제를 명시하고 있었다** — "offset으로 bounding-box top-left를 노드 위치에 맞춘다(applyTransform이 shape.x/y를 top-left로 흡수)"는 음수 width에서 거짓이다(그때 top-left는 `x + width`). 주석이 버그를 정당화했다. ③ **테스트 제목이 버그를 계약으로 굳혔다** — `"ellipse 음수 scaleY(flip)도 height에 흡수한다(렌더는 abs로 복구)"`의 괄호 안이 바로 원인인데, **단언 자체는 옳아서**(width에 음수 흡수는 맞다) 그 케이스는 계속 green이고 제목만 거짓이라 어떤 그물에도 안 걸렸다. 음수 width의 유입 경로는 둘(드래그 / `applyTransform`의 flip 흡수)이고, 후자는 기존 테스트 2건이 이미 고정하고 있었는데도 렌더 쪽 결함과 연결되지 않았다.
+- **재발 방지**: (1) **JSX 안에 인라인된 기하는 그물을 만들 표면이 없다** — 떼어내는 게 픽스의 절반이다. `ellipseRenderGeometry`로 분리해 유닛 7건으로 고정했고, **테스트가 offset 값을 하드코딩하지 않고 `center = x − offsetX`를 재계산해 Konva 의미론을 단언한다**(offset을 직접 비교하면 "구현이 무엇을 넣었나"만 기록되고 의미가 안 굳는다). 두 유입 경로를 모두 케이스로 덮고 "같은 크기라도 방향이 반대면 중심도 반대다"를 비공허 실증으로 뒀다 — abs 구현에서 그 케이스만 red다. (2) **"캔버스라 판정 불가"의 범위를 다시 재라** — `COVERAGE.md`가 이 축을 픽셀 비교 영역으로 수동 잔여에 등재해뒀지만 그건 **모양·색·두께 정합**에 대한 말이고, "어느 쪽에 그려졌나"는 훨씬 거친 판정이라 자동화된다. Konva는 레이어당 `<canvas>`를 만들고 오버레이는 배경 `KonvaImage`를 `<Layer listening={false}>`에 도형을 두 번째 `<Layer>`에 두므로, **`canvas` 목록의 마지막**을 뜨면 배경이 없어 `getImageData`의 alpha가 곧 "획이 있나"다. 앵커 기준 **사분면별 불투명 픽셀 카운트**는 원 둘레만 그려지는(`fill="transparent"`) 도형도 정확한 둘레 좌표를 맞추지 않고 판정한다(단일 픽셀 샘플링은 안티앨리어싱·stroke 두께에 취약). (3) **"도형이 들어갔나"는 위치 버그를 통과시킨다** — 뮤턴트(offset을 abs로 되돌림)로 새 단언의 red를 실측했고, 그때 같은 파일의 기존 2 test가 green으로 남는 것이 기존 판정의 사각을 증명한다. (4) **정규화는 채택하지 않았다** — 드래그 중 `shape.x`가 앵커여야 `updateShapeDraft`가 계속 확장하므로 draft 정규화는 앵커를 잃고, 커밋 시점만 정규화하면 라이브 프리뷰가 깨진 채 남는다. text 도형이 `startTextBox`에서 정규화하는 건 textarea 좌표가 실제로 필요해서다 — **같은 문제에 다른 정답이 있는 자리이므로 통일하려는 유혹을 경계한다.** (5) 전수 패턴: `grep -rn "Math.abs(shape.width)\|Math.abs(shape.height)" src/`로 손조립 기하를 세고, `grep -rn "offsetX\|offsetY" src/ --include='*.tsx'`로 offset을 쓰는 도형이 늘었는지 본다.
+- **관련**: `src/sidepanel/components/annotation/shapes.ts:ellipseRenderGeometry`(신설 — 부호 규칙의 단일 출처), `ShapeNode.tsx`(ellipse 분기가 그 결과를 펴는 얇은 껍데기로. 틀린 전제를 적은 주석 정정), 그물 `annotation/__tests__/shapes.test.ts`(유닛 7 + 제목 정정)·`e2e/annotation-overlay.spec.ts`(사분면 픽셀 카운트), 문서 `e2e/COVERAGE.md`(수동 잔여에 "위치는 예외" 명시)·`e2e/GOTCHAS.md`(레이어 분리)·`docs/DIRECTORY.md`(`shapes` 서술에 부호 규칙). 선행 회고: **2026-07-14**(어노테이션 드래그 — pointer capture 상실을 제스처 취소로 오독. 같은 어노테이션 입력·좌표 계열), **2026-08-19**(픽스가 주석을 거짓으로 만든 축 — 이번엔 픽스 **전부터** 주석이 거짓이었다).
+
 ## 2026-08-19 — 클립보드 `data:` 이미지 한 장이 붙여넣기를 통째로 거부시켜 본문이 전부 사라졌고, 복사본은 없는 첨부를 가리켰다
 
 - **영역**: `어댑터`, `e2e`
