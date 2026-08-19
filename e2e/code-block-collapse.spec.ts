@@ -37,12 +37,15 @@ async function insertLog(panel: Page, path: string) {
 
 async function stubClipboard(panel: Page) {
   await panel.evaluate(() => {
-    const w = window as unknown as { __copiedTexts: string[] };
+    const w = window as unknown as { __copiedTexts: string[]; __copiedHtml: string[] };
     w.__copiedTexts = [];
+    w.__copiedHtml = [];
     navigator.clipboard.write = async (items) => {
       for (const it of items) {
-        const blob = await it.getType("text/plain");
-        w.__copiedTexts.push(await blob.text());
+        w.__copiedTexts.push(await (await it.getType("text/plain")).text());
+        // text/html이 빠지면 getType이 throw해 writeText 폴백으로 흘러간다 — 그러면
+        // __copiedHtml이 비고, 붙여넣기에서 표·이미지가 사라지는 회귀가 여기서 잡힌다.
+        w.__copiedHtml.push(await (await it.getType("text/html")).text());
       }
     };
     navigator.clipboard.writeText = async (t) => {
@@ -147,6 +150,13 @@ test.describe.serial("code block collapse", () => {
     expect(copied).not.toContain("Expand (");
     expect(copied).not.toContain("접기");
     expect(copied).not.toContain("Collapse");
+
+    // rich flavor에도 NodeView 잔재가 안 새는지 — 두 flavor가 같은 조립을 공유한다.
+    const html = await panel.evaluate(
+      () => (window as unknown as { __copiedHtml: string[] }).__copiedHtml.join("\n"),
+    );
+    expect(html).toContain("e2e-bigjson-000");
+    expect(html).not.toContain("code-collapse");
   });
 
   test("15줄 이하 로그는 접히지 않고 pill이 안 보인다", async () => {

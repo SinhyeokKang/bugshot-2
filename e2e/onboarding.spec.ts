@@ -105,8 +105,20 @@ test("previewing 화면에도 연동 CTA 배너 — 전환 의도가 가장 높�
   await expect(panel.getByTestId("preview-section-description")).toBeVisible();
 
   await expect(panel.getByTestId("integrations-cta")).toBeVisible();
-  // 배너(안내)와 제출 차단(disabled)은 목적이 달라 공존한다.
-  await expect(panel.getByTestId("issue-submit-open")).toBeDisabled();
+  // 배너(안내)와 제출 차단은 목적이 달라 공존한다. 차단은 native disabled가 아니라
+  // aria-disabled다 — disabled면 base cva의 pointer-events-none이 hover를 죽여
+  // 아래 이유 툴팁이 영영 안 뜬다(toBeDisabled는 aria-disabled도 인정한다).
+  const submit = panel.getByTestId("issue-submit-open");
+  await expect(submit).toBeDisabled();
+  await expect(submit).toHaveAttribute("aria-disabled", "true");
+
+  // 왜 못 누르는지를 hover로 말해준다 — Radix 툴팁을 실브라우저로 검증하는 유일한 spec.
+  await submit.hover();
+  await expect(panel.getByTestId("issue-submit-disabled-reason")).toBeVisible();
+
+  // 차단 상태에서 클릭해도 제출 다이얼로그가 열리지 않는다(onClick 가드).
+  await submit.click({ force: true });
+  await expect(panel.getByTestId("submit-issue-confirm")).toHaveCount(0);
 
   await panel.getByTestId("integrations-cta").click();
   await expect(panel.getByTestId("tab-integrations")).toHaveAttribute(

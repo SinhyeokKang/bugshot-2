@@ -52,12 +52,15 @@ async function setBodyLocale(panel: Page, label: string | "auto") {
 
 async function stubClipboard(panel: Page) {
   await panel.evaluate(() => {
-    const w = window as unknown as { __copiedTexts: string[] };
+    const w = window as unknown as { __copiedTexts: string[]; __copiedHtml: string[] };
     w.__copiedTexts = [];
+    w.__copiedHtml = [];
     navigator.clipboard.write = async (items) => {
       for (const it of items) {
-        const blob = await it.getType("text/plain");
-        w.__copiedTexts.push(await blob.text());
+        w.__copiedTexts.push(await (await it.getType("text/plain")).text());
+        // text/html이 빠지면 getType이 throw해 writeText 폴백으로 흘러간다 — 그러면
+        // __copiedHtml이 비고, 붙여넣기에서 표·이미지가 사라지는 회귀가 여기서 잡힌다.
+        w.__copiedHtml.push(await (await it.getType("text/html")).text());
       }
     };
     navigator.clipboard.writeText = async (t) => {
@@ -138,6 +141,13 @@ test.describe.serial("이슈 본문 언어", () => {
     expect(copied).not.toContain("## 재현 환경");
     // 사용자가 쓴 본문은 번역 대상이 아니다 — 스캐폴딩만 바뀐다.
     expect(copied).toContain("screen stays korean");
+
+    // 같은 클릭이 rich flavor도 실어야 한다(본문 언어는 두 flavor에 동일 적용).
+    const html = await panel.evaluate(
+      () => (window as unknown as { __copiedHtml: string[] }).__copiedHtml.join("\n"),
+    );
+    expect(html).toContain("Environment");
+    expect(html).toMatch(/<\/(p|h1|h2|h3|li|td)>/);
   });
 
   test("본문 언어 자동 → 복사 마크다운 헤딩이 화면 언어를 따른다", async () => {

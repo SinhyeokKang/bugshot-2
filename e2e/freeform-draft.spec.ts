@@ -38,12 +38,15 @@ test("freeform 초안 → preview 렌더 → 마크다운 복사 페이로드", 
   ).toBeVisible();
 
   await panel.evaluate(() => {
-    const w = window as unknown as { __copiedTexts: string[] };
+    const w = window as unknown as { __copiedTexts: string[]; __copiedHtml: string[] };
     w.__copiedTexts = [];
+    w.__copiedHtml = [];
     navigator.clipboard.write = async (items) => {
       for (const it of items) {
-        const blob = await it.getType("text/plain");
-        w.__copiedTexts.push(await blob.text());
+        w.__copiedTexts.push(await (await it.getType("text/plain")).text());
+        // text/html이 빠지면 getType이 throw해 writeText 폴백으로 흘러간다 — 그러면
+        // __copiedHtml이 비고, 붙여넣기에서 표·이미지가 사라지는 회귀가 여기서 잡힌다.
+        w.__copiedHtml.push(await (await it.getType("text/html")).text());
       }
     };
     navigator.clipboard.writeText = async (t) => {
@@ -62,6 +65,13 @@ test("freeform 초안 → preview 렌더 → 마크다운 복사 페이로드", 
     () => (window as unknown as { __copiedTexts: string[] }).__copiedTexts.join("\n"),
   );
   expect(copied).toContain("freeform step one");
+
+  // rich flavor 보존 — Jira·Notion·Asana 붙여넣기의 표·이미지가 여기 달려 있다.
+  const copiedHtml = await panel.evaluate(
+    () => (window as unknown as { __copiedHtml: string[] }).__copiedHtml.join("\n"),
+  );
+  expect(copiedHtml).toContain("freeform description body");
+  expect(copiedHtml).toMatch(/<\/(p|h1|h2|h3|li|td)>/);
 
   await panel.close();
   await fixture.close();
