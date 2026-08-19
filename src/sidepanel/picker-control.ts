@@ -1,4 +1,5 @@
-import { clearPicker, sendAll, tabFrameTokens } from "./picker-clear";
+import { sendToTabAllFrames } from "@/sidepanel/lib/sendToTabAllFrames";
+import { clearPicker, tabFrameTokens } from "./picker-clear";
 // 기존 호출부 28곳(9파일)을 안 건드리려 re-export.
 export { clearPicker };
 import { classifyTabSupport } from "@/lib/url-support";
@@ -239,7 +240,7 @@ export async function startPicker(tabId: number): Promise<void> {
 
 export async function stopPicker(tabId: number): Promise<void> {
   tabFrameTokens.delete(tabId);
-  await sendAll(tabId, { type: "picker.clear" });
+  await sendToTabAllFrames(tabId, { type: "picker.clear" });
   useEditorStore.getState().cancelPicking();
 }
 
@@ -300,7 +301,7 @@ export async function restartPickerInFrame(
 // 선택 확정 후 나머지 프레임의 hover 유령(blocker·inspector) 종료. 선택 프레임은
 // 이미 selected라 no-op — handleStop이 selectedEl 유무로 selected/idle 분기.
 export async function stopHoverAllFrames(tabId: number): Promise<void> {
-  await sendAll(tabId, { type: "picker.stop" });
+  await sendToTabAllFrames(tabId, { type: "picker.stop" });
 }
 
 export async function navigatePicker(
@@ -336,7 +337,7 @@ export async function applyText(
 }
 
 export async function resetAllEdits(tabId: number): Promise<void> {
-  await sendAll(tabId, { type: "picker.resetAllEdits" });
+  await sendToTabAllFrames(tabId, { type: "picker.resetAllEdits" });
 }
 
 export async function collectTokens(
@@ -708,17 +709,17 @@ export async function activateNetworkRecorder(tabId: number): Promise<string> {
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   rememberSentinel(tabId, "network", sentinel);
-  await sendAll(tabId, { type: "networkRecorder.setSentinel", sentinel });
+  await sendToTabAllFrames(tabId, { type: "networkRecorder.setSentinel", sentinel });
   return sentinel;
 }
 
 export async function stopNetworkRecorder(tabId: number): Promise<void> {
   forgetSentinel(tabId, "network");
-  await sendAll(tabId, { type: "networkRecorder.stop" });
+  await sendToTabAllFrames(tabId, { type: "networkRecorder.stop" });
 }
 
 export async function syncNetworkRecorder(tabId: number): Promise<void> {
-  await sendAll(tabId, { type: "networkRecorder.sync" });
+  await sendToTabAllFrames(tabId, { type: "networkRecorder.sync" });
 }
 
 export async function activateConsoleRecorder(tabId: number): Promise<string> {
@@ -727,17 +728,17 @@ export async function activateConsoleRecorder(tabId: number): Promise<string> {
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   rememberSentinel(tabId, "console", sentinel);
-  await sendAll(tabId, { type: "consoleRecorder.setSentinel", sentinel });
+  await sendToTabAllFrames(tabId, { type: "consoleRecorder.setSentinel", sentinel });
   return sentinel;
 }
 
 export async function stopConsoleRecorder(tabId: number): Promise<void> {
   forgetSentinel(tabId, "console");
-  await sendAll(tabId, { type: "consoleRecorder.stop" });
+  await sendToTabAllFrames(tabId, { type: "consoleRecorder.stop" });
 }
 
 export async function syncConsoleRecorder(tabId: number): Promise<void> {
-  await sendAll(tabId, { type: "consoleRecorder.sync" });
+  await sendToTabAllFrames(tabId, { type: "consoleRecorder.sync" });
 }
 
 export async function activateActionRecorder(tabId: number): Promise<string> {
@@ -746,17 +747,17 @@ export async function activateActionRecorder(tabId: number): Promise<string> {
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   rememberSentinel(tabId, "action", sentinel);
-  await sendAll(tabId, { type: "actionRecorder.setSentinel", sentinel });
+  await sendToTabAllFrames(tabId, { type: "actionRecorder.setSentinel", sentinel });
   return sentinel;
 }
 
 export async function stopActionRecorder(tabId: number): Promise<void> {
   forgetSentinel(tabId, "action");
-  await sendAll(tabId, { type: "actionRecorder.stop" });
+  await sendToTabAllFrames(tabId, { type: "actionRecorder.stop" });
 }
 
 export async function syncActionRecorder(tabId: number): Promise<void> {
-  await sendAll(tabId, { type: "actionRecorder.sync" });
+  await sendToTabAllFrames(tabId, { type: "actionRecorder.sync" });
 }
 
 // capture 시 sync broadcast가 누적기에 머지될 때까지 대기하는 상한. 머지 도착 즉시 조기 탈출.
@@ -778,7 +779,7 @@ export async function syncAndSettleLogs(
   // settle 무한대기 위험이 있으므로 settle 조건엔 넣지 않고 net/con settle 동안 머지에 묻어가게 둔다.
   // sendMessage 단계에 상한이 필수다 — content 리스너는 페이지 메인 스레드에서 디스패치되므로
   // 대상 탭이 alert()·동기 무한루프에 걸려 있으면(BugShot이 겨냥하는 바로 그 페이지) 응답이
-  // 영영 안 오고, sendAll의 catch는 예외만 삼킬 뿐 pending은 못 푼다. 호출부 셋(녹화 정지·
+  // 영영 안 오고, sendToTabAllFrames의 catch는 예외만 삼킬 뿐 pending은 못 푼다. 호출부 셋(녹화 정지·
   // 리플레이 캡처·freeform 진입)이 전부 이 await 뒤에서 세션을 커밋하므로 여기서 멈추면
   // 녹화 유실·영구 스피너가 된다. 꼬리 몇 건보다 그쪽 손실이 크다.
   await Promise.race([
