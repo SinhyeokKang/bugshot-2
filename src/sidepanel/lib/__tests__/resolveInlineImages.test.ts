@@ -15,6 +15,8 @@ import {
   replaceInlineRefs,
   stripInlineImageRefs,
   resolveSectionImages,
+  placeholderInlineImages,
+  placeholderSectionImages,
   type SectionFilter,
 } from "../resolveInlineImages";
 
@@ -198,5 +200,108 @@ describe("resolveSectionImages", () => {
     const out = await resolveSectionImages(input, [cfg({ id: "body" })]);
     expect(input.body).toBe("![](inline:abc12345)");
     expect(out).not.toBe(input);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 클립보드 복사용 인라인 이미지 처리
+//
+// data: URI 이미지가 클립보드 text/html에 하나라도 있으면 Notion·Slack·Jira가 붙여넣기를
+// 통째로 거부한다(본문 전체 유실 — 이미지만 빠지는 게 아니다). 실측으로 크기와 무관하고
+// data: 자체가 원인임을 확인했다. BugShot은 클라이언트 온리라 호스팅 URL을 만들 수 없으므로
+// 복사 경로에서는 이미지를 포기하고 본문을 살린다. stripInlineImageRefs(통째 삭제)와 달리
+// 흔적을 남기는 이유는, 무음 유실이 이 버그의 실패 모드였기 때문이다.
+//
+// 문구를 인자로 받는다 — 이 모듈이 i18n에 의존하지 않게 두려는 것이다(호출부가 t()로 만든다).
+// ─────────────────────────────────────────────────────────────────────────────
+describe("placeholderInlineImages", () => {
+  const PH = "(image omitted)";
+
+  it("inline 참조를 플레이스홀더로 바꾼다", () => {
+    expect(placeholderInlineImages("before ![shot](inline:a) after", PH)).toBe(
+      `before ${PH} after`,
+    );
+  });
+
+  it("여러 참조를 각각 바꾼다", () => {
+    const out = placeholderInlineImages("![a](inline:x)\n![b](inline:y)", PH);
+
+    expect(out).toBe(`${PH}\n${PH}`);
+    expect(out).not.toContain("inline:");
+  });
+
+  it("참조가 없으면 원문 그대로다", () => {
+    const src = "just text with [a link](https://example.com)";
+
+    expect(placeholderInlineImages(src, PH)).toBe(src);
+  });
+
+  it("일반 이미지 링크(inline: 아님)는 건드리지 않는다", () => {
+    const src = "![logo](https://cdn.example.com/a.png)";
+
+    expect(placeholderInlineImages(src, PH)).toBe(src);
+  });
+
+  // 이 함수가 도는 이유 자체 — 결과에 data: 이미지가 없어야 한다.
+  it("결과에 data: 이미지가 남지 않는다", () => {
+    const out = placeholderInlineImages("![a](inline:x) ![b](inline:y)", PH);
+
+    expect(out).not.toContain("data:image");
+    expect(out).not.toContain("](inline:");
+  });
+});
+
+describe("placeholderSectionImages", () => {
+  const cfg = (
+    overrides: Partial<SectionFilter> & { id: string },
+  ): SectionFilter => ({ enabled: true, renderAs: "paragraph", ...overrides });
+  const PH = "(image omitted)";
+
+  it("enabled paragraph 섹션의 inline 참조를 플레이스홀더로 바꾼다", () => {
+    const out = placeholderSectionImages(
+      { description: "a ![s](inline:r1) b" },
+      [cfg({ id: "description" })],
+      PH,
+    );
+
+    expect(out.description).toBe(`a ${PH} b`);
+  });
+
+  // resolveSectionImages와 같은 게이트를 타야 한다 — 여기서 갈리면 복사본과 제출본의
+  // 섹션 처리 범위가 어긋난다.
+  it("disabled·비paragraph 섹션은 건드리지 않는다", () => {
+    const sections = {
+      off: "![a](inline:r1)",
+      list: "![b](inline:r2)",
+    };
+    const out = placeholderSectionImages(
+      sections,
+      [cfg({ id: "off", enabled: false }), cfg({ id: "list", renderAs: "orderedList" })],
+      PH,
+    );
+
+    expect(out.off).toBe(sections.off);
+    expect(out.list).toBe(sections.list);
+  });
+
+  it("참조가 없는 섹션은 원문 그대로다", () => {
+    const out = placeholderSectionImages(
+      { description: "plain text" },
+      [cfg({ id: "description" })],
+      PH,
+    );
+
+    expect(out.description).toBe("plain text");
+  });
+
+  it("동기 함수다 — IndexedDB 왕복이 없어야 한다(gesture window 보존)", () => {
+    const out = placeholderSectionImages(
+      { description: "![a](inline:r1)" },
+      [cfg({ id: "description" })],
+      PH,
+    );
+
+    expect(out).not.toBeInstanceOf(Promise);
+    expect(out.description).toBe(PH);
   });
 });

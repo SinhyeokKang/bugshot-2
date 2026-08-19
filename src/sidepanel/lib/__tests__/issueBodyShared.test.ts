@@ -163,3 +163,77 @@ describe("escapeMdLinkText", () => {
     expect(escapeMdLinkText("a[1].png")).toBe("a\\[1\\].png");
   });
 });
+
+// emitMarkdownLogSummary는 빌더 5개가 공유한다(buildIssueMarkdown·linear·clickup·markdown·
+// asana). 축을 무조건 분기로 넣으면 제출 경로 4개가 오염되므로, 축은 ctx에 실려 오고
+// 부재 = 기존 동작이어야 한다(fail-safe 방향 — 새 호출부가 잊으면 회귀가 아니라 현행).
+describe("emitMarkdownLogSummary — 클립보드 복사 축", () => {
+  const ctx = {
+    networkLogSummary: { captured: 17, errors: [] },
+    actionLogCaptured: 3,
+  } as LogSummaryContext;
+
+  it("축이 켜지면 logs.html 첨부 리드가 복사용 문구로 교체된다", () => {
+    const lines: string[] = [];
+    emitMarkdownLogSummary(lines, { ...ctx, forClipboard: true });
+    const out = lines.join("\n");
+
+    expect(out).not.toContain("logSummary.logs.lead");
+    expect(out).toContain("logSummary.logs.notCopied");
+  });
+
+  it("축이 켜져도 통계 줄은 남는다", () => {
+    const lines: string[] = [];
+    emitMarkdownLogSummary(lines, { ...ctx, forClipboard: true });
+    const out = lines.join("\n");
+
+    expect(out).toContain("logSummary.title");
+    expect(out).toContain("logSummary.network.lineNoError n=17");
+  });
+
+  it("축이 켜지면 logs.html 파일명도 남지 않는다", () => {
+    const lines: string[] = [];
+    emitMarkdownLogSummary(lines, { ...ctx, forClipboard: true });
+
+    expect(lines.join("\n")).not.toContain("logs.html");
+  });
+
+  // 제출 빌더 4개는 축을 싣지 않는다 — 부재가 기존 동작이어야 한다.
+  it("축이 없으면 기존 리드 문장이 그대로다(제출 경로 무회귀)", () => {
+    const lines: string[] = [];
+    emitMarkdownLogSummary(lines, ctx);
+    const out = lines.join("\n");
+
+    expect(out).toContain("logSummary.logs.lead");
+    expect(out).toContain("logs.html");
+    expect(out).not.toContain("logSummary.logs.notCopied");
+  });
+
+  it("축이 없고 logsHref가 있으면 링크가 유지된다", () => {
+    const lines: string[] = [];
+    emitMarkdownLogSummary(lines, ctx, "https://cdn.example.com/logs.html");
+
+    expect(lines.join("\n")).toContain("[logs.html](https://cdn.example.com/logs.html)");
+  });
+
+  // 축이 켜졌는데 href가 오는 조합(호출부 실수)에서도 링크가 새지 않아야 한다.
+  it("축이 켜지면 logsHref가 와도 링크를 만들지 않는다", () => {
+    const lines: string[] = [];
+    emitMarkdownLogSummary(
+      lines,
+      { ...ctx, forClipboard: true },
+      "https://cdn.example.com/logs.html",
+    );
+
+    expect(lines.join("\n")).not.toContain("cdn.example.com");
+  });
+
+  it("축을 뒤집으면 출력이 실제로 달라진다(단언 비공허 실증)", () => {
+    const plain: string[] = [];
+    const copied: string[] = [];
+    emitMarkdownLogSummary(plain, ctx);
+    emitMarkdownLogSummary(copied, { ...ctx, forClipboard: true });
+
+    expect(copied.join("\n")).not.toBe(plain.join("\n"));
+  });
+});
