@@ -158,11 +158,16 @@ export function renderActionContent(t: TranslationFn, entry: ActionEntry): React
       return renderVerb(t("actionLog.verb.select"), { value: valueChip(entry.value), field: fieldText(entry) });
     case "keypress":
       return renderVerb(t("actionLog.verb.keypress"), { keys: valueChip(entry.value) });
-    case "toggle":
-      return renderVerb(
-        t(entry.value === "checked" ? "actionLog.verb.toggle.check" : "actionLog.verb.toggle.uncheck"),
-        { field: fieldText(entry) },
-      );
+    case "toggle": {
+      // 삼항을 t() 인자 안에 두면 log-viewer 복제 사전 스캐너가 이 두 키를 못 본다. 지금은
+      // markers.ts가 같은 키를 리터럴로 들어 앵커가 우연히 green이지만, 그 형제 참조에
+      // 기대는 상태다 — 이 컴포넌트도 그 번들 그래프 안이라 자기 몫을 보이게 둔다.
+      const verb =
+        entry.value === "checked"
+          ? t("actionLog.verb.toggle.check")
+          : t("actionLog.verb.toggle.uncheck");
+      return renderVerb(verb, { field: fieldText(entry) });
+    }
     case "navigation":
       return renderVerb(t(navVerbKey(entry.navType)), {
         target: entry.toUrl
