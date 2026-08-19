@@ -1,3 +1,4 @@
+import type { UploadFileResult } from "@/types/messages";
 import { buildGitlabIssueBody } from "./buildGitlabIssueBody";
 import {
   prepareUpload,
@@ -31,16 +32,16 @@ export interface GitlabSubmitInput {
 export async function submitToGitlab(
   input: GitlabSubmitInput,
 ): Promise<NormalizedSubmitResult> {
-  // gitlab.uploadFiles는 { url } 형태 반환 — href로 정규화해 공용 헬퍼에 주입.
+  // 판별자 union → prepareUpload의 href 형태로 정규화해 공용 헬퍼에 주입.
   const prepared = await prepareUpload(
     input,
     async (files) => {
-      const results = await sendBg<Array<{ filename: string; url: string | null }>>({
+      const results = await sendBg<UploadFileResult[]>({
         type: "gitlab.uploadFiles",
         projectId: input.projectId,
         files,
       });
-      return results.map((r) => ({ filename: r.filename, href: r.url ?? null }));
+      return results.map((r) => ({ filename: r.filename, href: r.ok ? r.href : null }));
     },
     { platform: "gitlab" },
   );
@@ -78,17 +79,17 @@ export async function submitToGitlab(
         result.url,
         `#${result.iid}`,
       );
-      const [reUploaded] = await sendBg<Array<{ filename: string; url: string | null }>>({
+      const [reUploaded] = await sendBg<UploadFileResult[]>({
         type: "gitlab.uploadFiles",
         projectId: input.projectId,
         files: [toUploadEntry({ filename: "logs.html", dataUrl: augmented })],
       });
-      if (reUploaded?.url && reUploaded.url !== oldLogsUrl) {
+      if (reUploaded?.ok && reUploaded.href !== oldLogsUrl) {
         await sendBg({
           type: "gitlab.updateIssueDescription",
           projectId: input.projectId,
           iid: result.iid,
-          description: body.split(oldLogsUrl).join(reUploaded.url),
+          description: body.split(oldLogsUrl).join(reUploaded.href),
         });
       }
     } catch {

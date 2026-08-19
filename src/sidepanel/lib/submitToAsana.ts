@@ -1,3 +1,4 @@
+import type { AsanaUploadFileResult } from "@/types/messages";
 import { buildAsanaIssueBody, type AsanaMediaInput } from "./buildAsanaIssueBody";
 import { resolveStyleElements, type MarkdownContext } from "./buildIssueMarkdown";
 import { injectAsanaCc } from "./ccMention";
@@ -178,9 +179,7 @@ export async function submitToAsana(
     );
 
     // per-file 격리는 background 핸들러가 처리 (개별 실패 시 gid null) — task는 보존.
-    const results = await sendBg<
-      Array<{ filename: string; gid: string | null; viewUrl?: string }>
-    >({
+    const results = await sendBg<AsanaUploadFileResult[]>({
       type: "asana.uploadFiles",
       parent: task.gid,
       files: uploadFiles.map(toUploadEntry),
@@ -192,7 +191,7 @@ export async function submitToAsana(
     const byName = new Map<string, { gid: string; viewUrl?: string }>();
     for (const r of results) {
       // 사용자 첨부는 본문 인라인 안 하므로 byName에서 제외 — imageRefs 매칭 오염 방지.
-      if (r.gid && !userAttachmentNames.has(r.filename)) {
+      if (r.ok && !userAttachmentNames.has(r.filename)) {
         byName.set(r.filename, { gid: r.gid, viewUrl: r.viewUrl });
       }
     }

@@ -129,7 +129,7 @@ describe("submitToAsana", () => {
       order.push(msg.type);
       if (msg.type === "asana.submitIssue") return TASK;
       if (msg.type === "asana.uploadFiles")
-        return [{ filename: "screenshot.png", gid: "att1" }];
+        return [{ ok: true, filename: "screenshot.png", gid: "att1" }];
       return undefined;
     });
 
@@ -173,7 +173,7 @@ describe("submitToAsana", () => {
         if (msg.type === "asana.submitIssue") return TASK;
         if (msg.type === "asana.uploadFiles") {
           uploaded.push(...(msg.files ?? []));
-          return (msg.files ?? []).map((f) => ({ filename: f.filename, gid: null }));
+          return (msg.files ?? []).map((f) => ({ ok: false, filename: f.filename }));
         }
         return undefined;
       },
@@ -194,7 +194,7 @@ describe("submitToAsana", () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "asana.submitIssue") return TASK;
       if (msg.type === "asana.uploadFiles")
-        return [{ filename: "recording.mp4", gid: "v1" }];
+        return [{ ok: true, filename: "recording.mp4", gid: "v1" }];
       return undefined;
     });
 
@@ -234,6 +234,7 @@ describe("submitToAsana", () => {
         if (msg.type === "asana.submitIssue") return TASK;
         if (msg.type === "asana.uploadFiles")
           return (msg.files ?? []).map((f) => ({
+            ok: true,
             filename: f.filename,
             gid: `gid-${f.filename}`,
             viewUrl: `url-${f.filename}`,
@@ -273,8 +274,8 @@ describe("submitToAsana", () => {
       if (msg.type === "asana.submitIssue") return TASK;
       if (msg.type === "asana.uploadFiles")
         return [
-          { filename: "a.png", gid: "att" },
-          { filename: "b.png", gid: null },
+          { ok: true, filename: "a.png", gid: "att" },
+          { ok: false, filename: "b.png" },
         ];
       return undefined;
     });
@@ -296,7 +297,7 @@ describe("submitToAsana", () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "asana.submitIssue") return TASK;
       if (msg.type === "asana.uploadFiles")
-        return [{ filename: "logs.html", gid: null }];
+        return [{ ok: false, filename: "logs.html" }];
       return undefined;
     });
 
@@ -313,7 +314,7 @@ describe("submitToAsana", () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "asana.submitIssue") return TASK;
       if (msg.type === "asana.uploadFiles")
-        return [{ filename: "logs.html", gid: "lg" }];
+        return [{ ok: true, filename: "logs.html", gid: "lg" }];
       return undefined;
     });
 
@@ -328,7 +329,31 @@ describe("submitToAsana", () => {
 });
 
 describe("submitToAsana 업로드 판별자", () => {
-  it("판별자 형태에서 성공분의 gid로 본문을 갱신하고 실패분은 건너뛴다", async () => {
+  // asana도 gid를 직접 읽어 판별자 도입 전후로 동작이 같다(핸들러 반환 형태 변경의
+  // 회귀 가드). 실패분이 본문 갱신 대상에 안 들어가는 것만 고정한다.
+  it("실패분만 있으면 본문 갱신을 호출하지 않는다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "asana.submitIssue") return TASK;
+      if (msg.type === "asana.uploadFiles")
+        return [{ ok: false, filename: "screenshot.png" }];
+      return undefined;
+    });
+
+    await submitToAsana({
+      ctx: makeCtx(),
+      workspaceGid: "W",
+      projectGid: "P",
+      images: [{ filename: "screenshot.png", dataUrl: "data:," }],
+    });
+
+    expect(
+      sendBg.mock.calls.some(
+        ([m]) => (m as { type: string }).type === "asana.updateTaskNotes",
+      ),
+    ).toBe(false);
+  });
+
+  it("성공분이 있으면 본문 갱신을 호출한다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "asana.submitIssue") return TASK;
       if (msg.type === "asana.uploadFiles")
@@ -347,10 +372,17 @@ describe("submitToAsana 업로드 판별자", () => {
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
     });
 
-    const update = sendBg.mock.calls.find(
-      ([m]) => (m as { type: string }).type === "asana.updateTaskNotes",
-    )?.[0] as { htmlNotes: string } | undefined;
-    expect(update?.htmlNotes).toContain("att1");
+    expect(
+      sendBg.mock.calls.some(
+        ([m]) => (m as { type: string }).type === "asana.updateTaskNotes",
+      ),
+    ).toBe(true);
+    // 값 축 — 성공분의 gid가 실제로 본문 조립에 실린다(htmlNotes는 목이라 gid가 안 남는다).
+    expect(markdownToAsanaHtml).toHaveBeenCalledWith(
+      "BODY_MD",
+      expect.objectContaining({
+        "screenshot.png": expect.objectContaining({ gid: "att1" }),
+      }),
+    );
   });
 });
-

@@ -1,3 +1,4 @@
+import type { UploadFileResult } from "@/types/messages";
 import {
   buildClickupIssueBody,
   type ClickupMediaInput,
@@ -95,13 +96,13 @@ export async function submitToClickup(
       ),
     );
 
-    const results = await sendBg<Array<{ filename: string; url: string | null }>>({
+    const results = await sendBg<UploadFileResult[]>({
       type: "clickup.uploadFile",
       taskId: task.id,
       files: uploadFiles.map(toUploadEntry),
     });
 
-    const urlMap = new Map(results.map((r) => [r.filename, r.url]));
+    const urlMap = new Map(results.map((r) => [r.filename, r.ok ? r.href : null]));
     logsDropped = logs.some((l) => !urlMap.get(l.filename));
 
     // 본문 붙여넣기 인라인 이미지: 업로드 URL로 본문 src(`inline:refId`)를 치환.

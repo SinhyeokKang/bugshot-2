@@ -47,7 +47,7 @@ describe("submitToGithub logsDropped", () => {
   it("logs.html 업로드가 href:null(영상/용량 초과)이면 logsDropped: true", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
-        return [{ filename: "logs.html", href: null }];
+        return [{ ok: false, filename: "logs.html" }];
       if (msg.type === "github.submitIssue") return ISSUE;
       return undefined;
     });
@@ -65,7 +65,7 @@ describe("submitToGithub logsDropped", () => {
   it("logs.html 업로드 성공이면 logsDropped: false", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
-        return [{ filename: "logs.html", href: "LOGS_HREF" }];
+        return [{ ok: true, filename: "logs.html", href: "LOGS_HREF" }];
       if (msg.type === "github.submitIssue") return ISSUE;
       return undefined;
     });
@@ -118,7 +118,7 @@ describe("submitToGithub requireMediaUpload (승격 보호)", () => {
   it("이미지 업로드가 href:null이면 throw하고 submitIssue를 호출하지 않는다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
-        return [{ filename: "shot.webp", href: null }];
+        return [{ ok: false, filename: "shot.webp" }];
       if (msg.type === "github.submitIssue") return ISSUE;
       return undefined;
     });
@@ -139,7 +139,7 @@ describe("submitToGithub requireMediaUpload (승격 보호)", () => {
   it("모든 미디어 업로드 성공이면 정상 등록한다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
-        return [{ filename: "shot.webp", href: "IMG_HREF" }];
+        return [{ ok: true, filename: "shot.webp", href: "IMG_HREF" }];
       if (msg.type === "github.submitIssue") return ISSUE;
       return undefined;
     });
@@ -160,8 +160,8 @@ describe("submitToGithub requireMediaUpload (승격 보호)", () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
         return [
-          { filename: "shot.webp", href: "IMG_HREF" },
-          { filename: "logs.html", href: null },
+          { ok: true, filename: "shot.webp", href: "IMG_HREF" },
+          { ok: false, filename: "logs.html" },
         ];
       if (msg.type === "github.submitIssue") return ISSUE;
       return undefined;
@@ -183,7 +183,7 @@ describe("submitToGithub requireMediaUpload (승격 보호)", () => {
   it("requireMediaUpload 미지정(일반 제출)이면 이미지 실패해도 throw하지 않는다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
-        return [{ filename: "shot.webp", href: null }];
+        return [{ ok: false, filename: "shot.webp" }];
       if (msg.type === "github.submitIssue") return ISSUE;
       return undefined;
     });

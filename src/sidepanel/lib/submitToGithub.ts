@@ -1,3 +1,4 @@
+import type { UploadFileResult } from "@/types/messages";
 import { buildGithubIssueBody } from "./buildGithubIssueBody";
 import { prepareUpload, type UploadFileInput } from "./prepareUpload";
 import type { InlineImageInput } from "./resolveInlineImages";
@@ -29,13 +30,15 @@ export async function submitToGithub(
 ): Promise<NormalizedSubmitResult> {
   const prepared = await prepareUpload(
     input,
-    (files) =>
-      sendBg<Array<{ filename: string; href: string | null }>>({
+    async (files) => {
+      const results = await sendBg<UploadFileResult[]>({
         type: "github.uploadFiles",
         owner: input.owner,
         repo: input.repo,
         files,
-      }),
+      });
+      return results.map((r) => ({ filename: r.filename, href: r.ok ? r.href : null }));
+    },
     { platform: "github" },
   );
   const { resolvedCtx, toMedia, toAttachmentMedia, logsDropped } = prepared;

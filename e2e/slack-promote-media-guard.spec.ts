@@ -120,7 +120,7 @@ async function spyGithub(
     chrome.runtime.sendMessage = ((msg: { type?: string; files?: { filename: string }[] }, cb?: (r: unknown) => void) => {
       if (msg?.type === "github.uploadFiles") {
         w.__ghUpload = (w.__ghUpload ?? 0) + 1;
-        cb?.({ ok: true, result: (msg.files ?? []).map((f) => ({ filename: f.filename, href: null })) });
+        cb?.({ ok: true, result: (msg.files ?? []).map((f) => ({ ok: false, filename: f.filename })) });
         return;
       }
       if (msg?.type === "github.submitIssue") {

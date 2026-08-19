@@ -1,3 +1,4 @@
+import type { UploadFileResult } from "@/types/messages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
@@ -78,7 +79,7 @@ describe("submitToClickup 제출 순서", () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "clickup.submitIssue") return TASK;
       if (msg.type === "clickup.uploadFile")
-        return [{ filename: "screenshot.png", url: "https://att/screenshot.png" }];
+        return [{ ok: true, filename: "screenshot.png", href: "https://att/screenshot.png" }];
       return undefined;
     });
 
@@ -123,7 +124,7 @@ describe("submitToClickup logsDropped", () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "clickup.submitIssue") return TASK;
       if (msg.type === "clickup.uploadFile")
-        return [{ filename: "logs.html", url: null }];
+        return [{ ok: false, filename: "logs.html" }];
       return undefined;
     });
 
@@ -141,7 +142,7 @@ describe("submitToClickup logsDropped", () => {
 describe("submitToClickup — 인라인 이미지", () => {
   const TASK = { id: "T1", url: "https://app.clickup.com/t/T1" };
 
-  function mockUpload(results: Array<{ filename: string; url: string | null }>) {
+  function mockUpload(results: UploadFileResult[]) {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "clickup.submitIssue") return TASK;
       if (msg.type === "clickup.uploadFile") return results;
@@ -150,7 +151,7 @@ describe("submitToClickup — 인라인 이미지", () => {
   }
 
   it("inline-{refId}.webp 이름으로 업로드 목록에 넣는다", async () => {
-    mockUpload([{ filename: "inline-r1.webp", url: "https://att/r1.webp" }]);
+    mockUpload([{ ok: true, filename: "inline-r1.webp", href: "https://att/r1.webp" }]);
     await submitToClickup({
       ctx: makeCtx(),
       listId: "L",
@@ -161,7 +162,7 @@ describe("submitToClickup — 인라인 이미지", () => {
   });
 
   it("업로드 URL로 본문의 ref를 치환한다", async () => {
-    mockUpload([{ filename: "inline-r1.webp", url: "https://att/r1.webp" }]);
+    mockUpload([{ ok: true, filename: "inline-r1.webp", href: "https://att/r1.webp" }]);
     await submitToClickup({
       ctx: makeCtx(),
       listId: "L",
@@ -173,7 +174,7 @@ describe("submitToClickup — 인라인 이미지", () => {
 
   // url이 null이면 치환할 게 없다 — 깨진 ref로 본문을 갱신하지 않는다.
   it("업로드 url이 null이면 치환하지 않는다", async () => {
-    mockUpload([{ filename: "inline-r1.webp", url: null }]);
+    mockUpload([{ ok: false, filename: "inline-r1.webp" }]);
     await submitToClickup({
       ctx: makeCtx(),
       listId: "L",
