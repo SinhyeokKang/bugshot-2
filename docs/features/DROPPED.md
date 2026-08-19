@@ -23,7 +23,7 @@
 **다시 볼 조건**: 훅이 `open` 게이트·`items` reset·loading 타이밍 옵션을 갖게 되면.
 
 **④ #26 배지 셸 7벌 추출 · #27 PatDialog 6벌 추출** — 추출 대상이 아직 안 정해졌다.
-둘 다 "N벌이 있다"는 것까지만 확인됐고 무엇을 공통 셸로 뽑을지는 미정이다. 이 배치가 `imageCell`·`escapeHtml`·`MarkdownIt`에서 배운 대로, **공통 부분이 무엇인지 정하지 않은 채 추출하면 사본이 하나 더 는다**(P1에서 `picker-clear`의 `sendAll`이 `sendToTabAllFrames`의 다섯 번째 사본이 될 뻔했다).
+둘 다 "N벌이 있다"는 것까지만 확인됐고 무엇을 공통 셸로 뽑을지는 미정이다. 이 배치가 `imageCell`·`escapeHtml`·`MarkdownIt`에서 배운 대로, **공통 부분이 무엇인지 정하지 않은 채 추출하면 사본이 하나 더 는다**(P1에서 `picker-clear`의 `sendToTabAllFrames`이 `sendToTabAllFrames`의 다섯 번째 사본이 될 뻔했다).
 **다시 볼 조건**: 배지·PatDialog를 다른 이유로 손대며 공통 셸의 경계가 드러날 때.
 
 **⑤ #34의 `src/sidepanel/**` 전역 import 표기 통일** — 규모가 다르다.
@@ -37,7 +37,7 @@
 ### 다음 배치 후보 3건 (검수가 발굴, 이번 배치 밖)
 
 - **`SingleLazyCombobox`의 `query` 리셋 부재** — `query`를 컴포넌트 state로 들고 `shouldFilter={false}` + 수동 필터를 돌리는데 `setQuery("")` 리셋이 어디에도 없다. 컴포넌트가 팝오버와 수명이 달라 살아남으므로 **재오픈 시 입력창은 비어 보이는데 목록은 stale query로 필터된 채**다. 이미 11파일이 쓴다. 위 ②의 선행 조건.
-- **`send`/`sendAll`의 포트 닫힘 ↔ 의도적 `undefined` 미구별** — 둘 다 `catch { return undefined }`로 `lastError`를 지운다. P0가 `scrollCaptureTo` 한 경로에 shape 가드를 넣었지만 구조 자체는 남았다.
+- **`send`/`sendToTabAllFrames`의 포트 닫힘 ↔ 의도적 `undefined` 미구별** — 둘 다 `catch { return undefined }`로 `lastError`를 지운다. P0가 `scrollCaptureTo` 한 경로에 shape 가드를 넣었지만 구조 자체는 남았다.
 - **seq-guard 4·5번째 사본** — `useLazyListOnOpen.ts:18`·`NotionConnectForm.tsx:74`가 같은 `reqIdRef` 패턴이다.
 
 ### 이 배치가 얻은 판별 기준
