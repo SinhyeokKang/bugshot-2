@@ -322,8 +322,8 @@ function handlePickerMessage(
         );
         return true;
       case "picker.endScrollCapture":
-        finishScrollCapture();
-        break;
+        sendResponse({ ok: true, expired: finishScrollCapture() });
+        return;
       // annotation 오버레이는 top frame 한정(자식 iframe엔 안 그림). 자식 프레임은 무응답으로 흘려 이중 응답 방지.
       case "annotation.show":
         if (window !== window.top) return;
@@ -621,7 +621,7 @@ function handleStart(frameToken?: string, theme?: "light" | "dark"): void {
   // 시트가 뒤늦게 주입·교체되면(다크모드 토글·SPA 라우트) inspector도 다시 수집한다.
   setOnCacheReloaded(scheduleInspectorRefresh);
   startCssCacheObserver();
-  void ensureCssCacheLoaded();
+  void ensureCssCacheLoaded().catch(() => {});
   scheduleInspectorRefresh();
   addHoverListeners();
   setMode("hover");
@@ -1253,7 +1253,7 @@ function handleSelectByPath(selector: string): { found: boolean } {
     // 여기서 다시 세운다 — 등록만 되살리면 inspectorCache가 다음 시트 변경까지 옛 값을 준다.
     setOnCacheReloaded(scheduleInspectorRefresh);
     startCssCacheObserver();
-    void ensureCssCacheLoaded();
+    void ensureCssCacheLoaded().catch(() => {});
     scheduleInspectorRefresh();
   }
   leaveCurrent();
@@ -1367,8 +1367,13 @@ function handleBeginScrollCapture(): PageMetrics {
   // 재진입(연타·재마운트)이면 이전 세션을 먼저 원복한다 — 안 그러면 그 세션이 숨긴 fixed 요소가
   // 영영 복원되지 않고 originalScroll도 유실된다.
   if (scrollSession) {
-    endScrollCapture(scrollSession);
-    scrollSession = null;
+    // 복원이 throw해도 세션 슬롯은 반드시 닫는다 — 안 닫으면 다음 begin이 같은 지점에서
+    // 다시 죽어 그 탭의 스크롤 캡처가 영구히 안 된다(finishScrollCapture와 같은 형태).
+    try {
+      endScrollCapture(scrollSession);
+    } finally {
+      scrollSession = null;
+    }
   }
   // dim·사각형·라벨은 걷되 blocker는 남긴다 — 투명이라 캡처엔 안 찍히고 클릭(네비게이션·모달)만 막는다.
   if (areaHandle) {
@@ -1382,15 +1387,18 @@ function handleBeginScrollCapture(): PageMetrics {
     setBlockerScrollYield(overlay, false);
   }
   mode = "idle";
-  const { session, metrics } = beginScrollCapture();
+  // 워치독 만료 시 세션 슬롯·blocker까지 걷는다 — endScrollCapture만으론 투명 blocker가 남는다.
+  const { session, metrics } = beginScrollCapture(finishScrollCapture);
   scrollSession = session;
   return metrics;
 }
 
 // 사이드패널이 죽어(패널 닫힘·탭 전환) endScrollCapture가 못 오면 페이지에 숨긴 고정 요소와
 // 엉뚱한 스크롤이 영구 잔류한다 — handleClear(port disconnect 종착점)에서도 자가 복원한다.
-function finishScrollCapture(): void {
-  if (!scrollSession) return;
+// 반환값은 "도착했을 때 세션이 이미 없었다" = 워치독 만료·네비게이션 재주입. 사이드패널이
+// 스티치 결과를 믿을 수 없다는 신호로 쓴다.
+function finishScrollCapture(): boolean {
+  if (!scrollSession) return true;
   try {
     endScrollCapture(scrollSession);
   } finally {
@@ -1399,4 +1407,5 @@ function finishScrollCapture(): void {
     scrollSession = null;
     handleClear();
   }
+  return false;
 }

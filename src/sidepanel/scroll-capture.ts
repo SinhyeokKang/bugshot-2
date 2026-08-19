@@ -57,6 +57,7 @@ export async function runScrollCapture(
   },
 ): Promise<ScrollCaptureResult> {
   const deps = opts.deps ?? defaultDeps;
+  let endSent = false;
   try {
     // begin도 try 안에서 — 세션은 열렸는데 응답만 유실되면 finally 없이는 blocker·스크롤이 잔류한다.
     // content가 throw하면 {ok:false} 응답이라 truthy — metrics 유무로 판정해야 한다.
@@ -96,13 +97,23 @@ export async function runScrollCapture(
 
     if (opts.signal.aborted) throw new Error("scroll capture aborted");
 
+    // content 워치독 만료는 ack로 안 보인다 — 마지막 타일의 captureTab이 매달렸다 풀리면
+    // 이미 원복된 화면이 그 타일의 ack.y 좌표로 스티치되고, 뒤에 남은 타일이 없어 다음
+    // scrollCaptureTo의 `ended` 거부가 끊을 기회조차 없다. finish 전에 세션 생존을 확인한다
+    // (finally는 아직 안 보냈을 때만 보낸다 — 왕복을 늘리지 않는다).
+    const ended = await deps.send<{ expired?: boolean }>(tabId, {
+      type: "picker.endScrollCapture",
+    });
+    endSent = true;
+    if (ended?.expired) throw new Error("scroll capture expired");
+
     return {
       dataUrl: await stitcher.finish(),
       viewport: metrics.viewport,
       truncated: plan.truncated,
     };
   } finally {
-    await deps.send(tabId, { type: "picker.endScrollCapture" });
+    if (!endSent) await deps.send(tabId, { type: "picker.endScrollCapture" });
   }
 }
 

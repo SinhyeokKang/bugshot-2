@@ -375,7 +375,11 @@ export function startObserver(): void {
     observerDebounce = window.setTimeout(() => {
       observerDebounce = null;
       invalidate();
-      void ensureLoaded().then(() => onReloaded?.());
+      // 실패 슬롯을 비워 재시도를 열었으므로 reject가 호출부로 흐른다 — observer 재발화마다
+      // unhandled rejection이 쌓이는 걸 여기서 끊는다(재시도는 다음 관련 변경에서 다시 온다).
+      void ensureLoaded()
+        .then(() => onReloaded?.())
+        .catch((err) => dlog("observer reload failed", err));
     }, 200);
   });
   // head만 관찰 — 99% stylesheet은 head에 추가됨. body 변경 폭증 사이트(SPA)에서 콜백 폭증 회피.

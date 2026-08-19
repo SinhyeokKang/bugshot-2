@@ -28,12 +28,42 @@ export interface ScrollCaptureSession {
   positionedCandidates: HTMLElement[] | null;
   candidateRoots: Set<HTMLElement>;
   candidateObserver: MutationObserver;
+  watchdog: ReturnType<typeof setTimeout> | null;
+  ended: boolean;
+  // 워치독 만료를 호출부에 알린다 — 은닉·스크롤만 되돌리고 picker의 세션 슬롯과 blocker
+  // overlay를 두면 페이지는 정상처럼 보이는데 투명 blocker가 클릭을 전부 삼킨다(이전 실패
+  // 모드는 눈에 보였다). 복원 종착점 handleClear는 finishScrollCapture·port disconnect에서만
+  // 도달하므로 워치독이 그 경로를 직접 불러줘야 한다.
+  onExpire: (() => void) | null;
 }
 
 // hidden 탭에서는 rAF가 발화하지 않아 응답이 매달린다(prepareCaptureBySelector 선례).
 const SCROLL_SETTLE_FALLBACK_MS = 500;
 
-export function beginScrollCapture(): {
+// 사이드패널 복원(runScrollCapture의 finally·port disconnect) 밖의 3중 안전망. sendBg엔
+// 타임아웃이 없어 captureVisibleTab이 무응답이면 그 await가 안 풀려 finally도 안 돈다.
+// 타일 간격(캡처 큐 ≥500ms)보다 크게 잡고 매 scrollCaptureTo가 재무장한다.
+export const SCROLL_CAPTURE_WATCHDOG_MS = 30_000;
+
+function armWatchdog(session: ScrollCaptureSession): void {
+  if (session.watchdog != null) clearTimeout(session.watchdog);
+  session.watchdog = setTimeout(() => {
+    session.watchdog = null;
+    // 복원이 throw해도 호출부 정리는 반드시 알린다 — picker의 두 호출부가 같은 형태로
+    // 감싸는데 여기만 빠지면 직전에 닫은 유령 blocker가 그대로 돌아온다.
+    try {
+      endScrollCapture(session);
+    } catch (err) {
+      // 호출자가 타이머라 던질 대상이 없다 — 여기서 새면 unhandled error가 되고 아래
+      // onExpire도 못 돈다(직전에 닫은 유령 blocker가 그대로 돌아온다).
+      console.error("[bugshot] scroll capture watchdog restore failed", err);
+    } finally {
+      session.onExpire?.();
+    }
+  }, SCROLL_CAPTURE_WATCHDOG_MS);
+}
+
+export function beginScrollCapture(onExpire?: () => void): {
   session: ScrollCaptureSession;
   metrics: PageMetrics;
 } {
@@ -60,7 +90,11 @@ export function beginScrollCapture(): {
     positionedCandidates: null,
     candidateRoots: new Set([document.documentElement]),
     candidateObserver,
+    watchdog: null,
+    ended: false,
+    onExpire: onExpire ?? null,
   };
+  armWatchdog(session);
   candidateObserver.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ["class", "style"],
@@ -82,6 +116,15 @@ export function scrollCaptureTo(
   y: number,
   hideFixed: boolean,
 ): Promise<ScrollAck> {
+  // 워치독이 이미 되돌린 세션이면 다시 스크롤하지 않는다 — 스크롤한 뒤엔 endScrollCapture가
+  // `ended`로 즉시 return해 그 스크롤이 영구 미복원으로 남는다. reject는 수신부가
+  // sendResponse(undefined)로 접고 사이드패널이 그걸 "중단하라"로 읽는다.
+  // 이 함수는 async가 아니라 Promise를 직접 만든다 — 동기 throw는 수신부의 rejection
+  // 핸들러(`.then(sendResponse, () => sendResponse(undefined))`)를 안 타고 전역 catch로 샌다.
+  if (session.ended) {
+    return Promise.reject(new Error("scroll capture session already ended"));
+  }
+  armWatchdog(session);
   // 2-arg scrollTo는 페이지 CSS `scroll-behavior: smooth`에 밀려 애니메이션이 남는다.
   window.scrollTo({ top: y, left: session.originalScroll.x, behavior: "instant" });
   return new Promise((resolve) => {
@@ -123,6 +166,14 @@ export function scrollCaptureTo(
 }
 
 export function endScrollCapture(session: ScrollCaptureSession): void {
+  // 워치독과 정상 경로가 둘 다 부를 수 있다 — 두 번 복원하면 이미 되돌린 뒤 사용자가 움직인
+  // 스크롤을 다시 originalScroll로 낚아채간다.
+  if (session.ended) return;
+  session.ended = true;
+  if (session.watchdog != null) {
+    clearTimeout(session.watchdog);
+    session.watchdog = null;
+  }
   session.candidateObserver.disconnect();
   for (const { el, prevValue, prevPriority } of session.hiddenFixed ?? []) {
     // 한 요소의 style write가 throw하면 나머지가 영구 hidden으로 남고, 호출부의

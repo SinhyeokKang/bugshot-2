@@ -43,6 +43,35 @@ function types(sent: PickerMessage[]): string[] {
 }
 
 describe("runScrollCapture", () => {
+  // 마지막 타일의 captureTab이 매달렸다 워치독 만료 후 풀리면, 이미 원복된 화면이 그 타일의
+  // ack.y 좌표로 스티치된다. 뒤에 남은 타일이 없어 다음 scrollCaptureTo의 `ended` 거부가
+  // 끊을 기회조차 없으므로, finish 전에 세션 생존을 확인해야 무음 오염이 성공으로 안 나간다.
+  it("content 세션이 만료됐으면 스티치 결과를 성공으로 반환하지 않는다", async () => {
+    let finished = false;
+    const { deps, sent } = makeDeps({
+      send: vi.fn(async (_tabId: number, msg: PickerMessage) => {
+        if (msg.type === "picker.beginScrollCapture") return METRICS;
+        if (msg.type === "picker.scrollCaptureTo") return { y: msg.y };
+        if (msg.type === "picker.endScrollCapture") return { ok: true, expired: true };
+        return undefined;
+      }) as ScrollCaptureDeps["send"],
+      createStitcher: () => ({
+        add: async () => {},
+        finish: async () => {
+          finished = true;
+          return "data:image/webp;base64,stitched";
+        },
+      }),
+    });
+
+    await expect(
+      runScrollCapture(1, { onProgress: () => {}, signal: new AbortController().signal, deps }),
+    ).rejects.toThrow(/expired/);
+    expect(finished).toBe(false);
+    void sent;
+  });
+
+
   it("정상 흐름 — begin → 타일별 scroll+capture → end, 스티치 결과 반환", async () => {
     const { deps, sent, stitched } = makeDeps();
     const onProgress = vi.fn();
