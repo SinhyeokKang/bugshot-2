@@ -1,4 +1,4 @@
-import { OAuthError } from "@/background/oauth/errors";
+import { OAuthError } from "../oauth/errors";
 
 // refresh 실패는 401(사이드패널 onOAuthExpired = 재로그인 안내) 레인이고, 최초 연결 실패는
 // 400이다. 그런데 createRefreshRunner는 둘을 구별할 신호가 없다 — 양쪽이 같은 getMyself를

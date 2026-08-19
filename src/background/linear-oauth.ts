@@ -1,4 +1,4 @@
-import { inConnectLane } from "@/background/lib/connectLane";
+import { inConnectLane } from "./lib/connectLane";
 import { t } from "@/i18n";
 import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
 import { readStoredLinearAuth, writeStoredLinearOAuthTokens } from "@/lib/settings-storage";

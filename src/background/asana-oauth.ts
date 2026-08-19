@@ -1,4 +1,4 @@
-import { inConnectLane } from "@/background/lib/connectLane";
+import { inConnectLane } from "./lib/connectLane";
 import { t } from "@/i18n";
 import type { AsanaAuth, AsanaOAuthAuth } from "@/types/asana";
 import { writeStoredAsanaOAuthTokens } from "@/lib/settings-storage";

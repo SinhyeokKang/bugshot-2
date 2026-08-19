@@ -1,4 +1,4 @@
-import { inConnectLane } from "@/background/lib/connectLane";
+import { inConnectLane } from "./lib/connectLane";
 import { t } from "@/i18n";
 import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
 import { readStoredGitlabAuth, writeStoredGitlabOAuthTokens } from "@/lib/settings-storage";

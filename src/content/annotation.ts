@@ -183,7 +183,7 @@ function onKeyDown(e: KeyboardEvent): void {
   if (!handle || !handle.pen || e.key !== "Escape") return;
   e.preventDefault();
   e.stopPropagation();
-  setAnnotationTool(null, null);
+  setAnnotationTool(null);
   postToRuntime({ type: "annotation.penOff" });
 }
 
@@ -248,13 +248,10 @@ export function showAnnotation(): void {
   };
 }
 
-// tool=null이면 그리기 off(pass-through). 그 외엔 style(color/strokeWidth/opacity)로 획을 그린다.
-export function setAnnotationTool(
-  tool: "pen" | "rect" | "highlight" | null,
-  style: PenStyle | null,
-): void {
+// style이 곧 on/off 스위치다 — 송신부가 tool=null일 때만 style을 안 실으므로 둘을 따로 받을 이유가 없었다.
+export function setAnnotationTool(style: PenStyle | null): void {
   if (!handle) return;
-  if (tool === null || !style) {
+  if (!style) {
     handle.pen = null;
     handle.blockerEl.classList.remove("pen");
     handle.blockerEl.style.pointerEvents = "none";

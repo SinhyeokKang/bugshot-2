@@ -1,6 +1,6 @@
-import type { NetworkLog, NetworkRequest } from "@/types/network";
-import type { ConsoleEntry } from "@/types/console";
-import type { ActionEntry } from "@/types/action";
+import type { NetworkLog, NetworkRequest } from "./network";
+import type { ConsoleEntry } from "./console";
+import type { ActionEntry } from "./action";
 
 export interface PickerSelectionUpdatePayload {
   selector: string;

@@ -332,7 +332,6 @@ function handlePickerMessage(
       case "annotation.setTool":
         if (window !== window.top) return;
         setAnnotationTool(
-          msg.tool,
           msg.tool === null
             ? null
             : { tool: msg.tool, color: msg.color, strokeWidth: msg.strokeWidth, opacity: msg.opacity },
