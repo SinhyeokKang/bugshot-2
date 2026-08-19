@@ -78,7 +78,7 @@ function LlmOnboarding() {
     <>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
         <div className="mb-3 rounded-full bg-muted p-3">
-          <Bot className="h-6 w-6" />
+          <Bot className="h-6 w-6 text-muted-foreground" />
         </div>
         <h3 className="text-lg font-semibold">{t("llm.onboarding.title")}</h3>
         <p className="mt-1 text-sm text-muted-foreground">

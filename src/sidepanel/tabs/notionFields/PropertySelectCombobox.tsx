@@ -21,9 +21,13 @@ interface Props {
   schema: NotionPropertySchema;
   value: string[];
   onChange: (next: string[]) => void;
+  // FieldRow의 <label>은 htmlFor로 안 붙고, role="combobox" 버튼은 accname이 contents
+  // 우선이라 <label for>로는 이름이 안 생긴다 — 필요한 필드가 직접 붙인다(FieldCombobox 선례).
+  // 필수로 둔다: optional이면 다음 소비처가 조용히 빠뜨려 이름 없는 콤보가 다시 생긴다.
+  ariaLabel: string;
 }
 
-export function PropertySelectCombobox({ schema, value, onChange }: Props) {
+export function PropertySelectCombobox({ schema, value, onChange, ariaLabel }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const options = schema.options ?? [];
@@ -40,6 +44,7 @@ export function PropertySelectCombobox({ schema, value, onChange }: Props) {
         <Button
           variant="outline"
           role="combobox"
+          aria-label={ariaLabel}
           aria-expanded={open}
           className="w-full min-w-0 justify-between font-normal"
         >
