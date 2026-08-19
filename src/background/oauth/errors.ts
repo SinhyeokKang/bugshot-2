@@ -57,9 +57,13 @@ export interface OAuthErrorOptions {
   // 인증 창을 띄우는 단계에서 실패한 경우(로드 실패·타임아웃·동시 flow 등). notConfigured와
   // 같은 이유로 "세션 만료"와 구분한다 — 최초 연결 시도라 만료될 토큰 자체가 없다.
   launchFailed?: boolean;
+  // 저장된 토큰의 갱신이 소진된 경우에만 켠다. 401 레인(= 사이드패널의 onOAuthExpired
+  // 재로그인 안내)은 이 플래그로만 탄다 — 기본값이던 시절엔 최초 연결 실패가 전부
+  // "세션 만료"로 나갔다.
+  refreshFailed?: boolean;
   // 집계 전용 축. 위 3축이 표현 못 하는 사유(창 닫기 vs 제공자 거부, 4xx vs 5xx)를 가른다.
-  // serializeOAuthError의 status 레인에는 관여하지 않는다 — 축을 늘려 401 fallthrough를
-  // 우회하려는 게 아니다(2026-07-30 회고: 근본 해법은 401 기본값을 뒤집는 것이고 별건).
+  // serializeOAuthError의 status 레인에는 관여하지 않는다 — 그건 위 refreshFailed가
+  // 가른다(2026-07-30 회고가 "근본 해법"으로 남겨둔 401 기본값 반전이 그것이다).
   reason?: ConnectReason;
 }
 
@@ -67,6 +71,7 @@ export class OAuthError extends Error {
   cancelled: boolean;
   notConfigured: boolean;
   launchFailed: boolean;
+  refreshFailed: boolean;
   platform?: PlatformId;
   reason?: ConnectReason;
   constructor(message: string, options: OAuthErrorOptions = {}) {
@@ -75,6 +80,7 @@ export class OAuthError extends Error {
     this.cancelled = options.cancelled ?? false;
     this.notConfigured = options.notConfigured ?? false;
     this.launchFailed = options.launchFailed ?? false;
+    this.refreshFailed = options.refreshFailed ?? false;
     this.platform = options.platform;
     this.reason = options.reason;
   }

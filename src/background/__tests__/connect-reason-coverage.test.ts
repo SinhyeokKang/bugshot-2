@@ -126,4 +126,48 @@ describe("연결 실패 레인의 reason 태깅 전수", () => {
       /reason:\s*"profile_fetch_failed"/,
     );
   });
+
+  // ⑤ 401 레인. serializeOAuthError는 refreshFailed가 켜진 OAuthError만 401(= 사이드패널
+  //    onOAuthExpired 재로그인 안내)로 내보낸다. 그 태깅이 빠지면 만료가 400으로 내려가
+  //    배너가 통째로 사라지고, 반대로 최초 연결에 붙으면 연동한 적 없는 사용자에게 배너가 뜬다.
+  //    지점을 열거하지 않는 게 핵심이다 — refresh는 전부 refreshHook을 지나므로 runner의
+  //    래핑 2곳이, 최초 연결은 각 oauth 파일의 getMyself가 경계다.
+  describe("401 레인 태깅", () => {
+    const RUNNER = readFileSync(resolve(BG, "lib/createRefreshRunner.ts"), "utf8");
+
+    it("refreshHook 호출이 전부 inRefreshLane을 지난다", () => {
+      const calls = RUNNER.match(/refreshHook!?\(/g) ?? [];
+      const wrapped = RUNNER.match(/inRefreshLane\(\(\) => refreshHook!?\(/g) ?? [];
+      expect(calls.length, "refreshHook 호출 지점을 못 찾았다").toBeGreaterThan(0);
+      expect(wrapped.length).toBe(calls.length);
+    });
+
+    // 최초 연결의 프로필 조회는 refresh 레인 태깅을 되벗겨야 한다. 플랫폼마다 반환 필드가
+    // 달라 문구로 못 묶으므로 파일별로 못박는다.
+    // runner를 안 쓰는 두 경로는 래핑 지점이 자기 파일에 있다 — 열거를 피할 수 없는
+    // 예외라 여기 못박는다. jira는 refreshOnce 전체를 감싸 갱신·저장 실패를 함께 덮고,
+    // notion은 refresh 함수가 없어 401 지점을 직접 태깅한다.
+    it.each([
+      ["jira-api.ts", /inRefreshLane\(async \(\) => \{/, "refreshOnce 전체를 refresh 레인으로"],
+      ["notion-api.ts", /refreshFailed: true/, "refresh 함수가 없어 401을 직접 태깅"],
+    ])("%s: runner 밖 refresh 레인이 태깅돼 있다", (file, marker, why) => {
+      const src = readFileSync(resolve(BG, file), "utf8");
+      expect(src, `${file}: ${why}`).toMatch(marker);
+    });
+
+    it.each([
+      "github-oauth.ts",
+      "gitlab-oauth.ts",
+      "linear-oauth.ts",
+      "asana-oauth.ts",
+      "notion-oauth.ts",
+    ])("%s: 최초 연결 getMyself가 inConnectLane을 지난다", (file) => {
+      const src = readFileSync(resolve(BG, file), "utf8");
+      const direct = src.match(/(?<!\() *await getMyself\(/g) ?? [];
+      expect(src, `${file}: getMyself 호출이 inConnectLane 밖이다`).toMatch(
+        /inConnectLane\(\(\) => getMyself\(/,
+      );
+      expect(direct, `${file}: 감싸지 않은 getMyself 호출이 남아 있다`).toHaveLength(0);
+    });
+  });
 });

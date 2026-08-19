@@ -1,3 +1,4 @@
+import { inConnectLane } from "@/background/lib/connectLane";
 import { t } from "@/i18n";
 import type { GithubAuth, GithubOAuthAuth } from "@/types/github";
 import { readStoredGithubAuth, writeStoredGithubOAuthTokens } from "@/lib/settings-storage";
@@ -101,7 +102,7 @@ export async function startGithubOAuth(): Promise<GithubOAuthAuth> {
     viewerLogin: "",
     grantedAt: Date.now(),
   };
-  const me = await getMyself(auth);
+  const me = await inConnectLane(() => getMyself(auth));
   return { ...auth, viewerLogin: me.login, viewerEmail: me.email };
 }
 

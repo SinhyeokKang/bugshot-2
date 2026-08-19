@@ -79,6 +79,8 @@ async function notionFetch<T>(
     // profile_fetch_failed(402~5xx = NotionError)와 other(401)로 갈린다.
     throw new OAuthError(t("notion.oauthExpired"), {
       platform: "notion",
+      // refresh 함수가 없어 401 fallthrough에 기대던 경로 — 반전 후엔 명시 태깅이 필요하다.
+      refreshFailed: true,
       reason: "profile_fetch_failed",
     });
   }

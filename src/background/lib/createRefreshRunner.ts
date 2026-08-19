@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import type { PlatformId } from "@/types/platform";
 import { OAuthError } from "@/background/oauth/errors";
+import { inRefreshLane } from "./connectLane";
 
 const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
 
@@ -27,7 +28,7 @@ export function createRefreshRunner<
     if (auth.kind !== "oauth" || !refreshHook) return auth;
     if (auth.expiresAt == null) return auth;
     if (auth.expiresAt - Date.now() > TOKEN_REFRESH_THRESHOLD_MS) return auth;
-    return refreshHook(auth);
+    return inRefreshLane(() => refreshHook!(auth));
   }
 
   async function runWithAuthRetry<R extends { status: number }>(
@@ -37,13 +38,16 @@ export function createRefreshRunner<
     let cur = await ensureFresh(auth);
     let res = await doFetch(cur);
     if (res.status === 401 && cur.kind === "oauth" && refreshHook) {
-      cur = await refreshHook(cur);
+      cur = await inRefreshLane(() => refreshHook!(cur));
       res = await doFetch(cur);
       if (res.status === 401) {
         // 최초 연결의 getMyself가 401을 받아 여기까지 오면 집계 대상이다. 태깅이 없으면
         // 같은 프로필 조회 레인이 other로 새서 플랫폼별 분포가 어긋난다.
+        // refreshFailed는 refresh 레인 기본값이고, 최초 연결 경로가 inConnectLane으로
+        // 되벗긴다(runner는 두 레인을 구별할 신호가 없다 — connectLane.ts 주석 참조).
         throw new OAuthError(t("oauth.error.refreshExhausted"), {
           platform,
+          refreshFailed: true,
           reason: "profile_fetch_failed",
         });
       }

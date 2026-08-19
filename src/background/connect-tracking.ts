@@ -21,9 +21,10 @@ export function classifyConnectReason(err: unknown): ConnectReason {
     if (err.launchFailed) return "launch_failed";
     return "other";
   }
-  // 토큰 교환 성공 직후의 getMyself 실패. OAuthError로 감싸면 serializeOAuthError의 401
-  // fallthrough에 걸려 최초 연결 사용자에게 "세션이 만료되었습니다"가 뜨므로(2026-07-30
-  // 회고의 2차 함정) duck-typing으로만 읽는다. 이 검사가 아래 문구 매칭보다 **앞이어야**
+  // 토큰 교환 성공 직후의 getMyself 실패. 과거엔 OAuthError로 감싸면 serializeOAuthError의
+  // 401 fallthrough에 걸려 최초 연결 사용자에게 "세션이 만료되었습니다"가 떴다(2026-07-30
+  // 회고의 2차 함정). 그 fallthrough는 이제 없지만(401은 refreshFailed 명시 태깅 전용)
+  // 분류를 status로 읽는 편이 여전히 정확해 duck-typing을 유지한다. 이 검사가 아래 문구 매칭보다 **앞이어야**
   // 한다 — 플랫폼 API 에러의 message는 상류 응답 본문을 이어붙이는데(github-api.ts의
   // `super(message + extractGithubDetail(body))`), 거기 "load failed"가 섞이면 실제
   // 프로필 조회 실패가 network로 뒤바뀐다.
