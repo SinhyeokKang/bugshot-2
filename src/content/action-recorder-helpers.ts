@@ -217,7 +217,14 @@ export function labelForText(el: Element): string | undefined {
   }
   const labelledBy = el.getAttribute("aria-labelledby");
   if (labelledBy) {
-    const ref = cleanText(document.getElementById(labelledBy));
+    // 공백 구분 다중 ID가 정상 문법이다 — 통째로 넘기면 항상 null이고, 그러면
+    // shouldMaskField의 라벨 근거가 사라져 민감 필드가 원문으로 로그에 실린다.
+    const ref = labelledBy
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((id) => cleanText(document.getElementById(id)))
+      .filter(Boolean)
+      .join(" ");
     if (ref) return ref;
   }
   return cleanText(el.closest("label"));
