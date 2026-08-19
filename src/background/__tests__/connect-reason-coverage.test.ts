@@ -62,7 +62,9 @@ describe("연결 실패 레인의 reason 태깅 전수", () => {
     }
   });
 
-  // 200+본문 error 레인은 6개 파일에만 있다 — jira·notion은 그 분기 자체가 없다.
+  // 200+본문 error 레인은 프록시를 경유하는 8개 파일 전부에 있다. jira·notion은 원래
+  // `res.ok`만 봐서 이 분기가 없었고, 그래서 200 + `{error:"invalid_grant"}` 본문이
+  // `access_token: undefined`인 채 저장으로 흘러가 classifyConnectReason이 other로 뭉갰다.
   // 파일당 비공허성 대신 **레인 보유 파일 집합**을 고정한다: 포매팅 드리프트로 한 파일이
   // 스캔에서 빠지면 목록이 어긋나 잡히고, 새 플랫폼이 이 레인을 가지면 목록 갱신을 강제한다.
   const GRANT_LANE_FILES = [
@@ -71,6 +73,8 @@ describe("연결 실패 레인의 reason 태깅 전수", () => {
     "github-oauth.ts",
     "gitlab-oauth.ts",
     "linear-oauth.ts",
+    "notion-oauth.ts",
+    "oauth.ts",
     "slack-oauth.ts",
   ];
 

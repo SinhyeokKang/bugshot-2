@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { setupTabBindings } from "../tab-bindings";
 import {
   shouldPreserveSession,
   resolveTabSwitch,
@@ -583,5 +584,118 @@ describe("deactivatePanelIfCrossOrigin — 활성화 URL 갱신", () => {
     await settle();
     expect(c.isActivated()).toBe(false);
     expect(c.activationUrl()).toBeUndefined();
+  });
+});
+
+// apply()의 read(getActivatedSet)가 write 큐 밖에 있어, activation write가 read와
+// setOptions 사이에 끼면 apply가 stale한 값으로 패널 표시를 되돌린다.
+describe("activation 큐 — apply의 read 직렬화", () => {
+  function stubChrome() {
+    let activated: number[] = [1];
+    let pendingSet: (() => void) | null = null;
+    let failRead = false;
+    const setOptions = vi.fn(() => Promise.resolve());
+    const listeners: Record<string, ((...args: never[]) => unknown)[]> = {};
+    const on = (name: string) => ({
+      addListener: (fn: (...args: never[]) => unknown) => {
+        (listeners[name] ??= []).push(fn);
+      },
+    });
+
+    vi.stubGlobal("chrome", {
+      action: { onClicked: on("clicked") },
+      tabs: {
+        onActivated: on("activated"),
+        onUpdated: on("updated"),
+        onRemoved: on("removed"),
+        get: vi.fn(() => Promise.resolve({ id: 1 })),
+      },
+      windows: { onRemoved: on("winRemoved") },
+      webNavigation: { onCommitted: on("committed"), onBeforeNavigate: on("beforeNavigate") },
+      runtime: { onMessage: on("message"), onConnect: on("connect") },
+      sidePanel: { setOptions, open: vi.fn(() => Promise.resolve()) },
+      storage: {
+        session: {
+          get: vi.fn((key: string) => {
+            if (failRead && key === "sidePanel:activated") {
+              failRead = false;
+              return Promise.reject(new Error("session read failed"));
+            }
+            return Promise.resolve(
+              key === "sidePanel:activated" ? { "sidePanel:activated": activated } : {},
+            );
+          }),
+          // 커밋을 보류시켜 "write는 시작됐지만 아직 안 끝난" 창을 만든다.
+          set: vi.fn((obj: Record<string, number[]>) =>
+            new Promise<void>((resolve) => {
+              pendingSet = () => {
+                if (obj["sidePanel:activated"]) activated = obj["sidePanel:activated"];
+                resolve();
+              };
+            }),
+          ),
+          remove: vi.fn(() => Promise.resolve()),
+        },
+      },
+    });
+    return {
+      setOptions,
+      listeners,
+      flushSet: () => pendingSet?.(),
+      failNextRead: () => {
+        failRead = true;
+      },
+      activatedNow: () => activated,
+    };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("먼저 큐에 든 비활성화 write가 끝난 뒤 apply가 읽는다 (stale read로 패널을 되살리지 않는다)", async () => {
+    const c = stubChrome();
+    setupTabBindings();
+    const onRemoved = c.listeners["removed"][0] as (id: number, info: { windowId: number }) => void;
+    const onUpdated = c.listeners["updated"][0] as (
+      id: number,
+      info: { status?: string; url?: string },
+      tab: unknown,
+    ) => void;
+
+    onRemoved(1, { windowId: 1 });
+    onUpdated(1, { status: "complete" }, { id: 1 });
+    c.flushSet();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    const enabling = c.setOptions.mock.calls.filter(
+      (call) => (call[0] as { enabled?: boolean }).enabled === true,
+    );
+    expect(enabling).toHaveLength(0);
+  });
+
+  // 큐 대입에 `.catch(() => {})` 관용구를 안 쓰면 apply 한 번의 reject가 이후 모든
+  // activation write를 무음 사망시킨다 — P2 수정이 P0급 실패를 심는 경로.
+  it("apply가 reject해도 이후 activation write가 계속 동작한다", async () => {
+    const c = stubChrome();
+    setupTabBindings();
+    const onUpdated = c.listeners["updated"][0] as (
+      id: number,
+      info: { status?: string },
+      tab: unknown,
+    ) => void;
+    const onClicked = c.listeners["clicked"][0] as (tab: unknown) => void;
+
+    c.failNextRead();
+    onUpdated(1, { status: "complete" }, { id: 1 });
+    await new Promise((r) => setTimeout(r, 0));
+
+    onClicked({ id: 2, url: "https://example.com" });
+    await new Promise((r) => setTimeout(r, 0));
+    c.flushSet();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(c.activatedNow()).toContain(2);
   });
 });

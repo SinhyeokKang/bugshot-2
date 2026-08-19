@@ -182,3 +182,27 @@ describe("submitToClickup — 인라인 이미지", () => {
     expect(replaceInlineRefs).not.toHaveBeenCalled();
   });
 });
+
+describe("submitToClickup 업로드 판별자", () => {
+  it("판별자 형태에서 성공분은 첨부되고 실패분만 실패로 판정된다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "clickup.submitIssue") return TASK;
+      if (msg.type === "clickup.uploadFile")
+        return [
+          { ok: true, filename: "logs.html", href: "LOGS_HREF" },
+          { ok: false, filename: "screenshot.png" },
+        ];
+      return undefined;
+    });
+
+    const res = await submitToClickup({
+      ctx: makeCtx(),
+      listId: "l1",
+      images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(res.logsDropped).toBe(false);
+  });
+});
+

@@ -95,14 +95,51 @@ describe("serializeOAuthError ↔ messages 판독부 round-trip", () => {
     expect(getOAuthErrorPlatform(err)).toBe("linear");
   });
 
+  // 기대값 정정: 이 케이스는 플래그 없는 OAuthError가 401로 떨어지던 **버그**를 계약처럼
+  // 굳히고 있었다. 401 레인은 이제 명시 플래그로만 탄다.
   it("refresh 실패 → isOAuthRefreshFailed + status 401 + platform 일치", () => {
     const { status, body } = serializeOAuthError(
-      new OAuthError("expired", { platform: "notion" }),
+      new OAuthError("expired", { platform: "notion", refreshFailed: true }),
     );
     expect(status).toBe(401);
     const err = new BgError("expired", status, body);
     expect(isOAuthRefreshFailed(err)).toBe(true);
     expect(isOAuthCancelled(err)).toBe(false);
     expect(getOAuthErrorPlatform(err)).toBe("notion");
+  });
+
+  // 🔴 본체: state mismatch·code 부재·토큰 저장 실패 등 **최초 연결 단계** throw가 전부
+  // 기본값으로 401을 달고 나가, 사이드패널이 연동한 적 없는 사용자에게 "세션 만료"를 띄웠다.
+  it("플래그 없는 OAuthError → 400, 만료로 오분류하지 않는다", () => {
+    const { status, body } = serializeOAuthError(
+      new OAuthError("state mismatch", { platform: "github" }),
+    );
+    expect(status).toBe(400);
+    const err = new BgError("state mismatch", status, body);
+    expect(isOAuthRefreshFailed(err)).toBe(false);
+    expect(isOAuthCancelled(err)).toBe(false);
+    expect(getOAuthErrorPlatform(err)).toBe("github");
+  });
+
+  it("취소·설정누락·창실패가 refreshFailed보다 우선한다", () => {
+    expect(
+      serializeOAuthError(new OAuthError("x", { refreshFailed: true, cancelled: true })).status,
+    ).toBeUndefined();
+    expect(
+      serializeOAuthError(new OAuthError("x", { refreshFailed: true, notConfigured: true })).status,
+    ).toBe(400);
+    expect(
+      serializeOAuthError(new OAuthError("x", { refreshFailed: true, launchFailed: true })).status,
+    ).toBe(400);
+  });
+});
+
+describe("OAuthError.refreshFailed", () => {
+  it("기본값은 false (options bag + ?? false 패턴)", () => {
+    expect(new OAuthError("x").refreshFailed).toBe(false);
+  });
+
+  it("옵션으로 켤 수 있다", () => {
+    expect(new OAuthError("x", { refreshFailed: true }).refreshFailed).toBe(true);
   });
 });

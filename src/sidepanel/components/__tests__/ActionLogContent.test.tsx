@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ActionLogContent, NAV_ICON } from "../ActionLogContent";
+import { TONE_TEXT } from "@/lib/log-colors";
 import type { ActionEntry } from "@/types/action";
 
 const VERB_TEMPLATES: Record<string, string> = {
@@ -161,4 +162,29 @@ describe("KindIcon — navigation 유형별 아이콘", () => {
       expect(iconClass("f")).toContain("lucide-map-pin");
     },
   );
+});
+
+// POSTMORTEM 2026-08-14가 이월로 남긴 항목 — 이 파일이 로컬 text-sky-600·text-red-700을
+// 들고 있어 TONE_TEXT와 값이 갈렸다(같은 파일 :69는 이미 TONE_TEXT.blue를 쓴다).
+describe("ActionLogContent — 톤 단일 출처", () => {
+  const TAG_ENTRY: ActionEntry[] = [
+    {
+      id: "t1",
+      kind: "click",
+      timestamp: 1000,
+      pageUrl: "https://example.com/",
+      tagName: "button",
+      tagType: "submit",
+    },
+  ];
+
+  it("태그명·타입값이 TONE_TEXT 클래스를 쓴다", () => {
+    render(<ActionLogContent entries={TAG_ENTRY} />);
+    const tag = document.querySelector('[data-testid="action-tag"]') as HTMLElement;
+    const classes = Array.from(tag.querySelectorAll("span")).map((el) => el.className);
+
+    expect(classes).toContain(TONE_TEXT.blue);
+    expect(classes).toContain(TONE_TEXT.amber);
+    expect(classes).toContain(TONE_TEXT.red);
+  });
 });

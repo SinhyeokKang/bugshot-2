@@ -199,3 +199,50 @@ describe("submitToGithub requireMediaUpload (승격 보호)", () => {
     expect(submitCallCount()).toBe(1);
   });
 });
+
+
+// 업로드 결과가 판별자 없이 nullable 필드 truthiness로 성공/실패를 갈랐다. 네 플랫폼이
+// 필드명도 제각각(href/url/gid)이라 소비처가 조용히 틀릴 수 있다 — { ok } 판별자로 통일한다.
+// github은 이미 href를 직접 읽어 이 케이스가 지금도 green이다(핸들러 반환 형태 변경의
+// 회귀 가드로 둔다 — ok:false에 href를 실어 보내는 실수를 잡는다).
+describe("submitToGithub 업로드 판별자", () => {
+  it("판별자 형태에서 1건 실패해도 나머지가 첨부되고 실패분만 실패로 판정된다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "github.uploadFiles")
+        return [
+          { ok: true, filename: "shot.webp", href: "IMG_HREF" },
+          { ok: false, filename: "logs.html" },
+        ];
+      if (msg.type === "github.submitIssue") return ISSUE;
+      return undefined;
+    });
+
+    const res = await submitToGithub({
+      ctx: makeCtx(),
+      owner: "o",
+      repo: "r",
+      images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(res.logsDropped).toBe(true);
+  });
+
+  it("판별자 형태에서 전부 성공이면 logsDropped: false", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "github.uploadFiles")
+        return [{ ok: true, filename: "logs.html", href: "LOGS_HREF" }];
+      if (msg.type === "github.submitIssue") return ISSUE;
+      return undefined;
+    });
+
+    const res = await submitToGithub({
+      ctx: makeCtx(),
+      owner: "o",
+      repo: "r",
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(res.logsDropped).toBe(false);
+  });
+});

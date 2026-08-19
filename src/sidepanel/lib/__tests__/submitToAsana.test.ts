@@ -326,3 +326,31 @@ describe("submitToAsana", () => {
     expect(res.logsDropped).toBe(false);
   });
 });
+
+describe("submitToAsana 업로드 판별자", () => {
+  it("판별자 형태에서 성공분의 gid로 본문을 갱신하고 실패분은 건너뛴다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "asana.submitIssue") return TASK;
+      if (msg.type === "asana.uploadFiles")
+        return [
+          { ok: true, filename: "screenshot.png", gid: "att1" },
+          { ok: false, filename: "logs.html" },
+        ];
+      return undefined;
+    });
+
+    await submitToAsana({
+      ctx: makeCtx(),
+      workspaceGid: "W",
+      projectGid: "P",
+      images: [{ filename: "screenshot.png", dataUrl: "data:," }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    const update = sendBg.mock.calls.find(
+      ([m]) => (m as { type: string }).type === "asana.updateTaskNotes",
+    )?.[0] as { htmlNotes: string } | undefined;
+    expect(update?.htmlNotes).toContain("att1");
+  });
+});
+

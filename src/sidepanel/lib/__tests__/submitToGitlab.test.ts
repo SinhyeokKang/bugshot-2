@@ -244,3 +244,27 @@ describe("submitToGitlab logsDropped", () => {
     expect(res.logsDropped).toBe(false);
   });
 });
+
+
+describe("submitToGitlab 업로드 판별자", () => {
+  it("판별자 형태에서 성공분은 첨부되고 실패분만 실패로 판정된다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "gitlab.uploadFiles")
+        return [
+          { ok: true, filename: "logs.html", href: "LOGS_HREF" },
+          { ok: false, filename: "shot.webp" },
+        ];
+      if (msg.type === "gitlab.submitIssue") return ISSUE;
+      return undefined;
+    });
+
+    const res = await submitToGitlab({
+      ctx: makeCtx(),
+      projectId: 7,
+      images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(res.logsDropped).toBe(false);
+  });
+});
