@@ -323,6 +323,14 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **감싸면 안 되는 자리**: `prepareUpload.ts`의 업로드 실패 토스트는 UI라 화면 언어가 정답이다. "일관성 있게" 감싸지 말 것.
 
+**복사본 ≠ 제출본 (`MarkdownContext.forClipboard`).** `buildIssueMarkdown`/`buildIssueHtml`은 **제출 본문을 만들지 않는다** — 호출부가 둘뿐이고 둘 다 제출이 아니다: `PreviewPanel`(클립보드 복사)과 `buildReportData`(logs.html 내부 리포트). 제출 본문은 플랫폼별 빌더 7개가 따로 만든다. 그래서 이 두 함수에는 **첨부가 없는 표면**이 섞여 있고, 축이 없던 동안 복사본이 `md.imageAttached`·`logSummary.logs.lead`로 **존재하지 않는 파일을 가리켰다**(제출에선 참이라 여태 안 걸렸다).
+
+두 호출부의 요구가 **상반된다**: 복사본은 인라인 이미지를 `data:` URI로 담으면 안 되고(하나만 있어도 Notion·Slack·Jira가 붙여넣기를 **통째로** 거부해 본문 전체가 유실된다 — 크기 무관, 실측), logs.html은 **단일 파일이라 `data:`가 유일한 렌더 수단**이다. 그래서 축은 `PreviewPanel`만 켜고 `buildReportData`는 끈 채 둔다. 클라이언트 온리라 대신 쓸 호스팅 URL이 없어서 복사로 이미지를 전달할 방법은 원리적으로 없다(제출은 플랫폼 API 업로드라 무관).
+
+축을 **optional로 두는 게 load-bearing이다** — `bodyLocale`이 required인 것과 방향이 반대다. `emitMarkdownLogSummary`를 공유하는 제출 빌더 4개(linear·clickup·markdown·asana)가 축을 싣지 않으므로 **부재 = 현행 동작**이어야 하고, 새 호출부가 잊으면 회귀가 아니라 현행으로 떨어진다(fail-safe). 반대로 `bodyLocale`은 미지정이 무음 폴백을 만들어 required가 정답이었다 — **어느 쪽이 fail-safe인지가 optional/required를 결정한다.**
+
+인라인 이미지 치환(`placeholderSectionImages`)을 **진입점의 `forClipboardSections`에서 하는 이유가 이 섹션의 주제**다. 호출부에서 훅 기반 번역기로 문구를 만들면 화면 언어가 박혀 `bodyLocale`과 갈린다. 래퍼 안에서 번역하면 본문 언어를 따라가고, 덕분에 `resolveInlineImages.ts`는 문구를 인자로 받아 i18n 비의존으로 남아 위 소스 스캔의 분류 대상이 아니다. 그물은 `attachmentPhraseScan.test.ts`(첨부 문구를 쓰는 파일이 축 경유/제출 전용 면제로 분류되지 않으면 red, 죽은 면제도 red)와 `e2e/freeform-draft.spec.ts`(복사본의 `data:image` 부재를 편집 화면의 `img` 가시성과 **함께** 단언 — 한쪽만 보면 어느 절반이든 조용히 회귀)다. 상세: POSTMORTEM 2026-08-19.
+
 **background realm은 빌더 래핑이 안 닿는다.** `currentLocale`은 realm마다 별도 인스턴스이고 background는 `i18n/bg-init.ts`가 화면 언어로 세팅한다. 그런데 제출물 본문 문자열을 background에서 만드는 자리가 셋 있다 — Jira 스냅샷 행 라벨(`styleTable.snapshot`)·Jira 영상 폴백 문단(`md.videoAttached`)·Notion 첨부 섹션 제목(`notion.attachmentSection`, **빌더에 아예 없고 여기서만 생성된다**). 그래서 submit payload에 `bodyLocale`을 optional로 실어 보내고, 그 realm의 동기 구간을 `messages.ts:buildJiraDescriptionContent`·`notion-api.ts:expandPageBlocks`로 뽑아 다시 감싼다. 안 메우면 영어 본문 안에 한국어 한 줄이 섞인다.
 
 **단, background 진입은 `resolveBodyLocale(payload.bodyLocale, getLocale())`로 받는다** — 사이드패널 안의 "정규화하지 않는다"와 갈리는 지점이다. 여기엔 `chrome.runtime` 메시지 경계가 하나 더 있고 그 게이트(`BG_REQUEST_TYPES`)는 `type`만 보므로, 누락(구버전 메시지)뿐 아니라 오염값도 이 realm까지 온다. 통과시키면 `locales[bad]`가 undefined라 `t()`가 죽는데, **Jira 경로의 throw는 `submitIssue`의 `try/catch`가 삼켜서 placeholder 센티널이 남은 본문이 그대로 등록된다**(무음 손상). 한 호출로 둘 다 흡수한다.
