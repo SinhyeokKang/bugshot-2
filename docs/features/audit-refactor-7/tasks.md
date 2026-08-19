@@ -316,17 +316,17 @@
 - **작업 내용**: html을 `<html lang="en-US">`(런타임 `BCP47.en`과 일치)로 두고, 로케일 확정 지점에서 `document.documentElement.lang = BCP47[locale]`.
 - **주의**: **`useThemeEffect`에 넣지 않는다.** 그 훅은 `theme` 단일 축만 구독하고 `system`일 때 `matchMedia`를 등록/해제하므로(`:17-20`) locale을 섞으면 **로케일 전환마다 matchMedia를 재구독**한다. 형제 훅으로 신설한다. `BCP47`(`locales.ts:17-20`)은 **폴백 금지 테이블**이라 `Record<LocaleMode, …>`를 유지한 채 소비한다.
 - **검증**:
-  - [ ] **신규 테스트 파일 생성** ("로케일이 en이면 `documentElement.lang === "en-US"`", "ko면 `ko-KR`", "전환 시 따라 바뀐다") → green
-  - [ ] `src/i18n/locales.ts` 무변경 (런타임 import 0 규칙 유지 — `locale-registry.test.ts` green)
-  - [ ] `useThemeEffect.ts` 무변경
+  - [x] **신규 테스트 파일 생성** (en → `en-US` / ko → `ko-KR` / 전환 추종) → green
+  - [x] `src/i18n/locales.ts` 무변경 (`locale-registry.test.ts` green)
+  - [x] `useThemeEffect.ts` 무변경 — 형제 훅으로 신설
 
 ### Task 10-2: log-viewer 문서 언어 반영 (G10 · #14)
 
 - **변경 대상**: `src/log-viewer/index.html:2`, log-viewer 엔트리(`main.tsx`)
 - **작업 내용**: `log-viewer/i18n.ts:3`이 이미 `../i18n/locales`를 상대경로로 끌고 있고 `main.tsx:10-15`에 `syncDarkClass` 선례가 있으므로 같은 계층에 lang 세팅을 둔다.
 - **검증**:
-  - [ ] `src/log-viewer/__tests__/` 무회귀
-  - [ ] `pnpm test` green (pretest가 `build:log-viewer`를 자동 실행한다 — 별도 빌드 불필요)
+  - [x] `src/log-viewer/__tests__/` 무회귀
+  - [x] `pnpm test` green. 해석된 로케일을 `i18n.ts`가 `viewerLocale`로 export하고 `main.tsx`가 `syncDarkClass` 옆에서 `BCP47[viewerLocale]`을 세운다(사전 선택과 같은 값이어야 하므로 재계산하지 않는다)
 
 ### Task 10-3: log-viewer i18n 스캐너 사각 제거 (G10 · #15 #16)
 
@@ -336,9 +336,10 @@
   - #16: 삼항을 밖으로 빼서 `t()` 인자를 리터럴로.
 - **주의**: **Task 10-2와 병렬 가능하다.** 원안의 "10-2의 `build:log-viewer` 산출물이 있어야 테스트가 돈다"는 틀렸다 — 이 테스트는 `dist-log-viewer`를 import하지 않고(`node:fs`는 `src/` 소스 스캔용 `:60-61`), pretest가 매번 빌드한다.
 - **검증**:
-  - [ ] 6개 키(`timeline.filter.*` 4 + `actionLog.verb.toggle.*` 2)가 `referencedKeys`에 들어오는지 **자기검증 앵커** 케이스로 고정 → green (기존 앵커 `:120`·`:195`와 같은 방식)
-  - [ ] `src/log-viewer/__tests__/i18n.test.ts` 전체 green
-  - [ ] 화면 문구 무변경
+  - [x] 6개 키가 `referencedKeys`에 들어오는지 자기검증 앵커로 고정 → green
+  - [x] `src/log-viewer/__tests__/i18n.test.ts` 전체 green
+  - [x] 화면 문구 무변경
+  - [x] **함정 1건**: 주석에 `t("literal")`을 예시로 쓰면 스캐너가 그걸 키로 잡아 사전 대조가 red가 된다 — 설명 문구에서 그 형태를 뺐다
 
 ### Task 11-1: Linear 상태 빈 목록 안내 (G11 · #17)
 
@@ -346,9 +347,10 @@
 - **작업 내용**: `JiraStatusBadge.tsx:100-103`의 형태를 복사(`px-3 py-2 text-sm text-muted-foreground`). 신규 키 `issueList.linear.noStates` — **반경은 정확히 2파일 3편집**이다. log-viewer 복제 사전(`issueList.*` 0건)·`public/_locales/`(manifest 4키)는 대상 아니다.
 - **주의**: **`:42`의 `.catch(() => setStates([]))` 때문에 조회 실패도 이 분기로 떨어진다** — 즉 네트워크·권한 실패에도 "상태가 없습니다"가 뜬다. 문구는 1개로 유지하되(Jira `:100`·Notion `:103`도 같은 구조라 에러/빈목록 분리는 3곳 계열 변경) **이 사실을 결과에 적고** prd "검수 신설"과 같은 급의 후보로 남긴다.
 - **검증**:
-  - [ ] `locales.test.ts` green (ko/en 대칭 — 훅이 자동 실행한다)
-  - [ ] **신규 테스트 파일**: "states가 빈 배열이면 안내 문구" / "조회 실패도 같은 문구가 뜬다(현 구조상)" / "로딩 중엔 스피너" / "정상 목록이면 항목 렌더" → green
-  - [ ] Asana·Clickup·Github·Gitlab 배지는 정적 `options`라 대상 아님을 확인
+  - [x] `locales.test.ts` green (ko/en 대칭)
+  - [x] **신규 테스트 파일** 4케이스 green
+  - [x] Asana·Clickup·Github·Gitlab 배지는 정적 `options`라 대상 아님
+  - [x] **기록**: `.catch(() => setStates([]))` 때문에 네트워크·권한 실패도 "상태가 없습니다"로 떨어진다. Jira `:100`·Notion `:103`도 같은 구조라 에러/빈목록 분리는 3곳 계열 변경 — 다음 배치 후보
 
 ### Task 11-2: `PropertiesFieldset` FieldRow 이행 + 접근 이름 (G11 · #18)
 
@@ -358,9 +360,9 @@
   2. **`htmlFor`는 쓰지 않는다.** `PropertySelectCombobox` Props(`:20-24`)에 `id`가 없어 그대로 채우면 **없는 id를 가리키는 label**이 되고, `role="combobox"` 버튼은 accname이 contents 우선이라 `<label for>`가 이름을 못 준다. **저장소가 이미 이 결론에 도달했다** — `jiraFields/FieldCombobox.tsx:52-54` 주석("FieldRow의 `<label>`은 htmlFor로 연결되지 않아 콤보에 접근 이름이 없다 — 필요한 필드가 직접 붙인다") + `ProjectField.test.tsx:151-159`가 고정. → **`ariaLabel` prop을 추가**해 트리거 `Button`에 입힌다.
   3. **부모 `:29`의 `gap-3`을 `gap-4`로** 맞춘다 — 형제 폼이 `gap-4`(`NotionIssueFields.tsx:108`)라 Notion select 속성 행만 4px 좁다. FieldRow 이행은 행 내부만 바꿔 이 비대칭을 안 고친다.
 - **검증**:
-  - [ ] 렌더 결과 DOM이 기존과 동일(`ariaLabel`·`gap` 변경분 제외) — **기존 테스트가 없으므로 이번에 신규 케이스로 고정한다**
-  - [ ] **"각 select 트리거가 속성명을 접근 이름으로 갖는다"** → green (`getByRole("combobox", { name })`). 원안의 "라벨 클릭 시 포커스 이동"은 달성 불가라 대체
-  - [ ] `pnpm test` green
+  - [x] 렌더 결과 DOM 고정 (신규 테스트 3케이스)
+  - [x] "각 select 트리거가 속성명을 접근 이름으로 갖는다" → green
+  - [x] `pnpm test` green
 
 ### Task 11-3: `JsonTreeViewer` 클릭 요소 2곳 키보드 접근 (G11 · #19)
 
@@ -370,10 +372,11 @@
   - 기존 className과 자리맞춤 `<span className="inline-block h-4 w-4 shrink-0" />`를 유지하되 **`w-full text-left`를 추가**한다 — button은 `display:flex`를 줘도 shrink-to-fit이라 클릭 영역이 텍스트 폭으로 좁아진다.
 - **주의**: **기존 `JsonTreeViewer.test.tsx:20`("행에 임의 크기 클래스가 남지 않는다")이 red가 될 수 있다** — button은 UA font를 상속하지 않는다. `font-[inherit]`·`text-inherit`이 필요한지 확인하고, 테스트를 갱신했다면 커밋 메시지에 적는다(그물이 정상 작동한 것).
 - **검증**:
-  - [ ] `JsonTreeViewer.test.tsx`에 "Enter/Space로 '더 보기'가 동작한다" / "'모두 보기'도 키보드로 동작한다" → green
-  - [ ] 기존 5케이스 green (`:20` 갱신 여부를 결과에 기록)
-  - [ ] `grep -n "onClick" src/sidepanel/components/JsonTreeViewer.tsx` → `<button>` 밖의 클릭 핸들러 0건
-  - [ ] 시각 변화 없음 (className 유지 + `w-full text-left`만 추가)
+  - [x] Enter/Space 케이스 2개 green
+  - [x] 기존 5케이스 green — **`:20`은 갱신 불필요**했다(그 케이스의 픽스처가 truncate 임계를 안 넘어 `text-xs` span 자체가 안 뜬다)
+  - [x] `<button>` 밖의 클릭 핸들러 0건
+  - [x] 시각 변화 없음 (`w-full text-left` 추가만 — `font-[inherit]`은 Tailwind preflight가 이미 button에 `font-family: inherit`을 깔아 무효라 뺐다)
+  - [x] **테스트 픽스처 정정**: `ARRAY_CHUNK_SIZE`가 100이라 "더 보기"를 띄우려면 배열이 100개를 넘어야 한다(초안 60개는 잘리지 않아 공허했다)
 
 ### Task 11-4: 빈 상태 아이콘 muted (G11 · #20)
 
@@ -381,8 +384,9 @@
 - **작업 내용**: `<Bot className="h-6 w-6" />` → `h-6 w-6 text-muted-foreground`. **실측 지배형은 사이드패널 18곳 + log-viewer 2곳이고 예외가 0이다**(원안의 "다른 6곳"은 과소 계수).
 - **부수 기록**: `LlmOnboarding` 자체가 공용 `EmptyState`(`IssueTab.tsx:757-770`)의 손복제다(`mx-auto`/max-width 누락, `mt-5` vs `mt-4`) — #18과 같은 계열이지만 **이번엔 색만 고치고** 이행은 다음 배치 후보로 결과에 적는다.
 - **검증**:
-  - [ ] `grep -rn 'className="h-6 w-6"' src/sidepanel/` → 빈 상태 아이콘 잔존 0건 — **검사 범위를 `settings/`가 아니라 사이드패널 전역으로** 넓힌다
-  - [ ] 라이트·다크 양쪽 대비 확인 (수동)
+  - [x] `grep -rn 'className="h-6 w-6"' src/sidepanel/` → 0건 (전역 검사)
+  - [ ] 라이트·다크 양쪽 대비 확인 (수동) — 미실행. `text-muted-foreground`는 빈 상태 아이콘의 지배형이라 신규 대비 축이 아니다
+  - [x] **부수 기록**: `LlmOnboarding` 자체가 공용 `EmptyState`의 손복제다(`mx-auto`/max-width 누락, `mt-5` vs `mt-4`) — 이번엔 색만 고쳤고 이행은 다음 배치 후보
 
 ### Task 11-5: `DomTreeDialog` 예외 등재 (G11 · #21 드랍 처리)
 
@@ -390,9 +394,9 @@
 - **작업 내용**: **코드는 안 고친다.** #21은 검수에서 드랍됐다(prd "검수 드랍"). 대신 **DESIGN.md의 raw `<button>` 예외에 5번째 계열 "sticky 헤더의 클릭 가능한 제목"을 등재**해 항목 자체를 소멸시킨다. 현재 등재는 2계열(`:204` 입력 내 클리어 X, `:205` `TreeChevronButton`)뿐이고 design 원안이 인용한 "4계열"은 **문서에 없던 근거**였다.
   등재 사유를 함께 적는다: `Button variant="ghost"`로 감싸면 `inline-flex h-9 px-4`가 `block w-full truncate text-2xl`과 충돌해 **`truncate`가 파손**되고(익명 flex item이 되어 하드 클립) 행 높이 +4px·텍스트 폭 −32px, hover가 `opacity-70`→면색 블록이 된다. 이행하려면 override 4종이 원본 className보다 길어진다.
 - **검증**:
-  - [ ] `DomTreeDialog.tsx` diff 0 (코드 무변경)
-  - [ ] `DESIGN.md`에 5번째 계열 + 사유가 등재됨
-  - [ ] `dom-tree-nav.spec.ts:37`·`dom-tree-overflow.spec.ts:30` green (무변경이므로 자동)
+  - [x] `DomTreeDialog.tsx` diff 0
+  - [x] `DESIGN.md`에 5번째 계열 + 사유 등재
+  - [x] `dom-tree-nav`·`dom-tree-overflow` 무변경
 
 ### Task 12-1: `setAnnotationTool` 시그니처 축소 (G12 · #32)
 
@@ -402,19 +406,19 @@
   - **호출부는 2곳이다** — `picker.ts:328-333`과 **`annotation.ts:186`(`setAnnotationTool(null, null)`)**. 원안의 "유일 호출부"는 틀렸다.
   - **동명 심볼이 3개다** — `content/annotation.ts:251`(대상)·`sidepanel/annotation-control.ts:17`(메신저)·`store/editor-store.ts:292`(store action). grep 검증 시 오탐 주의. 메시지 형태(`annotation.setTool{tool, color, strokeWidth, opacity}`)는 **안 바뀐다**.
 - **검증**:
-  - [ ] `pnpm typecheck` green
-  - [ ] `grep -rn "setAnnotationTool(" src/content/` → 호출 2곳 모두 단일 인자
-  - [ ] `editor-store.test.ts:247,1664-1684` green — **단 이건 store 사본을 테스트하므로 이 변경을 커버하지 않는다**(그 사실을 결과에 적는다)
-  - [ ] **수동(로드베어링)**: 실제 페이지에서 pen·rect·highlight 전환 + off (캔버스라 유닛으로 못 잡는다)
+  - [x] `pnpm typecheck` green
+  - [x] `grep -rn "setAnnotationTool(" src/content/` → 호출 2곳 모두 단일 인자
+  - [x] `editor-store.test.ts` green — **store 사본을 테스트하므로 이 변경을 커버하지 않는다**
+  - [ ] **수동(로드베어링)**: 실제 페이지에서 pen·rect·highlight 전환 + off — 미실행. 캔버스라 유닛으로 못 잡는다
 
 ### Task 12-2: `readErrorBody` 테스트 (G12 · #33)
 
 - **변경 대상**: `src/background/lib/__tests__/readErrorBody.test.ts`(신규)
 - **작업 내용**: **4갈래** 고정 — JSON 본문 → 파싱된 객체 / 비-JSON → 원문 문자열 / `res.text()` 자체 throw → `undefined` / **빈 본문 → `""`**(`JSON.parse("")`가 throw해 원문 fallback을 타는 경로. 원안의 3갈래에 없었다).
 - **검증**:
-  - [ ] 4케이스 green
-  - [ ] 소비처 5파일(`github-api.ts:120`·`jira-api.ts:142,155`·`clickup-api.ts:75`·`gitlab-api.ts:116`·`asana-api.ts:114`)의 기존 테스트 무회귀
-  - [ ] 로직 스코프 커버리지 순증 확인 (이 파일은 현재 0%)
+  - [x] 4케이스 green — **red가 아니라 characterization이다**(버그가 아니라 테스트가 0이었다)
+  - [x] 소비처 5파일 기존 테스트 무회귀
+  - [x] 로직 스코프 커버리지 순증 (0% → 100%)
 
 ### Task 12-3: import 표기 이탈 + 신규 유입 그물 (G12 · #34)
 
@@ -425,11 +429,11 @@
   2. **매칭은 `from "…"` 형태만** — 동적 import·`vi.mock`·주석을 세면 그물이 아니라 오탐기가 된다.
 - **주의**: **G5(#2 태깅)가 `createRefreshRunner.ts`를 먼저 고친다** — 그룹당 1커밋 정책과 충돌하므로 G5 → G12 순서를 지킨다.
 - **검증**:
-  - [ ] `grep -rn 'from "@/background/' src/background/` → 0건 (`__tests__` 제외)
-  - [ ] `grep -rn 'from "@/types/' src/types/` → 0건
-  - [ ] `src/store`·`src/i18n`은 프로덕션 코드에 이미 0건 → 즉시 green 래칫
-  - [ ] 신규 테스트가 일부러 넣은 위반에 red를 내는지 확인 후 되돌림 (vacuous green 방지)
-  - [ ] 파일명이 `import-convention.test.ts`(kebab-case)인지 — `src/lib/`은 모듈↔테스트 1:1 kebab-case 컨벤션이다
+  - [x] `grep -rn 'from "@/background/' src/background/` → 0건
+  - [x] `grep -rn 'from "@/types/' src/types/` → 0건
+  - [x] `src/store`·`src/i18n` 즉시 green 래칫
+  - [x] **이탈이 2건이 아니라 10건이었다**(background 7 · types 3) — P1이 넣은 `@/background/lib/connectLane` 자기참조 5건 + `oauth/errors` 2건이 추가됐다. 착수 시점 red 2개(background 7 · types 3)가 그 증거
+  - [x] 파일명 kebab-case
 
 ---
 

@@ -201,7 +201,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - 삭제·연결 해제 등 파괴적 액션: idle은 foreground 그대로, **`hover:text-destructive`**(호버 시 빨강)로만 위험을 표현한다.
 - 토글류(`aria-pressed`)도 off의 아이콘은 `foreground`(검정). on/off 대비는 색이 아니라 **배경·테두리**로 표현한다. 두 관용구: ① **약대비** `data-active={active||undefined}` + `aria-pressed` + `cn(..., active && "bg-muted")` — 사이드패널 아이콘 토글의 지배적 패턴. 툴바류는 `TooltipIconButton`(§13)이 단일 출처(캡처 방식 툴바·어노테이션 툴바), 그 외 텍스트 pill은 `OriginFilterBar`·`NetworkLogContent`(둘 다 shadcn `Button size="sm" variant="outline"` + `cn()`), ② **강대비** on=`bg-foreground text-background`, off=`variant="outline"` 기본(`LinkToggle`). ⚠ **on 상태엔 `hover:text-background`를 반드시 함께 준다** — `outline` base의 `hover:text-accent-foreground`가 이기면 어두운 면 위 아이콘이 사라진다. off의 `hover:bg-accent`는 `--accent == --muted`라 옛 `hover:bg-muted`와 결과가 같다.
 - 예외: empty state·로딩 스피너·상태 표시 아이콘은 *버튼이 아니므로* `text-muted-foreground` 허용(장식·저대비 정보).
-- 예외: **raw `<button>`을 쓰는 자리 4계열**은 아래 "raw `<button>` 예외" 표로 옮겼다 — 색 규칙이 아니라 컴포넌트 선택 규칙이라 여기 두면 축이 섞인다.
+- 예외: **raw `<button>`을 쓰는 자리**는 아래 "raw `<button>` 예외" 표로 옮겼다 — 색 규칙이 아니라 컴포넌트 선택 규칙이라 여기 두면 축이 섞인다.
 - 예외: **드래그 핸들**(`SettingsTab`의 본문 구성 재정렬 `GripVertical`)은 idle `text-muted-foreground` + `hover:text-foreground`. 행마다 하나씩 세로로 쌓여 전부 풀 대비면 목록이 시끄럽고, 위 금지의 근거인 "비활성처럼 보임"은 **hover에서 foreground로 올라오는 전이**가 해소한다. 면색 hover(`hover:bg-accent`)는 끄고 글자색 전이만 쓴다(§2의 muted 표면 관용구와 같은 방향). 키보드 어포던스는 `focus-visible:ring-primary`가 별도로 담당.
 
 **관련 변형 컴포넌트**
@@ -214,7 +214,9 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 
 ### raw `<button>` 예외
 
-shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리. **새로 만들기 전 여기 있는지 보고, 없으면 등재부터 한다** — 등재 없이 늘면 다음 감사가 같은 항목을 매번 다시 올린다. 공통 요구: `type="button"`, 접근 이름(텍스트 또는 `aria-label`), 키보드 조작이 마우스와 동등할 것.
+shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에서 판정이 끝난 계열**. 전수 레지스트리가 아니다 — `statusBadges` 트리거·옵션 행(각 8벌)·`LogSeekChip`·`IntegrationsCta`·`StyleEditorPanel`·`DraftingPanel`·log-viewer `TimelineMarkers`는 아직 미판정이라 여기 없다. 새로 raw `<button>`을 만들면 여기 있는 계열인지 보고, 새 계열이면 사유를 함께 등재한다(등재 없이 늘면 다음 감사가 같은 항목을 매번 다시 올린다).
+
+공통 요구: `type="button"`, 접근 이름(텍스트 또는 `aria-label`), 키보드 조작이 마우스와 동등할 것.
 
 | 계열 | 자리 | raw인 이유 | 추가 요구 |
 |---|---|---|---|

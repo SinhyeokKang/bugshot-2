@@ -209,7 +209,7 @@ function ArrayChildren({
       {remaining > 0 && (
         <button
           type="button"
-          className="flex w-full cursor-pointer items-center gap-1 py-0.5 pr-2 text-left text-blue-600 hover:underline dark:text-blue-400"
+          className="flex w-full items-center gap-1 py-0.5 pr-2 text-left text-blue-600 hover:underline dark:text-blue-400"
           style={{ paddingLeft: (depth + 1) * 12 + 4 }}
           onClick={() => setVisibleCount((c) => c + ARRAY_CHUNK_SIZE)}
         >
@@ -247,7 +247,7 @@ function StringRow({
           <div>
             <button
               type="button"
-              className="cursor-pointer text-xs text-foreground hover:underline"
+              className="text-xs text-foreground hover:underline"
               onClick={() => setShowFull(true)}
             >
               {t("json.showAll")}

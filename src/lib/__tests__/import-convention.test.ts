@@ -9,14 +9,14 @@ import { relToRepo, walkSources } from "@/test/sourceFiles";
 //
 // 스코프를 넷으로 좁힌 근거: 지금 0건이라 래칫으로 잠글 수 있는 곳만 넣었다. `sidepanel`(445건)·
 // `log-viewer`(9건)는 이미 혼용이라 즉시 red이고, 예외 목록을 박으면 그물이 아니라 장부가 된다.
-// `components`는 shadcn CLI 생성물이라 우리 컨벤션의 대상이 아니다. `content`·`lib`·`hooks`·
-// `test`도 0건이지만 자기참조가 생길 만한 깊이가 아니라 뺐다 — 필요해지면 여기 추가한다.
+// `components`는 shadcn CLI 생성물이라 우리 컨벤션의 대상이 아니다. `content`·`lib`·`test`도
+// 0건이지만 자기참조가 생길 만한 깊이가 아니라 뺐다 — 필요해지면 여기 추가한다.
 const SCOPES = ["background", "types", "store", "i18n"];
 
 // `from "…"`과 부수효과 `import "…"` 둘 다 센다. 동적 import·`vi.mock`은 제외 — `vi.mock`은
 // SUT와 같은 specifier여야 하므로 거기서 `@/`를 쓰는 건 이탈이 아니라 요구사항이다
 // (`__tests__`는 walkSources가 이미 제외한다).
-export function selfAliasImports(src: string, scope: string): string[] {
+function selfAliasImports(src: string, scope: string): string[] {
   const re = new RegExp(`(?:from\\s+|^\\s*import\\s+)["'](@/${scope}(?:/[^"']*)?)["']`, "gm");
   return [...src.matchAll(re)].map((m) => m[1]);
 }

@@ -68,12 +68,14 @@ describe("LinearStatusBadge 빈 상태", () => {
     expect(screen.queryByText("issueList.linear.noStates")).toBeNull();
   });
 
-  it("로딩 중에는 안내 문구를 먼저 그리지 않는다", async () => {
+  it("로딩 중에는 스피너만 그린다", async () => {
     sendBg.mockReturnValue(new Promise(() => {}));
-    renderBadge();
+    const { container } = renderBadge();
 
     await userEvent.click(screen.getByRole("button"));
 
+    // 문구 부재만 보면 팝오버가 아예 안 열려도 통과한다 — 스피너 존재를 함께 단언한다.
+    expect(container.ownerDocument.querySelector(".animate-spin")).toBeTruthy();
     expect(screen.queryByText("issueList.linear.noStates")).toBeNull();
   });
 });
