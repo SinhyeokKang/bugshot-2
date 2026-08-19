@@ -49,3 +49,56 @@ describe("css-source-cache 에폭 가드", () => {
   });
 
 });
+
+// 실패한 promise가 슬롯에 남으면 세션 내내 같은 rejection을 되돌려주고 isReady가 영영 안 선다 —
+// 픽커가 매 요소 선택마다 빈 raw 캐시로 확정 발화한다.
+describe("css-source-cache 실패 재시도", () => {
+  beforeEach(() => {
+    document.head.innerHTML = "";
+    invalidate();
+  });
+
+  function failNextCollect(): () => void {
+    Object.defineProperty(document, "styleSheets", {
+      configurable: true,
+      get() {
+        throw new Error("styleSheets unavailable");
+      },
+    });
+    return () => {
+      delete (document as unknown as Record<string, unknown>).styleSheets;
+    };
+  }
+
+  it("로드 실패 후 재호출하면 새로 시도한다", async () => {
+    const restore = failNextCollect();
+    const failed = ensureLoaded();
+    restore();
+    await expect(failed).rejects.toThrow("styleSheets unavailable");
+
+    const style = document.createElement("style");
+    style.textContent = ".a { color: red; }";
+    document.head.appendChild(style);
+    await ensureLoaded();
+
+    expect(isCacheReady()).toBe(true);
+  });
+
+  it("invalidate 뒤 실패한 이전 promise가 새 슬롯을 지우지 않는다", async () => {
+    const restore = failNextCollect();
+    const failed = ensureLoaded();
+    restore();
+
+    invalidate();
+    const style = document.createElement("style");
+    style.textContent = ".a { color: red; }";
+    document.head.appendChild(style);
+    const fresh = ensureLoaded();
+
+    await expect(failed).rejects.toThrow("styleSheets unavailable");
+    await fresh;
+
+    expect(ensureLoaded()).toBe(fresh);
+    expect(isCacheReady()).toBe(true);
+  });
+});

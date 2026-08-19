@@ -9,6 +9,7 @@ import {
 afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("scroll capture positioned elements", () => {
@@ -138,5 +139,40 @@ describe("scroll capture positioned elements", () => {
 
     expect(inserted.style.visibility).toBe("hidden");
     endScrollCapture(session);
+  });
+});
+
+describe("scroll capture 응답 보장", () => {
+  it("후보 수집이 throw해도 promise가 resolve된다 (오케스트레이터 무한 대기 방지)", async () => {
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(600);
+    vi.spyOn(window, "scrollX", "get").mockReturnValue(0);
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    // 브라우저 rAF는 콜백 예외를 window.onerror로 보고할 뿐 호출자에게 전파하지 않는다 —
+    // 동기 스텁으로 두면 Promise executor가 예외를 삼켜 reject로 관측돼 실제 행(hang)을 못 재현한다.
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      setTimeout(() => {
+        try {
+          cb(0);
+        } catch {
+          /* 전파하지 않는다 */
+        }
+      }, 0);
+      return 1;
+    });
+    document.body.append(document.createElement("header"));
+    vi.spyOn(window, "getComputedStyle").mockImplementation(() => {
+      throw new Error("computed style unavailable");
+    });
+
+    const { session } = beginScrollCapture();
+    const outcome = await Promise.race([
+      scrollCaptureTo(session, 600, true).then(
+        () => "resolved" as const,
+        () => "rejected" as const,
+      ),
+      new Promise<"hung">((r) => setTimeout(() => r("hung"), 200)),
+    ]);
+
+    expect(outcome).toBe("resolved");
   });
 });
