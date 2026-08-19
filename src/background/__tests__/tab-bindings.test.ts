@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { setupTabBindings } from "../tab-bindings";
 import {
   shouldPreserveSession,
   resolveTabSwitch,
@@ -592,9 +591,9 @@ describe("deactivatePanelIfCrossOrigin — 활성화 URL 갱신", () => {
 describe("activation 큐 — apply의 read 직렬화", () => {
   function stubChrome() {
     let activated: number[] = [1];
-    let pendingSet: (() => void) | null = null;
+    const pendingSets: (() => void)[] = [];
     let failRead = false;
-    const setOptions = vi.fn(() => Promise.resolve());
+    const setOptions = vi.fn((_opts: { enabled?: boolean }) => Promise.resolve());
     const listeners: Record<string, ((...args: never[]) => unknown)[]> = {};
     const on = (name: string) => ({
       addListener: (fn: (...args: never[]) => unknown) => {
@@ -628,10 +627,10 @@ describe("activation 큐 — apply의 read 직렬화", () => {
           // 커밋을 보류시켜 "write는 시작됐지만 아직 안 끝난" 창을 만든다.
           set: vi.fn((obj: Record<string, number[]>) =>
             new Promise<void>((resolve) => {
-              pendingSet = () => {
+              pendingSets.push(() => {
                 if (obj["sidePanel:activated"]) activated = obj["sidePanel:activated"];
                 resolve();
-              };
+              });
             }),
           ),
           remove: vi.fn(() => Promise.resolve()),
@@ -641,7 +640,9 @@ describe("activation 큐 — apply의 read 직렬화", () => {
     return {
       setOptions,
       listeners,
-      flushSet: () => pendingSet?.(),
+      flushSet: () => {
+        while (pendingSets.length) pendingSets.shift()!();
+      },
       failNextRead: () => {
         failRead = true;
       },
@@ -665,12 +666,14 @@ describe("activation 큐 — apply의 read 직렬화", () => {
 
     onRemoved(1, { windowId: 1 });
     onUpdated(1, { status: "complete" }, { id: 1 });
-    c.flushSet();
-    await new Promise((r) => setTimeout(r, 0));
-    await new Promise((r) => setTimeout(r, 0));
+    // set()이 read 뒤에 생기므로 한 번의 flush로는 큐가 안 풀린다 — 몇 틱 펌프한다.
+    for (let i = 0; i < 5; i++) {
+      c.flushSet();
+      await new Promise((r) => setTimeout(r, 0));
+    }
 
     const enabling = c.setOptions.mock.calls.filter(
-      (call) => (call[0] as { enabled?: boolean }).enabled === true,
+      ([opts]) => opts?.enabled === true,
     );
     expect(enabling).toHaveLength(0);
   });
@@ -691,10 +694,11 @@ describe("activation 큐 — apply의 read 직렬화", () => {
     onUpdated(1, { status: "complete" }, { id: 1 });
     await new Promise((r) => setTimeout(r, 0));
 
-    onClicked({ id: 2, url: "https://example.com" });
-    await new Promise((r) => setTimeout(r, 0));
-    c.flushSet();
-    await new Promise((r) => setTimeout(r, 0));
+    onClicked({ id: 2 });
+    for (let i = 0; i < 5; i++) {
+      c.flushSet();
+      await new Promise((r) => setTimeout(r, 0));
+    }
 
     expect(c.activatedNow()).toContain(2);
   });

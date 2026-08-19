@@ -38,6 +38,15 @@ function setActivated(tabId: number, on: boolean): Promise<void> {
 // onActivated(탭 전환 복귀)·onUpdated가 곧바로 enabled:false로 닫는다. 지원 여부는 패널이
 // 무엇을 그리는지만 결정한다(useTabSupport).
 async function apply(tabId: number): Promise<void> {
+  // read를 write와 같은 큐에 태운다 — 큐 밖에서 읽으면 진행 중인 activation write가
+  // read와 setOptions 사이에 끼어, 방금 비활성화한 패널을 stale한 값으로 되살린다.
+  // apply는 setActivated를 부르지 않으므로(getActivatedSet만 읽는다) 재진입은 없다.
+  const task = activatedWriteQueue.then(() => applyInner(tabId));
+  activatedWriteQueue = task.catch(() => {});
+  return task;
+}
+
+async function applyInner(tabId: number): Promise<void> {
   const set = await getActivatedSet();
   const activated = set.has(tabId);
 
@@ -322,10 +331,14 @@ export function setupTabBindings(): void {
       void deactivatePanelIfCrossOrigin(tabId, info.url ?? tab.url);
       return;
     }
+    // onActivated 쪽은 이미 try/catch로 감싼다 — 여기만 없으면 apply의 reject가
+    // unhandled로 새고, 이제 apply가 activation 큐를 타므로 그 노이즈가 늘 보인다.
     if (info.url) {
-      void clearIfPageChanged(tabId, info.url).then(() => apply(tabId));
+      void clearIfPageChanged(tabId, info.url)
+        .then(() => apply(tabId))
+        .catch((err) => console.error("[bugshot] onUpdated", err));
     } else if (info.status === "complete") {
-      void apply(tabId);
+      void apply(tabId).catch((err) => console.error("[bugshot] onUpdated", err));
     }
   });
 
