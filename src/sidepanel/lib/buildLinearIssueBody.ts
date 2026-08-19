@@ -99,7 +99,7 @@ function buildLinearIssueBodyInner(
         lines.push("| --- | --- | --- |");
         if (hasSnapshots) {
           lines.push(
-            `| **${t("styleTable.snapshot")}** | ${before?.assetUrl ? imageCell(before.filename, before.assetUrl) : ""} | ${after?.assetUrl ? imageCell(after.filename, after.assetUrl) : ""} |`,
+            `| **${t("styleTable.snapshot")}** | ${imageCell(before && { filename: before.filename, url: before.assetUrl })} | ${imageCell(after && { filename: after.filename, url: after.assetUrl })} |`,
           );
         }
         for (const d of el.diffs) {

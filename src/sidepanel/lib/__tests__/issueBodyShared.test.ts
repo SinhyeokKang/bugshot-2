@@ -123,24 +123,38 @@ describe("emitMarkdownLogSummary", () => {
 });
 
 describe("imageCell", () => {
+  // 동형 string 2개를 위치 인자로 받으면 인자 순서 스왑을 타입이 못 잡는다 — 합치기 전 3벌은
+  // 각각 Clickup/Linear/MarkdownMediaInput을 받아 **필드명이 게이트**였다. 객체로 되돌린다.
   it("파일명과 url로 마크다운 이미지 셀을 만든다", () => {
-    expect(imageCell("shot.png", "https://cdn/x.png")).toBe("![shot.png](https://cdn/x.png)");
+    expect(imageCell({ filename: "shot.png", url: "https://cdn/x.png" })).toBe(
+      "![shot.png](https://cdn/x.png)",
+    );
   });
 
   // 형제 함수(defaultVideoEmbed·첨부 라인)는 escapeMdLinkText를 쓰는데 imageCell 3벌만
   // 안 썼다. `]`가 링크 텍스트를 조기 종료해 표 셀이 통째로 깨진다.
   it("링크 텍스트의 구조 문자를 이스케이프한다", () => {
-    expect(imageCell("a[1].png", "https://cdn/x.png")).toBe(
+    expect(imageCell({ filename: "a[1].png", url: "https://cdn/x.png" })).toBe(
       "![a\\[1\\].png](https://cdn/x.png)",
     );
   });
 
   it("역슬래시도 이스케이프한다", () => {
-    expect(imageCell("a\\b.png", "u")).toBe("![a\\\\b.png](u)");
+    expect(imageCell({ filename: "a\\b.png", url: "u" })).toBe("![a\\\\b.png](u)");
   });
 
   it("url은 이스케이프하지 않는다 (이미 인코딩된 값)", () => {
-    expect(imageCell("x.png", "https://cdn/a[1].png")).toBe("![x.png](https://cdn/a[1].png)");
+    expect(imageCell({ filename: "x.png", url: "https://cdn/a[1].png" })).toBe(
+      "![x.png](https://cdn/a[1].png)",
+    );
+  });
+
+  // 부재 가드를 호출부 6곳에 복제하던 것을 여기로 되돌린다 — 중복이 사라진 게 아니라
+  // 이동했을 뿐이었다.
+  it("media나 url이 없으면 빈 셀이다", () => {
+    expect(imageCell(undefined)).toBe("");
+    expect(imageCell({ filename: "x.png" })).toBe("");
+    expect(imageCell({ filename: "x.png", url: "" })).toBe("");
   });
 });
 

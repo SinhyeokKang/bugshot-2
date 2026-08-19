@@ -86,7 +86,7 @@ function buildClickupIssueBodyInner(
         lines.push("| --- | --- | --- |");
         if (hasSnapshots) {
           lines.push(
-            `| **${t("styleTable.snapshot")}** | ${before?.url ? imageCell(before.filename, before.url) : ""} | ${after?.url ? imageCell(after.filename, after.url) : ""} |`,
+            `| **${t("styleTable.snapshot")}** | ${imageCell(before)} | ${imageCell(after)} |`,
           );
         }
         for (const d of el.diffs) {

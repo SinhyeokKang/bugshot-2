@@ -12,10 +12,13 @@ import {
 export const escapeMdLinkText = (text: string): string =>
   text.replace(/[\\[\]]/g, "\\$&");
 
-// 스타일 표의 before/after 이미지 셀. 세 빌더가 각각 url·assetUrl로 필드명이 달라
-// media 객체가 아니라 값 2개를 받는다(부재 가드는 호출부).
-export function imageCell(filename: string, url: string): string {
-  return `![${escapeMdLinkText(filename)}](${url})`;
+// 스타일 표의 before/after 이미지 셀. 동형 string 2개를 위치로 받으면 인자 순서 스왑이
+// 컴파일을 통과한다 — 합치기 전 3벌은 각 빌더의 MediaInput을 받아 필드명이 게이트였다.
+// clickup·markdown의 MediaInput은 이 모양의 부분집합이라 그대로 넘어가고, url을 assetUrl로
+// 부르는 linear만 호출부에서 이름을 맞춘다. 부재는 빈 셀 — 호출부 6곳의 복제 가드를 되돌린다.
+export function imageCell(media: { filename: string; url?: string } | undefined): string {
+  if (!media?.url) return "";
+  return `![${escapeMdLinkText(media.filename)}](${media.url})`;
 }
 
 // emitMarkdownLogSummary가 실제로 읽는 필드만(MarkdownContext의 구조적 부분집합).
