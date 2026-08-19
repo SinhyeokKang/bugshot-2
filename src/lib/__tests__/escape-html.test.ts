@@ -1,6 +1,8 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
+
+import { relToRepo, walkSources } from "@/test/sourceFiles";
 
 import { escapeHtml } from "../escape-html";
 
@@ -23,32 +25,20 @@ describe("escapeHtml", () => {
     expect(escapeHtml("")).toBe("");
   });
 
-  // overlay 사본은 `'` → `&#39;`를 갖고 있었다. 정본으로 합치며 그쪽을 버린다(narrowing):
-  // overlay에 단일인용 속성이 0건이고, 반대로 넓히면 정본 소비처 4개(클립보드 text/html·
-  // logs.html·Asana html_notes·라이브 프리뷰)의 출력이 모든 아포스트로피에서 바뀌는데
-  // 그걸 잡는 그물이 없다. 결정을 여기 못 박아 다음 배치가 같은 계산을 반복하지 않게 한다.
+  // narrowing 결정(overlay 사본의 `'` → `&#39;`를 버린 이유)은 escape-html.ts 헤더에 있다.
+  // 여기선 그 결정을 계약으로 못 박아 다음 배치가 같은 계산을 반복하지 않게 한다.
   it("작은따옴표는 이스케이프하지 않는다", () => {
     expect(escapeHtml("it's")).toBe("it's");
   });
 });
 
-function walk(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name === "__tests__") continue;
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.tsx?$/.test(p)) out.push(p);
-  }
-  return out;
-}
-
 describe("escapeHtml 단일 출처", () => {
   // 사본이 셋으로 흩어졌던 이력이 있다(그중 하나가 `"`를 빠뜨려 주입 표면이 됐다).
-  // 이름 기반 grep은 재발을 못 막으므로 정의 개수를 소스 전수 스캔으로 잠근다.
+  // `escapeHtml`이라는 이름의 정의 개수만 센다 — 다른 이름의 사본은 못 잡는다.
   it("정의가 저장소 전체에 1곳뿐이다", () => {
-    const owners = walk(join(process.cwd(), "src"))
+    const owners = walkSources(join(process.cwd(), "src"))
       .filter((p) => /function escapeHtml\b|const escapeHtml\s*[:=]/.test(readFileSync(p, "utf8")))
-      .map((p) => p.replace(`${process.cwd()}/`, ""));
+      .map(relToRepo);
 
     expect(owners).toEqual(["src/lib/escape-html.ts"]);
   });

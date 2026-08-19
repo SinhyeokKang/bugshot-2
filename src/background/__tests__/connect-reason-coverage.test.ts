@@ -142,8 +142,6 @@ describe("연결 실패 레인의 reason 태깅 전수", () => {
       expect(wrapped.length).toBe(calls.length);
     });
 
-    // 최초 연결의 프로필 조회는 refresh 레인 태깅을 되벗겨야 한다. 플랫폼마다 반환 필드가
-    // 달라 문구로 못 묶으므로 파일별로 못박는다.
     // runner를 안 쓰는 두 경로는 래핑 지점이 자기 파일에 있다 — 열거를 피할 수 없는
     // 예외라 여기 못박는다. jira는 refreshOnce 전체를 감싸 갱신·저장 실패를 함께 덮고,
     // notion은 refresh 함수가 없어 401 지점을 직접 태깅한다.
@@ -155,15 +153,22 @@ describe("연결 실패 레인의 reason 태깅 전수", () => {
       expect(src, `${file}: ${why}`).toMatch(marker);
     });
 
-    it.each([
-      "github-oauth.ts",
-      "gitlab-oauth.ts",
-      "linear-oauth.ts",
-      "asana-oauth.ts",
-      "notion-oauth.ts",
-    ])("%s: 최초 연결 getMyself가 inConnectLane을 지난다", (file) => {
+    // 최초 연결의 프로필 조회는 refresh 레인 태깅을 되벗겨야 한다. 목록을 손으로 적으면
+    // 9번째 플랫폼이 스캔을 빠져나가므로(이 파일 상단 OAUTH_FILES와 같은 이유) 파생시킨다.
+    // clickup·slack은 getMyself를 부르지만 refresh runner도 OAuthError도 없어 refreshFailed가
+    // 붙을 경로 자체가 없다 — 그래서 태깅 소스를 가진 플랫폼만 대상이다.
+    const TAGGING_PLATFORMS = ["asana", "github", "gitlab", "linear", "notion"];
+    const CONNECT_FILES = OAUTH_FILES.filter((f) =>
+      TAGGING_PLATFORMS.includes(f.replace("-oauth.ts", "")),
+    );
+
+    it("태깅 소스를 가진 플랫폼 집합이 고정돼 있다", () => {
+      expect(CONNECT_FILES).toEqual(TAGGING_PLATFORMS.map((p) => `${p}-oauth.ts`));
+    });
+
+    it.each(CONNECT_FILES)("%s: 최초 연결 getMyself가 inConnectLane을 지난다", (file) => {
       const src = readFileSync(resolve(BG, file), "utf8");
-      const direct = src.match(/(?<!\() *await getMyself\(/g) ?? [];
+      const direct = src.match(/(?<!inConnectLane\(\(\) => )getMyself\(/g) ?? [];
       expect(src, `${file}: getMyself 호출이 inConnectLane 밖이다`).toMatch(
         /inConnectLane\(\(\) => getMyself\(/,
       );

@@ -5,10 +5,14 @@ import type { PickerMessage } from "@/types/picker";
 // picker-control의 send(tabId, msg, frameId)를 쓴다 — 거기서 frameId가 required인 이유가
 // 정확히 이 함정이다. 탭이 닫혔거나 content script가 안 깔린 건 정상 경로라 삼킨다;
 // 여기서 throw하면 레코더 정리·오버레이 숨김 같은 뒷정리가 끊긴다.
-export async function sendToTabAllFrames(tabId: number, msg: PickerMessage): Promise<void> {
+export async function sendToTabAllFrames<R = void>(
+  tabId: number,
+  msg: PickerMessage,
+): Promise<R | undefined> {
   try {
-    await chrome.tabs.sendMessage(tabId, msg);
+    return await chrome.tabs.sendMessage<PickerMessage, R>(tabId, msg);
   } catch {
     // 탭 닫힘·content script 미주입 — 조용히 무시
+    return undefined;
   }
 }

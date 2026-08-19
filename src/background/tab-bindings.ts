@@ -23,6 +23,11 @@ async function getActivatedSet(): Promise<Set<number>> {
 // activated set 갱신이 유실되는 것을 막는다.
 let activatedWriteQueue: Promise<void> = Promise.resolve();
 
+// activateTab은 gesture를 지키려 setOptions·open을 동기로 쏘고 activation write만 큐에
+// 넣는다. 그 write가 앞선 apply들 뒤로 밀리는 동안 같은 탭의 apply가 stale false를 읽으면
+// 방금 연 패널을 도로 닫는다 — 큐에 아직 안 반영된 활성화를 여기서 기억한다.
+const pendingActivation = new Set<number>();
+
 function setActivated(tabId: number, on: boolean): Promise<void> {
   const task = activatedWriteQueue.then(async () => {
     const set = await getActivatedSet();
@@ -48,7 +53,7 @@ async function apply(tabId: number): Promise<void> {
 
 async function applyInner(tabId: number): Promise<void> {
   const set = await getActivatedSet();
-  const activated = set.has(tabId);
+  const activated = set.has(tabId) || pendingActivation.has(tabId);
 
   // SW hibernation / 윈도우 이동으로 setOptions가 휘발돼 default_path(쿼리 없음)로
   // fallback되는 경로 차단. preserve 분기와 무관하게 idempotent하게 path 재등록.
@@ -274,7 +279,8 @@ export function activateTab(tab: chrome.tabs.Tab): void {
     .open({ tabId })
     .catch((err) => console.error("[bugshot] sidePanel.open", err));
 
-  void setActivated(tabId, true);
+  pendingActivation.add(tabId);
+  void setActivated(tabId, true).finally(() => pendingActivation.delete(tabId));
   if (tab.url) {
     void chrome.storage.session.set({ [`${ACTIVATION_URL_PREFIX}${tabId}`]: tab.url });
   }

@@ -56,8 +56,8 @@ export function serializeOAuthError(error: OAuthError): {
   if (error.launchFailed) {
     return { status: 400, body: { oauthLaunchFailed: true, platform: error.platform } };
   }
-  // 401 레인은 "토큰이 있었는데 갱신에 실패했다"만 탄다. 최초 연결 실패(state mismatch·
-  // code 부재·토큰 저장 실패 등)가 여기 섞이면 연동한 적 없는 사용자에게 재로그인 배너가 뜬다.
+  // 401은 "토큰이 있었는데 갱신에 실패했다"만 탄다 — 최초 연결 실패가 섞이면 연동한 적
+  // 없는 사용자에게 재로그인 배너가 뜬다. 태깅 주체는 lib/connectLane.ts 참조.
   if (error.refreshFailed) {
     return { status: 401, body: { oauthRefreshFailed: true, platform: error.platform } };
   }

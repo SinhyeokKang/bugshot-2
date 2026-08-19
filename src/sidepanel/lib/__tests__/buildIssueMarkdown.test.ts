@@ -27,7 +27,6 @@ import {
   type MarkdownContext,
   type StyleElementContext,
 } from "../buildIssueMarkdown";
-// 정본은 issueBodyShared다(buildIssueMarkdown에 두면 leaf가 그걸 부르는 순간 순환).
 import { escapeMdLinkText } from "../issueBodyShared";
 import type {
   BufferedElement,

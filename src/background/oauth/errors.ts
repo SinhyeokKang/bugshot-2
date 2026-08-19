@@ -57,9 +57,8 @@ export interface OAuthErrorOptions {
   // 인증 창을 띄우는 단계에서 실패한 경우(로드 실패·타임아웃·동시 flow 등). notConfigured와
   // 같은 이유로 "세션 만료"와 구분한다 — 최초 연결 시도라 만료될 토큰 자체가 없다.
   launchFailed?: boolean;
-  // 저장된 토큰의 갱신이 소진된 경우에만 켠다. 401 레인(= 사이드패널의 onOAuthExpired
-  // 재로그인 안내)은 이 플래그로만 탄다 — 기본값이던 시절엔 최초 연결 실패가 전부
-  // "세션 만료"로 나갔다.
+  // 401 레인(= 사이드패널의 재로그인 안내)을 켜는 유일한 스위치. 누가 세우고 누가 벗기는지는
+  // lib/connectLane.ts 헤더가 정본이다.
   refreshFailed?: boolean;
   // 집계 전용 축. 위 3축이 표현 못 하는 사유(창 닫기 vs 제공자 거부, 4xx vs 5xx)를 가른다.
   // serializeOAuthError의 status 레인에는 관여하지 않는다 — 그건 위 refreshFailed가

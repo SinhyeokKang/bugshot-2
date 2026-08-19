@@ -204,6 +204,13 @@ describe("submitToClickup 업로드 판별자", () => {
     });
 
     expect(res.logsDropped).toBe(false);
+    // 값 축 — 성공분 href가 본문 조립까지 도달하고 실패분은 url 없이 넘어간다.
+    const arg = buildBody.mock.calls.at(-1)?.[0] as {
+      logs?: Array<{ filename: string; url?: string | null }>;
+      images?: Array<{ filename: string; url?: string | null }>;
+    };
+    expect(arg.logs?.[0]).toMatchObject({ filename: "logs.html", url: "LOGS_HREF" });
+    expect(arg.images?.[0]?.url).toBeFalsy();
   });
 });
 

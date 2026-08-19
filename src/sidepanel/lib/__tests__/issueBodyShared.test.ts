@@ -139,15 +139,12 @@ describe("imageCell", () => {
     expect(imageCell("a\\b.png", "u")).toBe("![a\\\\b.png](u)");
   });
 
-  // 세 빌더가 각각 url·assetUrl로 필드명이 달라 media 객체를 받지 못한다 — 가드는 호출부.
   it("url은 이스케이프하지 않는다 (이미 인코딩된 값)", () => {
     expect(imageCell("x.png", "https://cdn/a[1].png")).toBe("![x.png](https://cdn/a[1].png)");
   });
 });
 
 describe("escapeMdLinkText", () => {
-  // buildIssueMarkdown에 있으면 issueBodyShared → buildIssueMarkdown → issueBodyShared
-  // 순환이라 leaf가 못 쓴다. 정본을 여기로 내리고 그쪽은 re-export.
   it("issueBodyShared가 정본을 소유한다", () => {
     expect(escapeMdLinkText("a[1].png")).toBe("a\\[1\\].png");
   });

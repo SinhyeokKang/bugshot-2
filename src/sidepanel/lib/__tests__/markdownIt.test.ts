@@ -1,6 +1,8 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
+
+import { relToRepo, walkSources } from "@/test/sourceFiles";
 
 import { createMarkdownIt } from "../markdownIt";
 
@@ -22,32 +24,28 @@ describe("createMarkdownIt", () => {
     expect(md.render("```\nx\n```")).toContain("<mark>hl</mark>");
   });
 
+  // 렌더 결과가 dangerouslySetInnerHTML로 직행한다 — 호출부가 이 게이트를 못 덮어야 한다.
+  it("호출부가 html 게이트를 덮을 수 없다", () => {
+    const md = createMarkdownIt({ html: true });
+    expect(md.options.html).toBe(false);
+    expect(md.render("<script>x</script>")).not.toContain("<script>");
+  });
+
   // 공유 인스턴스면 한 파일의 md.use()가 나머지 셋에 샌다.
   it("호출마다 새 인스턴스를 준다", () => {
     expect(createMarkdownIt()).not.toBe(createMarkdownIt());
   });
 });
 
-function walk(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name === "__tests__") continue;
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.tsx?$/.test(p)) out.push(p);
-  }
-  return out;
-}
-
 describe("MarkdownIt 설정 단일 출처", () => {
   it("생성·strikethrough 활성화가 팩토리 1곳에만 있다", () => {
-    const files = walk(join(process.cwd(), "src"));
-    const rel = (p: string) => p.replace(`${process.cwd()}/`, "");
-    const creators = files
+    const files = walkSources(join(process.cwd(), "src"));
+        const creators = files
       .filter((p) => /(?<![A-Za-z])MarkdownIt\(\{/.test(readFileSync(p, "utf8")))
-      .map(rel);
+      .map(relToRepo);
     const enablers = files
       .filter((p) => /enable\("strikethrough"\)/.test(readFileSync(p, "utf8")))
-      .map(rel);
+      .map(relToRepo);
 
     expect(creators).toEqual(["src/sidepanel/lib/markdownIt.ts"]);
     expect(enablers).toEqual(["src/sidepanel/lib/markdownIt.ts"]);

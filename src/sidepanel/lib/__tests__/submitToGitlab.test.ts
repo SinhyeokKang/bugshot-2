@@ -3,8 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const sendBg = vi.fn();
 vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 
+const buildGitlabBody = vi.fn((_input: unknown) => ({ body: "see OLD_URL in logs" }));
 vi.mock("../buildGitlabIssueBody", () => ({
-  buildGitlabIssueBody: () => ({ body: "see OLD_URL in logs" }),
+  buildGitlabIssueBody: (input: unknown) => buildGitlabBody(input),
 }));
 vi.mock("../resolveInlineImages", () => ({
   replaceInlineRefs: (s: string) => s,
@@ -266,5 +267,12 @@ describe("submitToGitlab 업로드 판별자", () => {
     });
 
     expect(res.logsDropped).toBe(false);
+    // 값 축 — 성공분 href가 본문 조립까지 도달하고 실패분은 url 없이 넘어간다.
+    const arg = buildGitlabBody.mock.calls.at(-1)?.[0] as {
+      logs?: Array<{ filename: string; url?: string | null }>;
+      images?: Array<{ filename: string; url?: string | null }>;
+    };
+    expect(arg.logs?.[0]).toMatchObject({ filename: "logs.html", url: "LOGS_HREF" });
+    expect(arg.images?.[0]?.url).toBeFalsy();
   });
 });

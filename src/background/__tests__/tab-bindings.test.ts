@@ -680,6 +680,35 @@ describe("activation 큐 — apply의 read 직렬화", () => {
 
   // 큐 대입에 `.catch(() => {})` 관용구를 안 쓰면 apply 한 번의 reject가 이후 모든
   // activation write를 무음 사망시킨다 — P2 수정이 P0급 실패를 심는 경로.
+  // 큐가 길 때(탭 여러 개 복원 중) apply가 activateTab보다 먼저 큐에 들면, apply의 read가
+  // 클릭 **이후**로 밀린 채 stale false를 읽어 방금 연 패널을 도로 닫는다. read를 큐에
+  // 태우며 그 창이 "IPC 2틱"에서 "큐 드레인 전체"로 넓어졌다.
+  it("apply보다 늦게 눌린 activateTab의 패널을 stale read가 닫지 않는다", async () => {
+    const c = stubChrome();
+    setupTabBindings();
+    const onUpdated = c.listeners["updated"][0] as (
+      id: number,
+      info: { status?: string },
+      tab: unknown,
+    ) => void;
+    const onClicked = c.listeners["clicked"][0] as (tab: unknown) => void;
+
+    // 아직 활성화되지 않은 탭 9에 대해 apply가 먼저 큐에 든다.
+    onUpdated(9, { status: "complete" }, { id: 9 });
+    // 큐가 드레인되기 전에 사용자가 아이콘을 누른다(패널이 동기로 열린다).
+    onClicked({ id: 9 });
+
+    for (let i = 0; i < 6; i++) {
+      c.flushSet();
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    const disabling = c.setOptions.mock.calls.filter(
+      ([opts]) => opts?.enabled === false,
+    );
+    expect(disabling).toHaveLength(0);
+  });
+
   it("apply가 reject해도 이후 activation write가 계속 동작한다", async () => {
     const c = stubChrome();
     setupTabBindings();

@@ -12,8 +12,6 @@ describe("inRefreshLane", () => {
     ).rejects.toMatchObject({ refreshFailed: true, platform: "github" });
   });
 
-  // refresh in-flight promise는 동시 대기자 전원이 같은 인스턴스를 받는다 — 원본을 변이하면
-  // 한 대기자의 레인 판단이 나머지에게 샌다.
   it("원본 에러를 변이하지 않는다", async () => {
     const err = new OAuthError("refresh dead", { platform: "github" });
 
