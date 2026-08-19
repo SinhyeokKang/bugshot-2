@@ -214,3 +214,65 @@ describe("submitToClickup 업로드 판별자", () => {
   });
 });
 
+
+// ── 2차 본문 갱신 실패 시 graceful degradation — 전수 표 (clickup 행) ─────────────
+// 이슈/태스크를 만든 **뒤** 본문을 다시 쓰는 2차 write 경로를 가진 플랫폼은 실측 5개다.
+// 관용구가 4갈림이라 한 파일에서 순회할 수 없어(각 어댑터의 모듈 목이 파일 스코프다)
+// 같은 계약을 파일별 "행"으로 나눠 잠근다 — `grep -rn "전수 표"` 로 행이 모인다.
+//   clickup  submitToClickup.ts:132-140   try {} catch {}
+//   asana    submitToAsana.ts:215-225     try {} catch {}
+//   linear   submitToLinear.ts:140-144    .catch(() => null)
+//   gitlab   submitToGitlab.ts:76-97      보강 블록 전체를 감싼 try {} catch {}
+//   jira     background/messages.ts:859   **격리 없음** → Task 8-2에서 고친 뒤 이 표에 행을
+//            추가해 5플랫폼으로 만든다(순서 의존 — 지금 넣으면 red).
+// notion·github·slack은 2차 write 자체가 없어 대상이 아니다(notion submitToNotion.ts:123의
+// catch는 *업로드* 격리이고 image/video는 의도적으로 strict — 다른 계약이라 섞지 않는다).
+//
+// 각 행이 잠그는 계약 3개:
+//   ① 2차 갱신이 reject해도 제출이 reject되지 않는다
+//   ② 반환값(key·url·logsDropped)이 완전 성공 경로와 동일하다
+//   ③ 1차 생성과 첨부 업로드는 그대로 남는다(첨부 보존)
+//
+// **정직성은 이 표의 범위가 아니다.** clickup의 bare `catch {}`는 rethrow·플래그·로그가 없어
+// 반환값이 완전 성공과 구분되지 않고, 사용자는 초록 체크만 본다. 그때 본문에 없는 것:
+// 스크린샷 임베드 · As-is/To-be 스냅샷 행 · 영상 링크 · logs.html 하이퍼링크, 그리고
+// 미해석 `inline:xxxx` 플레이스홀더가 그대로 보인다(파일은 첨부로 남으니 손실은 아니다).
+// v1.7.27이 고친 게 정확히 이 계열이므로 나중에 경고 토스트/플래그를 붙일 수 있는데,
+// 그 변경은 이 표를 red로 만들면 안 된다 — ②는 "성공으로 끝난다"를 잠그는 것이고
+// "실패를 사용자에게 알리지 않는다"를 잠그는 게 아니다. 별개 이슈로 다룬다.
+describe("submitToClickup — 2차 본문 갱신 실패 (전수 표 clickup 행)", () => {
+  it("updateTaskMarkdown이 reject해도 제출은 성공하고 task·첨부가 보존된다", async () => {
+    injectIssueUrl.mockResolvedValue("data:LOGS+url");
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "clickup.submitIssue") return TASK;
+      if (msg.type === "clickup.uploadFile")
+        return [
+          { ok: true, filename: "screenshot.png", href: "https://att/screenshot.png" },
+          { ok: true, filename: "logs.html", href: "https://att/logs.html" },
+        ];
+      if (msg.type === "clickup.updateTaskMarkdown") throw new Error("PUT 500");
+      return undefined;
+    });
+
+    const res = await submitToClickup({
+      ctx: makeCtx(),
+      listId: "l1",
+      images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    // ①② 완전 성공 경로와 동일한 반환값 — 여기가 위 "정직성" 주석이 가리키는 지점이다.
+    expect(res).toEqual({ key: "t1", url: TASK.url, logsDropped: false });
+    // ③ 생성·업로드는 그대로, 2차 갱신을 시도했다는 사실까지 고정.
+    expect(sendBg.mock.calls.map(([m]) => m.type)).toEqual([
+      "clickup.submitIssue",
+      "clickup.uploadFile",
+      "clickup.updateTaskMarkdown",
+    ]);
+    const upload = sendBg.mock.calls.find(([m]) => m.type === "clickup.uploadFile")![0];
+    expect(upload.files.map((f: { filename: string }) => f.filename)).toEqual([
+      "screenshot.png",
+      "logs.html",
+    ]);
+  });
+});

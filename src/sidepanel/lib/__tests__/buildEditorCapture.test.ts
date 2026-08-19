@@ -392,3 +392,111 @@ describe("buildEditorMarkdownContext — environment API Hosts 게이트", () =>
     expect(buildEditorMarkdownContext()?.environment).toEqual([userRow]);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  로그 요약 생산자 축 — 에러 0건 세션                                  */
+/* ------------------------------------------------------------------ */
+
+// bodyOutputEdgeAxes.test.ts의 축 B/B-2가 보는 건 "ctx에 errorCount 0이 실리면 빌더가
+// lineNoError를 그리는가"(소비자)뿐이다. 그 반대편 — 실제 에러 없는 세션이 errorCount 0을
+// **만드는가** — 이 없으면 둘 다 green인 채로 본문이 영원히 with-error 분기를 탈 수 있다.
+describe("buildEditorMarkdownContext — 에러 0건 세션 (본문 lineNoError의 생산자 축)", () => {
+  const req = (over: Record<string, unknown> = {}) => ({
+    id: "r-1",
+    url: "https://example.com/api/items",
+    method: "GET",
+    status: 200,
+    statusText: "OK",
+    startTime: 0,
+    durationMs: 10,
+    requestHeaders: {},
+    responseHeaders: {},
+    pageUrl: "https://example.com",
+    requestBodySize: 0,
+    responseBodySize: 0,
+    contentType: "application/json",
+    phase: "complete" as const,
+    ...over,
+  });
+
+  const netLog = (requests: ReturnType<typeof req>[]) => ({
+    id: "net-1",
+    startedAt: 0,
+    endedAt: 1000,
+    totalSeen: requests.length,
+    captured: requests.length,
+    warnings: [],
+    requests,
+  });
+
+  const conLog = (levels: string[]) => ({
+    id: "con-1",
+    startedAt: 0,
+    endedAt: 1000,
+    totalSeen: levels.length,
+    captured: levels.length,
+    entries: levels.map((level, i) => ({
+      id: `ce-${i}`,
+      level,
+      timestamp: i,
+      args: `msg-${i}`,
+      pageUrl: "https://example.com",
+    })),
+  });
+
+  beforeEach(() => {
+    editorState.current = {};
+    settingsState.current = { issueSections: [], locale: "ko", bodyLocale: "auto" };
+  });
+
+  it("성공 요청·정보 로그만인 세션 → errorCount 0 · errors 빈 배열 · warnCount 0", () => {
+    editorState.current = baseState({
+      captureMode: "screenshot",
+      networkLog: netLog([req(), req({ id: "r-2", status: 304 })]),
+      consoleLog: conLog(["log", "info", "debug"]),
+    });
+
+    const ctx = buildEditorMarkdownContext();
+
+    expect(ctx?.networkLogSummary).toEqual({ captured: 2, errorCount: 0, errors: [] });
+    expect(ctx?.consoleLogSummary).toEqual({
+      captured: 3,
+      errorCount: 0,
+      warnCount: 0,
+      topErrors: [],
+    });
+  });
+
+  it("경고만 있는 세션 → errorCount 0 · warnCount는 실제 건수 (축 B-2의 생산자)", () => {
+    editorState.current = baseState({
+      captureMode: "screenshot",
+      networkLog: netLog([req()]),
+      consoleLog: conLog(["warn", "warn", "log"]),
+    });
+
+    const ctx = buildEditorMarkdownContext();
+
+    expect(ctx?.consoleLogSummary?.errorCount).toBe(0);
+    expect(ctx?.consoleLogSummary?.warnCount).toBe(2);
+    expect(ctx?.consoleLogSummary?.topErrors).toEqual([]);
+  });
+
+  it("대조군 — 4xx/5xx와 error 로그가 있으면 errorCount가 채워진다", () => {
+    editorState.current = baseState({
+      captureMode: "screenshot",
+      networkLog: netLog([
+        req(),
+        req({ id: "r-2", status: 500, statusText: "Server Error" }),
+        req({ id: "r-3", status: 0, statusText: "Network Error", phase: "error" }),
+      ]),
+      consoleLog: conLog(["error", "warn", "log"]),
+    });
+
+    const ctx = buildEditorMarkdownContext();
+
+    expect(ctx?.networkLogSummary?.errorCount).toBe(2);
+    expect(ctx?.networkLogSummary?.errors).toHaveLength(2);
+    expect(ctx?.consoleLogSummary?.errorCount).toBe(1);
+    expect(ctx?.consoleLogSummary?.warnCount).toBe(1);
+  });
+});

@@ -6,13 +6,15 @@ import {
   isJiraAccountComplete,
   isLinearAccountComplete,
   isNotionAccountComplete,
+  isV3Shape,
+  migrateV1ToV2,
   migrateV2ToV3,
   migrateToV5,
   migrateToV11,
   pickInitialPlatform,
   useSettingsStore,
 } from "../settings-store";
-import type { Accounts } from "@/types/platform";
+import type { Accounts, PlatformId } from "@/types/platform";
 
 const jiraStub: Accounts["jira"] = {
   platform: "jira",
@@ -54,6 +56,18 @@ const gitlabStub: Accounts["gitlab"] = {
     pat: "glpat_x",
     baseUrl: "https://gitlab.com",
     viewerUsername: "u",
+  },
+  defaults: {},
+};
+
+const asanaStub: Accounts["asana"] = {
+  platform: "asana",
+  connectedAt: 0,
+  auth: {
+    kind: "pat",
+    pat: "1/abc",
+    viewerGid: "111",
+    viewerName: "u",
   },
   defaults: {},
 };
@@ -285,69 +299,6 @@ describe("connectedPlatforms", () => {
   });
 });
 
-describe("updateGitlabAccount", () => {
-  it("기존 gitlab account에 patch를 병합하고 다른 플랫폼은 보존한다", () => {
-    useSettingsStore.setState({
-      accounts: { jira: jiraStub, gitlab: gitlabStub },
-      lastSubmitFields: {},
-    });
-
-    useSettingsStore.getState().updateGitlabAccount({ defaults: { projectId: 7 } });
-
-    const s = useSettingsStore.getState();
-    expect(s.accounts.gitlab).toEqual({ ...gitlabStub, defaults: { projectId: 7 } });
-    expect(s.accounts.jira).toEqual(jiraStub);
-  });
-
-  it("계정이 없으면 no-op — 해제 직후 늦은 patch가 ghost 계정을 만들지 않는다", () => {
-    useSettingsStore.setState({ accounts: { jira: jiraStub }, lastSubmitFields: {} });
-
-    useSettingsStore.getState().updateGitlabAccount({ defaults: { projectId: 7 } });
-
-    expect(useSettingsStore.getState().accounts.gitlab).toBeUndefined();
-  });
-});
-
-const asanaStub: Accounts["asana"] = {
-  platform: "asana",
-  connectedAt: 0,
-  auth: {
-    kind: "pat",
-    pat: "1/abc",
-    viewerGid: "111",
-    viewerName: "u",
-  },
-  defaults: {},
-};
-
-describe("updateAsanaAccount", () => {
-  it("기존 asana account에 patch를 병합하고 다른 플랫폼은 보존한다", () => {
-    useSettingsStore.setState({
-      accounts: {
-        jira: jiraStub,
-        gitlab: gitlabStub,
-        asana: asanaStub,
-      },
-      lastSubmitFields: {},
-    });
-
-    useSettingsStore.getState().updateAsanaAccount({ defaults: { workspaceGid: "W" } });
-
-    const s = useSettingsStore.getState();
-    expect(s.accounts.asana).toEqual({ ...asanaStub, defaults: { workspaceGid: "W" } });
-    expect(s.accounts.jira).toEqual(jiraStub);
-    expect(s.accounts.gitlab).toEqual(gitlabStub);
-  });
-
-  it("계정이 없으면 no-op — 해제 직후 늦은 patch가 ghost 계정을 만들지 않는다", () => {
-    useSettingsStore.setState({ accounts: { jira: jiraStub }, lastSubmitFields: {} });
-
-    useSettingsStore.getState().updateAsanaAccount({ defaults: { workspaceGid: "W" } });
-
-    expect(useSettingsStore.getState().accounts.asana).toBeUndefined();
-  });
-});
-
 describe("migrateToV5 — titlePrefix 전역 승격", () => {
   it("jira의 titlePrefix를 전역으로 승격", () => {
     const v3 = migrateV2ToV3({
@@ -534,4 +485,295 @@ describe("jiraSiteId / jiraHostLabel — 사이트 식별", () => {
   it("jiraHostLabel도 파싱 실패 시 원문으로 폴백한다", () => {
     expect(jiraHostLabel({ ...oauth, siteUrl: "://broken" })).toBe("://broken");
   });
+});
+
+describe("migrateV1ToV2 — jiraConfig 자격증명 승격", () => {
+  it("baseUrl·email·apiToken이 모두 있으면 auth.kind='apiKey'로 승격하고 나머지 필드를 보존한다", () => {
+    expect(
+      migrateV1ToV2({
+        jiraConfig: {
+          baseUrl: "https://x.atlassian.net",
+          email: "a@b.c",
+          apiToken: "tok",
+          projectKey: "BUG",
+          issueTypeId: "10001",
+          issueTypeName: "Bug",
+          titlePrefix: "[QA] ",
+        },
+      }),
+    ).toEqual({
+      jiraConfig: {
+        auth: {
+          kind: "apiKey",
+          baseUrl: "https://x.atlassian.net",
+          email: "a@b.c",
+          apiToken: "tok",
+        },
+        projectKey: "BUG",
+        issueTypeId: "10001",
+        issueTypeName: "Bug",
+        titlePrefix: "[QA] ",
+      },
+    });
+  });
+
+  it("titlePrefix만 있어도 승격하고 titlePrefix를 보존한다", () => {
+    expect(
+      migrateV1ToV2({
+        jiraConfig: {
+          baseUrl: "https://x.atlassian.net",
+          email: "a@b.c",
+          apiToken: "tok",
+          titlePrefix: "[QA] ",
+        },
+      }),
+    ).toEqual({
+      jiraConfig: {
+        auth: {
+          kind: "apiKey",
+          baseUrl: "https://x.atlassian.net",
+          email: "a@b.c",
+          apiToken: "tok",
+        },
+        projectKey: undefined,
+        issueTypeId: undefined,
+        issueTypeName: undefined,
+        titlePrefix: "[QA] ",
+      },
+    });
+  });
+
+  it("baseUrl이 없으면 jiraConfig=null", () => {
+    expect(
+      migrateV1ToV2({ jiraConfig: { email: "a@b.c", apiToken: "tok", projectKey: "BUG" } }),
+    ).toEqual({ jiraConfig: null });
+  });
+
+  it("email이 없으면 jiraConfig=null", () => {
+    expect(
+      migrateV1ToV2({
+        jiraConfig: { baseUrl: "https://x.atlassian.net", apiToken: "tok", projectKey: "BUG" },
+      }),
+    ).toEqual({ jiraConfig: null });
+  });
+
+  it("apiToken이 없으면 jiraConfig=null", () => {
+    expect(
+      migrateV1ToV2({
+        jiraConfig: { baseUrl: "https://x.atlassian.net", email: "a@b.c", projectKey: "BUG" },
+      }),
+    ).toEqual({ jiraConfig: null });
+  });
+
+  it("jiraConfig 자체가 없는 v1도 jiraConfig=null로 끝난다", () => {
+    expect(migrateV1ToV2({})).toEqual({ jiraConfig: null });
+  });
+});
+
+describe("isV3Shape — 이미 v3 이상인 persisted state 판별", () => {
+  it("null은 false", () => {
+    expect(isV3Shape(null)).toBe(false);
+  });
+
+  it("비객체는 false", () => {
+    expect(isV3Shape("accounts")).toBe(false);
+    expect(isV3Shape(3)).toBe(false);
+    expect(isV3Shape(undefined)).toBe(false);
+  });
+
+  it("accounts 키가 없는 객체는 false — v1/v2 모양", () => {
+    expect(isV3Shape({})).toBe(false);
+    expect(isV3Shape({ jiraConfig: null })).toBe(false);
+  });
+
+  it("accounts 키가 있으면 true (빈 객체여도)", () => {
+    expect(isV3Shape({ accounts: {} })).toBe(true);
+    expect(isV3Shape({ accounts: { jira: jiraStub }, lastSubmitFields: {} })).toBe(true);
+  });
+});
+
+// 8개 update*Account는 create(persist(...)) 안의 인라인 화살표라 store 경유로만 도달한다.
+// 기대 병합 결과는 스텁 스프레드가 아니라 리터럴로 박는다(스프레드는 항진명제).
+type AccountPatchCase = {
+  platform: PlatformId;
+  account: Accounts[PlatformId];
+  companion: PlatformId;
+  companionAccount: Accounts[PlatformId];
+  apply: () => void;
+  merged: Record<string, unknown>;
+};
+
+const accountPatchCases: AccountPatchCase[] = [
+  {
+    platform: "jira",
+    account: jiraStub,
+    companion: "github",
+    companionAccount: githubStub,
+    apply: () => useSettingsStore.getState().updateJiraAccount({ projectKey: "BUG" }),
+    merged: {
+      platform: "jira",
+      connectedAt: 0,
+      auth: {
+        kind: "apiKey",
+        baseUrl: "https://x.atlassian.net",
+        email: "a@b.c",
+        apiToken: "t",
+      },
+      projectKey: "BUG",
+    },
+  },
+  {
+    platform: "github",
+    account: githubStub,
+    companion: "jira",
+    companionAccount: jiraStub,
+    apply: () =>
+      useSettingsStore.getState().updateGithubAccount({
+        defaults: { owner: "acme", repo: "web" },
+      }),
+    merged: {
+      platform: "github",
+      connectedAt: 0,
+      auth: { kind: "pat", pat: "ghp_x", viewerLogin: "u" },
+      defaults: { owner: "acme", repo: "web" },
+    },
+  },
+  {
+    platform: "linear",
+    account: linearStub,
+    companion: "jira",
+    companionAccount: jiraStub,
+    apply: () =>
+      useSettingsStore.getState().updateLinearAccount({
+        defaults: { teamId: "T1", teamName: "Eng" },
+      }),
+    merged: {
+      platform: "linear",
+      connectedAt: 0,
+      auth: { kind: "apiKey", apiKey: "lin_api_x", viewerName: "u" },
+      defaults: { teamId: "T1", teamName: "Eng" },
+    },
+  },
+  {
+    platform: "notion",
+    account: notionStub,
+    companion: "jira",
+    companionAccount: jiraStub,
+    apply: () =>
+      useSettingsStore.getState().updateNotionAccount({
+        defaults: { databaseId: "db-1", databaseTitle: "Bugs" },
+      }),
+    merged: {
+      platform: "notion",
+      connectedAt: 0,
+      auth: { kind: "apiKey", token: "secret_x", botName: "Bug Bot" },
+      defaults: { databaseId: "db-1", databaseTitle: "Bugs" },
+    },
+  },
+  {
+    platform: "gitlab",
+    account: gitlabStub,
+    companion: "jira",
+    companionAccount: jiraStub,
+    apply: () =>
+      useSettingsStore.getState().updateGitlabAccount({ defaults: { projectId: 7 } }),
+    merged: {
+      platform: "gitlab",
+      connectedAt: 0,
+      auth: {
+        kind: "pat",
+        pat: "glpat_x",
+        baseUrl: "https://gitlab.com",
+        viewerUsername: "u",
+      },
+      defaults: { projectId: 7 },
+    },
+  },
+  {
+    platform: "asana",
+    account: asanaStub,
+    companion: "jira",
+    companionAccount: jiraStub,
+    apply: () =>
+      useSettingsStore.getState().updateAsanaAccount({ defaults: { workspaceGid: "W" } }),
+    merged: {
+      platform: "asana",
+      connectedAt: 0,
+      auth: { kind: "pat", pat: "1/abc", viewerGid: "111", viewerName: "u" },
+      defaults: { workspaceGid: "W" },
+    },
+  },
+  {
+    platform: "clickup",
+    account: clickupStub,
+    companion: "jira",
+    companionAccount: jiraStub,
+    apply: () =>
+      useSettingsStore.getState().updateClickupAccount({
+        defaults: { listId: "L1", listName: "Bugs" },
+      }),
+    merged: {
+      platform: "clickup",
+      connectedAt: 0,
+      auth: { kind: "pat", pat: "pk_x", viewerId: "1", viewerName: "u" },
+      defaults: { listId: "L1", listName: "Bugs" },
+    },
+  },
+  {
+    platform: "slack",
+    account: slackStub,
+    companion: "jira",
+    companionAccount: jiraStub,
+    apply: () =>
+      useSettingsStore.getState().updateSlackAccount({
+        defaults: { channelId: "C1", channelName: "#bugs" },
+      }),
+    merged: {
+      platform: "slack",
+      connectedAt: 0,
+      auth: {
+        kind: "oauth",
+        accessToken: "xoxp-x",
+        grantedAt: 0,
+        viewerId: "U1",
+        viewerName: "u",
+      },
+      teamId: "T1",
+      teamName: "acme",
+      defaults: { channelId: "C1", channelName: "#bugs" },
+    },
+  },
+];
+
+describe("update*Account — 8 플랫폼 얕은 병합 / ghost 계정 방지", () => {
+  for (const c of accountPatchCases) {
+    it(`${c.platform}: 기존 account에 patch를 얕게 병합하고 다른 플랫폼은 보존한다`, () => {
+      useSettingsStore.setState({
+        accounts: {
+          [c.platform]: c.account,
+          [c.companion]: c.companionAccount,
+        } as Accounts,
+        lastSubmitFields: {},
+      });
+
+      c.apply();
+
+      const s = useSettingsStore.getState();
+      expect(s.accounts[c.platform]).toEqual(c.merged);
+      expect(s.accounts[c.companion]).toEqual(c.companionAccount);
+    });
+
+    it(`${c.platform}: 계정이 없으면 no-op — 해제 직후 늦은 patch가 ghost 계정을 만들지 않는다`, () => {
+      useSettingsStore.setState({
+        accounts: { [c.companion]: c.companionAccount } as Accounts,
+        lastSubmitFields: {},
+      });
+
+      c.apply();
+
+      const s = useSettingsStore.getState();
+      expect(s.accounts[c.platform]).toBeUndefined();
+      expect(s.accounts[c.companion]).toEqual(c.companionAccount);
+    });
+  }
 });
