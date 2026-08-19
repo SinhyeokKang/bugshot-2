@@ -123,6 +123,29 @@ export function isEmptyShape(shape: AnnotationShape): boolean {
   }
 }
 
+// Konva Ellipse는 로컬 원점에 중심을 그리고 노드 변환은 translate(x,y) → translate(-offset)라
+// **절대 중심 = position - offset**이다. bounding box 중심은 `x + width/2`이므로 offset은
+// width의 **부호를 보존**해야 한다 — abs를 쓰면 좌/상 방향 드래그(음수 width)에서 중심이 앵커
+// 반대편에 놓여 원이 거울 반사된다. 반지름만 abs다(음수 반지름은 무의미).
+// rect가 같은 음수 값으로 무증상인 건 Konva Rect가 음의 방향 렌더를 native로 처리하기 때문이다.
+export function ellipseRenderGeometry(shape: EllipseShape): {
+  x: number;
+  y: number;
+  offsetX: number;
+  offsetY: number;
+  radiusX: number;
+  radiusY: number;
+} {
+  return {
+    x: shape.x,
+    y: shape.y,
+    offsetX: -shape.width / 2,
+    offsetY: -shape.height / 2,
+    radiusX: Math.abs(shape.width) / 2,
+    radiusY: Math.abs(shape.height) / 2,
+  };
+}
+
 interface TransformAttrs {
   x: number;
   y: number;

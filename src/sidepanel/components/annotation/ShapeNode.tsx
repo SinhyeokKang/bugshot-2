@@ -2,7 +2,7 @@ import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { Arrow, Ellipse, Line, Rect, Text } from "react-konva";
 import { HIGHLIGHT_OPACITY, HIGHLIGHT_STROKE_SCALE } from "./presets";
-import type { AnnotationShape } from "./shapes";
+import { ellipseRenderGeometry, type AnnotationShape } from "./shapes";
 
 export interface TransformAttrs {
   x: number;
@@ -124,19 +124,19 @@ export function ShapeNode({
         />
       );
     case "ellipse": {
-      // offset으로 bounding-box top-left를 노드 위치에 맞춰 rect와 동일 좌표계로 통일
-      // (applyTransform이 shape.x/y를 top-left로 흡수 — 중심 기준이면 transform마다 어긋남).
-      const rx = Math.abs(shape.width) / 2;
-      const ry = Math.abs(shape.height) / 2;
+      // 기하는 ellipseRenderGeometry가 단일 출처다 — offset이 width의 부호를 보존해야 하는
+      // 이유(좌/상 드래그의 거울 반사)가 거기 적혀 있다. `shape.x`는 bounding-box top-left가
+      // **아니라 드래그 앵커**이고, 음수 width면 실제 top-left는 `x + width`다.
+      const geom = ellipseRenderGeometry(shape);
       return (
         <Ellipse
           {...common}
-          x={shape.x}
-          y={shape.y}
-          offsetX={-rx}
-          offsetY={-ry}
-          radiusX={rx}
-          radiusY={ry}
+          x={geom.x}
+          y={geom.y}
+          offsetX={geom.offsetX}
+          offsetY={geom.offsetY}
+          radiusX={geom.radiusX}
+          radiusY={geom.radiusY}
           rotation={shape.rotation ?? 0}
           stroke={shape.color}
           strokeWidth={shape.strokeWidth}

@@ -302,7 +302,7 @@ describe("applyTransform — scale/rotation 흡수 정규화", () => {
     expect(next.height).toBeCloseTo(50);
   });
 
-  it("ellipse 음수 scaleY(flip)도 height에 흡수한다(렌더는 abs로 복구)", () => {
+  it("ellipse 음수 scaleY(flip)도 height에 흡수한다(렌더 기하가 부호를 읽는다)", () => {
     const base: EllipseShape = {
       id: "id",
       type: "ellipse",
