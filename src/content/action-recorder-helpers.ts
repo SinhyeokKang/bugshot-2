@@ -205,7 +205,7 @@ export function buildLightSelector(el: Element): string {
   return `${tag}:nth-child(${idx})`;
 }
 
-export function cleanText(el: Element | null): string | undefined {
+function cleanText(el: Element | null): string | undefined {
   return el?.textContent?.replace(/\s+/g, " ").trim() || undefined;
 }
 

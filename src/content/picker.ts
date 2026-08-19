@@ -636,8 +636,11 @@ function handleStop(): void {
 function handleClear(): void {
   areaRestoreAfter = false;
   if (scrollSession) {
-    endScrollCapture(scrollSession);
-    scrollSession = null;
+    try {
+      endScrollCapture(scrollSession);
+    } finally {
+      scrollSession = null;
+    }
   }
   if (areaHandle) {
     cancelAreaSelect(areaHandle);
@@ -1389,7 +1392,12 @@ function handleBeginScrollCapture(): PageMetrics {
 // 엉뚱한 스크롤이 영구 잔류한다 — handleClear(port disconnect 종착점)에서도 자가 복원한다.
 function finishScrollCapture(): void {
   if (!scrollSession) return;
-  endScrollCapture(scrollSession);
-  scrollSession = null;
-  handleClear();
+  try {
+    endScrollCapture(scrollSession);
+  } finally {
+    // 복원이 throw해도 세션은 반드시 닫는다 — 안 닫으면 blocker가 남고 다음 begin이
+    // 같은 지점에서 다시 죽어 그 탭의 스크롤 캡처가 영구히 안 된다.
+    scrollSession = null;
+    handleClear();
+  }
 }

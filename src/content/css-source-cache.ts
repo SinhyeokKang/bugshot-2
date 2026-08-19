@@ -63,8 +63,8 @@ export function ensureLoaded(): Promise<void> {
     if (isStaleLoad(started)) return;
     isReady = true;
   });
-  // 현재 두 loader는 실패를 안쪽에서 삼키지만, 새 throw가 하나 생기면 실패한 promise가
-  // 슬롯에 눌러앉아 세션 내내 같은 rejection을 되돌려주고 isReady가 영영 안 선다.
+  // 실패한 promise가 슬롯에 눌러앉으면 세션 내내 같은 rejection을 되돌려주고 isReady가
+  // 영영 안 선다 — 시트 열거(collectRootSheets)와 파싱은 try 밖이라 실제 escape 경로다.
   // invalidate()가 슬롯을 비우며 epoch를 올리므로, 그 사이 새로 깔린 promise는 안 지운다.
   loadPromise = p.catch((err) => {
     if (!isStaleLoad(started)) loadPromise = null;
@@ -1045,18 +1045,28 @@ async function loadCrossOrigin(startedEpoch: number): Promise<void> {
   // invalidate가 crossOriginRules를 비운 뒤라면 seq가 0부터 다시 발급돼 sort 동점에서
   // last-wins가 깨진다 — 옛 로드의 결과는 통째로 버린다.
   if (isStaleLoad(startedEpoch)) return;
+  // 실패 슬롯을 비워 재시도가 열려 있으므로 부분 적재를 남기면 안 된다 — 로컬에 모아
+  // 전부 파싱한 뒤 한 번에 커밋한다(중간 throw면 아무것도 안 남는다).
+  const nextRules: CrossOriginIndexedRule[] = [];
+  const nextCustomPropRules: CrossOriginIndexedRule[] = [];
+  const nextCustomProps: Record<string, string> = {};
   let seq = crossOriginRules.length;
   for (const sheet of sheets) {
     const parsed: ParsedRule[] = [];
     parseStylesheet(sheet.text, parsed);
     const { rules, customPropRules, customProps } = indexCrossOriginRules(parsed, seq);
     seq += rules.length;
-    crossOriginRules.push(...rules);
-    crossOriginCustomPropRules.push(...customPropRules);
+    nextRules.push(...rules);
+    nextCustomPropRules.push(...customPropRules);
     for (const name in customProps) {
-      if (!(name in crossOriginCustomProps)) {
-        crossOriginCustomProps[name] = customProps[name];
-      }
+      if (!(name in nextCustomProps)) nextCustomProps[name] = customProps[name];
+    }
+  }
+  crossOriginRules.push(...nextRules);
+  crossOriginCustomPropRules.push(...nextCustomPropRules);
+  for (const name in nextCustomProps) {
+    if (!(name in crossOriginCustomProps)) {
+      crossOriginCustomProps[name] = nextCustomProps[name];
     }
   }
   dlog("cross-origin loaded", {

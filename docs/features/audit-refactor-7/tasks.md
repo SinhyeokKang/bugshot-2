@@ -61,10 +61,10 @@
   3. `issueBodyShared.test.ts`에 **`imageCell`이 형제 함수(`defaultVideoEmbed`)와 달리 `escapeMdLinkText`를 안 쓴다**는 red 케이스 1개를 추가한다. **"3벌 출력 대조"는 하지 않는다** — 셋 다 escape가 없고 url 프로퍼티명만 달라 대조가 green이라 약속한 red가 안 뜬다(design.md G0 인용 박스).
   4. **커버리지 실측** — `coverage/baseline.json`이 2026-08-14 생성이라 stale하다. `pnpm coverage:report`로 착수 시점 로직 스코프 %를 재고 그 값을 기록한다(prd 성공기준 5의 기준선).
 - **검증**:
-  - [ ] `pnpm test` — red가 **정확히 2종**(다중 ID 1 + `escapeMdLinkText` 미적용 1), 나머지 green. 더 많거나 **더 적으면** 감사 리포트가 놓친 게 있다는 신호 — 보고 후 판단
-  - [ ] 이관 전후로 `action-recorder.ts`의 기존 유닛 전부 green (순수 이동 확인)
-  - [ ] `grep -n "function labelForText" src/content/action-recorder.ts` → 0건
-  - [ ] 착수 시점 로직 스코프 % 가 결과에 기록됨
+  - [~] `pnpm test` — 배치 1(P0)에서는 다중 ID red 1종만 박았다. `escapeMdLinkText` red는 픽스(Task 7-2)가 P1이라 **배치 2로 이관**(P0 배치를 red 커밋으로 닫지 않으려고)
+  - [x] 이관 전후로 `action-recorder.ts`의 기존 유닛 전부 green (순수 이동 확인 — 커밋 `c9796ee`)
+  - [x] `grep -n "function labelForText" src/content/action-recorder.ts` → 0건
+  - [x] 착수 시점 로직 스코프 **82.7%** (20208/24445)
 
 ### Task 1-1: 스크롤 캡처 실패 3경로 (G1 · #5)
 
@@ -75,20 +75,20 @@
   - (c) **오케스트레이터에 shape 가드를 넣는다** — `if (!ack || typeof ack.y !== "number") throw`. 6줄 위 형제 호출(`:58-61` 주석 + `if (!begun?.viewport)`)이 같은 판정을 이미 쓴다.
 - **주의**: 실패 시 **절대 `{y: ...}`를 지어내지 않는다.** 그리고 (a)의 throw는 **rAF 콜백 안**이라 promise가 reject되지 않으므로 (b)의 rejection 핸들러로는 **절대 안 잡힌다** — 둘을 하나로 합치려 하지 말 것.
 - **검증**:
-  - [ ] `src/content/__tests__/scroll-capture.test.ts`에 "후보 수집이 throw해도 promise가 resolve된다" → green
-  - [ ] `src/sidepanel/lib/__tests__/`(또는 해당 위치)에 "`deps.send`가 `{ok:false}`를 주면 throw한다" → green — **이게 (c)의 유일한 그물이다**
-  - [ ] "`deps.send`가 `undefined`/`null`을 주면 throw한다" → green
-  - [ ] 기존 `scroll-capture` 유닛 전부 green (동작 보존)
-  - [ ] `grep -n "then(sendResponse)" src/content/picker.ts` → 0건
-  - [ ] **e2e에는 넣지 않는다** — (a)는 ISOLATED world 결함 주입 seam이 없어 유도 불가(design.md 위험 ④). 그 사실을 결과에 적는다
+  - [x] "후보 수집이 throw해도 promise가 resolve된다" → green (`scroll-capture.test.tsx` — DOM 의존이라 node 트랙 `.ts`가 아니라 jsdom 트랙). 부수로 "숨김 도중 throw해도 이미 숨긴 요소를 복원한다"를 추가했다 — catch가 삼킬 때 첫 타일의 `hiddenFixed` 임시 배열이 대입 전에 소실돼 복원 목록이 유실되는 경로(자체 검증 발견, 뮤테이션으로 비공허 확인)
+  - [x] `src/sidepanel/__tests__/scroll-capture.test.ts`에 "`deps.send`가 `{ok:false}`를 주면 throw한다" → green — **이게 (c)의 유일한 그물이다**
+  - [x] "`deps.send`가 `undefined`/`null`을 주면 throw한다" → green (undefined는 기존 케이스, null을 추가)
+  - [x] 기존 `scroll-capture` 유닛 전부 green (동작 보존)
+  - [x] `grep -n "then(sendResponse)" src/content/picker.ts` → 0건
+  - [x] **e2e에는 넣지 않았다** — (a)는 ISOLATED world 결함 주입 seam이 없어 유도 불가(design.md 위험 ④)
 
 ### Task 1-2: picker 보강 IIFE `.catch` 부착 (G1 · #11)
 
 - **변경 대상**: `src/content/picker.ts:142`, `:1181`, **`:1216`**
 - **작업 내용**: **무보호 async IIFE는 2곳이 아니라 3곳이다.** `grep -c "void (async () =>"` → 4이고 `:239`만 내부 `try/catch`로 보호돼 있다. `:1216`(`ensureCssCacheLoaded`+`ensureCrossOriginLoaded` await, `selectionUpdateTimer` 경로)이 감사가 놓친 세 번째다. 셋 다 `.catch(() => {})`. 지배 패턴은 `respondAfterPaint`(정의 `:369`, `.catch` `:380`)·`area-select.ts`(`.catch` `:42`)다. **삼킨다는 사실과 이유**를 한 줄 주석으로.
 - **검증**:
-  - [ ] `void (async () =>` 4곳 각각의 **닫는 줄**(`:151`·`:1191`·`:1223` 부근)에 `.catch` 또는 내부 `try/catch`가 있는지 **수동 열거**로 확인 — `grep -A 1`은 `.catch`가 붙는 자리를 못 보므로 판정 수단이 아니다
-  - [ ] `pnpm typecheck` green
+  - [x] `void (async () =>` 4곳 **닫는 줄 수동 열거** 확인 — `:142→153` `.catch` · `:240→249` 내부 try/catch(기존) · `:1186→1197` `.catch` · `:1222→1231` `.catch`
+  - [x] `pnpm typecheck` green
 
 ### Task 1-3: css 캐시 실패 promise 재시도 가능화 (G1 · #7)
 
@@ -96,9 +96,10 @@
 - **작업 내용**: design.md G1의 코드 형태. 실패 시 슬롯을 비우되 **`loadPromise === p` 확인 필수** — `invalidate()`(`:85-90`)가 이미 `null`을 넣으므로, 확인 없이 지우면 invalidate 뒤 새로 깔린 promise를 죽인다.
 - **주의**: 이 파일은 **회고 상위 영역**이다. 착수 전 ARCHITECTURE.md "CSSOM shorthand 한계 우회"와 `css-source-cache-epoch.test.tsx`를 읽는다. **`epoch`·`isStaleLoad`·`loadAbortController`·`isReady`는 이미 존재하는 것들**이고(design.md 스니펫이 신규처럼 보이지만 아니다) epoch·stale 판정에는 손대지 않는다.
 - **검증**:
-  - [ ] `src/content/__tests__/css-source-cache-epoch.test.tsx` 기존 케이스 전부 green
-  - [ ] "로드 실패 후 재호출하면 새로 시도한다" → green
-  - [ ] "invalidate 뒤 실패한 이전 promise가 새 슬롯을 지우지 않는다" → green
+  - [x] `src/content/__tests__/css-source-cache-epoch.test.tsx` 기존 케이스 전부 green
+  - [x] "로드 실패 후 재호출하면 새로 시도한다" → green (+ `ensureCrossOriginLoaded` 대칭 케이스 1개 추가 — 두 함수가 같은 형태라 한쪽만 그물이면 드리프트한다)
+  - [x] "invalidate 뒤 실패한 이전 promise가 새 슬롯을 지우지 않는다" → green
+  - [x] **design.md 스니펫 정정**: `loadPromise === p`는 슬롯에 `p.catch(...)` 래퍼가 들어가므로 **영원히 false**다. 파일의 기존 술어 `isStaleLoad(started)`를 재사용해 대체했다(`invalidate()`가 슬롯 비우기와 `epoch++`를 함께 하므로 등가)
 
 ### Task 2: `aria-labelledby` 다중 ID 파싱 (G2 · #12)
 
@@ -108,10 +109,10 @@
   - `rawFieldLabel`(`action-recorder.ts:196-210`)·`rawAccessibleName`(`:170-190`)은 `aria-labelledby`를 아예 안 읽는다 → POSTMORTEM 2026-07-14 재발방지(2)의 "마스킹 판정 소스 = 라벨 추출 소스" 요구가 반쪽만 충족된다.
   - `document.getElementById`는 shadow DOM 타깃에서 틀린 트리를 본다(`getRootNode()`가 정답).
 - **검증**:
-  - [ ] Task 0에서 red였던 "다중 ID" 케이스 green
-  - [ ] `<input aria-labelledby="l1 l2">` + 민감 라벨 조합에서 `shouldMaskField`가 `true`를 내는 통합 케이스 → green
-  - [ ] 단일 ID·`label[for]`·래핑 label 3경로 무회귀
-  - [ ] `grep -rn "getElementById(labelledBy)" src/content/` → 0건
+  - [x] Task 0에서 red였던 "다중 ID" 케이스 green
+  - [x] `<input aria-labelledby="l1 l2">` + 민감 라벨 조합에서 `shouldMaskField`가 `true`를 내는 통합 케이스 → green
+  - [x] 단일 ID·`label[for]`·래핑 label 3경로 무회귀
+  - [x] `grep -rn "getElementById(labelledBy)" src/content/` → 0건
 
 ### Task 3: 클립보드 복사 gesture 보존 (G3 · #6)
 
@@ -123,8 +124,8 @@
   3. **폴백이 그 공유 promise를 참조해야 한다** — `md`를 deferred 안에서만 만들면 `catch` 스코프에 없어 폴백이 컴파일조차 안 된다. `.catch(() => built.then((b) => navigator.clipboard.writeText(b.md)))`.
 - **부수**: 원인 서술이 "5초 transient activation"이 아니라 **`hasFocus()`**임을 알고 진행한다. promise-valued `ClipboardItem`은 **Chrome 98+**(116 pin이라 안전).
 - **검증**:
-  - [ ] `pnpm typecheck` green
-  - [ ] 복사 결과 문자열이 기존과 바이트 동일 — `buildForCopy`를 직접 부르는 유닛으로 `md`·`html` **둘 다** 고정
+  - [x] `pnpm typecheck` green
+  - [~] 복사 결과 문자열 유닛 고정 — **미충족**. `buildForCopy`는 ~25개 컴포넌트 state를 닫는 내부 클로저라 export 가능한 모듈로 안 떨어진다(design.md G3도 "jsdom에 `ClipboardItem`이 없어 컴포넌트 테스트로 못 잡는다"고 판정). 대신 조립 로직이 **한 줄도 안 바뀌었음**을 diff로 확인했다 — hunk가 시그니처 1줄과 말미뿐이고 4분기 본문 ~76줄은 전부 컨텍스트
   - [ ] **e2e 스텁 3곳(`freeform-draft.spec.ts:43-48`·`issue-body-locale.spec.ts:55-62`·`code-block-collapse.spec.ts:42-47`)에 `getType("text/html")` 검증 추가 → green** — 안 하면 flavor 소실이 green으로 머지된다. **이게 이 태스크의 유일한 자동 그물이다**
   - [ ] **수동**: 인라인 이미지 3개 이상 프리뷰에서 복사 → Notion·Jira에 붙여넣어 표·이미지 유지 확인
 
@@ -138,13 +139,13 @@
   3. **`aria-disabled={!canOpen}`를 실 boolean으로** 넘긴다 — 활성 시 `"false"`가 렌더돼 Playwright 조상 탐색을 끊는다(이 testid를 클릭하는 5개 스펙의 안전 조건).
   4. `data-testid="issue-submit-open"`(`:496`) 유지.
 - **검증**:
-  - [ ] **`IssueCreateModal.test.tsx` 신규 생성** — 파일이 없다. 531줄·28 import라 `vi.mock` 하네스가 필요하다(선례 `IssueTab.test.tsx:5-16`)
-  - [ ] "연동 0개면 버튼이 `aria-disabled`이고 클릭해도 다이얼로그가 안 열린다" → green
-  - [ ] "연동 0개면 툴팁 문구가 렌더된다" / "연동 1개 이상이면 `aria-disabled="false"`이고 툴팁이 없다" → green
-  - [ ] `grep -n "title=" src/sidepanel/tabs/IssueCreateModal.tsx` → 제출 버튼에 0건
-  - [ ] `e2e/onboarding.spec.ts:109`(`toBeDisabled()`) green — Playwright ^1.60은 `aria-disabled="true"`를 인정한다
-  - [ ] `issue-submit-open`을 클릭하는 5개 스펙 green (`jira-project-switch:97`·`jira-project-sticky:94`·`jira-sprint-field:150`·`slack-submit-gating:70`·`clickup-submit-gating:52`)
-  - [ ] **신규 e2e**: 무연동 상태에서 제출 버튼 hover → 이유 문구 노출. `onboarding.spec.ts:99-109`의 무시드 경로를 재사용하고, **`TooltipContent`에 `data-testid`를 붙인다**(저장소에 Radix 툴팁을 검증하는 e2e가 0이라 잡을 핸들이 없다)
+  - [x] **`IssueCreateModal.test.tsx` 신규 생성** (스토어·`SubmitFieldsDialog`·`usePlatformFields`를 셀렉터 페이크로 대체)
+  - [x] "연동 0개면 버튼이 `aria-disabled`이고 클릭해도 다이얼로그가 안 열린다" → green
+  - [x] "연동 0개면 툴팁 문구가 렌더된다" / "연동 1개 이상이면 `aria-disabled="false"`이고 툴팁이 없다" → green
+  - [x] `grep -n "title=" src/sidepanel/tabs/IssueCreateModal.tsx` → 제출 버튼에 0건
+  - [x] `e2e/onboarding.spec.ts:109`(`toBeDisabled()`) — playwright-core 1.60 소스 실측으로 확인(`getAriaDisabled = isNativelyDisabled || hasExplicitAriaDisabled`, `elementState`가 disabled 판정에 이걸 쓴다). 실행은 `/e2e-write` 단계
+  - [ ] `issue-submit-open`을 클릭하는 5개 스펙 green (`jira-project-switch:97`·`jira-project-sticky:94`·`jira-sprint-field:150`·`slack-submit-gating:70`·`clickup-submit-gating:52`) — `/e2e-write` 단계
+  - [ ] **신규 e2e**: 무연동 상태에서 제출 버튼 hover → 이유 문구 노출 — `/e2e-write` 단계. 핸들은 준비됐다(`TooltipContent`에 `data-testid="issue-submit-disabled-reason"` 부착 완료)
   - [ ] `e2e/COVERAGE.md:59`의 "disabled 공존" 문구 갱신
 
 ---

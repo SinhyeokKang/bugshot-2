@@ -373,6 +373,8 @@ export function PreviewPanel() {
         actionLogCaptured: attachedAction ? attachedAction.captured : undefined,
       });
     } else {
+      // CaptureMode 4값을 위 분기가 소진하고, element+selection 부재는 :132가 언마운트한다 —
+      // 도달 불가 방어. 조용히 resolve하면 호출부가 "복사됨"으로 뒤집힌다.
       throw new Error("unsupported capture mode");
     }
     return { md: buildIssueMarkdown(ctx), html: buildIssueHtml(ctx) };

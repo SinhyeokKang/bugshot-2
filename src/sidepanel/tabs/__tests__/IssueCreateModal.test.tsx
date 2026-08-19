@@ -4,14 +4,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PlatformId } from "@/types/platform";
 
+// persist 스토어가 import 시점에 chrome.storage를 찾으므로 hoisted로 먼저 심는다.
+vi.hoisted(() => {
+  (globalThis as unknown as { chrome: unknown }).chrome = {
+    storage: {
+      local: { get: async () => ({}), set: async () => {} },
+      session: { get: async () => ({}), set: async () => {} },
+    },
+  };
+});
+
 vi.mock("@/i18n", () => ({
   useT: () => (key: string) => key,
   t: (key: string) => key,
   dateBcp47: () => "en-US",
 }));
 
-// 531줄·28 import라 실 스토어를 태우면 chrome.storage·IndexedDB까지 끌려온다 —
-// 검증 대상은 제출 버튼 하나이므로 스토어·다이얼로그·필드 훅만 셀렉터 페이크로 갈아끼운다.
+// 검증 대상은 제출 버튼 하나뿐이라 훅만 셀렉터 페이크로 갈아끼운다. settings 계열은
+// connectedPlatforms 같은 실 술어가 필요해 importOriginal로 모듈을 그대로 태운다.
 let accounts: Record<string, unknown> = {};
 vi.mock("@/store/settings-store", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/store/settings-store")>();
@@ -74,12 +84,9 @@ vi.mock("@/sidepanel/hooks/usePlatformFields", () => ({
   }),
 }));
 
-const dialogOpen = vi.hoisted(() => vi.fn());
 vi.mock("@/sidepanel/tabs/SubmitFieldsDialog", () => ({
-  SubmitFieldsDialog: ({ open }: { open: boolean }) => {
-    dialogOpen(open);
-    return open ? <div data-testid="submit-dialog" /> : null;
-  },
+  SubmitFieldsDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="submit-dialog" /> : null,
 }));
 
 import { IssueCreateModal } from "../IssueCreateModal";
@@ -90,7 +97,6 @@ function connect(platform: PlatformId): void {
 
 beforeEach(() => {
   accounts = {};
-  dialogOpen.mockReset();
 });
 
 describe("IssueCreateModal 제출 버튼", () => {
@@ -99,6 +105,8 @@ describe("IssueCreateModal 제출 버튼", () => {
 
     const button = screen.getByTestId("issue-submit-open");
     expect(button.getAttribute("aria-disabled")).toBe("true");
+    // hover를 중화하지 않으면 잠긴 버튼이 hover에서 진해져 "밝아지는데 안 눌린다"가 된다.
+    expect(button.className).toContain("aria-disabled:hover:bg-primary");
 
     await userEvent.click(button);
 
@@ -110,7 +118,8 @@ describe("IssueCreateModal 제출 버튼", () => {
 
     await userEvent.hover(screen.getByTestId("issue-submit-open"));
 
-    expect((await screen.findAllByText("platform.empty.title")).length).toBeGreaterThan(0);
+    const reason = await screen.findByTestId("issue-submit-disabled-reason");
+    expect(reason.textContent).toContain("platform.empty.title");
   });
 
   it("연동이 있으면 aria-disabled가 false이고 이유 문구가 없다", async () => {
@@ -123,7 +132,7 @@ describe("IssueCreateModal 제출 버튼", () => {
 
     await userEvent.hover(button);
 
-    expect(screen.queryByText("platform.empty.title")).toBeNull();
+    expect(screen.queryByTestId("issue-submit-disabled-reason")).toBeNull();
   });
 
   it("native title 툴팁을 남기지 않는다 (Radix 툴팁과 이중 노출)", () => {

@@ -112,9 +112,8 @@ export function scrollCaptureTo(
           );
         }
       } catch {
-        // 후보 수집 실패는 타일 품질 문제이지 캡처 중단 사유가 아니다 — 삼키고 진행한다.
         // done·fallback이 이미 해제된 뒤라 여기서 빠져나가면 resolve가 영영 안 불린다.
-        // (이 파일엔 로거가 없다 — 로거를 들이면 새 의존성이라 사실만 주석으로 남긴다.)
+        // 후보 수집 실패는 타일 품질 문제이지 캡처 중단 사유가 아니다.
       }
       resolve({ y: window.scrollY });
     };
@@ -126,8 +125,14 @@ export function scrollCaptureTo(
 export function endScrollCapture(session: ScrollCaptureSession): void {
   session.candidateObserver.disconnect();
   for (const { el, prevValue, prevPriority } of session.hiddenFixed ?? []) {
-    if (prevValue) el.style.setProperty("visibility", prevValue, prevPriority);
-    else el.style.removeProperty("visibility");
+    // 한 요소의 style write가 throw하면 나머지가 영구 hidden으로 남고, 호출부의
+    // 세션 정리(scrollSession=null·handleClear)까지 통째로 스킵돼 탭이 브릭된다.
+    try {
+      if (prevValue) el.style.setProperty("visibility", prevValue, prevPriority);
+      else el.style.removeProperty("visibility");
+    } catch {
+      /* 개별 복원 실패는 나머지 복원을 막지 않는다 */
+    }
   }
   session.hiddenFixed = null;
   session.positionedCandidates = null;

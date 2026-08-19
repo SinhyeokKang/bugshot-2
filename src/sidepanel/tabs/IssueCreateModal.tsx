@@ -504,7 +504,7 @@ export function IssueCreateModal() {
             <Button
               data-testid="issue-submit-open"
               aria-disabled={!canOpen}
-              className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+              className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-primary"
               onClick={() => {
                 if (!canOpen) return;
                 (document.activeElement as HTMLElement)?.blur?.();

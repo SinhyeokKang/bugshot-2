@@ -206,4 +206,30 @@ describe("scroll capture 응답 보장", () => {
 
     expect(first.style.visibility).toBe("");
   });
+
+  it("복원 중 한 요소가 throw해도 나머지를 복원하고 스크롤을 되돌린다", () => {
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    vi.spyOn(window, "scrollX", "get").mockReturnValue(0);
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(0);
+
+    const broken = document.createElement("header");
+    const intact = document.createElement("aside");
+    document.body.append(broken, intact);
+    const { session } = beginScrollCapture();
+    broken.style.setProperty("visibility", "hidden", "important");
+    intact.style.setProperty("visibility", "hidden", "important");
+    session.hiddenFixed = [
+      { el: broken, prevValue: "", prevPriority: "" },
+      { el: intact, prevValue: "", prevPriority: "" },
+    ];
+    vi.spyOn(broken.style, "removeProperty").mockImplementation(() => {
+      throw new Error("style locked");
+    });
+
+    endScrollCapture(session);
+
+    expect(intact.style.visibility).toBe("");
+    expect(session.hiddenFixed).toBeNull();
+    expect(scrollTo).toHaveBeenCalled();
+  });
 });
