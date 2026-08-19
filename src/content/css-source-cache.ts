@@ -59,9 +59,16 @@ export function ensureLoaded(): Promise<void> {
   const started = epoch;
   const controller = new AbortController();
   loadAbortController = controller;
-  loadPromise = loadAll(started, controller.signal).then(() => {
+  const p = loadAll(started, controller.signal).then(() => {
     if (isStaleLoad(started)) return;
     isReady = true;
+  });
+  // 현재 두 loader는 실패를 안쪽에서 삼키지만, 새 throw가 하나 생기면 실패한 promise가
+  // 슬롯에 눌러앉아 세션 내내 같은 rejection을 되돌려주고 isReady가 영영 안 선다.
+  // invalidate()가 슬롯을 비우며 epoch를 올리므로, 그 사이 새로 깔린 promise는 안 지운다.
+  loadPromise = p.catch((err) => {
+    if (!isStaleLoad(started)) loadPromise = null;
+    throw err;
   });
   return loadPromise;
 }
@@ -1012,7 +1019,13 @@ export function indexCrossOriginRules(
 // content(ISOLATED)는 cross-origin sheet fetch 불가 → background 위임. 멱등(픽커 세션 1회 배치).
 export function ensureCrossOriginLoaded(): Promise<void> {
   if (crossLoadPromise) return crossLoadPromise;
-  crossLoadPromise = loadCrossOrigin(epoch);
+  const started = epoch;
+  const p = loadCrossOrigin(started);
+  // ensureLoaded와 같은 이유 — 실패한 promise가 슬롯에 남으면 세션 내내 재시도가 막힌다.
+  crossLoadPromise = p.catch((err) => {
+    if (!isStaleLoad(started)) crossLoadPromise = null;
+    throw err;
+  });
   return crossLoadPromise;
 }
 

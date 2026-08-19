@@ -93,18 +93,28 @@ export function scrollCaptureTo(
       if (fallback) clearTimeout(fallback);
       // 스크롤한 뒤에 수집한다 — "스크롤하면 헤더를 fixed로 바꾸는" 사이트가 흔해
       // 스크롤 전에 훑으면 그 헤더를 못 잡고 모든 타일에 반복 인쇄된다.
-      if (hideFixed) {
-        if (session.candidateRoots.size > 0) {
-          session.positionedCandidates = mergePositionedCandidates(
+      try {
+        if (hideFixed) {
+          if (session.candidateRoots.size > 0) {
+            session.positionedCandidates = mergePositionedCandidates(
+              session.positionedCandidates ?? [],
+              session.candidateRoots,
+            );
+            session.candidateRoots.clear();
+          }
+          // 배열 소유권을 먼저 세션에 넘긴다 — hideRepeatedElements는 인자에 in-place로
+          // 누적하고 반환으로만 되돌려주므로, 중간에 throw하면 `?? []`가 만든 임시 배열이
+          // 대입 전에 사라져 이미 숨긴 요소를 endScrollCapture가 복원하지 못한다.
+          session.hiddenFixed ??= [];
+          session.hiddenFixed = hideRepeatedElements(
             session.positionedCandidates ?? [],
-            session.candidateRoots,
+            session.hiddenFixed,
           );
-          session.candidateRoots.clear();
         }
-        session.hiddenFixed = hideRepeatedElements(
-          session.positionedCandidates ?? [],
-          session.hiddenFixed ?? [],
-        );
+      } catch {
+        // 후보 수집 실패는 타일 품질 문제이지 캡처 중단 사유가 아니다 — 삼키고 진행한다.
+        // done·fallback이 이미 해제된 뒤라 여기서 빠져나가면 resolve가 영영 안 불린다.
+        // (이 파일엔 로거가 없다 — 로거를 들이면 새 의존성이라 사실만 주석으로 남긴다.)
       }
       resolve({ y: window.scrollY });
     };

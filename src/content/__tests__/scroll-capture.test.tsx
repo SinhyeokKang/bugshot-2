@@ -175,4 +175,35 @@ describe("scroll capture 응답 보장", () => {
 
     expect(outcome).toBe("resolved");
   });
+
+  it("숨김 도중 throw해도 이미 숨긴 요소를 복원한다 (무음 페이지 오염 방지)", async () => {
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(600);
+    vi.spyOn(window, "scrollX", "get").mockReturnValue(0);
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      cb(0);
+      return 1;
+    });
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({
+      position: "fixed",
+      top: "auto",
+      bottom: "auto",
+    } as CSSStyleDeclaration);
+
+    const first = document.createElement("header");
+    const second = document.createElement("aside");
+    document.body.append(first, second);
+    // 두 번째 숨김에서 throw — 첫 요소는 이미 hidden이 걸린 뒤다.
+    vi.spyOn(second.style, "setProperty").mockImplementation(() => {
+      throw new Error("style locked");
+    });
+
+    const { session } = beginScrollCapture();
+    await scrollCaptureTo(session, 600, true);
+    expect(first.style.visibility).toBe("hidden");
+
+    endScrollCapture(session);
+
+    expect(first.style.visibility).toBe("");
+  });
 });

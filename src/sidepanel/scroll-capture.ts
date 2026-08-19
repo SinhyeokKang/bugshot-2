@@ -78,7 +78,10 @@ export async function runScrollCapture(
         hideFixed: tile.index > 0,
       });
       // content 세션이 사라지면(네비게이션·재주입) 무응답 → 스크롤 안 된 화면을 계속 찍는 대신 중단.
-      if (!ack) throw new Error("scroll capture unavailable");
+      // content가 동기 구간에서 throw하면 전역 catch가 {ok:false}를 보내고 그건 truthy다 —
+      // 통과하면 ack.y가 NaN으로 흘러 drawImage가 무음 no-op이 되고 빈 밴드가 성공으로 스티치된다.
+      // begin 경로가 viewport 유무로 판정하는 것과 같은 이유로 shape을 본다.
+      if (!ack || typeof ack.y !== "number") throw new Error("scroll capture unavailable");
 
       const dataUrl = await deps.captureTab(tabId);
       // 스크롤 ack와 실제 캡처 사이엔 캡처 큐 대기(≥500ms)가 있다 — 그 사이 탭이 바뀌었으면

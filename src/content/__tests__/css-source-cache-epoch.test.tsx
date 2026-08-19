@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 vi.mock("@/lib/bg-client", () => ({ sendBg: vi.fn(async () => ({ sheets: [] })) }));
 
-import { ensureLoaded, invalidate, isCacheReady } from "../css-source-cache";
+import {
+  ensureCrossOriginLoaded,
+  ensureLoaded,
+  invalidate,
+  isCacheReady,
+} from "../css-source-cache";
 
 // 패널 열기(시트 로드 중) → 즉시 닫기(invalidate) → 옛 promise가 뒤늦게 resolve하며 isReady를
 // 켜던 회귀. 재오픈 시 picker의 캐시 대기가 스킵돼 raw 캐시가 빈 채로 확정 발화하고,
@@ -82,6 +87,15 @@ describe("css-source-cache 실패 재시도", () => {
     await ensureLoaded();
 
     expect(isCacheReady()).toBe(true);
+  });
+
+  it("cross-origin 로드도 실패 후 재호출하면 새로 시도한다", async () => {
+    const restore = failNextCollect();
+    const failed = ensureCrossOriginLoaded();
+    restore();
+    await expect(failed).rejects.toThrow("styleSheets unavailable");
+
+    await expect(ensureCrossOriginLoaded()).resolves.toBeUndefined();
   });
 
   it("invalidate 뒤 실패한 이전 promise가 새 슬롯을 지우지 않는다", async () => {

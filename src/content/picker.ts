@@ -148,7 +148,9 @@ function scheduleInspectorRefresh(): void {
       if ((mode as Mode) === "idle") return;
       inspectorCache = new WeakMap();
       if ((mode as Mode) === "hover" && lastHover) render();
-    })();
+    })().catch(() => {
+      // 보강 실패는 인스펙터 값이 덜 풍부해질 뿐 캡처를 막지 않는다 — 삼킨다.
+    });
   };
   if (typeof requestIdleCallback === "function") {
     inspectorRefreshHandle = requestIdleCallback(run, { timeout: 1000 });
@@ -313,7 +315,11 @@ function handlePickerMessage(
         // 세션이 없으면(네비게이션·재주입) 무응답 — ack를 주면 사이드패널이 스크롤 안 된
         // 화면을 남은 타일 수만큼 찍어 깨진 이미지를 "성공"으로 넘긴다.
         if (!scrollSession) return;
-        void scrollCaptureTo(scrollSession, msg.y, msg.hideFixed).then(sendResponse);
+        // reject하면 sendResponse가 안 나가 채널이 열린 채 남고 사이드패널의 await가 매달린다.
+        // 성공한 척 ack를 지어내지 않는다 — undefined가 곧 "중단하라"는 신호다.
+        void scrollCaptureTo(scrollSession, msg.y, msg.hideFixed).then(sendResponse, () =>
+          sendResponse(undefined),
+        );
         return true;
       case "picker.endScrollCapture":
         finishScrollCapture();
@@ -1188,7 +1194,9 @@ function emitSelected(
     await ensureCrossOriginLoaded();
     if (selectedEl !== el || !ensureSelectedConnected()) return;
     postSelectionUpdate(el);
-  })();
+  })().catch(() => {
+    // 보강 실패는 인스펙터 값이 덜 풍부해질 뿐 선택 자체를 막지 않는다 — 삼킨다.
+  });
 }
 
 let selectionUpdateTimer: number | null = null;
@@ -1220,7 +1228,9 @@ function scheduleSelectionUpdate(): void {
       await ensureCrossOriginLoaded();
       if (selectedEl !== target || !ensureSelectedConnected()) return;
       postSelectionUpdate(target);
-    })();
+    })().catch(() => {
+      // emitSelected와 같은 이유 — 보강 실패는 선택 자체를 막지 않는다.
+    });
   }, 120);
 }
 
