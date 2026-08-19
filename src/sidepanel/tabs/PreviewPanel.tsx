@@ -385,9 +385,11 @@ export function PreviewPanel() {
     return { md: buildIssueMarkdown(copyCtx), html: buildIssueHtml(copyCtx) };
   };
 
-  // 본문 조립의 첫 await가 IndexedDB 왕복이라, 그 사이 창 포커스가 빠지면 clipboard.write의
-  // hasFocus() 검사가 무음 실패한다. write를 클릭 시점에 동기로 걸고 조립은 promise로 넘긴다.
-  // 두 flavor는 하나의 공유 promise에서 파생시킨다 — 따로 만들면 IDB 왕복이 2회다.
+  // write를 클릭 시점에 동기로 걸고 조립은 promise로 넘긴다 — 조립이 await를 하게 되면 그 사이
+  // 창 포커스가 빠져 clipboard.write의 hasFocus() 검사가 무음 실패한다. 지금 buildForCopy는
+  // await가 없지만(인라인 이미지 치환이 동기라 IDB 왕복이 사라졌다) 이 구조는 유지한다 —
+  // 조립에 await가 다시 생기면 그때 실패가 무음으로 돌아온다.
+  // 두 flavor는 하나의 공유 promise에서 파생시킨다 — 따로 만들면 조립이 2회다.
   const handleCopyMarkdown = () => {
     const built = buildForCopy();
     const fallback = () => built.then((b) => navigator.clipboard.writeText(b.md));

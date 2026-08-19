@@ -114,7 +114,7 @@ const ko = {
   // 클립보드 복사본에는 첨부가 없다 — 왜 없는지와 어디서 얻는지를 함께 적어 무음 유실을 막는다.
   "md.videoNotCopied": "(녹화 파일은 복사되지 않습니다 — 이슈로 제출하면 첨부됩니다)",
   "md.imageNotCopied": "(이미지는 복사되지 않습니다 — 이슈로 제출하면 첨부됩니다)",
-  "md.inlineImageNotCopied": "(이미지는 복사되지 않습니다 — 이슈로 제출하면 첨부됩니다)",
+  "md.inlineImageNotCopied": "(이 이미지는 복사되지 않습니다 — 이슈로 제출하면 첨부됩니다)",
   "md.column.property": "속성",
   "md.noValue": "(없음)",
 
