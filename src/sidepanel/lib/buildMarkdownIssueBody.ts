@@ -2,7 +2,6 @@ import { t, withLocale } from "@/i18n";
 import { escapeTableCell as escapeCell } from "./markdownCell";
 import { bodyBlocks } from "./bodyBlocks";
 import {
-  escapeMdLinkText,
   mdInlineCode,
   resolveStyleElements,
   styleDomLabel,
@@ -12,7 +11,7 @@ import { ccMarkdownLine } from "./ccMention";
 import { segmentsToMarkdown } from "./classDiff";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
-import { emitMarkdownLogSummary, footerMarkdown, listItems, sectionLabel } from "./issueBodyShared";
+import { emitMarkdownLogSummary, escapeMdLinkText, footerMarkdown, imageCell, listItems, sectionLabel } from "./issueBodyShared";
 
 export interface MarkdownMediaInput {
   filename: string;
@@ -40,11 +39,6 @@ export interface MarkdownIssueBuildOpts {
 export interface MarkdownIssueBuildResult {
   body: string;
   attached: string[];
-}
-
-function imageCell(media: MarkdownMediaInput | undefined): string {
-  if (!media?.url) return "";
-  return `![${media.filename}](${media.url})`;
 }
 
 function defaultVideoEmbed(media: { filename: string; url: string }): string {
@@ -112,7 +106,7 @@ function buildMarkdownIssueBodyInner(
         lines.push("| --- | --- | --- |");
         if (hasSnapshots) {
           lines.push(
-            `| **${t("styleTable.snapshot")}** | ${imageCell(before)} | ${imageCell(after)} |`,
+            `| **${t("styleTable.snapshot")}** | ${before?.url ? imageCell(before.filename, before.url) : ""} | ${after?.url ? imageCell(after.filename, after.url) : ""} |`,
           );
         }
         for (const d of el.diffs) {

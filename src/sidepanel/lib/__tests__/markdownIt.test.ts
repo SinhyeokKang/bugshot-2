@@ -43,7 +43,7 @@ describe("MarkdownIt 설정 단일 출처", () => {
     const files = walk(join(process.cwd(), "src"));
     const rel = (p: string) => p.replace(`${process.cwd()}/`, "");
     const creators = files
-      .filter((p) => /MarkdownIt\(\{/.test(readFileSync(p, "utf8")))
+      .filter((p) => /(?<![A-Za-z])MarkdownIt\(\{/.test(readFileSync(p, "utf8")))
       .map(rel);
     const enablers = files
       .filter((p) => /enable\("strikethrough"\)/.test(readFileSync(p, "utf8")))

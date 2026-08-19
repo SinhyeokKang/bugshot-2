@@ -8,6 +8,7 @@ import type { ActionEntry } from "@/types/action";
 const VERB_TEMPLATES: Record<string, string> = {
   "actionLog.verb.input": "Entered {value} in {field}",
   "actionLog.verb.drag": "Dragged {source}",
+  "actionLog.verb.click": "Clicked {target}",
 };
 
 vi.mock("@/i18n", () => ({

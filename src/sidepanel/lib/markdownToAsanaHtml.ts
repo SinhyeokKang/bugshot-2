@@ -1,14 +1,13 @@
-import MarkdownIt from "markdown-it";
+import { createMarkdownIt } from "./markdownIt";
 import type Token from "markdown-it/lib/token.mjs";
 import { findClosingToken } from "./findClosingToken";
-import { escapeHtml } from "./escapeHtml";
+import { escapeHtml } from "@/lib/escape-html";
 
 // Asana html_notes는 제한된 태그 서브셋만 허용한다:
 // <body><h1><h2><ol><ul><li><strong><em><u><s><code><pre><a href><blockquote><hr><img>.
 // 인라인 <img>는 첨부 GID 참조(`<img data-asana-gid>`)만 가능 — 업로드 후 GID로 본문을 갱신한다.
 // <p>·<table>·<h3+>·영상은 미지원이라 폴백 처리한다.
-const md = MarkdownIt({ html: false, breaks: true, linkify: true });
-md.enable("strikethrough");
+const md = createMarkdownIt();
 
 export interface AsanaInlineImage {
   gid: string;

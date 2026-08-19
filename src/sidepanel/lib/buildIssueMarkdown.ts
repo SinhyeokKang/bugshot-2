@@ -15,7 +15,7 @@ import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { filterEnvironmentRows, type EnvironmentRow } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 import { renderMarkdown } from "./renderMarkdown";
-import { escapeHtml } from "./escapeHtml";
+import { escapeHtml } from "@/lib/escape-html";
 import { emitMarkdownLogSummary, footerMarkdown, listItems, sectionLabel } from "./issueBodyShared";
 
 // mergeStyleElements가 현재 element에서 실제로 읽는 필드만(EditorSelection의 구조적 부분집합).
@@ -217,11 +217,6 @@ export function styleSelectorList(ctx: MarkdownContext): string[] {
 
 // 마크다운 본문 DOM 줄에서 selector를 인라인 코드로 감싸는 wrap (md 계열 빌더 공용).
 export const mdInlineCode = (selector: string): string => `\`${selector}\``;
-
-// 링크 텍스트에 들어가는 사용자 입력(파일명 등)의 구조 문자 이스케이프.
-// `]`/`[`가 링크를 조기 종료하거나 깨지 않게(GitHub·GitLab 본문 공용).
-export const escapeMdLinkText = (text: string): string =>
-  text.replace(/[\\[\]]/g, "\\$&");
 
 // 래핑은 호출부가 아니라 진입점에 둔다 — 새 어댑터가 감싸는 걸 잊어도 위임 대상이 감싸져 있고,
 // 잊을 자리가 생기면 builderLocaleWrap.test.ts가 red로 잡는다.

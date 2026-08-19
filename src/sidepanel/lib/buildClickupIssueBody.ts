@@ -11,7 +11,7 @@ import { ccMarkdownLine } from "./ccMention";
 import { segmentsToMarkdown } from "./classDiff";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
-import { emitMarkdownLogSummary, footerMarkdown, listItems, sectionLabel } from "./issueBodyShared";
+import { emitMarkdownLogSummary, footerMarkdown, imageCell, listItems, sectionLabel } from "./issueBodyShared";
 
 export interface ClickupMediaInput {
   filename: string;
@@ -30,11 +30,6 @@ export interface ClickupBuildInput {
 export interface ClickupBuildResult {
   body: string;
   attached: string[];
-}
-
-function imageCell(media: ClickupMediaInput | undefined): string {
-  if (!media?.url) return "";
-  return `![${media.filename}](${media.url})`;
 }
 
 export function buildClickupIssueBody(
@@ -91,7 +86,7 @@ function buildClickupIssueBodyInner(
         lines.push("| --- | --- | --- |");
         if (hasSnapshots) {
           lines.push(
-            `| **${t("styleTable.snapshot")}** | ${imageCell(before)} | ${imageCell(after)} |`,
+            `| **${t("styleTable.snapshot")}** | ${before?.url ? imageCell(before.filename, before.url) : ""} | ${after?.url ? imageCell(after.filename, after.url) : ""} |`,
           );
         }
         for (const d of el.diffs) {

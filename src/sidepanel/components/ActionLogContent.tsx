@@ -88,13 +88,13 @@ function ResolvedTargetChip({ view }: { view: ClickTargetView }) {
     return (
       <span data-testid="action-tag">
         <span aria-hidden="true">&lt;</span>
-        <span className="text-sky-600 dark:text-sky-400">{view.tagName}</span>
+        <span className={TONE_TEXT.blue}>{view.tagName}</span>
         {view.tagType && (
           <>
             {" "}
-            <span className="text-amber-600 dark:text-amber-400">type</span>
+            <span className={TONE_TEXT.amber}>type</span>
             <span aria-hidden="true">=&quot;</span>
-            <span className="text-red-700 dark:text-red-400">{view.tagType}</span>
+            <span className={TONE_TEXT.red}>{view.tagType}</span>
             <span aria-hidden="true">&quot;</span>
           </>
         )}

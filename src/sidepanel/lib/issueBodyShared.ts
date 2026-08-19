@@ -6,6 +6,18 @@ import {
   type NetworkLogSummary,
 } from "./buildLogSummary";
 
+// 링크 텍스트에 들어가는 사용자 입력(파일명 등)의 구조 문자 이스케이프.
+// `]`/`[`가 링크를 조기 종료하거나 깨지 않게(md 계열 빌더 공용). buildIssueMarkdown에
+// 두면 leaf가 그걸 부르는 순간 issueBodyShared ↔ buildIssueMarkdown 순환이라 여기가 정본.
+export const escapeMdLinkText = (text: string): string =>
+  text.replace(/[\\[\]]/g, "\\$&");
+
+// 스타일 표의 before/after 이미지 셀. 세 빌더가 각각 url·assetUrl로 필드명이 달라
+// media 객체가 아니라 값 2개를 받는다(부재 가드는 호출부).
+export function imageCell(filename: string, url: string): string {
+  return `![${escapeMdLinkText(filename)}](${url})`;
+}
+
 // emitMarkdownLogSummary가 실제로 읽는 필드만(MarkdownContext의 구조적 부분집합).
 // 빌더 타입을 통째로 끌어오면 leaf가 빌더를 되참조해 순환이 된다 — mergeStyleElements가
 // MergeCurrentSelection으로 같은 걸 피한 선례를 따른다.

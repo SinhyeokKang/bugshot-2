@@ -1,5 +1,5 @@
 import { t } from "@/i18n";
-import MarkdownIt from "markdown-it";
+import { createMarkdownIt } from "./markdownIt";
 import type Token from "markdown-it/lib/token.mjs";
 import { findClosingToken } from "./findClosingToken";
 
@@ -16,8 +16,7 @@ interface AdfNode {
   marks?: AdfMark[];
 }
 
-const md = MarkdownIt({ html: false, breaks: true, linkify: true });
-md.enable("strikethrough");
+const md = createMarkdownIt();
 
 export function markdownToAdf(markdown: string): AdfNode[] {
   const trimmed = markdown.trim();

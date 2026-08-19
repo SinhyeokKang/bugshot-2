@@ -1,3 +1,4 @@
+import { escapeHtml } from "@/lib/escape-html";
 import { formatElementName } from "@/lib/element-label";
 
 import {
@@ -680,15 +681,6 @@ export function hideOutline(h: OverlayHandle): void {
   clearBoxLabels(o);
   o.borderEl.style.display = "none";
   o.labelEl.style.display = "none";
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 function row(key: string, valHtml: string): string {
