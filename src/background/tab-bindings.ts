@@ -189,8 +189,11 @@ async function deactivatePanelIfCrossOrigin(
   const key = sessionKey(tabId);
   const urlKey = `${ACTIVATION_URL_PREFIX}${tabId}`;
   try {
+    // applyInner와 같은 판정을 쓴다 — 이 read는 큐 밖이라, apply가 큐를 점유하는 동안
+    // "클릭했지만 activation write가 아직 안 반영된" 탭은 set에 없다. 그 창에서 그냥
+    // return하면 cross-origin 이동의 비활성화가 통째로 스킵된다.
     const set = await getActivatedSet();
-    if (!set.has(tabId)) return;
+    if (!set.has(tabId) && !pendingActivation.has(tabId)) return;
     const data = await chrome.storage.session.get(key);
     const snap = data[key] as SessionSnap | undefined;
     const preserved = shouldPreserveSession(snap);
