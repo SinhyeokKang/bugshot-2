@@ -165,11 +165,11 @@
   2. **`notion-api.ts:80`은 refresh 함수가 없는데 401 fallthrough에 의존한다**("refresh가 없으므로 즉시 재인증으로 안내"). 반전 후 안내가 사라지므로 **`refreshFailed: true`로 명시 태깅**한다. clickup·slack도 같은 축인지 확인.
   3. `oauth.ts:277-285` `persistOAuthTokens`는 최초 연결·refresh 양쪽에서 불린다 → **최초 연결 레인(400)** 으로 보낸다(저장 실패는 재로그인으로 안 풀린다).
 - **검증**:
-  - [ ] `src/background/__tests__/oauth.test.ts`: refresh 실패 → 401+`oauthRefreshFailed` / state mismatch → 400 / cancelled·notConfigured·launchFailed 무회귀
-  - [ ] "최초 연결 401(저장 토큰 없음) → 400" 케이스 → green — **이게 🔴의 실제 회귀 테스트다**
-  - [ ] "notion 권한 박탈 → 401+`oauthRefreshFailed`" → green (역방향 회귀 방지)
-  - [ ] 전수 스캔 규칙이 일부러 뺀 태깅에 red를 내는지 확인 후 되돌림 (vacuous green 방지)
-  - [ ] `pnpm test` green
+  - [x] `src/background/__tests__/oauth.test.ts`: refresh 실패 → 401+`oauthRefreshFailed` / state mismatch → 400 / cancelled·notConfigured·launchFailed 무회귀 (기존 `:99` 기대값 1건 정정 — 플래그 없는 기본값이 401이던 **버그를 계약으로 굳히고** 있었다)
+  - [x] "최초 연결 401 → 400" → green. **design.md의 레인 분기 전제가 거짓이었다** — runner는 두 레인을 구별할 신호가 없다(양쪽이 같은 `getMyself`를 타고 auth 필드도 동일, hook 반환 채널이 `A` 하나, `refreshToken`·`grantedAt`은 제네릭 제약 밖). 그래서 **runner가 refresh 레인을 기본 태깅**(`inRefreshLane`이 `refreshHook` 호출 2곳을 감싼다 — 이러면 github/gitlab/linear/asana의 refresh throw 8지점이 열거 없이 덮인다)하고 **최초 연결 5지점이 `inConnectLane`으로 되벗긴다**(notion 포함 — 원안의 4곳은 빠져 있었다). 그물은 `lib/__tests__/connectLane.test.ts` 9케이스
+  - [x] "notion 권한 박탈 → 401+`oauthRefreshFailed`" → green (`notion-api.ts:80` 명시 태깅). clickup·slack은 `OAuthError`가 아니라 `ClickupError`/`SlackError`를 던져 `serializePlatformError`가 먼저 잡으므로 이 반전과 무관 — 확인 후 손대지 않았다
+  - [x] `connect-reason-coverage.test.ts`에 401 레인 전수 스캔 2종 추가(`refreshHook` 호출이 전부 `inRefreshLane`을 지나는지 / 5개 oauth 파일의 `getMyself`가 `inConnectLane`을 지나는지). 각 뮤테이션으로 red 실측 — **지점을 열거하지 않는 게 요점**이다
+  - [x] `pnpm test` green
 
 ### Task 5-2: 토큰 응답 error 검사 — notion + jira (G5 · #3)
 
@@ -177,10 +177,10 @@
 - **작업 내용**: **갭은 2건이다** — 원안의 "notion이 프록시 경유 6종 중 유일한 이탈"은 틀렸다. 둘 다 `res.ok`만 본다. 형제 5종(`github`·`gitlab`·`linear`·`asana`·`clickup`)의 `if ("error" in data && data.error)` + `grantRejection(is<X>CancellationCode(...))` 관용구를 **복사**한다(slack은 `if (!data.ok)`로 형태가 달라 참조하지 않는다).
 - **주의**: **`connect-reason-coverage.test.ts:78`이 red가 된다** — `GRANT_LANE_FILES` 6개를 집합으로 고정(`expect(owners).toEqual(...)`)하고 주석에 "jira·notion은 그 분기 자체가 없다"고 박아뒀다. **목록과 주석을 함께 갱신**하고, 갱신했다는 사실을 커밋 메시지에 적는다(그물이 정상 작동한 것이지 구현 오류가 아니다).
 - **검증**:
-  - [ ] notion·jira 각각 "200 + error 본문이면 throw" 케이스 → green
-  - [ ] 정상 토큰 응답 경로 무회귀 (양쪽)
-  - [ ] `GRANT_LANE_FILES`가 8개로 갱신되고 `:78` green
-  - [ ] 형제 5종과 형태가 같은지 diff를 나란히 대조
+  - [~] notion·jira 동작 테스트 — **미작성**. `exchangeCode`·`exchangeCodeForTokens`가 비-export이고 OAuth 플로우는 `/tdd` 분류표상 스킵 대상이라, 저장소가 이 축에 쓰는 정본 그물(원문 전수 대조)로 대체했다
+  - [x] 정상 토큰 응답 경로 무회귀 (양쪽) — `pnpm test` green
+  - [x] `GRANT_LANE_FILES`가 8개로 갱신되고 green (주석도 함께 갱신 — 그물이 정상 작동한 것)
+  - [x] 형제 5종과 형태 동일 확인 (같은 union 캐스트 · `data.error_description || data.error` · `...grantRejection(is<X>CancellationCode(...))` spread · `return data as X`)
 
 ### Task 5-3: 업로드 응답 판별자 통일 (G5 · #4)
 
@@ -191,20 +191,21 @@
   2. **목을 갱신** — `submitTo*.test.ts` 10개가 `sendBg`를 spec별로 mock하므로(`submitToGitlab.test.ts:55,97,128,…`) 목 반환을 새 형태로 바꾸지 않으면 **구 형태로 계속 green**이다.
   3. 소비처 손감사 목록을 결과에 적는다: `prepareUpload.ts:50,92-93,111-114` · `submitToGitlab.ts:38-43,82-89` · `submitToAsana.ts:46,181-199` · `submitToGithub.ts:33-38` · `submitToClickup.ts:90-105,113` · `submitToSlack.ts:76-83`.
 - **검증**:
-  - [ ] `pnpm typecheck` green — **단 이건 소비처 누락을 증명하지 않는다**(그 사실을 결과에 적는다)
-  - [ ] **4플랫폼(github·gitlab·asana·clickup) × 성공/실패 8분기 각각 "업로드 1건 실패해도 나머지가 첨부되고 실패분이 실패로 판정된다"** → green. **이게 유일한 실질 그물이다**
-  - [ ] `submitAdapters.test.ts`·`prepareUpload.test.ts`의 목이 새 형태로 갱신됨 (갱신 없이 green이면 그게 놓친 신호다)
-  - [ ] `grep -rn "gid: null\|url: null\|href: null" src/background/` → 판별자로 대체됐는지 확인 (4플랫폼 전부 — 원안 grep은 asana만 잡았다)
+  - [x] `pnpm typecheck` green — **소비처 누락은 증명하지 않는다**(`handleMessage`가 `Promise<unknown>`, `sendBg<T>`는 호출자 단언). 손감사로 대조했다
+  - [x] 4플랫폼 × 성공/실패 분기 green. **단 실질 red는 gitlab·clickup 둘뿐이었다** — github은 어댑터가 이미 `href`를 직접 읽고 asana는 `gid`를 읽어, 판별자 도입 전후로 동작이 같다(그쪽은 핸들러 반환 형태 변경의 회귀 가드로 남겼다). asana는 대신 producer 가드(`if (gid)`)가 없어 `ok:true` + `gid: undefined`가 새는 구멍이 있었고 그걸 clickup과 대칭으로 닫았다
+  - [~] `prepareUpload.test.ts`는 **적용 불가**로 판정 — `UploadFn`은 `{filename, href|null}`을 유지하고 판별자는 `sendBg` 경계까지다(4어댑터가 거기서 정규화). 갱신 대상은 `submitTo{Github,Gitlab,Asana,Clickup}.test.ts`의 목 10개였고 전부 새 형태로 바꿨다
+  - [x] 잔존 5건은 전부 `github-upload.ts`의 **MAIN world 주입 함수 내부** — self-contained 제약이라 그대로 두고 경계(`uploadGithubFiles` 반환)에서 정규화했다
 
 ### Task 6-1: 어노테이션 기본값 leaf 승격 (G6 · #8)
 
 - **변경 대상**: `src/sidepanel/lib/annotationDefaults.ts`(신규), `src/sidepanel/components/annotation/presets.ts`(re-export), `src/store/editor-store.ts:16`
 - **작업 내용**: store가 실제로 쓰는 `DEFAULT_COLOR`·`DEFAULT_THICKNESS`·`ThicknessKey`만 leaf로 뗀다. `presets.ts`는 거기서 re-export해 **기존 소비처 4곳을 안 건드린다**.
 - **검증**:
-  - [ ] `grep -rn "annotation/presets" src/store/` → 0건
-  - [ ] `pnpm typecheck` green, `pnpm test` green
-  - [ ] `presets.ts`의 기존 소비처 4곳이 그대로 동작 (import 경로 무변경)
-  - [ ] `builderLocaleWrap.test.ts` green — **아무것도 등록하지 않고** 통과해야 한다(그 테스트는 `t`를 import하는 파일만 본다. `EXEMPT`에 넣으면 유령 항목 검사로 red)
+  - [x] `grep -rn "annotation/presets" src/store/` → 0건
+  - [x] `pnpm typecheck` green, `pnpm test` green
+  - [x] `presets.ts`의 기존 소비처 4곳 import 경로 무변경 (re-export)
+  - [x] `builderLocaleWrap.test.ts` green — 등록 없이 통과
+  - [x] **스코프 초과 1건**: `ANNOTATION_COLORS`·`ANNOTATION_THICKNESS`도 함께 내렸다. store가 쓰는 3개만 떼면 `ANNOTATION_COLORS`의 정의가 두 벌이 되고(`DEFAULT_COLOR`가 그 배열에서 파생) 그게 이 그룹이 없애려던 형태다
 
 ### Task 6-2: `clearPicker` + 소유 상태 분리 (G6 · #9)
 
@@ -215,11 +216,12 @@
 - **커버리지 필수 단계**: `picker-control.ts`는 `coverage-report.mjs:52 BROWSER_BOUND_EXACT`에 등재돼 로직 분모에서 빠져 있다. **새 `picker-clear.ts`를 같은 목록에 추가한다** — 안 하면 ~0%로 분모에 들어와 prd 성공기준 5를 자기 손으로 깬다.
 - **부수 기록**: `stopPicker`(`:253-256`)가 `clearPicker` 본문을 바이트 복제 중 — **이번엔 안 고치고** 사실만 결과에 적는다(외과적 변경).
 - **검증**:
-  - [ ] `grep -rn "picker-control" src/store/` → 0건
-  - [ ] `pnpm typecheck` green, `pnpm test` green
-  - [ ] `tabFrameTokens` 정의가 저장소 전체에 **1개**인지 확인 (`grep -rn "tabFrameTokens = new Map" src/`)
-  - [ ] `picker-clear.ts`가 `BROWSER_BOUND_EXACT`에 등록됨 → `pnpm coverage:report`로 로직 % 무하락 확인
-  - [ ] `picker-control`의 기존 소비처 무변경
+  - [x] `grep -rn "picker-control" src/store/` → 0건
+  - [x] `pnpm typecheck` green, `pnpm test` green
+  - [x] `tabFrameTokens` 정의 **1개**(`picker-clear.ts`), `sendAll` 정의도 1개 — Map 분열 없음
+  - [x] `picker-clear.ts`를 `BROWSER_BOUND_EXACT`에 등록
+  - [x] `picker-control`이 re-export해 기존 호출부 9파일 무변경
+  - [x] **부수 기록**: `stopPicker`가 `clearPicker` 본문을 여전히 바이트 복제 중이고, 이제 그 복제가 **파일 경계를 넘어** 있다(다음 사람이 발견하기 더 어렵다). 이번엔 안 고쳤다
 
 ### Task 6-3: 번들 경계 최종 확인 (G6)
 
@@ -236,10 +238,10 @@
 - **작업 내용**: 정본을 `src/lib/`로 올리고 양쪽이 import. **값은 무변경(`& < > "` 4문자)** — overlay 사본이 갖고 있던 `'` → `&#39;`를 **버린다**(narrowing).
   - 근거: `overlay.ts`에 **단일인용 속성이 0건**(`grep -n "='"` → 0)이고 유일한 속성 보간 `:705`가 이중인용이라 `'` 이스케이프가 불필요하다. 반대로 넓히면 정본 소비처 4개(클립보드 `text/html`·`logs.html`·Asana `html_notes`·라이브 프리뷰)의 출력이 모든 아포스트로피에서 바뀌는데 **그걸 잡는 그물이 하나도 없다**(design.md 대안 H).
 - **검증**:
-  - [ ] `escapeHtml` 정의가 저장소 전체에 **1곳**. **`grep "replace(/&/g" src/`는 게이트가 아니다** — `markdownToMrkdwn.ts:71 escapeMrkdwn`이 정당한 제3의 hit이다(Slack mrkdwn, 자체 스코핑 주석 `:67-68`)
-  - [ ] **`escape-html.test.ts`에 "`'`는 이스케이프하지 않는다" 케이스 추가** → green — 결정을 못 박아 다음 배치가 같은 계산을 반복하지 않게
-  - [ ] **수동**: overlay 라벨·색상 swatch에 `'`가 든 값이 정상 표시
-  - [ ] 골든 스냅샷 무변경 — **단 이건 판정 수단이 아니다**(스냅샷에 `'` 0건이라 어느 방향으로 가도 green. design.md 위험 ③)
+  - [x] `escapeHtml` 정의 **1곳**(`src/lib/escape-html.ts`) — 소스 전수 스캔으로 잠갔다(이름 grep이 아니라 정의 개수)
+  - [x] "`'`는 이스케이프하지 않는다" 케이스 green
+  - [ ] **수동**: overlay 라벨·색상 swatch에 `'`가 든 값이 정상 표시 — 미실행. 근거는 확인했다(escapeHtml 소비 5곳 중 속성 문맥은 `style="…"` 하나이고 이중인용)
+  - [x] 골든 스냅샷 무변경
 
 ### Task 7-2: `imageCell` + `escapeMdLinkText` 통합 (G7 · #22)
 
@@ -249,12 +251,12 @@
   - 호출부는 `media ? imageCell(media.filename, media.url) : ""`, linear는 `media.assetUrl`. (가드를 호출부로 올린다 — 원 시그니처는 `media | undefined`를 표현하지 못한다.)
 - **주의**: **셋 다 escape가 없다.** 드리프트는 3벌 사이가 아니라 파일 내부다(`defaultVideoEmbed:51`·`:202`·`:206`은 escape를 쓴다). 그리고 **골든 스냅샷은 이 변경을 못 본다** — `imageCell`의 유일 호출부인 `styleTable.snapshot` 행이 스냅샷에 0건이고 픽스처 파일명이 escape-char-free다.
 - **검증**:
-  - [ ] Task 0의 "`escapeMdLinkText` 미적용" red 케이스 green
-  - [ ] `grep -rn "function imageCell" src/sidepanel/` → 1건
-  - [ ] `grep -rn "function escapeMdLinkText" src/sidepanel/` → 1건 (`issueBodyShared.ts`)
-  - [ ] `issueBodyShared` ↔ `buildIssueMarkdown` 순환 없음 — `pnpm typecheck` + import 방향 눈확인
-  - [ ] `builderLocaleWrap.test.ts` green
-  - [ ] 파일명·URL에 `[`·`]`·`\`가 든 케이스에서 링크가 깨지지 않는지 유닛으로 고정
+  - [x] Task 0의 "`escapeMdLinkText` 미적용" red 케이스 green (P0에서 이관해온 것)
+  - [x] `imageCell` 정의 1건, `escapeMdLinkText` 정의 1건(`issueBodyShared.ts`)
+  - [x] 순환 없음 — `issueBodyShared`의 import는 `@/i18n`·`settings-ui-store`·`buildLogSummary`뿐, 방향은 `buildIssueMarkdown → issueBodyShared` 단방향
+  - [x] `builderLocaleWrap.test.ts` green
+  - [x] `[`·`]`·`\` 케이스 유닛 고정
+  - [x] **실사용 출력 변화 0** — 이 셀의 파일명은 `mergeStyleElements`가 만드는 `before-${i}`/`after-${i}`라 구조 문자가 들어올 경로가 없다(그래서 골든이 못 본다는 design 지적이 정확했다)
 
 ### Task 7-3: `MarkdownIt` 팩토리 (G7 · #25)
 
@@ -262,20 +264,19 @@
 - **작업 내용**: `createMarkdownIt(options?)` 팩토리. **`md.enable("strikethrough")`를 팩토리에 반드시 포함한다** — 4곳 전부 다음 줄에서 그걸 부르므로 빠뜨리면 넷 다 회귀한다. **인스턴스는 파일별로 유지**(공유하면 한 파일의 `md.use()`가 나머지에 샌다).
 - **주의**: **`builderLocaleWrap.test.ts`에 아무것도 등록하지 않는다.** 원안의 "면제 분류에 등록" 지시는 red를 만든다 — 그 테스트의 대상 집합은 `IMPORTS_T`(`:13`)로 걸러진 `t` import 파일들이고, `EXEMPT`(`:37-43`)에 넣으면 유령 항목 검사(`:87-88`)에 걸린다. 증거: `escapeHtml.ts`·`renderMarkdown.ts`·`markdownToAsanaHtml.ts`가 두 목록 어디에도 없고 스위트는 green이다.
 - **검증**:
-  - [ ] `grep -rn "MarkdownIt({" src/` → `markdownIt.ts` 1곳만
-  - [ ] `grep -rn 'enable("strikethrough")' src/` → 1곳만
-  - [ ] `builderLocaleWrap.test.ts` green (등록 없이)
-  - [ ] 4개 소비처의 파싱 결과 무변경 — ADF·Notion blocks·Asana HTML·프리뷰 각각 기존 유닛 green
+  - [x] 생성·`enable("strikethrough")` 각 1곳 — 소스 전수 스캔으로 잠갔다(`createMarkdownIt({`가 `MarkdownIt({`를 부분 포함하므로 `(?<![A-Za-z])` 경계가 필수다)
+  - [x] `builderLocaleWrap.test.ts` green (등록 없이)
+  - [x] 4개 소비처 기존 유닛 green. 저장소 전체 `md.use()`·`md.disable()` 0건이라 인스턴스 공유 위험도 없다
 
 ### Task 7-4: frozen phase 단일 출처 (G7 · #30)
 
 - **변경 대상**: `src/sidepanel/hooks/useEditorSessionSync.ts:47`(`DRAFT_PHASES` 제거)·`:270-272`(인라인 재열거 → `FROZEN_PHASES.has`)
 - **작업 내용**: `lib/session-keys.ts:42-46`의 `FROZEN_PHASES`(`ReadonlySet<string>`)로 수렴. `:2`가 이미 그 모듈을 import한다. **`ACTIVE_CAPTURE_PHASES`(`:50`)는 건드리지 않는다.** 세 집합의 원소가 동일하므로 순수 리팩터다.
 - **검증**:
-  - [ ] `grep -n '"drafting"' src/sidepanel/hooks/useEditorSessionSync.ts` → 0건
-  - [ ] `useEditorSessionSync.test.ts` 무회귀 (`:146`·`:160`이 `DRAFT_PHASES` 소비처였다)
-  - [ ] `tab-bindings.test.ts`·`log-merge` 관련 테스트 무회귀 (`FROZEN_PHASES` 기존 소비처 2곳)
-  - [ ] **저장소 전체 `"previewing"` 10건 중 3건만 대상**임을 확인 — `IssueTab.tsx:240`·`DebugTab.tsx:30`·`useBackgroundRecorder.ts:25`·`editor-store.ts:40,863,1011,1116`은 무관한 단일 phase 비교이므로 **쓸어 담지 않는다**
+  - [x] `grep -n '"drafting"' src/sidepanel/hooks/useEditorSessionSync.ts` → 0건
+  - [x] `useEditorSessionSync.test.ts` 무회귀 (테스트 무변경)
+  - [x] `tab-bindings.test.ts`·log-merge 무회귀
+  - [x] **저장소 전체 `"previewing"` 중 3건만 대상**임을 확인 — `IssueTab.tsx:240`·`DebugTab.tsx:30`·`useBackgroundRecorder.ts:25`·`editor-store.ts:40,863,1011,1116`은 무관한 단일 phase 비교이므로 **쓸어 담지 않는다**
 
 ### Task 7-5: `ActionLogContent` 톤 단일 출처 (G7 · M1)
 
@@ -283,9 +284,10 @@
 - **작업 내용**: `text-sky-600`·`text-red-700`을 `@/lib/log-colors`의 `TONE_TEXT`로 수렴한다. 같은 파일 `:69`가 이미 `TONE_TEXT.blue`를 쓴다. `docs/POSTMORTEM.md:143`이 이월로 남긴 항목.
 - **주의**: **색 값이 실제로 같은지 먼저 대조한다.** 다르면 그건 시각 변경이므로 prd "사용자에게 보이는 변화" 표에 행을 추가하고 다크모드 대비도 확인한다.
 - **검증**:
-  - [ ] `grep -n "text-sky-\|text-red-" src/sidepanel/components/ActionLogContent.tsx` → 0건
-  - [ ] 색 값이 `TONE_TEXT`와 동일함을 결과에 기록 (다르면 노출 변화로 승격)
-  - [ ] log-viewer가 이 컴포넌트를 재사용하므로 `src/log-viewer/__tests__/` 무회귀
+  - [x] `grep -n "text-sky-\|text-red-7" ActionLogContent.tsx` → 0건
+  - [x] **색 값이 달랐다 → 노출 변화로 승격**(prd 표에 M1 행 추가). 태그 `sky-600/400`→`blue-600/400`, 값 `red-700/400`→`red-600/400`, amber만 동일. 대비는 태그가 개선(`bg-muted` 위 3.72:1→4.72:1, 원래 AA 미달), 값이 하락(5.95:1→4.41:1, AA 미달) — 후자는 앱 전역 `TONE_TEXT.red`와 같은 값이라 **이 자리만 좋게 두는 대신 전역과 일치**시키는 선택이다
+  - [x] log-viewer 무회귀
+  - [x] **부수 발견**: `DomTreeDialog.tsx`가 아직 `sky-600` 로컬 리터럴이라 두 화면의 태그 색이 처음으로 갈렸다 — DESIGN.md에 명시하고 다음 배치 후보로 남겼다
 
 ### Task 9: activation 큐에 `apply` 편입 (G9 · #10)
 
@@ -297,11 +299,12 @@
   3. **`activateTab`(`:253-269`)의 gesture 경로 `setOptions`/`open`은 큐 밖에 유지한다** — 그 위 주석이 await 금지를 명시한다. 큐에 넣으면 사이드패널 열기가 증도로 막힌다.
   4. **경합은 완전히 사라지지 않는다** — `activateTab:257-263`·`deactivatePanelIfCrossOrigin:234`의 `setOptions`가 큐 밖에 남는다. 유닛은 큐 내부 순서만 고정하므로 **green이면서 실경합이 일부 남고**, 수동 확인이 로드베어링이다. 그 사실을 결과에 적는다.
 - **검증**:
-  - [ ] `tab-bindings` 유닛에 "onActivated와 onUpdated가 겹쳐도 `setOptions` 커밋 순서가 큐 순서와 같다" → green
-  - [ ] "`apply`가 reject해도 이후 `setActivated`가 계속 동작한다" → green (관용구 확인)
-  - [ ] 재진입 없음 근거 한 줄이 결과에 있음
-  - [ ] 큐 밖에 남는 `setOptions` 2곳이 결과에 목록으로 있음
-  - [ ] **수동**: 탭 A(지원)↔탭 B(미지원) 빠른 전환 + cross-origin 네비게이션 중 패널 깜빡임 없음
+  - [x] "먼저 큐에 든 비활성화 write가 끝난 뒤 apply가 읽는다" → green (큐 제거 뮤턴트로 red 실측)
+  - [x] "`apply`가 reject해도 이후 activation write가 계속 동작한다" → green (`.catch` 제거 뮤턴트로 red 실측)
+  - [x] **재진입 없음**: `applyInner`는 `getActivatedSet()`·`setOptions`·`storage.session.get`만 부르고 `setActivated`를 호출하지 않는다. 역방향도 없다 — `setActivated` 호출부 3곳이 전부 큐 밖이고 `apply`를 await하지 않는다
+  - [x] **큐 밖에 남는 `setOptions` 4곳**: `tab-bindings.ts:267`(activateTab gesture, await 금지)·`:274`(`sidePanel.open`, 동상)·`:243`(`deactivatePanelIfCrossOrigin`)·`background/index.ts:26`(tabId 없는 전역 기본값). 앞 둘은 의도적 유지, 뒤 둘이 design 함정 ④의 잔여 경합이다
+  - [x] **부수**: `onUpdated`의 `apply` 호출 2곳에 `.catch`를 붙였다 — 없으면 apply reject가 unhandled로 새어 `pnpm test`가 exit 1이 된다(CI `verify` 실패). `onActivated` 쪽은 이미 try/catch였다
+  - [ ] **수동**: 탭 A(지원)↔탭 B(미지원) 빠른 전환 + cross-origin 네비게이션 중 패널 깜빡임 없음 — 미실행. 유닛은 큐 내부 순서만 고정하므로 이 축은 수동이 로드베어링이다
 
 ---
 
