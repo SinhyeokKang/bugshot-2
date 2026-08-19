@@ -1,3 +1,6 @@
+import { clearPicker, sendAll, tabFrameTokens } from "./picker-clear";
+// 기존 호출부 28곳(9파일)을 안 건드리려 re-export.
+export { clearPicker };
 import { classifyTabSupport } from "@/lib/url-support";
 import { pageKeyOf } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
@@ -118,18 +121,6 @@ async function send<R = void>(
   }
 }
 
-// 전 프레임 broadcast — picker.start/stop/clear/endCapture·레코더 제어 등 프레임 무관 메시지 전용.
-async function sendAll<R = void>(
-  tabId: number,
-  msg: PickerMessage,
-): Promise<R | undefined> {
-  try {
-    return await chrome.tabs.sendMessage<PickerMessage, R>(tabId, msg);
-  } catch {
-    return undefined;
-  }
-}
-
 // 페이지 오버레이는 CSS 변수를 못 받아 OS 선호만 보면 앱 설정과 갈린다 — picker.start를
 // 보내는 3곳이 전부 같은 값을 싣도록 여기 한 벌로 둔다.
 function currentTheme(): "light" | "dark" {
@@ -139,10 +130,6 @@ function currentTheme(): "light" | "dark" {
   );
   return dark ? "dark" : "light";
 }
-
-// picking 세션의 PRESENT 등록 token — 커밋된 iframe에 picker.start를 재전송할 때 같은
-// token을 실어야 top registry 검증을 통과한다(tabSentinels와 동형의 탭별 보유).
-const tabFrameTokens = new Map<number, string>();
 
 export function isCurrentPickerSession(tabId: number, sessionId: string): boolean {
   return tabFrameTokens.get(tabId) === sessionId;
@@ -285,11 +272,6 @@ export async function stopPickerOrResume(tabId: number): Promise<void> {
     if (await resumeBufferedElement(tabId)) return;
   }
   await stopPicker(tabId);
-}
-
-export async function clearPicker(tabId: number): Promise<void> {
-  tabFrameTokens.delete(tabId);
-  await sendAll(tabId, { type: "picker.clear" });
 }
 
 // picking 중 네비게이션·신규 커밋된 iframe의 picker는 idle인데 top registry엔 옛

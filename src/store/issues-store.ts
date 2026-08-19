@@ -5,7 +5,7 @@ import type { EnvironmentRow } from "@/types/environment";
 import { migrateIssueToV4 } from "./issues-migrations";
 import { failClosedLocalStorage } from "./chrome-storage";
 import { useEditorStore, type CaptureMode } from "./editor-store";
-import { clearPicker } from "@/sidepanel/picker-control";
+import { clearPicker } from "@/sidepanel/picker-clear";
 import {
   deleteVideoBlob,
   clearVideoBlobs,

@@ -1,0 +1,27 @@
+import type { PickerMessage } from "@/types/picker";
+
+// picker-control에서 떼어낸 leaf. issues-store가 clearPicker를 부르는데, picker-control을
+// 끌면 사이드패널 컴포넌트 그래프가 store 번들로 딸려온다.
+// tabFrameTokens·sendAll을 함께 내리는 게 핵심이다 — clearPicker만 옮기면 Map이 둘로 갈려
+// clear 후에도 토큰이 살아 restartPickerInFrame이 유령 blocker를 재주입한다.
+
+// 전 프레임 broadcast — picker.start/stop/clear/endCapture·레코더 제어 등 프레임 무관 메시지 전용.
+export async function sendAll<R = void>(
+  tabId: number,
+  msg: PickerMessage,
+): Promise<R | undefined> {
+  try {
+    return await chrome.tabs.sendMessage<PickerMessage, R>(tabId, msg);
+  } catch {
+    return undefined;
+  }
+}
+
+// picking 세션의 PRESENT 등록 token — 커밋된 iframe에 picker.start를 재전송할 때 같은
+// token을 실어야 top registry 검증을 통과한다(tabSentinels와 동형의 탭별 보유).
+export const tabFrameTokens = new Map<number, string>();
+
+export async function clearPicker(tabId: number): Promise<void> {
+  tabFrameTokens.delete(tabId);
+  await sendAll(tabId, { type: "picker.clear" });
+}
