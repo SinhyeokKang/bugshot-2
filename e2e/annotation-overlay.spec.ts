@@ -99,4 +99,64 @@ test.describe.serial("annotation overlay", () => {
     await expect(panel.getByTestId("media-preview-img")).toHaveAttribute("src", rawSrc);
     await expect(panel.getByTestId("annotation-remove")).toHaveCount(0);
   });
+
+  // 도형 시각 정합 일반(모양·색·두께)은 여전히 수동이지만, **어느 쪽에 그려졌나**는 훨씬 거친
+  // 판정이라 자동화된다. Konva는 레이어당 canvas를 만들고 배경 이미지가 별 레이어라
+  // (`<Layer listening={false}>` + KonvaImage), 도형 레이어만 스캔하면 alpha가 곧 "획이 있나"다.
+  //
+  // 이 그물이 필요한 이유: ellipseRenderGeometry의 유닛은 함수가 옳은 값을 내는지만 본다.
+  // ShapeNode가 그 값을 실제로 <Ellipse> props로 넘기는지, Konva가 우리 해석대로 렌더하는지는
+  // 캔버스 실동작이라 배선을 옛 식으로 되돌려도 유닛은 전부 green이다.
+  test("ellipse 좌상단 드래그 — 원이 앵커 반대편에 그려지지 않는다", async () => {
+    await panel.getByTestId("annotation-edit").click();
+    const overlay = panel.getByTestId("annotation-overlay");
+    await expect(overlay).toBeVisible();
+    await expect(panel.getByTestId("annotation-tool-ellipse")).toBeVisible();
+
+    await panel.getByTestId("annotation-tool-ellipse").click();
+    await expect(panel.getByTestId("annotation-tool-ellipse")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+
+    const shapeLayer = overlay.locator("canvas").last();
+    const box = await overlay.locator("canvas").first().boundingBox();
+    if (!box) throw new Error("annotation canvas boundingBox 없음");
+
+    // 캔버스 중앙을 앵커로 두고 좌상단으로 끈다 — width·height가 음수가 되는 경로다.
+    const ax = box.x + box.width / 2;
+    const ay = box.y + box.height / 2;
+    await panel.mouse.move(ax, ay);
+    await panel.mouse.down();
+    await panel.mouse.move(ax - box.width * 0.25, ay - box.height * 0.25, { steps: 10 });
+    await panel.mouse.up();
+    await expect(panel.getByTestId("annotation-done")).toBeEnabled();
+
+    // 앵커(캔버스 중앙)를 기준으로 네 사분면의 불투명 픽셀을 센다. 좌상단으로 끌었으니
+    // 획은 좌상단에만 있어야 하고, 거울 반사되면 우하단에 나타난다.
+    const counts = await shapeLayer.evaluate((el) => {
+      const c = el as HTMLCanvasElement;
+      const ctx = c.getContext("2d");
+      if (!ctx) throw new Error("2d context 없음");
+      const { data, width, height } = ctx.getImageData(0, 0, c.width, c.height);
+      const cx = Math.round(c.width / 2);
+      const cy = Math.round(c.height / 2);
+      let upLeft = 0;
+      let downRight = 0;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          if (data[(y * width + x) * 4 + 3] === 0) continue;
+          if (x < cx && y < cy) upLeft++;
+          else if (x > cx && y > cy) downRight++;
+        }
+      }
+      return { upLeft, downRight };
+    });
+
+    expect(counts.upLeft).toBeGreaterThan(0);
+    expect(counts.downRight).toBe(0);
+
+    await panel.getByTestId("annotation-cancel").click();
+    await expect(overlay).toBeHidden();
+  });
 });
