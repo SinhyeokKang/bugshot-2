@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { enterDebug, expect, test } from "./fixtures/extension";
+import { stubClipboard } from "./fixtures/clipboard";
 
 // 16줄 넘는 코드블럭이 접혀 렌더되고 pill로 토글되는지. 접힘을 data-collapsed 속성으로
 // 표현했기 때문에 판정 가능하다 — max-height·페이드·hover 페이드인은 시각이라 여기서 못 본다.
@@ -33,25 +34,6 @@ async function insertLog(panel: Page, path: string) {
   await expect(panel.getByTestId("log-insert-confirm")).toBeEnabled();
   await panel.getByTestId("log-insert-confirm").click();
   await expect(dialog).toBeHidden();
-}
-
-async function stubClipboard(panel: Page) {
-  await panel.evaluate(() => {
-    const w = window as unknown as { __copiedTexts: string[]; __copiedHtml: string[] };
-    w.__copiedTexts = [];
-    w.__copiedHtml = [];
-    navigator.clipboard.write = async (items) => {
-      for (const it of items) {
-        w.__copiedTexts.push(await (await it.getType("text/plain")).text());
-        // text/html이 빠지면 getType이 throw해 writeText 폴백으로 흘러간다 — 그러면
-        // __copiedHtml이 비고, 붙여넣기에서 표·이미지가 사라지는 회귀가 여기서 잡힌다.
-        w.__copiedHtml.push(await (await it.getType("text/html")).text());
-      }
-    };
-    navigator.clipboard.writeText = async (t) => {
-      w.__copiedTexts.push(t);
-    };
-  });
 }
 
 const copiedText = (panel: Page) =>

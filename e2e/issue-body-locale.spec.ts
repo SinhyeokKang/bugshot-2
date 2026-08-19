@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { enterDebug, expect, test } from "./fixtures/extension";
+import { stubClipboard } from "./fixtures/clipboard";
 
 // 이슈 본문 언어 — 화면 언어와 독립된 축. 복사·제출 본문의 섹션 헤딩만 바뀌고 사이드패널
 // 화면은 화면 언어를 유지한다.
@@ -48,25 +49,6 @@ async function setBodyLocale(panel: Page, label: string | "auto") {
   } else {
     await panel.getByRole("option", { name: label, exact: true }).click();
   }
-}
-
-async function stubClipboard(panel: Page) {
-  await panel.evaluate(() => {
-    const w = window as unknown as { __copiedTexts: string[]; __copiedHtml: string[] };
-    w.__copiedTexts = [];
-    w.__copiedHtml = [];
-    navigator.clipboard.write = async (items) => {
-      for (const it of items) {
-        w.__copiedTexts.push(await (await it.getType("text/plain")).text());
-        // text/html이 빠지면 getType이 throw해 writeText 폴백으로 흘러간다 — 그러면
-        // __copiedHtml이 비고, 붙여넣기에서 표·이미지가 사라지는 회귀가 여기서 잡힌다.
-        w.__copiedHtml.push(await (await it.getType("text/html")).text());
-      }
-    };
-    navigator.clipboard.writeText = async (t) => {
-      w.__copiedTexts.push(t);
-    };
-  });
 }
 
 async function copiedText(panel: Page): Promise<string> {

@@ -1,4 +1,5 @@
 import { enterDebug, expect, test } from "./fixtures/extension";
+import { stubClipboard } from "./fixtures/clipboard";
 
 // freeform 초안 — 캡처 없이 drafting 진입 → 제목·섹션 입력 → preview 렌더 → 마크다운 복사.
 // 클립보드는 패널 컨텍스트에서 navigator.clipboard를 stub해 페이로드를 단언한다
@@ -37,22 +38,7 @@ test("freeform 초안 → preview 렌더 → 마크다운 복사 페이로드", 
     panel.getByRole("heading", { name: "Freeform e2e bug" }),
   ).toBeVisible();
 
-  await panel.evaluate(() => {
-    const w = window as unknown as { __copiedTexts: string[]; __copiedHtml: string[] };
-    w.__copiedTexts = [];
-    w.__copiedHtml = [];
-    navigator.clipboard.write = async (items) => {
-      for (const it of items) {
-        w.__copiedTexts.push(await (await it.getType("text/plain")).text());
-        // text/html이 빠지면 getType이 throw해 writeText 폴백으로 흘러간다 — 그러면
-        // __copiedHtml이 비고, 붙여넣기에서 표·이미지가 사라지는 회귀가 여기서 잡힌다.
-        w.__copiedHtml.push(await (await it.getType("text/html")).text());
-      }
-    };
-    navigator.clipboard.writeText = async (t) => {
-      w.__copiedTexts.push(t);
-    };
-  });
+  await stubClipboard(panel);
   await panel.getByTestId("copy-markdown").click();
   await expect
     .poll(() =>
