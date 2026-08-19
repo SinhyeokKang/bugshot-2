@@ -101,7 +101,7 @@ interface LegacyV2 {
 
 type V3Shape = Pick<SettingsState, "accounts" | "lastSubmitFields">;
 
-function migrateV1ToV2(legacy: LegacyV1): LegacyV2 {
+export function migrateV1ToV2(legacy: LegacyV1): LegacyV2 {
   const j = legacy.jiraConfig;
   if (!j?.baseUrl || !j.email || !j.apiToken) return { jiraConfig: null };
   return {
@@ -180,7 +180,7 @@ export function migrateToV11(state: PreV11Shape): V3Shape {
   } as V3Shape;
 }
 
-function isV3Shape(state: unknown): state is V3Shape {
+export function isV3Shape(state: unknown): state is V3Shape {
   if (!state || typeof state !== "object") return false;
   return "accounts" in state;
 }
