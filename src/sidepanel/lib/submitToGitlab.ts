@@ -84,7 +84,7 @@ export async function submitToGitlab(
         projectId: input.projectId,
         files: [toUploadEntry({ filename: "logs.html", dataUrl: augmented })],
       });
-      if (reUploaded?.ok && reUploaded.href !== oldLogsUrl) {
+      if (reUploaded?.ok && reUploaded.href && reUploaded.href !== oldLogsUrl) {
         await sendBg({
           type: "gitlab.updateIssueDescription",
           projectId: input.projectId,

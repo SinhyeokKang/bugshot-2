@@ -500,7 +500,10 @@ export async function handleMessage(
             f.filename,
             blob,
           );
-          results.push({ ok: true, filename: f.filename, href: url });
+          // url은 타입만 string이고 값은 미검증 API 응답이다 — 비면 ok:false로 접는다
+          // (clickup·asana 핸들러와 같은 가드). 안 접으면 소비처가 href: undefined를 본문에 박는다.
+          if (url) results.push({ ok: true, filename: f.filename, href: url });
+          else results.push({ ok: false, filename: f.filename });
         } catch {
           results.push({ ok: false, filename: f.filename });
         }

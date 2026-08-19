@@ -49,6 +49,38 @@ beforeEach(() => {
 });
 
 describe("submitToGitlab 역링크 보강", () => {
+  // 핸들러가 `{ok:true}`를 세우면서 href를 검증하지 않으면(clickup·asana는 `if (url)` 가드를
+  // 받았는데 gitlab만 없었다) `body.split(old).join(undefined)`가 이슈 본문에 문자열
+  // "undefined"를 박는다. 소비 쪽에서도 href 부재를 실패로 읽어야 한다.
+  it("재업로드가 href 없는 ok를 돌려주면 description을 갱신하지 않는다", async () => {
+    let uploadCount = 0;
+    sendBg.mockImplementation(
+      async (msg: { type: string }) => {
+        if (msg.type === "gitlab.uploadFiles") {
+          uploadCount += 1;
+          if (uploadCount === 1)
+            return [{ ok: true, filename: "logs.html", href: "OLD_URL" }];
+          // 업로드 API가 빈 url을 돌려준 경우 — 타입은 string이지만 값은 미검증 응답이다.
+          return [{ ok: true, filename: "logs.html" }];
+        }
+        if (msg.type === "gitlab.submitIssue") return ISSUE;
+        return undefined;
+      },
+    );
+    injectIssueUrl.mockResolvedValue("data:LOGSHTML+url");
+
+    await submitToGitlab({
+      ctx: makeCtx(),
+      projectId: 7,
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGSHTML" }],
+    });
+
+    const update = sendBg.mock.calls.find(
+      ([m]) => m.type === "gitlab.updateIssueDescription",
+    );
+    expect(update).toBeUndefined();
+  });
+
   it("생성 후 logs.html을 이슈 URL 주입해 재업로드 + description의 URL 교체", async () => {
     let uploadCount = 0;
     sendBg.mockImplementation(
@@ -245,7 +277,6 @@ describe("submitToGitlab logsDropped", () => {
     expect(res.logsDropped).toBe(false);
   });
 });
-
 
 describe("submitToGitlab 업로드 판별자", () => {
   it("판별자 형태에서 성공분은 첨부되고 실패분만 실패로 판정된다", async () => {
