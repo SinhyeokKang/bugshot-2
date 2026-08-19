@@ -1,4 +1,8 @@
 // console-recorder.ts에서 IIFE 자가호출하기 때문에 테스트가 필요한 순수 함수는 별도 파일로 분리.
+//
+// ⚠️ content(레코더) 전용으로 유지할 것 — recorders-entry 그래프가 self-contained여야 crxjs가
+// 동기 IIFE로 emit하고 document_start 후크가 페이지 스크립트보다 먼저 깔린다. sidepanel·
+// background가 import하면 공유 청크로 hoist돼 pre-arm이 무력화된다(CLAUDE.md "pre-arm 버퍼링").
 
 export interface ErrorEventLike {
   message: string;

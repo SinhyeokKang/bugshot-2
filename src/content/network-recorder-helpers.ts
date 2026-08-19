@@ -1,6 +1,12 @@
 import type { NetworkRequestBody, NetworkStatusKind } from "@/types/network";
 import { isArray, jsonParse, jsonStringify, objectEntries, URLCtor, URLSearchParamsCtor } from "./recorder-globals";
 
+// network-recorder.ts에서 IIFE 자가호출하기 때문에 테스트가 필요한 순수 함수는 별도 파일로 분리.
+//
+// ⚠️ content(레코더) 전용으로 유지할 것 — recorders-entry 그래프가 self-contained여야 crxjs가
+// 동기 IIFE로 emit하고 document_start 후크가 페이지 스크립트보다 먼저 깔린다. sidepanel·
+// background가 import하면 공유 청크로 hoist돼 pre-arm이 무력화된다(CLAUDE.md "pre-arm 버퍼링").
+
 // statusText와 statusKind를 한 함수에서 함께 정한다 — 둘이 어긋나면 isStatusHidden의
 // "상태 가려짐" 판정이 조용히 움직인다(병기 이유는 types/network.ts의 NetworkStatusKind).
 // 레코더 IIFE는 유닛으로 못 부르므로 여기가 그 계약의 유일한 그물이다.
