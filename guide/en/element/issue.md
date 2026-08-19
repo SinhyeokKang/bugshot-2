@@ -50,7 +50,9 @@ Element mode attaches no logs. For bugs that need logs, reach for [Screenshot](.
 
 ![Issue preview](../assets/element-issue-5.jpg)
 
-Give the body a look in the preview before submitting. **Copy** copies it as-is to paste elsewhere.
+Give the body a look in the preview before submitting. **Copy** puts it on your clipboard as Markdown, ready to paste into another doc or a chat.
+
+> Copies leave out **images and log files.** An image on the clipboard makes editors like Notion and Jira refuse the paste outright — you'd lose the whole write-up — so we keep the text and leave a short note where each image was. **Submit the issue and your images and logs are attached as usual.**
 
 ## 7. Submit
 
