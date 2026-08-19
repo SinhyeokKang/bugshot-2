@@ -301,8 +301,10 @@ export const DICTS: Record<LocaleMode, Record<string, string>> = {
 // logs.html은 확장을 설치하지 않은 팀원이 여는 산출물이라, 리포터의 UI 설정이 아니라
 // **읽는 사람의 브라우저 언어**를 따르는 게 맞다. 사용자 locale 주입은 의도적으로 안 한다.
 // Node 20(전역 navigator 없음)에서 vitest가 이 모듈을 로드해도 깨지지 않게 가드.
-const dict =
-  DICTS[detectLocale(typeof navigator !== "undefined" ? navigator.language : undefined)];
+export const viewerLocale = detectLocale(
+  typeof navigator !== "undefined" ? navigator.language : undefined,
+);
+const dict = DICTS[viewerLocale];
 
 export function t(key: string, params?: Record<string, string | number>): string {
   let text = dict[key];
