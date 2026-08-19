@@ -23,7 +23,10 @@ const ATTACHMENT_PHRASE_KEYS = [
   "logSummary.logs.lead",
 ] as const;
 
-// 복사 축 이름. 이 토큰이 같은 줄에 있으면 "축을 경유한다"고 본다.
+// 복사 축 이름. 판정은 **파일 단위**다 — 줄 단위로 좁히면 구현 형태를 강제하게 된다(로그 리드는
+// 문장이 길어 3항의 else 가지가 다음 줄로 넘어간다). 파일 안의 개별 지점 누락은 이 스캔이 아니라
+// 축을 뒤집어 출력을 대조하는 동작 테스트가 잡는다. 여기서 막고 싶은 건 "새 문구·새 파일이 분류
+// 밖에 생기는 것"이고, 그건 파일 단위로도 충분히 걸린다.
 const AXIS = "forClipboard";
 
 // 제출 전용 빌더 — 첨부가 실제로 존재하므로 축이 필요 없다.
@@ -69,16 +72,19 @@ describe("첨부 문구는 복사 축을 경유하거나 제출 전용으로 면
     expect(hits.length).toBeGreaterThan(0);
   });
 
-  it("분류되지 않은 첨부 문구 지점이 없다", () => {
-    const unclassified = hits.filter(
-      (h) =>
-        !h.text.includes(AXIS) &&
-        !SUBMIT_ONLY_EXEMPT.some((e) => e === h.rel),
+  it("분류되지 않은 첨부 문구 파일이 없다", () => {
+    const axisFiles = new Set(
+      hits
+        .filter((h) => readFileSync(join(process.cwd(), h.rel), "utf8").includes(AXIS))
+        .map((h) => h.rel),
+    );
+    const unclassified = [...new Set(hits.map((h) => h.rel))].filter(
+      (rel) => !axisFiles.has(rel) && !SUBMIT_ONLY_EXEMPT.some((e) => e === rel),
     );
 
     expect(
-      unclassified.map((h) => `${h.rel}:${h.line} ${h.text}`),
-      "축을 경유하지도, 제출 전용으로 면제되지도 않은 지점",
+      unclassified,
+      "축을 경유하지도, 제출 전용으로 면제되지도 않은 파일",
     ).toEqual([]);
   });
 

@@ -291,7 +291,11 @@ export function PreviewPanel() {
   ) : null;
 
   const buildForCopy = async (): Promise<{ md: string; html: string }> => {
-    const resolved = await resolveSectionImages(draft.sections, issueSections);
+    // 복사본은 인라인 이미지를 data: URI로 해소하지 않는다 — 그 URI 하나가 Notion·Slack·Jira의
+    // 붙여넣기를 통째로 거부시켜 본문까지 유실된다(크기 무관, 실측 확인). 치환은 빌더 진입점이
+    // 본문 언어로 처리하므로 여기선 원본 sections를 그대로 넘긴다. IDB 왕복이 사라져 클릭
+    // gesture window도 넓어진다.
+    const resolved = draft.sections;
 
     let ctx: MarkdownContext;
     if (isFreeformMode) {
@@ -377,7 +381,8 @@ export function PreviewPanel() {
       // 도달 불가 방어. 조용히 resolve하면 호출부가 "복사됨"으로 뒤집힌다.
       throw new Error("unsupported capture mode");
     }
-    return { md: buildIssueMarkdown(ctx), html: buildIssueHtml(ctx) };
+    const copyCtx: MarkdownContext = { ...ctx, forClipboard: true };
+    return { md: buildIssueMarkdown(copyCtx), html: buildIssueHtml(copyCtx) };
   };
 
   // 본문 조립의 첫 await가 IndexedDB 왕복이라, 그 사이 창 포커스가 빠지면 clipboard.write의

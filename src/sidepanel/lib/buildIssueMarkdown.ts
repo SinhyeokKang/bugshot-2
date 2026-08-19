@@ -17,6 +17,7 @@ import { formatTimestamp } from "./formatTimestamp";
 import { renderMarkdown } from "./renderMarkdown";
 import { escapeHtml } from "@/lib/escape-html";
 import { emitMarkdownLogSummary, footerMarkdown, listItems, sectionLabel } from "./issueBodyShared";
+import { placeholderSectionImages } from "./resolveInlineImages";
 
 // mergeStyleElements가 현재 element에서 실제로 읽는 필드만(EditorSelection의 구조적 부분집합).
 // PreviewPanel/buildMarkdownContext가 EditorSelection 전체 없이도 호출 가능.
@@ -57,6 +58,11 @@ export interface MarkdownContext {
   actionLogCaptured?: number;
   // 복수 element 직렬화. 채워지면 element 모드 본문은 이 배열을 반복(단수도 1개짜리).
   styleElements?: StyleElementContext[];
+  // 클립보드 복사본이면 true. 호출부는 2곳뿐이고(PreviewPanel=복사 / buildReportData=logs.html)
+  // 제출 본문은 플랫폼별 빌더가 따로 만든다. 복사본엔 첨부가 없어 "첨부 파일 참조" 문구가
+  // 거짓이 되고, 인라인 이미지의 data: URI 하나가 Notion·Slack·Jira의 붙여넣기를 통째로
+  // 거부시킨다. optional 유지가 필수 — 부재 = 기존 동작(logs.html 경로 무회귀).
+  forClipboard?: boolean;
 }
 
 // 한 element의 본문 직렬화 컨텍스트. beforeFilename/afterFilename은 머지·dedup 후 최종
@@ -221,7 +227,24 @@ export const mdInlineCode = (selector: string): string => `\`${selector}\``;
 // 래핑은 호출부가 아니라 진입점에 둔다 — 새 어댑터가 감싸는 걸 잊어도 위임 대상이 감싸져 있고,
 // 잊을 자리가 생기면 builderLocaleWrap.test.ts가 red로 잡는다.
 export function buildIssueMarkdown(ctx: MarkdownContext): string {
-  return withLocale(ctx.bodyLocale, () => buildIssueMarkdownInner(ctx));
+  return withLocale(ctx.bodyLocale, () => buildIssueMarkdownInner(forClipboardSections(ctx)));
+}
+
+// 인라인 이미지 치환을 진입점(withLocale 안)에서 하는 이유는 **본문 언어 축**이다 — 호출부의
+// 훅 기반 번역기로 문구를 만들면 화면 언어가 박혀 bodyLocale과 갈린다. 래퍼 안에서 번역하면
+// 본문 언어를 따라간다. 축이 꺼져 있으면 ctx를 그대로 돌려줘 logs.html 경로가 data: 이미지를
+// 유지한다(단일 파일이라 그게 유일한 렌더 수단이다).
+// 주석에 번역 호출 표기를 쓰지 않는다 — builderLocaleWrap 스캔이 앞 세그먼트의 누출로 읽는다.
+function forClipboardSections(ctx: MarkdownContext): MarkdownContext {
+  if (!ctx.forClipboard) return ctx;
+  return {
+    ...ctx,
+    sections: placeholderSectionImages(
+      ctx.sections,
+      ctx.sectionConfig,
+      t("md.inlineImageNotCopied"),
+    ),
+  };
 }
 
 function buildIssueMarkdownInner(ctx: MarkdownContext): string {
@@ -263,12 +286,12 @@ function buildIssueMarkdownInner(ctx: MarkdownContext): string {
     } else if (ctx.captureMode === "video") {
       lines.push(`## ${t("md.section.media")}`);
       lines.push("");
-      lines.push(t("md.videoAttached"));
+      lines.push(ctx.forClipboard ? t("md.videoNotCopied") : t("md.videoAttached"));
       lines.push("");
     } else if (ctx.captureMode === "screenshot") {
       lines.push(`## ${t("md.section.media")}`);
       lines.push("");
-      lines.push(t("md.imageAttached"));
+      lines.push(ctx.forClipboard ? t("md.imageNotCopied") : t("md.imageAttached"));
       lines.push("");
     } else {
       // element 모드: styleElements를 반복(단수도 1개짜리). media 폴백 없음(no-diff 폐지).
@@ -322,7 +345,7 @@ function buildIssueMarkdownInner(ctx: MarkdownContext): string {
 }
 
 export function buildIssueHtml(ctx: MarkdownContext): string {
-  return withLocale(ctx.bodyLocale, () => buildIssueHtmlInner(ctx));
+  return withLocale(ctx.bodyLocale, () => buildIssueHtmlInner(forClipboardSections(ctx)));
 }
 
 function buildIssueHtmlInner(ctx: MarkdownContext): string {
@@ -367,10 +390,10 @@ function buildIssueHtmlInner(ctx: MarkdownContext): string {
       // no media section
     } else if (ctx.captureMode === "video") {
       parts.push(`<h2>${t("md.section.media")}</h2>`);
-      parts.push(`<p>${t("md.videoAttached")}</p>`);
+      parts.push(`<p>${ctx.forClipboard ? t("md.videoNotCopied") : t("md.videoAttached")}</p>`);
     } else if (ctx.captureMode === "screenshot") {
       parts.push(`<h2>${t("md.section.media")}</h2>`);
-      parts.push(`<p>${t("md.imageAttached")}</p>`);
+      parts.push(`<p>${ctx.forClipboard ? t("md.imageNotCopied") : t("md.imageAttached")}</p>`);
     } else {
       for (const el of resolveStyleElements(ctx)) {
         parts.push(`<h2>${t("md.section.styleChanges")} (${escapeHtml(el.selector)})</h2>`);
@@ -495,7 +518,11 @@ function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {
   const { networkLogSummary: net, consoleLogSummary: con, actionLogCaptured: act } = ctx;
   if (!net && !con && !act) return;
   parts.push(`<h2>${escapeHtml(t("logSummary.title"))}</h2>`);
-  parts.push(`<p><strong>${escapeHtml(t("logSummary.logs.lead"))}</strong> ${escapeHtml(t("logSummary.logs.detail", { file: "logs.html" }))}</p>`);
+  parts.push(
+    ctx.forClipboard
+      ? `<p><strong>${escapeHtml(t("logSummary.logs.notCopied"))}</strong></p>`
+      : `<p><strong>${escapeHtml(t("logSummary.logs.lead"))}</strong> ${escapeHtml(t("logSummary.logs.detail", { file: "logs.html" }))}</p>`,
+  );
   parts.push("<ul>");
   if (net) {
     const line = networkErrorCount(net) > 0

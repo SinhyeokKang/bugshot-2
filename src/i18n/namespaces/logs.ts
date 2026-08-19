@@ -111,6 +111,10 @@ const ko = {
   "md.section.notes": "비고",
   "md.videoAttached": "(첨부 녹화 파일 참조)",
   "md.imageAttached": "(첨부 이미지 참조)",
+  // 클립보드 복사본에는 첨부가 없다 — 왜 없는지와 어디서 얻는지를 함께 적어 무음 유실을 막는다.
+  "md.videoNotCopied": "(녹화 파일은 복사되지 않습니다 — 이슈로 제출하면 첨부됩니다)",
+  "md.imageNotCopied": "(이미지는 복사되지 않습니다 — 이슈로 제출하면 첨부됩니다)",
+  "md.inlineImageNotCopied": "(이미지는 복사되지 않습니다 — 이슈로 제출하면 첨부됩니다)",
   "md.column.property": "속성",
   "md.noValue": "(없음)",
 
@@ -121,6 +125,7 @@ const ko = {
   "logSummary.console.lineNoError": "콘솔: {n}건 (에러 없음)",
   "logSummary.action.line": "사용자 동작: {n}건",
   "logSummary.logs.lead": "BugShot 리포트가 첨부되어 있습니다.",
+  "logSummary.logs.notCopied": "로그 파일은 복사되지 않습니다 — 이슈로 제출하면 첨부됩니다.",
   "logSummary.logs.detail": "{file}에서 사용자 상호작용, 콘솔 로그, 네트워크 로그, 캡처된 미디어 등 추가적인 디버깅 정보를 확인할 수 있습니다.",
 
   "logCard.networkCount": "네트워크 {captured}(에러 {errors})",
@@ -248,6 +253,9 @@ const en = {
   "md.section.notes": "Notes",
   "md.videoAttached": "(See attached recording)",
   "md.imageAttached": "(See attached image)",
+  "md.videoNotCopied": "(Recordings are not copied — they are attached when you submit the issue)",
+  "md.imageNotCopied": "(Images are not copied — they are attached when you submit the issue)",
+  "md.inlineImageNotCopied": "(Image not copied — attached when you submit the issue)",
   "md.column.property": "Property",
   "md.noValue": "(none)",
 
@@ -258,6 +266,7 @@ const en = {
   "logSummary.console.lineNoError": "Console: {n} logs (no errors)",
   "logSummary.action.line": "User actions: {n}",
   "logSummary.logs.lead": "BugShot report attached.",
+  "logSummary.logs.notCopied": "Logs are not copied — they are attached when you submit the issue.",
   "logSummary.logs.detail": "{file} contains additional debugging context, including user interactions, console logs, network logs, and captured media.",
 
   "logCard.networkCount": "Network {captured} ({errors} err)",
