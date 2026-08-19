@@ -48,6 +48,7 @@ const BROWSER_BOUND_EXACT = new Set([
   "src/background/github-upload.ts",
   // sidepanel: 캡처·미디어·picker·annotation 오케스트레이션 런타임 (엔트리 포함)
   "src/sidepanel/picker-control.ts",
+  "src/sidepanel/picker-clear.ts",
   "src/sidepanel/video-recorder.ts",
   "src/sidepanel/video-capture.ts",
   "src/sidepanel/capture.ts",

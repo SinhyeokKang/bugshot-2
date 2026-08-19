@@ -94,6 +94,10 @@ export function LinearStatusBadge({
           <div className="flex items-center justify-center px-4 py-2">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
+        ) : states && states.length === 0 ? (
+          <div className="px-3 py-2 text-sm text-muted-foreground">
+            {t("issueList.linear.noStates")}
+          </div>
         ) : (
           states?.map((st) => {
             const stColors = LINEAR_STATE_TYPE_COLORS[st.type] ?? STATUS_CATEGORY_COLORS.new;

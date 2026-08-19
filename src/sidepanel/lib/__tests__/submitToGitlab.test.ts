@@ -3,8 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const sendBg = vi.fn();
 vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 
+const buildGitlabBody = vi.fn((_input: unknown) => ({ body: "see OLD_URL in logs" }));
 vi.mock("../buildGitlabIssueBody", () => ({
-  buildGitlabIssueBody: () => ({ body: "see OLD_URL in logs" }),
+  buildGitlabIssueBody: (input: unknown) => buildGitlabBody(input),
 }));
 vi.mock("../resolveInlineImages", () => ({
   replaceInlineRefs: (s: string) => s,
@@ -48,6 +49,38 @@ beforeEach(() => {
 });
 
 describe("submitToGitlab 역링크 보강", () => {
+  // 핸들러가 `{ok:true}`를 세우면서 href를 검증하지 않으면(clickup·asana는 `if (url)` 가드를
+  // 받았는데 gitlab만 없었다) `body.split(old).join(undefined)`가 이슈 본문에 문자열
+  // "undefined"를 박는다. 소비 쪽에서도 href 부재를 실패로 읽어야 한다.
+  it("재업로드가 href 없는 ok를 돌려주면 description을 갱신하지 않는다", async () => {
+    let uploadCount = 0;
+    sendBg.mockImplementation(
+      async (msg: { type: string }) => {
+        if (msg.type === "gitlab.uploadFiles") {
+          uploadCount += 1;
+          if (uploadCount === 1)
+            return [{ ok: true, filename: "logs.html", href: "OLD_URL" }];
+          // 업로드 API가 빈 url을 돌려준 경우 — 타입은 string이지만 값은 미검증 응답이다.
+          return [{ ok: true, filename: "logs.html" }];
+        }
+        if (msg.type === "gitlab.submitIssue") return ISSUE;
+        return undefined;
+      },
+    );
+    injectIssueUrl.mockResolvedValue("data:LOGSHTML+url");
+
+    await submitToGitlab({
+      ctx: makeCtx(),
+      projectId: 7,
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGSHTML" }],
+    });
+
+    const update = sendBg.mock.calls.find(
+      ([m]) => m.type === "gitlab.updateIssueDescription",
+    );
+    expect(update).toBeUndefined();
+  });
+
   it("생성 후 logs.html을 이슈 URL 주입해 재업로드 + description의 URL 교체", async () => {
     let uploadCount = 0;
     sendBg.mockImplementation(
@@ -55,8 +88,8 @@ describe("submitToGitlab 역링크 보강", () => {
         if (msg.type === "gitlab.uploadFiles") {
           uploadCount += 1;
           if (uploadCount === 1)
-            return [{ filename: "logs.html", url: "OLD_URL" }];
-          return [{ filename: "logs.html", url: "NEW_URL" }];
+            return [{ ok: true, filename: "logs.html", href: "OLD_URL" }];
+          return [{ ok: true, filename: "logs.html", href: "NEW_URL" }];
         }
         if (msg.type === "gitlab.submitIssue") return ISSUE;
         return undefined;
@@ -95,7 +128,7 @@ describe("submitToGitlab 역링크 보강", () => {
   it("보강(주입/재업로드) 실패는 격리 — 이슈는 생성되고 결과 반환", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
-        return [{ filename: "logs.html", url: "OLD_URL" }];
+        return [{ ok: true, filename: "logs.html", href: "OLD_URL" }];
       if (msg.type === "gitlab.submitIssue") return ISSUE;
       return undefined;
     });
@@ -126,7 +159,7 @@ describe("submitToGitlab requireMediaUpload (승격 보호)", () => {
   it("이미지 업로드가 url:null이면 throw하고 submitIssue를 호출하지 않는다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
-        return [{ filename: "shot.webp", url: null }];
+        return [{ ok: false, filename: "shot.webp" }];
       if (msg.type === "gitlab.submitIssue") return ISSUE;
       return undefined;
     });
@@ -146,7 +179,7 @@ describe("submitToGitlab requireMediaUpload (승격 보호)", () => {
   it("모든 미디어 업로드 성공이면 정상 등록한다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
-        return [{ filename: "shot.webp", url: "IMG_URL" }];
+        return [{ ok: true, filename: "shot.webp", href: "IMG_URL" }];
       if (msg.type === "gitlab.submitIssue") return ISSUE;
       return undefined;
     });
@@ -166,8 +199,8 @@ describe("submitToGitlab requireMediaUpload (승격 보호)", () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
         return [
-          { filename: "shot.webp", url: "IMG_URL" },
-          { filename: "logs.html", url: null },
+          { ok: true, filename: "shot.webp", href: "IMG_URL" },
+          { ok: false, filename: "logs.html" },
         ];
       if (msg.type === "gitlab.submitIssue") return ISSUE;
       return undefined;
@@ -188,7 +221,7 @@ describe("submitToGitlab requireMediaUpload (승격 보호)", () => {
   it("requireMediaUpload 미지정(일반 제출)이면 이미지 실패해도 throw하지 않는다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
-        return [{ filename: "shot.webp", url: null }];
+        return [{ ok: false, filename: "shot.webp" }];
       if (msg.type === "gitlab.submitIssue") return ISSUE;
       return undefined;
     });
@@ -208,7 +241,7 @@ describe("submitToGitlab logsDropped", () => {
   it("logs.html 업로드가 null(용량 초과)이면 logsDropped: true", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
-        return [{ filename: "logs.html", url: null }];
+        return [{ ok: false, filename: "logs.html" }];
       if (msg.type === "gitlab.submitIssue") return ISSUE;
       return undefined;
     });
@@ -229,7 +262,7 @@ describe("submitToGitlab logsDropped", () => {
   it("logs.html 업로드 성공이면 logsDropped: false", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
-        return [{ filename: "logs.html", url: "OK_URL" }];
+        return [{ ok: true, filename: "logs.html", href: "OK_URL" }];
       if (msg.type === "gitlab.submitIssue") return ISSUE;
       return undefined;
     });
@@ -242,5 +275,35 @@ describe("submitToGitlab logsDropped", () => {
     });
 
     expect(res.logsDropped).toBe(false);
+  });
+});
+
+describe("submitToGitlab 업로드 판별자", () => {
+  it("판별자 형태에서 성공분은 첨부되고 실패분만 실패로 판정된다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "gitlab.uploadFiles")
+        return [
+          { ok: true, filename: "logs.html", href: "LOGS_HREF" },
+          { ok: false, filename: "shot.webp" },
+        ];
+      if (msg.type === "gitlab.submitIssue") return ISSUE;
+      return undefined;
+    });
+
+    const res = await submitToGitlab({
+      ctx: makeCtx(),
+      projectId: 7,
+      images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(res.logsDropped).toBe(false);
+    // 값 축 — 성공분 href가 본문 조립까지 도달하고 실패분은 url 없이 넘어간다.
+    const arg = buildGitlabBody.mock.calls.at(-1)?.[0] as {
+      logs?: Array<{ filename: string; url?: string | null }>;
+      images?: Array<{ filename: string; url?: string | null }>;
+    };
+    expect(arg.logs?.[0]).toMatchObject({ filename: "logs.html", url: "LOGS_HREF" });
+    expect(arg.images?.[0]?.url).toBeFalsy();
   });
 });

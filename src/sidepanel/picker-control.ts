@@ -1,3 +1,7 @@
+import { sendToTabAllFrames } from "@/sidepanel/lib/sendToTabAllFrames";
+import { clearPicker, tabFrameTokens } from "./picker-clear";
+// 기존 호출부 28곳(9파일)을 안 건드리려 re-export.
+export { clearPicker };
 import { classifyTabSupport } from "@/lib/url-support";
 import { pageKeyOf } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
@@ -118,18 +122,6 @@ async function send<R = void>(
   }
 }
 
-// 전 프레임 broadcast — picker.start/stop/clear/endCapture·레코더 제어 등 프레임 무관 메시지 전용.
-async function sendAll<R = void>(
-  tabId: number,
-  msg: PickerMessage,
-): Promise<R | undefined> {
-  try {
-    return await chrome.tabs.sendMessage<PickerMessage, R>(tabId, msg);
-  } catch {
-    return undefined;
-  }
-}
-
 // 페이지 오버레이는 CSS 변수를 못 받아 OS 선호만 보면 앱 설정과 갈린다 — picker.start를
 // 보내는 3곳이 전부 같은 값을 싣도록 여기 한 벌로 둔다.
 function currentTheme(): "light" | "dark" {
@@ -139,10 +131,6 @@ function currentTheme(): "light" | "dark" {
   );
   return dark ? "dark" : "light";
 }
-
-// picking 세션의 PRESENT 등록 token — 커밋된 iframe에 picker.start를 재전송할 때 같은
-// token을 실어야 top registry 검증을 통과한다(tabSentinels와 동형의 탭별 보유).
-const tabFrameTokens = new Map<number, string>();
 
 export function isCurrentPickerSession(tabId: number, sessionId: string): boolean {
   return tabFrameTokens.get(tabId) === sessionId;
@@ -252,7 +240,7 @@ export async function startPicker(tabId: number): Promise<void> {
 
 export async function stopPicker(tabId: number): Promise<void> {
   tabFrameTokens.delete(tabId);
-  await sendAll(tabId, { type: "picker.clear" });
+  await sendToTabAllFrames(tabId, { type: "picker.clear" });
   useEditorStore.getState().cancelPicking();
 }
 
@@ -287,11 +275,6 @@ export async function stopPickerOrResume(tabId: number): Promise<void> {
   await stopPicker(tabId);
 }
 
-export async function clearPicker(tabId: number): Promise<void> {
-  tabFrameTokens.delete(tabId);
-  await sendAll(tabId, { type: "picker.clear" });
-}
-
 // picking 중 네비게이션·신규 커밋된 iframe의 picker는 idle인데 top registry엔 옛
 // <iframe>이 남아 blocker 핸드오프로 클릭이 페이지에 유실된다 — picker.start를 그 프레임에
 // 재전송해 복구. onCommitted 시점엔 content script(document_idle)가 아직 없을 수 있어
@@ -318,7 +301,7 @@ export async function restartPickerInFrame(
 // 선택 확정 후 나머지 프레임의 hover 유령(blocker·inspector) 종료. 선택 프레임은
 // 이미 selected라 no-op — handleStop이 selectedEl 유무로 selected/idle 분기.
 export async function stopHoverAllFrames(tabId: number): Promise<void> {
-  await sendAll(tabId, { type: "picker.stop" });
+  await sendToTabAllFrames(tabId, { type: "picker.stop" });
 }
 
 export async function navigatePicker(
@@ -354,7 +337,7 @@ export async function applyText(
 }
 
 export async function resetAllEdits(tabId: number): Promise<void> {
-  await sendAll(tabId, { type: "picker.resetAllEdits" });
+  await sendToTabAllFrames(tabId, { type: "picker.resetAllEdits" });
 }
 
 export async function collectTokens(
@@ -726,17 +709,17 @@ export async function activateNetworkRecorder(tabId: number): Promise<string> {
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   rememberSentinel(tabId, "network", sentinel);
-  await sendAll(tabId, { type: "networkRecorder.setSentinel", sentinel });
+  await sendToTabAllFrames(tabId, { type: "networkRecorder.setSentinel", sentinel });
   return sentinel;
 }
 
 export async function stopNetworkRecorder(tabId: number): Promise<void> {
   forgetSentinel(tabId, "network");
-  await sendAll(tabId, { type: "networkRecorder.stop" });
+  await sendToTabAllFrames(tabId, { type: "networkRecorder.stop" });
 }
 
 export async function syncNetworkRecorder(tabId: number): Promise<void> {
-  await sendAll(tabId, { type: "networkRecorder.sync" });
+  await sendToTabAllFrames(tabId, { type: "networkRecorder.sync" });
 }
 
 export async function activateConsoleRecorder(tabId: number): Promise<string> {
@@ -745,17 +728,17 @@ export async function activateConsoleRecorder(tabId: number): Promise<string> {
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   rememberSentinel(tabId, "console", sentinel);
-  await sendAll(tabId, { type: "consoleRecorder.setSentinel", sentinel });
+  await sendToTabAllFrames(tabId, { type: "consoleRecorder.setSentinel", sentinel });
   return sentinel;
 }
 
 export async function stopConsoleRecorder(tabId: number): Promise<void> {
   forgetSentinel(tabId, "console");
-  await sendAll(tabId, { type: "consoleRecorder.stop" });
+  await sendToTabAllFrames(tabId, { type: "consoleRecorder.stop" });
 }
 
 export async function syncConsoleRecorder(tabId: number): Promise<void> {
-  await sendAll(tabId, { type: "consoleRecorder.sync" });
+  await sendToTabAllFrames(tabId, { type: "consoleRecorder.sync" });
 }
 
 export async function activateActionRecorder(tabId: number): Promise<string> {
@@ -764,17 +747,17 @@ export async function activateActionRecorder(tabId: number): Promise<string> {
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   rememberSentinel(tabId, "action", sentinel);
-  await sendAll(tabId, { type: "actionRecorder.setSentinel", sentinel });
+  await sendToTabAllFrames(tabId, { type: "actionRecorder.setSentinel", sentinel });
   return sentinel;
 }
 
 export async function stopActionRecorder(tabId: number): Promise<void> {
   forgetSentinel(tabId, "action");
-  await sendAll(tabId, { type: "actionRecorder.stop" });
+  await sendToTabAllFrames(tabId, { type: "actionRecorder.stop" });
 }
 
 export async function syncActionRecorder(tabId: number): Promise<void> {
-  await sendAll(tabId, { type: "actionRecorder.sync" });
+  await sendToTabAllFrames(tabId, { type: "actionRecorder.sync" });
 }
 
 // capture 시 sync broadcast가 누적기에 머지될 때까지 대기하는 상한. 머지 도착 즉시 조기 탈출.
@@ -796,7 +779,7 @@ export async function syncAndSettleLogs(
   // settle 무한대기 위험이 있으므로 settle 조건엔 넣지 않고 net/con settle 동안 머지에 묻어가게 둔다.
   // sendMessage 단계에 상한이 필수다 — content 리스너는 페이지 메인 스레드에서 디스패치되므로
   // 대상 탭이 alert()·동기 무한루프에 걸려 있으면(BugShot이 겨냥하는 바로 그 페이지) 응답이
-  // 영영 안 오고, sendAll의 catch는 예외만 삼킬 뿐 pending은 못 푼다. 호출부 셋(녹화 정지·
+  // 영영 안 오고, sendToTabAllFrames의 catch는 예외만 삼킬 뿐 pending은 못 푼다. 호출부 셋(녹화 정지·
   // 리플레이 캡처·freeform 진입)이 전부 이 await 뒤에서 세션을 커밋하므로 여기서 멈추면
   // 녹화 유실·영구 스피너가 된다. 꼬리 몇 건보다 그쪽 손실이 크다.
   await Promise.race([

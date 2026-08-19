@@ -1,11 +1,10 @@
 import { t } from "@/i18n";
-import MarkdownIt from "markdown-it";
+import { createMarkdownIt } from "./markdownIt";
 import type Token from "markdown-it/lib/token.mjs";
 import type { NotionBlock, NotionRichText } from "@/types/notion";
 import { findClosingToken } from "./findClosingToken";
 
-const md = MarkdownIt({ html: false, breaks: true, linkify: true });
-md.enable("strikethrough");
+const md = createMarkdownIt();
 
 export function markdownToNotionBlocks(markdown: string): NotionBlock[] {
   const trimmed = markdown.trim();

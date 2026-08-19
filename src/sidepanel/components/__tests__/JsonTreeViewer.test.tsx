@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { JsonTreeViewer } from "../JsonTreeViewer";
@@ -56,5 +56,33 @@ describe("JsonTreeViewer — chevron 펼침 상태", () => {
     await userEvent.click(chevron());
 
     expect(chevron().getAttribute("aria-label")).toBe("common.collapse");
+  });
+});
+
+// `<div onClick>`·`<span onClick>`은 Tab으로 도달할 수도, Enter/Space로 누를 수도 없다.
+// 한 컴포넌트 안에 쌍둥이가 둘이라 하나만 고치면 접근성이 갈린다.
+describe("JsonTreeViewer — 클릭 요소 키보드 접근", () => {
+  // ARRAY_CHUNK_SIZE가 100이라 그보다 길어야 "더 보기"가 뜬다.
+  const longArray = Array.from({ length: 130 }, (_, i) => `item-${i}`);
+
+  it("'더 보기'가 button이고 Enter로 다음 청크를 연다", async () => {
+    render(<JsonTreeViewer data={longArray} defaultExpandDepth={2} />);
+    const more = screen.getByRole("button", { name: /json\.moreItems/ });
+
+    more.focus();
+    await userEvent.keyboard("{Enter}");
+
+    expect(screen.queryByText(/item-120/)).toBeTruthy();
+  });
+
+  it("'모두 보기'도 button이고 Space로 전문을 편다", async () => {
+    const long = "x".repeat(400);
+    render(<JsonTreeViewer data={{ s: long }} defaultExpandDepth={2} />);
+    const showAll = screen.getByRole("button", { name: "json.showAll" });
+
+    showAll.focus();
+    await userEvent.keyboard(" ");
+
+    expect(screen.queryByRole("button", { name: "json.showAll" })).toBeNull();
   });
 });

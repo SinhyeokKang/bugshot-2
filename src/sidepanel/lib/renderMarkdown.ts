@@ -1,6 +1,6 @@
-import MarkdownIt from "markdown-it";
+import { createMarkdownIt } from "./markdownIt";
 import { tokenizeJson, JSON_TOKEN_CLASS } from "./highlightJson";
-import { escapeHtml } from "./escapeHtml";
+import { escapeHtml } from "@/lib/escape-html";
 
 // 삽입된 로그(```json)만 칠한다 — 그 외 언어는 우리가 만든 콘텐츠가 아니라 평문 유지.
 // 빈 문자열을 반환하면 markdown-it이 자체 escape로 폴백한다.
@@ -13,8 +13,7 @@ function highlightJson(code: string, lang: string): string {
     .join("");
 }
 
-const md = MarkdownIt({ html: false, breaks: true, linkify: true, highlight: highlightJson });
-md.enable("strikethrough");
+const md = createMarkdownIt({ highlight: highlightJson });
 
 export function renderMarkdown(markdown: string): string {
   return md.render(markdown);

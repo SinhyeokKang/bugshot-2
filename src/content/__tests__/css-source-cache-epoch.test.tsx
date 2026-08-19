@@ -1,8 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock("@/lib/bg-client", () => ({ sendBg: vi.fn(async () => ({ sheets: [] })) }));
+const sendBg = vi.hoisted(() => vi.fn(async () => ({ sheets: [] as Array<{ url: string; text: string }> })));
+vi.mock("@/lib/bg-client", () => ({ sendBg }));
 
-import { ensureLoaded, invalidate, isCacheReady } from "../css-source-cache";
+import {
+  ensureCrossOriginLoaded,
+  ensureLoaded,
+  getMatchingCrossOriginRules,
+  invalidate,
+  isCacheReady,
+} from "../css-source-cache";
 
 // 패널 열기(시트 로드 중) → 즉시 닫기(invalidate) → 옛 promise가 뒤늦게 resolve하며 isReady를
 // 켜던 회귀. 재오픈 시 picker의 캐시 대기가 스킵돼 raw 캐시가 빈 채로 확정 발화하고,
@@ -48,4 +55,105 @@ describe("css-source-cache 에폭 가드", () => {
     expect(isCacheReady()).toBe(true);
   });
 
+});
+
+// 실패한 promise가 슬롯에 남으면 세션 내내 같은 rejection을 되돌려주고 isReady가 영영 안 선다 —
+// 픽커가 매 요소 선택마다 빈 raw 캐시로 확정 발화한다.
+describe("css-source-cache 실패 재시도", () => {
+  beforeEach(() => {
+    document.head.innerHTML = "";
+    invalidate();
+  });
+
+  function failNextCollect(): () => void {
+    Object.defineProperty(document, "styleSheets", {
+      configurable: true,
+      get() {
+        throw new Error("styleSheets unavailable");
+      },
+    });
+    return () => {
+      delete (document as unknown as Record<string, unknown>).styleSheets;
+    };
+  }
+
+  it("로드 실패 후 재호출하면 새로 시도한다", async () => {
+    const restore = failNextCollect();
+    const failed = ensureLoaded();
+    restore();
+    await expect(failed).rejects.toThrow("styleSheets unavailable");
+
+    const style = document.createElement("style");
+    style.textContent = ".a { color: red; }";
+    document.head.appendChild(style);
+    await ensureLoaded();
+
+    expect(isCacheReady()).toBe(true);
+  });
+
+  it("cross-origin 로드도 실패 후 재호출하면 새로 시도한다", async () => {
+    const restore = failNextCollect();
+    const failed = ensureCrossOriginLoaded();
+    restore();
+    await expect(failed).rejects.toThrow("styleSheets unavailable");
+
+    await expect(ensureCrossOriginLoaded()).resolves.toBeUndefined();
+  });
+
+  it("invalidate 뒤 실패한 이전 promise가 새 슬롯을 지우지 않는다", async () => {
+    const restore = failNextCollect();
+    const failed = ensureLoaded();
+    restore();
+
+    invalidate();
+    const style = document.createElement("style");
+    style.textContent = ".a { color: red; }";
+    document.head.appendChild(style);
+    const fresh = ensureLoaded();
+
+    await expect(failed).rejects.toThrow("styleSheets unavailable");
+    await fresh;
+
+    expect(ensureLoaded()).toBe(fresh);
+    expect(isCacheReady()).toBe(true);
+  });
+});
+
+// 실패 슬롯을 비워 재시도를 열었으므로 loader가 멱등이어야 한다 — 아니면 부분 실패분이
+// 남은 채 재시도가 같은 규칙을 다시 밀어 넣어 선택할 때마다 중복이 쌓인다.
+describe("css-source-cache cross-origin 재시도 멱등", () => {
+  beforeEach(() => {
+    document.head.innerHTML = "";
+    invalidate();
+    sendBg.mockReset();
+    sendBg.mockResolvedValue({ sheets: [] });
+  });
+
+  it("시트 파싱이 도중에 실패해도 부분 적재를 남기지 않는다", async () => {
+    // jsdom은 외부 시트를 안 받아오므로 document.styleSheets를 가짜 링크 시트로 대체한다.
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://cdn.example.com/a.css";
+    document.head.appendChild(link);
+    Object.defineProperty(document, "styleSheets", {
+      configurable: true,
+      get: () => [{ href: link.href, ownerNode: link, cssRules: [] }],
+    });
+
+    sendBg.mockResolvedValue({
+      sheets: [
+        { url: "https://cdn.example.com/a.css", text: ".a { color: red; }" },
+        { url: "https://cdn.example.com/b.css", text: null as unknown as string },
+      ],
+    });
+
+    await expect(ensureCrossOriginLoaded()).rejects.toThrow();
+    delete (document as unknown as Record<string, unknown>).styleSheets;
+
+    const el = document.createElement("div");
+    el.className = "a";
+    document.body.appendChild(el);
+    expect(getMatchingCrossOriginRules(el)).toHaveLength(0);
+    document.body.replaceChildren();
+  });
 });

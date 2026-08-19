@@ -1,3 +1,8 @@
+// **type-only를 유지할 것.** `type` 키워드가 빠지면 background 번들(tab-bindings가 이 파일을
+// 문다)에 editor-store와 zustand가 유입되고, bundleBoundary.test.ts는 src/store만 스캔하므로
+// 그걸 잡는 그물이 없다.
+import type { EditorPhase } from "@/store/editor-store";
+
 export const PICKER_PORT_NAME = "bugshot-picker";
 export const PANEL_PORT_PREFIX = "bugshot-panel:";
 
@@ -39,7 +44,10 @@ export function pageKeyOf(url: string | undefined): string | null {
   }
 }
 
-export const FROZEN_PHASES: ReadonlySet<string> = new Set([
+// `has`는 판독 불가한 세션 스냅샷의 `string`도 받아야 하므로 ReadonlySet<string>을 유지하고,
+// **내용만** EditorPhase에 묶는다 — 그냥 new Set([...])이면 EditorPhase 리네임에 소비처
+// (tab-bindings·useEditorSessionSync·log-merge)가 무음으로 상시 false가 된다.
+export const FROZEN_PHASES: ReadonlySet<string> = new Set<EditorPhase>([
   "drafting",
   "previewing",
   "done",

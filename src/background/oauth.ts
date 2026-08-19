@@ -8,7 +8,7 @@ import {
   assertConfigured as assertOAuthConfigured,
   isCancellation,
 } from "./oauth/config";
-import { type ConnectReason, OAuthError, authorizeRejection, httpReason } from "./oauth/errors";
+import { type ConnectReason, OAuthError, authorizeRejection, grantRejection, httpReason } from "./oauth/errors";
 
 export {
   OAuthError,
@@ -56,7 +56,12 @@ export function serializeOAuthError(error: OAuthError): {
   if (error.launchFailed) {
     return { status: 400, body: { oauthLaunchFailed: true, platform: error.platform } };
   }
-  return { status: 401, body: { oauthRefreshFailed: true, platform: error.platform } };
+  // 401은 "토큰이 있었는데 갱신에 실패했다"만 탄다 — 최초 연결 실패가 섞이면 연동한 적
+  // 없는 사용자에게 재로그인 배너가 뜬다. 태깅 주체는 lib/connectLane.ts 참조.
+  if (error.refreshFailed) {
+    return { status: 401, body: { oauthRefreshFailed: true, platform: error.platform } };
+  }
+  return { status: 400, body: { platform: error.platform } };
 }
 
 export function base64url(buffer: ArrayBuffer): string {
@@ -212,7 +217,17 @@ async function exchangeCodeForTokens(code: string): Promise<TokenResponse> {
       { platform: "jira", reason: httpReason(res.status) },
     );
   }
-  return res.json() as Promise<TokenResponse>;
+  const data = (await res.json()) as
+    | TokenResponse
+    | { error?: string; error_description?: string };
+  // res.ok만 보면 200 + 본문 error가 통과해 access_token undefined가 저장으로 흘러간다.
+  if ("error" in data && data.error) {
+    throw new OAuthError(data.error_description || data.error, {
+      platform: "jira",
+      ...grantRejection(isAtlassianCancellationCode(data.error)),
+    });
+  }
+  return data as TokenResponse;
 }
 
 async function fetchSites(accessToken: string): Promise<JiraSite[]> {
@@ -266,12 +281,19 @@ export async function refreshOAuthToken(
       { platform: "jira", reason: httpReason(res.status) },
     );
   }
-  const data = (await res.json()) as TokenResponse;
+  const data = (await res.json()) as
+    | TokenResponse
+    | { error?: string; error_description?: string };
+  // 형제 4종의 refresh와 같은 관용구 — 200 + 본문 error면 access_token undefined가 저장된다.
+  if ("error" in data && data.error) {
+    throw new OAuthError(data.error_description || data.error, { platform: "jira" });
+  }
+  const tokens = data as TokenResponse;
   return {
     ...auth,
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token ?? auth.refreshToken,
-    expiresAt: Date.now() + data.expires_in * 1000,
+    accessToken: tokens.access_token,
+    refreshToken: tokens.refresh_token ?? auth.refreshToken,
+    expiresAt: Date.now() + tokens.expires_in * 1000,
   };
 }
 

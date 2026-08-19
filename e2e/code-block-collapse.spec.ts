@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { enterDebug, expect, test } from "./fixtures/extension";
+import { stubClipboard } from "./fixtures/clipboard";
 
 // 16줄 넘는 코드블럭이 접혀 렌더되고 pill로 토글되는지. 접힘을 data-collapsed 속성으로
 // 표현했기 때문에 판정 가능하다 — max-height·페이드·hover 페이드인은 시각이라 여기서 못 본다.
@@ -33,22 +34,6 @@ async function insertLog(panel: Page, path: string) {
   await expect(panel.getByTestId("log-insert-confirm")).toBeEnabled();
   await panel.getByTestId("log-insert-confirm").click();
   await expect(dialog).toBeHidden();
-}
-
-async function stubClipboard(panel: Page) {
-  await panel.evaluate(() => {
-    const w = window as unknown as { __copiedTexts: string[] };
-    w.__copiedTexts = [];
-    navigator.clipboard.write = async (items) => {
-      for (const it of items) {
-        const blob = await it.getType("text/plain");
-        w.__copiedTexts.push(await blob.text());
-      }
-    };
-    navigator.clipboard.writeText = async (t) => {
-      w.__copiedTexts.push(t);
-    };
-  });
 }
 
 const copiedText = (panel: Page) =>
@@ -147,6 +132,13 @@ test.describe.serial("code block collapse", () => {
     expect(copied).not.toContain("Expand (");
     expect(copied).not.toContain("접기");
     expect(copied).not.toContain("Collapse");
+
+    // rich flavor에도 NodeView 잔재가 안 새는지 — 두 flavor가 같은 조립을 공유한다.
+    const html = await panel.evaluate(
+      () => (window as unknown as { __copiedHtml: string[] }).__copiedHtml.join("\n"),
+    );
+    expect(html).toContain("e2e-bigjson-000");
+    expect(html).not.toContain("code-collapse");
   });
 
   test("15줄 이하 로그는 접히지 않고 pill이 안 보인다", async () => {

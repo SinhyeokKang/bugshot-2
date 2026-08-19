@@ -23,6 +23,11 @@ async function getActivatedSet(): Promise<Set<number>> {
 // activated set 갱신이 유실되는 것을 막는다.
 let activatedWriteQueue: Promise<void> = Promise.resolve();
 
+// activateTab은 gesture를 지키려 setOptions·open을 동기로 쏘고 activation write만 큐에
+// 넣는다. 그 write가 앞선 apply들 뒤로 밀리는 동안 같은 탭의 apply가 stale false를 읽으면
+// 방금 연 패널을 도로 닫는다 — 큐에 아직 안 반영된 활성화를 여기서 기억한다.
+const pendingActivation = new Set<number>();
+
 function setActivated(tabId: number, on: boolean): Promise<void> {
   const task = activatedWriteQueue.then(async () => {
     const set = await getActivatedSet();
@@ -38,8 +43,17 @@ function setActivated(tabId: number, on: boolean): Promise<void> {
 // onActivated(탭 전환 복귀)·onUpdated가 곧바로 enabled:false로 닫는다. 지원 여부는 패널이
 // 무엇을 그리는지만 결정한다(useTabSupport).
 async function apply(tabId: number): Promise<void> {
+  // read를 write와 같은 큐에 태운다 — 큐 밖에서 읽으면 진행 중인 activation write가
+  // read와 setOptions 사이에 끼어, 방금 비활성화한 패널을 stale한 값으로 되살린다.
+  // apply는 setActivated를 부르지 않으므로(getActivatedSet만 읽는다) 재진입은 없다.
+  const task = activatedWriteQueue.then(() => applyInner(tabId));
+  activatedWriteQueue = task.catch(() => {});
+  return task;
+}
+
+async function applyInner(tabId: number): Promise<void> {
   const set = await getActivatedSet();
-  const activated = set.has(tabId);
+  const activated = set.has(tabId) || pendingActivation.has(tabId);
 
   // SW hibernation / 윈도우 이동으로 setOptions가 휘발돼 default_path(쿼리 없음)로
   // fallback되는 경로 차단. preserve 분기와 무관하게 idempotent하게 path 재등록.
@@ -175,8 +189,11 @@ async function deactivatePanelIfCrossOrigin(
   const key = sessionKey(tabId);
   const urlKey = `${ACTIVATION_URL_PREFIX}${tabId}`;
   try {
+    // applyInner와 같은 판정을 쓴다 — 이 read는 큐 밖이라, apply가 큐를 점유하는 동안
+    // "클릭했지만 activation write가 아직 안 반영된" 탭은 set에 없다. 그 창에서 그냥
+    // return하면 cross-origin 이동의 비활성화가 통째로 스킵된다.
     const set = await getActivatedSet();
-    if (!set.has(tabId)) return;
+    if (!set.has(tabId) && !pendingActivation.has(tabId)) return;
     const data = await chrome.storage.session.get(key);
     const snap = data[key] as SessionSnap | undefined;
     const preserved = shouldPreserveSession(snap);
@@ -265,7 +282,8 @@ export function activateTab(tab: chrome.tabs.Tab): void {
     .open({ tabId })
     .catch((err) => console.error("[bugshot] sidePanel.open", err));
 
-  void setActivated(tabId, true);
+  pendingActivation.add(tabId);
+  void setActivated(tabId, true).finally(() => pendingActivation.delete(tabId));
   if (tab.url) {
     void chrome.storage.session.set({ [`${ACTIVATION_URL_PREFIX}${tabId}`]: tab.url });
   }
@@ -322,10 +340,14 @@ export function setupTabBindings(): void {
       void deactivatePanelIfCrossOrigin(tabId, info.url ?? tab.url);
       return;
     }
+    // onActivated 쪽은 이미 try/catch로 감싼다 — 여기만 없으면 apply의 reject가
+    // unhandled로 새고, 이제 apply가 activation 큐를 타므로 그 노이즈가 늘 보인다.
     if (info.url) {
-      void clearIfPageChanged(tabId, info.url).then(() => apply(tabId));
+      void clearIfPageChanged(tabId, info.url)
+        .then(() => apply(tabId))
+        .catch((err) => console.error("[bugshot] onUpdated", err));
     } else if (info.status === "complete") {
-      void apply(tabId);
+      void apply(tabId).catch((err) => console.error("[bugshot] onUpdated", err));
     }
   });
 

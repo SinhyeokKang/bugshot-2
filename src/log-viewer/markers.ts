@@ -144,7 +144,11 @@ export function buildMarkers(
       }
       case "toggle": {
         const field = `"${e.fieldLabel ?? e.selector ?? ""}"`;
-        label = t(e.value === "checked" ? "actionLog.verb.toggle.check" : "actionLog.verb.toggle.uncheck", { field });
+        // 삼항을 t() 인자 안에 두면 스캐너가 두 키를 못 본다 — 밖으로 뺀다.
+        label =
+          e.value === "checked"
+            ? t("actionLog.verb.toggle.check", { field })
+            : t("actionLog.verb.toggle.uncheck", { field });
         labelParts = [{ text: label }];
         break;
       }

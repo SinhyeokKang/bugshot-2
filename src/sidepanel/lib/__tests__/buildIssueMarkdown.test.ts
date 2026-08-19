@@ -24,10 +24,10 @@ import {
   mergeStyleElements,
   joinStyleSelectors,
   styleSelectorList,
-  escapeMdLinkText,
   type MarkdownContext,
   type StyleElementContext,
 } from "../buildIssueMarkdown";
+import { escapeMdLinkText } from "../issueBodyShared";
 import type {
   BufferedElement,
   EditorSelection,
@@ -1058,5 +1058,120 @@ describe("mergeStyleElements — annotated 필드 통과(여기서 resolve하지
 
     expect(out.map((e) => e.beforeFilename)).toEqual(["before-0.webp", "before-1.webp"]);
     expect(out.map((e) => e.afterFilename)).toEqual(["after-0.webp", "after-1.webp"]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 클립보드 복사 축 (forClipboard)
+//
+// buildIssueMarkdown/buildIssueHtml의 호출부는 2곳뿐이다 — PreviewPanel(클립보드 복사)과
+// buildReportData(logs.html 내부 리포트). 제출 본문은 플랫폼별 빌더 7개를 타므로 이 두
+// 함수를 거치지 않는다. 그래서 이 축은 "복사본이 존재하지 않는 첨부를 가리키는" 거짓말만
+// 고치고 제출 경로에 닿지 않는다. logs.html 경로는 축을 켜지 않는다 — 단일 파일이라
+// data: 이미지가 유일한 렌더 수단이고, 그 안에서 "logs.html 첨부됨"은 자기참조다.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("forClipboard — 복사본은 존재하지 않는 첨부를 가리키지 않는다", () => {
+  const logs = {
+    networkLogSummary: { captured: 17, errors: [] },
+    actionLogCaptured: 3,
+  } satisfies Partial<MarkdownContext>;
+
+  describe("Media 섹션 — 문구만 교체하고 섹션은 유지", () => {
+    it("md/screenshot: 첨부 안내가 복사용 문구로 교체된다", () => {
+      const md = buildIssueMarkdown(makeCtx({ captureMode: "screenshot", forClipboard: true }));
+
+      expect(md).not.toContain("md.imageAttached");
+      expect(md).toContain("md.imageNotCopied");
+    });
+
+    it("md/video: 녹화 첨부 안내가 복사용 문구로 교체된다", () => {
+      const md = buildIssueMarkdown(makeCtx({ captureMode: "video", forClipboard: true }));
+
+      expect(md).not.toContain("md.videoAttached");
+      expect(md).toContain("md.videoNotCopied");
+    });
+
+    it("html/screenshot: 첨부 안내가 복사용 문구로 교체된다", () => {
+      const html = buildIssueHtml(makeCtx({ captureMode: "screenshot", forClipboard: true }));
+
+      expect(html).not.toContain("md.imageAttached");
+      expect(html).toContain("md.imageNotCopied");
+    });
+
+    it("html/video: 녹화 첨부 안내가 복사용 문구로 교체된다", () => {
+      const html = buildIssueHtml(makeCtx({ captureMode: "video", forClipboard: true }));
+
+      expect(html).not.toContain("md.videoAttached");
+      expect(html).toContain("md.videoNotCopied");
+    });
+
+    // 섹션째 빼면 제출본과 구조가 달라져 미리보기 대조가 어긋난다.
+    it("섹션 헤딩은 두 flavor 모두에서 유지된다", () => {
+      const ctx = makeCtx({ captureMode: "screenshot", forClipboard: true });
+
+      expect(buildIssueMarkdown(ctx)).toContain("md.section.media");
+      expect(buildIssueHtml(ctx)).toContain("md.section.media");
+    });
+  });
+
+  describe("로그 요약 — 리드만 교체하고 통계는 유지", () => {
+    it("md: logs.html 첨부 리드가 교체되고 통계 줄은 남는다", () => {
+      const md = buildIssueMarkdown(makeCtx({ ...logs, forClipboard: true }));
+
+      expect(md).not.toContain("logSummary.logs.lead");
+      expect(md).toContain("logSummary.logs.notCopied");
+      // 통계는 복사에서도 참이다.
+      expect(md).toContain("logSummary.title");
+      expect(md).toContain("logSummary.network.lineNoError n=17");
+    });
+
+    it("html: logs.html 첨부 리드가 교체되고 통계 줄은 남는다", () => {
+      const html = buildIssueHtml(makeCtx({ ...logs, forClipboard: true }));
+
+      expect(html).not.toContain("logSummary.logs.lead");
+      expect(html).toContain("logSummary.logs.notCopied");
+      expect(html).toContain("logSummary.title");
+      expect(html).toContain("logSummary.network.lineNoError n=17");
+    });
+
+    it("logs.html 파일명 참조가 복사본에 남지 않는다", () => {
+      const ctx = makeCtx({ ...logs, forClipboard: true });
+
+      expect(buildIssueMarkdown(ctx)).not.toContain("logs.html");
+      expect(buildIssueHtml(ctx)).not.toContain("logs.html");
+    });
+  });
+
+  // 이 블록이 위 단언들의 "공허하지 않음"을 실증한다 — 같은 ctx에서 축만 뒤집어
+  // 서로 다른 결과가 나오는지 대조한다(축을 무시하는 구현이면 여기서 red).
+  describe("축이 꺼지면(기본값) 기존 출력 그대로 — 제출·logs.html 무회귀", () => {
+    it("md: 첨부 문구가 그대로다", () => {
+      const md = buildIssueMarkdown(makeCtx({ captureMode: "screenshot", ...logs }));
+
+      expect(md).toContain("md.imageAttached");
+      expect(md).toContain("logSummary.logs.lead");
+      expect(md).toContain("logs.html");
+      expect(md).not.toContain("md.imageNotCopied");
+      expect(md).not.toContain("logSummary.logs.notCopied");
+    });
+
+    it("html: 첨부 문구가 그대로다", () => {
+      const html = buildIssueHtml(makeCtx({ captureMode: "screenshot", ...logs }));
+
+      expect(html).toContain("md.imageAttached");
+      expect(html).toContain("logSummary.logs.lead");
+      expect(html).toContain("logs.html");
+      expect(html).not.toContain("md.imageNotCopied");
+      expect(html).not.toContain("logSummary.logs.notCopied");
+    });
+
+    it("축을 뒤집으면 출력이 실제로 달라진다(단언 비공허 실증)", () => {
+      const base = makeCtx({ captureMode: "screenshot", ...logs });
+
+      expect(buildIssueMarkdown({ ...base, forClipboard: true })).not.toBe(
+        buildIssueMarkdown(base),
+      );
+      expect(buildIssueHtml({ ...base, forClipboard: true })).not.toBe(buildIssueHtml(base));
+    });
   });
 });

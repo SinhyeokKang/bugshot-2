@@ -1,7 +1,8 @@
+import { inConnectLane } from "./lib/connectLane";
 import { t } from "@/i18n";
 import type { NotionOAuthAuth } from "@/types/notion";
 import { getMyself } from "./notion-api";
-import { OAuthError, authorizeRejection, httpReason, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, authorizeRejection, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
   assertConfigured as assertOAuthConfigured,
@@ -86,7 +87,18 @@ async function exchangeCode(code: string): Promise<NotionTokenResponse> {
       { platform: "notion", reason: httpReason(res.status) },
     );
   }
-  return (await res.json()) as NotionTokenResponse;
+  const data = (await res.json()) as
+    | NotionTokenResponse
+    | { error?: string; error_description?: string };
+  // 200 + `{error:"invalid_grant"}` 본문이면 access_token undefined가 저장으로 흘러가고
+  // classifyConnectReason이 other로 뭉갠다 — 형제 5종과 같은 관용구로 잡는다.
+  if ("error" in data && data.error) {
+    throw new OAuthError(data.error_description || data.error, {
+      platform: "notion",
+      ...grantRejection(isNotionCancellationCode(data.error)),
+    });
+  }
+  return data as NotionTokenResponse;
 }
 
 export async function startNotionOAuth(): Promise<NotionOAuthAuth> {
@@ -123,7 +135,7 @@ export async function startNotionOAuth(): Promise<NotionOAuthAuth> {
     botName: "",
     grantedAt: Date.now(),
   };
-  const me = await getMyself(initial);
+  const me = await inConnectLane(() => getMyself(initial));
   return {
     ...initial,
     botName: me.botName,

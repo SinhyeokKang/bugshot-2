@@ -207,14 +207,15 @@ function ArrayChildren({
         />
       ))}
       {remaining > 0 && (
-        <div
-          className="flex cursor-pointer items-center gap-1 py-0.5 pr-2 text-blue-600 hover:underline dark:text-blue-400"
+        <button
+          type="button"
+          className="flex w-full items-center gap-1 py-0.5 pr-2 text-left text-blue-600 hover:underline dark:text-blue-400"
           style={{ paddingLeft: (depth + 1) * 12 + 4 }}
           onClick={() => setVisibleCount((c) => c + ARRAY_CHUNK_SIZE)}
         >
           <span className="inline-block h-4 w-4 shrink-0" />
           {t("json.moreItems", { n: remaining })}
-        </div>
+        </button>
       )}
     </>
   );
@@ -244,12 +245,13 @@ function StringRow({
         <span className={`break-all ${JSON_TOKEN_CLASS.string}`}>"<HighlightedText text={display} query={q} />"</span>
         {truncated && (
           <div>
-            <span
-              className="cursor-pointer text-xs text-foreground hover:underline"
+            <button
+              type="button"
+              className="text-xs text-foreground hover:underline"
               onClick={() => setShowFull(true)}
             >
               {t("json.showAll")}
-            </span>
+            </button>
           </div>
         )}
       </div>

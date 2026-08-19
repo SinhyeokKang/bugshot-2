@@ -24,7 +24,7 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 
 ## 헬퍼 · fixture 빠른 참조
 
-전부 `fixtures/extension.ts`. 새 헬퍼를 추가하면 여기와 `docs/DIRECTORY.md`에 반영한다.
+`fixtures/extension.ts`가 기본 창구이고, 계약을 한 곳에 묶어야 하는 stub은 별 파일로 뗀다(`fixtures/clipboard.ts:stubClipboard` — 복사 flavor 계약. GOTCHAS "스텁이 곧 계약" 참조). 새 헬퍼를 추가하면 여기와 `docs/DIRECTORY.md`에 반영한다.
 
 - `ext` worker fixture — `fixtureUrl(page)` / `fixtureHostUrl(host, page)` / `fixtureTabId(urlPattern?)` / `openPanel(tabId)` / `context`.
   - `fixtureHostUrl(host, page)` — 같은 fixture 서버를 임의 호스트명으로 연다. launch args의 `--host-resolver-rules=MAP *.bugshot.test 127.0.0.1` 덕에 `app`/`api`/`auth.bugshot.test`가 하나의 registrable domain으로 묶인다(동족 hostname이 필요한 `api-hosts-env-row` 전용 — GOTCHAS 참조). **`fixtureTabId`엔 패턴을 명시**해야 한다.

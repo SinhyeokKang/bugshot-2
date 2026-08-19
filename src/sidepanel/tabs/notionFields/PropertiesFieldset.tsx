@@ -1,3 +1,4 @@
+import { FieldRow } from "@/sidepanel/components/FieldRow";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { PropertySelectCombobox } from "./PropertySelectCombobox";
 
@@ -26,20 +27,20 @@ export function PropertiesFieldset({ schema, values, onChange }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {schema.selectProperties.map((p) => {
         const cur = values.find((v) => v.propertyName === p.name);
         const propType: "select" | "multi_select" =
           p.type === "multi_select" ? "multi_select" : "select";
         return (
-          <div key={p.id} className="grid gap-1.5">
-            <label className="text-xs text-muted-foreground">{p.name}</label>
+          <FieldRow key={p.id} label={p.name}>
             <PropertySelectCombobox
               schema={p}
+              ariaLabel={p.name}
               value={cur?.options ?? []}
               onChange={(next) => setValueFor(p.name, propType, next)}
             />
-          </div>
+          </FieldRow>
         );
       })}
     </div>

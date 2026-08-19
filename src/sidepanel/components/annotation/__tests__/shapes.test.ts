@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyTransform,
   createShape,
+  ellipseRenderGeometry,
   isEmptyShape,
   PEN_SMOOTHING_ALPHA,
   updateShapeDraft,
@@ -301,7 +302,7 @@ describe("applyTransform — scale/rotation 흡수 정규화", () => {
     expect(next.height).toBeCloseTo(50);
   });
 
-  it("ellipse 음수 scaleY(flip)도 height에 흡수한다(렌더는 abs로 복구)", () => {
+  it("ellipse 음수 scaleY(flip)도 height에 흡수한다(렌더 기하가 부호를 읽는다)", () => {
     const base: EllipseShape = {
       id: "id",
       type: "ellipse",
@@ -358,5 +359,99 @@ describe("applyTransform — scale/rotation 흡수 정규화", () => {
     const next = applyTransform(s, { x: 0, y: 0, scaleX: 2, scaleY: 2, rotation: 0 });
     expect(next).not.toBe(s);
     expect((s as { points: number[] }).points).toEqual(before);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ellipseRenderGeometry — Konva Ellipse는 로컬 원점에 중심을 그리고, 노드 변환은
+// translate(x,y) 후 translate(-offsetX,-offsetY)다. 따라서 **절대 중심 = position - offset**.
+// bounding box의 중심은 `x + width/2`이고 이 값은 width의 **부호를 보존**해야 한다 —
+// `Math.abs(width)/2`로 offset을 만들면 좌/상 방향 드래그에서 중심이 앵커 반대편에 놓여
+// 원이 거울 반사된다(rect는 Konva가 음수 width를 native로 처리해 무증상이라 ellipse만 터진다).
+//
+// ShapeNode는 react-konva 컴포넌트라 캔버스 실동작에 걸려 jsdom으로 못 잡는다. 그래서 기하만
+// 순수 함수로 떼어 여기서 고정하고, 컴포넌트는 결과를 props로 펴는 얇은 껍데기로 둔다.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("ellipseRenderGeometry — 부호 있는 offset이 중심을 결정한다", () => {
+  // Konva 의미론을 그대로 재현한다. offset 값을 하드코딩해 비교하면 "구현이 무엇을 넣었나"만
+  // 확인하게 되고 의미가 고정되지 않는다.
+  const centerOf = (g: { x: number; y: number; offsetX: number; offsetY: number }) => ({
+    x: g.x - g.offsetX,
+    y: g.y - g.offsetY,
+  });
+
+  // 실제 유입 경로를 재현한다 — 드래그는 createShape(앵커) → updateShapeDraft(끝점)다.
+  const drag = (from: { x: number; y: number }, to: { x: number; y: number }): EllipseShape =>
+    updateShapeDraft(createShape("ellipse", "e", from, style), to) as EllipseShape;
+
+  it("우하단 드래그 — 중심이 앵커와 끝점의 중간이다", () => {
+    const g = ellipseRenderGeometry(drag({ x: 100, y: 100 }, { x: 140, y: 140 }));
+
+    expect(centerOf(g)).toEqual({ x: 120, y: 120 });
+  });
+
+  // 이게 사용자가 본 증상이다 — 앵커(100,100)에서 좌상단(60,60)으로 끌면 중심은 (80,80)이어야
+  // 하는데, abs offset은 (120,120)을 만들어 원이 앵커 반대편에 그려졌다.
+  it("좌상단 드래그 — 중심이 앵커의 왼쪽·위에 온다(거울 반사 없음)", () => {
+    const g = ellipseRenderGeometry(drag({ x: 100, y: 100 }, { x: 60, y: 60 }));
+
+    expect(centerOf(g)).toEqual({ x: 80, y: 80 });
+  });
+
+  it("부호가 섞인 드래그(좌하단·우상단)도 각 축을 독립으로 따른다", () => {
+    const leftDown = ellipseRenderGeometry(drag({ x: 100, y: 100 }, { x: 60, y: 140 }));
+    const rightUp = ellipseRenderGeometry(drag({ x: 100, y: 100 }, { x: 140, y: 60 }));
+
+    expect(centerOf(leftDown)).toEqual({ x: 80, y: 120 });
+    expect(centerOf(rightUp)).toEqual({ x: 120, y: 80 });
+  });
+
+  // 음수 width의 두 번째 유입 경로 — Transformer의 flip을 applyTransform이 흡수한다.
+  it("flip 리사이즈로 음수가 흡수된 뒤에도 중심이 정합이다", () => {
+    const base: EllipseShape = {
+      id: "e",
+      type: "ellipse",
+      x: 10,
+      y: 20,
+      width: 40,
+      height: 20,
+      color: "#000000",
+      strokeWidth: 2,
+    };
+    const flipped = applyTransform(base, {
+      x: 10,
+      y: 20,
+      scaleX: -1,
+      scaleY: -1,
+      rotation: 0,
+    }) as EllipseShape;
+    const g = ellipseRenderGeometry(flipped);
+
+    expect(flipped.width).toBeCloseTo(-40);
+    expect(centerOf(g).x).toBeCloseTo(10 + -40 / 2);
+    expect(centerOf(g).y).toBeCloseTo(20 + -20 / 2);
+  });
+
+  it("radius는 어느 부호에서도 음수가 아니다", () => {
+    const g = ellipseRenderGeometry(drag({ x: 100, y: 100 }, { x: 60, y: 60 }));
+
+    expect(g.radiusX).toBe(20);
+    expect(g.radiusY).toBe(20);
+  });
+
+  it("한 축이 0인 드래그(수평·수직)도 그 축의 반지름이 0이다", () => {
+    const vertical = ellipseRenderGeometry(drag({ x: 100, y: 100 }, { x: 100, y: 60 }));
+
+    expect(vertical.radiusX).toBe(0);
+    expect(vertical.radiusY).toBe(20);
+    expect(centerOf(vertical)).toEqual({ x: 100, y: 80 });
+  });
+
+  // 비공허 실증 — abs로 offset을 만들면 두 방향이 같은 중심을 내므로 여기서 red가 난다.
+  it("같은 크기라도 방향이 반대면 중심도 반대다", () => {
+    const rightDown = ellipseRenderGeometry(drag({ x: 100, y: 100 }, { x: 140, y: 140 }));
+    const leftUp = ellipseRenderGeometry(drag({ x: 100, y: 100 }, { x: 60, y: 60 }));
+
+    expect(centerOf(leftUp)).not.toEqual(centerOf(rightDown));
   });
 });

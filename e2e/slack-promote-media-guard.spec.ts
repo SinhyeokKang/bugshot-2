@@ -1,9 +1,9 @@
 import { expect, test } from "./fixtures/extension";
 
-// 승격 데이터 소실 가드 — Slack 보존 이슈를 GitHub로 승격할 때 미디어 업로드가 실패(href:null)하면
+// 승격 데이터 소실 가드 — Slack 보존 이슈를 GitHub로 승격할 때 미디어 업로드가 실패({ok:false})하면
 // 이슈 생성(github.submitIssue) 전에 중단해 원본을 보존해야 한다(markSubmitted→stripSubmitted가
 // slackPreserved·blob을 파괴하므로). GitHub 파일 업로드는 github.com 쿠키 세션이라 OAuth 토큰이
-// 살아있어도 soft-fail(href:null)할 수 있는데, 과거엔 그대로 이슈를 만들고 원본을 날렸다.
+// 살아있어도 soft-fail({ok:false})할 수 있는데, 과거엔 그대로 이슈를 만들고 원본을 날렸다.
 //
 // uploadFiles/submitIssue는 SW fetch라 panel의 chrome.runtime.sendMessage를 스파이로 대체한다
 // (slack-issue-promotion 패턴). 이미지가 captureFiles에 들어가야 가드가 발동하므로 screenshot 모드
@@ -107,7 +107,7 @@ async function seedAndOpenList(
   return { fixture, panel };
 }
 
-// github.uploadFiles는 요청된 모든 파일을 href:null(쿠키 세션 실패 모사)로, github.submitIssue는
+// github.uploadFiles는 요청된 모든 파일을 {ok:false}(쿠키 세션 실패 모사)로, github.submitIssue는
 // 호출 횟수만 기록하며 fake 성공. 가드가 작동하면 submitIssue는 0회여야 한다.
 async function spyGithub(
   panel: Awaited<ReturnType<typeof seedAndOpenList>>["panel"],
@@ -120,7 +120,7 @@ async function spyGithub(
     chrome.runtime.sendMessage = ((msg: { type?: string; files?: { filename: string }[] }, cb?: (r: unknown) => void) => {
       if (msg?.type === "github.uploadFiles") {
         w.__ghUpload = (w.__ghUpload ?? 0) + 1;
-        cb?.({ ok: true, result: (msg.files ?? []).map((f) => ({ filename: f.filename, href: null })) });
+        cb?.({ ok: true, result: (msg.files ?? []).map((f) => ({ ok: false, filename: f.filename })) });
         return;
       }
       if (msg?.type === "github.submitIssue") {

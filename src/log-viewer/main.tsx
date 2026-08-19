@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import { Loader2 } from "lucide-react";
 import type { LogViewerData } from "@/types/log-viewer";
 import { base64ToGunzip } from "@/lib/gzip-base64";
+import { BCP47 } from "../i18n/locales";
+import { viewerLocale } from "./i18n";
 import { App } from "./App";
 import "./styles.css";
 
@@ -13,6 +15,9 @@ function syncDarkClass(): void {
 }
 syncDarkClass();
 darkQuery.addEventListener("change", syncDarkClass);
+
+// index.html의 정적 lang은 사전 선택(브라우저 언어)과 어긋난다 — 같은 계층에서 맞춰둔다.
+document.documentElement.lang = BCP47[viewerLocale];
 
 async function loadData(): Promise<LogViewerData | null> {
   const dataEl = document.getElementById("__BUGSHOT_DATA__");

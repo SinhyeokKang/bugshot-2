@@ -6,6 +6,48 @@
 
 ---
 
+## 2026-08-19 — audit-refactor-7이 **의도적으로 안 하고 남긴 것 6건**
+
+배치는 P0·P1·P2 세 묶음으로 전부 dev에 들어갔다. 여기 남기는 건 착수 전 검수(`/feature-review`)나 배치 중 판정으로 **안 하기로 한 것들**이다.
+
+**① #21 `DomTreeDialog` raw button → shadcn `Button`** — 이행하면 손해다.
+근거로 든 "DESIGN §10 등재 예외 4계열"이 그때 **문서에 없었다**(실제 2계열). 교체하면 `Button variant="ghost"`의 base cva `inline-flex h-9 px-4`가 원본 `block w-full truncate text-2xl`과 충돌해 행 높이 +4px, 텍스트 폭 −32px, hover가 `opacity-70` 전이 대신 면색 블록이 되고, 무엇보다 **`truncate`가 파손된다**(익명 flex item이 되어 하드 클립). e2e는 testid만 잡아 이 회귀를 아무 테스트도 못 잡는다.
+**항목 자체가 소멸했다** — Task 11-5가 DESIGN.md에 "raw `<button>` 예외" 표를 만들고 이 계열(sticky 헤더의 클릭 가능한 제목)을 등재했다. 다시 볼 조건 없음.
+
+**② #28 `SingleLazyCombobox` 미채택 6파일 수렴** — 동치 통합이 아니다.
+`DESIGN.md:270`이 이 파일들을 "로드 모델이 달라 의도적으로 밖에 있다"고 이미 등재해 뒀고, 이행은 동작 변경 다발이다: `shouldFilter={false}`+수동 `includes()`가 매치 집합·순서를 바꾸고, `tabs/ProjectCombobox`는 `JiraAccount`에 `projectName`이 없어 트리거가 `"Name (KEY)"` → **`"KEY"`로 퇴화**하며, linear `LabelCombobox`는 로드 목록 우선 라벨이 저장 이름 고정으로 퇴화한다. 대상 6파일 테스트 0·e2e 0.
+**다시 볼 조건**: 아래 ⑤(`query` 리셋 부재)가 먼저 고쳐진 뒤. 그 컴포넌트가 아직 결함을 들고 있는 채로 소비처를 늘리는 건 순서가 거꾸로다.
+
+**③ #29 원격 검색 3벌 → `useDebouncedSearch`** — 실측이 문서와 다르다.
+디바운스가 문서엔 "300ms 3벌"인데 실측 **250/250/300ms**이고, 3파일은 `setLoading(true)`를 타이머 **안**에서 부르는데 훅은 타이머 **앞**(leading edge)에서 부른다 → 이행하면 키 입력마다 목록이 스피너로 교체돼 400px 패널에서 깜빡인다. 훅엔 `if (!open) return` 게이트도 `items` reset도 없다(`JiraIssueFields.tsx:215`가 `key` remount로 우회 중).
+**다시 볼 조건**: 훅이 `open` 게이트·`items` reset·loading 타이밍 옵션을 갖게 되면.
+
+**④ #26 배지 셸 7벌 추출 · #27 PatDialog 6벌 추출** — 추출 대상이 아직 안 정해졌다.
+둘 다 "N벌이 있다"는 것까지만 확인됐고 무엇을 공통 셸로 뽑을지는 미정이다. 이 배치가 `imageCell`·`escapeHtml`·`MarkdownIt`에서 배운 대로, **공통 부분이 무엇인지 정하지 않은 채 추출하면 사본이 하나 더 는다**(P1에서 `picker-clear`의 `sendToTabAllFrames`이 `sendToTabAllFrames`의 다섯 번째 사본이 될 뻔했다).
+**다시 볼 조건**: 배지·PatDialog를 다른 이유로 손대며 공통 셸의 경계가 드러날 때.
+
+**⑤ #34의 `src/sidepanel/**` 전역 import 표기 통일** — 규모가 다르다.
+이 배치는 이탈 **10건**(background 7 · types 3)만 고치고 신규 유입 그물(`src/lib/__tests__/import-convention.test.ts`)을 깔았다. `sidepanel`은 445건 혼용이라 스캔 대상에서 뺐다 — 예외 목록을 박으면 그물이 아니라 장부가 된다.
+**다시 볼 조건**: sidepanel을 한 번에 치환할 의지가 있을 때. 부분 치환은 혼용을 유지하면서 diff만 키운다.
+
+**⑥ `BgResponseMap` 도입** — 국소 처리로 갈음했다.
+#4(업로드 응답 판별자)를 근본적으로 고치려면 `BgRequest["type"]` → 응답 타입 map으로 `sendBg`가 추론하게 해야 한다. 이번엔 판별자 union + 양단 명시 + 목 갱신으로 국소 처리했다. `handleMessage`가 `Promise<unknown>`이고 `sendBg<T>`가 호출자 단언인 구조는 그대로 남는다.
+**다시 볼 조건**: 응답 shape 불일치가 또 나올 때. 그때는 map이 국소 수정보다 싸다.
+
+### 다음 배치 후보 3건 (검수가 발굴, 이번 배치 밖)
+
+- **`SingleLazyCombobox`의 `query` 리셋 부재** — `query`를 컴포넌트 state로 들고 `shouldFilter={false}` + 수동 필터를 돌리는데 `setQuery("")` 리셋이 어디에도 없다. 컴포넌트가 팝오버와 수명이 달라 살아남으므로 **재오픈 시 입력창은 비어 보이는데 목록은 stale query로 필터된 채**다. 이미 11파일이 쓴다. 위 ②의 선행 조건.
+- **`send`/`sendToTabAllFrames`의 포트 닫힘 ↔ 의도적 `undefined` 미구별** — 둘 다 `catch { return undefined }`로 `lastError`를 지운다. P0가 `scrollCaptureTo` 한 경로에 shape 가드를 넣었지만 구조 자체는 남았다.
+- **seq-guard 4·5번째 사본** — `useLazyListOnOpen.ts:18`·`NotionConnectForm.tsx:74`가 같은 `reqIdRef` 패턴이다.
+
+### 이 배치가 얻은 판별 기준
+
+**"지배 패턴이 저장소에 있다"만으로 수렴을 정당화하지 않는다** — 대상이 그 패턴의 전제(로드 모델·variant·타이포그래피)를 공유하는지까지 본다. ②·③·①이 전부 이 기준에서 걸렀고, 셋 다 "N벌 중복"이라는 표면은 참이었다.
+
+**설계 문서의 전제는 착수 전에 grep으로 확인한다** — 이 배치의 design.md에서만 네 번 틀렸다(`loadPromise === p`가 래퍼를 놓침 / runner가 두 레인을 구별할 신호가 있다 / `persistOAuthTokens`가 양쪽에서 불린다 / DESIGN에 예외 4계열이 등재돼 있다). 호출부 개수·필드 유무는 5초짜리 grep이고 문서는 그걸 대신해주지 않는다.
+
+---
+
 ## 2026-08-16 — audit-refactor-6이 **의도적으로 안 하고 남긴 것 6건**
 
 배치 자체는 8그룹 전부 dev에 들어갔고 기획 문서는 삭제했다. 여기 남기는 건 그 안에서 **착수했다가/계획에 있었다가 안 하기로 판정한 것들**이다 — 전부 사유가 실측이라, 안 적어두면 다음에 같은 계산을 다시 한다.
@@ -14,6 +56,7 @@
 `index.ts:4`가 store를 값으로 import해 `settings-ui-store`가 선언한 "store → i18n 단방향"을 깨고 있고, 떼면 번들도 준다. 그런데 `vite.log-viewer.config.ts:10`이 `"@/i18n"` → `src/log-viewer/i18n.ts`로 alias하는데 **vite 문자열 alias는 prefix 매칭**이라 `@/i18n/useT`가 `.../log-viewer/i18n.ts/useT`로 재작성된다. log-viewer는 `NetworkLogContent`·`ConsoleLogContent`·`ActionLogContent`를 재사용하고 셋 다 `import { useT } from "@/i18n"`를 쓴다. **`pnpm typecheck`·`pnpm test`는 전부 green이고 `pnpm build:log-viewer`만 깨진다** — 원안 검증 체크리스트에 그게 없어서 못 걸렀다(POSTMORTEM 2026-08-11이 같은 함정의 선례).
 파생 함정 하나 더: `currentLocale`은 `index.ts:10`의 비-export 모듈 스코프 `let`이고 `useT`가 직접 대입한다. 분리하면 `setLocale()` 경유로 바꿔야 하고, 그 순간 `withLocale` 구간 중 렌더가 끼면 임시 로케일이 영구화될 수 있다.
 **다시 볼 조건**: log-viewer가 `@/i18n` alias를 안 쓰게 되거나 alias가 정확 매칭으로 바뀌면. 그때도 검증에 `pnpm build:log-viewer`를 반드시 넣는다.
+**2026-08-19 재소환**: audit-refactor-7 전체 재감사에서 같은 항목이 다시 나왔다. 다시 볼 조건은 여전히 미충족. (ar-7 #59 — `useT()`의 렌더 중 전역 write 축으로 다시 걸렸다. 조건에 붙은 **`pnpm build:log-viewer` 필수** 조항도 함께 살아 있다.)
 
 **② `ContentMessage` 신설 + `PickerMessage` 쪼개기 (항목 🟡59)** — 전제가 거짓이라 축소.
 원안은 "`ContentMessage` 합집합을 유지해 기존 사용처를 안 건드린다"였는데 **`ContentMessage`는 코드에 없다**(grep 0). 지금은 `PickerMessage`가 곧 전체 합집합이라, 그걸 `picker.*`로 좁히는 순간 recorder·annotation 수신부가 전부 깨진다 — typecheck가 잡아주긴 하나 기계적 치환 ~40곳이 붙는다. 배치에선 인라인 `import("@/types/network")` 3곳을 상단 `import type`으로 올리는 것만 했다.
@@ -26,6 +69,7 @@
 **④ `dataUrlToBlob` 통합 (항목 ⚪94)** — 동치가 아니다.
 `background/notion-api.ts:292`판은 percent-encoding 페이로드를 처리하고 `{blob, contentType}`을 반환하는데, `store/blob-db.ts:728`판은 정규식이 `/^data:(.*?);base64,(.+)$/`로 base64 전용이고 `Blob`만 반환한다. 통합하면 한쪽 파싱을 넓히거나(동작 변경) 좁혀야(회귀) 하고, notion 경로에 percent-encoded가 도달 불가하다는 걸 증명할 수 없다.
 **다시 볼 조건**: notion 첨부 경로의 입력이 base64로 좁혀졌음을 실측할 수 있을 때. (같은 형태의 선례: `submitToSlack.ts:toUploadEntry`도 `contentType` 차이 때문에 통합 안 하고 사유 주석만 남겼다.)
+**2026-08-19 재소환**: audit-refactor-7 전체 재감사에서 같은 항목이 다시 나왔다. 다시 볼 조건은 여전히 미충족. (ar-7 #24. 그 감사 리포트가 **"3벌"이라 했지만 실제 정의는 2벌**이다 — `store/blob-db.ts`·`background/notion-api.ts`. 위 본문이 처음부터 2벌로 적었으니 이름이 아니라 본문으로 세라는 POSTMORTEM 2026-07-16을 리포트 쪽이 밟은 것이다.)
 
 **⑤ `confirmDraft` 150줄 목표 (G7)** — 목표치가 자기 설계와 모순이다.
 실측 276 → 246줄로 줄었고 남은 246줄의 출처는 중복이 아니라 jira sticky 복원 33줄 + element 레코드 리터럴 ~75줄 + element 영속 IIFE ~35줄이다. 150에 닿으려면 분기별 함수 분리가 필요한데 **그건 같은 기획의 design.md 대안 D가 명시적으로 기각한 방향**이고, 그 문단이 "함수 길이는 부작용이지 이 항목의 문제가 아니다"라고 못박았다.
@@ -34,6 +78,7 @@
 **⑥ `github-upload.ts`의 항상-true `created`·`github-oauth.ts`의 1회용 wrapper 군집 (항목 ⚪95·96)** — ⚪ 이득 vs 실탭 회귀 비용.
 `ensureGithubTab`은 반환 타입이 `{tabId, created: boolean}`인데 `created: true` 하나뿐이고, 호출부 `:170`이 정리 조건으로 쓴다. 그런데 그 파일은 `chrome.scripting.executeScript({func})` 주입 대상이라 CLAUDE.md가 **리팩터 시 실제 탭 회귀를 필수로** 요구한다. `github-oauth.ts`의 wrapper 4개(`assertConfigured`·`redirectUri`·`proxyTokenUrl`·`proxyRefreshUrl`)도 OAuth 경로다.
 **다시 볼 조건**: 같은 파일을 다른 이유로 손대며 실탭 회귀를 어차피 돌릴 때 곁들인다.
+**2026-08-19 재소환**: audit-refactor-7 전체 재감사에서 같은 항목이 다시 나왔다. 다시 볼 조건은 여전히 미충족. (ar-7 #31. ar-7 G5가 `github-upload.ts`의 **함수 반환 타입**을 판별자 union으로 바꿨지만 `executeScript({func: pageBatchUploadFn})` 주입부는 안 건드렸고 실탭 회귀도 안 돌렸다 — 조건 미충족.)
 
 ---
 

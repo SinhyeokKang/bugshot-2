@@ -1,3 +1,4 @@
+import { inConnectLane } from "./lib/connectLane";
 import { t } from "@/i18n";
 import type { AsanaAuth, AsanaOAuthAuth } from "@/types/asana";
 import { writeStoredAsanaOAuthTokens } from "@/lib/settings-storage";
@@ -90,7 +91,7 @@ export async function startAsanaOAuth(): Promise<AsanaOAuthAuth> {
     viewerGid: "",
     viewerName: "",
   };
-  const me = await getMyself(auth);
+  const me = await inConnectLane(() => getMyself(auth));
   return { ...auth, viewerGid: me.gid, viewerName: me.name, viewerEmail: me.email };
 }
 

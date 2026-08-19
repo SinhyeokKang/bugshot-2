@@ -1,3 +1,5 @@
+import type { UploadFileResult } from "@/types/messages";
+
 export interface GithubUploadFileEntry {
   filename: string;
   contentType: string;
@@ -136,8 +138,12 @@ export async function uploadGithubFiles(
   repo: string,
   repoId: number,
   files: GithubUploadFileEntry[],
-): Promise<Array<{ filename: string; href: string | null }>> {
+): Promise<UploadFileResult[]> {
   if (files.length === 0) return [];
+  // 페이지 주입 함수는 MAIN world라 self-contained여야 하므로 내부 형태({href: null})는
+  // 그대로 두고, 경계에서만 판별자 union으로 정규화한다.
+  const allFailed = (): UploadFileResult[] =>
+    files.map((f) => ({ ok: false, filename: f.filename }));
 
   let tabId: number;
   let created = false;
@@ -148,7 +154,7 @@ export async function uploadGithubFiles(
     created = tab.created;
   } catch (err) {
     console.warn("[bugshot] github tab not available", err);
-    return files.map((f) => ({ filename: f.filename, href: null }));
+    return allFailed();
   }
 
   try {
@@ -162,10 +168,15 @@ export async function uploadGithubFiles(
     if (pageResult?.files.some((f) => f.href === null) && pageResult.debug.length > 0) {
       console.warn("[bugshot] github upload partial failure:", pageResult.debug.join(" | "));
     }
-    return pageResult?.files ?? files.map((f) => ({ filename: f.filename, href: null }));
+    if (!pageResult) return allFailed();
+    return pageResult.files.map((f) =>
+      f.href
+        ? { ok: true as const, filename: f.filename, href: f.href }
+        : { ok: false as const, filename: f.filename },
+    );
   } catch (err) {
     console.warn("[bugshot] github upload script injection failed", err);
-    return files.map((f) => ({ filename: f.filename, href: null }));
+    return allFailed();
   } finally {
     if (created) chrome.tabs.remove(tabId).catch(() => {});
   }

@@ -71,6 +71,18 @@ export interface OAuthStartResultMsg {
   expiresAt: number;
 }
 
+// 업로드 응답 계약. 이전엔 판별자 없이 nullable 필드 truthiness(href/url/gid)로 성공을
+// 갈랐고 플랫폼마다 필드명이 달라 소비처가 조용히 틀릴 수 있었다. handleMessage가
+// Promise<unknown>이라 typecheck가 양단을 대조하지 못하므로, 핸들러 반환 annotation과
+// 소비처 sendBg<...>를 **함께** 명시해야 한다(한쪽만 하면 다른 쪽이 남는다).
+export type UploadFileResult =
+  | { ok: true; filename: string; href: string }
+  | { ok: false; filename: string };
+
+export type AsanaUploadFileResult =
+  | { ok: true; filename: string; gid: string; viewUrl?: string }
+  | { ok: false; filename: string };
+
 export type BgRequest =
   | { type: "ping" }
   | {

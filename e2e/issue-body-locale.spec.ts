@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { enterDebug, expect, test } from "./fixtures/extension";
+import { stubClipboard } from "./fixtures/clipboard";
 
 // 이슈 본문 언어 — 화면 언어와 독립된 축. 복사·제출 본문의 섹션 헤딩만 바뀌고 사이드패널
 // 화면은 화면 언어를 유지한다.
@@ -48,22 +49,6 @@ async function setBodyLocale(panel: Page, label: string | "auto") {
   } else {
     await panel.getByRole("option", { name: label, exact: true }).click();
   }
-}
-
-async function stubClipboard(panel: Page) {
-  await panel.evaluate(() => {
-    const w = window as unknown as { __copiedTexts: string[] };
-    w.__copiedTexts = [];
-    navigator.clipboard.write = async (items) => {
-      for (const it of items) {
-        const blob = await it.getType("text/plain");
-        w.__copiedTexts.push(await blob.text());
-      }
-    };
-    navigator.clipboard.writeText = async (t) => {
-      w.__copiedTexts.push(t);
-    };
-  });
 }
 
 async function copiedText(panel: Page): Promise<string> {
@@ -138,6 +123,13 @@ test.describe.serial("이슈 본문 언어", () => {
     expect(copied).not.toContain("## 재현 환경");
     // 사용자가 쓴 본문은 번역 대상이 아니다 — 스캐폴딩만 바뀐다.
     expect(copied).toContain("screen stays korean");
+
+    // 같은 클릭이 rich flavor도 실어야 한다(본문 언어는 두 flavor에 동일 적용).
+    const html = await panel.evaluate(
+      () => (window as unknown as { __copiedHtml: string[] }).__copiedHtml.join("\n"),
+    );
+    expect(html).toContain("Environment");
+    expect(html).toMatch(/<\/(p|h1|h2|h3|li|td)>/);
   });
 
   test("본문 언어 자동 → 복사 마크다운 헤딩이 화면 언어를 따른다", async () => {

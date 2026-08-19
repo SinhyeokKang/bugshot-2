@@ -11,7 +11,7 @@ import { ccMarkdownLine } from "./ccMention";
 import { segmentsToMarkdown } from "./classDiff";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
-import { emitMarkdownLogSummary, footerMarkdown, listItems, sectionLabel } from "./issueBodyShared";
+import { emitMarkdownLogSummary, footerMarkdown, imageCell, listItems, sectionLabel } from "./issueBodyShared";
 
 export interface LinearMediaInput {
   filename: string;
@@ -27,11 +27,6 @@ export interface LinearBuildInput {
 
 export interface LinearBuildResult {
   body: string;
-}
-
-function imageCell(media: LinearMediaInput | undefined): string {
-  if (!media?.assetUrl) return "";
-  return `![${media.filename}](${media.assetUrl})`;
 }
 
 export function buildLinearIssueBody(
@@ -104,7 +99,7 @@ function buildLinearIssueBodyInner(
         lines.push("| --- | --- | --- |");
         if (hasSnapshots) {
           lines.push(
-            `| **${t("styleTable.snapshot")}** | ${imageCell(before)} | ${imageCell(after)} |`,
+            `| **${t("styleTable.snapshot")}** | ${imageCell(before && { filename: before.filename, url: before.assetUrl })} | ${imageCell(after && { filename: after.filename, url: after.assetUrl })} |`,
           );
         }
         for (const d of el.diffs) {

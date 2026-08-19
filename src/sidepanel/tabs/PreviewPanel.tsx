@@ -290,8 +290,12 @@ export function PreviewPanel() {
     </Section>
   ) : null;
 
-  const handleCopyMarkdown = async () => {
-    const resolved = await resolveSectionImages(draft.sections, issueSections);
+  const buildForCopy = async (): Promise<{ md: string; html: string }> => {
+    // 복사본은 인라인 이미지를 data: URI로 해소하지 않는다 — 그 URI 하나가 Notion·Slack·Jira의
+    // 붙여넣기를 통째로 거부시켜 본문까지 유실된다(크기 무관, 실측 확인). 치환은 빌더 진입점이
+    // 본문 언어로 처리하므로 여기선 원본 sections를 그대로 넘긴다. IDB 왕복이 사라져 클릭
+    // gesture window도 넓어진다.
+    const resolved = draft.sections;
 
     let ctx: MarkdownContext;
     if (isFreeformMode) {
@@ -373,19 +377,34 @@ export function PreviewPanel() {
         actionLogCaptured: attachedAction ? attachedAction.captured : undefined,
       });
     } else {
-      return;
+      // CaptureMode 4값을 위 분기가 소진하고, element+selection 부재는 :132가 언마운트한다 —
+      // 도달 불가 방어. 조용히 resolve하면 호출부가 "복사됨"으로 뒤집힌다.
+      throw new Error("unsupported capture mode");
     }
-    const md = buildIssueMarkdown(ctx);
-    const html = buildIssueHtml(ctx);
+    const copyCtx: MarkdownContext = { ...ctx, forClipboard: true };
+    return { md: buildIssueMarkdown(copyCtx), html: buildIssueHtml(copyCtx) };
+  };
+
+  // write를 클릭 시점에 동기로 걸고 조립은 promise로 넘긴다 — 조립이 await를 하게 되면 그 사이
+  // 창 포커스가 빠져 clipboard.write의 hasFocus() 검사가 무음 실패한다. 지금 buildForCopy는
+  // await가 없지만(인라인 이미지 치환이 동기라 IDB 왕복이 사라졌다) 이 구조는 유지한다 —
+  // 조립에 await가 다시 생기면 그때 실패가 무음으로 돌아온다.
+  // 두 flavor는 하나의 공유 promise에서 파생시킨다 — 따로 만들면 조립이 2회다.
+  const handleCopyMarkdown = () => {
+    const built = buildForCopy();
+    const fallback = () => built.then((b) => navigator.clipboard.writeText(b.md));
+    // 생성자·write 부재는 동기 throw라 .catch에 안 걸린다 — 기존 try 블록과 같은 폭으로 감싼다.
     try {
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          "text/plain": new Blob([md], { type: "text/plain" }),
-          "text/html": new Blob([html], { type: "text/html" }),
-        }),
-      ]);
+      return navigator.clipboard
+        .write([
+          new ClipboardItem({
+            "text/plain": built.then((b) => new Blob([b.md], { type: "text/plain" })),
+            "text/html": built.then((b) => new Blob([b.html], { type: "text/html" })),
+          }),
+        ])
+        .catch(fallback);
     } catch {
-      await navigator.clipboard.writeText(md);
+      return fallback();
     }
   };
 

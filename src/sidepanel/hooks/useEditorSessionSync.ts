@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { pageKeyOf, sessionKey, pendingKey } from "@/lib/session-keys";
+import { FROZEN_PHASES, pageKeyOf, sessionKey, pendingKey } from "@/lib/session-keys";
 import {
   type EditorDraft,
   type EditorSnapshot,
@@ -44,7 +44,6 @@ export function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
 }
 
 const SAVE_DEBOUNCE_MS = 300;
-const DRAFT_PHASES = new Set(["drafting", "previewing", "done"]);
 // hydrate는 이 세 phase를 idle로 강등하므로, IDB 왕복 뒤 store가 여기 있다면 그 사이
 // 사용자가 **새 캡처를 시작한 것**이다 — 직전 세션의 늦은 복원분으로 덮지 않는다.
 const ACTIVE_CAPTURE_PHASES = new Set(["picking", "capturing", "recording"]);
@@ -143,7 +142,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         // 영상 blob은 스냅샷 밖(직렬화 불가)이라 IDB에서 복원. drafting은 pending:${tabId}에,
         // confirm 후(previewing/done, 또는 backToDraft로 돌아온 drafting)엔 issueId 키에 있으므로
         // pending → currentIssueId 순으로 조회. 둘 다 없으면 썸네일만 남고 videoBlob은 null.
-        if (snap.captureMode === "video" && DRAFT_PHASES.has(snap.phase)) {
+        if (snap.captureMode === "video" && FROZEN_PHASES.has(snap.phase)) {
           void (async () => {
             let blob = await getVideoBlob(pendingKey(tabId));
             if (!blob && snap.currentIssueId) blob = await getVideoBlob(snap.currentIssueId);
@@ -157,7 +156,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
     const unsubStore = useEditorStore.subscribe((state, prev) => {
       if (state === prev) return;
 
-      if (DRAFT_PHASES.has(prev.phase) && !DRAFT_PHASES.has(state.phase)) {
+      if (FROZEN_PHASES.has(prev.phase) && !FROZEN_PHASES.has(state.phase)) {
         const sections = prev.draft?.sections;
         if (sections) {
           const activeRefs = extractInlineRefs(Object.values(sections).join("\n"));
@@ -266,10 +265,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         return;
       }
 
-      if (
-        captureMode === "element" &&
-        (phase === "drafting" || phase === "previewing" || phase === "done")
-      ) {
+      if (captureMode === "element" && FROZEN_PHASES.has(phase)) {
         void clearPicker(tabId).catch(() => {});
       }
 

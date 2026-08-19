@@ -20,12 +20,21 @@ interface TimelinePanelProps {
 
 // 로그 탭과 동일하게 4개 필터를 항상 노출(없으면 0 뱃지).
 const FILTERS: TimelineFilter[] = ["all", "console", "network", "action"];
-const FILTER_LABEL: Record<TimelineFilter, string> = {
-  all: "timeline.filter.all",
-  console: "timeline.filter.console",
-  network: "timeline.filter.network",
-  action: "timeline.filter.action",
-};
+
+// 키를 테이블에 담으면 i18n 스캐너가 못 본다 — 인자가 문자열 리터럴인 호출만 세므로
+// 사전에서 지워도 아무도 red를 안 낸다. switch로 펴서 스캐너 가시성과 전수성을 함께 얻는다.
+function filterLabel(f: TimelineFilter): string {
+  switch (f) {
+    case "all":
+      return t("timeline.filter.all");
+    case "console":
+      return t("timeline.filter.console");
+    case "network":
+      return t("timeline.filter.network");
+    case "action":
+      return t("timeline.filter.action");
+  }
+}
 
 export function TimelinePanel({ items, videoStartedAt, setTimeListener, onActivate }: TimelinePanelProps) {
   const [currentAbsMs, setCurrentAbsMs] = useState(videoStartedAt);
@@ -88,7 +97,7 @@ export function TimelinePanel({ items, videoStartedAt, setTimeListener, onActiva
             <TabsList>
               {FILTERS.map((f) => (
                 <TabsTrigger key={f} value={f} data-testid={`timeline-filter-${f}`} className="gap-1.5">
-                  {t(FILTER_LABEL[f])}
+                  {filterLabel(f)}
                   <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">{counts[f]}</Badge>
                 </TabsTrigger>
               ))}

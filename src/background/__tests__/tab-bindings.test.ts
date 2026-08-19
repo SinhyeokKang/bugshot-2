@@ -585,3 +585,221 @@ describe("deactivatePanelIfCrossOrigin — 활성화 URL 갱신", () => {
     expect(c.activationUrl()).toBeUndefined();
   });
 });
+
+// apply()의 read(getActivatedSet)가 write 큐 밖에 있어, activation write가 read와
+// setOptions 사이에 끼면 apply가 stale한 값으로 패널 표시를 되돌린다.
+describe("activation 큐 — apply의 read 직렬화", () => {
+  function stubChrome() {
+    let activated: number[] = [1];
+    let activatedReadCount = 0;
+    const session: Record<string, unknown> = {};
+    const pendingSets: (() => void)[] = [];
+    let failRead = false;
+    const setOptions = vi.fn((_opts: { tabId?: number; enabled?: boolean }) => Promise.resolve());
+    const listeners: Record<string, ((...args: never[]) => unknown)[]> = {};
+    const on = (name: string) => ({
+      addListener: (fn: (...args: never[]) => unknown) => {
+        (listeners[name] ??= []).push(fn);
+      },
+    });
+
+    vi.stubGlobal("chrome", {
+      action: { onClicked: on("clicked") },
+      tabs: {
+        onActivated: on("activated"),
+        onUpdated: on("updated"),
+        onRemoved: on("removed"),
+        get: vi.fn(() => Promise.resolve({ id: 1 })),
+      },
+      windows: { onRemoved: on("winRemoved") },
+      webNavigation: { onCommitted: on("committed"), onBeforeNavigate: on("beforeNavigate") },
+      runtime: {
+        onMessage: on("message"),
+        onConnect: on("connect"),
+        sendMessage: vi.fn(() => Promise.resolve()),
+      },
+      sidePanel: { setOptions, open: vi.fn(() => Promise.resolve()) },
+      extension: { isAllowedFileSchemeAccess: vi.fn(() => Promise.resolve(false)) },
+      storage: {
+        session: {
+          get: vi.fn((key: string) => {
+            if (failRead && key === "sidePanel:activated") {
+              failRead = false;
+              return Promise.reject(new Error("session read failed"));
+            }
+            if (key === "sidePanel:activated") {
+              activatedReadCount += 1;
+              return Promise.resolve({ "sidePanel:activated": activated });
+            }
+            return Promise.resolve(key in session ? { [key]: session[key] } : {});
+          }),
+          // 커밋을 보류시켜 "write는 시작됐지만 아직 안 끝난" 창을 만든다.
+          set: vi.fn((obj: Record<string, number[]>) =>
+            new Promise<void>((resolve) => {
+              pendingSets.push(() => {
+                if (obj["sidePanel:activated"]) activated = obj["sidePanel:activated"];
+                resolve();
+              });
+            }),
+          ),
+          remove: vi.fn((key: string) => {
+            delete session[key];
+            return Promise.resolve();
+          }),
+        },
+      },
+    });
+    return {
+      setOptions,
+      listeners,
+      seedSession: (key: string, value: unknown) => {
+        session[key] = value;
+      },
+      flushSet: () => {
+        while (pendingSets.length) pendingSets.shift()!();
+      },
+      failNextRead: () => {
+        failRead = true;
+      },
+      activatedNow: () => activated,
+      activatedReads: () => activatedReadCount,
+    };
+  }
+
+  // activatedWriteQueue·pendingActivation은 모듈 레벨이라 케이스 사이로 흐른다 — 앞 케이스가
+  // 큐를 pending으로 남기면 apply가 아예 안 돌아도 "부재" 단언이 같은 green을 낸다.
+  // 격리는 이 describe 한정이다(위 describe들은 순수 함수라 정적 import를 그대로 쓴다).
+  async function loadModule() {
+    vi.resetModules();
+    return await import("../tab-bindings");
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("먼저 큐에 든 비활성화 write가 끝난 뒤 apply가 읽는다 (stale read로 패널을 되살리지 않는다)", async () => {
+    const c = stubChrome();
+    const { setupTabBindings } = await loadModule();
+    setupTabBindings();
+    const onRemoved = c.listeners["removed"][0] as (id: number, info: { windowId: number }) => void;
+    const onUpdated = c.listeners["updated"][0] as (
+      id: number,
+      info: { status?: string; url?: string },
+      tab: unknown,
+    ) => void;
+
+    onRemoved(1, { windowId: 1 });
+    onUpdated(1, { status: "complete" }, { id: 1 });
+    // set()이 read 뒤에 생기므로 한 번의 flush로는 큐가 안 풀린다 — 몇 틱 펌프한다.
+    for (let i = 0; i < 5; i++) {
+      c.flushSet();
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    // 부재만 단언하면 apply가 아예 안 돌아도 통과한다 — 비활성화 write가 커밋됐고
+    // apply의 read가 실제로 일어났음을 함께 고정한다.
+    expect(c.activatedNow()).not.toContain(1);
+    expect(c.activatedReads()).toBe(2);
+    const enabling = c.setOptions.mock.calls.filter(
+      ([opts]) => opts?.enabled === true,
+    );
+    expect(enabling).toHaveLength(0);
+  });
+
+  // 큐 대입에 `.catch(() => {})` 관용구를 안 쓰면 apply 한 번의 reject가 이후 모든
+  // activation write를 무음 사망시킨다 — P2 수정이 P0급 실패를 심는 경로.
+  // 큐가 길 때(탭 여러 개 복원 중) apply가 activateTab보다 먼저 큐에 들면, apply의 read가
+  // 클릭 **이후**로 밀린 채 stale false를 읽어 방금 연 패널을 도로 닫는다. read를 큐에
+  // 태우며 그 창이 "IPC 2틱"에서 "큐 드레인 전체"로 넓어졌다.
+  it("apply보다 늦게 눌린 activateTab의 패널을 stale read가 닫지 않는다", async () => {
+    const c = stubChrome();
+    const { setupTabBindings } = await loadModule();
+    setupTabBindings();
+    const onUpdated = c.listeners["updated"][0] as (
+      id: number,
+      info: { status?: string },
+      tab: unknown,
+    ) => void;
+    const onClicked = c.listeners["clicked"][0] as (tab: unknown) => void;
+
+    // 아직 활성화되지 않은 탭 9에 대해 apply가 먼저 큐에 든다.
+    onUpdated(9, { status: "complete" }, { id: 9 });
+    // 큐가 드레인되기 전에 사용자가 아이콘을 누른다(패널이 동기로 열린다).
+    onClicked({ id: 9 });
+
+    for (let i = 0; i < 6; i++) {
+      c.flushSet();
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    // 클릭이 실제로 패널을 열고 활성화까지 커밋했음을 먼저 고정한다.
+    expect(c.activatedNow()).toContain(9);
+    expect(
+      c.setOptions.mock.calls.filter(([opts]) => opts?.enabled === true),
+    ).not.toHaveLength(0);
+    const disabling = c.setOptions.mock.calls.filter(
+      ([opts]) => opts?.enabled === false,
+    );
+    expect(disabling).toHaveLength(0);
+  });
+
+  // pendingActivation은 applyInner만 OR로 봤다 — deactivatePanelIfCrossOrigin은 큐 **밖에서**
+  // getActivatedSet을 읽고 `!set.has(tabId)`면 즉시 return하므로, apply가 큐를 점유하며
+  // "클릭했지만 write 미반영" 창이 IPC 2틱에서 큐 드레인 전체로 넓어진 뒤엔 그 창의
+  // cross-origin 이동에서 비활성화가 통째로 스킵된다.
+  it("write 미반영 창의 cross-origin 이동에서도 비활성화가 스킵되지 않는다", async () => {
+    const c = stubChrome();
+    const { setupTabBindings } = await loadModule();
+    setupTabBindings();
+    const onUpdated = c.listeners["updated"][0] as (
+      id: number,
+      info: { status?: string; url?: string },
+      tab: unknown,
+    ) => void;
+    const onClicked = c.listeners["clicked"][0] as (tab: unknown) => void;
+
+    // 직전에 패널을 연 기준 URL. activateTab이 쓰는 키를 미리 심는다(stub의 set은 보류라
+    // 커밋되지 않는다) — 이게 없으면 refUrl 부재로 판정 전에 빠져나간다.
+    c.seedSession("sidePanel:url:9", "https://a.example/page");
+    onClicked({ id: 9 });
+    // 큐를 풀지 않은 채 = activation write 미반영 창에서 광역 커버 밖(file:)으로 이동한다.
+    onUpdated(9, { status: "loading", url: "file:///tmp/x.html" }, { id: 9 });
+
+    for (let i = 0; i < 8; i++) {
+      c.flushSet();
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    const disabling = c.setOptions.mock.calls.filter(
+      ([opts]) => opts?.enabled === false && opts?.tabId === 9,
+    );
+    expect(disabling).not.toHaveLength(0);
+    expect(c.activatedNow()).not.toContain(9);
+  });
+
+  it("apply가 reject해도 이후 activation write가 계속 동작한다", async () => {
+    const c = stubChrome();
+    const { setupTabBindings } = await loadModule();
+    setupTabBindings();
+    const onUpdated = c.listeners["updated"][0] as (
+      id: number,
+      info: { status?: string },
+      tab: unknown,
+    ) => void;
+    const onClicked = c.listeners["clicked"][0] as (tab: unknown) => void;
+
+    c.failNextRead();
+    onUpdated(1, { status: "complete" }, { id: 1 });
+    await new Promise((r) => setTimeout(r, 0));
+
+    onClicked({ id: 2 });
+    for (let i = 0; i < 5; i++) {
+      c.flushSet();
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    expect(c.activatedNow()).toContain(2);
+  });
+});

@@ -11,7 +11,7 @@ import { injectIssueUrl } from "@/lib/inject-issue-url";
 import { isFetchableSheetUrl } from "@/lib/ssrf-guard";
 import type { JiraAdfDoc, JiraAttachmentInput, JiraAuth, JiraCreateIssuePayload, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
-import type { BgRequest } from "@/types/messages";
+import type { AsanaUploadFileResult, BgRequest, UploadFileResult } from "@/types/messages";
 import {
   createIssue,
   createIssueLink,
@@ -489,7 +489,7 @@ export async function handleMessage(
 
     case "gitlab.uploadFiles": {
       const auth = await loadGitlabAuth();
-      const results: Array<{ filename: string; url: string | null }> = [];
+      const results: UploadFileResult[] = [];
       // 업로드 1건 실패(10MB 초과 등)가 이슈 생성 전체를 막지 않게 파일별로 격리.
       for (const f of message.files) {
         try {
@@ -500,9 +500,12 @@ export async function handleMessage(
             f.filename,
             blob,
           );
-          results.push({ filename: f.filename, url });
+          // url은 타입만 string이고 값은 미검증 API 응답이다 — 비면 ok:false로 접는다
+          // (clickup·asana 핸들러와 같은 가드). 안 접으면 소비처가 href: undefined를 본문에 박는다.
+          if (url) results.push({ ok: true, filename: f.filename, href: url });
+          else results.push({ ok: false, filename: f.filename });
         } catch {
-          results.push({ filename: f.filename, url: null });
+          results.push({ ok: false, filename: f.filename });
         }
       }
       return results;
@@ -570,11 +573,7 @@ export async function handleMessage(
 
     case "asana.uploadFiles": {
       const auth = await loadAsanaAuth();
-      const results: Array<{
-        filename: string;
-        gid: string | null;
-        viewUrl?: string;
-      }> = [];
+      const results: AsanaUploadFileResult[] = [];
       // 업로드 1건 실패가 task 생성 전체를 막지 않게 파일별로 격리.
       for (const f of message.files) {
         try {
@@ -585,9 +584,12 @@ export async function handleMessage(
             f.filename,
             blob,
           );
-          results.push({ filename: f.filename, gid, viewUrl });
+          // clickup과 대칭 — locator 없는 성공은 성공이 아니다. ok:true + gid undefined가
+          // 나가면 소비처가 data-asana-gid="undefined"를 본문에 박는다.
+          if (gid) results.push({ ok: true, filename: f.filename, gid, viewUrl });
+          else results.push({ ok: false, filename: f.filename });
         } catch {
-          results.push({ filename: f.filename, gid: null });
+          results.push({ ok: false, filename: f.filename });
         }
       }
       return results;
@@ -644,7 +646,7 @@ export async function handleMessage(
 
     case "clickup.uploadFile": {
       const auth = await loadClickupAuth();
-      const results: Array<{ filename: string; url: string | null }> = [];
+      const results: UploadFileResult[] = [];
       // 업로드 1건 실패가 task 생성 전체를 막지 않게 파일별로 격리.
       for (const f of message.files) {
         try {
@@ -655,9 +657,10 @@ export async function handleMessage(
             f.filename,
             blob,
           );
-          results.push({ filename: f.filename, url: url ?? null });
+          if (url) results.push({ ok: true, filename: f.filename, href: url });
+          else results.push({ ok: false, filename: f.filename });
         } catch {
-          results.push({ filename: f.filename, url: null });
+          results.push({ ok: false, filename: f.filename });
         }
       }
       return results;

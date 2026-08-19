@@ -1,3 +1,4 @@
+import { inConnectLane } from "./lib/connectLane";
 import { t } from "@/i18n";
 import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
 import { readStoredLinearAuth, writeStoredLinearOAuthTokens } from "@/lib/settings-storage";
@@ -111,7 +112,7 @@ export async function startLinearOAuth(): Promise<LinearOAuthAuth> {
     viewerName: "",
     grantedAt: Date.now(),
   };
-  const me = await getMyself(auth);
+  const me = await inConnectLane(() => getMyself(auth));
   return { ...auth, viewerName: me.name, viewerEmail: me.email };
 }
 

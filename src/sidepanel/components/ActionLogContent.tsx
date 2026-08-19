@@ -88,13 +88,13 @@ function ResolvedTargetChip({ view }: { view: ClickTargetView }) {
     return (
       <span data-testid="action-tag">
         <span aria-hidden="true">&lt;</span>
-        <span className="text-sky-600 dark:text-sky-400">{view.tagName}</span>
+        <span className={TONE_TEXT.blue}>{view.tagName}</span>
         {view.tagType && (
           <>
             {" "}
-            <span className="text-amber-600 dark:text-amber-400">type</span>
+            <span className={TONE_TEXT.amber}>type</span>
             <span aria-hidden="true">=&quot;</span>
-            <span className="text-red-700 dark:text-red-400">{view.tagType}</span>
+            <span className={TONE_TEXT.red}>{view.tagType}</span>
             <span aria-hidden="true">&quot;</span>
           </>
         )}
@@ -158,11 +158,16 @@ export function renderActionContent(t: TranslationFn, entry: ActionEntry): React
       return renderVerb(t("actionLog.verb.select"), { value: valueChip(entry.value), field: fieldText(entry) });
     case "keypress":
       return renderVerb(t("actionLog.verb.keypress"), { keys: valueChip(entry.value) });
-    case "toggle":
-      return renderVerb(
-        t(entry.value === "checked" ? "actionLog.verb.toggle.check" : "actionLog.verb.toggle.uncheck"),
-        { field: fieldText(entry) },
-      );
+    case "toggle": {
+      // 삼항을 t() 인자 안에 두면 log-viewer 복제 사전 스캐너가 이 두 키를 못 본다. 지금은
+      // markers.ts가 같은 키를 리터럴로 들어 앵커가 우연히 green이지만, 그 형제 참조에
+      // 기대는 상태다 — 이 컴포넌트도 그 번들 그래프 안이라 자기 몫을 보이게 둔다.
+      const verb =
+        entry.value === "checked"
+          ? t("actionLog.verb.toggle.check")
+          : t("actionLog.verb.toggle.uncheck");
+      return renderVerb(verb, { field: fieldText(entry) });
+    }
     case "navigation":
       return renderVerb(t(navVerbKey(entry.navType)), {
         target: entry.toUrl

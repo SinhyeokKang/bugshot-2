@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
 import { pruneOrphanInlineImages, getAttachmentBlob } from "@/store/blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
@@ -492,14 +498,31 @@ export function IssueCreateModal() {
 
   return (
     <>
-      <Button
-        data-testid="issue-submit-open"
-        disabled={!canOpen}
-        onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setOpen(true); }}
-        title={tooltip}
-      >
-        {t("issue.submit")}
-      </Button>
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              data-testid="issue-submit-open"
+              aria-disabled={!canOpen}
+              className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-primary"
+              onClick={() => {
+                if (!canOpen) return;
+                (document.activeElement as HTMLElement)?.blur?.();
+                setOpen(true);
+              }}
+            >
+              {t("issue.submit")}
+            </Button>
+          </TooltipTrigger>
+          {/* disabled면 base cva의 disabled:pointer-events-none이 hover를 죽여 이유가 영영 안 뜬다.
+              aria-disabled는 hover가 살아 있으므로 왜 못 누르는지를 함께 말해준다. */}
+          {tooltip && (
+            <TooltipContent data-testid="issue-submit-disabled-reason" className="max-w-60">
+              {tooltip}
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
       <SubmitFieldsDialog
         open={open}
         onOpenChange={setOpen}

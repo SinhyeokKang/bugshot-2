@@ -9,25 +9,17 @@ export type AnnotationTool =
   | "text"
   | "highlight";
 
-export type ThicknessKey = "S" | "M" | "L";
+// 값 정본은 @/sidepanel/lib/annotationDefaults (store가 컴포넌트 그래프를 안 끌게 leaf로 뗐다).
+// 기존 소비처를 안 건드리려 여기서 re-export한다.
+export {
+  ANNOTATION_COLORS,
+  ANNOTATION_THICKNESS,
+  DEFAULT_COLOR,
+  DEFAULT_THICKNESS,
+  type ThicknessKey,
+} from "@/sidepanel/lib/annotationDefaults";
 
-export const ANNOTATION_COLORS = [
-  "#ef4444", // red
-  "#eab308", // yellow
-  "#22c55e", // green
-  "#3b82f6", // blue
-  "#000000", // black
-] as const;
-
-export const DEFAULT_COLOR: string = ANNOTATION_COLORS[0];
-
-export const ANNOTATION_THICKNESS: Record<ThicknessKey, number> = {
-  S: 2,
-  M: 4,
-  L: 8,
-};
-
-export const DEFAULT_THICKNESS: ThicknessKey = "M";
+import { ANNOTATION_THICKNESS, type ThicknessKey } from "@/sidepanel/lib/annotationDefaults";
 
 export const HIGHLIGHT_OPACITY = 0.4;
 

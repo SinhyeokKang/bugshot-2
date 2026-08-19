@@ -38,6 +38,7 @@ import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { useBackgroundRecorder } from "./hooks/useBackgroundRecorder";
 import { usePickerMessages } from "./hooks/usePickerMessages";
 import { useThemeEffect } from "./hooks/useThemeEffect";
+import { useDocumentLangEffect } from "./hooks/useDocumentLangEffect";
 import { useAiLoadingStep } from "./hooks/useAiLoadingStep";
 import { aiLoadingSurface, aiLoadingPhraseKey, type AiLoadingSurface } from "./lib/aiLoadingPhrases";
 import { AiLoadingText } from "./components/AiLoadingText";
@@ -118,6 +119,7 @@ export default function App() {
   const settingsHydrated = useSettingsHydrated();
   usePickerMessages(tabId ?? null);
   useThemeEffect();
+  useDocumentLangEffect();
 
   const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
   const aiDraftLoading = useEditorStore((s) => s.aiDraftLoading);

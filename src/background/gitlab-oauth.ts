@@ -1,3 +1,4 @@
+import { inConnectLane } from "./lib/connectLane";
 import { t } from "@/i18n";
 import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
 import { readStoredGitlabAuth, writeStoredGitlabOAuthTokens } from "@/lib/settings-storage";
@@ -112,7 +113,7 @@ export async function startGitlabOAuth(): Promise<GitlabOAuthAuth> {
     viewerUsername: "",
     grantedAt: Date.now(),
   };
-  const me = await getMyself(auth);
+  const me = await inConnectLane(() => getMyself(auth));
   return { ...auth, viewerUsername: me.username, viewerEmail: me.email };
 }
 

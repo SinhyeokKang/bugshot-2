@@ -43,6 +43,35 @@ function types(sent: PickerMessage[]): string[] {
 }
 
 describe("runScrollCapture", () => {
+  // 마지막 타일의 captureTab이 매달렸다 워치독 만료 후 풀리면, 이미 원복된 화면이 그 타일의
+  // ack.y 좌표로 스티치된다. 뒤에 남은 타일이 없어 다음 scrollCaptureTo의 `ended` 거부가
+  // 끊을 기회조차 없으므로, finish 전에 세션 생존을 확인해야 무음 오염이 성공으로 안 나간다.
+  it("content 세션이 만료됐으면 스티치 결과를 성공으로 반환하지 않는다", async () => {
+    let finished = false;
+    const { deps, sent } = makeDeps({
+      send: vi.fn(async (_tabId: number, msg: PickerMessage) => {
+        if (msg.type === "picker.beginScrollCapture") return METRICS;
+        if (msg.type === "picker.scrollCaptureTo") return { y: msg.y };
+        if (msg.type === "picker.endScrollCapture") return { ok: true, expired: true };
+        return undefined;
+      }) as ScrollCaptureDeps["send"],
+      createStitcher: () => ({
+        add: async () => {},
+        finish: async () => {
+          finished = true;
+          return "data:image/webp;base64,stitched";
+        },
+      }),
+    });
+
+    await expect(
+      runScrollCapture(1, { onProgress: () => {}, signal: new AbortController().signal, deps }),
+    ).rejects.toThrow(/expired/);
+    expect(finished).toBe(false);
+    void sent;
+  });
+
+
   it("정상 흐름 — begin → 타일별 scroll+capture → end, 스티치 결과 반환", async () => {
     const { deps, sent, stitched } = makeDeps();
     const onProgress = vi.fn();
@@ -194,5 +223,43 @@ describe("runScrollCapture — 회귀 가드", () => {
     ).rejects.toThrow("scroll capture unavailable");
     expect(deps.captureTab).not.toHaveBeenCalled();
     void sent;
+  });
+
+  it("scrollCaptureTo가 에러 응답({ok:false})을 주면 중단한다 (빈 밴드 스티칭 방지)", async () => {
+    // content의 switch 전역 catch가 보내는 {ok:false}는 truthy라 !ack를 통과한다 —
+    // 통과하면 ack.y가 undefined가 되고 tilePixelRect가 NaN을 내며 drawImage가 무음 no-op이다.
+    const sentTypes: string[] = [];
+    const { deps, stitched } = makeDeps({
+      send: vi.fn(async (_tabId: number, msg: PickerMessage) => {
+        sentTypes.push(msg.type);
+        if (msg.type === "picker.beginScrollCapture") return METRICS;
+        if (msg.type === "picker.scrollCaptureTo") return { ok: false, error: "boom" };
+        return undefined;
+      }) as ScrollCaptureDeps["send"],
+    });
+
+    await expect(
+      runScrollCapture(1, { onProgress: vi.fn(), signal: new AbortController().signal, deps }),
+    ).rejects.toThrow("scroll capture unavailable");
+
+    expect(stitched).toHaveLength(0);
+    expect(deps.captureTab).not.toHaveBeenCalled();
+    expect(sentTypes).toContain("picker.endScrollCapture");
+  });
+
+  it("scrollCaptureTo 응답이 null이면 중단한다 (직렬화 경계에서 undefined가 null로 관측)", async () => {
+    const { deps, stitched } = makeDeps({
+      send: vi.fn(async (_tabId: number, msg: PickerMessage) => {
+        if (msg.type === "picker.beginScrollCapture") return METRICS;
+        if (msg.type === "picker.scrollCaptureTo") return null;
+        return undefined;
+      }) as ScrollCaptureDeps["send"],
+    });
+
+    await expect(
+      runScrollCapture(1, { onProgress: vi.fn(), signal: new AbortController().signal, deps }),
+    ).rejects.toThrow("scroll capture unavailable");
+
+    expect(stitched).toHaveLength(0);
   });
 });

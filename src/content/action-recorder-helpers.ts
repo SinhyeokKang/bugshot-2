@@ -1,4 +1,11 @@
 // action-recorder.ts에서 IIFE 자가호출하기 때문에 테스트가 필요한 순수 함수는 별도 파일로 분리.
+//
+// ⚠️ content(레코더) 전용으로 유지할 것. recorders-entry 의존 트리가 self-contained여야
+// crxjs가 동기 IIFE로 emit하고 document_start에 후크가 페이지 스크립트보다 먼저 깔린다.
+// sidepanel·background가 이 모듈을 import하면 공유 청크로 hoist돼 recorders-entry가
+// async-import loader로 되돌아가 pre-arm 후크가 늦어진다 (CLAUDE.md "pre-arm 버퍼링").
+// shouldMaskField·isSensitiveValue·maskValue는 재사용하고 싶어지는 범용 PII 헬퍼 이름이라
+// log-throttle이 겪은 것과 같은 형태의 유혹이다 — 수신부가 필요하면 복제본을 둔다.
 
 // 영문은 단어 경계로 끊는다 — placeholder·라벨 문구가 판정 소스라 부분일치는 정상 폼을 죽인다
 // (pin ⊂ shipping, auth ⊂ author, card ⊂ discard). 한글은 \b가 안 먹어 부분일치 유지(안전 측).
@@ -203,4 +210,29 @@ export function buildLightSelector(el: Element): string {
   if (!parent) return tag;
   const idx = Array.prototype.indexOf.call(parent.children, el) + 1;
   return `${tag}:nth-child(${idx})`;
+}
+
+function cleanText(el: Element | null): string | undefined {
+  return el?.textContent?.replace(/\s+/g, " ").trim() || undefined;
+}
+
+// 마스킹 판정용 라벨 수집 — label[for]·암묵 라벨(래핑)·aria-labelledby 전부.
+export function labelForText(el: Element): string | undefined {
+  if (el.id) {
+    const forLabel = cleanText(document.querySelector(`label[for="${CSS.escape(el.id)}"]`));
+    if (forLabel) return forLabel;
+  }
+  const labelledBy = el.getAttribute("aria-labelledby");
+  if (labelledBy) {
+    // 공백 구분 다중 ID가 정상 문법이다 — 통째로 넘기면 항상 null이고, 그러면
+    // shouldMaskField의 라벨 근거가 사라져 민감 필드가 원문으로 로그에 실린다.
+    const ref = labelledBy
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((id) => cleanText(document.getElementById(id)))
+      .filter(Boolean)
+      .join(" ");
+    if (ref) return ref;
+  }
+  return cleanText(el.closest("label"));
 }

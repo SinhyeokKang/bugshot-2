@@ -1,5 +1,6 @@
 import {
   buildLightSelector,
+  labelForText,
   truncateName,
   maskValue,
   shouldMaskField,
@@ -248,24 +249,6 @@ function actionRecorderScript(): void {
       dragSource: source,
       ...(target ? { dragTarget: target } : {}),
     });
-  }
-
-  function cleanText(el: Element | null): string | undefined {
-    return el?.textContent?.replace(/\s+/g, " ").trim() || undefined;
-  }
-
-  // 마스킹 판정용 라벨 수집 — label[for]·암묵 라벨(래핑)·aria-labelledby 전부.
-  function labelForText(el: Element): string | undefined {
-    if (el.id) {
-      const forLabel = cleanText(document.querySelector(`label[for="${CSS.escape(el.id)}"]`));
-      if (forLabel) return forLabel;
-    }
-    const labelledBy = el.getAttribute("aria-labelledby");
-    if (labelledBy) {
-      const ref = cleanText(document.getElementById(labelledBy));
-      if (ref) return ref;
-    }
-    return cleanText(el.closest("label"));
   }
 
   function fieldMaskInput(el: Element) {
