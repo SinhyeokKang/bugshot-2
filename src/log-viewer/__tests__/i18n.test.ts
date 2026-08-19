@@ -11,7 +11,7 @@ vi.hoisted(() => {
   });
 });
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
@@ -22,6 +22,7 @@ import { NET_VERB_KEYS } from "../timeline-merge";
 import { NAV_VERB_KEYS } from "@/sidepanel/lib/actionInline";
 import { STATUS_KIND_LABEL_KEYS } from "@/sidepanel/components/NetworkLogContent";
 import { findExtraneous, findParityViolations, findUncovered } from "@/test/locale-parity";
+import { walkSources } from "@/test/sourceFiles";
 
 describe("log viewer i18n — 사전 구조", () => {
   // koDict/enDict를 하드 import해 둘만 비교하던 이전 버전은 3번째 로케일을 못 봤다.
@@ -45,17 +46,6 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
   //  (1) 누락 — 코드는 t("key")로 참조하는데 dict에 없어 키 문자열이 그대로 노출
   //      (actionLog.filter.keypress 등)
   //  (2) drift — 공통 키인데 메인 갱신이 dict에 반영 안 됨 (networkLog.search 본문 검색)
-
-  function walk(dir: string): string[] {
-    const out: string[] = [];
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === "__tests__") continue;
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) out.push(...walk(full));
-      else if (/\.tsx?$/.test(entry.name)) out.push(full);
-    }
-    return out;
-  }
 
   const srcRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
   const srcDir = join(srcRoot, "..");
@@ -84,7 +74,7 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
   }
 
   const bundledFiles = (() => {
-    const seen = new Set(walk(srcRoot));
+    const seen = new Set(walkSources(srcRoot));
     const queue = [...seen];
     while (queue.length) {
       const file = queue.shift()!;

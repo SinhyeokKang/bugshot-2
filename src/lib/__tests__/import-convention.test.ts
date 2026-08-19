@@ -38,6 +38,12 @@ describe("import 표기 컨벤션", () => {
     expect(selfAliasImports('import { x } from "@/lib/y";', "background")).toEqual([]);
   });
 
+  // 정규식이 살아 있어도 walk가 빈 배열을 내면 4케이스가 조용히 통과한다 — 스코프 오타·
+  // 디렉터리 이동이 그 형태다. 대상 집합 자체를 앵커로 고정한다.
+  it.each(SCOPES)("src/%s/ 스캔 대상이 비어 있지 않다 (앵커)", (scope) => {
+    expect(walkSources(join(process.cwd(), "src", scope)).length).toBeGreaterThan(0);
+  });
+
   it.each(SCOPES)("src/%s/ 안에서는 자기 디렉터리를 @/로 가리키지 않는다", (scope) => {
     const offenders = walkSources(join(process.cwd(), "src", scope)).flatMap((p) => {
       const hits = selfAliasImports(readFileSync(p, "utf8"), scope);

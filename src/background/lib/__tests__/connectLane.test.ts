@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { OAuthError } from "@/background/oauth/errors";
+import { OAuthError } from "../../oauth/errors";
 import { inConnectLane, inRefreshLane, tagRefreshFailure } from "../connectLane";
 
 describe("inRefreshLane", () => {

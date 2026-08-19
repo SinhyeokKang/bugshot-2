@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { walkSources } from "@/test/sourceFiles";
 import { BASE_LOCALE, DEFAULT_LOCALE, LOCALES } from "../locales";
 import {
   findExtraneous,
@@ -40,18 +41,7 @@ const registry: LocaleRegistry = Object.fromEntries(
 // 사전을 보므로 import 그래프 BFS까지 갈 것 없이 src/ 전체 텍스트 스캔이면 충분하다.
 const manifestKeys = [...manifestSource.matchAll(/__MSG_(\w+)__/g)].map((m) => m[1]);
 
-function walk(dir: string): string[] {
-  const out: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === "__tests__") continue;
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...walk(full));
-    else if (/\.tsx?$/.test(entry.name)) out.push(full);
-  }
-  return out;
-}
-
-const runtimeKeys = walk(join(repoRoot, "src")).flatMap((file) =>
+const runtimeKeys = walkSources(join(repoRoot, "src")).flatMap((file) =>
   [
     ...readFileSync(file, "utf8").matchAll(
       /chrome\.i18n\.getMessage\(\s*["'`](\w+)["'`]/g,
