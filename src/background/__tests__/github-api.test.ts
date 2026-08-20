@@ -1,13 +1,22 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   buildAuthHeader,
+  createIssue,
   extractGithubDetail,
+  getIssueStatus,
   getMyself,
+  getRepoAssignees,
+  getRepoLabels,
+  githubFetch,
+  GithubError,
   mapCreateIssueBody,
   messageForGithubStatus,
   normalizeIssueStatus,
   normalizeRepo,
+  searchRepos,
+  updateIssueState,
 } from "../github-api";
+import { mockFetchOnce, type MockFetch } from "@/test/fetch-mock";
 import type { GithubAuth } from "@/types/github";
 
 vi.mock("@/i18n", () => ({
@@ -294,5 +303,301 @@ describe("getMyself — email fallback", () => {
 
     const me = await getMyself(auth);
     expect(me.email).toBeUndefined();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 이 파일엔 fetch 목이 둘이고 실패 모드가 다르다.
+//  - 위 `getMyself — email fallback`: `globalThis.fetch` 직접 대입 + 큐. 응답이 고갈되면
+//    `queue.shift()!`가 undefined를 타 TypeError로 죽는다(라우팅 없음).
+//  - 아래 신규 블록: `@/test/fetch-mock`. `vi.stubGlobal`이라 `restore()`가
+//    `vi.unstubAllGlobals()`다 — "stub 시점의 globalThis.fetch"로 되돌린다.
+// 그래서 둘을 한 `it()`이나 한 `describe`에서 섞으면 안 된다. 위 블록이 자기 목을
+// 깔아둔 채로 아래 목을 stub하면 unstubAllGlobals가 복원하는 건 진짜 fetch가 아니라
+// 위 블록의 목이고, 그 뒤 파일들이 유령 목을 물려받는다. 분리 장치는 describe별 afterEach다.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("REST 래퍼 (fetch-mock)", () => {
+  const auth: GithubAuth = { kind: "pat", pat: "ghp_x", viewerLogin: "u" };
+  let mf: MockFetch | undefined;
+
+  afterEach(() => {
+    mf?.restore();
+    mf = undefined;
+  });
+
+  // `new URL()`은 pathname의 공백을 %20으로 정규화해 인코딩 누락을 가린다
+  // (`/repos/my org/…`가 파싱 후엔 `/repos/my%20org/…`로 보인다). 원문으로도 본다.
+  const rawUrlAt = (n: number) => mf!.callAt(n).url;
+
+  const rawRepo = (over: Record<string, unknown> = {}) => ({
+    id: 7,
+    node_id: "R_7",
+    name: "repo",
+    full_name: "owner/repo",
+    owner: { login: "owner" },
+    private: false,
+    description: "d",
+    html_url: "https://github.com/owner/repo",
+    ...over,
+  });
+
+  describe("searchRepos", () => {
+    it("빈 쿼리는 /user/repos를 per_page=30·sort=pushed로 부르고 배열을 그대로 매핑", async () => {
+      mf = mockFetchOnce({ body: [rawRepo()] });
+
+      const out = await searchRepos(auth, "   ");
+
+      const u = new URL(mf.callAt(0).url);
+      expect(u.origin).toBe("https://api.github.com");
+      expect(u.pathname).toBe("/user/repos");
+      expect(u.searchParams.get("per_page")).toBe("30");
+      expect(u.searchParams.get("sort")).toBe("pushed");
+      expect(out).toEqual([
+        {
+          id: 7,
+          nodeId: "R_7",
+          name: "repo",
+          fullName: "owner/repo",
+          owner: "owner",
+          private: false,
+          description: "d",
+          htmlUrl: "https://github.com/owner/repo",
+        },
+      ]);
+    });
+
+    it("검색 쿼리는 /search/repositories를 q='<쿼리> in:name'·per_page=30·sort=updated로 부르고 items 봉투를 벗김", async () => {
+      mf = mockFetchOnce({ body: { items: [rawRepo({ id: 9, node_id: "R_9" })] } });
+
+      const out = await searchRepos(auth, "  design  ");
+
+      const u = new URL(mf.callAt(0).url);
+      expect(u.pathname).toBe("/search/repositories");
+      expect(u.searchParams.get("q")).toBe("design in:name");
+      expect(u.searchParams.get("per_page")).toBe("30");
+      expect(u.searchParams.get("sort")).toBe("updated");
+      expect(out.map((r) => r.id)).toEqual([9]);
+    });
+
+    it("쿼리의 예약문자는 퍼센트 인코딩되어 나간다", async () => {
+      mf = mockFetchOnce({ body: { items: [] } });
+
+      await searchRepos(auth, "a&b c/d");
+
+      const url = mf.callAt(0).url;
+      expect(url).toContain("q=a%26b+c%2Fd+in%3Aname");
+      expect(url).not.toContain("a&b c/d");
+      expect(new URL(url).searchParams.get("q")).toBe("a&b c/d in:name");
+    });
+  });
+
+  describe("getRepoLabels", () => {
+    it("owner·repo를 경로에 인코딩하고 per_page=100으로 부른다", async () => {
+      mf = mockFetchOnce({ body: [] });
+
+      await getRepoLabels(auth, "my org", "re/po");
+
+      const u = new URL(mf.callAt(0).url);
+      expect(u.pathname).toBe("/repos/my%20org/re%2Fpo/labels");
+      expect(u.searchParams.get("per_page")).toBe("100");
+      expect(rawUrlAt(0)).not.toContain("my org");
+      expect(rawUrlAt(0)).not.toContain("re/po");
+    });
+
+    it("description null은 undefined로 접힌다", async () => {
+      mf = mockFetchOnce({
+        body: [
+          { id: 1, name: "bug", color: "d73a4a", description: "버그" },
+          { id: 2, name: "ui", color: "ffffff", description: null },
+        ],
+      });
+
+      const out = await getRepoLabels(auth, "o", "r");
+
+      expect(out).toEqual([
+        { id: 1, name: "bug", color: "d73a4a", description: "버그" },
+        { id: 2, name: "ui", color: "ffffff", description: undefined },
+      ]);
+    });
+  });
+
+  describe("getRepoAssignees", () => {
+    it("assignees 경로를 per_page=100으로 부르고 avatar_url을 avatarUrl로 매핑", async () => {
+      mf = mockFetchOnce({
+        body: [
+          { id: 11, login: "alice", avatar_url: "https://a/x.png" },
+          { id: 12, login: "bob" },
+        ],
+      });
+
+      const out = await getRepoAssignees(auth, "my org", "r");
+
+      const u = new URL(mf.callAt(0).url);
+      expect(u.pathname).toBe("/repos/my%20org/r/assignees");
+      expect(u.searchParams.get("per_page")).toBe("100");
+      expect(rawUrlAt(0)).not.toContain("my org");
+      expect(out).toEqual([
+        { id: 11, login: "alice", avatarUrl: "https://a/x.png" },
+        { id: 12, login: "bob", avatarUrl: undefined },
+      ]);
+    });
+  });
+
+  describe("getIssueStatus", () => {
+    it("이슈 번호 경로를 GET으로 부르고 normalizeIssueStatus 결과를 돌려준다", async () => {
+      mf = mockFetchOnce({
+        body: {
+          number: 42,
+          title: "T",
+          state: "closed",
+          state_reason: "not_planned",
+          html_url: "https://github.com/o/r/issues/42",
+          labels: ["bug", { name: "ui", color: "ffffff" }],
+        },
+      });
+
+      const out = await getIssueStatus(auth, "my org", "r", 42);
+
+      const call = mf.callAt(0);
+      expect(new URL(call.url).pathname).toBe("/repos/my%20org/r/issues/42");
+      expect(rawUrlAt(0)).not.toContain("my org");
+      expect(call.init?.method).toBeUndefined();
+      // body 없는 요청엔 Content-Type을 붙이지 않는다.
+      expect((call.init?.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+      expect(out).toEqual({
+        number: 42,
+        title: "T",
+        state: "closed",
+        stateReason: "not_planned",
+        htmlUrl: "https://github.com/o/r/issues/42",
+        labels: [
+          { name: "bug", color: "" },
+          { name: "ui", color: "ffffff" },
+        ],
+      });
+    });
+  });
+
+  describe("updateIssueState", () => {
+    const closedRaw = {
+      number: 1,
+      title: "T",
+      state: "closed",
+      state_reason: "completed",
+      html_url: "u",
+      labels: [],
+    };
+
+    it("closed + stateReason은 state_reason을 함께 PATCH한다", async () => {
+      mf = mockFetchOnce({ body: closedRaw });
+
+      const out = await updateIssueState(auth, "o", "r", 5, "closed", "not_planned");
+
+      const call = mf.callAt(0);
+      expect(new URL(call.url).pathname).toBe("/repos/o/r/issues/5");
+      expect(call.init?.method).toBe("PATCH");
+      expect(mf.jsonBodyAt(0)).toEqual({ state: "closed", state_reason: "not_planned" });
+      expect(out.stateReason).toBe("completed");
+    });
+
+    it("closed인데 stateReason이 없으면 state_reason 키 자체를 안 싣는다", async () => {
+      mf = mockFetchOnce({ body: closedRaw });
+
+      await updateIssueState(auth, "o", "r", 5, "closed");
+
+      expect(mf.jsonBodyAt(0)).toEqual({ state: "closed" });
+    });
+
+    it("open은 state_reason을 reopened로 강제한다", async () => {
+      mf = mockFetchOnce({ body: { ...closedRaw, state: "open", state_reason: "reopened" } });
+
+      await updateIssueState(auth, "o", "r", 5, "open", "completed");
+
+      expect(mf.jsonBodyAt(0)).toEqual({ state: "open", state_reason: "reopened" });
+    });
+  });
+
+  describe("createIssue", () => {
+    it("mapCreateIssueBody 출력을 그대로 POST하고 응답 봉투를 벗긴다", async () => {
+      mf = mockFetchOnce({
+        body: { number: 101, html_url: "https://github.com/my%20org/r/issues/101", node_id: "I_101" },
+      });
+
+      const out = await createIssue(auth, {
+        owner: "my org",
+        repo: "re/po",
+        title: "T",
+        body: "B",
+        labels: ["bug"],
+        assignees: [],
+      });
+
+      const call = mf.callAt(0);
+      expect(new URL(call.url).pathname).toBe("/repos/my%20org/re%2Fpo/issues");
+      expect(rawUrlAt(0)).not.toContain("my org");
+      expect(rawUrlAt(0)).not.toContain("re/po");
+      expect(call.init?.method).toBe("POST");
+      expect((call.init?.headers as Record<string, string>)["Content-Type"]).toBe(
+        "application/json",
+      );
+      // 빈 assignees는 매퍼가 떨어뜨린다 — 그 출력이 그대로 실려야 한다.
+      expect(mf.jsonBodyAt(0)).toEqual({ title: "T", body: "B", labels: ["bug"] });
+      expect(out).toEqual({
+        number: 101,
+        url: "https://github.com/my%20org/r/issues/101",
+        nodeId: "I_101",
+      });
+    });
+  });
+
+  describe("에러 전파", () => {
+    it("422 JSON 본문은 GithubError의 status·body에 실리고 detail이 메시지에 붙는다", async () => {
+      mf = mockFetchOnce({
+        status: 422,
+        body: { message: "Validation Failed", errors: [{ message: "title is required" }] },
+      });
+
+      const err = await createIssue(auth, { owner: "o", repo: "r", title: "T", body: "B" }).catch(
+        (e: unknown) => e,
+      );
+
+      expect(err).toBeInstanceOf(GithubError);
+      const ge = err as InstanceType<typeof GithubError>;
+      expect(ge.status).toBe(422);
+      expect(ge.message).toBe("github.error.422\nValidation Failed\ntitle is required");
+      expect(ge.body).toEqual({
+        message: "Validation Failed",
+        errors: [{ message: "title is required" }],
+      });
+    });
+
+    it("JSON이 아닌 에러 본문은 원문 문자열로 보존되고 detail은 비어 있다", async () => {
+      mf = mockFetchOnce({ status: 500, body: "<html>Server Error</html>" });
+
+      const err = await getRepoLabels(auth, "o", "r").catch((e: unknown) => e);
+
+      const ge = err as InstanceType<typeof GithubError>;
+      expect(ge.status).toBe(500);
+      expect(ge.body).toBe("<html>Server Error</html>");
+      expect(ge.message).toBe("github.error.5xx");
+    });
+
+    it("본문 읽기 자체가 실패하면 body는 undefined", async () => {
+      mf = mockFetchOnce({ status: 403, body: new Error("stream closed") });
+
+      const err = await getRepoAssignees(auth, "o", "r").catch((e: unknown) => e);
+
+      const ge = err as InstanceType<typeof GithubError>;
+      expect(ge.status).toBe(403);
+      expect(ge.body).toBeUndefined();
+      expect(ge.message).toBe("github.error.403");
+    });
+
+    it("204는 본문 파싱 없이 undefined를 돌려준다", async () => {
+      mf = mockFetchOnce({ status: 204, body: new Error("json() 호출 금지") });
+
+      await expect(githubFetch(auth, "/repos/o/r/issues/1", { method: "DELETE" })).resolves
+        .toBeUndefined();
+    });
   });
 });
