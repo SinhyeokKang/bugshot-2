@@ -3,6 +3,7 @@ import {
   expect,
   openViewer,
   makeActionLog,
+  makeLongUrlActionLog,
   makeNavTypeActionLog,
   makeConsoleLog,
   makeNetworkLog,
@@ -10,6 +11,7 @@ import {
   stubClipboard,
   NET_BODY_NEEDLE,
   REPORT_COPY_MARKDOWN,
+  TINY_PNG,
   ORIGIN_A,
   ORIGIN_B,
 } from "./fixtures";
@@ -266,12 +268,62 @@ test.describe("behavior", () => {
 
     // 액션 행 콘텐츠 span
     await page.getByTestId("logview-tab-action").click();
-    const actionContent = page.locator('[data-entry-id="a-click"] span.break-words');
+    // 레이아웃 슬롯(flex-1)으로 잡는다 — wrap 클래스로 잡으면 그 클래스를 바꿀 때 이 단언이
+    // 함께 죽는다(실제로 break-words → [overflow-wrap:anywhere] 교체에서 밟았다).
+    const actionContent = page.locator('[data-entry-id="a-click"] span.flex-1');
     await expect(actionContent).toHaveCSS("font-size", "13px");
     await expect(actionContent).toHaveCSS("font-family", /Geist Mono Variable/);
 
     // 대조 — UI 크롬(필터 탭)은 sans 유지(mono 스택 미포함). 전역 mono 오적용 회귀 가드.
     await expect(page.getByTestId("action-filter-all")).not.toHaveCSS("font-family", /Geist Mono Variable/);
+  });
+
+  // Radix ScrollArea Viewport는 자식을 `min-width:100%; display:table` div로 감싼다 → shrink-to-fit
+  // 사이징이라 폭이 콘텐츠를 따라간다. 그런데 `overflow-wrap:break-word`는 스펙상 min-content 폭에
+  // 기여하지 않아서(줄은 접혀도 자연 폭은 그대로), 긴 URL 한 덩어리가 table을 뷰포트 밖으로
+  // 밀어낸다. 가로 스크롤바는 Radix가 숨기고 ScrollBar도 vertical만 렌더하므로 넘친 URL엔 닿을
+  // 방법이 없다 — 잘린 채로 끝난다. 그래서 `overflow-wrap:anywhere`라야 한다.
+  //
+  // className 단언(`toHaveClass`)으로는 못 지킨다 — 구현을 복사해 적는 것이라 ScrollArea를
+  // 교체하거나 Radix가 display:table을 걷어내도 조용히 통과한다. jsdom도 못 본다(레이아웃 엔진이
+  // 없어 scrollWidth·clientWidth가 항상 0). 실 브라우저 실측이 유일한 그물이다.
+  //
+  // **분할 모드로 여는 것이 이 테스트의 전제다.** 단일 패널(1280px)에선 같은 URL로도 table이
+  // 뷰포트 안에 머물러 깨진 구현이 green으로 통과한다(실측: 자연 폭 2129px, 단일 패널 1256px →
+  // overflow 0 / 분할 495px → overflow 174). 재현 조건은 "URL 자연 폭 ≫ 패널 폭"이고, 아래
+  // 전제 1이 그 비율을 직접 단언해 조건이 무너지면 판정보다 먼저 red를 낸다.
+  test("긴 URL 액션 행 — 좁은 패널 ScrollArea(display:table)에서 접히고 가로로 안 넘친다", async ({ page }) => {
+    await openViewer(page, { actionLog: makeLongUrlActionLog(), screenshot: { dataUrl: TINY_PNG } });
+    await page.getByTestId("logview-tab-action").click();
+
+    const link = page.getByTestId("action-nav-link");
+    await expect(link).toBeVisible();
+
+    const m = await link.evaluate((el) => {
+      const span = el.closest("span.flex-1")!;
+      const vp = el.closest("[data-radix-scroll-area-viewport]") as HTMLElement;
+      // 자연 폭(max-content) — 같은 서체·크기를 물려받도록 제자리에 복제해 nowrap으로 편다.
+      const probe = el.cloneNode(true) as HTMLElement;
+      probe.style.cssText = "white-space:nowrap;position:absolute;visibility:hidden;left:-9999px";
+      span.appendChild(probe);
+      const natural = probe.getBoundingClientRect().width;
+      probe.remove();
+      return {
+        natural,
+        lines: el.getClientRects().length,
+        client: vp.clientWidth,
+        overflow: vp.scrollWidth - vp.clientWidth,
+      };
+    });
+
+    // 전제 1 — URL 자연 폭이 패널 폭의 배 이상이라야 버그가 재현된다. 픽스처 URL이 짧아지거나
+    // 레이아웃이 넓어지면 아래 판정이 공허해지므로 그 전에 여기서 죽는다.
+    expect(m.natural).toBeGreaterThan(m.client * 2);
+    // 전제 2 — 그 결과 행이 실제로 접혔다(inline 요소는 줄마다 client rect가 하나씩 생긴다).
+    expect(m.lines).toBeGreaterThan(1);
+
+    // 판정 — 접혔으면 가로로는 넘치지 않아야 한다. break-words면 table이 URL 폭을 따라 늘어난다.
+    expect(m.overflow).toBe(0);
   });
 
   test("빈 상태 — 없는 로그 타입도 탭 활성 + 0 배지 + EmptyCase (사이드패널 정책 통일)", async ({ page }) => {
@@ -289,12 +341,9 @@ test.describe("behavior", () => {
   });
 
   test("분할 모드 — screenshot 좌측 패널과 로그 탭 공존", async ({ page }) => {
-    // 유효 1x1 PNG dataUrl (디코드 가능)
-    const png =
-      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
     await openViewer(page, {
       networkLog: makeNetworkLog(),
-      screenshot: { dataUrl: png },
+      screenshot: { dataUrl: TINY_PNG },
     });
     // 분할 레이아웃에서도 로그 탭이 동작.
     await page.getByTestId("logview-tab-network").click();
