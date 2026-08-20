@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
 import type { JiraAdfDoc, JiraAuth } from "@/types/jira";
 
 const api = vi.hoisted(() => ({
@@ -107,5 +108,82 @@ describe("jira.submitIssue — 2차 본문 갱신 실패 (전수 표 jira 행)",
       "logs.html",
     ]);
     expect(api.updateIssueDescription).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── 사용자 첨부 파일명 충돌 (asana Task 8-1과 같은 뿌리, jira 판) ────────────────
+// jira는 캡처와 사용자 첨부가 `rawAttachments` 한 배열에 이름으로만 섞여 있고
+// (`submitToJira.ts`가 사용자 첨부를 `displayName ?? filename`으로 뒤에 push한다),
+// background가 `uploadMap.set(att.filename, …)`로 받는다 — **뒤가 앞을 덮는다.**
+// asana는 캡처가 밀려나 사라졌지만 jira는 그 반대로 **사용자가 올린 파일이 이슈 본문에
+// 인라인된다.** 배열이 realm을 건너므로 asana처럼 인덱스 경계로 못 가르고, 입력에
+// 표식을 실어 보낸다.
+describe("jira.submitIssue — 사용자 첨부 파일명 충돌", () => {
+  const IMG = "data:image/webp;base64,AAAA";
+  const HTML = "data:text/html;base64,AAAA";
+
+  const submitWith = (attachments: unknown[], description: JiraAdfDoc = DESCRIPTION) =>
+    handleMessage(
+      {
+        type: "jira.submitIssue",
+        payload: { projectKey: "BUG", summary: "s", description, issueTypeId: "1" },
+        attachments,
+      } as never,
+      {} as chrome.runtime.MessageSender,
+    );
+
+  // 업로드 순서로 캡처(1번째)와 사용자 파일(2번째)을 구분되게 찍는다.
+  const uploadByOrder = () =>
+    api.uploadAttachment.mockImplementation(async (_a, _k, filename: string) => {
+      const n = api.uploadAttachment.mock.calls.length;
+      return [{ id: `1000${n}`, filename, mediaApiFileId: `media-${n}` }];
+    });
+
+  it("동명의 사용자 첨부가 있어도 본문에 인라인되는 건 캡처다", async () => {
+    uploadByOrder();
+
+    await submitWith(
+      [
+        { filename: "screenshot.webp", dataUrl: IMG, width: 10, height: 20 },
+        { filename: "screenshot.webp", dataUrl: IMG, userAttachment: true },
+      ],
+      // 이미지가 실제로 박히려면 본문에 placeholder 문단이 있어야 한다.
+      {
+        version: 1,
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: IMAGE_PLACEHOLDER }] }],
+      },
+    );
+
+    const doc = JSON.stringify(api.updateIssueDescription.mock.calls[0]?.[2]);
+    expect(doc).toContain("media-1");
+    expect(doc).not.toContain("media-2");
+  });
+
+  it("사용자가 logs.html과 동명의 파일을 첨부해도 백링크는 우리 logs.html에만 주입된다", async () => {
+    const { injectIssueUrl } = await import("@/lib/inject-issue-url");
+    uploadByOrder();
+
+    await submitWith([
+      { filename: "logs.html", dataUrl: HTML },
+      { filename: "logs.html", dataUrl: HTML, userAttachment: true },
+    ]);
+
+    expect(injectIssueUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it("우리 logs.html이 성공하면 동명의 사용자 첨부가 실패해도 logsDropped는 false다", async () => {
+    // 반대 방향(우리 실패 + 사용자 성공)은 이름 매칭으로도 true라 구분이 안 된다.
+    api.uploadAttachment.mockImplementation(async (_a, _k, filename: string) => {
+      if (api.uploadAttachment.mock.calls.length === 2) throw new Error("413");
+      return [{ id: "10001", filename }];
+    });
+
+    await expect(
+      submitWith([
+        { filename: "logs.html", dataUrl: HTML },
+        { filename: "logs.html", dataUrl: HTML, userAttachment: true },
+      ]),
+    ).resolves.toMatchObject({ logsDropped: false });
   });
 });

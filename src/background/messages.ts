@@ -807,8 +807,10 @@ async function submitIssue(
   const issue = await createIssue(auth, payload);
   const issueUrl = buildIssueUrl(auth, issue.key);
 
+  // 이름이 아니라 userAttachment 표식으로 가른다 — 사용자가 올린 logs.html에 이슈 URL을
+  // 주입하면 그 사람 파일을 우리가 고쳐 올리는 셈이다.
   for (const att of attachments) {
-    if (att.filename === "logs.html") {
+    if (!att.userAttachment && att.filename === "logs.html") {
       att.dataUrl = await injectIssueUrl(att.dataUrl, issueUrl, issue.key);
     }
   }
@@ -832,17 +834,21 @@ async function submitIssue(
         : undefined;
       const dims = { width: att.width, height: att.height };
       // logs.html은 media로 임베드하지 않고 본문 안내 문구에 첨부 링크로 단다.
-      if (att.filename === "logs.html" && r?.id) {
+      if (!att.userAttachment && att.filename === "logs.html" && r?.id) {
         logsUrl = `${attachmentBase}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
       }
-      if (mediaId) {
+      // uploadMap은 파일명 키라 뒤가 앞을 덮는다. 사용자 첨부를 넣으면 동명의 캡처 자리를
+      // 차지해 **사용자 파일이 이슈 본문에 인라인된다** — 본문 참조는 캡처만 대상이다.
+      if (att.userAttachment) {
+        // 첨부로만 올라가면 된다(업로드 자체는 위에서 이미 끝났다).
+      } else if (mediaId) {
         uploadMap.set(att.filename, { kind: "media", mediaId, ...dims });
       } else if (r?.id) {
         const url = `${attachmentBase}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
         uploadMap.set(att.filename, { kind: "external", url, ...dims });
       }
     } catch (err) {
-      if (att.filename === "logs.html") logsDropped = true;
+      if (!att.userAttachment && att.filename === "logs.html") logsDropped = true;
       console.warn("[bugshot] attachment upload failed", att.filename, err);
     }
   }

@@ -40,7 +40,11 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
   }
   // 사용자 첨부: Jira는 업로드 시 attachment 영역에 자동 등록(본문 placeholder 불필요). 표시명=원본.
   for (const a of input.attachments ?? []) {
-    rawAttachments.push({ filename: a.displayName ?? a.filename, dataUrl: a.dataUrl });
+    rawAttachments.push({
+      filename: a.displayName ?? a.filename,
+      dataUrl: a.dataUrl,
+      userAttachment: true,
+    });
   }
   const attachments = await annotateAttachmentDimensions(rawAttachments);
 
