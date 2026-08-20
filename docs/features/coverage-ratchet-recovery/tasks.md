@@ -28,7 +28,7 @@
 - **검증**:
   - [x] 헬퍼 자체 테스트: 큐 소비 순서 · 고갈 후 마지막 값 반복 · 라우트 우선순위(먼저 선언한 것이 이김) · 미매칭 throw · `formDataAt` 왕복 · `text()`가 문자열 body를 그대로 반환(JSON 이중 인코딩 금지).
   - [x] **누출 방지 스캔**: `walkSources(src) − src/test`에서 `@/test/` 참조가 0건임을 확인하는 테스트 1개(design.md 위험 10 — 현재 이 규칙을 강제하는 그물이 없다).
-  - [ ] `pnpm coverage:report`의 파일 목록에 `src/test/fetch-mock.ts`가 나타나지 않는다.
+  - [x] `pnpm coverage:report`의 파일 목록에 `src/test/fetch-mock.ts`가 나타나지 않는다.
   - [x] **mutation**: 라우트 우선순위를 역순으로 뒤집으면 우선순위 테스트가 red / `text()`를 무조건 `JSON.stringify`로 바꾸면 문자열 body 테스트가 red.
 
 ---
@@ -175,9 +175,9 @@
   - **함수명은 `patch*Config`가 아니라 `update*Account` ×8이다**(선언 37-60 / 구현 206-253: `updateJiraAccount`·`updateGithubAccount`·`updateLinearAccount`·`updateNotionAccount`·`updateGitlabAccount`·`updateAsanaAccount`·`updateClickupAccount`·`updateSlackAccount`). 독립 export가 아니라 `create(persist(...))` 안의 인라인 화살표라 `useSettingsStore` 경유로만 도달한다. 각각 "계정 없음 → 상태 불변"(`if (!cur) return s`) / "있음 → 얕은 병합" 두 케이스. **기대 병합 결과는 리터럴로 박는다**(스프레드로 계산하면 항진명제).
   - **8개 중 2개는 이미 테스트가 있다** — `describe("updateGitlabAccount")`(288) · `describe("updateAsanaAccount")`(323). 테이블 순회로 **흡수**하고 기존 2개는 지운다(중복 방치 금지).
 - **검증**:
-  - [ ] `settings-store.ts` 미커버 77 → 15줄 이하.
+  - [x] `settings-store.ts` 미커버 77 → 15줄 이하.
   - [x] `update*Account` 8개가 각각 2케이스를 갖고, 기존 gitlab·asana describe가 순회로 흡수됐다.
-  - [ ] 래칫 리포트에서 `settings-store.ts`가 사라진다.
+  - [x] 래칫 리포트에서 `settings-store.ts`가 사라진다.
   - [x] **mutation**: 한 플랫폼의 `if (!cur) return s`를 지우면 그 플랫폼의 "계정 없음" 케이스만 red(순회가 항진명제가 아님을 증명).
 
 ---
@@ -235,12 +235,12 @@
 - **작업 내용**: 전 태스크 완료 후 `pnpm test:coverage && pnpm coverage:report`. **베이스라인 갱신 게이트는 "하락 파일 0" 하나다** — 로직 ≥88%는 기획 성공 기준으로만 쓰고 갱신 조건에 넣지 않는다(회귀가 없는데 안 올리면 기준선이 또 낡는다. 지금 이미 4릴리스 얼어 있었다). 커밋은 `chore(coverage): ratchet baseline` 단독.
 - **판정식 참고**: 하락은 `curPct < prevPct − 0.05`(파일 단위, `browserBound` 제외, 베이스라인에 없는 신규 파일은 skip)이고 스크립트는 exit code를 안 바꾼다 — **사람이 보는 게이트**다.
 - **검증**:
-  - [ ] 래칫 경고 **0건**(prd.md 목표 1의 8행 전부).
-  - [ ] 로직 스코프 Lines ≥ 88%, 그 상승분에 분모 재정의 기여 0.
-  - [ ] 9개 태스크의 mutation 기록이 전부 남았다.
-  - [ ] `coverage/baseline.json`만 담긴 커밋.
+  - [x] 래칫 경고 **0건**(prd.md 목표 1의 8행 전부).
+  - [x] 로직 스코프 Lines ≥ 88%, 그 상승분에 분모 재정의 기여 0.
+  - [x] 9개 태스크의 mutation 기록이 전부 남았다. (각 태스크의 `- [x] **mutation**` 체크가 실측 완료 표시이고, 상세 로그는 테스트 파일 주석·`docs/POSTMORTEM.md` 2026-08-20 세 항목에 남았다. 지정 mutation 4건이 대상 부재로 대체된 사실은 Task 5 머리말의 정정 블록.)
+  - [x] `coverage/baseline.json`만 담긴 커밋.
   - [ ] 하락이 남아 있으면 **갱신하지 않고** 원인을 보고한다.
-  - [ ] (선택) `coverage/coverage-summary.json` 루트 구파일 정리.
+  - [x] (선택) `coverage/coverage-summary.json` 루트 구파일 정리.
 
 ## 테스트 계획
 
@@ -274,3 +274,14 @@ Task 1 (fetch-mock) ─────> Task 5-2 … 5-8 (서로 병렬)
 ## 가이드 영향
 
 **없음.** Task 8-3(문면 변경)이 유일한 사용자 노출 변경인데, `guide/`를 "에러 없음"·"no errors"로 grep한 결과 가이드 본문·스크린샷 인용이 **0건**이다(`guide/SHOOTING.md:206`의 한 건은 Playwright 주의사항 산문이라 무관). 나머지 태스크는 사용자 노출 변경이 없다.
+
+## 완료 (2026-08-20)
+
+전 9태스크 완료. 배치 4개로 나눠 진행했다 — A(Task 2·3·6·7) · B(Task 1·8-1·8-3 + Task 7 jira 행) · B2(Task 8-4, 배치 B 리뷰가 발굴) · C(Task 4·5-1~5-8) · D(Task 9).
+
+**최종 측정**: 로직 스코프 Lines **82.3% → 89.9% (+7.6pp)** · 전체 48.4% → 54.8% · Funcs 66.4% → 73.3%. **래칫 경고 8 → 0**, 하락 파일 0. 분모 재정의(`isBrowserBound`) 기여 0 — `scripts/coverage-report.mjs`·`vitest.config.ts` 무변경.
+
+**계획 대비 실제**:
+- Task 8은 픽스 3건이 아니라 **8-1 + 8-3 + 8-4** 3건이었다. 8-2(jira 2차 본문 갱신 격리)는 전제 오류로 취소됐고, 대신 8-1 리뷰가 **jira의 동형 결함(8-4)** 을 발굴했다 — 사용자가 올린 파일이 이슈 본문에 인라인되던 경로라 asana판보다 나빴다.
+- 지정 mutation 중 **4건은 대상이 존재하지 않았다**(Task 5 머리말 정정 블록).
+- 배치 C(8 어댑터 병렬)는 교차 뮤테이션에서 **12건 중 7건이 생존**해 추가 라운드가 필요했다 — github 헤더 축 0건이 대표. 회고 등재.
