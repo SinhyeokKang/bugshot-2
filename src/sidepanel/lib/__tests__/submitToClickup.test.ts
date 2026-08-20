@@ -224,8 +224,8 @@ describe("submitToClickup 업로드 판별자", () => {
 //   linear   submitToLinear.ts:140-144    .catch(() => null)
 //   gitlab   submitToGitlab.ts:76-97      보강 블록 전체를 감싼 try {} catch {}
 //   jira     background/messages.ts:850-868  try {} catch {} (b4b98df9 이래 — 사이드패널이
-//            아니라 background 안이라 행이 이 디렉터리에 없다. 아직 안 깔았고, 깔 자리는
-//            `docs/features/coverage-ratchet-recovery/tasks.md` Task 7이다. 그래서 지금 이 표는 4행이다.)
+//            아니라 background 안이라 행이 이 디렉터리에 없다. 그 행은
+//            `src/background/__tests__/jiraSubmitIssue.test.ts`에 있다.)
 // notion·github·slack은 2차 write 자체가 없어 대상이 아니다(notion submitToNotion.ts:123의
 // catch는 *업로드* 격리이고 image/video는 의도적으로 strict — 다른 계약이라 섞지 않는다).
 //

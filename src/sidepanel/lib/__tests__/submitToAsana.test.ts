@@ -677,3 +677,108 @@ describe("submitToAsana 인라인 ref 크기 측정", () => {
     expect(refs["shot.png"]).toEqual({ gid: "gid-shot.png", viewUrl: "url-shot.png" });
   });
 });
+
+// ── Task 8-1 재현: 사용자 첨부 파일명이 캡처 파일명과 충돌 ────────────────────────
+// userAttachmentNames(submitToAsana.ts:138)는 "이름"을 축으로 캡처/사용자 첨부를 가른다.
+// 사용자 첨부 표시명은 원본 파일명 그대로(buildCaptureFiles.ts:139 `displayName: meta.filename`)라
+// 캡처가 쓰는 이름(before-{i}.jpg·logs.html …)과 우연히 같아질 수 있고, 그때 :194 가드가
+// 캡처 업로드 결과까지 byName에서 떨어뜨린다. 아래 두 케이스가 그 낙진이다.
+describe("submitToAsana 사용자 첨부 파일명 충돌 (Task 8-1 재현)", () => {
+  beforeEach(() => {
+    // element 모드 캡처는 before-0.webp로 나가고 asana에서 before-0.jpg로 변환된다 →
+    // 사용자가 before-0.jpg를 첨부하면 변환 후 이름이 겹친다. 변환 경로엔 canvas가 필요하다.
+    vi.stubGlobal("document", {
+      createElement: () => ({
+        width: 0,
+        height: 0,
+        getContext: () => ({
+          fillStyle: "",
+          fillRect: () => {},
+          drawImage: () => {},
+        }),
+        toDataURL: () => "data:image/jpeg;base64,JPEG",
+      }),
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("동명의 사용자 첨부가 있어도 캡처 이미지는 본문 인라인(imageRefs)에 남는다", async () => {
+    // 업로드 결과의 gid를 인덱스로 구분한다 — 같은 이름의 두 파일 중 어느 쪽이 본문에
+    // 실렸는지 봐야 하기 때문(allFiles 순서: 캡처 0, 사용자 첨부 1).
+    sendBg.mockImplementation(
+      async (msg: { type: string; files?: Array<{ filename: string }> }) => {
+        if (msg.type === "asana.submitIssue") return TASK;
+        if (msg.type === "asana.uploadFiles")
+          return (msg.files ?? []).map((f, i) => ({
+            ok: true,
+            filename: f.filename,
+            gid: `gid-${i}-${f.filename}`,
+            viewUrl: `url-${i}-${f.filename}`,
+          }));
+        return undefined;
+      },
+    );
+
+    await submitToAsana({
+      ctx: makeCtx({ styleElements: [styleElement(0)] }),
+      workspaceGid: "W",
+      images: [{ filename: "before-0.webp", dataUrl: "data:image/webp;base64,AAA" }],
+      attachments: [
+        { filename: "u1__before-0.jpg", dataUrl: "data:USER", displayName: "before-0.jpg" },
+      ],
+    });
+
+    // 두 파일 모두 업로드는 된다(이름이 겹쳐도 업로드 축은 멀쩡하다).
+    const uploadCall = sendBg.mock.calls.find(([m]) => m.type === "asana.uploadFiles")![0];
+    expect(uploadCall.files.map((f: { filename: string }) => f.filename)).toEqual([
+      "before-0.jpg",
+      "before-0.jpg",
+    ]);
+
+    // 본문 갱신이 일어나고, before-0.jpg 참조가 "캡처 업로드"(인덱스 0)를 가리켜야 한다.
+    expect(
+      sendBg.mock.calls.some(([m]) => m.type === "asana.updateTaskNotes"),
+      "imageRefs가 비면 2차 write 자체가 없다 = 본문에서 스크린샷이 사라진 상태",
+    ).toBe(true);
+    const refs = (markdownToAsanaHtml.mock.calls.at(-1)![1] ?? {}) as Record<
+      string,
+      unknown
+    >;
+    expect(refs["before-0.jpg"]).toEqual({
+      gid: "gid-0-before-0.jpg",
+      viewUrl: "url-0-before-0.jpg",
+      width: 800,
+      height: 600,
+    });
+  });
+
+  it("사용자가 logs.html과 동명의 파일을 첨부해도 logsDropped는 false로 남는다", async () => {
+    sendBg.mockImplementation(
+      async (msg: { type: string; files?: Array<{ filename: string }> }) => {
+        if (msg.type === "asana.submitIssue") return TASK;
+        if (msg.type === "asana.uploadFiles")
+          return (msg.files ?? []).map((f, i) => ({
+            ok: true,
+            filename: f.filename,
+            gid: `gid-${i}-${f.filename}`,
+            viewUrl: `url-${i}-${f.filename}`,
+          }));
+        return undefined;
+      },
+    );
+
+    const res = await submitToAsana({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      workspaceGid: "W",
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+      attachments: [
+        { filename: "u1__logs.html", dataUrl: "data:USER", displayName: "logs.html" },
+      ],
+    });
+
+    // 로그 첨부는 성공했으므로 "용량 초과로 누락" 경고가 뜨면 안 된다.
+    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false });
+  });
+});
