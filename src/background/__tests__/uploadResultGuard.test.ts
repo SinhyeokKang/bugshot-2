@@ -37,6 +37,15 @@ describe("업로드 결과 판별자 — locator 없는 성공 금지", () => {
     expect(unguarded).toEqual([]);
   });
 
+  it("catch 분기도 ok:false를 push한다 (결과 배열의 1:1 순서 불변식)", () => {
+    // 소비처가 결과 배열을 **입력 files와 같은 인덱스**로 읽는다(submitToAsana의
+    // userAttachmentStart 경계가 그 위에 서 있다). 예외 분기가 push를 빠뜨리면 결과가
+    // 한 칸 밀려 사용자 첨부가 캡처 자리로 들어가고, 그건 어느 유닛 테스트에도 안 걸린다.
+    const catchPushes =
+      SOURCE.match(/\}\s*catch\s*\{\s*results\.push\(\{\s*ok:\s*false,/g) ?? [];
+    expect(catchPushes.length).toBe(okPushes.length);
+  });
+
   it("가드 실패 분기가 ok:false를 남긴다 (무음 누락 금지)", () => {
     // `if (locator) push(ok:true)`만 있고 else가 없으면 그 파일이 결과 배열에서 통째로
     // 사라져 소비처의 per-file 대응이 어긋난다.

@@ -780,5 +780,38 @@ describe("submitToAsana 사용자 첨부 파일명 충돌 (Task 8-1 재현)", ()
 
     // 로그 첨부는 성공했으므로 "용량 초과로 누락" 경고가 뜨면 안 된다.
     expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false });
+    // 같은 뿌리의 세 번째 낙진: 백링크 주입도 파일명으로 판별하면 사용자가 올린 파일에
+    // 이슈 URL이 박힌다. 우리 logs.html 하나에만 주입돼야 한다.
+    expect(injectIssueUrl).toHaveBeenCalledTimes(1);
+    expect(injectIssueUrl).toHaveBeenCalledWith("data:LOGS", TASK.permalinkUrl, TASK.gid);
+  });
+
+  it("우리 logs.html이 실패하고 동명의 사용자 첨부만 성공하면 logsDropped는 true다", async () => {
+    // 반대 방향. 이름으로 매칭하면 사용자 파일의 성공이 우리 실패를 가려 경고가 무음으로 사라진다.
+    sendBg.mockImplementation(
+      async (msg: { type: string; files?: Array<{ filename: string }> }) => {
+        if (msg.type === "asana.submitIssue") return TASK;
+        if (msg.type === "asana.uploadFiles")
+          return (msg.files ?? []).map((f, i) => ({
+            // 0번이 우리 logs.html, 1번이 사용자 첨부(같은 이름).
+            ok: i !== 0,
+            filename: f.filename,
+            gid: `gid-${i}-${f.filename}`,
+            viewUrl: `url-${i}-${f.filename}`,
+          }));
+        return undefined;
+      },
+    );
+
+    const res = await submitToAsana({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      workspaceGid: "W",
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+      attachments: [
+        { filename: "u1__logs.html", dataUrl: "data:USER", displayName: "logs.html" },
+      ],
+    });
+
+    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: true });
   });
 });
