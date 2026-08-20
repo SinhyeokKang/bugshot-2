@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-08-20 — 파일명을 신원 축으로 쓴 어댑터 둘에서, 사용자가 올린 파일이 캡처를 밀어내거나 이슈 본문에 인라인됐다
+
+- **영역**: `어댑터`, `background`
+- **계열**: `복제본`, `미검증단언`
+- **그물**: `unit`
+- **증상**: 사용자가 캡처와 같은 이름의 파일을 첨부하면(`before-0.jpg`·`screenshot.webp`·`logs.html` — 앞의 둘은 asana가 webp→jpg 변환 후 만드는 **실제** 이름이고 `.jpg`는 흔하다) 세 가지가 동시에 깨진다. **asana**: 동명의 캡처가 `imageRefs`에서 빠져 **이슈 본문에서 스크린샷이 통째로 사라지고**, `logs.html`이면 `logsDropped`가 켜져 "용량 초과로 로그 누락" 경고가 거짓으로 뜬다. **jira**: `uploadMap`이 파일명 키라 나중에 오는 사용자 첨부가 캡처를 덮어 **사용자가 올린 파일이 이슈 본문에 이미지로 인라인된다**(밀려나는 게 아니라 남의 파일이 실린다). 양쪽 모두 사용자가 올린 `logs.html`에 **우리가 이슈 URL을 주입해 그 사람 파일을 고쳐서 올린다.** 전부 무음이다 — 제출은 초록 체크로 끝난다.
+- **근본 원인**: 두 어댑터가 **파일명을 신원으로 쓰는데, 같은 파이프라인에서 파일명을 사용자 입력으로 만든다.** 캡처·인라인·영상·로그·사용자 첨부가 한 배열에 합쳐지고, 업로드 결과를 `Map<filename, …>`로 되받아 본문 참조를 만든다. 그런데 사용자 첨부의 업로드 표시명은 **원본 파일명 그대로**여야 한다(asana `displayName ?? filename` / jira 동일) — 트래커 UI에 `abc123__report.pdf`가 뜨면 안 되기 때문이다. 즉 **"고유 파일명으로 만들어 충돌을 피한다"는 다른 5어댑터의 해법이 이 둘에는 구조적으로 막혀 있고**(github·gitlab·clickup·slack·linear은 업로드 이름을 `${id}__${name}`으로 만들고 표시만 displayName으로 되돌린다), 그 제약을 인식하지 못한 채 같은 파일명 축을 쓴 게 원인이다. 방어라고 넣어둔 `userAttachmentNames` Set은 방향이 반대였다 — 사용자 첨부를 본문에서 빼려던 가드가 **이름이 겹치는 순간 캡처를 뺐다.** 세 번째 낙진(`logs.html` 백링크 주입)은 같은 뿌리인데 가드가 아예 없던 자리라 리뷰 전까지 아무도 세지 않았다.
+- **재발 방지**: (1) **파일명으로 두 출처를 가르는 코드를 전수한다** — `grep -rn 'filename === "' src/` 와 `grep -rn "Map<string, \|byName\|uploadMap" src/`가 대상이다. 사람이 이름을 정할 수 있는 파일이 그 Map에 들어가면 그건 충돌 가능이다. 판정 질문은 "이 이름을 사용자가 정할 수 있나"이지 "지금 겹치나"가 아니다. (2) **가르는 축은 배열이 realm을 건너는지로 고른다** — 같은 함수 안에서 합치고 소비하면 **위치 경계**가 값싸고(asana: `allFiles.length - userAttachmentFiles.length`), 메시지로 건너가면 **명시 표식**을 실어 보낸다(jira: `JiraAttachmentInput.userAttachment`). 두 어댑터가 다른 축을 쓰는 건 이 이유이고, 그 이유를 주석에 남기지 않으면 다음 사람이 "통일하자"로 되돌린다. (3) **위치 경계를 쓰면 그 순서 불변식에 그물을 판다** — asana의 경계는 background 핸들러가 `files`와 1:1로 결과를 push한다는 **다른 파일의** 불변식 위에 서 있고, catch 분기의 push 하나를 지우면 결과가 한 칸 밀려 버그가 조용히 되살아난다(실측: 관련 테스트 29건 전부 green이었다). `uploadResultGuard.test.ts`에 catch-push 개수 스캔을 더해 닫았다. (4) **`logsDropped` 류의 불리언은 양방향을 다 잠근다** — "우리 실패 + 사용자 성공 → true"와 "우리 성공 + 사용자 실패 → false"는 서로 다른 뮤테이션이 잡는다. 한 방향만 있으면 이름 매칭으로 되돌려도 green이다(실측으로 확인하고 케이스를 하나 더 넣었다). (5) **한 어댑터에서 이 계열을 고치면 나머지 7개를 같은 눈으로 센다** — 이번에 asana를 고친 직후 리뷰가 jira에서 더 나쁜 판본을 찾았다. 어댑터 8벌은 `복제본` 계열 회고 34건의 단골이고, 한 곳을 고치고 멈추면 나머지가 그대로 남는다.
+- **관련**: `src/sidepanel/lib/submitToAsana.ts`(`userAttachmentStart` 위치 경계 — `userAttachmentNames` Set 제거, `injectIssueUrl` 게이트 포함), `src/background/messages.ts:submitIssue`(uploadMap·logsUrl·logsDropped·백링크 4지점에 `att.userAttachment` 게이트), `src/sidepanel/lib/submitToJira.ts`(표식 생산), `src/types/jira.ts:JiraAttachmentInput.userAttachment`, 그물 `src/sidepanel/lib/__tests__/submitToAsana.test.ts`(충돌 3케이스)·`src/background/__tests__/jiraSubmitIssue.test.ts`(충돌 3케이스)·`src/background/__tests__/uploadResultGuard.test.ts`(catch-push 순서 불변식 스캔). 계열 선행: **2026-08-14**(인라인 파일명 하드코딩을 이름으로 세어 9→11곳 — 같은 *파일명이 신원인* 축) · **2026-07-14**(단일 출처 우회 1곳이 남아 침묵 첨부) · **2026-06-25**(본문이 첨부를 참조 못 해 고아 첨부).
+
 ## 2026-08-20 — 기획 3단이 옮겨 실은 미검증 전제가 no-op 픽스 태스크를 낳았고, 커버리지를 목표로 판 그물 4개는 지정된 뮤테이션만 통과시켰다
 
 - **영역**: `어댑터`, `store`
