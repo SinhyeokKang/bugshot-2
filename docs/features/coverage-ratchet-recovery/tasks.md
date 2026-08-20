@@ -26,10 +26,10 @@
 - **작업 내용**: design.md "인터페이스 설계"의 시그니처대로 구현. `statusText`·`url`은 넣고 **`headers`는 넣지 않는다**(어댑터 8파일에 `.headers.get(` 0건). `text()`는 `typeof body === "string" ? body : JSON.stringify(body)` + reject 표현. 라우트 미매칭은 `throw`. `restore()` 시그니처에 **`afterEach` 전용**임을 주석으로 박는다(`vi.unstubAllGlobals()`가 jira의 `chrome` 스텁까지 날린다).
 - **기존 8벌 로컬 `mockFetch`는 건드리지 않는다.** 대신 `docs/features/DROPPED.md`에 마이그레이션 조건을 등재한다(안 하면 다음 감사가 "8벌 중복"을 또 발굴한다).
 - **검증**:
-  - [ ] 헬퍼 자체 테스트: 큐 소비 순서 · 고갈 후 마지막 값 반복 · 라우트 우선순위(먼저 선언한 것이 이김) · 미매칭 throw · `formDataAt` 왕복 · `text()`가 문자열 body를 그대로 반환(JSON 이중 인코딩 금지).
-  - [ ] **누출 방지 스캔**: `walkSources(src) − src/test`에서 `@/test/` 참조가 0건임을 확인하는 테스트 1개(design.md 위험 10 — 현재 이 규칙을 강제하는 그물이 없다).
+  - [x] 헬퍼 자체 테스트: 큐 소비 순서 · 고갈 후 마지막 값 반복 · 라우트 우선순위(먼저 선언한 것이 이김) · 미매칭 throw · `formDataAt` 왕복 · `text()`가 문자열 body를 그대로 반환(JSON 이중 인코딩 금지).
+  - [x] **누출 방지 스캔**: `walkSources(src) − src/test`에서 `@/test/` 참조가 0건임을 확인하는 테스트 1개(design.md 위험 10 — 현재 이 규칙을 강제하는 그물이 없다).
   - [ ] `pnpm coverage:report`의 파일 목록에 `src/test/fetch-mock.ts`가 나타나지 않는다.
-  - [ ] **mutation**: 라우트 우선순위를 역순으로 뒤집으면 우선순위 테스트가 red / `text()`를 무조건 `JSON.stringify`로 바꾸면 문자열 body 테스트가 red.
+  - [x] **mutation**: 라우트 우선순위를 역순으로 뒤집으면 우선순위 테스트가 red / `text()`를 무조건 `JSON.stringify`로 바꾸면 문자열 body 테스트가 red.
 
 ---
 
@@ -192,7 +192,7 @@
   - [x] `presets.ts` 미커버 0, 테이블이 `Record<AnnotationTool, boolean>`이다.
   - [x] `submitToAsana.ts`가 베이스라인 86.0% **위로** 회복(잔여는 `webpToJpeg` 본체).
   - [x] `submitToClickup.ts` 미커버 0.
-  - [ ] 표의 5플랫폼(사이드패널 4 + background jira)이 각각 "2차 갱신 실패 → 제출 성공 + 첨부 보존"을 assert한다. (배치 A에서 사이드패널 4행 완료 / jira 행은 배치 B.)
+  - [x] 표의 5플랫폼(사이드패널 4 + background jira)이 각각 "2차 갱신 실패 → 제출 성공 + 첨부 보존"을 assert한다. (배치 A에서 사이드패널 4행 완료 / jira 행은 배치 B.)
   - [x] **mutation**: clickup의 `try{}catch{}`를 제거하면 그 행이 red / `isStrokeTool`의 집합에서 `pen`을 빼면 해당 케이스만 red.
 
 ---
@@ -203,18 +203,23 @@
 
 - **8-1. asana 첨부 파일명 충돌** (`src/sidepanel/lib/submitToAsana.ts`)
   - 재현: 사용자가 `before-0.jpg`(또는 `logs.html`)를 첨부한 상태로 제출 → `userAttachmentNames`(`:138`) 가드가 `:194`에서 동명의 캡처를 `imageRefs`에서 제외 → **본문에서 스크린샷이 사라진다**. `logs.html`이면 `logsDropped`(`:198`)가 true가 돼 잘못된 "용량 초과" 경고까지.
-  - [ ] 재현 테스트가 red → 픽스 후 green. 캡처와 사용자 첨부를 파일명이 아닌 축으로 구분한다.
-  - [ ] `logs.html` 동명 케이스에서 `logsDropped`가 false로 남는다.
+  - [x] 재현 테스트가 red → 픽스 후 green. 캡처와 사용자 첨부를 파일명이 아닌 축으로 구분한다.
+  - [x] `logs.html` 동명 케이스에서 `logsDropped`가 false로 남는다.
 - **8-2. ~~jira 2차 본문 갱신 격리~~ — 취소(전제 오류)**
   - 2026-08-20 배치 A 리뷰에서 `src/background/messages.ts:850-868`을 실물 대조한 결과 **격리가 이미 있다**(`try { … } catch { console.warn }` 후 `{ key, url, logsDropped }`를 그대로 반환 — 다른 4플랫폼과 같은 계약, `b4b98df9` 이래). 재현 시나리오가 성립하지 않으므로 고칠 결함이 없다.
-  - [ ] 픽스 대신 **현행 격리를 고정하는 회귀 테스트**를 Task 7의 표 jira 행으로 추가한다(배치 B).
+  - [x] 픽스 대신 **현행 격리를 고정하는 회귀 테스트**를 Task 7의 표 jira 행으로 추가한다(배치 B).
   - 이로써 Task 8은 픽스 3건이 아니라 **2건**(8-1·8-3)이다.
+
+- **8-4. jira 사용자 첨부 파일명 충돌** (`src/background/messages.ts` + `src/sidepanel/lib/submitToJira.ts`) — 8-1 리뷰에서 발견, 배치 B2로 세워 처리
+  - 8-1과 같은 뿌리이고 결과는 더 나쁘다: `submitToJira.ts`가 사용자 첨부를 `displayName ?? filename`으로 캡처와 같은 배열에 push하고 background가 `uploadMap.set(att.filename, …)`로 받아 **뒤가 앞을 덮는다** → 사용자가 올린 파일이 이슈 본문에 인라인된다(asana는 캡처가 사라지는 방향). `logs.html` 백링크 주입과 `logsDropped`도 같은 낙진.
+  - [x] 재현 테스트 3건 red → 픽스 후 green. 배열이 realm을 건너므로 asana의 인덱스 경계가 아니라 `JiraAttachmentInput.userAttachment` 표식으로 나른다.
+  - [x] 뮤테이션 3건(게이트 각각 제거)이 대응 케이스 1건씩만 red.
 
 - **8-3. `logSummary.console.lineNoError` 문면** (`src/i18n/namespaces/logs.ts:125` ko / `:266` en)
   - `"콘솔: {n}건 (에러 없음)"` → `"(에러·경고 없음)"` / `"(no errors)"` → `"(no errors or warnings)"`. 분기가 `warnCount === 0`도 요구하므로 지금 문면은 사실이지만 독자가 그걸 모른다.
-  - [ ] ko·en 양쪽 갱신(PostToolUse 훅이 `locales.test.ts`를 자동 실행 — placeholder 토큰 일치 확인).
-  - [ ] Task 2 축 B 테스트는 `t()`를 키로 목하므로 **green을 유지한다**(문면 변경에 부서지지 않는 설계).
-  - [ ] `log-viewer` 복제 사전(`src/log-viewer/i18n.ts`)에는 이 키가 **없음을 확인했다** — 갱신 대상 아님.
+  - [x] ko·en 양쪽 갱신(PostToolUse 훅이 `locales.test.ts`를 자동 실행 — placeholder 토큰 일치 확인).
+  - [x] Task 2 축 B 테스트는 `t()`를 키로 목하므로 **green을 유지한다**(문면 변경에 부서지지 않는 설계).
+  - [x] `log-viewer` 복제 사전(`src/log-viewer/i18n.ts`)에는 이 키가 **없음을 확인했다** — 갱신 대상 아님.
 
 ---
 
