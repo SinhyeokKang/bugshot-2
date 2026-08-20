@@ -18,7 +18,7 @@
 문서 검수 중 코드에서 확인된 것들이다. 커버리지와 별개로 이번 배치에서 고친다.
 
 - **asana 첨부 파일명 충돌 → 캡처가 본문에서 무음 누락.** `submitToAsana.ts:135`가 만든 `userAttachmentNames`(`:138`)가 `:194`의 `if (r.ok && !userAttachmentNames.has(r.filename))` 가드에 쓰인다. 사용자가 `before-0.jpg`·`screenshot.jpg`처럼 캡처와 같은 이름의 파일을 첨부하면 **동명의 캡처가 `imageRefs`에서 제외돼 Asana 본문에서 사라진다**(첨부 패널엔 남는다). `logs.html`이면 `logsDropped`(`:198`)가 true가 돼 "용량 초과" 경고까지 잘못 뜬다. v1.7.27이 고친 "첨부 거짓말" 계열과 같은 종류다.
-- **jira만 2차 본문 갱신 실패 격리가 없다.** `background/messages.ts:859` — 다른 4플랫폼(clickup·asana·linear·gitlab)은 이슈 생성 후 본문 갱신 실패를 삼키는데(관용구는 `try{}catch{}` / `.catch(()=>null)` / 블록 전체 감싸기로 갈린다) jira는 그대로 토해서 **이슈는 이미 생성됐는데 사용자에겐 제출 실패로 보인다.**
+- ~~**jira만 2차 본문 갱신 실패 격리가 없다.**~~ — **전제 오류(2026-08-20 정정).** `background/messages.ts:850-868`을 실물 대조하니 jira도 `try{}catch{}`로 삼키고 `{key, url, logsDropped}`를 그대로 반환한다(`b4b98df9` 이래, 다른 4플랫폼과 같은 계약). 5플랫폼 전부 격리가 있고 관용구만 3갈림(`try{}catch{}` / `.catch(()=>null)` / 블록 전체 감싸기)이다. 남은 일은 픽스가 아니라 **현행 격리를 고정하는 회귀 테스트**뿐이다.
 - **`logSummary.console.lineNoError` 문면이 warn 축을 버린다.** `logs.ts:125` `"콘솔: {n}건 (에러 없음)"` / `:266` `"Console: {n} logs (no errors)"`. 분기 조건이 `errorCount > 0 || warnCount > 0`이라 이 줄이 나올 때 경고도 0인데, 독자는 경고가 0인지 안 센 건지 알 수 없다.
 
 ### `regression-net`(2026-08-09 드랍)과 무엇이 다른가

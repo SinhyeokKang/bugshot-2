@@ -47,12 +47,12 @@
   - **notion `md.noValue` 비대칭**: `buildNotionIssueBody.ts:259-263`은 paragraph 섹션에 업로드된 인라인 이미지만 있고 텍스트가 없으면 `(없음)`을 **안 낸다**(나머지는 무조건 낸다). 이미지가 곧 내용이니 합리적 비대칭이므로 **의도임을 테스트에 명시**한다.
   - assertion은 목 포맷 의존을 줄인다: `not.toMatch(/logSummary\.network\.line(?!NoError)/)` + `not.toContain("errors=")` 병용.
 - **검증**:
-  - [ ] 10출력 × 축 A/B가 각각 assert되고, 축 B-2·C가 해당 빌더에 있다.
-  - [ ] `buildSlackBody.ts`(3) · `buildIssueAdf.ts`(2) · `buildMarkdownIssueBody.ts`(1) · `buildLinearIssueBody.ts`(1) · `buildIssueMarkdown.ts`(1) 미커버 → 0.
-  - [ ] `buildClickupIssueBody.ts` 미커버 5 → 0 · `buildNotionIssueBody.ts` 9 → 0.
-  - [ ] `buildEditorCapture.test.ts`에 "에러 0건 세션 → `errorCount: 0`" 짝 케이스가 있다.
-  - [ ] `bodyOutputGolden.test.ts.snap`이 **8888줄 / 189,662 bytes / 62장 그대로**다(새 스냅샷을 만들지 않았음).
-  - [ ] **mutation**: `issueBodyShared.ts`의 `|| con.warnCount > 0`을 지우면 축 B-2가 red / `md.noValue`를 빈 문자열로 바꾸면 축 A가 red.
+  - [x] 10출력 × 축 A/B가 각각 assert되고, 축 B-2·C가 해당 빌더에 있다.
+  - [x] `buildSlackBody.ts`(3) · `buildIssueAdf.ts`(2) · `buildMarkdownIssueBody.ts`(1) · `buildLinearIssueBody.ts`(1) · `buildIssueMarkdown.ts`(1) 미커버 → 0.
+  - [x] `buildClickupIssueBody.ts` 미커버 5 → 0 · `buildNotionIssueBody.ts` 9 → 0.
+  - [x] `buildEditorCapture.test.ts`에 "에러 0건 세션 → `errorCount: 0`" 짝 케이스가 있다.
+  - [x] `bodyOutputGolden.test.ts.snap`이 **8888줄 / 189,662 bytes / 62장 그대로**다(새 스냅샷을 만들지 않았음).
+  - [x] **mutation**: `issueBodyShared.ts`의 `|| con.warnCount > 0`을 지우면 축 B-2가 red / `md.noValue`를 빈 문자열로 바꾸면 축 A가 red.
 
 ---
 
@@ -73,11 +73,11 @@
   - `blob-db-datauri.test.tsx`: `blobToDataUrl`(723). **파일 첫 줄에 왜 `.tsx`인지 + `// @vitest-environment jsdom` docblock 대안이 있음을 주석**으로 남긴다. `dataUrlToBlob` → `blobToDataUrl` 왕복.
   - `blob-db.test.ts`: 기존 `dataUrlToBlob` 3케이스에 **notion 판본과의 갈림**을 추가 — `data:;base64,QUJD`(blob-db는 `type:""`로 성공 / notion은 throw) · 빈 payload(반대) · `charset` 섞인 mime(blob-db는 `type`에 `charset`이 붙는 오답). 주석으로 상대 판본 위치를 가리킨다.
 - **검증**:
-  - [ ] 20함수가 never-called에서 빠진다.
-  - [ ] 비대semantics 2건(`instanceof Blob` 가드 / 2네임스페이스)이 각각 독립 케이스로 있다.
-  - [ ] `blob-db.ts` 미커버 280 → **100줄 이하**. (상한을 80이 아니라 100으로 둔 이유: 파일에 `catch` 블록이 42개이고 전부 `console.warn`+return이라 정상 경로 왕복으로는 한 줄도 안 덮인다. 트랜잭션 강제 실패로 catch를 덮는 건 이번 스코프 밖이다.)
-  - [ ] 기존 `blob-db-attachments.test.ts`·`blob-db-inline-origins.test.ts`도 함께 green.
-  - [ ] **mutation**: 로그 3종 중 하나의 store 이름을 다른 패밀리 것으로 바꾸면 그 패밀리 왕복만 red(네임스페이스 격리 확인) / `getVideoBlob`의 `instanceof Blob`을 지우면 가드 케이스가 red.
+  - [x] 20함수가 never-called에서 빠진다.
+  - [x] 비대semantics 2건(`instanceof Blob` 가드 / 2네임스페이스)이 각각 독립 케이스로 있다.
+  - [x] `blob-db.ts` 미커버 280 → **100줄 이하**. (상한을 80이 아니라 100으로 둔 이유: 파일에 `catch` 블록이 42개이고 전부 `console.warn`+return이라 정상 경로 왕복으로는 한 줄도 안 덮인다. 트랜잭션 강제 실패로 catch를 덮는 건 이번 스코프 밖이다.)
+  - [x] 기존 `blob-db-attachments.test.ts`·`blob-db-inline-origins.test.ts`도 함께 green.
+  - [x] **mutation**: 로그 3종 중 하나의 store 이름을 다른 패밀리 것으로 바꾸면 그 패밀리 왕복만 red(네임스페이스 격리 확인) / `getVideoBlob`의 `instanceof Blob`을 지우면 가드 케이스가 red.
 
 ---
 
@@ -170,9 +170,9 @@
   - **8개 중 2개는 이미 테스트가 있다** — `describe("updateGitlabAccount")`(288) · `describe("updateAsanaAccount")`(323). 테이블 순회로 **흡수**하고 기존 2개는 지운다(중복 방치 금지).
 - **검증**:
   - [ ] `settings-store.ts` 미커버 77 → 15줄 이하.
-  - [ ] `update*Account` 8개가 각각 2케이스를 갖고, 기존 gitlab·asana describe가 순회로 흡수됐다.
+  - [x] `update*Account` 8개가 각각 2케이스를 갖고, 기존 gitlab·asana describe가 순회로 흡수됐다.
   - [ ] 래칫 리포트에서 `settings-store.ts`가 사라진다.
-  - [ ] **mutation**: 한 플랫폼의 `if (!cur) return s`를 지우면 그 플랫폼의 "계정 없음" 케이스만 red(순회가 항진명제가 아님을 증명).
+  - [x] **mutation**: 한 플랫폼의 `if (!cur) return s`를 지우면 그 플랫폼의 "계정 없음" 케이스만 red(순회가 항진명제가 아님을 증명).
 
 ---
 
@@ -185,15 +185,15 @@
     - `presets.ts:65`의 주석("스타일 행 노출 판정의 단일 출처")은 과장이다 — 스타일 행의 두께 vs 텍스트 크기 분기는 `AnnotationToolbar.tsx:90`의 `showTextSize`가 별도 판정한다. 프로덕션 주석은 건드리지 않고 **tasks/design 문면만** 정확히 둔다.
   - `submitToAsana`: `renameStyleElementFilenames`의 잔여 분기(102·105·117-118)와 `userAttachments` 매핑(135). **`webpToJpeg`(66-85)는 비목표** — 단 `:67` non-webp 조기 반환과 `:82-83` catch 폴백은 canvas 없이 도달 가능하다.
     - **주의**: 기존 `submitToAsana.test.ts:83-124`의 4케이스가 102·105를 이미 태울 가능성이 있다. **착수 시 `coverage-final.json`으로 재측정**하고 목표치를 조정한다(현재 미커버 24, 열거 대상 6줄 → 산술 바닥 18).
-  - **2차 본문 갱신 실패 시 graceful degradation — 전수 표.** 2차 본문 갱신 경로를 **가진 플랫폼은 5개뿐**이다(실측): clickup `updateTaskMarkdown`(`submitToClickup.ts:134`, catch `:138-140`) · asana `updateTaskNotes`(catch `:223`) · linear `updateIssueDescription`(`.catch(() => null)` `:144`) · gitlab `updateIssueDescription`(블록 감싸기 catch `:95`) · **jira**(`background/messages.ts:859` — 사이드패널이 아니라 background 안이고 **격리가 없다**). notion·github·slack은 2차 write 자체가 없어 대상이 아니다(notion `submitToNotion.ts:123`의 catch는 *업로드* 격리이고 image/video는 의도적으로 strict — 다른 계약이므로 이 표에 섞지 않는다).
-    → 4플랫폼을 한 표로 순회해 **이슈·첨부가 보존되고 제출이 성공으로 끝나는지** 잠그고, jira는 Task 8-2에서 고친 뒤 표에 추가해 **5플랫폼**으로 만든다(순서 의존). 관용구가 4갈림(try/catch · `.catch(()=>null)` · 블록 감싸기 · 격리 없음)이라는 사실을 표 주석에 남긴다.
+  - **2차 본문 갱신 실패 시 graceful degradation — 전수 표.** 2차 본문 갱신 경로를 **가진 플랫폼은 5개뿐**이다(실측): clickup `updateTaskMarkdown`(`submitToClickup.ts:134`, catch `:138-140`) · asana `updateTaskNotes`(catch `:223`) · linear `updateIssueDescription`(`.catch(() => null)` `:144`) · gitlab `updateIssueDescription`(블록 감싸기 catch `:95`) · **jira**(`background/messages.ts:850-868` — 사이드패널이 아니라 background 안이고, **격리는 `b4b98df9` 이래 이미 있다**. 기획 당시 "jira만 격리가 없다"고 적었던 건 오독이었고 2026-08-20 배치 A 리뷰에서 실물 대조로 정정했다). notion·github·slack은 2차 write 자체가 없어 대상이 아니다(notion `submitToNotion.ts:123`의 catch는 *업로드* 격리이고 image/video는 의도적으로 strict — 다른 계약이므로 이 표에 섞지 않는다).
+    → 사이드패널 4플랫폼을 표로 잠그고(배치 A 완료), jira 행은 **고칠 게 없으므로 현행 격리를 그대로 고정하는 행**을 `src/background/__tests__/`에 추가해 **5플랫폼**으로 만든다(배치 B — 8-2 의존 없음). 관용구가 3갈림(try/catch · `.catch(()=>null)` · 블록 감싸기)이라는 사실을 표 주석에 남긴다.
     - **정직성 주의**: clickup의 bare `catch {}`는 rethrow·플래그·로그가 없고 반환값이 완전 성공과 동일해 사용자는 초록 체크만 본다. 그때 본문에 없는 것: 스크린샷 임베드 · As-is/To-be 스냅샷 행 · 영상 링크 · `logs.html` 하이퍼링크, 그리고 **미해석 `inline:xxxx` 플레이스홀더가 그대로 보인다.** 파일은 첨부로 남으니 손실은 아니지만 v1.7.27이 고친 게 정확히 이 계열이다. → 테스트는 유지하되 **"성공 표기의 정직성은 별개 이슈"를 테스트 주석에 명시**해, 나중에 경고 토스트를 붙이려는 사람이 red에 막히지 않게 한다.
 - **검증**:
-  - [ ] `presets.ts` 미커버 0, 테이블이 `Record<AnnotationTool, boolean>`이다.
-  - [ ] `submitToAsana.ts`가 베이스라인 86.0% **위로** 회복(잔여는 `webpToJpeg` 본체).
-  - [ ] `submitToClickup.ts` 미커버 0.
-  - [ ] 표의 4플랫폼(+ 8-2 후 jira = 5)이 각각 "2차 갱신 실패 → 제출 성공 + 첨부 보존"을 assert한다.
-  - [ ] **mutation**: clickup의 `try{}catch{}`를 제거하면 그 행이 red / `isStrokeTool`의 집합에서 `pen`을 빼면 해당 케이스만 red.
+  - [x] `presets.ts` 미커버 0, 테이블이 `Record<AnnotationTool, boolean>`이다.
+  - [x] `submitToAsana.ts`가 베이스라인 86.0% **위로** 회복(잔여는 `webpToJpeg` 본체).
+  - [x] `submitToClickup.ts` 미커버 0.
+  - [ ] 표의 5플랫폼(사이드패널 4 + background jira)이 각각 "2차 갱신 실패 → 제출 성공 + 첨부 보존"을 assert한다. (배치 A에서 사이드패널 4행 완료 / jira 행은 배치 B.)
+  - [x] **mutation**: clickup의 `try{}catch{}`를 제거하면 그 행이 red / `isStrokeTool`의 집합에서 `pen`을 빼면 해당 케이스만 red.
 
 ---
 
@@ -205,10 +205,11 @@
   - 재현: 사용자가 `before-0.jpg`(또는 `logs.html`)를 첨부한 상태로 제출 → `userAttachmentNames`(`:138`) 가드가 `:194`에서 동명의 캡처를 `imageRefs`에서 제외 → **본문에서 스크린샷이 사라진다**. `logs.html`이면 `logsDropped`(`:198`)가 true가 돼 잘못된 "용량 초과" 경고까지.
   - [ ] 재현 테스트가 red → 픽스 후 green. 캡처와 사용자 첨부를 파일명이 아닌 축으로 구분한다.
   - [ ] `logs.html` 동명 케이스에서 `logsDropped`가 false로 남는다.
-- **8-2. jira 2차 본문 갱신 격리** (`src/background/messages.ts:859` 부근)
-  - 재현: 이슈 생성 성공 + 본문 갱신 실패 → 지금은 사용자에게 제출 실패로 보인다(이슈는 이미 생성됨).
-  - [ ] 재현 테스트가 red → 픽스 후 green. 다른 4플랫폼(clickup·asana·linear·gitlab)과 같은 격리.
-  - [ ] Task 7의 표에 jira를 추가해 **5플랫폼**으로 만든다.
+- **8-2. ~~jira 2차 본문 갱신 격리~~ — 취소(전제 오류)**
+  - 2026-08-20 배치 A 리뷰에서 `src/background/messages.ts:850-868`을 실물 대조한 결과 **격리가 이미 있다**(`try { … } catch { console.warn }` 후 `{ key, url, logsDropped }`를 그대로 반환 — 다른 4플랫폼과 같은 계약, `b4b98df9` 이래). 재현 시나리오가 성립하지 않으므로 고칠 결함이 없다.
+  - [ ] 픽스 대신 **현행 격리를 고정하는 회귀 테스트**를 Task 7의 표 jira 행으로 추가한다(배치 B).
+  - 이로써 Task 8은 픽스 3건이 아니라 **2건**(8-1·8-3)이다.
+
 - **8-3. `logSummary.console.lineNoError` 문면** (`src/i18n/namespaces/logs.ts:125` ko / `:266` en)
   - `"콘솔: {n}건 (에러 없음)"` → `"(에러·경고 없음)"` / `"(no errors)"` → `"(no errors or warnings)"`. 분기가 `warnCount === 0`도 요구하므로 지금 문면은 사실이지만 독자가 그걸 모른다.
   - [ ] ko·en 양쪽 갱신(PostToolUse 훅이 `locales.test.ts`를 자동 실행 — placeholder 토큰 일치 확인).
@@ -233,7 +234,7 @@
 ## 테스트 계획
 
 - **단위 테스트**: 이 기획의 산출물 자체다. 신규 6파일 + 기존 14파일 확장.
-- **e2e 시나리오**: **없음.** Task 8의 3건은 유닛으로 재현 가능하다(canvas·실네트워크 의존이 아니다). 단 8-1·8-2는 제출 경로 변경이므로 착수 시 `/e2e-write` 필요성을 한 번 판단한다.
+- **e2e 시나리오**: **없음.** Task 8의 2건(8-1·8-3)은 유닛으로 재현 가능하다(canvas·실네트워크 의존이 아니다). 단 8-1은 제출 경로 변경이므로 착수 시 `/e2e-write` 필요성을 한 번 판단한다.
 - **수동 테스트**: **8-3만.** ko/en 두 로케일에서 로그 요약 줄을 눈으로 확인(문면 변경). 나머지는 없음.
 - **회귀 그물 확인**: 소스 스캔 5개(`bundleBoundary`·`import-convention`·`builderLocaleWrap`·`escape-html`·`manifest-locales`)는 `src/test/sourceFiles.ts:11`의 `__tests__` prune 때문에 신규 테스트 파일로 red가 안 난다. `src/test/fetch-mock.ts`는 prune 밖이지만 그 판정들이 찾는 대상이 아니다.
 
@@ -245,7 +246,7 @@
 Task 2 (골든 2축) ─────┐
 Task 3 (blob-db) ─────┤
 Task 6 (settings-store)┤   ← 서로 독립, 병렬 가능
-Task 7 (래칫 잔여) ─────┤      (Task 7의 jira 행만 8-2 이후)
+Task 7 (래칫 잔여) ─────┤      (Task 7의 jira 행은 background — 의존 없음)
                        │
 Task 8 (프로덕션 픽스 3건) ┤
                        │
@@ -254,7 +255,7 @@ Task 1 (fetch-mock) ─────> Task 5-2 … 5-8 (서로 병렬)
                                     └─> Task 9 (최종 측정 + 래칫)
 ```
 
-- **간선 4개가 전부다**: `1 → 5-*` · `4 → 5-1` · `8-2 → Task 7의 jira 행` · `모두 → 9`.
+- **간선 3개가 전부다**: `1 → 5-*` · `4 → 5-1` · `모두 → 9`. (기획 당시의 `8-2 → Task 7의 jira 행` 간선은 8-2 취소로 사라졌다.)
 - **먼저 붙이면 이득이 큰 순서**(다이어그램을 위반하지 않는 범위): Task 2 → 7 → 3 → 6 → 8 → **1** → 4 → 5 → 9. Task 2·7이 래칫 8건 중 5건을 지우고 비용이 가장 작다. **Task 1을 5보다 먼저** 두는 걸 잊지 말 것.
 - Task 5의 8 서브태스크는 독립이라 나눠 진행 가능. **미커버 목표치 확인은 Task 5를 다 끝낸 뒤 1회**로 묶는다(`pnpm test:coverage`는 전체 실행이다).
 - Task 9는 반드시 마지막. 중간에 돌리면 래칫 판정이 요동한다.
