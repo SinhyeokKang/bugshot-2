@@ -606,7 +606,7 @@ type AccountPatchCase = {
 const accountPatchCases: AccountPatchCase[] = [
   {
     platform: "jira",
-    account: jiraStub,
+    account: { ...jiraStub, projectKey: "OLD", issueTypeId: "10001" },
     companion: "github",
     companionAccount: githubStub,
     apply: () => useSettingsStore.getState().updateJiraAccount({ projectKey: "BUG" }),
@@ -620,11 +620,12 @@ const accountPatchCases: AccountPatchCase[] = [
         apiToken: "t",
       },
       projectKey: "BUG",
+      issueTypeId: "10001",
     },
   },
   {
     platform: "github",
-    account: githubStub,
+    account: { ...githubStub, defaults: { owner: "old", repo: "old", label: "stale" } },
     companion: "jira",
     companionAccount: jiraStub,
     apply: () =>
@@ -640,7 +641,7 @@ const accountPatchCases: AccountPatchCase[] = [
   },
   {
     platform: "linear",
-    account: linearStub,
+    account: { ...linearStub, defaults: { teamId: "old", teamName: "Old", labelId: "stale" } },
     companion: "jira",
     companionAccount: jiraStub,
     apply: () =>
@@ -656,7 +657,10 @@ const accountPatchCases: AccountPatchCase[] = [
   },
   {
     platform: "notion",
-    account: notionStub,
+    account: {
+      ...notionStub,
+      defaults: { databaseId: "old", databaseTitle: "Old", statusOption: "stale" },
+    },
     companion: "jira",
     companionAccount: jiraStub,
     apply: () =>
@@ -672,7 +676,7 @@ const accountPatchCases: AccountPatchCase[] = [
   },
   {
     platform: "gitlab",
-    account: gitlabStub,
+    account: { ...gitlabStub, defaults: { projectId: 1, projectPath: "stale" } },
     companion: "jira",
     companionAccount: jiraStub,
     apply: () =>
@@ -691,7 +695,7 @@ const accountPatchCases: AccountPatchCase[] = [
   },
   {
     platform: "asana",
-    account: asanaStub,
+    account: { ...asanaStub, defaults: { workspaceGid: "old", projectGid: "stale" } },
     companion: "jira",
     companionAccount: jiraStub,
     apply: () =>
@@ -705,7 +709,10 @@ const accountPatchCases: AccountPatchCase[] = [
   },
   {
     platform: "clickup",
-    account: clickupStub,
+    account: {
+      ...clickupStub,
+      defaults: { listId: "old", listName: "Old", assigneeId: "stale" },
+    },
     companion: "jira",
     companionAccount: jiraStub,
     apply: () =>
@@ -721,13 +728,11 @@ const accountPatchCases: AccountPatchCase[] = [
   },
   {
     platform: "slack",
-    account: slackStub,
+    account: { ...slackStub, defaults: { channelId: "old", channelName: "#old" } },
     companion: "jira",
     companionAccount: jiraStub,
     apply: () =>
-      useSettingsStore.getState().updateSlackAccount({
-        defaults: { channelId: "C1", channelName: "#bugs" },
-      }),
+      useSettingsStore.getState().updateSlackAccount({ defaults: { channelId: "C1" } }),
     merged: {
       platform: "slack",
       connectedAt: 0,
@@ -740,14 +745,14 @@ const accountPatchCases: AccountPatchCase[] = [
       },
       teamId: "T1",
       teamName: "acme",
-      defaults: { channelId: "C1", channelName: "#bugs" },
+      defaults: { channelId: "C1" },
     },
   },
 ];
 
 describe("update*Account — 8 플랫폼 얕은 병합 / ghost 계정 방지", () => {
   for (const c of accountPatchCases) {
-    it(`${c.platform}: 기존 account에 patch를 얕게 병합하고 다른 플랫폼은 보존한다`, () => {
+    it(`${c.platform}: patch를 얕게 병합한다 — patch가 준 키만 교체되고 준 적 없는 하위 키는 사라진다`, () => {
       useSettingsStore.setState({
         accounts: {
           [c.platform]: c.account,
@@ -776,4 +781,89 @@ describe("update*Account — 8 플랫폼 얕은 병합 / ghost 계정 방지", (
       expect(s.accounts[c.companion]).toEqual(c.companionAccount);
     });
   }
+});
+
+// persist `migrate` 콜백 자체의 그물. 위 describe들이 단계 함수를 직접 부르는 것과 층이 다르다 —
+// 여기서 잠그는 건 "어느 version에서 어느 단계가 실제로 배선되는가"이고, 호출을 하나 빼도
+// 단계 함수 테스트는 전부 green으로 남는다.
+describe("persist migrate 콜백 — version별 단계 배선", () => {
+  const migrate = () => {
+    const m = useSettingsStore.persist.getOptions().migrate;
+    if (!m) throw new Error("migrate 콜백이 없다");
+    return m;
+  };
+
+  it("version 1 → migrateV1ToV2를 태워 v1 jiraConfig를 accounts.jira로 승격한다", () => {
+    const out = migrate()(
+      {
+        jiraConfig: {
+          baseUrl: "https://x.atlassian.net",
+          email: "a@b.c",
+          apiToken: "t",
+          projectKey: "BUG",
+        },
+      },
+      1,
+    ) as { accounts: Accounts };
+
+    expect(out.accounts.jira?.auth).toEqual({
+      kind: "apiKey",
+      baseUrl: "https://x.atlassian.net",
+      email: "a@b.c",
+      apiToken: "t",
+    });
+    expect(out.accounts.jira?.projectKey).toBe("BUG");
+  });
+
+  it("version 2 → migrateV1ToV2를 건너뛴다 — v1 평면 자격증명은 승격되지 않는다", () => {
+    const out = migrate()(
+      {
+        jiraConfig: {
+          baseUrl: "https://x.atlassian.net",
+          email: "a@b.c",
+          apiToken: "t",
+        },
+      },
+      2,
+    ) as { accounts: Accounts };
+
+    expect(out.accounts.jira).toBeUndefined();
+  });
+
+  it("이미 v3 모양이면 v1/v2 경로를 타지 않고 accounts를 그대로 넘긴다", () => {
+    const out = migrate()(
+      { accounts: { jira: jiraStub }, lastSubmitFields: {} },
+      11,
+    ) as { accounts: Accounts };
+
+    expect(out.accounts.jira).toEqual(jiraStub);
+  });
+
+  it("version 1 → v5 단계까지 배선돼 titlePrefix가 최상위로 승격된다", () => {
+    const out = migrate()(
+      {
+        jiraConfig: {
+          baseUrl: "https://x.atlassian.net",
+          email: "a@b.c",
+          apiToken: "t",
+          titlePrefix: "[QA] ",
+        },
+      },
+      1,
+    ) as { titlePrefix?: string };
+
+    expect(out.titlePrefix).toBe("[QA] ");
+  });
+
+  it("version 10 → v11 단계가 배선돼 relatesKey가 relates[]로 이관된다", () => {
+    const out = migrate()(
+      {
+        accounts: { jira: jiraStub },
+        lastSubmitFields: { jira: { relatesKey: "ABC-1", relatesLabel: "Parent" } },
+      },
+      10,
+    ) as { lastSubmitFields: { jira?: { relates?: { key: string; label: string }[] } } };
+
+    expect(out.lastSubmitFields.jira?.relates).toEqual([{ key: "ABC-1", label: "Parent" }]);
+  });
 });

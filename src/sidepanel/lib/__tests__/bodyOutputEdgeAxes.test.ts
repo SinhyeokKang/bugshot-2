@@ -44,8 +44,6 @@ import { buildClickupIssueBody } from "../buildClickupIssueBody";
 import { buildLinearIssueBody } from "../buildLinearIssueBody";
 import { buildSlackBody } from "../buildSlackBody";
 
-type Mode = NonNullable<MarkdownContext["captureMode"]>;
-
 function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   return {
     bodyLocale: "ko",
@@ -77,10 +75,9 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   };
 }
 
-const mdImages = (mode: Mode) =>
-  mode === "screenshot" || mode === "element"
-    ? [{ filename: "capture-0.webp", contentType: "image/webp", url: "https://cdn.test/c0.webp" }]
-    : [];
+const mdImages = [
+  { filename: "capture-0.webp", contentType: "image/webp", url: "https://cdn.test/c0.webp" },
+];
 const mdLogs = [
   { filename: "logs.html", contentType: "text/html", url: "https://cdn.test/logs.html" },
 ];
@@ -90,25 +87,25 @@ const mdLogs = [
 const OUTPUTS: {
   name: string;
   listMarker: string;
-  run: (ctx: MarkdownContext, mode: Mode) => unknown;
+  run: (ctx: MarkdownContext) => unknown;
 }[] = [
   { name: "buildIssueMarkdown", listMarker: "1. ", run: (ctx) => buildIssueMarkdown(ctx) },
   { name: "buildIssueHtml", listMarker: "<ol>", run: (ctx) => buildIssueHtml(ctx) },
   {
     name: "buildMarkdownIssueBody(github)",
     listMarker: "1. ",
-    run: (ctx, mode) =>
+    run: (ctx) =>
       buildMarkdownIssueBody(
-        { ctx, images: mdImages(mode), logs: mdLogs },
+        { ctx, images: mdImages, logs: mdLogs },
         { platform: "github" },
       ),
   },
   {
     name: "buildMarkdownIssueBody(gitlab)",
     listMarker: "1. ",
-    run: (ctx, mode) =>
+    run: (ctx) =>
       buildMarkdownIssueBody(
-        { ctx, images: mdImages(mode), logs: mdLogs },
+        { ctx, images: mdImages, logs: mdLogs },
         { platform: "gitlab" },
       ),
   },
@@ -116,19 +113,16 @@ const OUTPUTS: {
   {
     name: "buildNotionIssueBody",
     listMarker: "numbered_list_item",
-    run: (ctx, mode) =>
+    run: (ctx) =>
       buildNotionIssueBody({
         ctx,
-        images:
-          mode === "screenshot" || mode === "element"
-            ? [
-                {
-                  filename: "capture-0.webp",
-                  contentType: "image/webp",
-                  dataUrl: "data:image/webp;base64,AAAA",
-                },
-              ]
-            : [],
+        images: [
+          {
+            filename: "capture-0.webp",
+            contentType: "image/webp",
+            dataUrl: "data:image/webp;base64,AAAA",
+          },
+        ],
         logs: [
           {
             filename: "logs.html",
@@ -141,31 +135,25 @@ const OUTPUTS: {
   {
     name: "buildAsanaIssueBody",
     listMarker: "1. ",
-    run: (ctx, mode) =>
+    run: (ctx) =>
       buildAsanaIssueBody({
         ctx,
-        images:
-          mode === "screenshot" || mode === "element"
-            ? [{ filename: "capture-0.webp", contentType: "image/webp" }]
-            : [],
+        images: [{ filename: "capture-0.webp", contentType: "image/webp" }],
       }),
   },
   {
     name: "buildClickupIssueBody",
     listMarker: "1. ",
-    run: (ctx, mode) =>
-      buildClickupIssueBody({ ctx, images: mdImages(mode), logs: mdLogs }),
+    run: (ctx) =>
+      buildClickupIssueBody({ ctx, images: mdImages, logs: mdLogs }),
   },
   {
     name: "buildLinearIssueBody",
     listMarker: "1. ",
-    run: (ctx, mode) =>
+    run: (ctx) =>
       buildLinearIssueBody({
         ctx,
-        images:
-          mode === "screenshot" || mode === "element"
-            ? [{ filename: "capture-0.webp", assetUrl: "https://cdn.test/c0.webp" }]
-            : [],
+        images: [{ filename: "capture-0.webp", assetUrl: "https://cdn.test/c0.webp" }],
       }),
   },
   { name: "buildSlackBody", listMarker: "1. ", run: (ctx) => buildSlackBody({ ctx }) },
@@ -197,7 +185,7 @@ describe("본문 출력 엣지 — 축 A: 빈 orderedList", () => {
               expectedResult: "버튼이 눌린다",
             },
           });
-          const s = asText(run(ctx, "screenshot"));
+          const s = asText(run(ctx));
 
           expect(countOf(s, "md.noValue")).toBe(1);
           expect(s).not.toContain(listMarker);
@@ -206,7 +194,7 @@ describe("본문 출력 엣지 — 축 A: 빈 orderedList", () => {
 
       // 대조군 — 마커 부재 단언이 항상 참이 되는 걸 막는다.
       it("stepsToReproduce가 있으면 마커가 나오고 md.noValue는 0회", () => {
-        const s = asText(run(makeCtx(), "screenshot"));
+        const s = asText(run(makeCtx()));
 
         expect(countOf(s, "md.noValue")).toBe(0);
         expect(s).toContain(listMarker);
@@ -221,6 +209,8 @@ describe("본문 출력 엣지 — 축 A: 빈 orderedList", () => {
 
 // errorCount와 errors 둘 다 0이어야 한다 — 게이트가 `net.errorCount ?? net.errors.length`라
 // errors만 비우면 errorCount 3이 그대로 살아 with-error 분기를 탄다(buildLogSummary.ts).
+// 둘 다 0인 픽스처라 `??` 자체가 어느 쪽으로 무너져도 여기선 green이다 — 그 축은
+// `buildLogSummary.test.ts`가 잠근다. 이 파일의 사정거리는 "0이면 lineNoError를 탄다"까지.
 const NO_ERROR_LOGS = {
   networkLogSummary: { captured: 12, errorCount: 0, errors: [] },
   consoleLogSummary: { captured: 8, errorCount: 0, warnCount: 0, topErrors: [] },
@@ -230,7 +220,7 @@ const NO_ERROR_LOGS = {
 describe("본문 출력 엣지 — 축 B: 로그 에러 0건", () => {
   for (const { name, run } of OUTPUTS) {
     it(`${name} — network/console 모두 lineNoError`, () => {
-      const s = asText(run(makeCtx(NO_ERROR_LOGS), "screenshot"));
+      const s = asText(run(makeCtx(NO_ERROR_LOGS)));
 
       expect(s).toContain("logSummary.network.lineNoError n=12");
       expect(s).toContain("logSummary.console.lineNoError n=8");
@@ -262,7 +252,7 @@ describe("본문 출력 엣지 — 축 B-2: 에러 0 · 경고 5", () => {
 
   for (const { name, run } of OUTPUTS) {
     it(`${name} — console은 line(경고 포함), network는 lineNoError`, () => {
-      const s = asText(run(makeCtx(WARN_ONLY), "screenshot"));
+      const s = asText(run(makeCtx(WARN_ONLY)));
 
       expect(s).toMatch(/logSummary\.console\.line(?!NoError)/);
       expect(s).not.toContain("logSummary.console.lineNoError");

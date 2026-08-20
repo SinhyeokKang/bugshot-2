@@ -217,14 +217,15 @@ describe("submitToClickup 업로드 판별자", () => {
 
 // ── 2차 본문 갱신 실패 시 graceful degradation — 전수 표 (clickup 행) ─────────────
 // 이슈/태스크를 만든 **뒤** 본문을 다시 쓰는 2차 write 경로를 가진 플랫폼은 실측 5개다.
-// 관용구가 4갈림이라 한 파일에서 순회할 수 없어(각 어댑터의 모듈 목이 파일 스코프다)
+// 관용구가 3갈림이라 한 파일에서 순회할 수 없어(각 어댑터의 모듈 목이 파일 스코프다)
 // 같은 계약을 파일별 "행"으로 나눠 잠근다 — `grep -rn "전수 표"` 로 행이 모인다.
 //   clickup  submitToClickup.ts:132-140   try {} catch {}
 //   asana    submitToAsana.ts:215-225     try {} catch {}
 //   linear   submitToLinear.ts:140-144    .catch(() => null)
 //   gitlab   submitToGitlab.ts:76-97      보강 블록 전체를 감싼 try {} catch {}
-//   jira     background/messages.ts:859   **격리 없음** → Task 8-2에서 고친 뒤 이 표에 행을
-//            추가해 5플랫폼으로 만든다(순서 의존 — 지금 넣으면 red).
+//   jira     background/messages.ts:850-868  try {} catch {} (b4b98df9 이래 — 사이드패널이
+//            아니라 background 안이라 행이 이 디렉터리에 없다. 아직 안 깔았고, 깔 자리는
+//            `docs/features/coverage-ratchet-recovery/tasks.md` Task 7이다. 그래서 지금 이 표는 4행이다.)
 // notion·github·slack은 2차 write 자체가 없어 대상이 아니다(notion submitToNotion.ts:123의
 // catch는 *업로드* 격리이고 image/video는 의도적으로 strict — 다른 계약이라 섞지 않는다).
 //

@@ -486,16 +486,18 @@ describe("buildEditorMarkdownContext — 에러 0건 세션 (본문 lineNoError�
       captureMode: "screenshot",
       networkLog: netLog([
         req(),
-        req({ id: "r-2", status: 500, statusText: "Server Error" }),
-        req({ id: "r-3", status: 0, statusText: "Network Error", phase: "error" }),
+        // 404가 있어야 임계값이 `>= 400`인지 `>= 500`인지가 관측된다.
+        req({ id: "r-2", status: 404, statusText: "Not Found" }),
+        req({ id: "r-3", status: 500, statusText: "Server Error" }),
+        req({ id: "r-4", status: 0, statusText: "Network Error", phase: "error" }),
       ]),
       consoleLog: conLog(["error", "warn", "log"]),
     });
 
     const ctx = buildEditorMarkdownContext();
 
-    expect(ctx?.networkLogSummary?.errorCount).toBe(2);
-    expect(ctx?.networkLogSummary?.errors).toHaveLength(2);
+    expect(ctx?.networkLogSummary?.errorCount).toBe(3);
+    expect(ctx?.networkLogSummary?.errors).toHaveLength(3);
     expect(ctx?.consoleLogSummary?.errorCount).toBe(1);
     expect(ctx?.consoleLogSummary?.warnCount).toBe(1);
   });
