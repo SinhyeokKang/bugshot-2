@@ -47,6 +47,16 @@ describe("mockFetchOnce — 응답 구성", () => {
     expect(second.status).toBe(503);
   });
 
+  it("ok를 안 주고 status만 주면 status에서 ok를 파생한다", async () => {
+    // {status:500}만 쓰는 형태가 흔한데 ok가 true로 남으면 실패 케이스가 무음으로 성공 분기를 탄다.
+    mf = mockFetchOnce([{ status: 500 }, { status: 204 }, { ok: true, status: 500 }]);
+
+    expect((await mf.fn("https://x/a")).ok).toBe(false);
+    expect((await mf.fn("https://x/b")).ok).toBe(true);
+    // 명시한 ok는 status와 어긋나도 이긴다.
+    expect((await mf.fn("https://x/c")).ok).toBe(true);
+  });
+
   it("statusText·url을 응답에 싣는다", async () => {
     // linear uploadFileToLinear는 putRes.statusText를 에러 메시지에 싣고,
     // jira probeMediaRedirect는 res.url을 읽는다. 목이 이 둘을 못 주면 그 경로가 미검증으로 남는다.
@@ -194,6 +204,20 @@ describe("호출 기록", () => {
     await mf.fn("https://jira/attachments", { method: "POST", body: fd });
 
     expect(() => mf!.jsonBodyAt(0)).toThrow(/formDataAt/);
+  });
+
+  it("jsonBodyAt은 URLSearchParams면 callAt을 안내하며 throw한다", async () => {
+    // slack의 주 경로 5함수가 URLSearchParams를 보낸다. 안 가리면 JSON.parse의 raw SyntaxError가
+    // 나와 "URL이 틀렸다"가 "응답이 틀렸다"로 오진된다.
+    mf = mockFetchOnce({ body: {} });
+
+    await mf.fn("https://slack/chat.postMessage", {
+      method: "POST",
+      body: new URLSearchParams({ channel: "C1", text: "hi" }),
+    });
+
+    expect(() => mf!.jsonBodyAt(0)).toThrow(/callAt\(0\)\.init\.body/);
+    expect((mf.callAt(0).init?.body as URLSearchParams).get("channel")).toBe("C1");
   });
 
   it("formDataAt이 보낸 FormData를 그대로 돌려준다 (필드·파일명 왕복)", async () => {
