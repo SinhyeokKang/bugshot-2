@@ -349,7 +349,9 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive, muted }: {
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <KindIcon kind={entry.kind} navType={entry.navType} />
-        <span className="min-w-0 flex-1 break-words font-mono text-mono">
+        {/* break-words가 아니라 anywhere — Radix ScrollArea Viewport의 자식이 display:table(shrink-to-fit)이라
+            min-content 폭에 기여하지 않는 overflow-wrap:break-word로는 긴 URL이 table을 뷰포트 밖으로 밀어낸다. */}
+        <span className="min-w-0 flex-1 [overflow-wrap:anywhere] font-mono text-mono">
           {renderActionContent(t, entry)}
         </span>
       </div>

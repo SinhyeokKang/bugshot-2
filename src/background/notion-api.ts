@@ -50,7 +50,7 @@ interface NotionFetchOptions {
   headers?: Record<string, string>;
 }
 
-async function notionFetch<T>(
+export async function notionFetch<T>(
   auth: NotionAuth,
   path: string,
   opts: NotionFetchOptions = {},
@@ -291,7 +291,7 @@ export async function createFileUpload(
   };
 }
 
-function dataUrlToBlob(dataUrl: string): { blob: Blob; contentType: string } {
+export function dataUrlToBlob(dataUrl: string): { blob: Blob; contentType: string } {
   const match = /^data:([^;,]+)(?:;([^,]*))?,(.*)$/.exec(dataUrl);
   if (!match) throw new Error("invalid dataUrl");
   const contentType = match[1] || "application/octet-stream";

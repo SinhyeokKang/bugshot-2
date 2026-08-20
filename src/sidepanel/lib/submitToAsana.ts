@@ -135,7 +135,6 @@ export async function submitToAsana(
     filename: f.displayName ?? f.filename,
     dataUrl: f.dataUrl,
   }));
-  const userAttachmentNames = new Set(userAttachmentFiles.map((f) => f.filename));
   const allFiles = [
     ...imageInputs,
     ...inlineEntries.map((e) => e.file),
@@ -143,6 +142,13 @@ export async function submitToAsana(
     ...logs,
     ...userAttachmentFiles,
   ];
+  // 캡처·인라인·영상·로그가 앞, 사용자 첨부가 뒤. 둘을 **파일명이 아니라 이 경계로** 가른다 —
+  // 이름으로 가르면 사용자가 before-0.jpg·logs.html을 첨부하는 순간 동명의 캡처가 본문에서
+  // 밀려난다. 다른 어댑터처럼 업로드 파일명을 고유하게 만들어 피하는 길은 막혀 있다: 바로 위에서
+  // 표시명을 displayName으로 붕괴시켜야 Asana UI에 원본 이름이 뜬다. background의
+  // `asana.uploadFiles` 핸들러가 files와 1:1 순서로 결과를 push하므로 업로드 결과에도 같은
+  // 경계가 그대로 서고, 그 불변식은 uploadResultGuard.test.ts의 catch-push 스캔이 지킨다.
+  const userAttachmentStart = allFiles.length - userAttachmentFiles.length;
 
   const cc = input.cc ?? [];
   const { body } = buildAsanaIssueBody({
@@ -171,8 +177,8 @@ export async function submitToAsana(
     // create가 upload보다 먼저라 task URL을 이미 알고 있음 → logs.html에 백링크를 미리 주입해
     // 1회 업로드로 끝낸다 (GitLab처럼 생성 후 재업로드 불필요).
     const uploadFiles = await Promise.all(
-      allFiles.map(async (f) =>
-        f.filename === "logs.html"
+      allFiles.map(async (f, i) =>
+        i < userAttachmentStart && f.filename === "logs.html"
           ? { ...f, dataUrl: await injectIssueUrl(f.dataUrl, task.permalinkUrl, task.gid) }
           : f,
       ),
@@ -189,12 +195,10 @@ export async function submitToAsana(
     // Asana는 선(先)첨부 → 후(後)본문참조라 create 후 update 2-write가 필요하다.
     // 원본 픽셀 크기를 직접 박아 썸네일 크기 렌더와 Asana 후처리 지연을 회피한다.
     const byName = new Map<string, { gid: string; viewUrl?: string }>();
-    for (const r of results) {
+    results.forEach((r, i) => {
       // 사용자 첨부는 본문 인라인 안 하므로 byName에서 제외 — imageRefs 매칭 오염 방지.
-      if (r.ok && !userAttachmentNames.has(r.filename)) {
-        byName.set(r.filename, { gid: r.gid, viewUrl: r.viewUrl });
-      }
-    }
+      if (r.ok && i < userAttachmentStart) byName.set(r.filename, { gid: r.gid, viewUrl: r.viewUrl });
+    });
     logsDropped = (input.logs ?? []).some((l) => !byName.has(l.filename));
     const imageRefs: Record<string, AsanaInlineImage> = {};
     // 캡처 이미지: 본문 src = 파일명.

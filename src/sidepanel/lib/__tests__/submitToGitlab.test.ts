@@ -307,3 +307,46 @@ describe("submitToGitlab 업로드 판별자", () => {
     expect(arg.images?.[0]?.url).toBeFalsy();
   });
 });
+
+// ── 2차 본문 갱신 실패 시 graceful degradation — 전수 표 (gitlab 행) ─────────────
+// 표 전체 설명·플랫폼 목록·정직성 주의는 submitToClickup.test.ts의 동명 블록 참조.
+// gitlab 관용구: 보강 블록(재업로드 + description 갱신) **전체를 감싼** try {} catch {}
+// (submitToGitlab.ts:76-97) — 실패 지점이 하나가 아니라 블록 전체라, 위쪽의
+// "보강(주입/재업로드) 실패는 격리" 케이스와 짝을 이뤄 마지막 write까지 덮는다.
+describe("submitToGitlab — 2차 본문 갱신 실패 (전수 표 gitlab 행)", () => {
+  it("updateIssueDescription이 reject해도 제출은 성공하고 이슈·첨부가 보존된다", async () => {
+    let uploadCount = 0;
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "gitlab.uploadFiles") {
+        uploadCount += 1;
+        return uploadCount === 1
+          ? [
+              { ok: true, filename: "screenshot.png", href: "IMG_URL" },
+              { ok: true, filename: "logs.html", href: "OLD_URL" },
+            ]
+          : [{ ok: true, filename: "logs.html", href: "NEW_URL" }];
+      }
+      if (msg.type === "gitlab.submitIssue") return ISSUE;
+      if (msg.type === "gitlab.updateIssueDescription") throw new Error("PUT 500");
+      return undefined;
+    });
+    injectIssueUrl.mockResolvedValue("data:LOGSHTML+url");
+
+    const res = await submitToGitlab({
+      ctx: makeCtx(),
+      projectId: 7,
+      images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGSHTML" }],
+    });
+
+    // ①② 완전 성공 경로와 동일한 반환값.
+    expect(res).toEqual({ key: "#42", url: ISSUE.url, logsDropped: false });
+    // ③ 업로드·생성·재업로드는 그대로 — 마지막 write만 무음으로 떨어진다.
+    expect(sendBg.mock.calls.map(([m]) => m.type)).toEqual([
+      "gitlab.uploadFiles",
+      "gitlab.submitIssue",
+      "gitlab.uploadFiles",
+      "gitlab.updateIssueDescription",
+    ]);
+  });
+});

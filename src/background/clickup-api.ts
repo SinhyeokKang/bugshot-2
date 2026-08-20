@@ -219,7 +219,7 @@ interface RawTask {
   list?: { id: string };
 }
 
-function isCompletedStatus(status?: { type: string }): boolean {
+export function isCompletedStatus(status?: { type: string }): boolean {
   return status?.type === "done" || status?.type === "closed";
 }
 

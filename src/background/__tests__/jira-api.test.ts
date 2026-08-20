@@ -13,14 +13,30 @@ vi.mock("@/i18n", () => ({
 
 import {
   createIssue,
+  createIssueLink,
+  getIssueStatus,
+  getIssueTypes,
+  getMyself,
+  getPriorities,
   getSprint,
   getSprintFieldMeta,
+  getTransitions,
+  getUsersByAccountIds,
   listSprints,
   messageForJiraStatus,
   parseTransitions,
+  searchEpics,
+  searchProjects,
+  searchUsers,
+  transitionIssue,
+  updateIssueDescription,
+  uploadAttachment,
   extractJiraDetail,
   jiraFetch,
+  jiraMultipart,
+  JiraError,
 } from "../jira-api";
+import { mockFetchOnce, type MockFetch } from "@/test/fetch-mock";
 import type { JiraAdfDoc } from "@/types/jira";
 
 describe("parseTransitions", () => {
@@ -715,5 +731,417 @@ describe("createIssue — 스프린트 주입", () => {
       createIssue(OAUTH_AUTH, { ...BASE, sprintId: 42 }),
     ).resolves.toMatchObject({ key: "WEB-1" });
     expect(createBody(f).fields).not.toHaveProperty("customfield_10020");
+  });
+});
+
+// ── @/test/fetch-mock 구역 ────────────────────────────────────────────────────
+// 이 파일엔 fetch 목이 둘이고 **실패 모드가 다르다**:
+//   · 위쪽 로컬 mockFetchByUrl — 미매칭 URL을 404 응답으로 흘린다(라우트 누락이 "서버가 404를
+//     줬다"로 위장된다).
+//   · 아래 @/test/fetch-mock — 미매칭이면 throw한다(라우트 누락이 그 자리에서 터진다).
+// 한 describe에서 섞으면 같은 실수가 두 모습으로 나오므로 구역을 나누고 각자 되돌린다.
+// 그리고 mf.restore()는 vi.unstubAllGlobals()라 fetch만 되돌리지 않는다 — 위의
+// "classic 경로 401 자동 갱신"처럼 chrome 스텁 + refreshOnce가 걸린 경로와 같은 it() 안에서
+// 쓰면 그 스텁까지 날아간다. 아래 케이스는 전부 apiKey 인증이라 갱신 레인을 아예 안 탄다.
+
+const API_KEY_AUTH = {
+  kind: "apiKey",
+  baseUrl: "https://x.atlassian.net",
+  email: "u@x.com",
+  apiToken: "tok",
+} as const;
+
+describe("jira REST 엔드포인트", () => {
+  let mf: MockFetch | undefined;
+
+  afterEach(() => {
+    mf?.restore();
+    mf = undefined;
+  });
+
+  const urlAt = (n = 0) => new URL(mf!.callAt(n).url);
+  const headersAt = (n = 0) =>
+    (mf!.callAt(n).init?.headers ?? {}) as Record<string, string>;
+
+  describe("조회 — 경로·쿼리 파라미터·응답 봉투", () => {
+    it("getMyself는 /rest/api/3/myself를 GET하고 응답을 그대로 돌려준다", async () => {
+      mf = mockFetchOnce({ body: { accountId: "a1", displayName: "U" } });
+
+      await expect(getMyself(API_KEY_AUTH)).resolves.toEqual({
+        accountId: "a1",
+        displayName: "U",
+      });
+      expect(urlAt().pathname).toBe("/rest/api/3/myself");
+      expect(mf.callAt(0).init?.method).toBeUndefined();
+    });
+
+    it("searchProjects는 values 봉투를 벗기고 maxResults=50을 싣는다", async () => {
+      mf = mockFetchOnce({
+        body: { values: [{ id: "1", key: "WEB", name: "Web" }], total: 1, startAt: 0 },
+      });
+
+      await expect(searchProjects(API_KEY_AUTH)).resolves.toEqual([
+        { id: "1", key: "WEB", name: "Web" },
+      ]);
+      const u = urlAt();
+      expect(u.pathname).toBe("/rest/api/3/project/search");
+      expect(u.searchParams.get("maxResults")).toBe("50");
+      expect(u.searchParams.has("query")).toBe(false);
+    });
+
+    it("searchProjects는 query가 있을 때만 query 파라미터를 붙인다", async () => {
+      mf = mockFetchOnce({ body: { values: [], total: 0, startAt: 0 } });
+
+      await searchProjects(API_KEY_AUTH, "결제 팀");
+
+      expect(urlAt().searchParams.get("query")).toBe("결제 팀");
+    });
+
+    // projectKey는 사용자 프로젝트 키라 슬래시·공백이 들어올 수 있다. 인코딩이 빠지면
+    // 슬래시가 경로 구분자가 돼 전혀 다른 엔드포인트를 친다.
+    it("getIssueTypes는 projectKey를 경로 조각으로 인코딩한다", async () => {
+      mf = mockFetchOnce({ body: { issueTypes: [] } });
+
+      await getIssueTypes(API_KEY_AUTH, "WEB SPACE/한");
+
+      expect(mf.callAt(0).url).toContain(
+        "/rest/api/3/issue/createmeta/WEB%20SPACE%2F%ED%95%9C/issuetypes",
+      );
+    });
+
+    it("getIssueTypes는 subtask 이슈타입을 걸러낸다", async () => {
+      mf = mockFetchOnce({
+        body: {
+          issueTypes: [
+            { id: "10001", name: "Bug", subtask: false },
+            { id: "10002", name: "Sub-task", subtask: true },
+          ],
+        },
+      });
+
+      await expect(getIssueTypes(API_KEY_AUTH, "WEB")).resolves.toEqual([
+        { id: "10001", name: "Bug", subtask: false },
+      ]);
+    });
+
+    it("getIssueTypes는 issueTypes 키가 없는 응답이면 빈 배열", async () => {
+      mf = mockFetchOnce({ body: {} });
+
+      await expect(getIssueTypes(API_KEY_AUTH, "WEB")).resolves.toEqual([]);
+    });
+
+    it("getPriorities는 배열 응답을 봉투 없이 그대로 돌려준다", async () => {
+      mf = mockFetchOnce({ body: [{ id: "3", name: "Medium" }] });
+
+      await expect(getPriorities(API_KEY_AUTH)).resolves.toEqual([
+        { id: "3", name: "Medium" },
+      ]);
+      expect(urlAt().pathname).toBe("/rest/api/3/priority");
+    });
+
+    // query가 없을 때 파라미터 자체를 빼면 400이다 — 빈 문자열을 실어야 "전체 목록"이 온다.
+    it("searchUsers는 query가 없어도 빈 query와 maxResults=50을 싣는다", async () => {
+      mf = mockFetchOnce({ body: [] });
+
+      await searchUsers(API_KEY_AUTH);
+
+      const u = urlAt();
+      expect(u.pathname).toBe("/rest/api/3/user/search");
+      expect(u.searchParams.get("query")).toBe("");
+      expect(u.searchParams.get("maxResults")).toBe("50");
+    });
+
+    it("searchUsers는 query를 그대로 싣는다", async () => {
+      mf = mockFetchOnce({ body: [{ accountId: "a1" }] });
+
+      await expect(searchUsers(API_KEY_AUTH, "김 개발")).resolves.toEqual([
+        { accountId: "a1" },
+      ]);
+      expect(urlAt().searchParams.get("query")).toBe("김 개발");
+    });
+
+    it("getUsersByAccountIds는 accountId를 반복 파라미터로 싣고 maxResults를 개수에 맞춘다", async () => {
+      mf = mockFetchOnce({ body: { values: [{ accountId: "a1" }] } });
+
+      await expect(
+        getUsersByAccountIds(API_KEY_AUTH, ["a1", "a:2"]),
+      ).resolves.toEqual([{ accountId: "a1" }]);
+
+      const u = urlAt();
+      expect(u.pathname).toBe("/rest/api/3/user/bulk");
+      expect(u.searchParams.getAll("accountId")).toEqual(["a1", "a:2"]);
+      expect(u.searchParams.get("maxResults")).toBe("2");
+    });
+
+    it("getUsersByAccountIds는 200개를 넘으면 앞 200개만 조회한다", async () => {
+      mf = mockFetchOnce({ body: { values: [] } });
+
+      await getUsersByAccountIds(
+        API_KEY_AUTH,
+        Array.from({ length: 201 }, (_, i) => `a${i}`),
+      );
+
+      const ids = urlAt().searchParams.getAll("accountId");
+      expect(ids).toHaveLength(200);
+      expect(ids[199]).toBe("a199");
+      expect(urlAt().searchParams.get("maxResults")).toBe("200");
+    });
+
+    it("getUsersByAccountIds는 빈 입력이면 요청을 아예 안 보낸다", async () => {
+      mf = mockFetchOnce({ body: { values: [] } });
+
+      await expect(getUsersByAccountIds(API_KEY_AUTH, [])).resolves.toEqual([]);
+      expect(mf.fn).not.toHaveBeenCalled();
+    });
+
+    it("getUsersByAccountIds는 values 키가 없는 응답이면 빈 배열", async () => {
+      mf = mockFetchOnce({ body: {} });
+
+      await expect(getUsersByAccountIds(API_KEY_AUTH, ["a1"])).resolves.toEqual([]);
+    });
+  });
+
+  describe("이슈 상태·트랜지션", () => {
+    it("getIssueStatus는 fields를 좁혀 요청하고 중첩 봉투를 평탄화한다", async () => {
+      mf = mockFetchOnce({
+        body: {
+          fields: {
+            status: { name: "In Progress", statusCategory: { key: "indeterminate" } },
+            issuetype: { name: "Bug" },
+            summary: "로그인 실패",
+          },
+        },
+      });
+
+      await expect(getIssueStatus(API_KEY_AUTH, "WEB-1")).resolves.toEqual({
+        name: "In Progress",
+        categoryKey: "indeterminate",
+        issueTypeName: "Bug",
+        summary: "로그인 실패",
+      });
+
+      const u = urlAt();
+      expect(u.pathname).toBe("/rest/api/3/issue/WEB-1");
+      expect(u.searchParams.get("fields")).toBe("status,issuetype,summary");
+    });
+
+    it("getTransitions는 transitions 봉투를 parseTransitions에 넘긴다", async () => {
+      mf = mockFetchOnce({
+        body: {
+          transitions: [
+            {
+              id: "31",
+              name: "Resolve",
+              to: { name: "Done", statusCategory: { key: "done" } },
+            },
+          ],
+        },
+      });
+
+      await expect(getTransitions(API_KEY_AUTH, "WEB-1")).resolves.toEqual([
+        { id: "31", name: "Resolve", to: { name: "Done", categoryKey: "done" } },
+      ]);
+      expect(urlAt().pathname).toBe("/rest/api/3/issue/WEB-1/transitions");
+    });
+
+    it("transitionIssue는 transition.id를 POST하고 204를 undefined로 흘린다", async () => {
+      mf = mockFetchOnce({ status: 204 });
+
+      await expect(
+        transitionIssue(API_KEY_AUTH, "WEB 1/2", "31"),
+      ).resolves.toBeUndefined();
+
+      expect(mf.callAt(0).url).toContain("/rest/api/3/issue/WEB%201%2F2/transitions");
+      expect(mf.callAt(0).init?.method).toBe("POST");
+      expect(mf.jsonBodyAt(0)).toEqual({ transition: { id: "31" } });
+    });
+  });
+
+  describe("쓰기 — 본문 갱신·이슈 링크", () => {
+    it("updateIssueDescription은 fields.description만 PUT한다", async () => {
+      mf = mockFetchOnce({ status: 204 });
+
+      await updateIssueDescription(API_KEY_AUTH, "WEB-1", ADF);
+
+      expect(mf.callAt(0).init?.method).toBe("PUT");
+      expect(urlAt().pathname).toBe("/rest/api/3/issue/WEB-1");
+      // multipart가 아닌 분기의 Content-Type. 빠지면 Jira가 JSON 본문에 415를 준다
+      // (아래 multipart 케이스는 반대로 "붙으면 안 된다"를 잰다).
+      expect(headersAt()["Content-Type"]).toBe("application/json");
+      expect(mf.jsonBodyAt(0)).toEqual({
+        fields: { description: { type: "doc", version: 1, content: [] } },
+      });
+    });
+
+    it("createIssueLink는 링크 타입 기본값 Relates로 inward·outward를 싣는다", async () => {
+      mf = mockFetchOnce({ status: 201, body: {} });
+
+      await createIssueLink(API_KEY_AUTH, "WEB-1", "WEB-2");
+
+      expect(urlAt().pathname).toBe("/rest/api/3/issueLink");
+      expect(headersAt()["Content-Type"]).toBe("application/json");
+      expect(mf.jsonBodyAt(0)).toEqual({
+        type: { name: "Relates" },
+        inwardIssue: { key: "WEB-1" },
+        outwardIssue: { key: "WEB-2" },
+      });
+    });
+
+    it("createIssueLink는 링크 타입을 지정하면 그 값을 싣는다", async () => {
+      mf = mockFetchOnce({ status: 201, body: {} });
+
+      await createIssueLink(API_KEY_AUTH, "WEB-1", "WEB-2", "Blocks");
+
+      expect(mf.jsonBodyAt(0)).toMatchObject({ type: { name: "Blocks" } });
+    });
+  });
+
+  describe("multipart 업로드", () => {
+    // XSRF 체크를 끄는 헤더다. 빠지면 서버가 조용히 403을 주고 첨부만 통째로 사라진다.
+    it("jiraMultipart는 X-Atlassian-Token: no-check을 싣고 Content-Type을 직접 정하지 않는다", async () => {
+      mf = mockFetchOnce({ body: [] });
+      const form = new FormData();
+      form.append("file", new Blob(["x"]), "a.txt");
+
+      await jiraMultipart(API_KEY_AUTH, "/rest/api/3/issue/WEB-1/attachments", form);
+
+      const h = headersAt();
+      expect(h["X-Atlassian-Token"]).toBe("no-check");
+      // 경계 문자열은 fetch가 붙인다 — 우리가 박으면 서버가 본문을 못 가른다.
+      expect(h).not.toHaveProperty("Content-Type");
+      expect(h.Accept).toBe("application/json");
+      expect(h.Authorization).toBe(`Basic ${btoa("u@x.com:tok")}`);
+      expect(mf.callAt(0).init?.method).toBe("POST");
+    });
+
+    it("uploadAttachment는 issueKey를 인코딩하고 file 파트에 파일명을 싣는다", async () => {
+      mf = mockFetchOnce({ body: [{ id: "10000", filename: "shot.png" }] });
+
+      await expect(
+        uploadAttachment(
+          API_KEY_AUTH,
+          "WEB 1/2",
+          "shot.png",
+          new Blob(["png"], { type: "image/png" }),
+        ),
+      ).resolves.toEqual([{ id: "10000", filename: "shot.png" }]);
+
+      expect(mf.callAt(0).url).toContain("/rest/api/3/issue/WEB%201%2F2/attachments");
+      const file = mf.formDataAt(0).get("file") as File;
+      expect(file.name).toBe("shot.png");
+      expect(await file.text()).toBe("png");
+    });
+
+    it("jiraMultipart는 실패 상태를 JiraError로 올리고 본문 detail을 메시지에 붙인다", async () => {
+      mf = mockFetchOnce({
+        status: 413,
+        body: { errorMessages: ["The file is too large"] },
+      });
+
+      const err = await uploadAttachment(
+        API_KEY_AUTH,
+        "WEB-1",
+        "big.mp4",
+        new Blob(["v"]),
+      ).catch((e: unknown) => e as JiraError);
+
+      expect(err).toBeInstanceOf(JiraError);
+      expect((err as JiraError).status).toBe(413);
+      expect((err as JiraError).message).toContain("jira.error.generic status=413");
+      expect((err as JiraError).message).toContain("The file is too large");
+    });
+
+    it("jiraMultipart는 204면 undefined", async () => {
+      mf = mockFetchOnce({ status: 204 });
+
+      await expect(
+        jiraMultipart(API_KEY_AUTH, "/rest/api/3/issue/WEB-1/attachments", new FormData()),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe("에러 전파", () => {
+    it("403은 상태별 메시지로 바꿔 던지고 JSON이 아닌 본문은 원문 그대로 body에 담는다", async () => {
+      mf = mockFetchOnce({ status: 403, body: "<html>403</html>" });
+
+      const err = await getPriorities(API_KEY_AUTH).catch((e: unknown) => e as JiraError);
+
+      expect(err).toBeInstanceOf(JiraError);
+      expect((err as JiraError).status).toBe(403);
+      expect((err as JiraError).message).toBe("jira.error.403");
+      expect((err as JiraError).body).toBe("<html>403</html>");
+    });
+
+    it("본문 읽기 자체가 실패해도 상태 메시지는 살아남는다", async () => {
+      mf = mockFetchOnce({ status: 500, body: new Error("stream closed") });
+
+      const err = await getMyself(API_KEY_AUTH).catch((e: unknown) => e as JiraError);
+
+      expect((err as JiraError).status).toBe(500);
+      expect((err as JiraError).message).toBe("jira.error.5xx");
+      expect((err as JiraError).body).toBeUndefined();
+    });
+  });
+
+  // JQL은 서버가 파싱하는 문자열이라 조립이 곧 계약이다 — 이스케이프가 빠지면 사용자가 친
+  // 따옴표·대괄호가 구문 오류(400)를 내고 에픽 콤보가 통째로 빈다.
+  describe("searchEpics — JQL 조립", () => {
+    const jqlOf = () => urlAt().searchParams.get("jql");
+
+    it("query가 없으면 프로젝트 조건 + 정렬만 싣고 조회 파라미터를 고정한다", async () => {
+      mf = mockFetchOnce({ body: { issues: [{ id: "1", key: "WEB-1" }], total: 1 } });
+
+      await expect(searchEpics(API_KEY_AUTH, "WEB")).resolves.toEqual([
+        { id: "1", key: "WEB-1" },
+      ]);
+
+      const u = urlAt();
+      expect(u.pathname).toBe("/rest/api/3/search/jql");
+      expect(u.searchParams.get("jql")).toBe(
+        "project = 'WEB' ORDER BY updated DESC",
+      );
+      expect(u.searchParams.get("maxResults")).toBe("30");
+      expect(u.searchParams.get("fields")).toBe("summary,issuetype");
+    });
+
+    it("hierarchyLevels를 주면 in 절로 묶는다", async () => {
+      mf = mockFetchOnce({ body: { issues: [], total: 0 } });
+
+      await searchEpics(API_KEY_AUTH, "WEB", undefined, [1, 2]);
+
+      expect(jqlOf()).toBe(
+        "project = 'WEB' AND hierarchyLevel in (1, 2) ORDER BY updated DESC",
+      );
+    });
+
+    it("숫자만 입력하면 프로젝트 키를 붙여 key 조건을 만든다", async () => {
+      mf = mockFetchOnce({ body: { issues: [], total: 0 } });
+
+      await searchEpics(API_KEY_AUTH, "WEB", "123");
+
+      expect(jqlOf()).toBe(
+        "project = 'WEB' AND (key = 'WEB-123' OR summary ~ '123') ORDER BY updated DESC",
+      );
+    });
+
+    it("소문자 이슈 키를 입력하면 key 쪽만 대문자로 올린다", async () => {
+      mf = mockFetchOnce({ body: { issues: [], total: 0 } });
+
+      await searchEpics(API_KEY_AUTH, "WEB", "web-12");
+
+      expect(jqlOf()).toBe(
+        "project = 'WEB' AND (key = 'WEB\\-12' OR summary ~ 'web\\-12') ORDER BY updated DESC",
+      );
+    });
+
+    it("키 형태가 아니면 summary 부분일치로 가고 따옴표·특수문자를 이스케이프한다", async () => {
+      mf = mockFetchOnce({ body: { issues: [], total: 0 } });
+
+      await searchEpics(API_KEY_AUTH, "IT'S", "it's [big]");
+
+      expect(jqlOf()).toBe(
+        "project = 'IT''S' AND summary ~ 'it''s \\[big\\]' ORDER BY updated DESC",
+      );
+    });
   });
 });

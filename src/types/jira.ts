@@ -121,6 +121,11 @@ export interface JiraAttachmentInput {
   dataUrl: string;
   width?: number;
   height?: number;
+  /**
+   * 사용자가 붙인 파일. 캡처와 한 배열에 섞이고 표시명이 원본 파일명이라 이름이 겹칠 수 있는데,
+   * 본문 인라인·로그 백링크는 캡처만 대상이다. 배열이 realm을 건너므로 위치가 아니라 표식으로 나른다.
+   */
+  userAttachment?: boolean;
 }
 
 export interface JiraAttachmentResult {

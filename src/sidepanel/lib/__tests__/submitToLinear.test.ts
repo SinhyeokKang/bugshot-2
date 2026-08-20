@@ -3,8 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const sendBg = vi.fn();
 vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 
+// 본문은 테스트별로 바꿀 수 있다 — 2차 갱신(updateIssueDescription)은 본문에 평문
+// "logs.html" 토큰이 있어야만(injectLogsMarkdownLink가 실제로 바꿔야만) 호출된다.
+let linearBody = "BODY";
 vi.mock("../buildLinearIssueBody", () => ({
-  buildLinearIssueBody: () => ({ body: "BODY" }),
+  buildLinearIssueBody: () => ({ body: linearBody }),
 }));
 const replaceInlineRefs = vi.fn((s: string, _map?: Map<string, string>) => s);
 vi.mock("../resolveInlineImages", () => ({
@@ -45,6 +48,7 @@ const ISSUE = { id: "ISSUE_ID", identifier: "ENG-1", url: "https://linear.app/x/
 beforeEach(() => {
   sendBg.mockReset();
   replaceInlineRefs.mockClear();
+  linearBody = "BODY";
 });
 
 describe("submitToLinear logsDropped", () => {
@@ -184,5 +188,114 @@ describe("submitToLinear — 인라인 이미지", () => {
     await submitToLinear({ ctx: makeCtx(), teamId: "T" } as never);
     const uploads = sendBg.mock.calls.filter((c) => c[0].type === "linear.uploadFile");
     expect(uploads).toHaveLength(0);
+  });
+});
+
+// ── 2차 본문 갱신 실패 시 graceful degradation — 전수 표 (linear 행) ─────────────
+// 표 전체 설명·플랫폼 목록·정직성 주의는 submitToClickup.test.ts의 동명 블록 참조.
+// linear 관용구: `.catch(() => null)` (submitToLinear.ts:140-144) — try/catch가 아니라
+// 프로미스 체인에 붙어 있어, 리팩터로 await를 앞으로 빼면 격리가 조용히 사라진다.
+describe("submitToLinear — 2차 본문 갱신 실패 (전수 표 linear 행)", () => {
+  it("updateIssueDescription이 reject해도 제출은 성공하고 이슈·첨부가 보존된다", async () => {
+    linearBody = "로그는 logs.html 참조";
+    sendBg.mockImplementation(async (msg: { type: string; filename?: string }) => {
+      if (msg.type === "linear.submitIssue") return ISSUE;
+      if (msg.type === "linear.uploadFile") return { assetUrl: `asset-${msg.filename}` };
+      if (msg.type === "linear.createAttachment") return { ok: true };
+      if (msg.type === "linear.updateIssueDescription") throw new Error("mutation failed");
+      return undefined;
+    });
+
+    const res = await submitToLinear({
+      ctx: makeCtx(),
+      teamId: "T",
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+      attachments: [
+        { filename: "user-1.pdf", dataUrl: "data:A", displayName: "보고서.pdf" },
+      ],
+    });
+
+    // ①② 완전 성공 경로와 동일한 반환값.
+    expect(res).toEqual({ key: "ENG-1", url: ISSUE.url, logsDropped: false });
+    // 2차 갱신을 시도는 했다(격리가 호출 자체를 없앤 게 아니다).
+    const types = sendBg.mock.calls.map(([m]) => m.type);
+    expect(types).toContain("linear.updateIssueDescription");
+    // ③ 첨부 보존 — 로그·사용자 첨부가 모두 attachment로 등록된다.
+    const titles = sendBg.mock.calls
+      .filter(([m]) => m.type === "linear.createAttachment")
+      .map(([m]) => m.title);
+    expect(titles).toEqual(["logs.html", "보고서.pdf"]);
+  });
+
+  it("본문에 평문 logs.html 토큰이 없으면 2차 갱신 자체를 건너뛴다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string; filename?: string }) => {
+      if (msg.type === "linear.submitIssue") return ISSUE;
+      if (msg.type === "linear.uploadFile") return { assetUrl: `asset-${msg.filename}` };
+      if (msg.type === "linear.createAttachment") return { ok: true };
+      return undefined;
+    });
+
+    await submitToLinear({
+      ctx: makeCtx(),
+      teamId: "T",
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(
+      sendBg.mock.calls.some(([m]) => m.type === "linear.updateIssueDescription"),
+    ).toBe(false);
+  });
+
+  it("2차 갱신 성공 시 description의 평문 logs.html이 첨부 링크로 바뀐다", async () => {
+    linearBody = "로그는 logs.html 참조";
+    sendBg.mockImplementation(async (msg: { type: string; filename?: string }) => {
+      if (msg.type === "linear.submitIssue") return ISSUE;
+      if (msg.type === "linear.uploadFile") return { assetUrl: `asset-${msg.filename}` };
+      if (msg.type === "linear.createAttachment") return { ok: true };
+      return undefined;
+    });
+
+    await submitToLinear({
+      ctx: makeCtx(),
+      teamId: "T",
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    const update = sendBg.mock.calls.find(
+      ([m]) => m.type === "linear.updateIssueDescription",
+    )![0];
+    expect(update.issueId).toBe("ISSUE_ID");
+    expect(update.description).toBe("로그는 [logs.html](asset-logs.html) 참조");
+  });
+});
+
+describe("submitToLinear 사용자 첨부", () => {
+  it("표시명(displayName)으로 등록하고, 업로드 실패분은 격리되어 제출을 깨지 않는다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string; filename?: string }) => {
+      if (msg.type === "linear.submitIssue") return ISSUE;
+      if (msg.type === "linear.uploadFile") {
+        if (msg.filename === "user-2.pdf") throw new Error("too large");
+        return { assetUrl: `asset-${msg.filename}` };
+      }
+      if (msg.type === "linear.createAttachment") return { ok: true };
+      return undefined;
+    });
+
+    const res = await submitToLinear({
+      ctx: makeCtx(),
+      teamId: "T",
+      attachments: [
+        { filename: "user-1.pdf", dataUrl: "data:A", displayName: "보고서.pdf" },
+        { filename: "user-2.pdf", dataUrl: "data:B", displayName: "실패.pdf" },
+        { filename: "user-3.pdf", dataUrl: "data:C" },
+      ],
+    });
+
+    expect(res.key).toBe("ENG-1");
+    const titles = sendBg.mock.calls
+      .filter(([m]) => m.type === "linear.createAttachment")
+      .map(([m]) => m.title);
+    // displayName 우선, 없으면 filename 폴백. 업로드 실패분(실패.pdf)은 빠진다.
+    expect(titles).toEqual(["보고서.pdf", "user-3.pdf"]);
   });
 });

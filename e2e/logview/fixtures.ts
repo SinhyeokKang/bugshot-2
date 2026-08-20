@@ -114,6 +114,32 @@ export function makeNavTypeActionLog(): ActionLog {
   return { id: "act-nav", startedAt: T0, endedAt: T0 + 500, totalSeen: entries.length, captured: entries.length, entries };
 }
 
+/**
+ * 개행 기회가 없는 긴 URL 한 덩어리. `/`·`?`·`&`는 개행 기회가 아니라(줄바꿈은 공백류에서만
+ * 일어난다) 이 문자열의 min-content 폭은 곧 전체 길이다.
+ *
+ * 길이가 이 픽스처의 전부다 — 뷰포트(logview project는 1280px) 자연 폭을 확실히 넘겨야
+ * 행이 접히고, 그래야 "가로로 안 넘친다"는 단언이 무언가를 증명한다. 짧으면 애초에 overflow가
+ * 0이라 구현이 망가져도 green이다(GOTCHAS "픽스처의 줄이 짧으면 가로 스크롤 축이 공허해진다").
+ * 그래서 spec은 전제(행이 실제로 접혔는지)를 따로 단언한다.
+ */
+export const LONG_NAV_URL =
+  `${ORIGIN_A}backoffice/organizations/8f2a1c/workspaces/product-analytics/reports/2026-q3` +
+  `/campaign-performance-breakdown-by-channel-and-cohort?surveyId=8891&cohort=2026-07-retention` +
+  `&channel=paid-social&page=1&pageSize=50&sort=createdAt,desc&include=segments,annotations`;
+
+/** 디코드 가능한 1×1 PNG. screenshot을 주면 뷰어가 좌우 분할로 열려 로그 패널이 좁아진다. */
+export const TINY_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+
+/** 긴 URL navigation 1건. 행 접힘·가로 넘침 판정 전용이라 엔트리를 하나만 둔다. */
+export function makeLongUrlActionLog(): ActionLog {
+  const entries: ActionLog["entries"] = [
+    { id: "nv-long", kind: "navigation", timestamp: T0 + 100, pageUrl: ORIGIN_A, navType: "pushState", toUrl: LONG_NAV_URL },
+  ];
+  return { id: "act-long", startedAt: T0, endedAt: T0 + 100, totalSeen: entries.length, captured: entries.length, entries };
+}
+
 /** error/warn/info/log/debug 5종 + 2 origin. 본문 검색용 마커 포함. */
 export function makeConsoleLog(): ConsoleLog {
   const entries: ConsoleLog["entries"] = [
