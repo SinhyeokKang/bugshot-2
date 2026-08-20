@@ -90,10 +90,10 @@
   - **`null` 반환 케이스**: `image`/`video`/`table`은 `attachmentMap`에 placeholder가 없으면 `null`이다 — 있을 때/없을 때 양쪽.
   - **`default: return null`(557-558)은 닫힌 union으로 도달 불가** → 테이블 밖에 `expandBlock({ type: "bogus" } as never, map)` 케이스를 따로 둔다.
 - **검증**:
-  - [ ] `expandBlock` 미커버 95 → **0**(위 `as never` 케이스 포함. 그게 없으면 바닥이 2다).
-  - [ ] `expandRichText`(388-398, 11줄)·`richText` 경로도 함께 덮인다.
-  - [ ] **타입 래칫 실측**: `src/types/notion.ts`의 union에 더미 타입을 추가해 `pnpm typecheck`가 실제로 red가 되는 걸 확인한 뒤 되돌린다.
-  - [ ] **mutation**: `rich_quote`의 출력 `type`을 `"paragraph"`로 바꾸면 해당 케이스가 red.
+  - [x] `expandBlock` 미커버 95 → **0**(위 `as never` 케이스 포함. 그게 없으면 바닥이 2다).
+  - [x] `expandRichText`(388-398, 11줄)·`richText` 경로도 함께 덮인다.
+  - [x] **타입 래칫 실측**: `src/types/notion.ts`의 union에 더미 타입을 추가해 `pnpm typecheck`가 실제로 red가 되는 걸 확인한 뒤 되돌린다.
+  - [x] **mutation**: `rich_quote`의 출력 `type`을 `"paragraph"`로 바꾸면 해당 케이스가 red.
 
 ---
 
@@ -105,47 +105,53 @@
 
 각 서브태스크는 기존 `src/background/__tests__/<platform>-api.test.ts`를 확장하고 `@/test/fetch-mock`을 쓴다.
 
+> **착수 후 정정 (2026-08-20)** — 아래 서브태스크가 지정한 mutation 중 **4건은 대상이 존재하지 않았다.** 전부 실물 대조로 드러났고 같은 축의 실재하는 mutation으로 대체했다(대체분은 각 항목에 적었다). 이 4건이 이 문서에서 *실측 없이 옮겨 적은* 마지막 잔여이므로, 다음에 이 문서를 읽는 사람은 **mutation 지정을 계획이 아니라 가설로 읽어야 한다**:
+> - 5-2 linear: `getWorkflowStates`의 variables 키는 `teamId`가 아니라 `id`다(질의가 `issue(id: $id) { team { states } }`로 이슈에서 팀을 거슬러 올라간다).
+> - 5-5 gitlab: **project id 인코딩이 애초에 없다.** `encodeURIComponent` 0건이고 `projectId`·`iid`가 전부 `number` 타입이다. 인코딩 표면은 `searchProjects`의 `URLSearchParams`뿐.
+> - 5-1 notion: `searchDatabases`에 페이지네이션이 없다(`page_size: 20` 단발). `start_cursor`는 `listUsers`에만 있다.
+> - 5-7 asana: `data` 구조분해는 옵셔널 체이닝 유무와 무관하게 `{}`에서 동작이 같아 **등가 뮤턴트**다. 실질 축은 언랩의 기본값 주입(`const { data = {} } =`)이다.
+
 #### 5-1. notion (미커버 321 → 60 이하, **Task 4 완료 후**)
 - never-called: `createPage`(623-666) · `sendFileUpload`(316-348) · `searchDatabases`(151-172) · `dataUrlToBlob`(294-314) · `updatePageStatus`(712-731) · `createFileUpload`(274-292) · `getDatabaseSchema`(257-266) · `uploadFile`(350-359) · `getMyself`(114-122) · `getPageStatus`(704-710). partial: `notionFetch` 21u.
 - 3단 업로드(`createFileUpload` → `sendFileUpload` → `uploadFile`)는 `mockFetchRoutes` + `formDataAt`.
 - `dataUrlToBlob`은 **blob-db 판본과 계약이 갈린다** — Task 3과 짝을 맞춰 주석으로 상호 참조.
-- [ ] **mutation**: `searchDatabases`의 `start_cursor` 전달을 지우면 페이지네이션 테스트가 red.
+- [x] **mutation**: `searchDatabases`의 `start_cursor` 전달을 지우면 페이지네이션 테스트가 red.
 
 #### 5-2. linear (161 → 30 이하)
 - never-called: `updateIssueState`(287-327) · `getIssueStatus`(207-239) · `requestFileUpload`(345-373) · `uploadFileToLinear`(375-401) · `getWorkflowStates`(261-285) · `getProjects`(117-135) · `getLabels`(137-155) · `getMembers`(157-173) · `createAttachment`(403-418) · `updateIssueDescription`(329-343) · `getMyself`(103-108) · `getTeams`(110-115).
 - GraphQL 단일 엔드포인트 → 검증 축이 URL이 아니라 **query 문서 + variables**다(`mockFetchOnce` + `jsonBodyAt`).
 - `uploadFileToLinear`는 raw `Blob` body + `putRes.statusText`를 메시지에 싣는다(`:395,398`) → `callAt().init.body` 직접 접근 + `statusText` 지정.
-- [ ] **mutation**: `getWorkflowStates`의 variables에서 teamId를 지우면 red.
+- [x] **mutation**: `getWorkflowStates`의 variables에서 teamId를 지우면 red.
 
 #### 5-3. clickup (148 → 25 이하)
 - never-called: `setTaskCompleted`(244-269) · `getMembers`(142-160) · `getLists`(126-140) · `uploadAttachment`(187-201) · `mapCreateTaskBody`(162-173) · `createTask`(175-185) · `getMyself`(82-91) · `updateTaskMarkdown`(203-212) · `messageForClickupStatus`(43-50) · `normalizeTaskStatus`(226-233) · `getTeams`(93-99) · `getTaskStatus`(235-241) · `isCompletedStatus`(222-224).
 - **순수 함수 4개를 먼저** 처리(fetch 목 불필요): `mapCreateTaskBody`·`normalizeTaskStatus`·`isCompletedStatus`(export 필요)·`messageForClickupStatus`.
 - 기존 `describe("URL 경로 인코딩")` 형태를 `getLists`·`getMembers`로 확장.
-- [ ] **mutation**: `getLists`의 `archived=false`를 지우면 red.
+- [x] **mutation**: `getLists`의 `archived=false`를 지우면 red.
 
 #### 5-4. slack (138 → 20 이하)
 - never-called: `uploadFiles`(203-243) · `listChannels`(144-174) · `slackFetch`(49-77) · `listMembers`(127-142) · `postMessage`(176-188) · `getMyself`(97-107) · `getPermalink`(190-200).
 - **에러 판정이 `!res.ok`가 아니라 body의 `ok`다**(HTTP 200 + `{ok:false, error}`) → `messageForSlackError` 배선을 그 경로로 검증.
 - `listChannels`는 커서 페이지네이션(`do…while`) — **종료 조건 3케이스 필수**: `next_cursor: ""` / 키 부재 / 같은 커서 반복. 없으면 무한 루프로 테스트가 타임아웃으로 죽는다.
 - `uploadFiles`는 external upload URL 3단 → `mockFetchRoutes`.
-- [ ] **mutation**: `listChannels`의 커서 종료 조건을 뒤집으면 종료 테스트가 red(타임아웃 아님).
+- [x] **mutation**: `listChannels`의 커서 종료 조건을 뒤집으면 종료 테스트가 red(타임아웃 아님).
 
 #### 5-5. gitlab (135 → 25 이하)
 - never-called: `searchProjects`(158-175) · `updateIssueState`(277-294) · `getMyself`(141-156) · `uploadFile`(219-233) · `getProjectLabels`(177-190) · `getProjectMembers`(192-205) · `createIssue`(207-217) · `getIssueStatus`(253-263) · `updateIssueDescription`(265-275). partial: `extractGitlabDetail` 6u.
 - http 차단은 기존 `describe("gitlabFetch egress 자격증명 게이트")`가 이미 덮으므로, 여기선 **경로 결합**(baseUrl 말미 슬래시 유무 × project id URL 인코딩).
-- [ ] **mutation**: project id 인코딩을 제거하면 인코딩 테스트가 red.
+- [x] **mutation**: project id 인코딩을 제거하면 인코딩 테스트가 red.
 
 #### 5-6. github (107 → 15 이하)
 - never-called: `searchRepos`(184-207) · `getRepoLabels`(209-231) · `createIssue`(308-329) · `updateIssueState`(286-306) · `getRepoAssignees`(233-249) · `getIssueStatus`(273-284).
 - `mapCreateIssueBody`는 이미 테스트됨 → `createIssue`는 **그 출력이 그대로 실려 나가는지**만.
 - **이 파일은 로컬 목이 `globalThis.fetch` 직접 대입이다**(239-250). 신규는 `@/test/fetch-mock`을 쓰되 **별도 `describe` + 자기 `afterEach`로 분리**한다 — 교차하면 `vi.unstubAllGlobals()`가 "진짜 fetch"가 아니라 github의 목을 복원한다(design.md 위험 6).
-- [ ] **mutation**: `searchRepos`의 `per_page`를 지우면 red.
+- [x] **mutation**: `searchRepos`의 `per_page`를 지우면 red.
 
 #### 5-7. asana (93 → 15 이하)
 - never-called: `uploadAttachment`(181-197) · `searchProjects`(138-151) · `setTaskCompleted`(237-248) · `createTask`(169-179) · `getTaskStatus`(215-224) · `normalizeTaskStatus`(206-213) · `getMyself`(122-128) · `getWorkspaces`(130-136). partial: `asanaFetch` 6u, `extractAsanaDetail` 4u.
 - 응답 봉투 `{data: …}` — **`null data` / 빈 배열 / `data` 키 자체가 없는 `{}` / `errors[]`만 온 200** 네 케이스.
 - `normalizeTaskStatus`는 순수 → 먼저.
-- [ ] **mutation**: `data` 구조분해를 옵셔널 체이닝 없이 바꾸면 `{}` 케이스가 red.
+- [x] **mutation**: `data` 구조분해를 옵셔널 체이닝 없이 바꾸면 `{}` 케이스가 red.
 
 #### 5-8. jira (199 → 40 이하)
 - never-called: `searchEpics`(653-688) · `getIssueStatus`(589-606) · `getUsersByAccountIds`(258-272) · `createIssueLink`(573-587) · `uploadAttachment`(543-556) · `updateIssueDescription`(558-571) · `transitionIssue`(638-651) · `searchUsers`(244-256) · `jiraMultipart`(153-164) · `searchProjects`(207-218) · `getIssueTypes`(227-236) · `getTransitions`(627-636) · `getPriorities`(238-242) · `getMyself`(196-198).
@@ -154,7 +160,7 @@
 - `jiraMultipart`는 `X-Atlassian-Token: no-check`가 빠지면 조용히 403 → 헤더 명시 검증.
 - `transitionIssue`는 이미 테스트된 `parseTransitions`와의 배선.
 - 엣지 추가: `getMediaFileId`(504-539)의 재시도 소진(4회 전부 undefined) — `sleepFn` 주입이 있어 즉시 검증 가능.
-- [ ] **mutation**: `X-Atlassian-Token` 헤더를 지우면 multipart 테스트가 red.
+- [x] **mutation**: `X-Atlassian-Token` 헤더를 지우면 multipart 테스트가 red.
 
 ---
 
