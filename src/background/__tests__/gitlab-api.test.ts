@@ -20,9 +20,11 @@ import {
 } from "../gitlab-api";
 import { mockFetchOnce, type MockFetch } from "@/test/fetch-mock";
 
+// params를 키가 아니라 출력에 그대로 노출한다 — `*.error.generic` 사전 *값*에는 {status}
+// placeholder가 있지만 *키*에는 없다. 키 문자열에서 placeholder를 찾는 목이면 t()의 두 번째
+// 인자를 통째로 지워도 출력이 그대로라 원리적으로 관측 불가능하다(clickup 목과 같은 형태).
 vi.mock("@/i18n", () => ({
-  t: (k: string, p?: Record<string, unknown>) =>
-    p ? k.replace(/\{(\w+)\}/g, (_, key) => String(p[key] ?? `{${key}}`)) : k,
+  t: (k: string, p?: Record<string, unknown>) => (p ? `${k}:${JSON.stringify(p)}` : k),
 }));
 
 describe("buildAuthHeader", () => {
@@ -161,7 +163,8 @@ describe("messageForGitlabStatus", () => {
   });
 
   it("알려지지 않은 상태 코드는 generic 메시지 반환", () => {
-    expect(messageForGitlabStatus(418)).toContain("gitlab.error.generic");
+    // 목이 params를 출력에 노출하므로 t()의 두 번째 인자까지 여기서 잠긴다.
+    expect(messageForGitlabStatus(418)).toBe('gitlab.error.generic:{"status":418}');
   });
 });
 
@@ -240,17 +243,18 @@ describe("gitlab REST 어댑터", () => {
     viewerUsername: "u",
   } as const;
 
-  let mf: MockFetch;
+  let mf: MockFetch | undefined;
 
   afterEach(() => {
-    mf.restore();
+    mf?.restore();
+    mf = undefined;
   });
 
   describe("경로 결합 (baseUrl 말미 슬래시)", () => {
     it("슬래시 없는 baseUrl — `<base>/api/v4<path>`", async () => {
       mf = mockFetchOnce({ body: { id: 1, username: "u", name: "N" } });
       await getMyself(auth);
-      expect(mf.callAt(0).url).toBe("https://gl.example.com/api/v4/user");
+      expect(mf!.callAt(0).url).toBe("https://gl.example.com/api/v4/user");
     });
 
     // 현행 동작 고정: gitlabFetch는 baseUrl을 정규화하지 않아 슬래시가 겹친다.
@@ -259,13 +263,13 @@ describe("gitlab REST 어댑터", () => {
     it("말미 슬래시가 붙은 baseUrl은 슬래시가 겹친 채 나간다", async () => {
       mf = mockFetchOnce({ body: { id: 1, username: "u", name: "N" } });
       await getMyself({ ...auth, baseUrl: "https://gl.example.com/" });
-      expect(mf.callAt(0).url).toBe("https://gl.example.com//api/v4/user");
+      expect(mf!.callAt(0).url).toBe("https://gl.example.com//api/v4/user");
     });
 
     it("project id는 경로 세그먼트로 결합된다 — /projects/<id>/labels", async () => {
       mf = mockFetchOnce({ body: [] });
       await getProjectLabels(auth, 42);
-      const url = new URL(mf.callAt(0).url);
+      const url = new URL(mf!.callAt(0).url);
       expect(url.pathname).toBe("/api/v4/projects/42/labels");
       expect(url.searchParams.get("per_page")).toBe("100");
     });
@@ -273,7 +277,7 @@ describe("gitlab REST 어댑터", () => {
     it("멤버는 상속 멤버 포함 경로(/members/all)를 쓴다", async () => {
       mf = mockFetchOnce({ body: [] });
       await getProjectMembers(auth, 42);
-      const url = new URL(mf.callAt(0).url);
+      const url = new URL(mf!.callAt(0).url);
       expect(url.pathname).toBe("/api/v4/projects/42/members/all");
       expect(url.searchParams.get("per_page")).toBe("100");
     });
@@ -283,7 +287,7 @@ describe("gitlab REST 어댑터", () => {
         body: { iid: 12, title: "T", state: "opened", web_url: "https://u" },
       });
       await getIssueStatus(auth, 7, 12);
-      expect(new URL(mf.callAt(0).url).pathname).toBe(
+      expect(new URL(mf!.callAt(0).url).pathname).toBe(
         "/api/v4/projects/7/issues/12",
       );
     });
@@ -293,7 +297,7 @@ describe("gitlab REST 어댑터", () => {
     it("검색어의 `+`·`/`·`&`·비ASCII가 퍼센트 인코딩된다", async () => {
       mf = mockFetchOnce({ body: [] });
       await searchProjects(auth, "c++ ui/ux & 조회");
-      const url = mf.callAt(0).url;
+      const url = mf!.callAt(0).url;
       // 인코딩이 빠지면 `/`가 경로 세그먼트로, `&`가 파라미터 구분자로 샌다.
       expect(url).toContain("search=c%2B%2B+ui%2Fux+%26+%EC%A1%B0%ED%9A%8C");
       expect(new URL(url).searchParams.get("search")).toBe("c++ ui/ux & 조회");
@@ -302,7 +306,7 @@ describe("gitlab REST 어댑터", () => {
     it("membership/order_by/per_page/min_access_level 4개를 항상 싣는다", async () => {
       mf = mockFetchOnce({ body: [] });
       await searchProjects(auth, "x");
-      const p = new URL(mf.callAt(0).url).searchParams;
+      const p = new URL(mf!.callAt(0).url).searchParams;
       expect(p.get("membership")).toBe("true");
       expect(p.get("order_by")).toBe("last_activity_at");
       expect(p.get("per_page")).toBe("30");
@@ -312,7 +316,7 @@ describe("gitlab REST 어댑터", () => {
     it("공백뿐인 검색어는 search 파라미터 자체를 생략한다", async () => {
       mf = mockFetchOnce({ body: [] });
       await searchProjects(auth, "   ");
-      const url = new URL(mf.callAt(0).url);
+      const url = new URL(mf!.callAt(0).url);
       expect(url.searchParams.has("search")).toBe(false);
       expect(url.searchParams.get("membership")).toBe("true");
     });
@@ -422,10 +426,10 @@ describe("gitlab REST 어댑터", () => {
         labels: ["bug", "ui"],
         assigneeIds: [9],
       });
-      const { url, init } = mf.callAt(0);
+      const { url, init } = mf!.callAt(0);
       expect(new URL(url).pathname).toBe("/api/v4/projects/7/issues");
       expect(init?.method).toBe("POST");
-      expect(mf.jsonBodyAt(0)).toEqual({
+      expect(mf!.jsonBodyAt(0)).toEqual({
         title: "T",
         description: "D",
         labels: "bug,ui",
@@ -441,7 +445,7 @@ describe("gitlab REST 어댑터", () => {
     it("JSON body에는 Content-Type과 Authorization이 붙는다", async () => {
       mf = mockFetchOnce({ body: { iid: 1, id: 2, web_url: "u" } });
       await createIssue(auth, { projectId: 7, title: "T", description: "D" });
-      const headers = mf.callAt(0).init?.headers as Record<string, string>;
+      const headers = mf!.callAt(0).init?.headers as Record<string, string>;
       expect(headers["Content-Type"]).toBe("application/json");
       expect(headers.Accept).toBe("application/json");
       expect(headers.Authorization).toBe("Bearer glpat_xyz");
@@ -457,11 +461,11 @@ describe("gitlab REST 어댑터", () => {
         "before.png",
         new Blob(["x"], { type: "image/png" }),
       );
-      expect(new URL(mf.callAt(0).url).pathname).toBe(
+      expect(new URL(mf!.callAt(0).url).pathname).toBe(
         "/api/v4/projects/7/uploads",
       );
-      expect(mf.callAt(0).init?.method).toBe("POST");
-      const file = mf.formDataAt(0).get("file") as File;
+      expect(mf!.callAt(0).init?.method).toBe("POST");
+      const file = mf!.formDataAt(0).get("file") as File;
       expect(file.name).toBe("before.png");
       expect(file.type).toBe("image/png");
       expect(out).toEqual({ url: "/uploads/abc/before.png" });
@@ -471,7 +475,7 @@ describe("gitlab REST 어댑터", () => {
     it("FormData body에는 Content-Type을 붙이지 않는다", async () => {
       mf = mockFetchOnce({ body: { url: "/uploads/abc/x.png" } });
       await uploadFile(auth, 7, "x.png", new Blob(["x"]));
-      const headers = mf.callAt(0).init?.headers as Record<string, string>;
+      const headers = mf!.callAt(0).init?.headers as Record<string, string>;
       expect(headers["Content-Type"]).toBeUndefined();
       expect(headers.Authorization).toBe("Bearer glpat_xyz");
     });
@@ -483,11 +487,11 @@ describe("gitlab REST 어댑터", () => {
       await expect(
         updateIssueDescription(auth, 7, 12, "새 본문"),
       ).resolves.toBeUndefined();
-      expect(new URL(mf.callAt(0).url).pathname).toBe(
+      expect(new URL(mf!.callAt(0).url).pathname).toBe(
         "/api/v4/projects/7/issues/12",
       );
-      expect(mf.callAt(0).init?.method).toBe("PUT");
-      expect(mf.jsonBodyAt(0)).toEqual({ description: "새 본문" });
+      expect(mf!.callAt(0).init?.method).toBe("PUT");
+      expect(mf!.jsonBodyAt(0)).toEqual({ description: "새 본문" });
     });
 
     it("updateIssueState — closed는 state_event 'close'", async () => {
@@ -501,8 +505,8 @@ describe("gitlab REST 어댑터", () => {
         },
       });
       const out = await updateIssueState(auth, 7, 12, "closed");
-      expect(mf.callAt(0).init?.method).toBe("PUT");
-      expect(mf.jsonBodyAt(0)).toEqual({ state_event: "close" });
+      expect(mf!.callAt(0).init?.method).toBe("PUT");
+      expect(mf!.jsonBodyAt(0)).toEqual({ state_event: "close" });
       expect(out).toEqual({
         iid: 12,
         title: "T",
@@ -517,7 +521,7 @@ describe("gitlab REST 어댑터", () => {
         body: { iid: 12, title: "T", state: "opened", web_url: "https://u" },
       });
       const out = await updateIssueState(auth, 7, 12, "opened");
-      expect(mf.jsonBodyAt(0)).toEqual({ state_event: "reopen" });
+      expect(mf!.jsonBodyAt(0)).toEqual({ state_event: "reopen" });
       expect(out.state).toBe("opened");
     });
   });
@@ -569,7 +573,9 @@ describe("gitlab REST 어댑터", () => {
       );
       expect(err).toBeInstanceOf(GitlabError);
       expect(err.status).toBe(413);
-      expect(err.message).toBe("gitlab.error.generic\nfile too large");
+      expect(err.message).toBe(
+        'gitlab.error.generic:{"status":413}\nfile too large',
+      );
     });
   });
 });

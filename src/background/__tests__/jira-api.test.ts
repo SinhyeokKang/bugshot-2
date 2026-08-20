@@ -965,6 +965,9 @@ describe("jira REST 엔드포인트", () => {
 
       expect(mf.callAt(0).init?.method).toBe("PUT");
       expect(urlAt().pathname).toBe("/rest/api/3/issue/WEB-1");
+      // multipart가 아닌 분기의 Content-Type. 빠지면 Jira가 JSON 본문에 415를 준다
+      // (아래 multipart 케이스는 반대로 "붙으면 안 된다"를 잰다).
+      expect(headersAt()["Content-Type"]).toBe("application/json");
       expect(mf.jsonBodyAt(0)).toEqual({
         fields: { description: { type: "doc", version: 1, content: [] } },
       });
@@ -976,6 +979,7 @@ describe("jira REST 엔드포인트", () => {
       await createIssueLink(API_KEY_AUTH, "WEB-1", "WEB-2");
 
       expect(urlAt().pathname).toBe("/rest/api/3/issueLink");
+      expect(headersAt()["Content-Type"]).toBe("application/json");
       expect(mf.jsonBodyAt(0)).toEqual({
         type: { name: "Relates" },
         inwardIssue: { key: "WEB-1" },

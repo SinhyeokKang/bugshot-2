@@ -19,9 +19,11 @@ import {
 import { mockFetchOnce, type MockFetch } from "@/test/fetch-mock";
 import type { GithubAuth } from "@/types/github";
 
+// params를 키가 아니라 출력에 그대로 노출한다 — `*.error.generic` 사전 *값*에는 {status}
+// placeholder가 있지만 *키*에는 없다. 키 문자열에서 placeholder를 찾는 목이면 t()의 두 번째
+// 인자를 통째로 지워도 출력이 그대로라 원리적으로 관측 불가능하다(clickup 목과 같은 형태).
 vi.mock("@/i18n", () => ({
-  t: (k: string, p?: Record<string, unknown>) =>
-    p ? k.replace(/\{(\w+)\}/g, (_, key) => String(p[key] ?? `{${key}}`)) : k,
+  t: (k: string, p?: Record<string, unknown>) => (p ? `${k}:${JSON.stringify(p)}` : k),
 }));
 
 describe("buildAuthHeader", () => {
@@ -236,8 +238,8 @@ describe("messageForGithubStatus", () => {
   });
 
   it("알려지지 않은 상태 코드는 generic 메시지 반환", () => {
-    const msg = messageForGithubStatus(418);
-    expect(msg).toContain("github.error.generic");
+    // 목이 params를 출력에 노출하므로 t()의 두 번째 인자까지 여기서 잠긴다.
+    expect(messageForGithubStatus(418)).toBe('github.error.generic:{"status":418}');
   });
 });
 
@@ -339,6 +341,53 @@ describe("REST 래퍼 (fetch-mock)", () => {
     description: "d",
     html_url: "https://github.com/owner/repo",
     ...over,
+  });
+
+  // buildAuthHeader 유닛(위)은 순수 함수만 본다 — doFetch가 그 결과를 실제로 싣는지는
+  // 와이어에서만 관측된다. 헤더 4종을 통째로 지워도 나머지 케이스는 전부 green이다.
+  describe("공통 요청 헤더·캐시 모드", () => {
+    it("PAT auth는 buildAuthHeader 결과를 Authorization에 싣고 GitHub 고정 헤더를 붙인다", async () => {
+      mf = mockFetchOnce({ body: [] });
+
+      await getRepoLabels(auth, "o", "r");
+
+      const call = mf.callAt(0);
+      const h = call.init?.headers as Record<string, string>;
+      expect(h.Authorization).toBe("token ghp_x");
+      expect(h.Accept).toBe("application/vnd.github+json");
+      expect(h["X-GitHub-Api-Version"]).toBe("2022-11-28");
+      expect(h["User-Agent"]).toBe("bugshot-2");
+    });
+
+    it("OAuth auth는 Bearer <accessToken>으로 나간다 (PAT 형식 하드코딩 금지)", async () => {
+      mf = mockFetchOnce({ body: [] });
+
+      await getRepoLabels(
+        {
+          kind: "oauth",
+          accessToken: "ATK",
+          tokenType: "bearer",
+          scope: "repo",
+          viewerLogin: "u",
+          grantedAt: 1,
+        },
+        "o",
+        "r",
+      );
+
+      expect((mf.callAt(0).init?.headers as Record<string, string>).Authorization).toBe(
+        "Bearer ATK",
+      );
+    });
+
+    // GitHub는 짧은 max-age 응답을 주는 엔드포인트가 있어 default 캐시 모드면 stale을 읽는다.
+    it("모든 요청은 cache: no-cache로 나간다", async () => {
+      mf = mockFetchOnce({ body: [] });
+
+      await getRepoLabels(auth, "o", "r");
+
+      expect(mf.callAt(0).init?.cache).toBe("no-cache");
+    });
   });
 
   describe("searchRepos", () => {

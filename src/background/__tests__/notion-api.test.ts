@@ -388,10 +388,11 @@ function headersOf(init: RequestInit | undefined): Record<string, string> {
 }
 
 describe("notion fetch 경로 (@/test/fetch-mock)", () => {
-  let mf: MockFetch;
+  let mf: MockFetch | undefined;
 
   afterEach(() => {
     mf?.restore();
+    mf = undefined;
   });
 
   describe("getMyself", () => {
@@ -412,7 +413,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 
       const me = await getMyself(AUTH);
 
-      const { url, init } = mf.callAt(0);
+      const { url, init } = mf!.callAt(0);
       expect(new URL(url).origin).toBe("https://api.notion.com");
       expect(new URL(url).pathname).toBe("/v1/users/me");
       expect(init?.method).toBe("GET");
@@ -457,12 +458,12 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 
       const out = await searchDatabases(AUTH, "bug");
 
-      const { url, init } = mf.callAt(0);
+      const { url, init } = mf!.callAt(0);
       expect(new URL(url).pathname).toBe("/v1/search");
       expect(new URL(url).search).toBe("");
       expect(init?.method).toBe("POST");
       expect(headersOf(init)["Content-Type"]).toBe("application/json");
-      expect(mf.jsonBodyAt(0)).toEqual({
+      expect(mf!.jsonBodyAt(0)).toEqual({
         query: "bug",
         filter: { value: "database", property: "object" },
         page_size: 20,
@@ -482,8 +483,9 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 
       const out = await searchDatabases(AUTH, "");
       expect(out[0].iconEmoji).toBeUndefined();
-      expect(out[0].title).toBeTruthy();
-      expect(out[1].title).toBe(out[0].title);
+      // 폴백 라벨을 값으로 고정한다 — toBeTruthy()면 다른 키로 갈아끼워도 green이다.
+      expect(out[0].title).toBe("(제목 없음)");
+      expect(out[1].title).toBe("(제목 없음)");
     });
   });
 
@@ -499,7 +501,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 
       const schema = await getDatabaseSchema(AUTH, "db/1 x?q=2");
 
-      const { url } = mf.callAt(0);
+      const { url } = mf!.callAt(0);
       expect(url).toBe("https://api.notion.com/v1/databases/db%2F1%20x%3Fq%3D2");
       // ?가 살아있으면 쿼리로 잘려 databaseId가 반토막 난다.
       expect(new URL(url).search).toBe("");
@@ -525,7 +527,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 
       const out = await getPageStatus(AUTH, "PG 1/2");
 
-      const { url, init } = mf.callAt(0);
+      const { url, init } = mf!.callAt(0);
       expect(url).toBe("https://api.notion.com/v1/pages/PG%201%2F2");
       expect(init?.method).toBe("GET");
       expect(out).toEqual({
@@ -550,10 +552,10 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 
       const out = await updatePageStatus(AUTH, "PG1", "State", "Done");
 
-      const { url, init } = mf.callAt(0);
+      const { url, init } = mf!.callAt(0);
       expect(new URL(url).pathname).toBe("/v1/pages/PG1");
       expect(init?.method).toBe("PATCH");
-      expect(mf.jsonBodyAt(0)).toEqual({
+      expect(mf!.jsonBodyAt(0)).toEqual({
         properties: { State: { status: { name: "Done" } } },
       });
       expect(out.statusOption).toEqual({ name: "Done", color: "green" });
@@ -572,9 +574,9 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 
       const out = await createFileUpload(AUTH, "shot.png", "image/png");
 
-      expect(new URL(mf.callAt(0).url).pathname).toBe("/v1/file_uploads");
-      expect(mf.callAt(0).init?.method).toBe("POST");
-      expect(mf.jsonBodyAt(0)).toEqual({
+      expect(new URL(mf!.callAt(0).url).pathname).toBe("/v1/file_uploads");
+      expect(mf!.callAt(0).init?.method).toBe("POST");
+      expect(mf!.jsonBodyAt(0)).toEqual({
         filename: "shot.png",
         content_type: "image/png",
       });
@@ -596,7 +598,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
         "image/png",
       );
 
-      const { url, init } = mf.callAt(0);
+      const { url, init } = mf!.callAt(0);
       // API base(/v1)를 앞에 붙이면 안 된다 — createFileUpload가 준 절대 URL이다.
       expect(url).toBe("https://file.notion.so/send/FU1");
       expect(init?.method).toBe("POST");
@@ -605,7 +607,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
       // 직접 지정하면 boundary가 빠져 Notion이 파트를 못 읽는다.
       expect(headersOf(init)["Content-Type"]).toBeUndefined();
 
-      const file = mf.formDataAt(0).get("file") as File;
+      const file = mf!.formDataAt(0).get("file") as File;
       expect(file.name).toBe("shot.png");
       expect(file.type).toBe("image/png");
       expect(await file.text()).toBe("PNGDATA");
@@ -616,7 +618,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 
       await sendFileUpload(AUTH, "https://file.notion.so/send/FU2", "a.txt", "data:text/plain;base64,aGk=");
 
-      const file = mf.formDataAt(0).get("file") as File;
+      const file = mf!.formDataAt(0).get("file") as File;
       expect(file.type).toBe("text/plain");
       expect(await file.text()).toBe("hi");
     });
@@ -643,13 +645,13 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
         `data:application/json;base64,${btoa('{"a":1}')}`,
       );
 
-      expect(mf.fn).toHaveBeenCalledTimes(2);
-      expect(mf.jsonBodyAt(0)).toEqual({
+      expect(mf!.fn).toHaveBeenCalledTimes(2);
+      expect(mf!.jsonBodyAt(0)).toEqual({
         filename: "log.json",
         content_type: "application/json",
       });
-      expect(mf.callAt(1).url).toBe("https://file.notion.so/send/FU9");
-      const file = mf.formDataAt(1).get("file") as File;
+      expect(mf!.callAt(1).url).toBe("https://file.notion.so/send/FU9");
+      const file = mf!.formDataAt(1).get("file") as File;
       expect(file.name).toBe("log.json");
       expect(file.type).toBe("application/json");
       expect(await file.text()).toBe('{"a":1}');
@@ -672,7 +674,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
       expect(err).toBeInstanceOf(NotionError);
       expect((err as NotionError).status).toBe(413);
       expect((err as NotionError).body).toEqual({ code: "validation_error" });
-      expect((err as NotionError).message).toBeTruthy();
+      expect((err as NotionError).message).toBe("Notion 요청 실패 (413)");
     });
   });
 
@@ -703,9 +705,9 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 
       const out = await createPage(AUTH, payload());
 
-      expect(new URL(mf.callAt(0).url).pathname).toBe("/v1/pages");
-      expect(mf.callAt(0).init?.method).toBe("POST");
-      const body = mf.jsonBodyAt(0) as {
+      expect(new URL(mf!.callAt(0).url).pathname).toBe("/v1/pages");
+      expect(mf!.callAt(0).init?.method).toBe("POST");
+      const body = mf!.jsonBodyAt(0) as {
         parent: unknown;
         properties: Record<string, unknown>;
         children: unknown[];
@@ -734,7 +736,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 
       await createPage(AUTH, payload({ statusOption: undefined, selectValues: [] }));
 
-      const body = mf.jsonBodyAt(0) as { properties: Record<string, unknown> };
+      const body = mf!.jsonBodyAt(0) as { properties: Record<string, unknown> };
       expect(Object.keys(body.properties)).toEqual(["이름"]);
     });
 
@@ -748,7 +750,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
       }));
       await createPage(AUTH, payload({ blocks }));
 
-      const body = mf.jsonBodyAt(0) as { children: { type: string }[] };
+      const body = mf!.jsonBodyAt(0) as { children: { type: string }[] };
       expect(body.children).toHaveLength(100);
       expect(body.children[0]).toEqual({
         object: "block",
@@ -772,7 +774,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
       expect((err as OAuthError).platform).toBe("notion");
       expect((err as OAuthError).refreshFailed).toBe(true);
       expect((err as OAuthError).reason).toBe("profile_fetch_failed");
-      expect(mf.fn).toHaveBeenCalledTimes(1);
+      expect(mf!.fn).toHaveBeenCalledTimes(1);
     });
 
     it("4xx는 status·본문을 실은 NotionError", async () => {
@@ -810,10 +812,11 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("notionFetch — 다른 함수로는 못 닿는 body 분기", () => {
-  let mf: MockFetch;
+  let mf: MockFetch | undefined;
 
   afterEach(() => {
     mf?.restore();
+    mf = undefined;
   });
 
   it("string body는 JSON.stringify하지 않고 원문 그대로 보낸다", async () => {
@@ -821,8 +824,8 @@ describe("notionFetch — 다른 함수로는 못 닿는 body 분기", () => {
 
     await notionFetch(AUTH, "/raw", { method: "POST", body: '{"already":"json"}' });
 
-    expect(mf.callAt(0).init?.body).toBe('{"already":"json"}');
-    expect(headersOf(mf.callAt(0).init)["Content-Type"]).toBe("application/json");
+    expect(mf!.callAt(0).init?.body).toBe('{"already":"json"}');
+    expect(headersOf(mf!.callAt(0).init)["Content-Type"]).toBe("application/json");
   });
 
   it("FormData body는 그대로 싣고 Content-Type을 덮어쓰지 않는다", async () => {
@@ -836,8 +839,8 @@ describe("notionFetch — 다른 함수로는 못 닿는 body 분기", () => {
       headers: { "Content-Type": "multipart/form-data; boundary=X" },
     });
 
-    expect(mf.formDataAt(0).get("k")).toBe("v");
-    expect(headersOf(mf.callAt(0).init)["Content-Type"]).toBe(
+    expect(mf!.formDataAt(0).get("k")).toBe("v");
+    expect(headersOf(mf!.callAt(0).init)["Content-Type"]).toBe(
       "multipart/form-data; boundary=X",
     );
   });
@@ -847,7 +850,7 @@ describe("notionFetch — 다른 함수로는 못 닿는 body 분기", () => {
 
     await notionFetch(AUTH, "/x", { headers: { "X-Trace": "t1" } });
 
-    const h = headersOf(mf.callAt(0).init);
+    const h = headersOf(mf!.callAt(0).init);
     expect(h["X-Trace"]).toBe("t1");
     expect(h.Authorization).toBe("Bearer secret_x");
     expect(h["Notion-Version"]).toBe("2022-06-28");

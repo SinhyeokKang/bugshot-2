@@ -244,7 +244,10 @@ function sentAt(n: number) {
 }
 
 describe("linear GraphQL 요청 인코딩", () => {
-  afterEach(() => mf?.restore());
+  afterEach(() => {
+    mf?.restore();
+    mf = undefined;
+  });
 
   it("단일 엔드포인트에 POST + JSON 본문(query·variables), Authorization은 API Key 원문", async () => {
     mf = mockFetchOnce({ body: { data: { teams: { nodes: [] } } } });
@@ -304,7 +307,10 @@ describe("linear GraphQL 요청 인코딩", () => {
 });
 
 describe("linearGraphQL 에러 전파", () => {
-  afterEach(() => mf?.restore());
+  afterEach(() => {
+    mf?.restore();
+    mf = undefined;
+  });
 
   it("HTTP 실패는 status + messageForLinearStatus 메시지를 실은 LinearError", async () => {
     mf = mockFetchOnce({ ok: false, status: 429, body: { message: "rate limited" } });
@@ -338,7 +344,10 @@ describe("linearGraphQL 에러 전파", () => {
 });
 
 describe("응답 봉투 — viewer / teams", () => {
-  afterEach(() => mf?.restore());
+  afterEach(() => {
+    mf?.restore();
+    mf = undefined;
+  });
 
   it("getMyself는 data.viewer를 그대로 돌려준다", async () => {
     mf = mockFetchOnce({
@@ -389,7 +398,10 @@ describe("응답 봉투 — viewer / teams", () => {
 });
 
 describe("팀 스코프 조회 3종 — teamId variables + team.<field>.nodes 봉투", () => {
-  afterEach(() => mf?.restore());
+  afterEach(() => {
+    mf?.restore();
+    mf = undefined;
+  });
 
   const rows: Array<{
     label: string;
@@ -436,7 +448,10 @@ describe("팀 스코프 조회 3종 — teamId variables + team.<field>.nodes �
 });
 
 describe("이슈 상태 조회·변경 — labels.nodes 평탄화", () => {
-  afterEach(() => mf?.restore());
+  afterEach(() => {
+    mf?.restore();
+    mf = undefined;
+  });
 
   const ISSUE = {
     id: "ISS_1",
@@ -500,7 +515,10 @@ describe("이슈 상태 조회·변경 — labels.nodes 평탄화", () => {
 });
 
 describe("getWorkflowStates", () => {
-  afterEach(() => mf?.restore());
+  afterEach(() => {
+    mf?.restore();
+    mf = undefined;
+  });
 
   // variables 키는 `teamId`가 아니라 `id`다 — 이슈 식별자로 팀을 거슬러 올라가는 질의라
   // `issue(id: $id) { team { states } }` 형태다.
@@ -539,7 +557,10 @@ describe("getWorkflowStates", () => {
 });
 
 describe("파일 업로드 2단 — requestFileUpload → PUT", () => {
-  afterEach(() => mf?.restore());
+  afterEach(() => {
+    mf?.restore();
+    mf = undefined;
+  });
 
   const UPLOAD_ENVELOPE = {
     data: {
@@ -626,7 +647,10 @@ describe("파일 업로드 2단 — requestFileUpload → PUT", () => {
 });
 
 describe("createAttachment", () => {
-  afterEach(() => mf?.restore());
+  afterEach(() => {
+    mf?.restore();
+    mf = undefined;
+  });
 
   it("issueId·title·url을 input 하나로 묶어 attachmentCreate에 보낸다", async () => {
     mf = mockFetchOnce({ body: { data: { attachmentCreate: { success: true } } } });

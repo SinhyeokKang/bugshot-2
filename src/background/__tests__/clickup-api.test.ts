@@ -22,9 +22,9 @@ import {
 import { mockFetchOnce, mockFetchRoutes, type MockFetch } from "@/test/fetch-mock";
 import type { ClickupAuth } from "@/types/clickup";
 
-// 다른 어댑터 테스트 6벌과 달리 params를 문자열에 붙인다 — clickup.error.generic 사전 값에는
-// {status} placeholder가 있지만 *키*에는 없어서, 키만 돌려주는 목이면 `{ status }` 인자를
-// 지워도 green이 된다.
+// params를 키가 아니라 출력에 그대로 노출한다 — clickup.error.generic 사전 *값*에는
+// {status} placeholder가 있지만 *키*에는 없어서, 키 문자열에서 placeholder를 찾는 목이면
+// `{ status }` 인자를 지워도 green이 된다. (asana·github·gitlab 목도 같은 형태로 맞춰뒀다.)
 vi.mock("@/i18n", () => ({
   t: (k: string, p?: Record<string, unknown>) => (p ? `${k}:${JSON.stringify(p)}` : k),
 }));
@@ -510,9 +510,15 @@ describe("clickup fetch 경로 (@/test/fetch-mock)", () => {
       status: { status: "to do", type: "open" },
       list: { id: "l 1" },
     };
+    // 두 분기가 각자 "조건에 맞는 첫 원소"를 고른다는 걸 재려면 순서가 달라야 한다 —
+    // 한 배열로는 어느 한쪽이 늘 statuses[0]과 같아져 그 분기가 구분되지 않는다.
     const statuses = [
       { status: "to do", type: "open" },
       { status: "complete", type: "done" },
+    ];
+    const statusesDoneFirst = [
+      { status: "complete", type: "done" },
+      { status: "to do", type: "open" },
     ];
 
     function routes(listBody: unknown) {
@@ -550,7 +556,7 @@ describe("clickup fetch 경로 (@/test/fetch-mock)", () => {
     });
 
     it("해제 요청은 done·closed가 아닌 첫 status로 PUT한다", async () => {
-      mf = routes({ statuses });
+      mf = routes({ statuses: statusesDoneFirst });
 
       await setTaskCompleted(auth, "86d", false);
       expect(mf.jsonBodyAt(2)).toEqual({ status: "to do" });

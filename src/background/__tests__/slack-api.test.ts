@@ -100,9 +100,14 @@ describe("normalizeMember — 표시 이름·프로필 이미지", () => {
 });
 
 describe("messageForSlackError — 에러 코드 → i18n 키", () => {
-  it("token_revoked → 재연결 안내", () => {
-    expect(messageForSlackError("token_revoked")).toBe("slack.oauthRevoked");
-  });
+  // 같은 폴스루에 묶인 3코드를 전부 덮는다 — 하나만 재우면 나머지를 케이스에서 떼어내도
+  // green이고, Slack이 실제 revoke 시 돌려주는 코드는 token_revoked가 아니라 invalid_auth다.
+  it.each(["token_revoked", "invalid_auth", "account_inactive"])(
+    "%s → 재연결 안내",
+    (code) => {
+      expect(messageForSlackError(code)).toBe("slack.oauthRevoked");
+    },
+  );
 
   it("not_in_channel → 전용 안내", () => {
     expect(messageForSlackError("not_in_channel")).toBe("slack.error.notInChannel");

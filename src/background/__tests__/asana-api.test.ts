@@ -20,9 +20,11 @@ import {
 import type { AsanaAuth } from "@/types/asana";
 import { mockFetchOnce, type MockFetch } from "@/test/fetch-mock";
 
+// params를 키가 아니라 출력에 그대로 노출한다 — `*.error.generic` 사전 *값*에는 {status}
+// placeholder가 있지만 *키*에는 없다. 키 문자열에서 placeholder를 찾는 목이면 t()의 두 번째
+// 인자를 통째로 지워도 출력이 그대로라 원리적으로 관측 불가능하다(clickup 목과 같은 형태).
 vi.mock("@/i18n", () => ({
-  t: (k: string, p?: Record<string, unknown>) =>
-    p ? k.replace(/\{(\w+)\}/g, (_, key) => String(p[key] ?? `{${key}}`)) : k,
+  t: (k: string, p?: Record<string, unknown>) => (p ? `${k}:${JSON.stringify(p)}` : k),
 }));
 
 describe("buildAuthHeader", () => {
@@ -189,7 +191,8 @@ describe("messageForAsanaStatus", () => {
   });
 
   it("알려지지 않은 상태 코드는 generic 메시지 반환", () => {
-    expect(messageForAsanaStatus(418)).toContain("asana.error.generic");
+    // 목이 params를 출력에 노출하므로 t()의 두 번째 인자까지 여기서 잠긴다.
+    expect(messageForAsanaStatus(418)).toBe('asana.error.generic:{"status":418}');
   });
 });
 
@@ -582,6 +585,11 @@ describe("getTaskStatus / setTaskCompleted", () => {
       completed: true,
       permalinkUrl: "https://app.asana.com/0/1/7",
     });
+    const url = f.callAt(0).url;
+    expect(url).toContain("/tasks/T7?");
+    // 형제 getTaskStatus와 같은 opt_fields를 요구한다 — 줄이면 응답에서 필드가 빠져
+    // normalizeTaskStatus 결과가 조용히 undefined로 채워진다.
+    expect(url).toContain("opt_fields=name,completed,permalink_url");
     expect(f.callAt(0).init?.method).toBe("PUT");
     expect(f.jsonBodyAt(0)).toEqual({ data: { completed: true } });
   });
