@@ -216,9 +216,9 @@
   - **가이드 사실오류 수정** — `guide/ko/settings/general.md`와 `guide/en/settings/general.md`의 `:9`("한국어와 English 중에서 선택할 수 있어요")와 `:11`("사용 가이드도 언어에 맞춰 열립니다" — **S3 무표시 en 폴백과 정면 모순**). 번역은 안 하지만 기존 본문의 거짓말은 고친다. 작성 전 `guide/AUTHORING.md`를 읽을 것.
   - **스크린샷 재촬영** — `guide/{ko,en}/assets/settings-general-1.jpg`가 옵션 2개라 stale. `/guide-shots`로 다시 찍는다.
 - **검증**:
-  - [ ] `pnpm sync:agents:check` 통과
-  - [ ] README ko/en이 같은 내용·같은 섹션 구성
-  - [ ] 가이드 `:9`·`:11`이 실제 동작과 일치(옵션 3개 / 가이드는 en 폴백)
+  - [x] `pnpm sync:agents:check` 통과
+  - [x] README ko/en이 같은 내용·같은 섹션 구성
+  - [x] 가이드 `:9`·`:11`이 실제 동작과 일치(옵션 3개 / 가이드는 en 폴백)
   - [ ] 스크린샷에 `Français`가 보인다
 
 ---
@@ -228,10 +228,10 @@
 - **변경 대상**: 없음 (확인만)
 - **작업 내용**: ko/en 동작이 한 바이트도 안 바뀌었는지 확인한다.
 - **검증**:
-  - [ ] `pnpm test` 전체 green — 특히 `prompts/__tests__/draftRich.test.ts`·`buildAiDraftPrompt.test.ts`(프롬프트 출력 불변)
-  - [ ] `pnpm typecheck` 0 에러
+  - [x] `pnpm test` 전체 green — 특히 `prompts/__tests__/draftRich.test.ts`·`buildAiDraftPrompt.test.ts`(프롬프트 출력 불변)
+  - [x] `pnpm typecheck` 0 에러
   - > `pnpm test`의 `pretest`가 `build:log-viewer`를 재빌드하므로 **복제 사전이 산출물에 실리는지는 자동 검증된다.** `pnpm build`·`pnpm check:prearm`은 돌리지 않는다 — 전자는 `pretest`·`typecheck`가 이미 커버하는 데다 CLAUDE.md "빌드는 자동 실행하지 않는다"와 충돌하고, 후자는 i18n과 무관하며 `dist/manifest.json`(직전 빌드 산출물)을 읽어 무의미한 green을 낸다.
-  - [ ] **커버리지 베이스라인을 래칫하지 않는다.** fr 데이터 ≈+1,052줄(네임스페이스 903 + `fr.ts` 19 + `frDict` 130)이 **전부 covered로** 들어와 로직 스코프가 89.94%(현 베이스라인, 2026-08-20 래칫) → ~90.3%로 자동 상승한다(사전 파일은 이미 100% 계상). 여기서 `pnpm coverage:update`를 돌리면 이후 실제 로직 커버리지가 떨어져도 감지되지 않는다.
+  - [x] **커버리지 베이스라인을 래칫하지 않는다.** fr 데이터 ≈+1,052줄(네임스페이스 903 + `fr.ts` 19 + `frDict` 130)이 **전부 covered로** 들어와 로직 스코프가 89.94%(현 베이스라인, 2026-08-20 래칫) → ~90.3%로 자동 상승한다(사전 파일은 이미 100% 계상). 여기서 `pnpm coverage:update`를 돌리면 이후 실제 로직 커버리지가 떨어져도 감지되지 않는다.
 
 ---
 
