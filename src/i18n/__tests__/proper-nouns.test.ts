@@ -23,7 +23,7 @@ const PROPER_NOUNS = [
   // 단언하지 않는 죽은 항목이다.
 ] as const;
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const localesDir = join(repoRoot, "public", "_locales");
 
 type ChromeMessages = Record<string, { message: string }>;
