@@ -195,11 +195,13 @@ export function JiraConnectFlow({ connected, onConnected }: ConnectFlowProps) {
             <Loader2 className="h-4 w-4 animate-spin" />
           </span>
         )}
-        <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
+        <span className={`inline-flex min-w-0 max-w-full items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
           <Jira className="h-4 w-4" color="default" />
-          {connected
-            ? t("platform.connected", { platform: t("platform.tab.jira") })
-            : t("platform.connectPlatform", { platform: t("platform.tab.jira") })}
+          <span className="truncate">
+            {connected
+              ? t("platform.connected", { platform: t("platform.tab.jira") })
+              : t("platform.connectPlatform", { platform: t("platform.tab.jira") })}
+          </span>
         </span>
       </Button>
 

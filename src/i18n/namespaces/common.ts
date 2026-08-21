@@ -68,4 +68,38 @@ const en = {
   "bg.error.unknown": "An unknown error occurred.",
 } satisfies Bundle;
 
-export const common = { ko, en };
+const fr = {
+  "common.ok": "OK",
+  "common.close": "Fermer",
+  "common.cancel": "Annuler",
+  "common.back": "Retour",
+  "common.loading": "Chargement...",
+  "common.empty": "Vide",
+  "common.actions": "Actions",
+  "common.deselect": "Désélectionner",
+  "common.untitled": "(Sans titre)",
+  "common.next": "Suivant",
+  "common.done": "Terminé",
+  "common.reset": "Réinitialiser",
+  "common.submit": "Envoyer",
+  "common.save": "Enregistrer",
+  "common.verify": "Vérifier",
+  "common.delete": "Supprimer",
+  "common.attach": "Joindre",
+  "common.detach": "Détacher",
+  "common.download": "Télécharger",
+  "common.expand": "Développer",
+  "common.collapse": "Réduire",
+  "common.clearSearch": "Effacer la recherche",
+
+  "time.justNow": "À l’instant",
+  "time.minutesAgo": "il y a {n} min",
+  "time.hoursAgo": "il y a {n} h",
+  "time.daysAgo": "il y a {n} j",
+
+  "bg.error.network": "Vérifiez votre connexion réseau. Serveur externe inaccessible.",
+  "bg.error.communication": "Erreur de communication de l’extension. Veuillez actualiser la page.",
+  "bg.error.unknown": "Une erreur inconnue est survenue.",
+} satisfies Bundle;
+
+export const common = { ko, en, fr };

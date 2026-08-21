@@ -1,0 +1,17 @@
+{
+  "EXT_NAME": {
+    "message": "BugShot — Signalement de bugs en un instant",
+    "description": "Extension name"
+  },
+  "EXT_NAME_SHORT": {
+    "message": "BugShot",
+    "description": "Short name for action button"
+  },
+  "EXT_DESCRIPTION": {
+    "message": "Signalement de bugs depuis un panneau latéral : capture, vidéo, logs console/réseau, CSS en direct, envoi Jira, GitHub & Notion.",
+    "description": "Chrome Web Store description"
+  },
+  "CMD_TOGGLE_PANEL": {
+    "message": "Ouvrir le panneau latéral BugShot"
+  }
+}

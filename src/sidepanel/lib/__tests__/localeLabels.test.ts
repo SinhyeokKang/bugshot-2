@@ -27,6 +27,7 @@ describe("LOCALE_LABELS", () => {
   it("자기 언어 표기다 (현재 값 회귀 핀)", () => {
     expect(LOCALE_LABELS.ko).toBe("한국어");
     expect(LOCALE_LABELS.en).toBe("English");
+    expect(LOCALE_LABELS.fr).toBe("Français");
   });
 
   // 라벨이 겹치면 셀렉터에서 두 항목을 구분할 수 없다.

@@ -119,4 +119,64 @@ const en = {
   "platform.connectMethod.oauth": "OAuth",
 } satisfies Bundle;
 
-export const app = { ko, en };
+const fr = {
+  "app.tab.debug": "Debug",
+  "app.tab.issueList": "Tickets",
+  "app.tab.integrations": "Intégrations",
+  "app.tab.settings": "Réglages",
+  "app.unsupported.title": "Indisponible sur cette page",
+  "app.unsupported.body": "Veuillez lancer BugShot sur une page web (http, https, file).",
+  // app.unsupported.*는 탭 바인딩 자체가 실패한 전체화면용이라 "BugShot 전체를 못 쓴다"는 뜻이다.
+  // 미지원 URL에서는 연동·설정·이슈 목록이 그대로 동작하므로 캡처 스코프로 따로 쓴다.
+  "app.captureUnsupported.title": "Capture impossible sur cette page",
+  "app.captureUnsupported.body": "Le navigateur bloque les extensions sur cette page. Essayez BugShot sur une page web (http, https, file). Les intégrations et les réglages restent disponibles ici.",
+  "app.pickerUnavailable.title": "Indisponible sur cette page",
+  "app.pickerUnavailable.body": "La politique de Chrome empêche BugShot de fonctionner sur le Chrome Web Store et les pages restreintes similaires. Essayez une autre page.",
+  "app.iframeUnsupported.title": "Cette iframe ne peut pas être sélectionnée",
+  "app.iframeUnsupported.body": "Ses éléments internes ne peuvent pas être sélectionnés car le cadre est imbriqué ou inaccessible à l’extension. Sélectionnez un autre élément ou utilisez plutôt la capture d’écran.",
+  "app.blobSaveFailed.title": "Certains médias n’ont pas pu être enregistrés",
+  "app.blobSaveFailed.body": "Certaines images, vidéos ou certains logs n’ont pas pu être enregistrés faute d’espace de stockage. Vérifiez le brouillon pour repérer les éléments manquants.",
+  "app.stateSaveFailed.title": "Enregistrement impossible",
+  "app.stateSaveFailed.body": "Votre brouillon ou vos réglages n’ont pas pu être enregistrés, probablement faute d’espace de stockage. Supprimez des tickets enregistrés et réessayez.",
+  "app.sessionSaveExhausted.title": "La session ne peut pas être enregistrée",
+  "app.sessionSaveExhausted.body": "Espace de stockage insuffisant pour préserver votre session. Le travail en cours peut être perdu si vous fermez cet onglet.",
+  "app.permissionExpired.title": "Autorisation expirée",
+  "app.permissionExpired.body": "La page a changé et l’autorisation a expiré. Veuillez relancer BugShot.",
+
+  "platform.oauthExpired.title": "L’authentification {platform} a expiré",
+  "platform.oauthExpired.body": "Veuillez reconnecter {platform}.",
+  "platform.notConnected.title": "{platform} n’est pas connecté",
+  "platform.disconnect.title": "Déconnecter {platform} ?",
+  "platform.disconnect.body": "Les identifiants et les réglages seront effacés. Une nouvelle authentification sera requise pour reconnecter.",
+  "platform.disconnect.confirm": "Déconnecter",
+  "platform.disconnectAll": "Tout déconnecter",
+  "platform.disconnectAll.title": "Déconnecter toutes les plateformes ?",
+  "platform.disconnectAll.body": "Les identifiants et les réglages de toutes les plateformes seront effacés.",
+  "platform.tab.jira": "Jira",
+  "platform.tab.github": "GitHub",
+  "platform.tab.linear": "Linear",
+  "platform.tab.notion": "Notion",
+  "platform.tab.gitlab": "GitLab",
+  "platform.tab.asana": "Asana",
+  "platform.tab.clickup": "ClickUp",
+  "platform.tab.slack": "Slack",
+  "platform.connect": "Connecter",
+  "platform.empty.title": "Aucune plateforme connectée",
+  "platform.getToken": "Obtenir un token",
+  "platform.subtab.connected": "Mes connexions",
+  "platform.subtab.add": "Ajouter",
+  "platform.add.title": "Choisissez une plateforme à ajouter",
+  "platform.add.empty.title": "Aucune plateforme connectée",
+  "platform.add.empty.body": "Ajoutez une plateforme pour commencer à créer des tickets.",
+  // 연동 CTA 배너 전용. 값은 위 두 키와 같지만 맥락(캡처 화면의 미완 상태 안내)이 달라
+  // 일부러 분리했다 — 한쪽 문구만 고칠 수 있어야 한다. 중복은 의도된 것이니 합치지 말 것.
+  "platform.cta.body": "Ajoutez une plateforme pour commencer à créer des tickets.",
+  "platform.cta.action": "Ajouter une plateforme",
+  "platform.connectPlatform": "{platform}",
+  "platform.connected": "{platform} lié",
+  "platform.connectMethod.title": "Connecter {platform}",
+  "platform.connectMethod.body": "Choisissez le mode de connexion.",
+  "platform.connectMethod.oauth": "OAuth",
+} satisfies Bundle;
+
+export const app = { ko, en, fr };

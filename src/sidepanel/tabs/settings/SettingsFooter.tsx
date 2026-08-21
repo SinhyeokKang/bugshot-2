@@ -10,7 +10,7 @@ export function SettingsFooter() {
   const locale = useSettingsUiStore((s) => s.locale);
   return (
     <PageFooter>
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Button
           variant="outline"
           onClick={() => chrome.tabs.create({ url: userGuideUrl(locale), active: true })}

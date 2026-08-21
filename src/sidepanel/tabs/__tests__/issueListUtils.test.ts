@@ -21,7 +21,7 @@ import {
 import type { IssueRecord } from "@/store/issues-store";
 import type { Accounts, PlatformId } from "@/types/platform";
 import { setLocale } from "@/i18n";
-import { BASE_LOCALE, LOCALES } from "@/i18n/locales";
+import { BASE_LOCALE, LOCALES, type LocaleMode } from "@/i18n/locales";
 
 function makeAccounts(...platforms: PlatformId[]): Accounts {
   const acc: Record<string, unknown> = {};
@@ -74,18 +74,19 @@ describe("dateLabel", () => {
 
   const TS = Date.UTC(2026, 0, 15, 12, 0, 0);
 
-  it("ko에서 한국어 월 표기로 렌더한다", () => {
-    setLocale("ko");
-    const out = dateLabel(TS);
-    expect(out).toContain("2026");
-    expect(out).toContain("1월");
-  });
+  // 로케일별 기대 월 표기 — Record<LocaleMode, …>라 새 로케일이 등록되면 컴파일이 여기를
+  // 지목한다 (fr은 MONTH_STYLE en 폴백 short → 실 ICU 출력 "janv."를 여기서 처음 고정).
+  const MONTH_EXPECTATION: Record<LocaleMode, string> = {
+    ko: "1월",
+    en: "Jan",
+    fr: "janv.",
+  };
 
-  it("en에서 짧은 영문 월 표기로 렌더한다", () => {
-    setLocale("en");
+  it.each(LOCALES)("%s — 해당 로케일 월 표기로 렌더한다", (locale) => {
+    setLocale(locale);
     const out = dateLabel(TS);
     expect(out).toContain("2026");
-    expect(out).toContain("Jan");
+    expect(out).toContain(MONTH_EXPECTATION[locale]);
   });
 
   it("로케일을 바꾸면 출력이 바뀐다 (모듈 상태 스냅샷이 아님)", () => {

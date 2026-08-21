@@ -24,7 +24,8 @@ describe("normalizeLocale", () => {
   // 그 코드가 남는다. 정규화가 없으면 locales[locale]이 undefined라 t()가 죽는다.
   it("등록되지 않은 미래 로케일은 기본 로케일로 되돌린다", () => {
     expect(normalizeLocale("ja")).toBe(DEFAULT_LOCALE);
-    expect(normalizeLocale("fr")).toBe(DEFAULT_LOCALE);
+    // 이 픽스처엔 앞으로도 등록 후보 언어를 쓰지 않는다 (fr 등록 시 여기가 깨졌던 축)
+    expect(normalizeLocale("de")).toBe(DEFAULT_LOCALE);
   });
 
   it("비문자열·빈 값도 기본 로케일로 정규화한다", () => {
@@ -96,7 +97,8 @@ describe("detectLocale", () => {
   });
 
   it("등록되지 않은 언어는 기본 로케일로 폴백한다", () => {
-    expect(detectLocale("fr-FR")).toBe(DEFAULT_LOCALE);
+    // 이 픽스처엔 앞으로도 등록 후보 언어를 쓰지 않는다
+    expect(detectLocale("de-DE")).toBe(DEFAULT_LOCALE);
     expect(detectLocale("ja")).toBe(DEFAULT_LOCALE);
     expect(detectLocale("zh-CN")).toBe(DEFAULT_LOCALE);
   });
@@ -131,7 +133,8 @@ describe("normalizeBodyLocale", () => {
   // 오염된 값을 영어로 굳히면 화면 언어를 따르던 사용자의 본문이 조용히 영어가 된다.
   it("미등록 코드는 auto로 교정한다 (기본값 경로 보존)", () => {
     expect(normalizeBodyLocale("jp")).toBe("auto");
-    expect(normalizeBodyLocale("fr")).toBe("auto");
+    // 이 픽스처엔 앞으로도 등록 후보 언어를 쓰지 않는다
+    expect(normalizeBodyLocale("de")).toBe("auto");
   });
 
   it("비문자열·빈 값도 auto로 교정한다", () => {

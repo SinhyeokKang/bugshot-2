@@ -6,6 +6,7 @@ vi.mock("@/i18n", () => ({
   dateBcp47: () => localeRef.current,
 }));
 
+import { BCP47, LOCALES } from "@/i18n/locales";
 import { formatTimestamp } from "../formatTimestamp";
 
 describe("formatTimestamp", () => {
@@ -61,5 +62,18 @@ describe("formatTimestamp", () => {
     expect(result).toMatch(/\d{1,2}:\d{2}:\d{2}/); // 콜론 시간 유지
     expect(result).not.toMatch(/[시분초]/); // 한글 스켈레톤 미전환
     expect(result).toMatch(/GMT/); // 오프셋 유지
+  });
+
+  // LOCALES 순회 — 새 로케일이 등록되면 자동으로 검사 대상이 된다 (POSTMORTEM 재발 방지:
+  // 로케일 의존 포맷 함수 테스트는 en 하나로 끝내지 않는다). 위 ko 케이스가 잡았던 회귀
+  // (ICU 스켈레톤 전환)가 다른 로케일에서 재발해도 여기서 걸린다.
+  describe.each(LOCALES)("등록 로케일 순회 — %s", (locale) => {
+    it("콜론 시간 · GMT 오프셋 · AM/PM 없음", () => {
+      localeRef.current = BCP47[locale];
+      const result = formatTimestamp(1752624110000);
+      expect(result).toMatch(/\d{1,2}:\d{2}:\d{2}/);
+      expect(result).toMatch(/GMT/);
+      expect(result).not.toMatch(/[AP]M/);
+    });
   });
 });

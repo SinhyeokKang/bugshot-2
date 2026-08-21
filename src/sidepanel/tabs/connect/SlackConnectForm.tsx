@@ -73,11 +73,13 @@ export function SlackConnectFlow({ connected, onConnected }: ConnectFlowProps) {
           <Loader2 className="h-4 w-4 animate-spin" />
         </span>
       )}
-      <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
+      <span className={`inline-flex min-w-0 max-w-full items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
         <SlackIcon className="h-4 w-4" />
-        {connected
-          ? t("platform.connected", { platform: t("platform.tab.slack") })
-          : t("platform.connectPlatform", { platform: t("platform.tab.slack") })}
+        <span className="truncate">
+          {connected
+            ? t("platform.connected", { platform: t("platform.tab.slack") })
+            : t("platform.connectPlatform", { platform: t("platform.tab.slack") })}
+        </span>
       </span>
     </Button>
   );

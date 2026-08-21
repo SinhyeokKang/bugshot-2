@@ -319,7 +319,7 @@ function GeneralSettingsContent() {
       <PageScroll>
         <Section title={t("settings.language")}>
           <Select value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
-            <SelectTrigger className="w-full" data-testid="settings-locale">
+            <SelectTrigger className="w-full" data-testid="settings-locale" aria-label={t("settings.language")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

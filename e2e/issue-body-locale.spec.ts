@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { enterDebug, expect, test } from "./fixtures/extension";
 import { stubClipboard } from "./fixtures/clipboard";
+import { openSettings, setScreenLocale } from "./fixtures/settings";
 
 // 이슈 본문 언어 — 화면 언어와 독립된 축. 복사·제출 본문의 섹션 헤딩만 바뀌고 사이드패널
 // 화면은 화면 언어를 유지한다.
@@ -17,25 +18,6 @@ import { stubClipboard } from "./fixtures/clipboard";
 
 // LOCALE_LABELS는 자기 언어 표기(한국어·English)라 화면 언어와 무관하게 같은 문자열이다.
 const KO_LABEL = "한국어";
-
-async function openSettings(panel: Page, sub: "issue" | "general") {
-  // hydration 전 클릭 유실 — enterDebug와 같은 active 폴링으로 흡수.
-  await expect(async () => {
-    await panel.getByTestId("tab-settings").click();
-    await expect(panel.getByTestId("tab-settings")).toHaveAttribute("data-state", "active");
-  }).toPass();
-  await panel.getByTestId(`settings-sub-${sub}`).click();
-}
-
-async function setScreenLocale(panel: Page, label: string) {
-  await openSettings(panel, "general");
-  const trigger = panel.getByTestId("settings-locale");
-  await expect(trigger).toBeVisible();
-  if ((await trigger.innerText()).trim() === label) return;
-  await trigger.click();
-  await panel.getByRole("option", { name: label, exact: true }).click();
-  await expect(trigger).toHaveText(label);
-}
 
 // 본문 언어 옵션은 [auto, ...LOCALES] 순서로 렌더된다. auto 라벨은 "자동 ({lang})"처럼
 // 해석 결과가 섞여 exact 매칭이 어려우므로 첫 옵션을 위치로 집는다.
