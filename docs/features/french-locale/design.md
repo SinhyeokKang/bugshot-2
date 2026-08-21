@@ -6,18 +6,18 @@
 
 ## 변경 범위
 
-### 사전 ① 메인 (875키)
+### 사전 ① 메인 (903키)
 
 | 파일 | 현재 | 변경 |
 |---|---|---|
 | `src/i18n/namespaces/{common,app,issue,editor,integrations,settings,logs,ai}.ts` | 각 파일이 `const ko` → `type Bundle = Record<keyof typeof ko, string>` → `const en satisfies Bundle` → `export const X = { ko, en }` | `const fr = {...} satisfies Bundle` 추가 + export를 `{ ko, en, fr }`로 |
 | `src/i18n/fr.ts` (신규) | — | `en.ts`를 그대로 미러 — 8개 네임스페이스의 `.fr`을 spread하고 `satisfies TranslationMap` |
 
-키 배분: `integrations` 271 · `editor` 151 · `issue` 131 · `logs` 117 · `settings` 95 · `app` 52 · `ai` 29 · `common` 29.
+키 배분(2026-08-21 dev 재실측 — 상류 churn으로 계속 는다, 착수 시 재확인): `integrations` 277 · `editor` 153 · `issue` 134 · `logs` 126 · `settings` 103 · `app` 52 · `ai` 29 · `common` 29.
 
 `Bundle` 타입이 `keyof typeof ko`라 **키를 하나라도 빠뜨리면 그 파일에서 컴파일이 막힌다.** 대칭 테스트 이전에 타입이 먼저 잡는다.
 
-### 사전 ② log-viewer 복제 (122키)
+### 사전 ② log-viewer 복제 (130키)
 
 | 파일 | 변경 |
 |---|---|
@@ -25,16 +25,14 @@
 
 `DICTS`는 `Record<LocaleMode, …>`라 **fr이 `LOCALES`에 들어간 뒤에만** 엔트리를 넣을 수 있다(순서 제약 — 아래 참조).
 
-**"메인 사전의 부분집합"이 아니다.** 실측 내역:
+**"메인 사전의 부분집합"이 아니다.** 실측 내역(2026-08-21 dev):
 
 | 출처 | 키 수 | drift 대조 대상 | 값 조달 |
 |---|---|---|---|
-| `logs` 네임스페이스 | 81 | ✅ | 사전 ①에서 그대로 복사 |
-| `editor` 네임스페이스 | 4 | ✅ | 사전 ①에서 그대로 복사 |
-| `common` 네임스페이스 | 3 (`expand`·`collapse`·`clearSearch`) | ❌ | 사전 ①과 맞추되 강제되지 않음 |
-| 어느 메인 사전에도 없음 | **34** (`logViewer.*` 20 · `timeline.*` 13 · `networkLog.marker.pending` · `networkLog.counter.captured`) | ❌ | **독립 번역** |
+| 메인 레지스트리와 교집합 (`logs` 89 · `editor` 4 · `common` 3) | **96** | ✅ 값 일치 강제 | 사전 ①에서 그대로 복사 |
+| 어느 메인 사전에도 없음 (`logViewer.*` 18 · `timeline.*` 14 · `networkLog.marker.pending` · `networkLog.counter.captured`) | **34** | ❌ | **독립 번역** |
 
-`i18n.test.ts:155`의 `MAIN_NAMESPACES = [logs, editor]`이므로 값 일치가 강제되는 건 **85키뿐이고, 37키(30%)는 어떤 그물도 값을 검증하지 않는다.** Task 3의 공수를 "복사 85 + 신규 37"로 잡는다.
+drift 대조는 `log-viewer/__tests__/i18n.test.ts`가 **메인 레지스트리(`locales`) 전량과 교집합**으로 잰다 — `MAIN_NAMESPACES` 손열거 방식은 v1.7.24에서 제거됐다(CLAUDE.md "대조 원본을 namespace로 열거하지 않는 게 규칙" — 초안이 이 제거 전 코드를 인용했었다). 값 일치가 강제되는 건 **96키**, **34키(26%)는 어떤 그물도 값을 검증하지 않는다**(키 존재 자체는 `NET_VERB_KEYS` 등이 일부 강제 — 값만 미검증). Task 3의 공수를 "복사 96 + 신규 34"로 잡고, 34키는 e2e fr `labelSuite`가 실 번들 렌더로 잰다(테스트 절 참조).
 
 ### 사전 ③ manifest `_locales` (4키)
 
@@ -64,23 +62,24 @@
 
 | 파일 | 변경 | 이유 |
 |---|---|---|
-| `src/sidepanel/tabs/IssueTab.tsx` (`ReplayButton`) | 라벨을 `<span className="truncate">`로 감싼다 | 캡처 5버튼 중 유일하게 raw 텍스트. `Button` base에 `whitespace-nowrap`만 있고 `overflow-hidden`이 없어 **잘림이 아니라 옆 버튼 위로 겹친다** |
+| `src/sidepanel/tabs/IssueTab.tsx` (`ReplayButton`·`mode-element`) | 라벨을 `<span className="truncate">`로 감싼다 | 캡처 5버튼 중 raw 텍스트는 이 둘(초안의 "ReplayButton 유일"은 오류). `Button` base에 `whitespace-nowrap`만 있고 `overflow-hidden`이 없어 **잘림이 아니라 버튼 밖으로 샌다** |
 | `SettingsFooter.tsx` · `PreviewPanel.tsx` · `StyleEditorPanel.tsx` · `DraftingPanel.tsx` · `DraftDetailDialog.tsx` | 3버튼 푸터에 `flex-wrap` 허용 | 아래 표 참조 |
 | `src/sidepanel/tabs/IssueListTab.tsx` | `TabsList`를 `<div className="min-w-0 overflow-x-auto">`로 감싼다 | console/network/action 3곳은 이미 이 래퍼가 있는데 여기만 없다 |
+| `PlatformConnectFlow.tsx` + Jira·Slack 손복제 폼(3파일) | "연결됨" 라벨에 `truncate` | 현재 truncate·`overflow-hidden` 0 — 초과 시 잘림이 아니라 셀 밖 bleed. 아래 번역 자수 제약과 2중 방어 |
 
-**실측 위험 지점 (400px 기준).** `DialogFooter`의 기본값은 `flex-col-reverse sm:flex-row`이고 `sm:`(640px)은 사이드패널에서 절대 발동하지 않으므로 **기본 상태는 자동 세로 스택 = 안전**하다. 그런데 코드베이스가 이 보호를 **19곳에서 `flex-row`/`!flex-row`로 명시 해제**했다. 진짜 위험은 그 중 `justify-between` + `whitespace-nowrap` + `flex-wrap` 0건인 3버튼 푸터다:
+**실측 위험 지점 (400px 기준).** `DialogFooter`의 기본값은 `flex-col-reverse sm:flex-row`이고 `sm:`(640px)은 사이드패널에서 절대 발동하지 않으므로 **기본 상태는 자동 세로 스택 = 안전**하다. 진짜 위험은 `justify-between` + `whitespace-nowrap` + `flex-wrap` 0건인 3버튼 가로 행 5곳인데, 구조는 초안 서술과 달리 균질하지 않다 — `DialogFooter` 보호를 `!flex-row`로 명시 해제한 곳은 `DraftDetailDialog` 1곳뿐이고, 나머지 4곳은 애초에 `DialogFooter`가 아니라 `PageFooter`/plain `flex` div다(위험 판정은 동일하게 유효):
 
 | 파일:라인 | 버튼 | fr 추정 폭 | 가용 |
 |---|---|---|---|
-| `StyleEditorPanel.tsx:545` | Cancel editing / Review changes / Next | ≈439px | 368px |
-| `PreviewPanel.tsx:415` | New issue / Back / Submit issue | ≈420px | 368px |
-| `DraftDetailDialog.tsx:955` | Delete issue / Close / Submit issue | ≈404px | **312px** |
-| `SettingsFooter.tsx:13` | Guide / Contact / Review | en에서 이미 한계선 | 368px |
-| `DraftingPanel.tsx:486` | Cancel editing / Back / Issue preview | 경계 | 368px |
+| `StyleEditorPanel.tsx` | Cancel editing / Review changes / Next | ≈439px | 368px |
+| `PreviewPanel.tsx` | New issue / Back / Submit issue | ≈420px | 368px |
+| `DraftDetailDialog.tsx` (`DialogFooter` `!flex-row`) | Delete issue / Close / Submit issue | ≈404px | **312px** |
+| `SettingsFooter.tsx` | Guide / Contact / Review | en에서 이미 한계선 | 368px |
+| `DraftingPanel.tsx` | Cancel editing / Back / Issue preview | 경계 (non-element 모드는 2버튼) | 368px |
 
-**제출 다이얼로그(`SubmitFieldsDialog.tsx:327`)는 오히려 안전하다** — 2버튼 ≈205px / 312px. 초기 위험 목록이 지목한 곳이지만 실측에서 빠졌다.
+**제출 다이얼로그(`SubmitFieldsDialog.tsx`)는 오히려 안전하다** — 2버튼 ≈205px / 312px. 초기 위험 목록이 지목한 곳이지만 실측에서 빠졌다.
 
-**연동 그리드의 "연결됨" 라벨**은 코드가 아니라 번역으로 푼다. `IntegrationsTab.tsx:179`가 `grid-cols-2 max-w-[336px]`라 셀 텍스트 가용이 ≈108px이고, `grid-cols-2`는 `minmax(0,1fr)`라 셀이 못 커진다. `t("platform.connected", {platform})`을 fr에서 짧게 쓴다(`ClickUp connecté`가 초과). 같은 마크업이 `connect/*ConnectForm.tsx` 8파일에 복제돼 있어 코드 수정 비용이 크다.
+**연동 그리드의 "연결됨" 라벨**은 번역 자수 제약 + `truncate` 2중으로 푼다. `IntegrationsTab.tsx`가 `grid-cols-2 max-w-[336px]`라 셀 텍스트 가용이 ≈108px이고, `grid-cols-2`는 `minmax(0,1fr)`라 셀이 못 커진다. `t("platform.connected", {platform})`을 fr에서 짧게 쓰고(`ClickUp connecté`가 초과), 라벨 자체에도 `truncate`를 친다 — 마크업 소재지는 초안의 "8파일 복제"가 아니라 **3파일**(`PlatformConnectFlow.tsx` + Jira·Slack 손복제)이라 코드 수정 비용이 작고, 현재는 truncate가 없어 초과 시 잘림이 아니라 **셀 밖 bleed**다.
 
 **두 녹화 모드 라벨**은 자수 제약을 둔다. `issue.mode.video` / `issue.mode.screenRecord`가 `Enregistrer l'onglet` / `Enregistrer l'écran`이면 `truncate`가 둘 다 `Enregistrer l'…`로 잘라 **구별이 불가능**해진다. `CONTENT_MAX_W = "max-w-[336px]"`는 패널 폭과 무관한 고정 상한이라 패널을 넓혀도 안 풀린다. 앞쪽에서 갈리는 문구를 고른다(예: `Onglet` / `Écran`).
 
@@ -103,32 +102,34 @@
 | `src/log-viewer/__tests__/i18n.test.ts` | **변경 없음** — `LOCALES` 순회 |
 | `src/i18n/__tests__/manifest-locales.test.ts` | **길이 단언 추가** — `EXT_DESCRIPTION` ≤132 · `EXT_NAME` ≤75 · `EXT_NAME_SHORT === "BugShot"` |
 | `src/sidepanel/lib/__tests__/localeLabels.test.ts` | 회귀 핀에 `Français` 한 줄 추가 |
-| `src/i18n/__tests__/locale-registry.test.ts` | "등록되지 않은 로케일" 픽스처에서 `fr`을 미등록 코드로 교체 (Task 0) |
+| `src/i18n/__tests__/locale-registry.test.ts` | 미등록 로케일 픽스처 **3단언**(`normalizeLocale("fr")`·`detectLocale("fr-FR")`·`normalizeBodyLocale("fr")`)을 미등록 코드로 교체 (Task 0) |
 | `src/sidepanel/lib/__tests__/formatTimestamp.test.ts` | en/ko 2케이스 하드코딩 → **`LOCALES` 순회로 전환** |
 | `src/sidepanel/tabs/__tests__/issueListUtils.test.ts` | `dateLabel`의 ko/en 리터럴 → **`LOCALES` 순회로 전환** |
 | `src/test/proper-nouns.ts` + `src/test/__tests__/proper-nouns.test.ts` (신규) | 검사기 + 합성 픽스처 |
 | `src/i18n/__tests__/proper-nouns.test.ts` (신규) | 실사전 적용 |
-| `e2e/settings-language.spec.ts` (신규) | 셀렉터 옵션 3개 |
-| `e2e/code-block-collapse.spec.ts` | ko\|en 교대 정규식 → `data-collapsed` 속성 판정 |
+| `e2e/settings-language.spec.ts` (신규) | 셀렉터 옵션 3개 — testid는 기존 것(`settings-sub-general`·`settings-locale`) 사용, 진입 헬퍼는 `issue-body-locale.spec.ts`에서 공유로 승격 |
+| `e2e/code-block-collapse.spec.ts` | `toHaveText` 정규식 3곳 → `data-collapsed` 판정(이미 12곳이 이 방식 — 잔여 정리), 클립보드 라벨-부재 단언은 `LOCALES` 순회 테이블로 |
+| `useDocumentLangEffect.test.tsx` | en/ko 하드코딩 → **`LOCALES` 순회로 전환** (`<html lang>` 동기화는 기구현 — 인터페이스 설계 참조) |
+| `e2e/logview/log-viewer.spec.ts` | `labelSuite("fr","fr-FR")` + `ACTION_LABELS.fr`/`NAV_TEXT.fr` 추가 — 독립 34키의 실 번들 그물 |
 
-`src/sidepanel/tabs/SettingsTab.tsx`도 변경 대상이다(e2e testid 2개 — `settings-sub-general`, `settings-language`).
+`src/sidepanel/tabs/SettingsTab.tsx`도 변경 대상이다 — 단 testid가 아니다(`settings-sub-general`·`settings-locale`은 **이미 존재**). 화면 언어 `SelectTrigger`에 `aria-label` 한 줄을 추가한다(이슈 본문 언어 셀렉터와의 a11y 대칭).
 
-> `locale-registry.test.ts`의 미등록 로케일 픽스처는 **반드시 확인할 것.** 실증 과정에서 `"ja"`를 임시 등록했을 때 정확히 그 두 케이스가 깨졌던 전례가 있다.
+> `locale-registry.test.ts`의 미등록 로케일 픽스처는 **반드시 확인할 것.** 실증 과정에서 `"ja"`를 임시 등록했을 때 정확히 그 케이스들이 깨졌던(현재는 `normalizeBodyLocale("fr")`까지 셋) 전례가 있다.
 
 ### 날짜·시각 포맷 — LOCALES 순회로 전환하는 이유
 
 `BCP47.fr = "fr-FR"`은 폴백 금지 테이블이라 `toLocaleString` 전반에 영향을 준다. 그런데 현재 그물이 없다:
 
-- `formatTimestamp.test.ts`는 `dateBcp47`를 가변 mock으로 두고 **en/ko 2케이스를 하드코딩**한다. `LOCALES` 순회가 아니다.
+- `formatTimestamp.test.ts`는 `dateBcp47`를 가변 mock으로 두고 **로케일 리터럴을 하드코딩**한다(`LOCALES` 순회가 아니다).
 - `issueListUtils.test.ts`는 `dateMonthStyle`만 순회하고 `dateLabel`은 ko(`"1월"`)/en(`"Jan"`) 실 ICU 출력을 하드코딩한다. 위에서 "실측 확인함"이라 쓴 `15 janv. 2026`을 고정하는 테스트가 **어디에도 없다.**
 
-`docs/POSTMORTEM.md:786`의 재발 방지 (2)가 **"로케일 의존 포맷 함수 테스트는 en 하나로 끝내지 않는다"**이고, `formatTimestamp.ts:20` 주석이 기록한 ko 회귀(`timeZoneName` 옵션이 시간 스켈레톤을 바꿔 콜론 포맷이 깨짐)가 정확히 이 축이다. 두 테스트를 순회형으로 바꾸면 fr뿐 아니라 다음 로케일도 자동으로 덮인다.
+`docs/POSTMORTEM.md`의 재발 방지 (2)(현재 `:1131` 부근)가 **"로케일 의존 포맷 함수 테스트는 en 하나로 끝내지 않는다"**이고, `formatTimestamp.ts:20` 주석이 기록한 ko 회귀(`timeZoneName` 옵션이 시간 스켈레톤을 바꿔 콜론 포맷이 깨짐)가 정확히 이 축이다. 두 테스트를 순회형으로 바꾸면 fr뿐 아니라 다음 로케일도 자동으로 덮인다.
 
 ## 순서 제약 — 중간 상태가 red가 되는 지점
 
 **`public/_locales/fr/`와 `DICTS.fr`와 `LOCALES += "fr"`는 한 커밋이어야 한다.**
 
-- `_locales/fr/`를 **먼저** 만들면 `findExtraneous`가 "LOCALES에 없는 로케일 디렉터리"로 red를 낸다. 이 함수는 `readdirSync(localesDir)`로 **디스크를 스캔**하므로 디렉터리 존재만으로 걸린다(파일 내용 무관).
+- `_locales/fr/`를 **먼저** 만들면 `manifest-locales.test.ts`가 red다 — 디스크 스캔(`readdirSync`)은 검사기 `findExtraneous`(순수 함수 — 인자 맵만 본다)가 아니라 그 테스트의 호출부에 있다. 빈 디렉터리면 `findExtraneous` 위반 이전에 `readFileSync` ENOENT로 모듈 로드부터 터진다(오류 형태가 다를 뿐 red는 red).
 - `DICTS.fr`을 **먼저** 넣으면 `Record<LocaleMode, …>` 타입이 `fr`을 모르므로 컴파일이 막힌다.
 - 반대로 `LOCALES += "fr"`을 **먼저** 넣으면 5개 테이블 + 사전 세 벌이 전부 red다.
 
@@ -138,17 +139,17 @@
 
 ## 릴리스 전략
 
-**장기 feature 브랜치 → 1,001키 완성 후 dev로 합쳐 단일 PR.** `dev`는 항상 green을 유지한다.
+**장기 feature 브랜치 → 1,033키(903+130) 완성 후 dev로 합쳐 단일 PR.** `dev`는 항상 green을 유지한다.
 
 대칭 테스트가 빈 값을 금지하므로("절반만 번역된 fr"의 dev 머지가 `locale-parity.ts:29`에서 구조적으로 불가능하다) 점진 머지가 안 된다. 그물을 일시 완화하는 선택지(테스트에 `IN_PROGRESS = ["fr"]` 예외)는 **기각했다** — 예외를 지우는 걸 잊으면 영구 구멍이 되고, 그건 이 인프라를 만든 이유와 정면으로 충돌한다.
 
-**CI는 이 브랜치에서 안 돈다.** `.github/workflows/ci.yml`의 트리거가 `push: [dev]` + `pull_request: [main]`뿐이고 `/merge`도 `gh run list --branch dev`를 본다. 즉 feature 브랜치에서는 로컬 `pnpm typecheck` + `pnpm test`가 유일한 게이트이고, **CI가 처음 도는 건 dev로 합친 시점**이다.
+**CI는 이 브랜치에서 자동으로는 안 돈다.** `.github/workflows/ci.yml`의 자동 트리거가 `push: [dev]` + `pull_request: [main]`이고(`workflow_dispatch`·`schedule`도 있다) `/merge`도 `gh run list --branch dev`를 본다. 로컬 `pnpm typecheck` + `pnpm test`가 상시 게이트이되, **주 1회 rebase 루틴마다 `gh workflow run ci.yml --ref <feature-branch>`로 e2e 4샤드까지 수동 dispatch**해 e2e 회귀가 dev 머지 시점에 처음 발견되는 걸 막는다.
 
 ### 상류 흡수 — 실패 모드는 충돌이 아니라 무음 자동머지
 
 브랜치가 오래 사는 진짜 비용은 머지 충돌이 아니다. 상류는 `ko`/`en` 블록에 키를 append하고 fr 브랜치는 별도 `fr` 블록을 추가하므로, **git이 깨끗하게 자동머지하고 fr에만 키가 빠진 채 통과한다.** 걸리는 곳은 머지가 아니라 `findParityViolations`의 `fr <key>: 누락`이고, 흡수할 때마다 재번역 + 사전 ② 미러링이 따라온다.
 
-churn 실측: 최근 100커밋 중 **38%가 `namespaces/`를 건드렸다**(파일별로도 `editor.ts` 17회 / `issue.ts` 16회 / `integrations.ts` 11회로 8파일 전부 활성). 충돌·누락 표면은 `namespaces/*.ts` 8파일 **+ `src/log-viewer/i18n.ts`**(최근 120커밋 중 14회 변경)다.
+churn 실측: 최근 100커밋 중 **44%가 `namespaces/`를 건드렸다**(파일별로도 `editor.ts` 17회 / `issue.ts` 16회 / `integrations.ts` 11회로 8파일 전부 활성). 충돌·누락 표면은 `namespaces/*.ts` 8파일 **+ `src/log-viewer/i18n.ts`**(최근 120커밋 중 16회 변경)다.
 
 → **주 1회 이상 `dev`를 rebase**하고, 매번 `pnpm test`로 parity를 확인한 뒤 빠진 fr 키를 채운다. 몰아서 하면 머지 시점에 누적 red를 한 번에 맞는다.
 
@@ -178,7 +179,7 @@ export const LOCALE_LABELS: Record<LocaleMode, string> = {
 };
 ```
 
-`BCP47`의 프로덕션 소비처는 `src/i18n/index.ts`의 `dateBcp47()` 하나이고, 그걸 쓰는 곳은 `formatTimestamp.ts`(`toLocaleString`)와 `issueListUtils.ts:173`(`toLocaleDateString`) **둘뿐**이다. `document.documentElement.lang`에 대입하는 코드는 0건이다(아래 대안 F).
+`BCP47`의 프로덕션 소비처는 둘이다 — ① `src/i18n/index.ts`의 `dateBcp47()`(그걸 쓰는 곳은 `formatTimestamp.ts`의 `toLocaleString`과 `issueListUtils.ts`의 `toLocaleDateString`) ② **`<html lang>` 동기화**: `useDocumentLangEffect.ts`가 `document.documentElement.lang = BCP47[locale]`를 대입하고 log-viewer도 `main.tsx`에서 동일하다(초안의 "대입 0건"은 오류 — **이미 구현된 기능**이다). 따라서 `BCP47.fr = "fr-FR"` 등록은 날짜 포맷과 함께 하이픈네이션·맞춤법검사·스크린리더 발음도 fr로 자동 전환한다 — 원하는 방향이고 추가 작업 0. `useDocumentLangEffect.test.tsx`가 로케일 하드코딩이라 Task 7의 `LOCALES` 순회 전환 대상에 포함한다.
 
 ### 품질 가드 (신규, 사람 검수 대체)
 
@@ -205,7 +206,7 @@ const PROPER_NOUNS = [
 
 ### 가드의 실제 사정거리 — "오탐이 구조적으로 없다"는 과장이었다
 
-실측: (key, noun) 쌍 **98개 / 875키 중 87키(9.9%)** 커버. 분포는 `OAuth 20 · URL 13 · Notion 8 · GitHub 8 · Jira 7 · GitLab 7 · BugShot 7 · ClickUp 6 · Linear 5 · Asana 5 · Chrome 4 · Slack 4 · CSS 3 · JSON 1`.
+실측(작성 시점 875키 기준 스냅샷 — 착수 시 재실측): (key, noun) 쌍 **98개 / 87키** 커버. 분포는 `OAuth 20 · URL 13 · Notion 8 · GitHub 8 · Jira 7 · GitLab 7 · BugShot 7 · ClickUp 6 · Linear 5 · Asana 5 · Chrome 4 · Slack 4 · CSS 3 · JSON 1`.
 
 - **ko∩en 필터의 효용은 거의 없다.** 걸러내는 키가 98쌍 중 딱 1쌍(`app.captureUnsupported.body` — en에만 `BugShot`)이다. ko 사전에 한글 음역(크롬·지라·노션)이 0건이라 애초에 걸러낼 게 없다. 필터는 유지하되 근거로 내세우지 않는다.
 - **98쌍 중 20쌍이 vacuous** — ko값 = en값 = 토큰 그 자체(`platform.tab.*`, `*.auth.kind.oauth`, `editor.view.code`, `networkLog.filter.{css,json}`)라 복붙이면 통과한다. 실질 단언은 78개, 그중 57개가 `integrations.ts`다.
@@ -230,19 +231,20 @@ navigator.language ─→ detectLocale() ─┐   ※ 최초 시딩에만
 
 logs.html (별도 번들) ─→ detectLocale(navigator.language) ─→ DICTS[locale]   ※ persist를 안 봄
 manifest / chrome.i18n ─→ Chrome이 _locales/<code> 선택, 없으면 default_locale(en)
-BCP47 ─→ dateBcp47() ─→ formatTimestamp · issueListUtils  ※ <html lang>은 안 감
+BCP47 ─→ dateBcp47() ─→ formatTimestamp · issueListUtils
+BCP47 ─→ useDocumentLangEffect(사이드패널) · log-viewer main.tsx ─→ <html lang>  ※ 기구현 — fr은 값만 추가
 ```
 
-**persist 마이그레이션 없음.** `locale`은 v1부터 있던 필드이고 `"fr"`은 값 확장이라 하위호환이다. `version: 10` 유지. 방어가 필요한 방향은 반대(다운그레이드)이고 `normalizeLocale`이 `migrateSettingsUi`·`mergePersistedSettings` 양쪽에 이미 있다.
+**persist 마이그레이션 없음.** `locale`은 v1부터 있던 필드이고 `"fr"`은 값 확장이라 하위호환이다. `version: 11`(bodyLocale 기획이 올린 현재값) 유지. 방어가 필요한 방향은 반대(다운그레이드)이고 `normalizeLocale`이 `migrateSettingsUi`·`mergePersistedSettings` 양쪽에 이미 있다.
 
 ## 기존 패턴 준수
 
 - **폴백 금지/허용 구분** (CLAUDE.md "로케일별 테이블") — 금지 5개는 채우고 허용 6개는 안 채운다. 잘못 분류하면 타입도 테스트도 안 잡는다.
 - **사전 세 벌 동시 갱신** (CLAUDE.md "사전은 셋이다") — 하나라도 빠지면 그 표면에서만 폴백·raw 키가 뜬다.
 - **`locales.ts` 런타임 import 0** — 이번엔 값만 늘리므로 자동 유지. `locale-registry.test.ts`의 소스 스캔이 지킨다.
-- **log-viewer 복제 사전 drift 대조** — 공통 85키는 메인 테이블과 문자열 동일.
+- **log-viewer 복제 사전 drift 대조** — 공통 96키는 메인 테이블과 문자열 동일.
 - **검사기는 순수 함수 + 합성 픽스처** (`src/test/locale-parity.ts` 선례) — 신규 고유명사 가드도 같은 형태.
-- **e2e 로케일 비결정 함정 회피** (`e2e/GOTCHAS.md`) — 셀렉터 옵션 라벨은 **자기 언어 표기라 현재 로케일과 무관**하므로 텍스트 단언이 정당하다. 이건 GOTCHAS가 금지하는 "번역 라벨 단언"에 해당하지 않는다. 단 트리거(`SelectValue`)는 영속 로케일에 좌우되므로 단언 대상이 아니다.
+- **e2e 로케일 비결정 함정 회피** (`e2e/GOTCHAS.md`) — 셀렉터 옵션 라벨은 **자기 언어 표기라 현재 로케일과 무관**하므로 텍스트 단언이 정당하다. 이건 GOTCHAS가 금지하는 "번역 라벨 단언"에 해당하지 않는다(GOTCHAS "로케일 자체가 SUT" 항목이 같은 논증을 이미 기록 — spec 주석은 재논증 대신 그 항목을 인용한다). 단 트리거(`SelectValue`)는 영속 로케일에 좌우되므로 단언 대상이 아니다.
 
 ## 대안 검토
 
@@ -256,19 +258,20 @@ BCP47 ─→ dateBcp47() ─→ formatTimestamp · issueListUtils  ※ <html lan
 
 **E. 화면 언어 셀렉터에 `auto`(시스템 언어 따르기) 추가** — AI 작성 언어 셀렉터엔 `Auto ({lang})`가 있는데 화면 언어엔 없어서, 한 번 수동 선택하면 시스템 추종으로 되돌아갈 수 없다. *기각*: 기존 결함이고 fr이 만든 게 아니다. 로케일이 3개로 늘며 드러났을 뿐이라 별건으로 뺀다.
 
-**F. `<html lang>`을 로케일에 동기화** — 현재 `src/sidepanel/index.html`이 `lang="ko"` 하드코딩이라 **en 사용자도 이미 틀렸다**(하이픈네이션·맞춤법검사·스크린리더 발음에 영향). `BCP47`이 이미 있어 `root.lang = dateBcp47()` 1줄이면 된다. *기각*: "기존 ko/en 동작을 한 바이트도 바꾸지 않는다"는 목표와 충돌한다. fr은 세 번째 피해자일 뿐이라 별건.
+**F. `<html lang>`을 로케일에 동기화** — *검토 결과 이미 구현돼 있다.* 초안이 쓴 "대입 0건 · `index.html`이 `lang="ko"` 하드코딩"은 오류다 — `useDocumentLangEffect.ts`가 사이드패널에서, `main.tsx`가 log-viewer에서 `BCP47[locale]`을 대입하고 `index.html`은 `lang="en-US"`다. 기각할 대상이 없으므로 대안이 아니라 **영향 범위로 편입** — 위 "인터페이스 설계" 참조.
 
-**G. `CollapsingTabsList` 접힘 상태의 `aria-label` 부여** — 트리거 하나라도 넘치면 전 탭 라벨을 `display:none`으로 숨기는데 `aria-label`이 0건이라 스크린리더에서 **무명 탭**이 된다(DESIGN.md §9 위반). fr이 그 붕괴 범위를 넓힌다. *기각*: 위와 같은 이유로 별건. 다만 fr에서 "글자가 잘린다"가 아니라 **라벨이 통째로 사라진다**는 실패 모드는 수동 체크리스트에 남긴다.
+**G. `CollapsingTabsList` 접힘 상태의 `aria-label` 부여** — 트리거 하나라도 넘치면 전 탭 라벨을 `display:none`으로 숨기는데 `aria-label`이 0건이라 스크린리더에서 **무명 탭**이 된다(DESIGN.md §9 위반). fr이 그 붕괴 범위를 넓힌다. *기각*: **스코프 관리** — 기존 a11y 결함이고 fr 데이터 추가와 독립적으로 고칠 수 있다("한 바이트 불변" 잣대는 Task 7의 안전판과 이중적이라 근거에서 뺀다). 후속 필요를 아래 위험 요소에 등재하고, fr에서 "글자가 잘린다"가 아니라 **라벨이 통째로 사라진다**는 실패 모드는 수동 체크리스트에 남긴다.
 
 ## 위험 요소
 
-- **`locale-registry.test.ts`의 미등록 로케일 픽스처** — `detectLocale`·`normalizeLocale` 케이스가 `"fr"`을 "등록 안 된 예시"로 쓰고 있어 fr 등록과 동시에 깨진다. 착수 시 가장 먼저 확인할 것(Task 0).
+- **`locale-registry.test.ts`의 미등록 로케일 픽스처** — `normalizeLocale("fr")`·`detectLocale("fr-FR")`에 더해 상류(bodyLocale)가 추가한 `normalizeBodyLocale("fr")`까지 **세 단언**이 fr 등록과 동시에 깨진다. 착수 시 가장 먼저 확인할 것(Task 0).
 - **`EXT_DESCRIPTION` 길이** — 위 사전 ③ 참조. 실패가 `test`·`typecheck`를 통과해 **스토어에서만 나타난다.** 이 프로젝트는 privacy 미갱신으로 심사 탈락한 전례가 있는 영역이다.
 - **프랑스어 텍스트 팽창** — 위 "팽창 대응" 표. 구조적 안전판을 친 뒤에도 **레이아웃은 jsdom 밖이라 수동 확인이 유일한 그물**이다(400px 기준).
+- **`CollapsingTabsList` 무명 탭(a11y, 후속)** — 접힘 시 전 탭 라벨 `hidden` + 트리거 `aria-label` 0건(DESIGN.md §9 위반). fr 팽창이 접힘 발동 빈도를 높여 노출 면을 넓힌다. 이번 스코프 밖 — 대안 G 참조, **별건 후속 작업으로 등록**해 잃어버리지 않는다.
 - **`integrations.ts` 271키가 전체의 31%** — 플랫폼 8개의 에러 문구·다이얼로그가 몰려 있고, 실질 고유명사 단언 78개 중 57개가 여기다.
-- **상류 키 churn** — `issue-body-locale` 기획이 `src/i18n/namespaces/settings.ts`에서 `settings.titleSettings`를 **삭제**하고 `settings.issueCommon`·`settings.titlePrefix.label`·`settings.bodyLocale{,.auto,.help}` 5키를 **추가**했다. 이 브랜치가 1,001키 완성까지 dev에 못 들어가는 장기 브랜치라, 리베이스 때 git이 ko/en append를 무음 자동머지하고 **fr에만 키가 빠질 수 있다**(`locales.test.ts`가 잡지만 red를 만난 뒤다). 리베이스 직후 `pnpm test`를 먼저 돌린다.
-- **log-viewer drift 대조의 방향** — 메인 사전 fr을 고치고 복제 사전을 안 고치면 red다. 두 벌을 항상 같이 만진다. 반대로 34키는 그물이 없어 **안 고쳐도 green**이라는 게 더 위험하다.
+- **상류 키 churn** — `issue-body-locale` 기획이 `src/i18n/namespaces/settings.ts`에서 `settings.titleSettings`를 **삭제**하고 `settings.issueCommon`·`settings.titlePrefix.label`·`settings.bodyLocale{,.auto,.help}` 5키를 **추가**했다. 이 브랜치가 1,033키 완성까지 dev에 못 들어가는 장기 브랜치라, 리베이스 때 git이 ko/en append를 무음 자동머지하고 **fr에만 키가 빠질 수 있다**(`locales.test.ts`가 잡지만 red를 만난 뒤다). 리베이스 직후 `pnpm test`를 먼저 돌린다.
+- **log-viewer drift 대조의 방향** — 메인 사전 fr을 고치고 복제 사전을 안 고치면 red다. 두 벌을 항상 같이 만진다. 반대로 34키는 그물이 없어 **안 고쳐도 green**이라는 게 더 위험하다(Task 6(e)의 fr `labelSuite`가 이 축의 e2e 그물).
 - **프랑스어 개발 머신에서만 red가 나는 e2e** — `code-block-collapse.spec.ts`가 ko|en 교대 정규식을 쓴다. 등록 전에는 `fr-*` 머신도 en으로 떨어져 우연히 green이었지만, 등록 후엔 `fr`로 hydrate돼 안 맞는다. CI(ubuntu, en_US)는 통과하므로 발견이 늦다.
 - **e2e 샤드 전역 상태** — `ext` fixture가 `{ scope: "worker" }` + `workers: 1`이라 한 샤드의 모든 spec이 하나의 프로필·`chrome.storage`를 공유한다. 언어 spec에서 `Français`를 실제로 선택하고 복원하지 않으면 후속 spec 전부가 fr UI로 돈다.
 - **번역 품질 회귀 리포트** — 오역 신고가 오면 그건 버그가 아니라 PRD가 예고한 경로다. `docs/POSTMORTEM.md` 대상이 아니다. 단 PRD "철회 기준"의 두 부류(의미 반전 / 구조 문제)는 예외다.
-- **폰트는 대체로 위험이 아니다** — `é è ç à ù œ Œ É Ê « » ’` 전부 Pretendard dynamic subset(92개 `unicode-range`)이 덮는 것을 전수 파싱으로 확인했다. **단 U+202F(narrow no-break space)와 U+0178(Ÿ)은 subset 밖이다.** 프랑스어는 `: ; ? !` 앞과 « » 안쪽에 NNBSP를 쓰는 관례가 있고 AI 번역기가 이걸 자주 내보내므로, 번역 브리프에서 금지한다(U+00A0 또는 일반 공백으로).
+- **폰트는 대체로 위험이 아니다** — `é è ç à ù œ Œ É Ê « » ’` 전부 Pretendard dynamic subset(92개 `unicode-range`)이 덮는 것을 전수 파싱으로 확인했다. **단 U+202F(narrow no-break space)와 U+0178(Ÿ)은 subset 밖이다.** 프랑스어는 `: ; ? !` 앞과 « » 안쪽에 NNBSP를 쓰는 관례가 있고 AI 번역기가 이걸 자주 내보내므로, 번역 브리프에서 금지한다(**U+00A0으로** — 일반 공백은 `: ; ? !` 앞 줄바꿈을 허용해 400px에서 문장부호가 줄 머리 고아로 남는다).
