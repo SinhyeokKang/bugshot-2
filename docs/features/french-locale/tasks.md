@@ -56,8 +56,8 @@
   - `platform.connected` — 연동 그리드 셀 텍스트 가용이 ≈108px이고 `grid-cols-2`라 셀이 못 커진다. `ClickUp connecté`가 이미 초과.
   - 3버튼 푸터 5곳의 버튼 라벨(design.md 표) — 짧게.
 - **검증**:
-  - [ ] `pnpm typecheck` — `Bundle` 타입이 키 누락을 잡으므로 0 에러면 8파일 모두 키가 완전하다
-  - [ ] 이 시점엔 `pnpm test`가 여전히 green
+  - [x] `pnpm typecheck` — `Bundle` 타입이 키 누락을 잡으므로 0 에러면 8파일 모두 키가 완전하다
+  - [x] 이 시점엔 `pnpm test`가 여전히 green (6384 tests)
   - > **왜 green인가**(재조사 방지): `locales.test.ts`는 `index.ts`의 `locales` 레지스트리만 본다. `locale-registry.test.ts`의 소스 스캔은 `readFileSync(.../locales.ts)` **단일 파일 하드코딩**이라 네임스페이스도 신규 `fr.ts`도 안 본다. `manifest-locales.test.ts`·`log-viewer/i18n.test.ts`는 `LOCALES` 순회다.
 
 ---
