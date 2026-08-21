@@ -70,4 +70,39 @@ const en = {
   "aiRepro.loading5": "Checking nothing's missing",
 } satisfies Bundle;
 
-export const ai = { ko, en };
+const fr = {
+  "ai.badge.chromeAI": "Chrome AI",
+  "ai.stop": "Arrêter",
+
+  "aiDraft.title": "Brouillon IA",
+  "aiDraft.placeholder": "Décrivez brièvement le bug...",
+  "aiDraft.generate": "Générer",
+  "aiDraft.disclaimer": "L’IA peut faire des erreurs. Veuillez relire le brouillon généré.",
+  "aiDraft.contextTrimmed": "Le contenu était volumineux, une partie du contexte a été omise.",
+  "aiDraft.loading1": "Parcours des logs",
+  "aiDraft.loading2": "Analyse du contexte",
+  "aiDraft.loading3": "Repérage de l’essentiel",
+  "aiDraft.loading4": "Rédaction du brouillon",
+  "aiDraft.loading5": "Peaufinage du texte",
+
+  "aiStyling.banner": "Laissez l’IA gérer le style",
+  "aiStyling.generate": "Style IA",
+  "aiStyling.title": "Style IA",
+  "aiStyling.placeholder": "Décrivez les changements souhaités...",
+  "aiStyling.error": "Échec du traitement de la réponse IA",
+  "aiStyling.noChanges": "Aucun changement de style trouvé",
+  "aiStyling.disclaimer": "L’IA peut faire des erreurs. Veuillez vérifier les changements.",
+  "aiStyling.loading1": "Examen de l’élément",
+  "aiStyling.loading2": "Exploration des options de style",
+  "aiStyling.loading3": "Ajustement des propriétés",
+  "aiStyling.loading4": "Peaufinage du code",
+  "aiStyling.loading5": "Vérification du résultat",
+
+  "aiRepro.loading1": "Relecture de vos actions",
+  "aiRepro.loading2": "Suivi du déroulé",
+  "aiRepro.loading3": "Mise en ordre des étapes",
+  "aiRepro.loading4": "Rédaction des étapes",
+  "aiRepro.loading5": "Vérification qu’il ne manque rien",
+} satisfies Bundle;
+
+export const ai = { ko, en, fr };
