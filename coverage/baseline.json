@@ -1,25 +1,25 @@
 {
-  "generatedAt": "2026-08-20T02:04:08.782Z",
+  "generatedAt": "2026-08-21T08:50:07.153Z",
   "logic": {
-    "covered": 22157,
-    "total": 24634,
-    "pct": 89.94479175123813
+    "covered": 23231,
+    "total": 25708,
+    "pct": 90.36486696748094
   },
   "global": {
     "lines": {
-      "covered": 29852,
-      "total": 54505,
-      "pct": 54.76
+      "covered": 30959,
+      "total": 55589,
+      "pct": 55.69
     },
     "branches": {
-      "covered": 8866,
-      "total": 10053,
+      "covered": 8864,
+      "total": 10050,
       "pct": 88.19
     },
     "functions": {
-      "covered": 1687,
-      "total": 2303,
-      "pct": 73.25
+      "covered": 1686,
+      "total": 2316,
+      "pct": 72.79
     }
   },
   "files": {
@@ -399,6 +399,10 @@
       "covered": 19,
       "total": 19
     },
+    "src/i18n/fr.ts": {
+      "covered": 19,
+      "total": 19
+    },
     "src/i18n/index.ts": {
       "covered": 54,
       "total": 54
@@ -408,40 +412,40 @@
       "total": 19
     },
     "src/i18n/locales.ts": {
-      "covered": 42,
-      "total": 42
+      "covered": 43,
+      "total": 43
     },
     "src/i18n/namespaces/ai.ts": {
-      "covered": 63,
-      "total": 63
+      "covered": 94,
+      "total": 94
     },
     "src/i18n/namespaces/app.ts": {
-      "covered": 111,
-      "total": 111
+      "covered": 165,
+      "total": 165
     },
     "src/i18n/namespaces/common.ts": {
-      "covered": 63,
-      "total": 63
+      "covered": 94,
+      "total": 94
     },
     "src/i18n/namespaces/editor.ts": {
-      "covered": 311,
-      "total": 311
+      "covered": 466,
+      "total": 466
     },
     "src/i18n/namespaces/integrations.ts": {
-      "covered": 559,
-      "total": 559
+      "covered": 838,
+      "total": 838
     },
     "src/i18n/namespaces/issue.ts": {
-      "covered": 273,
-      "total": 273
+      "covered": 409,
+      "total": 409
     },
     "src/i18n/namespaces/logs.ts": {
-      "covered": 257,
-      "total": 257
+      "covered": 385,
+      "total": 385
     },
     "src/i18n/namespaces/settings.ts": {
-      "covered": 219,
-      "total": 219
+      "covered": 324,
+      "total": 324
     },
     "src/lib/adf-sentinels.ts": {
       "covered": 10,
@@ -580,8 +584,8 @@
       "total": 272
     },
     "src/log-viewer/i18n.ts": {
-      "covered": 284,
-      "total": 286
+      "covered": 417,
+      "total": 419
     },
     "src/log-viewer/main.tsx": {
       "covered": 0,
@@ -836,7 +840,7 @@
       "total": 33
     },
     "src/sidepanel/components/TiptapEditor.tsx": {
-      "covered": 39,
+      "covered": 70,
       "total": 647
     },
     "src/sidepanel/components/TooltipIconButton.tsx": {
@@ -988,8 +992,8 @@
       "total": 2
     },
     "src/sidepanel/lib/aiLanguage.ts": {
-      "covered": 35,
-      "total": 35
+      "covered": 36,
+      "total": 36
     },
     "src/sidepanel/lib/aiLoadingPhrases.ts": {
       "covered": 38,
@@ -1244,8 +1248,8 @@
       "total": 26
     },
     "src/sidepanel/lib/localeLabels.ts": {
-      "covered": 4,
-      "total": 4
+      "covered": 5,
+      "total": 5
     },
     "src/sidepanel/lib/log-merge.ts": {
       "covered": 106,
@@ -1525,7 +1529,7 @@
     },
     "src/sidepanel/tabs/IssueListTab.tsx": {
       "covered": 0,
-      "total": 196
+      "total": 198
     },
     "src/sidepanel/tabs/IssueRow.tsx": {
       "covered": 0,
@@ -1533,7 +1537,7 @@
     },
     "src/sidepanel/tabs/IssueTab.tsx": {
       "covered": 221,
-      "total": 559
+      "total": 561
     },
     "src/sidepanel/tabs/IssueTypeCombobox.tsx": {
       "covered": 2,
@@ -1649,7 +1653,7 @@
     },
     "src/sidepanel/tabs/connect/JiraConnectForm.tsx": {
       "covered": 41,
-      "total": 400
+      "total": 402
     },
     "src/sidepanel/tabs/connect/LinearConnectForm.tsx": {
       "covered": 0,
@@ -1660,12 +1664,12 @@
       "total": 266
     },
     "src/sidepanel/tabs/connect/PlatformConnectFlow.tsx": {
-      "covered": 83,
-      "total": 83
+      "covered": 85,
+      "total": 85
     },
     "src/sidepanel/tabs/connect/SlackConnectForm.tsx": {
       "covered": 0,
-      "total": 107
+      "total": 109
     },
     "src/sidepanel/tabs/connect/gitlabInstanceUrl.ts": {
       "covered": 26,
