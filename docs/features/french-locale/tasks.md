@@ -109,12 +109,12 @@
 - **길이 예산 (Chrome 강제 — 반드시 지킬 것)**: `EXT_DESCRIPTION` **≤ 132자**, `EXT_NAME` ≤ 75자. 현재 en `EXT_DESCRIPTION`이 **131자**(여유 1자)라 프랑스어 직역은 확실히 초과하고, **확장 로드 실패 또는 CWS 업로드 거부**로 이어진다. fr은 en 직역이 아니라 **길이에 맞춘 별도 카피**를 쓴다.
 - **폴백 허용 테이블은 건드리지 않는다** (`SECTION_DESC_BASE`·`MODE_HINTS`·`EXPECTED_SPLIT_HINT`·`SECTION_DESC`·`MONTH_STYLE`·`USER_GUIDE_URLS`). 컴파일러가 요구하지도 않는다.
 - **검증**:
-  - [ ] `pnpm typecheck` 0 에러 — 폴백 금지 5개가 전부 채워졌다는 증거
-  - [ ] `pnpm test` 전체 green — 사전 세 벌 대칭·빈 값 0·placeholder 일치
-  - [ ] `locales.test.ts`의 "LOCALES의 모든 코드가 실제 사전을 갖는다"·"BCP47이 모든 등록 로케일을 커버한다" green
-  - [ ] `manifest-locales.test.ts`의 커버리지·`findExtraneous` green
-  - [ ] **신규 길이 단언 green** — `EXT_DESCRIPTION` ≤132 · `EXT_NAME` ≤75 · `EXT_NAME_SHORT === "BugShot"`(제품명 보존 핀)
-  - [ ] `log-viewer/__tests__/i18n.test.ts`의 "메인 테이블과 공통인 키는 값도 일치" green (복제 사전 drift 0)
+  - [x] `pnpm typecheck` 0 에러 — 폴백 금지 5개가 전부 채워졌다는 증거
+  - [x] `pnpm test` 전체 green — 사전 세 벌 대칭·빈 값 0·placeholder 일치 (6386 tests)
+  - [x] `locales.test.ts`의 "LOCALES의 모든 코드가 실제 사전을 갖는다"·"BCP47이 모든 등록 로케일을 커버한다" green
+  - [x] `manifest-locales.test.ts`의 커버리지·`findExtraneous` green
+  - [x] **신규 길이 단언 green** — `EXT_DESCRIPTION` ≤132 · `EXT_NAME` ≤75 · `EXT_NAME_SHORT === "BugShot"`(제품명 보존 핀)
+  - [x] `log-viewer/__tests__/i18n.test.ts`의 "메인 테이블과 공통인 키는 값도 일치" green (복제 사전 drift 0)
 
 ---
 
