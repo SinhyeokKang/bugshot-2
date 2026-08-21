@@ -201,7 +201,7 @@ submission *to that same destination*, and is dropped when you switch.
 - **Markdown copy** — paste into Slack, Confluence, or anywhere with tables intact
 - **File attachments** — attach your own files to the report, uploaded natively to the tracker (opt-in — Settings → Issue settings → Other)
 - **Local download** — save the captured screenshot/video and the `logs.html` report
-- **i18n** — Korean / English. The issue body has its own language setting, separate from the interface and from the AI drafting language
+- **i18n** — Korean / English / French. The issue body has its own language setting, separate from the interface and from the AI drafting language
 - **Report body composition** — toggle which sections (description, steps to reproduce, expected result, notes) go into the issue and **drag them into the order you want**, media and logs included; plus a title prefix
 - **Theme** — light / dark / system
 
