@@ -6,9 +6,9 @@ Settings you set once and forget — like language and theme — all live in the
 
 ![Language setting](../assets/settings-general-1.jpg)
 
-Pick the display language for BugShot. You can choose between **한국어** (Korean) and **English**. The change applies across the whole side panel right away — no refresh needed.
+Pick the display language for BugShot. You can choose between **한국어** (Korean), **English**, and **Français** (French). The change applies across the whole side panel right away — no refresh needed.
 
-> The user guide opens in your language too. Set it to Korean and you get the Korean guide; set it to English and you get the English one.
+> The user guide is available in Korean and English. Set the language to Korean for the Korean guide; any other language opens the English one.
 
 ## Theme
 
