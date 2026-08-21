@@ -545,7 +545,7 @@ export function SelectedPanel() {
       )}
       <AiStylingDialog open={aiDialogOpen} onOpenChange={setAiDialogOpen} createSession={createSession} capabilities={capabilities} />
       <PageFooter>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <CancelConfirmDialog
             onConfirm={() => {
               reset();

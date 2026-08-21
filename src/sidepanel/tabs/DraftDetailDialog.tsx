@@ -902,7 +902,7 @@ export function DraftDetailDialog({
                 />
               )}
 
-              <DialogFooter className="!flex-row items-center !justify-between">
+              <DialogFooter className="!flex-row flex-wrap items-center gap-2 !justify-between">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive-outline">

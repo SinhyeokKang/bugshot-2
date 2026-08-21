@@ -316,7 +316,7 @@ export function EmptyState({ onStartElement, onStartElementShot, onStartScreensh
           <div className={cn("flex w-full flex-col gap-2", CONTENT_MAX_W)}>
             <Button className="w-full" onClick={onStartElement} data-testid="mode-element">
               <Crosshair />
-              {t("issue.mode.element")}
+              <span className="truncate">{t("issue.mode.element")}</span>
             </Button>
             <ButtonGroup className="w-full">
               <Button variant="outline" className="min-w-0 flex-1" onClick={onStartElementShot} data-testid="mode-element-shot">
@@ -413,7 +413,7 @@ function ReplayButton({ className }: { className?: string }) {
       onClick={() => navTo("settings", "issue")}
     >
       <Timer />
-      {t("issue.mode.replay")}
+      <span className="truncate">{t("issue.mode.replay")}</span>
     </Button>
   ) : (
     <Button
@@ -430,11 +430,13 @@ function ReplayButton({ className }: { className?: string }) {
       }}
     >
       {isEncoding ? <Loader2 className="animate-spin" /> : <Timer />}
-      {isEncoding
-        ? t("issue.replay.encoding")
-        : bufferedSeconds >= 30
-          ? t("issue.mode.replay")
-          : t("issue.mode.replayProgress", { n: bufferedSeconds })}
+      <span className="truncate">
+        {isEncoding
+          ? t("issue.replay.encoding")
+          : bufferedSeconds >= 30
+            ? t("issue.mode.replay")
+            : t("issue.mode.replayProgress", { n: bufferedSeconds })}
+      </span>
     </Button>
   );
 

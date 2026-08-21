@@ -109,13 +109,15 @@ export function IssueListTab() {
     <PageShell>
       <div className="shrink-0 border-b border-border px-4 py-4">
         <div className="flex items-center gap-3">
-          <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-            <TabsList className="h-9">
+          <div className="min-w-0 overflow-x-auto">
+            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+              <TabsList className="h-9">
               <TabsTrigger value="all" data-testid="filter-all">{t("issueList.filter.all")}</TabsTrigger>
               <TabsTrigger value="submitted" data-testid="filter-submitted">{t("issueList.filter.submitted")}</TabsTrigger>
               <TabsTrigger value="draft" data-testid="filter-draft">{t("issueList.filter.draft")}</TabsTrigger>
-            </TabsList>
-          </Tabs>
+              </TabsList>
+            </Tabs>
+          </div>
           <div className="relative ml-auto w-full max-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input

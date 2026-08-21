@@ -439,7 +439,7 @@ export function PreviewPanel() {
         <IntegrationsCta onNavigate={() => navTo("integrations")} />
       )}
       <PageFooter>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <Button
             variant="outline"
             onClick={() => reset()}

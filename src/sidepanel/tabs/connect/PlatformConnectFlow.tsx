@@ -107,11 +107,13 @@ export function PlatformConnectFlow<P extends PlatformId, A>({
             <Loader2 className="h-4 w-4 animate-spin" />
           </span>
         )}
-        <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
+        <span className={`inline-flex min-w-0 max-w-full items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
           {icon}
-          {connected
-            ? t("platform.connected", { platform: platformLabel })
-            : t("platform.connectPlatform", { platform: platformLabel })}
+          <span className="truncate">
+            {connected
+              ? t("platform.connected", { platform: platformLabel })
+              : t("platform.connectPlatform", { platform: platformLabel })}
+          </span>
         </span>
       </Button>
 
