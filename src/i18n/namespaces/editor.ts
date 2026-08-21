@@ -448,7 +448,7 @@ const fr = {
   "styleTable.noSnapshot": "Aucun instantané",
 
   "annotation.title": "Annotation d’image",
-  "annotation.cancel": "Annuler",
+  "annotation.cancel": "Abandonner",
   "annotation.done": "Terminé",
   "annotation.select": "Sélectionner",
   "annotation.arrow": "Flèche",

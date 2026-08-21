@@ -690,7 +690,7 @@ const fr = {
   "asana.auth.kind.oauth": "OAuth",
   "asana.auth.kind.pat": "PAT",
   "asana.patDialog.title": "Authentification PAT",
-  "asana.patDialog.body": "Saisissez votre Personal Access Token Asana. Vous pouvez en créer un dans la console développeur (My apps).",
+  "asana.patDialog.body": "Saisissez votre Personal Access Token Asana. Vous pouvez en créer un dans la developer console (My apps).",
   "asana.patLabel": "Personal Access Token",
   "asana.patPlaceholder": "1/1234...",
   "asana.oauth.notConfigured": "La variable d’environnement OAuth Asana (VITE_ASANA_CLIENT_ID) n’est pas définie. Seule l’authentification PAT est disponible.",
