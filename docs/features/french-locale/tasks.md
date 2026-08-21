@@ -29,8 +29,8 @@
   - `matchLocaleTag("fr-fr", ["pt", "en"])` — 후보 배열이 하드코딩이라 fr 등록과 무관하게 green.
   - round-trip 목록(`["ko-KR","en-US","fr","",undefined,"xx-YY"]`) — "반환값은 항상 등록된 로케일"을 재는 단언이라 fr이 등록돼도 green이고, 오히려 fr 경로를 한 번 더 태우는 셈이다.
 - **검증**:
-  - [ ] 위 3개 단언이 `"de"`/`"de-DE"` 계열로 교체됨 (`matchLocaleTag`·round-trip 줄은 무변경)
-  - [ ] `npx vitest run src/i18n/__tests__/locale-registry.test.ts` green (fr 등록 **전** 상태에서도 통과해야 한다 — 교체한 코드가 지금도 미등록이므로)
+  - [x] 위 3개 단언이 `"de"`/`"de-DE"` 계열로 교체됨 (`matchLocaleTag`·round-trip 줄은 무변경)
+  - [x] `npx vitest run src/i18n/__tests__/locale-registry.test.ts` green (fr 등록 **전** 상태에서도 통과해야 한다 — 교체한 코드가 지금도 미등록이므로)
   - > `pnpm test <path>`도 동작하지만 `pretest`가 붙어 **파일 하나만 돌려도 `vite build --config vite.log-viewer.config.ts`가 먼저 돈다.** 단일 파일 반복 실행엔 `npx vitest run`이 빠르다.
 
 ---
@@ -145,9 +145,9 @@
 
   - **알려진 한계를 주석으로 남길 것**(다음 사람이 과신하지 않게): 98쌍 중 20쌍은 ko값=en값=토큰이라 vacuous(복붙 통과) · `cURL`이 `URL`을 우연 만족 · ko∩en 필터가 실제로 거르는 건 98쌍 중 1쌍뿐 · **서드파티 UI 경로 문자열은 이 가드 밖**(번역 브리프 소관).
 - **검증**:
-  - [ ] `src/test/__tests__/proper-nouns.test.ts` — 깨진 합성 레지스트리(`{ko:{k:"Jira 연결"}, en:{k:"Connect Jira"}, fr:{k:"Connecter Logiciel"}}`)로 **검사기가 위반을 잡는다** + 온전한 픽스처로 green. 그물이 공허하지 않다는 증거가 커밋에 남는다.
-  - [ ] `src/i18n/__tests__/proper-nouns.test.ts` — 실사전 세 벌 전부 green
-  - [ ] `pnpm test` green
+  - [x] `src/test/__tests__/proper-nouns.test.ts` — 깨진 합성 레지스트리(`{ko:{k:"Jira 연결"}, en:{k:"Connect Jira"}, fr:{k:"Connecter Logiciel"}}`)로 **검사기가 위반을 잡는다** + 온전한 픽스처로 green. 그물이 공허하지 않다는 증거가 커밋에 남는다.
+  - [x] `src/i18n/__tests__/proper-nouns.test.ts` — 실사전 세 벌 전부 green
+  - [x] `pnpm test` green
 
 ---
 
@@ -172,11 +172,11 @@
 
   **(e) `e2e/logview/log-viewer.spec.ts`에 fr 스위트 추가** — 기존 `labelSuite("ko","ko-KR")`/`labelSuite("en","en-US")` 구조에 `labelSuite("fr","fr-FR")`과 `ACTION_LABELS.fr`/`NAV_TEXT.fr`을 추가한다. **log-viewer 독립 34키(값 그물 0)의 유일한 자동 검증**이자 실 번들 렌더 검증 — 수동 체크리스트의 logs.html 항목을 스모크로 격하시킨다.
 - **검증**:
-  - [ ] `pnpm build:e2e && pnpm test:e2e --grep settings-language` green
-  - [ ] `pnpm test:e2e --grep code-block-collapse` green (전환 후)
-  - [ ] `pnpm test:e2e --grep log-viewer` green — fr `labelSuite` 포함
-  - [ ] `LOCALE_LABELS`에서 fr 라벨 문자열을 임시로 바꾸면 spec이 red
-  - [ ] 언어 spec 실행 **후** 다른 spec을 이어 돌려도 로케일이 오염되지 않음
+  - [x] `pnpm build:e2e && pnpm test:e2e --grep settings-language` green
+  - [x] `pnpm test:e2e --grep code-block-collapse` green (전환 후)
+  - [x] `pnpm test:e2e --grep log-viewer` green — fr `labelSuite` 포함
+  - [x] `LOCALE_LABELS`에서 fr 라벨 문자열을 임시로 바꾸면 spec이 red
+  - [x] 언어 spec 실행 **후** 다른 spec을 이어 돌려도 로케일이 오염되지 않음
 
 ---
 
@@ -197,9 +197,9 @@
   - `useDocumentLangEffect.test.tsx` — 로케일 하드코딩을 `LOCALES` 순회로 전환. `<html lang>` 동기화는 이미 구현된 기능이라(design.md "인터페이스 설계") `BCP47.fr` 등록이 이 표면도 바꾼다.
   - 이유: `docs/POSTMORTEM.md` 재발 방지 (2)(현재 `:1131` 부근)가 **"로케일 의존 포맷 함수 테스트는 en 하나로 끝내지 않는다"**이고, `formatTimestamp.ts:20` 주석의 ko 회귀가 정확히 이 축이다. design.md가 "실측 확인함"이라 주장한 `15 janv. 2026`을 고정하는 테스트가 현재 없다.
 - **검증**:
-  - [ ] `pnpm test` green — 순회 전환 후 ko/en 기대값이 그대로 통과
-  - [ ] fr 기대값(`janv.` 등)이 실제로 단언된다
-  - [ ] `pnpm typecheck` 0 에러
+  - [x] `pnpm test` green — 순회 전환 후 ko/en 기대값이 그대로 통과
+  - [x] fr 기대값(`janv.` 등)이 실제로 단언된다
+  - [x] `pnpm typecheck` 0 에러
 
 ---
 
