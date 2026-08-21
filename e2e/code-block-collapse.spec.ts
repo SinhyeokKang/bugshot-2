@@ -5,11 +5,26 @@ import { stubClipboard } from "./fixtures/clipboard";
 // 16줄 넘는 코드블럭이 접혀 렌더되고 pill로 토글되는지. 접힘을 data-collapsed 속성으로
 // 표현했기 때문에 판정 가능하다 — max-height·페이드·hover 페이드인은 시각이라 여기서 못 본다.
 //
-// 라벨은 ko/en 정규식으로 단언한다. 앱 locale은 워커 프로필에 따라 비결정적이라
-// (GOTCHAS "locale 비결정") 한쪽 문구로 못 박으면 조용히 흔들린다. 정규식이면 "expand↔collapse가
-// 실제로 바뀌었다"와 "{count}가 보간됐다"를 로케일 무관하게 잡는다.
-const EXPAND_36 = /^(펼치기 \(36줄\)|Expand \(36 lines\))$/;
-const COLLAPSE = /^(접기|Collapse)$/;
+// 라벨 기대값은 editor 사전에서 직접 파생한 LOCALES 순회 — 앱 locale이 워커 프로필에 따라
+// 비결정이라(GOTCHAS "locale 비결정") 특정 로케일 문구로 못 박으면 조용히 흔들리고,
+// ko|en 손열거는 fr 등록 순간 fr-* 머신에서만 red가 됐다. 사전 파생이면 다음 로케일도
+// 자동 커버되고 문구가 바뀌면 여기가 함께 움직인다. (locales.ts·editor 네임스페이스는
+// import 0의 순수 데이터라 tsconfig.e2e 밖 transitive를 끌지 않는다.)
+import { LOCALES } from "../src/i18n/locales";
+import { editor } from "../src/i18n/namespaces/editor";
+
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const EXPAND_36 = new RegExp(
+  `^(${LOCALES.map((l) => esc(editor[l]["codeBlock.expand"].replace("{count}", "36"))).join("|")})$`,
+);
+const COLLAPSE = new RegExp(
+  `^(${LOCALES.map((l) => esc(editor[l]["codeBlock.collapse"])).join("|")})$`,
+);
+// 복사본 부재 단언용 — expand는 {count} 앞 접두어("펼치기 (" 류)로 잰다.
+const COLLAPSE_UI_LABELS = LOCALES.flatMap((l) => [
+  editor[l]["codeBlock.expand"].split("{count}")[0],
+  editor[l]["codeBlock.collapse"],
+]);
 
 // 로그 행은 data-entry-id만 노출하고 URL은 텍스트로만 있다 — i18n이 아니라 데이터라 안전.
 // "/e2e-json"은 "/e2e-bigjson"의 substring이 아니라 hasText로 서로 구분된다.
@@ -128,10 +143,8 @@ test.describe.serial("code block collapse", () => {
     await expect.poll(() => copiedText(panel)).toContain("e2e-bigjson-000");
     const copied = await copiedText(panel);
     expect(copied).not.toContain("code-collapse");
-    expect(copied).not.toContain("펼치기");
-    expect(copied).not.toContain("Expand (");
-    expect(copied).not.toContain("접기");
-    expect(copied).not.toContain("Collapse");
+    // LOCALES 순회 — fr 라벨(Développer/Réduire)도 자동으로 잰다.
+    for (const label of COLLAPSE_UI_LABELS) expect(copied).not.toContain(label);
 
     // rich flavor에도 NodeView 잔재가 안 새는지 — 두 flavor가 같은 조립을 공유한다.
     const html = await panel.evaluate(

@@ -29,6 +29,7 @@ const originKey = (url: string) => new URL(url).origin;
 const ACTION_LABELS = {
   ko: { all: "전체", click: "클릭", navigation: "이동", input: "입력", keypress: "키", toggle: "토글", select: "선택" },
   en: { all: "All", click: "Click", navigation: "Navigation", input: "Input", keypress: "Keys", toggle: "Toggle", select: "Select" },
+  fr: { all: "Tout", click: "Clic", navigation: "Navigation", input: "Saisie", keypress: "Touches", toggle: "Bascule", select: "Sélection" },
 } as const;
 
 type Lang = keyof typeof ACTION_LABELS;
@@ -50,6 +51,13 @@ const NAV_TEXT = {
     "nv-reload": "Reloaded",
     "nv-traverse": "Navigated via history to",
     "nv-legacy": "Navigated to",
+  },
+  fr: {
+    "nv-back": "Retour à",
+    "nv-forward": "Avance vers",
+    "nv-reload": "Rechargement de",
+    "nv-traverse": "Navigation via l’historique vers",
+    "nv-legacy": "Navigation vers",
   },
 } as const;
 
@@ -113,19 +121,23 @@ function labelSuite(lang: Lang, locale: string) {
     test("네트워크 검색 placeholder가 본문 검색 안내 (search placeholder stale 회귀)", async ({ page }) => {
       await openViewer(page, { networkLog: makeNetworkLog() });
       const search = page.getByTestId("network-search");
-      const needle = lang === "ko" ? "본문" : "body";
-      await expect(search).toHaveAttribute("placeholder", new RegExp(needle, "i"));
+      const PLACEHOLDER = {
+        ko: { needle: "본문", exact: "URL·본문 검색…" },
+        en: { needle: "body", exact: "Search URL & body…" },
+        fr: { needle: "corps", exact: "Rechercher URL & corps…" },
+      } as const;
+      await expect(search).toHaveAttribute("placeholder", new RegExp(PLACEHOLDER[lang].needle, "i"));
       // URL만 검색하던 옛 문구로 회귀하지 않았는지 — 정확값 고정.
-      await expect(search).toHaveAttribute(
-        "placeholder",
-        lang === "ko" ? "URL·본문 검색…" : "Search URL & body…",
-      );
+      await expect(search).toHaveAttribute("placeholder", PLACEHOLDER[lang].exact);
     });
   });
 }
 
 labelSuite("ko", "ko-KR");
 labelSuite("en", "en-US");
+// 독립 34키(logViewer.*·timeline.* 류 — 메인 사전과 drift 대조가 없는 축)를 실 번들 렌더로
+// 재는 유일한 자동 그물이 이 스위트다. 값 출처: src/log-viewer/i18n.ts frDict.
+labelSuite("fr", "fr-FR");
 
 // blob URL `<a download>` 클릭 → download 이벤트로 파일명 판정(download-buttons.spec 패턴).
 async function expectDownload(page: Page, testId: string, filename: string): Promise<void> {
