@@ -30,6 +30,7 @@ export function normalizeAiLanguage(value: unknown): AiLanguage {
 const LOCALE_AI_PRESET: Record<LocaleMode, AiLanguagePreset> = {
   ko: "Korean",
   en: "English",
+  fr: "French",
 };
 
 export function localeAiPreset(locale: LocaleMode): AiLanguagePreset {

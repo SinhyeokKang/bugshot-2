@@ -3,7 +3,7 @@
 // store(zustand + chrome.storage)가 딸려오면 그 번들과 service worker 양쪽이 깨진다.
 // 불변식은 __tests__/locale-registry.test.ts가 소스 스캔으로 강제한다.
 
-export const LOCALES = ["ko", "en"] as const;
+export const LOCALES = ["ko", "en", "fr"] as const;
 
 export type LocaleMode = (typeof LOCALES)[number];
 
@@ -17,6 +17,7 @@ export const DEFAULT_LOCALE = "en" as const satisfies LocaleMode;
 export const BCP47: Record<LocaleMode, string> = {
   ko: "ko-KR",
   en: "en-US",
+  fr: "fr-FR",
 };
 
 function isLocale(value: unknown): value is LocaleMode {

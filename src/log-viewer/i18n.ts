@@ -437,6 +437,7 @@ export const frDict: Record<string, string> = {
 export const DICTS: Record<LocaleMode, Record<string, string>> = {
   ko: koDict,
   en: enDict,
+  fr: frDict,
 };
 
 // logs.html은 확장을 설치하지 않은 팀원이 여는 산출물이라, 리포터의 UI 설정이 아니라

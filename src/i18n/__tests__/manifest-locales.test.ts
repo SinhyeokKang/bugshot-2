@@ -99,6 +99,30 @@ describe("manifest __MSG_ 참조", () => {
   });
 });
 
+// Chrome이 강제하는 길이 상한 — 넘으면 확장 로드 실패 또는 CWS 업로드 거부인데, typecheck와
+// 대칭 테스트가 전부 green인 채 스토어에서만 터진다(en EXT_DESCRIPTION이 131자로 여유 1자).
+// 신규 로케일마다 재발하는 축이라 자동 가드로 잠근다.
+describe("manifest _locales — Chrome 길이 예산", () => {
+  it("EXT_DESCRIPTION ≤ 132자 · EXT_NAME ≤ 75자 (전 로케일)", () => {
+    const over = Object.entries(registry).flatMap(([locale, dict]) => {
+      const out: string[] = [];
+      if ((dict.EXT_DESCRIPTION ?? "").length > 132)
+        out.push(`${locale} EXT_DESCRIPTION ${dict.EXT_DESCRIPTION.length}`);
+      if ((dict.EXT_NAME ?? "").length > 75) out.push(`${locale} EXT_NAME ${dict.EXT_NAME.length}`);
+      return out;
+    });
+    expect(over).toEqual([]);
+  });
+
+  // 제품명은 번역 대상이 아니다 — 액션 버튼 라벨이 로케일마다 갈리면 브랜드가 쪼개진다.
+  it("EXT_NAME_SHORT는 모든 로케일에서 BugShot이다 (제품명 핀)", () => {
+    const wrong = Object.entries(registry)
+      .filter(([, dict]) => dict.EXT_NAME_SHORT !== "BugShot")
+      .map(([locale]) => locale);
+    expect(wrong).toEqual([]);
+  });
+});
+
 describe("manifest default_locale", () => {
   const declared = manifestSource.match(/default_locale:\s*"([^"]+)"/)?.[1];
 

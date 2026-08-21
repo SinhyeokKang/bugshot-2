@@ -6,4 +6,5 @@ import type { LocaleMode } from "@/i18n/locales";
 export const LOCALE_LABELS: Record<LocaleMode, string> = {
   ko: "한국어",
   en: "English",
+  fr: "Français",
 };
