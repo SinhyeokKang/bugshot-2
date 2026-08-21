@@ -67,8 +67,8 @@
 - **변경 대상**: `src/i18n/fr.ts` (신규)
 - **작업 내용**: `src/i18n/en.ts`를 그대로 미러 — 8개 네임스페이스의 `.fr`을 spread하고 `export default fr satisfies TranslationMap`.
 - **검증**:
-  - [ ] `pnpm typecheck` 0 에러 (`TranslationMap` 불만족이면 여기서 걸린다)
-  - [ ] `pnpm test` 여전히 green (아직 `index.ts`가 import하지 않음)
+  - [x] `pnpm typecheck` 0 에러 (`TranslationMap` 불만족이면 여기서 걸린다)
+  - [x] `pnpm test` 여전히 green (아직 `index.ts`가 import하지 않음)
 
 ---
 
@@ -86,9 +86,9 @@
 
   drift 대조는 **메인 레지스트리(`locales`) 전량 교집합**이다(`MAIN_NAMESPACES` 손열거는 v1.7.24에서 제거됨) — 값 일치가 강제되는 건 96키. **34키는 안 고쳐도 green이라는 게 더 위험하다** — 빠뜨리면 로그 뷰어의 그 표면만 조용히 폴백한다(키 존재는 `NET_VERB_KEYS` 등이 일부 강제 — 값만 미검증). Task 6(e)의 fr `labelSuite`가 이 축의 e2e 그물이다.
 - **검증**:
-  - [ ] `pnpm typecheck` 0 에러
-  - [ ] `pnpm test` 여전히 green
-  - [ ] 독립 34키를 하나도 안 빠뜨렸는지 확인 — 유닛 그물이 없다. e2e 그물은 Task 6(e)에서 생긴다(그 전까진 눈)
+  - [x] `pnpm typecheck` 0 에러
+  - [x] `pnpm test` 여전히 green
+  - [x] 독립 34키를 하나도 안 빠뜨렸는지 확인 — 유닛 그물이 없다. e2e 그물은 Task 6(e)에서 생긴다(그 전까진 눈)
 
 ---
 
