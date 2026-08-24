@@ -29,10 +29,16 @@ const originKey = (url: string) => new URL(url).origin;
 const ACTION_LABELS = {
   ko: { all: "전체", click: "클릭", navigation: "이동", input: "입력", keypress: "키", toggle: "토글", select: "선택" },
   en: { all: "All", click: "Click", navigation: "Navigation", input: "Input", keypress: "Keys", toggle: "Toggle", select: "Select" },
-  fr: { all: "Tout", click: "Clic", navigation: "Navigation", input: "Saisie", keypress: "Touches", toggle: "Bascule", select: "Sélection" },
+  fr: { all: "Toutes", click: "Clic", navigation: "Navigation", input: "Saisie", keypress: "Touches", toggle: "Bascule", select: "Sélection" },
 } as const;
 
 type Lang = keyof typeof ACTION_LABELS;
+
+const PLACEHOLDER = {
+  ko: { needle: "본문", exact: "URL·본문 검색…" },
+  en: { needle: "body", exact: "Search URL & body…" },
+  fr: { needle: "corps", exact: "Rechercher URL et corps…" },
+} as const;
 
 // navigation 유형별 문구. 이 사전은 log-viewer 전용 **복제본**이라 메인 테이블이 갱신돼도
 // 안 따라오면 raw 키가 노출된다(POSTMORTEM 2026-06-28·07-26). 여기 값은 리터럴로 박아
@@ -54,7 +60,7 @@ const NAV_TEXT = {
   },
   fr: {
     "nv-back": "Retour à",
-    "nv-forward": "Avance vers",
+    "nv-forward": "Navigation avant vers",
     "nv-reload": "Rechargement de",
     "nv-traverse": "Navigation via l’historique vers",
     "nv-legacy": "Navigation vers",
@@ -70,7 +76,7 @@ const NAV_ICON_CLASS = {
   "nv-legacy": "lucide-map-pin",
 } as const;
 
-// ko/en 공용 라벨·placeholder 검증 — i18n 회귀의 단일 출처.
+// 로케일별 라벨·placeholder 검증 — i18n 회귀의 단일 출처.
 function labelSuite(lang: Lang, locale: string) {
   test.describe(`i18n labels — ${lang}`, () => {
     test.use({ locale });
@@ -121,11 +127,6 @@ function labelSuite(lang: Lang, locale: string) {
     test("네트워크 검색 placeholder가 본문 검색 안내 (search placeholder stale 회귀)", async ({ page }) => {
       await openViewer(page, { networkLog: makeNetworkLog() });
       const search = page.getByTestId("network-search");
-      const PLACEHOLDER = {
-        ko: { needle: "본문", exact: "URL·본문 검색…" },
-        en: { needle: "body", exact: "Search URL & body…" },
-        fr: { needle: "corps", exact: "Rechercher URL & corps…" },
-      } as const;
       await expect(search).toHaveAttribute("placeholder", new RegExp(PLACEHOLDER[lang].needle, "i"));
       // URL만 검색하던 옛 문구로 회귀하지 않았는지 — 정확값 고정.
       await expect(search).toHaveAttribute("placeholder", PLACEHOLDER[lang].exact);

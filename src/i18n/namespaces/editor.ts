@@ -337,15 +337,15 @@ const en = {
 } satisfies Bundle;
 
 const fr = {
-  "editor.resetChanges": "Réinitialiser les modifs",
+  "editor.resetChanges": "Réinitialiser les modifications",
   "editor.resetChanges.body": "Réinitialiser {count} modification(s) ? Tous les styles reviendront aux valeurs d’origine.",
-  "editor.changesDialog.trigger": "Voir les modifs",
+  "editor.changesDialog.trigger": "Examiner les modifications",
   "editor.changesDialog.title": "Modifications de style",
   "editor.changesDialog.current": "Sélectionné",
   "editor.changesDialog.resetRow": "Réinitialiser cette modification",
   "editor.changesDialog.resetAll": "Tout réinitialiser",
   "editor.changesDialog.unknownOrigin": "(inconnu)",
-  "editor.noChangeHint": "Modifiez un style pour continuer. Pour capturer l’élément tel quel, utilisez le mode \"Capturer l’élément\".",
+  "editor.noChangeHint": "Modifiez un style pour continuer. Pour capturer l’élément tel quel, utilisez le mode « Capturer l’élément ».",
   "editor.cssDraftUnapplied": "Le CSS actuel contient du contenu non appliqué. Corrigez-le avant de continuer.",
   "editor.textPlaceholder": "Texte de l’élément",
   "editor.revertText": "Rétablir le texte d’origine",
@@ -373,8 +373,8 @@ const fr = {
   "draft.titlePlaceholder": "Titre du ticket",
   "draft.descriptionPlaceholder": "Décrivez comment le bug se manifeste",
   "draft.stepsToReproducePlaceholder": "Saisissez une étape par ligne",
-  "draft.expectedResultPlaceholder": "Comportement attendu ou spécification après correction",
-  "draft.notesPlaceholder": "Tout autre élément utile",
+  "draft.expectedResultPlaceholder": "Comportement attendu ou spécification de design après correction",
+  "draft.notesPlaceholder": "Toute autre information utile",
   "draft.removeAnnotation": "Supprimer l’annotation",
   "draft.editAnnotation": "Modifier l’annotation",
   "draft.addAnnotation": "Ajouter une annotation",
@@ -396,7 +396,7 @@ const fr = {
   "draft.preview": "Aperçu du ticket",
   "draft.saved": "Brouillon enregistré",
 
-  "draftDetail.title": "Relire le brouillon",
+  "draftDetail.title": "Examiner le brouillon",
   "draftDetail.edit": "Modifier",
   "draftDetail.editField.title": "Modifier {label}",
 
@@ -424,7 +424,7 @@ const fr = {
 
   "value.placeholder": "Saisissez une valeur ou cherchez un token",
   "value.reset": "Valeur d’origine (réinitialiser)",
-  "value.unset": "Valeur non définie",
+  "value.unset": "Effacer la valeur (unset)",
   "value.manualInput": "Saisie manuelle",
   "value.noMatch": "Aucune correspondance",
   "value.showMore": "Afficher {count} tokens de plus",
@@ -457,7 +457,7 @@ const fr = {
   "annotation.pen": "Stylo",
   "annotation.text": "Texte",
   "annotation.textInput": "Saisie de texte",
-  "annotation.highlight": "Surligner",
+  "annotation.highlight": "Surligneur",
   "annotation.undo": "Annuler",
   "annotation.redo": "Rétablir",
   "annotation.delete": "Supprimer",

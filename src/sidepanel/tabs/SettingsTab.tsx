@@ -336,7 +336,7 @@ function GeneralSettingsContent() {
 
         <Section title={t("settings.theme")}>
           <Select value={theme} onValueChange={(v) => setTheme(v as ThemeMode)}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full" aria-label={t("settings.theme")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

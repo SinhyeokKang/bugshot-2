@@ -98,7 +98,7 @@ const fr = {
   "aiStyling.loading4": "Peaufinage du code",
   "aiStyling.loading5": "Vérification du résultat",
 
-  "aiRepro.loading1": "Relecture de vos actions",
+  "aiRepro.loading1": "Analyse de vos actions",
   "aiRepro.loading2": "Suivi du déroulé",
   "aiRepro.loading3": "Mise en ordre des étapes",
   "aiRepro.loading4": "Rédaction des étapes",
