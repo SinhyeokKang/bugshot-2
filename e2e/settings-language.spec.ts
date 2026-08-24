@@ -1,5 +1,6 @@
 import { expect, test } from "./fixtures/extension";
 import { openSettings } from "./fixtures/settings";
+import { LOCALES, type LocaleMode } from "../src/i18n/locales";
 
 // 화면 언어 셀렉터 — 옵션 목록이 LOCALES 등록 순(ko·en·fr)으로 렌더되는지.
 //
@@ -10,9 +11,13 @@ import { openSettings } from "./fixtures/settings";
 // 옵션은 열어서 읽기만 하고 **선택하지 않는다** — ext fixture가 { scope: "worker" } +
 // workers: 1이라 한 샤드의 모든 spec이 하나의 프로필·chrome.storage를 공유한다. 골라버리면
 // 후행 spec 전부가 그 로케일로 돈다(선택이 필요하면 issue-body-locale.spec처럼 복원까지).
-const EXPECTED_OPTIONS = ["한국어", "English", "Français"];
 
-test("화면 언어 셀렉터 — 옵션이 LOCALES 순서로 3개 렌더된다", async ({ ext }) => {
+// 라벨은 리터럴로 박는다 — LOCALE_LABELS에서 파생하면 그 테이블이 틀려도 통과하는 동어반복이
+// 된다. 대신 Record<LocaleMode, …>로 두어 로케일이 늘면 컴파일이 여기를 채우라고 한다.
+const LABELS: Record<LocaleMode, string> = { ko: "한국어", en: "English", fr: "Français" };
+const EXPECTED_OPTIONS = LOCALES.map((code) => LABELS[code]);
+
+test("화면 언어 셀렉터 — 옵션이 LOCALES 순서로 렌더된다", async ({ ext }) => {
   const fixture = await ext.context.newPage();
   await fixture.goto(ext.fixtureUrl("basic.html"));
   const tabId = await ext.fixtureTabId();

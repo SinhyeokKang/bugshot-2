@@ -120,14 +120,12 @@ const en = {
 } satisfies Bundle;
 
 const fr = {
-  "app.tab.debug": "Debug",
+  "app.tab.debug": "Débogage",
   "app.tab.issueList": "Tickets",
   "app.tab.integrations": "Intégrations",
   "app.tab.settings": "Réglages",
   "app.unsupported.title": "Indisponible sur cette page",
   "app.unsupported.body": "Veuillez lancer BugShot sur une page web (http, https, file).",
-  // app.unsupported.*는 탭 바인딩 자체가 실패한 전체화면용이라 "BugShot 전체를 못 쓴다"는 뜻이다.
-  // 미지원 URL에서는 연동·설정·이슈 목록이 그대로 동작하므로 캡처 스코프로 따로 쓴다.
   "app.captureUnsupported.title": "Capture impossible sur cette page",
   "app.captureUnsupported.body": "Le navigateur bloque les extensions sur cette page. Essayez BugShot sur une page web (http, https, file). Les intégrations et les réglages restent disponibles ici.",
   "app.pickerUnavailable.title": "Indisponible sur cette page",
@@ -164,16 +162,15 @@ const fr = {
   "platform.empty.title": "Aucune plateforme connectée",
   "platform.getToken": "Obtenir un token",
   "platform.subtab.connected": "Mes connexions",
-  "platform.subtab.add": "Ajouter",
+  "platform.subtab.add": "Ajouter une plateforme",
   "platform.add.title": "Choisissez une plateforme à ajouter",
   "platform.add.empty.title": "Aucune plateforme connectée",
   "platform.add.empty.body": "Ajoutez une plateforme pour commencer à créer des tickets.",
-  // 연동 CTA 배너 전용. 값은 위 두 키와 같지만 맥락(캡처 화면의 미완 상태 안내)이 달라
-  // 일부러 분리했다 — 한쪽 문구만 고칠 수 있어야 한다. 중복은 의도된 것이니 합치지 말 것.
+  // 연동 CTA 배너 전용 — ko 쪽 주석 참조. 의도된 중복이다.
   "platform.cta.body": "Ajoutez une plateforme pour commencer à créer des tickets.",
   "platform.cta.action": "Ajouter une plateforme",
   "platform.connectPlatform": "{platform}",
-  "platform.connected": "{platform} lié",
+  "platform.connected": "{platform} connecté",
   "platform.connectMethod.title": "Connecter {platform}",
   "platform.connectMethod.body": "Choisissez le mode de connexion.",
   "platform.connectMethod.oauth": "OAuth",

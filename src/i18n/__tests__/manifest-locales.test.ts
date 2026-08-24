@@ -1,15 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { walkSources } from "@/test/sourceFiles";
+import { readManifestRegistry } from "@/test/manifest-registry";
 import { BASE_LOCALE, DEFAULT_LOCALE, LOCALES } from "../locales";
-import {
-  findExtraneous,
-  findParityViolations,
-  findUncovered,
-  type LocaleRegistry,
-} from "@/test/locale-parity";
+import { findExtraneous, findParityViolations, findUncovered } from "@/test/locale-parity";
 
 // 이 저장소의 세 번째 사전이다. src/i18n(사이드패널)·log-viewer/i18n(복제본)과 달리 TS 밖
 // JSON이라 컴파일이 못 보고, locales.test.ts는 src/i18n만 순회하므로 여태 그물이 0이었다.
@@ -20,19 +16,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
 const localesDir = join(repoRoot, "public", "_locales");
 const manifestSource = readFileSync(join(repoRoot, "manifest.config.ts"), "utf8");
 
-type ChromeMessages = Record<string, { message: string; description?: string }>;
-
-const registry: LocaleRegistry = Object.fromEntries(
-  readdirSync(localesDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => {
-      const raw = JSON.parse(
-        readFileSync(join(localesDir, e.name, "messages.json"), "utf8"),
-      ) as ChromeMessages;
-      // findParityViolations는 평평한 사전을 받는다 — Chrome 포맷의 message만 뽑아 맞춘다.
-      return [e.name, Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v.message]))];
-    }),
-);
+const registry = readManifestRegistry(localesDir);
 
 // 이 사전의 소비자는 둘이다 — manifest의 __MSG_ 치환과 런타임 chrome.i18n.getMessage.
 // manifest만 훑으면 후자로만 쓰이는 키가 "죽은 문자열"로 오탐되고, 더 나쁘게는 런타임에서

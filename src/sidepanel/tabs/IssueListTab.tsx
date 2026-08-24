@@ -109,12 +109,13 @@ export function IssueListTab() {
     <PageShell>
       <div className="shrink-0 border-b border-border px-4 py-4">
         <div className="flex items-center gap-3">
-          <div className="min-w-0 overflow-x-auto">
+          {/* overflow-x-auto는 overflow-y도 auto로 만든다 — 세로 여유가 없으면 트리거의 포커스 링이 잘린다. */}
+          <div className="-my-1 min-w-0 overflow-x-auto py-1">
             <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
               <TabsList className="h-9">
-              <TabsTrigger value="all" data-testid="filter-all">{t("issueList.filter.all")}</TabsTrigger>
-              <TabsTrigger value="submitted" data-testid="filter-submitted">{t("issueList.filter.submitted")}</TabsTrigger>
-              <TabsTrigger value="draft" data-testid="filter-draft">{t("issueList.filter.draft")}</TabsTrigger>
+                <TabsTrigger value="all" data-testid="filter-all">{t("issueList.filter.all")}</TabsTrigger>
+                <TabsTrigger value="submitted" data-testid="filter-submitted">{t("issueList.filter.submitted")}</TabsTrigger>
+                <TabsTrigger value="draft" data-testid="filter-draft">{t("issueList.filter.draft")}</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>

@@ -86,7 +86,7 @@ const fr = {
   "common.verify": "Vérifier",
   "common.delete": "Supprimer",
   "common.attach": "Joindre",
-  "common.detach": "Détacher",
+  "common.detach": "Retirer",
   "common.download": "Télécharger",
   "common.expand": "Développer",
   "common.collapse": "Réduire",

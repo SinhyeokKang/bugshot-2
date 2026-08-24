@@ -118,7 +118,7 @@ function AiLanguageSection() {
           value={aiLanguage}
           onValueChange={(v) => setAiLanguage(v as AiLanguage)}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full" aria-label={t("llm.section.outputLanguage")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
