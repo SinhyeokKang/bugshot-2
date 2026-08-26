@@ -1,25 +1,25 @@
 {
-  "generatedAt": "2026-08-21T08:50:07.153Z",
+  "generatedAt": "2026-08-26T08:16:33.446Z",
   "logic": {
-    "covered": 23231,
-    "total": 25708,
-    "pct": 90.36486696748094
+    "covered": 23272,
+    "total": 25712,
+    "pct": 90.51026757934038
   },
   "global": {
     "lines": {
-      "covered": 30959,
-      "total": 55589,
-      "pct": 55.69
+      "covered": 30969,
+      "total": 55593,
+      "pct": 55.7
     },
     "branches": {
-      "covered": 8864,
-      "total": 10050,
-      "pct": 88.19
+      "covered": 8877,
+      "total": 10068,
+      "pct": 88.17
     },
     "functions": {
-      "covered": 1686,
-      "total": 2316,
-      "pct": 72.79
+      "covered": 1689,
+      "total": 2307,
+      "pct": 73.21
     }
   },
   "files": {
@@ -840,7 +840,7 @@
       "total": 33
     },
     "src/sidepanel/components/TiptapEditor.tsx": {
-      "covered": 70,
+      "covered": 39,
       "total": 647
     },
     "src/sidepanel/components/TooltipIconButton.tsx": {
@@ -944,8 +944,8 @@
       "total": 39
     },
     "src/sidepanel/hooks/useEditorSessionSync.ts": {
-      "covered": 57,
-      "total": 235
+      "covered": 98,
+      "total": 239
     },
     "src/sidepanel/hooks/useIssueImages.ts": {
       "covered": 0,
