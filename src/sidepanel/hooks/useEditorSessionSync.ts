@@ -151,6 +151,17 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         }
       }
       setHydratedTabId(tabId);
+    }).catch((e) => {
+      // 복원 실패는 저장분 없음으로 강등하고 화면은 띄운다 — 게이트를 닫아두면 App.tsx의
+      // `!editorHydrated`가 패널을 영구 빈 화면으로 굳힌다(POSTMORTEM 2026-07-26,
+      // chromeLocalStorage.getItem이 같은 이유로 삼킨다).
+      // 스코프는 조회만이 아니라 hydrate·마이그레이션까지다 — 어느 쪽이 터져도 빈 화면보다
+      // 강등이 낫다. 대신 삼키지 말고 남긴다(같은 선례가 console.error를 함께 든다).
+      // 잔여 위험: 조회가 일시 실패했을 뿐 저장분이 실재하면, 이후 편집의 debounce 저장이
+      // 그 키를 통째로 덮어쓴다. 세션 유실을 감수하고 패널을 살리는 쪽이 이 트레이드오프다.
+      console.error("[session-sync] hydrate failed:", key, e);
+      if (cancelled) return;
+      setHydratedTabId(tabId);
     });
 
     const unsubStore = useEditorStore.subscribe((state, prev) => {

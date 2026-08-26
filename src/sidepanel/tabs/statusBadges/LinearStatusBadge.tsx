@@ -71,7 +71,7 @@ export function LinearStatusBadge({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-disabled:cursor-not-allowed"
           onClick={(e) => e.stopPropagation()}
           aria-disabled={updating}
         >
