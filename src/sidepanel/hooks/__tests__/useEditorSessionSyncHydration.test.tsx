@@ -58,6 +58,8 @@ import { useEditorSessionSync } from "../useEditorSessionSync";
 let get: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  // 스토어는 모듈 싱글턴이라 케이스가 심은 값이 다음 케이스로 샌다(editor-store.test.ts 관용구).
+  useEditorStore.setState(useEditorStore.getInitialState(), true);
   get = vi.fn(() => Promise.resolve({}));
   vi.stubGlobal("chrome", {
     storage: {
@@ -97,11 +99,18 @@ describe("useEditorSessionSync — hydrate 게이트", () => {
     await waitFor(() => expect(result.current).toBe(true));
   });
 
-  it("조회가 reject하면 스토어를 건드리지 않는다", async () => {
+  // 기대값을 기본값(idle/null)으로 두면 "catch가 아무것도 안 한다"와 "catch가 스토어를
+  // 강제 리셋한다"가 구분되지 않는다 — 진행 중인 세션을 심어두고 그게 살아남는지로 재야
+  // "건드리지 않는다"를 실제로 증명한다.
+  it("조회가 reject해도 진행 중 세션을 덮지 않는다", async () => {
+    useEditorStore.setState({
+      phase: "styling",
+      target: { tabId: 7, url: "https://example.com", title: "example" },
+    });
     get.mockRejectedValue(new Error("storage unavailable"));
     const { result } = renderHook(() => useEditorSessionSync(7));
     await waitFor(() => expect(result.current).toBe(true));
-    expect(useEditorStore.getState().phase).toBe("idle");
-    expect(useEditorStore.getState().target).toBeNull();
+    expect(useEditorStore.getState().phase).toBe("styling");
+    expect(useEditorStore.getState().target?.url).toBe("https://example.com");
   });
 });
