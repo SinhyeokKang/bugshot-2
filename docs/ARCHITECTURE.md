@@ -48,6 +48,7 @@ chrome.action.onClicked.addListener((tab) => {
 - tabId별로 `chrome.storage.session`의 `editor:${tabId}` 키에 저장
 - `useEditorSessionSync(tabId)` 훅이 hydration + debounced save(300ms) 담당 (zustand persist 미들웨어 대신 직접 구현 — tabId-scoped 키가 persist의 "one store, one key" 모델에 맞지 않음)
 - hydration 완료 상태도 tabId-scoped다. `hydratedTabId === tabId` 전에는 App 렌더를 열지 않아 이전 탭의 완료 상태가 새 탭을 통과시키지 않는다.
+- **그 게이트는 실패로 닫힌 채 남을 수 없어야 한다.** 복원이 터져도(조회 reject·hydrate·마이그레이션 예외) `setHydratedTabId`는 반드시 불린다 — 안 부르면 `App.tsx`의 `if (!editorHydrated || !settingsHydrated) return null`이 패널을 **영구 빈 화면**으로 굳히고 복구 수단이 패널 재오픈뿐이다. 실패는 "저장분 없음"으로 강등하되 `console.error`로 남긴다(같은 렌더 게이트의 settings 쪽 `chromeLocalStorage.getItem`과 같은 정책 — POSTMORTEM 2026-07-26). 트레이드오프는 수용된 것이다: 조회만 일시 실패하고 스냅샷은 실재했다면, 이후 편집의 debounce save가 그 키를 통째로 덮어쓴다.
 - page key 변경 시 **비보존 세션만** 버린다. video는 phase와 무관하게, screenshot/element/freeform은 frozen phase(`drafting`/`previewing`/`done`)에서 보존한다. 보존된 element 세션의 페이지가 바뀌면 세션은 유지하되 picker DOM 편집만 clear한다 (`clearIfPageChanged` in `tab-bindings.ts`).
 - 탭 닫히면 `onRemoved`에서 정리
 - **복수 element 버퍼(`bufferedElements`)도 세션 영속화**된다. 단 phase별 보존이 비대칭: `styling`에서 세션 만료/`reset`이 걸리면 버퍼가 폐기되고, `drafting`/`previewing`/`done`은 `selection`과 동일하게 스냅샷에 포함돼 패널을 닫았다 열어도 복원된다. quota 초과 시 lite 폴백이 버퍼 내부 before/after base64까지 명시적으로 null화. `picking` 중 닫힌 세션은 hydrate 시 idle 강등과 함께 버퍼도 폐기한다(DOM 편집이 이미 원복된 ghost — 남기면 `preserveBuffer`로 다음 세션에 합류).
