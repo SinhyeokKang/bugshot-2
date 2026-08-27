@@ -252,3 +252,64 @@ describe("buildReportData 박제", () => {
     expect(getLocale()).toBe("ko");
   });
 });
+
+// element 모드 스타일 diff 표의 헤더 축. 위 스윕은 captureMode: "screenshot"이라 이 표를 한 번도
+// 그리지 않고, 빌더 단위 테스트 20개는 @/i18n을 모킹해 t()가 키를 에코하므로 "헤더가 t()를
+// 거치는가" 자체를 관측할 수 없다 — Property만 t()이고 As is/To be는 영어 리터럴인 채로 ko/fr
+// 제출 본문이 나가던 회귀(2026-08-27)를 실사전으로 여기서 잡는다.
+describe("스타일 diff 표 헤더 — 본문 언어를 따른다", () => {
+  const elementCtx = (bodyLocale: LocaleMode) =>
+    makeCtx(bodyLocale, {
+      captureMode: "element",
+      selector: "div.box",
+      tagName: "div",
+      diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+    });
+
+  // 표를 그리는 진입점 전수. Asana는 표 대신 헤딩으로 같은 두 라벨을 쓰므로 함께 스윕한다
+  // (이미 t()를 거치지만, 여기서 빠지면 "대칭이 유지되는가"를 아무도 안 본다).
+  const TABLE_BUILDERS: { name: string; run: (ctx: MarkdownContext) => unknown }[] = [
+    { name: "buildIssueMarkdown", run: (ctx) => buildIssueMarkdown(ctx) },
+    { name: "buildIssueHtml", run: (ctx) => buildIssueHtml(ctx) },
+    { name: "buildIssueAdf", run: (ctx) => buildIssueAdf(ctx) },
+    { name: "buildMarkdownIssueBody", run: (ctx) => buildMarkdownIssueBody({ ctx }, { platform: "github" }) },
+    { name: "buildLinearIssueBody", run: (ctx) => buildLinearIssueBody({ ctx }) },
+    { name: "buildClickupIssueBody", run: (ctx) => buildClickupIssueBody({ ctx }) },
+    { name: "buildAsanaIssueBody", run: (ctx) => buildAsanaIssueBody({ ctx }) },
+  ];
+
+  it("스윕 대상이 7개 진입점이다 (자기검증 앵커)", () => {
+    expect(TABLE_BUILDERS).toHaveLength(7);
+  });
+
+  // 앵커 — element ctx가 실제로 표를 그리는지부터 고정한다. resolveStyleElements가 빈 배열을
+  // 돌려주면 아래 단언이 전부 공허하게 통과한다(그리지 않았으니 영어도 안 나온다).
+  it.each(TABLE_BUILDERS.map((b) => b.name))("%s — element ctx가 실제로 표를 그린다", (name) => {
+    const builder = TABLE_BUILDERS.find((b) => b.name === name)!;
+    expect(serialize(builder.run(elementCtx("en")))).toContain("As is");
+  });
+
+  it.each(TABLE_BUILDERS.map((b) => b.name))("%s — bodyLocale ko면 헤더가 한국어다", (name) => {
+    const builder = TABLE_BUILDERS.find((b) => b.name === name)!;
+    const out = serialize(builder.run(elementCtx("ko")));
+    expect(out).toContain("변경 전");
+    expect(out).toContain("변경 후");
+    expect(out).not.toContain("As is");
+    expect(out).not.toContain("To be");
+  });
+
+  it.each(TABLE_BUILDERS.map((b) => b.name))("%s — bodyLocale fr면 헤더가 프랑스어다", (name) => {
+    const builder = TABLE_BUILDERS.find((b) => b.name === name)!;
+    const out = serialize(builder.run(elementCtx("fr")));
+    expect(out).toContain("Avant");
+    expect(out).toContain("Après");
+    expect(out).not.toContain("As is");
+    expect(out).not.toContain("To be");
+  });
+
+  // 같은 표의 Property 열은 이미 t()를 거친다 — 한 표 안에서 세 헤더가 같은 로케일이어야 한다.
+  it("한 표의 세 헤더가 같은 로케일로 나온다", () => {
+    const md = buildIssueMarkdown(elementCtx("ko"));
+    expect(md).toContain("| 속성 | 변경 전 | 변경 후 |");
+  });
+});

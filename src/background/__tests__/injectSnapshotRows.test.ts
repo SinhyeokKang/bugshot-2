@@ -1,8 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { injectSnapshotRows, isStyleChangesTable } from "../injectSnapshotRows";
 
+// styleChanges table 식별 라벨은 본문 언어(bodyLocale)를 따르므로 호출부가 주입한다 —
+// messages.ts가 injectSnapshotRows를 부르는 자리는 이미 withLocale(bodyLocale) 구간 안이다.
+const EN = { asIs: "As is", toBe: "To be" };
+const KO = { asIs: "변경 전", toBe: "변경 후" };
+
 // buildIssueAdf의 table()가 만드는 styleChanges table 구조를 흉내낸다(헤더 셀 텍스트).
-function styleChangesTable(): unknown {
+function styleChangesTable(headers = EN): unknown {
   const header = (text: string) => ({
     type: "tableHeader",
     content: [{ type: "paragraph", content: [{ type: "text", text }] }],
@@ -10,7 +15,10 @@ function styleChangesTable(): unknown {
   return {
     type: "table",
     content: [
-      { type: "tableRow", content: [header("Property"), header("As is"), header("To be")] },
+      {
+        type: "tableRow",
+        content: [header("Property"), header(headers.asIs), header(headers.toBe)],
+      },
       { type: "tableRow", content: [{ type: "tableCell", content: [] }] },
     ],
   };
@@ -36,23 +44,43 @@ const heading = (text: string) => ({
 type Row = { before?: string; after?: string };
 const make = (before?: string, after?: string): Row => ({ before, after });
 
-function run(content: unknown[], files: Record<string, string>) {
+function run(content: unknown[], files: Record<string, string>, headers = EN) {
   injectSnapshotRows<string>(
     content,
     (name) => files[name],
     (before, after) => make(before, after),
+    headers,
   );
 }
 
 describe("isStyleChangesTable", () => {
   it("헤더에 As is/To be 있으면 true", () => {
-    expect(isStyleChangesTable(styleChangesTable())).toBe(true);
+    expect(isStyleChangesTable(styleChangesTable(), EN)).toBe(true);
   });
   it("일반 table은 false", () => {
-    expect(isStyleChangesTable(userTable())).toBe(false);
+    expect(isStyleChangesTable(userTable(), EN)).toBe(false);
   });
   it("table 아닌 노드는 false", () => {
-    expect(isStyleChangesTable(heading("x"))).toBe(false);
+    expect(isStyleChangesTable(heading("x"), EN)).toBe(false);
+  });
+});
+
+// 표 헤더가 본문 언어를 타게 되면 영어 리터럴 식별은 ko/fr 제출에서 통째로 무음 실패한다
+// (table을 못 찾아 Snapshot 행이 안 붙고, 예외도 로그도 없다). 식별 라벨은 본문을 만든
+// 로케일과 같은 출처에서 와야 한다.
+describe("isStyleChangesTable — 식별이 본문 언어를 따른다", () => {
+  it("ko 본문 table을 ko 라벨로 식별한다", () => {
+    expect(isStyleChangesTable(styleChangesTable(KO), KO)).toBe(true);
+  });
+
+  it("영어 라벨로는 ko 본문 table을 식별하지 못한다 (라벨 주입이 필수임을 실증)", () => {
+    expect(isStyleChangesTable(styleChangesTable(KO), EN)).toBe(false);
+  });
+
+  it("ko 본문에서도 Snapshot 행이 splice된다", () => {
+    const content: unknown[] = [heading("스타일 변경 (a)"), styleChangesTable(KO)];
+    run(content, { "before-0.webp": "B0", "after-0.webp": "A0" }, KO);
+    expect((content[1] as any).content[1]).toEqual({ before: "B0", after: "A0" });
   });
 });
 
