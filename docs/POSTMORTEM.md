@@ -36,6 +36,28 @@
 
 ---
 
+## 2026-08-27 — 감사가 "t() 키도 이미 있다"며 1줄 수정을 처방한 표시 문자열이, 실은 realm을 건너는 매칭 키였다
+
+- **영역**: `i18n`, `background`, `어댑터`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: (사전 차단 — 고치는 중에 발견) 이슈 본문 스타일 diff 표에서 `Property` 열만 `t()`를 타고 `As is`/`To be`는 영어 리터럴이라, ko/fr 본문 언어로 제출해도 그 두 헤더만 영어로 나갔다. 감사 리포트는 "키가 이미 있으니 5개 빌더에서 치환"이라는 1줄 처방을 냈다. 그대로 했으면 **Jira ko/fr 제출에서 before/after 스냅샷 이미지 행이 예외도 로그도 없이 사라졌을 것**이다 — 제출은 성공하고 표만 비어서 나간다.
+- **근본 원인**: `background/injectSnapshotRows.ts:isStyleChangesTable`이 그 영어 헤더 텍스트로 ADF 표를 **식별해서** Snapshot 행을 splice한다. 즉 그 문자열은 표시용이 아니라 **실행 키**였고, 결합이 realm을 건넌다(사이드패널 빌더가 찍은 문자열을 background 후처리가 찾는다). 더 나쁜 건 파일 상단 주석이 `"비-로컬라이즈 리터럴로 — 로케일 무관·견고"`라고 그 전제를 **명시적으로 적어두고 있었다**는 것이다 — 주석은 당시엔 참이었고, 빌더 쪽을 번역하는 순간 거짓이 되는데 그 커플링은 빌더 파일 어디에도 안 적혀 있다. 한쪽에만 적힌 전제는 다른 쪽을 고치는 사람에게 안 보인다.
+- **재발 방지**: (1) **본문에 나가는 문자열을 번역하기 전에 "그걸 다시 읽는 코드"를 먼저 센다** — `grep -rn "includes(\|indexOf(\|findIndex(\|=== \"" src/background/`로 제출 후처리의 문자열 매칭을 뽑고, 각각 "이 문자열이 로케일을 타는가"를 답한다. 현재 background의 본문 노드 매칭 넷(`logs.html` 파일명·`IMAGE/VIDEO_PLACEHOLDER` 센티널·`parseInlinePlaceholder` refId·`recording.(webm|mp4)`)은 전부 로케일 무관이라 이번 하나만 해당했다. (2) **매칭에만 쓰이는 키도 본문 키 화이트리스트에 넣는다** — `bodyLocaleBackground.test.ts`의 술어를 "본문으로 **출력되는** 키"로 두면 `styleTable.asIs`처럼 출력 안 되고 대조만 하는 키가 그대로 샌다. "본문을 만들거나 **본문과 대조하는** 키"로 넓혔다. (3) **realm을 건너는 매칭 라벨은 호출부가 주입한다** — 순수 함수 안에서 `t()`를 부르면 전역 로케일 의존이 숨고, 영어로 박으면 이 버그가 된다. `messages.ts`의 호출 지점이 이미 `withLocale(resolveBodyLocale(...))` 구간 안이라 거기서 뽑아 넘긴다. (4) **감사·리뷰의 "1줄 수정" 처방은 그 줄이 만드는 값을 **누가 읽는지**부터 역추적한다** — 2026-08-XX의 frame-geometry token 건과 같은 형태이고, 이번엔 읽는 쪽이 다른 realm이라 grep 없이는 안 보였다.
+- **관련**: `src/background/injectSnapshotRows.ts:isStyleChangesTable`·`injectSnapshotRows`(`StyleTableHeaders` 주입), `src/background/messages.ts:buildJiraDescriptionContent`(라벨 뽑는 자리), 빌더 5파일(`buildIssueMarkdown` md·html / `buildIssueAdf` / `buildMarkdownIssueBody` / `buildLinearIssueBody` / `buildClickupIssueBody`), 그물 `src/background/__tests__/injectSnapshotRows.test.ts`(ko 라벨로 식별·splice + "영어 라벨로는 ko 표를 못 찾는다"로 주입 필요성 실증)·`src/sidepanel/lib/__tests__/bodyLocaleIntegration.test.ts`(실사전 7진입점 스윕)·`src/background/__tests__/bodyLocaleBackground.test.ts`(픽스처 로케일 파라미터화 — 영어 픽스처를 남겼으면 ko 단언이 공허 실패했다). 계열 선행: **2026-08-XX 본문 언어 전역 스왑**(realm이 갈리면 그물도 갈린다 — 그 회고의 재발방지 (4)가 이번에 그대로 적중했다).
+
+---
+
+## 2026-08-27 — 검증 장치가 자기 주장을 증명하지 않는다: 새 소스 스캔은 저장소 자신의 코드 포맷에 false green이었고, 문서의 "그물이 없다"는 서술 다섯은 테스트가 생기며 조용히 거짓이 됐다
+
+- **영역**: `툴체인`, `content`
+- **계열**: `미검증단언`, `드리프트`
+- **그물**: `unit`
+- **증상**: 두 얼굴이 같은 실패다. ① `afterPaint().then()`에 `.catch()` 부착을 강제하려 만든 소스 스캔이, **막겠다던 바로 그 형태를 통과시켰다** — `.then(ok, err)` 판정을 "depth-1 콤마 존재"로 해서, 이 저장소가 멀티라인 호출에 붙이는 **후행 콤마**(`picker.ts`의 `.catch()`가 정확히 그 포맷)가 rejection 핸들러로 읽혔다. ② `/doc-check`가 낸 79건의 지배적 계열이 "그물이 없다"는 서술이었다 — ARCHITECTURE만 다섯(`타입체크도 테스트도 안 잡는다`/`로케일 그물은 하나뿐`/`대조 테스트 없음`/`유닛으로 못 고정한다`/`픽셀 단언 하나뿐`)이 전부 이미 거짓이었고, 이번 세션이 새로 쓴 두 문장(`⚠ 미부착 3곳`—실제 1곳, `frame-geometry가 로직 스코프 제외`—실제로는 로직에 남아 있다)도 같은 형태로 틀렸다.
+- **근본 원인**: 검증 장치(그물·그물 서술)에 대한 주장은 **평가되지 않는다**. 테스트는 대상 코드가 틀렸을 때 red를 내지만, *테스트 자신이 무엇을 잡는지*는 아무도 안 잰다 — `KEYWORD_TAIL` 판정은 red 케이스가 0개라 통째로 지워도 green이었고(라벨은 "return 뒤 정규식"인데 케이스 소스가 `=>`를 타고 있었다), 렉서 desync는 체인을 **조용히 사라지게** 만들어 개수 앵커로도 안 잡혔다(실제로 정규식 휴리스틱이 저장소 3파일을 이미 잘못 렉싱하고 있었고, 스캔 집합 밖이라 무해했을 뿐이다). 문서 쪽은 트리거 자체가 없다 — "그물이 없다"는 문장은 **코드가 안 바뀌어도** 누군가 테스트를 추가하면 거짓이 되므로, "코드 바뀌면 문서 갱신"이라는 통상 절차로는 원리적으로 안 걸리고 전수 대조에서만 드러난다. 그리고 이 서술은 다음 사람의 판단을 직접 좌우한다 — "없다"고 적혀 있으면 있는 그물을 또 만들고, "있다"고 적혀 있으면 안심하고 배선을 되돌린다.
+- **재발 방지**: (1) **소스 스캔 그물은 저장소 자신의 포맷으로 반례를 먼저 써본다** — 규칙이 겨냥한 위반을 이 저장소 스타일(멀티라인 + 후행 콤마, 주석이 낀 체인, 인자 있는 호출)로 작성해 red가 나는지 확인한다. 남의 코드가 아니라 `picker.ts`를 베껴 쓰는 게 요령이다. (2) **"이 케이스가 X를 잡는다"는 라벨은 뮤테이션으로 실증한다** — X를 지웠을 때 그 케이스가 red인가. 이번엔 4종(`KEYWORD_TAIL` 제거 / `>` 화이트리스트 제거 / `hasSecondArg`를 콤마 존재로 되돌림 / 템플릿을 통째로 덮기)을 주입해 전부 red를 실측했고, 그 절차가 없었을 때 `KEYWORD_TAIL`은 0 red였다. (3) **렉서·전처리를 쓰는 스캐너는 "덮은 뒤에도 구조가 성립하는가"를 전수에 건다** — 괄호·중괄호 균형을 `src` 전량(약 900파일)에 단언한다. 스캔 대상 4파일만 재면 템플릿 처리를 통째로 되돌려도 green이라 거의 공허하다. 단 균형 유지가 정확성은 아니다(JSX `/>`로 실코드를 덮는 `.tsx` 3파일은 균형이 맞는다 — 한계를 주석에 남긴다). (4) **문서의 그물 서술은 별도 전수 절차를 둔다** — `grep -n "그물\|green이다\|로직 스코프\|무방비\|안전망\|유일한" docs/*.md`로 뽑아 각각 실제 테스트 파일과 `scripts/coverage-report.mjs`의 `BROWSER_BOUND_EXACT`에 대조한다. 특히 "로직 스코프 제외"라 적힌 **모든 파일명**을 그 Set에서 확인할 것 — `frame-geometry.ts`는 그 Set에 없고 같은 파일 주석이 "순수라 로직에 남긴다"고 명시하는데도 두 문서가 제외라고 적었다. (5) **`/push`의 diff 기반 신선도 검사로는 이 계열을 못 잡는다** — 트리거가 코드 변경인데 이 서술은 테스트 추가로 거짓이 되므로, `/doc-check`의 전수 대조가 유일한 경로다.
+- **관련**: `src/content/__tests__/after-paint-catch.test.ts`(`hasSecondArg`·`blankLiterals`의 `KEYWORD_TAIL`·템플릿 보간 스택·src 전수 균형 단언), `src/content/frame-geometry.ts:installFrameOffsetResponder`(부착 대상), 참조 포맷 `src/content/picker.ts:respondAfterPaint`·`src/content/area-select.ts:settleAfterPaint`, 스코프 판정 단일 출처 `scripts/coverage-report.mjs:BROWSER_BOUND_EXACT`, 정정 대상 `docs/ARCHITECTURE.md`("캡처 프레임 커밋 대기"·"본문 언어 전역 스왑")·`docs/DIRECTORY.md`·`CLAUDE.md`. 계열 선행: **2026-08-14**(골든이 생산자를 안 불러 게이트를 뒤집어도 green — 그물이 자기 사정거리를 증명 안 한 같은 축) · **2026-08-12**(그물 세 겹이 "있기만 하면 통과") · **2026-07-16**(단일 출처 승격 주석이 거짓 — 문서를 실측 없이 전제).
+
 ## 2026-08-26 — 회고의 재발방지 grep을 *메커니즘*에 묶어놨더니, 같은 렌더 게이트의 나머지 반쪽이 그 grep에 원리적으로 안 걸린 채 남았다
 
 - **영역**: `store`, `에디터`

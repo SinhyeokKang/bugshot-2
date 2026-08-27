@@ -933,7 +933,12 @@ export function buildJiraDescriptionContent(input: {
     }
 
     if (!screenshotFile) {
-      injectSnapshotRows(content, (name) => uploadMap.get(name), snapshotRow);
+      // 헤더 라벨은 이 withLocale 구간에서 뽑는다 — 본문(description)을 만든 로케일과 같은
+      // 출처여야 table 식별이 맞는다.
+      injectSnapshotRows(content, (name) => uploadMap.get(name), snapshotRow, {
+        asIs: t("styleTable.asIs"),
+        toBe: t("styleTable.toBe"),
+      });
     }
 
     for (let i = 0; i < content.length; i++) {

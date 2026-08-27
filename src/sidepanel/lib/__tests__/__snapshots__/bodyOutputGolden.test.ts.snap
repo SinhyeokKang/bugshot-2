@@ -1208,7 +1208,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildClickupIssueBody > elemen
 
 ## md.section.styleChanges (div.container > button)
 
-| md.column.property | As is | To be |
+| md.column.property | styleTable.asIs | styleTable.toBe |
 | --- | --- | --- |
 | color | #000 | #fff |
 | class | btn | btn **btn-primary** |
@@ -1670,7 +1670,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildIssueAdf > element 모드
                           "type": "strong",
                         },
                       ],
-                      "text": "As is",
+                      "text": "styleTable.asIs",
                       "type": "text",
                     },
                   ],
@@ -1690,7 +1690,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildIssueAdf > element 모드
                           "type": "strong",
                         },
                       ],
-                      "text": "To be",
+                      "text": "styleTable.toBe",
                       "type": "text",
                     },
                   ],
@@ -3241,7 +3241,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildIssueHtml > element 모�
 <h2>md.section.stepsToReproduce</h2>
 <ol><li>1단계 진입</li><li>2단계 클릭</li></ol>
 <h2>md.section.styleChanges (div.container &gt; button)</h2>
-<table><thead><tr><th>md.column.property</th><th>As is</th><th>To be</th></tr></thead><tbody>
+<table><thead><tr><th>md.column.property</th><th>styleTable.asIs</th><th>styleTable.toBe</th></tr></thead><tbody>
 <tr><td>color</td><td>#000</td><td>#fff</td></tr>
 <tr><td>class</td><td>btn</td><td>btn <strong>btn-primary</strong></td></tr>
 </tbody></table>
@@ -3539,7 +3539,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildIssueMarkdown > element �
 
 ## md.section.styleChanges (div.container > button)
 
-| md.column.property | As is | To be |
+| md.column.property | styleTable.asIs | styleTable.toBe |
 | --- | --- | --- |
 | color | #000 | #fff |
 | class | btn | btn **btn-primary** |
@@ -3827,7 +3827,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildLinearIssueBody > element
 
 ## md.section.styleChanges (div.container > button)
 
-| md.column.property | As is | To be |
+| md.column.property | styleTable.asIs | styleTable.toBe |
 | --- | --- | --- |
 | color | #000 | #fff |
 | class | btn | btn **btn-primary** |
@@ -4006,7 +4006,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildMarkdownIssueBody(github)
 
 ## md.section.styleChanges (div.container > button)
 
-| md.column.property | As is | To be |
+| md.column.property | styleTable.asIs | styleTable.toBe |
 | --- | --- | --- |
 | color | #000 | #fff |
 | class | btn | btn **btn-primary** |
@@ -4213,7 +4213,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildMarkdownIssueBody(gitlab)
 
 ## md.section.styleChanges (div.container > button)
 
-| md.column.property | As is | To be |
+| md.column.property | styleTable.asIs | styleTable.toBe |
 | --- | --- | --- |
 | color | #000 | #fff |
 | class | btn | btn **btn-primary** |
@@ -5424,7 +5424,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — expe
                           "type": "strong",
                         },
                       ],
-                      "text": "As is",
+                      "text": "styleTable.asIs",
                       "type": "text",
                     },
                   ],
@@ -5444,7 +5444,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — expe
                           "type": "strong",
                         },
                       ],
-                      "text": "To be",
+                      "text": "styleTable.toBe",
                       "type": "text",
                     },
                   ],
@@ -6015,7 +6015,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — note
                           "type": "strong",
                         },
                       ],
-                      "text": "As is",
+                      "text": "styleTable.asIs",
                       "type": "text",
                     },
                   ],
@@ -6035,7 +6035,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — note
                           "type": "strong",
                         },
                       ],
-                      "text": "To be",
+                      "text": "styleTable.toBe",
                       "type": "text",
                     },
                   ],
@@ -7012,7 +7012,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — 로�
                           "type": "strong",
                         },
                       ],
-                      "text": "As is",
+                      "text": "styleTable.asIs",
                       "type": "text",
                     },
                   ],
@@ -7032,7 +7032,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — 로�
                           "type": "strong",
                         },
                       ],
-                      "text": "To be",
+                      "text": "styleTable.toBe",
                       "type": "text",
                     },
                   ],
@@ -7522,7 +7522,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — 미�
                           "type": "strong",
                         },
                       ],
-                      "text": "As is",
+                      "text": "styleTable.asIs",
                       "type": "text",
                     },
                   ],
@@ -7542,7 +7542,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — 미�
                           "type": "strong",
                         },
                       ],
-                      "text": "To be",
+                      "text": "styleTable.toBe",
                       "type": "text",
                     },
                   ],
@@ -8047,7 +8047,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — 재�
                           "type": "strong",
                         },
                       ],
-                      "text": "As is",
+                      "text": "styleTable.asIs",
                       "type": "text",
                     },
                   ],
@@ -8067,7 +8067,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — 재�
                           "type": "strong",
                         },
                       ],
-                      "text": "To be",
+                      "text": "styleTable.toBe",
                       "type": "text",
                     },
                   ],
@@ -8407,7 +8407,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown —
 
 ## md.section.styleChanges (div.container > button)
 
-| md.column.property | As is | To be |
+| md.column.property | styleTable.asIs | styleTable.toBe |
 | --- | --- | --- |
 | color | #000 | #fff |
 | class | btn | btn **btn-primary** |
@@ -8502,7 +8502,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown —
 
 ## md.section.styleChanges (div.container > button)
 
-| md.column.property | As is | To be |
+| md.column.property | styleTable.asIs | styleTable.toBe |
 | --- | --- | --- |
 | color | #000 | #fff |
 | class | btn | btn **btn-primary** |
@@ -8691,7 +8691,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown —
 
 ## md.section.styleChanges (div.container > button)
 
-| md.column.property | As is | To be |
+| md.column.property | styleTable.asIs | styleTable.toBe |
 | --- | --- | --- |
 | color | #000 | #fff |
 | class | btn | btn **btn-primary** |
@@ -8778,7 +8778,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown —
 
 ## md.section.styleChanges (div.container > button)
 
-| md.column.property | As is | To be |
+| md.column.property | styleTable.asIs | styleTable.toBe |
 | --- | --- | --- |
 | color | #000 | #fff |
 | class | btn | btn **btn-primary** |
@@ -8864,7 +8864,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown —
 
 ## md.section.styleChanges (div.container > button)
 
-| md.column.property | As is | To be |
+| md.column.property | styleTable.asIs | styleTable.toBe |
 | --- | --- | --- |
 | color | #000 | #fff |
 | class | btn | btn **btn-primary** |

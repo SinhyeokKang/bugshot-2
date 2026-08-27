@@ -91,7 +91,7 @@ function buildIssueAdfInner(
         content.push(heading(2, `${t("md.section.styleChanges")} (${el.selector})`));
         content.push(
           table(
-            [t("md.column.property"), "As is", "To be"],
+            [t("md.column.property"), t("styleTable.asIs"), t("styleTable.toBe")],
             el.diffs.map((d) => [
               d.prop,
               d.asIsSegments ? segmentsToAdfInline(d.asIsSegments) : d.asIs,

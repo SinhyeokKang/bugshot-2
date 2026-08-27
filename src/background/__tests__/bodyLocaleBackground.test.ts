@@ -36,10 +36,12 @@ const header = (text: string) => ({
   content: [{ type: "paragraph", content: [{ type: "text", text }] }],
 });
 
-const styleChangesTable = () => ({
+// 헤더 라벨은 buildIssueAdf가 본문 언어로 찍는다 — 픽스처도 그 로케일을 따라야 한다.
+// 영어로 박아두면 ko 본문에서 injectSnapshotRows가 table을 못 찾아 이 그물이 무음으로 죽는다.
+const styleChangesTable = (asIs = "As is", toBe = "To be") => ({
   type: "table",
   content: [
-    { type: "tableRow", content: [header("Property"), header("As is"), header("To be")] },
+    { type: "tableRow", content: [header("Property"), header(asIs), header(toBe)] },
     { type: "tableRow", content: [{ type: "tableCell", content: [] }] },
   ],
 });
@@ -71,7 +73,7 @@ describe("Jira 본문 — background 생성 문자열", () => {
 
   it("bodyLocale ko면 두 문자열 모두 한국어다 (기본값 파리티)", () => {
     const content = buildJiraDescriptionContent({
-      description: doc([paragraph(VIDEO_PLACEHOLDER), styleChangesTable()]),
+      description: doc([paragraph(VIDEO_PLACEHOLDER), styleChangesTable("변경 전", "변경 후")]),
       uploadMap: uploads({ "before-0.webp": "https://x/b", "after-0.webp": "https://x/a" }),
       bodyLocale: "ko",
     });
@@ -160,10 +162,13 @@ describe("Notion 첨부 섹션 제목 — 빌더에 없고 background에서만 �
 
 // 사이드패널 빌더는 builderLocaleWrap.test.ts가 래핑 누락을 red로 만들지만 background엔 그
 // 등가 그물이 없었다. 새 어댑터가 제출 후처리에서 본문 문자열을 찍으면 무음으로 화면 언어가
-// 샌다 — 본문으로 나가는 키를 화이트리스트로 고정해, 넷째 키가 생기면 래핑을 강제한다.
+// 샌다 — 본문을 만들거나 대조하는 키를 화이트리스트로 고정해, 목록 밖 키가 생기면 래핑을 강제한다.
 describe("background 본문 문자열 게이트", () => {
   const BG_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
-  // 이슈 본문에 실려 나가는 키. 나머지(플랫폼 라벨·에러 문구)는 화면 언어가 정답이다.
+  // 이슈 본문을 **만들거나 본문과 대조하는** 키. 출력 여부가 아니라 로케일이 갈리면 무음으로
+  // 실패하는가가 기준이다 — `styleTable.asIs`/`toBe`는 본문에 안 찍히고 injectSnapshotRows의
+  // 표 식별 입력으로만 쓰이지만, 본문을 만든 로케일과 어긋나면 Snapshot 행이 조용히 빠진다.
+  // 나머지(플랫폼 라벨·에러 문구)는 화면 언어가 정답이다.
   // `attachmentSection`은 플랫폼 접두 키라 접두사만 보면 asana.·clickup. 복제가 새므로
   // 접미로 잡고, 로그 요약(`logSummary.`)은 아직 background에 없지만 빌더가 쓰는 본문
   // 네임스페이스라 미리 편입한다 — 여기 없는 네임스페이스는 곧 무음 통과다.
@@ -202,17 +207,19 @@ describe("background 본문 문자열 게이트", () => {
     expect(scanned.some((f) => f.file.includes("/"))).toBe(true);
   });
 
-  it("본문으로 나가는 t() 키는 래핑된 셋뿐이다", () => {
+  it("본문을 만들거나 대조하는 t() 키는 래핑된 다섯뿐이다", () => {
     expect(bodyKeys).toEqual([
       "md.videoAttached",
       "notion.attachmentSection",
+      "styleTable.asIs",
       "styleTable.snapshot",
+      "styleTable.toBe",
     ]);
   });
 
   const owners = scanned.filter((f) => f.keys.some((k) => BODY_KEY.test(k)));
 
-  it("그 셋을 담은 파일은 withLocale을 import한다", () => {
+  it("그 키들을 담은 파일은 withLocale을 import한다", () => {
     expect(owners.map((f) => f.file).sort()).toEqual(["messages.ts", "notion-api.ts"]);
     for (const owner of owners) {
       expect(owner.source, owner.file).toMatch(IMPORTS_WITH_LOCALE);
