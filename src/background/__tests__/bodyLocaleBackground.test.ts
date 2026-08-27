@@ -162,7 +162,7 @@ describe("Notion 첨부 섹션 제목 — 빌더에 없고 background에서만 �
 
 // 사이드패널 빌더는 builderLocaleWrap.test.ts가 래핑 누락을 red로 만들지만 background엔 그
 // 등가 그물이 없었다. 새 어댑터가 제출 후처리에서 본문 문자열을 찍으면 무음으로 화면 언어가
-// 샌다 — 본문으로 나가는 키를 화이트리스트로 고정해, 넷째 키가 생기면 래핑을 강제한다.
+// 샌다 — 본문을 만들거나 대조하는 키를 화이트리스트로 고정해, 목록 밖 키가 생기면 래핑을 강제한다.
 describe("background 본문 문자열 게이트", () => {
   const BG_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
   // 이슈 본문을 **만들거나 본문과 대조하는** 키. 출력 여부가 아니라 로케일이 갈리면 무음으로

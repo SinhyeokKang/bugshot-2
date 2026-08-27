@@ -312,4 +312,18 @@ describe("스타일 diff 표 헤더 — 본문 언어를 따른다", () => {
     const md = buildIssueMarkdown(elementCtx("ko"));
     expect(md).toContain("| 속성 | 변경 전 | 변경 후 |");
   });
+
+  // Notion만 표가 아니라 before/after **헤딩**으로 같은 대비를 그린다(`md.section.before/after`).
+  // 위 스윕에서 정당하게 빠지므로 여기서 따로 본다 — 안 보면 "ko 이슈 본문에서 Jira 표는
+  // 한국어인데 Notion 헤딩만 영어"가 그물 없이 남는다.
+  it("Notion before/after 헤딩도 본문 언어를 따른다", () => {
+    const headings = (locale: LocaleMode) =>
+      buildNotionIssueBody({ ctx: elementCtx(locale) })
+        .blocks.filter((b) => b.type === "heading_3" && "text" in b)
+        .map((b) => (b as { text: string }).text);
+
+    expect(headings("ko")).toEqual(expect.arrayContaining(["변경 전", "변경 후"]));
+    expect(headings("en")).toEqual(expect.arrayContaining(["Before", "After"]));
+    expect(headings("fr")).toEqual(expect.arrayContaining(["Avant", "Après"]));
+  });
 });
