@@ -162,12 +162,16 @@ export function installFrameOffsetResponder(hooks: {
       };
       // top overlay 숨김은 이 프레임(top realm)에서 커밋돼야 한다 — 자식의 대기는 별도
       // 렌더러(cross-origin OOPIF)일 수 있어 top 커밋을 보장하지 못한다.
-      void afterPaint().then(() => {
-        iframe.contentWindow?.postMessage(
-          { type: OFFSET_RES_TYPE, token: data.token, offset },
-          "*",
-        );
-      });
+      void afterPaint()
+        .then(() => {
+          iframe.contentWindow?.postMessage(
+            { type: OFFSET_RES_TYPE, token: data.token, offset },
+            "*",
+          );
+        })
+        // 응답이 message 리스너 밖으로 나갔다 — 삼키면 자식은 무응답을 타임아웃으로만 알게 되고
+        // 원인이 사라진다(캡처는 rect null 폴백으로 계속 진행된다).
+        .catch((err) => console.error("[bugshot] frame offset response failed", err));
     }
   });
 }

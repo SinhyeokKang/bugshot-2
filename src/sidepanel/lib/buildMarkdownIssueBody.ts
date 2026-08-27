@@ -102,7 +102,9 @@ function buildMarkdownIssueBodyInner(
         const hasSnapshots = !!(before?.url || after?.url);
 
         lines.push(`## ${t("md.section.styleChanges")} (${el.selector})`, "");
-        lines.push(`| ${t("md.column.property")} | As is | To be |`);
+        lines.push(
+          `| ${t("md.column.property")} | ${t("styleTable.asIs")} | ${t("styleTable.toBe")} |`,
+        );
         lines.push("| --- | --- | --- |");
         if (hasSnapshots) {
           lines.push(

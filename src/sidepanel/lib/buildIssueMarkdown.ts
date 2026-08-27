@@ -298,7 +298,9 @@ function buildIssueMarkdownInner(ctx: MarkdownContext): string {
       for (const el of resolveStyleElements(ctx)) {
         lines.push(`## ${t("md.section.styleChanges")} (${el.selector})`);
         lines.push("");
-        lines.push(`| ${t("md.column.property")} | As is | To be |`);
+        lines.push(
+          `| ${t("md.column.property")} | ${t("styleTable.asIs")} | ${t("styleTable.toBe")} |`,
+        );
         lines.push("| --- | --- | --- |");
         for (const d of el.diffs) {
           const asIs = d.asIsSegments ? segmentsToMarkdown(d.asIsSegments) : escapeCell(d.asIs);
@@ -398,7 +400,7 @@ function buildIssueHtmlInner(ctx: MarkdownContext): string {
       for (const el of resolveStyleElements(ctx)) {
         parts.push(`<h2>${t("md.section.styleChanges")} (${escapeHtml(el.selector)})</h2>`);
         parts.push(
-          `<table><thead><tr><th>${t("md.column.property")}</th><th>As is</th><th>To be</th></tr></thead><tbody>`,
+          `<table><thead><tr><th>${t("md.column.property")}</th><th>${t("styleTable.asIs")}</th><th>${t("styleTable.toBe")}</th></tr></thead><tbody>`,
         );
         for (const d of el.diffs) {
           const asIs = d.asIsSegments ? segmentsToHtmlCell(d.asIsSegments) : escapeHtml(d.asIs);

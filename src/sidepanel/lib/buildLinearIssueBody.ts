@@ -95,7 +95,9 @@ function buildLinearIssueBodyInner(
         const hasSnapshots = !!(before?.assetUrl || after?.assetUrl);
 
         lines.push(`## ${t("md.section.styleChanges")} (${el.selector})`, "");
-        lines.push(`| ${t("md.column.property")} | As is | To be |`);
+        lines.push(
+          `| ${t("md.column.property")} | ${t("styleTable.asIs")} | ${t("styleTable.toBe")} |`,
+        );
         lines.push("| --- | --- | --- |");
         if (hasSnapshots) {
           lines.push(
