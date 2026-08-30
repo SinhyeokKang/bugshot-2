@@ -18,10 +18,12 @@ import { relToRepo, walkSources } from "@/test/sourceFiles";
 const SRC = resolve(__dirname, "../..");
 const GLOBALS = join(SRC, "styles", "globals.css");
 
-// shadcn CLI 생성물이라 우리 컨벤션의 대상이 아니다(CLAUDE.md 코드 컨벤션). 안전해서 뺀 게
-// 아니다 — `tabs.tsx`의 TabsList 비활성 라벨이 실제로 4.34:1로 렌더되고, 그건 shadcn 기본값을
-// 덮는 별도 판단이 필요해 미해결로 남았다.
-const OUT_OF_SCOPE = join(SRC, "components", "ui");
+// `src/components/ui/`는 shadcn CLI 생성물이라 우리 컨벤션의 대상이 아니지만(CLAUDE.md 코드
+// 컨벤션) **디렉터리째 빼지는 않는다** — 그러면 TabsList 비활성 라벨이 4.34:1로 렌더되는 걸
+// 아무것도 안 잡는다. 스캐너는 리터럴만 보고 소비처의 override를 못 보므로, 실제로 덮여서
+// 렌더 결과가 통과인 `kbd.tsx` 한 파일만 예외다. **그 예외의 전제("소비처가 전부 덮는다")는
+// 아래 별도 테스트가 잠근다** — 근거를 검증하지 않는 예외는 장부이고, 장부는 조용히 썩는다.
+const KBD_EXCEPTION = join(SRC, "components", "ui", "kbd.tsx");
 
 // 판정은 **문자열 리터럴 하나** 안에서 표면과 글자색이 만나는 형태만 본다. 조상이 깐 배경 위의
 // 자식 텍스트나 `cn("bg-muted", cond && "text-foreground/60")`처럼 리터럴이 갈린 형태는 못 잡는다
@@ -158,14 +160,50 @@ describe("muted 표면 위 글자 대비", () => {
   // 파서가 살아 있어도 walk가 빈 배열을 내면 본 검사가 조용히 통과한다 — 디렉터리 이동이
   // 그 형태다. 대상 집합 자체를 앵커로 고정한다.
   it("스캔 대상이 비어 있지 않다 (앵커)", () => {
-    const files = walkSources(SRC).filter((p) => !p.startsWith(OUT_OF_SCOPE));
+    const files = walkSources(SRC).filter((p) => p !== KBD_EXCEPTION);
     expect(files.length).toBeGreaterThan(100);
+  });
+
+  // `kbd.tsx`를 스코프에서 빼는 근거는 "소비처가 글자색을 덮어서 렌더 결과는 통과"다.
+  // 그 전제가 깨지면(override가 빠지거나, 안 덮는 새 사용처가 생기면) 예외가 거짓이 되는데
+  // 스캐너는 리터럴만 보므로 스스로 알아채지 못한다 — 전제를 여기서 따로 잠근다.
+  describe("kbd.tsx 예외의 전제", () => {
+    const UI_DIR = join(SRC, "components", "ui");
+    const kbdTags = (): { file: string; tag: string }[] =>
+      walkSources(SRC)
+        .filter((p) => !p.startsWith(UI_DIR))
+        .flatMap((p) =>
+          [...readFileSync(p, "utf8").matchAll(/<Kbd\b[^>]*>/g)].map((m) => ({
+            file: relToRepo(p),
+            tag: m[0],
+          })),
+        );
+
+    // 사용처가 0이면 아래 단언이 공허하게 통과한다(Kbd가 미사용이 되면 예외 자체가 불필요해지니
+    // 그때 이 테스트가 red로 알린다).
+    it("Kbd 사용처가 존재한다 (앵커)", () => {
+      expect(kbdTags().length).toBeGreaterThan(0);
+    });
+
+    it("모든 Kbd 사용처가 글자색을 foreground로 덮는다", () => {
+      const bare = kbdTags().filter(
+        ({ tag }) => !tag.includes("CHIP_CLS") && !tag.includes("text-foreground"),
+      );
+      expect(bare.map((b) => `${b.file} → ${b.tag}`)).toEqual([]);
+    });
+
+    it("CHIP_CLS가 실제로 text-foreground를 든다", () => {
+      const src = readFileSync(join(SRC, "sidepanel", "components", "ActionLogContent.tsx"), "utf8");
+      const m = /const CHIP_CLS = "([^"]*)"/.exec(src);
+      expect(m, "ActionLogContent.tsx에 CHIP_CLS 정의가 없다").not.toBeNull();
+      expect(m![1].split(/\s+/)).toContain("text-foreground");
+    });
   });
 
   it.each(THEMES)("%s에서 muted 표면 위 글자가 AA(4.5:1)를 넘는다", (_label, selector) => {
     const tokens = parseTokens(GLOBALS, selector);
     const offenders = walkSources(SRC)
-      .filter((p) => !p.startsWith(OUT_OF_SCOPE))
+      .filter((p) => p !== KBD_EXCEPTION)
       .flatMap((p) =>
         offendingLiterals(readFileSync(p, "utf8"), tokens, selector === ".dark").map(
           (c) => `${relToRepo(p)} → ${c}`,
