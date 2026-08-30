@@ -34,7 +34,6 @@ function parseOverlayTokens(scope: "light" | "dark"): Record<string, string> {
   return out;
 }
 
-
 // tailwind.config.js는 JS인데 allowJs=false라 import하면 vitest는 통과해도 `pnpm typecheck`가
 // TS7016으로 막는다(저장소에 @ts-expect-error 선례 0건). 그래서 위 parseTokens와 같은 기법을 쓴다.
 // 주석을 먼저 걷어내고 따옴표 리터럴만 뽑으므로 배열 안 주석·prettier 리플로우에 안 깨진다.
@@ -242,8 +241,6 @@ describe("디자인 토큰 표", () => {
       if (!m) throw new Error(`gutter color를 못 읽음: ${decls.color}`);
       return { token: m[1], alpha: m[2] ? Number(m[2]) : 1 };
     }
-
-
 
     for (const [label, selector] of [
       ["라이트", ":root"],

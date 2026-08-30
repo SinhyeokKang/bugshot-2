@@ -23,7 +23,7 @@ export function hsl(value: string): { h: number; s: number; l: number } {
   return { h, s, l };
 }
 
-export function hslToRgb({ h, s, l }: { h: number; s: number; l: number }): number[] {
+function hslToRgb({ h, s, l }: { h: number; s: number; l: number }): number[] {
   const sat = s / 100;
   const lig = l / 100;
   const c = (1 - Math.abs(2 * lig - 1)) * sat;
