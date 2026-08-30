@@ -139,7 +139,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 - 스타일: `src/components/ui/` 이외에 주석 최소화. WHY가 비자명할 때만 한 줄.
 - 경로: `@/` → `src/`. **같은 최상위 디렉터리 안에서는 상대경로를 쓴다** — `@/`는 디렉터리를 건널 때의 표기라, 자기 디렉터리를 `@/`로 가리키면 같은 모듈이 두 표기로 불려 grep·이동이 어긋난다. `src/lib/__tests__/import-convention.test.ts`가 `background`·`types`·`store`·`i18n` 넷을 소스 스캔으로 잠근다(지금 0건이라 래칫으로 걸 수 있는 곳만 넣었다). **`sidepanel`은 스캔 대상이 아니고 문면의 대상도 아니다** — 448건 혼용이라 즉시 red이고 예외 목록을 박으면 그물이 아니라 장부가 된다. 일괄 치환 전까지 그 디렉터리는 **`@/` 유지**가 지역 관례다(예: `FieldRow` 소비처 20곳이 전부 `@/sidepanel/components/FieldRow`). `components/`는 shadcn CLI 생성물이라 우리 컨벤션 밖. 별개로 `src/log-viewer/`가 `../i18n/locales`처럼 상대경로를 쓰는 건 컨벤션이 아니라 **강제 회피**다(`vite.log-viewer.config.ts`의 `@/i18n` alias가 prefix 매칭이라 `@/i18n/locales`가 깨진다)
-- **UI·디자인 컨벤션**: UI 컴포넌트 직접 스타일링 금지 — shadcn/ui 우선 사용, 없으면 `npx shadcn@latest add <component>`. 색상 토큰·다크모드·버튼/아이콘 사이즈·레이아웃·합성 컴포넌트·탭 렌더 규칙 등 전체 컨벤션은 **[DESIGN.md](./docs/DESIGN.md)** 참조.
+- **UI·디자인 컨벤션**: UI 컴포넌트 직접 스타일링 금지 — shadcn/ui 우선 사용, 없으면 `npx shadcn@latest add <component>`. **받아온 생성물이 `bg-muted` 위에 `text-muted-foreground`를 들고 오면 `pnpm test`가 red다** — 라이트 4.34:1로 WCAG AA 미달이라 `styles/__tests__/muted-surface-contrast.test.ts`가 `src/components/ui/`도 스코프에 넣고 본다(제외 0건). 그 자리는 §2의 옅은 `--foreground` 관용구로 바꾼다 — `tabs.tsx`·`kbd.tsx`가 그 선례다. 색상 토큰·다크모드·버튼/아이콘 사이즈·레이아웃·합성 컴포넌트·탭 렌더 규칙 등 전체 컨벤션은 **[DESIGN.md](./docs/DESIGN.md)** 참조.
 - 커밋 메시지·PR title/body·GitHub Release notes는 **영문**으로 작성
 - **테스트**: 코드 변경 시 관련 테스트 작성 + `pnpm test` 통과 확인 필수. 대상과 같은 디렉터리의 `__tests__/`에 두고 Vitest를 쓴다. **2트랙**:
   - `*.test.ts` — node 환경. 순수 함수·헬퍼(기본 트랙).
