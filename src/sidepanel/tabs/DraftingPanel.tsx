@@ -720,12 +720,12 @@ function ReproEnvironmentSection() {
         {readonlyRows.map((r, i) => (
           <div key={`ro-${i}`} className="flex items-center gap-1">
             <Input
-              className="w-24 shrink-0 text-sm text-muted-foreground bg-muted"
+              className="w-24 shrink-0 text-sm text-foreground/60 bg-muted"
               value={r.label}
               readOnly
             />
             <Input
-              className="min-w-0 flex-1 text-sm text-muted-foreground bg-muted"
+              className="min-w-0 flex-1 text-sm text-foreground/60 bg-muted"
               value={r.value}
               readOnly
             />

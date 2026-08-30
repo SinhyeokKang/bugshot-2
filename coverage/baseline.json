@@ -1,25 +1,25 @@
 {
-  "generatedAt": "2026-08-26T08:16:33.446Z",
+  "generatedAt": "2026-08-30T06:40:13.899Z",
   "logic": {
-    "covered": 23272,
-    "total": 25712,
-    "pct": 90.51026757934038
+    "covered": 23283,
+    "total": 25723,
+    "pct": 90.51432570073474
   },
   "global": {
     "lines": {
-      "covered": 30969,
-      "total": 55593,
-      "pct": 55.7
+      "covered": 31014,
+      "total": 55607,
+      "pct": 55.77
     },
     "branches": {
-      "covered": 8877,
-      "total": 10068,
-      "pct": 88.17
+      "covered": 8872,
+      "total": 10063,
+      "pct": 88.16
     },
     "functions": {
-      "covered": 1689,
-      "total": 2307,
-      "pct": 73.21
+      "covered": 1688,
+      "total": 2320,
+      "pct": 72.75
     }
   },
   "files": {
@@ -80,8 +80,8 @@
       "total": 174
     },
     "src/background/injectSnapshotRows.ts": {
-      "covered": 30,
-      "total": 30
+      "covered": 31,
+      "total": 31
     },
     "src/background/jira-api.ts": {
       "covered": 510,
@@ -96,8 +96,8 @@
       "total": 177
     },
     "src/background/messages.ts": {
-      "covered": 304,
-      "total": 697
+      "covered": 307,
+      "total": 700
     },
     "src/background/notion-api.ts": {
       "covered": 567,
@@ -328,8 +328,8 @@
       "total": 168
     },
     "src/content/frame-geometry.ts": {
-      "covered": 137,
-      "total": 142
+      "covered": 139,
+      "total": 144
     },
     "src/content/hover-shield.ts": {
       "covered": 48,
@@ -840,7 +840,7 @@
       "total": 33
     },
     "src/sidepanel/components/TiptapEditor.tsx": {
-      "covered": 39,
+      "covered": 70,
       "total": 647
     },
     "src/sidepanel/components/TooltipIconButton.tsx": {
@@ -1060,8 +1060,8 @@
       "total": 80
     },
     "src/sidepanel/lib/buildClickupIssueBody.ts": {
-      "covered": 102,
-      "total": 102
+      "covered": 104,
+      "total": 104
     },
     "src/sidepanel/lib/buildConsoleLogJson.ts": {
       "covered": 23,
@@ -1088,12 +1088,12 @@
       "total": 236
     },
     "src/sidepanel/lib/buildIssueMarkdown.ts": {
-      "covered": 379,
-      "total": 379
+      "covered": 381,
+      "total": 381
     },
     "src/sidepanel/lib/buildLinearIssueBody.ts": {
-      "covered": 104,
-      "total": 104
+      "covered": 106,
+      "total": 106
     },
     "src/sidepanel/lib/buildLogSummary.ts": {
       "covered": 82,
@@ -1108,8 +1108,8 @@
       "total": 64
     },
     "src/sidepanel/lib/buildMarkdownIssueBody.ts": {
-      "covered": 152,
-      "total": 152
+      "covered": 154,
+      "total": 154
     },
     "src/sidepanel/lib/buildNotionIssueBody.ts": {
       "covered": 234,

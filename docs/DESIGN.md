@@ -41,7 +41,7 @@ UI 컴포넌트는 직접 스타일링하기보다 shadcn/ui를 우선 쓰고, �
 | `border` / `input` / `ring` | 테두리 · 입력 테두리 · 포커스 링 |
 
 - ⚠ **`--accent` == `--secondary` == `--muted`가 라이트·다크 모두 같은 값이다**(라이트 `210 40% 96.1%` / 다크 `0 0% 14.9%` — `globals.css`). 위 표의 "용도"는 **의미 구분이지 시각 구분이 아니다.** 귀결: **`muted`·`secondary` 표면 위에 얹은 컨트롤에는 `hover:bg-accent`가 무효**다(hover 피드백 0). 다크에선 `--border`·`--input`·`--ring`까지 같은 `0 0% 14.9%`라 **테두리·포커스 링도 그 표면 위에선 사라진다**. shadcn `outline` 버튼의 `bg-background → hover:bg-accent`는 **`background` 표면 위를 전제한 관용구**라, muted 표면으로 옮기면 방향이 뒤집힌다. 그런 자리의 hover는 배경이 아니라 **등장(opacity)·글자색·그림자**로 낸다 — 선례 `src/sidepanel/components/code-collapse.css`(코드블럭 pill이 `--muted` 배경 위라 hover 배경 변경을 포기하고 등장으로 대체). (§9의 `--ring`==`--border` 경고와 같은 뿌리다.)
-- ⚠ **글자색의 대비는 토큰 이름이 아니라 "무슨 표면 위냐"가 정한다.** 같은 `--muted-foreground`라도 `--background`(흰색) 위에선 4.76:1로 AA를 넘지만 `--muted`(코드블럭) 위에선 **4.34:1로 미달**한다. 실제로 코드블럭 행 번호가 CSS 코드 뷰의 gutter에서 색만 베껴왔다가 이걸 밟았다(그쪽은 배경이 투명이라 통과한다). **`muted` 표면 위 글자엔 `--muted-foreground`를 반사적으로 쓰지 말 것** — 옅게 깐 `--foreground`(예: `/ 0.6`)가 양 테마 AA를 넘으면서도 본문보다 약하다. 하한은 `styles/__tests__/tokens.test.ts`가 CSS에서 알파를 읽어 blend 대비를 계산해 지킨다(토큰 이름을 믿지 않는다).
+- ⚠ **글자색의 대비는 토큰 이름이 아니라 "무슨 표면 위냐"가 정한다.** 같은 `--muted-foreground`라도 `--background`(흰색) 위에선 4.75:1로 AA를 넘지만 `--muted`(코드블럭) 위에선 **4.34:1로 미달**한다. 실제로 코드블럭 행 번호가 CSS 코드 뷰의 gutter에서 색만 베껴왔다가 이걸 밟았고, **가장 큰 사례는 탭 바**다(`TabsList`가 깐 색을 비활성 트리거가 상속 — 최상위 nav 포함 18개 마운트 지점. §11 탭 시스템). **`muted` 표면 위 글자엔 `--muted-foreground`를 반사적으로 쓰지 말 것** — 옅게 깐 `--foreground`(예: `/ 0.6`)가 양 테마 AA를 넘으면서도 본문보다 약하다. 하한은 **그물 둘**이 지킨다(둘 다 토큰 이름이 아니라 값을 계산한다) — `styles/__tests__/tokens.test.ts`가 CSS 선언에서 알파를 읽어 재고(코드블럭 gutter), `styles/__tests__/muted-surface-contrast.test.ts`가 TSX의 Tailwind 클래스 축을 훑어 muted 값 표면(`--muted`·동값인 `--secondary`·`--accent`) 위 글자색을 라이트·다크 양쪽에서 잰다. 계산 자체는 `src/test/cssContrast.ts` 단일 출처이고 **알파 합성은 sRGB에서** 한다 — HSL 성분을 보간하면 두 토큰의 채도가 갈릴 때 관대한 쪽으로 어긋나 AA 미달을 통과로 읽는다(라이트 전용 함정: 다크는 두 토큰이 무채색이라 값이 같다).
 
 - 커스텀 raw 색(`text-blue-600` 등)은 semantic 토큰으로 표현 못 하는 **상태/기능 색**에만 쓰고, 가능하면 `dark:` 짝을 함께 둔다. 현재 사용처:
   - 상태 배지 팔레트: `src/sidepanel/tabs/statusBadges/constants.ts` (new=무색, done=green, deleted=red … `bg`/`text`/`dark:bg`/`dark:text` 묶음). **`new`만 테마별 스케일이 갈린다**(`bg-slate-100`/`dark:bg-neutral-500/15`) — 기능색과 달리 base 팔레트를 따라가므로 위 §2 비대칭이 그대로 적용된다.
@@ -210,7 +210,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - `Alert`(`alert.tsx`): `Alert`/`AlertTitle`/`AlertDescription` **전부 사용처 0** — 미사용 primitive다(`alert-dialog`는 별개이고 사용 중). 인라인 안내는 §14의 `role="status"` 배너·인라인 에러가 맡는다.
 - 반대로 이 문서에 안 적혀 있지만 실사용 중인 것: `Separator`(5곳)·`Collapsible`(`NetworkLogContent`).
 - `ButtonGroup`: `orientation` `horizontal`/`vertical`. 서브 export `ButtonGroupText`·`ButtonGroupSeparator`.
-- `Kbd`: 인라인 keycap 칩 — `bg-muted text-muted-foreground rounded-sm inline-flex h-5`. 액션 로그의 값·태그·드래그·마스킹 칩이 단일 출처로 사용(`ActionLogContent`의 `CHIP_CLS` = `font-mono text-mono align-middle text-foreground`로 mono 표면 override[`text-mono`로 Kbd 기본 `text-xs`까지 덮어 형제 행과 13px 통일] + 텍스트 라인 중앙 정렬 + Kbd 기본 muted를 foreground로 또렷하게, 긴 값은 내부 `min-w-0 truncate` span). 마스킹은 `border border-dashed`로만 구분(라벨색은 동일 foreground). `KbdGroup` 미사용.
+- `Kbd`: 인라인 keycap 칩 — `bg-muted text-foreground/60 rounded-sm inline-flex h-5`(글자색은 §2의 muted 표면 관용구 — `--muted-foreground`면 4.34:1로 AA 미달이다). 액션 로그의 값·태그·드래그·마스킹 칩이 단일 출처로 사용(`ActionLogContent`의 `CHIP_CLS` = `font-mono text-mono align-middle text-foreground`로 mono 표면 override[`text-mono`로 Kbd 기본 `text-xs`까지 덮어 형제 행과 13px 통일] + 텍스트 라인 중앙 정렬 + Kbd 기본값보다 한 단계 또렷하게, 긴 값은 내부 `min-w-0 truncate` span). 마스킹은 `border border-dashed`로만 구분(라벨색은 동일 foreground). `KbdGroup` 미사용.
 
 ### raw `<button>` 예외
 
@@ -246,7 +246,7 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
 - **`min-w-0`**: 가로 flex 자식이 콘텐츠 최소 폭을 고집해 레이아웃이 깨지는 것 방지. 아이콘은 `shrink-0`, 텍스트는 절단.
 
 ### 탭 시스템
-- `tabs.tsx` (Radix 래핑): `TabsList` = `inline-flex h-9 … bg-muted p-1`.
+- `tabs.tsx` (Radix 래핑): `TabsList` = `inline-flex h-9 … bg-muted p-1 text-foreground/60`. **비활성 라벨색은 List가 깔고 트리거가 상속한다** — 그래서 그 색은 대개 자기 `bg-muted` 표면 위에 앉고(예외는 표면을 지우는 `NetworkLogContent`의 `bg-transparent` 한 곳뿐이고 그쪽은 `--background` 위라 더 유리하다), `--muted-foreground`면 4.34:1로 AA 미달이라 §2의 옅은 `--foreground` 관용구를 쓴다(비활성 라이트 5.19:1 / 다크 6.15:1). 활성은 트리거 자신의 `data-[state=active]:text-foreground`가 **상속을 이겨**(요소에 매칭되는 선언은 상속값을 무조건 이긴다 — 특이도 경쟁이 아니다) 19.99:1 / 18.96:1. **새 `TabsList`에 글자색을 따로 주지 말 것** — 18개 마운트 지점이 이 상속 하나에 걸려 있다.
 - **비활성 탭 콘텐츠 숨김은 두 가지 경우**가 있다:
   - Radix `Tabs`가 콘텐츠까지 감싸는 영역(DebugTab·SettingsTab·IntegrationsTab 등) → `TabsContent` 자신에 **`data-[state=inactive]:hidden`**.
   - App 최상위처럼 `Tabs`가 탭 바만 감싸는 구조 → 콘텐츠 `<div>`를 상태값으로 **수동 `hidden` 토글**(`App.tsx`). Radix data-state가 닿지 않기 때문.
