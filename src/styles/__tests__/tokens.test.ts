@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { AA, contrastOnSurface, contrastRatio, hsl, parseTokens } from "@/test/cssContrast";
+
 // 토큰 표는 사이드패널(globals.css)과 다운로드되는 logs.html(log-viewer/styles.css)에
 // 두 벌 존재한다. 별도 Vite 빌드라 서로를 모르고, 어긋나면 같은 제품이 두 톤으로 갈린다.
 const GLOBALS = resolve(__dirname, "../globals.css");
@@ -32,16 +34,6 @@ function parseOverlayTokens(scope: "light" | "dark"): Record<string, string> {
   return out;
 }
 
-function parseTokens(path: string, selector: string): Record<string, string> {
-  const css = readFileSync(path, "utf8");
-  const start = css.indexOf(`${selector} {`);
-  if (start === -1) throw new Error(`${path}에 ${selector} 블록이 없다`);
-  const end = css.indexOf("}", start);
-  const body = css.slice(start, end);
-  const out: Record<string, string> = {};
-  for (const m of body.matchAll(/--([\w-]+):\s*([^;]+);/g)) out[m[1]] = m[2].trim();
-  return out;
-}
 
 // tailwind.config.js는 JS인데 allowJs=false라 import하면 vitest는 통과해도 `pnpm typecheck`가
 // TS7016으로 막는다(저장소에 @ts-expect-error 선례 0건). 그래서 위 parseTokens와 같은 기법을 쓴다.
@@ -81,43 +73,6 @@ function parseRule(path: string, selector: string): { selectors: string[]; decls
     return { selectors, decls };
   }
   throw new Error(`${path}에 ${selector}를 포함한 규칙이 없다`);
-}
-
-// hsl 삼중값("0 0% 3.9%") → 성분.
-function hsl(value: string): { h: number; s: number; l: number } {
-  const [h, s, l] = value.split(/\s+/).map((p) => Number.parseFloat(p));
-  return { h, s, l };
-}
-
-function hslToRgb({ h, s, l }: { h: number; s: number; l: number }): number[] {
-  const sat = s / 100;
-  const lig = l / 100;
-  const c = (1 - Math.abs(2 * lig - 1)) * sat;
-  const hp = h / 60;
-  const x = c * (1 - Math.abs((hp % 2) - 1));
-  const base =
-    hp < 1 ? [c, x, 0]
-    : hp < 2 ? [x, c, 0]
-    : hp < 3 ? [0, c, x]
-    : hp < 4 ? [0, x, c]
-    : hp < 5 ? [x, 0, c]
-    : [c, 0, x];
-  const m = lig - c / 2;
-  return base.map((v) => v + m);
-}
-
-function relativeLuminance(value: string): number {
-  const [r, g, b] = hslToRgb(hsl(value)).map((v) =>
-    v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4,
-  );
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-function contrastRatio(a: string, b: string): number {
-  const la = relativeLuminance(a);
-  const lb = relativeLuminance(b);
-  const [hi, lo] = la > lb ? [la, lb] : [lb, la];
-  return (hi + 0.05) / (lo + 0.05);
 }
 
 // 기능색(destructive)은 빨강이어야 하므로 채도 검사 대상에서 제외. radius는 색이 아니다.
@@ -265,12 +220,12 @@ describe("디자인 토큰 표", () => {
     // (variant="destructive"의 bg-destructive는 미사용). 즉 글자색 기준 대비가 필요하다.
     it("다크에서 destructive 글자가 배경 대비 WCAG AA(4.5:1)를 넘는다", () => {
       const dark = parseTokens(GLOBALS, ".dark");
-      expect(contrastRatio(dark.destructive, dark.background)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(dark.destructive, dark.background)).toBeGreaterThanOrEqual(AA);
     });
 
     it("라이트에서 destructive 글자가 배경 대비 WCAG AA(4.5:1)를 넘는다", () => {
       const light = parseTokens(GLOBALS, ":root");
-      expect(contrastRatio(light.destructive, light.background)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(light.destructive, light.background)).toBeGreaterThanOrEqual(AA);
     });
   });
 
@@ -288,15 +243,7 @@ describe("디자인 토큰 표", () => {
       return { token: m[1], alpha: m[2] ? Number(m[2]) : 1 };
     }
 
-    // 알파가 걸린 글자색의 실효 대비는 배경과 섞인 뒤에야 나온다.
-    function blended(fg: string, bg: string, alpha: number): string {
-      const f = hsl(fg);
-      const b = hsl(bg);
-      const mix = (a: number, c: number) => a * alpha + c * (1 - alpha);
-      // 두 토큰의 채도가 다르면 선형 보간이 부정확해지지만, base 팔레트는 라이트=같은 계열
-      // 틴트 / 다크=무채색이라 이 근사가 유효하다(tokens 표 자체가 그 불변식을 지킨다).
-      return `${mix(f.h, b.h)} ${mix(f.s, b.s)}% ${mix(f.l, b.l)}%`;
-    }
+
 
     for (const [label, selector] of [
       ["라이트", ":root"],
@@ -307,8 +254,8 @@ describe("디자인 토큰 표", () => {
         const { token, alpha } = gutterColor();
         expect(tokens[token], `globals.css ${selector}에 --${token}이 없다`).toBeDefined();
         expect(
-          contrastRatio(blended(tokens[token], tokens.muted, alpha), tokens.muted),
-        ).toBeGreaterThanOrEqual(4.5);
+          contrastOnSurface(tokens[token], tokens.muted, alpha),
+        ).toBeGreaterThanOrEqual(AA);
       });
     }
   });
