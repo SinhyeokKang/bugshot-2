@@ -1,5 +1,5 @@
 const ko = {
-  "ai.badge.chromeAI": "Chrome AI",
+  "ai.badge.chromeAI": "Chrome AI 엔진",
   "ai.stop": "중단",
 
   "aiDraft.title": "AI 초안 작성",

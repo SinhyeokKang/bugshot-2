@@ -5,7 +5,7 @@ const ko = {
   "common.back": "이전",
   "common.loading": "불러오는 중...",
   "common.empty": "비어 있음",
-  "common.actions": "동작",
+  "common.actions": "작업",
   "common.deselect": "선택 해제",
   "common.untitled": "(제목 없음)",
   "common.next": "다음",

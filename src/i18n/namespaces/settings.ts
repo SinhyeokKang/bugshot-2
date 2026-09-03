@@ -20,7 +20,7 @@ const ko = {
   "settings.replay.help":
     "화면의 최근 30초를 항상 기록해 둡니다. 버그를 발견하면 버튼 한 번으로 직전 상황을 영상으로 첨부할 수 있습니다.",
   "settings.attachments.label": "파일 첨부",
-  "settings.attachments.help": "이슈에 임의의 파일을 첨부할 수 있습니다.",
+  "settings.attachments.help": "이슈에 파일을 자유롭게 첨부할 수 있습니다.",
   "settings.otherSection": "기타",
   "settings.section.media": "미디어 · 로그",
   "settings.section.media.help": "요소 스타일 변경, 캡처한 미디어, 수집한 로그입니다.",
