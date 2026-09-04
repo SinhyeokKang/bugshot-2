@@ -40,6 +40,12 @@ vi.mock("@/sidepanel/recorder-control", () => ({
   clearActionRecorder: mockClearActionRecorder,
 }));
 
+const mockClearPicker = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock("@/sidepanel/picker-clear", () => ({
+  clearPicker: mockClearPicker,
+  tabFrameTokens: new Map<number, string>(),
+}));
+
 const mockSaveAttachmentBlob = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 const mockDeleteAttachmentBlob = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockDeleteAttachmentBlobs = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
@@ -3220,4 +3226,51 @@ describe("confirmDraft — captureMode 4분기 saveDraft 인자 스냅샷", () =
       expect(record.actionLogBlobKey).toBeUndefined();
     },
   );
+});
+
+/* ------------------------------------------------------------------ */
+/*  onSubmitted — 페이지 인라인 편집 원복                                */
+/* ------------------------------------------------------------------ */
+
+describe("onSubmitted 페이지 원복", () => {
+  beforeEach(() => {
+    mockClearPicker.mockClear();
+    useEditorStore.getState().reset();
+    mockClearPicker.mockClear();
+  });
+
+  it("제출 성공 시 편집한 탭의 페이지 편집을 원복한다", () => {
+    useEditorStore.setState({ target });
+
+    useEditorStore
+      .getState()
+      .onSubmitted({ key: "K-1", url: "https://e.com/K-1", platform: "jira" });
+
+    expect(mockClearPicker).toHaveBeenCalledWith(target.tabId);
+  });
+
+  it("target이 없으면 no-op (방어)", () => {
+    useEditorStore.setState({ target: null });
+
+    useEditorStore
+      .getState()
+      .onSubmitted({ key: "K-1", url: "https://e.com/K-1", platform: "jira" });
+
+    expect(mockClearPicker).not.toHaveBeenCalled();
+  });
+
+  it("원복 실패(탭 닫힘 등)가 제출 성공 상태를 깨지 않는다", async () => {
+    mockClearPicker.mockRejectedValueOnce(new Error("no receiver"));
+    useEditorStore.setState({ target });
+
+    expect(() =>
+      useEditorStore
+        .getState()
+        .onSubmitted({ key: "K-1", url: "https://e.com/K-1", platform: "jira" }),
+    ).not.toThrow();
+    await Promise.resolve();
+
+    expect(useEditorStore.getState().phase).toBe("done");
+    expect(useEditorStore.getState().submitResult?.key).toBe("K-1");
+  });
 });

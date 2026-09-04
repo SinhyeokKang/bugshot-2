@@ -17,6 +17,7 @@ import { DEFAULT_COLOR, DEFAULT_THICKNESS, type ThicknessKey } from "@/sidepanel
 import type { RecordingPenTool } from "@/sidepanel/components/annotation/recording-pen";
 import type { TrimSource } from "@/sidepanel/30s-replay/trim-source";
 import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "@/sidepanel/recorder-control";
+import { clearPicker } from "@/sidepanel/picker-clear";
 import { inlineRefMarkdown } from "@/lib/inline-ref";
 import { pendingKey } from "@/lib/session-keys";
 
@@ -1194,7 +1195,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   setTargetPlatform: (platform) => set({ targetPlatform: platform }),
 
-  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, beforeAnnotated: null, afterAnnotated: null, captureContext: null, bufferedElements: [], screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null, attachments: [] }),
+  onSubmitted: (result) => {
+    // 제출이 끝나면 페이지에 남은 인라인 편집을 즉시 원복한다. 성공 화면을 닫을 때(reset →
+    // phase idle)의 IssueTab 구독에 맡기면, 리포터가 그 화면을 띄운 채로 편집된 DOM 위에서
+    // 다음 버그를 보게 된다. 저장 draft 재제출 경로(DraftDetailDialog)는 이미 이렇게 한다.
+    const tabId = get().target?.tabId;
+    if (tabId != null) void clearPicker(tabId).catch(() => {});
+    set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, beforeAnnotated: null, afterAnnotated: null, captureContext: null, bufferedElements: [], screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null, attachments: [] });
+  },
 
   reset: () => set({ ...initial }),
 
