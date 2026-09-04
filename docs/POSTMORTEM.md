@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-09-04 — 이슈는 발송됐는데 페이지는 편집된 상태로 남았다 — 원복 책임이 23곳에 흩어져 있어서
+
+- **영역**: `store`, `컴포넌트`
+- **계열**: `복제본`
+- **그물**: `unit`
+- **증상**: 요소 스타일을 편집해 이슈를 제출하면 발송 완료 화면이 떠도 페이지의 인라인 스타일이 그대로 남았다(리포터 관측: 버튼이 `width/height/padding` 편집값을 유지, 새로고침해야 원래 26×26 복귀). 리포터가 성공 화면을 띄운 채 테스트를 이어가면 **편집된 DOM 위에서 다음 버그를 본다** — 잘못된 스크린샷·잘못된 재현 절차가 다음 리포트로 들어간다. 무음이다(제출은 초록 체크로 끝난다).
+- **근본 원인**: 페이지 원복(`clearPicker` → content `handleClear` → `restoreAll`)이 **단일 출처 없이 23개 호출 지점에 흩어져** 있고, 그중 라이브 제출 성공 경로만 빠져 있었다. `editor-store.onSubmitted`는 `phase: "done"`으로만 옮기고, 원복은 **컴포넌트 구독**(`IssueTab`의 `phase === "idle"` 전이 감지)에 위탁돼 있었다. 그래서 원복 시점이 "제출 완료"가 아니라 **"사용자가 성공 화면의 닫기를 누를 때"**로 밀렸고, 그 사이 구간이 통째로 무방비였다. 같은 책임이 두 모양으로 공존한 게 핵심이다 — 저장 draft 재제출 경로(`DraftDetailDialog`, 플랫폼 8개 분기마다 `clearPicker` + `reset()`을 손으로 나란히 호출)와 이슈 삭제 경로(`issues-store.resetEditorIfEditing`)는 **명령형으로 직접** 부르는데, 라이브 경로만 **선언형 구독**에 의존했다. 8곳을 복붙한 경로가 맞고 위탁한 경로가 틀린 셈이라, 복붙 쪽을 보고도 누락을 못 알아챈다. 게다가 구독은 `IssueTab`이 마운트돼 있어야만 돈다 — 성공 화면 상태에서 다른 패널 탭으로 이동하면 닫기를 눌러도 영구히 안 돈다.
+- **재발 방지**: (1) **"세션 종료 시 외부 상태를 되돌린다"를 컴포넌트 구독에 위탁하지 않는다** — 상태 전이의 원점(store action)에서 부수효과를 함께 낸다. 구독은 마운트 여부·전이 조건(`prev.phase !== "picking"` 류)이라는 두 개의 추가 전제를 달고 있어, 그 전제가 깨지면 red 없이 조용히 안 돈다. 판정 신호: `useEditorStore.subscribe`가 **DOM/탭 같은 store 밖 상태를 되돌리는** 데 쓰이고 있으면 그 자리에서 의심한다(`grep -n "useEditorStore.subscribe" src/sidepanel/`). (2) **스타일링 세션의 종착점을 열거로 관리하지 않는다** — `grep -rn "clearPicker(" src | grep -v __tests__`가 지금 23곳이고 background 직송 `picker.clear` 2곳이 더 있다. 새 종착점(신규 플랫폼 제출·신규 취소 경로)을 추가할 때 이 목록을 보고 복붙하는 방식은 이번처럼 하나를 빠뜨린다. **`reset()`을 부르는 지점과 `clearPicker`를 부르는 지점의 집합이 같은지**를 스캔으로 대조하는 게 다음 그물이다(`reset()` 호출부에 `clearPicker`가 짝으로 없으면 red — 지금은 `onSubmitted`·`resetEditorIfEditing`·`DraftDetailDialog` 8곳이 짝을 이루고 `IssueTab` 구독이 나머지를 덮는 구조라 짝 검사가 성립한다). (3) **같은 책임이 명령형·선언형 두 모양으로 공존하면 그 자체가 함정 신호다** — 어느 쪽이 정본인지 코드가 말하지 않으므로, 새 경로를 쓰는 사람이 어느 모양을 복사할지 알 수 없다. 이번 픽스는 명령형(store action)을 정본으로 정하고 구독은 취소 경로용 백스톱으로 남겼다. (4) **원복 실패는 삼켜도 제출 상태는 깨지 않는다** — 탭이 닫혀 `sendMessage`가 reject해도 `phase: "done"`·`submitResult`가 살아야 사용자가 이슈 URL을 잃지 않는다(`void … .catch(() => {})` + 회귀 케이스 1개).
+- **관련**: `src/store/editor-store.ts:onSubmitted`(픽스 — `get().target?.tabId` → `clearPicker`), `src/sidepanel/tabs/IssueTab.tsx:103`(위탁돼 있던 구독 — 백스톱으로 유지), `src/sidepanel/tabs/DraftDetailDialog.tsx`(8분기 명령형 선례), `src/store/issues-store.ts:resetEditorIfEditing`(같은 선례), `src/sidepanel/picker-clear.ts:clearPicker`, `src/content/picker.ts:handleClear`·`restoreAll`, `src/content/style-overlay.ts:restoreStyleOverlay`. 그물: `src/store/__tests__/editor-store.test.ts` "onSubmitted 페이지 원복" 3케이스(호출·target 없음 no-op·원복 실패 격리).
+
 ## 2026-08-30 — 예외를 없앨 수 있는지 보기 전에 예외를 지키는 코드를 35줄 짰다
 
 - **영역**: `디자인`, `컴포넌트`
