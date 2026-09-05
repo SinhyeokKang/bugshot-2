@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: August 16, 2026
+**Effective date**: September 6, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -39,7 +39,7 @@ Search terms and the candidate/profile lists returned are not stored on the devi
 
 | Information | When collected | Purpose |
 |---|---|---|
-| Environment details (OS, browser name and version, current page URL, window size, capture time, and the CSS selector of the element if you picked one) | When you enter the issue drafting screen | Filled into the "Environment" section of the issue body automatically — saved with the issue and sent to the platform you submit to |
+| Environment details (OS, browser name and version, current page URL, window size, capture time, and the CSS selector of the element if you picked one) | When you enter the issue drafting screen (when you write without a capture, the page URL updates to whichever page you are on if you navigate while drafting — with a capture attached it stays fixed to the captured page) | Filled into the "Environment" section of the issue body automatically — saved with the issue and sent to the platform you submit to |
 | API host list (derived from the captured network log — other hostnames that share an organization domain with the current page. Hostnames only; paths, queries, and ports are dropped) | When you enter the drafting screen for a capture that has log attachment on | Filled into the "Environment" section as an `API Hosts` row — this goes into the **issue body as plain text, not an attached file**. You can edit the value or delete the row, and it is never filled in for Edit element style mode |
 | DOM element style information | When selecting an element | Style comparison and issue body generation |
 | Screenshots (area / screen / full page / element) / tab recordings | When capturing / recording a tab | Capturing the range you choose to attach to an issue — **full-page capture automatically scrolls the page beyond the visible screen and stitches multiple shots together, so content that was off-screen is included in the image.** **In element style editing the "before" image is captured the moment you pick an element, and it expands to the surrounding container (+24px on every side) — a table row, a list item, a dialog — when the element you picked sits inside one** |
