@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act, cleanup } from "@testing-library/react";
-import { useTabUnsupported } from "../useTabSupport";
+import { useBoundTabState } from "../useTabSupport";
+
+// 기존 케이스는 미지원 축만 본다 — 어댑터로 받아 시그니처 변경을 흡수한다.
+const useTabUnsupported = (tabId: number | null | undefined) =>
+  useBoundTabState(tabId).unsupported;
 
 type UpdatedListener = (
   tabId: number,
@@ -155,10 +159,12 @@ describe("useTabUnsupported — 네비게이션 전이", () => {
 
   // 한 네비게이션이 onUpdated를 여러 번 발화시켜 classify가 겹친다. 늦게 도착한 옛 응답이
   // 최신 판정을 덮으면 지원 페이지에 안내가 굳고, 재판정 트리거가 onUpdated뿐이라 회복 수단이 없다.
-  it("늦게 resolve된 옛 응답이 최신 판정을 덮지 않는다", async () => {
+  // 두 축을 함께 본다 — url 발행이 seq 가드 바깥으로 새면 옛 응답의 undefined가
+  // 최신 URL을 지운 채 영구히 남는다(판정만 보면 green이라 안 걸린다).
+  it("늦게 resolve된 옛 응답이 최신 판정·URL을 덮지 않는다", async () => {
     setTabUrl("chrome://version");
-    const { result } = renderHook(() => useTabUnsupported(1));
-    await waitFor(() => expect(result.current).toBe(true));
+    const { result } = renderHook(() => useBoundTabState(1));
+    await waitFor(() => expect(result.current.unsupported).toBe(true));
 
     let releaseStale: (tab: chrome.tabs.Tab) => void = () => {};
     get.mockImplementationOnce(
@@ -173,13 +179,15 @@ describe("useTabUnsupported — 네비게이션 전이", () => {
     await act(async () => {
       emit(1, { status: "complete" }); // 새 조회 — 먼저 resolve
     });
-    await waitFor(() => expect(result.current).toBe(false));
+    await waitFor(() => expect(result.current.unsupported).toBe(false));
+    expect(result.current.url).toBe("https://example.com");
 
     // 이제 옛 조회가 미지원 스냅샷을 들고 뒤늦게 도착한다.
     await act(async () => {
       releaseStale({ url: undefined } as chrome.tabs.Tab);
     });
-    expect(result.current).toBe(false);
+    expect(result.current.unsupported).toBe(false);
+    expect(result.current.url).toBe("https://example.com");
   });
 
   it("같은 tabId로 여러 번 발화해도 판정이 idempotent", async () => {
@@ -231,5 +239,77 @@ describe("useTabUnsupported — 실패·정리", () => {
       emit(1, { status: "complete" });
     });
     expect(result.current).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  url 반환 — freeform 재현 환경 Page의 입력                            */
+/* ------------------------------------------------------------------ */
+
+// 판정과 같은 tabs.get 응답에서 나온다. 별도 훅으로 떼면 리스너·seq 가드가 복제되고
+// 둘이 어긋날 수 있어, 한 응답에서 나온다는 사실 자체를 여기서 고정한다.
+describe("useBoundTabState — url 반환", () => {
+  it("마운트 시 현재 URL을 돌려준다", async () => {
+    setTabUrl("https://example.com/projects");
+    const { result } = renderHook(() => useBoundTabState(1));
+    await waitFor(() => expect(result.current.url).toBe("https://example.com/projects"));
+  });
+
+  it("네비게이션마다 갱신된다", async () => {
+    setTabUrl("https://example.com/projects");
+    const { result } = renderHook(() => useBoundTabState(1));
+    await waitFor(() => expect(result.current.url).toBe("https://example.com/projects"));
+
+    setTabUrl("https://example.com/invite/tok?e=email-mismatch");
+    await act(async () => {
+      emit(1, { status: "complete" });
+    });
+
+    await waitFor(() =>
+      expect(result.current.url).toBe("https://example.com/invite/tok?e=email-mismatch"),
+    );
+  });
+
+  // 미지원 페이지에서 tab.url이 redact돼 undefined로 오는 경우. null이어야 리졸버가
+  // 세션 원점으로 폴백한다(빈 Page 행 방지).
+  it("URL을 못 읽으면 null", async () => {
+    setTabUrl("https://example.com/projects");
+    const { result } = renderHook(() => useBoundTabState(1));
+    await waitFor(() => expect(result.current.url).toBe("https://example.com/projects"));
+
+    setTabUrl(undefined);
+    await act(async () => {
+      emit(1, { status: "complete" });
+    });
+
+    await waitFor(() => expect(result.current.url).toBeNull());
+  });
+
+  // 탭이 닫혀 tabs.get이 throw한 경우. 마지막 값을 지우면 Page 행이 세션 원점으로
+  // 되돌아가 오히려 더 틀리므로 유지한다.
+  it("tabs.get이 실패하면 직전 URL을 유지한다", async () => {
+    setTabUrl("https://example.com/projects");
+    const { result } = renderHook(() => useBoundTabState(1));
+    await waitFor(() => expect(result.current.url).toBe("https://example.com/projects"));
+
+    get.mockImplementation(() => Promise.reject(new Error("No tab with id")));
+    await act(async () => {
+      emit(1, { status: "complete" });
+    });
+
+    expect(result.current.url).toBe("https://example.com/projects");
+  });
+
+  it("같은 URL이 반복 도착해도 상태 객체 정체성을 유지한다 (리렌더 접기)", async () => {
+    setTabUrl("https://example.com/projects");
+    const { result } = renderHook(() => useBoundTabState(1));
+    await waitFor(() => expect(result.current.url).toBe("https://example.com/projects"));
+    const first = result.current;
+
+    await act(async () => {
+      emit(1, { status: "complete" });
+    });
+
+    expect(result.current).toBe(first);
   });
 });

@@ -3,7 +3,7 @@ import { enterDebug, expect, test } from "./fixtures/extension";
 import type { ExtContext } from "./fixtures/extension";
 
 // 미지원 URL에서 패널이 그리는 것 — 캡처 버튼 대신 안내, 로그 서브탭 잠금, 동작하는 것만 남김.
-// chrome:// 탭은 tab.url을 못 읽어(호스트 권한 밖) 빈 URL로 오고, useTabUnsupported가 그걸
+// chrome:// 탭은 tab.url을 못 읽어(호스트 권한 밖) 빈 URL로 오고, useBoundTabState가 그걸
 // 미지원으로 판정한다. 이 spec은 ext.openPanel을 쓰므로 activateTab의 가드 삭제 자체는
 // 커버하지 않는다(단위 테스트 + 수동 검증 담당) — 패널 내부 렌더만 검증한다.
 

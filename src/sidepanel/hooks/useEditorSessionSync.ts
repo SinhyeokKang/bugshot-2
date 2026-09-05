@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { FROZEN_PHASES, pageKeyOf, sessionKey, pendingKey } from "@/lib/session-keys";
 import {
+  EDITOR_SNAPSHOT_KEYS,
   type EditorDraft,
   type EditorSnapshot,
+  type EditorState,
   useEditorStore,
 } from "@/store/editor-store";
 import { onSessionSaveExhausted } from "@/lib/app-events";
@@ -52,6 +54,16 @@ const ACTIVE_CAPTURE_PHASES = new Set(["picking", "capturing", "recording"]);
 // 별도 저장하고 hydrate가 복원. onRecordingComplete/replaceVideo 시점에 미러링된다.
 // 순수 모듈로 옮기지 않는다 — 손나열 + getState() 직접 호출이라 이동 중 하나가 빠지면 타입·런타임
 // 에러 없이 조용히 초기값이 되고 영향 범위가 편집 세션 전체다. export는 키 집합 그물 테스트용.
+// 영속 키가 하나도 안 바뀌고 livePageUrl만 달라진 전이인가. 스냅샷 키 전량 대조라
+// 새 키가 추가돼도 열거가 안 새고, 값이 같으면 애초에 저장할 게 없다는 뜻이다.
+export function isLivePageUrlOnlyChange(
+  prev: EditorState,
+  next: EditorState,
+): boolean {
+  if (prev.livePageUrl === next.livePageUrl) return false;
+  return EDITOR_SNAPSHOT_KEYS.every((k) => prev[k] === next[k]);
+}
+
 export function snapshotFromState(): EditorSnapshot {
   const s = useEditorStore.getState();
   return {
@@ -178,6 +190,9 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       }
 
       if (state.sessionExpired) return;
+      // livePageUrl은 비영속이라 이 전이는 스냅샷을 못 바꾼다. 그냥 두면 네비게이션마다
+      // 저장이 예약돼 screenshot/video drafting에서 수 MB data URL이 매번 재직렬화된다.
+      if (isLivePageUrlOnlyChange(prev, state)) return;
       if (saveSuspended.current) return;
       if (saveTimer.current != null) {
         window.clearTimeout(saveTimer.current);

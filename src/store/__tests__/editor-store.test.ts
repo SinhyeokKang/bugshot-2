@@ -3307,16 +3307,18 @@ describe("livePageUrl", () => {
     expect(EDITOR_SNAPSHOT_KEYS as readonly string[]).not.toContain("livePageUrl");
   });
 
-  it("reset()이 null로 되돌린다", () => {
+  // 세션 축이 아니라 탭 축이다. 발행자가 훅 하나뿐이라 store가 지우면 다음 네비게이션까지
+  // 복구되지 않는다 — 그 사이 Page 행이 세션 원점으로 되돌아간다.
+  it("reset()이 지우지 않는다 (탭 축)", () => {
     useEditorStore.getState().setLivePageUrl("https://e.com/next");
     useEditorStore.getState().reset();
-    expect(useEditorStore.getState().livePageUrl).toBeNull();
+    expect(useEditorStore.getState().livePageUrl).toBe("https://e.com/next");
   });
 
-  it("startFreeform()이 null로 되돌린다 (직전 세션 URL 승계 금지)", () => {
-    useEditorStore.getState().setLivePageUrl("https://old.com/stale");
+  it("startFreeform()이 지우지 않는다 (같은 탭의 현재 URL이므로)", () => {
+    useEditorStore.getState().setLivePageUrl("https://e.com/next");
     useEditorStore.getState().startFreeform(target);
-    expect(useEditorStore.getState().livePageUrl).toBeNull();
+    expect(useEditorStore.getState().livePageUrl).toBe("https://e.com/next");
   });
 });
 
