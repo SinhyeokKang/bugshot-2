@@ -723,7 +723,12 @@ function ReproEnvironmentSection() {
     >
       <div className="flex flex-col gap-2">
         {readonlyRows.map((r, i) => (
-          <div key={`ro-${i}`} className="flex items-center gap-1">
+          <div
+            key={`ro-${i}`}
+            className="flex items-center gap-1"
+            data-testid="env-readonly-row"
+            data-env-label={r.label}
+          >
             <Input
               className="w-24 shrink-0 text-sm text-foreground/60 bg-muted"
               value={r.label}
