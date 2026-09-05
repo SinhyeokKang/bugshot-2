@@ -648,6 +648,16 @@ draft 모델: `{ title, sections: Record<string, string>, environment?: Environm
 
 **재현 환경**: `ReproEnvironmentSection`이 모드별 메타를 readonly 표시 + `draft.environment` 사용자 정의 row 편집. 순수 헬퍼: `filterEnvironmentRows`(빈 row 제거) / `deriveReadonlyEnvRows`(모드별 파생).
 
+**재현 환경 `Page`는 두 축이다 — freeform은 추적, 캡처는 동결**: 값의 단일 출처는 `sidepanel/lib/pageUrl.ts`의 순수 리졸버 `resolvePageUrl`이고, state 조립은 같은 파일의 `selectPageUrl` 한 곳이다. freeform은 `livePageUrl`(바인딩 탭의 현재 URL)을 따라가고, element/screenshot/video는 `target.url`로 **동결**한다 — 캡처 산출물이 그 페이지의 것이라 값이 따라 움직이면 이미지와 어긋난다. freeform은 산출물이 없고 로그가 네비게이션을 넘어 누적되므로(`mergeLogItems`) 지금 보고 있는 페이지가 재현 위치다.
+
+- **`target.url`은 세션 원점이라 갱신하지 않는다.** 세션 만료 pageKey 비교(`useEditorSessionSync`·`picker-control`)·`tab-bindings.clearIfPageChanged`·API Hosts registrable domain 파생이 전부 그 값을 문다. 표시를 고치겠다고 여기를 건드리면 네비게이션 판정이 함께 바뀐다.
+- **`livePageUrl`은 세션 축이 아니라 탭 축이다.** `initial`에 넣지 않아 `reset()`·`start*` 9곳의 `...initial`이 못 지운다 — 발행자가 훅 하나뿐이라 store가 되돌리면 다음 네비게이션까지 복구 수단이 없다. `EDITOR_SNAPSHOT_KEYS`에도 없다(비영속). `hydrate`가 부분 merge라 재마운트에도 살아남는다.
+- **발행 경로는 하나다**: `useBoundTabState`(판정+URL을 한 재조회로 반환, store write 없음) → `App`의 `useLivePageUrl` → store. 훅이 직접 발행하면 `hooks/`가 store를 물고 판정과 발행이 갈릴 수 있다.
+- **생산 지점이 넷이라 조립을 복제하면 하나가 빠진다** — 작성 화면 행·미리보기 행·제출 본문 `ctx.url`·저장 레코드 `pageUrl`. 실제로 첫 판본이 미리보기 **복사 본문 4분기**를 빠뜨렸고 유닛은 전부 green이었다. 그물은 `pageUrl-callsites.test.ts`(소스 스캔 + `label: "Page"` 앵커)와 `e2e/page-url-live.spec.ts`(실 탭 네비게이션 — 이 축의 유일한 실브라우저 검증).
+- **`logs.html` 메타 `pageUrl`은 `ctx.url`을 그대로 쓴다**(재파생 금지). `handleSubmit`이 인라인 이미지 로드·blob 인코딩으로 초 단위 await를 걸치므로, 그 사이 탭이 이동하면 본문 Page와 로그 메타가 갈린다.
+- **제출 시 저장 레코드를 실제 제출값으로 맞춘다**(`IssueCreateModal.handleSubmit`, 첫 await보다 앞). `confirmDraft`가 확정 시점 URL로 동결하는데 그 뒤 이동할 수 있어, 안 맞추면 목록·검색·상세가 본문과 다른 페이지를 가리킨다.
+- **API Hosts 행은 여전히 `target.url` 기준이다** — 네트워크 로그를 페이지의 registrable domain으로 거르는 개인정보 게이트라 파생 기준을 바꾸면 노출 대상 hostname 집합 자체가 달라진다. 그래서 freeform에서 이동하면 같은 표 안에서 `Page`는 이동 후 페이지를, `API Hosts`는 세션 원점 도메인을 가리킬 수 있다(수용된 비대칭. 소스의 `page-url-scan:` 마커가 그 자리를 표시한다).
+
 **API Hosts 자동 행**(`sidepanel/lib/apiHostRow.ts`): 캡처된 네트워크 로그에서 **페이지와 같은 registrable domain을 쓰는 다른 hostname**을 요청 수 내림차순으로 파생해 `draft.environment`에 커스텀 행 1개로 주입한다. 배선 수정이 0곳인 게 설계의 핵심 — `draft.environment`는 이미 화면 2곳·본문 빌더 8벌·저장 이슈 상세·`logs.html` Report 탭이 전부 흘려보내는 배열이라, 여기 행을 넣으면 나머지가 자동으로 출력한다(`MarkdownContext` 필드 추가 불필요). **`IssueRecord`만 1필드 예외**다 — draft 재제출 경로가 strip 판정 재료를 필요로 해 `apiHostsDerived`(비파괴 optional, 버전 bump 없음)가 나중에 추가됐다. registrable domain 판정은 `tldts`의 `getDomain(host, {allowPrivateDomains:true})`에 위임한다 — private 접미사를 인정해야 `me.github.io`·`myapp.vercel.app`·`my-bucket.s3.amazonaws.com`이 **각각 자기 자신**을 도메인으로 갖고, 그래서 형제 배포·남의 버킷이 동족 판정에서 자동 탈락한다(하드코딩 접미사 목록은 이 방향으로 틀리면 남의 조직 hostname이 본문에 실려 유출이 된다).
 
 되돌리기 쉬운 불변식이 여섯이다:

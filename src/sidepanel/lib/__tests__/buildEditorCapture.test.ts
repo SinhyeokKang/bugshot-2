@@ -502,3 +502,33 @@ describe("buildEditorMarkdownContext — 에러 0건 세션 (본문 lineNoError�
     expect(ctx?.consoleLogSummary?.warnCount).toBe(1);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  ctx.url — Page 값이 리졸버를 경유하는가                              */
+/* ------------------------------------------------------------------ */
+
+// 미리보기 화면(PreviewPanel)과 제출 본문이 같은 값을 써야 한다. 여기가 target.url을
+// 직접 읽으면 화면엔 이동한 URL이, 본문엔 세션 시작 URL이 나가 둘이 갈린다.
+describe("buildEditorMarkdownContext — ctx.url (재현 환경 Page)", () => {
+  const LIVE = "https://example.com/invite/tok?e=email-mismatch";
+
+  beforeEach(() => {
+    editorState.current = {};
+  });
+
+  it("freeform + 이동함 → ctx.url이 현재 URL", () => {
+    editorState.current = baseState({ captureMode: "freeform", livePageUrl: LIVE });
+    expect(buildEditorMarkdownContext()?.url).toBe(LIVE);
+  });
+
+  it("freeform + livePageUrl 없음 → target.url 유지", () => {
+    editorState.current = baseState({ captureMode: "freeform" });
+    expect(buildEditorMarkdownContext()?.url).toBe("https://example.com");
+  });
+
+  it("screenshot은 livePageUrl이 있어도 target.url로 동결", () => {
+    editorState.current = baseState({ captureMode: "screenshot", livePageUrl: LIVE });
+    expect(buildEditorMarkdownContext()?.url).toBe("https://example.com");
+  });
+
+});

@@ -7,6 +7,7 @@ import { buildNetworkLogSummary, buildConsoleLogSummary } from "./buildLogSummar
 import { supportsActionLog } from "./captureLogSupport";
 import { environmentForSubmit } from "./apiHostRow";
 import { deriveContextEnvRows } from "./buildReportData";
+import { selectPageUrl } from "./pageUrl";
 import { parseChromeVersion } from "./environmentRows";
 import { getOsInfo } from "./osInfo";
 import {
@@ -53,7 +54,7 @@ export function buildEditorMarkdownContext(): MarkdownContext | null {
     title: draft.title,
     sections: draft.sections,
     sectionConfig,
-    url: target.url,
+    url: selectPageUrl(s),
     environment: environmentForSubmit({
       captureMode,
       logsAttach,
@@ -145,7 +146,6 @@ export function buildEditorLogsCaptureInput(ctx: MarkdownContext): BuildCaptureF
   const {
     captureMode,
     draft,
-    target,
     videoBlob,
     screenshotAnnotated,
     screenshotRaw,
@@ -180,7 +180,9 @@ export function buildEditorLogsCaptureInput(ctx: MarkdownContext): BuildCaptureF
     videoStartedAt: videoStartedAt ?? undefined,
     videoEndedAt: videoEndedAt ?? undefined,
     videoThumbnail,
-    pageUrl: target?.url ?? "",
+    // ctx에서 그대로 가져온다 — 재파생하면 handleSubmit의 await 구간에 탭이 이동했을 때
+    // 본문 Page와 logs.html 메타가 갈린다. 이 함수가 ctx를 받는 이유가 그것이다.
+    pageUrl: ctx.url,
     issueTitle: draft?.title?.trim() || undefined,
     report: draft
       ? {

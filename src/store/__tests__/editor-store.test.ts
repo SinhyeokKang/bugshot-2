@@ -106,6 +106,7 @@ import {
   useEditorStore,
   mergeSelectionStyles,
   selectAttachedLogs,
+  EDITOR_SNAPSHOT_KEYS,
   type CaptureMode,
   type EditorSnapshot,
 } from "../editor-store";
@@ -3272,5 +3273,107 @@ describe("onSubmitted 페이지 원복", () => {
 
     expect(useEditorStore.getState().phase).toBe("done");
     expect(useEditorStore.getState().submitResult?.key).toBe("K-1");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  livePageUrl — freeform 드래프팅 중 페이지 이동 추적                  */
+/* ------------------------------------------------------------------ */
+
+describe("livePageUrl", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    mockSaveDraft.mockClear();
+  });
+
+  it("초기값은 null", () => {
+    expect(useEditorStore.getState().livePageUrl).toBeNull();
+  });
+
+  it("setLivePageUrl로 갱신된다", () => {
+    useEditorStore.getState().setLivePageUrl("https://e.com/next");
+    expect(useEditorStore.getState().livePageUrl).toBe("https://e.com/next");
+  });
+
+  it("setLivePageUrl(null)로 되돌릴 수 있다", () => {
+    useEditorStore.getState().setLivePageUrl("https://e.com/next");
+    useEditorStore.getState().setLivePageUrl(null);
+    expect(useEditorStore.getState().livePageUrl).toBeNull();
+  });
+
+  // 세션 스냅샷에 실리면 패널 재마운트 시 stale 값이 hydrate로 되살아난다. 훅이 마운트
+  // 즉시 재파생하므로 실을 이유가 없다.
+  it("EDITOR_SNAPSHOT_KEYS에 없다 (비영속)", () => {
+    expect(EDITOR_SNAPSHOT_KEYS as readonly string[]).not.toContain("livePageUrl");
+  });
+
+  // 세션 축이 아니라 탭 축이다. 발행자가 훅 하나뿐이라 store가 지우면 다음 네비게이션까지
+  // 복구되지 않는다 — 그 사이 Page 행이 세션 원점으로 되돌아간다.
+  it("reset()이 지우지 않는다 (탭 축)", () => {
+    useEditorStore.getState().setLivePageUrl("https://e.com/next");
+    useEditorStore.getState().reset();
+    expect(useEditorStore.getState().livePageUrl).toBe("https://e.com/next");
+  });
+
+  it("startFreeform()이 지우지 않는다 (같은 탭의 현재 URL이므로)", () => {
+    useEditorStore.getState().setLivePageUrl("https://e.com/next");
+    useEditorStore.getState().startFreeform(target);
+    expect(useEditorStore.getState().livePageUrl).toBe("https://e.com/next");
+  });
+});
+
+describe("confirmDraft pageUrl — 리졸버 경유", () => {
+  const LIVE = "https://e.com/invite/tok?e=email-mismatch";
+
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    mockSaveDraft.mockClear();
+  });
+
+  // 저장 레코드가 리졸버를 안 타면 목록·상세·재제출 본문이 화면의 Page와 갈린다.
+  it("freeform + 이동함 → 저장 레코드 pageUrl이 현재 URL", () => {
+    useEditorStore.setState({
+      captureMode: "freeform" as const,
+      phase: "drafting" as const,
+      targetPlatform: "github" as const,
+      target,
+      livePageUrl: LIVE,
+      draft: { title: "Bug title", sections: {} },
+    });
+
+    useEditorStore.getState().confirmDraft();
+
+    expect(mockSaveDraft.mock.calls[0][0].pageUrl).toBe(LIVE);
+  });
+
+  it("freeform + livePageUrl 없음 → target.url 유지", () => {
+    useEditorStore.setState({
+      captureMode: "freeform" as const,
+      phase: "drafting" as const,
+      targetPlatform: "github" as const,
+      target,
+      draft: { title: "Bug title", sections: {} },
+    });
+
+    useEditorStore.getState().confirmDraft();
+
+    expect(mockSaveDraft.mock.calls[0][0].pageUrl).toBe(target.url);
+  });
+
+  it("screenshot은 livePageUrl이 있어도 target.url로 동결", () => {
+    useEditorStore.setState({
+      captureMode: "screenshot" as const,
+      phase: "drafting" as const,
+      targetPlatform: "github" as const,
+      target,
+      livePageUrl: LIVE,
+      screenshotRaw: "data:image/png;base64,abc",
+      screenshotViewport: { width: 800, height: 600 },
+      draft: { title: "Bug title", sections: {} },
+    });
+
+    useEditorStore.getState().confirmDraft();
+
+    expect(mockSaveDraft.mock.calls[0][0].pageUrl).toBe(target.url);
   });
 });

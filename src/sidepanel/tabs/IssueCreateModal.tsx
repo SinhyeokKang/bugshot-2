@@ -473,6 +473,9 @@ export function IssueCreateModal() {
 
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
+    // confirmDraft가 확정 시점 URL로 레코드를 동결했는데 그 뒤 탭이 이동했으면, 지금 나가는
+    // 본문의 Page와 목록·검색·상세가 읽는 pageUrl이 갈린다. 실제로 제출되는 값으로 맞춘다.
+    if (currentIssueId) patchIssue(currentIssueId, { pageUrl: ctx.url });
     const inlineImages = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
     const captureFiles = await buildEditorCaptureFiles(ctx);
     let result: NormalizedSubmitResult;

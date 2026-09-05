@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor, cleanup } from "@testing-library/react";
+import { renderHook, waitFor, cleanup, act } from "@testing-library/react";
 
 // 훅 모듈이 닿는 picker/IDB/스토어 곁가지는 이 파일의 검증 대상이 아니다 —
 // 여기서 보는 건 hydrate 게이트(반환 boolean)의 실패 경로뿐이다.
@@ -56,14 +56,16 @@ import { useEditorStore } from "@/store/editor-store";
 import { useEditorSessionSync } from "../useEditorSessionSync";
 
 let get: ReturnType<typeof vi.fn>;
+let set: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   // 스토어는 모듈 싱글턴이라 케이스가 심은 값이 다음 케이스로 샌다(editor-store.test.ts 관용구).
   useEditorStore.setState(useEditorStore.getInitialState(), true);
   get = vi.fn(() => Promise.resolve({}));
+  set = vi.fn(() => Promise.resolve());
   vi.stubGlobal("chrome", {
     storage: {
-      session: { get, set: vi.fn(() => Promise.resolve()) },
+      session: { get, set },
       onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
     },
     tabs: { onUpdated: { addListener: vi.fn(), removeListener: vi.fn() } },
@@ -112,5 +114,73 @@ describe("useEditorSessionSync — hydrate 게이트", () => {
     await waitFor(() => expect(result.current).toBe(true));
     expect(useEditorStore.getState().phase).toBe("styling");
     expect(useEditorStore.getState().target?.url).toBe("https://example.com");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  livePageUrl 전이는 스냅샷 저장을 예약하지 않는다                     */
+/* ------------------------------------------------------------------ */
+
+// `isLivePageUrlOnlyChange`의 순수 케이스는 계약만 고정한다 — 그 함수가 **존재하는 이유**
+// (네비게이션마다 수 MB data URL 스냅샷 재직렬화)는 구독자를 실제로 돌려야 검증된다.
+// early return을 지우면 여기가 red다.
+describe("useEditorSessionSync — livePageUrl 저장 억제", () => {
+  async function mountSynced() {
+    const rendered = renderHook(() => useEditorSessionSync(7));
+    await waitFor(() => expect(rendered.result.current).toBe(true));
+    set.mockClear();
+    return rendered;
+  }
+
+  async function settleDebounce() {
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+      await Promise.resolve();
+    });
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("livePageUrl만 바뀌면 세션 저장을 예약하지 않는다", async () => {
+    await mountSynced();
+
+    act(() => {
+      useEditorStore.getState().setLivePageUrl("https://example.com/invite/tok");
+    });
+    await settleDebounce();
+
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  // 억제가 과하면 진짜 편집이 유실된다 — 반대 방향을 함께 고정한다.
+  it("영속 키가 바뀌면 저장한다", async () => {
+    await mountSynced();
+
+    act(() => {
+      useEditorStore.setState({ phase: "drafting" });
+    });
+    await settleDebounce();
+
+    expect(set).toHaveBeenCalled();
+  });
+
+  it("같은 전이에 영속 키가 함께 바뀌면 저장한다", async () => {
+    await mountSynced();
+
+    act(() => {
+      useEditorStore.setState({
+        livePageUrl: "https://example.com/invite/tok",
+        phase: "drafting",
+      });
+    });
+    await settleDebounce();
+
+    expect(set).toHaveBeenCalled();
   });
 });

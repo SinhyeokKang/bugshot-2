@@ -14,6 +14,7 @@ import {
 } from "@/store/settings-ui-store";
 import { bodyBlocks, type TextIssueSection } from "@/sidepanel/lib/bodyBlocks";
 import { useEditorStore } from "@/store/editor-store";
+import { selectPageUrl } from "@/sidepanel/lib/pageUrl";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
@@ -182,6 +183,7 @@ export function DraftingPanel() {
     aiStatus,
     capabilities,
     createSession,
+    // page-url-scan: AI 재현 단계 프롬프트 컨텍스트 — 재현 환경 Page 행이 아니다.
     url: target?.url ?? "",
     pageTitle: target?.title ?? "",
     locale,
@@ -579,6 +581,7 @@ function ReproEnvironmentSection() {
   const t = useT();
   const target = useEditorStore((s) => s.target);
   const captureMode = useEditorStore((s) => s.captureMode);
+  const pageUrl = useEditorStore(selectPageUrl);
   const selection = useEditorStore((s) => s.selection);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const bufferedElements = useEditorStore((s) => s.bufferedElements);
@@ -604,6 +607,8 @@ function ReproEnvironmentSection() {
   );
 
   const apiRow = useMemo(
+    // page-url-scan: 네트워크 로그를 페이지의 registrable domain으로 거르는 개인정보
+    // 게이트다. 이동 후 도메인으로 바꾸면 이슈 본문에 나가는 hostname 집합 자체가 달라진다.
     () => apiHostRowFor({ captureMode, logsAttach, networkLog, pageUrl: target?.url }),
     [captureMode, logsAttach, networkLog, target?.url],
   );
@@ -673,7 +678,7 @@ function ReproEnvironmentSection() {
   const readonlyRows = deriveReadonlyEnvRows({
     os: getOsInfo(),
     browser: parseChromeVersion(navigator.userAgent),
-    url: target?.url ?? "",
+    url: pageUrl,
     selector: captureMode === "element" ? joinStyleSelectors(styleElements, selection?.selector) : shotSelector?.selector ?? null,
     viewport: vp ? { w: vp.width, h: vp.height } : null,
     capturedAt,
@@ -718,7 +723,12 @@ function ReproEnvironmentSection() {
     >
       <div className="flex flex-col gap-2">
         {readonlyRows.map((r, i) => (
-          <div key={`ro-${i}`} className="flex items-center gap-1">
+          <div
+            key={`ro-${i}`}
+            className="flex items-center gap-1"
+            data-testid="env-readonly-row"
+            data-env-label={r.label}
+          >
             <Input
               className="w-24 shrink-0 text-sm text-foreground/60 bg-muted"
               value={r.label}

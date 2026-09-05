@@ -20,6 +20,7 @@ import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from 
 import { clearPicker } from "@/sidepanel/picker-clear";
 import { inlineRefMarkdown } from "@/lib/inline-ref";
 import { pendingKey } from "@/lib/session-keys";
+import { selectPageUrl } from "@/sidepanel/lib/pageUrl";
 
 export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
 export type RecordingSource = "tab" | "screen";
@@ -141,12 +142,16 @@ export interface EditorIssueFields {
   cc?: { accountId: string; displayName: string }[];
 }
 
-interface EditorState {
+export interface EditorState {
   captureMode: CaptureMode;
   recordingSource: RecordingSource;
   phase: EditorPhase;
   targetPlatform: PlatformId;
   target: EditorTarget | null;
+  // 바인딩 탭의 현재 URL. target.url은 세션 원점(캡처를 찍은 페이지)이라 갱신하지 않는다
+  // — pageKey 비교와 API Hosts 파생이 그 값을 물고 있다. 비영속: 훅이 마운트 즉시
+  // 재파생하므로 스냅샷에 실으면 stale 값이 hydrate로 되살아날 뿐이다.
+  livePageUrl: string | null;
   selection: EditorSelection | null;
   shotSelector: ShotSelector | null;
   styleEdits: EditorStyleEdits;
@@ -299,6 +304,7 @@ interface EditorState {
   addAttachments: (files: File[]) => Promise<TakeWithinLimitsResult>;
   removeAttachment: (id: string) => void;
   setTargetPlatform: (platform: PlatformId) => void;
+  setLivePageUrl: (url: string | null) => void;
   onSubmitted: (result: SubmitResult) => void;
   reset: () => void;
   hydrate: (snapshot: EditorSnapshot) => void;
@@ -558,6 +564,10 @@ async function persistAttachedLogs(
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
+  // `initial`에 넣지 않는다 — 세션 축이 아니라 **탭 축**의 사실이라 reset·start*가 지우면
+  // 안 된다. 발행자가 훅 하나뿐이라(App useEffect) store가 되돌리면 다음 네비게이션까지
+  // 복구 수단이 없다.
+  livePageUrl: null,
   ...initial,
 
   startInlineCapture: (sectionId) => set({ inlineCaptureTarget: sectionId }),
@@ -923,7 +933,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       title: draft.title,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      pageUrl: target.url,
+      pageUrl: selectPageUrl(state),
       pageTitle: target.title,
       draft: { ...draft },
       apiHostsDerived: state.apiHostsDerived,
@@ -1194,6 +1204,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (issueId) deleteAttachmentBlob(issueId, id).catch(() => {});
   },
   setTargetPlatform: (platform) => set({ targetPlatform: platform }),
+
+  // 값이 실제로 바뀔 때만 notify한다 — 한 네비게이션이 onUpdated를 여러 번 발화시키므로
+  // 무조건 set하면 같은 URL로 세션 스냅샷 저장이 반복 예약된다.
+  setLivePageUrl: (url) => {
+    if (get().livePageUrl === url) return;
+    set({ livePageUrl: url });
+  },
 
   onSubmitted: (result) => {
     // 제출이 끝나면 페이지에 남은 인라인 편집을 즉시 원복한다. 성공 화면을 닫을 때(reset →

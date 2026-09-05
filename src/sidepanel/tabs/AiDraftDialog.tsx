@@ -139,6 +139,7 @@ export function AiDraftDialog({
         captureMode,
         locale: settingsUi.locale,
         aiLanguage: settingsUi.aiLanguage,
+        // page-url-scan: AI 초안 프롬프트 컨텍스트 — 재현 환경 Page 행이 아니다.
         url: store.target?.url ?? "",
         pageTitle: store.target?.title ?? "",
         selector: isElement ? store.selection?.selector : store.shotSelector?.selector,

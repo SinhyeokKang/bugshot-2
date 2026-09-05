@@ -1,25 +1,25 @@
 {
-  "generatedAt": "2026-09-04T14:40:29.499Z",
+  "generatedAt": "2026-09-05T18:20:06.718Z",
   "logic": {
-    "covered": 23287,
-    "total": 25727,
-    "pct": 90.51580052085357
+    "covered": 23354,
+    "total": 25769,
+    "pct": 90.62827428305329
   },
   "global": {
     "lines": {
-      "covered": 31018,
-      "total": 55611,
-      "pct": 55.77
+      "covered": 31085,
+      "total": 55661,
+      "pct": 55.84
     },
     "branches": {
-      "covered": 8875,
-      "total": 10066,
-      "pct": 88.16
+      "covered": 8921,
+      "total": 10120,
+      "pct": 88.15
     },
     "functions": {
-      "covered": 1688,
-      "total": 2320,
-      "pct": 72.75
+      "covered": 1693,
+      "total": 2325,
+      "pct": 72.81
     }
   },
   "files": {
@@ -633,7 +633,7 @@
     },
     "src/sidepanel/App.tsx": {
       "covered": 0,
-      "total": 432
+      "total": 433
     },
     "src/sidepanel/annotation-control.ts": {
       "covered": 1,
@@ -944,8 +944,8 @@
       "total": 39
     },
     "src/sidepanel/hooks/useEditorSessionSync.ts": {
-      "covered": 98,
-      "total": 239
+      "covered": 128,
+      "total": 247
     },
     "src/sidepanel/hooks/useIssueImages.ts": {
       "covered": 0,
@@ -954,6 +954,10 @@
     "src/sidepanel/hooks/useLazyListOnOpen.ts": {
       "covered": 41,
       "total": 41
+    },
+    "src/sidepanel/hooks/useLivePageUrl.ts": {
+      "covered": 6,
+      "total": 6
     },
     "src/sidepanel/hooks/usePickerMessages.ts": {
       "covered": 0,
@@ -972,8 +976,8 @@
       "total": 106
     },
     "src/sidepanel/hooks/useTabSupport.ts": {
-      "covered": 34,
-      "total": 34
+      "covered": 44,
+      "total": 44
     },
     "src/sidepanel/hooks/useThemeEffect.ts": {
       "covered": 0,
@@ -1068,8 +1072,8 @@
       "total": 23
     },
     "src/sidepanel/lib/buildEditorCapture.ts": {
-      "covered": 162,
-      "total": 174
+      "covered": 161,
+      "total": 173
     },
     "src/sidepanel/lib/buildGithubIssueBody.ts": {
       "covered": 9,
@@ -1315,6 +1319,10 @@
       "covered": 21,
       "total": 34
     },
+    "src/sidepanel/lib/pageUrl.ts": {
+      "covered": 14,
+      "total": 14
+    },
     "src/sidepanel/lib/prepareUpload.ts": {
       "covered": 89,
       "total": 89
@@ -1517,7 +1525,7 @@
     },
     "src/sidepanel/tabs/DraftingPanel.tsx": {
       "covered": 9,
-      "total": 802
+      "total": 807
     },
     "src/sidepanel/tabs/IntegrationsTab.tsx": {
       "covered": 0,
@@ -1525,7 +1533,7 @@
     },
     "src/sidepanel/tabs/IssueCreateModal.tsx": {
       "covered": 142,
-      "total": 459
+      "total": 460
     },
     "src/sidepanel/tabs/IssueListTab.tsx": {
       "covered": 0,
@@ -1549,7 +1557,7 @@
     },
     "src/sidepanel/tabs/PreviewPanel.tsx": {
       "covered": 2,
-      "total": 397
+      "total": 398
     },
     "src/sidepanel/tabs/ProjectCombobox.tsx": {
       "covered": 2,
@@ -2028,7 +2036,7 @@
       "total": 62
     },
     "src/store/blob-db.ts": {
-      "covered": 580,
+      "covered": 583,
       "total": 641
     },
     "src/store/chrome-storage.ts": {
@@ -2036,8 +2044,8 @@
       "total": 34
     },
     "src/store/editor-store.ts": {
-      "covered": 706,
-      "total": 751
+      "covered": 711,
+      "total": 756
     },
     "src/store/issues-migrations.ts": {
       "covered": 6,

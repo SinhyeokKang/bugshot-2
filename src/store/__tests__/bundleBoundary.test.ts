@@ -28,6 +28,7 @@ const ALLOWED = [
   "@/sidepanel/lib/initialJiraFields",
   "@/sidepanel/lib/attachmentLimits",
   "@/sidepanel/lib/annotationDefaults",
+  "@/sidepanel/lib/pageUrl",
 ];
 
 // `import type`은 빌드에서 지워져 런타임 edge가 0이라 대상이 아니다(CLAUDE.md도 "value

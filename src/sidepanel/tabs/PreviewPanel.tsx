@@ -11,6 +11,7 @@ import {
 } from "@/store/settings-ui-store";
 import { bodyBlocks } from "@/sidepanel/lib/bodyBlocks";
 import { useEditorStore } from "@/store/editor-store";
+import { selectPageUrl } from "@/sidepanel/lib/pageUrl";
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { useTabNav } from "@/sidepanel/tab-nav";
 import { IntegrationsCta } from "@/sidepanel/components/IntegrationsCta";
@@ -48,6 +49,7 @@ export function PreviewPanel() {
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
   const target = useEditorStore((s) => s.target);
+  const pageUrl = useEditorStore(selectPageUrl);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const bufferedElements = useEditorStore((s) => s.bufferedElements);
   const tokens = useEditorStore((s) => s.tokens);
@@ -139,7 +141,7 @@ export function PreviewPanel() {
   const envRows: { label: string; value: string }[] = [
     ...(os ? [{ label: "OS", value: os }] : []),
     ...(browser ? [{ label: "Browser", value: browser }] : []),
-    { label: "Page", value: target?.url || "-" },
+    { label: "Page", value: pageUrl || "-" },
   ];
   if (isElementMode && selection) {
     envRows.push({ label: "DOM", value: joinStyleSelectors(styleElements, selection.selector) });
@@ -296,7 +298,6 @@ export function PreviewPanel() {
     // 본문 언어로 처리하므로 여기선 원본 sections를 그대로 넘긴다. IDB 왕복이 사라져 클릭
     // gesture window도 넓어진다.
     const resolved = draft.sections;
-
     let ctx: MarkdownContext;
     if (isFreeformMode) {
       ctx = buildMarkdownContext({
@@ -307,7 +308,7 @@ export function PreviewPanel() {
         sectionConfig: issueSections,
         os,
         browser,
-        url: target?.url ?? "",
+        url: pageUrl,
         environment: draft.environment ?? [],
         viewport: useEditorStore.getState().freeformViewport,
         capturedAt: useEditorStore.getState().freeformCapturedAt ?? Date.now(),
@@ -324,7 +325,7 @@ export function PreviewPanel() {
         sectionConfig: issueSections,
         os,
         browser,
-        url: target?.url ?? "",
+        url: pageUrl,
         environment: draft.environment ?? [],
         viewport: videoViewport ?? { width: 0, height: 0 },
         capturedAt: videoCapturedAt ?? Date.now(),
@@ -341,7 +342,7 @@ export function PreviewPanel() {
         sectionConfig: issueSections,
         os,
         browser,
-        url: target?.url ?? "",
+        url: pageUrl,
         environment: draft.environment ?? [],
         selection: {
           selector: selection.selector,
@@ -366,7 +367,7 @@ export function PreviewPanel() {
         sectionConfig: issueSections,
         os,
         browser,
-        url: target?.url ?? "",
+        url: pageUrl,
         environment: draft.environment ?? [],
         viewport: screenshotViewport ?? { width: 0, height: 0 },
         capturedAt: screenshotCapturedAt ?? Date.now(),
