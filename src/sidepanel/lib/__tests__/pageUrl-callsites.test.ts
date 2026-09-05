@@ -36,6 +36,14 @@ function walk(dir: string): string[] {
 }
 
 const FILES = ROOTS.flatMap(walk);
+
+// 주석 처리된 코드가 "존재한다"로 통과하면 안 된다 — 삭제 뮤테이션이 흔히 주석 처리다.
+function codeOnly(file: string): string {
+  return readFileSync(file, "utf8")
+    .split("\n")
+    .map((line) => line.replace(/\/\/.*$/, ""))
+    .join("\n");
+}
 // 마커는 그 줄, 또는 바로 위에 붙은 주석 블록 어디든. 사유가 한 줄에 안 들어가는 경우가
 // 많고 "윗줄 하나"로 두면 두 줄짜리 주석에서 조용히 안 걸린다.
 function isExempt(lines: string[], i: number): boolean {
@@ -100,3 +108,91 @@ describe("Page 행 생산자 — selectPageUrl 우회 금지", () => {
     expect(offendingLines(file)).toEqual([]);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  화면 Page 행 — `value:` 키라 위 스캔이 원리적으로 못 본다             */
+/* ------------------------------------------------------------------ */
+
+// 위 규칙은 `url:`/`pageUrl:` 키만 본다. 정작 사용자가 "굳었다"고 보는 건 화면의
+// `{ label: "Page", value: ... }` 행이고, 그 값을 `target?.url`로 되돌려도 전 스위트가
+// green이었다(뮤테이션 실측). 정규식에 `value:`를 넣으면 오탐이 쏟아지므로, 대신
+// `label: "Page"`를 앵커로 삼는다 — 그 라벨을 든 행은 정의상 재현 환경 Page 행이다.
+const PAGE_ROW = /label:\s*"Page"/;
+
+describe('label: "Page" 행 — target 직참조 금지', () => {
+  const rowsIn = (file: string) =>
+    readFileSync(file, "utf8")
+      .split("\n")
+      .filter((line) => PAGE_ROW.test(line));
+
+  it("스캐너 자기검증", () => {
+    const bad = (l: string) => PAGE_ROW.test(l) && /\btarget\b/.test(l);
+    expect(bad('    { label: "Page", value: target?.url || "-" },')).toBe(true);
+    expect(bad('    { label: "Page", value: pageUrl || "-" },')).toBe(false);
+    // 인자·레코드 경유는 통과해야 한다(그쪽이 이미 리졸버를 탄 값이다).
+    expect(bad('  rows.push({ label: "Page", value: input.url || "-" });')).toBe(false);
+    expect(bad('    { label: "Page", value: issue.pageUrl || "-" },')).toBe(false);
+  });
+
+  // 생산자가 사라지면 이 describe가 항진명제가 된다.
+  it("Page 행 생산자가 실재한다", () => {
+    const producers = FILES.filter((f) => rowsIn(f).length > 0);
+    expect(producers.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it.each(FILES)("%s", (file) => {
+    for (const line of rowsIn(file)) expect(line).not.toMatch(/\btarget\b/);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  제출 funnel — 저장 레코드를 실제 제출값으로 정정한다                  */
+/* ------------------------------------------------------------------ */
+
+// confirmDraft가 확정 시점 URL로 레코드를 동결하는데 그 뒤 탭이 이동할 수 있다. 정정을
+// 지우면 목록·검색·상세가 본문과 다른 페이지를 가리키는데, 뮤테이션 실측 결과 전 스위트가
+// green이었다.
+//
+// **이 그물은 위 둘보다 약하다** — 행동이 아니라 구조만 본다. IssueCreateModal.test.tsx가
+// SubmitFieldsDialog를 통째로 모킹해 실제 제출이 안 돌고, 8개 플랫폼 어댑터를 전부 모킹해
+// 제출을 구동하는 비용이 이 한 줄의 가치를 넘는다. 정정 위치가 바뀌면(예: store 액션으로
+// 이동) 이 테스트를 고치는 게 아니라 그 지점의 행동 테스트로 승격하는 게 맞다.
+describe("제출 funnel — 레코드 pageUrl 정정", () => {
+  const SRC = codeOnly("src/sidepanel/tabs/IssueCreateModal.tsx");
+
+  it("handleSubmit이 ctx를 만든 뒤 레코드를 같은 값으로 맞춘다", () => {
+    const body = SRC.slice(SRC.indexOf("async function handleSubmit"));
+    const ctxAt = body.indexOf("buildCtx()");
+    const patchAt = body.indexOf("pageUrl: ctx.url");
+    expect(ctxAt).toBeGreaterThanOrEqual(0);
+    expect(patchAt).toBeGreaterThan(ctxAt);
+    // 첫 await보다 앞이어야 한다 — 뒤로 밀면 await 구간의 이동이 레코드에 섞인다.
+    expect(patchAt).toBeLessThan(body.indexOf("await "));
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  App 배선 — 훅이 읽은 url이 store로 흘러가는 유일한 링크              */
+/* ------------------------------------------------------------------ */
+
+// `useLivePageUrl` 본문은 자기 테스트가 잠근다. 잠기지 않는 건 **App이 그 훅을 부르는가**다
+// — 그 한 줄을 지워도 전 스위트가 green이었다(뮤테이션 실측). App은 렌더 하네스가 없고
+// (chrome API·훅 10여 개 의존) 이 한 줄 때문에 만들 가치는 없다고 판단해 구조로 잠근다.
+// 위 제출 funnel 항목과 같은 급의 약한 그물이다 — App 렌더 테스트가 생기면 승격 대상.
+describe("App — livePageUrl 발행 배선", () => {
+  const SRC = codeOnly("src/sidepanel/App.tsx");
+
+  it("주석 처리된 호출은 존재로 안 친다", () => {
+    expect(codeOnly("src/sidepanel/App.tsx")).not.toContain("// useLivePageUrl");
+  });
+
+  it("useBoundTabState가 돌려준 url을 그대로 useLivePageUrl에 넘긴다", () => {
+    const bound = /useBoundTabState\([^)]*\)/.exec(SRC);
+    expect(bound).not.toBeNull();
+    // 구조분해에서 url이 받는 지역 이름을 뽑아, 그 이름이 발행 훅 인자와 같은지 본다.
+    const alias = /url:\s*([A-Za-z_$][\w$]*)\s*\}\s*=\s*useBoundTabState/.exec(SRC);
+    expect(alias).not.toBeNull();
+    expect(SRC).toContain(`useLivePageUrl(${alias![1]})`);
+  });
+});
+

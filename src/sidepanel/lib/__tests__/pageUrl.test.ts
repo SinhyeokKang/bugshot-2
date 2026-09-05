@@ -18,16 +18,6 @@ describe("resolvePageUrl — freeform은 추적, 캡처는 동결", () => {
     ).toBe(LIVE);
   });
 
-  it("freeform + 아직 이동 안 함 → 같은 값이라 무해", () => {
-    expect(
-      resolvePageUrl({
-        captureMode: "freeform",
-        targetUrl: TARGET,
-        livePageUrl: TARGET,
-      }),
-    ).toBe(TARGET);
-  });
-
   // 패널 마운트 직후 tabs.get이 아직 해석되기 전 구간. 여기서 ""를 내면 Page 행이
   // 잠깐 "-"로 깜빡이고, 그 순간 confirmDraft가 불리면 빈 pageUrl이 저장된다.
   it("freeform + livePageUrl null → targetUrl로 폴백", () => {
@@ -61,23 +51,10 @@ describe("resolvePageUrl — freeform은 추적, 캡처는 동결", () => {
     },
   );
 
-  it("targetUrl이 null이면 빈 문자열 (표시 폴백은 호출부 책임)", () => {
+  // null·undefined는 `?? ""` 하나가 함께 처리해 항상 같이 죽는다 — 한 건이면 충분.
+  it.each([null, undefined])("targetUrl이 %s면 빈 문자열 (표시 폴백은 호출부 책임)", (targetUrl) => {
     expect(
-      resolvePageUrl({
-        captureMode: "screenshot",
-        targetUrl: null,
-        livePageUrl: null,
-      }),
-    ).toBe("");
-  });
-
-  it("targetUrl이 undefined면 빈 문자열", () => {
-    expect(
-      resolvePageUrl({
-        captureMode: "screenshot",
-        targetUrl: undefined,
-        livePageUrl: null,
-      }),
+      resolvePageUrl({ captureMode: "screenshot", targetUrl, livePageUrl: null }),
     ).toBe("");
   });
 

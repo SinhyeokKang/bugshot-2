@@ -21,6 +21,7 @@ import { useSettingsStore } from "@/store/settings-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { use30sReplay } from "./30s-replay/use-30s-replay";
 import { useBoundTabState } from "./hooks/useTabSupport";
+import { useLivePageUrl } from "./hooks/useLivePageUrl";
 import { TabSupportProvider } from "./hooks/tab-support-context";
 import { ReplayProvider } from "./30s-replay/replay-context";
 import {
@@ -114,9 +115,7 @@ export default function App() {
   const replayEnabled = useSettingsUiStore((s) => s.replayEnabled);
   const { unsupported, url: livePageUrl } = useBoundTabState(tabId);
   // 재현 환경 Page 행의 입력. 판정과 같은 재조회 결과라 둘이 어긋날 수 없다.
-  useEffect(() => {
-    useEditorStore.getState().setLivePageUrl(livePageUrl);
-  }, [livePageUrl]);
+  useLivePageUrl(livePageUrl);
   // 웹스토어는 https라 captureVisibleTab이 실제로 성공한다 — 안 막으면 "캡처할 수 없습니다"
   // 화면에서 프레임 버퍼가 계속 채워진다.
   const replay = use30sReplay(tabId ?? null, replayEnabled, unsupported);

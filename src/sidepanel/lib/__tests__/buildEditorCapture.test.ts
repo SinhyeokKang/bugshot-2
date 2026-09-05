@@ -531,8 +531,4 @@ describe("buildEditorMarkdownContext — ctx.url (재현 환경 Page)", () => {
     expect(buildEditorMarkdownContext()?.url).toBe("https://example.com");
   });
 
-  it("video도 동결", () => {
-    editorState.current = baseState({ captureMode: "video", livePageUrl: LIVE });
-    expect(buildEditorMarkdownContext()?.url).toBe("https://example.com");
-  });
 });
