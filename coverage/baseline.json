@@ -1,25 +1,25 @@
 {
-  "generatedAt": "2026-09-05T18:20:06.718Z",
+  "generatedAt": "2026-09-06T15:32:12.492Z",
   "logic": {
-    "covered": 23354,
-    "total": 25769,
-    "pct": 90.62827428305329
+    "covered": 23362,
+    "total": 25777,
+    "pct": 90.63118283741319
   },
   "global": {
     "lines": {
-      "covered": 31085,
-      "total": 55661,
-      "pct": 55.84
+      "covered": 31410,
+      "total": 55690,
+      "pct": 56.4
     },
     "branches": {
-      "covered": 8921,
-      "total": 10120,
-      "pct": 88.15
+      "covered": 8972,
+      "total": 10190,
+      "pct": 88.04
     },
     "functions": {
-      "covered": 1693,
-      "total": 2325,
-      "pct": 72.81
+      "covered": 1721,
+      "total": 2368,
+      "pct": 72.67
     }
   },
   "files": {
@@ -840,8 +840,8 @@
       "total": 33
     },
     "src/sidepanel/components/TiptapEditor.tsx": {
-      "covered": 70,
-      "total": 647
+      "covered": 387,
+      "total": 668
     },
     "src/sidepanel/components/TooltipIconButton.tsx": {
       "covered": 37,
@@ -1304,8 +1304,8 @@
       "total": 188
     },
     "src/sidepanel/lib/markdownToMrkdwn.ts": {
-      "covered": 57,
-      "total": 57
+      "covered": 65,
+      "total": 65
     },
     "src/sidepanel/lib/markdownToNotionBlocks.ts": {
       "covered": 153,

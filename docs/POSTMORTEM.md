@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-09-06 — 라이브러리가 블록 노드에 인라인 직렬화기를 꽂아둔 걸 2년 가까이 못 봤고, 고친 뒤엔 그 픽스가 꽂혔는지를 아무도 안 봤다
+
+- **영역**: `에디터`, `어댑터`, `lib`
+- **계열**: `라이브러리전제`, `복제본`
+- **그물**: `jsdom`
+- **증상**: 본문에 넣은 인라인 이미지 **뒤의 블록이 마크다운에서 구분자 없이 붙었다**. 제보(bugshot-2#228, 실제 제출 이슈 SinhyeokKang/malmoi#3)엔 `![](...)After the tenant-auth switch, ...`로 나왔고 리포터는 "minor"로 분류했다. **실측해 보니 minor가 아니었다** — 문단은 읽히기라도 하지만 `![](X)- a`는 리스트가 문단에 흡수돼 목록으로 렌더되지 않고, `![](X)```은 코드펜스가 깨진다. `getMarkdown()` 한 곳에서 오염돼 8개 플랫폼 본문 + 클립보드 복사본이 동시에 걸린다.
+- **근본 원인**: `@tiptap/extension-image`는 이미지를 **블록 노드**로 선언하는데 `tiptap-markdown`이 그 노드에 prosemirror-markdown의 **인라인** 직렬화기(`defaultMarkdownSerializer.nodes.image`)를 그대로 꽂는다. 인라인 직렬화기는 `state.closeBlock()`을 안 부르므로 블록 종료가 없다. **우리 코드엔 버그가 없었고, 라이브러리 두 개의 전제가 어긋난 자리였다** — 그래서 우리 빌더를 아무리 봐도 안 보인다. 같은 파일 `ARCHITECTURE.md:634`에 **이미 같은 계열의 tiptap-markdown 제약**(코드블럭 fence 3백틱 하드코딩)이 기록돼 있었는데, 그 항목을 "fence 문제"로만 읽고 *"이 라이브러리는 노드 스펙과 직렬화기가 어긋날 수 있다"*는 일반형으로 읽지 않았다.
+- **재발 방지**: (1) **라이브러리가 노드를 어떻게 직렬화하는지는 추측하지 말고 헤드리스로 한 번 찍어본다.** 진단에 쓴 방법이 그대로 그물이 된다 — 실제 Editor를 세워 `getMarkdown()`을 출력하는 프로브 10줄이면 "이미지+문단 / +리스트 / +코드블럭 / 이미지2장" 표가 나오고, 그 표가 곧 기대값이다. 코드를 읽어 추론하면 `defaultMarkdownSerializer.nodes.image`가 인라인용이라는 사실에 도달하지 못한다. (2) **`ARCHITECTURE.md`의 기존 제약 항목을 일반형으로 읽는다** — "tiptap-markdown이 X를 하드코딩한다"가 있으면 그건 *그 라이브러리의 직렬화 계약을 신뢰할 수 없다*는 신호이지 X만의 문제가 아니다. 새 노드 타입을 본문에 넣을 때 그 항목을 grep하고 같은 프로브를 돌린다. (3) **직렬화기를 손으로 옮겨 적을 땐 원본과 바이트 대조를 실측으로 한다** — `state.esc` 적용 여부·src는 괄호만 replace·title 인용부호 escape가 각각 다르다. 원본을 나란히 놓고 8케이스(괄호 낀 src·`*_[]` 낀 alt·엔티티 등)를 돌려 같은 문자열이 나오는지 본다. (4) **`node.type.isBlock` 같은 조건부 동작은 그 조건을 뒤집는 설정이 열려 있는지 본다** — `Image`의 블록성은 `inline` 옵션이라 `configure({ inline: true })`가 가능하고, 그때 `closeBlock`이 문단을 쪼갠다. 이름이 `BlockImage`인 것은 문서지 강제가 아니다.
+- **더 값진 두 번째 교훈 — 픽스는 검증됐는데 배선은 아니었다**: 직렬화기 테스트 10건이 **각자 `new Editor([... BlockImage ...])`를 세웠다.** 그래서 확장 배열의 `BlockImage,`를 stock `Image,`로 되돌려도 **typecheck·전체 스위트(370파일/7083)가 green**이다. `BlockImage`가 export돼 있어 미사용 경고도 없고, `Image`도 extend 때문에 남아 있어 컴파일러도 조용하다. **직전 배치(2026-09-04·09-06)에서 잡은 "모듈은 촘촘한데 모듈 사이가 빈다"와 같은 형태이고, 그 회고를 쓴 직후에 다시 밟았다.** 닫은 방법: `TiptapEditorWiring.test.tsx`가 **진짜 컴포넌트를 렌더해** `onUpdate`가 내보내는 마크다운을 본다(props가 5개뿐이라 가능). 구조 스캔으로 때우지 않은 게 요점이다 — 스캔은 "그 이름이 배열에 있다"만 보고 실제 직렬화 결과는 못 본다. 판정 절차: **테스트가 검증 대상을 자기 손으로 조립하면, 프로덕션이 같은 것을 조립하는지는 아직 아무도 안 본 것이다.**
+- **작업 함정(도구)**: 뮤테이션 원복에 `git checkout -- <file>`을 써서 **커밋 안 된 수정을 두 번 날렸다**(`useLivePageUrl.ts`, `markdownToMrkdwn.ts`). 뮤테이션 대상 파일에 미커밋 작업이 얹혀 있으면 checkout은 복원이 아니라 삭제다. 실험 전에 `cp <file> <scratch>/x.bak`으로 떠두고 그걸로 되돌린다. 짝 함정으로, 빌드 출력을 `>/dev/null 2>&1`로 삼키면 typecheck 실패 시 옛 산출물로 green이 나 **"뮤테이션이 통과했다 → 그물이 없다"는 정반대 결론**이 나온다(직전 배치에서 실제로 냈고 `e2e/GOTCHAS.md`에 항목화돼 있다).
+- **관련**: `src/sidepanel/components/TiptapEditor.tsx:BlockImage`(픽스), `src/sidepanel/lib/markdownToMrkdwn.ts`(Slack 낙진 — 이미지 제거 자리 빈 줄 접기·`!inFence` 후행 제거·`trim()` 빈 줄 판정), 그물 `src/sidepanel/components/__tests__/blockImageMarkdown.test.tsx`(직렬화기 10건)·`TiptapEditorWiring.test.tsx`(배선 1건)·`e2e/freeform-draft.spec.ts`(실빌드, 이미지→텍스트 순서)·`markdownToMrkdwn.test.ts`(+12), `src/test/setup-dom.ts`(`Range.getClientRects` 폴리필 — 없으면 `focus()`의 좌표 측정이 **비동기 unhandled error**로 새어 테스트는 전부 통과하는데 종료 코드만 1이 된다). 선행: `docs/ARCHITECTURE.md:634`(같은 라이브러리의 fence 하드코딩) · **2026-09-04**·**2026-09-06**(모듈 사이 배선이 그물 밖인 같은 형태).
+
 ## 2026-09-06 — 복제본 함정을 인용한 주석을 달면서 같은 함정을 밟았고, 그걸 잡은 건 유닛이 아니라 뮤테이션이었다
 
 - **영역**: `store`, `컴포넌트`, `lib`
