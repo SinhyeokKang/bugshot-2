@@ -45,6 +45,15 @@ test("freeform 초안 → preview 렌더 → 마크다운 복사 페이로드", 
     panel.getByTestId("draft-section-description").locator("img"),
   ).toBeVisible();
 
+  // 이미지 **뒤에** 텍스트를 둔다 — 이미지가 블록으로 직렬화되지 않으면 둘이 한 줄로
+  // 붙는다(제보된 형태). 위 fill은 텍스트→이미지 순서라 이 축을 안 지난다.
+  await panel
+    .getByTestId("draft-section-description")
+    .locator('[contenteditable="true"]')
+    .click();
+  await panel.keyboard.press("ControlOrMeta+End");
+  await panel.keyboard.type("after image text");
+
   await panel.getByTestId("to-preview").click();
   await expect(panel.getByTestId("preview-section-description")).toContainText(
     "freeform description body",
@@ -83,6 +92,10 @@ test("freeform 초안 → preview 렌더 → 마크다운 복사 페이로드", 
   expect(copiedHtml).not.toContain("data:image");
   expect(copiedHtml).not.toMatch(/<img[^>]+src="data:/);
   expect(copied).not.toContain("data:image");
+
+  // 이미지가 블록으로 닫히지 않으면 placeholder와 뒤 텍스트가 한 줄로 붙는다. 문구는
+  // 로케일을 타므로 placeholder 자체가 아니라 **텍스트가 자기 줄에 있는지**로 판정한다.
+  expect(copied).toMatch(/^after image text$/m);
 
   await panel.close();
   await fixture.close();
