@@ -21,8 +21,9 @@ function toMarkdown(html: string): string {
     ],
     content: html,
   });
+  // 같은 파일의 editorMarkdown과 동일한 관용구 — Storage 타입에 markdown 키가 없다.
   const md = (
-    editor.storage as { markdown: { getMarkdown: () => string } }
+    editor.storage as unknown as { markdown: { getMarkdown: () => string } }
   ).markdown.getMarkdown();
   editor.destroy();
   return md;
@@ -76,3 +77,31 @@ describe("BlockImage — alt·title 보존", () => {
     expect(toMarkdown('<img src="X" alt="a" title="t">')).toBe('![a](X "t")');
   });
 });
+
+// `Image`의 블록성은 `inline` 옵션이고 group이 런타임에 갈린다. 이름이 BlockImage여도
+// configure 진입점이 열려 있어, 인라인으로 설정하면 문단 안에서 closeBlock이 불려 본문이
+// 쪼개진다. 타입도 다른 테스트도 이 축을 안 잡는다.
+describe("BlockImage — inline 설정에서도 문단을 깨지 않는다", () => {
+  function inlineMarkdown(html: string): string {
+    const editor = new Editor({
+      extensions: [
+        StarterKit.configure({ heading: false, link: false }),
+        BlockImage.configure({ inline: true }),
+        Markdown,
+      ],
+      content: html,
+    });
+    const md = (
+      editor.storage as unknown as { markdown: { getMarkdown: () => string } }
+    ).markdown.getMarkdown();
+    editor.destroy();
+    return md;
+  }
+
+  it("문단 안 이미지는 텍스트와 같은 줄에 남는다", () => {
+    expect(inlineMarkdown('<p>before <img src="X"> after</p>')).toBe(
+      "before ![](X) after",
+    );
+  });
+});
+

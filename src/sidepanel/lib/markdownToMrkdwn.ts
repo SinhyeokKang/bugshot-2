@@ -32,6 +32,16 @@ export function markdownToMrkdwn(md: string): string {
   const out: string[] = [];
   let inFence = false;
 
+  // 이미지는 통째로 지워지므로(Slack 인라인 이미지 미지원) 이미지만 있던 블록은 빈 줄만
+  // 남는다. 그 자리를 그대로 두면 문단 구분이 겹쳐 메시지에 세로 여백만 쌓인다 —
+  // 다른 경로의 stripInlineImageRefs가 하는 일을 여기서도 한다. fence 안은 내용이라 건드리지 않는다.
+  const push = (line: string, fenced: boolean) => {
+    if (!fenced && line === "" && (out.length === 0 || out[out.length - 1] === "")) {
+      return;
+    }
+    out.push(line);
+  };
+
   for (const [index, line] of lines.entries()) {
     // 들여쓰기 ≤3만 fence — CommonMark 규칙. trim으로 판정하면 코드블럭 본문의
     // 무해화된(4칸 들여쓴) 백틱 런이 fence를 조기 종료시켜 나머지 본문이 변환된다.
@@ -50,17 +60,21 @@ export function markdownToMrkdwn(md: string): string {
     const contentLine = hasHardBreak ? line.slice(0, -1) : line;
     const heading = contentLine.match(/^#{1,6}\s+(.*)$/);
     if (heading) {
-      out.push(`*${convertInline(heading[1])}*`);
+      push(`*${convertInline(heading[1])}*`, false);
       continue;
     }
     const bullet = contentLine.match(/^\s*[-*]\s+(.*)$/);
     if (bullet) {
-      out.push(`• ${convertInline(bullet[1])}`);
+      push(`• ${convertInline(bullet[1])}`, false);
       continue;
     }
-    out.push(convertInline(contentLine));
+    const converted = convertInline(contentLine);
+    // 이미지만 있던 줄은 변환 후 빈 문자열이 된다 — 빈 줄로 남기지 않고 통째로 뺀다.
+    if (converted === "" && contentLine.trim() !== "") continue;
+    push(converted, false);
   }
 
+  while (out.length > 0 && out[out.length - 1] === "") out.pop();
   return out.join("\n");
 }
 

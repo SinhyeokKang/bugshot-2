@@ -309,6 +309,44 @@ const CodeBlockCollapse = Extension.create({
   },
 });
 
+// --- 이미지 블록 직렬화 ---
+// `@tiptap/extension-image`는 이미지를 **블록 노드**로 선언하는데, tiptap-markdown은 그 노드에
+// prosemirror-markdown의 **인라인** 직렬화기를 그대로 꽂는다. 인라인 직렬화기는 closeBlock을
+// 부르지 않으므로 뒤따르는 블록이 이미지에 붙는다 — 문단은 읽히기라도 하지만 리스트는 문단에
+// 흡수돼 목록이 사라지고 코드펜스는 깨진다. 라이브러리 원본(tiptap-markdown의 Image storage)에
+// closeBlock만 더한 형태다. prosemirror-markdown은 직접 의존이 아니라(전이 의존) import할 수
+// 없어 마크다운 생성부를 그대로 옮겨 적었다 — src의 괄호 이스케이프도 원본과 같다.
+
+interface ImageSerializerState {
+  esc: (text: string) => string;
+  write: (text: string) => void;
+  closeBlock: (node: ProseMirrorNode) => void;
+}
+
+export const BlockImage = Image.extend({
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: ImageSerializerState, node: ProseMirrorNode) {
+          const alt = state.esc((node.attrs.alt as string | null) ?? "");
+          const src = ((node.attrs.src as string | null) ?? "").replace(
+            /[()]/g,
+            "\\$&",
+          );
+          const rawTitle = node.attrs.title as string | null;
+          const title = rawTitle ? ` "${rawTitle.replace(/"/g, '\\"')}"` : "";
+          state.write(`![${alt}](${src}${title})`);
+          // 블록일 때만 닫는다 — `inline: true`로 configure하면 문단 안에서 불려 본문이 쪼개진다.
+          if (node.type.isBlock) state.closeBlock(node);
+        },
+        parse: {
+          // markdown-it이 처리 (라이브러리 원본과 동일).
+        },
+      },
+    };
+  },
+});
+
 // --- 본문 삽입 이미지 어노테이션 NodeView ---
 // stock Image는 그대로 두고, 코드블럭과 동일하게 별도 Extension이 props.nodeViews.image에
 // 팩토리를 등록한다. 스키마·직렬화·setImage 커맨드는 기본 Image 상속(추가 attr 없음).
@@ -569,7 +607,7 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
         openOnClick: false,
         autolink: true,
       }),
-      Image,
+      BlockImage,
       ImageAnnotation.configure({
         resolveRefId: (src) => urlToRefMap.current.get(src),
         onAnnotate: (ctx) => annotateRef.current(ctx),

@@ -118,3 +118,38 @@ describe("markdownToMrkdwn — fence 판정은 CommonMark 들여쓰기 규칙(�
     expect(markdownToMrkdwn(md)).toBe(["  ```", "code", "  ```", "_bold_"].join("\n"));
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  이미지 제거가 남기는 빈 줄                                           */
+/* ------------------------------------------------------------------ */
+
+// Slack만 이미지를 placeholder로 바꾸지 않고 통째로 지운다(다른 경로는 stripInlineImageRefs가
+// 지운 뒤 빈 줄까지 접는다). 이미지가 블록으로 직렬화되면서 이미지 줄이 통째로 사라지는데,
+// 그 자리를 빈 줄로 남기면 Slack 메시지에 세로 여백만 쌓인다.
+describe("markdownToMrkdwn — 이미지 제거 후 빈 줄", () => {
+  it("이미지 블록 뒤 문단이 앞으로 당겨진다", () => {
+    expect(markdownToMrkdwn("![](inline:x)\n\nhello")).toBe("hello");
+  });
+
+  it("문단 사이에 낀 이미지는 문단 구분 한 줄만 남긴다", () => {
+    expect(markdownToMrkdwn("a\n\n![](inline:x)\n\nb")).toBe("a\n\nb");
+  });
+
+  it("이미지 두 장이 연속이어도 빈 줄이 쌓이지 않는다", () => {
+    expect(markdownToMrkdwn("![](inline:x)\n\n![](inline:y)\n\nhello")).toBe("hello");
+  });
+
+  it("이미지 뒤 리스트도 앞으로 당겨진다", () => {
+    expect(markdownToMrkdwn("![](inline:x)\n\n- a")).toBe("• a");
+  });
+
+  // 이미지와 무관한 문단 구분은 그대로여야 한다 — 무조건 접으면 본문이 뭉친다.
+  it("일반 문단 구분은 보존한다", () => {
+    expect(markdownToMrkdwn("a\n\nb")).toBe("a\n\nb");
+  });
+
+  // 코드블럭 안의 빈 줄은 내용이다.
+  it("코드블럭 내부 빈 줄은 접지 않는다", () => {
+    expect(markdownToMrkdwn("```\na\n\n\nb\n```")).toBe("```\na\n\n\nb\n```");
+  });
+});
