@@ -34,12 +34,13 @@ export function markdownToMrkdwn(md: string): string {
 
   // 이미지는 통째로 지워지므로(Slack 인라인 이미지 미지원) 이미지만 있던 블록은 빈 줄만
   // 남는다. 그 자리를 그대로 두면 문단 구분이 겹쳐 메시지에 세로 여백만 쌓인다 —
-  // 다른 경로의 stripInlineImageRefs가 하는 일을 여기서도 한다. fence 안은 내용이라 건드리지 않는다.
-  const push = (line: string, fenced: boolean) => {
-    if (!fenced && line === "" && (out.length === 0 || out[out.length - 1] === "")) {
-      return;
-    }
-    out.push(line);
+  // 다른 경로의 stripInlineImageRefs가 하는 일을 여기서도 한다. fence 줄·내부는 이 경로를
+  // 타지 않으므로(아래에서 out에 직접 넣는다) 코드블럭 안 빈 줄은 그대로 남는다.
+  // 공백만 남은 줄도 빈 줄로 본다 — 들여쓴 이미지가 지워지면 공백만 남는다.
+  const pushBody = (line: string) => {
+    const blank = line.trim() === "";
+    if (blank && (out.length === 0 || out[out.length - 1].trim() === "")) return;
+    out.push(blank ? "" : line);
   };
 
   for (const [index, line] of lines.entries()) {
@@ -60,21 +61,21 @@ export function markdownToMrkdwn(md: string): string {
     const contentLine = hasHardBreak ? line.slice(0, -1) : line;
     const heading = contentLine.match(/^#{1,6}\s+(.*)$/);
     if (heading) {
-      push(`*${convertInline(heading[1])}*`, false);
+      out.push(`*${convertInline(heading[1])}*`);
       continue;
     }
     const bullet = contentLine.match(/^\s*[-*]\s+(.*)$/);
     if (bullet) {
-      push(`• ${convertInline(bullet[1])}`, false);
+      out.push(`• ${convertInline(bullet[1])}`);
       continue;
     }
-    const converted = convertInline(contentLine);
-    // 이미지만 있던 줄은 변환 후 빈 문자열이 된다 — 빈 줄로 남기지 않고 통째로 뺀다.
-    if (converted === "" && contentLine.trim() !== "") continue;
-    push(converted, false);
+    pushBody(convertInline(contentLine));
   }
 
-  while (out.length > 0 && out[out.length - 1] === "") out.pop();
+  // 닫히지 않은 fence 안은 전부 내용이라 건드리지 않는다.
+  if (!inFence) {
+    while (out.length > 0 && out[out.length - 1] === "") out.pop();
+  }
   return out.join("\n");
 }
 

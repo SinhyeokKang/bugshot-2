@@ -153,3 +153,35 @@ describe("markdownToMrkdwn — 이미지 제거 후 빈 줄", () => {
     expect(markdownToMrkdwn("```\na\n\n\nb\n```")).toBe("```\na\n\n\nb\n```");
   });
 });
+
+// 이미지 제거 자리를 접는 로직이 건드리는 나머지 경계. 접기·후행 제거 어느 쪽도
+// 뮤테이션으로 지웠을 때 red가 떠야 한다.
+describe("markdownToMrkdwn — 빈 줄 정리 경계", () => {
+  it("본문 끝 빈 줄을 남기지 않는다", () => {
+    expect(markdownToMrkdwn("hello\n\n")).toBe("hello");
+  });
+
+  it("본문 앞 빈 줄을 남기지 않는다", () => {
+    expect(markdownToMrkdwn("\n\nhello")).toBe("hello");
+  });
+
+  // 공백만 있는 줄도 빈 줄이다 — 정확 일치로 판정하면 들여쓴 이미지가 남긴 공백이 새어나간다.
+  it("공백만 있는 줄은 빈 줄로 접는다", () => {
+    expect(markdownToMrkdwn("a\n\n   \n\nb")).toBe("a\n\nb");
+  });
+
+  it("들여쓴 이미지도 빈 줄을 남기지 않는다", () => {
+    expect(markdownToMrkdwn("a\n\n  ![x](u)  \n\nb")).toBe("a\n\nb");
+  });
+
+  // 닫히지 않은 fence 안은 전부 내용이다 — 후행 제거가 거기까지 손대면 코드가 잘린다.
+  it("닫히지 않은 코드블럭의 끝 빈 줄은 자르지 않는다", () => {
+    expect(markdownToMrkdwn("text\n\n```js\nconst a = 1;\n\n")).toBe(
+      "text\n\n```js\nconst a = 1;\n\n",
+    );
+  });
+
+  it("닫힌 코드블럭 뒤 빈 줄은 정리한다", () => {
+    expect(markdownToMrkdwn("```\na\n```\n\n")).toBe("```\na\n```");
+  });
+});
