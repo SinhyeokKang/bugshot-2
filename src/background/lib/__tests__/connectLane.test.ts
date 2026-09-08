@@ -83,3 +83,39 @@ describe("tagRefreshFailure", () => {
     expect(tagRefreshFailure(err)).toBe(err);
   });
 });
+
+// 사이드패널은 이 platform으로 **재연동 대상**을 정한다(App의 만료 안내 → [다시 연결]).
+// 401 레인에 platform 없는 에러가 들어오면 안내가 아예 안 뜨고 사용자는 제출 실패만 반복한다.
+// 생성 지점 72곳을 required로 올리는 대신 레인의 단일 통로가 메우는 구조라, 그 통로가
+// 실제로 메우는지가 이 축의 유일한 그물이다.
+describe("inRefreshLane — platform 각인", () => {
+  it("platform 없는 OAuthError에 레인의 platform을 채운다", async () => {
+    await expect(
+      inRefreshLane(() => Promise.reject(new OAuthError("no platform")), "asana"),
+    ).rejects.toMatchObject({ refreshFailed: true, platform: "asana" });
+  });
+
+  it("이미 실린 platform을 레인 값으로 덮지 않는다", async () => {
+    await expect(
+      inRefreshLane(
+        () => Promise.reject(new OAuthError("x", { platform: "github" })),
+        "asana",
+      ),
+    ).rejects.toMatchObject({ refreshFailed: true, platform: "github" });
+  });
+
+  it("OAuthError가 아니면 그대로 통과시킨다", async () => {
+    const plain = new Error("network");
+    await expect(inRefreshLane(() => Promise.reject(plain), "asana")).rejects.toBe(
+      plain,
+    );
+  });
+
+  // 동시 대기자 전원이 같은 인스턴스를 받으므로 원본 변이는 금지다(파일 헤더).
+  it("원본 에러를 변이하지 않는다", async () => {
+    const err = new OAuthError("no platform");
+    await inRefreshLane(() => Promise.reject(err), "asana").catch(() => {});
+    expect(err.platform).toBeUndefined();
+    expect(err.refreshFailed).toBe(false);
+  });
+});

@@ -39,11 +39,18 @@ export function GithubConnectedBody() {
   );
 }
 
-export function GithubConnectFlow({ connected, onConnected }: ConnectFlowProps) {
+export function GithubConnectFlow({
+  connected,
+  onConnected,
+  autoStart,
+  onAutoStartHandled,
+}: ConnectFlowProps) {
   return (
     <PlatformConnectFlow
       connected={connected}
       onConnected={onConnected}
+      autoStart={autoStart}
+      onAutoStartHandled={onAutoStartHandled}
       platform="github"
       icon={<Github className="h-4 w-4 dark:invert" color="default" />}
       tokenLabelKey="github.patButton"

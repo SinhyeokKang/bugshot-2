@@ -98,7 +98,7 @@ function refreshOnce(auth: JiraOAuthAuth): Promise<JiraOAuthAuth> {
     const refreshed = await refreshOAuthToken(auth);
     await persistOAuthTokens(refreshed);
     return refreshed;
-  }).finally(() => {
+  }, "jira").finally(() => {
     refreshInFlight = null;
   });
   return refreshInFlight;
@@ -335,12 +335,23 @@ export async function getSprintFieldMeta(
   auth: JiraAuth,
   projectKey: string,
   issueTypeId: string,
+  // 401을 만료로 보고 갱신·재시도할지. **기본값을 두지 않는다** — 같은 파일 jiraFetch의
+  // 기본값이 true라, 여기 false를 기본으로 두면 "이 파일의 관례는 재시도 켬"이라는 오독을
+  // 부르고 실패 모드가 조용한 열화다. 두 호출부가 반대 값을 쓰므로 선택을 강제한다:
+  //   false — 필드 존재 판정. 제출 다이얼로그를 여는 것만으로 나가는 best-effort read라 401이
+  //           전역 "인증 만료" 안내를 띄우면 안 된다(agile scope가 없는 계정에선 이 401이
+  //           영구 조건이고, refresh가 성공해도 두 번째 401이 refreshFailed로 승격돼 토큰이
+  //           멀쩡한 사용자에게 재로그인을 요구했다).
+  //   true  — 제출 경로. 아래 createIssue 참조.
+  retryOn401: boolean,
 ): Promise<JiraSprintFieldMeta | null> {
   // 페이지네이션하지 않는다 — 실측 create 화면이 21필드였고 서버가 maxResults를 자체 캡 없이
   // 존중했다. 기본값(50)에 맡기면 필드가 많은 화면에서 sprint가 무음으로 잘린다.
   const res = await jiraFetch<CreateMetaFieldsResponse>(
     auth,
     `/rest/api/3/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes/${encodeURIComponent(issueTypeId)}?maxResults=200`,
+    {},
+    retryOn401,
   );
   return pickSprintField(res);
 }
@@ -445,10 +456,14 @@ export async function createIssue(
   if (payload.sprintId != null) {
     // .catch가 없으면 createmeta의 429/5xx가 create 요청 자체를 막아 스프린트를 고른 제출만
     // 통째로 죽는다 — 스프린트가 빠진 채 생성되는 쪽이 낫다(design R7).
+    // 여기서만 갱신·재시도를 켠다. 아래 .catch가 실패를 삼키므로, 고칠 수 있는 401을
+    // 그냥 던지면 사용자가 고른 스프린트가 **무음으로 빠진 채** 이슈가 생성된다(직후
+    // POST /issue는 기본 정책이라 갱신 후 성공한다).
     const meta = await getSprintFieldMeta(
       auth,
       payload.projectKey,
       payload.issueTypeId,
+      true,
     ).catch(() => null);
     if (meta) {
       fields[meta.fieldId] = meta.isArray ? [payload.sprintId] : payload.sprintId;

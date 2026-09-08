@@ -326,7 +326,7 @@ describe("스프린트 조회", () => {
       ]);
 
       await expect(
-        getSprintFieldMeta(OAUTH_AUTH, "FCLXP", "10004"),
+        getSprintFieldMeta(OAUTH_AUTH, "FCLXP", "10004", false),
       ).resolves.toEqual({ fieldId: "customfield_10020", isArray: true });
       expect(urls(f)[0]).toContain(
         "/rest/api/3/issue/createmeta/FCLXP/issuetypes/10004",
@@ -340,7 +340,7 @@ describe("스프린트 조회", () => {
         { match: "/issue/createmeta/", body: CREATEMETA_FIXTURE },
       ]);
 
-      await getSprintFieldMeta(OAUTH_AUTH, "FCLXP", "10004");
+      await getSprintFieldMeta(OAUTH_AUTH, "FCLXP", "10004", false);
 
       expect(urls(f)[0]).toContain("maxResults=200");
     });
@@ -351,7 +351,7 @@ describe("스프린트 조회", () => {
       ]);
 
       await expect(
-        getSprintFieldMeta(OAUTH_AUTH, "KANBAN", "10004"),
+        getSprintFieldMeta(OAUTH_AUTH, "KANBAN", "10004", false),
       ).resolves.toBeNull();
     });
 
@@ -375,14 +375,57 @@ describe("스프린트 조회", () => {
         },
       ]);
 
-      const err = await getSprintFieldMeta(OAUTH_AUTH, "FCLXP", "10004").catch(
-        (e: unknown) => e,
-      );
+      const err = await getSprintFieldMeta(
+        OAUTH_AUTH,
+        "FCLXP",
+        "10004",
+        false,
+      ).catch((e: unknown) => e);
 
       expect(err).toBeInstanceOf(JiraError);
       expect((err as JiraError).status).toBe(401);
       expect(urls(f).some((u) => u.includes("/token"))).toBe(false);
       expect(f).toHaveBeenCalledTimes(1);
+    });
+
+    // 정책 분기의 다른 절반. 제출 경로는 갱신·재시도를 **켜야** 한다 — 아래 createIssue의
+    // `.catch(() => null)`이 실패를 삼키므로, 고칠 수 있는 401을 그냥 던지면 사용자가 고른
+    // 스프린트가 무음으로 빠진 채 이슈가 생성된다. 인자를 지워도 green이면 그물이 없는 것이다.
+    it("retryOn401=true면 갱신 후 재시도한다 (제출 경로)", async () => {
+      stubRefreshEnv();
+      let createmetaCalls = 0;
+      const f = vi.fn(async (url: string) => {
+        const u = String(url);
+        if (u.includes("/token")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              access_token: "new",
+              refresh_token: "new-rt",
+              expires_in: 3600,
+            }),
+            text: async () => "",
+          } as Response;
+        }
+        createmetaCalls += 1;
+        const first = createmetaCalls === 1;
+        return {
+          ok: !first,
+          status: first ? 401 : 200,
+          json: async () => (first ? {} : CREATEMETA_FIXTURE),
+          text: async () => "",
+        } as Response;
+      });
+      vi.stubGlobal("fetch", f);
+
+      await expect(
+        getSprintFieldMeta(OAUTH_AUTH, "FCLXP", "10004", true),
+      ).resolves.toEqual({ fieldId: "customfield_10020", isArray: true });
+      expect(createmetaCalls).toBe(2);
+      expect(
+        f.mock.calls.some((c) => String(c[0]).includes("/token")),
+      ).toBe(true);
     });
 
     // 위 완화의 반대편 앵커 — 진짜 만료 안내까지 삼키면 안 된다. ensureFreshAuth는
@@ -399,6 +442,7 @@ describe("스프린트 조회", () => {
         { ...OAUTH_AUTH, expiresAt: Date.now() + 1_000 },
         "FCLXP",
         "10004",
+        false,
       ).catch((e: unknown) => e);
 
       expect(err).toBeInstanceOf(OAuthError);

@@ -40,11 +40,18 @@ export function ClickupConnectedBody() {
   );
 }
 
-export function ClickupConnectFlow({ connected, onConnected }: ConnectFlowProps) {
+export function ClickupConnectFlow({
+  connected,
+  onConnected,
+  autoStart,
+  onAutoStartHandled,
+}: ConnectFlowProps) {
   return (
     <PlatformConnectFlow
       connected={connected}
       onConnected={onConnected}
+      autoStart={autoStart}
+      onAutoStartHandled={onAutoStartHandled}
       platform="clickup"
       icon={<SiClickup className="h-4 w-4" color="default" />}
       tokenLabelKey="clickup.patButton"

@@ -54,11 +54,10 @@ const ko = {
   "platform.cta.body": "플랫폼을 추가해 이슈를 등록하세요.",
   "platform.cta.action": "플랫폼 추가",
   "platform.connectPlatform": "{platform}",
-  "platform.connected": "{platform} 연결 완료",
   "platform.reconnect": "{platform} 다시 연결",
   "platform.connectMethod.title": "{platform} 연결 방식",
   "platform.connectMethod.body": "연결 방식을 선택하세요.",
-  "platform.connectMethod.reconnectNote": "다시 연결하면 이 플랫폼의 기존 설정이 초기화됩니다.",
+  "platform.reconnect.note": "다시 연결하면 이 플랫폼의 기본값과 직전 제출값이 초기화됩니다.",
   "platform.connectMethod.oauth": "OAuth",
 } as const;
 
@@ -117,11 +116,10 @@ const en = {
   "platform.cta.body": "Add a platform to start filing issues.",
   "platform.cta.action": "Add platform",
   "platform.connectPlatform": "{platform}",
-  "platform.connected": "{platform} connected",
   "platform.reconnect": "Reconnect {platform}",
   "platform.connectMethod.title": "Connect {platform}",
   "platform.connectMethod.body": "Choose how to connect.",
-  "platform.connectMethod.reconnectNote": "Reconnecting clears this platform’s existing settings.",
+  "platform.reconnect.note": "Reconnecting resets the defaults and last used values for this platform.",
   "platform.connectMethod.oauth": "OAuth",
 } satisfies Bundle;
 
@@ -177,11 +175,10 @@ const fr = {
   "platform.cta.body": "Ajoutez une plateforme pour commencer à créer des tickets.",
   "platform.cta.action": "Ajouter une plateforme",
   "platform.connectPlatform": "{platform}",
-  "platform.connected": "{platform} connecté",
   "platform.reconnect": "Reconnecter {platform}",
   "platform.connectMethod.title": "Connecter {platform}",
   "platform.connectMethod.body": "Choisissez le mode de connexion.",
-  "platform.connectMethod.reconnectNote": "La reconnexion efface les réglages existants de cette plateforme.",
+  "platform.reconnect.note": "La reconnexion réinitialise les valeurs par défaut et les dernières valeurs utilisées pour cette plateforme.",
   "platform.connectMethod.oauth": "OAuth",
 } satisfies Bundle;
 

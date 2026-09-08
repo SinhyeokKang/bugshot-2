@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -152,46 +152,60 @@ describe("JiraConnectFlow — 재연동 진입점", () => {
 });
 
 // 위 케이스들은 각 셸을 따로 재므로, 한쪽 셸에서 규칙이 빠져도 **그 셸의 케이스만** 빨개진다.
-// 문제는 셸이 늘어날 때다(9번째 플랫폼이 또 자체 셸을 들면). 규칙이 두 파일에 복제돼 있다는
-// 사실 자체를 한 자리에서 잠근다 — 지금 두 파일뿐이라는 것까지 포함해서.
-describe("연결 버튼 게이트의 복제 (셸 2개)", () => {
+// 문제는 셸·래퍼가 늘어날 때다. 여기서 목록을 손으로 적으면 안 된다 — 첫 시도가 정확히 그래서
+// SlackConnectForm(세 번째 셸)을 통째로 빠뜨렸고, `ConnectFlow:` 항목 수만 세던 단언이 공허하게
+// 통과했다. 그래서 디렉터리를 훑어 "자체 셸"과 "공용 셸 래퍼"로 **파생**한다.
+describe("연결 버튼 규칙의 전수 (셸·래퍼 파생)", () => {
   const dir = join(dirname(fileURLToPath(import.meta.url)), "..");
-  const shells = ["PlatformConnectFlow.tsx", "JiraConnectForm.tsx"] as const;
+  const forms = readdirSync(dir).filter((f) => f.endsWith("ConnectForm.tsx"));
+  const read = (f: string) => readFileSync(join(dir, f), "utf8");
+  // 공용 셸에 위임하는 래퍼와, 자기 버튼을 직접 그리는 셸을 파일 내용으로 가른다.
+  const wrappers = forms.filter((f) => read(f).includes("<PlatformConnectFlow"));
+  const ownShells = ["PlatformConnectFlow.tsx", ...forms.filter((f) => !wrappers.includes(f))];
 
-  it("두 셸 모두 connected를 disabled 근거로 쓰지 않는다", () => {
-    for (const shell of shells) {
-      const source = readFileSync(join(dir, shell), "utf8");
-      expect(source).not.toContain("disabled={connected");
-    }
-  });
-
-  it("두 셸 모두 재연동 라벨과 autoStart를 든다", () => {
-    for (const shell of shells) {
-      const source = readFileSync(join(dir, shell), "utf8");
-      expect(source).toContain("platform.reconnect");
-      expect(source).toContain("autoStart");
-    }
-  });
-
-  // 위 두 단언은 "파일을 제대로 읽었다"는 전제에 걸려 있다 — 경로가 틀어지면 공허해진다.
-  it("스캔 대상이 실제 셸 파일이다 (자기검증 앵커)", () => {
-    expect(readFileSync(join(dir, shells[0]), "utf8")).toContain(
+  // 파생이 무너지면(예: 파일명 규칙 변경) 아래 루프가 조용히 0건을 돈다.
+  it("파생이 실제 파일을 집었다 (자기검증 앵커)", () => {
+    expect(forms.length).toBe(8);
+    expect(wrappers.length).toBe(6);
+    expect(ownShells).toEqual([
+      "PlatformConnectFlow.tsx",
+      "JiraConnectForm.tsx",
+      "SlackConnectForm.tsx",
+    ]);
+    expect(read("PlatformConnectFlow.tsx")).toContain(
       "export function PlatformConnectFlow",
     );
-    expect(readFileSync(join(dir, shells[1]), "utf8")).toContain(
-      "export function JiraConnectFlow",
-    );
   });
 
-  // 셸이 늘면 위 루프가 새 파일을 안 보고 지나간다. 목록이 곧 전수라는 걸 강제한다.
-  it("연결 버튼을 그리는 셸은 이 둘뿐이다", () => {
-    const owners = readFileSync(
-      join(dir, "..", "IntegrationsTab.tsx"),
-      "utf8",
-    ).match(/ConnectFlow: (\w+)/g);
-    expect(owners).toHaveLength(8);
-    // 7개는 공용 셸을 감싸고 Jira만 자체 셸이다 — 셋 이상으로 갈리면 여기서 걸린다.
-    const wrappers = owners!.filter((o) => !o.includes("JiraConnectFlow"));
-    expect(wrappers).toHaveLength(7);
+  it("어느 셸도 connected를 disabled 근거로 쓰지 않는다", () => {
+    for (const shell of ownShells) {
+      expect(read(shell), shell).not.toContain("disabled={connected");
+    }
+  });
+
+  it("모든 셸이 재연동 라벨과 autoStart 소비를 든다", () => {
+    for (const shell of ownShells) {
+      expect(read(shell), shell).toContain("platform.reconnect");
+      // prop을 받는 것만으론 부족하다 — 구조분해만 하고 안 쓰면 intent가 미소비로 고착된다.
+      expect(read(shell), shell).toContain("useAutoStart({");
+    }
+  });
+
+  // 재연동은 계정 교체라 파괴적이다. 수단 선택 다이얼로그를 지나지 않는 분기(토큰 직행 ·
+  // 수단 선택이 아예 없는 Slack)는 확인을 스스로 세워야 한다.
+  it("모든 셸이 재연동 확인 게이트를 든다", () => {
+    for (const shell of ownShells) {
+      expect(read(shell), shell).toContain("ReconnectConfirmDialog");
+    }
+  });
+
+  // 래퍼가 전달을 빠뜨리면 그 플랫폼만 재연동이 죽는다. ConnectFlowProps가 required라
+  // typecheck가 1차로 잡지만, 값을 상수로 넣어도 통과하므로 실제 prop 배선을 여기서 본다.
+  it("6개 래퍼가 intent를 공용 셸로 그대로 흘린다", () => {
+    for (const wrapper of wrappers) {
+      const source = read(wrapper);
+      expect(source, wrapper).toContain("autoStart={autoStart}");
+      expect(source, wrapper).toContain("onAutoStartHandled={onAutoStartHandled}");
+    }
   });
 });

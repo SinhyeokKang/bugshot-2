@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   connectMethods,
   orderAddPlatforms,
-  pickInitialSubTab,
   resolveEntrySubTab,
 } from "../integrationsTabUtils";
 import type { PlatformId } from "@/types/platform";
@@ -16,17 +15,21 @@ const ORDER: PlatformId[] = [
   "asana",
 ];
 
-describe("pickInitialSubTab", () => {
+describe("resolveEntrySubTab — 연결 수 축", () => {
   it("연결 0개면 '플랫폼 추가'(add)로 진입한다", () => {
-    expect(pickInitialSubTab(0)).toBe("add");
+    expect(resolveEntrySubTab({ reconnect: null, connectedCount: 0 })).toBe("add");
   });
 
   it("연결 1개면 '내 연동'(connected)으로 진입한다", () => {
-    expect(pickInitialSubTab(1)).toBe("connected");
+    expect(resolveEntrySubTab({ reconnect: null, connectedCount: 1 })).toBe(
+      "connected",
+    );
   });
 
   it("연결 여러 개여도 '내 연동'(connected)으로 진입한다", () => {
-    expect(pickInitialSubTab(4)).toBe("connected");
+    expect(resolveEntrySubTab({ reconnect: null, connectedCount: 4 })).toBe(
+      "connected",
+    );
   });
 });
 

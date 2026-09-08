@@ -18,6 +18,9 @@ interface ConnectMethodDialogProps {
   tokenLabel: string;
   onChooseOAuth: () => void;
   onChooseToken: () => void;
+  // 이미 연결된 플랫폼을 다시 연결하는 경우. 재연동은 계정을 교체하므로(setAccount가 전체
+  // 대입) 프로젝트·이슈타입 등 기존 설정이 초기화된다 — 무음 손실을 없애려는 한 줄이다.
+  reconnect?: boolean;
 }
 
 export function ConnectMethodDialog({
@@ -28,6 +31,7 @@ export function ConnectMethodDialog({
   tokenLabel,
   onChooseOAuth,
   onChooseToken,
+  reconnect = false,
 }: ConnectMethodDialogProps) {
   const t = useT();
 
@@ -40,6 +44,7 @@ export function ConnectMethodDialog({
           </DialogTitle>
           <DialogDescription>
             {t("platform.connectMethod.body")}
+            {reconnect ? ` ${t("platform.reconnect.note")}` : ""}
           </DialogDescription>
         </DialogHeader>
 

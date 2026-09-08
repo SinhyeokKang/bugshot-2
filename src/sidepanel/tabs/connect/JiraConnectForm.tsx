@@ -32,6 +32,8 @@ import { IssueTypeCombobox } from "@/sidepanel/tabs/IssueTypeCombobox";
 import { ProjectCombobox } from "@/sidepanel/tabs/ProjectCombobox";
 import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
 import { ConnectMethodDialog } from "./ConnectMethodDialog";
+import { useAutoStart } from "./useAutoStart";
+import { ReconnectConfirmDialog } from "./ReconnectConfirmDialog";
 
 export function JiraConnectedBody() {
   const t = useT();
@@ -83,7 +85,12 @@ function classifyOAuthClassified(err: unknown): OAuthClassified | null {
   return { kind: "general", message: msg };
 }
 
-export function JiraConnectFlow({ connected, onConnected }: ConnectFlowProps) {
+export function JiraConnectFlow({
+  connected,
+  onConnected,
+  autoStart,
+  onAutoStartHandled,
+}: ConnectFlowProps) {
   const t = useT();
   const setAccount = useSettingsStore((s) => s.setAccount);
 
@@ -91,6 +98,7 @@ export function JiraConnectFlow({ connected, onConnected }: ConnectFlowProps) {
   const [connecting, setConnecting] = useState(false);
   const [methodOpen, setMethodOpen] = useState(false);
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
+  const [reconnectConfirmOpen, setReconnectConfirmOpen] = useState(false);
   const [candidate, setCandidate] = useState<OAuthStartResultMsg | null>(null);
 
   useEffect(() => {
@@ -176,17 +184,27 @@ export function JiraConnectFlow({ connected, onConnected }: ConnectFlowProps) {
     if (connecting) return;
     if (methods.includes("oauth")) {
       setMethodOpen(true);
+    } else if (connected) {
+      // 토큰 직행은 수단 선택 다이얼로그를 안 지나므로 초기화 안내가 없다.
+      setReconnectConfirmOpen(true);
     } else {
       setApiKeyOpen(true);
     }
   }
+
+  useAutoStart({
+    autoStart,
+    ready: methods.length > 0 && !connecting,
+    onHandled: onAutoStartHandled,
+    start: handleClick,
+  });
 
   return (
     <>
       <Button
         variant="outline"
         onClick={handleClick}
-        disabled={connected || methods.length === 0}
+        disabled={methods.length === 0}
         aria-disabled={connecting}
         className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
       >
@@ -199,13 +217,20 @@ export function JiraConnectFlow({ connected, onConnected }: ConnectFlowProps) {
           <Jira className="h-4 w-4" color="default" />
           <span className="truncate">
             {connected
-              ? t("platform.connected", { platform: t("platform.tab.jira") })
+              ? t("platform.reconnect", { platform: t("platform.tab.jira") })
               : t("platform.connectPlatform", { platform: t("platform.tab.jira") })}
           </span>
         </span>
       </Button>
 
+      <ReconnectConfirmDialog
+        open={reconnectConfirmOpen}
+        onOpenChange={setReconnectConfirmOpen}
+        platformLabel={t("platform.tab.jira")}
+        onConfirm={() => setApiKeyOpen(true)}
+      />
       <ConnectMethodDialog
+        reconnect={connected}
         open={methodOpen}
         onOpenChange={setMethodOpen}
         platformLabel={t("platform.tab.jira")}

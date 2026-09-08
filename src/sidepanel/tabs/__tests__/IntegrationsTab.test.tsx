@@ -93,11 +93,16 @@ describe("IntegrationsTab — 재연동 intent 수신", () => {
 
     // 수단 선택 다이얼로그의 제목만 센다 — 이 화면엔 다른 모달도 살 수 있어서
     // role=dialog 개수로는 "지목된 하나만 열렸다"를 못 가린다.
+    // body.textContent는 노드 경계 없이 이어붙어 다음 문구까지 물고 온다 — 제목 엘리먼트를
+    // 직접 세야 "몇 개 열렸는지"와 "어느 플랫폼인지"가 따로 잡힌다.
     await waitFor(() =>
       expect(
-        document.body.textContent?.match(/platform\.connectMethod\.title:[\w.]+/g),
-      ).toEqual(["platform.connectMethod.title:platform.tab.jira"]),
+        screen.getAllByText(/^platform\.connectMethod\.title:/),
+      ).toHaveLength(1),
     );
+    expect(
+      screen.getByText(/^platform\.connectMethod\.title:/).textContent,
+    ).toBe("platform.connectMethod.title:platform.tab.jira");
   });
 
   it("소비하면 부모에게 알려 intent를 지우게 한다", async () => {

@@ -191,8 +191,21 @@ export const useSettingsStore = create<SettingsState>()(
       accounts: {},
       lastSubmitFields: {},
       titlePrefix: "",
+      // 새 자격증명이 들어오면 그 플랫폼의 직전 제출값도 함께 버린다. 호출부 10곳이 전부
+      // 연결·재연동 흐름이고, 재연동은 계정이 바뀌는 경로이기 때문 — 남기면 이전 계정의
+      // 목적지(owner/repo·workspace 등)가 새 계정에 prefill되고, 그 계정이 그 목적지에
+      // 접근 권한을 가지면 캡처 데이터가 이전 조직으로 나간다. 계정 신원 게이트를 가진 건
+      // Jira(lib/initialJiraFields의 siteId 대조)뿐이라 나머지 7개엔 방어가 없다.
+      // 해제→연결 시절엔 removeAccount가 이걸 지워줘서 드러나지 않던 축이다.
       setAccount: (platform, account) =>
-        set((s) => ({ accounts: { ...s.accounts, [platform]: account } })),
+        set((s) => {
+          const nextFields = { ...s.lastSubmitFields };
+          delete nextFields[platform];
+          return {
+            accounts: { ...s.accounts, [platform]: account },
+            lastSubmitFields: nextFields,
+          };
+        }),
       removeAccount: (platform) =>
         set((s) => {
           const next = { ...s.accounts };

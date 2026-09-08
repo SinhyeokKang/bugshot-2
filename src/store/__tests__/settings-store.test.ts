@@ -867,3 +867,37 @@ describe("persist migrate 콜백 — version별 단계 배선", () => {
     expect(out.lastSubmitFields.jira?.relates).toEqual([{ key: "ABC-1", label: "Parent" }]);
   });
 });
+
+// 재연동 경로가 열리기 전까지 재인증은 해제→연결뿐이었고, removeAccount가 그 플랫폼의
+// lastSubmitFields를 함께 지웠다. setAccount만 부르는 경로가 생기면서 직전 제출 목적지가
+// 새 자격증명에 남는데, 계정 신원 게이트를 가진 건 Jira(initialJiraFields의 siteId 대조)뿐이라
+// 나머지는 이전 계정의 owner/repo·workspace가 그대로 prefill된다 — 새 계정이 그 목적지에
+// 접근 권한을 가지면 캡처 데이터가 이전 조직으로 나간다.
+describe("setAccount — 새 자격증명은 직전 제출값을 물려받지 않는다", () => {
+  it("그 플랫폼의 lastSubmitFields를 비운다", () => {
+    useSettingsStore.setState({
+      accounts: {},
+      lastSubmitFields: { github: { owner: "old-org", repo: "secret" } },
+    });
+
+    useSettingsStore.getState().setAccount("github", githubStub!);
+
+    expect(useSettingsStore.getState().lastSubmitFields.github).toBeUndefined();
+  });
+
+  it("다른 플랫폼의 직전 제출값은 건드리지 않는다", () => {
+    useSettingsStore.setState({
+      accounts: {},
+      lastSubmitFields: {
+        github: { owner: "o", repo: "r" },
+        linear: { teamId: "team-1" },
+      },
+    });
+
+    useSettingsStore.getState().setAccount("github", githubStub!);
+
+    expect(useSettingsStore.getState().lastSubmitFields.linear).toEqual({
+      teamId: "team-1",
+    });
+  });
+});

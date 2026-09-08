@@ -38,11 +38,18 @@ export function AsanaConnectedBody() {
   );
 }
 
-export function AsanaConnectFlow({ connected, onConnected }: ConnectFlowProps) {
+export function AsanaConnectFlow({
+  connected,
+  onConnected,
+  autoStart,
+  onAutoStartHandled,
+}: ConnectFlowProps) {
   return (
     <PlatformConnectFlow
       connected={connected}
       onConnected={onConnected}
+      autoStart={autoStart}
+      onAutoStartHandled={onAutoStartHandled}
       platform="asana"
       icon={<SiAsana className="h-4 w-4" color="default" />}
       tokenLabelKey="asana.patButton"

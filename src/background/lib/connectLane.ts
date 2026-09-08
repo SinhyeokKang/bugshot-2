@@ -1,4 +1,5 @@
 import { OAuthError } from "../oauth/errors";
+import type { PlatformId } from "@/types/platform";
 
 // refresh 실패는 401(사이드패널 onOAuthExpired = 재로그인 안내) 레인이고, 최초 연결 실패는
 // 400이다. 그런데 createRefreshRunner는 둘을 구별할 신호가 없다 — 양쪽이 같은 getMyself를
@@ -7,16 +8,29 @@ import { OAuthError } from "../oauth/errors";
 
 // 갱신 실패 레인 태깅. refresh in-flight promise는 동시 대기자 전원이 **같은 에러 인스턴스**를
 // 받으므로 원본을 변이하지 않는다 — 한 대기자의 레인 판단이 다른 대기자에게 새면 안 된다.
-export function tagRefreshFailure(err: unknown): unknown {
-  if (!(err instanceof OAuthError) || err.refreshFailed) return err;
-  return withRefreshFailed(err, true);
+//
+// platform을 함께 각인하는 건 사이드패널이 그 값으로 **재연동 대상을 정하기** 때문이다.
+// 401 레인에 platform 없는 에러가 들어오면 만료 안내가 아예 안 뜨고(어느 플랫폼인지 몰라
+// 안내를 띄울 수 없다) 사용자는 제출 실패만 반복한다. `OAuthErrorOptions.platform`을
+// required로 올리는 건 생성 지점 72곳을 건드리므로, 레인의 **단일 통로**인 여기서 채운다 —
+// 그러면 어느 지점이 platform을 빠뜨려도 이 레인을 지나는 순간 메워진다.
+export function tagRefreshFailure(err: unknown, platform?: PlatformId): unknown {
+  if (!(err instanceof OAuthError)) return err;
+  if (err.refreshFailed && (err.platform || !platform)) return err;
+  const copy = withRefreshFailed(err, true);
+  copy.platform ??= platform;
+  return copy;
 }
 
-export async function inRefreshLane<T>(run: () => Promise<T>): Promise<T> {
+export async function inRefreshLane<T>(
+  run: () => Promise<T>,
+  // 이 레인을 여는 쪽은 항상 자기 플랫폼을 안다(runner는 생성 인자로, jira는 자기 모듈이라).
+  platform?: PlatformId,
+): Promise<T> {
   try {
     return await run();
   } catch (err) {
-    throw tagRefreshFailure(err);
+    throw tagRefreshFailure(err, platform);
   }
 }
 
