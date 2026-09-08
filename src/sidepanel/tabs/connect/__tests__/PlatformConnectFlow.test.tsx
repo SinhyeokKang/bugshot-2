@@ -39,13 +39,16 @@ const AUTH = { kind: "oauth", accessToken: "tok" };
 const ACCOUNT = { platform: "asana", connectedAt: 111, auth: AUTH, defaults: {} };
 
 const onConnected = vi.fn();
+const onAutoStartHandled = vi.fn();
 const buildAccount = vi.fn(() => ACCOUNT);
 
-function renderFlow(connected = false) {
+function renderFlow(connected = false, autoStart = false) {
   return render(
     <PlatformConnectFlow
       connected={connected}
       onConnected={onConnected}
+      autoStart={autoStart}
+      onAutoStartHandled={onAutoStartHandled}
       platform="asana"
       icon={<svg data-testid="platform-icon" />}
       tokenLabelKey="asana.patButton"
@@ -66,6 +69,31 @@ function InlinePropParent({ tick }: { tick: number }) {
       <PlatformConnectFlow
         connected={false}
         onConnected={onConnected}
+        platform="asana"
+        icon={<svg />}
+        tokenLabelKey="asana.patButton"
+        availableRequest={{ type: "asana.oauth.available" }}
+        startOAuthRequest={{ type: "asana.startOAuth" }}
+        buildAccount={buildAccount as never}
+        renderTokenDialog={() => null}
+      />
+    </div>
+  );
+}
+
+/**
+ * autoStart 케이스용 부모 — 위와 같은 이유로 prop을 인라인 리터럴로 넘긴다. autoStart는
+ * 부모가 intent를 지울 때까지 계속 true로 내려오므로, 재렌더마다 재발화하지 않는다는
+ * 계약을 모듈 상수 fixture로는 잴 수 없다.
+ */
+function AutoStartParent({ tick }: { tick: number }) {
+  return (
+    <div data-tick={tick}>
+      <PlatformConnectFlow
+        connected
+        autoStart
+        onConnected={onConnected}
+        onAutoStartHandled={onAutoStartHandled}
         platform="asana"
         icon={<svg />}
         tokenLabelKey="asana.patButton"
@@ -155,16 +183,44 @@ describe("PlatformConnectFlow — 연결 수단 판정", () => {
     );
   });
 
-  it("이미 연결됐으면 버튼이 disabled고 connected 문구가 뜬다", async () => {
+  // 연결돼 있으면 버튼을 잠그던 게 재연동 경로를 아예 없앴다 — 토큰이 죽은 계정도 "연결됨"
+  // 이라 이 버튼이 비활성이고, 내 연동 행에는 해제 버튼만 있어 사용자가 **해제부터** 해야
+  // 했다. 만료 안내가 유도할 수 있는 목적지가 필요하므로 잠그지 않고 재연동으로 쓴다.
+  it("이미 연결됐으면 버튼이 활성이고 재연동 문구가 뜬다", async () => {
     sendBg.mockResolvedValue({ available: true });
     renderFlow(true);
 
     await waitFor(() =>
       expect(screen.getByRole("button").textContent).toContain(
-        "platform.connected",
+        "platform.reconnect",
       ),
     );
+    expect(screen.getByRole("button")).not.toHaveProperty("disabled", true);
+  });
+
+  // 완화가 번지지 않게 하는 반대편 그물 — 수단을 아직 모르는 동안은 연결 여부와 무관하게
+  // 잠긴다(클릭해도 handleClick이 빈손으로 되돌아오는 구간이라 활성이면 무반응 버튼이 된다).
+  it("연결된 상태에서도 oauth.available 조회 중에는 disabled다", () => {
+    sendBg.mockReturnValue(new Promise(() => {}));
+    renderFlow(true);
+
     expect(screen.getByRole("button")).toHaveProperty("disabled", true);
+  });
+
+  it("연결된 상태의 클릭도 미연결과 같은 수단 선택 다이얼로그로 간다", async () => {
+    sendBg.mockImplementation((req: { type: string }) =>
+      req.type === AVAILABLE.type
+        ? Promise.resolve({ available: true })
+        : Promise.resolve(AUTH),
+    );
+    renderFlow(true);
+    await waitFor(() =>
+      expect(screen.getByRole("button")).not.toHaveProperty("disabled", true),
+    );
+
+    await userEvent.click(screen.getByRole("button"));
+
+    expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
   it("OAuth가 없으면 클릭 시 토큰 다이얼로그로 직행한다", async () => {
@@ -192,6 +248,68 @@ describe("PlatformConnectFlow — 연결 수단 판정", () => {
     await userEvent.click(screen.getByRole("button", { name: /patButton/ }));
 
     expect(screen.getByTestId("token-dialog")).toBeTruthy();
+  });
+});
+
+// 만료 안내의 [다시 연결]이 연동 탭까지만 데려다주면 사용자가 8개 중에서 그 플랫폼을 다시
+// 찾아야 한다. intent를 받은 셸이 스스로 한 번 열어주는 것이 이 prop의 존재 이유다.
+describe("PlatformConnectFlow — autoStart (재연동 intent)", () => {
+  it("autoStart면 수단 판정이 끝난 뒤 스스로 열리고 handled를 알린다", async () => {
+    sendBg.mockImplementation((req: { type: string }) =>
+      req.type === AVAILABLE.type
+        ? Promise.resolve({ available: true })
+        : Promise.resolve(AUTH),
+    );
+    renderFlow(true, true);
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    expect(onAutoStartHandled).toHaveBeenCalledTimes(1);
+  });
+
+  it("autoStart가 아니면 스스로 열지 않는다", async () => {
+    await settleAvailability(true);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onAutoStartHandled).not.toHaveBeenCalled();
+  });
+
+  // 부모는 handled를 받고 intent를 지우지만 그 setState가 반영되기 전에도 렌더는 돈다.
+  // 재발화를 막는 건 부모가 아니라 셸 내부의 1회 래치여야 한다.
+  it("부모가 리렌더해도 한 번만 발화한다", async () => {
+    sendBg.mockImplementation((req: { type: string }) =>
+      req.type === AVAILABLE.type
+        ? Promise.resolve({ available: true })
+        : Promise.resolve(AUTH),
+    );
+    const { rerender } = render(<AutoStartParent tick={0} />);
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+
+    rerender(<AutoStartParent tick={1} />);
+    rerender(<AutoStartParent tick={2} />);
+
+    expect(onAutoStartHandled).toHaveBeenCalledTimes(1);
+  });
+
+  // 수단을 모르는 동안 발화하면 handleClick이 빈손으로 돌아가 아무것도 안 열리는데
+  // intent는 소비된다 — 사용자에겐 [다시 연결]을 눌렀는데 아무 일도 안 일어난 것이 된다.
+  it("수단 판정 전에는 발화하지 않고 intent도 소비하지 않는다", async () => {
+    let resolveAvailable: ((v: { available: boolean }) => void) | undefined;
+    sendBg.mockImplementation((req: { type: string }) =>
+      req.type === AVAILABLE.type
+        ? new Promise<{ available: boolean }>((r) => {
+            resolveAvailable = r;
+          })
+        : Promise.resolve(AUTH),
+    );
+    renderFlow(true, true);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onAutoStartHandled).not.toHaveBeenCalled();
+
+    resolveAvailable?.({ available: true });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    expect(onAutoStartHandled).toHaveBeenCalledTimes(1);
   });
 });
 
