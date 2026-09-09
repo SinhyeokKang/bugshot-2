@@ -68,6 +68,7 @@ src/
 ├── sidepanel/
 │   ├── App.tsx          # Radix Tabs 4개 (디버그/이슈 목록/연동/설정) + TabNavContext Provider, 설정 sub-tab을 controlled로 보유
 │   ├── main.tsx
+│   ├── index.html       # 패널 엔트리. `<script id="__BUGSHOT_AGENT__" type="text/markdown">`로 **에이전트 조작 매뉴얼**을 정적 임베드(런타임 조립 아님 — 서빙 바이트만 fetch하는 에이전트도 읽어야 한다). `pnpm dev`에선 crxjs가 인라인 script를 제거해 사라진다. 주장↔소스 바인딩은 __tests__/agentManual.test.ts
 │   ├── tab-nav.ts       # TabNavContext — 메인 탭(+설정 sub-tab) 전환 setter를 하위 컴포넌트에 노출 (App↔하위 순환 import 회피)
 │   ├── capture.ts       # 요소 크롭 스냅샷 + 공용 cropImage/loadImage(줌 보정 — clampCropRect 경유, 영역·인라인·요소 캡처 단일 구현)
 │   ├── scroll-capture.ts # 페이지 전체 캡처 오케스트레이터 — planScrollCapture 타일 계획 → picker.scrollCaptureTo + background captureVisibleTab 반복(관문 경유) → 타일 도착 즉시 canvas 스티치·비트맵 폐기(메모리 스파이크 방지), 탭 활성·abort 재확인, finally로 endScrollCapture 전송(sendBg에 타임아웃이 없어 이 await가 매달리면 finally도 안 돈다 — content 측 워치독이 3중 안전망)
