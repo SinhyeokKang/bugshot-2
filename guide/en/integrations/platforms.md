@@ -65,7 +65,15 @@ One thing worth knowing: **changing the location clears** the assignee and label
 
 > **If your project runs sprints, you can pick one at submission time too.** A **Sprint** field appears right below **Issue type** in the submit dialog, listing the sprints that are active or coming up. It's optional — leave it empty and the issue still files fine. The field only shows up after BugShot asks Jira "does this project and issue type have a sprint field?" and hears yes, so it simply won't appear on a Kanban-only project or one with no board attached yet. If the project has several boards, each sprint shows which board it belongs to underneath its name. The "whoever you picked on your last submission wins" rule carries over here as well, so the same sprint is pre-filled next time — and if that sprint has closed in the meantime, the field clears itself.
 >
-> If you connected Jira **through OAuth (the browser sign-in)**, the sprint list may come up empty. Reading sprints needs one more Jira permission, and an account you connected earlier only carries the permissions it was granted at the time. Reconnect Jira once from the integration settings and the list will fill in. This doesn't apply if you connected with an API token.
+> If you connected Jira **through OAuth (the browser sign-in)**, the sprint list may come up empty. Reading sprints needs one more Jira permission, and an account you connected earlier only carries the permissions it was granted at the time. Reconnect Jira once — see **Reconnecting** below — and the list will fill in. This doesn't apply if you connected with an API token.
+
+## Reconnecting
+
+When a connection drops or a platform needs fresh permissions, just **press that platform again under "Add platform"**. Anything already connected shows a green check on its tile and reads **Reconnect {platform}** instead. You don't have to disconnect first.
+
+If an expiry notice pops up, it's even quicker: press **Reconnect** in that notice and BugShot takes you to the integrations tab with the platform's connect dialog already open. Not a good moment? **Close** puts it away.
+
+Reconnecting resets that platform's **defaults** (location, assignee, label, and so on), so give them another pass afterwards. If you reconnect as the same account, the values you picked on your last submission stay — they're only cleared when you connect as **a different account**. The dialog spells this out before you go ahead.
 
 ## Disconnecting
 
