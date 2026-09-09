@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 // 아직 미구현 모듈 — import 실패가 첫 red (interface 모드).
 import { AI_LOGS_MANUAL } from "../aiLogsManual";
+import { pickVideoRecorderMime } from "../video-mime";
+import { maskBody, maskWsFrame } from "@/content/network-recorder-helpers";
+import { ARG_CAP, serializeArgs } from "@/content/console-recorder-helpers";
 import type { NetworkStatusKind } from "@/types/network";
 
 describe("AI_LOGS_MANUAL", () => {
@@ -75,17 +78,28 @@ describe("AI_LOGS_MANUAL", () => {
 
   // types/network.ts: NetworkRequestBody = string | { kind: … }. 인라인된 쪽은 파싱 안 된
   // 원문이라 소비자가 봉투를 푼 뒤 JSON.parse를 한 번 더 해야 하는데 그 말이 없었다.
-  it("인라인 바디가 raw 문자열임을 명시한다", () => {
+  // "raw wire string"으로 못 박으려다 되물렀다 — application/json 본문은 민감 키 히트 여부와
+  // 무관하게 maskJsonBody를 거쳐 **재직렬화**되므로 wire 원문과 바이트 동일이 아니다. 계약은
+  // "파싱 안 된 문자열이라 한 번 더 parse해야 한다"이지 "바이트 충실"이 아니다.
+  it("인라인 바디가 파싱 안 된 문자열임을 명시한다", () => {
     expect(AI_LOGS_MANUAL).toContain("JSON.parse");
-    expect(/raw wire string/i.test(AI_LOGS_MANUAL)).toBe(true);
+    expect(/never a parsed object/i.test(AI_LOGS_MANUAL)).toBe(true);
+    expect(/re-serialized/i.test(AI_LOGS_MANUAL)).toBe(true);
   });
 
   // logToCodeBlock.ts: pretty-print한 뒤 16384자에서 자른다(들여쓰기가 예산을 먹어 원본의
   // 절반 이하만 남는다). 그런데 매뉴얼은 그 절삭된 표면(report.copy.markdown)을 읽으라고
   // 권하고 있었다 — 권유와 함정이 같은 문단에 있던 셈이다.
   it("본문 섹션 코드블럭 절삭과 원본 위치를 안내한다", () => {
-    expect(AI_LOGS_MANUAL).toContain("(truncated)");
-    expect(AI_LOGS_MANUAL).toContain("networkLog.requests[]");
+    // 두 키 토큰은 최상위 키 목록에 원래부터 있어 존재 검사만으로는 공허하다 — 경고 문단
+    // 자체를 잡아 그 안에서 둘을 다 짚는지 본다.
+    const caution = AI_LOGS_MANUAL.split("\n")
+      .join(" ")
+      .match(/Caution: a log code block[^]*?authoritative\./)?.[0];
+    expect(caution).toBeTruthy();
+    expect(caution).toContain("…(truncated)");
+    expect(caution).toContain("networkLog.requests[]");
+    expect(caution).toContain("consoleLog.entries[]");
   });
 
   // buildCaptureFiles.ts: video 키는 captureMode "video" 공용이고 그건 탭 녹화·화면 녹화·
@@ -98,9 +112,64 @@ describe("AI_LOGS_MANUAL", () => {
   // 마스킹은 헤더·바디·액션값·URL 4면인데 헤더 형식만 적혀 있었다. 바디의 "token": "***"를
   // 서버가 리터럴 ***를 반환한 버그로 오진하는 경로가 열려 있었다(privacy 문서는 이미 정확 —
   // 사용자에겐 고지됐는데 logs.html을 읽는 AI에게만 안 알려주던 상태).
-  it("마스킹 면과 두 형식을 안내한다", () => {
+  it("마스킹 두 형식을 안내한다", () => {
     expect(AI_LOGS_MANUAL).toContain("***[len:N]");
     expect(AI_LOGS_MANUAL).toContain("masked: true");
+    // masked 플래그는 액션 value 축에만 붙는다(accessibleName·fieldLabel은 플래그 없이 ***)
+    // — 부재를 "진짜 값"으로 읽으면 안 된다.
+    expect(/absence does not make/i.test(AI_LOGS_MANUAL)).toBe(true);
+  });
+
+  // 여기부터는 **문구가 아니라 동작을 재고**, 그 결과와 매뉴얼 문장을 함께 단언한다.
+  // 이 파일의 나머지 단언은 전부 문자열 존재 검사라 구현이 갈려도 green이다 — 실제로 이
+  // 매뉴얼을 정정하는 과정에서 세 라운드 연속으로 틀린 문장이 새로 들어갔고, 매번 그물이
+  // 아니라 사람 리뷰가 잡았다. statusKind 케이스(아래)가 이 파일에서 유일하게 구현에 묶인
+  // 선례였고, 이 describe가 그 형태를 마스킹·영상 축으로 넓힌다.
+  describe("매뉴얼의 주장을 구현으로 검증한다", () => {
+    it("바디 마스킹 범위: JSON은 content-type 없이도, form-encoded는 선언될 때만", () => {
+      // 매뉴얼: "any payload that parses as JSON, or a form-encoded one that declares
+      // its content type". 세 경로 중 하나라도 지우거나 넓히면 여기서 갈린다.
+      expect(maskBody('{"token":"abc"}', "text/plain")).toContain("***");
+      expect(maskBody('{"token":"abc"}', "application/json")).toContain("***");
+      expect(maskBody("token=abc", "application/x-www-form-urlencoded")).toContain("***");
+      expect(maskBody("token=abc", "text/plain")).toBe("token=abc");
+      expect(/parses as JSON/i.test(AI_LOGS_MANUAL)).toBe(true);
+      expect(/declares its content type/i.test(AI_LOGS_MANUAL)).toBe(true);
+    });
+
+    it("WebSocket 텍스트 프레임도 같은 마스킹을 거친다", () => {
+      expect(maskWsFrame('{"token":"abc"}')).toContain("***");
+      expect(/WebSocket text frames/i.test(AI_LOGS_MANUAL)).toBe(true);
+    });
+
+    // 매뉴얼이 "nested up to ten levels"라고 상한을 밝힌다 — maskJsonBody가 depth > 10에서
+    // 서브트리를 그대로 통과시키므로 그 밖의 token은 원문으로 남는다.
+    it("중첩 마스킹 상한이 문구와 일치한다", () => {
+      const nest = (depth: number): unknown =>
+        depth === 0 ? { token: "abc" } : { a: nest(depth - 1) };
+      expect(maskBody(JSON.stringify(nest(3)), "application/json")).toContain("***");
+      expect(maskBody(JSON.stringify(nest(12)), "application/json")).toContain("abc");
+      expect(/ten levels/i.test(AI_LOGS_MANUAL)).toBe(true);
+    });
+
+    // 30s 리플레이만 항상 MP4다 — 탭·화면 녹화는 브라우저가 mp4를 못 muxing하면 webm으로
+    // 떨어진다. 매뉴얼이 "MP4 (H.264)"로 단정하던 걸 이 폴백이 거짓으로 만든다.
+    it("녹화 컨테이너가 webm으로 떨어질 수 있음을 밝힌다", () => {
+      expect(pickVideoRecorderMime((m) => m.startsWith("video/mp4"))).toContain("mp4");
+      expect(pickVideoRecorderMime((m) => m.startsWith("video/webm"))).toContain("webm");
+      expect(/WebM/i.test(AI_LOGS_MANUAL)).toBe(true);
+      expect(/data: prefix/i.test(AI_LOGS_MANUAL)).toBe(true);
+    });
+
+    // console args는 캡처 시점에 ARG_CAP으로 잘리고 ConsoleLog엔 그걸 알리는 필드가 없다.
+    // 코드블럭 캡(MAX_CHARS)보다 작아서 "코드블럭만 잘린다"는 서술이 console엔 거짓이다.
+    it("console args가 캡처 시점에 잘린다는 사실이 문구와 맞다", () => {
+      expect(serializeArgs(["x".repeat(ARG_CAP + 100)]).endsWith("...")).toBe(true);
+      expect(ARG_CAP).toBeLessThan(16384);
+      expect(/capped at\n?\s*capture time/i.test(AI_LOGS_MANUAL.replace(/\n/g, " "))).toBe(
+        true,
+      );
+    });
   });
 
   // 이 매뉴얼은 닫힌 enum을 전부 열거하는 관례다. 값을 손으로 적어둔 문자열이라 union이 늘면
