@@ -1,10 +1,22 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 // 아직 미구현 모듈 — import 실패가 첫 red (interface 모드).
 import { AI_LOGS_MANUAL } from "../aiLogsManual";
 import { pickVideoRecorderMime } from "../video-mime";
-import { maskBody, maskWsFrame } from "@/content/network-recorder-helpers";
+// content 레코더 헬퍼를 직접 부른다. 그 파일들의 헤더는 "사이드패널·background가 import하면
+// pre-arm 청크가 무력화된다"고 경고하지만 그건 **번들 그래프**(런타임 edge) 얘기이고 테스트는
+// 그 그래프에 없다 — trailing-throttle.test.ts가 같은 근거로 이미 그렇게 한다.
+import {
+  maskBody,
+  maskWsFrame,
+  type NetworkBodyOmission,
+} from "@/content/network-recorder-helpers";
 import { ARG_CAP, serializeArgs } from "@/content/console-recorder-helpers";
 import type { NetworkStatusKind } from "@/types/network";
+import type { LogViewerData } from "@/types/log-viewer";
 
 describe("AI_LOGS_MANUAL", () => {
   it("비어있지 않은 문자열", () => {
@@ -31,15 +43,20 @@ describe("AI_LOGS_MANUAL", () => {
     expect(/gzip|gunzip/i.test(AI_LOGS_MANUAL)).toBe(true);
   });
 
+  // 배열 리터럴이면 키가 늘어도 컴파일러가 안 잡는다 — statusKind 케이스와 같은 형태로
+  // 타입에서 전수를 강제한다(ARCHITECTURE.md가 "키가 늘면 무음이다"라고 경고하는 그 축).
   it("최상위 데이터 키를 모두 설명한다", () => {
-    for (const key of [
-      "report",
-      "consoleLog",
-      "networkLog",
-      "actionLog",
-      "video",
-      "screenshot",
-    ]) {
+    // 압축 blob은 Omit<…,"meta">다(buildLogsHtml) — meta는 평문 __BUGSHOT_META__ 태그로
+    // 따로 나가고 매뉴얼도 그렇게 설명한다. 그 분리를 타입으로 함께 고정한다.
+    const ALL_KEYS: Record<keyof Omit<LogViewerData, "meta">, true> = {
+      report: true,
+      consoleLog: true,
+      networkLog: true,
+      actionLog: true,
+      video: true,
+      screenshot: true,
+    };
+    for (const key of Object.keys(ALL_KEYS)) {
       expect(AI_LOGS_MANUAL).toContain(key);
     }
   });
@@ -82,9 +99,15 @@ describe("AI_LOGS_MANUAL", () => {
   // 무관하게 maskJsonBody를 거쳐 **재직렬화**되므로 wire 원문과 바이트 동일이 아니다. 계약은
   // "파싱 안 된 문자열이라 한 번 더 parse해야 한다"이지 "바이트 충실"이 아니다.
   it("인라인 바디가 파싱 안 된 문자열임을 명시한다", () => {
-    expect(AI_LOGS_MANUAL).toContain("JSON.parse");
-    expect(/never a parsed object/i.test(AI_LOGS_MANUAL)).toBe(true);
-    expect(/re-serialized/i.test(AI_LOGS_MANUAL)).toBe(true);
+    // "JSON.parse" 존재 검사만으론 공허하다 — 상단 Node 디코드 레시피에 이미 있어서,
+    // 지키려는 문장을 통째로 지워도 통과한다. 그 문장 자체를 잡는다.
+    const claim = AI_LOGS_MANUAL.split("\n")
+      .join(" ")
+      .match(/an\s+inlined body is a string[^]*?formatting is ours\./)?.[0];
+    expect(claim).toBeTruthy();
+    expect(claim).toContain("never a parsed object");
+    expect(claim).toContain("JSON.parse");
+    expect(claim).toMatch(/re-serializes/i);
   });
 
   // logToCodeBlock.ts: pretty-print한 뒤 16384자에서 자른다(들여쓰기가 예산을 먹어 원본의
@@ -144,11 +167,16 @@ describe("AI_LOGS_MANUAL", () => {
 
     // 매뉴얼이 "nested up to ten levels"라고 상한을 밝힌다 — maskJsonBody가 depth > 10에서
     // 서브트리를 그대로 통과시키므로 그 밖의 token은 원문으로 남는다.
-    it("중첩 마스킹 상한이 문구와 일치한다", () => {
+    // 경계값으로 재야 한다 — nest(3)/nest(12)로는 guard의 **존재**만 잡히고 상한을 5나 15로
+    // 바꿔도 green이라, 매뉴얼이 말하는 "ten"은 아무것에도 안 묶인다(POSTMORTEM 2026-08-16
+    // "상수로 바꿨을 때 여전히 통과하면 그 축은 안 재고 있다").
+    it("중첩 마스킹 상한이 문구가 말하는 열 단계와 같다", () => {
       const nest = (depth: number): unknown =>
         depth === 0 ? { token: "abc" } : { a: nest(depth - 1) };
-      expect(maskBody(JSON.stringify(nest(3)), "application/json")).toContain("***");
-      expect(maskBody(JSON.stringify(nest(12)), "application/json")).toContain("abc");
+      const masked = (depth: number) =>
+        maskBody(JSON.stringify(nest(depth)), "application/json");
+      expect(masked(10)).toContain("***");
+      expect(masked(11)).toContain("abc");
       expect(/ten levels/i.test(AI_LOGS_MANUAL)).toBe(true);
     });
 
@@ -163,10 +191,39 @@ describe("AI_LOGS_MANUAL", () => {
 
     // console args는 캡처 시점에 ARG_CAP으로 잘리고 ConsoleLog엔 그걸 알리는 필드가 없다.
     // 코드블럭 캡(MAX_CHARS)보다 작아서 "코드블럭만 잘린다"는 서술이 console엔 거짓이다.
+    // 매뉴얼이 AI에게 "이 리터럴을 찾아라"라고 지시하는 가장 실행적인 주장인데, 생산자를
+    // 안 묶으면 마커를 바꾸는 순간 매뉴얼만 거짓이 된다. MAX_CHARS는 미export라 소스를 읽는다
+    // (log-cap-sync.test.ts가 같은 형태로 복제 상수를 대조한다).
+    it("절삭 마커가 생산자와 같은 문자열이다", () => {
+      const src = readFileSync(
+        join(dirname(fileURLToPath(import.meta.url)), "..", "logToCodeBlock.ts"),
+        "utf8",
+      );
+      expect(src).toContain("export function serializeNetworkRequest");
+      const marker = src.match(/\$\{s\.slice\(0, MAX_CHARS\)\}(.+?)`/)?.[1];
+      expect(marker).toBe("…(truncated)");
+      expect(AI_LOGS_MANUAL).toContain(marker!);
+    });
+
+    // 닫힌 union을 손열거한 자리는 statusKind처럼 컴파일러가 전수를 강제하게 한다 —
+    // 다섯 번째 variant가 늘면 매뉴얼만 조용히 갈린다.
+    it("body 변종 4종을 빠짐없이 열거한다", () => {
+      const ALL: Record<NetworkBodyOmission["kind"], true> = {
+        truncated: true,
+        binary: true,
+        stream: true,
+        omitted: true,
+      };
+      for (const kind of Object.keys(ALL)) {
+        expect(AI_LOGS_MANUAL).toContain(`\"${kind}\"`);
+      }
+    });
+
     it("console args가 캡처 시점에 잘린다는 사실이 문구와 맞다", () => {
+      // 매뉴얼은 "캡처 시점에 잘리고 ...로 끝난다"만 주장한다. 코드블럭 캡(MAX_CHARS)과의
+      // 대소는 주장 밖이라 여기서 재지 않는다 — 그 숫자를 적어두면 미export 상수의 복제본이 된다.
       expect(serializeArgs(["x".repeat(ARG_CAP + 100)]).endsWith("...")).toBe(true);
-      expect(ARG_CAP).toBeLessThan(16384);
-      expect(/capped at\n?\s*capture time/i.test(AI_LOGS_MANUAL.replace(/\n/g, " "))).toBe(
+      expect(/capped at\s*capture time/i.test(AI_LOGS_MANUAL.replace(/\n/g, " "))).toBe(
         true,
       );
     });
