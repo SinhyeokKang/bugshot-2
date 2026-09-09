@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: September 6, 2026
+**Effective date**: September 9, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -172,6 +172,7 @@ We do not sell the information we collect. Data is transmitted directly to the d
 - **Media / log data**: You can clear site data in your browser settings, or delete items individually from the issue list inside the extension.
 - **After a regular issue is submitted successfully**: The local draft body, page/style information, and image, video, log, and attachment blobs are deleted automatically; only submission metadata and the issue URL remain. Slack submissions preserve their source data so they can later be promoted to a tracker, and that data is removed after promotion or issue deletion.
 - **Disconnecting a platform**: Disconnecting on each platform's (Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack) integration tab deletes the stored credentials.
+- **Reconnecting as a different account**: Reconnecting an already connected platform under a different account also deletes that platform's last submit values (the destination such as project or repository, plus assignee and CC identifiers). They are kept when you reconnect as the same account.
 - **Deleting an LLM provider**: Disconnecting the provider in settings deletes the stored settings.
 
 ## 6. Permissions Notice
