@@ -65,6 +65,62 @@ const SOURCE_TESTID_RE = /(?:data-testid|testId)="([^"]+)"/g;
 const collect = (re: RegExp, text: string): string[] =>
   [...text.matchAll(new RegExp(re.source, "g"))].map((m) => m[1]);
 
+// JSX **여는 태그**만 잘라낸다. testid도 핸들러도 속성이라 자식은 볼 필요가 없고, 자식까지
+// 무는 `<Button[\s\S]*?</Button>`은 두 방향으로 틀렸다 — `<ButtonGroup`에서 시작해 첫
+// `</Button>`이 우연히 자식을 닫는 걸로 이미 통과 중이었고(회고 2026-08-27 ③과 같은 상태),
+// self-closing 버튼으로 리팩터하면 블록이 다음 버튼을 삼켜 **동작 무변경인데 red**가 났다.
+// `(?=[\s/>])`가 Button과 ButtonGroup을 가르고, 중괄호 깊이가 `onClick={() => …}`의 `>`를
+// 태그 끝으로 오인하지 않게 한다.
+function openingTags(src: string, tag: string): string[] {
+  const out: string[] = [];
+  const re = new RegExp(`<${tag}(?=[\\s/>])`, "g");
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) {
+    let depth = 0;
+    let quote: string | null = null;
+    let i = m.index + m[0].length;
+    for (; i < src.length; i++) {
+      const c = src[i];
+      // 속성값 안의 `>`를 태그 끝으로 읽으면 그 뒤 속성이 통째로 안 보인다 — Tailwind 임의
+      // 셀렉터(`[&>svg]:size-4`)가 저장소에 14곳 있어 IssueTab에 한 줄 들어오는 순간
+      // testid 뒤의 onClick이 사라지고 "핸들러 없음"으로 green이 난다(실측).
+      if (quote) {
+        if (c === quote) quote = null;
+        continue;
+      }
+      if (c === '"' || c === "'" || c === "`") quote = c;
+      else if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === ">" && depth === 0) break;
+    }
+    out.push(src.slice(m.index, i + 1));
+  }
+  return out;
+}
+
+// 버튼 testid → 그 여는 태그에 등장하는 핸들러들. `onClick={식별자}` 리터럴로 판정하면
+// `onClick={() => onArea()}`를 "핸들러 없음"으로 읽고(false green), 반대로 동작이 같은
+// 화살표 래핑에 red를 낸다(false red). 등장 여부로 보면 두 형태가 같게 판정된다.
+function buttonWiring(
+  src: string,
+  tags: string[],
+  idPrefix: RegExp,
+  handlers: string[],
+): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const tag of tags) {
+    for (const open of openingTags(src, tag)) {
+      const id = open.match(/(?:data-testid|testId)="([^"]+)"/)?.[1];
+      if (!id || !idPrefix.test(id)) continue;
+      map.set(
+        id,
+        handlers.filter((h) => new RegExp(`\\b${h}\\b`).test(open)),
+      );
+    }
+  }
+  return map;
+}
+
 // 라인 파싱인 게 의도다. 첫 판본은 lazy 캡처 + `(?=^## |\s*$)` lookahead였는데, `m` 플래그에서
 // `$`가 줄 끝이라 헤딩 다음 줄에서 즉시 닫혀 **모든 섹션이 빈 문자열**로 나왔다. 그 상태로도
 // testid 대조는 전부 green이라, 실측 없이 넘겼으면 문구 축이 통째로 죽은 채 남았다
@@ -77,6 +133,12 @@ function section(heading: string): string {
   const end = rest.findIndex((l) => l.startsWith("## "));
   return (end === -1 ? rest : rest.slice(0, end)).join("\n").trim();
 }
+
+// 매뉴얼은 하드랩이라 다단어 구문이 수시로 줄바꿈에 갈린다 — 문구 정규식을 raw 섹션에
+// 걸면 문장을 안 건드린 리랩만으로 red가 난다(실측: "so fill\none row per step"). 다단어
+// 판정은 전부 이걸 거친다. 표처럼 행 구조가 의미를 갖는 판정만 raw `section()`을 쓴다.
+const prose = (heading: string): string =>
+  section(heading).replace(/\s+/g, " ");
 
 const manualTestIds = collect(MANUAL_TESTID_RE, manual);
 const sourceTestIds = new Set(
@@ -97,7 +159,13 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
     });
 
     it("리터럴 </script 미포함 — script 태그 조기 종료 방지 (대소문자 무시)", () => {
-      expect(manual.toLowerCase()).not.toContain("</script");
+      // `manual`은 첫 `</script>` 앞까지만 잘라낸 문자열이라, 거기서 판정하면 위반 상태가
+      // **정의상 만들어지지 않는다** — 매뉴얼 꼬리에 리터럴을 넣어도 전 케이스 green이었다.
+      // 그래서 원본 html의 여는 태그~`</head>` 구간에서 등장 횟수를 센다.
+      const start = html.indexOf('id="__BUGSHOT_AGENT__"');
+      const region = html.slice(start, html.indexOf("</head>")).toLowerCase();
+      expect(start).toBeGreaterThan(-1);
+      expect(region.split("</script").length - 1).toBe(1);
     });
 
     // 섹션 하나를 통째로 지워도 다른 섹션의 testid가 앵커를 만족해 green이 났다(실측).
@@ -138,43 +206,33 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
     // 존재 대조만으로는 두 버튼의 testid를 **맞바꿔도** green이다(실측). 매뉴얼의 유일한
     // 가치가 "무엇을 찾았나 → 어느 버튼"이므로 그 짝을 직접 잰다.
     it("캡처 방식 버튼이 매뉴얼이 말한 동작에 실제로 배선돼 있다", () => {
-      const issueTab = codeOnly(read("src/sidepanel/tabs/IssueTab.tsx"));
-      const wiring = new Map<string, string | null>();
-      for (const block of issueTab.match(
-        /<TooltipIconButton[\s\S]*?<\/TooltipIconButton>/g,
-      ) ?? []) {
-        const id = block.match(/testId="([^"]+)"/)?.[1];
-        if (!id?.startsWith("capture-method-")) continue;
-        wiring.set(id, block.match(/onClick=\{(\w+)\}/)?.[1] ?? null);
-      }
-      expect(wiring.get("capture-method-viewport")).toBe("onViewport");
-      expect(wiring.get("capture-method-fullpage")).toBe("onFullPage");
+      const wiring = buttonWiring(
+        codeOnly(read("src/sidepanel/tabs/IssueTab.tsx")),
+        ["TooltipIconButton"],
+        /^capture-method-/,
+        ["onViewport", "onFullPage"],
+      );
+      expect(wiring.get("capture-method-viewport")).toEqual(["onViewport"]);
+      expect(wiring.get("capture-method-fullpage")).toEqual(["onFullPage"]);
       // 매뉴얼이 "누르면 아무 일도 안 한다"고 적은 근거 — 이 버튼만 핸들러가 없다.
-      expect(wiring.get("capture-method-area")).toBeNull();
+      expect(wiring.get("capture-method-area")).toEqual([]);
     });
 
     // 위 케이스를 `capture-method-*` 셋에만 걸어두고 표의 나머지 네 행(진입 모드)은 존재
     // 대조만 태웠다 — 매뉴얼에서 mode-element와 mode-freeform을 맞바꿔도 전부 green이었다.
     // "매핑을 잰다"고 써놓고 3/7만 분류한 형태(2026-09-09 ② — 세는 것과 분류하는 것의 혼동).
     it("진입 모드 버튼이 매뉴얼이 말한 동작에 실제로 배선돼 있다", () => {
-      const HANDLERS = [
-        "onStartElement",
-        "onStartElementShot",
-        "onStartScreenshot",
-        "onStartFreeform",
-      ];
-      const issueTab = codeOnly(read("src/sidepanel/tabs/IssueTab.tsx"));
-      const wiring = new Map<string, string[]>();
-      for (const block of issueTab.match(/<Button[\s\S]*?<\/Button>/g) ?? []) {
-        const id = block.match(/data-testid="(mode-[^"]+)"/)?.[1];
-        if (!id) continue;
-        // freeform만 인라인 화살표라 `onClick={handler}` 형태가 아니다 — 호출 등장으로 잡는다.
-        // `\b`가 onStartElement와 onStartElementShot을 갈라준다.
-        wiring.set(
-          id,
-          HANDLERS.filter((h) => new RegExp(`\\b${h}\\b`).test(block)),
-        );
-      }
+      const wiring = buttonWiring(
+        codeOnly(read("src/sidepanel/tabs/IssueTab.tsx")),
+        ["Button"],
+        /^mode-/,
+        [
+          "onStartElement",
+          "onStartElementShot",
+          "onStartScreenshot",
+          "onStartFreeform",
+        ],
+      );
       expect(wiring.get("mode-element")).toEqual(["onStartElement"]);
       expect(wiring.get("mode-element-shot")).toEqual(["onStartElementShot"]);
       expect(wiring.get("mode-screenshot")).toEqual(["onStartScreenshot"]);
@@ -204,6 +262,23 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
       );
     });
 
+    it("죽은 레코더의 복구 경로로 리로드를 지시한다", () => {
+      // 재주입 트리거는 넷이다 — 마운트 / `tabs.onUpdated` status complete / visibilitychange
+      // / store 구독의 idle 복귀. visibilitychange는 그 위 주석대로 "같은 탭으로 복귀해 패널
+      // 문서가 살아 있는" 배치 전용이라 별도 윈도우에선 안 뛰고, idle 복귀는 사용자가 캡처를
+      // 버려야 도달한다. 첫 판본은 "패널을 다시 보이게 하면 된다"는 **실행 불가능한** 복구법을
+      // 줬고, 탭 포커스만으로 남는 트리거는 페이지 로드 완료뿐이다.
+      expect(codeOnly(read("src/sidepanel/hooks/useBackgroundRecorder.ts"))).toContain(
+        'status === "complete"',
+      );
+      // `/reload/i` 존재만 보면 pre-arm 문단의 "after a reload"가 대신 매치돼 첫 판본의
+      // 틀린 복구법이 그대로 통과했다(실측 — 이 파일이 이미 네 번 밟은 형태). 지시구를
+      // 요구하고 틀린 서술을 금지해야 방향이 재진다.
+      const order = prose("Order contract");
+      expect(/reload the (target )?page/i.test(order)).toBe(true);
+      expect(/visible again/i.test(order)).toBe(false);
+    });
+
     it("버퍼 소급 flush 상한이 매뉴얼이 말한 '1분'과 일치한다", () => {
       // `PREARM_GRACE_MS`는 레코더 3벌에 **복제**돼 있다(CLAUDE.md: "값을 바꾸려면 3곳").
       // 매뉴얼의 "로그가 비지 않았다고 순서를 맞게 지킨 건 아니다"의 유일한 근거라 값이
@@ -213,27 +288,27 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
           "PREARM_GRACE_MS = 60000",
         );
       }
-      expect(/a minute/i.test(section("Order contract"))).toBe(true);
+      expect(/a minute/i.test(prose("Order contract"))).toBe(true);
     });
 
     // 단어 **존재**만 보면 "Open it BEFORE you start"를 "Open it AFTER you finish"로
     // 뒤집어도 green이었다(실측 — `before that` 같은 꼬리가 대신 매치). 방향을 재려면
     // 지시구를 통째로 요구하고 역방향 지시를 금지해야 한다.
     it("패널을 먼저 열라고 지시한다 — 역전된 지시가 아니라", () => {
-      const order = section("Order contract");
+      const order = prose("Order contract");
       expect(/open the panel before/i.test(order)).toBe(true);
       expect(/open (it|the panel) after/i.test(order)).toBe(false);
     });
 
     it("무음 실패임을 말한다 — 늦게 열면 제출은 되고 증거만 빈다", () => {
-      expect(/silent/i.test(section("Order contract"))).toBe(true);
+      expect(/silent/i.test(prose("Order contract"))).toBe(true);
     });
 
     it("패널 URL 쿼리 축(tabId)을 그 섹션 안에서 말하고, 해석 코드가 실재한다", () => {
       // 매뉴얼 전체에 걸면 `chrome.windows.create({ tabId })`가 대신 매치돼, URL 문단을
       // 통째로 지워도 green이었다(실측). 섹션으로 좁힌다.
       expect(section("Order contract")).toContain("?tabId=");
-      expect(read("src/sidepanel/hooks/useBoundTabId.ts")).toContain(
+      expect(codeOnly(read("src/sidepanel/hooks/useBoundTabId.ts"))).toContain(
         'searchParams.get("tabId")',
       );
     });
@@ -282,18 +357,16 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
       expect(supportsActionLog("element")).toBe(false);
       expect(supportsConsoleNetworkLog("screenshot")).toBe(true);
 
-      const choosing = section("Choosing a capture");
-      expect(/element mode collects no/i.test(choosing)).toBe(true);
+      expect(/element mode collects no/i.test(prose("Choosing a capture"))).toBe(true);
     });
 
     it("영상 축을 금지 지시로 배제한다", () => {
       // 재려는 건 "영상을 언급한다"가 아니라 **하지 말라고 지시한다**이다. 언급만 보면 같은
       // 섹션의 설명문("tab recording is too unstable")이 대신 매치돼 금지 문장을 지워도
       // green이다(실측).
-      const choosing = section("Choosing a capture");
-      expect(/\b(do not|don't|never)\b[^.]*\b(video|record)/i.test(choosing)).toBe(
-        true,
-      );
+      expect(
+        /\b(do not|don't|never)\b[^.]*\b(video|record)/i.test(prose("Choosing a capture")),
+      ).toBe(true);
     });
 
     it("영상·리플레이 계열 셀렉터를 조작 대상으로 제시하지 않는다", () => {
@@ -313,7 +386,22 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
       // red가 안 난다.
       const throttle = codeOnly(read("src/background/capture-throttle.ts"));
       expect(throttle).toContain("if (!tab.active)");
-      expect(section("Before you trigger a capture")).toMatch(/active/i);
+      expect(prose("Before you trigger a capture")).toMatch(/active/i);
+    });
+
+    // `tab.active`는 **윈도우별**이라, 매뉴얼이 지시한 별도 윈도우 배치에선 패널이 포커스를
+    // 가져도 대상 탭은 자기 윈도우의 active로 남아 게이트를 통과한다. 첫 판본은 그걸 모른 채
+    // "포그라운드 패널이면 캡처가 실패한다"고 단정해 **자기 조언과 모순**됐다(출처는
+    // e2e/GOTCHAS.md와 POSTMORTEM 2026-07-26인데, 둘 다 "사이드패널을 탭으로 여는"
+    // e2e 하네스 사정으로 기록해둔 것이다). 실패 조건이 같은 윈도우 배치로 한정됐는지 본다.
+    it("캡처 실패 조건을 같은 윈도우 배치로 한정한다", () => {
+      // `/same window/i` 하나로는 약하다 — 한정 문장을 지워도 뒤따르는 설명에 같은 어구가
+      // 남아 통과했다(실측). 한정의 **근거**인 "active는 윈도우별"을 함께 요구한다.
+      const before = prose("Before you trigger a capture");
+      expect(/per window/i.test(before)).toBe(true);
+      expect(/same window/i.test(before)).toBe(true);
+      // 별도 윈도우 배치를 실제로 권하는지. prose 경유가 아니면 순수 리랩에 red가 난다.
+      expect(/own window/i.test(prose("Order contract"))).toBe(true);
     });
 
     it("매뉴얼이 말한 '초당 두 번'이 실제 간격 상수와 일치한다", () => {
@@ -322,9 +410,7 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
       expect(codeOnly(read("src/background/capture-throttle.ts"))).toContain(
         "CAPTURE_MIN_GAP_MS = 500",
       );
-      expect(/two per second/i.test(section("Before you trigger a capture"))).toBe(
-        true,
-      );
+      expect(/two per second/i.test(prose("Before you trigger a capture"))).toBe(true);
     });
   });
 
@@ -332,7 +418,7 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
     it("마크다운 붙여넣기가 파싱된다는 주장의 근거가 실재한다", () => {
       const editor = codeOnly(read("src/sidepanel/components/TiptapEditor.tsx"));
       expect(editor).toContain("transformPastedText: true");
-      expect(/paste markdown/i.test(section("Writing the report"))).toBe(true);
+      expect(/paste markdown/i.test(prose("Writing the report"))).toBe(true);
     });
 
     it("제목이 비면 to-preview가 잠긴다는 주장의 근거가 실재한다", () => {
@@ -341,7 +427,21 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
       const drafting = codeOnly(read("src/sidepanel/tabs/DraftingPanel.tsx"));
       expect(drafting).toContain("const titleMissing = !draft.title.trim()");
       expect(drafting).toContain("disabled={titleMissing");
-      expect(/non-empty/i.test(section("Writing the report"))).toBe(true);
+      expect(/non-empty/i.test(prose("Writing the report"))).toBe(true);
+    });
+
+    it("재현 단계는 행 단위 입력이라 한 번에 붙이면 한 행이 된다고 말한다", () => {
+      // `OrderedListEditor`는 행마다 `<Input>`이고 paste 핸들러가 없다 — 붙여넣기를 무시하는
+      // 게 아니라 개행이 뭉개져 한 행에 통째로 들어간다. "무시된다"는 에이전트가 실행할 수
+      // 없는 서술이라 그 차이가 곧 잘못된 리포트가 된다.
+      const editor = codeOnly(read("src/sidepanel/components/OrderedListEditor.tsx"));
+      expect(editor).not.toContain("onPaste");
+      // 구분자까지 본다 — `next.join(" ")`로 바뀌면 행이 개행으로 합쳐지지 않아 매뉴얼의
+      // "개행이 한 행으로 뭉개진다"가 거짓이 되는데, 호출부만 보면 green이다.
+      expect(editor).toContain(String.raw`onChange(next.join("\n"))`);
+      // "one row per step"은 편집기를 **설명**하는 문장에도 쓰여서, 지시를 지워도 설명이
+      // 대신 매치됐다(실측). 실행 지시구를 요구한다.
+      expect(/fill one row per step/i.test(prose("Writing the report"))).toBe(true);
     });
 
     it("heading은 살아남지 않는다고 말한다 — 스키마에 heading 노드가 없다", () => {
@@ -349,9 +449,7 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
       // 문단으로 뭉개진다. 에이전트가 `## Steps`로 구조를 잡으면 그게 조용히 사라진다.
       const editor = codeOnly(read("src/sidepanel/components/TiptapEditor.tsx"));
       expect(editor).toContain("heading: false");
-      expect(/headings do not survive/i.test(section("Writing the report"))).toBe(
-        true,
-      );
+      expect(/headings do not survive/i.test(prose("Writing the report"))).toBe(true);
     });
   });
 });

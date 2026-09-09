@@ -30,13 +30,17 @@ already yours. Anything not mentioned here, read off the DOM.
 Logs are captured only while this panel is open AND the page you are testing is
 the active tab of its window. Open the panel BEFORE you start exercising the
 page. Do not leave it until afterwards, and do not go work in a third tab of the
-same window -- that stops recording on your target, and it does not resume until
-the panel is visible again.
+same window -- that stops recording on your target, and it does not start again
+on its own.
 
 This failure is silent. Open the panel late and the report still submits, with
 nothing in it. A tab that was already recorded once can replay up to a minute of
-buffered logs after a reload, so a non-empty log is not proof you got the order
-right.
+buffered logs when it loads again, so a non-empty log is not proof you got the
+order right.
+
+If recording did stop, showing the panel does not bring it back: with the panel
+in its own window it never went hidden, and nothing re-arms on tab focus. Reload
+the target page instead. That load is also what replays the buffer above.
 
 Panel URL:
 chrome-extension://EXTENSION_ID/src/sidepanel/index.html?tabId=TARGET_TAB_ID
@@ -67,9 +71,12 @@ that lives outside the page, and tab recording is too unstable to drive.
 
 ## Before you trigger a capture
 
-Bring the TARGET tab to the front. The capture gate re-checks that the tab is
-active after it comes off the queue, so a panel in the foreground fails the
-capture outright.
+The capture gate re-checks that the target tab is still active after the request
+comes off the queue. "Active" is per window, so this only bites when the panel
+sits in the SAME window as the target -- then focusing the panel makes the target
+inactive and the capture fails outright. With the panel in its own window, as
+above, both stay active and you can drive the panel freely. Either way the target
+must be the active tab of its own window when you trigger the capture.
 
 Captures are rate limited to roughly two per second. They queue rather than
 fail, so a burst is slow, not lost; if one does come back rate limited, retry a
@@ -85,7 +92,9 @@ The body sections are ProseMirror surfaces. Setting their text directly flattens
 whatever structure you wrote, so PASTE markdown instead: lists and code fences
 survive it. Headings do NOT survive -- the schema has no heading node, so a line
 like "## Steps" lands as an ordinary paragraph. Reproduction steps are a
-different editor entirely, one row per step, and ignore pasted markdown.
+different editor entirely: one row per step, no markdown, and no paste handling.
+Paste several steps at once and the newlines collapse into a single row, so fill
+one row per step instead.
 
 You already know what broke and why, so write it yourself rather than reaching
 for the AI draft button, which is there to infer that when a human cannot.
