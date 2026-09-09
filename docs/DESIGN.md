@@ -304,6 +304,7 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
 | `lib/blockActions.ts`(표 헤더의 `components/`가 아니다) + `block-actions.css` | React 밖 DOM(코드블럭 접기·Tiptap 인라인 이미지)의 우상단 아이콘 ButtonGroup primitive. `h-8 w-8`·semantic token·focus/hover·aria-label/title을 shadcn `TooltipIconButton`/`ButtonGroup`과 수동 동기화한다. 원본 버튼 규칙을 바꾸면 vanilla CSS도 함께 대조 |
 | `TiptapEditor.tsx` | WYSIWYG 본문 에디터 (ProseMirror + tiptap-markdown 양방향) — 이슈 본문 paragraph 섹션 |
 | `CancelConfirmDialog.tsx` | 취소 확인 다이얼로그 공용 — 진행 중 작업 폐기 전 확인 |
+| `OAuthExpiredDialog.tsx` | 토큰 갱신 실패 시의 재로그인 안내 공용 — `platform != null`이 곧 open이고, 푸터는 `AlertDialogCancel`(`common.close`) + `AlertDialogAction`(재연동). primitive 기본 폭 유지(§ AlertDialog 관용구), `AlertDialogTrigger` 없음(전역 controlled 모달). 파괴적 확인이 아니라 **복구 유도**라 action에 `destructive` variant를 주지 않는다 — 저장소의 `AlertDialogAction`은 전부 기본 variant다 |
 | `ZoomControl.tsx` (`annotation/`) | 캔버스 배율 컨트롤 — 플로팅 `[−][n% ▾][+]`(ButtonGroup + shadcn Select). 어노테이션 캔버스 하단 고정. 컨트롤 밖 통과는 부모 `AnnotationToolbar`가 `pointer-events-none` 레이어 + 컨트롤에 `pointer-events-auto` 재활성으로 구현(§6 오버레이 컨트롤과 동일 기법) |
 | `DocSectionBody.tsx` | 이슈 섹션 본문 렌더 — 마크다운(`renderMarkdown`) 또는 orderedList. 긴 코드블럭은 `useCodeCollapse`가 렌더 후 접기 셸을 부착 |
 | `OrderedListEditor.tsx` | 재현 절차 orderedList 편집 (`DraftingPanel`·`DraftEditDialog` 공용 — `DocSectionBody`의 orderedList 렌더와 짝) |

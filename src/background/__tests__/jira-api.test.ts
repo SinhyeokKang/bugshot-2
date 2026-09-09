@@ -36,6 +36,7 @@ import {
   jiraMultipart,
   JiraError,
 } from "../jira-api";
+import { OAuthError } from "../oauth/errors";
 import { mockFetchOnce, type MockFetch } from "@/test/fetch-mock";
 import type { JiraAdfDoc } from "@/types/jira";
 
@@ -303,7 +304,20 @@ function urls(f: ReturnType<typeof mockFetchByUrl>): string[] {
 describe("스프린트 조회", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    // createmeta의 401 정책 케이스가 프록시 설정을 stubEnv로 세운다 — 안 풀면 같은 파일
+    // 뒤쪽 테스트가 "설정됨" 전제를 물려받는다.
+    vi.unstubAllEnvs();
   });
+
+  // 갱신 경로를 실제로 태우는 케이스용. chrome이 없으면 readStoredAuth·persistOAuthTokens가
+  // 던져 refresh가 그 자리에서 실패하고, 그러면 "재시도까지 갔는지"를 못 재게 된다.
+  function stubRefreshEnv() {
+    vi.stubEnv("VITE_ATLASSIAN_CLIENT_ID", "cid");
+    vi.stubEnv("VITE_OAUTH_PROXY_URL", "https://proxy.example");
+    vi.stubGlobal("chrome", {
+      storage: { local: { get: async () => ({}), set: async () => {} } },
+    });
+  }
 
   describe("getSprintFieldMeta", () => {
     it("실측 createmeta 응답에서 sprint 필드 id와 배열 여부를 뽑는다", async () => {
@@ -312,7 +326,7 @@ describe("스프린트 조회", () => {
       ]);
 
       await expect(
-        getSprintFieldMeta(OAUTH_AUTH, "FCLXP", "10004"),
+        getSprintFieldMeta(OAUTH_AUTH, "FCLXP", "10004", false),
       ).resolves.toEqual({ fieldId: "customfield_10020", isArray: true });
       expect(urls(f)[0]).toContain(
         "/rest/api/3/issue/createmeta/FCLXP/issuetypes/10004",
@@ -326,7 +340,7 @@ describe("스프린트 조회", () => {
         { match: "/issue/createmeta/", body: CREATEMETA_FIXTURE },
       ]);
 
-      await getSprintFieldMeta(OAUTH_AUTH, "FCLXP", "10004");
+      await getSprintFieldMeta(OAUTH_AUTH, "FCLXP", "10004", false);
 
       expect(urls(f)[0]).toContain("maxResults=200");
     });
@@ -337,8 +351,105 @@ describe("스프린트 조회", () => {
       ]);
 
       await expect(
-        getSprintFieldMeta(OAUTH_AUTH, "KANBAN", "10004"),
+        getSprintFieldMeta(OAUTH_AUTH, "KANBAN", "10004", false),
       ).resolves.toBeNull();
+    });
+
+    // 이 호출만 형제(listSprints·getSprint)와 401 정책이 갈려 있었다. sprint 계열 401은
+    // 동의 시점에 고정된 scope 미비가 원인이라 **영구** 조건이고, 재시도 레인은 두 번째
+    // 401에서 refreshFailed OAuthError로 승격돼 사이드패널에 전역 "인증 만료" 모달을
+    // 띄운다 — 토큰은 멀쩡한데 재로그인을 요구받는 오보다(2026-08-13 회고의 나머지 반쪽:
+    // 그때 막은 건 훅 구독이고 다이얼로그가 정당하게 열렸을 때의 이 레인은 남았다).
+    // 에러 타입만 보면 재시도가 남아 있어도 통과하므로 fetch 횟수와 /token 부재를 함께 본다.
+    it("createmeta가 401이면 토큰 갱신·재시도 없이 JiraError로 던진다", async () => {
+      stubRefreshEnv();
+      const f = mockFetchByUrl([
+        {
+          match: "/token",
+          body: { access_token: "new", refresh_token: "new-rt", expires_in: 3600 },
+        },
+        {
+          match: "/issue/createmeta/",
+          status: 401,
+          body: { code: 401, message: "Unauthorized; scope does not match" },
+        },
+      ]);
+
+      const err = await getSprintFieldMeta(
+        OAUTH_AUTH,
+        "FCLXP",
+        "10004",
+        false,
+      ).catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(JiraError);
+      expect((err as JiraError).status).toBe(401);
+      expect(urls(f).some((u) => u.includes("/token"))).toBe(false);
+      expect(f).toHaveBeenCalledTimes(1);
+    });
+
+    // 정책 분기의 다른 절반. 제출 경로는 갱신·재시도를 **켜야** 한다 — 아래 createIssue의
+    // `.catch(() => null)`이 실패를 삼키므로, 고칠 수 있는 401을 그냥 던지면 사용자가 고른
+    // 스프린트가 무음으로 빠진 채 이슈가 생성된다. 인자를 지워도 green이면 그물이 없는 것이다.
+    it("retryOn401=true면 갱신 후 재시도한다 (제출 경로)", async () => {
+      stubRefreshEnv();
+      let createmetaCalls = 0;
+      const f = vi.fn(async (url: string) => {
+        const u = String(url);
+        if (u.includes("/token")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              access_token: "new",
+              refresh_token: "new-rt",
+              expires_in: 3600,
+            }),
+            text: async () => "",
+          } as Response;
+        }
+        createmetaCalls += 1;
+        const first = createmetaCalls === 1;
+        return {
+          ok: !first,
+          status: first ? 401 : 200,
+          json: async () => (first ? {} : CREATEMETA_FIXTURE),
+          text: async () => "",
+        } as Response;
+      });
+      vi.stubGlobal("fetch", f);
+
+      await expect(
+        getSprintFieldMeta(OAUTH_AUTH, "FCLXP", "10004", true),
+      ).resolves.toEqual({ fieldId: "customfield_10020", isArray: true });
+      expect(createmetaCalls).toBe(2);
+      expect(
+        f.mock.calls.some((c) => String(c[0]).includes("/token")),
+      ).toBe(true);
+    });
+
+    // 위 완화의 반대편 앵커 — 진짜 만료 안내까지 삼키면 안 된다. ensureFreshAuth는
+    // authedFetch 진입 직후 retryOn401과 **무관하게** 돌므로 갱신 자체의 실패는 그대로
+    // refreshFailed 401 레인이고, 사이드패널 재로그인 안내는 유실되지 않는다.
+    it("만료 임박 토큰의 갱신 실패는 여전히 refreshFailed 레인이다", async () => {
+      stubRefreshEnv();
+      const f = mockFetchByUrl([
+        { match: "/token", status: 500, body: { error: "server_error" } },
+        { match: "/issue/createmeta/", body: CREATEMETA_FIXTURE },
+      ]);
+
+      const err = await getSprintFieldMeta(
+        { ...OAUTH_AUTH, expiresAt: Date.now() + 1_000 },
+        "FCLXP",
+        "10004",
+        false,
+      ).catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(OAuthError);
+      expect((err as OAuthError).refreshFailed).toBe(true);
+      // 갱신이 앞단에서 끊겼으니 createmeta는 아예 나가지 않는다.
+      expect(urls(f)[0]).toContain("/token");
+      expect(f).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -32,7 +32,7 @@ import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
 import { trackDisconnect } from "@/sidepanel/lib/track-submit";
 import {
   orderAddPlatforms,
-  pickInitialSubTab,
+  resolveEntrySubTab,
   type ConnectFlowProps,
   type IntegrationSubTab,
 } from "./integrationsTabUtils";
@@ -65,7 +65,17 @@ const PLATFORMS: PlatformEntry[] = [
   { id: "slack", Icon: ({ className }) => <SlackIcon className={className} />, ConnectedBody: SlackConnectedBody, ConnectFlow: SlackConnectFlow },
 ];
 
-export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
+export function IntegrationsTab({
+  activeMainTab,
+  reconnectPlatform,
+  onReconnectHandled,
+}: {
+  activeMainTab: string;
+  // 만료 안내가 지목한 재연동 대상. 지목된 셸 하나만 스스로 열린다 — 8개에 흘리면 OAuth
+  // 창이 8개 뜬다.
+  reconnectPlatform: PlatformId | null;
+  onReconnectHandled: () => void;
+}) {
   const t = useT();
   const accounts = useSettingsStore((s) => s.accounts);
   const removeAllAccounts = useSettingsStore((s) => s.removeAllAccounts);
@@ -74,17 +84,21 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
   const connectedCount = connected.length;
 
   const [sub, setSub] = useState<IntegrationSubTab>(() =>
-    pickInitialSubTab(connectedCount),
+    resolveEntrySubTab({ reconnect: reconnectPlatform, connectedCount }),
   );
 
   // 상위 탭이 "integrations"로 전환되는 순간에만 진입 라우팅 (매 렌더 덮어쓰면 사용자 선택이 튐).
+  // 재연동 intent도 같은 판정을 지난다 — 둘을 각자 effect로 두면 intent가 정확히 이 전환
+  // 순간에 도착해 순서가 승부를 가른다.
   const prevMainTab = useRef(activeMainTab);
   useEffect(() => {
-    if (activeMainTab === "integrations" && prevMainTab.current !== "integrations") {
-      setSub(pickInitialSubTab(connectedCount));
+    const entering =
+      activeMainTab === "integrations" && prevMainTab.current !== "integrations";
+    if (entering || reconnectPlatform) {
+      setSub(resolveEntrySubTab({ reconnect: reconnectPlatform, connectedCount }));
     }
     prevMainTab.current = activeMainTab;
-  }, [activeMainTab, connectedCount]);
+  }, [activeMainTab, connectedCount, reconnectPlatform]);
 
   // 해제로 connectedCount → 0 전이 시 "플랫폼 추가"로 자동 전환 (빈 "내 연동" 방지).
   const prevCount = useRef(connectedCount);
@@ -98,7 +112,15 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
   return (
     <Tabs
       value={sub}
-      onValueChange={(v) => setSub(v as IntegrationSubTab)}
+      onValueChange={(v) => {
+        // 서브탭을 손으로 옮기면 셸이 언마운트돼 intent가 미소비로 남는다(그러면 다음
+        // connectedCount 변화가 사용자를 "add"로 되돌린다). 자리를 옮긴 시점에 intent는
+        // 이미 의미를 잃었으므로 여기서 소비 처리한다. Radix Tabs는 automatic activation이라
+        // 포커스 이동으로도 이 콜백이 도는데, controlled면 같은 값은 useControllableState가
+        // 삼켜서 여기까지 안 온다.
+        if (reconnectPlatform) onReconnectHandled();
+        setSub(v as IntegrationSubTab);
+      }}
       className="flex min-h-0 flex-1 flex-col gap-0"
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
@@ -186,7 +208,14 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
                   <ConnectFlow
                     key={id}
                     connected={!!accounts[id]}
-                    onConnected={() => setSub("connected")}
+                    autoStart={reconnectPlatform === id}
+                    onAutoStartHandled={onReconnectHandled}
+                    onConnected={() => {
+                      // 연결 성공도 intent의 종착점이다 — 소비하지 않으면 그 직후
+                      // connectedCount 변화가 진입 판정을 다시 돌려 "add"로 튕긴다.
+                      onReconnectHandled();
+                      setSub("connected");
+                    }}
                   />
                 );
               })}

@@ -272,10 +272,13 @@ export async function handleMessage(
     }
 
     case "jira.sprintFieldMeta":
+      // 사이드패널의 필드 존재 판정 — 401을 만료로 보고 갱신·재시도하지 않는다(그 401이
+      // 전역 "인증 만료" 안내를 띄우던 게 이 경로의 버그였다). 제출 경로는 반대다.
       return getSprintFieldMeta(
         await loadAuth(),
         message.projectKey,
         message.issueTypeId,
+        false,
       );
 
     case "jira.listSprints":

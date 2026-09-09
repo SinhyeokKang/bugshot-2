@@ -8,25 +8,25 @@ describe("inRefreshLane", () => {
     const err = new OAuthError("refresh dead", { platform: "github" });
 
     await expect(
-      inRefreshLane(() => Promise.reject(err)),
+      inRefreshLane(() => Promise.reject(err), "github"),
     ).rejects.toMatchObject({ refreshFailed: true, platform: "github" });
   });
 
   it("원본 에러를 변이하지 않는다", async () => {
     const err = new OAuthError("refresh dead", { platform: "github" });
 
-    await inRefreshLane(() => Promise.reject(err)).catch(() => {});
+    await inRefreshLane(() => Promise.reject(err), "github").catch(() => {});
 
     expect(err.refreshFailed).toBe(false);
   });
 
   it("OAuthError가 아니면 그대로 통과시킨다", async () => {
     const err = new Error("network down");
-    await expect(inRefreshLane(() => Promise.reject(err))).rejects.toBe(err);
+    await expect(inRefreshLane(() => Promise.reject(err), "github")).rejects.toBe(err);
   });
 
   it("성공 경로는 값을 그대로 돌려준다", async () => {
-    await expect(inRefreshLane(() => Promise.resolve(7))).resolves.toBe(7);
+    await expect(inRefreshLane(() => Promise.resolve(7), "github")).resolves.toBe(7);
   });
 });
 
@@ -78,8 +78,65 @@ describe("inConnectLane", () => {
 });
 
 describe("tagRefreshFailure", () => {
-  it("이미 태깅된 에러는 그대로 돌려준다 (사본을 새로 만들지 않는다)", () => {
+  // platform 각인이 들어오면서 "이미 태깅됨"만으로는 부족해졌다 — platform이 비어 있으면
+  // 메우려고 사본을 만든다. 둘 다 갖춘 에러여야 손댈 게 없어 원본 그대로 나간다.
+  it("태깅·platform이 모두 있으면 그대로 돌려준다 (사본을 새로 만들지 않는다)", () => {
+    const err = new OAuthError("x", { refreshFailed: true, platform: "github" });
+    expect(tagRefreshFailure(err, "github")).toBe(err);
+  });
+
+  it("platform이 비었으면 사본에 메워 돌려준다", () => {
     const err = new OAuthError("x", { refreshFailed: true });
-    expect(tagRefreshFailure(err)).toBe(err);
+    const out = tagRefreshFailure(err, "github");
+    expect(out).not.toBe(err);
+    expect(out).toMatchObject({ refreshFailed: true, platform: "github" });
+    expect(err.platform).toBeUndefined();
+  });
+});
+
+// 사이드패널은 이 platform으로 **재연동 대상**을 정한다(App의 만료 안내 → [다시 연결]).
+// 401 레인에 platform 없는 에러가 들어오면 안내가 아예 안 뜨고 사용자는 제출 실패만 반복한다.
+// 생성 지점 72곳을 required로 올리는 대신 레인의 단일 통로가 메우는 구조라, 그 통로가
+// 실제로 메우는지가 이 축의 유일한 그물이다.
+describe("inRefreshLane — platform 각인", () => {
+  it("platform 없는 OAuthError에 레인의 platform을 채운다", async () => {
+    await expect(
+      inRefreshLane(() => Promise.reject(new OAuthError("no platform")), "asana"),
+    ).rejects.toMatchObject({ refreshFailed: true, platform: "asana" });
+  });
+
+  it("이미 실린 platform을 레인 값으로 덮지 않는다", async () => {
+    await expect(
+      inRefreshLane(
+        () => Promise.reject(new OAuthError("x", { platform: "github" })),
+        "asana",
+      ),
+    ).rejects.toMatchObject({ refreshFailed: true, platform: "github" });
+  });
+
+  // 이 절이 없으면(`if (err.refreshFailed) return err;`) 이미 태깅된 에러는 platform이
+  // 비어도 그대로 나가고, 사이드패널은 안내를 아예 못 띄운다.
+  it("이미 refreshFailed지만 platform이 비었으면 메운다", async () => {
+    await expect(
+      inRefreshLane(
+        () => Promise.reject(new OAuthError("tagged", { refreshFailed: true })),
+        "linear",
+      ),
+    ).rejects.toMatchObject({ refreshFailed: true, platform: "linear" });
+  });
+
+  it("OAuthError가 아니면 그대로 통과시킨다", async () => {
+    const plain = new Error("network");
+    await expect(inRefreshLane(() => Promise.reject(plain), "asana")).rejects.toBe(
+      plain,
+    );
+  });
+
+  // 동시 대기자 전원이 같은 인스턴스를 받으므로 원본 변이는 금지다(파일 헤더).
+  it("원본 에러를 변이하지 않는다", async () => {
+    const err = new OAuthError("no platform");
+    await inRefreshLane(() => Promise.reject(err), "asana").catch(() => {});
+    expect(err.platform).toBeUndefined();
+    expect(err.refreshFailed).toBe(false);
   });
 });

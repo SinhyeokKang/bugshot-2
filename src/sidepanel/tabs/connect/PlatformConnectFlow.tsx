@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Loader2 } from "lucide-react";
+import { CircleCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ import { PLATFORM_TAB_KEYS, type Accounts, type PlatformId } from "@/types/platf
 import { isOAuthCancelled, sendBg } from "@/lib/bg-client";
 import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
 import { ConnectMethodDialog } from "./ConnectMethodDialog";
+import { useAutoStart } from "./useAutoStart";
+import { ReconnectConfirmDialog } from "./ReconnectConfirmDialog";
 
 interface PlatformConnectFlowProps<P extends PlatformId, A> extends ConnectFlowProps {
   platform: P;
@@ -35,6 +37,8 @@ interface PlatformConnectFlowProps<P extends PlatformId, A> extends ConnectFlowP
 export function PlatformConnectFlow<P extends PlatformId, A>({
   connected,
   onConnected,
+  autoStart,
+  onAutoStartHandled,
   platform,
   icon,
   tokenLabelKey,
@@ -49,6 +53,7 @@ export function PlatformConnectFlow<P extends PlatformId, A>({
   const [connecting, setConnecting] = useState(false);
   const [methodOpen, setMethodOpen] = useState(false);
   const [tokenOpen, setTokenOpen] = useState(false);
+  const [reconnectConfirmOpen, setReconnectConfirmOpen] = useState(false);
 
   // 의존성은 platform이지 availableRequest가 아니다 — 후자는 호출부의 인라인 리터럴이라
   // 렌더마다 새 참조이고, 의존성에 두면 조상이 리렌더할 때마다 oauth.available을 다시
@@ -88,20 +93,34 @@ export function PlatformConnectFlow<P extends PlatformId, A>({
     if (connecting) return;
     if (methods.includes("oauth")) {
       setMethodOpen(true);
+    } else if (connected) {
+      // 토큰 직행은 수단 선택 다이얼로그를 안 지나므로 초기화 안내가 없다 —
+      // 재연동일 때만 확인을 세운다(ReconnectConfirmDialog 헤더 참조).
+      setReconnectConfirmOpen(true);
     } else {
       setTokenOpen(true);
     }
   }
+
+  useAutoStart({
+    autoStart,
+    ready: methods.length > 0 && !connecting,
+    onHandled: onAutoStartHandled,
+    start: handleClick,
+  });
 
   return (
     <>
       <Button
         variant="outline"
         onClick={handleClick}
-        disabled={connected || methods.length === 0}
+        disabled={methods.length === 0}
         aria-disabled={connecting}
         className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
       >
+        {connected && (
+          <CircleCheck className="absolute right-1.5 top-1.5 h-3.5 w-3.5 text-green-700 dark:text-green-400" />
+        )}
         {connecting && (
           <span className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -111,13 +130,20 @@ export function PlatformConnectFlow<P extends PlatformId, A>({
           {icon}
           <span className="truncate">
             {connected
-              ? t("platform.connected", { platform: platformLabel })
+              ? t("platform.reconnect", { platform: platformLabel })
               : t("platform.connectPlatform", { platform: platformLabel })}
           </span>
         </span>
       </Button>
 
+      <ReconnectConfirmDialog
+        open={reconnectConfirmOpen}
+        onOpenChange={setReconnectConfirmOpen}
+        platformLabel={platformLabel}
+        onConfirm={() => setTokenOpen(true)}
+      />
       <ConnectMethodDialog
+        reconnect={connected}
         open={methodOpen}
         onOpenChange={setMethodOpen}
         platformLabel={platformLabel}

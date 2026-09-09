@@ -41,11 +41,18 @@ export function NotionConnectedBody() {
   );
 }
 
-export function NotionConnectFlow({ connected, onConnected }: ConnectFlowProps) {
+export function NotionConnectFlow({
+  connected,
+  onConnected,
+  autoStart,
+  onAutoStartHandled,
+}: ConnectFlowProps) {
   return (
     <PlatformConnectFlow
       connected={connected}
       onConnected={onConnected}
+      autoStart={autoStart}
+      onAutoStartHandled={onAutoStartHandled}
       platform="notion"
       icon={<SiNotion className="h-4 w-4 dark:invert" color="default" />}
       tokenLabelKey="notion.internalToken.button"

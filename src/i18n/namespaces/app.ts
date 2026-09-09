@@ -53,9 +53,13 @@ const ko = {
   "platform.cta.body": "플랫폼을 추가해 이슈를 등록하세요.",
   "platform.cta.action": "플랫폼 추가",
   "platform.connectPlatform": "{platform}",
-  "platform.connected": "{platform} 연결 완료",
+  "platform.reconnect": "{platform} 다시 연결",
+  "platform.reconnect.title": "{platform}을(를) 다시 연결할까요?",
+  "platform.reconnect.confirm": "다시 연결",
   "platform.connectMethod.title": "{platform} 연결 방식",
+  "platform.connectMethod.reconnectTitle": "{platform} 다시 연결 방식",
   "platform.connectMethod.body": "연결 방식을 선택하세요.",
+  "platform.reconnect.note": "다시 연결하면 이 플랫폼의 기본값이 초기화됩니다. 다른 계정으로 연결하면 직전 제출값도 함께 초기화됩니다.",
   "platform.connectMethod.oauth": "OAuth",
 } as const;
 
@@ -113,9 +117,13 @@ const en = {
   "platform.cta.body": "Add a platform to start filing issues.",
   "platform.cta.action": "Add platform",
   "platform.connectPlatform": "{platform}",
-  "platform.connected": "{platform} connected",
+  "platform.reconnect": "Reconnect {platform}",
+  "platform.reconnect.title": "Reconnect {platform}?",
+  "platform.reconnect.confirm": "Reconnect",
   "platform.connectMethod.title": "Connect {platform}",
+  "platform.connectMethod.reconnectTitle": "Reconnect {platform}",
   "platform.connectMethod.body": "Choose how to connect.",
+  "platform.reconnect.note": "Reconnecting resets this platform's defaults. Connecting as a different account also clears the last used values.",
   "platform.connectMethod.oauth": "OAuth",
 } satisfies Bundle;
 
@@ -170,9 +178,13 @@ const fr = {
   "platform.cta.body": "Ajoutez une plateforme pour commencer à créer des tickets.",
   "platform.cta.action": "Ajouter une plateforme",
   "platform.connectPlatform": "{platform}",
-  "platform.connected": "{platform} connecté",
+  "platform.reconnect": "Reconnecter {platform}",
+  "platform.reconnect.title": "Reconnecter {platform} ?",
+  "platform.reconnect.confirm": "Reconnecter",
   "platform.connectMethod.title": "Connecter {platform}",
+  "platform.connectMethod.reconnectTitle": "Reconnecter {platform}",
   "platform.connectMethod.body": "Choisissez le mode de connexion.",
+  "platform.reconnect.note": "La reconnexion réinitialise les valeurs par défaut de cette plateforme. Se connecter avec un autre compte efface aussi les dernières valeurs utilisées.",
   "platform.connectMethod.oauth": "OAuth",
 } satisfies Bundle;
 

@@ -5,10 +5,31 @@ export type IntegrationSubTab = "connected" | "add";
 export interface ConnectFlowProps {
   connected: boolean;
   onConnected: () => void;
+  // 만료 안내의 [다시 연결]이 지목한 셸이 스스로 한 번 열리게 하는 intent. 연동 탭까지만
+  // 데려다주면 사용자가 8개 중에서 그 플랫폼을 다시 찾아야 한다.
+  //
+  // **optional로 두지 않는다.** 셸을 감싸는 래퍼가 8개인데(6개는 PlatformConnectFlow 위임,
+  // jira·slack은 자체 셸), optional이면 전달을 빠뜨린 래퍼가 typecheck도 테스트도 안 걸리고
+  // 그 플랫폼만 재연동이 무음으로 죽는다. 실제로 그렇게 6개가 빠졌다 — 여기를 required로
+  // 두는 것이 그 그물이다(POSTMORTEM 2026-08-14 "excess property check는 객체 리터럴에만
+  // 걸린다" 계열: 셸 추출이 타입 게이트를 내리는 같은 형태).
+  autoStart: boolean;
+  // 소비 통보 — 부모가 intent를 지워야 같은 플랫폼이 두 번 만료됐을 때 값이 바뀌어 다시 온다.
+  // 셸이 이걸 안 부르면 intent가 고착돼 연동 탭 서브탭이 "add"에 붙는다.
+  onAutoStartHandled: () => void;
 }
 
-// 연결 0개면 "플랫폼 추가", 1개+면 "내 연동"으로 진입.
-export function pickInitialSubTab(connectedCount: number): IntegrationSubTab {
+// 진입 서브탭 판정의 **유일한** export. 진입점을 둘로 두면 미래 호출부가 한쪽을 골라
+// intent 축을 빠뜨리는데, 그게 정확히 이번 버그의 형태였다(경합 서사는 호출부 참조).
+export function resolveEntrySubTab({
+  reconnect,
+  connectedCount,
+}: {
+  reconnect: PlatformId | null;
+  connectedCount: number;
+}): IntegrationSubTab {
+  if (reconnect) return "add";
+  // 연결 0개면 "플랫폼 추가", 1개+면 "내 연동".
   return connectedCount > 0 ? "connected" : "add";
 }
 

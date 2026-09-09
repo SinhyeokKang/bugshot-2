@@ -28,7 +28,7 @@ export function createRefreshRunner<
     if (auth.kind !== "oauth" || !refreshHook) return auth;
     if (auth.expiresAt == null) return auth;
     if (auth.expiresAt - Date.now() > TOKEN_REFRESH_THRESHOLD_MS) return auth;
-    return inRefreshLane(() => refreshHook!(auth));
+    return inRefreshLane(() => refreshHook!(auth), platform);
   }
 
   async function runWithAuthRetry<R extends { status: number }>(
@@ -38,7 +38,7 @@ export function createRefreshRunner<
     let cur = await ensureFresh(auth);
     let res = await doFetch(cur);
     if (res.status === 401 && cur.kind === "oauth" && refreshHook) {
-      cur = await inRefreshLane(() => refreshHook!(cur));
+      cur = await inRefreshLane(() => refreshHook!(cur), platform);
       res = await doFetch(cur);
       if (res.status === 401) {
         // 최초 연결의 getMyself가 401을 받아 여기까지 오면 집계 대상이다. 태깅이 없으면

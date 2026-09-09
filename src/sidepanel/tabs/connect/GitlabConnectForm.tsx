@@ -43,11 +43,18 @@ export function GitlabConnectedBody() {
   );
 }
 
-export function GitlabConnectFlow({ connected, onConnected }: ConnectFlowProps) {
+export function GitlabConnectFlow({
+  connected,
+  onConnected,
+  autoStart,
+  onAutoStartHandled,
+}: ConnectFlowProps) {
   return (
     <PlatformConnectFlow
       connected={connected}
       onConnected={onConnected}
+      autoStart={autoStart}
+      onAutoStartHandled={onAutoStartHandled}
       platform="gitlab"
       icon={<SiGitlab className="h-4 w-4" color="default" />}
       tokenLabelKey="gitlab.patButton"

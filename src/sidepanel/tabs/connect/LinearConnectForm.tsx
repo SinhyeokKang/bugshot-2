@@ -40,11 +40,18 @@ export function LinearConnectedBody() {
   );
 }
 
-export function LinearConnectFlow({ connected, onConnected }: ConnectFlowProps) {
+export function LinearConnectFlow({
+  connected,
+  onConnected,
+  autoStart,
+  onAutoStartHandled,
+}: ConnectFlowProps) {
   return (
     <PlatformConnectFlow
       connected={connected}
       onConnected={onConnected}
+      autoStart={autoStart}
+      onAutoStartHandled={onAutoStartHandled}
       platform="linear"
       icon={<SiLinear className="h-4 w-4" color="default" />}
       tokenLabelKey="linear.apiKeyButton"

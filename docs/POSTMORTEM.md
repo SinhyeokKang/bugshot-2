@@ -36,6 +36,40 @@
 
 ---
 
+## 2026-09-09 — 스프린트 필드가 "인증 만료"를 오보했고, 그 안내가 가리키는 재연동은 애초에 불가능했다
+
+- **영역**: `background`, `컴포넌트`
+- **계열**: `복제본`, `드리프트`
+- **그물**: `unit`
+- **증상**: 이슈 제출 전 필드 다이얼로그를 열면 스프린트 필드 자리에서 로더가 돌다가 전역 **"Jira 인증이 만료되었습니다"** 모달이 뜨고 제출 다이얼로그가 닫혔다. 토큰은 멀쩡했다. 사용자는 연동 탭에서 Jira를 **해제한 뒤** 재연동해야 풀렸다 — 안내가 시킨 "다시 연결"을 그대로 하려 해도 그 버튼이 비활성이라 해제가 선행돼야 했다.
+- **근본 원인**: 두 겹이다. ① **정책이 세 형제에 복제돼 있었는데 하나만 갈렸다.** sprint 계열 3경로 중 `listSprints`·`getSprint`는 `jiraFetch(…, retryOn401=false)`인데 `getSprintFieldMeta`만 기본값 `true`로 남았다. v1.7.23이 granular scope 3종을 추가했지만 **기존 토큰은 동의 시점 scope에 고정**돼 이 401은 refresh로 절대 안 풀리는 **영구** 조건인데, 재시도 레인은 refresh를 **성공**시킨 뒤 두 번째 401을 `refreshExhausted` + `refreshFailed`로 **승격**시킨다 — 그게 `serializeOAuthError`의 401 레인을 타 전역 재로그인 안내가 됐다. 즉 "갱신이 성공했다"가 "만료됐다"로 보고되는 형태고, 형제 주석엔 그 근거가 적혀 있었는데 이 호출부에만 없었다. ② **안내의 종착점에 문이 없었다.** 연결 셸의 `disabled={connected || …}` 때문에 죽은 토큰이 든 계정도 "연결됨"이라 비활성이고, 내 연동 행엔 해제 버튼만 있었다. ①과 ②는 각각 다른 PR에서 들어왔고 **둘이 만나야 사용자 증상이 된다** — 어느 한쪽만 보면 "의도된 degrade"로 읽힌다. 선행 회고 **2026-08-13**(분석 축을 훅으로 구독 → 미리보기만 열어도 같은 createmeta가 나가 같은 모달이 떴다)이 **같은 호출·같은 모달**을 다뤘지만 그때 막은 건 훅 구독이었고, 다이얼로그가 정당하게 열렸을 때의 401 레인은 남아 있었다. 회고를 "그 픽스로 닫혔다"로 읽은 게 이번의 전제 오류다.
+- **재발 방지**: (1) **같은 자원을 치는 형제 호출부는 정책 축을 표로 만들어 대조한다** — `grep -n "jiraFetch(" src/background/jira-api.ts`로 15개 호출부를 뽑고 `retryOn401` 값을 열로 세운다. 값이 갈리면 주석이 아니라 **기본값을 없애 선택을 강제**한다(이번에 `getSprintFieldMeta`의 인자에서 기본값을 뺐다 — 같은 파일 `jiraFetch`의 기본값이 `true`라 `false` 기본은 오독을 부른다). (2) **"영구 조건 401"과 "만료 401"을 코드가 구분 못 하면 UI 문구가 거짓말한다** — `grep -rn "refreshFailed: true" src/background/`로 승격 지점을 전수하고, 각각이 "갱신하면 풀리는가"에 답할 수 있는지 본다. 답이 "아니오"인 경로가 이 레인에 있으면 그건 오보 생산기다. (3) **안내 문구가 시키는 동작이 UI에 실제로 존재하는지 확인한다** — 이번엔 가이드(`guide/*/integrations/platforms.md`)까지 "다시 연결해 주세요"라고 적어놨는데 그 동작이 불가능했다. `grep -rn "다시 연결\|Reconnect" guide/ src/i18n/`로 안내 문구를 뽑고 각각의 진입점을 짚는다. (4) **선행 회고를 "닫혔다"로 읽지 않는다** — 회고가 다룬 건 *그 경로*지 *그 증상 전부*가 아니다. 같은 파일·같은 모달이 다시 나오면 그 회고의 근본 원인 문장이 이번 경로도 덮는지 한 줄씩 대조한다.
+- **관련**: `src/background/jira-api.ts:getSprintFieldMeta`(`retryOn401` 기본값 제거 — 호출부 2곳이 반대 값)·`authedFetch`(401 승격 지점), `src/background/messages.ts:jira.sprintFieldMeta`(false), `src/background/jira-api.ts:createIssue`(true — 여기서 끄면 고칠 수 있는 401이 `.catch`에 삼켜져 사용자가 고른 스프린트가 무음으로 빠진다), `src/sidepanel/tabs/connect/{PlatformConnectFlow,JiraConnectForm,SlackConnectForm}.tsx`(버튼 게이트), `src/sidepanel/components/OAuthExpiredDialog.tsx`(안내 액션이 탭 이동이 아니라 재연동 시작). 선행: **2026-08-13**(같은 createmeta·같은 모달, 훅 구독 축).
+
+---
+
+## 2026-09-09 — 그물을 네 번 깔았고 네 번 다 자기가 지킨다고 이름 붙인 것을 안 지켰다
+
+- **영역**: `컴포넌트`, `lib`, `store`
+- **계열**: `미검증단언`, `복제본`
+- **그물**: `jsdom`
+- **증상**: 사용자 노출 증상은 없다. 위 픽스를 구현하며 **그물을 네 벌 깔았는데 네 벌 다 공허**했고, 전부 `pnpm typecheck` + `pnpm test` green 상태에서 4관점 검증·CTO 게이트가 실측으로만 드러냈다. 그중 하나는 실제 기능 결함으로 이어졌다 — **8개 플랫폼 중 Jira만 재연동이 동작**했다.
+- **근본 원인**: 네 사례의 형태가 같다. **"이 축을 잰다"고 이름 붙인 장치가, 그 축이 변해도 결과가 안 변하는 구조였다.** ① **옵셔널 prop**: `ConnectFlowProps.autoStart`를 `?`로 두자 6개 래퍼가 전달을 빠뜨려도 typecheck가 침묵했고, 내 테스트는 셸을 **직접** 렌더해 래퍼를 안 지났다 — 타입도 테스트도 그 구간을 안 본다. ② **개수 세기**: "연결 버튼을 그리는 셸은 둘뿐"을 `ConnectFlow:` 항목 **개수**로 셌더니 8개가 맞아떨어져 통과했는데, 그 8개 중 하나(`SlackConnectForm`)가 공용 셸을 안 쓰는 **세 번째 셸**이었다. 세는 것과 분류하는 것을 혼동했다. ③ **흔들리지 않는 fixture**: `AutoStartParent`가 `tick`만 바꾸는데 effect 의존성(`autoStart`·`ready`)이 둘 다 primitive라 **effect가 애초에 재실행되지 않는다** — `fired` ref를 통째로 지워도 green. 원인은 내가 그 위에 단 **틀린 주석**("ref 없이는 매 렌더 재발화")이었고, 오해가 먼저고 테스트가 그 오해를 복사했다. ④ **같은 값 fixture**: 게이트를 통과시키려 신원 필드를 stored·incoming **양쪽에 같은 값**으로 뒀더니, 같은 값 대입은 관측 불가고 지우는 쪽은 `undefined`라 `toEqual`이 무시해(2026-08-15) **두 축 모두** 못 재게 됐다 — 그물을 고치려던 수정이 그물을 순감시켰다. 공통 뿌리는 **"그물을 짜고 나서 그 그물이 잡는지를 실측하지 않았다"**이고, 넷 다 뮤테이션 한 번(구현을 되돌려 red를 확인)이면 즉시 드러났다.
+- **재발 방지**: (1) **새 그물은 반드시 뮤테이션으로 자기검증한다** — 그물을 짠 직후 지키려는 구현을 되돌려 **red를 눈으로 본다**. 되돌려도 green이면 그 테스트는 이름만 있다. 이번에 `useAutoStart`의 래치를 실제로 지워 red를 확인한 것이 유일하게 신뢰할 수 있는 절차였다. (2) **optional prop은 그물을 없앤다** — `grep -rn "?\: \(boolean\|(\) =>" src/**/[a-z]*Props*` 류로 새 공용 prop을 뽑고, "이걸 안 넘긴 소비처가 컴파일·테스트 어디서 걸리나"에 답이 없으면 **required로 올린다**(호출부가 이미 값을 갖고 있으면 churn 0이고 컴파일러가 그물이 된다). 이번 세션은 `ConnectFlowProps`·`inRefreshLane`·`tagRefreshFailure` 세 곳에서 같은 처방이 통했다. (3) **전수 스캔은 목록을 손으로 적지 않는다** — 디렉터리에서 파생하고(파일 **내용**으로 분류: `<PlatformConnectFlow` 포함 여부로 래퍼/자체 셸), 파생이 무너지면 red가 되는 **자기검증 앵커**를 별 `it`으로 둔다(2026-08-17과 같은 처방인데, 그 회고를 읽고도 개수 세기로 다시 밟았다). (4) **참조·리렌더 축 fixture는 그 축이 실제로 흔들리는지 먼저 확인한다** — effect 의존성이 primitive면 부모 리렌더로는 안 흔들린다. 앱에서 도달 불가한 축이면 **컴포넌트가 아니라 훅을 직접 구동**해 계약으로 끌어올린다(`__tests__/useAutoStart.test.tsx`가 그 형태). (5) **주석이 틀리면 테스트도 틀린다** — effect 의존성·래치·게이트를 설명하는 주석은 쓰는 순간 그 문장이 참인지 코드로 확인한다. 이번엔 주석 한 줄의 오류가 테스트 2건을 공허하게 만들었다.
+- **관련**: `src/sidepanel/tabs/integrationsTabUtils.ts:ConnectFlowProps`(required 승격), `src/sidepanel/tabs/connect/__tests__/JiraConnectFlow.test.tsx`(디렉터리 파생 전수 + 자기검증 앵커), `src/sidepanel/tabs/connect/__tests__/useAutoStart.test.tsx`(훅 직접 구동), `src/sidepanel/tabs/connect/useAutoStart.ts`(래치 주석), `src/lib/__tests__/settings-storage.test.ts`(WHITELIST fixture — 신원 필드를 한쪽에만 둬야 축이 산다). 계열 선행: **2026-08-16**(상수로 바꿔도 통과하면 그 축은 안 재고 있다) · **2026-08-17**(필터 0건 매칭 vacuous pass) · **2026-08-15**(`toEqual`이 배제하는 입력) · **2026-08-14**(excess property check는 객체 리터럴에만).
+
+---
+
+## 2026-09-09 — 막혀 있던 경로를 열자 기존 코드의 "도달 불가" 창 세 개가 같이 열렸다
+
+- **영역**: `store`, `lib`, `background`
+- **계열**: `미검증단언`, `복제본`
+- **그물**: `unit`
+- **증상**: 사용자 도달 전에 잡았다. 재연동을 **해제 없이** 가능하게 만들자, 그전까지 도달할 수 없어 아무도 안 보던 창 세 개가 실행 가능해졌다. ① in-flight refresh가 재연동 뒤 resolve하면 `settings-storage.ts:writer`가 **새 envelope**를 읽어 토큰 whitelist만 구 계정 값으로 덮어 `구 계정 토큰 + 신 계정 신원`이 저장된다 — GitLab self-managed면 A 인스턴스 토큰이 **B의 baseUrl로 전송**되고, Jira는 cloudId가 갈려 401 루프. ② 재연동이 `lastSubmitFields`를 남겨 이전 계정의 제출 목적지(owner/repo·workspace)가 새 자격증명에 prefill된다 — 새 계정이 그 목적지에 권한이 있으면 **캡처 데이터가 이전 조직으로 나간다**(privacy 코어 밸류 축). ③ 그 ②를 고치려 넣은 "같은 계정이면 보전" 판정이 **8개 중 Jira에서만** 동작했다.
+- **근본 원인**: ①②는 **기존 메커니즘 + 내가 만든 도달 경로**다. 해제→연결이 유일한 재인증 경로였을 때는 `removeAccount`가 `lastSubmitFields`를 함께 지웠고, 계정이 갈린 채 옛 갱신이 도착하는 상황 자체가 성립하지 않았다 — 두 방어가 **경로의 협소함에 무임승차**하고 있었고 코드 어디에도 그 전제가 적혀 있지 않았다. ③은 **신원 축을 정의할 때 "무엇이 신원이 아닌가"를 안 물었다** — `grantedAt`은 재연동마다 새로 찍히는 **그랜트 발급 시각**인데 토큰 축이 아니라는 이유로 신원으로 읽혔고, 그래서 같은 계정 재연동이 항상 "다른 계정"이 됐다. Jira만 통과한 건 `JiraOAuthAuth`에 그 필드가 **없는 유일한 플랫폼**이어서고, 내 테스트도 Jira만 덮어 그 비대칭이 그물을 빠져나갔다. 결국 한 술어가 **두 질문**을 겸해야 했다 — writer는 "같은 **그랜트**인가"(`grantedAt` 비교에 남긴다: 재연동 직후 뒤늦은 옛 갱신을 그걸로 가른다), store는 "같은 **계정**인가"(`grantedAt` 제외). 여집합만 다른 같은 술어라 인자로 갈랐다.
+- **재발 방지**: (1) **UI 게이트를 완화할 때는 "이 게이트가 무엇을 막고 있었나"를 코드로 되짚는다** — `disabled={connected}` 한 줄이 사실은 동시성 방어를 겸하고 있었다. `grep -rn "disabled={.*connected\|if (connected) return" src/`처럼 **상태 기반 게이트**를 뽑고, 각각이 막던 경로를 열거한 뒤 그 경로의 방어가 게이트 밖에도 있는지 확인한다. (2) **신원 판정은 "무엇이 신원이 아닌가"부터 적는다** — 토큰·발급 시각·스코프는 계정 신원이 아니다. 새 auth 필드를 추가하면 `src/lib/settings-storage.ts`의 `OAUTH_TOKEN_FIELDS`/`accountIdentityExcluded`에서 어느 축인지 **그 자리에서** 결정한다(`grep -rn "grantedAt" src/types/*.ts`로 8개 타입을 전수). (3) **플랫폼 판정은 8개 전부로 잰다** — 한 플랫폼만 덮은 테스트는 "그 플랫폼이 유별난 경우"를 구조적으로 못 본다. 이번엔 Jira만 `grantedAt`이 없고 Slack만 워크스페이스가 `auth` **밖**(`SlackAccount.teamId`)이라, 둘 다 예외 쪽이 진실이었다. (4) **전제에 그물을 건다** — writer 게이트는 "정상 refresh가 신원 필드를 그대로 넘긴다"는 전제 하나로 서 있고, 어느 refresh가 `grantedAt: Date.now()`를 넣기 시작하면 **정상 회전이 무음 no-op**이 돼 회전 토큰이 유실되고 다음 갱신이 `invalid_grant`가 된다(이 픽스가 없애려던 강제 재연동과 증상이 같고 원인만 뒤집힌다). `__tests__/refresh-identity.test.ts`가 4개 플랫폼에 대해 그 전제를 못 박는다. (5) **오탐과 미탐의 비용을 비교해 기본값을 정한다** — 이 게이트는 오탐(정상 회전 no-op)이 미탐만큼 비싸서, **한쪽에만 있는 필드는 불일치로 보지 않는다**를 규칙으로 박았다.
+- **관련**: `src/lib/settings-storage.ts:{sameAuthIdentity,OAUTH_TOKEN_FIELDS,accountIdentityExcluded,grantIdentityExcluded,ACCOUNT_IDENTITY_FIELDS,writer}`, `src/store/settings-store.ts:setAccount`(같은 계정이면 `lastSubmitFields` 보전), `src/background/__tests__/refresh-identity.test.ts`(전제 그물), `src/background/lib/rotatedAuth.ts:pickRotatedAuth`(같은 창의 read 축 — 이번 스코프 밖으로 남김), `src/types/{slack,linear}.ts`(신원 축이 유별난 둘).
+
 ## 2026-09-06 — 라이브러리가 블록 노드에 인라인 직렬화기를 꽂아둔 걸 2년 가까이 못 봤고, 고친 뒤엔 그 픽스가 꽂혔는지를 아무도 안 봤다
 
 - **영역**: `에디터`, `어댑터`, `lib`

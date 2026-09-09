@@ -33,7 +33,7 @@ import {
   onPickerUnavailable,
   onSessionSaveExhausted,
 } from "@/lib/app-events";
-import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
+import type { PlatformId } from "@/types/platform";
 import { useBoundTabId } from "./hooks/useBoundTabId";
 import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { useBackgroundRecorder } from "./hooks/useBackgroundRecorder";
@@ -46,6 +46,7 @@ import { AiLoadingText } from "./components/AiLoadingText";
 import { Button } from "@/components/ui/button";
 import { DebugTab } from "./tabs/DebugTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
+import { OAuthExpiredDialog } from "./components/OAuthExpiredDialog";
 import { IssueListTab } from "./tabs/IssueListTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 import { TabNavContext } from "./tab-nav";
@@ -141,6 +142,8 @@ export default function App() {
     if (sub) setSettingsSub(sub);
   }, []);
   const [oauthExpiredPlatform, setOauthExpiredPlatform] = useState<PlatformId | null>(null);
+  // 만료 안내가 지목한 재연동 대상. IntegrationsTab이 소비하고 지운다.
+  const [reconnectPlatform, setReconnectPlatform] = useState<PlatformId | null>(null);
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
   const [blobSaveFailed, setBlobSaveFailed] = useState(false);
@@ -153,7 +156,15 @@ export default function App() {
   useEffect(() => {
     const unsub = onOAuthExpired.subscribe((platform) => {
       blurActiveElement();
-      setOauthExpiredPlatform(platform ?? "jira");
+      // jira 폴백을 두지 않는다 — 이 값이 이제 라벨이 아니라 **실제 재연동 대상**이라,
+      // 틀리면 엉뚱한 플랫폼의 OAuth 창이 뜬다. refreshFailed를 태깅하는 지점은 전부
+      // platform을 싣기 때문에 null은 도달 불가이고, 도달한다면 안내를 안 띄우는 쪽이
+      // 잘못된 재인증을 유도하는 쪽보다 안전하다.
+      setOauthExpiredPlatform(platform);
+      // 남아 있던 intent를 먼저 비운다. 같은 값을 다시 세우면 React가 리렌더를 생략해
+      // autoStart에 상승 에지가 없고, 그러면 셸의 1회 래치가 안 풀려 [다시 연결]이
+      // 아무것도 하지 않는다(같은 플랫폼이 두 번 만료되는 흔한 경로).
+      setReconnectPlatform(null);
     });
     return unsub;
   }, []);
@@ -310,7 +321,11 @@ export default function App() {
         </div>
 
         <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", tab !== "integrations" && "hidden")}>
-          <IntegrationsTab activeMainTab={tab} />
+          <IntegrationsTab
+            activeMainTab={tab}
+            reconnectPlatform={reconnectPlatform}
+            onReconnectHandled={() => setReconnectPlatform(null)}
+          />
         </div>
 
         <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", tab !== "settings" && "hidden")}>
@@ -318,35 +333,15 @@ export default function App() {
         </div>
       </div>
 
-      <AlertDialog
-        open={oauthExpiredPlatform != null}
+      <OAuthExpiredDialog
+        platform={oauthExpiredPlatform}
         onOpenChange={(v) => !v && setOauthExpiredPlatform(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("platform.oauthExpired.title", {
-                platform: t(PLATFORM_TAB_KEYS[oauthExpiredPlatform ?? "jira"]),
-              })}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("platform.oauthExpired.body", {
-                platform: t(PLATFORM_TAB_KEYS[oauthExpiredPlatform ?? "jira"]),
-              })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={() => {
-                setOauthExpiredPlatform(null);
-                setTab("integrations");
-              }}
-            >
-              {t("common.ok")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onReconnect={(platform) => {
+          setOauthExpiredPlatform(null);
+          setReconnectPlatform(platform);
+          setTab("integrations");
+        }}
+      />
 
       <AlertDialog open={pickerUnavailable} onOpenChange={setPickerUnavailable}>
         <AlertDialogContent data-testid="picker-unavailable-dialog">

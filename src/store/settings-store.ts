@@ -15,7 +15,12 @@ import type { GitlabAccount } from "@/types/gitlab";
 import type { AsanaAccount } from "@/types/asana";
 import type { ClickupAccount } from "@/types/clickup";
 import type { SlackAccount } from "@/types/slack";
-import { SETTINGS_STORAGE_KEY } from "@/lib/settings-storage";
+import {
+  ACCOUNT_IDENTITY_FIELDS,
+  SETTINGS_STORAGE_KEY,
+  accountIdentityExcluded,
+  sameAuthIdentity,
+} from "@/lib/settings-storage";
 import { chromeLocalStorage } from "./chrome-storage";
 
 // v6: notion 플랫폼 추가 (accounts.notion / lastSubmitFields.notion / lastSubmittedPlatform="notion").
@@ -191,8 +196,39 @@ export const useSettingsStore = create<SettingsState>()(
       accounts: {},
       lastSubmitFields: {},
       titlePrefix: "",
+      // **다른** 계정이 들어오면 그 플랫폼의 직전 제출값을 버린다. 남기면 이전 계정의
+      // 목적지(owner/repo·workspace 등)가 새 자격증명에 prefill되고, 그 계정이 그 목적지에
+      // 접근 권한을 가지면 캡처 데이터가 이전 조직으로 나간다. 계정 신원 게이트를 가진 건
+      // Jira(lib/initialJiraFields의 siteId 대조)뿐이라 나머지 7개엔 방어가 없다.
+      // 해제→연결 시절엔 removeAccount가 이걸 지워줘서 드러나지 않던 축이다.
+      //
+      // 반대로 **같은** 계정이면 남긴다 — 토큰 만료 재연동은 계정 변경이 아니고, 거기서
+      // 설정을 초기화하면 만료 복구가 매번 재입력을 강요한다. 신원 판정은 storage writer와
+      // 같은 술어·같은 토큰 축을 쓴다.
       setAccount: (platform, account) =>
-        set((s) => ({ accounts: { ...s.accounts, [platform]: account } })),
+        set((s) => {
+          const prevAccount = s.accounts[platform] as
+            | Record<string, unknown>
+            | undefined;
+          const nextAccount = account as Record<string, unknown> | undefined;
+          const prev = prevAccount?.auth as Record<string, unknown> | undefined;
+          const next = nextAccount?.auth as Record<string, unknown> | undefined;
+          // 계정 신원은 대개 auth 안에 있지만(cloudId·baseUrl·viewer*) slack만 팀이
+          // 계정 필드다 — 그것까지 봐야 다른 워크스페이스로 재연동한 걸 가른다.
+          const sameAccount =
+            !!prev &&
+            !!next &&
+            sameAuthIdentity(next, prev, accountIdentityExcluded(platform)) &&
+            (ACCOUNT_IDENTITY_FIELDS[platform] ?? []).every(
+              (key) => nextAccount?.[key] === prevAccount?.[key],
+            );
+          const nextFields = { ...s.lastSubmitFields };
+          if (!sameAccount) delete nextFields[platform];
+          return {
+            accounts: { ...s.accounts, [platform]: account },
+            lastSubmitFields: nextFields,
+          };
+        }),
       removeAccount: (platform) =>
         set((s) => {
           const next = { ...s.accounts };

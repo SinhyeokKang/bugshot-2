@@ -39,13 +39,16 @@ const AUTH = { kind: "oauth", accessToken: "tok" };
 const ACCOUNT = { platform: "asana", connectedAt: 111, auth: AUTH, defaults: {} };
 
 const onConnected = vi.fn();
+const onAutoStartHandled = vi.fn();
 const buildAccount = vi.fn(() => ACCOUNT);
 
-function renderFlow(connected = false) {
+function renderFlow(connected = false, autoStart = false) {
   return render(
     <PlatformConnectFlow
       connected={connected}
       onConnected={onConnected}
+      autoStart={autoStart}
+      onAutoStartHandled={onAutoStartHandled}
       platform="asana"
       icon={<svg data-testid="platform-icon" />}
       tokenLabelKey="asana.patButton"
@@ -66,6 +69,8 @@ function InlinePropParent({ tick }: { tick: number }) {
       <PlatformConnectFlow
         connected={false}
         onConnected={onConnected}
+        autoStart={false}
+        onAutoStartHandled={onAutoStartHandled}
         platform="asana"
         icon={<svg />}
         tokenLabelKey="asana.patButton"
@@ -75,6 +80,25 @@ function InlinePropParent({ tick }: { tick: number }) {
         renderTokenDialog={() => null}
       />
     </div>
+  );
+}
+
+/** intent를 왕복시키는 부모 — 래치가 상승 에지에 걸렸는지 재려면 false 구간이 필요하다. */
+function ToggleIntentParent({ autoStart }: { autoStart: boolean }) {
+  return (
+    <PlatformConnectFlow
+      connected
+      autoStart={autoStart}
+      onConnected={onConnected}
+      onAutoStartHandled={onAutoStartHandled}
+      platform="asana"
+      icon={<svg />}
+      tokenLabelKey="asana.patButton"
+      availableRequest={{ type: "asana.oauth.available" }}
+      startOAuthRequest={{ type: "asana.startOAuth" }}
+      buildAccount={buildAccount as never}
+      renderTokenDialog={() => null}
+    />
   );
 }
 
@@ -155,16 +179,44 @@ describe("PlatformConnectFlow — 연결 수단 판정", () => {
     );
   });
 
-  it("이미 연결됐으면 버튼이 disabled고 connected 문구가 뜬다", async () => {
+  // 연결돼 있으면 버튼을 잠그던 게 재연동 경로를 아예 없앴다 — 토큰이 죽은 계정도 "연결됨"
+  // 이라 이 버튼이 비활성이고, 내 연동 행에는 해제 버튼만 있어 사용자가 **해제부터** 해야
+  // 했다. 만료 안내가 유도할 수 있는 목적지가 필요하므로 잠그지 않고 재연동으로 쓴다.
+  it("이미 연결됐으면 버튼이 활성이고 재연동 문구가 뜬다", async () => {
     sendBg.mockResolvedValue({ available: true });
     renderFlow(true);
 
     await waitFor(() =>
       expect(screen.getByRole("button").textContent).toContain(
-        "platform.connected",
+        "platform.reconnect",
       ),
     );
+    expect(screen.getByRole("button")).not.toHaveProperty("disabled", true);
+  });
+
+  // 완화가 번지지 않게 하는 반대편 그물 — 수단을 아직 모르는 동안은 연결 여부와 무관하게
+  // 잠긴다(클릭해도 handleClick이 빈손으로 되돌아오는 구간이라 활성이면 무반응 버튼이 된다).
+  it("연결된 상태에서도 oauth.available 조회 중에는 disabled다", () => {
+    sendBg.mockReturnValue(new Promise(() => {}));
+    renderFlow(true);
+
     expect(screen.getByRole("button")).toHaveProperty("disabled", true);
+  });
+
+  it("연결된 상태의 클릭도 미연결과 같은 수단 선택 다이얼로그로 간다", async () => {
+    sendBg.mockImplementation((req: { type: string }) =>
+      req.type === AVAILABLE.type
+        ? Promise.resolve({ available: true })
+        : Promise.resolve(AUTH),
+    );
+    renderFlow(true);
+    await waitFor(() =>
+      expect(screen.getByRole("button")).not.toHaveProperty("disabled", true),
+    );
+
+    await userEvent.click(screen.getByRole("button"));
+
+    expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
   it("OAuth가 없으면 클릭 시 토큰 다이얼로그로 직행한다", async () => {
@@ -174,6 +226,39 @@ describe("PlatformConnectFlow — 연결 수단 판정", () => {
 
     expect(screen.getByTestId("token-dialog")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // 재연동은 계정을 교체한다(기본값 + 그 플랫폼 직전 제출값 소실). OAuth 경로는 수단 선택
+  // 다이얼로그가 그 안내를 인터스티셜로 들지만, 토큰 직행은 그걸 안 지나 확인이 0회였다 —
+  // 종전에 그 손실에 도달하는 유일한 경로가 해제 버튼의 확인이었으므로 게이트를 잃은 것이다.
+  it("토큰만 가능한 재연동은 확인을 먼저 세운다", async () => {
+    sendBg.mockResolvedValue({ available: false });
+    renderFlow(true);
+    await waitFor(() =>
+      expect(screen.getByRole("button")).not.toHaveProperty("disabled", true),
+    );
+
+    await userEvent.click(screen.getByRole("button"));
+
+    expect(screen.getByRole("alertdialog").textContent).toContain(
+      "platform.reconnect.note",
+    );
+    expect(screen.queryByTestId("token-dialog")).toBeNull();
+  });
+
+  it("확인하면 토큰 다이얼로그로 넘어간다", async () => {
+    sendBg.mockResolvedValue({ available: false });
+    renderFlow(true);
+    await waitFor(() =>
+      expect(screen.getByRole("button")).not.toHaveProperty("disabled", true),
+    );
+    await userEvent.click(screen.getByRole("button"));
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /platform.reconnect.confirm/ }),
+    );
+
+    expect(screen.getByTestId("token-dialog")).toBeTruthy();
   });
 
   it("OAuth가 있으면 클릭 시 수단 선택 다이얼로그가 먼저 열린다", async () => {
@@ -192,6 +277,84 @@ describe("PlatformConnectFlow — 연결 수단 판정", () => {
     await userEvent.click(screen.getByRole("button", { name: /patButton/ }));
 
     expect(screen.getByTestId("token-dialog")).toBeTruthy();
+  });
+});
+
+// 만료 안내의 [다시 연결]이 연동 탭까지만 데려다주면 사용자가 8개 중에서 그 플랫폼을 다시
+// 찾아야 한다. intent를 받은 셸이 스스로 한 번 열어주는 것이 이 prop의 존재 이유다.
+describe("PlatformConnectFlow — autoStart (재연동 intent)", () => {
+  it("autoStart면 수단 판정이 끝난 뒤 스스로 열리고 handled를 알린다", async () => {
+    sendBg.mockImplementation((req: { type: string }) =>
+      req.type === AVAILABLE.type
+        ? Promise.resolve({ available: true })
+        : Promise.resolve(AUTH),
+    );
+    renderFlow(true, true);
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    expect(onAutoStartHandled).toHaveBeenCalledTimes(1);
+  });
+
+  it("autoStart가 아니면 스스로 열지 않는다", async () => {
+    await settleAvailability(true);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onAutoStartHandled).not.toHaveBeenCalled();
+  });
+
+  // 래치를 "한 번 돌았나" boolean으로 두면 셸 언마운트가 유일한 리셋 경로가 되는데, 수단
+  // 다이얼로그를 취소하는 흐름은 서브탭을 떠나지 않아 언마운트가 없다 — 그 세션의 2차 만료가
+  // 통째로 무음이 되고 intent도 소비되지 않아 서브탭까지 고착된다. 키는 intent의 상승 에지다.
+  it("intent가 내려갔다 다시 올라오면 다시 발화한다", async () => {
+    sendBg.mockImplementation((req: { type: string }) =>
+      req.type === AVAILABLE.type
+        ? Promise.resolve({ available: true })
+        : Promise.resolve(AUTH),
+    );
+    const { rerender } = render(<ToggleIntentParent autoStart />);
+    await waitFor(() => expect(onAutoStartHandled).toHaveBeenCalledTimes(1));
+
+    rerender(<ToggleIntentParent autoStart={false} />);
+    rerender(<ToggleIntentParent autoStart />);
+
+    await waitFor(() => expect(onAutoStartHandled).toHaveBeenCalledTimes(2));
+  });
+
+  // autoStart는 **다이얼로그만** 연다. 여기서 OAuth를 직접 발화하면 user activation 없이
+  // launchWebAuthFlow가 나가고(연결 수단이 하나뿐일 때 컨펌을 생략하려는 최적화가 그 유혹이다)
+  // 아무 그물도 red가 되지 않는다.
+  it("스스로 열 때 OAuth를 발화하지는 않는다", async () => {
+    sendBg.mockImplementation((req: { type: string }) =>
+      req.type === AVAILABLE.type
+        ? Promise.resolve({ available: true })
+        : Promise.resolve(AUTH),
+    );
+    renderFlow(true, true);
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    expect(sendBg.mock.calls.some(([r]) => r.type === START.type)).toBe(false);
+  });
+
+  // 수단을 모르는 동안 발화하면 handleClick이 빈손으로 돌아가 아무것도 안 열리는데
+  // intent는 소비된다 — 사용자에겐 [다시 연결]을 눌렀는데 아무 일도 안 일어난 것이 된다.
+  it("수단 판정 전에는 발화하지 않고 intent도 소비하지 않는다", async () => {
+    let resolveAvailable: ((v: { available: boolean }) => void) | undefined;
+    sendBg.mockImplementation((req: { type: string }) =>
+      req.type === AVAILABLE.type
+        ? new Promise<{ available: boolean }>((r) => {
+            resolveAvailable = r;
+          })
+        : Promise.resolve(AUTH),
+    );
+    renderFlow(true, true);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onAutoStartHandled).not.toHaveBeenCalled();
+
+    resolveAvailable?.({ available: true });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    expect(onAutoStartHandled).toHaveBeenCalledTimes(1);
   });
 });
 
