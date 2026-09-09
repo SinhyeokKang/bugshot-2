@@ -8,25 +8,25 @@ describe("inRefreshLane", () => {
     const err = new OAuthError("refresh dead", { platform: "github" });
 
     await expect(
-      inRefreshLane(() => Promise.reject(err)),
+      inRefreshLane(() => Promise.reject(err), "github"),
     ).rejects.toMatchObject({ refreshFailed: true, platform: "github" });
   });
 
   it("원본 에러를 변이하지 않는다", async () => {
     const err = new OAuthError("refresh dead", { platform: "github" });
 
-    await inRefreshLane(() => Promise.reject(err)).catch(() => {});
+    await inRefreshLane(() => Promise.reject(err), "github").catch(() => {});
 
     expect(err.refreshFailed).toBe(false);
   });
 
   it("OAuthError가 아니면 그대로 통과시킨다", async () => {
     const err = new Error("network down");
-    await expect(inRefreshLane(() => Promise.reject(err))).rejects.toBe(err);
+    await expect(inRefreshLane(() => Promise.reject(err), "github")).rejects.toBe(err);
   });
 
   it("성공 경로는 값을 그대로 돌려준다", async () => {
-    await expect(inRefreshLane(() => Promise.resolve(7))).resolves.toBe(7);
+    await expect(inRefreshLane(() => Promise.resolve(7), "github")).resolves.toBe(7);
   });
 });
 
@@ -78,9 +78,19 @@ describe("inConnectLane", () => {
 });
 
 describe("tagRefreshFailure", () => {
-  it("이미 태깅된 에러는 그대로 돌려준다 (사본을 새로 만들지 않는다)", () => {
+  // platform 각인이 들어오면서 "이미 태깅됨"만으로는 부족해졌다 — platform이 비어 있으면
+  // 메우려고 사본을 만든다. 둘 다 갖춘 에러여야 손댈 게 없어 원본 그대로 나간다.
+  it("태깅·platform이 모두 있으면 그대로 돌려준다 (사본을 새로 만들지 않는다)", () => {
+    const err = new OAuthError("x", { refreshFailed: true, platform: "github" });
+    expect(tagRefreshFailure(err, "github")).toBe(err);
+  });
+
+  it("platform이 비었으면 사본에 메워 돌려준다", () => {
     const err = new OAuthError("x", { refreshFailed: true });
-    expect(tagRefreshFailure(err)).toBe(err);
+    const out = tagRefreshFailure(err, "github");
+    expect(out).not.toBe(err);
+    expect(out).toMatchObject({ refreshFailed: true, platform: "github" });
+    expect(err.platform).toBeUndefined();
   });
 });
 
@@ -102,6 +112,17 @@ describe("inRefreshLane — platform 각인", () => {
         "asana",
       ),
     ).rejects.toMatchObject({ refreshFailed: true, platform: "github" });
+  });
+
+  // 이 절이 없으면(`if (err.refreshFailed) return err;`) 이미 태깅된 에러는 platform이
+  // 비어도 그대로 나가고, 사이드패널은 안내를 아예 못 띄운다.
+  it("이미 refreshFailed지만 platform이 비었으면 메운다", async () => {
+    await expect(
+      inRefreshLane(
+        () => Promise.reject(new OAuthError("tagged", { refreshFailed: true })),
+        "linear",
+      ),
+    ).rejects.toMatchObject({ refreshFailed: true, platform: "linear" });
   });
 
   it("OAuthError가 아니면 그대로 통과시킨다", async () => {

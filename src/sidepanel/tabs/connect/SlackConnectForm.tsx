@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { CircleCheck, Loader2 } from "lucide-react";
 import { SlackIcon } from "@/components/icons/SlackIcon";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
@@ -72,6 +72,7 @@ export function SlackConnectFlow({
   // 초기화 확인을 먼저 세운다(형제 셸은 그 문구를 수단 선택 다이얼로그가 들고 있다).
   function handleClick() {
     if (connecting) return;
+    if (!oauthAvailable) return;
     if (connected) {
       setReconnectConfirmOpen(true);
       return;
@@ -85,40 +86,46 @@ export function SlackConnectFlow({
   // 토큰 회전이 붙는 순간 그 고착이 바로 실화되기 때문이다.
   useAutoStart({
     autoStart,
-    ready: !!oauthAvailable && !connecting,
+    // 가용성이 **거짓으로 확정**된 경우도 ready로 본다 — 형제 셸은 connectMethods가
+    // ["token"]으로 수렴해 이 상태가 없지만 Slack은 OAuth 전용이라 영구 false가 가능하고,
+    // 그러면 intent가 영영 소비되지 않아 연동 탭 서브탭이 "add"에 고착된다.
+    ready: oauthAvailable !== null && !connecting,
     onHandled: onAutoStartHandled,
     start: handleClick,
   });
 
   return (
     <>
-    <Button
-      variant="outline"
-      onClick={handleClick}
-      disabled={!oauthAvailable}
-      aria-disabled={connecting}
-      className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
-    >
-      {connecting && (
-        <span className="absolute inset-0 flex items-center justify-center">
-          <Loader2 className="h-4 w-4 animate-spin" />
+      <Button
+        variant="outline"
+        onClick={handleClick}
+        disabled={!oauthAvailable}
+        aria-disabled={connecting}
+        className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
+      >
+        {connected && (
+          <CircleCheck className="absolute right-1.5 top-1.5 h-3.5 w-3.5 text-green-700 dark:text-green-400" />
+        )}
+        {connecting && (
+          <span className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </span>
+        )}
+        <span className={`inline-flex min-w-0 max-w-full items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
+          <SlackIcon className="h-4 w-4" />
+          <span className="truncate">
+            {connected
+              ? t("platform.reconnect", { platform: t("platform.tab.slack") })
+              : t("platform.connectPlatform", { platform: t("platform.tab.slack") })}
+          </span>
         </span>
-      )}
-      <span className={`inline-flex min-w-0 max-w-full items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
-        <SlackIcon className="h-4 w-4" />
-        <span className="truncate">
-          {connected
-            ? t("platform.reconnect", { platform: t("platform.tab.slack") })
-            : t("platform.connectPlatform", { platform: t("platform.tab.slack") })}
-        </span>
-      </span>
-    </Button>
-    <ReconnectConfirmDialog
-      open={reconnectConfirmOpen}
-      onOpenChange={setReconnectConfirmOpen}
-      platformLabel={t("platform.tab.slack")}
-      onConfirm={() => void startOAuth()}
-    />
+      </Button>
+      <ReconnectConfirmDialog
+        open={reconnectConfirmOpen}
+        onOpenChange={setReconnectConfirmOpen}
+        platformLabel={t("platform.tab.slack")}
+        onConfirm={() => void startOAuth()}
+      />
     </>
   );
 }

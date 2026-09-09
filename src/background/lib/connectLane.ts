@@ -14,9 +14,9 @@ import type { PlatformId } from "@/types/platform";
 // 안내를 띄울 수 없다) 사용자는 제출 실패만 반복한다. `OAuthErrorOptions.platform`을
 // required로 올리는 건 생성 지점 72곳을 건드리므로, 레인의 **단일 통로**인 여기서 채운다 —
 // 그러면 어느 지점이 platform을 빠뜨려도 이 레인을 지나는 순간 메워진다.
-export function tagRefreshFailure(err: unknown, platform?: PlatformId): unknown {
+export function tagRefreshFailure(err: unknown, platform: PlatformId): unknown {
   if (!(err instanceof OAuthError)) return err;
-  if (err.refreshFailed && (err.platform || !platform)) return err;
+  if (err.refreshFailed && err.platform) return err;
   const copy = withRefreshFailed(err, true);
   copy.platform ??= platform;
   return copy;
@@ -24,8 +24,11 @@ export function tagRefreshFailure(err: unknown, platform?: PlatformId): unknown 
 
 export async function inRefreshLane<T>(
   run: () => Promise<T>,
-  // 이 레인을 여는 쪽은 항상 자기 플랫폼을 안다(runner는 생성 인자로, jira는 자기 모듈이라).
-  platform?: PlatformId,
+  // **optional로 두지 않는다.** App이 `?? "jira"` 폴백을 없앤 뒤로 이 값은 라벨이 아니라
+  // 만료 안내의 표시 여부 자체를 정한다 — 레인을 여는 새 코드가 빠뜨리면 `onOAuthExpired`가
+  // null로 발화해 안내가 **아예 안 뜬다**. 레인을 여는 쪽은 항상 자기 플랫폼을 알고
+  // (runner는 생성 인자로, jira는 자기 모듈이라) 호출부가 3곳뿐이라 강제 비용이 0이다.
+  platform: PlatformId,
 ): Promise<T> {
   try {
     return await run();

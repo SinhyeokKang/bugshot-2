@@ -161,6 +161,10 @@ export default function App() {
       // platform을 싣기 때문에 null은 도달 불가이고, 도달한다면 안내를 안 띄우는 쪽이
       // 잘못된 재인증을 유도하는 쪽보다 안전하다.
       setOauthExpiredPlatform(platform);
+      // 남아 있던 intent를 먼저 비운다. 같은 값을 다시 세우면 React가 리렌더를 생략해
+      // autoStart에 상승 에지가 없고, 그러면 셸의 1회 래치가 안 풀려 [다시 연결]이
+      // 아무것도 하지 않는다(같은 플랫폼이 두 번 만료되는 흔한 경로).
+      setReconnectPlatform(null);
     });
     return unsub;
   }, []);

@@ -19,11 +19,8 @@ export interface ConnectFlowProps {
   onAutoStartHandled: () => void;
 }
 
-// 진입 서브탭 판정의 **유일한** export. 축이 둘인데 진입점을 둘로 두면 미래 호출부가 한쪽을
-// 골라 intent 축을 빠뜨리는데, 그게 정확히 이번 버그의 형태였다. 축이 둘이 됐으므로(연결 수 / 재연동 intent) 각자 effect로
-// 두면 둘 다 상위 탭 전환 순간에 돌아 순서가 승부를 가른다 — 재연동은 정확히 그 순간에
-// 도착한다. 재연동 버튼은 "플랫폼 추가" 목록에 있어서 intent가 이겨야 하고, 그 서브탭이
-// 활성이어야 Radix가 셸을 마운트해 autoStart가 돌 수 있다.
+// 진입 서브탭 판정의 **유일한** export. 진입점을 둘로 두면 미래 호출부가 한쪽을 골라
+// intent 축을 빠뜨리는데, 그게 정확히 이번 버그의 형태였다(경합 서사는 호출부 참조).
 export function resolveEntrySubTab({
   reconnect,
   connectedCount,

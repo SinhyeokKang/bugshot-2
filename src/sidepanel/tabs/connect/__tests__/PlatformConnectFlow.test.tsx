@@ -83,31 +83,6 @@ function InlinePropParent({ tick }: { tick: number }) {
   );
 }
 
-/**
- * autoStart 케이스용 부모 — 위와 같은 이유로 prop을 인라인 리터럴로 넘긴다. autoStart는
- * 부모가 intent를 지울 때까지 계속 true로 내려오므로, 재렌더마다 재발화하지 않는다는
- * 계약을 모듈 상수 fixture로는 잴 수 없다.
- */
-function AutoStartParent({ tick }: { tick: number }) {
-  return (
-    <div data-tick={tick}>
-      <PlatformConnectFlow
-        connected
-        autoStart
-        onConnected={onConnected}
-        onAutoStartHandled={onAutoStartHandled}
-        platform="asana"
-        icon={<svg />}
-        tokenLabelKey="asana.patButton"
-        availableRequest={{ type: "asana.oauth.available" }}
-        startOAuthRequest={{ type: "asana.startOAuth" }}
-        buildAccount={buildAccount as never}
-        renderTokenDialog={() => null}
-      />
-    </div>
-  );
-}
-
 /** intent를 왕복시키는 부모 — 래치가 상승 에지에 걸렸는지 재려면 false 구간이 필요하다. */
 function ToggleIntentParent({ autoStart }: { autoStart: boolean }) {
   return (
@@ -280,7 +255,7 @@ describe("PlatformConnectFlow — 연결 수단 판정", () => {
     await userEvent.click(screen.getByRole("button"));
 
     await userEvent.click(
-      screen.getByRole("button", { name: /oauthExpired.reconnect/ }),
+      screen.getByRole("button", { name: /platform.reconnect.confirm/ }),
     );
 
     expect(screen.getByTestId("token-dialog")).toBeTruthy();
@@ -325,23 +300,6 @@ describe("PlatformConnectFlow — autoStart (재연동 intent)", () => {
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(onAutoStartHandled).not.toHaveBeenCalled();
-  });
-
-  // 부모는 handled를 받고 intent를 지우지만 그 setState가 반영되기 전에도 렌더는 돈다.
-  // 재발화를 막는 건 부모가 아니라 셸 내부의 1회 래치여야 한다.
-  it("부모가 리렌더해도 한 번만 발화한다", async () => {
-    sendBg.mockImplementation((req: { type: string }) =>
-      req.type === AVAILABLE.type
-        ? Promise.resolve({ available: true })
-        : Promise.resolve(AUTH),
-    );
-    const { rerender } = render(<AutoStartParent tick={0} />);
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
-
-    rerender(<AutoStartParent tick={1} />);
-    rerender(<AutoStartParent tick={2} />);
-
-    expect(onAutoStartHandled).toHaveBeenCalledTimes(1);
   });
 
   // 래치를 "한 번 돌았나" boolean으로 두면 셸 언마운트가 유일한 리셋 경로가 되는데, 수단

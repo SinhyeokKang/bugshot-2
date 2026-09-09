@@ -54,7 +54,7 @@ describe("OAuthExpiredDialog", () => {
     renderDialog();
 
     await userEvent.click(
-      screen.getByRole("button", { name: /oauthExpired.reconnect/ }),
+      screen.getByRole("button", { name: /platform.reconnect.confirm/ }),
     );
 
     expect(onReconnect).toHaveBeenCalledWith("jira");

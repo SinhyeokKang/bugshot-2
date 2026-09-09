@@ -885,6 +885,148 @@ describe("setAccount — 새 자격증명은 직전 제출값을 물려받지 �
     expect(useSettingsStore.getState().lastSubmitFields.github).toBeUndefined();
   });
 
+  // 종전 해제→연결 시절엔 initialJiraFields의 siteId 대조가 "같은 사이트면 보전"을 맡았다.
+  // 무조건 삭제는 그 게이트를 무력화한다 — 토큰 만료 재연동은 거의 항상 같은 계정이라
+  // 그게 가장 흔한 경로다. 신원이 같으면 남기고 갈리면 지운다.
+  it("같은 계정으로 다시 연결하면 직전 제출값을 보전한다", () => {
+    const auth = {
+      kind: "oauth" as const,
+      cloudId: "cid",
+      siteUrl: "https://x.atlassian.net",
+      email: "u@x.com",
+      accessToken: "at",
+      refreshToken: "rt",
+      expiresAt: 1,
+    };
+    useSettingsStore.setState({
+      accounts: { jira: { platform: "jira", connectedAt: 1, auth } },
+      lastSubmitFields: { jira: { projectKey: "WEB" } },
+    });
+
+    useSettingsStore.getState().setAccount("jira", {
+      platform: "jira",
+      connectedAt: 2,
+      auth: { ...auth, accessToken: "at2", refreshToken: "rt2", expiresAt: 2 },
+    });
+
+    expect(useSettingsStore.getState().lastSubmitFields.jira).toEqual({
+      projectKey: "WEB",
+    });
+  });
+
+  it("다른 사이트로 다시 연결하면 직전 제출값을 버린다", () => {
+    const auth = {
+      kind: "oauth" as const,
+      cloudId: "old-cid",
+      siteUrl: "https://old.atlassian.net",
+      email: "u@x.com",
+      accessToken: "at",
+      refreshToken: "rt",
+      expiresAt: 1,
+    };
+    useSettingsStore.setState({
+      accounts: { jira: { platform: "jira", connectedAt: 1, auth } },
+      lastSubmitFields: { jira: { projectKey: "WEB" } },
+    });
+
+    useSettingsStore.getState().setAccount("jira", {
+      platform: "jira",
+      connectedAt: 2,
+      auth: { ...auth, cloudId: "new-cid", siteUrl: "https://new.atlassian.net" },
+    });
+
+    expect(useSettingsStore.getState().lastSubmitFields.jira).toBeUndefined();
+  });
+
+  // jira만 grantedAt이 없다. 나머지 7개는 재연동마다 새로 찍히므로 그걸 신원으로 세면
+  // "같은 계정 보전"이 영영 성립하지 않는다 — jira만 재는 그물은 그 사실을 못 본다.
+  it("grantedAt이 갱신돼도 같은 계정이면 보전한다", () => {
+    const auth = {
+      kind: "oauth" as const,
+      accessToken: "at",
+      tokenType: "bearer",
+      scope: "repo",
+      viewerLogin: "octocat",
+      grantedAt: 100,
+    };
+    useSettingsStore.setState({
+      accounts: { github: { platform: "github", connectedAt: 1, auth, defaults: {} } },
+      lastSubmitFields: { github: { owner: "acme", repo: "web" } },
+    });
+
+    useSettingsStore.getState().setAccount("github", {
+      platform: "github",
+      connectedAt: 2,
+      auth: { ...auth, accessToken: "at2", grantedAt: 999 },
+      defaults: {},
+    });
+
+    expect(useSettingsStore.getState().lastSubmitFields.github).toEqual({
+      owner: "acme",
+      repo: "web",
+    });
+  });
+
+  it("다른 계정이면 grantedAt과 무관하게 버린다", () => {
+    const auth = {
+      kind: "oauth" as const,
+      accessToken: "at",
+      tokenType: "bearer",
+      scope: "repo",
+      viewerLogin: "octocat",
+      grantedAt: 100,
+    };
+    useSettingsStore.setState({
+      accounts: { github: { platform: "github", connectedAt: 1, auth, defaults: {} } },
+      lastSubmitFields: { github: { owner: "acme", repo: "web" } },
+    });
+
+    useSettingsStore.getState().setAccount("github", {
+      platform: "github",
+      connectedAt: 2,
+      auth: { ...auth, viewerLogin: "someone-else" },
+      defaults: {},
+    });
+
+    expect(useSettingsStore.getState().lastSubmitFields.github).toBeUndefined();
+  });
+
+  // slack만 워크스페이스 신원이 auth 밖(계정 필드)이라, auth만 보면 다른 팀으로
+  // 재연동한 걸 못 가르고 A팀의 기본 채널이 B팀에 prefill된다.
+  it("slack은 워크스페이스가 갈리면 버린다", () => {
+    const auth = {
+      kind: "oauth" as const,
+      accessToken: "xoxp",
+      grantedAt: 100,
+      viewerId: "U1",
+      viewerName: "me",
+    };
+    useSettingsStore.setState({
+      accounts: {
+        slack: {
+          platform: "slack",
+          connectedAt: 1,
+          auth,
+          teamId: "T-A",
+          teamName: "A",
+          defaults: {},
+        },
+      },
+      lastSubmitFields: { slack: { channelId: "C-A" } },
+    });
+
+    useSettingsStore.getState().setAccount("slack", {
+      platform: "slack",
+      connectedAt: 2,
+      auth: { ...auth, grantedAt: 999 },
+      teamId: "T-B",
+      teamName: "B",
+      defaults: {},
+    });
+
+    expect(useSettingsStore.getState().lastSubmitFields.slack).toBeUndefined();
+  });
+
   it("다른 플랫폼의 직전 제출값은 건드리지 않는다", () => {
     useSettingsStore.setState({
       accounts: {},

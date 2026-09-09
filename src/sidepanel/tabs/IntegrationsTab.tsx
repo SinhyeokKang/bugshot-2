@@ -114,8 +114,10 @@ export function IntegrationsTab({
       value={sub}
       onValueChange={(v) => {
         // 서브탭을 손으로 옮기면 셸이 언마운트돼 intent가 미소비로 남는다(그러면 다음
-        // connectedCount 변화가 사용자를 "add"로 되돌린다). 사용자가 자리를 옮긴 시점에
-        // intent는 이미 의미를 잃었으므로 여기서 소비 처리한다.
+        // connectedCount 변화가 사용자를 "add"로 되돌린다). 자리를 옮긴 시점에 intent는
+        // 이미 의미를 잃었으므로 여기서 소비 처리한다. Radix Tabs는 automatic activation이라
+        // 포커스 이동으로도 이 콜백이 도는데, controlled면 같은 값은 useControllableState가
+        // 삼켜서 여기까지 안 온다.
         if (reconnectPlatform) onReconnectHandled();
         setSub(v as IntegrationSubTab);
       }}
@@ -208,7 +210,12 @@ export function IntegrationsTab({
                     connected={!!accounts[id]}
                     autoStart={reconnectPlatform === id}
                     onAutoStartHandled={onReconnectHandled}
-                    onConnected={() => setSub("connected")}
+                    onConnected={() => {
+                      // 연결 성공도 intent의 종착점이다 — 소비하지 않으면 그 직후
+                      // connectedCount 변화가 진입 판정을 다시 돌려 "add"로 튕긴다.
+                      onReconnectHandled();
+                      setSub("connected");
+                    }}
                   />
                 );
               })}

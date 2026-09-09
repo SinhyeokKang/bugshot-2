@@ -26,8 +26,6 @@ export function OAuthExpiredDialog({
   onReconnect: (platform: PlatformId) => void;
 }) {
   const t = useT();
-  // 닫혀 있을 때만 null이라 표시에 쓰이지 않는다. 폴백 플랫폼을 세우지 않는 건 이 값이
-  // 라벨이자 **재연동 대상**이라, 틀리면 엉뚱한 플랫폼의 OAuth 창이 뜨기 때문이다.
   const label = platform ? t(PLATFORM_TAB_KEYS[platform]) : "";
 
   return (
@@ -46,7 +44,7 @@ export function OAuthExpiredDialog({
           <AlertDialogAction
             onClick={() => platform && onReconnect(platform)}
           >
-            {t("platform.oauthExpired.reconnect")}
+            {t("platform.reconnect.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

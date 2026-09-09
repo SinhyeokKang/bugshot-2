@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Loader2 } from "lucide-react";
+import { CircleCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
@@ -118,6 +118,9 @@ export function PlatformConnectFlow<P extends PlatformId, A>({
         aria-disabled={connecting}
         className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
       >
+        {connected && (
+          <CircleCheck className="absolute right-1.5 top-1.5 h-3.5 w-3.5 text-green-700 dark:text-green-400" />
+        )}
         {connecting && (
           <span className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-4 w-4 animate-spin" />

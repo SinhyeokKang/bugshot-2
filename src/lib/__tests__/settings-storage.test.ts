@@ -209,44 +209,51 @@ describe("플랫폼별 write 계열 (토큰 갱신 영속)", () => {
   // 갱신 응답에 뭐가 실려 오든 건드리면 안 된다. 특히 gitlab의 baseUrl은 self-managed
   // 인스턴스 주소라 덮이면 그 계정으로 다시는 요청이 안 나간다. 위 케이스들은 갱신되는
   // 필드의 *값*만 재서, 목록이 넓어지는 방향(신원 필드까지 대입)을 잡지 못한다.
+  //
+  // fixture는 두 축을 동시에 재도록 짠다. 신원 필드를 **stored에만** 두면 갱신이 그걸
+  // 지우는 방향(auth 통째 대체)이 정확 일치에서 갈리고, **incoming에만** 두면 갱신 목록이
+  // 넓어져 없던 키가 생기는 방향이 갈린다. 양쪽에 같은 값으로 두는 건 둘 다 못 잰다 —
+  // 같은 값 대입은 관측 불가고, 지우는 쪽은 `undefined`라 toEqual이 무시한다
+  // (POSTMORTEM 2026-08-15). 값을 달리 두면 이번엔 게이트가 write를 통째로 no-op으로
+  // 만들어(다른 계정의 뒤늦은 갱신으로 판정) 역시 못 잰다 — 게이트는 별도 describe가 맡는다.
   const WHITELIST = [
     {
       platform: "jira",
       write: writeStoredOAuthTokens,
-      stored: { kind: "oauth", cloudId: "c-old", siteUrl: "https://old.atlassian.net", email: "old@x.io", accessToken: "old", refreshToken: "r0", expiresAt: 1 },
-      incoming: { kind: "oauth", cloudId: "c-NEW", siteUrl: "https://NEW.atlassian.net", email: "NEW@x.io", accessToken: "new", refreshToken: "r1", expiresAt: 999 },
+      stored: { kind: "oauth", cloudId: "c-1", siteUrl: "https://s.atlassian.net", accessToken: "old", refreshToken: "r0", expiresAt: 1 },
+      incoming: { kind: "oauth", email: "NEW@x.io", accessToken: "new", refreshToken: "r1", expiresAt: 999 },
       renewed: { accessToken: "new", refreshToken: "r1", expiresAt: 999 },
       absent: ["scope", "tokenType"],
     },
     {
       platform: "github",
       write: writeStoredGithubOAuthTokens,
-      stored: { kind: "oauth", accessToken: "old", tokenType: "bearer", scope: "old-scope", refreshToken: "r0", expiresAt: 1, viewerLogin: "old-login", grantedAt: 100 },
-      incoming: { kind: "oauth", accessToken: "new", tokenType: "mac", scope: "new-scope", refreshToken: "r1", expiresAt: 999, viewerLogin: "NEW-login", grantedAt: 777 },
+      stored: { kind: "oauth", accessToken: "old", tokenType: "bearer", scope: "old-scope", refreshToken: "r0", expiresAt: 1, viewerLogin: "octocat" },
+      incoming: { kind: "oauth", accessToken: "new", tokenType: "mac", scope: "new-scope", refreshToken: "r1", expiresAt: 999, grantedAt: 777 },
       renewed: { accessToken: "new", tokenType: "mac", scope: "new-scope", refreshToken: "r1", expiresAt: 999 },
       absent: [],
     },
     {
       platform: "linear",
       write: writeStoredLinearOAuthTokens,
-      stored: { kind: "oauth", accessToken: "old", refreshToken: "r0", expiresAt: 1, scope: "old-scope", viewerName: "old-name", grantedAt: 100 },
-      incoming: { kind: "oauth", accessToken: "new", refreshToken: "r1", expiresAt: 999, scope: "new-scope", viewerName: "NEW-name", grantedAt: 777 },
+      stored: { kind: "oauth", accessToken: "old", refreshToken: "r0", expiresAt: 1, scope: "old-scope", viewerName: "me" },
+      incoming: { kind: "oauth", accessToken: "new", refreshToken: "r1", expiresAt: 999, scope: "new-scope", grantedAt: 777 },
       renewed: { accessToken: "new", refreshToken: "r1", expiresAt: 999, scope: "new-scope" },
       absent: ["tokenType"],
     },
     {
       platform: "gitlab",
       write: writeStoredGitlabOAuthTokens,
-      stored: { kind: "oauth", accessToken: "old", refreshToken: "r0", expiresAt: 1, scope: "old-scope", baseUrl: "https://gitlab.self.io", viewerUsername: "old-user", grantedAt: 100 },
-      incoming: { kind: "oauth", accessToken: "new", refreshToken: "r1", expiresAt: 999, scope: "new-scope", baseUrl: "https://gitlab.com", viewerUsername: "NEW-user", grantedAt: 777 },
+      stored: { kind: "oauth", accessToken: "old", refreshToken: "r0", expiresAt: 1, scope: "old-scope", baseUrl: "https://gitlab.self.io" },
+      incoming: { kind: "oauth", accessToken: "new", refreshToken: "r1", expiresAt: 999, scope: "new-scope", viewerUsername: "NEW-user", grantedAt: 777 },
       renewed: { accessToken: "new", refreshToken: "r1", expiresAt: 999, scope: "new-scope" },
       absent: ["tokenType"],
     },
     {
       platform: "asana",
       write: writeStoredAsanaOAuthTokens,
-      stored: { kind: "oauth", accessToken: "old", refreshToken: "r0", expiresAt: 1, grantedAt: 100, viewerGid: "g-old", viewerName: "old-name" },
-      incoming: { kind: "oauth", accessToken: "new", refreshToken: "r1", expiresAt: 999, grantedAt: 777, viewerGid: "g-NEW", viewerName: "NEW-name" },
+      stored: { kind: "oauth", accessToken: "old", refreshToken: "r0", expiresAt: 1, viewerGid: "g-1" },
+      incoming: { kind: "oauth", accessToken: "new", refreshToken: "r1", expiresAt: 999, grantedAt: 777, viewerName: "NEW-name" },
       renewed: { accessToken: "new", refreshToken: "r1", expiresAt: 999 },
       absent: ["scope", "tokenType"],
     },
@@ -328,5 +335,100 @@ describe("플랫폼별 write 계열 (토큰 갱신 영속)", () => {
     await write({ kind: "oauth", accessToken: "new", refreshToken: "r1", expiresAt: 999 } as any);
     expect(typeof stored).toBe("string");
     expect(readBack().state.accounts[platform].auth.accessToken).toBe("new");
+  });
+});
+
+// 재연동이 상시 경로가 되면서(연결된 채로 다시 연결) 생긴 창: 만료 근접 refresh가 네트워크에서
+// 대기하는 동안 사용자가 포기하고 재연동을 마치면, 뒤늦게 resolve한 구 refresh가 **새 envelope**를
+// 읽어 토큰 3필드만 구 계정 값으로 덮는다. 신원 필드는 whitelist 밖이라 새 값으로 남으므로 결과가
+// `구 계정 토큰 + 신 계정 신원`이다 — GitLab self-managed면 A 인스턴스 토큰이 B의 baseUrl로 나간다.
+describe("write 계열 — 계정 신원 게이트", () => {
+  it("신원이 같으면 종전대로 토큰을 저장한다", async () => {
+    stored = envelope({
+      accounts: {
+        gitlab: {
+          auth: {
+            kind: "oauth",
+            baseUrl: "https://gitlab.acme.com",
+            accessToken: "old",
+            refreshToken: "old-rt",
+            expiresAt: 1,
+          },
+        },
+      },
+    });
+
+    await writeStoredGitlabOAuthTokens({
+      kind: "oauth",
+      baseUrl: "https://gitlab.acme.com",
+      accessToken: "new",
+      refreshToken: "new-rt",
+      expiresAt: 2,
+    } as never);
+
+    expect(await readStoredGitlabAuth()).toMatchObject({
+      accessToken: "new",
+      refreshToken: "new-rt",
+    });
+  });
+
+  it("저장분과 신원이 다르면 아무것도 쓰지 않는다", async () => {
+    stored = envelope({
+      accounts: {
+        gitlab: {
+          auth: {
+            kind: "oauth",
+            baseUrl: "https://gitlab.new.com",
+            accessToken: "fresh",
+            refreshToken: "fresh-rt",
+            expiresAt: 9,
+          },
+        },
+      },
+    });
+
+    // 다른 인스턴스(구 계정)에서 뒤늦게 돌아온 갱신.
+    await writeStoredGitlabOAuthTokens({
+      kind: "oauth",
+      baseUrl: "https://gitlab.old.com",
+      accessToken: "stale",
+      refreshToken: "stale-rt",
+      expiresAt: 5,
+    } as never);
+
+    expect(await readStoredGitlabAuth()).toMatchObject({
+      baseUrl: "https://gitlab.new.com",
+      accessToken: "fresh",
+      refreshToken: "fresh-rt",
+    });
+  });
+
+  // 한쪽에만 있는 필드로 게이트가 걸리면 정상 회전이 유실되고, 그게 곧 사용자가 겪은 강제
+  // 재연동이다 — 오탐 비용이 미탐 비용만큼 크므로 판단을 보류하는 쪽이 맞다.
+  it("한쪽에만 있는 신원 필드는 불일치로 보지 않는다", async () => {
+    stored = envelope({
+      accounts: {
+        gitlab: {
+          auth: {
+            kind: "oauth",
+            baseUrl: "https://gitlab.acme.com",
+            accessToken: "old",
+            refreshToken: "old-rt",
+            expiresAt: 1,
+          },
+        },
+      },
+    });
+
+    await writeStoredGitlabOAuthTokens({
+      kind: "oauth",
+      baseUrl: "https://gitlab.acme.com",
+      scope: "api",
+      accessToken: "new",
+      refreshToken: "new-rt",
+      expiresAt: 2,
+    } as never);
+
+    expect(await readStoredGitlabAuth()).toMatchObject({ accessToken: "new" });
   });
 });

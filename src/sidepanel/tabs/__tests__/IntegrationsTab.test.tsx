@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/i18n", () => ({
@@ -97,12 +98,12 @@ describe("IntegrationsTab — 재연동 intent 수신", () => {
     // 직접 세야 "몇 개 열렸는지"와 "어느 플랫폼인지"가 따로 잡힌다.
     await waitFor(() =>
       expect(
-        screen.getAllByText(/^platform\.connectMethod\.title:/),
+        screen.getAllByText(/^platform\.connectMethod\.reconnectTitle:/),
       ).toHaveLength(1),
     );
     expect(
-      screen.getByText(/^platform\.connectMethod\.title:/).textContent,
-    ).toBe("platform.connectMethod.title:platform.tab.jira");
+      screen.getByText(/^platform\.connectMethod\.reconnectTitle:/).textContent,
+    ).toBe("platform.connectMethod.reconnectTitle:platform.tab.jira");
   });
 
   it("소비하면 부모에게 알려 intent를 지우게 한다", async () => {
@@ -130,12 +131,37 @@ describe("IntegrationsTab — 재연동 intent 수신", () => {
 
     // '내 연동'에 머무는 동안 add 탭 컨텐츠는 Radix가 언마운트한 상태다 — 셸이 아직 없으니
     // oauth.available조차 안 나간다. 그래서 sendBg 호출을 기다리지 않고 서브탭으로 잰다.
+    // (다이얼로그 부재는 그 언마운트 때문에 구조적으로 참이라 재지 않는다.)
     await waitFor(() =>
       expect(
         screen.getByRole("tab", { name: /subtab.connected/ }).getAttribute("aria-selected"),
       ).toBe("true"),
     );
-    expect(document.body.textContent).not.toContain("platform.connectMethod.title");
     expect(onReconnectHandled).not.toHaveBeenCalled();
+  });
+
+  // 셸이 열리기 전에 사용자가 자리를 옮기면 셸이 언마운트돼 intent가 미소비로 남고, 그러면
+  // 다음 connectedCount 변화가 사용자를 "add"로 되돌린다. 이동 시점에 소비 처리한다.
+  it("서브탭을 손으로 옮기면 intent를 소비한다", async () => {
+    // 수단 판정이 끝나기 전 = 셸이 아직 아무것도 안 연 구간. 이 픽스가 겨냥한 창이고,
+    // 다이얼로그가 없어야 탭 트리거 클릭이 오버레이에 막히지 않는다.
+    sendBg.mockReturnValue(new Promise(() => {}));
+    render(
+      <IntegrationsTab
+        activeMainTab="integrations"
+        reconnectPlatform="jira"
+        onReconnectHandled={onReconnectHandled}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("tab", { name: /subtab.add/ }).getAttribute("aria-selected"),
+      ).toBe("true"),
+    );
+    onReconnectHandled.mockClear();
+
+    await userEvent.click(screen.getByRole("tab", { name: /subtab.connected/ }));
+
+    expect(onReconnectHandled).toHaveBeenCalled();
   });
 });

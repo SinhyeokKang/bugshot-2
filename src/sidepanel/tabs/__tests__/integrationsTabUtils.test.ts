@@ -36,14 +36,7 @@ describe("resolveEntrySubTab — 연결 수 축", () => {
 // 진입 서브탭을 정하는 축이 둘이 됐다 — 기존 "연결 수가 0인가"와 새로 들어온 재연동 intent.
 // 이걸 각자 effect로 두면 둘 다 상위 탭 전환 순간에 돌아 순서가 승부를 가른다(재연동은 정확히
 // 그 순간에 도착한다). 판정을 한 함수로 모아 그 경합을 구조적으로 없앤다.
-describe("resolveEntrySubTab", () => {
-  it("재연동 intent가 없으면 기존 진입 규칙을 그대로 따른다", () => {
-    expect(resolveEntrySubTab({ reconnect: null, connectedCount: 0 })).toBe("add");
-    expect(resolveEntrySubTab({ reconnect: null, connectedCount: 2 })).toBe(
-      "connected",
-    );
-  });
-
+describe("resolveEntrySubTab — 재연동 intent 축", () => {
   // 재연동 버튼은 "플랫폼 추가" 목록에 있다. 연결 1개 이상이면 기존 규칙이 '내 연동'으로
   // 데려가므로, intent가 그걸 이겨야 사용자가 버튼을 다시 찾아 헤매지 않는다.
   it("재연동 intent가 있으면 연결 수와 무관하게 'add'로 간다", () => {

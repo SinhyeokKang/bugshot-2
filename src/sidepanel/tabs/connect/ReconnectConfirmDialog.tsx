@@ -37,16 +37,16 @@ export function ReconnectConfirmDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {t("platform.reconnect", { platform: platformLabel })}
+            {t("platform.reconnect.title", { platform: platformLabel })}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {t("platform.reconnect.note")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+          <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm}>
-            {t("platform.oauthExpired.reconnect")}
+            {t("platform.reconnect.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

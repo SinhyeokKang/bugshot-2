@@ -25,7 +25,6 @@ const ko = {
 
   "platform.oauthExpired.title": "{platform} 인증이 만료되었습니다",
   "platform.oauthExpired.body": "{platform} 연동을 다시 설정해주세요.",
-  "platform.oauthExpired.reconnect": "다시 연결",
   "platform.notConnected.title": "{platform}이(가) 연결되어 있지 않습니다",
   "platform.disconnect.title": "{platform} 연결을 해제할까요?",
   "platform.disconnect.body": "인증 정보와 설정이 모두 초기화됩니다. 다시 연결하려면 재인증이 필요합니다.",
@@ -55,9 +54,12 @@ const ko = {
   "platform.cta.action": "플랫폼 추가",
   "platform.connectPlatform": "{platform}",
   "platform.reconnect": "{platform} 다시 연결",
+  "platform.reconnect.title": "{platform}을(를) 다시 연결할까요?",
+  "platform.reconnect.confirm": "다시 연결",
   "platform.connectMethod.title": "{platform} 연결 방식",
+  "platform.connectMethod.reconnectTitle": "{platform} 다시 연결 방식",
   "platform.connectMethod.body": "연결 방식을 선택하세요.",
-  "platform.reconnect.note": "다시 연결하면 이 플랫폼의 기본값과 직전 제출값이 초기화됩니다.",
+  "platform.reconnect.note": "다시 연결하면 이 플랫폼의 기본값이 초기화됩니다. 다른 계정으로 연결하면 직전 제출값도 함께 초기화됩니다.",
   "platform.connectMethod.oauth": "OAuth",
 } as const;
 
@@ -88,7 +90,6 @@ const en = {
 
   "platform.oauthExpired.title": "{platform} authentication has expired",
   "platform.oauthExpired.body": "Please reconnect {platform}.",
-  "platform.oauthExpired.reconnect": "Reconnect",
   "platform.notConnected.title": "{platform} is not connected",
   "platform.disconnect.title": "Disconnect from {platform}?",
   "platform.disconnect.body": "Credentials and settings will be cleared. Re-authentication is required to reconnect.",
@@ -117,9 +118,12 @@ const en = {
   "platform.cta.action": "Add platform",
   "platform.connectPlatform": "{platform}",
   "platform.reconnect": "Reconnect {platform}",
+  "platform.reconnect.title": "Reconnect {platform}?",
+  "platform.reconnect.confirm": "Reconnect",
   "platform.connectMethod.title": "Connect {platform}",
+  "platform.connectMethod.reconnectTitle": "Reconnect {platform}",
   "platform.connectMethod.body": "Choose how to connect.",
-  "platform.reconnect.note": "Reconnecting resets the defaults and last used values for this platform.",
+  "platform.reconnect.note": "Reconnecting resets this platform's defaults. Connecting as a different account also clears the last used values.",
   "platform.connectMethod.oauth": "OAuth",
 } satisfies Bundle;
 
@@ -147,7 +151,6 @@ const fr = {
 
   "platform.oauthExpired.title": "L’authentification {platform} a expiré",
   "platform.oauthExpired.body": "Veuillez reconnecter {platform}.",
-  "platform.oauthExpired.reconnect": "Reconnecter",
   "platform.notConnected.title": "{platform} n’est pas connecté",
   "platform.disconnect.title": "Déconnecter {platform} ?",
   "platform.disconnect.body": "Les identifiants et les réglages seront effacés. Une nouvelle authentification sera requise pour reconnecter.",
@@ -176,9 +179,12 @@ const fr = {
   "platform.cta.action": "Ajouter une plateforme",
   "platform.connectPlatform": "{platform}",
   "platform.reconnect": "Reconnecter {platform}",
+  "platform.reconnect.title": "Reconnecter {platform} ?",
+  "platform.reconnect.confirm": "Reconnecter",
   "platform.connectMethod.title": "Connecter {platform}",
+  "platform.connectMethod.reconnectTitle": "Reconnecter {platform}",
   "platform.connectMethod.body": "Choisissez le mode de connexion.",
-  "platform.reconnect.note": "La reconnexion réinitialise les valeurs par défaut et les dernières valeurs utilisées pour cette plateforme.",
+  "platform.reconnect.note": "La reconnexion réinitialise les valeurs par défaut de cette plateforme. Se connecter avec un autre compte efface aussi les dernières valeurs utilisées.",
   "platform.connectMethod.oauth": "OAuth",
 } satisfies Bundle;
 

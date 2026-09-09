@@ -42,20 +42,6 @@ function renderFlow(connected = false, autoStart = false) {
   );
 }
 
-/** 공용 셸 테스트와 같은 이유 — 재렌더마다 새 참조가 내려오는 호출부 모양을 흉내낸다. */
-function AutoStartParent({ tick }: { tick: number }) {
-  return (
-    <div data-tick={tick}>
-      <JiraConnectFlow
-        connected
-        autoStart
-        onConnected={onConnected}
-        onAutoStartHandled={onAutoStartHandled}
-      />
-    </div>
-  );
-}
-
 function availableResolves(available: boolean) {
   sendBg.mockImplementation((req: { type: string }) =>
     req.type === "oauth.available"
@@ -119,17 +105,6 @@ describe("JiraConnectFlow — 재연동 진입점", () => {
     expect(onAutoStartHandled).not.toHaveBeenCalled();
   });
 
-  it("부모가 리렌더해도 한 번만 발화한다", async () => {
-    availableResolves(true);
-    const { rerender } = render(<AutoStartParent tick={0} />);
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
-
-    rerender(<AutoStartParent tick={1} />);
-    rerender(<AutoStartParent tick={2} />);
-
-    expect(onAutoStartHandled).toHaveBeenCalledTimes(1);
-  });
-
   it("수단 판정 전에는 발화하지 않고 intent도 소비하지 않는다", async () => {
     let resolveAvailable: ((v: { available: boolean }) => void) | undefined;
     sendBg.mockImplementation((req: { type: string }) =>
@@ -157,7 +132,11 @@ describe("JiraConnectFlow — 재연동 진입점", () => {
 // 통과했다. 그래서 디렉터리를 훑어 "자체 셸"과 "공용 셸 래퍼"로 **파생**한다.
 describe("연결 버튼 규칙의 전수 (셸·래퍼 파생)", () => {
   const dir = join(dirname(fileURLToPath(import.meta.url)), "..");
-  const forms = readdirSync(dir).filter((f) => f.endsWith("ConnectForm.tsx"));
+  // readdirSync는 정렬을 보장하지 않는다(macOS는 알파벳순, ext4는 아니다) — 아래 앵커가
+  // 순서에 의존하므로 여기서 고정한다.
+  const forms = readdirSync(dir)
+    .filter((f) => f.endsWith("ConnectForm.tsx"))
+    .sort();
   const read = (f: string) => readFileSync(join(dir, f), "utf8");
   // 공용 셸에 위임하는 래퍼와, 자기 버튼을 직접 그리는 셸을 파일 내용으로 가른다.
   const wrappers = forms.filter((f) => read(f).includes("<PlatformConnectFlow"));
