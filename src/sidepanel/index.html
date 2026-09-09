@@ -7,8 +7,12 @@
     <!--
       Operating manual for automated agents driving this panel, in the same shape as
       AI_LOGS_MANUAL inside an exported logs.html. Static on purpose: an agent browser
-      has no checkout, and one that only fetches the served bytes must still reach it
-      without running the app. Not rendered (script type is inert), so the human UI is
+      has no checkout, and keeping the manual in the page source rather than assembling
+      it at runtime means an agent can read it straight from the markup -- before the
+      app has booted, and even if its JS never does. Measured in the store build: a
+      fetch of this path from inside the extension returns the block in the raw HTML.
+      A web page cannot fetch it at all; this file is not web-accessible, which is the
+      behaviour we want. Not rendered (script type is inert), so the human UI is
       untouched. Do not put a literal end-script sequence in the body below.
 
       Survives `pnpm build` verbatim, but NOT `pnpm dev`: crxjs strips every inline
