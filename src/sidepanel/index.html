@@ -4,6 +4,103 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BugShot</title>
+    <!--
+      Operating manual for automated agents driving this panel, in the same shape as
+      AI_LOGS_MANUAL inside an exported logs.html. Static on purpose: an agent browser
+      has no checkout, and one that only fetches the served bytes must still reach it
+      without running the app. Not rendered (script type is inert), so the human UI is
+      untouched. Do not put a literal end-script sequence in the body below.
+
+      Survives `pnpm build` verbatim, but NOT `pnpm dev`: crxjs strips every inline
+      script from the served HTML in serve mode, so an unpacked dev build carries no
+      manual. Each claim below is bound to its source by
+      src/sidepanel/__tests__/agentManual.test.ts -- edit the manual and the net tells
+      you which claim you just broke.
+    -->
+    <script id="__BUGSHOT_AGENT__" type="text/markdown">
+You are operating BugShot, a bug-reporting Chrome extension, as a user would.
+
+SCOPE: this manual covers one path only, the one that turns a bug you just found
+into a filed report. It is not a tour of the panel. It lists only what you cannot
+work out yourself; clicking, measuring bounding boxes and writing markdown are
+already yours. Anything not mentioned here, read off the DOM.
+
+## Order contract
+
+Logs are captured only while this panel is open AND the page you are testing is
+the active tab of its window. Open the panel BEFORE you start exercising the
+page. Do not leave it until afterwards, and do not go work in a third tab of the
+same window -- that stops recording on your target, and it does not start again
+on its own.
+
+This failure is silent. Open the panel late and the report still submits, with
+nothing in it. A tab that was already recorded once can replay up to a minute of
+buffered logs when it loads again, so a non-empty log is not proof you got the
+order right.
+
+If recording did stop, showing the panel does not bring it back: with the panel
+in its own window it never went hidden, and nothing re-arms on tab focus. Reload
+the target page instead. That load is also what replays the buffer above.
+
+Panel URL:
+chrome-extension://EXTENSION_ID/src/sidepanel/index.html?tabId=TARGET_TAB_ID
+
+Without that query the panel binds to the active tab of the last focused window.
+
+Give the panel its own window, so that a panel you can drive and a target that
+stays active can exist at the same time. Note that the id you hand to
+chrome.windows.create is the PANEL tab, not the target tab above.
+
+## Choosing a capture
+
+| What you found | Entry | Then |
+| --- | --- | --- |
+| Wrong style on one element | [data-testid="mode-element"] | click the element once, then edit values to produce a before/after |
+| One element looks wrong | [data-testid="mode-element-shot"] | click the element once |
+| Something visible right now | [data-testid="mode-screenshot"] | [data-testid="capture-method-viewport"] captures immediately, no drag |
+| Needs the whole scrolled page | [data-testid="mode-screenshot"] | [data-testid="capture-method-fullpage"] captures immediately, no drag |
+| One region of the page | [data-testid="mode-screenshot"] | region select is already armed, so just drag on the page. [data-testid="capture-method-area"] only shows that it is armed and does nothing when clicked |
+| Nothing worth showing | [data-testid="mode-freeform"] | straight to the draft |
+
+Row one is the exception to this whole manual: element mode collects no console,
+network or action logs at all. If the logs are the point, take a screenshot mode
+instead. Every other row keeps them.
+
+Do not attempt video recording. Screen recording opens a native browser picker
+that lives outside the page, and tab recording is too unstable to drive.
+
+## Before you trigger a capture
+
+The capture gate re-checks that the target tab is still active after the request
+comes off the queue. "Active" is per window, so this only bites when the panel
+sits in the SAME window as the target -- then focusing the panel makes the target
+inactive and the capture fails outright. With the panel in its own window, as
+above, both stay active and you can drive the panel freely. Either way the target
+must be the active tab of its own window when you trigger the capture.
+
+Captures are rate limited to roughly two per second. They queue rather than
+fail, so a burst is slow, not lost; if one does come back rate limited, retry a
+second or more later. Raising a timeout does not help, because the limit is on
+the rate and not on the wait.
+
+## Writing the report
+
+[data-testid="draft-title"] is an ordinary input, and it has to be non-empty
+before [data-testid="to-preview"] will do anything.
+
+The body sections are ProseMirror surfaces. Setting their text directly flattens
+whatever structure you wrote, so PASTE markdown instead: lists and code fences
+survive it. Headings do NOT survive -- the schema has no heading node, so a line
+like "## Steps" lands as an ordinary paragraph. Reproduction steps are a
+different editor entirely: one row per step, no markdown, and no paste handling.
+Paste several steps at once and the newlines collapse into a single row, so fill
+one row per step instead.
+
+You already know what broke and why, so write it yourself rather than reaching
+for the AI draft button, which is there to infer that when a human cannot.
+
+Finish at [data-testid="to-preview"], then submit to your platform.
+    </script>
   </head>
   <body class="bg-background text-foreground">
     <div id="root"></div>
