@@ -4,43 +4,55 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { walkSources, relToRepo } from "@/test/sourceFiles";
+import { walkSources } from "@/test/sourceFiles";
+import { supportsActionLog, supportsConsoleNetworkLog } from "../lib/captureLogSupport";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 에이전트 조작 매뉴얼 ↔ 실제 UI 대조 스캔
 //
 // `src/sidepanel/index.html`에 비가시 <script id="__BUGSHOT_AGENT__"> 블록으로 박히는,
 // 런타임 에이전트 브라우저(저장소 접근이 없다)용 조작 매뉴얼. logs.html의 AI_LOGS_MANUAL과
-// 같은 계열이지만 **읽는 법이 아니라 조작법**이라 가리키는 대상(testid)이 코드와 함께 움직인다.
-// 드리프트 표면이 그만큼 넓다.
+// 같은 계열이지만 **읽는 법이 아니라 조작법**이라 가리키는 대상이 코드와 함께 움직인다.
 //
 // 그물의 형태가 중요하다. AI_LOGS_MANUAL은 주장을 **문구로** 매칭해서, 매뉴얼이 틀려도
-// 자기 자신과는 늘 일치했다(POSTMORTEM 2026-09-09 — 네 주장이 데이터에서 갈렸는데 테스트가
-// 하나도 못 잡았다). 그래서 여기서는 매뉴얼이 말하는 셀렉터를 **실제 컴포넌트 소스에
-// 바인딩**한다 — testid를 리네임·삭제하면 red다.
+// 자기 자신과는 늘 일치했다(POSTMORTEM 2026-09-09). 그래서 여기서는 매뉴얼의 각 주장을
+// **그 주장이 참인 이유가 되는 소스**에 바인딩한다 — 게이트를 뒤집으면 red다.
 //
-// 양쪽 목록을 손으로 적지 않는다(2026-09-09 처방 3 "전수 스캔은 목록을 손으로 적지 않는다").
-// 매뉴얼 쪽은 본문에서 정규식으로, 소스 쪽은 디렉터리에서 파생하고, 파생이 무너지면 red가
-// 되도록 자기검증 앵커를 별 `it`으로 둔다.
+// 이 파일의 케이스는 전부 뮤테이션으로 실측했다(구현을 되돌려 red를 눈으로 봄).
+// 실측 없이 짠 첫 판본은 축 여섯이 공허했다:
+//   · 문구 정규식을 매뉴얼 전체에 걸어 다른 문단의 같은 단어가 대신 매치
+//   · 섹션 파서가 `m` 플래그 lookahead 탓에 **모든 섹션을 빈 문자열**로 반환
+//   · 단어 **존재**만 봐서 "먼저 열어라"를 "나중에 열어라"로 뒤집어도 통과
+//   · 이름만 매칭해 import 문이 **호출** 대신 매치
+//   · 주석 처리된 testid가 "실재한다"로 통과
+//   · testid 존재만 봐서 두 버튼의 testid를 맞바꿔도 통과(매핑 축 부재)
+// 새 케이스를 추가하면 반드시 같은 실측을 한다.
 //
-// **단방향이 의도다.** "매뉴얼이 말한 testid가 소스에 있는가"만 본다. 역방향(소스에 있는데
+// **단방향이 의도다.** "매뉴얼이 말한 것이 소스에서 참인가"만 본다. 역방향(소스에 있는데
 // 매뉴얼에 없다)은 red가 아니다 — 매뉴얼은 도그푸딩 경로 한 줄기만 다루고 UI 전수가 아니다.
+// 예외는 영상 축으로, 거기선 "제시하지 않았는가"를 파생 목록으로 강제한다.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
-const PANEL_HTML = join(REPO_ROOT, "src/sidepanel/index.html");
 const PANEL_DIR = join(REPO_ROOT, "src/sidepanel");
+const read = (rel: string): string => readFileSync(join(REPO_ROOT, rel), "utf8");
 
-const html = readFileSync(PANEL_HTML, "utf8");
+// 주석 처리된 코드가 "존재한다"로 통과하면 안 된다 — 삭제 뮤테이션이 흔히 주석 처리다.
+// `pageUrl-callsites.test.ts:codeOnly`와 같은 처방(거기선 파일 경로를 받는다).
+const codeOnly = (text: string): string =>
+  text
+    .split("\n")
+    .map((line) => line.replace(/\/\/.*$/, ""))
+    .join("\n");
+
+const html = read("src/sidepanel/index.html");
 
 // 매뉴얼은 정적 파일 안에 있어야 한다 — 앱을 실행하지 않고 서빙 바이트만 읽는 에이전트도
 // 닿아야 하기 때문이다(런타임 주입이면 fetch 경로가 죽는다).
-function extractManual(source: string): string | null {
-  const m = source.match(
+const manual =
+  html.match(
     /<script\b[^>]*\bid="__BUGSHOT_AGENT__"[^>]*>([\s\S]*?)<\/script>/,
-  );
-  return m ? m[1] : null;
-}
+  )?.[1] ?? "";
 
 // 매뉴얼은 셀렉터를 `[data-testid="..."]` 형태로 적는다 — 에이전트가 그대로 쓸 수 있는 표기이자
 // 이 스캔의 추출 앵커다. 백틱 토큰 같은 느슨한 표기를 허용하면 추출이 조용히 0건이 된다.
@@ -50,101 +62,296 @@ const MANUAL_TESTID_RE = /\[data-testid="([^"]+)"\]/g;
 // (예: IssueTab의 capture-method-*). 한쪽만 모으면 그 계열이 통째로 빠진다.
 const SOURCE_TESTID_RE = /(?:data-testid|testId)="([^"]+)"/g;
 
-function collect(re: RegExp, text: string): string[] {
-  return [...text.matchAll(new RegExp(re.source, "g"))].map((m) => m[1]);
+const collect = (re: RegExp, text: string): string[] =>
+  [...text.matchAll(new RegExp(re.source, "g"))].map((m) => m[1]);
+
+// 라인 파싱인 게 의도다. 첫 판본은 lazy 캡처 + `(?=^## |\s*$)` lookahead였는데, `m` 플래그에서
+// `$`가 줄 끝이라 헤딩 다음 줄에서 즉시 닫혀 **모든 섹션이 빈 문자열**로 나왔다. 그 상태로도
+// testid 대조는 전부 green이라, 실측 없이 넘겼으면 문구 축이 통째로 죽은 채 남았다
+// (POSTMORTEM 2026-09-06 (5) — 스캔은 만들자마자 잡아야 할 형태를 손으로 먹여본다).
+function section(heading: string): string {
+  const lines = manual.split("\n");
+  const start = lines.findIndex((l) => l.startsWith(`## ${heading}`));
+  if (start === -1) return "";
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((l) => l.startsWith("## "));
+  return (end === -1 ? rest : rest.slice(0, end)).join("\n").trim();
 }
 
-const manual = extractManual(html);
-
+const manualTestIds = collect(MANUAL_TESTID_RE, manual);
 const sourceTestIds = new Set(
   walkSources(PANEL_DIR).flatMap((f) =>
-    collect(SOURCE_TESTID_RE, readFileSync(f, "utf8")),
+    collect(SOURCE_TESTID_RE, codeOnly(readFileSync(f, "utf8"))),
   ),
 );
 
 describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
-  it("사이드패널 index.html에 정적으로 박혀 있다", () => {
-    expect(manual).not.toBeNull();
-    expect(manual?.trim().length ?? 0).toBeGreaterThan(0);
+  describe("전달 형태", () => {
+    it("사이드패널 index.html에 정적으로 박혀 있다", () => {
+      expect(manual.trim().length).toBeGreaterThan(0);
+    });
+
+    it("type이 text/markdown이다 — 브라우저가 실행하지 않고 에이전트는 평문으로 읽는다", () => {
+      const tag = html.match(/<script\b[^>]*\bid="__BUGSHOT_AGENT__"[^>]*>/)?.[0];
+      expect(tag).toContain('type="text/markdown"');
+    });
+
+    it("리터럴 </script 미포함 — script 태그 조기 종료 방지 (대소문자 무시)", () => {
+      expect(manual.toLowerCase()).not.toContain("</script");
+    });
+
+    // 섹션 하나를 통째로 지워도 다른 섹션의 testid가 앵커를 만족해 green이 났다(실측).
+    // 필수 섹션 집합을 명시해 매뉴얼의 절반이 조용히 사라지는 걸 막는다.
+    it("필수 섹션이 전부 있다 — 절반이 사라져도 testid 대조는 통과한다", () => {
+      for (const heading of [
+        "Order contract",
+        "Choosing a capture",
+        "Before you trigger a capture",
+        "Writing the report",
+      ]) {
+        expect(section(heading).length).toBeGreaterThan(0);
+      }
+    });
   });
 
-  it("type이 text/markdown이다 — 브라우저가 실행하지 않고 에이전트는 평문으로 읽는다", () => {
-    const tag = html.match(/<script\b[^>]*\bid="__BUGSHOT_AGENT__"[^>]*>/)?.[0];
-    expect(tag).toBeDefined();
-    expect(tag).toContain('type="text/markdown"');
+  describe("자기검증 앵커", () => {
+    // 아래 대조는 양쪽 파생이 살아있을 때만 의미가 있다. 정규식이 망가지거나 표기를 바꾸면
+    // 추출이 0건이 되어 대조가 공허하게 통과한다(2026-08-19 "대상이 0건이라 정규식이
+    // 망가져도 green").
+    it("매뉴얼에서 testid 셀렉터가 실제로 추출된다", () => {
+      expect(manualTestIds.length).toBeGreaterThan(0);
+    });
+
+    it("소스에서 testid가 실제로 수집된다", () => {
+      expect(sourceTestIds.size).toBeGreaterThan(0);
+    });
   });
 
-  it("리터럴 </script 미포함 — script 태그 조기 종료 방지 (대소문자 무시)", () => {
-    expect((manual ?? "").toLowerCase()).not.toContain("</script");
+  describe("셀렉터", () => {
+    it("매뉴얼이 말하는 testid는 전부 사이드패널 소스에 실재한다", () => {
+      const missing = [...new Set(manualTestIds)].filter(
+        (id) => !sourceTestIds.has(id),
+      );
+      expect(missing).toEqual([]);
+    });
+
+    // 존재 대조만으로는 두 버튼의 testid를 **맞바꿔도** green이다(실측). 매뉴얼의 유일한
+    // 가치가 "무엇을 찾았나 → 어느 버튼"이므로 그 짝을 직접 잰다.
+    it("캡처 방식 버튼이 매뉴얼이 말한 동작에 실제로 배선돼 있다", () => {
+      const issueTab = codeOnly(read("src/sidepanel/tabs/IssueTab.tsx"));
+      const wiring = new Map<string, string | null>();
+      for (const block of issueTab.match(
+        /<TooltipIconButton[\s\S]*?<\/TooltipIconButton>/g,
+      ) ?? []) {
+        const id = block.match(/testId="([^"]+)"/)?.[1];
+        if (!id?.startsWith("capture-method-")) continue;
+        wiring.set(id, block.match(/onClick=\{(\w+)\}/)?.[1] ?? null);
+      }
+      expect(wiring.get("capture-method-viewport")).toBe("onViewport");
+      expect(wiring.get("capture-method-fullpage")).toBe("onFullPage");
+      // 매뉴얼이 "누르면 아무 일도 안 한다"고 적은 근거 — 이 버튼만 핸들러가 없다.
+      expect(wiring.get("capture-method-area")).toBeNull();
+    });
+
+    // 위 케이스를 `capture-method-*` 셋에만 걸어두고 표의 나머지 네 행(진입 모드)은 존재
+    // 대조만 태웠다 — 매뉴얼에서 mode-element와 mode-freeform을 맞바꿔도 전부 green이었다.
+    // "매핑을 잰다"고 써놓고 3/7만 분류한 형태(2026-09-09 ② — 세는 것과 분류하는 것의 혼동).
+    it("진입 모드 버튼이 매뉴얼이 말한 동작에 실제로 배선돼 있다", () => {
+      const HANDLERS = [
+        "onStartElement",
+        "onStartElementShot",
+        "onStartScreenshot",
+        "onStartFreeform",
+      ];
+      const issueTab = codeOnly(read("src/sidepanel/tabs/IssueTab.tsx"));
+      const wiring = new Map<string, string[]>();
+      for (const block of issueTab.match(/<Button[\s\S]*?<\/Button>/g) ?? []) {
+        const id = block.match(/data-testid="(mode-[^"]+)"/)?.[1];
+        if (!id) continue;
+        // freeform만 인라인 화살표라 `onClick={handler}` 형태가 아니다 — 호출 등장으로 잡는다.
+        // `\b`가 onStartElement와 onStartElementShot을 갈라준다.
+        wiring.set(
+          id,
+          HANDLERS.filter((h) => new RegExp(`\\b${h}\\b`).test(block)),
+        );
+      }
+      expect(wiring.get("mode-element")).toEqual(["onStartElement"]);
+      expect(wiring.get("mode-element-shot")).toEqual(["onStartElementShot"]);
+      expect(wiring.get("mode-screenshot")).toEqual(["onStartScreenshot"]);
+      expect(wiring.get("mode-freeform")).toEqual(["onStartFreeform"]);
+    });
   });
 
-  // ── 자기검증 앵커 2벌 ──────────────────────────────────────────────────────
-  // 아래 대조는 양쪽 파생이 살아있을 때만 의미가 있다. 정규식이 망가지거나 표기를 바꾸면
-  // 추출이 0건이 되어 대조가 공허하게 통과한다(2026-08-19 "대상이 0건이라 정규식이 망가져도
-  // green"). 그 상태를 별 케이스로 red로 만든다.
+  describe("순서 계약", () => {
+    it("로그 수집을 패널 열림에 묶는 근거 코드가 실재한다", () => {
+      // `(`까지 붙여 **호출**을 본다. 이름만 보면 import 문이 대신 매치돼, 호출을 통째로
+      // 지워도 green이다(실측 — 2026-09-06 (5)의 "주석 처리된 호출을 존재한다로 통과" 계열).
+      const recorder = codeOnly(read("src/sidepanel/hooks/useBackgroundRecorder.ts"));
+      for (const fn of [
+        "activateNetworkRecorder(",
+        "activateConsoleRecorder(",
+        "activateActionRecorder(",
+      ]) {
+        expect(recorder).toContain(fn);
+      }
+      // 매뉴얼의 "제3의 탭으로 가지 마라"를 만드는 건 activate*가 아니라 이 둘이다. 이걸
+      // 안 걸면 셋을 다 지워도 activate*가 남아 green이고, 그 지시가 근거 없는 미신이 된다.
+      // `addEventListener(`까지 붙인다 — 문자열만 보면 정리 경로의 removeEventListener가
+      // 대신 매치돼, 등록을 지워도 green이다(실측).
+      expect(recorder).toContain('addEventListener("visibilitychange"');
+      expect(codeOnly(read("src/background/tab-bindings.ts"))).toContain(
+        "stopRecorders(prevTabId)",
+      );
+    });
 
-  it("앵커: 매뉴얼에서 testid 셀렉터가 실제로 추출된다", () => {
-    expect(collect(MANUAL_TESTID_RE, manual ?? "").length).toBeGreaterThan(0);
+    it("버퍼 소급 flush 상한이 매뉴얼이 말한 '1분'과 일치한다", () => {
+      // `PREARM_GRACE_MS`는 레코더 3벌에 **복제**돼 있다(CLAUDE.md: "값을 바꾸려면 3곳").
+      // 매뉴얼의 "로그가 비지 않았다고 순서를 맞게 지킨 건 아니다"의 유일한 근거라 값이
+      // 갈리면 거짓이 된다. 세 파일을 전부 본다 — 하나만 보면 나머지 둘의 드리프트를 놓친다.
+      for (const kind of ["action", "console", "network"]) {
+        expect(codeOnly(read(`src/content/${kind}-recorder.ts`))).toContain(
+          "PREARM_GRACE_MS = 60000",
+        );
+      }
+      expect(/a minute/i.test(section("Order contract"))).toBe(true);
+    });
+
+    // 단어 **존재**만 보면 "Open it BEFORE you start"를 "Open it AFTER you finish"로
+    // 뒤집어도 green이었다(실측 — `before that` 같은 꼬리가 대신 매치). 방향을 재려면
+    // 지시구를 통째로 요구하고 역방향 지시를 금지해야 한다.
+    it("패널을 먼저 열라고 지시한다 — 역전된 지시가 아니라", () => {
+      const order = section("Order contract");
+      expect(/open the panel before/i.test(order)).toBe(true);
+      expect(/open (it|the panel) after/i.test(order)).toBe(false);
+    });
+
+    it("무음 실패임을 말한다 — 늦게 열면 제출은 되고 증거만 빈다", () => {
+      expect(/silent/i.test(section("Order contract"))).toBe(true);
+    });
+
+    it("패널 URL 쿼리 축(tabId)을 그 섹션 안에서 말하고, 해석 코드가 실재한다", () => {
+      // 매뉴얼 전체에 걸면 `chrome.windows.create({ tabId })`가 대신 매치돼, URL 문단을
+      // 통째로 지워도 green이었다(실측). 섹션으로 좁힌다.
+      expect(section("Order contract")).toContain("?tabId=");
+      expect(read("src/sidepanel/hooks/useBoundTabId.ts")).toContain(
+        'searchParams.get("tabId")',
+      );
+    });
   });
 
-  it("앵커: 소스에서 testid가 실제로 수집된다", () => {
-    expect(sourceTestIds.size).toBeGreaterThan(0);
+  describe("캡처 선택", () => {
+    // 소스 쪽 배선(위 두 케이스)을 잠가도 **매뉴얼 표가 어느 행에 어느 셀렉터를 쓰는지**는
+    // 여전히 안 재진다 — 표에서 mode-element와 mode-freeform을 맞바꿔도 전부 green이었다
+    // (실측). 그러면 스타일 버그를 찾은 에이전트가 캡처 없이 freeform으로 들어간다.
+    // 기대 매핑은 손으로 적는다: 표의 의미는 소스에서 파생될 수 있는 게 아니라 우리가 정한
+    // 것이고, 그게 바뀌면 red가 나야 맞다. 파생은 "행이 실제로 파싱됐는가" 쪽에 건다.
+    it("표의 각 행이 그 상황에 맞는 셀렉터를 가리킨다", () => {
+      const rows = section("Choosing a capture")
+        .split("\n")
+        .filter((l) => l.startsWith("|") && !/^\|\s*-+/.test(l))
+        .slice(1); // 헤더 제외
+      expect(rows.length).toBe(6); // 파생 앵커 — 표가 줄면 red
+
+      const find = (re: RegExp): string[] => {
+        const row = rows.find((r) => re.test(r));
+        expect(row, `표에 ${re} 행이 없다`).toBeDefined();
+        return collect(MANUAL_TESTID_RE, row ?? "");
+      };
+      expect(find(/wrong style/i)).toEqual(["mode-element"]);
+      expect(find(/element looks wrong/i)).toEqual(["mode-element-shot"]);
+      expect(find(/visible right now/i)).toEqual([
+        "mode-screenshot",
+        "capture-method-viewport",
+      ]);
+      expect(find(/whole scrolled page/i)).toEqual([
+        "mode-screenshot",
+        "capture-method-fullpage",
+      ]);
+      expect(find(/one region/i)).toEqual([
+        "mode-screenshot",
+        "capture-method-area",
+      ]);
+      expect(find(/nothing worth showing/i)).toEqual(["mode-freeform"]);
+    });
+
+    it("element 모드가 로그를 안 싣는다는 예외를 말한다", () => {
+      // 매뉴얼이 헤드라인으로 세운 순서 계약을 완벽히 지켜도 이 모드를 고르면 로그가 0건인
+      // 채 정상 제출된다 — 매뉴얼이 막겠다고 한 바로 그 실패 모드다. 매트릭스를 직접 호출해
+      // 고정한다(게이트가 element를 포함하도록 바뀌면 이 경고가 거짓이 되고 red).
+      expect(supportsConsoleNetworkLog("element")).toBe(false);
+      expect(supportsActionLog("element")).toBe(false);
+      expect(supportsConsoleNetworkLog("screenshot")).toBe(true);
+
+      const choosing = section("Choosing a capture");
+      expect(/element mode collects no/i.test(choosing)).toBe(true);
+    });
+
+    it("영상 축을 금지 지시로 배제한다", () => {
+      // 재려는 건 "영상을 언급한다"가 아니라 **하지 말라고 지시한다**이다. 언급만 보면 같은
+      // 섹션의 설명문("tab recording is too unstable")이 대신 매치돼 금지 문장을 지워도
+      // green이다(실측).
+      const choosing = section("Choosing a capture");
+      expect(/\b(do not|don't|never)\b[^.]*\b(video|record)/i.test(choosing)).toBe(
+        true,
+      );
+    });
+
+    it("영상·리플레이 계열 셀렉터를 조작 대상으로 제시하지 않는다", () => {
+      // 배제 목록을 손으로 적으면 `mode-record` 하나만 막고 `replay-*`·`recording-*`는
+      // 샌다(2026-09-09 처방 3). 소스에서 파생해 계열 전체를 막는다.
+      const banned = [...sourceTestIds].filter((id) =>
+        /^(mode-record$|recording-|replay-)/.test(id),
+      );
+      expect(banned.length).toBeGreaterThan(0); // 파생이 무너지면 red
+      expect(manualTestIds.filter((id) => banned.includes(id))).toEqual([]);
+    });
   });
 
-  // ── 본 대조 ───────────────────────────────────────────────────────────────
+  describe("캡처 게이트", () => {
+    it("대상 탭이 활성이어야 한다는 주장의 근거가 실재한다", () => {
+      // 이 줄을 지우면 매뉴얼의 popup 창 조언이 근거 없는 미신이 되는데, 바인딩이 없으면
+      // red가 안 난다.
+      const throttle = codeOnly(read("src/background/capture-throttle.ts"));
+      expect(throttle).toContain("if (!tab.active)");
+      expect(section("Before you trigger a capture")).toMatch(/active/i);
+    });
 
-  it("매뉴얼이 말하는 testid는 전부 사이드패널 소스에 실재한다", () => {
-    const referenced = [...new Set(collect(MANUAL_TESTID_RE, manual ?? ""))];
-    const missing = referenced.filter((id) => !sourceTestIds.has(id));
-    expect(missing).toEqual([]);
+    it("매뉴얼이 말한 '초당 두 번'이 실제 간격 상수와 일치한다", () => {
+      // 500ms 간격 = 초당 2회. 이 상수를 올리면 매뉴얼의 수치가 거짓이 되는데, 위 케이스는
+      // 같은 파일에서 tab.active만 봐서 잡지 못했다.
+      expect(codeOnly(read("src/background/capture-throttle.ts"))).toContain(
+        "CAPTURE_MIN_GAP_MS = 500",
+      );
+      expect(/two per second/i.test(section("Before you trigger a capture"))).toBe(
+        true,
+      );
+    });
   });
 
-  it("매뉴얼이 말하는 패널 URL 쿼리 축(tabId)이 실제 바인딩 코드에 실재한다", () => {
-    // 매뉴얼의 부트스트랩 한 줄이 `?tabId=`에 걸려 있다. 이 쿼리 해석을 지우거나 이름을 바꾸면
-    // 에이전트는 패널을 엉뚱한 탭에 붙인 채 조용히 진행한다.
-    expect(manual).toContain("tabId");
-    const boundTabId = readFileSync(
-      join(PANEL_DIR, "hooks/useBoundTabId.ts"),
-      "utf8",
-    );
-    expect(boundTabId).toContain('searchParams.get("tabId")');
-  });
+  describe("본문 입력", () => {
+    it("마크다운 붙여넣기가 파싱된다는 주장의 근거가 실재한다", () => {
+      const editor = codeOnly(read("src/sidepanel/components/TiptapEditor.tsx"));
+      expect(editor).toContain("transformPastedText: true");
+      expect(/paste markdown/i.test(section("Writing the report"))).toBe(true);
+    });
 
-  it("매뉴얼이 로그 수집의 순서 계약을 말하고, 그 계약의 근거 코드가 실재한다", () => {
-    // 레코더 주입이 "패널이 열려 있는 동안"에 묶여 있다는 것이 매뉴얼의 유일한 무음 실패
-    // 지점이다(테스트를 끝낸 뒤 패널을 열면 로그가 빈 채로 리포트가 나간다).
-    // 문구가 아니라 그 사실의 출처를 함께 고정한다.
-    const recorder = readFileSync(
-      join(PANEL_DIR, "hooks/useBackgroundRecorder.ts"),
-      "utf8",
-    );
-    expect(recorder).toContain("activateNetworkRecorder");
-    expect(recorder).toContain("activateConsoleRecorder");
-    expect(recorder).toContain("activateActionRecorder");
-    // 매뉴얼이 그 순서를 실제로 지시하는지 — 패널을 먼저 연다는 축.
-    expect(/before|first/i.test(manual ?? "")).toBe(true);
-  });
+    it("제목이 비면 to-preview가 잠긴다는 주장의 근거가 실재한다", () => {
+      // 존재 대조만으로는 게이트가 풀려도 green이다. 게이트가 사라지면 매뉴얼은 불필요하게
+      // 보수적이 될 뿐이라 피해는 작지만, "이 축을 잰다"고 읽히는 자리라 비워두지 않는다.
+      const drafting = codeOnly(read("src/sidepanel/tabs/DraftingPanel.tsx"));
+      expect(drafting).toContain("const titleMissing = !draft.title.trim()");
+      expect(drafting).toContain("disabled={titleMissing");
+      expect(/non-empty/i.test(section("Writing the report"))).toBe(true);
+    });
 
-  it("에이전트가 넘을 수 없는 축(영상 녹화)을 명시적으로 배제한다", () => {
-    // 화면 녹화는 브라우저 네이티브 선택 다이얼로그라 페이지 밖이고, 탭 녹화도 e2e가
-    // 자동화 불안정으로 스위트에서 뺐다. 안 적으면 에이전트가 계속 두드린다.
-    expect(/video|record/i.test(manual ?? "")).toBe(true);
-    const modeRecord = [...sourceTestIds].includes("mode-record");
-    expect(modeRecord).toBe(true);
-    // 배제 대상이므로 매뉴얼은 그 셀렉터를 조작 대상으로 제시하지 않는다.
-    expect(collect(MANUAL_TESTID_RE, manual ?? "")).not.toContain("mode-record");
-  });
-
-  it("매뉴얼이 참조하는 소스 파일 경로가 실재한다", () => {
-    // 매뉴얼 본문이 아니라 이 테스트가 무는 경로들 — 파일이 옮겨가면 위 케이스가 ENOENT로
-    // 죽는 대신 여기서 먼저 이유가 드러난다.
-    for (const rel of [
-      "src/sidepanel/index.html",
-      "src/sidepanel/hooks/useBoundTabId.ts",
-      "src/sidepanel/hooks/useBackgroundRecorder.ts",
-    ]) {
-      expect(() => readFileSync(join(REPO_ROOT, rel), "utf8")).not.toThrow();
-    }
-    expect(relToRepo(PANEL_HTML)).toBe("src/sidepanel/index.html");
+    it("heading은 살아남지 않는다고 말한다 — 스키마에 heading 노드가 없다", () => {
+      // 첫 판본이 "headings, lists and code fences survive"라고 적었는데 heading은 평문
+      // 문단으로 뭉개진다. 에이전트가 `## Steps`로 구조를 잡으면 그게 조용히 사라진다.
+      const editor = codeOnly(read("src/sidepanel/components/TiptapEditor.tsx"));
+      expect(editor).toContain("heading: false");
+      expect(/headings do not survive/i.test(section("Writing the report"))).toBe(
+        true,
+      );
+    });
   });
 });
