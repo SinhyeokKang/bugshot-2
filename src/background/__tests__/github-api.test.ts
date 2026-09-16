@@ -252,6 +252,19 @@ describe("buildRepoSearchQuery", () => {
     ).toBe("react in:name user:facebook");
   });
 
+  // Code 버튼이 주는 클론 URL. `.git`이 이름에 남으면 in:name이 안 맞아 0건이 된다.
+  it("클론 URL의 .git 접미사는 이름에서 뗀다", () => {
+    expect(buildRepoSearchQuery("https://github.com/facebook/react.git")).toBe(
+      "react in:name user:facebook",
+    );
+  });
+
+  // 검색 문법을 직접 친 사람의 쿼리를 우리가 다시 조립하면 깨진다.
+  it("qualifier를 직접 쓴 입력은 손대지 않고 그대로 보낸다", () => {
+    expect(buildRepoSearchQuery("repo:facebook/react")).toBe("repo:facebook/react");
+    expect(buildRepoSearchQuery("react org:facebook")).toBe("react org:facebook");
+  });
+
   it("슬래시뿐인 입력은 빈 문자열", () => {
     expect(buildRepoSearchQuery("///")).toBe("");
   });

@@ -190,6 +190,8 @@ interface RepoSearchResponse {
 // repo:owner/name 정확일치는 타이핑 중간 상태를 전부 0건으로 만들어 쓰지 않는다.
 export function buildRepoSearchQuery(q: string): string {
   const trimmed = q.trim();
+  // 검색 문법을 직접 쓴 입력은 우리가 다시 조립하면 깨진다(`repo:o/r` → `user:repo:o`).
+  if (trimmed.replace(/^https?:\/\//i, "").includes(":")) return trimmed;
   if (!trimmed.includes("/")) return trimmed ? `${trimmed} in:name` : "";
   let parts = trimmed.split("/").map((p) => p.trim()).filter(Boolean);
   // 붙여넣은 URL은 host 다음 두 조각이 owner/name이다 — /issues·/pull 같은 꼬리를 버린다.
@@ -201,7 +203,8 @@ export function buildRepoSearchQuery(q: string): string {
     return trimmed.endsWith("/") ? `user:${parts[0]}` : `${parts[0]} in:name`;
   }
   const [owner, name] = parts.slice(-2);
-  return `${name} in:name user:${owner}`;
+  // 클론 URL은 이름이 `react.git`으로 끝난다 — 그대로 두면 in:name이 안 맞는다.
+  return `${name.replace(/\.git$/i, "")} in:name user:${owner}`;
 }
 
 export async function searchRepos(
