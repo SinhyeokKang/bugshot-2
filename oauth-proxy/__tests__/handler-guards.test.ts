@@ -12,10 +12,8 @@ const ORIGIN = "chrome-extension://abc";
 const FULL_ENV = {
   ATLASSIAN_CLIENT_ID: "atlas-id",
   ATLASSIAN_CLIENT_SECRET: "atlas-secret",
-  GITHUB_CLIENT_ID_DEV: "gh-dev-id",
-  GITHUB_CLIENT_SECRET_DEV: "gh-dev-secret",
-  GITHUB_CLIENT_ID_PROD: "gh-prod-id",
-  GITHUB_CLIENT_SECRET_PROD: "gh-prod-secret",
+  GITHUB_CLIENT_ID: "gh-id",
+  GITHUB_CLIENT_SECRET: "gh-secret",
   NOTION_CLIENT_ID: "notion-id",
   NOTION_CLIENT_SECRET: "notion-secret",
   ASANA_CLIENT_ID: "asana-id",
@@ -46,24 +44,14 @@ const CASES: HandlerCase[] = [
   {
     path: "/github/token",
     body: { code: "c", redirect_uri: "u" },
-    secretKeys: [
-      "GITHUB_CLIENT_ID_DEV",
-      "GITHUB_CLIENT_SECRET_DEV",
-      "GITHUB_CLIENT_ID_PROD",
-      "GITHUB_CLIENT_SECRET_PROD",
-    ],
-    clientId: "gh-dev-id",
+    secretKeys: ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
+    clientId: "gh-id",
   },
   {
     path: "/github/refresh",
     body: { refresh_token: "rt" },
-    secretKeys: [
-      "GITHUB_CLIENT_ID_DEV",
-      "GITHUB_CLIENT_SECRET_DEV",
-      "GITHUB_CLIENT_ID_PROD",
-      "GITHUB_CLIENT_SECRET_PROD",
-    ],
-    clientId: "gh-dev-id",
+    secretKeys: ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
+    clientId: "gh-id",
   },
   {
     path: "/notion/token",
