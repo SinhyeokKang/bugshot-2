@@ -1,25 +1,25 @@
 {
-  "generatedAt": "2026-09-09T06:16:58.309Z",
+  "generatedAt": "2026-09-16T09:02:32.373Z",
   "logic": {
-    "covered": 23523,
-    "total": 25927,
-    "pct": 90.72781270490222
+    "covered": 23553,
+    "total": 25957,
+    "pct": 90.73852910582887
   },
   "global": {
     "lines": {
-      "covered": 33068,
-      "total": 56029,
-      "pct": 59.01
+      "covered": 33208,
+      "total": 56074,
+      "pct": 59.22
     },
     "branches": {
-      "covered": 9150,
-      "total": 10441,
-      "pct": 87.63
+      "covered": 9191,
+      "total": 10491,
+      "pct": 87.6
     },
     "functions": {
-      "covered": 1789,
-      "total": 2480,
-      "pct": 72.13
+      "covered": 1794,
+      "total": 2485,
+      "pct": 72.19
     }
   },
   "files": {
@@ -56,8 +56,8 @@
       "total": 36
     },
     "src/background/github-api.ts": {
-      "covered": 251,
-      "total": 251
+      "covered": 272,
+      "total": 272
     },
     "src/background/github-oauth.ts": {
       "covered": 78,
@@ -432,8 +432,8 @@
       "total": 466
     },
     "src/i18n/namespaces/integrations.ts": {
-      "covered": 838,
-      "total": 838
+      "covered": 844,
+      "total": 844
     },
     "src/i18n/namespaces/issue.ts": {
       "covered": 409,
@@ -490,6 +490,10 @@
     "src/lib/external-url.ts": {
       "covered": 8,
       "total": 8
+    },
+    "src/lib/github-repo.ts": {
+      "covered": 3,
+      "total": 3
     },
     "src/lib/gzip-base64.ts": {
       "covered": 31,
@@ -1712,8 +1716,8 @@
       "total": 34
     },
     "src/sidepanel/tabs/githubFields/RepoCombobox.tsx": {
-      "covered": 2,
-      "total": 103
+      "covered": 112,
+      "total": 118
     },
     "src/sidepanel/tabs/gitlabFields/AssigneeCombobox.tsx": {
       "covered": 36,
