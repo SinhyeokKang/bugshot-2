@@ -4,12 +4,9 @@ interface Env {
   RATE_LIMITER?: { limit(opts: { key: string }): Promise<{ success: boolean }> };
   ATLASSIAN_CLIENT_ID: string;
   ATLASSIAN_CLIENT_SECRET: string;
-  // GitHub OAuth — DEV/PROD 두 OAuth App을 동시 운영. 클라이언트가 보낸 client_id로 매칭.
-  // 한 쪽만 등록돼 있으면(예: DEV만) 그것만 매칭 가능. 둘 다 빈값이면 503.
-  GITHUB_CLIENT_ID_DEV?: string;
-  GITHUB_CLIENT_SECRET_DEV?: string;
-  GITHUB_CLIENT_ID_PROD?: string;
-  GITHUB_CLIENT_SECRET_PROD?: string;
+  // GitHub OAuth — Web Flow app. App 1개에 dev/store callback URL 둘 다 등록.
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
   // Notion OAuth — public integration. App 1개에 dev/prod redirect URI 둘 다 등록.
   NOTION_CLIENT_ID?: string;
   NOTION_CLIENT_SECRET?: string;
@@ -343,30 +340,16 @@ export function resolveGithubApp(
   env: Env,
   requestClientId: string | undefined,
 ): GithubAppCreds | { error: string; status: number } {
-  const apps: GithubAppCreds[] = [];
-  if (env.GITHUB_CLIENT_ID_DEV && env.GITHUB_CLIENT_SECRET_DEV) {
-    apps.push({
-      clientId: env.GITHUB_CLIENT_ID_DEV,
-      clientSecret: env.GITHUB_CLIENT_SECRET_DEV,
-    });
-  }
-  if (env.GITHUB_CLIENT_ID_PROD && env.GITHUB_CLIENT_SECRET_PROD) {
-    apps.push({
-      clientId: env.GITHUB_CLIENT_ID_PROD,
-      clientSecret: env.GITHUB_CLIENT_SECRET_PROD,
-    });
-  }
-  if (apps.length === 0) {
+  if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
     return { error: "github oauth not configured", status: 503 };
   }
   if (!requestClientId) {
     return { error: "missing client_id", status: 400 };
   }
-  const matched = apps.find((a) => a.clientId === requestClientId);
-  if (!matched) {
+  if (requestClientId !== env.GITHUB_CLIENT_ID) {
     return { error: "client_id not registered", status: 400 };
   }
-  return matched;
+  return { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET };
 }
 
 async function handleGithubToken(
