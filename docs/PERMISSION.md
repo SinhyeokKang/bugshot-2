@@ -48,7 +48,7 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 
 `<all_urls>`가 상위집합이라 플랫폼별 REST/OAuth host(`*.atlassian.net`·`api.github.com`·`github.com`(에셋 업로드 정책)+GitHub 발급 S3 업로드 URL·`api.linear.app`·`api.notion.com`·`gitlab.com`·`app.asana.com`·`api.clickup.com`·`api.atlassian.com`·`slack.com`)와 OAuth proxy origin(`VITE_OAUTH_PROXY_URL`)을 **manifest에 따로 나열하지 않는다** — 전부 `<all_urls>`로 동작한다. OAuth authorize endpoint(`auth.atlassian.com`·`app.clickup.com`·`slack.com/oauth/v2/authorize` 등)는 `launchWebAuthFlow`가 Chrome 관리 팝업에서 처리하므로 host_permission 자체가 불요. 어느 플랫폼·proxy로 트래픽이 나가는지(데이터 전송 대상)는 §11과 docs/privacy.ko.md의 전송 표 참조.
 
-`<all_urls>`가 required인 이유: `captureVisibleTab`은 일반 host 패턴(`https://*/*`)을 캡처 권한으로 인정하지 않고 `<all_urls>` 또는 activeTab만 받는다. 30s Replay가 cross-origin 이동 후에도 캡처하려면 `<all_urls>`가 필요한데, activeTab은 cross-document 네비게이션에서 회수돼 프로그램적 재취득이 불가하므로 광역 host 권한을 **설치 시 상시 보유**(required)한다. BYOK LLM·GitLab self-managed의 임의 origin fetch도 이 권한으로 커버된다.
+`<all_urls>`가 required인 이유: `captureVisibleTab`은 일반 host 패턴(`https://*/*`)을 캡처 권한으로 인정하지 않고 `<all_urls>` 또는 activeTab만 받는다. 30s Replay가 cross-origin 이동 후에도 캡처하려면 `<all_urls>`가 필요한데, activeTab은 cross-document 네비게이션에서 회수돼 프로그램적 재취득이 불가하므로 광역 host 권한을 **설치 시 상시 보유**(required)한다. BYOK LLM·GitLab self-managed·**Jira API Key 모드(Server/DC)**의 임의 origin fetch도 이 권한으로 커버된다 — 셋 다 base URL이 사용자 자유 입력이고, `assertCredentialSafeBase`는 https(+loopback 예외)만 강제할 뿐 호스트를 좁히지 않는다.
 
 ### web_accessible_resources (빌드가 자동 주입 — manifest.config.ts에 없음)
 
@@ -70,7 +70,7 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 
 | 트리거 | 코드 위치 |
 |---|---|
-| 툴바 아이콘 클릭 | `tab-bindings.ts:299` — `chrome.action.onClicked → activateTab()`(정의는 `:253`) |
+| 툴바 아이콘 클릭 | `tab-bindings.ts:317` — `chrome.action.onClicked → activateTab()`(정의는 `:270`) |
 | `Cmd+Shift+E` 단축키 | `_execute_action` → 아이콘 클릭과 동일하게 `action.onClicked` 발화 |
 | 컨텍스트 메뉴 "BugShot" 클릭 | `background/index.ts:73` — `contextMenus.onClicked → activateTab()` |
 
@@ -78,12 +78,12 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 
 | API | 용도 | 사용 위치 |
 |---|---|---|
-| `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:209` (bg handler — 모든 호출이 `capture-throttle` 직렬 큐 경유. 큐를 통과한 뒤 `captureOwnedTab`이 `tabs.get(tabId)`로 **소유권을 다시 확인**하고 `tab.active`가 아니면 throw한다 — 큐 대기가 최대 ~2.6s라 그동안 사용자가 탭을 바꿨으면 남의 페이지를 찍게 된다). 호출처: `sidepanel/capture.ts:captureElementSnapshot`(요소), `usePickerMessages.ts`(영역·인라인), `sidepanel/scroll-capture.ts`(페이지 전체 타일 루프), `30s-replay/use-30s-replay.ts`(폴링 프레임) |
+| `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:209` (bg handler — 방어는 3겹이다. ① 큐 진입 **전에** `sender.origin !== chrome-extension://<runtime.id>`면 throw(`messages.ts:217`) — content script의 origin은 페이지 origin이라, 이게 없으면 주입된 content script가 페이로드 tabId로 **남의 탭 화면**을 받아갈 수 있고 아래 활성 탭 확인만으론 안 걸러진다. ② 모든 호출이 `capture-throttle` 직렬 큐 경유. ③ 큐를 통과한 뒤 `captureOwnedTab`이 `tabs.get(tabId)`로 **소유권을 다시 확인**하고 `tab.active`가 아니면 throw한다 — 큐 대기가 최대 ~2.6s라 그동안 사용자가 탭을 바꿨으면 남의 페이지를 찍게 된다). 호출처: `sidepanel/capture.ts:captureElementSnapshot`(요소), `usePickerMessages.ts`(영역·인라인), `sidepanel/scroll-capture.ts`(페이지 전체 타일 루프), `30s-replay/use-30s-replay.ts`(폴링 프레임) |
 | `chrome.tabCapture.getMediaStreamId()` | 수동 영상 녹화 스트림 (실패 시 `getDisplayMedia` 폴백) | `video-recorder.ts:startTabStream` |
 | `chrome.tabs.get() → tab.url` | 탭 URL 읽기 | `tab-bindings.ts`, `picker-control.ts`(`pageKeyOf` 등), `video-capture.ts`, `video-recorder.ts`, `30s-replay/use-30s-replay.ts`, `hooks/useTabSupport.ts`(지원/만료 판정 — 아래 만료 감지 1단계의 URL 판독부), `hooks/useBackgroundRecorder.ts`, `sidepanel/scroll-capture.ts`, `background/capture-throttle.ts`(캡처 직전 소유권 확인), `background/index.ts` |
 | `chrome.scripting.executeScript()` | content script 재주입(picker·recorder-bridge는 `allFrames:true`)·뷰포트 측정 | `picker-control.ts` (`ensureMainWorldRecorders`·`getTopViewport` 등) |
 | `chrome.tabs.create()` / `chrome.tabs.remove()` | ① GitHub 업로드용 비활성 탭 생성·정리(`background/github-upload.ts`) ② 외부 링크 열기 — 등록된 이슈 URL·가이드·스토어 리뷰·플랫폼 토큰 발급 페이지(`IssueTab`·`SettingsFooter`·`SubmitSuccessView`·`IssueRow`) | 권한 불요(확장 기본 제공) |
-| `chrome.tabs.query({})` | **전 창 전 탭 열거** — pending 로그 GC가 "살아있는 탭"을 계산하는 유일한 경로(fail-closed: 조회 실패 시 prune 전체 스킵) | `lib/pending-log-prune.ts`. URL을 읽지만 `activeTab`과 무관하게 `<all_urls>`가 커버한다 |
+| `chrome.tabs.query({})` | **전 창 전 탭 열거** — pending 로그 GC가 "살아있는 탭"을 계산하는 유일한 경로(fail-closed: 조회 실패 시 prune 전체 스킵) | `lib/pending-log-prune.ts`. 응답에 URL이 실려 오지만 `getActiveTabIds()`는 `tab.id`만 소비한다. `activeTab`과 무관하게 `<all_urls>`가 커버한다 |
 | `chrome.runtime.onConnect` (port disconnect) | 사이드패널이 닫히면 port가 끊기는 것을 세션 teardown 신호로 사용 — 레코더 정지(`stopRecorders`) | `background/index.ts` |
 | `chrome.windows.onRemoved` | 창이 닫힐 때 그 창에 속한 탭의 활성화 상태 정리 | `background/tab-bindings.ts` |
 | `chrome.i18n.getMessage()` | `public/_locales/<code>/messages.json`을 읽는 **두 소비자 중 런타임 쪽**(SW가 컨텍스트 메뉴 타이틀을 조립 — `setupContextMenu`). 다른 하나는 manifest의 `__MSG_*` 치환(확장 이름·설명·단축키 라벨)이고 둘은 같은 사전을 본다 — 한쪽만 보고 스캐너를 짜면 무음 누락이 생긴다(POSTMORTEM 2026-08-11). 그물: `src/i18n/__tests__/manifest-locales.test.ts` | `background/index.ts` |
@@ -108,8 +108,8 @@ url-support.ts:classifyTabSupport()
     └── 미지원/응답 없음 → "unsupported"
 ```
 
-- `picker-control.ts:204` — `ensureSupportedTab()`: 모든 캡처 진입점(picker, area, inline, freeform, video)에서 호출
-- `tab-bindings.ts:171` — `deactivatePanelIfCrossOrigin()`: URL 판독 불가 시 cross-origin으로 간주하고, 닫을지 유지할지는 **출발지 URL**로 가른다(§ 패널 종료/유지 정책)
+- `picker-control.ts:192` — `ensureSupportedTab()`: 모든 캡처 진입점(picker, area, inline, freeform, video)에서 호출
+- `tab-bindings.ts:185` — `deactivatePanelIfCrossOrigin()`: URL 판독 불가 시 cross-origin으로 간주하고, 닫을지 유지할지는 **출발지 URL**로 가른다(§ 패널 종료/유지 정책)
 
 #### 2단계: 캡처 시점 에러 매칭 (런타임 가드)
 
@@ -122,7 +122,7 @@ capture-error.ts:isActiveTabPermissionError()
 └── "extension has not been invoked" 포함
 ```
 
-- `picker-control.ts:216` — `maybeSurfacePermissionExpired()`: captureVisibleTab 실패 시 호출
+- `picker-control.ts:204` — `maybeSurfacePermissionExpired()`: captureVisibleTab 실패 시 호출
 - `capture.ts:108` — 요소 스냅샷 실패
 - `usePickerMessages.ts:437·465` — 영역 캡처·인라인 캡처 실패 분기
 
@@ -177,8 +177,8 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 
 | 모드 | world | 코드 위치 | 설명 |
 |---|---|---|---|
-| Picker 재주입 | ISOLATED | `picker-control.ts:34` | `ping` 실패 시 `manifest.content_scripts[0].js`를 `allFrames:true`(top+iframe)로 재주입 (`ensureContentScript` — iframe picker 자가복구) |
-| Recorder bridge 재주입 | ISOLATED | `picker-control.ts:66` | `recorder-bridge.ts` (sentinel 수신·중계)를 `allFrames:true`로 재주입 |
+| Picker 재주입 | ISOLATED | `picker-control.ts:38` | `ping` 실패 시 `manifest.content_scripts[0].js`를 `allFrames:true`(top+iframe)로 재주입 (`ensureContentScript` — iframe picker 자가복구) |
+| Recorder bridge 재주입 | ISOLATED | `picker-control.ts:70` | `recorder-bridge.ts` (sentinel 수신·중계)를 `allFrames:true`로 재주입 |
 | Recorder entry 재주입 | MAIN | `picker-control.ts:ensureMainWorldRecorders` | `recorders-entry.ts` (network/console/action 후크) 재주입 (MAIN world). **정적 엔트리는 `all_frames: true`로 전 프레임 주입**이고, 여기 프로그래매틱 재주입만 `allFrames` 미지정이라 top 한정이다 |
 | 뷰포트 측정 | ISOLATED | `picker-control.ts` | Freeform 진입·iframe 요소 선택 시 top 프레임 `innerWidth/Height` 읽기 (`getTopViewport` — world 미지정 → 기본 ISOLATED) |
 | GitHub 업로드 | MAIN | `background/github-upload.ts:155` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수). 업로드마다 **전용 비활성 탭을 새로 열고 끝나면 닫는다** — 기존 github.com 탭에 붙으면 다른 확장의 MAIN world 후크가 base64 미디어와 `asset_upload_authenticity_token`을 가져갈 수 있다. 사용자가 연 탭이 아니라 `activeTab`이 아닌 `<all_urls>`에 의존 |
@@ -266,8 +266,8 @@ background/index.ts:25 — disableGlobalSidePanel()
 
 | 함수 | 위치 | 동작 |
 |---|---|---|
-| `activateTab()` | `tab-bindings.ts:253` | user gesture → `setOptions({enabled:true})` + `sidePanel.open()` + 활성화 URL 저장(`sidePanel:url:{tabId}`, `tab.url`을 읽을 수 있을 때만). **URL 지원 여부를 보지 않는다** — 미지원 페이지에서도 열고 패널이 안내를 그린다 |
-| `apply()` | `tab-bindings.ts:40` | 탭 전환·URL 변경 시 — **activated면** path 재등록, 아니면 비활성화. 지원 여부는 보지 않는다(보면 방금 연 패널을 다음 `onActivated`가 닫는다) |
+| `activateTab()` | `tab-bindings.ts:270` | user gesture → `setOptions({enabled:true})` + `sidePanel.open()` + 활성화 URL 저장(`sidePanel:url:{tabId}`, `tab.url`을 읽을 수 있을 때만). **URL 지원 여부를 보지 않는다** — 미지원 페이지에서도 열고 패널이 안내를 그린다 |
+| `apply()` | `tab-bindings.ts:45` | 탭 전환·URL 변경 시 — **activated면** path 재등록, 아니면 비활성화. 지원 여부는 보지 않는다(보면 방금 연 패널을 다음 `onActivated`가 닫는다) |
 | `deactivatePanelIfCrossOrigin()` | `tab-bindings.ts` | origin 비교 → same-origin 유지, cross-origin은 커버 URL(http/https, 파일 접근 토글 ON인 file:)이면 유지·판독된 미지원 URL이면 유지(세션만 제거)·비커버 지원 URL(토글 OFF인 file:)이면 닫기/deferred |
 
 ### sidePanel.open() 호출 조건
@@ -275,7 +275,7 @@ background/index.ts:25 — disableGlobalSidePanel()
 `sidePanel.open()`은 user gesture 컨텍스트에서만 호출 가능. 코드베이스에서 **단 한 곳**에서만 호출:
 
 ```
-tab-bindings.ts:266 — activateTab() 내부
+tab-bindings.ts:281 — activateTab() 내부
 ```
 
 트리거: `action.onClicked` (아이콘 클릭 / `_execute_action` 단축키) 또는 `contextMenus.onClicked`. 둘 다 동기 이벤트 핸들러에서 즉시 호출 → user gesture 유지.
@@ -301,7 +301,7 @@ tab-bindings.ts:266 — activateTab() 내부
 
 ### 세션 보존 규칙
 
-`shouldPreserveSession()` (`tab-bindings.ts:72`): 네비게이션 중에도 패널을 유지할 captureMode/phase 조합.
+`shouldPreserveSession()` (`tab-bindings.ts:86`): 네비게이션 중에도 패널을 유지할 captureMode/phase 조합.
 
 | captureMode | phase | 보존 여부 |
 |---|---|---|
@@ -347,7 +347,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 |---|---|---|
 | `bugshot-settings` | 플랫폼 계정·OAuth 토큰·submit 기본값·titlePrefix | `settings-store.ts` (Zustand persist), `settings-storage.ts` (bg 직접 접근) |
 | `bugshot-issues` | `IssueRecord[]` 이슈 기록 | `issues-store.ts` (Zustand persist) |
-| `bugshot-app-settings` | 테마·언어(UI/AI 출력/이슈 본문 3축)·이슈 섹션 구성·LLM 설정·replay 활성화·**파일 첨부 활성화**(`attachmentsEnabled`, 기본 off)·**재현 과정 AI 자동 채움**(`autoReproPrefill`, 기본 on)·녹화 모드(tab/screen)·스타일 편집 뷰 | `settings-ui-store.ts` (Zustand persist) |
+| `bugshot-app-settings` | 테마·언어(UI/AI 출력/이슈 본문 3축)·이슈 섹션 구성·LLM 설정(**BYOK API 키 포함** — `apiKeyObfuscatingStorage`가 persist 경유로 난독화해 넣는다. 평문은 아니지만 **암호화도 아니다**)·replay 활성화·**파일 첨부 활성화**(`attachmentsEnabled`, 기본 off)·**재현 과정 AI 자동 채움**(`autoReproPrefill`, 기본 on)·녹화 모드(tab/screen)·스타일 편집 뷰 | `settings-ui-store.ts` (Zustand persist) |
 | `bugshot:install-id` | 익명 설치 ID (UUID, 최초 1회 생성) | `background/analytics.ts` — PostHog `distinct_id` |
 
 ### IndexedDB (Chrome 권한 불요 — 저장 데이터 레퍼런스)
@@ -383,11 +383,11 @@ pre-arm 게이트 플래그 `__bugshot_recorder_active__`=`"1"`을 **방문 페�
 | 플랫폼 | 인증 URL | 토큰 교환 | PKCE | Proxy 필요 | Refresh | 요청 scope |
 |---|---|---|---|---|---|---|
 | Jira | `auth.atlassian.com/authorize` | `${PROXY}/token` | X | O | `${PROXY}/token` (refresh_token) | `read:jira-user` `read:jira-work` `write:jira-work` + granular 3종 `read:board-scope:jira-software` `read:project:jira` `read:sprint:jira-software` + `offline_access` (`oauth.ts:29`) |
-| GitHub | `github.com/login/oauth/authorize` | `${PROXY}/github/token` | X | O | `${PROXY}/github/refresh` | `repo` `user:email` (`github-oauth.ts:14`) |
-| Linear | `linear.app/oauth/authorize` | `api.linear.app/oauth/token` | O (S256) | X | `api.linear.app/oauth/token` | `read` `write` `issues:create` (쉼표 구분 — `linear-oauth.ts:15`) |
+| GitHub | `github.com/login/oauth/authorize` | `${PROXY}/github/token` | X | O | `${PROXY}/github/refresh` | `repo` `user:email` (`github-oauth.ts:15`) |
+| Linear | `linear.app/oauth/authorize` | `api.linear.app/oauth/token` | O (S256) | X | `api.linear.app/oauth/token` | `read` `write` `issues:create` (쉼표 구분 — `linear-oauth.ts:16`) |
 | Notion | `api.notion.com/v1/oauth/authorize` | `${PROXY}/notion/token` | X | O | 없음 (토큰 무기한) | — (scope 파라미터 없음. `owner=user`만 보내고 권한은 integration 설정이 정한다) |
-| GitLab | `gitlab.com/oauth/authorize` | `gitlab.com/oauth/token` | O (S256) | X | `gitlab.com/oauth/token` | `api` (`gitlab-oauth.ts:16`) |
-| Asana | `app.asana.com/-/oauth_authorize` | `${PROXY}/asana/token` | X | O | `${PROXY}/asana/refresh` (refresh_token 비회전) | `default` (`asana-oauth.ts:13`) |
+| GitLab | `gitlab.com/oauth/authorize` | `gitlab.com/oauth/token` | O (S256) | X | `gitlab.com/oauth/token` | `api` (`gitlab-oauth.ts:17`) |
+| Asana | `app.asana.com/-/oauth_authorize` | `${PROXY}/asana/token` | X | O | `${PROXY}/asana/refresh` (refresh_token 비회전) | `default` (`asana-oauth.ts:14`) |
 | ClickUp | `app.clickup.com/api` | `${PROXY}/clickup/token` | X | O | 없음 (토큰 만료 없음) | — (scope 파라미터 없음. 앱 설정이 정한다) |
 | Slack | `slack.com/oauth/v2/authorize` | `${PROXY}/slack/token` (oauth.v2.access) | X | O | 없음 (user token 만료 없음) | **user_scope** `chat:write` `channels:read` `groups:read` `im:read` `mpim:read` `files:write` `users:read` (`slack-oauth.ts:12` — bot token이 아니라 user token이라 `user_scope` 파라미터) |
 
@@ -395,7 +395,7 @@ pre-arm 게이트 플래그 `__bugshot_recorder_active__`=`"1"`을 **방문 페�
 
 ### 토큰 저장
 
-모든 토큰은 `chrome.storage.local`의 `bugshot-settings` 키 아래 `accounts.{platform}.auth`에 저장.
+플랫폼 OAuth/PAT 토큰은 `chrome.storage.local`의 `bugshot-settings` 키 아래 `accounts.{platform}.auth`에 저장. **BYOK LLM API 키는 여기가 아니다** — `bugshot-app-settings`의 `llm.apiKey`에 난독화 상태로 들어간다(위 §6).
 
 bg service worker에서 직접 읽기/쓰기:
 - `settings-storage.ts` — `readStoredAuth()`, `writeStoredOAuthTokens()` 등
@@ -404,7 +404,7 @@ bg service worker에서 직접 읽기/쓰기:
 
 | 플랫폼 | Pre-refresh 임계값 | 401 재시도 | 갱신 중복 방지 |
 |---|---|---|---|
-| Jira | 60초 (`jira-api.ts:82`) | O (`authedFetch`) — **단 agile 3경로는 제외**(`jiraFetch(…, retryOn401=false)`: board 목록·보드별 sprint·sprint 단건. scope 미비 401은 refresh로 안 풀리는 영구 조건이라 재시도가 회전형 refresh token만 소모하고 전역 재인증 안내를 오발화한다) | `refreshInFlight` Promise 중복 제거 |
+| Jira | 60초 (`jira-api.ts:82`) | O (`authedFetch`) — **단 4경로는 제외** — agile 3경로(`jiraFetch(…, retryOn401=false)`: board 목록·보드별 sprint·sprint 단건)와 **agile이 아닌 `jira.sprintFieldMeta`**(`messages.ts` 핸들러가 `getSprintFieldMeta(…, false)`. 같은 함수라도 제출 경로(`createIssue`)는 `true`라 호출부가 선택을 강제받는다). 가르는 축은 엔드포인트가 아니라 **"만료 안내를 띄워도 되는 호출인가"**다 — scope 미비 401은 refresh로 안 풀리는 영구 조건이라 재시도가 회전형 refresh token만 소모하고 전역 재인증 안내를 오발화한다 | `refreshInFlight` Promise 중복 제거 |
 | GitHub | 60초 (`github-api.ts:97` → `background/lib/createRefreshRunner.ts`) | O (`authedFetch`) | `refreshOnceWithLock` 훅 주입 |
 | Linear | 60초 (`linear-api.ts:52`) | O (`authedGraphQL`) | `refreshOnceWithLock` 훅 주입 |
 | Notion | — | 401 시 `OAuthError` throw → 재인증 안내 | — |
@@ -511,13 +511,18 @@ background/index.ts:116 — webNavigation.onBeforeNavigate
 
 **목적**: 페이지 떠나기 직전에 MAIN world의 네트워크/콘솔/액션 로그 버퍼를 사이드패널 누적기로 flush. 이 타이밍에 기존 페이지의 content script는 아직 살아있어 메시지 수신 가능. (정상 흐름에서는 레코더가 ~200ms trailing throttle로 이미 stream 중이라 이 sync는 마지막 꼬리 보강.)
 
-#### onCommitted — iframe sentinel 재발행 + 로그 초기화 판정
+#### onCommitted — frame commit 통지 + 로그 초기화 판정
 
 ```
 background/index.ts:137 — webNavigation.onCommitted
 ├── frameId !== 0 (iframe) → 활성 세션 있으면 frameCommitted 메시지 전송
 │   └── 사이드패널이 보유 sentinel을 그 프레임에 재발행
 │       (broadcast 이후 커밋된 cross-origin iframe을 로그 캡처에 합류)
+├── (메인 프레임) frameCommitted(frameId:0) 무조건 전송 — 세션 검사 없이,
+│   storage 조회보다 먼저 (commit 순서대로 알려야 이전 document에서 큐잉된
+│   picker lifecycle을 documentId gate로 막을 수 있다)
+│   └── 수신부 usePickerMessages: sentinel 재발행 + currentFrameDocuments 갱신
+│       + phase === "picking"이면 restartPickerInFrame
 ├── (메인 프레임) navUrlPromise에서 이전 URL 꺼냄
 ├── shouldClearLogs(prevUrl, newUrl, transitionType)
 │   ├── cross-origin → true (다른 사이트 로그 무관)
@@ -540,7 +545,7 @@ background/index.ts:137 — webNavigation.onCommitted
 | 호스트 (트래픽 대상) | 사용 기능 | API 호출 위치 |
 |---|---|---|
 | 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM 동봉 프리셋 8종(OpenAI·Anthropic·Gemini·Mistral·Groq·Together·OpenRouter·Ollama(localhost))·사용자 임의 baseUrl·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강) | `picker.ts`, `recorder-bridge.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab·fetchCssSheets), `ai-provider.ts` |
-| `*.atlassian.net` | Jira REST API (API Key 모드) | `jira-api.ts` — `${baseUrl}/rest/api/3/*` + `${baseUrl}/rest/agile/1.0/*`(board·sprint 조회) |
+| `*.atlassian.net` | Jira REST API (API Key 모드). **`*.atlassian.net` 한정이 아니다** — `baseUrl`이 사용자 자유 입력이라 Jira Server/DC 자체호스팅 origin도 대상이고, `assertCredentialSafeBase`가 https(+loopback)만 강제한다 | `jira-api.ts` — `${baseUrl}/rest/api/3/*` + `${baseUrl}/rest/agile/1.0/*`(board·sprint 조회) |
 | `api.atlassian.com` | Jira OAuth API + accessible-resources | `jira-api.ts` — `/ex/jira/{cloudId}/rest/{api/3,agile/1.0}/*`, `oauth.ts` — `/oauth/token/accessible-resources` |
 | Jira 발급 media/CDN URL | 첨부 업로드 후 redirect를 따라 byte-range GET/HEAD로 media ID 판별(고정 host 아님) | `jira-api.ts` — `getMediaFileId` |
 | `auth.atlassian.com` | Jira OAuth authorize (launchWebAuthFlow — host_permission 불요) | `oauth.ts` — `launchWebAuthFlow` URL |
@@ -554,9 +559,11 @@ background/index.ts:137 — webNavigation.onCommitted
 | Notion 발급 업로드 URL | `/file_uploads` 응답의 동적 `upload_url`로 스크린샷·영상·logs.html·사용자 첨부 multipart POST | `notion-api.ts` — `sendFileUpload` |
 | `gitlab.com` | GitLab REST + OAuth token (gitlab.com 한정) | `gitlab-api.ts`, `gitlab-oauth.ts` |
 | `app.asana.com` | Asana REST + OAuth authorize (token 교환은 proxy) | `asana-api.ts`, `asana-oauth.ts` |
-| `api.clickup.com` | ClickUp REST (task 생성·첨부 업로드·본문 갱신) | `clickup-api.ts`, `clickup-oauth.ts` |
+| `api.clickup.com` | ClickUp REST (task 생성·첨부 업로드·본문 갱신) | `clickup-api.ts` |
+| `app.clickup.com` | ClickUp OAuth authorize (`launchWebAuthFlow`라 host_permission 불요. token 교환은 proxy) | `clickup-oauth.ts` |
 | `slack.com` | Slack Web API (메시지 전송·채널/DM·멤버 조회·files 2-step 업로드) + OAuth authorize. files 업로드 2단계의 multipart POST는 Slack이 런타임 반환하는 `upload_url`(`*.slack.com` 등)로 나가고 이것도 `<all_urls>` 커버 | `slack-api.ts`, `slack-oauth.ts` |
 | `in.bug-shot.com` (`VITE_POSTHOG_HOST` — PostHog 관리형 리버스 프록시, CNAME으로 PostHog Cloud 직결. `vite.config.ts`가 define으로 값을 박고, env가 비어도 `resolvePostHogHost` 폴백이 같은 프록시라 **PostHog Cloud로 직행하는 경로가 없다**) | 익명 분석 — 이슈 제출·**플랫폼 연결 시도**(`platform_connect`, 플랫폼·성공/취소/실패 + 사유 분류 동봉)·연동 해제·설치(`extension_installed`, 확장 버전 동봉)·패널 열기(`sidepanel_opened`, `page_supported` 동봉) 집계(`$ip:"0.0.0.0"`·geoip 비활성·person profile 미생성) | `background/analytics.ts` — `/capture/` fetch |
+| 플랫폼 아바타·아이콘 CDN | **`fetch`가 아니라 `<img src>` 서브리소스** — GitHub·GitLab(+`secure.gravatar.com`)·Jira·Notion의 사용자 아바타와 Jira 이슈타입 아이콘. 권한은 불요지만 사용자 IP가 그 CDN으로 나간다 | `*/AssigneeCombobox.tsx`·`CcCombobox.tsx`·`jiraFields/{AssigneeField,IssueTypeCombobox}.tsx`·`connect/JiraConnectForm.tsx` |
 | OAuth proxy origin | OAuth proxy (client_secret 은닉) | `oauth.ts`, `github-oauth.ts`, `notion-oauth.ts`, `asana-oauth.ts`, `clickup-oauth.ts`, `slack-oauth.ts` |
 
 ### OAuth Proxy 엔드포인트
