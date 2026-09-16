@@ -4,14 +4,13 @@ import { handleRequest, resolveGithubApp } from "../worker";
 const baseEnv = {
   ATLASSIAN_CLIENT_ID: "atlas-id",
   ATLASSIAN_CLIENT_SECRET: "atlas-secret",
-  GITHUB_CLIENT_ID_DEV: "gh-dev-id",
-  GITHUB_CLIENT_SECRET_DEV: "gh-dev-secret",
-  GITHUB_CLIENT_ID_PROD: "gh-prod-id",
-  GITHUB_CLIENT_SECRET_PROD: "gh-prod-secret",
+  GITHUB_CLIENT_ID: "gh-id",
+  GITHUB_CLIENT_SECRET: "gh-secret",
   ALLOWED_ORIGINS: "chrome-extension://abc",
 };
 
 const corsHeaders = { Origin: "chrome-extension://abc" };
+const REDIRECT = "https://abc.chromiumapp.org/";
 
 function makeReq(path: string, body: unknown, init?: RequestInit): Request {
   return new Request(`https://proxy.example${path}`, {
@@ -23,43 +22,22 @@ function makeReq(path: string, body: unknown, init?: RequestInit): Request {
 }
 
 describe("resolveGithubApp", () => {
-  it("DEV/PROD 둘 다 등록, dev client_id 일치 → dev secret", () => {
-    const out = resolveGithubApp(baseEnv, "gh-dev-id");
-    expect(out).toEqual({ clientId: "gh-dev-id", clientSecret: "gh-dev-secret" });
+  it("등록된 client_id 일치 → secret 반환", () => {
+    const out = resolveGithubApp(baseEnv, "gh-id");
+    expect(out).toEqual({ clientId: "gh-id", clientSecret: "gh-secret" });
   });
 
-  it("DEV/PROD 둘 다 등록, prod client_id 일치 → prod secret", () => {
-    const out = resolveGithubApp(baseEnv, "gh-prod-id");
-    expect(out).toEqual({ clientId: "gh-prod-id", clientSecret: "gh-prod-secret" });
+  it("client_id만 있고 secret 미설정 → 503", () => {
+    const env = { ...baseEnv, GITHUB_CLIENT_SECRET: undefined };
+    const out = resolveGithubApp(env, "gh-id");
+    expect(out).toEqual({ error: "github oauth not configured", status: 503 });
   });
 
-  it("DEV만 등록된 환경에서 prod client_id 요청 → 400 client_id not registered", () => {
+  it("미설정 → 503", () => {
     const env = {
       ...baseEnv,
-      GITHUB_CLIENT_ID_PROD: undefined,
-      GITHUB_CLIENT_SECRET_PROD: undefined,
-    };
-    const out = resolveGithubApp(env, "gh-prod-id");
-    expect(out).toEqual({ error: "client_id not registered", status: 400 });
-  });
-
-  it("DEV만 등록된 환경에서 dev client_id 요청 → 정상", () => {
-    const env = {
-      ...baseEnv,
-      GITHUB_CLIENT_ID_PROD: undefined,
-      GITHUB_CLIENT_SECRET_PROD: undefined,
-    };
-    const out = resolveGithubApp(env, "gh-dev-id");
-    expect(out).toEqual({ clientId: "gh-dev-id", clientSecret: "gh-dev-secret" });
-  });
-
-  it("아무것도 등록 안 됨 → 503", () => {
-    const env = {
-      ...baseEnv,
-      GITHUB_CLIENT_ID_DEV: undefined,
-      GITHUB_CLIENT_SECRET_DEV: undefined,
-      GITHUB_CLIENT_ID_PROD: undefined,
-      GITHUB_CLIENT_SECRET_PROD: undefined,
+      GITHUB_CLIENT_ID: undefined,
+      GITHUB_CLIENT_SECRET: undefined,
     };
     const out = resolveGithubApp(env, "any");
     expect(out).toEqual({ error: "github oauth not configured", status: 503 });
@@ -77,7 +55,7 @@ describe("resolveGithubApp", () => {
 });
 
 describe("/github/token", () => {
-  it("정상 — dev client_id로 요청하면 dev secret으로 GitHub에 교환", async () => {
+  it("정상 — 등록된 client_id로 요청하면 secret으로 GitHub에 교환", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(JSON.stringify({ access_token: "ghx" }), {
         status: 200,
@@ -86,8 +64,8 @@ describe("/github/token", () => {
     );
     const req = makeReq("/github/token", {
       code: "the-code",
-      redirect_uri: "https://x.chromiumapp.org/cb",
-      client_id: "gh-dev-id",
+      redirect_uri: REDIRECT,
+      client_id: "gh-id",
     });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(200);
@@ -97,30 +75,16 @@ describe("/github/token", () => {
     expect(upstreamCall[0]).toBe("https://github.com/login/oauth/access_token");
     const sentBody = JSON.parse((upstreamCall[1] as RequestInit).body as string);
     expect(sentBody).toEqual({
-      client_id: "gh-dev-id",
-      client_secret: "gh-dev-secret",
+      client_id: "gh-id",
+      client_secret: "gh-secret",
       code: "the-code",
-      redirect_uri: "https://x.chromiumapp.org/cb",
+      redirect_uri: REDIRECT,
     });
-  });
-
-  it("prod client_id로 요청 → prod secret 사용", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }),
-    );
-    const req = makeReq("/github/token", {
-      code: "c",
-      redirect_uri: "u",
-      client_id: "gh-prod-id",
-    });
-    await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
-    const sentBody = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
-    expect(sentBody.client_secret).toBe("gh-prod-secret");
   });
 
   it("400 — code 누락", async () => {
     const fetchMock = vi.fn();
-    const req = makeReq("/github/token", { redirect_uri: "x", client_id: "gh-dev-id" });
+    const req = makeReq("/github/token", { redirect_uri: REDIRECT, client_id: "gh-id" });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -128,7 +92,7 @@ describe("/github/token", () => {
 
   it("400 — redirect_uri 누락", async () => {
     const fetchMock = vi.fn();
-    const req = makeReq("/github/token", { code: "x", client_id: "gh-dev-id" });
+    const req = makeReq("/github/token", { code: "x", client_id: "gh-id" });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -136,7 +100,7 @@ describe("/github/token", () => {
 
   it("400 — client_id 누락", async () => {
     const fetchMock = vi.fn();
-    const req = makeReq("/github/token", { code: "c", redirect_uri: "u" });
+    const req = makeReq("/github/token", { code: "c", redirect_uri: REDIRECT });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -150,16 +114,14 @@ describe("/github/token", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("503 — 두 set 모두 미설정", async () => {
+  it("503 — 미설정", async () => {
     const fetchMock = vi.fn();
     const env = {
       ...baseEnv,
-      GITHUB_CLIENT_ID_DEV: undefined,
-      GITHUB_CLIENT_SECRET_DEV: undefined,
-      GITHUB_CLIENT_ID_PROD: undefined,
-      GITHUB_CLIENT_SECRET_PROD: undefined,
+      GITHUB_CLIENT_ID: undefined,
+      GITHUB_CLIENT_SECRET: undefined,
     };
-    const req = makeReq("/github/token", { code: "c", redirect_uri: "u", client_id: "x" });
+    const req = makeReq("/github/token", { code: "c", redirect_uri: REDIRECT, client_id: "x" });
     const res = await handleRequest(req, env, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(503);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -174,8 +136,8 @@ describe("/github/token", () => {
     );
     const req = makeReq("/github/token", {
       code: "c",
-      redirect_uri: "u",
-      client_id: "gh-dev-id",
+      redirect_uri: REDIRECT,
+      client_id: "gh-id",
     });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(200);
@@ -191,13 +153,13 @@ describe("/github/refresh", () => {
         headers: { "Content-Type": "application/json" },
       }),
     );
-    const req = makeReq("/github/refresh", { refresh_token: "rt", client_id: "gh-dev-id" });
+    const req = makeReq("/github/refresh", { refresh_token: "rt", client_id: "gh-id" });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(200);
     const sentBody = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
     expect(sentBody).toEqual({
-      client_id: "gh-dev-id",
-      client_secret: "gh-dev-secret",
+      client_id: "gh-id",
+      client_secret: "gh-secret",
       grant_type: "refresh_token",
       refresh_token: "rt",
     });
@@ -205,7 +167,7 @@ describe("/github/refresh", () => {
 
   it("400 — refresh_token 누락", async () => {
     const fetchMock = vi.fn();
-    const req = makeReq("/github/refresh", { client_id: "gh-dev-id" });
+    const req = makeReq("/github/refresh", { client_id: "gh-id" });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -226,7 +188,7 @@ describe("CORS / 라우팅 가드", () => {
     const req = new Request("https://proxy.example/github/token", {
       method: "POST",
       headers: { Origin: "https://evil.example", "Content-Type": "application/json" },
-      body: JSON.stringify({ code: "c", redirect_uri: "u", client_id: "gh-dev-id" }),
+      body: JSON.stringify({ code: "c", redirect_uri: REDIRECT, client_id: "gh-id" }),
     });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(403);

@@ -15,7 +15,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { canCreateIssue } from "@/lib/github-repo";
 import type { GithubRepo } from "@/types/github";
 import { sendBg } from "@/lib/bg-client";
 
@@ -105,10 +107,14 @@ export function RepoCombobox({ value, onChange, disabled }: Props) {
                   {items.map((r) => {
                     const selected =
                       value?.owner === r.owner && value?.repo === r.name;
+                    // 이슈를 못 여는 repo는 제출 시점에야 410/403으로 실패한다.
+                    // cmdk disabled면 키보드 자동 하이라이트에서도 빠진다.
+                    const blocked = !canCreateIssue(r);
                     return (
                       <CommandItem
                         key={`${r.owner}/${r.name}`}
                         value={`${r.owner}/${r.name}`}
+                        disabled={blocked}
                         onSelect={() => {
                           onChange(
                             selected ? null : { owner: r.owner, repo: r.name },
@@ -123,7 +129,20 @@ export function RepoCombobox({ value, onChange, disabled }: Props) {
                           )}
                         />
                         <div className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate">{r.fullName}</span>
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="min-w-0 flex-1 truncate">
+                              {r.fullName}
+                            </span>
+                            {blocked ? (
+                              <Badge variant="secondary" className="shrink-0">
+                                {t(
+                                  r.archived
+                                    ? "github.field.repo.archived"
+                                    : "github.field.repo.issuesOff",
+                                )}
+                              </Badge>
+                            ) : null}
+                          </span>
                           {r.description ? (
                             <span className="truncate text-[11px] text-muted-foreground">
                               {r.description}

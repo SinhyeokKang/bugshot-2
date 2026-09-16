@@ -4,12 +4,9 @@ interface Env {
   RATE_LIMITER?: { limit(opts: { key: string }): Promise<{ success: boolean }> };
   ATLASSIAN_CLIENT_ID: string;
   ATLASSIAN_CLIENT_SECRET: string;
-  // GitHub OAuth — DEV/PROD 두 OAuth App을 동시 운영. 클라이언트가 보낸 client_id로 매칭.
-  // 한 쪽만 등록돼 있으면(예: DEV만) 그것만 매칭 가능. 둘 다 빈값이면 503.
-  GITHUB_CLIENT_ID_DEV?: string;
-  GITHUB_CLIENT_SECRET_DEV?: string;
-  GITHUB_CLIENT_ID_PROD?: string;
-  GITHUB_CLIENT_SECRET_PROD?: string;
+  // GitHub OAuth — Web Flow app. App 1개에 dev/prod redirect URI 둘 다 등록.
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
   // Notion OAuth — public integration. App 1개에 dev/prod redirect URI 둘 다 등록.
   NOTION_CLIENT_ID?: string;
   NOTION_CLIENT_SECRET?: string;
@@ -115,6 +112,9 @@ async function handleSlackToken(
   if (!body.code || !body.redirect_uri) {
     return jsonError(400, "missing code or redirect_uri", corsOrigin);
   }
+  if (!isAllowedRedirectUri(body.redirect_uri, env.ALLOWED_ORIGINS)) {
+    return jsonError(400, "redirect_uri not allowed", corsOrigin);
+  }
   if (!env.SLACK_CLIENT_ID || !env.SLACK_CLIENT_SECRET) {
     return jsonError(503, "slack oauth not configured", corsOrigin);
   }
@@ -152,6 +152,9 @@ async function handleClickupToken(
   if (!body.code || !body.redirect_uri) {
     return jsonError(400, "missing code or redirect_uri", corsOrigin);
   }
+  if (!isAllowedRedirectUri(body.redirect_uri, env.ALLOWED_ORIGINS)) {
+    return jsonError(400, "redirect_uri not allowed", corsOrigin);
+  }
   if (!env.CLICKUP_CLIENT_ID || !env.CLICKUP_CLIENT_SECRET) {
     return jsonError(503, "clickup oauth not configured", corsOrigin);
   }
@@ -185,6 +188,9 @@ async function handleAsanaToken(
   }
   if (!body.code || !body.redirect_uri) {
     return jsonError(400, "missing code or redirect_uri", corsOrigin);
+  }
+  if (!isAllowedRedirectUri(body.redirect_uri, env.ALLOWED_ORIGINS)) {
+    return jsonError(400, "redirect_uri not allowed", corsOrigin);
   }
   if (!env.ASANA_CLIENT_ID || !env.ASANA_CLIENT_SECRET) {
     return jsonError(503, "asana oauth not configured", corsOrigin);
@@ -261,6 +267,9 @@ async function handleNotionToken(
   if (!body.code || !body.redirect_uri) {
     return jsonError(400, "missing code or redirect_uri", corsOrigin);
   }
+  if (!isAllowedRedirectUri(body.redirect_uri, env.ALLOWED_ORIGINS)) {
+    return jsonError(400, "redirect_uri not allowed", corsOrigin);
+  }
   if (!env.NOTION_CLIENT_ID || !env.NOTION_CLIENT_SECRET) {
     return jsonError(503, "notion oauth not configured", corsOrigin);
   }
@@ -313,6 +322,9 @@ async function handleAtlassianToken(
     if (!body.code || !body.redirect_uri) {
       return jsonError(400, "missing code or redirect_uri", corsOrigin);
     }
+    if (!isAllowedRedirectUri(body.redirect_uri, env.ALLOWED_ORIGINS)) {
+      return jsonError(400, "redirect_uri not allowed", corsOrigin);
+    }
     forward.grant_type = body.grant_type;
     forward.code = body.code;
     forward.redirect_uri = body.redirect_uri;
@@ -343,30 +355,16 @@ export function resolveGithubApp(
   env: Env,
   requestClientId: string | undefined,
 ): GithubAppCreds | { error: string; status: number } {
-  const apps: GithubAppCreds[] = [];
-  if (env.GITHUB_CLIENT_ID_DEV && env.GITHUB_CLIENT_SECRET_DEV) {
-    apps.push({
-      clientId: env.GITHUB_CLIENT_ID_DEV,
-      clientSecret: env.GITHUB_CLIENT_SECRET_DEV,
-    });
-  }
-  if (env.GITHUB_CLIENT_ID_PROD && env.GITHUB_CLIENT_SECRET_PROD) {
-    apps.push({
-      clientId: env.GITHUB_CLIENT_ID_PROD,
-      clientSecret: env.GITHUB_CLIENT_SECRET_PROD,
-    });
-  }
-  if (apps.length === 0) {
+  if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
     return { error: "github oauth not configured", status: 503 };
   }
   if (!requestClientId) {
     return { error: "missing client_id", status: 400 };
   }
-  const matched = apps.find((a) => a.clientId === requestClientId);
-  if (!matched) {
+  if (requestClientId !== env.GITHUB_CLIENT_ID) {
     return { error: "client_id not registered", status: 400 };
   }
-  return matched;
+  return { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET };
 }
 
 async function handleGithubToken(
@@ -383,6 +381,9 @@ async function handleGithubToken(
   }
   if (!body.code || !body.redirect_uri) {
     return jsonError(400, "missing code or redirect_uri", corsOrigin);
+  }
+  if (!isAllowedRedirectUri(body.redirect_uri, env.ALLOWED_ORIGINS)) {
+    return jsonError(400, "redirect_uri not allowed", corsOrigin);
   }
   const app = resolveGithubApp(env, body.client_id);
   if ("error" in app) return jsonError(app.status, app.error, corsOrigin);
@@ -442,6 +443,28 @@ async function relayUpstream(upstream: Response, corsOrigin: string): Promise<Re
       ...corsHeaders(corsOrigin),
     },
   });
+}
+
+// 제공자 앱 설정에서 wildcard callback matching이 켜지면 공격자 확장이 우리 client_id로
+// authorize를 띄워 자기 chromiumapp.org로 인가 코드를 받을 수 있다. 교환에는 client_secret이
+// 필요해 반드시 여기를 지나므로, redirect_uri를 막으면 그 오설정이 코드 레벨에서 무력화된다.
+// 허용 목록은 ALLOWED_ORIGINS에서 파생한다 — 확장 ID를 두 번 관리하지 않으려는 것이다.
+export function isAllowedRedirectUri(
+  uri: string | undefined,
+  allowedEnv: string | undefined,
+): boolean {
+  if (!uri) return false;
+  const origins = new Set<string>();
+  for (const entry of (allowedEnv ?? "").split(",")) {
+    const id = /^chrome-extension:\/\/([a-p]+)\/?$/.exec(entry.trim())?.[1];
+    if (id) origins.add(`https://${id}.chromiumapp.org`);
+  }
+  if (origins.size === 0) return false;
+  try {
+    return origins.has(new URL(uri).origin);
+  } catch {
+    return false;
+  }
 }
 
 export function resolveCorsOrigin(origin: string, allowedEnv: string | undefined): string {

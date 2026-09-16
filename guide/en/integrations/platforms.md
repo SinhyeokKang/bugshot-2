@@ -57,6 +57,8 @@ Once connected, you can pick a default **location** for new issues — a project
 
 You can also pre-fill the **values that go into the issue**. Pick a default **Assignee** for Jira, GitHub, GitLab, Linear, Asana, or ClickUp (Notion and Slack have no assignee), and while you're there, a default **Label** (GitHub, GitLab, Linear) or **Default issue type** (Jira). Whatever you set shows up already filled in when you write an issue — though **whoever you picked on your last submission wins**. Assign to the same person every time and it just keeps going; assign to someone else once, and that person carries over next time.
 
+> **A GitHub repository doesn't have to be yours.** Type a name, write it out as `facebook/react`, or paste the repository's address straight in — a trailing `/issues` or the like won't throw it off. Handy for reporting to an open-source project. Repositories that **don't take issues** are another matter: they show up with an `Issues off` or `Archived` badge and can't be picked, which beats having your issue turned away at submission time.
+
 > To load assignee candidates, pick the location first (a repository for GitHub, a project for GitLab, a team for Linear, a workspace for Asana and ClickUp). Until you do, the assignee field waits, disabled, and tells you what to pick first. Jira is the exception — you can search for an assignee before choosing a project.
 
 One thing worth knowing: **changing the location clears** the assignee and label defaults under it. A different repository or project probably means a different set of members, and we'd rather clear the field than quietly assign someone who doesn't belong there. Just pick again in the new location.

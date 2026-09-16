@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   buildAuthHeader,
+  buildRepoSearchQuery,
   createIssue,
   extractGithubDetail,
   getIssueStatus,
@@ -140,6 +141,8 @@ describe("normalizeRepo", () => {
       private: true,
       description: "desc",
       htmlUrl: "https://github.com/owner/repo",
+      hasIssues: true,
+      archived: false,
     });
   });
 
@@ -155,6 +158,115 @@ describe("normalizeRepo", () => {
       html_url: "x",
     });
     expect(out.description).toBeUndefined();
+  });
+
+  it("has_issues·archived를 camelCase로 옮긴다", () => {
+    const out = normalizeRepo({
+      id: 1,
+      node_id: "n",
+      name: "r",
+      full_name: "o/r",
+      owner: { login: "o" },
+      private: false,
+      description: null,
+      html_url: "x",
+      has_issues: false,
+      archived: true,
+    });
+    expect(out.hasIssues).toBe(false);
+    expect(out.archived).toBe(true);
+  });
+
+  // 두 필드가 빠진 응답에서 비활성으로 떨어지면 멀쩡한 repo에 오탐 배지가 붙는다.
+  // 모르면 "이슈 가능"이 안전한 쪽이다.
+  it("has_issues·archived가 없으면 이슈 가능·비보관으로 본다", () => {
+    const out = normalizeRepo({
+      id: 1,
+      node_id: "n",
+      name: "r",
+      full_name: "o/r",
+      owner: { login: "o" },
+      private: false,
+      description: null,
+      html_url: "x",
+    });
+    expect(out.hasIssues).toBe(true);
+    expect(out.archived).toBe(false);
+  });
+});
+
+describe("buildRepoSearchQuery", () => {
+  it("슬래시가 없으면 이름 한정 쿼리로 조립한다", () => {
+    expect(buildRepoSearchQuery("design")).toBe("design in:name");
+  });
+
+  it("앞뒤 공백을 버린다", () => {
+    expect(buildRepoSearchQuery("  design  ")).toBe("design in:name");
+  });
+
+  // owner/name을 그대로 흘리면 슬래시 때문에 GitHub 매칭이 깨진다.
+  it("owner/name은 user 한정자로 갈라낸다", () => {
+    expect(buildRepoSearchQuery("facebook/react")).toBe("react in:name user:facebook");
+  });
+
+  // repo:owner/name 정확일치를 쓰면 타이핑 중간 상태가 전부 0건이 된다.
+  it("이름이 부분 입력이어도 user 한정자를 유지한다", () => {
+    expect(buildRepoSearchQuery("facebook/re")).toBe("re in:name user:facebook");
+  });
+
+  it("슬래시 주변 공백도 버린다", () => {
+    expect(buildRepoSearchQuery(" facebook / react ")).toBe("react in:name user:facebook");
+  });
+
+  it("owner만 치는 중이면 그 소유자의 repo 전체를 겨냥한다", () => {
+    expect(buildRepoSearchQuery("facebook/")).toBe("user:facebook");
+  });
+
+  it("owner가 비면 슬래시가 없는 입력과 같게 본다", () => {
+    expect(buildRepoSearchQuery("/react")).toBe("react in:name");
+  });
+
+  // 붙여넣은 URL이 여기로 온다 — 마지막 두 조각이 owner/name이다.
+  it("슬래시가 여럿이면 마지막 두 조각을 owner/name으로 쓴다", () => {
+    expect(buildRepoSearchQuery("a/b/c")).toBe("c in:name user:b");
+  });
+
+  // 오픈소스 repo를 찾는 가장 흔한 입력. 이게 빗나가면 무효 쿼리가 422로 삼켜져
+  // "결과 없음"만 뜨고 사용자는 왜 안 되는지 알 수 없다.
+  it("repo 홈 URL을 붙여넣어도 owner/name을 뽑아낸다", () => {
+    expect(buildRepoSearchQuery("https://github.com/facebook/react")).toBe(
+      "react in:name user:facebook",
+    );
+  });
+
+  it("스킴 없이 붙여넣은 URL도 같다", () => {
+    expect(buildRepoSearchQuery("github.com/facebook/react")).toBe(
+      "react in:name user:facebook",
+    );
+  });
+
+  // repo 안쪽 페이지에서 복사하면 경로가 더 붙는다.
+  it("URL 뒤에 경로가 더 붙어도 host 다음 두 조각만 쓴다", () => {
+    expect(
+      buildRepoSearchQuery("https://github.com/facebook/react/issues/123"),
+    ).toBe("react in:name user:facebook");
+  });
+
+  // Code 버튼이 주는 클론 URL. `.git`이 이름에 남으면 in:name이 안 맞아 0건이 된다.
+  it("클론 URL의 .git 접미사는 이름에서 뗀다", () => {
+    expect(buildRepoSearchQuery("https://github.com/facebook/react.git")).toBe(
+      "react in:name user:facebook",
+    );
+  });
+
+  // 검색 문법을 직접 친 사람의 쿼리를 우리가 다시 조립하면 깨진다.
+  it("qualifier를 직접 쓴 입력은 손대지 않고 그대로 보낸다", () => {
+    expect(buildRepoSearchQuery("repo:facebook/react")).toBe("repo:facebook/react");
+    expect(buildRepoSearchQuery("react org:facebook")).toBe("react org:facebook");
+  });
+
+  it("슬래시뿐인 입력은 빈 문자열", () => {
+    expect(buildRepoSearchQuery("///")).toBe("");
   });
 });
 
@@ -411,6 +523,8 @@ describe("REST 래퍼 (fetch-mock)", () => {
           private: false,
           description: "d",
           htmlUrl: "https://github.com/owner/repo",
+          hasIssues: true,
+          archived: false,
         },
       ]);
     });
@@ -428,15 +542,48 @@ describe("REST 래퍼 (fetch-mock)", () => {
       expect(out.map((r) => r.id)).toEqual([9]);
     });
 
+    // 슬래시는 owner/name 분기의 트리거라 더는 쿼리 원문에 실리지 않는다 — 인코딩 목은
+    // 슬래시가 없는 예약문자로 본다.
     it("쿼리의 예약문자는 퍼센트 인코딩되어 나간다", async () => {
       mf = mockFetchOnce({ body: { items: [] } });
 
-      await searchRepos(auth, "a&b c/d");
+      await searchRepos(auth, "a&b c");
 
       const url = mf.callAt(0).url;
-      expect(url).toContain("q=a%26b+c%2Fd+in%3Aname");
-      expect(url).not.toContain("a&b c/d");
-      expect(new URL(url).searchParams.get("q")).toBe("a&b c/d in:name");
+      expect(url).toContain("q=a%26b+c+in%3Aname");
+      expect(url).not.toContain("a&b c");
+      expect(new URL(url).searchParams.get("q")).toBe("a&b c in:name");
+    });
+
+    it("owner/name 입력은 user 한정자를 실어 나간다", async () => {
+      mf = mockFetchOnce({ body: { items: [rawRepo()] } });
+
+      await searchRepos(auth, "facebook/react");
+
+      const url = mf.callAt(0).url;
+      expect(new URL(url).pathname).toBe("/search/repositories");
+      expect(new URL(url).searchParams.get("q")).toBe("react in:name user:facebook");
+      expect(url).toContain("user%3Afacebook");
+    });
+
+    // 존재하지 않는 owner에 422가 오는데, 타이핑 중간 상태마다 빨간 문구가 튀면 안 된다.
+    it("검색 경로의 422는 빈 배열로 삼킨다", async () => {
+      mf = mockFetchOnce({ status: 422, body: { message: "Validation Failed" } });
+
+      await expect(searchRepos(auth, "nosuchowner/x")).resolves.toEqual([]);
+    });
+
+    it("검색 경로라도 422가 아닌 실패는 그대로 던진다", async () => {
+      mf = mockFetchOnce({ status: 401, body: { message: "Bad credentials" } });
+
+      await expect(searchRepos(auth, "design")).rejects.toBeInstanceOf(GithubError);
+    });
+
+    // 빈 쿼리 경로는 사용자 본인 repo 나열이라 실패를 삼키면 인증 만료가 묻힌다.
+    it("빈 쿼리 경로의 422는 삼키지 않는다", async () => {
+      mf = mockFetchOnce({ status: 422, body: { message: "Validation Failed" } });
+
+      await expect(searchRepos(auth, "   ")).rejects.toBeInstanceOf(GithubError);
     });
   });
 

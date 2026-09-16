@@ -7,14 +7,10 @@ compatibility_date = "2026-04-01"
 #   wrangler secret put ATLASSIAN_CLIENT_SECRET
 #   wrangler secret put ALLOWED_ORIGINS
 #
-# GitHub OAuth 사용 시 추가 (DEV/PROD 두 OAuth App 동시 운영):
-#   wrangler secret put GITHUB_CLIENT_ID_DEV
-#   wrangler secret put GITHUB_CLIENT_SECRET_DEV
-#   wrangler secret put GITHUB_CLIENT_ID_PROD       # 웹스토어 출시 시
-#   wrangler secret put GITHUB_CLIENT_SECRET_PROD   # 웹스토어 출시 시
-#   - 클라이언트가 보낸 client_id로 매칭해서 secret 선택 (화이트리스트 효과)
-#   - DEV만 등록돼 있으면 PROD client_id 요청은 400 반환
-#   - 둘 다 비어있으면 503
+# GitHub OAuth 사용 시 추가 (Web Flow app, app 1개에 dev/store callback URL 등록):
+#   wrangler secret put GITHUB_CLIENT_ID          # 확장의 VITE_GITHUB_CLIENT_ID와 동일 값 (client_id 화이트리스트 매칭용)
+#   wrangler secret put GITHUB_CLIENT_SECRET
+#   - secret 이름을 바꿀 땐 put -> deploy -> 구 secret delete 순서. 먼저 지우면 그 사이 요청이 503.
 #
 # Notion OAuth 사용 시 추가:
 #   wrangler secret put NOTION_CLIENT_ID
@@ -32,6 +28,8 @@ compatibility_date = "2026-04-01"
 # ALLOWED_ORIGINS 값 예시:
 #   chrome-extension://abcdefghij...,chrome-extension://xxxxxxxxxx...
 #   - 프로덕션 확장 ID + 로컬 dev key의 ID를 콤마로 나열
+#   - CORS 말고 redirect_uri 화이트리스트도 이 값에서 파생한다(isAllowedRedirectUri) —
+#     여기 빠진 확장은 CORS와 토큰 교환이 함께 막힌다
 #   - 와일드카드("*")는 지원하지 않는다 — 항목에서 무시되고 거부된다
 #   - 미설정 시 모든 origin이 403 거부됨
 #

@@ -30,9 +30,9 @@ function okFetch() {
 }
 
 describe.each([
-  ["/asana/token", { code: "c", redirect_uri: "u" }, "asana-id"],
+  ["/asana/token", { code: "c", redirect_uri: "https://abc.chromiumapp.org/" }, "asana-id"],
   ["/asana/refresh", { refresh_token: "rt" }, "asana-id"],
-  ["/notion/token", { code: "c", redirect_uri: "u" }, "notion-id"],
+  ["/notion/token", { code: "c", redirect_uri: "https://abc.chromiumapp.org/" }, "notion-id"],
 ])("%s client_id 필수화", (path, baseBody, registeredId) => {
   it("client_id 생략 → 400 (검사 우회 불가)", async () => {
     const fetchMock = okFetch();

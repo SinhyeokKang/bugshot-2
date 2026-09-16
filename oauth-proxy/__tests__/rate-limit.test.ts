@@ -58,7 +58,7 @@ describe("rate limit 게이트", () => {
   // IP 단독 키면 8개 라우트가 한 예산을 나눠 써서, 60초 안에 여러 플랫폼을 연결하거나
   // NAT 뒤 사무실에서 동시에 연결할 때 정상 사용자가 429를 맞는다. 상류별로 갈라야 한다.
   it("같은 IP라도 라우트가 다르면 예산이 갈린다", async () => {
-    const env = { ...baseEnv, GITHUB_CLIENT_ID_DEV: "gh", GITHUB_CLIENT_SECRET_DEV: "s", RATE_LIMITER: limiter(true) };
+    const env = { ...baseEnv, GITHUB_CLIENT_ID: "gh", GITHUB_CLIENT_SECRET: "s", RATE_LIMITER: limiter(true) };
     await handleRequest(req({ ip: "1.1.1.1", path: "/token" }), env as never, okFetch() as never);
     await handleRequest(req({ ip: "1.1.1.1", path: "/github/token" }), env as never, okFetch() as never);
     const keys = env.RATE_LIMITER.limit.mock.calls.map((c) => c[0].key);
