@@ -133,6 +133,8 @@ interface RawRepo {
   private: boolean;
   description: string | null;
   html_url: string;
+  has_issues?: boolean;
+  archived?: boolean;
 }
 
 export function normalizeRepo(raw: RawRepo): GithubRepo {
@@ -145,6 +147,9 @@ export function normalizeRepo(raw: RawRepo): GithubRepo {
     private: raw.private,
     description: raw.description ?? undefined,
     htmlUrl: raw.html_url,
+    // 없는 필드를 비활성으로 떨구면 멀쩡한 repo에 오탐 배지가 붙는다.
+    hasIssues: raw.has_issues ?? true,
+    archived: raw.archived ?? false,
   };
 }
 
@@ -181,11 +186,29 @@ interface RepoSearchResponse {
   items: RawRepo[];
 }
 
+// owner/name을 그대로 흘리면 슬래시 때문에 GitHub 매칭이 깨져 오픈소스 repo가 안 나온다.
+// repo:owner/name 정확일치는 타이핑 중간 상태를 전부 0건으로 만들어 쓰지 않는다.
+export function buildRepoSearchQuery(q: string): string {
+  const trimmed = q.trim();
+  if (!trimmed.includes("/")) return trimmed ? `${trimmed} in:name` : "";
+  let parts = trimmed.split("/").map((p) => p.trim()).filter(Boolean);
+  // 붙여넣은 URL은 host 다음 두 조각이 owner/name이다 — /issues·/pull 같은 꼬리를 버린다.
+  const host = parts.findIndex((p) => p.toLowerCase().endsWith("github.com"));
+  if (host >= 0) parts = parts.slice(host + 1, host + 3);
+  if (!parts.length) return "";
+  if (parts.length === 1) {
+    // `facebook/`까지 친 상태는 그 소유자의 repo를 겨냥한 것이다.
+    return trimmed.endsWith("/") ? `user:${parts[0]}` : `${parts[0]} in:name`;
+  }
+  const [owner, name] = parts.slice(-2);
+  return `${name} in:name user:${owner}`;
+}
+
 export async function searchRepos(
   auth: GithubAuth,
   query: string,
 ): Promise<GithubRepo[]> {
-  const q = query.trim();
+  const q = buildRepoSearchQuery(query);
   if (!q) {
     // 빈 쿼리: 사용자 본인 보유 repo 최근 push 순.
     const list = await githubFetch<RawRepo[]>(
@@ -195,15 +218,21 @@ export async function searchRepos(
     return list.map(normalizeRepo);
   }
   const params = new URLSearchParams({
-    q: `${q} in:name`,
+    q,
     per_page: "30",
     sort: "updated",
   });
-  const res = await githubFetch<RepoSearchResponse>(
-    auth,
-    `/search/repositories?${params.toString()}`,
-  );
-  return res.items.map(normalizeRepo);
+  try {
+    const res = await githubFetch<RepoSearchResponse>(
+      auth,
+      `/search/repositories?${params.toString()}`,
+    );
+    return res.items.map(normalizeRepo);
+  } catch (err) {
+    // 아직 존재하지 않는 owner를 치는 중이면 422가 온다. 타이핑마다 에러 문구를 띄울 일이 아니다.
+    if (err instanceof GithubError && err.status === 422) return [];
+    throw err;
+  }
 }
 
 export async function getRepoLabels(

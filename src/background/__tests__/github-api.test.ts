@@ -2,7 +2,6 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   buildAuthHeader,
   buildRepoSearchQuery,
-  canCreateIssue,
   createIssue,
   extractGithubDetail,
   getIssueStatus,
@@ -19,7 +18,7 @@ import {
   updateIssueState,
 } from "../github-api";
 import { mockFetchOnce, type MockFetch } from "@/test/fetch-mock";
-import type { GithubAuth, GithubRepo } from "@/types/github";
+import type { GithubAuth } from "@/types/github";
 
 // params를 키가 아니라 출력에 그대로 노출한다 — `*.error.generic` 사전 *값*에는 {status}
 // placeholder가 있지만 *키*에는 없다. 키 문자열에서 placeholder를 찾는 목이면 t()의 두 번째
@@ -196,33 +195,6 @@ describe("normalizeRepo", () => {
   });
 });
 
-describe("canCreateIssue", () => {
-  const repo = (over: Partial<GithubRepo> = {}): GithubRepo => ({
-    id: 1,
-    nodeId: "n",
-    owner: "o",
-    name: "r",
-    fullName: "o/r",
-    private: false,
-    htmlUrl: "x",
-    hasIssues: true,
-    archived: false,
-    ...over,
-  });
-
-  it("이슈 탭이 켜져 있고 보관되지 않았으면 true", () => {
-    expect(canCreateIssue(repo())).toBe(true);
-  });
-
-  it("이슈 탭이 꺼진 repo는 false", () => {
-    expect(canCreateIssue(repo({ hasIssues: false }))).toBe(false);
-  });
-
-  it("보관된 repo는 이슈 탭이 켜져 있어도 false", () => {
-    expect(canCreateIssue(repo({ archived: true }))).toBe(false);
-  });
-});
-
 describe("buildRepoSearchQuery", () => {
   it("슬래시가 없으면 이름 한정 쿼리로 조립한다", () => {
     expect(buildRepoSearchQuery("design")).toBe("design in:name");
@@ -254,9 +226,30 @@ describe("buildRepoSearchQuery", () => {
     expect(buildRepoSearchQuery("/react")).toBe("react in:name");
   });
 
-  // 남은 슬래시를 쿼리에 실으면 원래 문제로 되돌아간다.
-  it("슬래시가 여럿이면 첫 조각을 owner로, 그다음 조각만 이름으로 쓴다", () => {
-    expect(buildRepoSearchQuery("a/b/c")).toBe("b in:name user:a");
+  // 붙여넣은 URL이 여기로 온다 — 마지막 두 조각이 owner/name이다.
+  it("슬래시가 여럿이면 마지막 두 조각을 owner/name으로 쓴다", () => {
+    expect(buildRepoSearchQuery("a/b/c")).toBe("c in:name user:b");
+  });
+
+  // 오픈소스 repo를 찾는 가장 흔한 입력. 이게 빗나가면 무효 쿼리가 422로 삼켜져
+  // "결과 없음"만 뜨고 사용자는 왜 안 되는지 알 수 없다.
+  it("repo 홈 URL을 붙여넣어도 owner/name을 뽑아낸다", () => {
+    expect(buildRepoSearchQuery("https://github.com/facebook/react")).toBe(
+      "react in:name user:facebook",
+    );
+  });
+
+  it("스킴 없이 붙여넣은 URL도 같다", () => {
+    expect(buildRepoSearchQuery("github.com/facebook/react")).toBe(
+      "react in:name user:facebook",
+    );
+  });
+
+  // repo 안쪽 페이지에서 복사하면 경로가 더 붙는다.
+  it("URL 뒤에 경로가 더 붙어도 host 다음 두 조각만 쓴다", () => {
+    expect(
+      buildRepoSearchQuery("https://github.com/facebook/react/issues/123"),
+    ).toBe("react in:name user:facebook");
   });
 
   it("슬래시뿐인 입력은 빈 문자열", () => {

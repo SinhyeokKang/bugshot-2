@@ -50,6 +50,8 @@ export interface GithubRepo {
   private: boolean;
   description?: string;
   htmlUrl: string;
+  hasIssues: boolean;
+  archived: boolean;
 }
 
 export interface GithubLabel {
