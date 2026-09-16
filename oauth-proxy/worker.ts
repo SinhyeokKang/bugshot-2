@@ -112,6 +112,9 @@ async function handleSlackToken(
   if (!body.code || !body.redirect_uri) {
     return jsonError(400, "missing code or redirect_uri", corsOrigin);
   }
+  if (!isAllowedRedirectUri(body.redirect_uri, env.ALLOWED_ORIGINS)) {
+    return jsonError(400, "redirect_uri not allowed", corsOrigin);
+  }
   if (!env.SLACK_CLIENT_ID || !env.SLACK_CLIENT_SECRET) {
     return jsonError(503, "slack oauth not configured", corsOrigin);
   }
@@ -149,6 +152,9 @@ async function handleClickupToken(
   if (!body.code || !body.redirect_uri) {
     return jsonError(400, "missing code or redirect_uri", corsOrigin);
   }
+  if (!isAllowedRedirectUri(body.redirect_uri, env.ALLOWED_ORIGINS)) {
+    return jsonError(400, "redirect_uri not allowed", corsOrigin);
+  }
   if (!env.CLICKUP_CLIENT_ID || !env.CLICKUP_CLIENT_SECRET) {
     return jsonError(503, "clickup oauth not configured", corsOrigin);
   }
@@ -182,6 +188,9 @@ async function handleAsanaToken(
   }
   if (!body.code || !body.redirect_uri) {
     return jsonError(400, "missing code or redirect_uri", corsOrigin);
+  }
+  if (!isAllowedRedirectUri(body.redirect_uri, env.ALLOWED_ORIGINS)) {
+    return jsonError(400, "redirect_uri not allowed", corsOrigin);
   }
   if (!env.ASANA_CLIENT_ID || !env.ASANA_CLIENT_SECRET) {
     return jsonError(503, "asana oauth not configured", corsOrigin);
@@ -258,6 +267,9 @@ async function handleNotionToken(
   if (!body.code || !body.redirect_uri) {
     return jsonError(400, "missing code or redirect_uri", corsOrigin);
   }
+  if (!isAllowedRedirectUri(body.redirect_uri, env.ALLOWED_ORIGINS)) {
+    return jsonError(400, "redirect_uri not allowed", corsOrigin);
+  }
   if (!env.NOTION_CLIENT_ID || !env.NOTION_CLIENT_SECRET) {
     return jsonError(503, "notion oauth not configured", corsOrigin);
   }
@@ -309,6 +321,9 @@ async function handleAtlassianToken(
   if (body.grant_type === "authorization_code") {
     if (!body.code || !body.redirect_uri) {
       return jsonError(400, "missing code or redirect_uri", corsOrigin);
+    }
+    if (!isAllowedRedirectUri(body.redirect_uri, env.ALLOWED_ORIGINS)) {
+      return jsonError(400, "redirect_uri not allowed", corsOrigin);
     }
     forward.grant_type = body.grant_type;
     forward.code = body.code;
@@ -366,6 +381,9 @@ async function handleGithubToken(
   }
   if (!body.code || !body.redirect_uri) {
     return jsonError(400, "missing code or redirect_uri", corsOrigin);
+  }
+  if (!isAllowedRedirectUri(body.redirect_uri, env.ALLOWED_ORIGINS)) {
+    return jsonError(400, "redirect_uri not allowed", corsOrigin);
   }
   const app = resolveGithubApp(env, body.client_id);
   if ("error" in app) return jsonError(app.status, app.error, corsOrigin);
@@ -425,6 +443,28 @@ async function relayUpstream(upstream: Response, corsOrigin: string): Promise<Re
       ...corsHeaders(corsOrigin),
     },
   });
+}
+
+// 제공자 앱 설정에서 wildcard callback matching이 켜지면 공격자 확장이 우리 client_id로
+// authorize를 띄워 자기 chromiumapp.org로 인가 코드를 받을 수 있다. 교환에는 client_secret이
+// 필요해 반드시 여기를 지나므로, redirect_uri를 막으면 그 오설정이 코드 레벨에서 무력화된다.
+// 허용 목록은 ALLOWED_ORIGINS에서 파생한다 — 확장 ID를 두 번 관리하지 않으려는 것이다.
+export function isAllowedRedirectUri(
+  uri: string | undefined,
+  allowedEnv: string | undefined,
+): boolean {
+  if (!uri) return false;
+  const origins = new Set<string>();
+  for (const entry of (allowedEnv ?? "").split(",")) {
+    const id = /^chrome-extension:\/\/([a-p]+)\/?$/.exec(entry.trim())?.[1];
+    if (id) origins.add(`https://${id}.chromiumapp.org`);
+  }
+  if (origins.size === 0) return false;
+  try {
+    return origins.has(new URL(uri).origin);
+  } catch {
+    return false;
+  }
 }
 
 export function resolveCorsOrigin(origin: string, allowedEnv: string | undefined): string {

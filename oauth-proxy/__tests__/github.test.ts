@@ -10,6 +10,7 @@ const baseEnv = {
 };
 
 const corsHeaders = { Origin: "chrome-extension://abc" };
+const REDIRECT = "https://abc.chromiumapp.org/";
 
 function makeReq(path: string, body: unknown, init?: RequestInit): Request {
   return new Request(`https://proxy.example${path}`, {
@@ -63,7 +64,7 @@ describe("/github/token", () => {
     );
     const req = makeReq("/github/token", {
       code: "the-code",
-      redirect_uri: "https://x.chromiumapp.org/cb",
+      redirect_uri: REDIRECT,
       client_id: "gh-id",
     });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
@@ -77,13 +78,13 @@ describe("/github/token", () => {
       client_id: "gh-id",
       client_secret: "gh-secret",
       code: "the-code",
-      redirect_uri: "https://x.chromiumapp.org/cb",
+      redirect_uri: REDIRECT,
     });
   });
 
   it("400 — code 누락", async () => {
     const fetchMock = vi.fn();
-    const req = makeReq("/github/token", { redirect_uri: "x", client_id: "gh-id" });
+    const req = makeReq("/github/token", { redirect_uri: REDIRECT, client_id: "gh-id" });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -99,7 +100,7 @@ describe("/github/token", () => {
 
   it("400 — client_id 누락", async () => {
     const fetchMock = vi.fn();
-    const req = makeReq("/github/token", { code: "c", redirect_uri: "u" });
+    const req = makeReq("/github/token", { code: "c", redirect_uri: REDIRECT });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -120,7 +121,7 @@ describe("/github/token", () => {
       GITHUB_CLIENT_ID: undefined,
       GITHUB_CLIENT_SECRET: undefined,
     };
-    const req = makeReq("/github/token", { code: "c", redirect_uri: "u", client_id: "x" });
+    const req = makeReq("/github/token", { code: "c", redirect_uri: REDIRECT, client_id: "x" });
     const res = await handleRequest(req, env, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(503);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -135,7 +136,7 @@ describe("/github/token", () => {
     );
     const req = makeReq("/github/token", {
       code: "c",
-      redirect_uri: "u",
+      redirect_uri: REDIRECT,
       client_id: "gh-id",
     });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
@@ -187,7 +188,7 @@ describe("CORS / 라우팅 가드", () => {
     const req = new Request("https://proxy.example/github/token", {
       method: "POST",
       headers: { Origin: "https://evil.example", "Content-Type": "application/json" },
-      body: JSON.stringify({ code: "c", redirect_uri: "u", client_id: "gh-id" }),
+      body: JSON.stringify({ code: "c", redirect_uri: REDIRECT, client_id: "gh-id" }),
     });
     const res = await handleRequest(req, baseEnv, fetchMock as unknown as typeof fetch);
     expect(res.status).toBe(403);

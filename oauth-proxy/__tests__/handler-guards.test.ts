@@ -3,11 +3,13 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { handleRequest, resolveCorsOrigin } from "../worker";
 
-// 8개 토큰 핸들러 전부에 "미설정 → 503" / "client_id 불일치 → 400" 가드가 있는지
+// 8개 토큰 핸들러 전부에 "미설정 → 503" / "client_id 불일치 → 400" /
+// "redirect_uri 미허용 → 400" 가드가 있는지
 // 파라미터라이즈드로 고정한다. 9번째 provider가 가드 없이 추가되면
 // 아래 ROUTE_COVERAGE 검사가 먼저 깨진다.
 
 const ORIGIN = "chrome-extension://abc";
+const REDIRECT = "https://abc.chromiumapp.org/";
 
 const FULL_ENV = {
   ATLASSIAN_CLIENT_ID: "atlas-id",
@@ -34,16 +36,19 @@ interface HandlerCase {
   clientId: string;
 }
 
+// redirect_uri를 싣는 라우트만 그 가드를 잰다 — refresh 라우트엔 해당 없음.
+const takesRedirectUri = (c: HandlerCase) => "redirect_uri" in c.body;
+
 const CASES: HandlerCase[] = [
   {
     path: "/token",
-    body: { grant_type: "authorization_code", code: "c", redirect_uri: "u" },
+    body: { grant_type: "authorization_code", code: "c", redirect_uri: REDIRECT },
     secretKeys: ["ATLASSIAN_CLIENT_ID", "ATLASSIAN_CLIENT_SECRET"],
     clientId: "atlas-id",
   },
   {
     path: "/github/token",
-    body: { code: "c", redirect_uri: "u" },
+    body: { code: "c", redirect_uri: REDIRECT },
     secretKeys: ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
     clientId: "gh-id",
   },
@@ -55,13 +60,13 @@ const CASES: HandlerCase[] = [
   },
   {
     path: "/notion/token",
-    body: { code: "c", redirect_uri: "u" },
+    body: { code: "c", redirect_uri: REDIRECT },
     secretKeys: ["NOTION_CLIENT_ID", "NOTION_CLIENT_SECRET"],
     clientId: "notion-id",
   },
   {
     path: "/asana/token",
-    body: { code: "c", redirect_uri: "u" },
+    body: { code: "c", redirect_uri: REDIRECT },
     secretKeys: ["ASANA_CLIENT_ID", "ASANA_CLIENT_SECRET"],
     clientId: "asana-id",
   },
@@ -73,13 +78,13 @@ const CASES: HandlerCase[] = [
   },
   {
     path: "/clickup/token",
-    body: { code: "c", redirect_uri: "u" },
+    body: { code: "c", redirect_uri: REDIRECT },
     secretKeys: ["CLICKUP_CLIENT_ID", "CLICKUP_CLIENT_SECRET"],
     clientId: "clickup-id",
   },
   {
     path: "/slack/token",
-    body: { code: "c", redirect_uri: "u" },
+    body: { code: "c", redirect_uri: REDIRECT },
     secretKeys: ["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET"],
     clientId: "slack-id",
   },
@@ -141,6 +146,24 @@ describe.each(CASES.map((c) => [c.path, c] as const))(
       expect(res.status).toBe(400);
       expect(fetchMock).not.toHaveBeenCalled();
     });
+
+    it.skipIf(!takesRedirectUri(c))(
+      "허용되지 않은 redirect_uri → 400, 상류 호출 없음",
+      async () => {
+        const fetchMock = okFetch();
+        const res = await handleRequest(
+          makeReq(c.path, {
+            ...c.body,
+            redirect_uri: "https://evil.chromiumapp.org/",
+            client_id: c.clientId,
+          }),
+          FULL_ENV as never,
+          fetchMock as unknown as typeof fetch,
+        );
+        expect(res.status).toBe(400);
+        expect(fetchMock).not.toHaveBeenCalled();
+      },
+    );
 
     it("등록된 client_id + 설정 완료 → 상류 교환", async () => {
       const fetchMock = okFetch();
