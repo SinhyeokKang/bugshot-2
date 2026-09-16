@@ -85,8 +85,12 @@ quota 초과 시 lite 폴백까지 실패하면 **3연속에서 `saveSuspended`�
 | OAuth 타입 | 3LO (confidential) | Web Flow (confidential) | PKCE (public) | Public Integration (confidential) | PKCE (public) | OAuth 2.0 (confidential) | OAuth 2.0 (confidential) | OAuth v2 user token (confidential) |
 | Proxy 경로 | `/token` | `/github/token`, `/github/refresh` | ❌ 직접 교환 | `/notion/token` | ❌ 직접 교환 (gitlab.com 한정) | `/asana/token`, `/asana/refresh` | `/clickup/token` (refresh 없음) | `/slack/token` (refresh 없음) |
 | Token Refresh | pre-refresh + 401 retry | hook 주입형, pre-refresh + 401 retry | hook 주입형, pre-refresh + 401 retry | ❌ (토큰 만료 없음) | hook 주입형, pre-refresh + 401 retry | hook 주입형, pre-refresh + 401 retry | ❌ (토큰 만료 없음) | ❌ (토큰 만료 없음) |
-| dev/prod 분리 | 단일 App | 2 App (callback URL 1개 제한) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) |
-| Env var | `VITE_ATLASSIAN_CLIENT_ID` | `VITE_GITHUB_CLIENT_ID` (+`_PROD`) | `VITE_LINEAR_CLIENT_ID` | `VITE_NOTION_CLIENT_ID` | `VITE_GITLAB_CLIENT_ID` | `VITE_ASANA_CLIENT_ID` | `VITE_CLICKUP_CLIENT_ID` | `VITE_SLACK_CLIENT_ID` |
+| dev/prod 분리 | 단일 App | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) |
+| Env var | `VITE_ATLASSIAN_CLIENT_ID` | `VITE_GITHUB_CLIENT_ID` | `VITE_LINEAR_CLIENT_ID` | `VITE_NOTION_CLIENT_ID` | `VITE_GITLAB_CLIENT_ID` | `VITE_ASANA_CLIENT_ID` | `VITE_CLICKUP_CLIENT_ID` | `VITE_SLACK_CLIENT_ID` |
+
+표의 `multi redirect` 7종은 dev 확장 ID와 스토어 확장 ID의 redirect URI를 한 앱에 나란히 등록해 빌드별 client 분기가 없다(GitHub은 OAuth App의 callback URL 1개 제한이 풀리면서 2 App 체제를 접고 뒤늦게 합류했다). **wildcard matching은 켜지 않는다**: redirect가 `https://<확장ID>.chromiumapp.org/`라 "호스트의 서브도메인 허용"을 켜면 모든 Chrome 확장이 매칭돼 인가 코드를 아무 확장에나 보낼 수 있다. exact matching + callback URL 2개가 맞는 형태다. **프록시는 이 불변식을 강제하지 않는다** — `redirect_uri`를 검증 없이 상류로 넘기므로 방어선은 제공자 앱 설정의 토글 하나뿐이고, 저장소의 어떤 그물도 오설정에 red가 되지 않는다(프록시 경유 6개 라우트 공통).
+
+**수용한 트레이드오프**: dev 확장과 스토어 확장이 한 App·한 secret을 공유한다 — 상류가 abuse로 그 App을 정지시키면 전 사용자 연결이 함께 죽는다(GitHub이 dev/prod 2 App이던 시절엔 DEV App이 그 방패였다). dev `key`가 저장소에 커밋돼 있어 dev 확장 ID가 공개값이라는 점까지 포함해, rate limiter(`wrangler.toml`의 `[[unsafe.bindings]]`)를 완화책으로 두고 받아들인 것이다.
 
 공통 env: `VITE_OAUTH_PROXY_URL` — Cloudflare Worker origin (Jira·GitHub·Notion·Asana·ClickUp·Slack 공유). proxy origin fetch는 required `<all_urls>`가 커버하므로 manifest `host_permissions`에 별도 추가하지 않는다.
 

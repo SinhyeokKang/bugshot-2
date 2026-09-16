@@ -4,7 +4,7 @@ interface Env {
   RATE_LIMITER?: { limit(opts: { key: string }): Promise<{ success: boolean }> };
   ATLASSIAN_CLIENT_ID: string;
   ATLASSIAN_CLIENT_SECRET: string;
-  // GitHub OAuth — Web Flow app. App 1개에 dev/store callback URL 둘 다 등록.
+  // GitHub OAuth — Web Flow app. App 1개에 dev/prod redirect URI 둘 다 등록.
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   // Notion OAuth — public integration. App 1개에 dev/prod redirect URI 둘 다 등록.

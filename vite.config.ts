@@ -33,9 +33,6 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      // OAuth App 1개에 dev/store callback URL을 둘 다 등록해 빌드별 분기가 없다.
-      // define이 없으면 SW 번들에서 값이 사라지는 건 아래 PostHog와 같다.
-      "import.meta.env.VITE_GITHUB_CLIENT_ID": JSON.stringify(env.VITE_GITHUB_CLIENT_ID ?? ""),
       "import.meta.env.VITE_POSTHOG_KEY": JSON.stringify(posthogKey),
       // 여기 없으면 SW 번들에서 값이 통째로 사라져 analytics가 코드 폴백으로 떨어진다 —
       // 집계 host는 docs/privacy에 명시된 값이라 빌드 타임에 박아 둔다.

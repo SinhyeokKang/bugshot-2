@@ -10,6 +10,7 @@ compatibility_date = "2026-04-01"
 # GitHub OAuth 사용 시 추가 (Web Flow app, app 1개에 dev/store callback URL 등록):
 #   wrangler secret put GITHUB_CLIENT_ID          # 확장의 VITE_GITHUB_CLIENT_ID와 동일 값 (client_id 화이트리스트 매칭용)
 #   wrangler secret put GITHUB_CLIENT_SECRET
+#   - secret 이름을 바꿀 땐 put -> deploy -> 구 secret delete 순서. 먼저 지우면 그 사이 요청이 503.
 #
 # Notion OAuth 사용 시 추가:
 #   wrangler secret put NOTION_CLIENT_ID
