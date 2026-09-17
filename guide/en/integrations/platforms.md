@@ -71,7 +71,7 @@ One thing worth knowing: **changing the location clears** the assignee and label
 
 ## Reconnecting
 
-When a connection drops or a platform needs fresh permissions, just **press that platform again under "Add platform"**. Anything already connected shows a green check on its tile and reads **Reconnect {platform}** instead. You don't have to disconnect first.
+When a connection drops or a platform needs fresh permissions, just **press that platform again under "Add platform"**. Anything already connected reads **Reconnect {platform}** instead. You don't have to disconnect first.
 
 If an expiry notice pops up, it's even quicker: press **Reconnect** in that notice and BugShot takes you to the integrations tab with the platform's connect dialog already open. Not a good moment? **Close** puts it away.
 
