@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useT } from "@/i18n";
 import {
   Dialog,
@@ -31,16 +31,21 @@ export function DraftEditDialog({
   onSave: (nextValue: string) => void;
 }) {
   const t = useT();
-  const [value, setValue] = useState("");
   // 닫힘 exit 애니메이션 동안 target=null로 폴백돼 헤더 라벨이 깜빡이지 않도록 마지막 대상을 유지.
-  const [active, setActive] = useState<DraftEditTarget | null>(null);
+  // 값은 그 대상과 한 쌍으로 둔다 — 떠나는 Tiptap이 포커스 트랜잭션으로 onUpdate를 늦게 쏘면
+  // 새 대상의 seed를 덮어써 제목 입력칸이 본문으로 채워졌다(#234). 소유 대상이 다르면 버린다.
+  const [session, setSession] = useState<{
+    active: DraftEditTarget | null;
+    value: string;
+  }>({ active: null, value: "" });
+  const { active, value } = session;
 
-  useEffect(() => {
-    if (open && target) {
-      setActive(target);
-      setValue(target.value);
-    }
-  }, [open, target]);
+  if (open && target && target !== active) {
+    setSession({ active: target, value: target.value });
+  }
+
+  const setValue = (next: string) =>
+    setSession((s) => (s.active === active ? { ...s, value: next } : s));
 
   const label =
     active?.kind === "section"
