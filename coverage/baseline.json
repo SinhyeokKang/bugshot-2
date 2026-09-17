@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-16T09:02:32.373Z",
+  "generatedAt": "2026-09-17T09:13:03.355Z",
   "logic": {
     "covered": 23553,
     "total": 25957,
@@ -7,18 +7,18 @@
   },
   "global": {
     "lines": {
-      "covered": 33208,
-      "total": 56074,
-      "pct": 59.22
+      "covered": 33290,
+      "total": 56068,
+      "pct": 59.37
     },
     "branches": {
-      "covered": 9191,
-      "total": 10491,
-      "pct": 87.6
+      "covered": 9216,
+      "total": 10516,
+      "pct": 87.63
     },
     "functions": {
-      "covered": 1794,
-      "total": 2485,
+      "covered": 1797,
+      "total": 2489,
       "pct": 72.19
     }
   },
@@ -1528,7 +1528,7 @@
       "total": 974
     },
     "src/sidepanel/tabs/DraftEditDialog.tsx": {
-      "covered": 0,
+      "covered": 88,
       "total": 93
     },
     "src/sidepanel/tabs/DraftingPanel.tsx": {
@@ -1668,8 +1668,8 @@
       "total": 259
     },
     "src/sidepanel/tabs/connect/JiraConnectForm.tsx": {
-      "covered": 300,
-      "total": 425
+      "covered": 298,
+      "total": 423
     },
     "src/sidepanel/tabs/connect/LinearConnectForm.tsx": {
       "covered": 83,
@@ -1680,16 +1680,16 @@
       "total": 273
     },
     "src/sidepanel/tabs/connect/PlatformConnectFlow.tsx": {
-      "covered": 105,
-      "total": 105
+      "covered": 103,
+      "total": 103
     },
     "src/sidepanel/tabs/connect/ReconnectConfirmDialog.tsx": {
       "covered": 29,
       "total": 29
     },
     "src/sidepanel/tabs/connect/SlackConnectForm.tsx": {
-      "covered": 87,
-      "total": 140
+      "covered": 85,
+      "total": 138
     },
     "src/sidepanel/tabs/connect/gitlabInstanceUrl.ts": {
       "covered": 26,
