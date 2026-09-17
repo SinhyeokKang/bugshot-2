@@ -162,6 +162,13 @@ describe("연결 버튼 규칙의 전수 (셸·래퍼 파생)", () => {
     }
   });
 
+  // 연결 상태는 [다시 연결] 라벨이 이미 말한다 — 버튼 위 체크 아이콘은 중복이라 뺐다.
+  it("어느 셸도 연결 버튼에 체크 아이콘을 얹지 않는다", () => {
+    for (const shell of ownShells) {
+      expect(read(shell), shell).not.toContain("CircleCheck");
+    }
+  });
+
   it("모든 셸이 재연동 라벨과 autoStart 소비를 든다", () => {
     for (const shell of ownShells) {
       expect(read(shell), shell).toContain("platform.reconnect");
