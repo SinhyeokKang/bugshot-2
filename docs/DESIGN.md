@@ -253,6 +253,10 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
   - 어느 쪽이든 비활성 탭을 언마운트하지 않고 숨겨 동시 렌더 버그를 피하는 게 의도.
 - **세그먼트 뷰 토글**(`StyleEditorPanel.tsx` 편집/CSS 스위치): shadcn `Tabs`를 `TabsContent` 없이 `grid grid-cols-2` 세그먼트 바(트리거에 아이콘 Paintbrush/Code2 `h-3.5 w-3.5` + `gap-1.5`)로만 쓰고, 활성 상태를 로컬 state가 아니라 **store 값**(`useSettingsUiStore.styleEditorView`, 값은 그대로 `"form"|"code"`)에서 읽는다. **스왑은 두 뷰가 대칭이다**: 편집(폼) wrapper는 `cn(… styleEditorView !== "form" && "hidden")`, CSS 뷰 wrapper는 `cn(… styleEditorView === "code" ? "flex" : "hidden")`으로 **둘 다 class 토글일 뿐 언마운트하지 않는다**(위 "수동 hidden" 계열 — collapsible 접힘 보존). CSS 뷰는 항상 마운트된 채 `key={elementKey(selection)}`로 **요소가 바뀔 때만 remount**한다(doc는 store에서 재파생해 무손실). ⚠ 그래서 **CodeMirror lazy 청크도 CSS 탭 진입과 무관하게 패널 진입 시 로드된다** — `StyleCssView`의 Suspense가 무조건 렌더되기 때문이고, "CSS 탭을 열 때만 받는다"로 읽지 말 것. class·Text 섹션은 **편집 뷰 전용**(폼 hidden wrapper 안), 변경사항·AI 배너·푸터만 두 뷰 공통이라 토글 wrapper **밖**에 둔다. hidden wrapper가 `Section`의 `:last-child`(`last:border-b-0`, 아래 §합성 컴포넌트) 스코프를 나눠 마지막 섹션의 하단 구분선이 사라지므로 그 wrapper에 **`[&>section:last-child]:border-b`**로 복원한다.
 - `collapsing-tabs.tsx` (`CollapsingTabsList`): ResizeObserver/MutationObserver로 폭을 감시해, 트리거가 넘치면 **모든 탭 라벨을 동시에 숨기고 아이콘+배지만** 남긴다. 측정 중엔 `group-data-[measuring]/tabs:inline`로 라벨을 강제 노출해 자연 폭 계산. 사용처: 메인 탭 바, 서브탭.
+  - **`forceCollapsed` prop은 그 측정을 건너뛰고 무조건 접는다.** 가로 스크롤 목록에서는 셀 폭이 곧 콘텐츠 폭이라 측정이 영원히 "안 넘침"으로 떨어지기 때문이다. 유일 사용처는 제출 다이얼로그 탭 줄(`SubmitPlatformTabs.tsx` — 값은 `submitTabsLayout.ts`가 계산).
+- **가로 스크롤 탭 줄**: `TabsList`를 `overflow-x-auto` 래퍼로 감싼다. `overflow-x`는 `overflow-y`도 auto로 만들어 트리거의 포커스 링을 자르므로 래퍼에 `-my-1 … py-1`로 세로 여유를 만들고 상쇄한다. **pill을 `w-full`·`flex`로 고정하면 안 된다** — `TabsList` 기본 `justify-center`가 넘친 트리거를 양쪽으로 밀어 왼쪽 탭에 스크롤로 도달할 수 없다. 사용처 2곳은 **감싸는 이유가 다르다**:
+  - `IssueListTab`(필터 3탭, `:113`) — 개수가 아니라 좁은 패널 폭 때문. 래퍼가 flex 행의 자식이라 `min-w-0`이 필요하다.
+  - `submitTabsLayout`(제출 플랫폼 탭, 9개 이상) — 그리드가 물리적으로 안 들어가는 개수라서. 래퍼가 블록 흐름이라 `min-w-0`이 무의미한 대신, pill이 넓은 패널에서 좌측 덩어리로 남지 않도록 `min-w-full`을 준다.
 
 ### 컨테이너 쿼리
 부모 폭 기준 리플로우로, 같은 컴포넌트를 좁은 패널과 넓은 다이얼로그 양쪽에서 재사용하는 패턴.
