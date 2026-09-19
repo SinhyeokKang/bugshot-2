@@ -64,6 +64,7 @@ import {
 } from "./slackFields/SlackIssueFields";
 import { JiraIssueFields } from "./jiraFields/JiraIssueFields";
 import { peekSprintFieldMeta } from "./jiraFields/useSprintFieldMeta";
+import { submitTabsLayout } from "./submitTabsLayout";
 
 type SubmitState =
   | { status: "idle" }
@@ -97,17 +98,6 @@ export interface SubmitFieldsDialogProps {
   onSubmit: (platform: PlatformId) => Promise<NormalizedSubmitResult>;
   onSuccess?: (result: NormalizedSubmitResult) => void;
 }
-
-// Tailwind JIT 정적 추출을 위해 full class 문자열을 매핑.
-const TABS_GRID_COLS: Record<number, string> = {
-  2: "grid-cols-2",
-  3: "grid-cols-3",
-  4: "grid-cols-4",
-  5: "grid-cols-5",
-  6: "grid-cols-6",
-  7: "grid-cols-7",
-  8: "grid-cols-8",
-};
 
 const PLATFORM_TABS: {
   id: PlatformId;
@@ -294,6 +284,10 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   }
 
   const showTabs = availablePlatforms.length > 1;
+  // 레이아웃은 렌더되는 트리거 수로 정한다 — availablePlatforms는 PLATFORM_FALLBACK_RANK에서
+  // 오고 트리거는 PLATFORM_TABS 리터럴에서 와서, 한쪽만 늘면 컴파일이 안 잡는다.
+  const platformTabs = PLATFORM_TABS.filter((p) => availablePlatforms.includes(p.id));
+  const tabsLayout = submitTabsLayout(platformTabs.length);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -304,22 +298,19 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
         {showTabs ? (
           <Tabs value={platform} onValueChange={(v) => setPlatform(v as PlatformId)}>
-            <CollapsingTabsList className={cn(
-              "grid h-9 w-full",
-              TABS_GRID_COLS[availablePlatforms.length] ?? "grid-cols-2",
-            )}>
-              {PLATFORM_TABS.filter((p) => availablePlatforms.includes(p.id)).map(
-                ({ id, Icon, invertOnDark }) => (
-                  <TabsTrigger key={id} value={id} className="min-w-0 gap-1.5" data-testid={`platform-tab-${id}`}>
+            <div className={tabsLayout.wrapperClass}>
+              <CollapsingTabsList className={tabsLayout.listClass} forceCollapsed={tabsLayout.forceCollapsed}>
+                {platformTabs.map(({ id, Icon, invertOnDark }) => (
+                  <TabsTrigger key={id} value={id} className={tabsLayout.triggerClass} data-testid={`platform-tab-${id}`}>
                     <Icon
                       className={cn("h-3.5 w-3.5 shrink-0", invertOnDark && "dark:invert")}
                       color="default"
                     />
                     <TabLabel>{t(PLATFORM_TAB_KEYS[id])}</TabLabel>
                   </TabsTrigger>
-                ),
-              )}
-            </CollapsingTabsList>
+                ))}
+              </CollapsingTabsList>
+            </div>
           </Tabs>
         ) : null}
 

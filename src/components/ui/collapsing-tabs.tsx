@@ -13,20 +13,23 @@ import { cn } from "@/lib/utils";
 const CollapsedContext = createContext(false);
 
 // 라벨을 펼친 폭이 그리드 셀을 넘치면 모든 탭 라벨을 한꺼번에 감춰 아이콘(+배지)만 남긴다.
+// forceCollapsed는 그 측정을 건너뛰고 무조건 접는다 — 가로 스크롤 목록에서는 셀 폭이
+// 콘텐츠 폭과 같아 측정이 영원히 "안 넘침"으로 떨어지기 때문이다.
 // 측정은 data-measuring을 잠깐 켜서 라벨을 강제로 펼친 뒤(아래 group 변형) 각 트리거의
 // scrollWidth > clientWidth 여부로 판단한다. ResizeObserver(폭 변화) + MutationObserver
 // (탭 수·배지·라벨 변화)로 재측정한다.
 export function CollapsingTabsList({
   className,
   children,
+  forceCollapsed = false,
   ...props
-}: ComponentPropsWithoutRef<typeof TabsList>) {
+}: ComponentPropsWithoutRef<typeof TabsList> & { forceCollapsed?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(false);
 
   useLayoutEffect(() => {
     const list = ref.current;
-    if (!list) return;
+    if (!list || forceCollapsed) return;
     let raf = 0;
     const measure = () => {
       const items = Array.from(list.children) as HTMLElement[];
@@ -56,10 +59,10 @@ export function CollapsingTabsList({
       mo.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, []);
+  }, [forceCollapsed]);
 
   return (
-    <CollapsedContext.Provider value={collapsed}>
+    <CollapsedContext.Provider value={forceCollapsed || collapsed}>
       <TabsList ref={ref} className={cn("group/tabs", className)} {...props}>
         {children}
       </TabsList>

@@ -17,6 +17,10 @@ describe("submitTabsLayout", () => {
       expect(forceCollapsed).toBe(false);
     });
 
+    it.each([2, 5, 8])("%i개면 래퍼가 비어 있다 — 스크롤 컨테이너가 안 생겨 기존 렌더와 같다", (count) => {
+      expect(submitTabsLayout(count).wrapperClass).toBe("");
+    });
+
     it("count마다 서로 다른 grid-cols를 돌려준다", () => {
       const cols = [2, 3, 4, 5, 6, 7, 8].map((n) => submitTabsLayout(n).listClass);
       expect(new Set(cols).size).toBe(cols.length);
@@ -42,8 +46,28 @@ describe("submitTabsLayout", () => {
       expect(triggerClass).toContain("shrink-0");
     });
 
+    it("폭은 min-w-full로 깐다 — 넓은 패널에서 pill이 좌측 덩어리로 남지 않는다", () => {
+      expect(submitTabsLayout(9).listClass).toContain("min-w-full");
+    });
+
+    it("폭을 w-full·flex로 고정하지 않는다 — TabsList의 justify-center가 왼쪽 탭을 스크롤 밖으로 밀어낸다", () => {
+      const { listClass } = submitTabsLayout(9);
+      expect(listClass.split(/\s+/)).not.toContain("w-full");
+      expect(listClass.split(/\s+/)).not.toContain("flex");
+    });
+
     it("라벨을 강제로 접는다 — 아이콘만 남겨 스크롤 거리를 줄인다", () => {
       expect(submitTabsLayout(9).forceCollapsed).toBe(true);
+    });
+
+    it("래퍼가 스크롤을 맡는다", () => {
+      expect(submitTabsLayout(9).wrapperClass).toContain("overflow-x-auto");
+    });
+
+    it("래퍼의 세로 패딩이 상쇄된다 — 포커스 링 여유를 만들되 탭 줄을 밀지 않는다", () => {
+      const { wrapperClass } = submitTabsLayout(9);
+      expect(wrapperClass).toContain("py-1");
+      expect(wrapperClass).toContain("-my-1");
     });
   });
 
