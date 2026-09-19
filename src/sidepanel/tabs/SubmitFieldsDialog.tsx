@@ -1,15 +1,5 @@
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { SlackIcon } from "@/components/icons/SlackIcon";
-import {
-  SiAsana,
-  SiClickup,
-  SiGithub,
-  SiGitlab,
-  SiJirasoftware,
-  SiLinear,
-  SiNotion,
-} from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,10 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsTrigger } from "@/components/ui/tabs";
-import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
+import { Tabs } from "@/components/ui/tabs";
 import { useT } from "@/i18n";
-import { cn } from "@/lib/utils";
 import { trackSubmit } from "@/sidepanel/lib/track-submit";
 import { useEditorStore } from "@/store/editor-store";
 import type { CaptureMode, EditorIssueFields } from "@/store/editor-store";
@@ -32,7 +20,7 @@ import {
   isNotionAccountComplete,
   useSettingsStore,
 } from "@/store/settings-store";
-import { PLATFORM_TAB_KEYS, type PlatformId, type NormalizedSubmitResult } from "@/types/platform";
+import { type PlatformId, type NormalizedSubmitResult } from "@/types/platform";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import {
   GithubIssueFields,
@@ -64,7 +52,7 @@ import {
 } from "./slackFields/SlackIssueFields";
 import { JiraIssueFields } from "./jiraFields/JiraIssueFields";
 import { peekSprintFieldMeta } from "./jiraFields/useSprintFieldMeta";
-import { submitTabsLayout } from "./submitTabsLayout";
+import { SubmitPlatformTabs } from "./SubmitPlatformTabs";
 
 type SubmitState =
   | { status: "idle" }
@@ -98,22 +86,6 @@ export interface SubmitFieldsDialogProps {
   onSubmit: (platform: PlatformId) => Promise<NormalizedSubmitResult>;
   onSuccess?: (result: NormalizedSubmitResult) => void;
 }
-
-const PLATFORM_TABS: {
-  id: PlatformId;
-  Icon: ComponentType<{ className?: string; color?: string }>;
-  invertOnDark?: boolean;
-}[] = [
-  { id: "jira", Icon: SiJirasoftware },
-  { id: "github", Icon: SiGithub, invertOnDark: true },
-  { id: "linear", Icon: SiLinear },
-  { id: "notion", Icon: SiNotion, invertOnDark: true },
-  { id: "gitlab", Icon: SiGitlab },
-  { id: "asana", Icon: SiAsana },
-  { id: "clickup", Icon: SiClickup },
-  // lucide 아이콘은 color="default"(브랜드 hex)를 못 받아 투명해진다 → currentColor로 렌더.
-  { id: "slack", Icon: ({ className }) => <SlackIcon className={className} /> },
-];
 
 export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const {
@@ -284,10 +256,6 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   }
 
   const showTabs = availablePlatforms.length > 1;
-  // 레이아웃은 렌더되는 트리거 수로 정한다 — availablePlatforms는 PLATFORM_FALLBACK_RANK에서
-  // 오고 트리거는 PLATFORM_TABS 리터럴에서 와서, 한쪽만 늘면 컴파일이 안 잡는다.
-  const platformTabs = PLATFORM_TABS.filter((p) => availablePlatforms.includes(p.id));
-  const tabsLayout = submitTabsLayout(platformTabs.length);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -298,19 +266,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
         {showTabs ? (
           <Tabs value={platform} onValueChange={(v) => setPlatform(v as PlatformId)}>
-            <div className={tabsLayout.wrapperClass}>
-              <CollapsingTabsList className={tabsLayout.listClass} forceCollapsed={tabsLayout.forceCollapsed}>
-                {platformTabs.map(({ id, Icon, invertOnDark }) => (
-                  <TabsTrigger key={id} value={id} className={tabsLayout.triggerClass} data-testid={`platform-tab-${id}`}>
-                    <Icon
-                      className={cn("h-3.5 w-3.5 shrink-0", invertOnDark && "dark:invert")}
-                      color="default"
-                    />
-                    <TabLabel>{t(PLATFORM_TAB_KEYS[id])}</TabLabel>
-                  </TabsTrigger>
-                ))}
-              </CollapsingTabsList>
-            </div>
+            <SubmitPlatformTabs availablePlatforms={availablePlatforms} />
           </Tabs>
         ) : null}
 

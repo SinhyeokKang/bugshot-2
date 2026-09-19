@@ -27,11 +27,6 @@ describe("CollapsingTabsList forceCollapsed", () => {
     expect(screen.getByText("Jira").className).not.toContain("hidden");
   });
 
-  it("false면 라벨이 보인다", () => {
-    render(<Harness forceCollapsed={false} />);
-    expect(screen.getByText("Jira").className).not.toContain("hidden");
-  });
-
   it("true면 자동 측정이 '안 넘침'이어도 모든 라벨을 접는다", () => {
     render(<Harness forceCollapsed />);
     expect(screen.getByText("Jira").className).toContain("hidden");

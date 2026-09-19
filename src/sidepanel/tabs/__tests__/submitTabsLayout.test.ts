@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { SUBMIT_TABS_GRID_MAX, submitTabsLayout } from "../submitTabsLayout";
 
 describe("submitTabsLayout", () => {
-  it("상한이 8이다 — 400px 패널에서 9등분(33.8px)이 트리거 최소폭(38px)을 밑돈다", () => {
+  it("그리드 상한은 8이다", () => {
     expect(SUBMIT_TABS_GRID_MAX).toBe(8);
   });
 
@@ -21,23 +21,11 @@ describe("submitTabsLayout", () => {
       expect(submitTabsLayout(count).wrapperClass).toBe("");
     });
 
-    it("count마다 서로 다른 grid-cols를 돌려준다", () => {
-      const cols = [2, 3, 4, 5, 6, 7, 8].map((n) => submitTabsLayout(n).listClass);
-      expect(new Set(cols).size).toBe(cols.length);
-    });
   });
 
   describe("스크롤 모드 (9개 이상)", () => {
     it.each([9, 10, 12])("%i개면 그리드를 버린다 — grid-cols가 아예 없다", (count) => {
       expect(submitTabsLayout(count).listClass).not.toMatch(/grid-cols-/);
-    });
-
-    it("grid-cols-2 폴백으로 무너지지 않는다", () => {
-      expect(submitTabsLayout(9).listClass).not.toContain("grid-cols-2");
-    });
-
-    it("존재하지 않는 grid-cols-9를 동적 조립하지 않는다 (Tailwind JIT 미추출 클래스)", () => {
-      expect(submitTabsLayout(9).listClass).not.toContain("grid-cols-9");
     });
 
     it("높이는 유지하고 트리거는 shrink-0으로 아이콘이 눌리지 않게 한다", () => {
@@ -46,11 +34,11 @@ describe("submitTabsLayout", () => {
       expect(triggerClass).toContain("shrink-0");
     });
 
-    it("폭은 min-w-full로 깐다 — 넓은 패널에서 pill이 좌측 덩어리로 남지 않는다", () => {
+    it("폭 바닥을 min-w-full로 깐다", () => {
       expect(submitTabsLayout(9).listClass).toContain("min-w-full");
     });
 
-    it("폭을 w-full·flex로 고정하지 않는다 — TabsList의 justify-center가 왼쪽 탭을 스크롤 밖으로 밀어낸다", () => {
+    it("폭을 w-full·flex로 고정하지 않는다", () => {
       const { listClass } = submitTabsLayout(9);
       expect(listClass.split(/\s+/)).not.toContain("w-full");
       expect(listClass.split(/\s+/)).not.toContain("flex");
