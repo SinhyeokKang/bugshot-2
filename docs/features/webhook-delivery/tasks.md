@@ -14,13 +14,13 @@
 
 ### Task 0: 제출 다이얼로그 탭 줄 9개+ 대응 (선행 픽스)
 
-- **변경 대상**: `src/sidepanel/tabs/SubmitFieldsDialog.tsx:101-110` + `src/components/ui/collapsing-tabs.tsx`(필요 시)
+- **변경 대상**: `src/sidepanel/tabs/submitTabsLayout.ts`(신규 — 원래는 `SubmitFieldsDialog.tsx`의 `TABS_GRID_COLS`) + `src/sidepanel/tabs/SubmitPlatformTabs.tsx`(신규 — 다이얼로그에서 떼어낸 탭 줄) + `src/components/ui/collapsing-tabs.tsx`
 - **작업 내용**: **`9: "grid-cols-9"` 추가로는 안 된다.** 400px 패널에서 탭 그리드 가용 폭은 304px(`90vw`=360 − `p-6`×2 − `TabsList p-1`×2)인데 9등분하면 33.8px, 트리거 최소폭은 아이콘 14px + `px-3` 24px = 38px로 고정이다. 8열이 이미 슬랙 0px이고 `CollapsingTabsList`는 라벨만 떼지 아이콘·패딩은 못 줄인다. → **9개 이상이면 `TabsList`를 가로 스크롤(`overflow-x-auto`)로 전환**한다. 이 기능과 독립된 잠복 버그라 **먼저 단독 커밋으로** 고친다 — 나중에 고치면 webhook 회귀로 오인된다.
 - **검증**:
-  - [ ] 기존 8개 연결 상태에서 탭 줄이 기존과 동일(그리드 유지, 회귀 없음)
-  - [ ] 9개 연결 시 `grid-cols-2` 폴백이 일어나지 않는다
-  - [ ] 9개 연결 시 각 탭의 아이콘이 잘리지 않고, 가로 스크롤로 전부 도달 가능
-  - [ ] 키보드 탭 이동 시 화면 밖 탭이 스크롤로 따라온다
+  - [x] 기존 8개 연결 상태에서 탭 줄이 기존과 동일(그리드 유지, 회귀 없음) — `submitTabsLayout.test.ts`가 2~8 전수 고정
+  - [x] 9개 연결 시 `grid-cols-2` 폴백이 일어나지 않는다 — 같은 테스트의 음성 단언 3건
+  - [ ] 9개 연결 시 각 탭의 아이콘이 잘리지 않고, 가로 스크롤로 전부 도달 가능 — **픽셀 실측 불가**: `PLATFORM_TABS`가 8개라 스크롤 분기가 프로덕션에서 도달 불가. 9탭 배선은 `submitTabsLayout.test.ts` 순수 단언까지만 고정되고(`PlatformId`가 닫힌 union 8종이라 9탭 렌더 자체가 불가), 렌더·픽셀은 Task 13-b e2e가 첫 실측
+  - [ ] 키보드 탭 이동 시 화면 밖 탭이 스크롤로 따라온다 — 코드상 보장(Radix roving-focus가 `preventScroll:false`로 브라우저 기본 scroll-into-view에 맡긴다)이나 같은 이유로 실측 미수행
 
 ### Task 1: 타입 축 + 컴파일 게이트
 
@@ -112,10 +112,11 @@
 
 ### Task 7: 제출 UI 배선
 
-- **변경 대상**: `src/sidepanel/tabs/SubmitFieldsDialog.tsx`(`PLATFORM_TABS`·`platformConfigured`·`fieldsReady`·`ccCount`·폼 삼항 체인), `src/sidepanel/tabs/IssueCreateModal.tsx`, `src/sidepanel/tabs/DraftDetailDialog.tsx`
+- **변경 대상**: `src/sidepanel/tabs/SubmitPlatformTabs.tsx`(`PLATFORM_TABS` — Task 0에서 다이얼로그 밖으로 나갔다), `src/sidepanel/tabs/SubmitFieldsDialog.tsx`(`platformConfigured`·`fieldsReady`·`ccCount`·폼 삼항 체인), `src/sidepanel/tabs/IssueCreateModal.tsx`, `src/sidepanel/tabs/DraftDetailDialog.tsx`
 - **작업 내용**: 두 진입점에 `handleWebhookSubmit`. `DraftDetailDialog`에는 **`clearPicker` + `reset` 블록**이 추가로 들어간다(이 경로에만 있는 처리). `setLastSubmitFields`는 호출하지 않는다(`webhook?: never`).
 - **검증**:
   - [ ] 폼 분기를 notion fallback **앞에** 넣었다 — webhook 탭에서 Notion 폼이 안 뜬다
+  - [ ] `PLATFORM_TABS`에 9번째가 들어간 직후 **`src/sidepanel/tabs/__tests__/SubmitPlatformTabs.test.tsx`의 상단 주석을 지우고 9탭 스크롤 분기 단언을 추가**한다 — 그 주석의 "9탭 렌더는 불가능"은 이 태스크와 동시에 거짓이 되고, Task 0이 유닛으로 못 잡던 `wrapperClass`·`forceCollapsed` 배선이 이 시점에 처음 잡을 수 있게 된다
   - [ ] 제출 필드가 없어도 제출 버튼이 활성(`fieldsReady === true`)
   - [ ] 계정 미연결 시 탭이 안 뜬다
   - [ ] 라이브 제출과 저장 draft 재제출 양쪽에서 성공/실패가 동일하게 동작
@@ -205,7 +206,8 @@
 - **검증**:
   - [ ] 연결 테스트가 2xx를 받으면 계정이 저장되고 다이얼로그가 닫힌다
   - [ ] 공인망 `http://` URL을 입력하면 저장이 거부되고 사유가 표시된다
-  - [ ] 계정 연결 후 제출 다이얼로그에 `Custom Webhook` 탭이 뜨고, 9개 탭에서도 아이콘이 잘리지 않는다
+  - [ ] 계정 연결 후 제출 다이얼로그에 `Custom Webhook` 탭이 뜬다
+  - [ ] **9개 계정을 전부 seed한 케이스를 별도로 둔다** — 2~3개만 seed하면 탭 줄이 그리드 경로에 머물러 Task 0의 스크롤 분기가 여전히 미도달이다(선례 spec들이 2~3개만 seed한다). 단언은 셋: 각 트리거 `boundingBox().width >= 38`(아이콘 14 + `px-3` 24) / `tablist` className에 `grid-cols-`가 없다 / 첫·마지막 트리거가 스크롤 후 클릭 가능하다. "아이콘이 안 잘린다"를 눈대중 문구로 두면 작성 시점에 약해진다
   - [ ] 스파이가 `{key,url}`을 주면 이슈 목록 행에 그 키와 링크가 붙는다
   - [ ] 스파이가 500을 주면 제출이 실패하고 draft가 목록에 남는다
   - [ ] json 모드 제출이 성공하면 **이슈 목록에 행이 생기지 않는다**

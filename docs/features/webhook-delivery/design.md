@@ -58,11 +58,11 @@
 | `src/sidepanel/lib/buildMarkdownIssueBody.ts:33` | `opts.platform` 동일 확장 |
 | `src/sidepanel/lib/submitAdapters.ts` | `webhookSubmitArgs()` 추가(`lastSubmitFields` 쌍은 없음) |
 | `src/sidepanel/lib/attachmentLimits.ts:11` | `webhook: null`(단건 한도 없음 — 총량 캡은 바디 크기로 따로 본다) |
-| `src/sidepanel/tabs/SubmitFieldsDialog.tsx:101-110` | **9개 이상이면 `TabsList`를 가로 스크롤(`overflow-x-auto`)로 전환**. `9: "grid-cols-9"`를 넣는 것만으로는 안 된다 — 아래 "9열 탭은 물리적으로 안 들어간다" 참조 |
-| `src/sidepanel/tabs/SubmitFieldsDialog.tsx:112-126` | `PLATFORM_TABS`에 lucide `Webhook` 아이콘 항목 |
-| `src/sidepanel/tabs/SubmitFieldsDialog.tsx:181-213` | `platformConfigured`(계정 존재) / `fieldsReady`(항상 `true`) 두 exhaustive switch |
-| `src/sidepanel/tabs/SubmitFieldsDialog.tsx:258-267` | `ccCount`에 `webhook: undefined` |
-| `src/sidepanel/tabs/SubmitFieldsDialog.tsx:327-361` | 필드 폼 삼항 체인 — webhook은 폼 없이 `null`. **마지막 notion fallback 앞에** 삽입 |
+| `src/sidepanel/tabs/submitTabsLayout.ts` | **Task 0에서 완료** — 9개 이상이면 그리드를 버리고 가로 스크롤로 전환한다(`wrapperClass`·`listClass`·`triggerClass`·`forceCollapsed` 단일 출처). 아래 "9열 탭은 물리적으로 안 들어간다" 참조 |
+| `src/sidepanel/tabs/SubmitPlatformTabs.tsx` | `PLATFORM_TABS`에 lucide `Webhook` 아이콘 항목(Task 0에서 `SubmitFieldsDialog`에서 떼어낸 탭 줄 컴포넌트) |
+| `src/sidepanel/tabs/SubmitFieldsDialog.tsx:143-175` | `platformConfigured`(계정 존재) / `fieldsReady`(항상 `true`) 두 exhaustive switch |
+| `src/sidepanel/tabs/SubmitFieldsDialog.tsx:220-229` | `ccCount`에 `webhook: undefined` |
+| `src/sidepanel/tabs/SubmitFieldsDialog.tsx:274-308` | 필드 폼 삼항 체인 — webhook은 폼 없이 `null`. **마지막 notion fallback(`:302`) 앞에** 삽입 |
 | `src/sidepanel/tabs/IssueCreateModal.tsx` | `handleWebhookSubmit` + `handleSubmit` 분기 |
 | `src/sidepanel/tabs/DraftDetailDialog.tsx` | 동일 + **`clearPicker`/`reset` 블록**(이 경로에만 있는 처리) |
 | `src/sidepanel/tabs/IntegrationsTab.tsx:48-54` `PlatformEntry` | `ConnectFlow`를 **optional로 바꾸고** 그리드 매핑을 `filter(p => p.ConnectFlow)`로 좁힌다 — 아래 "그리드 제외" 참조 |
@@ -279,7 +279,7 @@ export function readCappedErrorBody(res: Response, maxBytes: number): Promise<st
 
 ### 9열 탭은 물리적으로 안 들어간다 (선행 픽스)
 
-`TABS_GRID_COLS`(`SubmitFieldsDialog.tsx:101-110`)가 8까지만 정의돼 있어 9번째 탭이 붙는 순간 `undefined` → `grid-cols-2` 폴백으로 탭 줄이 5행으로 무너진다. **그런데 `9: "grid-cols-9"`를 추가해도 해결되지 않는다.** 400px 패널에서 다이얼로그는 `w-[90vw]`=360px, `p-6` 제외 312px, `TabsList p-1` 제외 **304px**. 9등분하면 셀이 33.8px인데 트리거 최소폭은 아이콘 `h-3.5 w-3.5`(14px) + `px-3`(24px) = **38px**이고 둘 다 고정값이다(`min-w-0`는 컨텐츠를 줄이지 못한다). 8열이 이미 슬랙 0px이고, `CollapsingTabsList`는 **라벨만** 떼지 아이콘·패딩은 못 줄인다. 33.8×36px은 저장소 최소 아이콘 버튼(`h-9 w-9`=36×36)보다도 좁다.
+`TABS_GRID_COLS`(`submitTabsLayout.ts` — Task 0 전엔 `SubmitFieldsDialog.tsx` 안에 있었다)가 8까지만 정의돼 있어 9번째 탭이 붙는 순간 `undefined` → `grid-cols-2` 폴백으로 탭 줄이 5행으로 무너진다. **그런데 `9: "grid-cols-9"`를 추가해도 해결되지 않는다.** 400px 패널에서 다이얼로그는 `w-[90vw]`=360px, `p-6` 제외 312px, `TabsList p-1` 제외 **304px**. 9등분하면 셀이 33.8px인데 트리거 최소폭은 아이콘 `h-3.5 w-3.5`(14px) + `px-3`(24px) = **38px**이고 둘 다 고정값이다(`min-w-0`는 컨텐츠를 줄이지 못한다). 8열이 이미 슬랙 0px이고, `CollapsingTabsList`는 **라벨만** 떼지 아이콘·패딩은 못 줄인다. 33.8×36px은 저장소 최소 아이콘 버튼(`h-9 w-9`=36×36)보다도 좁다.
 
 → **9개 이상이면 `TabsList`를 가로 스크롤(`overflow-x-auto`)로 전환한다.** 아이콘 최소폭을 보존하고 10번째가 와도 안 깨진다. 이 기능과 독립된 선행 픽스라 별도 커밋으로 분리하되, 픽스 내용이 "상수 한 줄 추가"가 아님을 tasks.md가 반영한다.
 
