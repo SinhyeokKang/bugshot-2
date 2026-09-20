@@ -73,8 +73,14 @@ te · trailer · transfer-encoding · upgrade · via
   // 마크다운. 미디어는 cid:<파트 이름>으로 참조한다 (§2.3)
   "body": "## Steps\n1. ...\n\n![screenshot-1.webp](cid:screenshot-1.webp)",
   "environment": [
+    // 파생 행이 먼저, 사용자·자동 추가 행이 뒤에. 본문 `## 재현 환경` 섹션과 같은 출처다
     { "label": "OS", "value": "macOS 15.2" },
-    { "label": "Browser", "value": "Chrome 140" }
+    { "label": "Browser", "value": "Chrome 140" },
+    { "label": "Page", "value": "https://example.com/settings" },
+    { "label": "DOM", "value": "#settings-form > button.save" },  // 선택된 요소가 있을 때만
+    { "label": "Viewport", "value": "1440×900" },
+    { "label": "Captured", "value": "2026. 01. 01. 09:00:00 GMT+9" },
+    { "label": "API Hosts", "value": "api.example.com" }
   ],
   "logSummary": "console 3 · network 1 · action 12",   // 로그가 없으면 생략된다
   "media": [
@@ -94,6 +100,10 @@ te · trailer · transfer-encoding · upgrade · via
 ```
 
 `title`·`body`·`environment`·`media`·`bugshot`은 항상 있다. `logSummary`는 로그를 담지 않은 리포트에서 생략된다.
+
+`environment`의 `label`은 파생 행만 고정 문자열(`OS`·`Browser`·`Page`·`DOM`·`Viewport`·`Captured`)이고, 값의 표기(날짜 스켈레톤 등)와 뒤따르는 커스텀 행의 라벨은 사용자가 고른 **본문 언어**를 따른다. **라벨로 찾되 순서에 기대지 말라** — 요소가 선택되지 않은 리포트엔 `DOM`이, 뷰포트를 못 읽은 리포트엔 `Viewport`가 없다.
+
+`logSummary`는 사람이 읽는 문장이 아니라 **한 줄 카운트 요약**이다(`console`·`network`·`action` 중 담긴 것만 ` · `로 잇는다). 사람이 읽을 서술은 `body`의 `## 로그 요약` 섹션에 있다.
 
 ### `cid:` 참조
 
@@ -141,14 +151,14 @@ Slack·Discord처럼 **스키마가 정해진 제3자 훅**으로 보낼 때 쓴
 | 경로 | 값 |
 |---|---|
 | `{{title}}` | 리포트 제목 |
-| `{{body}}` | 마크다운 본문. 미디어 자리에는 "본문에 인라인하지 못했다"는 안내가 들어간다 |
+| `{{body}}` | 마크다운 본문. 미디어 자리에는 "본문에 인라인하지 못했다"는 안내가 들어가고, 로그 요약은 건수만 남는다(파일이 안 가므로 `logs.html`을 가리키지 않는다) |
 | `{{url}}` | 버그가 난 페이지 주소 |
 | `{{capturedAt}}` | 캡처 시각 (ISO 8601) |
 | `{{logSummary}}` | 로그 요약 한 줄 |
 | `{{env.os}}` `{{env.browser}}` `{{env.viewport}}` `{{env.selector}}` | 재현 환경 |
 | `{{sections.<id>}}` | 본문 섹션 하나 |
-| `{{media.count}}` | 캡처 파일 개수 |
-| `{{media.0.filename}}` `{{media.0.contentType}}` | N번째 캡처 파일의 메타데이터 |
+| `{{media.count}}` | 리포트가 담은 캡처 파일 개수 — **이 모드에선 전송되지 않는 파일의 개수다** |
+| `{{media.0.filename}}` `{{media.0.contentType}}` | N번째 캡처 파일의 메타데이터. 파일 자체는 가지 않으므로 "무엇이 찍혔는지"를 알리는 용도다. 없는 인덱스를 참조하면 제출이 실패한다 |
 
 목록에 없는 이름은 **저장이 거부된다** — 제출 시점에 처음 알게 되는 일이 없도록.
 
@@ -200,7 +210,7 @@ X-BugShot-Test: 1
 | 리다이렉트 | **따라가지 않는다.** 3xx는 실패로 처리한다 — `Authorization`이 다른 호스트로 새는 걸 막는다. 최종 주소를 설정에 직접 넣어라 |
 | 쿠키 | 붙지 않는다 (`credentials: "omit"`) |
 | 주소 | `https`만. `http`는 사설망(loopback·RFC1918·링크로컬·IPv6 ULA·점 없는 호스트명·`.local`·`.internal`)에서만 허용하고, 그때 설정 화면에 평문 경고가 뜬다 |
-| 에러 본문 | 실패 시 응답 본문 앞 8KB만 읽어 사용자에게 보여준다. 그 안에 요청 헤더 값이 되비치면 `***`로 가린다 |
+| 에러 본문 | 실패 시 응답 본문 앞 8KB만 읽고, 제어·방향 전환 문자를 걷고 공백을 접어 앞 200자를 실패 안내 뒤에 덧붙인다(`수신 서버 응답: …`). 그 안에 **요청 헤더 값이나 엔드포인트 주소**(경로 전체·쿼리·20자 이상 경로 세그먼트)가 되비치면 `***`로 가린다 — 경로에 토큰을 박는 수신처(Slack·Discord)를 위해서다 |
 
 ---
 
