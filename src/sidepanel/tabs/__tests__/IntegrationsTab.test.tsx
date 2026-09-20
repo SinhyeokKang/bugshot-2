@@ -165,3 +165,61 @@ describe("IntegrationsTab — 재연동 intent 수신", () => {
     expect(onReconnectHandled).toHaveBeenCalled();
   });
 });
+
+// webhook은 OAuth도 토큰 발급 페이지도 없어 2열 브랜드 그리드의 관용구를 따르지 않는다.
+// 그리드에서 빼는 축(`ConnectFlow` 부재)과 목록에 남기는 축(`PLATFORMS` 등재)이 다르다 —
+// 하나로 묶으면 내 연동 목록의 `PLATFORMS.find(...)!`가 undefined로 터진다.
+describe("IntegrationsTab — webhook은 그리드 밖 단독 진입", () => {
+  it("브랜드 그리드에는 8개만 남고 webhook 버튼은 그 안에 없다", async () => {
+    useSettingsStore.setState({ accounts: {} });
+    render(
+      <IntegrationsTab
+        activeMainTab="integrations"
+        reconnectPlatform={null}
+        onReconnectHandled={onReconnectHandled}
+      />,
+    );
+    const grid = await screen.findByTestId("platform-add-grid");
+    expect(grid.querySelectorAll("button").length).toBe(8);
+    expect(grid.querySelector('[data-testid="webhook-connect-entry"]')).toBeNull();
+  });
+
+  it("webhook 진입 버튼이 그리드 바깥에 단독으로 뜬다", async () => {
+    useSettingsStore.setState({ accounts: {} });
+    render(
+      <IntegrationsTab
+        activeMainTab="integrations"
+        reconnectPlatform={null}
+        onReconnectHandled={onReconnectHandled}
+      />,
+    );
+    expect(await screen.findByTestId("webhook-connect-entry")).toBeTruthy();
+  });
+
+  it("내 연동 목록에서는 다른 8개와 같은 섹션·해제 버튼으로 렌더된다", async () => {
+    useSettingsStore.setState({
+      accounts: {
+        webhook: {
+          platform: "webhook",
+          connectedAt: 1,
+          auth: { url: "https://hooks.example.com/bugshot", headers: [], format: "multipart" },
+        },
+      },
+    });
+    render(
+      <IntegrationsTab
+        activeMainTab="integrations"
+        reconnectPlatform={null}
+        onReconnectHandled={onReconnectHandled}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("tab", { name: /subtab.connected/ }).getAttribute("aria-selected"),
+      ).toBe("true"),
+    );
+    expect(
+      screen.getByRole("button", { name: /platform.disconnect.title:platform.tab.webhook/ }),
+    ).toBeTruthy();
+  });
+});
