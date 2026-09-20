@@ -169,13 +169,13 @@ seen.add(key);
 
 두 번째 요청에도 **첫 번째와 같은 `{key, url}`을 돌려주는 것**이 맞다(에러가 아니다).
 
-JSON 템플릿 모드에서는 이 값이 자동으로 실리지 않는다 — 필요하면 템플릿에 직접 넣어라. 다만 멱등 키 자체는 템플릿 변수로 노출되지 않으므로, 그 모드는 중복 방지를 포기한 것으로 본다.
+JSON 템플릿 모드에서는 멱등 키가 전송되지 않고 템플릿 변수로도 노출되지 않는다. 타임아웃 뒤 다시 보내면 중복될 수 있으므로 수신 여부부터 확인하라. multipart 모드도 수신 서버가 이 키로 중복을 처리해야 한다 — 확장이 중복 방지를 보장하지 않는다.
 
 ---
 
 ## 5. 연결 테스트 요청
 
-연동 설정의 `연결 테스트` 버튼은 **리포트가 아닌** 작은 요청을 보낸다.
+**multipart 모드**의 `연결 테스트` 버튼은 **리포트가 아닌** 작은 요청을 보낸다.
 
 ```
 POST <endpoint>
@@ -186,6 +186,8 @@ X-BugShot-Test: 1
 ```
 
 `X-BugShot-Test: 1`을 보고 **저장하지 말고 2xx만 돌려주면 된다.** 이 요청에는 `payload`도 파일 파트도 없다. 타임아웃은 8초다(실제 제출은 30초).
+
+**JSON 템플릿 모드**에서는 버튼이 `샘플 전송`으로 바뀐다. 현재 편집 중인 템플릿을 고정 예시 데이터로 채워 POST하고, `X-BugShot-Test` 헤더는 자동으로 붙이지 않는다. 실제 제출과 같은 JSON 형식이라 수신처에 **실제 메시지가 생성될 수 있다**. 현재 캡처 데이터나 미디어는 사용하지 않으며, 전송 결과는 화면의 미리보기와 같다. 2xx면 성공이고, 타임아웃은 8초·바디 상한은 제출과 같은 25MB다. 타임아웃이어도 샘플이 이미 도착했을 수 있으니 재시도 전에 확인하라.
 
 ---
 
@@ -229,7 +231,8 @@ createServer((req, res) => {
 
     // payload 파트만 꺼낸다. 파일 파트는 같은 방식으로 이름(payload.media[].part)을 찾아 저장한다.
     const part = raw.split(`--${boundary}`).find((p) => p.includes('name="payload"'));
-    const payload = JSON.parse(part.slice(part.indexOf("\r\n\r\n") + 4).trim());
+    const payloadText = part.slice(part.indexOf("\r\n\r\n") + 4).trim();
+    const payload = JSON.parse(Buffer.from(payloadText, "binary").toString("utf8"));
 
     const key = payload.bugshot.idempotencyKey;
     if (seen.has(key)) return reply(200, seen.get(key)); // 중복: 첫 응답을 그대로 돌려준다
