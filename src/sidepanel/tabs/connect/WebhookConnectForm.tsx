@@ -394,6 +394,8 @@ function issueText(issue: WebhookFormIssue, t: ReturnType<typeof useT>): string 
       return t(URL_REASON_KEYS[issue.reason] ?? "webhook.invalid.urlInvalid");
     case "header-name":
       return t("webhook.invalid.headerName", { name: issue.name });
+    case "header-value":
+      return t("webhook.invalid.headerValue", { name: issue.name });
     case "header-duplicate":
       return t("webhook.invalid.headerDuplicate", { name: issue.name });
     case "template-empty":

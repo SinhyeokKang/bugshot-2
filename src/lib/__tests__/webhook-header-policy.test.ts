@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSettableHeaderName } from "../webhook-header-policy";
+import { isSettableHeaderName, isSettableHeaderValue } from "../webhook-header-policy";
 
 describe("isSettableHeaderName", () => {
   // 브라우저가 거부하는 헤더는 fetch가 조용히 드롭한다(문법 오류만 TypeError).
@@ -54,5 +54,29 @@ describe("isSettableHeaderName", () => {
 
   it("Content-Type은 통과시킨다 — multipart에서 제거하는 책임은 background에 있다", () => {
     expect(isSettableHeaderName("Content-Type")).toBe(true);
+  });
+});
+
+// 이름 축만 공유 leaf에 있고 값 축은 background 안 인라인 정규식이었다. 그래서 저장 폼이
+// 값을 안 봐, 개행이 든 값은 저장은 통과하고 전송 시점에 그 헤더만 조용히 빠졌다 —
+// 이 파일 헤더가 막겠다고 선언한 "넣었는데 안 나간다"가 값 축에 그대로 남아 있었다.
+describe("isSettableHeaderValue", () => {
+  it.each(["Bearer abc", "application/json", "a b c", "ünïcode-latin1"])(
+    "보낼 수 있는 값은 통과한다: %s",
+    (v) => expect(isSettableHeaderValue(v)).toBe(true),
+  );
+
+  it.each([
+    ["개행", "abc\ndef"],
+    ["캐리지리턴", "abc\rdef"],
+    ["CRLF 주입", "abc\r\nX-Evil: 1"],
+    ["NUL", "abc\u0000def"],
+    ["ByteString 밖(한글)", "토큰"],
+  ])("보낼 수 없는 값은 거부한다: %s", (_l, v) => {
+    expect(isSettableHeaderValue(v)).toBe(false);
+  });
+
+  it("빈 값은 허용한다 — 값 없는 헤더는 유효하다", () => {
+    expect(isSettableHeaderValue("")).toBe(true);
   });
 });

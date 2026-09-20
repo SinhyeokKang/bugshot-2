@@ -38,3 +38,11 @@ export function isSettableHeaderName(name: string): boolean {
   if (lower.startsWith("proxy-") || lower.startsWith("sec-")) return false;
   return true;
 }
+
+// 값 축. 이름 축과 같은 이유로 여기 둔다 — background 안에 인라인 정규식으로 두면 저장 폼이
+// 그걸 못 보고, 개행이 든 값이 저장은 통과한 뒤 전송 시점에 그 헤더만 조용히 빠진다.
+// 범위는 ByteString 변환 한계와 맞춘다: 0xFF를 넘는 코드유닛은 Headers가 TypeError를 던져
+// 요청이 통째로 죽고, CR/LF는 헤더 인젝션이 된다.
+export function isSettableHeaderValue(value: string): boolean {
+  return /^[\t\x20-\x7e\x80-\xff]*$/.test(value);
+}

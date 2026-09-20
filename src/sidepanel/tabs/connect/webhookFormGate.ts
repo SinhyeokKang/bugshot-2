@@ -1,4 +1,4 @@
-import { isSettableHeaderName } from "@/lib/webhook-header-policy";
+import { isSettableHeaderName, isSettableHeaderValue } from "@/lib/webhook-header-policy";
 import {
   normalizeWebhookUrl,
   WebhookUrlError,
@@ -10,6 +10,7 @@ import type { WebhookAuth, WebhookFormat, WebhookHeader } from "@/types/webhook"
 export type WebhookFormIssue =
   | { kind: "url"; reason: WebhookUrlRejection }
   | { kind: "header-name"; name: string }
+  | { kind: "header-value"; name: string }
   | { kind: "header-duplicate"; name: string }
   | { kind: "template-empty" }
   | { kind: "template"; issue: TemplateIssue };
@@ -52,6 +53,12 @@ export function validateWebhookForm(draft: WebhookFormDraft): WebhookFormVerdict
     if (!name && !value) continue;
     if (!isSettableHeaderName(name)) {
       issues.push({ kind: "header-name", name });
+      continue;
+    }
+    // 값 축도 본다 — 전송 시점에 같은 술어가 이 헤더를 버리므로, 여기서 안 막으면
+    // 저장은 성공한 헤더가 요청에서만 사라진다.
+    if (!isSettableHeaderValue(value)) {
+      issues.push({ kind: "header-value", name });
       continue;
     }
     const lower = name.toLowerCase();

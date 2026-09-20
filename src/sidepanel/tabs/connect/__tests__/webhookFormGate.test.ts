@@ -178,3 +178,31 @@ describe("hasAdvancedValues", () => {
     expect(hasAdvancedValues({ ...base, format: "json" })).toBe(true);
   });
 });
+
+// 이름 축만 막고 값 축을 안 보면, 저장은 성공했는데 전송에서 그 헤더만 사라진다 —
+// 이 게이트가 존재하는 이유("넣었는데 안 나간다"를 입력 시점에 보여준다) 그 자체가 반쪽이다.
+describe("validateWebhookForm — 헤더 값 축", () => {
+  const draft = (headers: { name: string; value: string }[]) => ({
+    url: "https://bugs.acme.io/intake",
+    secret: "",
+    headers,
+    format: "multipart" as const,
+    template: "",
+  });
+
+  it.each([
+    ["개행", "abc\ndef"],
+    ["CRLF 주입", "abc\r\nX-Evil: 1"],
+    ["ByteString 밖", "토큰"],
+  ])("보낼 수 없는 값은 저장 시점에 거부한다: %s", (_l, value) => {
+    const v = validateWebhookForm(draft([{ name: "X-Api-Key", value }]));
+    expect(v.ok).toBe(false);
+    if (!v.ok) expect(v.issues.map((i) => i.kind)).toContain("header-value");
+  });
+
+  it("보낼 수 있는 값은 통과하고 헤더로 저장된다", () => {
+    const v = validateWebhookForm(draft([{ name: "X-Api-Key", value: "abc-123" }]));
+    expect(v.ok).toBe(true);
+    if (v.ok) expect(v.auth.headers).toEqual([{ name: "X-Api-Key", value: "abc-123" }]);
+  });
+})
