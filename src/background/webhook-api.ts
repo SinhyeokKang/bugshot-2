@@ -110,12 +110,24 @@ export async function readCappedErrorBody(res: Response, maxBytes: number): Prom
 // 짧은 값은 되레 오탐(“1”·“on”)이 많아 건드리지 않는다. 시크릿은 길다.
 const REDACT_MIN_LENGTH = 8;
 
+// 헤더 값 전체(`Bearer <토큰>`)만 지우면, 스킴을 떼고 토큰만 되비추는 서버(`invalid token
+// <토큰>`)에서 원문이 그대로 남는다 — 한쪽 경로만 막은 마스킹이 다른 경로로 새던 형태와
+// 같다(POSTMORTEM 2026-07-14). 값 전체와 함께 스킴 뒤 조각도 후보로 넣는다.
+function redactionCandidates(value: string): string[] {
+  const out = [value];
+  const scheme = /^\S+\s+(\S.*)$/.exec(value);
+  if (scheme) out.push(scheme[1]);
+  return out;
+}
+
 function redactHeaderValues(body: string, headers: Record<string, string>): string {
   let out = body;
-  for (const value of Object.values(headers)) {
-    if (value.length < REDACT_MIN_LENGTH) continue;
-    out = out.split(value).join("***");
-  }
+  // 긴 것부터 지운다 — 짧은 조각을 먼저 지우면 값 전체가 부분적으로 깨져 안 걸린다.
+  const values = Object.values(headers)
+    .flatMap(redactionCandidates)
+    .filter((v) => v.length >= REDACT_MIN_LENGTH)
+    .sort((a, b) => b.length - a.length);
+  for (const value of values) out = out.split(value).join("***");
   return out;
 }
 
@@ -140,12 +152,37 @@ function exceedsUtf8(s: string, max: number): boolean {
   return new TextEncoder().encode(s).length > max;
 }
 
+// 상한 값을 3로케일 문구에 박으면 상수를 바꿀 때 6곳이 무음으로 거짓이 된다.
+function capLabel(): string {
+  return `${Math.round(WEBHOOK_BODY_MAX_BYTES / (1024 * 1024))}MB`;
+}
+
+function utf8Bytes(s: string): number {
+  return new TextEncoder().encode(s).length;
+}
+
 function estimateDataUrlBytes(dataUrl: string): number {
   const at = dataUrl.indexOf(",");
   if (at < 0) return dataUrl.length;
   const b64 = dataUrl.length - at - 1;
   return Math.floor((b64 * 3) / 4);
 }
+
+// 8개 플랫폼이 전부 401·403·5xx를 갈라 처방을 준다. 시크릿 오타가 이 플랫폼의 최빈 실패라
+// "401 응답을 돌려줬습니다"로 끝내면 무엇을 고쳐야 하는지가 빠진다.
+function statusKey(status: number): "webhook.error.401" | "webhook.error.403" | "webhook.error.5xx" | "webhook.error.status" {
+  if (status === 401) return "webhook.error.401";
+  if (status === 403) return "webhook.error.403";
+  if (status >= 500) return "webhook.error.5xx";
+  return "webhook.error.status";
+}
+
+const URL_ERROR_KEYS = {
+  invalid: "webhook.error.url.invalid",
+  scheme: "webhook.error.url.scheme",
+  "insecure-public": "webhook.error.url.insecurePublic",
+  credentials: "webhook.error.url.credentials",
+} as const;
 
 async function send(
   url: string,
@@ -159,8 +196,9 @@ async function send(
     verdict = normalizeWebhookUrl(url);
   } catch (e) {
     // WebhookUrlError는 PLATFORM_ERROR_CTORS 밖이라 그대로 두면 reason 원문("scheme")이
-    // 번역 안 된 채 토스트가 된다. reason별 문구는 연결 폼이 생길 때 함께 만든다.
-    if (e instanceof WebhookUrlError) throw new WebhookError(0, t("webhook.error.network"));
+    // 번역 안 된 채 토스트가 된다. reason별로 처방이 갈리므로(스킴 교체 / https 사용 /
+    // 자격증명 제거) 한 문구로 뭉치지 않는다 — "연결하지 못했습니다"는 원인을 오도한다.
+    if (e instanceof WebhookUrlError) throw new WebhookError(0, t(URL_ERROR_KEYS[e.reason]));
     throw e;
   }
   let res: Response;
@@ -177,7 +215,13 @@ async function send(
     // 에러 메시지에 요청 헤더를 절대 싣지 않는다(불변식).
     // 8어댑터와 같이 background에서 문구를 만든다 — 이 message가 그대로 토스트다.
     const timedOut = (e as Error).name === "TimeoutError";
-    throw new WebhookError(0, t(timedOut ? "webhook.error.timeout" : "webhook.error.network"));
+    if (!timedOut) throw new WebhookError(0, t("webhook.error.network"));
+    // 초를 문구에 박지 않는다 — 제출 30초와 연결 테스트 8초가 같은 키를 쓰던 시절,
+    // 8초에 죽은 테스트가 "30초 안에 응답하지 않았습니다"로 떴다. 멱등 키 안내도 재전송이
+    // 있는 제출 경로에만 의미가 있어 테스트 전용 문구를 따로 둔다.
+    const seconds = Math.round(timeoutMs / 1000);
+    const key = timeoutMs === WEBHOOK_TEST_TIMEOUT_MS ? "webhook.error.timeoutTest" : "webhook.error.timeout";
+    throw new WebhookError(0, t(key, { seconds }));
   }
   // redirect:"manual"이면 fetch가 따라가지 않으므로 redirected는 늘 false다. opaque 응답은
   // status 0으로 오므로 선례(ai-provider.ts)와 같이 두 항을 본다.
@@ -188,7 +232,7 @@ async function send(
     const body = await readCappedErrorBody(res, ERROR_BODY_MAX_BYTES);
     throw new WebhookError(
       res.status,
-      t("webhook.error.status", { status: res.status }),
+      t(statusKey(res.status), { status: res.status }),
       // 에코 서버는 받은 헤더를 응답에 되비춘다. 그 본문이 토스트로 올라오면 사용자
       // 토큰이 화면·스크린샷에 뜬다 — 새 유출 경계는 아니지만(그 서버는 이미 받았다)
       // "에러에 헤더를 싣지 않는다"는 불변식이 간접 경로로 깨지는 자리다.
@@ -204,7 +248,7 @@ export async function submitWebhook(input: SubmitWebhookInput): Promise<WebhookS
     // 코드유닛이 아니라 실바이트로 잰다 — CJK 본문은 UTF-8에서 최대 3배라 length로 재면
     // 캡을 3배까지 넘긴 요청이 통과한다.
     if (exceedsUtf8(body, WEBHOOK_BODY_MAX_BYTES)) {
-      throw new WebhookError(0, t("webhook.error.tooLarge"));
+      throw new WebhookError(0, t("webhook.error.tooLarge", { limit: capLabel() }));
     }
     const headers = buildHeaders(input.auth, false);
     if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type")) {
@@ -222,11 +266,13 @@ export async function submitWebhook(input: SubmitWebhookInput): Promise<WebhookS
   // 본문이 든 payload도 캡 대상이다 — 파일만 세면 거대한 본문이 캡을 빠져나가고,
   // 파일이 0개면 검사 자체가 안 돈다.
   if (exceedsUtf8(payloadJson, WEBHOOK_BODY_MAX_BYTES)) {
-    throw new WebhookError(0, t("webhook.error.tooLarge"));
+    throw new WebhookError(0, t("webhook.error.tooLarge", { limit: capLabel() }));
   }
-  let total = payloadJson.length;
+  // 코드유닛이 아니라 실바이트다 — 위 exceedsUtf8을 통과한 CJK 본문이 합산에서만
+  // 최대 3배 과소 계상되면, 개별 검사를 지난 조합이 캡을 넘긴 채 나간다.
+  let total = utf8Bytes(payloadJson);
   for (const file of input.files) total += estimateDataUrlBytes(file.dataUrl);
-  if (total > WEBHOOK_BODY_MAX_BYTES) throw new WebhookError(0, t("webhook.error.tooLarge"));
+  if (total > WEBHOOK_BODY_MAX_BYTES) throw new WebhookError(0, t("webhook.error.tooLarge", { limit: capLabel() }));
   // 캡 검사를 통과한 뒤에 변환한다. 변환 직후 원본 슬롯을 비우는 건, 합본이라 순차 경로처럼
   // GC가 중간에 걷어가지 못하기 때문이다.
   for (const file of input.files) {

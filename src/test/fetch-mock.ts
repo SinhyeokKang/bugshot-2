@@ -33,13 +33,50 @@ export interface MockFetch {
   restore(): void;
 }
 
+// 실제 Response는 body 스트림을 갖는데 목이 안 주면 `if (!res.body)` 폴백만 돌아,
+// 스트리밍으로 상한을 거는 코드(webhook readCappedErrorBody · sheet readCappedSheetText)가
+// 영구 미커버가 된다 — 그쪽은 임의 오리진이 상대라 "끝까지 안 읽는다"가 존재 이유다.
+// 취소 여부를 기록해 테스트가 경로를 가를 수 있게 한다.
+let readCancelled = false;
+
+/** 직전 응답의 body 스트림이 끝까지 읽히지 않고 취소됐는지. 스트리밍 캡 검증용. */
+export function lastReadCancelled(): boolean {
+  return readCancelled;
+}
+
+// 한 청크로 주면 캡 루프가 1회만 돌아 "넘으면 멈춘다"를 못 잰다. 실제 네트워크처럼 쪼갠다.
+const CHUNK = 8 * 1024;
+
+function toStream(text: string): ReadableStream<Uint8Array> {
+  const bytes = new TextEncoder().encode(text);
+  let at = 0;
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (at >= bytes.length) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(bytes.slice(at, at + CHUNK));
+      at += CHUNK;
+    },
+    cancel() {
+      readCancelled = true;
+    },
+  });
+}
+
 function toResponse(res: MockResponse, requestUrl: string) {
   // ok를 안 주고 status만 주는 형태가 흔한데, 그때 ok가 true로 남으면 "실패 응답인 줄 알았는데
   // 성공 분기를 탔다"가 무음으로 난다. 명시한 ok가 항상 이긴다.
   const ok = res.ok ?? (res.status === undefined || res.status < 400);
   const body = res.body;
   const read = <T>(value: T) => (body instanceof Error ? Promise.reject(body) : Promise.resolve(value));
+  readCancelled = false;
+  const asText = body === undefined ? "" : typeof body === "string" ? body : JSON.stringify(body);
   return {
+    // body 없는 응답(204)과 reject 계약은 스트림을 주지 않는다 — 실제로도 null이고,
+    // Error 케이스는 text()/json()의 reject가 계약이라 스트림이 그걸 가로채면 안 된다.
+    body: body === undefined || body instanceof Error ? null : toStream(asText),
     ok,
     status: res.status ?? (ok ? 200 : 400),
     statusText: res.statusText ?? "",
@@ -47,7 +84,7 @@ function toResponse(res: MockResponse, requestUrl: string) {
     json: () => read(body),
     // 문자열은 그대로 — 무조건 JSON.stringify하면 `<html>500</html>`이 파싱에 성공해
     // readErrorBody의 원문 반환 분기가 영구 미커버가 된다.
-    text: () => read(body === undefined ? "" : typeof body === "string" ? body : JSON.stringify(body)),
+    text: () => read(asText),
   };
 }
 

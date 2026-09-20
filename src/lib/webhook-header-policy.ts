@@ -1,5 +1,7 @@
 // 브라우저가 설정을 거부하는 요청 헤더는 fetch가 **조용히 드롭**한다(문법 오류만 throw).
-// declarativeNetRequest 권한이 없어 우회 수단도 없으므로, 저장 시점 거부가 유일한 방어다.
+// declarativeNetRequest 권한이 없어 우회 수단도 없으므로, 이 술어가 유일한 방어다.
+// 저장 시점(connect/webhookFormGate)과 전송 시점(background/webhook-api) 둘 다 여기를 부른다 —
+// 저장만 막으면 저장소가 조작된 값이, 전송만 막으면 "넣었는데 안 나간다"가 남는다.
 // 통과시키면 "넣었는데 안 나간다"가 되고 사용자는 원인을 알 방법이 없다.
 const FORBIDDEN = new Set([
   "accept-charset",

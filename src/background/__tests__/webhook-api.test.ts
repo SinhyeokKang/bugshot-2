@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mockFetchOnce } from "@/test/fetch-mock";
+import { lastReadCancelled, mockFetchOnce } from "@/test/fetch-mock";
 import {
   WEBHOOK_BODY_MAX_BYTES,
   WebhookError,
@@ -239,6 +239,24 @@ describe("submitWebhook — 실패", () => {
     expect(String((err as WebhookError).body).length).toBeLessThan(20_000);
   });
 
+  // 위 케이스는 목이 body 스트림을 안 주던 시절 res.text() 폴백만 탔고, 그때 실제로 검증된
+  // 건 마지막 .slice() 한 줄이었다(스트리밍 캡 루프 커버리지 0). 임의 서버가 상대라 "끝까지
+  // 안 읽는다"가 이 함수의 존재 이유이므로, 그걸 재는 단언을 따로 둔다.
+  it("캡을 넘기면 스트림을 끝까지 읽지 않고 취소한다", async () => {
+    mockFetchOnce({ status: 500, body: "x".repeat(200_000) });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: AUTH,
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+    const body = String((err as WebhookError).body);
+    expect(body.length).toBeLessThan(20_000);
+    // 폴백(res.text())은 200_000자를 전부 버퍼링한 뒤 자른다. 스트림 경로만 캡 근처에서
+    // 멈추므로, 읽은 양이 캡의 몇 배 이내라는 것이 경로를 가른다.
+    expect(lastReadCancelled()).toBe(true);
+  });
+
   it("바디가 하드캡을 넘으면 fetch 전에 중단한다 — multipart 조립분도 같은 캡을 받는다", async () => {
     const m = mockFetchOnce({ body: { key: "K", url: "u" } });
     const huge = `data:video/mp4;base64,${"A".repeat(Math.ceil((WEBHOOK_BODY_MAX_BYTES * 4) / 3) + 8)}`;
@@ -268,6 +286,25 @@ describe("submitWebhook — 실패", () => {
     const huge = payload({ body: "x".repeat(WEBHOOK_BODY_MAX_BYTES + 10) });
     await expect(
       submitWebhook({ mode: "multipart", auth: AUTH, payload: huge, files: [] }),
+    ).rejects.toBeInstanceOf(WebhookError);
+    expect(m.fn).not.toHaveBeenCalled();
+  });
+
+  // 위 케이스는 ASCII라 코드유닛 == 바이트다. 합산만 코드유닛으로 세면 CJK 본문이 최대
+  // 3배까지 과소 계상돼, 개별 검사를 통과한 payload + 파일 조합이 캡을 넘긴 채 나간다.
+  it("합산 캡도 실바이트로 잰다 — CJK payload가 파일과 합쳐 캡을 넘기면 막는다", async () => {
+    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    // 코드유닛 3M(개별 검사 통과) = UTF-8 9MB. 파일 18MB를 더하면 실제 27MB > 25MB인데,
+    // 코드유닛으로 세면 3M + 18M = 21M이라 통과해 버린다.
+    const cjk = "가".repeat(3_000_000);
+    const b64 = "A".repeat(24_000_000); // estimateDataUrlBytes ≈ 18MB
+    await expect(
+      submitWebhook({
+        mode: "multipart",
+        auth: AUTH,
+        payload: payload({ body: cjk }),
+        files: [{ part: "big.bin", filename: "big.bin", dataUrl: `data:application/octet-stream;base64,${b64}` }],
+      }),
     ).rejects.toBeInstanceOf(WebhookError);
     expect(m.fn).not.toHaveBeenCalled();
   });
@@ -358,6 +395,34 @@ describe("submitWebhook — 시크릿", () => {
     }).catch((e) => e as WebhookError);
 
     expect(String((err as WebhookError).body)).not.toContain("s3cr3t-team-token");
+  });
+
+  // 위 둘은 에코가 `Bearer ` 접두까지 그대로 되비추는 형태만 본다. 실제 서버는 스킴을 떼고
+  // 토큰만 싣는 쪽이 흔하고(`invalid token <값>`), 헤더 값 전체와의 부분문자열 일치로는
+  // 그게 안 걸린다 — POSTMORTEM 2026-07-14(값 경로만 막고 이름 경로로 샌 마스킹)와 같은 형태.
+  it("스킴을 뗀 토큰만 되비춰도 가려진다", async () => {
+    mockFetchOnce({ status: 401, body: '{"error":"invalid token s3cr3t-team-token"}' });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: withSecret,
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+
+    expect(String((err as WebhookError).body)).not.toContain("s3cr3t-team-token");
+    expect(String((err as WebhookError).body)).toContain("***");
+  });
+
+  it("사용자가 직접 넣은 헤더도 스킴 뒤 토큰만 되비추면 가려진다", async () => {
+    mockFetchOnce({ status: 401, body: "rejected: long-enough-api-key" });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: { url: URL_, headers: [{ name: "X-Api-Key", value: "Token long-enough-api-key" }] },
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+
+    expect(String((err as WebhookError).body)).not.toContain("long-enough-api-key");
   });
 });
 
@@ -466,5 +531,96 @@ describe("normalizeWebhookResult", () => {
   it("둘 중 하나라도 없으면 빈 값을 남긴다 — throw 판정은 호출부가 한다", () => {
     expect(normalizeWebhookResult({ key: "A" })).toEqual({ key: "A", url: undefined });
     expect(normalizeWebhookResult(null)).toEqual({ key: undefined, url: undefined });
+  });
+});
+
+// 문구는 원인마다 처방이 달라야 한다. 한 키로 뭉치면 "연결하지 못했습니다"가 스킴 오류에
+// 뜨고, "30초 안에"가 8초 연결 테스트에 뜨며, 401이 무엇을 고쳐야 하는지 안 알려준다.
+// 실제 t()가 도는 파일이라 키가 아니라 **문구가 서로 갈리는지**로 잰다.
+describe("에러 문구는 원인을 가린다", () => {
+  const messageFor = async (auth: { url: string; headers: [] }) => {
+    mockFetchOnce({ body: { key: "K", url: "u" } });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth,
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+    return (err as WebhookError).message;
+  };
+
+  it("URL 정책 위반은 reason마다 다른 문구를 쓴다 — network 한 키로 뭉치지 않는다", async () => {
+    const scheme = await messageFor({ url: "ftp://x/hook", headers: [] });
+    const insecure = await messageFor({ url: "http://bugs.acme.io/intake", headers: [] });
+    const creds = await messageFor({ url: "https://u:p@bugs.acme.io/intake", headers: [] });
+    const network = await (async () => {
+      const m = mockFetchOnce({ body: {} });
+      m.fn.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      const err = await submitWebhook({
+        mode: "multipart",
+        auth: AUTH,
+        payload: payload(),
+        files: files(),
+      }).catch((e) => e as WebhookError);
+      return (err as WebhookError).message;
+    })();
+
+    expect(new Set([scheme, insecure, creds, network]).size).toBe(4);
+  });
+
+  const statusMessage = async (status: number) => {
+    mockFetchOnce({ status, body: "nope" });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: AUTH,
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+    return (err as WebhookError).message;
+  };
+
+  it("401·403·5xx는 일반 status 문구와 갈린다", async () => {
+    // 상태코드가 문구에 치환되므로 숫자를 지우고 **템플릿**을 비교한다 — 안 그러면 401이
+    // 일반 문구로 떨어져도 "401"이 박혀 서로 달라 보여 그물이 공허해진다(실제로 그랬다).
+    const shape = async (status: number) => (await statusMessage(status)).replace(/\d+/g, "#");
+    const unauth = await shape(401);
+    const forbidden = await shape(403);
+    const server = await shape(500);
+    const other = await shape(418);
+
+    expect(new Set([unauth, forbidden, server, other]).size).toBe(4);
+    // 5xx는 상태코드만 갈리고 템플릿은 같아야 한다.
+    expect(await shape(503)).toBe(server);
+  });
+
+  it("상한 문구는 상수에서 파생한다 — 3로케일에 박아두면 상수를 바꿀 때 거짓이 된다", async () => {
+    mockFetchOnce({ status: 204 });
+    const err = await submitWebhook({
+      mode: "json",
+      auth: AUTH,
+      body: { big: "x".repeat(WEBHOOK_BODY_MAX_BYTES + 10) },
+    }).catch((e) => e as WebhookError);
+    expect((err as WebhookError).message).toContain(
+      `${Math.round(WEBHOOK_BODY_MAX_BYTES / (1024 * 1024))}MB`,
+    );
+  });
+
+  it("연결 테스트 타임아웃은 제출 타임아웃과 다른 초를 말한다", async () => {
+    const m = mockFetchOnce({ status: 204 });
+    const timeout = () => Object.assign(new Error("timed out"), { name: "TimeoutError" });
+    m.fn.mockRejectedValueOnce(timeout());
+    const submitMsg = await submitWebhook({
+      mode: "multipart",
+      auth: AUTH,
+      payload: payload(),
+      files: files(),
+    }).catch((e) => (e as WebhookError).message);
+
+    m.fn.mockRejectedValueOnce(timeout());
+    const testMsg = await testWebhook(AUTH).catch((e) => (e as WebhookError).message);
+
+    expect(submitMsg).toContain("30");
+    expect(testMsg).toContain("8");
+    expect(testMsg).not.toBe(submitMsg);
   });
 });
