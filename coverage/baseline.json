@@ -1,25 +1,25 @@
 {
-  "generatedAt": "2026-09-20T08:08:38.586Z",
+  "generatedAt": "2026-09-20T16:56:29.507Z",
   "logic": {
-    "covered": 24397,
-    "total": 26810,
-    "pct": 90.99962700484893
+    "covered": 24447,
+    "total": 26862,
+    "pct": 91.00960464596828
   },
   "global": {
     "lines": {
-      "covered": 34521,
-      "total": 57383,
-      "pct": 60.15
+      "covered": 34596,
+      "total": 57456,
+      "pct": 60.21
     },
     "branches": {
-      "covered": 9620,
-      "total": 10957,
-      "pct": 87.79
+      "covered": 9672,
+      "total": 11006,
+      "pct": 87.87
     },
     "functions": {
-      "covered": 1861,
-      "total": 2560,
-      "pct": 72.69
+      "covered": 1869,
+      "total": 2567,
+      "pct": 72.8
     }
   },
   "files": {
@@ -128,8 +128,8 @@
       "total": 252
     },
     "src/background/webhook-api.ts": {
-      "covered": 209,
-      "total": 218
+      "covered": 260,
+      "total": 271
     },
     "src/background/lib/adf-logs-link.ts": {
       "covered": 16,
@@ -436,8 +436,8 @@
       "total": 466
     },
     "src/i18n/namespaces/integrations.ts": {
-      "covered": 997,
-      "total": 997
+      "covered": 1012,
+      "total": 1012
     },
     "src/i18n/namespaces/issue.ts": {
       "covered": 409,
@@ -1112,8 +1112,8 @@
       "total": 236
     },
     "src/sidepanel/lib/buildIssueMarkdown.ts": {
-      "covered": 381,
-      "total": 381
+      "covered": 370,
+      "total": 370
     },
     "src/sidepanel/lib/buildLinearIssueBody.ts": {
       "covered": 106,
@@ -1132,8 +1132,8 @@
       "total": 64
     },
     "src/sidepanel/lib/buildMarkdownIssueBody.ts": {
-      "covered": 154,
-      "total": 154
+      "covered": 139,
+      "total": 139
     },
     "src/sidepanel/lib/buildNotionIssueBody.ts": {
       "covered": 234,
@@ -1148,8 +1148,8 @@
       "total": 91
     },
     "src/sidepanel/lib/buildWebhookJsonBody.ts": {
-      "covered": 15,
-      "total": 15
+      "covered": 18,
+      "total": 18
     },
     "src/sidepanel/lib/capture-basis.ts": {
       "covered": 29,
@@ -1256,8 +1256,8 @@
       "total": 20
     },
     "src/sidepanel/lib/issueBodyShared.ts": {
-      "covered": 52,
-      "total": 52
+      "covered": 60,
+      "total": 60
     },
     "src/sidepanel/lib/linkify.ts": {
       "covered": 27,
@@ -1440,8 +1440,8 @@
       "total": 50
     },
     "src/sidepanel/lib/submitToWebhook.ts": {
-      "covered": 97,
-      "total": 97
+      "covered": 100,
+      "total": 100
     },
     "src/sidepanel/lib/tab-scope.ts": {
       "covered": 7,
@@ -1480,8 +1480,8 @@
       "total": 39
     },
     "src/sidepanel/lib/webhookPayload.ts": {
-      "covered": 42,
-      "total": 42
+      "covered": 38,
+      "total": 38
     },
     "src/sidepanel/lib/webhookTemplate.ts": {
       "covered": 110,
@@ -1728,8 +1728,8 @@
       "total": 138
     },
     "src/sidepanel/tabs/connect/WebhookConnectForm.tsx": {
-      "covered": 314,
-      "total": 326
+      "covered": 339,
+      "total": 347
     },
     "src/sidepanel/tabs/connect/gitlabInstanceUrl.ts": {
       "covered": 26,
