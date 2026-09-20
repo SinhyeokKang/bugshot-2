@@ -91,3 +91,26 @@ describe("buildWebhookJsonBody — sections 맵은 sectionConfig를 따른다", 
     expect(sections).not.toHaveProperty("expectedResult");
   });
 });
+
+// json 템플릿 모드는 파일을 한 장도 보내지 않는다(캡처 미디어도, logs.html도). 그런데 본문의
+// 로그 요약 리드는 "리포트가 첨부되어 있다 · logs.html에서 확인하라"고 말한다 — 수신처(Slack·
+// Discord)에 그런 파일은 없다. 인라인 이미지 자리를 대체 문구로 바꾸는 것과 같은 축이다.
+describe("buildWebhookJsonBody — 없는 첨부를 가리키지 않는다", () => {
+  const withLogs = makeCtx({
+    actionLogCaptured: 12,
+    consoleLogSummary: { captured: 3, errorCount: 0, warnCount: 0, topErrors: [] },
+  });
+
+  it("로그 요약에 첨부 리드 문구가 없다", () => {
+    const { body } = buildWebhookJsonBody(withLogs);
+    expect(body).not.toContain("logSummary.logs.lead");
+    expect(body).not.toContain("logs.html");
+  });
+
+  it("로그 요약 섹션과 건수 줄은 그대로 남는다", () => {
+    const { body } = buildWebhookJsonBody(withLogs);
+    expect(body).toContain("logSummary.title");
+    expect(body).toContain("logSummary.action.line");
+    expect(body).toContain("logSummary.console.lineNoError");
+  });
+});

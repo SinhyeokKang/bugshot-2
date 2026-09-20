@@ -14,6 +14,7 @@ vi.mock("@/i18n", () => ({
 }));
 
 import { buildWebhookPayload } from "../webhookPayload";
+import { buildMarkdownIssueBody } from "../buildMarkdownIssueBody";
 import type { CaptureFiles } from "../buildCaptureFiles";
 import type { MarkdownContext } from "../buildIssueMarkdown";
 
@@ -117,20 +118,72 @@ describe("buildWebhookPayload — cid: 참조와 파트 이름의 양방향 대�
 });
 
 describe("buildWebhookPayload — 본문 외 필드", () => {
-  it("environment가 filterEnvironmentRows를 거친 결과와 일치한다", () => {
+  // 계약 문서 §2.2가 environment의 예시로 OS·Browser를 든다. 파생 행은 본문 마크다운에만
+  // 있고 payload엔 커스텀 행만 실려, 수신 서버는 마크다운을 파싱하지 않는 한 환경을 못 받았다.
+  it("본문 재현 환경의 파생 행이 그대로 실린다 (OS·Browser·Page·DOM·Viewport·Captured)", () => {
+    const ctx = makeCtx({ os: "macOS 15.2", browser: "Chrome 140" });
+    const p = buildWebhookPayload({ ctx, body: "", files: { images: [], logs: [], attachments: [] }, ...BASE });
+    expect(p.environment.map((r) => r.label)).toEqual([
+      "OS",
+      "Browser",
+      "Page",
+      "DOM",
+      "Viewport",
+      "Captured",
+    ]);
+    const byLabel = Object.fromEntries(p.environment.map((r) => [r.label, r.value]));
+    expect(byLabel.OS).toBe("macOS 15.2");
+    expect(byLabel.Browser).toBe("Chrome 140");
+    expect(byLabel.Page).toBe("https://example.com");
+    expect(byLabel.DOM).toBe("#pay");
+    expect(byLabel.Viewport).toBe("1024×768");
+    expect(byLabel.Captured).toBeTruthy();
+  });
+
+  // **webhook 본문이 실제로 타는 빌더와 대조한다** — buildIssueMarkdown(복사·logs.html 전용)과
+  // 대조하면 제출 경로의 복제본만 갈려도 green이다(자체 검증이 잡은 공허한 그물 형태).
+  it("제출 본문의 재현 환경 섹션과 payload.environment의 행 집합이 일치한다", () => {
     const ctx = makeCtx({
+      os: "macOS 15.2",
+      browser: "Chrome 140",
+      environment: [{ label: "API Hosts", value: "api.acme.io", source: "api-hosts" }],
+    });
+    const p = buildWebhookPayload({ ctx, body: "", files: { images: [], logs: [], attachments: [] }, ...BASE });
+    // 제출 본문은 재현 환경 섹션으로 시작한다.
+    const envSection = buildMarkdownIssueBody({ ctx }, { platform: "webhook" }).body.split("\n## ")[0];
+    for (const row of p.environment) {
+      // 본문의 DOM 행만 selector를 인라인 코드로 감싼다 — 값 자체는 같다.
+      const value = row.label === "DOM" ? `\`${row.value}\`` : row.value;
+      expect(envSection).toContain(`- **${row.label}**: ${value}`);
+    }
+  });
+
+  // buildEditorCapture가 비-element 폴백으로 viewport {0,0}·capturedAt 0을 만든다. logs.html
+  // 파생(buildReportData)은 그걸 가드해 행을 빼는데 본문·payload만 `0×0`·1970을 실었다.
+  it("viewport 0×0과 capturedAt 0은 행을 만들지 않는다", () => {
+    const ctx = makeCtx({ viewport: { width: 0, height: 0 }, capturedAt: 0 });
+    const p = buildWebhookPayload({ ctx, body: "", files: { images: [], logs: [], attachments: [] }, ...BASE });
+    const labels = p.environment.map((r) => r.label);
+    expect(labels).not.toContain("Viewport");
+    expect(labels).not.toContain("Captured");
+  });
+
+  it("파생 행 뒤에 커스텀 행이 filterEnvironmentRows를 거쳐 붙는다", () => {
+    const ctx = makeCtx({
+      viewport: null,
+      selector: "",
       environment: [
-        { label: "  OS  ", value: " macOS " },
+        { label: "  Note  ", value: " 메모 " },
         { label: "", value: "버려짐" },
-        { label: "Note", value: "" },
-        { label: "Page", value: "a\nb" },
+        { label: "Empty", value: "" },
+        { label: "Multi", value: "a\nb" },
         { label: "API Hosts", value: "api.acme.io", source: "api-hosts" },
       ],
     });
     const p = buildWebhookPayload({ ctx, body: "", files: { images: [], logs: [], attachments: [] }, ...BASE });
-    expect(p.environment).toEqual([
-      { label: "OS", value: "macOS" },
-      { label: "Page", value: "a b" },
+    expect(p.environment.slice(-3)).toEqual([
+      { label: "Note", value: "메모" },
+      { label: "Multi", value: "a b" },
       { label: "API Hosts", value: "api.acme.io" },
     ]);
   });
@@ -146,8 +199,26 @@ describe("buildWebhookPayload — 본문 외 필드", () => {
   it("액션 로그만 있어도 logSummary가 실린다 (POSTMORTEM 2026-06-25 회귀)", () => {
     const ctx = makeCtx({ actionLogCaptured: 12 });
     const p = buildWebhookPayload({ ctx, body: "", files: { images: [], logs: [], attachments: [] }, ...BASE });
-    expect(p.logSummary).toBeTruthy();
-    expect(p.logSummary).toContain("12");
+    expect(p.logSummary).toBe("action 12");
+  });
+
+  // 수신 서버가 파싱할 필드다. 마크다운 블록을 실으면 "첨부 파일을 보라"는 문장이 따라붙는데,
+  // json 템플릿 모드는 파일을 아예 안 보내 그 문장이 거짓이 된다.
+  it("logSummary는 개행 없는 한 줄 카운트 요약이다", () => {
+    const ctx = makeCtx({
+      consoleLogSummary: { captured: 3, errorCount: 1, warnCount: 0, topErrors: [] },
+      networkLogSummary: { captured: 1, errorCount: 1, errors: [] },
+      actionLogCaptured: 12,
+    });
+    const p = buildWebhookPayload({ ctx, body: "", files: { images: [], logs: [], attachments: [] }, ...BASE });
+    expect(p.logSummary).toBe("console 3 · network 1 · action 12");
+  });
+
+  it("logSummary는 보내지 않을 수도 있는 파일을 가리키지 않는다", () => {
+    const ctx = makeCtx({ actionLogCaptured: 12, consoleLogSummary: { captured: 3, errorCount: 0, warnCount: 0, topErrors: [] } });
+    const p = buildWebhookPayload({ ctx, body: "", files: { images: [], logs: [], attachments: [] }, ...BASE });
+    expect(p.logSummary).not.toContain("logs.html");
+    expect(p.logSummary).not.toContain("\n");
   });
 
   it("로그가 하나도 없으면 logSummary를 싣지 않는다", () => {

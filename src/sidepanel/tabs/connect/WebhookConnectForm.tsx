@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronDown, Loader2, Plus, Trash2, Webhook } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
@@ -79,6 +79,9 @@ function WebhookSummary() {
 export function WebhookConnectEntry({ onConnected }: { onConnected: () => void }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  // 연결된 카드는 읽기 전용이라 이 버튼이 유일한 편집 입구다 — 브랜드 8종이 "재연결"로 바뀌는
+  // 자리에서 이것만 "연결"이라고 말하면 수정할 방법이 없는 것처럼 읽힌다.
+  const connected = useSettingsStore((s) => Boolean(s.accounts.webhook));
   return (
     <>
       <TooltipProvider delayDuration={0}>
@@ -91,14 +94,18 @@ export function WebhookConnectEntry({ onConnected }: { onConnected: () => void }
               onClick={() => setOpen(true)}
             >
               <Webhook className="h-4 w-4" />
-              <span className="truncate">{t("webhook.entry.label")}</span>
+              <span className="truncate">
+                {t(connected ? "webhook.entry.editLabel" : "webhook.entry.label")}
+              </span>
             </Button>
           </TooltipTrigger>
           <TooltipContent className="max-w-[260px]">{t("webhook.entry.tooltip")}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="w-[90vw] max-w-[800px] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+        {/* max-h가 없으면 템플릿 미리보기까지 편 폼이 뷰포트를 넘겨 푸터(저장·테스트)가 화면
+            밖으로 밀린다. 본문은 이미 min-h-0 + overflow-y-auto라 상한만 주면 된다. */}
+        <DialogContent className="w-[90vw] max-w-[800px] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl">
           {/* 닫히면 언마운트되므로 폼은 열 때마다 저장된 계정에서 다시 채워진다. */}
           <WebhookDialogBody
             onDone={() => {
@@ -139,6 +146,12 @@ function WebhookDialogBody({ onDone, onCancel }: { onDone: () => void; onCancel:
   }, [url]);
 
   const draft = { url, secret, headers, format, template };
+
+  // 사유는 그걸 만든 입력에만 유효하다 — 고친 뒤에도 남으면 화면 안에서 미리보기(고친 결과)와
+  // 사유(옛 입력)가 서로 다른 말을 한다. 다음 저장·테스트가 최신 입력으로 다시 채운다.
+  useEffect(() => {
+    setIssues([]);
+  }, [url, secret, headers, format, template]);
 
   function handleSave() {
     const verdict = validateWebhookForm(draft);
@@ -197,7 +210,11 @@ function WebhookDialogBody({ onDone, onCancel }: { onDone: () => void; onCancel:
         </DialogDescription>
       </DialogHeader>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+      {/* 스크롤 영역 관용구 — SubmitFieldsDialog·DraftDetailDialog와 같은 `-m-1 … p-1`.
+          overflow-y-auto는 x축까지 auto로 만들어(한 축만 visible일 수 없다) w-full 입력의
+          focus ring 바깥 2px을 자른다. 패딩으로 자리를 만들고 음수 마진으로 원위치시킨다.
+          스크롤이 없는 PAT 폼들이 안 잘리는 건 이 컨테이너가 아예 없어서다. */}
+      <div className="-m-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-1">
         <FieldRow label={t("webhook.url.label")} htmlFor="webhook-url" required>
           <Input
             id="webhook-url"

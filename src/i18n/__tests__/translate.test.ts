@@ -94,3 +94,23 @@ describe("t — 미정의 키 폴백", () => {
     expect(t("nope.nope" as never)).toBe("nope.nope");
   });
 });
+
+// 치환값이 원격 서버에서 오는 키가 생겼다(webhook.error.serverSaid의 {body}). replaceAll의
+// replacement는 `$&`·`$'`·`$1`을 특수 치환으로 해석하므로, 값을 그대로 넘기면 서버 본문의
+// 달러 표기가 화면을 깨뜨린다 — POSTMORTEM 2026-09-14 재발방지 (5)와 같은 함정이다.
+describe("t — 치환값의 달러 표기", () => {
+  afterEach(() => setLocale("ko"));
+
+  it("$& 가 들어간 값이 리터럴로 들어간다", () => {
+    setLocale("en");
+    const out = t("webhook.error.serverSaid", { body: "unexpected $& token" });
+    expect(out).toContain("unexpected $& token");
+    expect(out).not.toContain("{body}");
+  });
+
+  it("$` 와 $' 가 앞뒤 텍스트를 복제하지 않는다", () => {
+    setLocale("en");
+    const out = t("webhook.error.serverSaid", { body: "a $` b $' c" });
+    expect(out).toContain("a $` b $' c");
+  });
+});

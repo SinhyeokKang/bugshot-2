@@ -121,13 +121,45 @@ function redactionCandidates(value: string): string[] {
 }
 
 function redactHeaderValues(body: string, headers: Record<string, string>): string {
+  return redactAll(body, headerCandidates(headers));
+}
+
+function headerCandidates(headers: Record<string, string>): string[] {
+  const general = Object.values(headers)
+    .flatMap(redactionCandidates)
+    .filter((v) => v.length >= REDACT_MIN_LENGTH);
+  // Authorization의 스킴 뒤 조각은 곧 사용자가 넣은 시크릿이라 길이 하한을 걸지 않는다 —
+  // 하한은 "1"·"on" 같은 일반 헤더 값의 오탐을 막으려는 것이고, 시크릿 칸엔 그 위험이 없다.
+  const auth = Object.entries(headers)
+    .filter(([name]) => name.toLowerCase() === "authorization")
+    .flatMap(([, value]) => redactionCandidates(value));
+  return [...general, ...auth];
+}
+
+// 수신처가 Slack·Discord면 시크릿이 헤더가 아니라 **주소 경로**에 박혀 있다. 404 본문이
+// 경로를 되비추는 서버(Express 기본 응답)에서 그게 그대로 발췌에 실린다.
+// 경로 전체·쿼리는 정확 일치라 오탐이 사실상 없지만, 개별 세그먼트는 `/webhooks/`처럼 평범한
+// 이름까지 지워 발췌를 노이즈로 만든다 — 토큰만 남기려고 길이 하한을 헤더(8)보다 높게 둔다.
+const URL_SEGMENT_MIN_LENGTH = 20;
+
+function urlCandidates(url: string): string[] {
+  try {
+    const u = new URL(url);
+    const segments = u.pathname
+      .split("/")
+      .filter((seg) => seg.length >= URL_SEGMENT_MIN_LENGTH);
+    return [`${u.pathname}${u.search}`, ...segments, ...(u.search ? [u.search] : [])];
+  } catch {
+    return [];
+  }
+}
+
+function redactAll(body: string, candidates: string[]): string {
   let out = body;
   // 긴 것부터 지운다 — 짧은 조각을 먼저 지우면 값 전체가 부분적으로 깨져 안 걸린다.
-  const values = Object.values(headers)
-    .flatMap(redactionCandidates)
-    .filter((v) => v.length >= REDACT_MIN_LENGTH)
-    .sort((a, b) => b.length - a.length);
-  for (const value of values) out = out.split(value).join("***");
+  for (const value of [...new Set(candidates)].sort((a, b) => b.length - a.length)) {
+    out = out.split(value).join("***");
+  }
   return out;
 }
 
@@ -191,6 +223,31 @@ function statusKey(status: number): "webhook.error.401" | "webhook.error.403" | 
   return "webhook.error.status";
 }
 
+// 수신 서버가 뱉은 사유를 상태 문구 뒤에 한 줄로 붙인다 — 자기 서버를 직접 굴리는 사용자라
+// 그 문장이 곧 디버깅 정보다(계약 문서 §6). 이 문자열은 **임의 origin이 통제**하고 화면·
+// 스크린샷에 뜨므로 순서가 중요하다: 제어문자·방향 전환 문자를 걷고(문구를 뒤집어 확장이
+// 하는 말처럼 읽히게 할 수 있다) 공백을 접은 **뒤에** 마스킹한다. 접기를 나중에 하면 값에
+// 공백이 든 헤더를 서버가 다른 공백으로 되비출 때 접기가 원문을 복원해 마스크를 빠져나간다.
+const ERROR_EXCERPT_MAX_CHARS = 200;
+
+function withServerExcerpt(
+  message: string,
+  body: string | null,
+  headers: Record<string, string>,
+  url: string,
+): string {
+  if (body == null) return message;
+  const flat = body
+    .replace(/[\p{Cc}\p{Cf}]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const safe = redactAll(flat, [...headerCandidates(headers), ...urlCandidates(url)]);
+  if (safe === "") return message;
+  const excerpt =
+    safe.length > ERROR_EXCERPT_MAX_CHARS ? `${safe.slice(0, ERROR_EXCERPT_MAX_CHARS)}…` : safe;
+  return `${message} ${t("webhook.error.serverSaid", { body: excerpt })}`;
+}
+
 const URL_ERROR_KEYS = {
   invalid: "webhook.error.url.invalid",
   scheme: "webhook.error.url.scheme",
@@ -243,13 +300,17 @@ async function send(
   }
   if (!res.ok) {
     const body = await readCappedErrorBody(res, ERROR_BODY_MAX_BYTES);
+    const headers = init.headers as Record<string, string>;
+    const redacted = body == null ? body : redactHeaderValues(body, headers);
     throw new WebhookError(
       res.status,
-      t(statusKey(res.status), { status: res.status }),
-      // 에코 서버는 받은 헤더를 응답에 되비춘다. 그 본문이 토스트로 올라오면 사용자
-      // 토큰이 화면·스크린샷에 뜬다 — 새 유출 경계는 아니지만(그 서버는 이미 받았다)
-      // "에러에 헤더를 싣지 않는다"는 불변식이 간접 경로로 깨지는 자리다.
-      body == null ? body : redactHeaderValues(body, init.headers as Record<string, string>),
+      withServerExcerpt(
+        t(statusKey(res.status), { status: res.status }),
+        body,
+        headers,
+        verdict.url,
+      ),
+      redacted,
     );
   }
   return res;

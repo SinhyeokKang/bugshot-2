@@ -261,6 +261,23 @@ describe("submitToWebhook — json 템플릿", () => {
     expect(r.url).toBeUndefined();
   });
 
+  // 본문 재현 환경은 0×0·1970을 행으로 안 만든다. 템플릿 변수만 그대로 내보내면 같은 요청
+  // 안에서 {{body}}엔 없는 값이 {{env.viewport}}·{{capturedAt}}으로 나간다.
+  it("viewport 0×0·capturedAt 0은 템플릿 변수로도 나가지 않는다", async () => {
+    sendBg.mockResolvedValue({});
+    await submitToWebhook(
+      input({
+        ctx: makeCtx({ viewport: { width: 0, height: 0 }, capturedAt: 0 }),
+        auth: { ...JSON_AUTH, template: '{"v":"{{env.viewport}}","c":"{{capturedAt}}"}' },
+      }),
+    );
+    // env.os·browser·selector가 부재를 undefined로 내보내는 것과 같은 관용구다(직렬화 시 키가
+    // 빠진다). 중요한 건 "0x0"·1970이 값으로 나가지 않는 것.
+    const body = sentMessage().body as { v?: string; c?: string };
+    expect(body.v).toBeUndefined();
+    expect(body.c).toBeUndefined();
+  });
+
   it("템플릿이 없으면 제출 전에 실패한다", async () => {
     await expect(
       submitToWebhook(input({ auth: { ...JSON_AUTH, template: undefined } })),

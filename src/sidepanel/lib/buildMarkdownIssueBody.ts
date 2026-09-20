@@ -2,15 +2,13 @@ import { t, withLocale } from "@/i18n";
 import { escapeTableCell as escapeCell } from "./markdownCell";
 import { bodyBlocks } from "./bodyBlocks";
 import {
+  issueEnvironmentRows,
   mdInlineCode,
   resolveStyleElements,
-  styleDomLabel,
   type MarkdownContext,
 } from "./buildIssueMarkdown";
 import { ccMarkdownLine } from "./ccMention";
 import { segmentsToMarkdown } from "./classDiff";
-import { filterEnvironmentRows } from "./environmentRows";
-import { formatTimestamp } from "./formatTimestamp";
 import { emitMarkdownLogSummary, escapeMdLinkText, footerMarkdown, imageCell, listItems, sectionLabel } from "./issueBodyShared";
 
 export interface MarkdownMediaInput {
@@ -62,22 +60,9 @@ function buildMarkdownIssueBodyInner(
   const attached: string[] = [];
 
   lines.push(`## ${t("md.section.env")}`, "");
-  if (ctx.os) {
-    lines.push(`- **OS**: ${ctx.os}`);
-  }
-  if (ctx.browser) {
-    lines.push(`- **Browser**: ${ctx.browser}`);
-  }
-  lines.push(`- **Page**: ${ctx.url}`);
-  const domLabel = styleDomLabel(ctx, mdInlineCode);
-  if (domLabel) {
-    lines.push(`- **DOM**: ${domLabel}`);
-  }
-  if (ctx.viewport) {
-    lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
-  }
-  lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
-  for (const row of filterEnvironmentRows(ctx.environment)) {
+  // 제출 본문(webhook 포함)이 실제로 타는 경로다 — payload.environment와 같은 출처를 써야
+  // 같은 요청 안에서 본문과 배열이 갈리지 않는다.
+  for (const row of issueEnvironmentRows(ctx, mdInlineCode)) {
     lines.push(`- **${row.label}**: ${row.value}`);
   }
   lines.push("");

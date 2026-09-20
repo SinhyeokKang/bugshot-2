@@ -237,3 +237,18 @@ describe("emitMarkdownLogSummary — 클립보드 복사 축", () => {
     expect(copied.join("\n")).not.toBe(plain.join("\n"));
   });
 });
+
+// 축 둘이 동시에 켜지는 호출부는 지금 없지만, 우선순위를 코드에만 두면 다음 사람이 뒤집어도
+// 조용히 통과한다. logsNotAttached가 이긴다 — 파일이 아예 안 가는 쪽이 더 강한 진술이다.
+describe("emitMarkdownLogSummary — 첨부 축 우선순위", () => {
+  const ctx = { actionLogCaptured: 3 };
+
+  it("logsNotAttached가 켜지면 forClipboard 고지보다 우선해 리드를 생략한다", () => {
+    const lines: string[] = [];
+    emitMarkdownLogSummary(lines, { ...ctx, forClipboard: true, logsNotAttached: true }, "cid:logs.html");
+    const body = lines.join("\n");
+    expect(body).not.toContain("logSummary.logs.notCopied");
+    expect(body).not.toContain("logSummary.logs.lead");
+    expect(body).toContain("logSummary.action.line");
+  });
+});

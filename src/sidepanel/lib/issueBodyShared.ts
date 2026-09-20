@@ -31,6 +31,10 @@ export interface LogSummaryContext {
   // 클립보드 복사본에는 logs.html이 없다. optional을 유지하는 게 필수다 — 이 헬퍼를 공유하는
   // 제출 빌더 4개는 축을 싣지 않으므로 부재가 현행 동작이어야 한다(fail-safe 방향).
   forClipboard?: boolean;
+  // 제출인데도 로그 파일이 동봉되지 않는 경로(webhook json 템플릿 모드 — 바디 하나만 POST한다).
+  // forClipboard와 합치지 않는 건 문구 때문이다: "복사되지 않습니다"는 여기서 거짓이고,
+  // 이 경로엔 "제출하면 첨부된다"는 후속 약속도 없다. 리드 문장 자체를 생략한다.
+  logsNotAttached?: boolean;
 }
 
 export function sectionLabel(section: IssueSection): string {
@@ -59,7 +63,9 @@ export function emitMarkdownLogSummary(
   const { networkLogSummary: net, consoleLogSummary: con, actionLogCaptured: act } = ctx;
   if (!net && !con && !act) return;
   lines.push(`## ${t("logSummary.title")}`, "");
-  if (ctx.forClipboard) {
+  if (ctx.logsNotAttached) {
+    // 없는 파일을 가리키지 않는다 — 건수 줄만 남긴다.
+  } else if (ctx.forClipboard) {
     // 복사본에 없는 파일을 가리키지 않는다. logsHref가 와도 링크를 만들지 않는 게 중요하다 —
     // 호출부가 축과 href를 함께 넘기는 실수를 해도 거짓 링크가 새지 않아야 한다.
     lines.push(`**${t("logSummary.logs.notCopied")}**`, "");
@@ -85,4 +91,14 @@ export function emitMarkdownLogSummary(
     lines.push(`- ${t("logSummary.action.line", { n: act })}`);
   }
   lines.push("");
+}
+
+// 수신 서버가 파싱하는 한 줄 카운트 요약(`console 3 · network 1 · action 12`). 본문 섹션과
+// 달리 문장이 아니라 값이라 번역하지 않는다 — 계약 문서 §2.2가 이 형태를 명시한다.
+export function logCountSummary(ctx: LogSummaryContext): string | undefined {
+  const parts: string[] = [];
+  if (ctx.consoleLogSummary) parts.push(`console ${ctx.consoleLogSummary.captured}`);
+  if (ctx.networkLogSummary) parts.push(`network ${ctx.networkLogSummary.captured}`);
+  if (ctx.actionLogCaptured) parts.push(`action ${ctx.actionLogCaptured}`);
+  return parts.length > 0 ? parts.join(" · ") : undefined;
 }

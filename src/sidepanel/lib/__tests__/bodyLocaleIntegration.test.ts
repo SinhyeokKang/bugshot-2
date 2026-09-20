@@ -24,6 +24,7 @@ import { buildMarkdownIssueBody } from "../buildMarkdownIssueBody";
 import { buildNotionIssueBody } from "../buildNotionIssueBody";
 import { buildReportData, deriveContextEnvRows } from "../buildReportData";
 import { buildSlackBody } from "../buildSlackBody";
+import { buildWebhookPayload } from "../webhookPayload";
 import type { LocaleMode } from "@/i18n/locales";
 
 const sectionConfig: IssueSection[] = [
@@ -191,6 +192,44 @@ describe("deriveContextEnvRows — Captured 값도 본문 언어를 따른다", 
   it("호출 후 화면 언어가 복원된다", () => {
     setLocale("ko");
     deriveContextEnvRows(makeCtx("en"));
+    expect(getLocale()).toBe("ko");
+  });
+});
+
+// webhook payload의 environment도 같은 축이다 — 본문과 같은 행을 싣는데 Captured만 화면
+// 언어로 굳으면 같은 요청 안에서 두 표기가 갈린다. webhookPayload.test.ts는 @/i18n을 모킹해
+// 이 축에 눈이 멀어 있다(빌더 20개와 같은 형태).
+describe("buildWebhookPayload — environment도 본문 언어를 따른다", () => {
+  const payloadEnv = (bodyLocale: LocaleMode) =>
+    buildWebhookPayload({
+      ctx: makeCtx(bodyLocale),
+      body: "",
+      files: { images: [], logs: [], attachments: [] },
+      idempotencyKey: "k",
+      sentAt: 0,
+      version: "1.0.0",
+    }).environment;
+
+  const captured = (bodyLocale: LocaleMode) =>
+    payloadEnv(bodyLocale).find((r) => r.label === "Captured")!.value;
+
+  it("두 로케일의 Captured 출력이 실제로 다르다", () => {
+    expect(captured("en")).not.toBe(captured("ko"));
+  });
+
+  it("행 구성은 본문 재현 환경과 같다", () => {
+    expect(payloadEnv("en").map((r) => r.label)).toEqual([
+      "OS",
+      "Browser",
+      "Page",
+      "Viewport",
+      "Captured",
+    ]);
+  });
+
+  it("호출 후 화면 언어가 복원된다", () => {
+    setLocale("ko");
+    payloadEnv("en");
     expect(getLocale()).toBe("ko");
   });
 });

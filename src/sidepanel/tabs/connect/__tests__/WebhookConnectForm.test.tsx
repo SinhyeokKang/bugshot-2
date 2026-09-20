@@ -195,3 +195,48 @@ describe("WebhookConnectForm — 연결 테스트", () => {
     expect(await screen.findByTestId("webhook-form-error")).toBeTruthy();
   });
 });
+
+describe("WebhookConnectForm — 사유 표시의 수명", () => {
+  // 사유가 입력과 어긋난 채 남으면 사용자는 고친 뒤에도 "아직 틀렸다"를 읽는다. 미리보기는
+  // 이미 고친 템플릿을 그리고 있어 화면 안에서 두 진술이 충돌한다.
+  it("템플릿을 고치면 이전 저장 사유가 사라진다", async () => {
+    useSettingsStore.setState({
+      accounts: { webhook: account({ format: "json", template: '{"t":"{{nope}}"}' }) },
+    });
+    const user = await openDialog();
+    await user.click(screen.getByTestId("webhook-save"));
+    expect((await screen.findByTestId("webhook-form-error")).textContent).toContain("nope");
+
+    const textarea = screen.getByTestId("webhook-template");
+    await user.clear(textarea);
+    await user.type(textarea, '{{"t":"{{title}}"}}');
+    await waitFor(() => expect(screen.queryByTestId("webhook-form-error")).toBeNull());
+  });
+
+  it("endpoint를 고치면 이전 저장 사유가 사라진다", async () => {
+    const user = await openDialog();
+    await user.type(screen.getByTestId("webhook-url"), "http://hooks.example.com/bugshot");
+    await user.click(screen.getByTestId("webhook-save"));
+    expect(await screen.findByTestId("webhook-form-error")).toBeTruthy();
+
+    await user.type(screen.getByTestId("webhook-url"), "x");
+    await waitFor(() => expect(screen.queryByTestId("webhook-form-error")).toBeNull());
+  });
+});
+
+describe("WebhookConnectForm — 엔트리 라벨", () => {
+  // 연결된 카드는 읽기 전용이라 이 버튼이 유일한 편집 입구다. 8개 플랫폼이 "Reconnect X"로
+  // 바뀌는 자리에서 이것만 "연결"이라고 말하면 편집 수단이 없는 것처럼 읽힌다.
+  it("미연결이면 연결 문구다", () => {
+    render(<WebhookConnectEntry onConnected={onConnected} />);
+    expect(screen.getByTestId("webhook-connect-entry").textContent).toContain("webhook.entry.label");
+  });
+
+  it("이미 연결돼 있으면 편집 문구로 바뀐다", () => {
+    useSettingsStore.setState({ accounts: { webhook: account() } });
+    render(<WebhookConnectEntry onConnected={onConnected} />);
+    const label = screen.getByTestId("webhook-connect-entry").textContent ?? "";
+    expect(label).toContain("webhook.entry.editLabel");
+    expect(label).not.toContain("webhook.entry.label");
+  });
+});

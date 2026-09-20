@@ -53,10 +53,15 @@ function templateVars(
     env: {
       os: ctx.os ?? undefined,
       browser: ctx.browser ?? undefined,
-      viewport: ctx.viewport ? `${ctx.viewport.width}x${ctx.viewport.height}` : undefined,
+      // 0×0·1970 가드는 본문 재현 환경(issueEnvironmentRows)과 같은 판정이어야 한다 — 한쪽만
+      // 걸면 같은 요청 안에서 {{body}}엔 없는 값이 {{env.viewport}}로 나간다.
+      viewport:
+        ctx.viewport && ctx.viewport.width > 0 && ctx.viewport.height > 0
+          ? `${ctx.viewport.width}x${ctx.viewport.height}`
+          : undefined,
       selector: ctx.selector || undefined,
     },
-    capturedAt: new Date(ctx.capturedAt).toISOString(),
+    capturedAt: ctx.capturedAt ? new Date(ctx.capturedAt).toISOString() : undefined,
     // multipart payload와 같은 출처를 쓴다 — 두 모드가 갈리면 같은 리포트가 모드마다
     // 다른 요약을 싣는다.
     logSummary: logSummaryText(ctx),
