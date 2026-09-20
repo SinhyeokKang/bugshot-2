@@ -28,7 +28,8 @@ const V4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 function isPrivateHost(host: string): boolean {
   // 후행 점은 DNS 루트 표기(`localhost.`)라 같은 호스트다. 안 떼면 아래 비교가 전부 빗나간다.
   const h = host.toLowerCase().replace(/\.$/, "");
-  if (h === "localhost" || h === "[::1]" || h === "::1") return true;
+  // `::1`을 따로 보지 않는다 — WHATWG URL의 hostname은 IPv6를 항상 대괄호 형태로 준다.
+  if (h === "localhost" || h === "[::1]") return true;
   // IPv4-mapped IPv6(`::ffff:127.0.0.1`)은 URL이 `[::ffff:7f00:1]`로 직렬화하기도 한다.
   // 두 표기를 모두 환원하지 않으면 루프백이 공인으로 읽힌다.
   const mapped = /^\[::ffff:([0-9a-f.:]+)\]$/.exec(h);
@@ -49,8 +50,9 @@ function isPrivateHost(host: string): boolean {
 
   const m = V4.exec(h);
   if (!m) return false;
+  // 옥텟 범위를 다시 보지 않는다 — `new URL("http://256.1.1.1")`이 먼저 throw하므로
+  // 여기까지 온 dotted-quad는 이미 유효하다(실측).
   const [a, b] = m.slice(1).map(Number);
-  if (m.slice(1).some((p) => Number(p) > 255)) return false;
   if (a === 127 || a === 10) return true;
   // 0.0.0.0/8 — 로컬 바인드 주소. 개발 서버가 흔히 이 주소로 뜬다.
   if (a === 0) return true;

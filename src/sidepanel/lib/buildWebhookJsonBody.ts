@@ -10,10 +10,8 @@ import { placeholderSectionImages } from "./resolveInlineImages";
 // 화면 언어가 아니라 본문 언어를 따라야 하고, 그러려면 래핑 안에서 t()를 불러야 한다.
 // sections도 함께 돌려준다 — 템플릿이 {{sections.<id>}}로 같은 값을 직접 참조할 수 있어,
 // body만 정리하면 그쪽 경로로 내부 마커가 그대로 새어 나간다.
-// 그 맵은 body와 **같은 구성 축**을 따라야 한다: body는 sectionConfig로 걸러 나가는데 맵만
-// 안 거르면 사용자가 끈 섹션이 {{sections.<id>}}로 수신 서버에 직행한다. 섹션 토글은
-// "이건 안 보낸다"는 명시적 컨트롤이라 전송 축의 privacy 경계다. 거르면 비활성 섹션의
-// 내부 마커 누출도 같이 닫힌다 — placeholderSectionImages는 enabled+paragraph만 치환한다.
+// 그 맵도 body와 같은 sectionConfig를 따라야 한다 — 안 그러면 사용자가 끈 섹션이
+// {{sections.<id>}}로 직행하고, 그 섹션은 치환도 안 돼 내부 마커까지 실려 나간다.
 export function buildWebhookJsonBody(
   ctx: MarkdownContext,
 ): { body: string; sections: Record<string, string> } {

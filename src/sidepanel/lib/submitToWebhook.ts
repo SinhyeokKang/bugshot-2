@@ -57,8 +57,8 @@ function templateVars(
       selector: ctx.selector || undefined,
     },
     capturedAt: new Date(ctx.capturedAt).toISOString(),
-    // multipart payload와 같은 출처를 쓴다. 재현 환경 행에서 라벨로 긁으면
-    // 사용자가 추가한 임의 행(계정·비밀번호 메모)이 logSummary로 새어 나간다.
+    // multipart payload와 같은 출처를 쓴다 — 두 모드가 갈리면 같은 리포트가 모드마다
+    // 다른 요약을 싣는다.
     logSummary: logSummaryText(ctx),
     sections,
     media: {

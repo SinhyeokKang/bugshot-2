@@ -58,19 +58,6 @@ describe("parseWebhookTemplate — 저장 시점 게이트", () => {
     expect(r.issues.map((i) => i.kind)).toContain("unknown-var");
   });
 
-  it("sections는 프로토타입 체인을 타지 않는다", () => {
-    const r = parseWebhookTemplate('{"c":"{{sections.constructor}}"}');
-    // 이름 자체는 화이트리스트를 통과하지만(섹션 id는 임의 문자열이다)
-    expect(r.ok).toBe(true);
-    // 값이 프로토타입에서 오면 안 된다 — hasOwn 없이 읽으면 함수 소스가 본문에 실린다.
-    // 빈 문자열인 건 "없는 섹션은 키를 남기고 비운다"는 계약이고(수신 서버 스키마 안정),
-    // 여기서 중요한 건 그게 Object.prototype.constructor가 아니라는 것이다.
-    const out = renderWebhookTemplate('{"c":"{{sections.constructor}}"}', makeVars());
-    expect((out as { c: unknown }).c).toBe("");
-    const inline = renderWebhookTemplate('{"c":"x{{sections.constructor}}y"}', makeVars());
-    expect((inline as { c: string }).c).toBe("xy");
-  });
-
   it("중첩 배열·객체 안쪽 리프의 변수도 검사한다", () => {
     const r = parseWebhookTemplate('{"embeds":[{"description":"{{nope}}"}]}');
     expect(r.ok).toBe(false);
@@ -112,6 +99,19 @@ describe("renderWebhookTemplate — parse 먼저, 문자열 리프 안에서만 
     expect(embeds[0].fields[0].value).toBe("macOS");
   });
 
+  it("sections는 프로토타입 체인을 타지 않는다", () => {
+    const r = parseWebhookTemplate('{"c":"{{sections.constructor}}"}');
+    // 이름 자체는 화이트리스트를 통과하지만(섹션 id는 임의 문자열이다)
+    expect(r.ok).toBe(true);
+    // 값이 프로토타입에서 오면 안 된다 — hasOwn 없이 읽으면 함수 소스가 본문에 실린다.
+    // 빈 문자열인 건 "없는 섹션은 키를 남기고 비운다"는 계약이고(수신 서버 스키마 안정),
+    // 여기서 중요한 건 그게 Object.prototype.constructor가 아니라는 것이다.
+    const out = renderWebhookTemplate('{"c":"{{sections.constructor}}"}', makeVars());
+    expect((out as { c: unknown }).c).toBe("");
+    const inline = renderWebhookTemplate('{"c":"x{{sections.constructor}}y"}', makeVars());
+    expect((inline as { c: string }).c).toBe("xy");
+  });
+
   it("키 이름은 치환 대상이 아니다 — 문자열 리프만 본다", () => {
     const out = renderWebhookTemplate('{"{{title}}":"v"}', makeVars());
     expect(Object.keys(out as object)).toEqual(["{{title}}"]);
@@ -133,7 +133,8 @@ describe("renderWebhookTemplate — parse 먼저, 문자열 리프 안에서만 
     const vars = makeVars({
       media: { count: 1, items: [{ filename: "replay.mp4", contentType: "video/mp4" }] },
     });
-    expect(Object.keys(vars.media.items[0])).toEqual(["filename", "contentType"]);
+    // 노출 축은 WebhookTemplateVars 타입과 화이트리스트가 정한다(위 dataUri 케이스).
+    // 여기서 fixture의 키를 다시 세면 구현과 무관하게 늘 green인 단언이 된다.
     const out = renderWebhookTemplate('{"f":"{{media.0.filename}}"}', vars);
     expect((out as { f: string }).f).toBe("replay.mp4");
   });

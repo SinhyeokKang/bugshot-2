@@ -139,23 +139,6 @@ describe("submitToWebhook — multipart", () => {
     expect(media.find((m) => m.part === "screenshot.webp")?.contentType).toBe("image/png");
   });
 
-  it("json 모드의 {{media.N.contentType}}도 같은 출처를 쓴다", async () => {
-    sendBg.mockResolvedValue({});
-    await submitToWebhook(
-      input({
-        auth: { ...JSON_AUTH, template: '{"c":"{{media.0.contentType}}"}' },
-        images: [],
-        logs: [],
-        attachments: [
-          { filename: "a1__note.pdf", dataUrl: "data:application/pdf;base64,DD", displayName: "note.pdf" },
-        ],
-      }),
-    );
-
-    // guessUploadMime은 pdf를 몰라 octet-stream을 준다 — 두 모드가 갈리면 안 된다.
-    expect((sentMessage().body as { c: string }).c).toBe("application/pdf");
-  });
-
   it("첨부는 part가 고유명, filename이 원본명이다 — 수신 서버 UI에 접두사가 안 뜬다", async () => {
     await submitToWebhook(
       input({
@@ -243,6 +226,23 @@ describe("submitToWebhook — 인라인 이미지", () => {
 });
 
 describe("submitToWebhook — json 템플릿", () => {
+  it("{{media.N.contentType}}이 multipart payload와 같은 출처를 쓴다", async () => {
+    sendBg.mockResolvedValue({});
+    await submitToWebhook(
+      input({
+        auth: { ...JSON_AUTH, template: '{"c":"{{media.0.contentType}}"}' },
+        images: [],
+        logs: [],
+        attachments: [
+          { filename: "a1__note.pdf", dataUrl: "data:application/pdf;base64,DD", displayName: "note.pdf" },
+        ],
+      }),
+    );
+
+    // guessUploadMime은 pdf를 몰라 octet-stream을 준다 — 두 모드가 갈리면 안 된다.
+    expect((sentMessage().body as { c: string }).c).toBe("application/pdf");
+  });
+
   it("템플릿 렌더 결과를 바디로 보내고 미디어를 싣지 않는다", async () => {
     sendBg.mockResolvedValue({});
     await submitToWebhook(input({ auth: JSON_AUTH }));

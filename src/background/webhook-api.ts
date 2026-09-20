@@ -158,8 +158,8 @@ export function normalizeWebhookResult(body: unknown): WebhookSubmitResult {
 
 // dataUrl의 base64 길이에서 바이트 수를 추정한다. Blob으로 만든 뒤 재면 캡을 넘는 입력이
 // 이미 메모리에 올라간 뒤라 SW가 죽는 걸 못 막는다.
-// UTF-8 바이트가 코드유닛 수 이상, 3배 이하라는 성질로 양끝을 먼저 거른다 — 캡을 넘는
-// 입력일수록 인코딩이 확실히 일어나는 구조면 그 자체가 SW 메모리를 때린다.
+// UTF-8 바이트가 코드유닛 수 이상, 3배 이하라는 성질로 양끝을 먼저 거른다. 실제 인코딩은
+// 그 사이에 걸린 입력에만 돌린다 — 매번 인코딩하면 거대한 본문이 SW 메모리를 한 번 더 친다.
 function exceedsUtf8(s: string, max: number): boolean {
   if (s.length > max) return true;
   if (s.length * 3 <= max) return false;
@@ -291,7 +291,7 @@ export async function submitWebhook(input: SubmitWebhookInput): Promise<WebhookS
   // GC가 중간에 걷어가지 못하기 때문이다.
   for (const file of input.files) {
     form.append(file.part, dataUrlToBlob(file.dataUrl), file.filename);
-    (file as { dataUrl: string }).dataUrl = "";
+    file.dataUrl = "";
   }
 
   // Content-Type을 세팅하지 않아야 fetch가 boundary를 붙인다.

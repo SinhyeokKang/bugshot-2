@@ -342,7 +342,7 @@ export const useSettingsStore = create<SettingsState>()(
           state = migrateToV11(state as V3Shape) as Record<string, unknown>;
         }
         if (version < 12) {
-          state = migrateToV12(state as V3Shape) as unknown as Record<string, unknown>;
+          state = migrateToV12(state as V3Shape) as Record<string, unknown>;
         }
         return state as unknown as SettingsState;
       },

@@ -23,8 +23,6 @@ export interface BuildWebhookPayloadInput {
   version: string;
 }
 
-// 파트 이름은 buildCaptureFiles의 filename을 그대로 쓴다. 본문의 cid: 참조가 같은 문자열을
-// 가리키므로 여기서 이름을 다시 만들면 그 순간 둘이 갈린다.
 // 실제 파트의 Content-Type은 dataUrlToBlob이 dataUrl에서 읽는다. 메타데이터를 파일명
 // 추측으로만 만들면 둘이 갈린다 — guessUploadMime은 pdf·zip 같은 첨부를 모른다.
 export function contentTypeOf(file: CaptureFile): string {
@@ -32,6 +30,8 @@ export function contentTypeOf(file: CaptureFile): string {
   return m?.[1] ?? guessUploadMime(file.filename);
 }
 
+// 파트 이름은 buildCaptureFiles의 filename을 그대로 쓴다. 본문의 cid: 참조가 같은 문자열을
+// 가리키므로 여기서 이름을 다시 만들면 그 순간 둘이 갈린다.
 function toEntry(file: CaptureFile, kind: WebhookMediaKind): WebhookMediaEntry {
   return {
     part: file.filename,
