@@ -22,9 +22,25 @@ export class WebhookUrlError extends Error {
 const V4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 
 // RFC1918 + loopback + link-local. 공인망 평문만 막는 것이 목적이라 이 바깥은 전부 거부한다.
+// 판정에서 빠지면 보안 구멍이 아니라 **정당한 사내 주소가 저장조차 안 되는** 기능 제약으로
+// 나온다(실패 방향이 전부 거부). ssrf-guard.ts:isBlockedHost가 같은 개념을 반대 방향으로
+// 보고 있어 축을 맞춘다 — 저쪽은 적대적 href를 막고 여기는 사용자가 직접 친 주소를 허용한다.
 function isPrivateHost(host: string): boolean {
-  const h = host.toLowerCase();
+  // 후행 점은 DNS 루트 표기(`localhost.`)라 같은 호스트다. 안 떼면 아래 비교가 전부 빗나간다.
+  const h = host.toLowerCase().replace(/\.$/, "");
   if (h === "localhost" || h === "[::1]" || h === "::1") return true;
+  // IPv4-mapped IPv6(`::ffff:127.0.0.1`)은 URL이 `[::ffff:7f00:1]`로 직렬화하기도 한다.
+  // 두 표기를 모두 환원하지 않으면 루프백이 공인으로 읽힌다.
+  const mapped = /^\[::ffff:([0-9a-f.:]+)\]$/.exec(h);
+  if (mapped) {
+    const inner = mapped[1];
+    if (inner.includes(".")) return isPrivateHost(inner);
+    const hex = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(inner);
+    if (hex) {
+      const n = (Number.parseInt(hex[1], 16) << 16) | Number.parseInt(hex[2], 16);
+      return isPrivateHost([n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join("."));
+    }
+  }
   // IPv6 ULA(fc00::/7)·링크로컬(fe80::/10). 없으면 사내 IPv6 엔드포인트가 공인망으로 오판된다.
   if (/^\[(f[cd]|fe[89ab])[0-9a-f]*:/.test(h)) return true;
   if (h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) return true;
@@ -36,9 +52,13 @@ function isPrivateHost(host: string): boolean {
   const [a, b] = m.slice(1).map(Number);
   if (m.slice(1).some((p) => Number(p) > 255)) return false;
   if (a === 127 || a === 10) return true;
+  // 0.0.0.0/8 — 로컬 바인드 주소. 개발 서버가 흔히 이 주소로 뜬다.
+  if (a === 0) return true;
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 192 && b === 168) return true;
   if (a === 169 && b === 254) return true;
+  // CGNAT 100.64/10 — 사내망·VPN이 실제로 쓴다. 100.128 이상은 공인이다.
+  if (a === 100 && b >= 64 && b <= 127) return true;
   return false;
 }
 
@@ -47,7 +67,10 @@ export function normalizeWebhookUrl(input: string): WebhookUrlVerdict {
   if (!raw) throw new WebhookUrlError("invalid");
 
   // 스킴이 없으면 https를 보정한다. 다른 스킴이 앞에 붙어 있으면 그대로 두고 아래에서 거른다.
-  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
+  // `//`까지 봐야 한다 — `:`만 보면 `bugs.acme.io:8443`의 호스트가 스킴으로 읽혀, 포트를
+  // 적은 정당한 주소가 scheme 거부로 떨어진다. `javascript:`·`data:`는 `//`가 없어 보정
+  // 대상이 되지만 그 뒤 파싱에서 invalid로 걸린다.
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
 
   let u: URL;
   try {
