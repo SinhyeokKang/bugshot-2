@@ -19,15 +19,18 @@ export function SubmitSuccessView({
           <CircleCheck className="h-6 w-6 text-green-600 dark:text-green-400" />
         </div>
         <h3 className="text-lg font-semibold">{t("submit.success")}</h3>
-        <a
-          href={result.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {result.key}
-          <ArrowUpRight className="h-3.5 w-3.5" />
-        </a>
+        {/* webhook json 모드는 응답을 읽지 않아 식별자가 없다 — 빈 href는 확장 페이지로 간다. */}
+        {result.url ? (
+          <a
+            href={result.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {result.key}
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </a>
+        ) : null}
         <div className="mt-6 flex items-center justify-center gap-2">
           <Button
             variant="outline"

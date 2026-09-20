@@ -67,6 +67,7 @@ import { submitToGitlab } from "@/sidepanel/lib/submitToGitlab";
 import { submitToAsana } from "@/sidepanel/lib/submitToAsana";
 import { submitToClickup } from "@/sidepanel/lib/submitToClickup";
 import { submitToSlack } from "@/sidepanel/lib/submitToSlack";
+import { submitToWebhook } from "@/sidepanel/lib/submitToWebhook";
 import { formatTimestamp } from "@/sidepanel/lib/formatTimestamp";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
@@ -119,6 +120,8 @@ import {
   clickupLastSubmitFields,
   slackSubmitArgs,
   slackLastSubmitFields,
+  webhookSubmitArgs,
+  webhookIdempotencyKey,
 } from "@/sidepanel/lib/submitAdapters";
 
 type SubmitFields = {
@@ -159,6 +162,7 @@ export function DraftDetailDialog({
   const asanaAccount = accounts.asana;
   const clickupAccount = accounts.clickup;
   const slackAccount = accounts.slack;
+  const webhookAccount = accounts.webhook;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
   const markSlackShared = useIssuesStore((s) => s.markSlackShared);
@@ -768,6 +772,47 @@ export function DraftDetailDialog({
     return result;
   }
 
+  async function handleWebhookSubmit(
+    ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
+    if (!issue) throw new Error(t("create.requiredMissing"));
+    if (!webhookAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.webhook") }));
+    }
+
+    const inlineImages = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const outcome = await submitToWebhook(
+      webhookSubmitArgs({
+        ctx,
+        inlineImages,
+        captureFiles,
+        auth: webhookAccount.auth,
+        idempotencyKey: webhookIdempotencyKey(issue.id, ctx.capturedAt),
+      }),
+    );
+    // json 템플릿 모드는 응답을 읽지 않아 식별자가 없다 — 행을 만들면 열 수 없는 링크가
+    // 남는다. 판별자를 런타임에서도 본다: `recorded: false` 쪽 key·url이 optional undefined라
+    // 타입만으로는 이 호출을 막지 못한다.
+    if (outcome.recorded) {
+      markSubmitted(issue.id, {
+        platform: "webhook",
+        key: outcome.key,
+        url: outcome.url,
+      });
+    }
+    if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
+      useEditorStore.getState().reset();
+    }
+    // setLastSubmitFields 쌍은 없다(webhook?: never) — 기억할 제출 필드가 없다.
+    useSettingsStore.getState().setLastSubmittedPlatform("webhook");
+    return outcome.recorded
+      ? { key: outcome.key, url: outcome.url, logsDropped: outcome.logsDropped }
+      : { key: "", url: "" };
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     // markSubmitted가 issue.url/key를 트래커 값으로 덮고 slackPreserved를 비우므로 사전 캡처.
     const slackOrigin =
@@ -783,6 +828,7 @@ export function DraftDetailDialog({
     else if (submitPlatform === "asana") result = await handleAsanaSubmit(ctx, captureFiles);
     else if (submitPlatform === "clickup") result = await handleClickupSubmit(ctx, captureFiles);
     else if (submitPlatform === "slack") result = await handleSlackSubmit(ctx, captureFiles);
+    else if (submitPlatform === "webhook") result = await handleWebhookSubmit(ctx, captureFiles);
     else result = await handleJiraSubmit(ctx, captureFiles);
     if (slackOrigin && submitPlatform !== "slack" && result.url) {
       const text = `${t("slack.promotedComment", {

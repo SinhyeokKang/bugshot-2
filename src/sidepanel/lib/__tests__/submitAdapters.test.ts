@@ -17,6 +17,7 @@ import {
   clickupLastSubmitFields,
   slackSubmitArgs,
   slackLastSubmitFields,
+  webhookIdempotencyKey,
 } from "../submitAdapters";
 import type { MarkdownContext } from "../buildIssueMarkdown";
 import type { CaptureFiles } from "../buildCaptureFiles";
@@ -446,5 +447,24 @@ describe("requireMediaUpload 축", () => {
       "requireMediaUpload" in
         jiraSubmitArgs({ ...base, fields: {}, projectKey: "B", issueTypeId: "1", summary: "t" }),
     ).toBe(false);
+  });
+});
+
+// 타임아웃·SW 종료 뒤 재시도가 중복 리포트를 만들지 않게 하는 축이라, 같은 draft면 같은
+// 값이어야 한다. 호출부가 둘(라이브 제출·저장 draft 재제출)이고 한쪽만 이슈 id를 확실히
+// 가진다 — 그 비대칭을 여기서 고정한다.
+describe("webhookIdempotencyKey", () => {
+  it("이슈 레코드가 있으면 그 id를 그대로 쓴다", () => {
+    expect(webhookIdempotencyKey("issue-1", 1700000000000)).toBe("issue-1");
+  });
+
+  it("레코드가 아직 없는 라이브 제출은 캡처 시각으로 대신한다", () => {
+    expect(webhookIdempotencyKey(null, 1700000000000)).toBe("capture-1700000000000");
+    expect(webhookIdempotencyKey(undefined, 1700000000000)).toBe("capture-1700000000000");
+  });
+
+  it("같은 draft를 두 번 제출하면 같은 키가 나온다", () => {
+    expect(webhookIdempotencyKey(null, 42)).toBe(webhookIdempotencyKey(null, 42));
+    expect(webhookIdempotencyKey(null, 43)).not.toBe(webhookIdempotencyKey(null, 42));
   });
 });

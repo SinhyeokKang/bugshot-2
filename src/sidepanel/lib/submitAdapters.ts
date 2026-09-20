@@ -324,6 +324,16 @@ export function slackSubmitArgs(input: SubmitBase & {
   };
 }
 
+// 타임아웃·SW 종료 뒤 재시도가 중복 리포트를 만들지 않게 하는 축이라 **같은 draft면 같은
+// 값**이어야 한다. 이슈 레코드가 있으면 그 id가 그 성질을 그대로 가지고, 레코드가 아직
+// 없는 라이브 제출은 캡처 시각으로 대신한다(재전송 사이에 다시 캡처하지 않는 한 불변).
+export function webhookIdempotencyKey(
+  issueId: string | null | undefined,
+  capturedAt: number,
+): string {
+  return issueId ?? `capture-${capturedAt}`;
+}
+
 // lastSubmitFields 쌍이 없다 — 제출 필드가 없으므로 기억할 목적지도 없다
 // (LastSubmitFieldsByPlatform.webhook이 never라 타입이 그 호출 자체를 막는다).
 export function webhookSubmitArgs(input: SubmitBase & {

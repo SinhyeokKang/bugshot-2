@@ -305,6 +305,20 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
           slackConfigured ? (
             <SlackIssueFields value={slackFields} onChange={setSlackFields} />
           ) : null
+        ) : platform === "webhook" ? (
+          webhookConfigured ? (
+            // 고를 제출 필드가 없다 — 대신 어디로 나가는지와 모드 차이를 그 자리에서 보인다.
+            <div className="flex flex-col gap-1.5 text-sm" data-testid="webhook-submit-note">
+              <span className="truncate font-medium">{webhookAccount!.auth.url}</span>
+              <span className="text-muted-foreground">
+                {t(
+                  webhookAccount!.auth.format === "json"
+                    ? "webhook.format.json.help"
+                    : "webhook.format.multipart.help",
+                )}
+              </span>
+            </div>
+          ) : null
         ) : notionConfigured ? (
           <NotionIssueFields
             value={notionFields}

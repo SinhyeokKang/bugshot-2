@@ -1,4 +1,5 @@
 import { type ComponentType } from "react";
+import { Webhook } from "lucide-react";
 import { SlackIcon } from "@/components/icons/SlackIcon";
 import {
   SiAsana,
@@ -30,6 +31,7 @@ const PLATFORM_TABS: {
   { id: "clickup", Icon: SiClickup },
   // lucide 아이콘은 color="default"(브랜드 hex)를 못 받아 투명해진다 → currentColor로 렌더.
   { id: "slack", Icon: ({ className }) => <SlackIcon className={className} /> },
+  { id: "webhook", Icon: ({ className }) => <Webhook className={className} /> },
 ];
 
 // Tabs 루트 안에 둔다 — TabsList를 쓰므로 단독으로는 렌더되지 않는다.
