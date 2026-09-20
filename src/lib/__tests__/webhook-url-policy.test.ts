@@ -27,6 +27,23 @@ describe("normalizeWebhookUrl", () => {
         .toBe("https://bugs.acme.io/intake");
     });
 
+    it("루트 경로의 후행 슬래시를 떼어낸다 — 입력값과 저장값이 갈리지 않게", () => {
+      expect(normalizeWebhookUrl("https://bugs.acme.io").url).toBe("https://bugs.acme.io");
+      expect(normalizeWebhookUrl("https://bugs.acme.io/").url).toBe("https://bugs.acme.io");
+    });
+
+    it("query·hash가 있으면 후행 슬래시를 건드리지 않는다 — 값 안의 슬래시가 잘린다", () => {
+      expect(normalizeWebhookUrl("https://bugs.acme.io/?path=a/").url)
+        .toBe("https://bugs.acme.io/?path=a/");
+      expect(normalizeWebhookUrl("https://bugs.acme.io/#a/").url)
+        .toBe("https://bugs.acme.io/#a/");
+    });
+
+    it("루트가 아닌 경로의 슬래시는 사용자가 쓴 그대로 둔다", () => {
+      expect(normalizeWebhookUrl("https://bugs.acme.io/intake/").url)
+        .toBe("https://bugs.acme.io/intake/");
+    });
+
     it("포트를 보존한다", () => {
       expect(normalizeWebhookUrl("https://bugs.acme.io:8443/intake").url)
         .toBe("https://bugs.acme.io:8443/intake");

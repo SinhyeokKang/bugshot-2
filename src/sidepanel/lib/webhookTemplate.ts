@@ -30,6 +30,10 @@ const PLACEHOLDER = /\{\{([^{}]+)\}\}/g;
 // 화이트리스트를 경로 접두사로 둔다 — 열거하면 media 인덱스처럼 동적인 꼬리를 못 담는다.
 const ALLOWED_ROOTS = ["title", "body", "url", "capturedAt", "logSummary"];
 const ALLOWED_ENV = ["os", "browser", "viewport", "selector"];
+const MEDIA_FIELDS = ["filename", "contentType"];
+// media.<index>.<field> — 판정(isAllowedPath)과 조회(readPath)가 같은 셰이프를 봐야 한다.
+// 정규식을 양쪽에 복제하면 한쪽만 고쳐도 무음으로 갈린다.
+const MEDIA_ITEM = /^media\.(\d+)\.(\w+)$/;
 
 function isAllowedPath(path: string): boolean {
   const parts = path.split(".");
@@ -39,10 +43,8 @@ function isAllowedPath(path: string): boolean {
   if (head === "sections") return rest.length === 1 && rest[0].length > 0;
   if (head === "media") {
     if (rest.length === 1) return rest[0] === "count";
-    // media.<index>.<field>
-    if (rest.length === 2) {
-      return /^\d+$/.test(rest[0]) && ["filename", "contentType"].includes(rest[1]);
-    }
+    const m = MEDIA_ITEM.exec(path);
+    if (m) return MEDIA_FIELDS.includes(m[2]);
   }
   return false;
 }
@@ -55,8 +57,7 @@ function readPath(path: string, vars: WebhookTemplateVars): unknown {
     return Object.hasOwn(vars.sections, section[1]) ? vars.sections[section[1]] : undefined;
   }
   // media.<index>.<field>는 템플릿 표기이고 실제 값은 media.items[index]에 있다.
-  // 사용자에게 items를 노출하지 않는 건 배열 전체를 통째로 꽂는 템플릿을 막기 위해서다.
-  const media = /^media\.(\d+)\.(\w+)$/.exec(path);
+  const media = MEDIA_ITEM.exec(path);
   if (media) {
     const item = vars.media.items[Number(media[1])];
     return item ? (item as unknown as Record<string, unknown>)[media[2]] : undefined;

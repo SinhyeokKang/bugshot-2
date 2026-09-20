@@ -5,8 +5,8 @@ export type WebhookUrlRejection =
   | "credentials";
 
 export interface WebhookUrlVerdict {
-  // 정규화 결과. path·query를 보존한다 — GitLab normalizeInstanceUrl은 인스턴스 루트를
-  // 원하지만 여기서는 엔드포인트 경로 자체가 사용자가 지정한 목적지다.
+  // 정규화 결과. path·query를 보존한다 — 엔드포인트 경로 자체가 사용자가 지정한 목적지라
+  // origin만 남기면 안 된다.
   url: string;
   // true면 UI가 평문 경고 배지를 띄운다.
   plaintext: boolean;
@@ -63,9 +63,11 @@ export function normalizeWebhookUrl(input: string): WebhookUrlVerdict {
   // 원인 불명 실패가 되고 비밀번호가 저장소에 URL 문자열로 남는다.
   if (u.username || u.password) throw new WebhookUrlError("credentials");
 
-  if (protocol === "http:") {
-    if (!isPrivateHost(u.hostname)) throw new WebhookUrlError("insecure-public");
-    return { url: u.toString().replace(/\/$/, u.pathname === "/" ? "" : "/"), plaintext: true };
-  }
-  return { url: u.toString().replace(/\/$/, u.pathname === "/" ? "" : "/"), plaintext: false };
+  const plaintext = protocol === "http:";
+  if (plaintext && !isPrivateHost(u.hostname)) throw new WebhookUrlError("insecure-public");
+  // 루트 경로의 후행 슬래시는 떼어낸다 — 사용자가 입력한 문자열과 저장값이 갈리면
+  // 연결 폼이 "고치지도 않았는데 값이 바뀌었다"로 보인다.
+  const bare = u.pathname === "/" && !u.search && !u.hash;
+  const url = bare ? u.toString().replace(/\/$/, "") : u.toString();
+  return { url, plaintext };
 }

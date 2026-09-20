@@ -117,7 +117,7 @@ const ko = {
   "webhook.error.redirect": "수신 서버가 다른 주소로 넘기려 했습니다. 인증 헤더가 새지 않도록 전송을 중단했습니다 — 최종 주소를 직접 입력하세요.",
   "webhook.error.contract": "수신 서버가 {key, url}을 돌려주지 않아 실패로 처리했습니다. 리포트는 그대로 남아 있습니다.",
   "webhook.error.tooLarge": "보낼 내용이 상한(25MB)을 넘습니다. 영상이나 첨부를 줄이세요.",
-  "webhook.error.status": "수신 서버가 {status} 를 돌려줬습니다.",
+  "webhook.error.status": "수신 서버가 {status} 응답을 돌려줬습니다.",
 
   "asana.patButton": "PAT",
   "asana.auth.kind.oauth": "OAuth",

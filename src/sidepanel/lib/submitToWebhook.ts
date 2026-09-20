@@ -6,10 +6,9 @@ import { buildWebhookJsonBody } from "./buildWebhookJsonBody";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { prepareUpload, toInlineUploadFiles, type UploadFileInput } from "./prepareUpload";
 import type { InlineImageInput } from "./resolveInlineImages";
-import { buildWebhookPayload, logSummaryText } from "./webhookPayload";
+import { buildWebhookPayload, contentTypeOf, logSummaryText } from "./webhookPayload";
 import { renderWebhookTemplate, type WebhookTemplateVars } from "./webhookTemplate";
 import { t } from "@/i18n";
-import { guessUploadMime } from "./uploadMime";
 
 export type { NormalizedSubmitResult } from "@/types/platform";
 
@@ -28,7 +27,6 @@ export interface WebhookSubmitInput {
   logs?: UploadFileInput[];
   attachments?: UploadFileInput[];
   inlineImages?: InlineImageInput[];
-  cc?: string[];
   // 같은 draft의 재전송은 같은 키를 쓴다 — 수신 서버가 이걸로 중복을 거른다.
   idempotencyKey: string;
 }
@@ -39,7 +37,12 @@ export interface WebhookSubmitInput {
 const cidUploadFn = async (files: { filename: string }[]) =>
   files.map((f) => ({ filename: f.filename, href: `cid:${f.filename}` }));
 
-function templateVars(ctx: MarkdownContext, body: string, files: UploadFileInput[]): WebhookTemplateVars {
+function templateVars(
+  ctx: MarkdownContext,
+  body: string,
+  sections: Record<string, string>,
+  files: UploadFileInput[],
+): WebhookTemplateVars {
   return {
     title: ctx.title,
     body,
@@ -54,13 +57,13 @@ function templateVars(ctx: MarkdownContext, body: string, files: UploadFileInput
     // multipart payload와 같은 출처를 쓴다. 재현 환경 행에서 라벨로 긁으면
     // 사용자가 추가한 임의 행(계정·비밀번호 메모)이 logSummary로 새어 나간다.
     logSummary: logSummaryText(ctx),
-    sections: ctx.sections,
+    sections,
     media: {
       count: files.length,
       // 영상에 dataUri를 주지 않는다 — base64가 실질적으로 항상 바디 캡을 넘긴다.
       items: files.map((f) => ({
         filename: f.displayName ?? f.filename,
-        contentType: guessUploadMime(f.filename),
+        contentType: contentTypeOf(f),
       })),
     },
   };
@@ -78,10 +81,10 @@ export async function submitToWebhook(
 
   if (input.auth.format === "json") {
     if (!input.auth.template) throw new Error(t("webhook.error.templateMissing"));
-    const body = buildWebhookJsonBody(input.ctx, input.cc);
+    const { body, sections } = buildWebhookJsonBody(input.ctx);
     const rendered = renderWebhookTemplate(
       input.auth.template,
-      templateVars(input.ctx, body, files),
+      templateVars(input.ctx, body, sections, files),
     );
     await sendBg<WebhookSubmitResult>({
       type: "webhook.submit",
@@ -107,7 +110,6 @@ export async function submitToWebhook(
       video: input.video ? toMedia(input.video) : undefined,
       logs: (input.logs ?? []).map(toMedia),
       attachments: (input.attachments ?? []).map(toAttachmentMedia),
-      cc: input.cc,
     },
     { platform: "webhook" },
   );

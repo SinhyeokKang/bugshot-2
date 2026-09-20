@@ -256,7 +256,7 @@ export type BgRequest =
   // mode로 판별한다 — optional 필드의 존재 여부로 추론하면 multipart인데 payload가
   // 빠진 요청이 json으로 새어 JSON.stringify(undefined)에서 TypeError가 난다.
   // bodyLocale은 싣지 않는다: 본문을 사이드패널에서 완결해 보내므로 background realm에서
-  // 다시 감쌀 것이 없다(Jira·Notion만 그 재래핑이 필요한 구조다).
+  // 다시 감쌀 것이 없다.
   | {
       type: "webhook.submit";
       mode: "multipart";

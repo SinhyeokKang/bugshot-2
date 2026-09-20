@@ -126,6 +126,51 @@ describe("submitToWebhook — multipart", () => {
     );
   });
 
+  it("contentType은 파일명이 아니라 dataUrl에서 온다 — 실제 파트의 타입과 같은 출처", async () => {
+    // 확장자와 dataUrl이 어긋난 입력으로 출처를 고정한다. 파일명 추측을 쓰면 image/webp가 된다.
+    await submitToWebhook(
+      input({
+        images: [{ filename: "screenshot.webp", dataUrl: "data:image/png;base64,AA" }],
+        logs: [],
+      }),
+    );
+
+    const media = sentMessage().payload?.media ?? [];
+    expect(media.find((m) => m.part === "screenshot.webp")?.contentType).toBe("image/png");
+  });
+
+  it("json 모드의 {{media.N.contentType}}도 같은 출처를 쓴다", async () => {
+    sendBg.mockResolvedValue({});
+    await submitToWebhook(
+      input({
+        auth: { ...JSON_AUTH, template: '{"c":"{{media.0.contentType}}"}' },
+        images: [],
+        logs: [],
+        attachments: [
+          { filename: "a1__note.pdf", dataUrl: "data:application/pdf;base64,DD", displayName: "note.pdf" },
+        ],
+      }),
+    );
+
+    // guessUploadMime은 pdf를 몰라 octet-stream을 준다 — 두 모드가 갈리면 안 된다.
+    expect((sentMessage().body as { c: string }).c).toBe("application/pdf");
+  });
+
+  it("첨부는 part가 고유명, filename이 원본명이다 — 수신 서버 UI에 접두사가 안 뜬다", async () => {
+    await submitToWebhook(
+      input({
+        attachments: [
+          { filename: "a1__note.pdf", dataUrl: "data:application/pdf;base64,DD", displayName: "note.pdf" },
+        ],
+      }),
+    );
+
+    const att = (sentMessage().payload?.media ?? []).find((m) => m.kind === "attachment");
+    expect(att?.part).toBe("a1__note.pdf");
+    expect(att?.filename).toBe("note.pdf");
+    expect(att?.contentType).toBe("application/pdf");
+  });
+
   it("사용자 헤더는 payload가 아니라 auth로만 나간다", async () => {
     await submitToWebhook(input());
     expect(JSON.stringify(sentMessage().payload)).not.toContain("Bearer");
@@ -164,6 +209,21 @@ describe("submitToWebhook — 인라인 이미지", () => {
     const entry = media.find((m) => m.kind === "inline");
     expect(entry).toBeDefined();
     expect((sentMessage().files ?? []).map((f) => f.part)).toContain(entry?.part);
+  });
+
+  it("json: {{sections.*}}로 직접 참조해도 내부 마커가 안 나간다", async () => {
+    sendBg.mockResolvedValue({});
+    await submitToWebhook(
+      input({
+        auth: { ...JSON_AUTH, template: '{"content":"{{sections.description}}"}' },
+        inlineImages,
+        ctx: makeCtx({ sections: { description: "앞 ![](inline:abc123) 뒤" } }),
+      }),
+    );
+
+    const content = (sentMessage().body as { content: string }).content;
+    expect(content).not.toContain("inline:abc123");
+    expect(content).toContain("webhook.attachmentNotInline");
   });
 
   it("json: 내부 마커를 그대로 내보내지 않는다 — 흔적을 남기고 지운다", async () => {
@@ -210,13 +270,9 @@ describe("submitToWebhook — json 템플릿", () => {
 });
 
 describe("submitToWebhook — 실패 시 원본 보존", () => {
-  it.each([
-    ["2xx가 아님", new Error("http")],
-    ["계약 위반", new Error("contract")],
-    ["타임아웃", new Error("timeout")],
-  ])("%s 이면 throw한다 — 호출부가 markSubmitted에 도달하지 못한다", async (_l, err) => {
-    sendBg.mockRejectedValue(err);
-    await expect(submitToWebhook(input())).rejects.toThrow();
+  it("background가 실패를 던지면 그대로 전파한다 — 호출부가 markSubmitted에 도달하지 못한다", async () => {
+    sendBg.mockRejectedValue(new Error("boom"));
+    await expect(submitToWebhook(input())).rejects.toThrow("boom");
   });
 });
 

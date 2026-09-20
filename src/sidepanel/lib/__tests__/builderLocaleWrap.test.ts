@@ -32,6 +32,7 @@ const WRAPPED = [
   "buildReportData.ts",
   "buildSlackBody.ts",
   "buildWebhookJsonBody.ts",
+  "webhookPayload.ts",
 ];
 
 // 감싸면 안 되거나 감쌀 진입점이 없는 파일 — 이유를 함께 박아 다음 사람이 판단을 복원할 수 있게 한다.
@@ -64,7 +65,36 @@ function readLibFiles(dir: string, prefix = ""): LibFile[] {
 
 const all: LibFile[] = readLibFiles(LIB_DIR);
 
-const importsT = all.filter((f) => IMPORTS_T.test(f.source));
+// 본문 t()의 실제 소유자는 아래 셋이다 — EXEMPT가 "빌더 내부 헬퍼"로 분류한 파일들이고,
+// 이들을 부르는 쪽이 감싸지 않으면 본문 언어가 샌다. **이들을 import하는 파일도 대상**이어야
+// 한다: t를 직접 import하지 않고 헬퍼 경유로만 부르는 파일이 t 기준 스캔에서 통째로 빠지고,
+// 실제로 그 구멍으로 payload의 logSummary가 화면 언어로 새어 나갔다.
+// withLocale import를 타깃 조건으로 쓰면 안 된다 — 그건 **이미 고친 파일의 특징**이라
+// 사후 장부만 되고 같은 실수를 처음 하는 파일은 여전히 안 걸린다.
+const BODY_T_HELPERS = ["issueBodyShared", "markdownToAdf", "markdownToNotionBlocks"];
+const IMPORTS_BODY_HELPER = new RegExp(
+  `from\\s*["']\\.{1,2}/(?:${BODY_T_HELPERS.join("|")})["']`,
+);
+
+// 파일이 본문 헬퍼에서 가져온 심볼 이름들 → 호출 패턴. 파일마다 다르므로 그때그때 판다.
+function importedBodyHelperCalls(source: string): RegExp[] {
+  const names: string[] = [];
+  const re = new RegExp(
+    `import\\s*\\{([^}]*)\\}\\s*from\\s*["']\\.{1,2}/(?:${BODY_T_HELPERS.join("|")})["']`,
+    "g",
+  );
+  for (const m of source.matchAll(re)) {
+    for (const raw of m[1].split(",")) {
+      const name = raw.trim().replace(/^type\s+/, "").split(/\s+as\s+/).pop()?.trim();
+      if (name) names.push(name);
+    }
+  }
+  return names.map((n) => new RegExp(`(?<![\\w.])${n}\\(`));
+}
+
+const importsT = all.filter(
+  (f) => IMPORTS_T.test(f.source) || IMPORTS_BODY_HELPER.test(f.source),
+);
 
 
 describe("본문 빌더 withLocale 래핑 게이트", () => {
@@ -100,8 +130,13 @@ describe("본문 빌더 withLocale 래핑 게이트", () => {
   // green이다. export된 선언 하나하나가, 그것도 **래퍼 안에서** t()를 쓰는지까지 본다.
   it.each(WRAPPED)("%s — export 진입점의 t()가 전부 래퍼 안에 있다", (file) => {
     const entry = all.find((f) => f.file === file)!;
+    // 헬퍼 호출도 t() 호출로 센다 — 이 파일들이 본문 t()를 소유하므로, 부르는 쪽이 안 감싸면
+    // 직접 t()를 쓴 것과 결과가 같다. 이름 기준이라 그 파일에서 import한 심볼만 본다.
+    const helperCalls = importedBodyHelperCalls(entry.source);
+    const leaks = (body: string) =>
+      CALLS_T.test(body) || helperCalls.some((re) => re.test(body));
     const leaking = exportedSegments(entry.source)
-      .filter((s) => CALLS_T.test(stripWithLocaleCalls(s.body)))
+      .filter((s) => leaks(stripWithLocaleCalls(s.body)))
       .map((s) => s.name);
     expect(leaking).toEqual([]);
   });

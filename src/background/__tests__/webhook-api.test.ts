@@ -253,6 +253,25 @@ describe("submitWebhook — 실패", () => {
     expect(m.fn).not.toHaveBeenCalled();
   });
 
+  it("캡을 코드유닛이 아니라 실바이트로 잰다 — CJK 본문이 3배까지 새지 않는다", async () => {
+    const m = mockFetchOnce({ status: 204 });
+    // 코드유닛으로는 캡 아래, UTF-8 실바이트(3B/자)로는 캡 위.
+    const cjk = "가".repeat(Math.floor(WEBHOOK_BODY_MAX_BYTES / 2));
+    await expect(
+      submitWebhook({ mode: "json", auth: AUTH, body: { big: cjk } }),
+    ).rejects.toBeInstanceOf(WebhookError);
+    expect(m.fn).not.toHaveBeenCalled();
+  });
+
+  it("multipart 캡은 파일뿐 아니라 payload JSON도 센다", async () => {
+    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    const huge = payload({ body: "x".repeat(WEBHOOK_BODY_MAX_BYTES + 10) });
+    await expect(
+      submitWebhook({ mode: "multipart", auth: AUTH, payload: huge, files: [] }),
+    ).rejects.toBeInstanceOf(WebhookError);
+    expect(m.fn).not.toHaveBeenCalled();
+  });
+
   it("json 모드의 바디도 같은 캡을 받는다", async () => {
     const m = mockFetchOnce({ status: 204 });
     await expect(
@@ -288,6 +307,22 @@ describe("submitWebhook — 전송 시점 2층 방어", () => {
       }),
     ).rejects.toThrow();
     expect(m.fn).not.toHaveBeenCalled();
+  });
+
+  it("URL 정책 위반은 번역된 문구로 실패한다 — reason 원문이 토스트에 안 뜬다", async () => {
+    mockFetchOnce({ body: { key: "K", url: "u" } });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: { url: "ftp://x/hook", headers: [] },
+      payload: payload(),
+      files: files(),
+    }).then(
+      () => null,
+      (e: Error) => e,
+    );
+    expect(err?.message).not.toBe("scheme");
+    expect(err?.message).not.toBe("credentials");
+    expect(err).toBeInstanceOf(WebhookError);
   });
 
   it("헤더 값에 CRLF가 있으면 그 헤더만 빼고 보낸다 — Headers가 TypeError로 요청을 죽이지 않게", async () => {

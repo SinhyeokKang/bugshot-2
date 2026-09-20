@@ -3,7 +3,11 @@ import { dataUrlToBlob } from "@/store/blob-db";
 // background와 사이드패널이 같은 판정을 써야 한다 — 양쪽이 쓰는 순수 술어는
 // src/lib/ leaf로 둔다(선례: lib/jira-sprint.ts:isActiveSprint).
 import { isSettableHeaderName } from "@/lib/webhook-header-policy";
-import { normalizeWebhookUrl } from "@/lib/webhook-url-policy";
+import {
+  WebhookUrlError,
+  normalizeWebhookUrl,
+  type WebhookUrlVerdict,
+} from "@/lib/webhook-url-policy";
 import type { WebhookHeader, WebhookSubmitPayload, WebhookSubmitResult } from "@/types/webhook";
 
 export class WebhookError extends Error {
@@ -62,7 +66,8 @@ function buildHeaders(headers: WebhookHeader[], dropContentType: boolean): Recor
   return out;
 }
 
-// readErrorBody(@/background/lib/readErrorBody)는 무제한 res.text()라 임의 서버 상대로 못 쓴다.
+// 공용 readErrorBody를 쓰지 않는 건 그게 무제한 res.text()이기 때문이다 — 임의 서버가
+// 상대라 본문을 통째로 버퍼링할 수 없다.
 export async function readCappedErrorBody(res: Response, maxBytes: number): Promise<string | null> {
   try {
     if (!res.body) {
@@ -119,6 +124,14 @@ export function normalizeWebhookResult(body: unknown): WebhookSubmitResult {
 
 // dataUrl의 base64 길이에서 바이트 수를 추정한다. Blob으로 만든 뒤 재면 캡을 넘는 입력이
 // 이미 메모리에 올라간 뒤라 SW가 죽는 걸 못 막는다.
+// UTF-8 바이트가 코드유닛 수 이상, 3배 이하라는 성질로 양끝을 먼저 거른다 — 캡을 넘는
+// 입력일수록 인코딩이 확실히 일어나는 구조면 그 자체가 SW 메모리를 때린다.
+function exceedsUtf8(s: string, max: number): boolean {
+  if (s.length > max) return true;
+  if (s.length * 3 <= max) return false;
+  return new TextEncoder().encode(s).length > max;
+}
+
 function estimateDataUrlBytes(dataUrl: string): number {
   const at = dataUrl.indexOf(",");
   if (at < 0) return dataUrl.length;
@@ -133,7 +146,15 @@ async function send(
 ): Promise<Response> {
   // 저장 시점 정책을 전송 시점에 한 번 더 건다(헤더 축과 같은 2층 방어) — 저장소가
   // 조작되거나 v12 이전 셰이프가 새면 file:·data: URL이 그대로 fetch로 간다.
-  const verdict = normalizeWebhookUrl(url);
+  let verdict: WebhookUrlVerdict;
+  try {
+    verdict = normalizeWebhookUrl(url);
+  } catch (e) {
+    // WebhookUrlError는 PLATFORM_ERROR_CTORS 밖이라 그대로 두면 reason 원문("scheme")이
+    // 번역 안 된 채 토스트가 된다. reason별 문구는 연결 폼이 생길 때 함께 만든다.
+    if (e instanceof WebhookUrlError) throw new WebhookError(0, t("webhook.error.network"));
+    throw e;
+  }
   let res: Response;
   try {
     res = await fetch(verdict.url, {
@@ -172,7 +193,11 @@ async function send(
 export async function submitWebhook(input: SubmitWebhookInput): Promise<WebhookSubmitResult> {
   if (input.mode === "json") {
     const body = JSON.stringify(input.body);
-    if (body.length > WEBHOOK_BODY_MAX_BYTES) throw new WebhookError(0, t("webhook.error.tooLarge"));
+    // 코드유닛이 아니라 실바이트로 잰다 — CJK 본문은 UTF-8에서 최대 3배라 length로 재면
+    // 캡을 3배까지 넘긴 요청이 통과한다.
+    if (exceedsUtf8(body, WEBHOOK_BODY_MAX_BYTES)) {
+      throw new WebhookError(0, t("webhook.error.tooLarge"));
+    }
     const headers = buildHeaders(input.auth.headers, false);
     if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type")) {
       headers["Content-Type"] = "application/json";
@@ -183,13 +208,17 @@ export async function submitWebhook(input: SubmitWebhookInput): Promise<WebhookS
   }
 
   const form = new FormData();
-  form.append("payload", JSON.stringify(input.payload));
+  const payloadJson = JSON.stringify(input.payload);
+  form.append("payload", payloadJson);
 
-  let total = 0;
-  for (const file of input.files) {
-    total += estimateDataUrlBytes(file.dataUrl);
-    if (total > WEBHOOK_BODY_MAX_BYTES) throw new WebhookError(0, t("webhook.error.tooLarge"));
+  // 본문이 든 payload도 캡 대상이다 — 파일만 세면 거대한 본문이 캡을 빠져나가고,
+  // 파일이 0개면 검사 자체가 안 돈다.
+  if (exceedsUtf8(payloadJson, WEBHOOK_BODY_MAX_BYTES)) {
+    throw new WebhookError(0, t("webhook.error.tooLarge"));
   }
+  let total = payloadJson.length;
+  for (const file of input.files) total += estimateDataUrlBytes(file.dataUrl);
+  if (total > WEBHOOK_BODY_MAX_BYTES) throw new WebhookError(0, t("webhook.error.tooLarge"));
   // 캡 검사를 통과한 뒤에 변환한다. 변환 직후 원본 슬롯을 비우는 건, 합본이라 순차 경로처럼
   // GC가 중간에 걷어가지 못하기 때문이다.
   for (const file of input.files) {
