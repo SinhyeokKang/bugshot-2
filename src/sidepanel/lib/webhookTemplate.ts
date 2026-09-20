@@ -34,13 +34,16 @@ const MEDIA_FIELDS = ["filename", "contentType"];
 // media.<index>.<field> — 판정(isAllowedPath)과 조회(readPath)가 같은 셰이프를 봐야 한다.
 // 정규식을 양쪽에 복제하면 한쪽만 고쳐도 무음으로 갈린다.
 const MEDIA_ITEM = /^media\.(\d+)\.(\w+)$/;
+// sections.<id> — 같은 이유로 단일 출처다. 위 주석을 달아놓고 이쪽은 판정이 split("."),
+// 조회가 별도 정규식이라 점 든 id에서 갈릴 수 있었다.
+const SECTION_ITEM = /^sections\.([^.]+)$/;
 
 function isAllowedPath(path: string): boolean {
   const parts = path.split(".");
   const [head, ...rest] = parts;
   if (ALLOWED_ROOTS.includes(head)) return rest.length === 0;
   if (head === "env") return rest.length === 1 && ALLOWED_ENV.includes(rest[0]);
-  if (head === "sections") return rest.length === 1 && rest[0].length > 0;
+  if (head === "sections") return SECTION_ITEM.test(path);
   if (head === "media") {
     if (rest.length === 1) return rest[0] === "count";
     const m = MEDIA_ITEM.exec(path);
@@ -52,9 +55,12 @@ function isAllowedPath(path: string): boolean {
 function readPath(path: string, vars: WebhookTemplateVars): unknown {
   // sections는 사용자 섹션 id가 키라 임의 문자열이 온다. hasOwn 없이 읽으면
   // {{sections.constructor}}가 프로토타입을 타고 함수 소스를 본문에 싣는다.
-  const section = /^sections\.(.+)$/.exec(path);
+  const section = SECTION_ITEM.exec(path);
   if (section) {
-    return Object.hasOwn(vars.sections, section[1]) ? vars.sections[section[1]] : undefined;
+    // 비활성 섹션은 이 리포트에 없는 게 정상이다(media 인덱스와 달리 사용자 실수가 아니다).
+    // undefined로 두면 리프 전체가 placeholder일 때 JSON.stringify가 키를 통째로 지워
+    // 수신 서버 스키마가 리포트마다 달라진다 — 빈 문자열로 자리를 남긴다.
+    return Object.hasOwn(vars.sections, section[1]) ? vars.sections[section[1]] : "";
   }
   // media.<index>.<field>는 템플릿 표기이고 실제 값은 media.items[index]에 있다.
   const media = MEDIA_ITEM.exec(path);

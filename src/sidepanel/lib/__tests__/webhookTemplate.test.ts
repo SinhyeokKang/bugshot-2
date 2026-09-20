@@ -63,8 +63,10 @@ describe("parseWebhookTemplate — 저장 시점 게이트", () => {
     // 이름 자체는 화이트리스트를 통과하지만(섹션 id는 임의 문자열이다)
     expect(r.ok).toBe(true);
     // 값이 프로토타입에서 오면 안 된다 — hasOwn 없이 읽으면 함수 소스가 본문에 실린다.
+    // 빈 문자열인 건 "없는 섹션은 키를 남기고 비운다"는 계약이고(수신 서버 스키마 안정),
+    // 여기서 중요한 건 그게 Object.prototype.constructor가 아니라는 것이다.
     const out = renderWebhookTemplate('{"c":"{{sections.constructor}}"}', makeVars());
-    expect((out as { c: unknown }).c).toBeUndefined();
+    expect((out as { c: unknown }).c).toBe("");
     const inline = renderWebhookTemplate('{"c":"x{{sections.constructor}}y"}', makeVars());
     expect((inline as { c: string }).c).toBe("xy");
   });
@@ -168,5 +170,31 @@ describe("SAMPLE_TEMPLATE_VARS", () => {
 
   it("media.count가 items 길이와 어긋나지 않는다", () => {
     expect(SAMPLE_TEMPLATE_VARS.media.count).toBe(SAMPLE_TEMPLATE_VARS.media.items.length);
+  });
+});
+
+// media 인덱스와 sections는 "없을 때"의 의미가 다르다 — 없는 media 인덱스는 사용자가 센 파일
+// 개수가 어긋난 것이고, 비활성 섹션은 이 리포트에 그 섹션이 없다는 정상 상태다. 그래서 전자는
+// 명시적 실패, 후자는 빈 값이 맞다. 다만 **키가 통째로 사라지는 건** 수신 서버 스키마를
+// 흔들므로 빈 문자열로 남긴다.
+describe("renderWebhookTemplate — 없는 sections", () => {
+  const vars = () => makeVars({ sections: { description: "본문" } });
+
+  it("없는 섹션은 키를 지우지 않고 빈 문자열로 남긴다", () => {
+    const out = renderWebhookTemplate('{"notes":"{{sections.notes}}"}', vars()) as Record<string, unknown>;
+    expect(Object.hasOwn(out, "notes")).toBe(true);
+    expect(out.notes).toBe("");
+  });
+
+  it("문자열 가운데의 없는 섹션도 빈 문자열이 된다", () => {
+    const out = renderWebhookTemplate('{"s":"a{{sections.notes}}b"}', vars()) as Record<string, string>;
+    expect(out.s).toBe("ab");
+  });
+
+  it("점이 든 섹션 이름은 판정과 조회가 같은 결론을 낸다", () => {
+    // 판정(isAllowedPath)과 조회(readPath)가 다른 정규식을 쓰면 한쪽만 고쳐도 무음으로 갈린다
+    // — 같은 파일이 media.<idx>에 대해 그 함정을 주석으로 경고하고 있다.
+    expect(parseWebhookTemplate('{"s":"{{sections.a.b}}"}').ok).toBe(false);
+    expect(() => renderWebhookTemplate('{"s":"{{sections.a.b}}"}', vars())).toThrow();
   });
 });
