@@ -43,7 +43,7 @@ beforeEach(() => {
 
 async function openDialog() {
   const user = userEvent.setup();
-  render(<WebhookConnectEntry connected={false} onConnected={onConnected} />);
+  render(<WebhookConnectEntry onConnected={onConnected} />);
   await user.click(screen.getByTestId("webhook-connect-entry"));
   await screen.findByTestId("webhook-url");
   return user;

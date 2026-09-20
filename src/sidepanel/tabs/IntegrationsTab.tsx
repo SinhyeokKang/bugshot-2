@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
-import { Blocks, Plug, Plus, Unplug } from "lucide-react";
+import { Blocks, Plug, Plus, Unplug, Webhook } from "lucide-react";
 import { SlackIcon } from "@/components/icons/SlackIcon";
 import {
   SiAsana,
@@ -44,14 +44,21 @@ import { GitlabConnectedBody, GitlabConnectFlow } from "./connect/GitlabConnectF
 import { AsanaConnectedBody, AsanaConnectFlow } from "./connect/AsanaConnectForm";
 import { ClickupConnectedBody, ClickupConnectFlow } from "./connect/ClickupConnectForm";
 import { SlackConnectedBody, SlackConnectFlow } from "./connect/SlackConnectForm";
+import { WebhookConnectedBody, WebhookConnectEntry } from "./connect/WebhookConnectForm";
 
 interface PlatformEntry {
   id: PlatformId;
   Icon: ComponentType<{ className?: string; color?: string }>;
   ConnectedBody: () => JSX.Element;
-  ConnectFlow: (p: ConnectFlowProps) => JSX.Element;
+  // webhook은 브랜드 그리드에 서지 않아 이 자리가 빈다. 더미를 주입하는 대신 optional로
+  // 두고 그리드를 `filter(p => p.ConnectFlow)`로 좁힌다 — 타입과 런타임 필터가 한 곳에
+  // 묶여야 다음에 같은 부류가 붙어도 그리드가 조용히 늘지 않는다. 배열에는 남긴다:
+  // 내 연동 목록의 `PLATFORMS.find(...)!`가 빼는 순간 undefined로 터진다.
+  ConnectFlow?: (p: ConnectFlowProps) => JSX.Element;
   iconClassName?: string;
 }
+
+type GridPlatformEntry = PlatformEntry & { ConnectFlow: (p: ConnectFlowProps) => JSX.Element };
 
 const PLATFORMS: PlatformEntry[] = [
   { id: "jira", Icon: SiJirasoftware, ConnectedBody: JiraConnectedBody, ConnectFlow: JiraConnectFlow },
@@ -63,7 +70,10 @@ const PLATFORMS: PlatformEntry[] = [
   { id: "clickup", Icon: SiClickup, ConnectedBody: ClickupConnectedBody, ConnectFlow: ClickupConnectFlow },
   // lucide 아이콘은 simple-icons의 color="default"(브랜드 hex)를 못 받아 투명해진다 → currentColor로 렌더.
   { id: "slack", Icon: ({ className }) => <SlackIcon className={className} />, ConnectedBody: SlackConnectedBody, ConnectFlow: SlackConnectFlow },
+  { id: "webhook", Icon: ({ className }) => <Webhook className={className} />, ConnectedBody: WebhookConnectedBody },
 ];
+
+const GRID_PLATFORMS = PLATFORMS.filter((p): p is GridPlatformEntry => !!p.ConnectFlow);
 
 export function IntegrationsTab({
   activeMainTab,
@@ -198,12 +208,15 @@ export function IntegrationsTab({
               </div>
               <h3 className="text-center text-lg font-semibold">{t("platform.add.title")}</h3>
             </div>
-            <div className="grid w-full max-w-[336px] grid-cols-2 gap-2">
+            <div
+              className="grid w-full max-w-[336px] grid-cols-2 gap-2"
+              data-testid="platform-add-grid"
+            >
               {orderAddPlatforms(
-                PLATFORMS.map((p) => p.id),
+                GRID_PLATFORMS.map((p) => p.id),
                 (id) => !!accounts[id],
               ).map((id) => {
-                const { ConnectFlow } = PLATFORMS.find((p) => p.id === id)!;
+                const { ConnectFlow } = GRID_PLATFORMS.find((p) => p.id === id)!;
                 return (
                   <ConnectFlow
                     key={id}
@@ -219,6 +232,16 @@ export function IntegrationsTab({
                   />
                 );
               })}
+            </div>
+            {/* 구분선 아래 단독. PageFooter를 쓰지 않는다 — 그건 PageScroll의 짝이고 이
+                서브탭은 중앙정렬이라, 붙이면 그리드가 위로 밀리고 pb-5와 이중 여백이 된다. */}
+            <div className="w-full max-w-[336px] border-t border-border pt-4">
+              <WebhookConnectEntry
+                onConnected={() => {
+                  onReconnectHandled();
+                  setSub("connected");
+                }}
+              />
             </div>
           </div>
         </PageShell>
