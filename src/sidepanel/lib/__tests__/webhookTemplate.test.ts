@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseWebhookTemplate,
   renderWebhookTemplate,
+  SAMPLE_TEMPLATE_VARS,
   type WebhookTemplateVars,
 } from "../webhookTemplate";
 
@@ -133,5 +134,39 @@ describe("renderWebhookTemplate — parse 먼저, 문자열 리프 안에서만 
     expect(Object.keys(vars.media.items[0])).toEqual(["filename", "contentType"]);
     const out = renderWebhookTemplate('{"f":"{{media.0.filename}}"}', vars);
     expect((out as { f: string }).f).toBe("replay.mp4");
+  });
+});
+
+// 연결 다이얼로그에는 편집 중인 리포트가 없다 — 연동 탭에서 여는 화면이라 draft가
+// 있다는 보장이 없다. 그래서 미리보기는 실데이터가 아니라 이 고정 샘플로 그린다.
+describe("SAMPLE_TEMPLATE_VARS", () => {
+  it("화이트리스트가 허용하는 경로를 전부 채운다 — 미리보기에서만 빈 자리가 나오면 안 된다", () => {
+    const template = JSON.stringify({
+      title: "{{title}}",
+      body: "{{body}}",
+      url: "{{url}}",
+      capturedAt: "{{capturedAt}}",
+      logSummary: "{{logSummary}}",
+      os: "{{env.os}}",
+      browser: "{{env.browser}}",
+      viewport: "{{env.viewport}}",
+      selector: "{{env.selector}}",
+      count: "{{media.count}}",
+      first: "{{media.0.filename}}",
+      type: "{{media.0.contentType}}",
+    });
+    const out = renderWebhookTemplate(template, SAMPLE_TEMPLATE_VARS) as Record<string, unknown>;
+    for (const [k, v] of Object.entries(out)) {
+      expect(v, k).not.toBe("");
+      expect(v, k).not.toBeUndefined();
+    }
+  });
+
+  it("샘플이 저장 게이트를 통과하는 값만 쓴다", () => {
+    expect(parseWebhookTemplate(JSON.stringify({ t: "{{title}}" })).ok).toBe(true);
+  });
+
+  it("media.count가 items 길이와 어긋나지 않는다", () => {
+    expect(SAMPLE_TEMPLATE_VARS.media.count).toBe(SAMPLE_TEMPLATE_VARS.media.items.length);
   });
 });

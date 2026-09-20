@@ -55,7 +55,6 @@ import {
   slackSubmitArgs,
   slackLastSubmitFields,
   webhookSubmitArgs,
-  webhookIdempotencyKey,
 } from "@/sidepanel/lib/submitAdapters";
 
 export function IssueCreateModal() {
@@ -483,6 +482,9 @@ export function IssueCreateModal() {
     if (!webhookAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.webhook") }));
     }
+    // previewing 진입(confirmDraft)이 레코드를 확정하므로 이 화면에선 항상 있다. 없는데
+    // 보내면 멱등 키의 출처가 사라져 재시도가 중복 리포트를 만든다 — 그럴 바엔 안 보낸다.
+    if (!currentIssueId) throw new Error(t("create.requiredMissing"));
 
     const outcome = await submitToWebhook(
       webhookSubmitArgs({
@@ -490,13 +492,13 @@ export function IssueCreateModal() {
         inlineImages,
         captureFiles,
         auth: webhookAccount.auth,
-        idempotencyKey: webhookIdempotencyKey(currentIssueId, ctx.capturedAt),
+        issueId: currentIssueId,
       }),
     );
     // json 템플릿 모드는 응답을 읽지 않아 식별자가 없다 — 행을 만들 근거가 없고, 만들면
     // 열 수 없는 링크가 목록에 남는다. 판별자를 런타임에서도 본다: `recorded: false` 쪽에
     // key·url이 optional undefined라 타입만으로는 이 호출을 막지 못한다.
-    if (outcome.recorded && currentIssueId) {
+    if (outcome.recorded) {
       markSubmitted(currentIssueId, {
         platform: "webhook",
         key: outcome.key,

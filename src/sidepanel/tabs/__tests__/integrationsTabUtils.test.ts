@@ -6,6 +6,9 @@ import {
 } from "../integrationsTabUtils";
 import type { PlatformId } from "@/types/platform";
 
+// 로스터가 아니라 정렬 의미를 재는 fixture다 — 아래 기대값이 순서를 손으로 적으므로
+// PLATFORM_TAB_KEYS에서 파생하면 플랫폼이 늘 때마다 무관한 케이스가 깨진다.
+// 그리드에 실제로 서는 목록은 IntegrationsTab.test.tsx가 센다.
 const ORDER: PlatformId[] = [
   "jira",
   "github",

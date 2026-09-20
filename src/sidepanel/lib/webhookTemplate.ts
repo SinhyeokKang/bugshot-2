@@ -83,6 +83,31 @@ function walk(node: unknown, visitLeaf: (s: string) => unknown): unknown {
   return node;
 }
 
+// 연결 다이얼로그의 미리보기용 고정 샘플. 그 화면에는 편집 중인 리포트가 없다 —
+// 연동 탭에서 여는 폼이라 draft가 있다는 보장이 없다. 화이트리스트가 허용하는 경로를
+// 전부 채워 둔다: 하나라도 비면 사용자가 "그 변수는 안 되는구나"로 읽는다.
+export const SAMPLE_TEMPLATE_VARS: WebhookTemplateVars = {
+  title: "Save button does nothing on the settings page",
+  body: "## Steps\n1. Open settings\n2. Press Save\n\n![screenshot-1.webp](cid:screenshot-1.webp)",
+  url: "https://example.com/settings",
+  env: {
+    os: "macOS 15.2",
+    browser: "Chrome 140",
+    viewport: "1440x900",
+    selector: "#settings-form > button.save",
+  },
+  capturedAt: "2026-01-01T00:00:00.000Z",
+  logSummary: "console 3 · network 1 · action 12",
+  sections: { steps: "1. Open settings\n2. Press Save" },
+  media: {
+    count: 2,
+    items: [
+      { filename: "screenshot-1.webp", contentType: "image/webp" },
+      { filename: "logs.html", contentType: "text/html" },
+    ],
+  },
+};
+
 // 저장 시점 게이트. 제출 시점에 처음 알게 되는 일이 없어야 한다.
 export function parseWebhookTemplate(src: string): { ok: boolean; issues: TemplateIssue[] } {
   let parsed: unknown;

@@ -121,7 +121,6 @@ import {
   slackSubmitArgs,
   slackLastSubmitFields,
   webhookSubmitArgs,
-  webhookIdempotencyKey,
 } from "@/sidepanel/lib/submitAdapters";
 
 type SubmitFields = {
@@ -788,7 +787,7 @@ export function DraftDetailDialog({
         inlineImages,
         captureFiles,
         auth: webhookAccount.auth,
-        idempotencyKey: webhookIdempotencyKey(issue.id, ctx.capturedAt),
+        issueId: issue.id,
       }),
     );
     // json 템플릿 모드는 응답을 읽지 않아 식별자가 없다 — 행을 만들면 열 수 없는 링크가

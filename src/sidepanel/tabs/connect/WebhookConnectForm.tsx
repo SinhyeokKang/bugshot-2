@@ -27,6 +27,7 @@ import { ConnectedBadge } from "@/sidepanel/components/ConnectedBadge";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { sendBg } from "@/lib/bg-client";
 import { normalizeWebhookUrl } from "@/lib/webhook-url-policy";
+import { renderWebhookTemplate, SAMPLE_TEMPLATE_VARS } from "@/sidepanel/lib/webhookTemplate";
 import { useSettingsStore } from "@/store/settings-store";
 import type { TranslationKey } from "@/i18n/ko";
 import type { WebhookAccount, WebhookFormat, WebhookHeader } from "@/types/webhook";
@@ -320,6 +321,7 @@ function WebhookDialogBody({ onDone, onCancel }: { onDone: () => void; onCancel:
                   spellCheck={false}
                 />
                 <p className="text-xs text-muted-foreground">{t("webhook.template.help")}</p>
+                <TemplatePreview template={template} label={t("webhook.template.preview")} />
               </FieldRow>
             )}
           </CollapsibleContent>
@@ -357,6 +359,32 @@ function WebhookDialogBody({ onDone, onCancel }: { onDone: () => void; onCancel:
         </Button>
       </DialogFooter>
     </>
+  );
+}
+
+// 저장 게이트가 "이 변수는 못 쓴다"까지는 말하지만 "무엇이 나가는지"는 못 보여준다.
+// 실데이터가 없는 화면이라 고정 샘플로 그린다 — 입력 중에는 JSON이 깨져 있는 게 정상이고,
+// 그 구간엔 아무것도 그리지 않는다(입력할 때마다 빨간 에러가 깜빡이면 방해만 된다).
+function TemplatePreview({ template, label }: { template: string; label: string }) {
+  const rendered = useMemo(() => {
+    if (!template.trim()) return null;
+    try {
+      return JSON.stringify(renderWebhookTemplate(template, SAMPLE_TEMPLATE_VARS), null, 2);
+    } catch {
+      return null;
+    }
+  }, [template]);
+  if (!rendered) return null;
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <pre
+        data-testid="webhook-template-preview"
+        className="max-h-40 overflow-auto rounded-md bg-muted/50 p-2 text-[11px] text-foreground/70"
+      >
+        {rendered}
+      </pre>
+    </div>
   );
 }
 
