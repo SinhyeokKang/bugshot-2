@@ -120,7 +120,7 @@ bugshot-2: Chrome MV3 Side Panel 버그 리포팅 확장. 웹 페이지의 버�
 
 ## 아키텍처 원칙
 
-설계 상세(Side Panel 탭 스코프, user gesture, 세션 영속화, 8개 플랫폼 인증, 어댑터 패턴, 토큰 체인 resolve, CSSOM 캐시, DOM lazy load, 마크다운 복사, 이슈 섹션 구성, 마이그레이션)는 **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** 참조.
+설계 상세(Side Panel 탭 스코프, user gesture, 세션 영속화, 플랫폼 인증 8종 + 인증 축 밖의 Custom Webhook, 어댑터 패턴, 토큰 체인 resolve, CSSOM 캐시, DOM lazy load, 마크다운 복사, 이슈 섹션 구성, 마이그레이션)는 **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** 참조.
 
 ## 릴리스 & 버전
 

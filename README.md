@@ -15,7 +15,8 @@ Open-source bug reporting from your browser, straight to your tracker.
 BugShot is a Chrome side panel that captures what happened — screenshots,
 recordings, console and network logs, user actions, environment details, and
 even CSS before/after diffs — and turns it into a report for Jira, GitHub,
-Linear, Notion, GitLab, Asana, ClickUp, or Slack.
+Linear, Notion, GitLab, Asana, ClickUp, Slack — or a server of your own over a
+[custom webhook](docs/webhook-contract.md).
 
 No BugShot account. No hosted workspace. Your capture data never passes through
 a BugShot server. BugShot is free, with no paid tier planned: there is no
@@ -319,7 +320,10 @@ on-device only.
 **Eight tracker integrations behind one adapter seam.** Each platform gets its
 own auth (OAuth or token), field schema, and upload path, but the report body is
 built once and rendered per target — Markdown, Jira ADF, Notion blocks, Slack
-mrkdwn.
+mrkdwn. A ninth target, the custom webhook, rides the same seam without an auth
+axis at all — the receiving server is the user's, so there is no token to
+exchange or refresh, and since upload and creation are one request the body goes
+out carrying `cid:` references instead of URLs.
 
 Much of this can't be unit-tested — DOM measurement, pointer drags, canvas, and
 media APIs need a real browser — so a Playwright suite carries what Vitest

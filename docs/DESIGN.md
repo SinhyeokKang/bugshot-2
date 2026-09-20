@@ -208,7 +208,9 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - `Badge`: variant `default`/`secondary`/`destructive`/`outline`, size 없음, `[&>svg]:size-3`.
 - `Toggle`/`ToggleGroup`: variant `default`/`outline`/`segment`/`underline`, size `sm`(h-8)/`default`(h-9)/`lg`(h-10). **현재 앱 사용처 0** — 미사용 primitive다(세그먼트 뷰 토글은 `Tabs`로 구현). `size="xl"`·`variant="destructive"`도 같은 상태.
 - `Alert`(`alert.tsx`): `Alert`/`AlertTitle`/`AlertDescription` **전부 사용처 0** — 미사용 primitive다(`alert-dialog`는 별개이고 사용 중). 인라인 안내는 §14의 `role="status"` 배너·인라인 에러가 맡는다.
-- 반대로 이 문서에 안 적혀 있지만 실사용 중인 것: `Separator`(5곳)·`Collapsible`(`NetworkLogContent`).
+- 반대로 이 문서에 안 적혀 있지만 실사용 중인 것: `Separator`(5곳)·`Collapsible`(`NetworkLogContent`·`WebhookConnectForm`의 `고급`).
+- **접이식 안에 폼 상태를 두지 않는다.** Radix `Collapsible`은 닫히면 children을 언마운트하므로, 접었다 펴면 그 안의 입력값이 초기화된다. 값은 접이식 **바깥** 컴포넌트가 소유하고 접이식은 표시만 맡는다(`WebhookConnectForm`이 그 형태). 같은 함정의 다른 표면이 `Section.tsx`의 조건부 언마운트다(POSTMORTEM 2026-07-16).
+- **저장된 값이 접이식 안에 있으면 펼친 채로 연다.** 닫힌 채 열면 설정이 사라진 것처럼 보인다 — 판정은 순수 함수로 두고(`hasAdvancedValues`) 초기 state로만 쓴다(이후 사용자의 토글이 이긴다).
 - `ButtonGroup`: `orientation` `horizontal`/`vertical`. 서브 export `ButtonGroupText`·`ButtonGroupSeparator`.
 - `Kbd`: 인라인 keycap 칩 — `bg-muted text-foreground/60 rounded-sm inline-flex h-5`(글자색은 §2의 muted 표면 관용구 — `--muted-foreground`면 4.34:1로 AA 미달이다). 액션 로그의 값·태그·드래그·마스킹 칩이 단일 출처로 사용(`ActionLogContent`의 `CHIP_CLS` = `font-mono text-mono align-middle text-foreground`로 mono 표면 override[`text-mono`로 Kbd 기본 `text-xs`까지 덮어 형제 행과 13px 통일] + 텍스트 라인 중앙 정렬 + Kbd 기본값보다 한 단계 또렷하게, 긴 값은 내부 `min-w-0 truncate` span). 마스킹은 `border border-dashed`로만 구분(라벨색은 동일 foreground). `KbdGroup` 미사용.
 
