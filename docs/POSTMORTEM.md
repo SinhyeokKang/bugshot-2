@@ -36,6 +36,30 @@
 
 ---
 
+## 2026-09-20 — 본문 언어를 감싸는 그물이 t()를 **직접 import한 파일만** 봐서, 공용 헬퍼 경유로 부르는 새 파일이 통째로 스캔 밖이었다
+
+- **영역**: `i18n`, `lib`
+- **계열**: `복제본`, `미검증단언`
+- **그물**: `unit`
+- **증상**: webhook payload의 `logSummary`만 **화면 언어**로 나갔다. 같은 요청의 `body`는 사용자가 고른 본문 언어를 따르므로, 수신 서버가 받는 한 payload 안에서 두 언어가 섞였다. 본문 언어 래핑 누락을 잡으라고 있는 `builderLocaleWrap.test.ts`가 green이었다.
+- **근본 원인**: 게이트가 대상 파일을 **`@/i18n`을 직접 import하는가**로 골랐다. 그런데 본문 t()의 실제 소유자는 `issueBodyShared`·`markdownToAdf`·`markdownToNotionBlocks` 세 헬퍼이고(게이트 자신이 "빌더 내부 헬퍼"로 EXEMPT 분류해 둔 파일들이다), 그 헬퍼를 부르는 파일은 t를 직접 import하지 않는다. 즉 **"본문 문구를 내보내는 파일"과 "t를 import하는 파일"이 같은 집합이라는 전제**가 틀렸고, 새 파일이 헬퍼 경유로만 부르는 순간 스캔 대상에서 통째로 빠졌다. 여기엔 두 번째 함정이 붙어 있다 — 내 첫 수정은 타깃 조건에 `withLocale` import를 넣는 것이었는데, **그건 이미 고친 파일의 특징이라 사후 장부이지 그물이 아니다**(같은 실수를 처음 하는 새 파일은 여전히 안 걸린다). 뮤테이션으로 확인했다고 믿은 것도 래퍼와 import를 **함께** 지운 형태만 본 결과였다.
+- **재발 방지**: (1) **소스 스캔 그물의 타깃 조건은 "고쳐진 파일의 특징"이 아니라 "위반할 수 있는 파일의 특징"으로 쓴다.** `withLocale`·`try/catch` 같은 해결책의 흔적을 조건에 넣으면 장부가 된다 — 자문: *이 조건을 만족하지 않는 채로 위반하는 파일을 쓸 수 있는가?* 쓸 수 있으면 조건이 틀렸다. (2) **간접 호출을 타깃에 포함한다** — `BODY_T_HELPERS` 목록을 두고 `t()` 직접 import **또는** 그 헬퍼 import를 대상으로 삼고, 세그먼트 카운트에서도 헬퍼 호출을 t() 호출로 센다. 새 본문 헬퍼를 만들면 이 목록에 넣어야 한다(`grep -rn "emitMarkdownLogSummary\|markdownToAdf\|markdownToNotionBlocks" src/sidepanel/lib/`). (3) **뮤테이션 실증은 두 형태를 다 본다** — 래퍼만 제거 / 래퍼+import 제거. 후자만 보면 import 기반 스캔이 우연히 red를 내 "그물이 산다"로 오독한다. (4) 이 계열은 `import-convention.test.ts`가 `@/` 표기만 보고 상대경로 표기를 못 보는 것과 같은 형태다 — **문자열 스캔은 표기 변형에 눈이 없다**는 걸 새 스캔을 만들 때마다 의식한다.
+- **관련**: `src/sidepanel/lib/webhookPayload.ts:logSummaryText`(래핑 누락 지점), 그물 `src/sidepanel/lib/__tests__/builderLocaleWrap.test.ts`(`BODY_T_HELPERS`·`IMPORTS_BODY_HELPER`·`importedBodyHelperCalls`), 등가물 `src/background/__tests__/bodyLocaleBackground.test.ts`, 공유 스캐너 `src/test/withLocaleScan.ts`
+
+---
+
+## 2026-09-20 — 9번째 제출 대상이 붙자, 8개에서는 도달할 수 없던 기존 코드의 창이 함께 열렸다
+
+- **영역**: `컴포넌트`, `어댑터`
+- **계열**: `미검증단언`
+- **그물**: `jsdom`
+- **증상**: (사전 차단 — 구현 중 자체 검증이 잡음) webhook을 JSON 템플릿 모드로 보내면 성공 화면의 이슈 링크가 **빈 주소**를 가리킨다. `SubmitSuccessView`가 `href={result.url}`을 무조건 거는데, 그 모드는 응답을 읽지 않아 `key`·`url`이 빈 문자열이다. 빈 `href`는 확장 페이지 자신으로 이동한다.
+- **근본 원인**: 그 컴포넌트는 3년간 **식별자가 반드시 있는** 8개 플랫폼만 받아 왔고, "성공했으면 key·url이 있다"가 타입이 아니라 **호출부의 우연**으로 지켜지고 있었다(`NormalizedSubmitResult.key: string`은 빈 문자열을 막지 않는다). 새 대상이 그 전제를 깬 순간 도달 불가였던 분기가 살아난다. 같은 라운드에 같은 형태가 둘 더 있었다 — `markSubmitted` 타입 가드가 `recorded:false` 쪽 `key?: undefined`를 optional로 받아 **실제로는 안 막았고**(런타임 분기를 따로 넣어야 했다), `promotableTargets`의 `filter(p => p !== "slack")`는 새 대상을 **분기 없이 자동 포함**하는 게 정답이라 코드에 아무 흔적이 없다.
+- **재발 방지**: (1) **union에 멤버를 추가할 땐 그 값이 처음 통과하는 기존 코드의 "빈 값" 분기를 전수한다** — `grep -rn "result.url\|result.key\|issue.url\|issue.key" src/sidepanel/`로 식별자를 무조건 참이라 가정한 자리를 뽑는다. 타입이 `string`이면 컴파일은 아무것도 말해 주지 않는다. (2) **판별자 union의 "없음" 쪽을 `key?: undefined`로 쓰면 소비처가 optional로 받아 통과한다** — 타입만 믿지 말고 판별자를 **런타임에서도** 보고, 그 이유를 주석에 박는다(안 그러면 다음 사람이 `if (outcome.recorded)`를 잉여로 보고 지운다). (3) **분기를 안 넣는 게 정답인 자리는 테스트로 고정한다** — 코드에 흔적이 없으면 다음 사람이 제외 대상으로 오해하고 넣어도 green이다(`isRefreshable(webhook)===false`·`promotableTargets`가 그 형태). (4) 9탭 가로 스크롤 분기처럼 **union이 닫혀 있어 렌더 자체가 불가능하던 축**은 멤버가 추가되는 그 커밋에서 곧바로 실측으로 전환한다 — 계획에 "그때 주석을 지우고 단언을 추가하라"를 박아 두면 인계가 끊기지 않는다.
+- **관련**: `src/sidepanel/components/SubmitSuccessView.tsx`(빈 url이면 링크 미렌더), `src/sidepanel/tabs/IssueCreateModal.tsx:handleWebhookSubmit`·`DraftDetailDialog.tsx:handleWebhookSubmit`(런타임 `recorded` 분기), `src/sidepanel/lib/submitToWebhook.ts:WebhookSubmitOutcome`, 그물 `src/sidepanel/components/__tests__/SubmitSuccessView.test.tsx`·`src/sidepanel/tabs/__tests__/issueListUtils.test.ts`·`src/sidepanel/tabs/__tests__/SubmitPlatformTabs.test.tsx`·`e2e/webhook-submit.spec.ts`
+
+---
+
 ## 2026-09-19 — 개수로 키를 잡은 테이블이 범위 밖에서 무음 폴백했고, 그 개수를 만드는 두 목록 중 컴파일은 한쪽만 강제한다
 
 - **영역**: `컴포넌트`, `디자인`
