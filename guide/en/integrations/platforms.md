@@ -71,6 +71,8 @@ Need more than that? Open **Advanced**. It stays folded by default, and reopens 
 
 With Multipart, **Test connection** sends a small check instead of a report; your server can acknowledge it without storing anything, as described in the contract. With JSON template, the button becomes **Send sample** and fills your current template with example data. It uses no capture data, but **it can create a real message at the destination**. A timeout does not mean nothing arrived, so check before sending again.
 
+To change the address or the template later, come back to the same spot — once connected, the button reads **Edit your custom webhook** and opens the form with everything you saved already filled in.
+
 > What the receiving server does with the data is **yours to decide and yours to answer for**. Reports can carry sensitive things — screenshots, logs — so take a moment to be sure that address is somewhere you trust before entering it along with a secret. Also note BugShot **won't follow a redirect** to another address: that keeps your secret from leaking to a server you didn't pick, so point the endpoint at the final address directly.
 
 ## Defaults after connecting
