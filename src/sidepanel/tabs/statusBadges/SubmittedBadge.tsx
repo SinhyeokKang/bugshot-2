@@ -7,6 +7,7 @@ import { GitlabSubmittedBadge } from "./GitlabSubmittedBadge";
 import { AsanaSubmittedBadge } from "./AsanaSubmittedBadge";
 import { ClickupSubmittedBadge } from "./ClickupSubmittedBadge";
 import { SlackSubmittedBadge } from "./SlackSubmittedBadge";
+import { WebhookSubmittedBadge } from "./WebhookSubmittedBadge";
 
 export function SubmittedBadge({
   issueId,
@@ -124,6 +125,9 @@ export function SubmittedBadge({
   }
   if (platform === "slack") {
     return <SlackSubmittedBadge onLoaded={onLoaded} />;
+  }
+  if (platform === "webhook") {
+    return <WebhookSubmittedBadge onLoaded={onLoaded} />;
   }
   return null;
 }

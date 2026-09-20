@@ -333,6 +333,17 @@ describe("isRefreshable", () => {
     expect(isRefreshable(makeIssue({ url: undefined }))).toBe(false);
   });
 
+  // 수신 서버가 상태 조회 API를 가진다는 보장이 없다 — 되물을 곳이 없으므로 새로고침
+  // 대상이 아니다. 분기를 추가하지 않고 끝의 자연 폴백에 맡기는 게 정답이라 무음이다.
+  it("webhook은 key·url이 다 있어도 false (되물을 API가 없다)", () => {
+    const issue = makeIssue({
+      platform: "webhook",
+      key: "abc",
+      url: "https://hooks.example.com/r/abc",
+    });
+    expect(isRefreshable(issue)).toBe(false);
+  });
+
   it("linear + url + key 정상 → true", () => {
     const issue = makeIssue({
       platform: "linear",
@@ -517,6 +528,12 @@ describe("promotableTargets", () => {
 
   it("아무것도 연결 안 됨 → []", () => {
     expect(promotableTargets(makeAccounts())).toEqual([]);
+  });
+
+  // 분기를 **안 넣는 게** 정답이라(필터가 slack만 뺀다) 코드에 아무 흔적이 없다 — 무음
+  // 동작이므로 여기서 고정하지 않으면 다음 사람이 제외 대상으로 오해하고 넣어도 green이다.
+  it("webhook은 승격 대상에 포함된다 (분기 추가 없이 자연 통과)", () => {
+    expect(promotableTargets(makeAccounts("slack", "webhook"))).toEqual(["webhook"]);
   });
 });
 

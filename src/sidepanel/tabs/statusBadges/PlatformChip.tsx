@@ -7,6 +7,7 @@ import {
   SiLinear,
   SiNotion,
 } from "@icons-pack/react-simple-icons";
+import { Webhook } from "lucide-react";
 import { SlackIcon } from "@/components/icons/SlackIcon";
 import { useT } from "@/i18n";
 import type { PlatformId } from "@/types/platform";
@@ -66,6 +67,15 @@ export function PlatformChip({ platform }: { platform: PlatformId }) {
       <span className="inline-flex shrink-0 items-center gap-1">
         <SlackIcon className="h-3 w-3" />
         {t("platform.tab.slack")}
+      </span>
+    );
+  }
+  // 끝의 github 폴백 **앞**에 둔다 — 빠뜨리면 webhook 행이 GitHub 칩으로 뜬다.
+  if (platform === "webhook") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <Webhook className="h-3 w-3" />
+        {t("platform.tab.webhook")}
       </span>
     );
   }
