@@ -98,6 +98,10 @@
 
 [background · webhook-api.ts]
  헤더 조립:  사용자 헤더 → isSettableHeaderName 통과분만
+             secret이 있으면 Authorization: Bearer <secret>을 합성해 얹는다
+               — 저장 시점에 headers로 굳히지 않는다. 굳히면 폼 재편집에서 값이 두 군데로
+                 갈리고, redactHeaderValues가 최종 헤더 맵을 받는다는 보장도 깨진다
+               — 사용자 헤더가 Authorization을 정의했으면 그쪽이 이긴다(더 구체적인 의도)
              multipart 모드는 여기서 Content-Type을 **명시적으로 제거**한다
  multipart:  FormData
                payload         ← JSON.stringify(payload)   (bugshot.idempotencyKey 포함)
@@ -134,8 +138,9 @@ export type WebhookFormat = "multipart" | "json";
 
 export interface WebhookAuth {
   url: string;                          // normalizeWebhookUrl를 통과한 값만
-  headers: { name: string; value: string }[];
-  format: WebhookFormat;
+  secret?: string;                      // 기본 폼의 두 번째 칸. 전송 시점에 헤더로 합성한다
+  headers: { name: string; value: string }[];  // 고급 섹션에서만 편집
+  format: WebhookFormat;                // 고급 섹션에서만 편집. 기본 multipart
   template?: string;                    // format === "json"일 때만 의미가 있다
 }
 
@@ -258,7 +263,7 @@ export function readCappedErrorBody(res: Response, maxBytes: number): Promise<st
 - **analytics**: `trackSubmit`에 `platform: "webhook"`만 실린다. `ALLOWED_EVENTS.issue_submitted`(`src/background/analytics.ts:34-43`)는 **건드리지 않는다** — 엔드포인트 host를 화이트리스트에 올리지 않는 것이 이 기능의 불변식이다.
 - **연결 테스트 버튼**은 토큰 다이얼로그 7개 공통 관용구(`validating` state, `disabled` + `aria-disabled` 분리, `opacity-0` 텍스트 + 절대 위치 `Loader2`, 성공 시에만 `setAccount`)를 따른다(Slack은 OAuth 전용이라 다이얼로그가 아예 없다 — 8개가 아니라 7개다). 다이얼로그 하단은 같은 7개와 같은 `DialogFooter className="flex-row justify-end"`다.
 - **헤더 key/value 동적 행의 선례는 `connect/`가 아니라 `DraftingPanel.tsx:687-806`의 재현 환경 행이다.** `Input`(`w-24` 라벨 + `flex-1` 값) + `size="icon" h-9 w-9` 삭제 버튼, 마지막 행에만 추가 버튼. 그 구조를 그대로 가져온다 — `connect/` 8개 폼에는 이런 UI가 없다.
-- **헤더 값은 마스킹하지 않는다.** 8개 폼의 PAT·API 키가 전부 평문 `Input`(`autoComplete="off"` + `spellCheck={false}`)이고 저장소 유일한 `type="password"`는 설정 탭의 `LlmConnectDialog.tsx:296`이다. 여기만 새 관용구를 만들지 않고, 대신 **에러 메시지·토스트·analytics에 헤더를 절대 싣지 않는다**를 불변식으로 둔다.
+- **시크릿·헤더 값은 마스킹하지 않는다.** 8개 폼의 PAT·API 키가 전부 평문 `Input`(`autoComplete="off"` + `spellCheck={false}`)이고 저장소 유일한 `type="password"`는 설정 탭의 `LlmConnectDialog.tsx:296`이다. 여기만 새 관용구를 만들지 않고, 대신 **에러 메시지·토스트·analytics에 헤더를 절대 싣지 않는다**를 불변식으로 둔다.
 - **진입 버튼의 설명은 툴팁으로 단다.** `TooltipProvider delayDuration={0}` > `Tooltip` > `TooltipTrigger asChild` > `Button` > `TooltipContent` 관용구를 그대로 쓴다(`IssueTab.tsx:368-389`가 선례).
 - **진입 버튼은 중앙 덩어리 안에 둔다 — `PageFooter`를 쓰지 않는다.** `PageFooter`(`Section.tsx:38`, `shrink-0 … border-t bg-muted/50 p-4`)는 저장소 전체에서 **`PageScroll`의 짝**으로만 쓰이는데, `add` 서브탭은 `items-center justify-center` 중앙정렬이라 전제가 반대다. 붙이면 `flex-1` 본문 가용 높이가 ~69px 줄어 그리드 덩어리가 **약 34.5px 위로 밀리고** 기존 `pb-5`와 겹쳐 이중 여백이 생기며, 스크롤 컨테이너가 없어 세로가 짧으면 상단 제목이 클립된다. 대신 그리드 바로 아래 `gap-4` 자리에 **구분선 + 단독 버튼**을 둔다 — 중앙정렬이 유지되고 "8개 + 성격 다른 1개"가 한 시선에 읽히며, `bg-muted/50` 위 `text-muted-foreground` 대비 게이트(`styles/__tests__/muted-surface-contrast.test.ts`, 라이트 4.34:1)가 **애초에 발생하지 않는다**.
 - **브랜드 그리드에서 뺀다 — `ConnectFlow`를 optional로 만들어서.** `add` 서브탭의 2열 그리드는 `orderAddPlatforms(PLATFORMS.map(p => p.id), …)`(`integrationsTabUtils.ts:24-31`)를 그대로 도는데, `webhook`이 거기 남아 있으면 로고 자리에 lucide 아이콘이 섞여 들어간다. **`PLATFORMS` 배열 자체에서 빼면 안 된다** — 내 연동 목록의 Section 렌더가 그 배열을 찾아 쓴다(`IntegrationsTab.tsx:130-132`의 `PLATFORMS.find(...)!`가 `undefined`로 터진다). 그런데 `PlatformEntry.ConnectFlow`(`:48-54`)가 **non-optional**이라 그냥 남기면 렌더되지 않을 더미 컴포넌트를 주입해야 하고, 그러면 "그리드에서 빼는 런타임 필터"가 유일한 안전장치가 된다(누가 필터를 되돌리면 죽은 컴포넌트가 조용히 렌더된다). 대신 **`ConnectFlow?`로 optional화하고 그리드 매핑을 `PLATFORMS.filter(p => p.ConnectFlow)`로 좁혀 타입과 런타임 필터를 한 곳에 묶는다.** 대가는 남은 8개의 "빠뜨리면 컴파일 에러" 강제를 잃는 것이고, 그건 `filter`가 같은 파일 안에 있어 받아들인다.
@@ -272,6 +277,10 @@ export function readCappedErrorBody(res: Response, maxBytes: number): Promise<st
 **3. `DeliveryTarget`이라는 별도 축 신설 (기각).** "webhook은 이슈 트래커가 아니다"는 개념적으로 맞다. 그러나 이슈 목록·배지·제출 다이얼로그·설정이 전부 2축으로 갈라지고, Slack이 이미 트래커가 아니면서 `PlatformId`에 들어와 있다는 선례가 있다. 개념적 순수함의 대가가 UI 전반의 분기 증식이다.
 
 **4. 템플릿을 문자열 치환 후 `JSON.parse` (기각).** 구현이 10줄로 끝난다. 그러나 본문에 따옴표·역슬래시·개행이 하나만 있어도 JSON이 부서지고, 그 실패가 **사용자 본문 내용에 의존**해 재현이 불규칙해진다. parse-먼저-치환-나중이 유일하게 옳은 순서다.
+
+**5-b. 헤더 축을 없애고 시크릿 한 칸만 남긴다 (기각).** 요청자가 문면 그대로 요구한 안이고(*"require only webhook url and webhook secret"*), 기본 폼은 실제로 그 모양이 된다. 그러나 축 자체를 지우면 헤더 이름이 제각각인 대상(Redmine `X-Redmine-API-Key`, YouTrack의 별도 스킴)을 못 때리고, 그게 배경의 레버리지 논거 전체다. **기본값을 좁히는 것과 축을 없애는 것은 다르다** — 고급으로 접으면 그의 체감(두 칸)과 레버리지가 둘 다 산다.
+
+**5-c. 시크릿을 HMAC 서명 키로 쓴다 (기각, 재검토 가능).** "webhook secret"의 관용적 의미는 GitHub·Stripe식 본문 서명이고, 서명은 바디 변조까지 막는다. 그러나 multipart 요청의 서명 검증은 수신 서버가 **파싱 전에 raw body를 통째로 버퍼링**하도록 강제하고, 그 순간 목표 7의 "의존성 없는 40줄 레퍼런스 수신부"가 성립하지 않는다. bearer면 수신 측 검증이 문자열 비교 한 줄이다. 이 기능의 위협 모델("이 엔드포인트에 우리 확장만 POST한다")에서는 둘의 효과가 같다. 요청자 확인 후 서명이 필요하면 **같은 입력 칸을 그대로 두고** `X-BugShot-Signature` 헤더를 추가하는 얹기 작업이라, 타입·폼·저장 셰이프가 바뀌지 않는다.
 
 **5. 엔드포인트 N개 등록 (이번 스코프 밖).** `Accounts`의 플랫폼당 1계정 전제를 깨야 하고, 제출 다이얼로그에 "어느 엔드포인트로" 선택 필드가 생기며, 그 순간 `LastSubmitFieldsByPlatform`에 `webhook`이 필요해지고 "제출 목적지 필드는 last 우선"(POSTMORTEM 2026-06-30) 규칙까지 따라붙는다. 수요가 확인되면 그때 연다.
 

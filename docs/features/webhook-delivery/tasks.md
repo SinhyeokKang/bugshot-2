@@ -97,6 +97,17 @@
   - [ ] 바디가 `WEBHOOK_BODY_MAX_BYTES`를 넘으면 fetch 전에 중단 — **multipart 조립분도 같은 캡을 받는다**(템플릿 모드 전용이 아니다)
   - [ ] `payload.bugshot.idempotencyKey`가 요청에 실리고, 같은 draft 재전송이 같은 키를 쓴다
 
+### Task 5-b: 시크릿 축 (TDD — 테스트 먼저 · #236 피드백 반영)
+
+- **변경 대상**: `src/types/webhook.ts`(`WebhookAuth.secret?`), `src/background/webhook-api.ts`(`buildHeaders`), `src/background/__tests__/webhook-api.test.ts`
+- **작업 내용**: `WebhookAuth`에 `secret?: string`을 추가하고, **전송 시점에** `Authorization: Bearer <secret>`을 합성한다. 저장 시점에 `headers`로 굳히지 않는 이유 둘을 주석에 박는다 — (1) 폼 재편집에서 같은 값이 두 군데로 갈린다 (2) `redactHeaderValues`가 **최종 헤더 맵**을 받으므로 합성해 두면 시크릿이 에코 서버 에러 본문 redaction에 자동으로 걸리는데, 굳히면 그 보장이 코드 배치에 의존하게 된다. 사용자가 고급에서 `Authorization`을 직접 정의했으면 **그쪽이 이긴다**(더 구체적인 의도). `testWebhook`도 같은 `buildHeaders`를 타므로 자동 반영된다. 마이그레이션 없음 — 추가 optional이고 v12 셰이프의 `auth`가 이미 optional이다.
+- **검증**:
+  - [ ] `secret`이 있으면 `Authorization: Bearer <secret>`이 요청 헤더에 실린다(multipart·json·`webhook.test` 3경로)
+  - [ ] 고급 헤더가 `authorization`(대소문자 무시)을 정의하면 그쪽이 이기고 시크릿은 실리지 않는다
+  - [ ] `secret`이 비었거나 없으면 `Authorization` 헤더 자체가 없다 — 빈 Bearer를 보내지 않는다
+  - [ ] 에코 서버가 되비친 에러 본문에서 시크릿 값이 `***`로 가려진다(`REDACT_MIN_LENGTH` 이상)
+  - [ ] `secret` 왕복이 `settings-storage`·`settings-store`에서 보존된다
+
 ### Task 6: 제출 어댑터
 
 - **변경 대상**: `src/sidepanel/lib/submitToWebhook.ts`(신규), `src/sidepanel/lib/submitAdapters.ts`, `src/sidepanel/lib/prepareUpload.ts:76`, `src/sidepanel/lib/buildMarkdownIssueBody.ts:33`, `src/sidepanel/lib/__tests__/submitToWebhook.test.ts`(신규)
@@ -127,7 +138,7 @@
 - **작업 내용**:
   - **진입**: `add` 서브탭(`IntegrationsTab.tsx:167-196`)의 2열 브랜드 그리드 매핑에서 `webhook`을 제외하고, **중앙 덩어리(`items-center justify-center`) 안** 그리드 바로 아래 `gap-4` 자리에 구분선 + `<WebhookConnectEntry />`를 둔다. **`PageFooter`를 쓰지 않는다** — 그건 `PageScroll`의 짝이고 이 서브탭은 중앙정렬이라, 붙이면 그리드가 ~34.5px 위로 밀리고 `pb-5`와 겹쳐 이중 여백이 생기며 세로가 짧을 때 상단이 클립된다(design.md 참조). 설명 문구는 버튼 툴팁으로 단다(`TooltipProvider delayDuration={0}` > `Tooltip` > `TooltipTrigger asChild`, `IssueTab.tsx:368-389` 관용구).
   - **그리드 제외 방식**: `PlatformEntry.ConnectFlow`(`:48-54`)가 non-optional이라 더미 컴포넌트를 주입하는 대신 **`ConnectFlow?`로 optional화하고 그리드 매핑을 `PLATFORMS.filter(p => p.ConnectFlow)`로 좁힌다** — 타입과 런타임 필터를 한 곳에 묶는다. **`PLATFORMS` 배열에는 그대로 남긴다**(내 연동 목록의 `IntegrationsTab.tsx:130-132` `PLATFORMS.find(...)!`가 `undefined`로 터진다).
-  - **다이얼로그**: 진입 버튼 클릭 시 연다. 내용은 URL 입력 + 헤더 key/value 동적 행 + Format 셀렉터 + (json일 때) 템플릿 textarea + 미리보기·바디 크기. 하단은 토큰 다이얼로그 7개와 같은 `DialogFooter className="flex-row justify-end"`에 `연결 테스트`·`저장`. 다이얼로그 셸은 `w-[90vw] max-w-[800px] gap-5 rounded-3xl p-6 sm:rounded-3xl` + 내부 `min-h-0 flex-1 overflow-y-auto` 본문(저장소 관용구).
+  - **다이얼로그**: 진입 버튼 클릭 시 연다. **기본 화면은 입력 칸 둘뿐이다 — Endpoint + Secret**(#236 피드백). 그 아래 접이식 `고급` 안에 헤더 key/value 동적 행 + Format 셀렉터 + (json일 때) 템플릿 textarea + 미리보기·바디 크기를 넣는다. 접이식은 `components/ui/collapsible`을 쓰고, 기본은 **닫힌 상태**이되 저장된 계정이 고급 값(헤더 ≥1 또는 `format === "json"`)을 들고 있으면 열린 채로 연다 — 안 그러면 편집 진입 시 설정이 사라진 것처럼 보인다. Secret 아래 한 줄 도움말로 `Authorization: Bearer`로 나간다는 사실을 밝힌다(수신부를 직접 짜는 사람이 상대다). 하단은 토큰 다이얼로그 7개와 같은 `DialogFooter className="flex-row justify-end"`에 `연결 테스트`·`저장`. 다이얼로그 셸은 `w-[90vw] max-w-[800px] gap-5 rounded-3xl p-6 sm:rounded-3xl` + 내부 `min-h-0 flex-1 overflow-y-auto` 본문(저장소 관용구).
   - **헤더 행 UI**: 선례는 `connect/`가 아니라 `DraftingPanel.tsx:687-806`의 재현 환경 행이다 — `Input`(`w-24` 이름 + `flex-1` 값) + `size="icon" h-9 w-9` 삭제 버튼, 마지막 행에만 추가 버튼. **헤더 값은 마스킹하지 않는다**(8개 폼의 PAT이 전부 평문 `Input`이고 유일한 `type="password"`는 `LlmConnectDialog.tsx:296` — 여기만 새 관용구를 만들지 않는다).
   - `PlatformConnectFlow`는 OAuth prop을 필수로 요구하므로 **재사용하지 않는다**. 버튼 관용구(`validating` state, `disabled`+`aria-disabled` 분리, `opacity-0` + 절대 위치 `Loader2`, 성공 시에만 `setAccount`)는 토큰 다이얼로그 7개와 동일하게 맞춘다(Slack은 다이얼로그가 없어 선례에서 제외).
 - **검증**:
@@ -140,6 +151,10 @@
   - [ ] 공인망 http는 저장 버튼 자체가 막힌다
   - [ ] `Cookie`·`Host` 등 forbidden header 이름을 넣으면 저장이 거부되고 사유가 표시된다
   - [ ] 잘못된 템플릿은 저장이 거부되고 어떤 변수/구문이 문제인지 표시된다
+  - [ ] 기본 화면에 입력 칸이 Endpoint·Secret **둘뿐**이고 Format·헤더·템플릿은 보이지 않는다
+  - [ ] 고급을 펴야 Format·헤더·템플릿이 나온다
+  - [ ] 고급 값(헤더 ≥1 또는 json)을 가진 계정을 다시 열면 고급이 펼쳐진 상태로 뜬다
+  - [ ] Secret만 채우고 저장하면 `auth.headers`가 빈 배열로 저장된다(시크릿을 헤더로 굳히지 않는다 — Task 5-b)
   - [ ] Format을 `JSON 템플릿`으로 바꾸면 "미디어를 보내지 않고 이슈 이력을 남기지 않는다"가 그 자리에서 보인다
   - [ ] 헤더 값이 에러 토스트·콘솔 어디에도 찍히지 않는다(화면 표시는 평문이 정상)
   - [ ] `pnpm test`의 `muted-surface-contrast` 게이트 통과
@@ -159,7 +174,7 @@
 ### Task 10: i18n
 
 - **변경 대상**: `src/i18n/namespaces/{app,integrations,issue}.ts`, `src/i18n/__tests__/proper-nouns.test.ts`
-- **작업 내용**: `platform.tab.webhook`(값은 **`Custom Webhook`** — 내부 `PlatformId`는 짧은 `"webhook"`으로 두고 표시 라벨만 길게 간다) + `webhook.*`(라벨·placeholder·에러·경고 + 진입 버튼 툴팁 `webhook.entry.tooltip` — 수신 서버를 직접 준비해야 한다는 걸 한 문장으로) 키를 **등록 로케일 전수** 추가. `src/log-viewer/i18n.ts`와 `public/_locales/`는 이 키를 쓰지 않으므로 건드리지 않는다.
+- **작업 내용**: `platform.tab.webhook`(값은 **`Custom Webhook`** — 내부 `PlatformId`는 짧은 `"webhook"`으로 두고 표시 라벨만 길게 간다) + `webhook.*`(라벨·placeholder·에러·경고 + 진입 버튼 툴팁 `webhook.entry.tooltip` — 수신 서버를 직접 준비해야 한다는 걸 한 문장으로) 키를 **등록 로케일 전수** 추가. 시크릿·고급 축 키도 함께: `webhook.secret.label`·`webhook.secret.placeholder`·`webhook.secret.help`(`Authorization: Bearer`로 나간다는 한 줄)·`webhook.advanced.label`. `src/log-viewer/i18n.ts`와 `public/_locales/`는 이 키를 쓰지 않으므로 건드리지 않는다.
 - **검증**:
   - [ ] PostToolUse 훅이 돌리는 `src/i18n/__tests__/locales.test.ts` green(전수 키 대칭·빈 값·placeholder 토큰 일치)
   - [ ] `src/log-viewer/__tests__/i18n.test.ts` green(교집합 키 값 일치 — 교집합이 없으므로 무영향임을 확인)
@@ -169,7 +184,7 @@
 ### Task 11: 계약 문서 + 레퍼런스 수신 서버
 
 - **변경 대상**: `docs/webhook-contract.md`(신규)
-- **작업 내용**: multipart 파트 구성, `payload` JSON 스키마, `cid:` 참조 규칙, **필수 응답 `{key,url}`**(권장이 아니라 계약 — 없으면 제출 실패), **멱등 키(`payload.bugshot.idempotencyKey`)로 dedup하는 방법**, 테스트 요청의 `X-BugShot-Test: 1`, 타임아웃·크기 상한, 브라우저가 못 싣는 헤더 목록, 템플릿 변수 화이트리스트 전체. json 템플릿 모드는 응답을 읽지 않는다는 점도 명시. 끝에 **동작하는 최소 수신 서버**(의존성 없는 node `http` 기준 40줄 이내)를 싣는다.
+- **작업 내용**: **인증 먼저** — 시크릿이 `Authorization: Bearer <secret>`으로 온다는 것과 수신 측 검증이 문자열 비교 한 줄이라는 것(서명이 아니다. 이유는 design.md 대안 5-c). 이어서 multipart 파트 구성, `payload` JSON 스키마, `cid:` 참조 규칙, **필수 응답 `{key,url}`**(권장이 아니라 계약 — 없으면 제출 실패), **멱등 키(`payload.bugshot.idempotencyKey`)로 dedup하는 방법**, 테스트 요청의 `X-BugShot-Test: 1`, 타임아웃·크기 상한, 브라우저가 못 싣는 헤더 목록, 템플릿 변수 화이트리스트 전체. json 템플릿 모드는 응답을 읽지 않는다는 점도 명시. 끝에 **동작하는 최소 수신 서버**(의존성 없는 node `http` 기준 40줄 이내)를 싣는다.
 - **검증**:
   - [ ] 문서의 레퍼런스 서버를 그대로 띄워 실제 제출이 2xx로 끝나고 `{key,url}`을 돌려준다
   - [ ] 레퍼런스 서버가 `idempotencyKey`로 중복을 걸러내는 3줄을 포함한다
@@ -181,7 +196,7 @@
 - **작업 내용**: 손댈 곳이 **표 한 행이 아니라 네 곳**이다.
   1. `privacy.ko.md:139-153` "3. 외부 전송" 3열 표에 **"사용자가 지정한 서버"** 행 추가(Slack 다음). 전송 내용(리포트 본문·스크린샷·영상·로그·사용자 헤더) + 목적.
   2. 그 표 뒤 자유 문단(`:155-163`)에 GitLab self-managed 문단(`:159`)과 **같은 형식**으로 한 문단 — 임의 origin 직접 통신 + `<all_urls>`로 커버돼 별도 권한 프롬프트 없음 + 사용자 헤더가 그 서버로 나감. 3열 표로는 안 담긴다.
-  3. `:13-30` §1 자격 증명 표에 webhook URL + 요청 헤더(시크릿) 행 추가.
+  3. `:13-30` §1 자격 증명 표에 webhook URL + **시크릿** + 고급 요청 헤더 행 추가. 시크릿이 `Authorization` 헤더로 그 서버에 전송된다는 사실까지 적는다.
   4. `:169-175` §5 데이터 삭제의 플랫폼 8개 나열에 Custom Webhook 추가.
   상단 시행일(`:3`)을 ko/en 함께 갱신. **ko/en은 라인 단위로 평행**하므로 같은 인덱스에 넣는다.
 - **검증**:
@@ -238,7 +253,7 @@
 `src/test/fetch-mock.ts`(`mockFetchOnce`/`mockFetchRoutes` + `formDataAt`/`jsonBodyAt`)를 쓴다. `github-api.test.ts`의 구식 `globalThis.fetch` 직접 대입 관용구와 **같은 `describe`에서 섞지 않는다**(그 파일 주석이 경고하는 함정).
 
 **컴포넌트 테스트** (`*.test.tsx`, jsdom)
-- `WebhookConnectForm` — 테스트 실패 시 저장 안 됨, 평문 경고, forbidden header 거부, 템플릿 유효성 게이트, Format 전환 시 JSON 모드 한계 고지 노출.
+- `WebhookConnectForm` — **기본 화면 입력 칸 2개(Endpoint·Secret)**, 고급을 펴야 Format·헤더·템플릿 노출, 고급 값을 가진 계정은 펼친 채 열림, 테스트 실패 시 저장 안 됨, 평문 경고, forbidden header 거부, 템플릿 유효성 게이트, Format 전환 시 JSON 모드 한계 고지 노출.
 
 **e2e 시나리오** (`/e2e-write` 입력 — Task 13-b)
 - 로컬 목 수신 서버가 아니라 **`chrome.runtime.sendMessage` 스파이**로 background 응답을 가짜로 만든다(`panel.route`는 SW fetch를 못 잡는다). 계정은 `bugshot-settings` storage seed로 우회 연결하고 spec 끝에 제거한다.
@@ -269,6 +284,8 @@ Task 1 (타입 축 + migrate 배선 — 이후 전부의 전제)
 Task 2 · Task 2-b · Task 3 · Task 4   ← 순수 함수 4개, 서로 독립이라 병렬 가능
    ↓
 Task 5 (background + 13-a 계약 유닛) ── Task 6 (어댑터)   ← 5가 6의 전제
+   ↓
+Task 5-b (시크릿 축 — 타입 + buildHeaders)   ← Task 8 연결 폼의 전제
    ↓
 Task 7 (제출 UI) · Task 8 (연결 UI) · Task 9 (배지·칩·승격)   ← 병렬 가능
    ↓

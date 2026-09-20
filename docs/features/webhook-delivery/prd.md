@@ -10,10 +10,12 @@ GitHub 이슈 [#236](https://github.com/SinhyeokKang/bugshot-2/issues/236)(`cust
 
 레버리지가 이 기능의 진짜 근거다. 8개 플랫폼 밖의 모든 대상 — Redmine·YouTrack·Shortcut·Azure DevOps·사내 자체 트래커 — 을 **어댑터 코드 추가 없이** 흡수한다. 지금까지 플랫폼 하나를 붙일 때마다 `src`에서 70여 파일이 움직였다(ClickUp 기준 74파일). 그 비용을 사용자 쪽 수신 서버로 넘기는 것이다.
 
+요청자 피드백으로 연결 폼이 한 번 좁혀졌다([#236 코멘트](https://github.com/SinhyeokKang/bugshot-2/issues/236#issuecomment-5747705577), 2026-09-19). 원문은 *"I would expect you to provide a single api shape and require only webhook url and webhook secret"* — 그는 그때까지 팀 전원을 Slack 단일 채널로 묶어 우회하고 있었고, 모드 선택과 헤더 key/value 입력을 **설정 부담**으로 읽었다. 그래서 기본 폼을 두 칸으로 줄이고 나머지를 고급으로 접었다. **모드와 헤더 축 자체는 없애지 않는다** — 없애면 이 기능의 진짜 근거인 레버리지(Redmine의 `X-Redmine-API-Key`처럼 헤더 이름이 제각각인 대상 흡수)가 같이 사라진다.
+
 ## 목표
 
-1. 사용자가 **엔드포인트 URL + 요청 헤더**를 입력해 연결하면, 이슈 제출 다이얼로그에 `Custom Webhook` 탭이 뜨고 기존 8개 플랫폼과 같은 자리에서 제출할 수 있다.
-2. **multipart 모드**(기본): 캡처 미디어(스크린샷·영상·`logs.html`·사용자 첨부)를 파일 파트로 실어 **단일 POST**로 보낸다. 본문 마크다운은 `cid:<part-name>`으로 그 파트들을 참조한다. 수신 서버는 **`{key, url}`을 반환해야 하고**, 없으면 제출 실패로 처리한다 — 수신부를 직접 짜는 사람이 상대이므로 계약을 지킬 수 있다.
+1. 사용자가 **엔드포인트 URL + 시크릿** 두 칸만 채우면 연결이 끝나고, 이슈 제출 다이얼로그에 `Custom Webhook` 탭이 뜬다. 시크릿은 저장 시점에 굳히지 않고 **전송 시점에 `Authorization: Bearer <secret>`으로 합성**한다. 요청 헤더·Format·템플릿은 **고급** 섹션으로 접어 기본 경로에서 보이지 않는다.
+2. **multipart 모드**(기본, 고급을 펴지 않으면 유일한 모드): 캡처 미디어(스크린샷·영상·`logs.html`·사용자 첨부)를 파일 파트로 실어 **단일 POST**로 보낸다. 본문 마크다운은 `cid:<part-name>`으로 그 파트들을 참조한다. 수신 서버는 **`{key, url}`을 반환해야 하고**, 없으면 제출 실패로 처리한다 — 수신부를 직접 짜는 사람이 상대이므로 계약을 지킬 수 있다.
 3. **JSON 템플릿 모드**: 사용자가 요청 바디 모양을 직접 정의한다. 화이트리스트 변수(`{{title}}`·`{{body}}` 등)를 치환해 임의 제3자 훅(Discord·Slack incoming·Zapier·n8n·사내 REST)에 맞춘다. 이 모드는 **2xx만으로 성공**이고 응답 파싱을 하지 않는다 — Discord가 `204 No Content`를 주듯 제3자 훅은 식별자를 돌려주지 않는 게 정상이다.
 4. 전송 전에 **바디 크기를 계산해 사용자에게 보여주고**, 실패하면 HTTP status와 응답 본문 앞부분을 노출한다. 무음 실패를 남기지 않는다.
 5. 평문 http는 **네트워크 경계 안에서만** 허용한다(loopback·사설망). 공인망 평문은 거부한다.
@@ -27,8 +29,9 @@ GitHub 이슈 [#236](https://github.com/SinhyeokKang/bugshot-2/issues/236)(`cust
 - **JSON 템플릿 모드는 이슈 이력을 남기지 않는다.** 응답에 식별자가 없으니 목록 행을 만들 근거가 없다. 전송 성공 토스트로 끝나고 draft는 기존 규칙대로 정리된다.
 - **제출 필드 없음.** 프로젝트·담당자·라벨 같은 선택 필드가 없다. 고를 대상이 서버 쪽에 존재하지 않는다.
 - **엔드포인트는 1개.** staging/prod를 나눠 등록하는 N개 모델은 `Accounts`의 "플랫폼당 1계정" 전제를 깨야 해서 이번 스코프 밖이다.
-- **OAuth 없음.** 인증은 사용자가 직접 넣는 요청 헤더뿐이다.
-- **헤더 값 마스킹 없음.** 기존 8개 연결 폼의 PAT·API 키가 전부 평문 `Input`이라(유일한 `type="password"`는 설정 탭의 LLM 키) 여기만 새 관용구를 만들지 않는다. 대신 **에러 메시지·로그·analytics에 헤더를 절대 싣지 않는다**를 불변식으로 둔다.
+- **OAuth 없음.** 인증은 시크릿(기본) 또는 고급에서 직접 넣는 요청 헤더뿐이다.
+- **시크릿 HMAC 서명 없음.** 시크릿은 공유 토큰으로 헤더에 그대로 실린다. 서명으로 가면 수신 서버가 multipart를 파싱하기 **전에** raw body를 통째로 버퍼링해 검증해야 하고, 목표 7의 "의존성 없는 40줄 레퍼런스 수신부"가 깨진다. 요청자가 서명을 기대한 것으로 확인되면 같은 입력 칸에 `X-BugShot-Signature` 헤더를 얹는 추가 작업으로 처리한다(셰이프 변경 없음).
+- **시크릿·헤더 값 마스킹 없음.** 기존 8개 연결 폼의 PAT·API 키가 전부 평문 `Input`이라(유일한 `type="password"`는 설정 탭의 LLM 키) 여기만 새 관용구를 만들지 않는다. 대신 **에러 메시지·로그·analytics에 헤더를 절대 싣지 않는다**를 불변식으로 둔다.
 - **템플릿 모드의 파일 업로드 없음.** 미디어는 `{{media.*.dataUri}}`를 템플릿에 **직접 쓸 때만** 바디에 들어간다. 영상은 base64가 실질적으로 항상 캡을 넘겨 `dataUri` 변수를 제공하지 않는다(파일명만).
 - **재시도·큐 없음.** 실패하면 그 자리에서 실패로 끝난다. 백그라운드 재전송 큐는 만들지 않는다.
 
@@ -38,8 +41,8 @@ GitHub 이슈 [#236](https://github.com/SinhyeokKang/bugshot-2/issues/236)(`cust
 
 1. 연동 탭 → `플랫폼 추가` → 브랜드 그리드 아래 구분선 밑의 `Custom Webhook` 버튼 → 다이얼로그가 열린다.
 1-1. **Endpoint**에 `https://bugs.acme.io/intake` 입력.
-2. **Headers**에 `Authorization: Bearer <팀 토큰>` 한 줄 추가.
-3. **Format**은 기본값 `multipart` 유지.
+2. **Secret**에 팀 토큰 입력. 전송 시 `Authorization: Bearer <팀 토큰>`으로 나간다.
+3. 고급 섹션은 펴지 않는다 — Format은 기본값 `multipart`이고 추가 헤더도 없다.
 4. `연결 테스트` → `X-BugShot-Test: 1` 헤더가 붙은 최소 페이로드가 POST된다. 2xx면 계정이 저장되고 다이얼로그가 닫힌다. 실패하면 status와 응답 본문 앞부분이 토스트로 뜨고 **저장되지 않는다**.
 5. 버그를 캡처하고 이슈 제출 → `Custom Webhook` 탭 선택 → 제출.
 6. 서버는 `payload` 파트의 JSON과 파일 파트들을 받아 저장하고, 본문의 `cid:screenshot-1.webp`를 자기 스토리지 URL로 치환한다.
@@ -47,7 +50,7 @@ GitHub 이슈 [#236](https://github.com/SinhyeokKang/bugshot-2/issues/236)(`cust
 
 ### B. Discord로 보내는 개인 (JSON 템플릿 모드)
 
-1. Endpoint에 Discord 웹훅 URL 입력, Format을 `JSON 템플릿`으로 변경.
+1. Endpoint에 Discord 웹훅 URL 입력(시크릿은 URL에 이미 들어 있으므로 비워 둔다). **고급**을 펴서 Format을 `JSON 템플릿`으로 변경.
 2. 템플릿 편집기에 Discord 형식을 직접 작성한다.
    ```json
    { "content": "**{{title}}**\n{{url}}", "embeds": [{ "description": "{{body}}" }] }
@@ -70,7 +73,7 @@ GitHub 이슈 [#236](https://github.com/SinhyeokKang/bugshot-2/issues/236)(`cust
 
 ## 위험 요소
 
-`/feature` 판정 기준 4개 중 **③ "사정거리가 이름값보다 좁은가"에 걸린다.** 이름은 "Custom Webhook = 임의 대상 전부"인데 비목표가 7개고, 특히 **JSON 템플릿 모드는 BugShot의 핵심 산출물 둘(미디어·추적 링크)이 모두 빠진 축소 경로**다. `anomaly-capture-trigger`를 드랍시킨 축("이름이 약속하는 범위와 실제 작동 창이 어긋난다")과 동형이므로 여기 명시해 둔다. 두 모드를 유지하기로 했으니 **UI가 그 차이를 숨기지 않는 것**이 완화책이다 — Format 선택 시점에 "JSON 템플릿은 미디어를 보내지 않고 이슈 이력을 남기지 않는다"를 그 자리에서 말한다.
+`/feature` 판정 기준 4개 중 **③ "사정거리가 이름값보다 좁은가"에 걸린다.** 이름은 "Custom Webhook = 임의 대상 전부"인데 비목표가 7개고, 특히 **JSON 템플릿 모드는 BugShot의 핵심 산출물 둘(미디어·추적 링크)이 모두 빠진 축소 경로**다. `anomaly-capture-trigger`를 드랍시킨 축("이름이 약속하는 범위와 실제 작동 창이 어긋난다")과 동형이므로 여기 명시해 둔다. 두 모드를 유지하기로 했으니 **UI가 그 차이를 숨기지 않는 것**이 완화책이다 — Format 선택 시점에 "JSON 템플릿은 미디어를 보내지 않고 이슈 이력을 남기지 않는다"를 그 자리에서 말한다. Format이 고급으로 들어간 뒤에도 이 완화책은 그대로다: 기본 경로 사용자는 축소 경로에 닿을 일이 없고, 고급을 펴서 고르는 사람은 고르는 그 자리에서 경고를 본다.
 
 나머지 3개 기준은 통과한다: 브라우저·DevTools가 대신하지 않고(①), 페이지에 심는 것이 없으며(②), 순수 함수 유닛 + 목 수신 서버 e2e로 검증 수단이 확실하다(④).
 
@@ -88,5 +91,7 @@ GitHub 이슈 [#236](https://github.com/SinhyeokKang/bugshot-2/issues/236)(`cust
 - 헤더 이름 판정이 순수 함수로 분리돼 forbidden name 전수를 유닛으로 고정한다.
 - 잘못된 토큰·없는 경로·타임아웃 각각에서 **계정이 저장되지 않고** 원인이 사용자에게 보인다.
 - multipart 응답에 `{key,url}`이 없으면 제출이 실패하고 draft가 보존된다.
+- 연결 폼 기본 화면에 입력 칸이 **둘뿐**이고(Endpoint·Secret), Format·헤더·템플릿은 고급을 펴야 나온다 — `WebhookConnectForm.test.tsx`가 고정한다.
+- 시크릿이 `Authorization: Bearer`로 나가고, 고급 헤더가 같은 이름을 정의하면 그쪽이 이긴다 — background 유닛이 고정한다.
 - `docs/privacy.{ko,en}`에 "사용자가 지정한 서버"가 외부 전송 대상으로 등재되고(표 행 + GitLab self-managed식 자유 문단 + §1 자격증명 표 + §5 삭제 안내) 시행일이 갱신된다.
 - `pnpm typecheck`·`pnpm test` green.

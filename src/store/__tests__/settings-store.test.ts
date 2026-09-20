@@ -914,6 +914,45 @@ describe("persist migrate 콜백 — version별 단계 배선", () => {
 // 새 자격증명에 남는데, 계정 신원 게이트를 가진 건 Jira(initialJiraFields의 siteId 대조)뿐이라
 // 나머지는 이전 계정의 owner/repo·workspace가 그대로 prefill된다 — 새 계정이 그 목적지에
 // 접근 권한을 가지면 캡처 데이터가 이전 조직으로 나간다.
+describe("webhook 계정 — 시크릿 왕복", () => {
+  it("secret이 auth 안에 보존된다 — 별도 저장 축을 만들지 않는다", () => {
+    const acc = {
+      platform: "webhook" as const,
+      connectedAt: 1,
+      auth: {
+        url: "https://bugs.acme.io/intake",
+        secret: "s3cr3t-team-token",
+        headers: [],
+        format: "multipart" as const,
+      },
+    };
+    useSettingsStore.setState({ accounts: {}, lastSubmitFields: {} });
+    useSettingsStore.getState().setAccount("webhook", acc);
+
+    expect(useSettingsStore.getState().accounts.webhook?.auth.secret).toBe("s3cr3t-team-token");
+  });
+
+  it("updateWebhookAccount가 secret만 바꿔도 나머지 auth가 안 날아간다", () => {
+    useSettingsStore.setState({
+      accounts: {
+        webhook: {
+          platform: "webhook",
+          connectedAt: 1,
+          auth: { url: "https://x/hook", secret: "old", headers: [], format: "multipart" },
+        },
+      },
+      lastSubmitFields: {},
+    });
+    useSettingsStore.getState().updateWebhookAccount({
+      auth: { url: "https://x/hook", secret: "new", headers: [], format: "multipart" },
+    });
+
+    const auth = useSettingsStore.getState().accounts.webhook?.auth;
+    expect(auth?.secret).toBe("new");
+    expect(auth?.url).toBe("https://x/hook");
+  });
+});
+
 describe("migrateToV12 — webhook 계정 방어 정리", () => {
   const good = {
     platform: "webhook" as const,

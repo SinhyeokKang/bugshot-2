@@ -29,6 +29,7 @@ const ERROR_BODY_MAX_BYTES = 8 * 1024;
 interface WebhookAuthLike {
   url: string;
   headers: WebhookHeader[];
+  secret?: string;
 }
 
 // ⚠ submitWebhook은 이 배열을 **소비한다** — 변환 직후 dataUrl 슬롯을 비운다.
@@ -51,9 +52,9 @@ export type SubmitWebhookInput =
 
 // 사용자 헤더는 여기를 통과한 것만 나간다. 통과 못 한 이름은 fetch가 조용히 드롭하므로
 // 저장 시점(연결 폼)과 전송 시점 둘 다에서 같은 술어로 거른다.
-function buildHeaders(headers: WebhookHeader[], dropContentType: boolean): Record<string, string> {
+function buildHeaders(auth: WebhookAuthLike, dropContentType: boolean): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const h of headers) {
+  for (const h of auth.headers) {
     if (!isSettableHeaderName(h.name)) continue;
     // 값에 CR/LF·제어문자가 있으면 Headers 생성자가 동기 TypeError를 던져 요청이 통째로
     // 죽고 "network"로 보고된다. 이름 축만 막아두면 같은 실패 모드가 값 쪽에 남는다.
@@ -63,6 +64,13 @@ function buildHeaders(headers: WebhookHeader[], dropContentType: boolean): Recor
     if (dropContentType && h.name.toLowerCase() === "content-type") continue;
     out[h.name] = h.value;
   }
+  // 시크릿은 저장 시점에 headers로 굳히지 않고 여기서 합성한다. 그래야 (1) 폼 재편집에서
+  // 값이 두 군데로 갈리지 않고 (2) redactHeaderValues가 받는 **최종** 헤더 맵에 들어가
+  // 에코 서버 에러 본문에서 자동으로 가려진다. 사용자가 Authorization을 직접 정의했으면
+  // 그쪽이 더 구체적인 의도라 이긴다(대소문자 무시).
+  const secret = auth.secret?.trim();
+  const explicit = Object.keys(out).some((k) => k.toLowerCase() === "authorization");
+  if (secret && !explicit) out.Authorization = `Bearer ${secret}`;
   return out;
 }
 
@@ -198,7 +206,7 @@ export async function submitWebhook(input: SubmitWebhookInput): Promise<WebhookS
     if (exceedsUtf8(body, WEBHOOK_BODY_MAX_BYTES)) {
       throw new WebhookError(0, t("webhook.error.tooLarge"));
     }
-    const headers = buildHeaders(input.auth.headers, false);
+    const headers = buildHeaders(input.auth, false);
     if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type")) {
       headers["Content-Type"] = "application/json";
     }
@@ -229,7 +237,7 @@ export async function submitWebhook(input: SubmitWebhookInput): Promise<WebhookS
   // Content-Type을 세팅하지 않아야 fetch가 boundary를 붙인다.
   const res = await send(
     input.auth.url,
-    { method: "POST", headers: buildHeaders(input.auth.headers, true), body: form },
+    { method: "POST", headers: buildHeaders(input.auth, true), body: form },
     WEBHOOK_TIMEOUT_MS,
   );
 
@@ -247,7 +255,7 @@ export async function submitWebhook(input: SubmitWebhookInput): Promise<WebhookS
 }
 
 export async function testWebhook(auth: WebhookAuthLike): Promise<void> {
-  const headers = buildHeaders(auth.headers, false);
+  const headers = buildHeaders(auth, false);
   headers["X-BugShot-Test"] = "1";
   if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type")) {
     headers["Content-Type"] = "application/json";
