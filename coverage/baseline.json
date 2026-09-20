@@ -1,25 +1,25 @@
 {
-  "generatedAt": "2026-09-17T09:13:03.355Z",
+  "generatedAt": "2026-09-20T08:08:38.586Z",
   "logic": {
-    "covered": 23553,
-    "total": 25957,
-    "pct": 90.73852910582887
+    "covered": 24397,
+    "total": 26810,
+    "pct": 90.99962700484893
   },
   "global": {
     "lines": {
-      "covered": 33290,
-      "total": 56068,
-      "pct": 59.37
+      "covered": 34521,
+      "total": 57383,
+      "pct": 60.15
     },
     "branches": {
-      "covered": 9216,
-      "total": 10516,
-      "pct": 87.63
+      "covered": 9620,
+      "total": 10957,
+      "pct": 87.79
     },
     "functions": {
-      "covered": 1797,
-      "total": 2489,
-      "pct": 72.19
+      "covered": 1861,
+      "total": 2560,
+      "pct": 72.69
     }
   },
   "files": {
@@ -37,7 +37,7 @@
     },
     "src/background/bgRequestTypes.ts": {
       "covered": 0,
-      "total": 113
+      "total": 115
     },
     "src/background/capture-throttle.ts": {
       "covered": 50,
@@ -96,8 +96,8 @@
       "total": 177
     },
     "src/background/messages.ts": {
-      "covered": 307,
-      "total": 701
+      "covered": 309,
+      "total": 714
     },
     "src/background/notion-api.ts": {
       "covered": 567,
@@ -112,8 +112,8 @@
       "total": 210
     },
     "src/background/platformErrors.ts": {
-      "covered": 20,
-      "total": 20
+      "covered": 21,
+      "total": 21
     },
     "src/background/slack-api.ts": {
       "covered": 185,
@@ -126,6 +126,10 @@
     "src/background/tab-bindings.ts": {
       "covered": 191,
       "total": 252
+    },
+    "src/background/webhook-api.ts": {
+      "covered": 209,
+      "total": 218
     },
     "src/background/lib/adf-logs-link.ts": {
       "covered": 16,
@@ -196,8 +200,8 @@
       "total": 4
     },
     "src/components/ui/collapsing-tabs.tsx": {
-      "covered": 50,
-      "total": 53
+      "covered": 51,
+      "total": 54
     },
     "src/components/ui/command.tsx": {
       "covered": 75,
@@ -420,8 +424,8 @@
       "total": 94
     },
     "src/i18n/namespaces/app.ts": {
-      "covered": 177,
-      "total": 177
+      "covered": 180,
+      "total": 180
     },
     "src/i18n/namespaces/common.ts": {
       "covered": 94,
@@ -432,8 +436,8 @@
       "total": 466
     },
     "src/i18n/namespaces/integrations.ts": {
-      "covered": 844,
-      "total": 844
+      "covered": 997,
+      "total": 997
     },
     "src/i18n/namespaces/issue.ts": {
       "covered": 409,
@@ -456,8 +460,8 @@
       "total": 21
     },
     "src/lib/bg-client.ts": {
-      "covered": 63,
-      "total": 63
+      "covered": 56,
+      "total": 56
     },
     "src/lib/capture-commands.ts": {
       "covered": 3,
@@ -564,8 +568,8 @@
       "total": 37
     },
     "src/lib/settings-storage.ts": {
-      "covered": 121,
-      "total": 121
+      "covered": 137,
+      "total": 137
     },
     "src/lib/ssrf-guard.ts": {
       "covered": 57,
@@ -578,6 +582,14 @@
     "src/lib/utils.ts": {
       "covered": 7,
       "total": 7
+    },
+    "src/lib/webhook-header-policy.ts": {
+      "covered": 34,
+      "total": 34
+    },
+    "src/lib/webhook-url-policy.ts": {
+      "covered": 54,
+      "total": 54
     },
     "src/lib/with-timeout.ts": {
       "covered": 10,
@@ -844,8 +856,8 @@
       "total": 309
     },
     "src/sidepanel/components/SubmitSuccessView.tsx": {
-      "covered": 2,
-      "total": 33
+      "covered": 35,
+      "total": 35
     },
     "src/sidepanel/components/TiptapEditor.tsx": {
       "covered": 387,
@@ -1036,8 +1048,8 @@
       "total": 43
     },
     "src/sidepanel/lib/attachmentLimits.ts": {
-      "covered": 44,
-      "total": 44
+      "covered": 45,
+      "total": 45
     },
     "src/sidepanel/lib/blockActions.ts": {
       "covered": 73,
@@ -1134,6 +1146,10 @@
     "src/sidepanel/lib/buildSlackBody.ts": {
       "covered": 91,
       "total": 91
+    },
+    "src/sidepanel/lib/buildWebhookJsonBody.ts": {
+      "covered": 15,
+      "total": 15
     },
     "src/sidepanel/lib/capture-basis.ts": {
       "covered": 29,
@@ -1388,8 +1404,8 @@
       "total": 92
     },
     "src/sidepanel/lib/submitAdapters.ts": {
-      "covered": 232,
-      "total": 232
+      "covered": 243,
+      "total": 243
     },
     "src/sidepanel/lib/submitToAsana.ts": {
       "covered": 156,
@@ -1422,6 +1438,10 @@
     "src/sidepanel/lib/submitToSlack.ts": {
       "covered": 50,
       "total": 50
+    },
+    "src/sidepanel/lib/submitToWebhook.ts": {
+      "covered": 97,
+      "total": 97
     },
     "src/sidepanel/lib/tab-scope.ts": {
       "covered": 7,
@@ -1458,6 +1478,14 @@
     "src/sidepanel/lib/video-thumbnail.ts": {
       "covered": 2,
       "total": 39
+    },
+    "src/sidepanel/lib/webhookPayload.ts": {
+      "covered": 42,
+      "total": 42
+    },
+    "src/sidepanel/lib/webhookTemplate.ts": {
+      "covered": 110,
+      "total": 112
     },
     "src/sidepanel/lib/zipLogsHtml.ts": {
       "covered": 94,
@@ -1525,7 +1553,7 @@
     },
     "src/sidepanel/tabs/DraftDetailDialog.tsx": {
       "covered": 0,
-      "total": 974
+      "total": 1011
     },
     "src/sidepanel/tabs/DraftEditDialog.tsx": {
       "covered": 88,
@@ -1536,12 +1564,12 @@
       "total": 807
     },
     "src/sidepanel/tabs/IntegrationsTab.tsx": {
-      "covered": 153,
-      "total": 213
+      "covered": 163,
+      "total": 225
     },
     "src/sidepanel/tabs/IssueCreateModal.tsx": {
-      "covered": 142,
-      "total": 460
+      "covered": 144,
+      "total": 494
     },
     "src/sidepanel/tabs/IssueListTab.tsx": {
       "covered": 0,
@@ -1584,8 +1612,12 @@
       "total": 604
     },
     "src/sidepanel/tabs/SubmitFieldsDialog.tsx": {
-      "covered": 22,
-      "total": 261
+      "covered": 2,
+      "total": 245
+    },
+    "src/sidepanel/tabs/SubmitPlatformTabs.tsx": {
+      "covered": 29,
+      "total": 29
     },
     "src/sidepanel/tabs/TrimTimeline.tsx": {
       "covered": 0,
@@ -1596,12 +1628,16 @@
       "total": 22
     },
     "src/sidepanel/tabs/issueListUtils.ts": {
-      "covered": 131,
+      "covered": 133,
       "total": 152
     },
     "src/sidepanel/tabs/notionStatusColors.ts": {
       "covered": 11,
       "total": 11
+    },
+    "src/sidepanel/tabs/submitTabsLayout.ts": {
+      "covered": 26,
+      "total": 26
     },
     "src/sidepanel/tabs/asanaFields/AsanaIssueFields.tsx": {
       "covered": 20,
@@ -1668,7 +1704,7 @@
       "total": 259
     },
     "src/sidepanel/tabs/connect/JiraConnectForm.tsx": {
-      "covered": 298,
+      "covered": 299,
       "total": 423
     },
     "src/sidepanel/tabs/connect/LinearConnectForm.tsx": {
@@ -1691,6 +1727,10 @@
       "covered": 85,
       "total": 138
     },
+    "src/sidepanel/tabs/connect/WebhookConnectForm.tsx": {
+      "covered": 314,
+      "total": 326
+    },
     "src/sidepanel/tabs/connect/gitlabInstanceUrl.ts": {
       "covered": 26,
       "total": 26
@@ -1698,6 +1738,10 @@
     "src/sidepanel/tabs/connect/useAutoStart.ts": {
       "covered": 20,
       "total": 20
+    },
+    "src/sidepanel/tabs/connect/webhookFormGate.ts": {
+      "covered": 60,
+      "total": 60
     },
     "src/sidepanel/tabs/githubFields/AssigneeCombobox.tsx": {
       "covered": 2,
@@ -1949,15 +1993,19 @@
     },
     "src/sidepanel/tabs/statusBadges/PlatformChip.tsx": {
       "covered": 0,
-      "total": 58
+      "total": 65
     },
     "src/sidepanel/tabs/statusBadges/SlackSubmittedBadge.tsx": {
       "covered": 11,
       "total": 11
     },
     "src/sidepanel/tabs/statusBadges/SubmittedBadge.tsx": {
-      "covered": 50,
-      "total": 97
+      "covered": 53,
+      "total": 100
+    },
+    "src/sidepanel/tabs/statusBadges/WebhookSubmittedBadge.tsx": {
+      "covered": 11,
+      "total": 11
     },
     "src/sidepanel/tabs/statusBadges/constants.ts": {
       "covered": 41,
@@ -2072,16 +2120,16 @@
       "total": 252
     },
     "src/store/settings-store.ts": {
-      "covered": 234,
-      "total": 238
+      "covered": 251,
+      "total": 255
     },
     "src/store/settings-ui-store.ts": {
       "covered": 175,
       "total": 179
     },
     "src/types/platform.ts": {
-      "covered": 12,
-      "total": 12
+      "covered": 13,
+      "total": 13
     }
   }
 }
