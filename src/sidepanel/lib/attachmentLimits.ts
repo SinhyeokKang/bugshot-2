@@ -17,7 +17,11 @@ export const PLATFORM_FILE_SIZE_LIMIT: Record<PlatformId, number | null> = {
   asana: null,
   clickup: null,
   slack: null,
-  // 단건 한도 없음 — 총량은 바디 크기 캡(WEBHOOK_BODY_MAX_BYTES)이 따로 본다.
+  // 단건 한도 없음 — 총량은 바디 크기 캡(WEBHOOK_BODY_MAX_BYTES, 25MB)이 따로 본다.
+  // 이 축에 25MB를 적어 미리 경고하고 싶어지지만 틀린 자리다: 여긴 **단건** 한도라
+  // 20MB 두 개는 통과하고 전송에서 실패한다. 반대로 정확한 총량은 첨부 시점에 알 수 없다
+  // (영상·스크린샷·logs.html이 나중에 붙고 base64가 4/3로 부푼다). 전송 시점 캡이
+  // 유일하게 정확한 판정이라 그쪽에 두고, 문구가 무엇을 줄일지 알려준다.
   webhook: null,
 };
 

@@ -10,8 +10,7 @@ export interface WebhookHeader {
 export interface WebhookAuth {
   // normalizeWebhookUrl를 통과한 값만 저장된다.
   url: string;
-  // 기본 폼의 두 번째 칸. 전송 시점에 Authorization 헤더로 합성한다 — headers로 굳히지
-  // 않는 건 폼 재편집에서 같은 값이 두 군데로 갈리기 때문이다.
+  // 기본 폼의 두 번째 칸. headers에 굳히지 않고 전송 시점에 합성한다(근거는 buildHeaders).
   secret?: string;
   headers: WebhookHeader[];
   format: WebhookFormat;
