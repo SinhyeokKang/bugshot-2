@@ -291,6 +291,76 @@ describe("submitWebhook — 실패", () => {
   });
 });
 
+describe("submitWebhook — 시크릿", () => {
+  const withSecret = { url: URL_, headers: [], secret: "s3cr3t-team-token" };
+
+  it("secret이 있으면 Authorization: Bearer로 합성해 보낸다", async () => {
+    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    await submitWebhook({ mode: "multipart", auth: withSecret, payload: payload(), files: files() });
+
+    const headers = m.callAt(0).init?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer s3cr3t-team-token");
+  });
+
+  it("json 모드에도 같은 헤더가 실린다", async () => {
+    const m = mockFetchOnce({ status: 204 });
+    await submitWebhook({ mode: "json", auth: withSecret, body: { c: "x" } });
+
+    const headers = m.callAt(0).init?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer s3cr3t-team-token");
+  });
+
+  it("연결 테스트에도 같은 헤더가 실린다", async () => {
+    const m = mockFetchOnce({ status: 204 });
+    await testWebhook(withSecret);
+
+    const headers = m.callAt(0).init?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer s3cr3t-team-token");
+  });
+
+  it.each(["Authorization", "authorization", "AUTHORIZATION"])(
+    "고급 헤더가 %s를 정의하면 그쪽이 이기고 시크릿은 안 실린다",
+    async (name) => {
+      const m = mockFetchOnce({ status: 204 });
+      await submitWebhook({
+        mode: "json",
+        auth: { ...withSecret, headers: [{ name, value: "Token explicit" }] },
+        body: { c: "x" },
+      });
+
+      const headers = m.callAt(0).init?.headers as Record<string, string>;
+      const values = Object.entries(headers)
+        .filter(([k]) => k.toLowerCase() === "authorization")
+        .map(([, v]) => v);
+      expect(values).toEqual(["Token explicit"]);
+      expect(JSON.stringify(headers)).not.toContain("s3cr3t-team-token");
+    },
+  );
+
+  it.each([undefined, "", "   "])(
+    "secret이 %j면 Authorization 헤더 자체가 없다 — 빈 Bearer를 보내지 않는다",
+    async (secret) => {
+      const m = mockFetchOnce({ status: 204 });
+      await submitWebhook({ mode: "json", auth: { url: URL_, headers: [], secret }, body: { c: "x" } });
+
+      const headers = m.callAt(0).init?.headers as Record<string, string>;
+      expect(Object.keys(headers).map((k) => k.toLowerCase())).not.toContain("authorization");
+    },
+  );
+
+  it("에코 서버가 되비친 에러 본문에서 시크릿이 가려진다", async () => {
+    mockFetchOnce({ status: 400, body: 'saw Bearer s3cr3t-team-token' });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: withSecret,
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+
+    expect(String((err as WebhookError).body)).not.toContain("s3cr3t-team-token");
+  });
+});
+
 describe("submitWebhook — 전송 시점 2층 방어", () => {
   it.each([
     ["file:///etc/passwd", "file 스킴"],
