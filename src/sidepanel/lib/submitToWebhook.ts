@@ -13,8 +13,11 @@ import { t } from "@/i18n";
 export type { NormalizedSubmitResult } from "@/types/platform";
 
 // json 템플릿 모드는 식별자를 돌려받지 못해 이슈 목록 행을 만들 근거가 없다. 그 차이를
-// 주석이 아니라 판별자로 둬서, 호출부가 recorded를 보지 않고 markSubmitted에 가면
-// 컴파일이 막게 한다(key·url이 그쪽 분기에 아예 없다).
+// 주석이 아니라 판별자로 둔다 — 다만 **타입만으로는 markSubmitted를 못 막는다**:
+// markSubmitted(id, Partial<IssueRecord>)의 key·url이 optional이고 이 저장소는
+// exactOptionalPropertyTypes를 켜지 않아 `undefined`가 그대로 대입된다. 실제로 타입이 막는
+// 건 key를 필수로 요구하는 onSubmitted 쪽뿐이라, 비가역 파괴 경로는 호출부의
+// `if (outcome.recorded)` 런타임 분기가 지킨다(IssueCreateModal·DraftDetailDialog 양쪽).
 export type WebhookSubmitOutcome =
   | ({ recorded: true } & NormalizedSubmitResult)
   | { recorded: false; key?: undefined; url?: undefined };
