@@ -71,6 +71,11 @@ const all: LibFile[] = readLibFiles(LIB_DIR);
 // 실제로 그 구멍으로 payload의 logSummary가 화면 언어로 새어 나갔다.
 // withLocale import를 타깃 조건으로 쓰면 안 된다 — 그건 **이미 고친 파일의 특징**이라
 // 사후 장부만 되고 같은 실수를 처음 하는 파일은 여전히 안 걸린다.
+// t()를 안 쓰면서 로케일을 타는 호출 — 날짜 스켈레톤이 화면 언어로 굳는 경로다. 이 축이 스캔
+// 밖이던 동안 webhook payload의 환경 행이 게이트를 그냥 통과했다(감싸져 있었지만 우연이었다).
+// 자기 자신을 감싸는 진입점(issueEnvironmentRows)은 래핑 제거 후 본문이 비어 자연히 통과한다.
+const LOCALE_VALUE_HELPERS = [/(?<![\w.])formatTimestamp\(/];
+
 const BODY_T_HELPERS = ["issueBodyShared", "markdownToAdf", "markdownToNotionBlocks"];
 // 같은 파일을 가리키는 표기가 둘이다 — 이 디렉터리는 `@/` 유지가 지역 관례고(CLAUDE.md),
 // 상대경로도 쓰인다. 한쪽만 보면 다른 표기로 쓴 새 빌더가 대상 집합에서 통째로 빠진다.
@@ -147,8 +152,13 @@ describe("본문 빌더 withLocale 래핑 게이트", () => {
     // 헬퍼 호출도 t() 호출로 센다 — 이 파일들이 본문 t()를 소유하므로, 부르는 쪽이 안 감싸면
     // 직접 t()를 쓴 것과 결과가 같다. 이름 기준이라 그 파일에서 import한 심볼만 본다.
     const helperCalls = importedBodyHelperCalls(entry.source);
+    // t() 없이 로케일을 타는 축도 센다 — formatTimestamp는 dateBcp47()를, issueEnvironmentRows는
+    // 그 formatTimestamp를 탄다. 이 축이 스캔 밖이던 동안 webhook payload의 환경 행이 게이트를
+    // 그냥 통과했다(감싸져 있었지만 그건 우연이었다).
     const leaks = (body: string) =>
-      CALLS_T.test(body) || helperCalls.some((re) => re.test(body));
+      CALLS_T.test(body) ||
+      LOCALE_VALUE_HELPERS.some((re) => re.test(body)) ||
+      helperCalls.some((re) => re.test(body));
     const leaking = exportedSegments(entry.source)
       .filter((s) => leaks(stripWithLocaleCalls(s.body)))
       .map((s) => s.name);

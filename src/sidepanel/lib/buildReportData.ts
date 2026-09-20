@@ -15,6 +15,8 @@ export function deriveContextEnvRows(
   return withLocale(ctx.bodyLocale, () => deriveContextEnvRowsInner(ctx));
 }
 
+// 본문·webhook payload는 buildIssueMarkdown.issueEnvironmentRows를 쓴다. 여기가 별개로
+// 남은 건 DOM 행을 단수 selector로만 쓰기 때문이다(가드 2종은 그쪽에 맞췄다).
 function deriveContextEnvRowsInner(
   ctx: MarkdownContext,
 ): { label: string; value: string }[] {

@@ -737,7 +737,7 @@ export async function handleMessage(
       );
 
     case "webhook.test":
-      return await testWebhook(message.auth);
+      return await testWebhook(message.auth, message.sampleBody);
 
     case "analytics.capture":
       return captureEvent(message.event, message.properties);

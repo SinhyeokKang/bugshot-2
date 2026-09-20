@@ -36,6 +36,30 @@
 
 ---
 
+## 2026-09-20 — 전송 형식은 둘인데 연결 테스트와 재시도 안내는 한 계약만 가정했다
+
+- **영역**: `어댑터`, `background`, `i18n`, `컴포넌트`
+- **계열**: `미검증단언`, `드리프트`
+- **그물**: `jsdom`
+- **증상**: JSON 템플릿을 올바르게 설정해도 연결 테스트는 고정 probe를 보내 수신처가 거부할 수 있었다. 타임아웃 안내는 멱등 키가 없는 JSON 전송에도 재시도가 안전하다고 보장했다.
+- **근본 원인**: 실제 제출만 multipart/JSON으로 나누고 설정 화면의 테스트 요청과 공통 오류 문구에는 multipart 수신 계약을 그대로 적용했다. 미리보기 샘플도 실제로 보내지 않는다는 전제로 `cid:` 파일 참조를 품고 있었다.
+- **재발 방지**: 형식을 추가할 때 제출뿐 아니라 `webhook.test`·`webhook.error.timeout`처럼 설정·실패 경로까지 대조한다. 폼 테스트는 저장된 템플릿과 다른 현재 입력을 전송하는지 확인하고, background 테스트는 falsy JSON·바디 상한·기존 probe 유지를 검증한다. 멱등 키의 존재와 수신 서버의 중복 처리 구현은 별개이므로 문구에서 재전송 안전을 단정하지 않는다.
+- **관련**: `WebhookConnectForm.tsx:handleTest`, `messages.ts:webhook.test`, `webhook-api.ts:testWebhook`, `integrations.ts:webhook.error.timeout`, `webhookTemplate.ts:SAMPLE_TEMPLATE_VARS`
+
+---
+
+## 2026-09-20 — 문서의 실행 예제가 테스트 밖에 있어 multipart JSON의 한글 손상을 놓쳤다
+
+- **영역**: `어댑터`, `툴체인`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 수신 서버 예제를 그대로 실행하면 한글·악센트·이모지가 포함된 제목이 깨졌다.
+- **근본 원인**: multipart 바이트를 보존하려고 `binary`로 읽은 문자열을 UTF-8 복원 없이 JSON.parse에 넘겼다. 확장 측 테스트는 요청 구성을 확인했지만 문서에만 존재하는 수신 코드를 실행하지 않았다.
+- **재발 방지**: `docs/webhook-contract.md`의 예제를 추출해 실제 FormData 바이트를 넣고 비ASCII 제목 보존을 단언한다. 수신 코드를 테스트 안에 복제하지 않아 문서만 바뀌어도 회귀가 잡히게 한다.
+- **관련**: `docs/webhook-contract.md:레퍼런스 수신 서버`, `docs/__tests__/webhook-contract.test.ts`
+
+---
+
 ## 2026-09-20 — 목이 실제 Response의 body를 안 줘서, 임의 서버용 스트리밍 캡 루프가 한 번도 실행되지 않았다
 
 - **영역**: `툴체인`, `background`

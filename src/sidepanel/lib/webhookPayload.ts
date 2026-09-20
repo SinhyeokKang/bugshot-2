@@ -4,10 +4,9 @@ import type {
   WebhookSubmitPayload,
 } from "@/types/webhook";
 import type { CaptureFile, CaptureFiles } from "./buildCaptureFiles";
-import type { MarkdownContext } from "./buildIssueMarkdown";
+import { issueEnvironmentRows, type MarkdownContext } from "./buildIssueMarkdown";
 import { withLocale } from "@/i18n";
-import { filterEnvironmentRows } from "./environmentRows";
-import { emitMarkdownLogSummary } from "./issueBodyShared";
+import { logCountSummary } from "./issueBodyShared";
 import { guessUploadMime } from "./uploadMime";
 
 export interface BuildWebhookPayloadInput {
@@ -42,16 +41,15 @@ function toEntry(file: CaptureFile, kind: WebhookMediaKind): WebhookMediaEntry {
   };
 }
 
-// 수신 서버로 나가는 값이라 화면 언어가 아니라 본문 언어를 따른다 — 안 감싸면 같은
-// payload 안에서 body는 영어인데 logSummary만 한국어가 된다.
+// 수신 서버가 **파싱할** 필드라 사람이 읽는 문장이 아니라 카운트 한 줄이다(계약 문서 §2.2).
+// 두 모드가 공유한다 — multipart는 logs.html을 실제로 첨부하므로 마크다운 블록이 거짓은
+// 아니었지만, json 템플릿 모드는 파일을 한 장도 안 보내 같은 문장이 없는 파일을 가리켰다.
+// 서술은 body의 `## 로그 요약` 섹션이 그대로 들고 있다. 카운트만 남긴 한 줄이라 번역 대상이
+// 없어 본문 언어와 무관하다(축 이름은 섹션 제목이 아니라 로그 종류라 고정 영문이다).
 export function logSummaryText(ctx: MarkdownContext): string | undefined {
-  return withLocale(ctx.bodyLocale, () => {
-    const lines: string[] = [];
-    // 본문 8빌더가 각자 이 판정을 복제했다가 액션 로그 단독 케이스를 빠뜨린 전례가 있다
-    // (POSTMORTEM 2026-06-25). 공용 헬퍼를 그대로 쓰고 자체 판정을 두지 않는다.
-    emitMarkdownLogSummary(lines, ctx);
-    return lines.length > 0 ? lines.join("\n").trim() : undefined;
-  });
+  // 지금 이 한 줄엔 번역 문자열이 없지만 래핑은 유지한다 — 이 파일은 본문 언어 진입점이라
+  // (builderLocaleWrap 게이트 대상) 라벨이 번역되는 날 감싸는 걸 잊는 자리가 되지 않게 한다.
+  return withLocale(ctx.bodyLocale, () => logCountSummary(ctx));
 }
 
 export function buildWebhookPayload(input: BuildWebhookPayloadInput): WebhookSubmitPayload {
@@ -68,7 +66,8 @@ export function buildWebhookPayload(input: BuildWebhookPayloadInput): WebhookSub
   return {
     title: ctx.title,
     body,
-    environment: filterEnvironmentRows(ctx.environment),
+    // 본문 재현 환경과 같은 출처(그 함수가 스스로 본문 언어로 감싼다).
+    environment: issueEnvironmentRows(ctx),
     logSummary: logSummaryText(ctx),
     media,
     bugshot: {

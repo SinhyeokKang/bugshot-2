@@ -8,6 +8,7 @@ import {
   testWebhook,
 } from "../webhook-api";
 import type { WebhookSubmitPayload } from "@/types/webhook";
+import { setLocale, t } from "@/i18n";
 
 const URL_ = "https://bugs.acme.io/intake";
 
@@ -226,6 +227,117 @@ describe("submitWebhook — 실패", () => {
 
     expect(String((err as WebhookError).body)).not.toContain("secret-token");
     expect(String((err as WebhookError).body)).toContain("***");
+  });
+
+  // 수신 서버를 직접 굴리는 사용자라 서버가 뱉은 사유가 곧 디버깅 정보다. 읽어서 버리면
+  // 계약 문서 §6("본문 앞 8KB를 보여준다")이 거짓이 되고, 사용자는 상태 코드만 보고 만다.
+  it("에러 메시지에 응답 본문 발췌가 붙는다", async () => {
+    mockFetchOnce({ status: 500, body: "queue is full, retry later" });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: AUTH,
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+    expect((err as Error).message).toContain("queue is full, retry later");
+  });
+
+  it("발췌에도 헤더 값 마스킹이 그대로 적용된다", async () => {
+    mockFetchOnce({ status: 400, body: 'got {"Authorization":"Bearer secret-token"}' });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: AUTH,
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+    expect((err as Error).message).not.toContain("secret-token");
+    expect((err as Error).message).toContain("***");
+  });
+
+  it("발췌는 한 줄로 접히고 길이가 제한된다", async () => {
+    mockFetchOnce({ status: 500, body: "line1\nline2\n" + "y".repeat(2000) });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: AUTH,
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+    const msg = (err as Error).message;
+    expect(msg).not.toContain("\n");
+    expect(msg.length).toBeLessThan(400);
+    expect(msg).toContain("line1 line2");
+  });
+
+  // 아래 넷은 전부 "발췌가 화면에 뜨면서 처음으로 실효가 생긴" 마스킹 갭이다. 이 필드는
+  // 여태 렌더되지 않아 마스킹이 사실상 쓰이지 않는 방어였다.
+  it("공백 표기를 바꿔 되비춘 헤더 값도 가려진다 (접기 → 마스킹 순서)", async () => {
+    mockFetchOnce({ status: 400, body: "rejected key: my secret\nkey value" });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: { url: URL_, headers: [{ name: "X-Api-Key", value: "my secret key value" }] },
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+    expect((err as Error).message).not.toContain("my secret key value");
+    expect((err as Error).message).toContain("***");
+  });
+
+  it("8자 미만 시크릿도 발췌에서 가려진다", async () => {
+    mockFetchOnce({ status: 401, body: "bad token short1" });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: { url: URL_, headers: [{ name: "Authorization", value: "Bearer short1" }] },
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+    expect((err as Error).message).not.toContain("short1");
+  });
+
+  // json 템플릿 모드의 문서화된 수신처(Slack·Discord)는 시크릿이 URL 경로에 박힌다.
+  it("엔드포인트 경로의 시크릿이 되비쳐도 가려진다", async () => {
+    mockFetchOnce({ status: 404, body: "Cannot POST /services/T000/B000/XXXXsecretXXXX" });
+    const err = await submitWebhook({
+      mode: "json",
+      auth: { url: "https://hooks.acme.io/services/T000/B000/XXXXsecretXXXX", headers: [] },
+      body: { text: "x" },
+    }).catch((e) => e as WebhookError);
+    expect((err as Error).message).not.toContain("XXXXsecretXXXX");
+    expect((err as Error).message).toContain("***");
+  });
+
+  // 마스킹 강화는 오탐 쪽도 고정한다(POSTMORTEM 2026-07-14 재발방지 (4)) — 평범한 경로
+  // 이름까지 ***로 지우면 새로 뜨기 시작한 발췌가 곧바로 노이즈가 된다.
+  it("평범한 엔드포인트 경로 이름은 발췌에서 지워지지 않는다", async () => {
+    mockFetchOnce({ status: 500, body: "webhooks handler crashed" });
+    const err = await submitWebhook({
+      mode: "json",
+      auth: { url: "https://bugs.acme.io/webhooks/report-intake", headers: [] },
+      body: { text: "x" },
+    }).catch((e) => e as WebhookError);
+    expect((err as Error).message).toContain("webhooks handler crashed");
+  });
+
+  it("제어문자·방향 전환 문자는 발췌에서 제거된다", async () => {
+    mockFetchOnce({ status: 500, body: "boom\u202Eesrever\u0007 tail" });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: AUTH,
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+    expect((err as Error).message).not.toMatch(/[\p{Cc}\p{Cf}]/u);
+    expect((err as Error).message).toContain("boom");
+  });
+
+  it("본문이 비면 상태 문구만 남는다", async () => {
+    mockFetchOnce({ status: 503, body: "   " });
+    const err = await submitWebhook({
+      mode: "multipart",
+      auth: AUTH,
+      payload: payload(),
+      files: files(),
+    }).catch((e) => e as WebhookError);
+    expect((err as Error).message).toBe(t("webhook.error.5xx", { status: 503 }));
   });
 
   it("거대한 에러 본문은 캡에서 잘린다", async () => {
@@ -492,6 +604,33 @@ describe("submitWebhook — 전송 시점 2층 방어", () => {
 });
 
 describe("testWebhook — 연결 테스트", () => {
+  it.each([{ content: "BugShot sample" }, null, false, 0])("JSON 샘플 %j를 확인용 payload로 덮어쓰지 않는다", async (sampleBody) => {
+    const m = mockFetchOnce({ status: 204 });
+    await testWebhook(AUTH, sampleBody);
+    expect(m.jsonBodyAt(0)).toEqual(sampleBody);
+    const headers = m.callAt(0).init?.headers as Record<string, string>;
+    expect(headers["X-BugShot-Test"]).toBeUndefined();
+    expect(headers["Content-Type"]).toBe("application/json");
+  });
+
+  it("JSON 샘플도 제출과 같은 바디 상한을 적용한다", async () => {
+    const m = mockFetchOnce({ status: 204 });
+    await expect(testWebhook(AUTH, { content: "x".repeat(WEBHOOK_BODY_MAX_BYTES + 1) }))
+      .rejects.toBeInstanceOf(WebhookError);
+    expect(m.fn).not.toHaveBeenCalled();
+  });
+
+  it.each(["json", "multipart"] as const)("%s 제출 타임아웃은 수신 확인을 요구하고 재전송 안전을 보장하지 않는다", async (mode) => {
+    setLocale("ko");
+    const m = mockFetchOnce({ status: 204 });
+    m.fn.mockRejectedValueOnce(Object.assign(new Error("timed out"), { name: "TimeoutError" }));
+    const error = await submitWebhook(mode === "json"
+      ? { mode, auth: AUTH, body: { text: "report" } }
+      : { mode, auth: AUTH, payload: payload(), files: files() }).catch((e) => e as WebhookError);
+    expect((error as WebhookError).message).toContain("수신 여부를 확인");
+    expect((error as WebhookError).message).not.toContain("멱등 키로 중복이 걸러");
+  });
+
   it("X-BugShot-Test: 1 헤더를 실은 최소 페이로드를 POST한다", async () => {
     const m = mockFetchOnce({ status: 204 });
     await testWebhook(AUTH);

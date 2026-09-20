@@ -24,7 +24,12 @@ export function buildWebhookJsonBody(
         placeholderSectionImages(ctx.sections, ctx.sectionConfig, t("webhook.attachmentNotInline")),
       ).filter(([id]) => enabled.has(id)),
     );
-    const { body } = buildMarkdownIssueBody({ ctx: { ...ctx, sections } }, { platform: "webhook" });
+    // 이 경로는 바디 하나만 POST한다 — logs.html도 안 간다. 로그 요약의 첨부 리드를 끄지 않으면
+    // 수신처(Slack·Discord)에 없는 파일을 가리키는 문장이 그대로 실린다.
+    const { body } = buildMarkdownIssueBody(
+      { ctx: { ...ctx, sections, logsNotAttached: true } },
+      { platform: "webhook" },
+    );
     return { body, sections };
   });
 }

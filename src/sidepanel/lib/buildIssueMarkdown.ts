@@ -63,6 +63,9 @@ export interface MarkdownContext {
   // 거짓이 되고, 인라인 이미지의 data: URI 하나가 Notion·Slack·Jira의 붙여넣기를 통째로
   // 거부시킨다. optional 유지가 필수 — 부재 = 기존 동작(logs.html 경로 무회귀).
   forClipboard?: boolean;
+  // 제출이지만 로그 파일이 동봉되지 않는 경로(webhook json 템플릿 모드). LogSummaryContext와
+  // 같은 축이고 여기선 emitMarkdownLogSummary로 그대로 흘러간다.
+  logsNotAttached?: boolean;
 }
 
 // 한 element의 본문 직렬화 컨텍스트. beforeFilename/afterFilename은 머지·dedup 후 최종
@@ -224,6 +227,44 @@ export function styleSelectorList(ctx: MarkdownContext): string[] {
 // 마크다운 본문 DOM 줄에서 selector를 인라인 코드로 감싸는 wrap (md 계열 빌더 공용).
 export const mdInlineCode = (selector: string): string => `\`${selector}\``;
 
+// 재현 환경 섹션의 행 전체 — 파생 행(OS·Browser·Page·DOM·Viewport·Captured) 뒤에 사용자·
+// 자동 커스텀 행. **본문(복사·제출)과 webhook payload의 단일 출처다**: 파생 행을 마크다운
+// 안에만 두면 payload.environment는 커스텀 행만 담아, 계약 문서가 약속한 OS·Browser가 수신
+// 서버에 영영 안 간다(그 상태로 릴리스됐다). 이름을 environmentRows로 두지 않는 건 같은
+// 디렉터리의 environmentRows.ts 모듈과 부딪혀 grep·이동이 어긋나기 때문이다.
+// wrap은 DOM 줄 selector 표기 차이만 흡수한다(본문은 인라인 코드).
+// 0×0·1970 가드는 logs.html 파생(buildReportData)에 이미 있던 것을 맞춘 것이다 —
+// buildEditorCapture가 비-element 폴백으로 viewport {0,0}·capturedAt 0을 만들고, 그 값이
+// payload.environment로 나가면 수신 서버가 쓰레기 행을 계약으로 받는다.
+// 번역 문자열은 없지만 formatTimestamp가 로케일을 타므로 **스스로 감싼다** — 호출부에 맡기면
+// 빌더 밖의 새 소비처(payload 같은)가 잊는 자리가 된다. 이미 감싼 구간 안에서 다시 불려도
+// withLocale이 이전 값을 복원하므로 중첩은 무해하다.
+export function issueEnvironmentRows(
+  ctx: MarkdownContext,
+  wrap?: (selector: string) => string,
+): EnvironmentRow[] {
+  return withLocale(ctx.bodyLocale, () => issueEnvironmentRowsInner(ctx, wrap));
+}
+
+function issueEnvironmentRowsInner(
+  ctx: MarkdownContext,
+  wrap?: (selector: string) => string,
+): EnvironmentRow[] {
+  const rows: EnvironmentRow[] = [];
+  if (ctx.os) rows.push({ label: "OS", value: ctx.os });
+  if (ctx.browser) rows.push({ label: "Browser", value: ctx.browser });
+  rows.push({ label: "Page", value: ctx.url });
+  const domLabel = styleDomLabel(ctx, wrap);
+  if (domLabel) rows.push({ label: "DOM", value: domLabel });
+  if (ctx.viewport && ctx.viewport.width > 0 && ctx.viewport.height > 0) {
+    rows.push({ label: "Viewport", value: `${ctx.viewport.width}×${ctx.viewport.height}` });
+  }
+  if (ctx.capturedAt) {
+    rows.push({ label: "Captured", value: formatTimestamp(ctx.capturedAt) });
+  }
+  return [...rows, ...filterEnvironmentRows(ctx.environment)];
+}
+
 // 래핑은 호출부가 아니라 진입점에 둔다 — 새 어댑터가 감싸는 걸 잊어도 위임 대상이 감싸져 있고,
 // 잊을 자리가 생기면 builderLocaleWrap.test.ts가 red로 잡는다.
 export function buildIssueMarkdown(ctx: MarkdownContext): string {
@@ -257,22 +298,7 @@ function buildIssueMarkdownInner(ctx: MarkdownContext): string {
 
   lines.push(`## ${t("md.section.env")}`);
   lines.push("");
-  if (ctx.os) {
-    lines.push(`- **OS**: ${ctx.os}`);
-  }
-  if (ctx.browser) {
-    lines.push(`- **Browser**: ${ctx.browser}`);
-  }
-  lines.push(`- **Page**: ${ctx.url}`);
-  const domLabel = styleDomLabel(ctx, mdInlineCode);
-  if (domLabel) {
-    lines.push(`- **DOM**: ${domLabel}`);
-  }
-  if (ctx.viewport) {
-    lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
-  }
-  lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
-  for (const row of filterEnvironmentRows(ctx.environment)) {
+  for (const row of issueEnvironmentRows(ctx, mdInlineCode)) {
     lines.push(`- **${row.label}**: ${row.value}`);
   }
   lines.push("");
@@ -358,29 +384,12 @@ function buildIssueHtmlInner(ctx: MarkdownContext): string {
 
   parts.push(`<h2>${t("md.section.env")}</h2>`);
   parts.push(`<ul>`);
-  if (ctx.os) {
-    parts.push(`<li><strong>OS</strong>: ${escapeHtml(ctx.os)}</li>`);
-  }
-  if (ctx.browser) {
-    parts.push(`<li><strong>Browser</strong>: ${escapeHtml(ctx.browser)}</li>`);
-  }
-  parts.push(`<li><strong>Page</strong>: ${escapeHtml(ctx.url)}</li>`);
-  const domLabel = styleDomLabel(ctx, (s) => `<code>${escapeHtml(s)}</code>`);
-  if (domLabel) {
-    parts.push(`<li><strong>DOM</strong>: ${domLabel}</li>`);
-  }
-  if (ctx.viewport) {
-    parts.push(
-      `<li><strong>Viewport</strong>: ${ctx.viewport.width}×${ctx.viewport.height}</li>`,
-    );
-  }
-  parts.push(
-    `<li><strong>Captured</strong>: ${escapeHtml(formatTimestamp(ctx.capturedAt))}</li>`,
-  );
-  for (const row of filterEnvironmentRows(ctx.environment)) {
-    parts.push(
-      `<li><strong>${escapeHtml(row.label)}</strong>: ${escapeHtml(row.value)}</li>`,
-    );
+  // 마크다운 flavor와 같은 출처 — 복사는 text/plain과 text/html을 **한 번에** 얹으므로
+  // 두 벌이면 같은 복사본 안에서 환경 행이 갈린다. DOM 줄만 표기가 다르다(<code>).
+  for (const row of issueEnvironmentRows(ctx, (sel) => `<code>${escapeHtml(sel)}</code>`)) {
+    // DOM 값은 wrap이 이미 이스케이프했다 — 다시 escapeHtml하면 <code>가 문자로 보인다.
+    const value = row.label === "DOM" ? row.value : escapeHtml(row.value);
+    parts.push(`<li><strong>${escapeHtml(row.label)}</strong>: ${value}</li>`);
   }
   parts.push(`</ul>`);
 

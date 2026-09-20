@@ -143,6 +143,10 @@ describe("renderWebhookTemplate — parse 먼저, 문자열 리프 안에서만 
 // 연결 다이얼로그에는 편집 중인 리포트가 없다 — 연동 탭에서 여는 화면이라 draft가
 // 있다는 보장이 없다. 그래서 미리보기는 실데이터가 아니라 이 고정 샘플로 그린다.
 describe("SAMPLE_TEMPLATE_VARS", () => {
+  it("JSON 샘플 본문에는 전송되지 않는 파일의 cid 참조가 없다", () => {
+    const rendered = renderWebhookTemplate('{"text":"{{body}}"}', SAMPLE_TEMPLATE_VARS);
+    expect(JSON.stringify(rendered)).not.toContain("cid:");
+  });
   it("화이트리스트가 허용하는 경로를 전부 채운다 — 미리보기에서만 빈 자리가 나오면 안 된다", () => {
     const template = JSON.stringify({
       title: "{{title}}",

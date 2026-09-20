@@ -47,7 +47,10 @@ function interpolate(
 ): string {
   if (!params) return text;
   for (const [k, v] of Object.entries(params)) {
-    text = text.replaceAll(`{${k}}`, String(v));
+    // 치환값을 콜백으로 넘긴다 — 문자열로 주면 `$&`·`$'`·`$1`이 특수 치환으로 해석돼,
+    // 값이 원격에서 오는 키(webhook.error.serverSaid의 {body})에서 화면이 깨진다
+    // (POSTMORTEM 2026-09-14 재발방지 (5)와 같은 함정).
+    text = text.replaceAll(`{${k}}`, () => String(v));
   }
   return text;
 }
