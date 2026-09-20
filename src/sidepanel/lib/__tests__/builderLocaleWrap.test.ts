@@ -72,15 +72,16 @@ const all: LibFile[] = readLibFiles(LIB_DIR);
 // withLocale import를 타깃 조건으로 쓰면 안 된다 — 그건 **이미 고친 파일의 특징**이라
 // 사후 장부만 되고 같은 실수를 처음 하는 파일은 여전히 안 걸린다.
 const BODY_T_HELPERS = ["issueBodyShared", "markdownToAdf", "markdownToNotionBlocks"];
-const IMPORTS_BODY_HELPER = new RegExp(
-  `from\\s*["']\\.{1,2}/(?:${BODY_T_HELPERS.join("|")})["']`,
-);
+// 같은 파일을 가리키는 표기가 둘이다 — 이 디렉터리는 `@/` 유지가 지역 관례고(CLAUDE.md),
+// 상대경로도 쓰인다. 한쪽만 보면 다른 표기로 쓴 새 빌더가 대상 집합에서 통째로 빠진다.
+const HELPER_PATH = `(?:\\.{1,2}/|@/sidepanel/lib/)(?:${BODY_T_HELPERS.join("|")})`;
+const IMPORTS_BODY_HELPER = new RegExp(`from\\s*["']${HELPER_PATH}["']`);
 
 // 파일이 본문 헬퍼에서 가져온 심볼 이름들 → 호출 패턴. 파일마다 다르므로 그때그때 판다.
 function importedBodyHelperCalls(source: string): RegExp[] {
   const names: string[] = [];
   const re = new RegExp(
-    `import\\s*\\{([^}]*)\\}\\s*from\\s*["']\\.{1,2}/(?:${BODY_T_HELPERS.join("|")})["']`,
+    `import\\s*\\{([^}]*)\\}\\s*from\\s*["']${HELPER_PATH}["']`,
     "g",
   );
   for (const m of source.matchAll(re)) {
@@ -105,6 +106,19 @@ describe("본문 빌더 withLocale 래핑 게이트", () => {
     expect(importsT.length).toBeGreaterThan(10);
     expect(all.map((f) => f.file)).toContain("buildIssueMarkdown.ts");
     expect(all.some((f) => f.file.includes("/"))).toBe(true);
+  });
+
+  // 소스 스캔이 표기 하나에만 눈을 뜨면 같은 import를 다르게 쓴 파일이 통째로 빠진다 —
+  // 이 디렉터리는 CLAUDE.md가 `@/` 유지를 지역 관례로 둔 곳이라 그 표기가 언제든 나온다.
+  // 지금 저장소에 `@/sidepanel/lib/...` 형태가 0건이라 실해는 없지만, 0건이라는 사실이
+  // 그물을 대신하지는 않는다.
+  it.each([
+    ['import { emitMarkdownLogSummary } from "./issueBodyShared";', "상대경로"],
+    ['import { emitMarkdownLogSummary } from "../issueBodyShared";', "상위 상대경로"],
+    ['import { emitMarkdownLogSummary } from "@/sidepanel/lib/issueBodyShared";', "@/ 별칭"],
+  ])("본문 헬퍼 import를 표기와 무관하게 잡는다 (%s)", (line) => {
+    expect(IMPORTS_BODY_HELPER.test(line)).toBe(true);
+    expect(importedBodyHelperCalls(line).length).toBe(1);
   });
 
   // 대상 집합을 파일명 규칙(build*)에 맡기면 markdownToAdf.ts처럼 t()를 쓰는 파일이 사정권
