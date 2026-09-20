@@ -93,6 +93,25 @@ interface OAuthWriteSpec<K extends OAuthAccountKey, A extends OAuthAuthOf<K>> {
  * 비-oauth(PAT·apiKey) auth는 토큰 필드가 `excluded`에 없어 토큰까지 신원으로 읽힌다 —
  * 토큰만 갈아끼워도 "다른 계정"이 되지만, 실패가 "지우는 쪽"이라 안전 방향이다.
  */
+// auth 값이 전부 스칼라라는 전제 위에 있던 비교다. webhook의 headers가 배열이라 참조 비교로
+// **늘 불일치**가 나왔고, 그러면 같은 폼을 다시 저장해도 매번 다른 계정으로 읽힌다. 지금
+// 낙진이 없는 건 lastSubmitFields.webhook이 never라서일 뿐이라, 내용으로 비교한다.
+// 순서는 의미가 있다 — 헤더 순서는 요청에 그대로 실린다.
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((v, i) => sameValue(v, b[i]));
+  }
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const ao = a as Record<string, unknown>;
+    const bo = b as Record<string, unknown>;
+    const keys = new Set([...Object.keys(ao), ...Object.keys(bo)]);
+    return [...keys].every((k) => sameValue(ao[k], bo[k]));
+  }
+  return false;
+}
+
 export function sameAuthIdentity(
   a: Record<string, unknown>,
   b: Record<string, unknown>,
@@ -103,7 +122,7 @@ export function sameAuthIdentity(
     const av = a[key];
     const bv = b[key];
     if (av === undefined || bv === undefined) continue;
-    if (av !== bv) return false;
+    if (!sameValue(av, bv)) return false;
   }
   return true;
 }
