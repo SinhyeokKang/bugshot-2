@@ -2,7 +2,7 @@ import { t } from "@/i18n";
 import { dataUrlToBlob } from "@/store/blob-db";
 // background와 사이드패널이 같은 판정을 써야 한다 — 양쪽이 쓰는 순수 술어는
 // src/lib/ leaf로 둔다(선례: lib/jira-sprint.ts:isActiveSprint).
-import { isSettableHeaderName } from "@/lib/webhook-header-policy";
+import { isSettableHeaderName, isSettableHeaderValue } from "@/lib/webhook-header-policy";
 import {
   WebhookUrlError,
   normalizeWebhookUrl,
@@ -56,9 +56,9 @@ function buildHeaders(auth: WebhookAuthLike, dropContentType: boolean): Record<s
   const out: Record<string, string> = {};
   for (const h of auth.headers) {
     if (!isSettableHeaderName(h.name)) continue;
-    // 값에 CR/LF·제어문자가 있으면 Headers 생성자가 동기 TypeError를 던져 요청이 통째로
-    // 죽고 "network"로 보고된다. 이름 축만 막아두면 같은 실패 모드가 값 쪽에 남는다.
-    if (!/^[\t\x20-\x7e\x80-\xff]*$/.test(h.value)) continue;
+    // 값 축도 같은 leaf의 술어를 쓴다 — 여기 인라인으로 두면 저장 폼이 그걸 못 보고,
+    // 넣은 헤더가 저장은 되는데 전송에서 조용히 빠진다.
+    if (!isSettableHeaderValue(h.value)) continue;
     // Content-Type은 forbidden이 아니라 그대로 실리는데, multipart에서 사용자가
     // application/json을 넣어두면 boundary 없는 요청이 나가고 수신 서버 파싱 실패가 무음이 된다.
     if (dropContentType && h.name.toLowerCase() === "content-type") continue;
@@ -134,12 +134,26 @@ function redactHeaderValues(body: string, headers: Record<string, string>): stri
 const KEY_FIELDS = ["key", "id", "number", "iid"] as const;
 const URL_FIELDS = ["url", "html_url", "web_url", "link"] as const;
 
+// 이 url은 이슈 목록 행 클릭이 chrome.tabs.create에 그대로 넘기는 값인데(IssueRow.tsx),
+// 8개 플랫폼과 달리 **임의 서버가 제어한다**. 스킴을 좁히지 않으면 수신 서버가 javascript:·
+// file: 주소를 계약처럼 돌려줄 수 있고, 나중에 이 값이 <a href>로 렌더되면 React는
+// javascript:를 경고만 하고 그린다.
+function isOpenableUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value === "") return false;
+  try {
+    const p = new URL(value).protocol;
+    return p === "https:" || p === "http:";
+  } catch {
+    return false;
+  }
+}
+
 export function normalizeWebhookResult(body: unknown): WebhookSubmitResult {
   const o = (body ?? {}) as Record<string, unknown>;
   if (typeof o !== "object") return { key: undefined, url: undefined };
   const key = KEY_FIELDS.map((f) => o[f]).find((v) => v != null && v !== "");
-  const url = URL_FIELDS.map((f) => o[f]).find((v) => typeof v === "string" && v !== "");
-  return { key: key == null ? undefined : String(key), url: url as string | undefined };
+  const url = URL_FIELDS.map((f) => o[f]).find(isOpenableUrl);
+  return { key: key == null ? undefined : String(key), url };
 }
 
 // dataUrl의 base64 길이에서 바이트 수를 추정한다. Blob으로 만든 뒤 재면 캡을 넘는 입력이

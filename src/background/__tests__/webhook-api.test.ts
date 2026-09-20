@@ -45,7 +45,7 @@ describe("submitWebhook — multipart", () => {
   });
 
   it("payload 파트의 모든 cid: 참조에 대응하는 파일 파트가 있다 (양방향)", async () => {
-    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    const m = mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     await submitWebhook({ mode: "multipart", auth: AUTH, payload: payload(), files: files() });
 
     const form = m.formDataAt(0);
@@ -56,7 +56,7 @@ describe("submitWebhook — multipart", () => {
   });
 
   it("Content-Type을 직접 세팅하지 않는다 — fetch가 boundary를 붙여야 한다", async () => {
-    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    const m = mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     await submitWebhook({ mode: "multipart", auth: AUTH, payload: payload(), files: files() });
 
     const headers = m.callAt(0).init?.headers as Record<string, string>;
@@ -64,7 +64,7 @@ describe("submitWebhook — multipart", () => {
   });
 
   it("사용자가 넣은 Content-Type도 multipart 모드에선 제거한다", async () => {
-    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    const m = mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     await submitWebhook({
       mode: "multipart",
       auth: { ...AUTH, headers: [...AUTH.headers, { name: "Content-Type", value: "application/json" }] },
@@ -78,7 +78,7 @@ describe("submitWebhook — multipart", () => {
   });
 
   it("isSettableHeaderName을 통과 못 한 헤더는 요청에 실리지 않는다", async () => {
-    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    const m = mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     await submitWebhook({
       mode: "multipart",
       auth: {
@@ -101,7 +101,7 @@ describe("submitWebhook — multipart", () => {
   });
 
   it("요청 init에 redirect:manual과 credentials:omit이 들어간다", async () => {
-    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    const m = mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     await submitWebhook({ mode: "multipart", auth: AUTH, payload: payload(), files: files() });
 
     const init = m.callAt(0).init;
@@ -110,7 +110,7 @@ describe("submitWebhook — multipart", () => {
   });
 
   it("멱등 키가 요청에 실리고, 같은 payload 재전송은 같은 키를 쓴다", async () => {
-    const m = mockFetchOnce([{ body: { key: "K", url: "u" } }, { body: { key: "K", url: "u" } }]);
+    const m = mockFetchOnce([{ body: { key: "K", url: "https://bugs.acme.io/b/41" } }, { body: { key: "K", url: "https://bugs.acme.io/b/41" } }]);
     const p = payload();
     await submitWebhook({ mode: "multipart", auth: AUTH, payload: p, files: files() });
     await submitWebhook({ mode: "multipart", auth: AUTH, payload: p, files: files() });
@@ -139,7 +139,7 @@ describe("submitWebhook — 응답 계약", () => {
   it.each([
     ["빈 객체", { body: {} }],
     ["key만", { body: { key: "K" } }],
-    ["url만", { body: { url: "u" } }],
+    ["url만", { body: { url: "https://bugs.acme.io/b/41" } }],
     ["비-JSON", { body: new Error("not json") }],
     ["204 No Content", { status: 204, body: undefined }],
   ])("multipart에서 %s 은 계약 위반으로 throw한다", async (_l, res) => {
@@ -258,7 +258,7 @@ describe("submitWebhook — 실패", () => {
   });
 
   it("바디가 하드캡을 넘으면 fetch 전에 중단한다 — multipart 조립분도 같은 캡을 받는다", async () => {
-    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    const m = mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     const huge = `data:video/mp4;base64,${"A".repeat(Math.ceil((WEBHOOK_BODY_MAX_BYTES * 4) / 3) + 8)}`;
     await expect(
       submitWebhook({
@@ -282,7 +282,7 @@ describe("submitWebhook — 실패", () => {
   });
 
   it("multipart 캡은 파일뿐 아니라 payload JSON도 센다", async () => {
-    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    const m = mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     const huge = payload({ body: "x".repeat(WEBHOOK_BODY_MAX_BYTES + 10) });
     await expect(
       submitWebhook({ mode: "multipart", auth: AUTH, payload: huge, files: [] }),
@@ -293,7 +293,7 @@ describe("submitWebhook — 실패", () => {
   // 위 케이스는 ASCII라 코드유닛 == 바이트다. 합산만 코드유닛으로 세면 CJK 본문이 최대
   // 3배까지 과소 계상돼, 개별 검사를 통과한 payload + 파일 조합이 캡을 넘긴 채 나간다.
   it("합산 캡도 실바이트로 잰다 — CJK payload가 파일과 합쳐 캡을 넘기면 막는다", async () => {
-    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    const m = mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     // 코드유닛 3M(개별 검사 통과) = UTF-8 9MB. 파일 18MB를 더하면 실제 27MB > 25MB인데,
     // 코드유닛으로 세면 3M + 18M = 21M이라 통과해 버린다.
     const cjk = "가".repeat(3_000_000);
@@ -332,7 +332,7 @@ describe("submitWebhook — 시크릿", () => {
   const withSecret = { url: URL_, headers: [], secret: "s3cr3t-team-token" };
 
   it("secret이 있으면 Authorization: Bearer로 합성해 보낸다", async () => {
-    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    const m = mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     await submitWebhook({ mode: "multipart", auth: withSecret, payload: payload(), files: files() });
 
     const headers = m.callAt(0).init?.headers as Record<string, string>;
@@ -432,7 +432,7 @@ describe("submitWebhook — 전송 시점 2층 방어", () => {
     ["http://bugs.acme.io/intake", "공인망 평문"],
     ["https://u:p@bugs.acme.io/hook", "URL 자격증명"],
   ])("%s (%s)는 저장소가 조작돼도 fetch에 닿지 않는다", async (url) => {
-    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    const m = mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     await expect(
       submitWebhook({
         mode: "multipart",
@@ -445,7 +445,7 @@ describe("submitWebhook — 전송 시점 2층 방어", () => {
   });
 
   it("URL 정책 위반은 번역된 문구로 실패한다 — reason 원문이 토스트에 안 뜬다", async () => {
-    mockFetchOnce({ body: { key: "K", url: "u" } });
+    mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     const err = await submitWebhook({
       mode: "multipart",
       auth: { url: "ftp://x/hook", headers: [] },
@@ -461,7 +461,7 @@ describe("submitWebhook — 전송 시점 2층 방어", () => {
   });
 
   it("헤더 값에 CRLF가 있으면 그 헤더만 빼고 보낸다 — Headers가 TypeError로 요청을 죽이지 않게", async () => {
-    const m = mockFetchOnce({ body: { key: "K", url: "u" } });
+    const m = mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     await submitWebhook({
       mode: "multipart",
       auth: {
@@ -513,7 +513,7 @@ describe("testWebhook — 연결 테스트", () => {
 
 describe("submitWebhook — 입력 소비 계약", () => {
   it("변환 직후 dataUrl 슬롯을 비운다 — 합본이라 GC가 원본을 걷어갈 틈이 없다", async () => {
-    mockFetchOnce({ body: { key: "K", url: "u" } });
+    mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     const input = files();
     await submitWebhook({ mode: "multipart", auth: AUTH, payload: payload(), files: input });
     expect(input.map((f) => f.dataUrl)).toEqual(["", ""]);
@@ -522,10 +522,25 @@ describe("submitWebhook — 입력 소비 계약", () => {
 
 describe("normalizeWebhookResult", () => {
   it("key·url 후보를 순서대로 찾는다", () => {
-    expect(normalizeWebhookResult({ key: "A", id: "B", url: "u1", html_url: "u2" })).toEqual({
-      key: "A",
-      url: "u1",
-    });
+    expect(
+      normalizeWebhookResult({ key: "A", id: "B", url: "https://x/1", html_url: "https://x/2" }),
+    ).toEqual({ key: "A", url: "https://x/1" });
+  });
+
+  // 이 url은 **임의 서버가 제어하는 값**이고, 이슈 목록 행 클릭이 그걸 그대로
+  // chrome.tabs.create에 넘긴다(IssueRow.tsx). 8개 플랫폼과 달리 우리가 만든 주소가 아니다.
+  it.each(["javascript:alert(1)", "data:text/html,<script>x</script>", "file:///etc/passwd", "chrome://settings"])(
+    "http(s)가 아닌 url 후보는 채택하지 않는다: %s",
+    (url) => {
+      expect(normalizeWebhookResult({ key: "K", url }).url).toBeUndefined();
+    },
+  );
+
+  it("http·https url은 그대로 채택한다", () => {
+    expect(normalizeWebhookResult({ key: "K", url: "https://bugs.acme.io/b/41" }).url)
+      .toBe("https://bugs.acme.io/b/41");
+    expect(normalizeWebhookResult({ key: "K", html_url: "http://tracker.internal/b/41" }).url)
+      .toBe("http://tracker.internal/b/41");
   });
 
   it("둘 중 하나라도 없으면 빈 값을 남긴다 — throw 판정은 호출부가 한다", () => {
@@ -539,7 +554,7 @@ describe("normalizeWebhookResult", () => {
 // 실제 t()가 도는 파일이라 키가 아니라 **문구가 서로 갈리는지**로 잰다.
 describe("에러 문구는 원인을 가린다", () => {
   const messageFor = async (auth: { url: string; headers: [] }) => {
-    mockFetchOnce({ body: { key: "K", url: "u" } });
+    mockFetchOnce({ body: { key: "K", url: "https://bugs.acme.io/b/41" } });
     const err = await submitWebhook({
       mode: "multipart",
       auth,
