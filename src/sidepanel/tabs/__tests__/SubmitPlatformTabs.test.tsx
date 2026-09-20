@@ -4,12 +4,13 @@ import { Tabs } from "@/components/ui/tabs";
 import type { PlatformId } from "@/types/platform";
 import { SubmitPlatformTabs } from "../SubmitPlatformTabs";
 
-// 여기서 고정되는 건 submitTabsLayout이 고른 listClass·triggerClass가 실제로 그 자리에
-// 닿는지까지다. wrapperClass·forceCollapsed는 9탭에서만 값이 갈려 **이 파일이 못 잡는다** —
-// 9탭 렌더는 PlatformId가 닫힌 union 8종이라 애초에 불가능하다. 그 둘의 클래스는
-// submitTabsLayout.test.ts가 순수 단언으로, 픽셀(아이콘 잘림·스크롤 도달)은 9번째 플랫폼이
-// 생긴 뒤 e2e가 첫 실측으로 잡는다.
-const ALL: PlatformId[] = ["jira", "github", "linear", "notion", "gitlab", "asana", "clickup", "slack"];
+// 9번째 PlatformId("webhook")가 생기면서 wrapperClass·forceCollapsed 배선을 여기서 처음
+// 잴 수 있게 됐다 — Task 0 시점엔 union이 8종이라 9탭 렌더 자체가 불가능해서 그 둘이
+// 순수 단언으로만 남아 있었다. 남은 건 픽셀(아이콘 잘림·스크롤 도달)이고 그건 e2e 몫이다.
+const ALL: PlatformId[] = [
+  "jira", "github", "linear", "notion", "gitlab", "asana", "clickup", "slack", "webhook",
+];
+const EIGHT = ALL.slice(0, 8);
 
 function renderTabs(platforms: PlatformId[]) {
   return render(
@@ -28,12 +29,12 @@ describe("SubmitPlatformTabs", () => {
   });
 
   it("8개까지는 트리거 수에 맞는 그리드가 리스트에 실제로 붙는다", () => {
-    renderTabs(ALL);
+    renderTabs(EIGHT);
     expect(screen.getByRole("tablist").className).toContain("grid-cols-8");
   });
 
   it("트리거 클래스가 각 트리거에 닿는다", () => {
-    renderTabs(ALL);
+    renderTabs(EIGHT);
     expect(screen.getByTestId("platform-tab-jira").className).toContain("min-w-0");
   });
 
@@ -44,11 +45,30 @@ describe("SubmitPlatformTabs", () => {
   });
 
   it("8개까지는 라벨을 강제로 접지 않는다", () => {
-    renderTabs(ALL);
+    renderTabs(EIGHT);
     // jsdom은 레이아웃이 0이라 자동 측정이 항상 "안 넘침"이다. 여기서 보는 건 그 결과가
     // forceCollapsed로 덮이지 않는다는 것뿐.
     for (const label of screen.getAllByText(/^(Jira|GitHub|Linear|Notion|GitLab|Asana|ClickUp|Slack)$/)) {
       expect(label.className).not.toContain("hidden");
     }
+  });
+
+  it("9탭이면 그리드를 버리고 래퍼가 가로 스크롤을 맡는다", () => {
+    const { container } = renderTabs(ALL);
+    expect(screen.getAllByRole("tab").length).toBe(9);
+    expect(screen.getByRole("tablist").className).not.toMatch(/grid-cols-/);
+    expect(container.querySelector(".overflow-x-auto")).toBeTruthy();
+  });
+
+  // 스크롤 목록은 셀 폭이 곧 콘텐츠 폭이라 자동 측정이 영원히 "안 넘침"으로 떨어진다 —
+  // forceCollapsed가 없으면 라벨이 그대로 남아 9개가 옆으로 길게 늘어선다.
+  it("9탭이면 라벨을 강제로 접는다", () => {
+    renderTabs(ALL);
+    expect(screen.getByText("Jira").className).toContain("hidden");
+  });
+
+  it("9탭 트리거는 줄어들지 않는다", () => {
+    renderTabs(ALL);
+    expect(screen.getByTestId("platform-tab-webhook").className).toContain("shrink-0");
   });
 });
