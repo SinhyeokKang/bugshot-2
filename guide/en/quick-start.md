@@ -22,7 +22,7 @@ Click the BugShot icon in the toolbar, or press `Cmd/Ctrl+Shift+E` to open the s
 
 ![Connecting a platform in the Integrations tab](assets/quick-start-3.jpg)
 
-To file an issue you need at least one platform connected. In the **Integrations** tab, just connect one of Jira, GitHub, Linear, Notion, GitLab, Asana, or ClickUp. [Connecting Platforms](integrations/platforms.md) walks you through it step by step.
+To file an issue you need at least one platform connected. In the **Integrations** tab, just connect one of Jira, GitHub, Linear, Notion, GitLab, Asana, or ClickUp (Slack works too, as does a Custom Webhook pointed at your own server). [Connecting Platforms](integrations/platforms.md) walks you through it step by step.
 
 > Don't feel like setting this up right now? Skip it. Capturing and drafting work either way, and when it's time to submit, a banner at the bottom of the screen will bring you back here.
 

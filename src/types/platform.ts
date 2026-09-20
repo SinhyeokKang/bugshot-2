@@ -6,6 +6,7 @@ import type { GitlabAccount } from "./gitlab";
 import type { AsanaAccount } from "./asana";
 import type { ClickupAccount } from "./clickup";
 import type { SlackAccount } from "./slack";
+import type { WebhookAccount } from "./webhook";
 
 export type PlatformId =
   | "jira"
@@ -15,7 +16,8 @@ export type PlatformId =
   | "gitlab"
   | "asana"
   | "clickup"
-  | "slack";
+  | "slack"
+  | "webhook";
 
 export const PLATFORM_TAB_KEYS = {
   jira: "platform.tab.jira",
@@ -26,6 +28,7 @@ export const PLATFORM_TAB_KEYS = {
   asana: "platform.tab.asana",
   clickup: "platform.tab.clickup",
   slack: "platform.tab.slack",
+  webhook: "platform.tab.webhook",
 } as const satisfies Record<PlatformId, string>;
 
 // 이슈 본문 cc 줄 포맷 — sidepanel 빌더(ccMention)와 background(notion expandBlock)가 공유.
@@ -56,6 +59,7 @@ export interface Accounts {
   asana?: AsanaAccount;
   clickup?: ClickupAccount;
   slack?: SlackAccount;
+  webhook?: WebhookAccount;
 }
 
 export interface JiraLastSubmitFields {
@@ -163,4 +167,6 @@ export interface LastSubmitFieldsByPlatform {
   asana?: AsanaLastSubmitFields;
   clickup?: ClickupLastSubmitFields;
   slack?: SlackLastSubmitFields;
+  // 제출 필드가 없다 — setLastSubmitFields("webhook", …) 자체를 타입으로 막는다.
+  webhook?: never;
 }

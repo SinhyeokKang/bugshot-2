@@ -77,7 +77,7 @@ quota 초과 시 lite 폴백까지 실패하면 **3연속에서 `saveSuspended`�
 
 ## 플랫폼 인증
 
-8개 플랫폼 중 7개(Jira~ClickUp)는 **수동 인증(API Token/PAT) + OAuth** 두 방식을 동시 지원한다. **Slack은 OAuth user token 전용**(BYOK·수동 인증 없음 — 메시지 앱이라 사용자가 직접 토큰을 발급하기 어려움). 저장 형태는 discriminated union (`{Platform}Auth`, `kind` 판별자). OAuth는 `chrome.identity.launchWebAuthFlow` → 인가 코드 → 토큰 교환. ``isConfigured(OAUTH_CONFIG[platform])`(`background/oauth/config.ts`)` 가드가 false면 OAuth UI 비활성화.
+제출 대상은 9개이고 **인증 축은 8개까지만 적용된다.** 그중 7개(Jira~ClickUp)는 **수동 인증(API Token/PAT) + OAuth** 두 방식을 동시 지원한다. **Slack은 OAuth user token 전용**(BYOK·수동 인증 없음 — 메시지 앱이라 사용자가 직접 토큰을 발급하기 어려움). **Custom Webhook은 이 표 밖이다** — 인증 주체가 BugShot이 아니라 사용자가 짠 수신 서버라, 토큰 교환도 갱신도 만료도 없고 설정한 시크릿이 `Authorization: Bearer`로 나갈 뿐이다. 그래서 `OAuthPlatformId = Exclude<PlatformId, "webhook">`로 타입을 좁혀 `OAUTH_CONFIG`가 webhook 슬롯을 요구하지 않게 한다(빈 값을 채우면 `isConfigured` 판정이 거짓으로 통과한다). 계약은 [webhook-contract.md](./webhook-contract.md). 저장 형태는 discriminated union (`{Platform}Auth`, `kind` 판별자). OAuth는 `chrome.identity.launchWebAuthFlow` → 인가 코드 → 토큰 교환. ``isConfigured(OAUTH_CONFIG[platform])`(`background/oauth/config.ts`)` 가드가 false면 OAuth UI 비활성화.
 
 | | Jira | GitHub | Linear | Notion | GitLab | Asana | ClickUp | Slack |
 |---|---|---|---|---|---|---|---|---|
@@ -604,7 +604,7 @@ trim 적용 여부는 `videoTrimmed`(세션 영속 `EditorSnapshot` 키 — `onR
 
 ### 값 정책 (privacy 경계)
 
-selector는 이슈 본문·8개 플랫폼 제출 페이로드·저장 초안·사용자가 고른 LLM endpoint로 나간다. `data-testid`가 "개발자가 붙인 계약"이라는 전제는 틀렸다 — 리스트 행마다 `data-testid={user.email}`로 값을 넣는 코드가 흔하다. `isHandWrittenIdentifier`가 trusted·semantic·**id**를 같은 게이트에 태운다: ASCII 식별자 모양, 3자 초과 순수 숫자 세그먼트 금지, 긴 영숫자 혼합 토큰 금지(단어 사이 숫자 1~2자는 허용 — `oauth2button`). id를 빼먹으면 finder penalty 0이라 `#user-jane@acme.com`이 stage 0에서 최우선 채택된다. 거부된 값은 compat 단계로 떨어져 **변경 전 동작 그대로**라, 이 게이트는 기능을 죽이지 않고 앵커만 포기한다.
+selector는 이슈 본문·9개 제출 대상의 페이로드(사용자가 지정한 임의 서버 포함)·저장 초안·사용자가 고른 LLM endpoint로 나간다. `data-testid`가 "개발자가 붙인 계약"이라는 전제는 틀렸다 — 리스트 행마다 `data-testid={user.email}`로 값을 넣는 코드가 흔하다. `isHandWrittenIdentifier`가 trusted·semantic·**id**를 같은 게이트에 태운다: ASCII 식별자 모양, 3자 초과 순수 숫자 세그먼트 금지, 긴 영숫자 혼합 토큰 금지(단어 사이 숫자 1~2자는 허용 — `oauth2button`). id를 빼먹으면 finder penalty 0이라 `#user-jane@acme.com`이 stage 0에서 최우선 채택된다. 거부된 값은 compat 단계로 떨어져 **변경 전 동작 그대로**라, 이 게이트는 기능을 죽이지 않고 앵커만 포기한다.
 
 ### 결정성
 

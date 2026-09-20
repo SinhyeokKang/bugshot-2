@@ -1,15 +1,5 @@
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { SlackIcon } from "@/components/icons/SlackIcon";
-import {
-  SiAsana,
-  SiClickup,
-  SiGithub,
-  SiGitlab,
-  SiJirasoftware,
-  SiLinear,
-  SiNotion,
-} from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,10 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsTrigger } from "@/components/ui/tabs";
-import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
+import { Tabs } from "@/components/ui/tabs";
 import { useT } from "@/i18n";
-import { cn } from "@/lib/utils";
 import { trackSubmit } from "@/sidepanel/lib/track-submit";
 import { useEditorStore } from "@/store/editor-store";
 import type { CaptureMode, EditorIssueFields } from "@/store/editor-store";
@@ -32,7 +20,7 @@ import {
   isNotionAccountComplete,
   useSettingsStore,
 } from "@/store/settings-store";
-import { PLATFORM_TAB_KEYS, type PlatformId, type NormalizedSubmitResult } from "@/types/platform";
+import { type PlatformId, type NormalizedSubmitResult } from "@/types/platform";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import {
   GithubIssueFields,
@@ -64,6 +52,7 @@ import {
 } from "./slackFields/SlackIssueFields";
 import { JiraIssueFields } from "./jiraFields/JiraIssueFields";
 import { peekSprintFieldMeta } from "./jiraFields/useSprintFieldMeta";
+import { SubmitPlatformTabs } from "./SubmitPlatformTabs";
 
 type SubmitState =
   | { status: "idle" }
@@ -97,33 +86,6 @@ export interface SubmitFieldsDialogProps {
   onSubmit: (platform: PlatformId) => Promise<NormalizedSubmitResult>;
   onSuccess?: (result: NormalizedSubmitResult) => void;
 }
-
-// Tailwind JIT 정적 추출을 위해 full class 문자열을 매핑.
-const TABS_GRID_COLS: Record<number, string> = {
-  2: "grid-cols-2",
-  3: "grid-cols-3",
-  4: "grid-cols-4",
-  5: "grid-cols-5",
-  6: "grid-cols-6",
-  7: "grid-cols-7",
-  8: "grid-cols-8",
-};
-
-const PLATFORM_TABS: {
-  id: PlatformId;
-  Icon: ComponentType<{ className?: string; color?: string }>;
-  invertOnDark?: boolean;
-}[] = [
-  { id: "jira", Icon: SiJirasoftware },
-  { id: "github", Icon: SiGithub, invertOnDark: true },
-  { id: "linear", Icon: SiLinear },
-  { id: "notion", Icon: SiNotion, invertOnDark: true },
-  { id: "gitlab", Icon: SiGitlab },
-  { id: "asana", Icon: SiAsana },
-  { id: "clickup", Icon: SiClickup },
-  // lucide 아이콘은 color="default"(브랜드 hex)를 못 받아 투명해진다 → currentColor로 렌더.
-  { id: "slack", Icon: ({ className }) => <SlackIcon className={className} /> },
-];
 
 export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const {
@@ -163,6 +125,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const asanaAccount = useSettingsStore((s) => s.accounts.asana);
   const clickupAccount = useSettingsStore((s) => s.accounts.clickup);
   const slackAccount = useSettingsStore((s) => s.accounts.slack);
+  const webhookAccount = useSettingsStore((s) => s.accounts.webhook);
   const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
 
   useEffect(() => {
@@ -177,6 +140,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const asanaConfigured = !!asanaAccount;
   const clickupConfigured = !!clickupAccount;
   const slackConfigured = !!slackAccount;
+  const webhookConfigured = !!webhookAccount;
   // 삼항 체인은 clickup 누락이 조용히 Notion으로 새므로 exhaustive switch로 전환 (회귀 방지).
   const platformConfigured = ((): boolean => {
     switch (platform) {
@@ -187,6 +151,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       case "asana": return asanaConfigured;
       case "clickup": return clickupConfigured;
       case "slack": return slackConfigured;
+      case "webhook": return webhookConfigured;
       case "notion": return notionConfigured;
       default: {
         const _exhaustive: never = platform;
@@ -204,6 +169,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       case "asana": return !!asanaFields.workspaceGid;
       case "clickup": return !!clickupFields.workspaceId && !!clickupFields.listId;
       case "slack": return !!slackFields.channelId;
+      // 제출 필드가 없다 — 고를 대상이 수신 서버 쪽에 존재하지 않는다.
+      case "webhook": return true;
       case "notion": return !!notionFields.databaseId;
       default: {
         const _exhaustive: never = platform;
@@ -263,6 +230,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
         asana: asanaFields.cc?.length,
         clickup: clickupFields.cc?.length,
         slack: undefined,
+        webhook: undefined,
         notion: notionFields.cc?.length,
       }[platform];
       toast.error(
@@ -304,22 +272,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
         {showTabs ? (
           <Tabs value={platform} onValueChange={(v) => setPlatform(v as PlatformId)}>
-            <CollapsingTabsList className={cn(
-              "grid h-9 w-full",
-              TABS_GRID_COLS[availablePlatforms.length] ?? "grid-cols-2",
-            )}>
-              {PLATFORM_TABS.filter((p) => availablePlatforms.includes(p.id)).map(
-                ({ id, Icon, invertOnDark }) => (
-                  <TabsTrigger key={id} value={id} className="min-w-0 gap-1.5" data-testid={`platform-tab-${id}`}>
-                    <Icon
-                      className={cn("h-3.5 w-3.5 shrink-0", invertOnDark && "dark:invert")}
-                      color="default"
-                    />
-                    <TabLabel>{t(PLATFORM_TAB_KEYS[id])}</TabLabel>
-                  </TabsTrigger>
-                ),
-              )}
-            </CollapsingTabsList>
+            <SubmitPlatformTabs availablePlatforms={availablePlatforms} />
           </Tabs>
         ) : null}
 
@@ -351,6 +304,20 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
         ) : platform === "slack" ? (
           slackConfigured ? (
             <SlackIssueFields value={slackFields} onChange={setSlackFields} />
+          ) : null
+        ) : platform === "webhook" ? (
+          webhookConfigured ? (
+            // 고를 제출 필드가 없다 — 대신 어디로 나가는지와 모드 차이를 그 자리에서 보인다.
+            <div className="flex flex-col gap-1.5 text-sm" data-testid="webhook-submit-note">
+              <span className="truncate font-medium">{webhookAccount!.auth.url}</span>
+              <span className="text-muted-foreground">
+                {t(
+                  webhookAccount!.auth.format === "json"
+                    ? "webhook.format.json.help"
+                    : "webhook.format.multipart.help",
+                )}
+              </span>
+            </div>
           ) : null
         ) : notionConfigured ? (
           <NotionIssueFields

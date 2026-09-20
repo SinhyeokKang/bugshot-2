@@ -17,7 +17,7 @@ import { DICTS } from "@/log-viewer/i18n";
 // - ko∩en 필터가 실제로 거르는 건 1쌍뿐(ko 사전에 한글 음역이 없어서).
 // - 서드파티 UI 경로 문자열(Settings > Apps 류)은 이 가드 밖 — 번역 브리프 소관.
 const PROPER_NOUNS = [
-  "Jira", "GitHub", "Linear", "Notion", "GitLab", "Asana", "ClickUp", "Slack",
+  "Jira", "GitHub", "Linear", "Notion", "GitLab", "Asana", "ClickUp", "Slack", "Webhook",
   "BugShot", "Chrome", "OAuth", "CSS", "URL", "JSON",
   // HTML은 뺐다 — ko/en 어디에도 없어(유일한 등장은 logs.html 소문자) 영구히 아무것도
   // 단언하지 않는 죽은 항목이다.

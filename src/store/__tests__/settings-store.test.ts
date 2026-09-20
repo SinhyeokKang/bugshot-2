@@ -11,6 +11,7 @@ import {
   migrateV2ToV3,
   migrateToV5,
   migrateToV11,
+  migrateToV12,
   pickInitialPlatform,
   useSettingsStore,
 } from "../settings-store";
@@ -92,6 +93,12 @@ const slackStub: Accounts["slack"] = {
   teamId: "T1",
   teamName: "acme",
   defaults: {},
+};
+
+const webhookStub: Accounts["webhook"] = {
+  platform: "webhook",
+  connectedAt: 0,
+  auth: { url: "https://bugs.acme.io/intake", headers: [], format: "multipart" },
 };
 
 describe("settings-store v2→v3 마이그레이션", () => {
@@ -274,9 +281,10 @@ describe("connectedPlatforms", () => {
 
   // 랭크 맵 파생 후에도 순서가 그대로여야 한다. 기존 케이스는 5종까지만 고정하고
   // asana·clickup·slack의 상대 순서는 어디에도 없었다.
-  it("8종 전부 연결 시 폴백 순서가 불변이다", () => {
+  it("전 플랫폼 연결 시 폴백 순서가 불변이다", () => {
     expect(
       connectedPlatforms({
+        webhook: webhookStub,
         slack: slackStub,
         clickup: clickupStub,
         asana: asanaStub,
@@ -295,6 +303,8 @@ describe("connectedPlatforms", () => {
       "asana",
       "clickup",
       "slack",
+      // 마지막이다 — 다른 8개가 하나라도 연결돼 있으면 그쪽이 기본 탭이 된다.
+      "webhook",
     ]);
   });
 });
@@ -855,6 +865,37 @@ describe("persist migrate 콜백 — version별 단계 배선", () => {
     expect(out.titlePrefix).toBe("[QA] ");
   });
 
+  it("version 11 → v12 단계가 배선돼 auth.url 없는 webhook 계정이 걷힌다", () => {
+    // v12 단계 함수 자체는 방어적이다(v11 상태에 webhook 계정이 있을 수 없다). 그래도
+    // 이 케이스가 없으면 migrate에서 `if (version < 12)` 한 줄을 지워도 레포 전체가 green이다.
+    const out = migrate()(
+      {
+        accounts: {
+          jira: jiraStub,
+          webhook: { platform: "webhook", connectedAt: 0, auth: { headers: [], format: "multipart" } },
+        },
+        lastSubmitFields: {},
+      },
+      11,
+    ) as { accounts: Accounts };
+
+    expect(out.accounts.webhook).toBeUndefined();
+    expect(out.accounts.jira).toEqual(jiraStub);
+  });
+
+  it("version 12는 v12 단계를 다시 타지 않는다", () => {
+    const acc = {
+      platform: "webhook" as const,
+      connectedAt: 0,
+      auth: { url: "https://bugs.acme.io/intake", headers: [], format: "multipart" as const },
+    };
+    const out = migrate()({ accounts: { webhook: acc }, lastSubmitFields: {} }, 12) as {
+      accounts: Accounts;
+    };
+
+    expect(out.accounts.webhook).toEqual(acc);
+  });
+
   it("version 10 → v11 단계가 배선돼 relatesKey가 relates[]로 이관된다", () => {
     const out = migrate()(
       {
@@ -873,6 +914,72 @@ describe("persist migrate 콜백 — version별 단계 배선", () => {
 // 새 자격증명에 남는데, 계정 신원 게이트를 가진 건 Jira(initialJiraFields의 siteId 대조)뿐이라
 // 나머지는 이전 계정의 owner/repo·workspace가 그대로 prefill된다 — 새 계정이 그 목적지에
 // 접근 권한을 가지면 캡처 데이터가 이전 조직으로 나간다.
+describe("webhook 계정 — 시크릿 왕복", () => {
+  it("secret이 auth 안에 보존된다 — 별도 저장 축을 만들지 않는다", () => {
+    const acc = {
+      platform: "webhook" as const,
+      connectedAt: 1,
+      auth: {
+        url: "https://bugs.acme.io/intake",
+        secret: "s3cr3t-team-token",
+        headers: [],
+        format: "multipart" as const,
+      },
+    };
+    useSettingsStore.setState({ accounts: {}, lastSubmitFields: {} });
+    useSettingsStore.getState().setAccount("webhook", acc);
+
+    expect(useSettingsStore.getState().accounts.webhook?.auth.secret).toBe("s3cr3t-team-token");
+  });
+
+  it("updateWebhookAccount가 secret만 바꿔도 나머지 auth가 안 날아간다", () => {
+    useSettingsStore.setState({
+      accounts: {
+        webhook: {
+          platform: "webhook",
+          connectedAt: 1,
+          auth: { url: "https://x/hook", secret: "old", headers: [], format: "multipart" },
+        },
+      },
+      lastSubmitFields: {},
+    });
+    useSettingsStore.getState().updateWebhookAccount({
+      auth: { url: "https://x/hook", secret: "new", headers: [], format: "multipart" },
+    });
+
+    const auth = useSettingsStore.getState().accounts.webhook?.auth;
+    expect(auth?.secret).toBe("new");
+    expect(auth?.url).toBe("https://x/hook");
+  });
+});
+
+describe("migrateToV12 — webhook 계정 방어 정리", () => {
+  const good = {
+    platform: "webhook" as const,
+    connectedAt: 1,
+    auth: { url: "https://bugs.acme.io/intake", headers: [], format: "multipart" as const },
+  };
+
+  it("url이 있는 webhook 계정은 그대로 둔다", () => {
+    const out = migrateToV12({ accounts: { webhook: good } } as never);
+    expect((out as { accounts: Accounts }).accounts.webhook).toEqual(good);
+  });
+
+  it.each([
+    ["auth 자체가 없음", { platform: "webhook", connectedAt: 1 }],
+    ["url이 빈 문자열", { platform: "webhook", connectedAt: 1, auth: { url: "", headers: [], format: "multipart" } }],
+    ["url 키 자체가 없음", { platform: "webhook", connectedAt: 1, auth: { headers: [], format: "multipart" } }],
+  ])("%s 이면 걷어낸다", (_label, acc) => {
+    const out = migrateToV12({ accounts: { webhook: acc } } as never);
+    expect((out as { accounts: Accounts }).accounts.webhook).toBeUndefined();
+  });
+
+  it("webhook 계정이 없으면 다른 계정을 건드리지 않는다", () => {
+    const out = migrateToV12({ accounts: { jira: jiraStub } } as never);
+    expect((out as { accounts: Accounts }).accounts.jira).toEqual(jiraStub);
+  });
+});
+
 describe("setAccount — 새 자격증명은 직전 제출값을 물려받지 않는다", () => {
   it("그 플랫폼의 lastSubmitFields를 비운다", () => {
     useSettingsStore.setState({

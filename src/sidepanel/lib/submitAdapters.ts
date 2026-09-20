@@ -9,6 +9,7 @@ import type { JiraSubmitInput } from "./submitToJira";
 import type { LinearSubmitInput } from "./submitToLinear";
 import type { NotionSubmitInput } from "./submitToNotion";
 import type { SlackSubmitInput } from "./submitToSlack";
+import type { WebhookSubmitInput } from "./submitToWebhook";
 import type { EditorIssueFields } from "@/store/editor-store";
 import type { AsanaIssueFieldsValue } from "@/sidepanel/tabs/asanaFields/AsanaIssueFields";
 import type { ClickupIssueFieldsValue } from "@/sidepanel/tabs/clickupFields/ClickupIssueFields";
@@ -18,6 +19,7 @@ import type { LinearIssueFieldsValue } from "@/sidepanel/tabs/linearFields/Linea
 import type { NotionIssueFieldsValue } from "@/sidepanel/tabs/notionFields/NotionIssueFields";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import type { SlackIssueFieldsValue } from "@/sidepanel/tabs/slackFields/SlackIssueFields";
+import type { WebhookAuth } from "@/types/webhook";
 import type {
   AsanaLastSubmitFields,
   ClickupLastSubmitFields,
@@ -319,6 +321,27 @@ export function slackSubmitArgs(input: SubmitBase & {
     inlineImages,
     channelId: input.channelId,
     mentions: fields.mentions,
+  };
+}
+
+// lastSubmitFields 쌍이 없다 — 제출 필드가 없으므로 기억할 목적지도 없다
+// (LastSubmitFieldsByPlatform.webhook이 never라 타입이 그 호출 자체를 막는다).
+export function webhookSubmitArgs(input: SubmitBase & {
+  auth: WebhookAuth;
+  // 멱등 키의 출처는 이슈 레코드 id **하나**다. 호출부가 문자열을 조립해 넣지 못하게
+  // 축으로 받는다 — 타임아웃·SW 종료 뒤 재시도에서 수신 서버가 이 값으로 중복을 거르므로
+  // 충돌이 곧 리포트 유실이고, 팀 전원이 한 엔드포인트로 보내는 게 이 기능의 전제라
+  // 시각 기반 값은 두 사람이 같은 ms에 캡처하면 한 건이 조용히 사라진다. 레코드 id는
+  // crypto.randomUUID(`newId`)라 전역 고유이고, 같은 draft의 재전송은 같은 레코드를 쓴다.
+  issueId: string;
+}): WebhookSubmitInput {
+  const { ctx, inlineImages, captureFiles } = input;
+  return {
+    ctx,
+    ...media(captureFiles),
+    inlineImages,
+    auth: input.auth,
+    idempotencyKey: input.issueId,
   };
 }
 

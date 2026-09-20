@@ -29,6 +29,7 @@ import {
   writeStoredLinearOAuthTokens,
   writeStoredOAuthTokens,
   SETTINGS_STORAGE_KEY,
+  sameAuthIdentity,
 } from "../settings-storage";
 
 const jiraAuth = { kind: "oauth", accessToken: "j", cloudId: "c" };
@@ -430,5 +431,46 @@ describe("write 계열 — 계정 신원 게이트", () => {
     } as never);
 
     expect(await readStoredGitlabAuth()).toMatchObject({ accessToken: "new" });
+  });
+});
+
+// 이 함수는 "같은 계정인가"를 판정해 직전 제출값을 살릴지 지울지 정한다. 스칼라만 비교하면
+// auth에 배열·객체를 둔 플랫폼은 **늘 다른 계정**으로 읽힌다 — webhook의 headers가 그렇다.
+// 지금 낙진이 없는 건 lastSubmitFields.webhook이 never라서일 뿐이라, 그 전제가 바뀌는 순간
+// 무음으로 깨진다. ACCOUNT_IDENTITY_FIELDS.webhook의 주석도 이미 그 비교가 된다고 말한다.
+describe("sameAuthIdentity — 스칼라가 아닌 값", () => {
+  it("같은 내용의 배열은 같은 신원이다", () => {
+    const a = { url: "https://x/hook", headers: [{ name: "X-Api-Key", value: "k" }] };
+    const b = { url: "https://x/hook", headers: [{ name: "X-Api-Key", value: "k" }] };
+    expect(sameAuthIdentity(a, b, [])).toBe(true);
+  });
+
+  it("내용이 다른 배열은 다른 신원이다", () => {
+    const a = { headers: [{ name: "X-Api-Key", value: "k1" }] };
+    const b = { headers: [{ name: "X-Api-Key", value: "k2" }] };
+    expect(sameAuthIdentity(a, b, [])).toBe(false);
+  });
+
+  it("길이가 다른 배열은 다른 신원이다", () => {
+    expect(sameAuthIdentity({ h: [1, 2] }, { h: [1] }, [])).toBe(false);
+  });
+
+  it("순서가 다른 배열은 다른 신원이다 — 헤더 순서는 요청에 그대로 실린다", () => {
+    expect(sameAuthIdentity({ h: ["a", "b"] }, { h: ["b", "a"] }, [])).toBe(false);
+  });
+
+  it("중첩 객체도 내용으로 비교한다", () => {
+    expect(sameAuthIdentity({ o: { a: 1 } }, { o: { a: 1 } }, [])).toBe(true);
+    expect(sameAuthIdentity({ o: { a: 1 } }, { o: { a: 2 } }, [])).toBe(false);
+  });
+
+  it("제외 목록은 중첩 값에도 그대로 적용된다 (최상위 키 기준)", () => {
+    const a = { headers: [{ name: "X", value: "1" }], accessToken: "t1" };
+    const b = { headers: [{ name: "X", value: "1" }], accessToken: "t2" };
+    expect(sameAuthIdentity(a, b, ["accessToken"])).toBe(true);
+  });
+
+  it("한쪽이 undefined인 키는 기존대로 건너뛴다", () => {
+    expect(sameAuthIdentity({ h: [1], x: undefined }, { h: [1] }, [])).toBe(true);
   });
 });

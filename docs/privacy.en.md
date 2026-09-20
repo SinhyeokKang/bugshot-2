@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: September 9, 2026
+**Effective date**: September 20, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -28,6 +28,9 @@ BugShot (the "extension") values your privacy and collects and processes only th
 | ClickUp user name / email | When verifying the integration | Displaying integration status |
 | Slack credentials (OAuth user token) | When configuring the Slack integration | Sending channel/DM messages and uploading files |
 | Slack user name / workspace (team) information | When verifying the integration | Displaying integration status |
+| Custom Webhook endpoint (an arbitrary server URL you enter) | When configuring the Custom Webhook integration | Delivering reports to that address |
+| Custom Webhook secret (optional) | When configuring the Custom Webhook integration | Sent to that server as an `Authorization: Bearer <secret>` header so the receiving end can verify the sender |
+| Custom Webhook advanced request headers (optional, name/value pairs) | When configuring the Custom Webhook integration | Passed through to that server on every request |
 
 ### Assignees, CC (Watchers), and Mention Targets
 
@@ -145,6 +148,7 @@ The extension transmits data only to the services below.
 | Asana REST API (`app.asana.com`) | Task body, workspace/project/assignee, screenshots, video, debug logs | Creating tasks and uploading files |
 | ClickUp REST API (`api.clickup.com`) | Task body, workspace/space/list/assignee, screenshots, video, debug logs | Creating tasks and uploading files |
 | Slack Web API (`slack.com` and Slack-issued file upload URLs) | Message body (title, detail), mention targets, screenshots, video, debug logs, and — on promotion — the tracker issue link | Sending messages/attachments to channels/DMs in your own workspace, and auto-commenting the issue link in the original message thread when promoting to a tracker |
+| A server you specify (Custom Webhook — an arbitrary origin) | Report body (title, detail, reproduction environment, log summary), screenshots, video, debug logs, your file attachments, and the secret / request headers you configured | Delivering the report to a receiving server you run yourself (if you choose the JSON template format, no capture media is sent — only what the template names) |
 | Image hosts named in avatar URLs by the connected platform (the platform's own CDN, or a third party such as Gravatar or Google) | An image GET request (including the standard request metadata that accompanies it, such as your IP address; no credentials) | Displaying avatars in assignee, CC, and mention candidate lists |
 | HTTP(S) origin hosting a cross-origin stylesheet referenced by the current page | GET request for the stylesheet URL (including its path/query and standard request metadata; cookies and other credentials are omitted) | When an element-picker session starts, and again whenever the page adds or replaces a stylesheet during that session (including a session restored by reopening the side panel), reading cross-origin CSS text that the browser CSSOM does not expose to supplement style values and design-token names in the hover tooltip and style editor. Page-supplied URLs pass through a static SSRF guard that rejects loopback, private, link-local, and other non-public literal address ranges; redirects are not followed |
 | OAuth proxy server | OAuth authorization code, token refresh requests (refresh token) | Token exchange (Jira, GitHub, Notion, Asana, ClickUp, Slack) |
@@ -157,6 +161,8 @@ The OAuth proxy server only relays the token exchange and does not store or log 
 Local files you select yourself through the "file attachment" feature are, on issue (task) submission, uploaded as body attachments to each platform above (Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp), and to the message thread in the case of Slack. This feature is off by default and works only when enabled in settings.
 
 When connecting to a GitLab self-managed instance with a PAT, the extension communicates directly with the instance address (an arbitrary origin) you enter. This access is covered by the required broad host permission (`<all_urls>`) granted at install and works without a separate permission dialog.
+
+When you set up the Custom Webhook integration, reports are sent **directly to the arbitrary address you enter**. That access is likewise covered by the required broad host permission (`<all_urls>`) and works without a separate permission dialog. What that server is, and how it handles the data it receives, is **yours to decide and yours to answer for** — it is not a server BugShot operates or vets. The secret and advanced request headers you configure are also passed to that server on every request. Only `https` is accepted; `http` is allowed only for private-network addresses (loopback, internal networks, and other non-public addresses), and in that case the settings screen shows a plaintext warning. Redirects (3xx) are not followed and are treated as a failure, so that the auth header is never handed to a different host. Browser cookies are not attached to these requests.
 
 The LLM provider receives data only at the endpoint you configure yourself. AI draft generation and AI styling run only when you explicitly trigger them, while reproduction-step auto-fill runs automatically once per session when you enter the drafting screen after a video capture (on by default, can be turned off in settings). Access to that host is covered by the required broad host permission (`<all_urls>`).
 
@@ -171,7 +177,7 @@ We do not sell the information we collect. Data is transmitted directly to the d
 - **Removing the extension**: `chrome.storage` data is deleted automatically.
 - **Media / log data**: You can clear site data in your browser settings, or delete items individually from the issue list inside the extension.
 - **After a regular issue is submitted successfully**: The local draft body, page/style information, and image, video, log, and attachment blobs are deleted automatically; only submission metadata and the issue URL remain. Slack submissions preserve their source data so they can later be promoted to a tracker, and that data is removed after promotion or issue deletion.
-- **Disconnecting a platform**: Disconnecting on each platform's (Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack) integration tab deletes the stored credentials.
+- **Disconnecting a platform**: Disconnecting on each platform's (Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack, Custom Webhook) integration tab deletes the stored credentials (for Custom Webhook this removes the endpoint, secret, and request headers together).
 - **Reconnecting as a different account**: Reconnecting an already connected platform under a different account also deletes that platform's last submit values (the destination such as project or repository, plus assignee and CC identifiers). They are kept when you reconnect as the same account.
 - **Deleting an LLM provider**: Disconnecting the provider in settings deletes the stored settings.
 

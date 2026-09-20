@@ -31,6 +31,8 @@ const WRAPPED = [
   "buildNotionIssueBody.ts",
   "buildReportData.ts",
   "buildSlackBody.ts",
+  "buildWebhookJsonBody.ts",
+  "webhookPayload.ts",
 ];
 
 // 감싸면 안 되거나 감쌀 진입점이 없는 파일 — 이유를 함께 박아 다음 사람이 판단을 복원할 수 있게 한다.
@@ -40,6 +42,8 @@ const EXEMPT: Record<string, string> = {
   "markdownToAdf.ts": "빌더 내부 변환기 — 진입점이 아니라 감싸진 구간 안에서만 불린다",
   "markdownToNotionBlocks.ts": "빌더 내부 변환기 — 위와 동일",
   "prepareUpload.ts": "에러 토스트 — 화면 언어가 정답",
+  "submitToWebhook.ts":
+    "에러 토스트 — 화면 언어가 정답. 본문에 실리는 문구는 buildWebhookJsonBody로 떼어내 거기서 감쌌다",
 };
 
 interface LibFile {
@@ -61,7 +65,37 @@ function readLibFiles(dir: string, prefix = ""): LibFile[] {
 
 const all: LibFile[] = readLibFiles(LIB_DIR);
 
-const importsT = all.filter((f) => IMPORTS_T.test(f.source));
+// 본문 t()의 실제 소유자는 아래 셋이다 — EXEMPT가 "빌더 내부 헬퍼"로 분류한 파일들이고,
+// 이들을 부르는 쪽이 감싸지 않으면 본문 언어가 샌다. **이들을 import하는 파일도 대상**이어야
+// 한다: t를 직접 import하지 않고 헬퍼 경유로만 부르는 파일이 t 기준 스캔에서 통째로 빠지고,
+// 실제로 그 구멍으로 payload의 logSummary가 화면 언어로 새어 나갔다.
+// withLocale import를 타깃 조건으로 쓰면 안 된다 — 그건 **이미 고친 파일의 특징**이라
+// 사후 장부만 되고 같은 실수를 처음 하는 파일은 여전히 안 걸린다.
+const BODY_T_HELPERS = ["issueBodyShared", "markdownToAdf", "markdownToNotionBlocks"];
+// 같은 파일을 가리키는 표기가 둘이다 — 이 디렉터리는 `@/` 유지가 지역 관례고(CLAUDE.md),
+// 상대경로도 쓰인다. 한쪽만 보면 다른 표기로 쓴 새 빌더가 대상 집합에서 통째로 빠진다.
+const HELPER_PATH = `(?:\\.{1,2}/|@/sidepanel/lib/)(?:${BODY_T_HELPERS.join("|")})`;
+const IMPORTS_BODY_HELPER = new RegExp(`from\\s*["']${HELPER_PATH}["']`);
+
+// 파일이 본문 헬퍼에서 가져온 심볼 이름들 → 호출 패턴. 파일마다 다르므로 그때그때 판다.
+function importedBodyHelperCalls(source: string): RegExp[] {
+  const names: string[] = [];
+  const re = new RegExp(
+    `import\\s*\\{([^}]*)\\}\\s*from\\s*["']${HELPER_PATH}["']`,
+    "g",
+  );
+  for (const m of source.matchAll(re)) {
+    for (const raw of m[1].split(",")) {
+      const name = raw.trim().replace(/^type\s+/, "").split(/\s+as\s+/).pop()?.trim();
+      if (name) names.push(name);
+    }
+  }
+  return names.map((n) => new RegExp(`(?<![\\w.])${n}\\(`));
+}
+
+const importsT = all.filter(
+  (f) => IMPORTS_T.test(f.source) || IMPORTS_BODY_HELPER.test(f.source),
+);
 
 
 describe("본문 빌더 withLocale 래핑 게이트", () => {
@@ -72,6 +106,19 @@ describe("본문 빌더 withLocale 래핑 게이트", () => {
     expect(importsT.length).toBeGreaterThan(10);
     expect(all.map((f) => f.file)).toContain("buildIssueMarkdown.ts");
     expect(all.some((f) => f.file.includes("/"))).toBe(true);
+  });
+
+  // 소스 스캔이 표기 하나에만 눈을 뜨면 같은 import를 다르게 쓴 파일이 통째로 빠진다 —
+  // 이 디렉터리는 CLAUDE.md가 `@/` 유지를 지역 관례로 둔 곳이라 그 표기가 언제든 나온다.
+  // 지금 저장소에 `@/sidepanel/lib/...` 형태가 0건이라 실해는 없지만, 0건이라는 사실이
+  // 그물을 대신하지는 않는다.
+  it.each([
+    ['import { emitMarkdownLogSummary } from "./issueBodyShared";', "상대경로"],
+    ['import { emitMarkdownLogSummary } from "../issueBodyShared";', "상위 상대경로"],
+    ['import { emitMarkdownLogSummary } from "@/sidepanel/lib/issueBodyShared";', "@/ 별칭"],
+  ])("본문 헬퍼 import를 표기와 무관하게 잡는다 (%s)", (line) => {
+    expect(IMPORTS_BODY_HELPER.test(line)).toBe(true);
+    expect(importedBodyHelperCalls(line).length).toBe(1);
   });
 
   // 대상 집합을 파일명 규칙(build*)에 맡기면 markdownToAdf.ts처럼 t()를 쓰는 파일이 사정권
@@ -97,8 +144,13 @@ describe("본문 빌더 withLocale 래핑 게이트", () => {
   // green이다. export된 선언 하나하나가, 그것도 **래퍼 안에서** t()를 쓰는지까지 본다.
   it.each(WRAPPED)("%s — export 진입점의 t()가 전부 래퍼 안에 있다", (file) => {
     const entry = all.find((f) => f.file === file)!;
+    // 헬퍼 호출도 t() 호출로 센다 — 이 파일들이 본문 t()를 소유하므로, 부르는 쪽이 안 감싸면
+    // 직접 t()를 쓴 것과 결과가 같다. 이름 기준이라 그 파일에서 import한 심볼만 본다.
+    const helperCalls = importedBodyHelperCalls(entry.source);
+    const leaks = (body: string) =>
+      CALLS_T.test(body) || helperCalls.some((re) => re.test(body));
     const leaking = exportedSegments(entry.source)
-      .filter((s) => CALLS_T.test(stripWithLocaleCalls(s.body)))
+      .filter((s) => leaks(stripWithLocaleCalls(s.body)))
       .map((s) => s.name);
     expect(leaking).toEqual([]);
   });

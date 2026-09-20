@@ -130,3 +130,20 @@ describe("SubmittedBadge 제목 동기화", () => {
     expect(sendBg).not.toHaveBeenCalled();
   });
 });
+
+// 배지가 없으면 onLoaded가 영영 안 불려 행이 로딩 스피너에 갇힌다 — 목록에서 그 행만
+// 영구히 도는 형태라 에러도 로그도 남지 않는다.
+describe("SubmittedBadge — webhook", () => {
+  it("정적 배지를 내고 onLoaded를 즉시 부른다", async () => {
+    const onLoaded = vi.fn();
+    const { getByTestId } = renderBadge({ platform: "webhook", onLoaded });
+    expect(getByTestId("webhook-submitted-badge")).toBeTruthy();
+    await waitFor(() => expect(onLoaded).toHaveBeenCalled());
+  });
+
+  it("상태를 되물으러 background에 나가지 않는다", async () => {
+    sendBg.mockReset();
+    renderBadge({ platform: "webhook", onLoaded: () => {} });
+    await waitFor(() => expect(sendBg).not.toHaveBeenCalled());
+  });
+});

@@ -36,6 +36,70 @@
 
 ---
 
+## 2026-09-20 — 목이 실제 Response의 body를 안 줘서, 임의 서버용 스트리밍 캡 루프가 한 번도 실행되지 않았다
+
+- **영역**: `툴체인`, `background`
+- **계열**: `라이브러리전제`, `미검증단언`
+- **그물**: `unit`
+- **증상**: 없음(잠복). webhook 에러 본문을 상한까지만 읽는 `readCappedErrorBody`의 스트리밍 경로 30줄이 테스트에서 0회 실행됐고, "거대한 에러 본문은 캡에서 잘린다"는 테스트는 실제로 마지막 `.slice()` 한 줄만 재고 있었다.
+- **근본 원인**: `src/test/fetch-mock.ts`의 목 응답이 `json()`·`text()`만 가진 객체였다. 실제 `Response`는 `body` 스트림을 갖는데 목이 그걸 안 줘서, 함수 첫 줄 `if (!res.body)` 폴백(=무제한 `res.text()`)으로 **모든 테스트가 빠졌다**. 그 폴백은 바로 위 주석이 "임의 서버 상대라 쓸 수 없다"고 적어둔 바로 그 동작이다. 목이 프리미티브를 부분만 재현하면, 그 프리미티브로 분기하는 코드는 테스트가 있어도 반대편만 돈다.
+- **재발 방지**: `grep -rn "res.body\|response.body" src --include=*.ts`로 스트림 분기를 쓰는 곳(현재 `webhook-api.ts`·`messages.ts:readCappedSheetText`·`ai-provider.ts`·`css-source-cache.ts`·`network-recorder.ts`)을 세고, 그 경로를 목으로 덮는 테스트가 **폴백이 아니라 스트림**을 타는지 뮤테이션으로 확인한다(분기 조건을 `if (true)`로 바꿔 red가 나는지). 목을 새로 만들 때는 "실제 객체가 가진 필드 중 코드가 분기에 쓰는 것"을 먼저 센다.
+- **관련**: `src/test/fetch-mock.ts:toResponse`, `src/background/webhook-api.ts:readCappedErrorBody`
+
+## 2026-09-20 — 소스 스캔 그물이 import 표기 하나만 봐서, 같은 것을 다르게 쓴 파일이 대상 집합에서 통째로 빠졌다
+
+- **영역**: `i18n`, `툴체인`
+- **계열**: `미검증단언`, `드리프트`
+- **그물**: `unit`
+- **증상**: 없음(잠복). 본문 언어 래핑 게이트가 대상을 "본문 헬퍼를 import하는 파일"로 잡는데 그 판정이 `./`·`../` 상대경로만 매칭해, `@/sidepanel/lib/issueBodyShared`로 쓴 빌더는 검사 대상이 아니게 된다. 같은 세션에 연결 폼 전수 그물도 대상을 `*ConnectForm.tsx` **파일명**으로 잡고 있어 성격이 다른 폼이 red를 냈다.
+- **근본 원인**: 소스 스캔은 "무엇을 대상으로 볼 것인가"를 문자열 패턴으로 정하는데, 그 패턴이 **현재 저장소에 우연히 존재하는 표기**에 맞춰져 있었다. `sidepanel`은 CLAUDE.md가 `@/` 유지를 지역 관례로 명시한 디렉터리라 그 표기가 언제든 나온다. 0건이라는 현재 사실이 그물의 사정거리를 대신하고 있었다.
+- **재발 방지**: 소스 스캔 그물을 쓰거나 고칠 때 **표기 변형을 합성 소스로 직접 단언한다**(상대경로·`@/` 별칭·`import * as`). 대상 축을 좁히는 변경에는 "축 밖으로 빠지는 파일이 정확히 이것뿐"이라는 앵커를 함께 둔다 — 예외 목록을 박으면 장부가 되고, 앵커가 없으면 대상이 0건이 돼도 green이다. 점검 대상: `builderLocaleWrap.test.ts`·`bodyLocaleBackground.test.ts`·`JiraConnectFlow.test.tsx`·`bundleBoundary.test.ts`·`import-convention.test.ts`.
+- **관련**: `src/sidepanel/lib/__tests__/builderLocaleWrap.test.ts:IMPORTS_BODY_HELPER`, `src/sidepanel/tabs/connect/__tests__/JiraConnectFlow.test.tsx`
+
+## 2026-09-20 — 새로 짠 단언이 비교 대상에 가변값을 끼워 넣어, 분기를 지워도 통과했다
+
+- **영역**: `background`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 없음(리뷰 반영 중 자체 발견). 401·403·5xx를 일반 status 문구와 가르는 분기를 넣고 "네 문구가 서로 다르다"로 고정했는데, `statusKey`의 401 분기를 통째로 지워도 테스트가 green이었다.
+- **근본 원인**: 일반 문구가 `{status}`를 치환한다. 401이 일반 문구로 떨어져도 결과 문자열에 "401"이 박혀 418과 달라 보였다 — 단언이 잰 것은 "문구 템플릿이 갈리는가"가 아니라 "상태코드가 다른가"였다. **가변값이 섞인 출력끼리 비교하면 그 가변값이 차이를 만들어 준다.**
+- **재발 방지**: 출력 비교로 분기를 고정할 때는 **분기와 무관한 가변 성분을 먼저 지우고** 비교한다(`msg.replace(/\d+/g, "#")` 류). 그리고 새로 짠 그물은 **지키겠다고 한 분기를 실제로 죽여보는 것**으로 검증한다 — 같은 파일의 다른 단언들이 green이면 red 하나가 그 그물의 사정거리다.
+- **관련**: `src/background/webhook-api.ts:statusKey`, `src/background/__tests__/webhook-api.test.ts`
+
+## 2026-09-20 — 본문 언어를 감싸는 그물이 t()를 **직접 import한 파일만** 봐서, 공용 헬퍼 경유로 부르는 새 파일이 통째로 스캔 밖이었다
+
+- **영역**: `i18n`, `lib`
+- **계열**: `복제본`, `미검증단언`
+- **그물**: `unit`
+- **증상**: webhook payload의 `logSummary`만 **화면 언어**로 나갔다. 같은 요청의 `body`는 사용자가 고른 본문 언어를 따르므로, 수신 서버가 받는 한 payload 안에서 두 언어가 섞였다. 본문 언어 래핑 누락을 잡으라고 있는 `builderLocaleWrap.test.ts`가 green이었다.
+- **근본 원인**: 게이트가 대상 파일을 **`@/i18n`을 직접 import하는가**로 골랐다. 그런데 본문 t()의 실제 소유자는 `issueBodyShared`·`markdownToAdf`·`markdownToNotionBlocks` 세 헬퍼이고(게이트 자신이 "빌더 내부 헬퍼"로 EXEMPT 분류해 둔 파일들이다), 그 헬퍼를 부르는 파일은 t를 직접 import하지 않는다. 즉 **"본문 문구를 내보내는 파일"과 "t를 import하는 파일"이 같은 집합이라는 전제**가 틀렸고, 새 파일이 헬퍼 경유로만 부르는 순간 스캔 대상에서 통째로 빠졌다. 여기엔 두 번째 함정이 붙어 있다 — 내 첫 수정은 타깃 조건에 `withLocale` import를 넣는 것이었는데, **그건 이미 고친 파일의 특징이라 사후 장부이지 그물이 아니다**(같은 실수를 처음 하는 새 파일은 여전히 안 걸린다). 뮤테이션으로 확인했다고 믿은 것도 래퍼와 import를 **함께** 지운 형태만 본 결과였다.
+- **재발 방지**: (1) **소스 스캔 그물의 타깃 조건은 "고쳐진 파일의 특징"이 아니라 "위반할 수 있는 파일의 특징"으로 쓴다.** `withLocale`·`try/catch` 같은 해결책의 흔적을 조건에 넣으면 장부가 된다 — 자문: *이 조건을 만족하지 않는 채로 위반하는 파일을 쓸 수 있는가?* 쓸 수 있으면 조건이 틀렸다. (2) **간접 호출을 타깃에 포함한다** — `BODY_T_HELPERS` 목록을 두고 `t()` 직접 import **또는** 그 헬퍼 import를 대상으로 삼고, 세그먼트 카운트에서도 헬퍼 호출을 t() 호출로 센다. 새 본문 헬퍼를 만들면 이 목록에 넣어야 한다(`grep -rn "emitMarkdownLogSummary\|markdownToAdf\|markdownToNotionBlocks" src/sidepanel/lib/`). (3) **뮤테이션 실증은 두 형태를 다 본다** — 래퍼만 제거 / 래퍼+import 제거. 후자만 보면 import 기반 스캔이 우연히 red를 내 "그물이 산다"로 오독한다. (4) 이 계열은 `import-convention.test.ts`가 `@/` 표기만 보고 상대경로 표기를 못 보는 것과 같은 형태다 — **문자열 스캔은 표기 변형에 눈이 없다**는 걸 새 스캔을 만들 때마다 의식한다.
+- **관련**: `src/sidepanel/lib/webhookPayload.ts:logSummaryText`(래핑 누락 지점), 그물 `src/sidepanel/lib/__tests__/builderLocaleWrap.test.ts`(`BODY_T_HELPERS`·`IMPORTS_BODY_HELPER`·`importedBodyHelperCalls`), 등가물 `src/background/__tests__/bodyLocaleBackground.test.ts`, 공유 스캐너 `src/test/withLocaleScan.ts`
+
+---
+
+## 2026-09-20 — 9번째 제출 대상이 붙자, 8개에서는 도달할 수 없던 기존 코드의 창이 함께 열렸다
+
+- **영역**: `컴포넌트`, `어댑터`
+- **계열**: `미검증단언`
+- **그물**: `jsdom`
+- **증상**: (사전 차단 — 구현 중 자체 검증이 잡음) webhook을 JSON 템플릿 모드로 보내면 성공 화면의 이슈 링크가 **빈 주소**를 가리킨다. `SubmitSuccessView`가 `href={result.url}`을 무조건 거는데, 그 모드는 응답을 읽지 않아 `key`·`url`이 빈 문자열이다. 빈 `href`는 확장 페이지 자신으로 이동한다.
+- **근본 원인**: 그 컴포넌트는 3년간 **식별자가 반드시 있는** 8개 플랫폼만 받아 왔고, "성공했으면 key·url이 있다"가 타입이 아니라 **호출부의 우연**으로 지켜지고 있었다(`NormalizedSubmitResult.key: string`은 빈 문자열을 막지 않는다). 새 대상이 그 전제를 깬 순간 도달 불가였던 분기가 살아난다. 같은 라운드에 같은 형태가 둘 더 있었다 — `markSubmitted` 타입 가드가 `recorded:false` 쪽 `key?: undefined`를 optional로 받아 **실제로는 안 막았고**(런타임 분기를 따로 넣어야 했다), `promotableTargets`의 `filter(p => p !== "slack")`는 새 대상을 **분기 없이 자동 포함**하는 게 정답이라 코드에 아무 흔적이 없다.
+- **재발 방지**: (1) **union에 멤버를 추가할 땐 그 값이 처음 통과하는 기존 코드의 "빈 값" 분기를 전수한다** — `grep -rn "result.url\|result.key\|issue.url\|issue.key" src/sidepanel/`로 식별자를 무조건 참이라 가정한 자리를 뽑는다. 타입이 `string`이면 컴파일은 아무것도 말해 주지 않는다. (2) **판별자 union의 "없음" 쪽을 `key?: undefined`로 쓰면 소비처가 optional로 받아 통과한다** — 타입만 믿지 말고 판별자를 **런타임에서도** 보고, 그 이유를 주석에 박는다(안 그러면 다음 사람이 `if (outcome.recorded)`를 잉여로 보고 지운다). (3) **분기를 안 넣는 게 정답인 자리는 테스트로 고정한다** — 코드에 흔적이 없으면 다음 사람이 제외 대상으로 오해하고 넣어도 green이다(`isRefreshable(webhook)===false`·`promotableTargets`가 그 형태). (4) 9탭 가로 스크롤 분기처럼 **union이 닫혀 있어 렌더 자체가 불가능하던 축**은 멤버가 추가되는 그 커밋에서 곧바로 실측으로 전환한다 — 계획에 "그때 주석을 지우고 단언을 추가하라"를 박아 두면 인계가 끊기지 않는다.
+- **관련**: `src/sidepanel/components/SubmitSuccessView.tsx`(빈 url이면 링크 미렌더), `src/sidepanel/tabs/IssueCreateModal.tsx:handleWebhookSubmit`·`DraftDetailDialog.tsx:handleWebhookSubmit`(런타임 `recorded` 분기), `src/sidepanel/lib/submitToWebhook.ts:WebhookSubmitOutcome`, 그물 `src/sidepanel/components/__tests__/SubmitSuccessView.test.tsx`·`src/sidepanel/tabs/__tests__/issueListUtils.test.ts`·`src/sidepanel/tabs/__tests__/SubmitPlatformTabs.test.tsx`·`e2e/webhook-submit.spec.ts`
+
+---
+
+## 2026-09-19 — 개수로 키를 잡은 테이블이 범위 밖에서 무음 폴백했고, 그 개수를 만드는 두 목록 중 컴파일은 한쪽만 강제한다
+
+- **영역**: `컴포넌트`, `디자인`
+- **계열**: `드리프트`, `복제본`
+- **그물**: `unit`
+- **증상**: 아직 발현하지 않은 잠복 버그를 webhook 기능 구현 중 발견해 선행 픽스로 분리했다. 제출 다이얼로그 탭 줄이 `TABS_GRID_COLS: Record<number, string>`(2~8만 매핑) + `?? "grid-cols-2"` 폴백으로 그려져, **9번째 플랫폼이 연결되는 순간 탭 9개가 2열 그리드 5행으로 무너진다.** 8개까지만 존재해 온 3년간 아무도 못 봤고, 이 기능이 9번째를 붙인다.
+- **근본 원인**: 셋이 겹쳤다. ⑴ **`Record<number, T>` + `?? 기본값`은 범위를 벗어나도 red가 안 난다** — 키가 개수라 union exhaustive 체크가 안 걸리고, 폴백이 "그럴듯한 값"이라 크래시가 아니라 레이아웃 붕괴로 조용히 저하된다. ⑵ **테이블에 `9: "grid-cols-9"` 한 줄을 더하는 건 틀린 픽스였다** — 400px 패널의 탭 그리드 가용 폭은 `90vw`(360) − `p-6`×2 − `TabsList p-1`×2 = 304px인데 트리거 최소폭은 아이콘 + `px-3`로 고정이고, 8열이 이미 슬랙 0px이다. `CollapsingTabsList`는 라벨만 떼지 아이콘·패딩은 못 줄인다. 이 사실은 **테이블만 봐선 안 보이고** 다른 네 파일(`dialog.tsx`·`tabs.tsx`·아이콘 크기·다이얼로그 상한)을 동시에 읽어야 나온다. ⑶ **탭 줄의 개수 출처와 렌더 출처가 다른 목록이었고 컴파일은 한쪽만 강제한다** — 개수는 `availablePlatforms`(= `PLATFORM_FALLBACK_RANK` 키, `Record<PlatformId, …>`라 **강제됨**), 렌더는 `PLATFORM_TABS` **배열 리터럴**(아무것도 강제 안 함). `PlatformId`에 하나를 추가하면 앞만 즉시 9가 되고, 그 사이 상태에선 **8개 탭이 이유 없이 스크롤·아이콘 전용으로 바뀌고 새 탭은 안 보이는데 typecheck·테스트 전부 green**이다. 기능 계획이 그 두 목록을 고치는 태스크를 "병렬 가능"으로 쪼개 뒀어서 실제로 그 상태가 생길 수 있었다.
+- **재발 방지**: (1) **`Record<number, …>`를 화면 클래스 테이블로 쓰면 그 자리에서 상한을 묻는다.** 키가 union이 아니라 개수면 컴파일이 범위를 안 봐주므로, 폴백은 "그럴듯한 값"이 아니라 **범위 밖 전용 분기**여야 한다(이번엔 그리드 포기 + 가로 스크롤). `grep -n "Record<number" src/` 로 같은 형태를 전수한다 — 지금은 이 한 건이었다. (2) **한 union에서 파생된 목록이 둘이면 둘을 같은 파일에 두거나, 파생 쪽이 강제되는 쪽에서 나오게 한다.** 이번엔 탭 줄을 `SubmitPlatformTabs`로 떼어내 두 목록을 한 파일에 모았다. 새 플랫폼을 추가할 때 `grep -rn "PlatformId\]\|Record<PlatformId" src/`로 강제되는 쪽을 먼저 세고, **강제 안 되는 배열 리터럴이 같은 수인지 손으로 대조**한다. (3) **레이아웃 상수의 근거 수치를 주석·테스트 이름에 복사하지 않는다** — 첫 판본이 타 파일 네 곳의 현재 값(304·38·320·800px)을 주석과 테스트 이름 양쪽에 적었는데, 넷 중 하나만 바뀌면 둘 다 거짓이 되는데 `expect(MAX).toBe(8)`은 계속 green이다(2026-08-30 재발방지 (5)의 재발). 수치는 걷어내고 *왜 개수로 갈랐는지*만 남겼다. (4) **컴포넌트 배선의 회귀 테스트는 소비처를 복제하지 말고 그 소비처를 렌더한다** — 첫 회귀 테스트가 다이얼로그를 렌더하지 않고 배선을 재조립한 하니스여서 `forceCollapsed`를 떼도 33개가 전부 green이었다(2026-08-16 "공허한 골든"의 재발, 이번엔 축이 생산자가 아니라 **소비자** 쪽). prop 표면이 커서 못 렌더하겠으면 그게 **추출 신호**다. 새 하니스는 뮤테이션으로 red를 실증하고 커밋했다. (5) **닫힌 union이 막아서 지금 못 잡는 축은 잡을 수 있게 되는 태스크에 인계를 박는다** — `PlatformId`가 8종이라 9탭 렌더 자체가 불가능해 `wrapperClass`·`forceCollapsed` 배선과 픽셀은 유닛 밖이다. 9번째를 추가하는 태스크의 검증 항목에 "테스트 상단의 '9탭 렌더 불가' 주석을 지우고 9탭 단언을 추가하라"를 적어 뒀다. 안 적으면 union이 열린 뒤에도 아무도 그 파일을 다시 안 연다.
+- **관련**: `src/sidepanel/tabs/submitTabsLayout.ts`(신규 — `submitTabsLayout(count)`가 래퍼·리스트·트리거 클래스와 `forceCollapsed`의 단일 출처), `src/sidepanel/tabs/SubmitPlatformTabs.tsx`(신규 — `PLATFORM_TABS` + 트리거 렌더 + 레이아웃 호출을 한 파일로), `src/sidepanel/tabs/SubmitFieldsDialog.tsx`(탭 줄이 한 줄로), `src/components/ui/collapsing-tabs.tsx`(`forceCollapsed` — 가로 스크롤 목록은 셀 폭이 곧 콘텐츠 폭이라 자동 측정이 영원히 "안 넘침"으로 떨어진다), 그물 `src/sidepanel/tabs/__tests__/submitTabsLayout.test.ts`·`__tests__/SubmitPlatformTabs.test.tsx`, 인계 `e2e/webhook-submit.spec.ts`(미작성). 선행: **2026-08-16**(공허한 골든 — 이번에 같은 함정을 소비자 축에서 재현) · **2026-08-30** 재발방지 (5)(장부 주석).
+
 ## 2026-09-16 — 검색 입력을 "고쳐주는" 휴리스틱이 이미 유효하던 입력을 깨뜨렸고, 같은 커밋의 에러 삼킴이 그걸 영구히 가렸다
 
 - **영역**: `어댑터`, `background`

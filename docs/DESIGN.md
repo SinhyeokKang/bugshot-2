@@ -208,7 +208,9 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - `Badge`: variant `default`/`secondary`/`destructive`/`outline`, size 없음, `[&>svg]:size-3`.
 - `Toggle`/`ToggleGroup`: variant `default`/`outline`/`segment`/`underline`, size `sm`(h-8)/`default`(h-9)/`lg`(h-10). **현재 앱 사용처 0** — 미사용 primitive다(세그먼트 뷰 토글은 `Tabs`로 구현). `size="xl"`·`variant="destructive"`도 같은 상태.
 - `Alert`(`alert.tsx`): `Alert`/`AlertTitle`/`AlertDescription` **전부 사용처 0** — 미사용 primitive다(`alert-dialog`는 별개이고 사용 중). 인라인 안내는 §14의 `role="status"` 배너·인라인 에러가 맡는다.
-- 반대로 이 문서에 안 적혀 있지만 실사용 중인 것: `Separator`(5곳)·`Collapsible`(`NetworkLogContent`).
+- 반대로 이 문서에 안 적혀 있지만 실사용 중인 것: `Separator`(5곳)·`Collapsible`(`NetworkLogContent`·`WebhookConnectForm`의 `고급`).
+- **접이식 안에 폼 상태를 두지 않는다.** Radix `Collapsible`은 닫히면 children을 언마운트하므로, 접었다 펴면 그 안의 입력값이 초기화된다. 값은 접이식 **바깥** 컴포넌트가 소유하고 접이식은 표시만 맡는다(`WebhookConnectForm`이 그 형태). 같은 함정의 다른 표면이 `Section.tsx`의 조건부 언마운트다(POSTMORTEM 2026-07-16).
+- **저장된 값이 접이식 안에 있으면 펼친 채로 연다.** 닫힌 채 열면 설정이 사라진 것처럼 보인다 — 판정은 순수 함수로 두고(`hasAdvancedValues`) 초기 state로만 쓴다(이후 사용자의 토글이 이긴다).
 - `ButtonGroup`: `orientation` `horizontal`/`vertical`. 서브 export `ButtonGroupText`·`ButtonGroupSeparator`.
 - `Kbd`: 인라인 keycap 칩 — `bg-muted text-foreground/60 rounded-sm inline-flex h-5`(글자색은 §2의 muted 표면 관용구 — `--muted-foreground`면 4.34:1로 AA 미달이다). 액션 로그의 값·태그·드래그·마스킹 칩이 단일 출처로 사용(`ActionLogContent`의 `CHIP_CLS` = `font-mono text-mono align-middle text-foreground`로 mono 표면 override[`text-mono`로 Kbd 기본 `text-xs`까지 덮어 형제 행과 13px 통일] + 텍스트 라인 중앙 정렬 + Kbd 기본값보다 한 단계 또렷하게, 긴 값은 내부 `min-w-0 truncate` span). 마스킹은 `border border-dashed`로만 구분(라벨색은 동일 foreground). `KbdGroup` 미사용.
 
@@ -253,6 +255,10 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
   - 어느 쪽이든 비활성 탭을 언마운트하지 않고 숨겨 동시 렌더 버그를 피하는 게 의도.
 - **세그먼트 뷰 토글**(`StyleEditorPanel.tsx` 편집/CSS 스위치): shadcn `Tabs`를 `TabsContent` 없이 `grid grid-cols-2` 세그먼트 바(트리거에 아이콘 Paintbrush/Code2 `h-3.5 w-3.5` + `gap-1.5`)로만 쓰고, 활성 상태를 로컬 state가 아니라 **store 값**(`useSettingsUiStore.styleEditorView`, 값은 그대로 `"form"|"code"`)에서 읽는다. **스왑은 두 뷰가 대칭이다**: 편집(폼) wrapper는 `cn(… styleEditorView !== "form" && "hidden")`, CSS 뷰 wrapper는 `cn(… styleEditorView === "code" ? "flex" : "hidden")`으로 **둘 다 class 토글일 뿐 언마운트하지 않는다**(위 "수동 hidden" 계열 — collapsible 접힘 보존). CSS 뷰는 항상 마운트된 채 `key={elementKey(selection)}`로 **요소가 바뀔 때만 remount**한다(doc는 store에서 재파생해 무손실). ⚠ 그래서 **CodeMirror lazy 청크도 CSS 탭 진입과 무관하게 패널 진입 시 로드된다** — `StyleCssView`의 Suspense가 무조건 렌더되기 때문이고, "CSS 탭을 열 때만 받는다"로 읽지 말 것. class·Text 섹션은 **편집 뷰 전용**(폼 hidden wrapper 안), 변경사항·AI 배너·푸터만 두 뷰 공통이라 토글 wrapper **밖**에 둔다. hidden wrapper가 `Section`의 `:last-child`(`last:border-b-0`, 아래 §합성 컴포넌트) 스코프를 나눠 마지막 섹션의 하단 구분선이 사라지므로 그 wrapper에 **`[&>section:last-child]:border-b`**로 복원한다.
 - `collapsing-tabs.tsx` (`CollapsingTabsList`): ResizeObserver/MutationObserver로 폭을 감시해, 트리거가 넘치면 **모든 탭 라벨을 동시에 숨기고 아이콘+배지만** 남긴다. 측정 중엔 `group-data-[measuring]/tabs:inline`로 라벨을 강제 노출해 자연 폭 계산. 사용처: 메인 탭 바, 서브탭.
+  - **`forceCollapsed` prop은 그 측정을 건너뛰고 무조건 접는다.** 가로 스크롤 목록에서는 셀 폭이 곧 콘텐츠 폭이라 측정이 영원히 "안 넘침"으로 떨어지기 때문이다. 유일 사용처는 제출 다이얼로그 탭 줄(`SubmitPlatformTabs.tsx` — 값은 `submitTabsLayout.ts`가 계산).
+- **가로 스크롤 탭 줄**: `TabsList`를 `overflow-x-auto` 래퍼로 감싼다. `overflow-x`는 `overflow-y`도 auto로 만들어 트리거의 포커스 링을 자르므로 래퍼에 `-my-1 … py-1`로 세로 여유를 만들고 상쇄한다. **pill을 `w-full`·`flex`로 고정하면 안 된다** — `TabsList` 기본 `justify-center`가 넘친 트리거를 양쪽으로 밀어 왼쪽 탭에 스크롤로 도달할 수 없다. 사용처 2곳은 **감싸는 이유가 다르다**:
+  - `IssueListTab`(필터 3탭, `:113`) — 개수가 아니라 좁은 패널 폭 때문. 래퍼가 flex 행의 자식이라 `min-w-0`이 필요하다.
+  - `submitTabsLayout`(제출 플랫폼 탭, 9개 이상) — 그리드가 물리적으로 안 들어가는 개수라서. 래퍼가 블록 흐름이라 `min-w-0`이 무의미한 대신, pill이 넓은 패널에서 좌측 덩어리로 남지 않도록 `min-w-full`을 준다.
 
 ### 컨테이너 쿼리
 부모 폭 기준 리플로우로, 같은 컴포넌트를 좁은 패널과 넓은 다이얼로그 양쪽에서 재사용하는 패턴.
@@ -268,7 +274,7 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
 
 - **일반 UI 아이콘 = lucide-react.** 표준 `h-4 w-4`(인라인), 큰 아이콘 `h-6 w-6`. 색은 semantic(`text-muted-foreground` 등).
 - **플랫폼 브랜드 = `@icons-pack/react-simple-icons`**, `Si{Name}` + **`color="default"`**(브랜드 색 유지). 크기는 className.
-  - **GitHub·Notion만 `dark:invert`**(어두운 단색 마크). 동적 케이스는 플래그 + `cn(…, flag && "dark:invert")` — `SubmitFieldsDialog`의 `PLATFORM_TABS`는 `invertOnDark`, `LlmConnectDialog`는 같은 개념을 `darkInvert`로 부른다(OpenAI·Anthropic·Groq·OpenRouter·Ollama — gemini·mistral·together는 유색 마크라 미적용). 세 번째 형태도 있다 — `IntegrationsTab`의 플랫폼 config는 불린 플래그가 아니라 클래스 문자열(`iconClassName: "dark:invert"`)을 실어 나른다. ⚠ 한 개념에 세 표현 — **새 코드는 `invertOnDark`로 통일**.
+  - **GitHub·Notion만 `dark:invert`**(어두운 단색 마크). 동적 케이스는 플래그 + `cn(…, flag && "dark:invert")` — `SubmitPlatformTabs`의 `PLATFORM_TABS`는 `invertOnDark`, `LlmConnectDialog`는 같은 개념을 `darkInvert`로 부른다(OpenAI·Anthropic·Groq·OpenRouter·Ollama — gemini·mistral·together는 유색 마크라 미적용). 세 번째 형태도 있다 — `IntegrationsTab`의 플랫폼 config는 불린 플래그가 아니라 클래스 문자열(`iconClassName: "dark:invert"`)을 실어 나른다. ⚠ 한 개념에 세 표현 — **새 코드는 `invertOnDark`로 통일**.
 - **커스텀 SVG는 simple-icons가 미지원일 때만**. 공용은 `src/components/icons/SlackIcon.tsx` 하나(simple-icons v13이 Slack 마크를 브랜드 가이드라인 사유로 삭제). 단일 화면 전용은 그 파일에 인라인 정의 허용 — `LlmConnectDialog`(`tabs/settings/`)의 `OpenAIIcon`·`GroqIcon`·`TogetherIcon`. className으로 크기 제어.
 
 ## 13. 공용 합성 컴포넌트 (`src/sidepanel/components/`)

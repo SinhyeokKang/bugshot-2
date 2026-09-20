@@ -138,13 +138,25 @@ describe("연결 버튼 규칙의 전수 (셸·래퍼 파생)", () => {
     .filter((f) => f.endsWith("ConnectForm.tsx"))
     .sort();
   const read = (f: string) => readFileSync(join(dir, f), "utf8");
+  // 아래 규칙의 대상은 파일명이 아니라 **재연동 intent를 받는 셸**이다 — webhook처럼 OAuth도
+  // 만료도 없어 intent의 대상이 아닌 폼이 파일명만으로 끌려오면, 규칙을 안 따르는 게 정상인
+  // 파일이 red를 만든다. 예외 목록을 박으면 그물이 장부가 되므로 대상 자체를 축으로 정의한다.
+  // 그리드에 서려면 `ConnectFlow?: (p: ConnectFlowProps) => …`를 채워야 하므로 이 축은
+  // 다음에 붙는 OAuth 셸을 그대로 잡는다.
+  const intentForms = forms.filter((f) => read(f).includes("ConnectFlowProps"));
   // 공용 셸에 위임하는 래퍼와, 자기 버튼을 직접 그리는 셸을 파일 내용으로 가른다.
-  const wrappers = forms.filter((f) => read(f).includes("<PlatformConnectFlow"));
-  const ownShells = ["PlatformConnectFlow.tsx", ...forms.filter((f) => !wrappers.includes(f))];
+  const wrappers = intentForms.filter((f) => read(f).includes("<PlatformConnectFlow"));
+  const ownShells = [
+    "PlatformConnectFlow.tsx",
+    ...intentForms.filter((f) => !wrappers.includes(f)),
+  ];
 
   // 파생이 무너지면(예: 파일명 규칙 변경) 아래 루프가 조용히 0건을 돈다.
   it("파생이 실제 파일을 집었다 (자기검증 앵커)", () => {
-    expect(forms.length).toBe(8);
+    expect(forms.length).toBe(9);
+    // intent 축 밖으로 빠지는 폼을 고정한다 — 실수로 ConnectFlowProps를 안 받은 OAuth 폼이
+    // 생기면 여기가 먼저 빨개진다.
+    expect(forms.filter((f) => !intentForms.includes(f))).toEqual(["WebhookConnectForm.tsx"]);
     expect(wrappers.length).toBe(6);
     expect(ownShells).toEqual([
       "PlatformConnectFlow.tsx",

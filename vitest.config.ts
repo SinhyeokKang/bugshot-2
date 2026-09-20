@@ -15,6 +15,11 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, "e2e/**", ".claude/**", ".worktrees/**"],
     // 컴포넌트 렌더 테스트(*.test.tsx)만 jsdom. 순수 함수 테스트는 node 유지.
     environmentMatchGlobs: [["**/*.test.tsx", "jsdom"]],
+    // 기본 5초는 jsdom + userEvent 조합에 빠듯하다. 콤보박스류는 단독으로도 2~6초를 쓰는데,
+    // 전 스위트를 병렬로 돌리면 같은 테스트가 20초를 넘겨 **기능과 무관하게** 빨개진다
+    // (실측: CcMultiCombobox 단독 2.5s / 부하 23.4s). 느린 건 우리 코드가 아니라 환경이라
+    // 상한을 환경에 맞춘다 — 진짜 hang은 이 값이 아니라 CI job 타임아웃이 잡는다.
+    testTimeout: 20_000,
     setupFiles: ["./src/test/setup-dom.ts"],
     coverage: {
       // 전체 정직한 분모를 유지한다(브라우저 전용/UI 코드 포함). "로직 스코프"

@@ -17,6 +17,7 @@ import {
   clickupLastSubmitFields,
   slackSubmitArgs,
   slackLastSubmitFields,
+  webhookSubmitArgs,
 } from "../submitAdapters";
 import type { MarkdownContext } from "../buildIssueMarkdown";
 import type { CaptureFiles } from "../buildCaptureFiles";
@@ -446,5 +447,26 @@ describe("requireMediaUpload 축", () => {
       "requireMediaUpload" in
         jiraSubmitArgs({ ...base, fields: {}, projectKey: "B", issueTypeId: "1", summary: "t" }),
     ).toBe(false);
+  });
+});
+
+// 멱등 키를 호출부가 조립하지 못하게 이슈 레코드 id를 축으로 받는다 — 충돌이 곧 리포트
+// 유실인 자리라, 시각·카운터 기반 값이 끼어들 틈을 타입에서 없앤 것이다.
+describe("webhookSubmitArgs — 멱등 키", () => {
+  const base = {
+    ctx: { title: "t", sections: {} } as never,
+    inlineImages: [],
+    captureFiles: {} as never,
+    auth: { url: "https://x/h", headers: [], format: "multipart" as const },
+  };
+
+  it("이슈 레코드 id를 그대로 멱등 키로 싣는다", () => {
+    expect(webhookSubmitArgs({ ...base, issueId: "issue-1" }).idempotencyKey).toBe("issue-1");
+  });
+
+  it("같은 이슈를 두 번 제출하면 같은 키가 나온다", () => {
+    expect(webhookSubmitArgs({ ...base, issueId: "issue-1" }).idempotencyKey).toBe(
+      webhookSubmitArgs({ ...base, issueId: "issue-1" }).idempotencyKey,
+    );
   });
 });

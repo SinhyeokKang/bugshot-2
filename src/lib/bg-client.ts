@@ -1,7 +1,7 @@
 import { t } from "@/i18n";
 import { onOAuthExpired } from "./app-events";
 import type { BgRequest, BgResponse } from "@/types/messages";
-import type { PlatformId } from "@/types/platform";
+import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
 
 export class BgError extends Error {
   constructor(
@@ -58,18 +58,13 @@ export function isOAuthNotConfigured(err: unknown): boolean {
   return readErrorBodyFlag(err, "oauthNotConfigured");
 }
 
+// 손열거 화이트리스트였을 땐 9번째 플랫폼이 붙어도 컴파일이 안 잡았다(반환이 8리터럴
+// union이라 넓은 PlatformId에 그냥 대입된다). PlatformId 축에서 파생해 그 드리프트를 없앤다.
 export function getOAuthErrorPlatform(err: unknown): PlatformId | null {
   if (!(err instanceof BgError)) return null;
   if (!err.body || typeof err.body !== "object") return null;
   const p = (err.body as Record<string, unknown>).platform;
-  return p === "jira" ||
-    p === "github" ||
-    p === "linear" ||
-    p === "notion" ||
-    p === "gitlab" ||
-    p === "asana" ||
-    p === "clickup" ||
-    p === "slack"
-    ? p
+  return typeof p === "string" && Object.hasOwn(PLATFORM_TAB_KEYS, p)
+    ? (p as PlatformId)
     : null;
 }

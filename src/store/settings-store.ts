@@ -15,6 +15,7 @@ import type { GitlabAccount } from "@/types/gitlab";
 import type { AsanaAccount } from "@/types/asana";
 import type { ClickupAccount } from "@/types/clickup";
 import type { SlackAccount } from "@/types/slack";
+import type { WebhookAccount } from "@/types/webhook";
 import {
   ACCOUNT_IDENTITY_FIELDS,
   SETTINGS_STORAGE_KEY,
@@ -29,7 +30,9 @@ import { chromeLocalStorage } from "./chrome-storage";
 // v9: clickup 플랫폼 추가. 새 필드 모두 optional이라 버전 마커만 bump.
 // v10: slack 플랫폼 추가. 동일하게 새 필드 모두 optional이라 버전 마커만 bump.
 // v11: jira 연결 이슈 단일(relatesKey/relatesLabel)→복수(relates[{key,label}]). 직전 제출값 이관(migrateToV11).
-export const SETTINGS_STORE_VERSION = 11;
+// v12: webhook 플랫폼 추가. 새 필드는 optional이라 이관할 데이터가 없지만, url 없는 webhook
+// 계정은 제출이 불가능한 껍데기라 migrateToV12가 걷어낸다(방어 — 정상 경로로는 안 생긴다).
+export const SETTINGS_STORE_VERSION = 12;
 
 interface SettingsState {
   accounts: Accounts;
@@ -62,6 +65,9 @@ interface SettingsState {
   ) => void;
   updateSlackAccount: (
     patch: Partial<Omit<SlackAccount, "platform" | "connectedAt">>,
+  ) => void;
+  updateWebhookAccount: (
+    patch: Partial<Omit<WebhookAccount, "platform" | "connectedAt">>,
   ) => void;
   setLastSubmitFields: <P extends PlatformId>(
     platform: P,
@@ -185,6 +191,17 @@ export function migrateToV11(state: PreV11Shape): V3Shape {
   } as V3Shape;
 }
 
+// url 없는 webhook 계정은 제출이 불가능한 껍데기다. 정상 경로로는 생기지 않지만
+// (연결 테스트를 통과해야 저장된다) 그대로 두면 탭만 뜨고 제출이 매번 실패한다.
+export function migrateToV12(state: V3Shape): V3Shape {
+  const accounts = (state.accounts ?? {}) as Record<string, unknown>;
+  const wh = accounts.webhook as { auth?: { url?: unknown } } | undefined;
+  if (!wh) return state;
+  if (typeof wh.auth?.url === "string" && wh.auth.url !== "") return state;
+  const { webhook: _drop, ...rest } = accounts;
+  return { ...state, accounts: rest } as V3Shape;
+}
+
 export function isV3Shape(state: unknown): state is V3Shape {
   if (!state || typeof state !== "object") return false;
   return "accounts" in state;
@@ -287,6 +304,12 @@ export const useSettingsStore = create<SettingsState>()(
           if (!cur) return s;
           return { accounts: { ...s.accounts, slack: { ...cur, ...patch } } };
         }),
+      updateWebhookAccount: (patch) =>
+        set((s) => {
+          const cur = s.accounts.webhook;
+          if (!cur) return s;
+          return { accounts: { ...s.accounts, webhook: { ...cur, ...patch } } };
+        }),
       setLastSubmitFields: (platform, fields) =>
         set((s) => ({
           lastSubmitFields: { ...s.lastSubmitFields, [platform]: fields },
@@ -317,6 +340,9 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (version < 11) {
           state = migrateToV11(state as V3Shape) as Record<string, unknown>;
+        }
+        if (version < 12) {
+          state = migrateToV12(state as V3Shape) as Record<string, unknown>;
         }
         return state as unknown as SettingsState;
       },
@@ -351,7 +377,7 @@ export function jiraHostLabel(auth: JiraAuth): string {
 // 새 플랫폼이 PlatformId에 추가되면 키 누락으로 컴파일 에러 — 폴백 목록이 조용히 빠지는 걸 막는다.
 const PLATFORM_FALLBACK_RANK = {
   jira: 0, github: 1, linear: 2, gitlab: 3,
-  notion: 4, asana: 5, clickup: 6, slack: 7,
+  notion: 4, asana: 5, clickup: 6, slack: 7, webhook: 8,
 } as const satisfies Record<PlatformId, number>;
 
 const PLATFORM_FALLBACK_ORDER = (Object.keys(PLATFORM_FALLBACK_RANK) as PlatformId[])

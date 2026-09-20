@@ -13,9 +13,11 @@ import {
   type OAuthPlatformConfig,
 } from "../config";
 import { OAuthError } from "../errors";
-import type { PlatformId } from "@/types/platform";
+import type { OAuthPlatformId } from "../config";
 
-const ALL_PLATFORMS: PlatformId[] = [
+// webhook은 OAuth가 원리적으로 없어 OAuthPlatformId(Exclude<PlatformId,"webhook">) 밖이다.
+// 타입을 PlatformId로 두면 9번째가 추가될 때 이 로스터가 조용히 통과한다.
+const ALL_PLATFORMS: OAuthPlatformId[] = [
   "jira",
   "github",
   "linear",

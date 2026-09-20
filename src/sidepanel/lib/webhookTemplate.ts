@@ -1,0 +1,165 @@
+export interface WebhookTemplateVars {
+  title: string;
+  body: string;
+  url: string;
+  env: { os?: string; browser?: string; viewport?: string; selector?: string };
+  capturedAt?: string;
+  logSummary?: string;
+  sections: Record<string, string>;
+  media: {
+    count: number;
+    // dataUri는 없다. json 모드는 미디어를 바디에 싣지 않으므로(PRD 비목표) 이 축을
+    // 템플릿에 노출하면 저장은 통과하고 제출에서 100% 터지는 변수가 생긴다.
+    items: { filename: string; contentType: string }[];
+  };
+}
+
+export type TemplateIssue =
+  | { kind: "invalid-json"; message: string }
+  | { kind: "unknown-var"; name: string };
+
+export class WebhookTemplateError extends Error {
+  constructor(readonly issue: TemplateIssue) {
+    super(issue.kind === "unknown-var" ? issue.name : issue.message);
+    this.name = "WebhookTemplateError";
+  }
+}
+
+const PLACEHOLDER = /\{\{([^{}]+)\}\}/g;
+
+// 화이트리스트를 경로 접두사로 둔다 — 열거하면 media 인덱스처럼 동적인 꼬리를 못 담는다.
+const ALLOWED_ROOTS = ["title", "body", "url", "capturedAt", "logSummary"];
+const ALLOWED_ENV = ["os", "browser", "viewport", "selector"];
+const MEDIA_FIELDS = ["filename", "contentType"];
+// media.<index>.<field> — 판정(isAllowedPath)과 조회(readPath)가 같은 셰이프를 봐야 한다.
+// 정규식을 양쪽에 복제하면 한쪽만 고쳐도 무음으로 갈린다.
+const MEDIA_ITEM = /^media\.(\d+)\.(\w+)$/;
+// sections.<id> — 같은 이유로 단일 출처다. 위 주석을 달아놓고 이쪽은 판정이 split("."),
+// 조회가 별도 정규식이라 점 든 id에서 갈릴 수 있었다.
+const SECTION_ITEM = /^sections\.([^.]+)$/;
+
+function isAllowedPath(path: string): boolean {
+  const parts = path.split(".");
+  const [head, ...rest] = parts;
+  if (ALLOWED_ROOTS.includes(head)) return rest.length === 0;
+  if (head === "env") return rest.length === 1 && ALLOWED_ENV.includes(rest[0]);
+  if (head === "sections") return SECTION_ITEM.test(path);
+  if (head === "media") {
+    if (rest.length === 1) return rest[0] === "count";
+    const m = MEDIA_ITEM.exec(path);
+    if (m) return MEDIA_FIELDS.includes(m[2]);
+  }
+  return false;
+}
+
+function readPath(path: string, vars: WebhookTemplateVars): unknown {
+  // sections는 사용자 섹션 id가 키라 임의 문자열이 온다. hasOwn 없이 읽으면
+  // {{sections.constructor}}가 프로토타입을 타고 함수 소스를 본문에 싣는다.
+  const section = SECTION_ITEM.exec(path);
+  if (section) {
+    // 비활성 섹션은 이 리포트에 없는 게 정상이다(media 인덱스와 달리 사용자 실수가 아니다).
+    // undefined로 두면 리프 전체가 placeholder일 때 JSON.stringify가 키를 통째로 지워
+    // 수신 서버 스키마가 리포트마다 달라진다 — 빈 문자열로 자리를 남긴다.
+    return Object.hasOwn(vars.sections, section[1]) ? vars.sections[section[1]] : "";
+  }
+  // media.<index>.<field>는 템플릿 표기이고 실제 값은 media.items[index]에 있다.
+  const media = MEDIA_ITEM.exec(path);
+  if (media) {
+    const item = vars.media.items[Number(media[1])];
+    return item ? (item as unknown as Record<string, unknown>)[media[2]] : undefined;
+  }
+  const parts = path.split(".");
+  let cur: unknown = vars;
+  for (const part of parts) {
+    if (cur == null || typeof cur !== "object") return undefined;
+    cur = (cur as Record<string, unknown>)[part];
+  }
+  return cur;
+}
+
+function walk(node: unknown, visitLeaf: (s: string) => unknown): unknown {
+  if (typeof node === "string") return visitLeaf(node);
+  if (Array.isArray(node)) return node.map((n) => walk(n, visitLeaf));
+  if (node && typeof node === "object") {
+    // 키는 치환하지 않는다 — 문자열 리프만 본다.
+    return Object.fromEntries(
+      Object.entries(node as Record<string, unknown>).map(([k, v]) => [k, walk(v, visitLeaf)]),
+    );
+  }
+  return node;
+}
+
+// 연결 다이얼로그의 미리보기용 고정 샘플. 그 화면에는 편집 중인 리포트가 없다 —
+// 연동 탭에서 여는 폼이라 draft가 있다는 보장이 없다. 화이트리스트가 허용하는 경로를
+// 전부 채워 둔다: 하나라도 비면 사용자가 "그 변수는 안 되는구나"로 읽는다.
+export const SAMPLE_TEMPLATE_VARS: WebhookTemplateVars = {
+  title: "Save button does nothing on the settings page",
+  body: "## Steps\n1. Open settings\n2. Press Save\n\n![screenshot-1.webp](cid:screenshot-1.webp)",
+  url: "https://example.com/settings",
+  env: {
+    os: "macOS 15.2",
+    browser: "Chrome 140",
+    viewport: "1440x900",
+    selector: "#settings-form > button.save",
+  },
+  capturedAt: "2026-01-01T00:00:00.000Z",
+  logSummary: "console 3 · network 1 · action 12",
+  sections: { steps: "1. Open settings\n2. Press Save" },
+  media: {
+    count: 2,
+    items: [
+      { filename: "screenshot-1.webp", contentType: "image/webp" },
+      { filename: "logs.html", contentType: "text/html" },
+    ],
+  },
+};
+
+// 저장 시점 게이트. 제출 시점에 처음 알게 되는 일이 없어야 한다.
+export function parseWebhookTemplate(src: string): { ok: boolean; issues: TemplateIssue[] } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(src);
+  } catch (e) {
+    return { ok: false, issues: [{ kind: "invalid-json", message: (e as Error).message }] };
+  }
+
+  const issues: TemplateIssue[] = [];
+  walk(parsed, (leaf) => {
+    for (const m of leaf.matchAll(PLACEHOLDER)) {
+      const name = m[1].trim();
+      if (!isAllowedPath(name)) issues.push({ kind: "unknown-var", name });
+    }
+    return leaf;
+  });
+  return { ok: issues.length === 0, issues };
+}
+
+// JSON.parse를 **먼저** 하고 문자열 리프 안에서만 치환한다. 문자열 단계에서 치환하면
+// 본문의 따옴표·개행 하나에 JSON이 부서지고, 그 실패가 사용자 본문 내용에 의존해
+// 재현이 불규칙해진다.
+export function renderWebhookTemplate(src: string, vars: WebhookTemplateVars): unknown {
+  const parsed = JSON.parse(src);
+
+  return walk(parsed, (leaf) => {
+    const whole = /^\{\{([^{}]+)\}\}$/.exec(leaf);
+    if (whole) {
+      // 리프 전체가 하나의 placeholder면 타입을 보존한다({{media.count}} → number).
+      return resolve(whole[1].trim(), vars);
+    }
+    return leaf.replace(PLACEHOLDER, (_, raw: string) => {
+      const v = resolve(raw.trim(), vars);
+      return v == null ? "" : String(v);
+    });
+  });
+}
+
+function resolve(path: string, vars: WebhookTemplateVars): unknown {
+  if (!isAllowedPath(path)) throw new WebhookTemplateError({ kind: "unknown-var", name: path });
+  const value = readPath(path, vars);
+  // media 인덱스는 저장 시점에 검증할 수 없다(미디어 수는 리포트마다 다르다). 없는 인덱스를
+  // 빈 문자열로 치환하면 수신 서버가 빈 파일명을 받고도 모른다 — 명시적으로 터뜨린다.
+  if (value === undefined && path.startsWith("media.")) {
+    throw new WebhookTemplateError({ kind: "unknown-var", name: path });
+  }
+  return value;
+}

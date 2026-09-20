@@ -31,6 +31,7 @@ import { submitToGitlab } from "@/sidepanel/lib/submitToGitlab";
 import { submitToAsana } from "@/sidepanel/lib/submitToAsana";
 import { submitToClickup } from "@/sidepanel/lib/submitToClickup";
 import { submitToSlack } from "@/sidepanel/lib/submitToSlack";
+import { submitToWebhook } from "@/sidepanel/lib/submitToWebhook";
 import { extractInlineRefs, resolveInlineImagesForSections, type InlineImageInput } from "@/sidepanel/lib/resolveInlineImages";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { extractNotionPageId } from "@/lib/notion-page-id";
@@ -53,6 +54,7 @@ import {
   clickupLastSubmitFields,
   slackSubmitArgs,
   slackLastSubmitFields,
+  webhookSubmitArgs,
 } from "@/sidepanel/lib/submitAdapters";
 
 export function IssueCreateModal() {
@@ -99,6 +101,7 @@ export function IssueCreateModal() {
   const asanaAccount = accounts.asana;
   const clickupAccount = accounts.clickup;
   const slackAccount = accounts.slack;
+  const webhookAccount = accounts.webhook;
 
   const {
     ghFields,
@@ -471,6 +474,46 @@ export function IssueCreateModal() {
     return result;
   }
 
+  async function handleWebhookSubmit(
+    ctx: MarkdownContext,
+    inlineImages: InlineImageInput[],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
+    if (!webhookAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.webhook") }));
+    }
+    // previewing 진입(confirmDraft)이 레코드를 확정하므로 이 화면에선 항상 있다. 없는데
+    // 보내면 멱등 키의 출처가 사라져 재시도가 중복 리포트를 만든다 — 그럴 바엔 안 보낸다.
+    if (!currentIssueId) throw new Error(t("create.requiredMissing"));
+
+    const outcome = await submitToWebhook(
+      webhookSubmitArgs({
+        ctx,
+        inlineImages,
+        captureFiles,
+        auth: webhookAccount.auth,
+        issueId: currentIssueId,
+      }),
+    );
+    // json 템플릿 모드는 응답을 읽지 않아 식별자가 없다 — 행을 만들 근거가 없고, 만들면
+    // 열 수 없는 링크가 목록에 남는다. 판별자를 런타임에서도 본다: `recorded: false` 쪽에
+    // key·url이 optional undefined라 타입만으로는 이 호출을 막지 못한다.
+    if (outcome.recorded) {
+      markSubmitted(currentIssueId, {
+        platform: "webhook",
+        key: outcome.key,
+        url: outcome.url,
+      });
+    }
+    // setLastSubmitFields 쌍은 없다(webhook?: never) — 기억할 제출 필드가 없다.
+    useSettingsStore.getState().setLastSubmittedPlatform("webhook");
+    const result: NormalizedSubmitResult = outcome.recorded
+      ? { key: outcome.key, url: outcome.url, logsDropped: outcome.logsDropped }
+      : { key: "", url: "" };
+    onSubmitted({ key: result.key, url: result.url, platform: "webhook", logsDropped: result.logsDropped });
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
     // confirmDraft가 확정 시점 URL로 레코드를 동결했는데 그 뒤 탭이 이동했으면, 지금 나가는
@@ -486,6 +529,7 @@ export function IssueCreateModal() {
     else if (submitPlatform === "asana") result = await handleAsanaSubmit(ctx, inlineImages, captureFiles);
     else if (submitPlatform === "clickup") result = await handleClickupSubmit(ctx, inlineImages, captureFiles);
     else if (submitPlatform === "slack") result = await handleSlackSubmit(ctx, inlineImages, captureFiles);
+    else if (submitPlatform === "webhook") result = await handleWebhookSubmit(ctx, inlineImages, captureFiles);
     else result = await handleJiraSubmit(ctx, inlineImages, captureFiles);
     const activeRefs = extractInlineRefs(
       Object.values(draft?.sections ?? {}).join("\n"),

@@ -13,8 +13,9 @@
 브라우저에서 캡처해 트래커로 바로 보내는 오픈소스 버그 리포팅 도구입니다.
 
 BugShot은 스크린샷·녹화·콘솔/네트워크 로그·사용자 액션·환경 정보와 CSS 수정 전후
-diff까지 캡처해 Jira·GitHub·Linear·Notion·GitLab·Asana·ClickUp 또는 Slack용
-리포트로 만드는 Chrome 사이드 패널입니다.
+diff까지 캡처해 Jira·GitHub·Linear·Notion·GitLab·Asana·ClickUp·Slack용
+리포트로 만들거나 [커스텀 웹훅](docs/webhook-contract.md)으로 직접 운영하는 서버에
+보내는 Chrome 사이드 패널입니다.
 
 BugShot 계정도, 호스팅 워크스페이스도 없습니다. 캡처 데이터는 BugShot 서버를
 거치지 않습니다. BugShot은 유료 플랜 계획 없이 무료입니다. 운영할 캡처 백엔드도,
@@ -295,7 +296,10 @@ DNS를 다시 해석하므로 내부 주소로 resolve되는 호스트명은 정
 
 **8개 트래커 연동이 하나의 어댑터 이음매 뒤에 있습니다.** 플랫폼마다 인증(OAuth 또는
 토큰)·필드 스키마·업로드 경로가 다르지만, 리포트 본문은 한 번 만들어 대상별로
-렌더링합니다 — 마크다운, Jira ADF, Notion 블록, Slack mrkdwn.
+렌더링합니다 — 마크다운, Jira ADF, Notion 블록, Slack mrkdwn. 아홉 번째 대상인
+커스텀 웹훅은 같은 이음매를 쓰되 인증 축이 없습니다 — 수신 서버가 사용자 것이라
+토큰 교환도 갱신도 없고, 업로드와 생성이 같은 요청이라 URL을 미리 받을 수 없어
+본문이 `cid:` 참조로 나갑니다.
 
 이 중 상당 부분은 단위 테스트가 불가능합니다. DOM 측정·포인터 드래그·캔버스·미디어 API는
 실제 브라우저가 필요합니다. 그래서 Vitest가 못 하는 몫을 Playwright 스위트가 지고,
