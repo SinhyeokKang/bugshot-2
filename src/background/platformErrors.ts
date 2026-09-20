@@ -7,6 +7,7 @@ import { GitlabError } from "./gitlab-api";
 import { AsanaError } from "./asana-api";
 import { ClickupError } from "./clickup-api";
 import { SlackError } from "./slack-api";
+import { WebhookError } from "./webhook-api";
 
 interface PlatformErrorShape {
   status: number;
@@ -25,6 +26,7 @@ const PLATFORM_ERROR_CTORS = {
   asana: AsanaError,
   clickup: ClickupError,
   slack: SlackError,
+  webhook: WebhookError,
 } satisfies Record<PlatformId, new (...args: never[]) => Error & PlatformErrorShape>;
 
 // 플랫폼 API 에러면 {status, body}를, 아니면 null. null은 "다음 분기가 처리하라"는 뜻이라

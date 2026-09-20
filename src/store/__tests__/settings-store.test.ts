@@ -95,6 +95,12 @@ const slackStub: Accounts["slack"] = {
   defaults: {},
 };
 
+const webhookStub: Accounts["webhook"] = {
+  platform: "webhook",
+  connectedAt: 0,
+  auth: { url: "https://bugs.acme.io/intake", headers: [], format: "multipart" },
+};
+
 describe("settings-store v2→v3 마이그레이션", () => {
   it("jiraConfig 있음 + lastSubmitFields 있음 → accounts.jira + lastSubmitFields.jira", () => {
     const out = migrateV2ToV3({
@@ -275,9 +281,10 @@ describe("connectedPlatforms", () => {
 
   // 랭크 맵 파생 후에도 순서가 그대로여야 한다. 기존 케이스는 5종까지만 고정하고
   // asana·clickup·slack의 상대 순서는 어디에도 없었다.
-  it("8종 전부 연결 시 폴백 순서가 불변이다", () => {
+  it("전 플랫폼 연결 시 폴백 순서가 불변이다", () => {
     expect(
       connectedPlatforms({
+        webhook: webhookStub,
         slack: slackStub,
         clickup: clickupStub,
         asana: asanaStub,
@@ -296,6 +303,8 @@ describe("connectedPlatforms", () => {
       "asana",
       "clickup",
       "slack",
+      // 마지막이다 — 다른 8개가 하나라도 연결돼 있으면 그쪽이 기본 탭이 된다.
+      "webhook",
     ]);
   });
 });

@@ -3,8 +3,13 @@ import type { TranslationKey } from "@/i18n/ko";
 import type { PlatformId } from "@/types/platform";
 import { OAuthError } from "./errors";
 
+// webhook은 OAuth가 원리적으로 없다. clientId:"" 스텁을 넣으면 "설정만 하면 OAuth가 되는
+// 플랫폼"이라는 거짓말이 타입에 남고 존재하지 않는 i18n 키를 요구하게 되므로, 축을 나눈다.
+// Exclude라 기존 8개에 대한 전수 강제는 그대로다.
+export type OAuthPlatformId = Exclude<PlatformId, "webhook">;
+
 export interface OAuthPlatformConfig {
-  platform: PlatformId;
+  platform: OAuthPlatformId;
   clientId: string;
   needsProxy: boolean;
   proxyUrl: string;
@@ -126,7 +131,7 @@ export const OAUTH_CONFIG = {
     notConfiguredClientKey: "slack.oauth.notConfigured",
     notConfiguredProxyKey: "slack.oauth.notConfiguredProxy",
   },
-} satisfies Record<PlatformId, OAuthPlatformConfig>;
+} satisfies Record<OAuthPlatformId, OAuthPlatformConfig>;
 
 export function isConfigured(cfg: OAuthPlatformConfig): boolean {
   return !!cfg.clientId && (!cfg.needsProxy || !!cfg.proxyUrl);

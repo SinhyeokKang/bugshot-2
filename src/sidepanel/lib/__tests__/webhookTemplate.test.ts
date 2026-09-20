@@ -50,6 +50,24 @@ describe("parseWebhookTemplate — 저장 시점 게이트", () => {
     },
   );
 
+  it("{{media.N.dataUri}}는 저장 시점에 거부한다 — json 모드는 미디어를 바디에 싣지 않는다", () => {
+    // 화이트리스트에 두면 저장은 통과하고 제출 시점에 100% 터진다(값을 만들 자리가 없다).
+    const r = parseWebhookTemplate('{"f":"{{media.0.dataUri}}"}');
+    expect(r.ok).toBe(false);
+    expect(r.issues.map((i) => i.kind)).toContain("unknown-var");
+  });
+
+  it("sections는 프로토타입 체인을 타지 않는다", () => {
+    const r = parseWebhookTemplate('{"c":"{{sections.constructor}}"}');
+    // 이름 자체는 화이트리스트를 통과하지만(섹션 id는 임의 문자열이다)
+    expect(r.ok).toBe(true);
+    // 값이 프로토타입에서 오면 안 된다 — hasOwn 없이 읽으면 함수 소스가 본문에 실린다.
+    const out = renderWebhookTemplate('{"c":"{{sections.constructor}}"}', makeVars());
+    expect((out as { c: unknown }).c).toBeUndefined();
+    const inline = renderWebhookTemplate('{"c":"x{{sections.constructor}}y"}', makeVars());
+    expect((inline as { c: string }).c).toBe("xy");
+  });
+
   it("중첩 배열·객체 안쪽 리프의 변수도 검사한다", () => {
     const r = parseWebhookTemplate('{"embeds":[{"description":"{{nope}}"}]}');
     expect(r.ok).toBe(false);
@@ -108,14 +126,11 @@ describe("renderWebhookTemplate — parse 먼저, 문자열 리프 안에서만 
     expect(() => renderWebhookTemplate('{"f":"{{media.9.filename}}"}', makeVars())).toThrow();
   });
 
-  it("영상은 dataUri 변수를 주지 않는다 — base64가 실질적으로 항상 캡을 넘는다", () => {
+  it("미디어는 파일명·타입만 노출한다 — 내용은 템플릿에 실을 수 없다", () => {
     const vars = makeVars({
-      media: {
-        count: 1,
-        items: [{ filename: "replay.mp4", contentType: "video/mp4" }],
-      },
+      media: { count: 1, items: [{ filename: "replay.mp4", contentType: "video/mp4" }] },
     });
-    expect(vars.media.items[0].dataUri).toBeUndefined();
+    expect(Object.keys(vars.media.items[0])).toEqual(["filename", "contentType"]);
     const out = renderWebhookTemplate('{"f":"{{media.0.filename}}"}', vars);
     expect((out as { f: string }).f).toBe("replay.mp4");
   });

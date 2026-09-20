@@ -108,6 +108,7 @@ import {
   uploadFiles as slackUploadFiles,
 } from "./slack-api";
 import { startSlackOAuth } from "./slack-oauth";
+import { submitWebhook, testWebhook } from "./webhook-api";
 import { captureEvent } from "./analytics";
 import { trackConnect } from "./connect-tracking";
 import {
@@ -721,6 +722,22 @@ export async function handleMessage(
           message.ts,
         ),
       };
+
+    // 에러는 throw하고 직렬화는 index.ts의 catch 체인에 위임한다(PLATFORM_ERROR_CTORS 경유).
+    case "webhook.submit":
+      return await submitWebhook(
+        message.mode === "multipart"
+          ? {
+              mode: "multipart",
+              auth: message.auth,
+              payload: message.payload,
+              files: message.files,
+            }
+          : { mode: "json", auth: message.auth, body: message.body },
+      );
+
+    case "webhook.test":
+      return await testWebhook(message.auth);
 
     case "analytics.capture":
       return captureEvent(message.event, message.properties);

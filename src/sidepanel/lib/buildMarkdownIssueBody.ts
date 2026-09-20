@@ -30,7 +30,7 @@ export interface MarkdownIssueBuildInput {
 
 export interface MarkdownIssueBuildOpts {
   // i18n 키 접두어(attachmentNotInline·mediaUploadFailed) 해소용.
-  platform: "github" | "gitlab";
+  platform: "github" | "gitlab" | "webhook";
   // 비디오 임베드 문법 — 미디어 섹션과 첨부 섹션 두 지점에 적용.
   // github: bare URL(플레이어 자동 임베드), gitlab: 기본값(이미지 문법).
   videoEmbed?: (media: { filename: string; url: string }) => string;

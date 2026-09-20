@@ -4,19 +4,13 @@ const sendBg = vi.fn();
 vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 
 import { submitEventProperties, trackDisconnect, trackSubmit } from "../track-submit";
-import type { PlatformId } from "@/types/platform";
+import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
 
-const PLATFORMS: PlatformId[] = [
-  "jira",
-  "github",
-  "linear",
-  "notion",
-  "gitlab",
-  "asana",
-];
+// PlatformId 전수여야 한다 — 부분 배열은 합법이라 빠뜨려도 red가 안 난다.
+const PLATFORMS = Object.keys(PLATFORM_TAB_KEYS) as PlatformId[];
 
 describe("submitEventProperties", () => {
-  it("6개 platform 각각 그대로 매핑", () => {
+  it("platform 전수를 그대로 매핑한다", () => {
     for (const p of PLATFORMS) {
       expect(submitEventProperties(p, "element", "success").platform).toBe(p);
     }

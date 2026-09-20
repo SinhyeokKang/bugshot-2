@@ -9,6 +9,7 @@ import type { JiraSubmitInput } from "./submitToJira";
 import type { LinearSubmitInput } from "./submitToLinear";
 import type { NotionSubmitInput } from "./submitToNotion";
 import type { SlackSubmitInput } from "./submitToSlack";
+import type { WebhookSubmitInput } from "./submitToWebhook";
 import type { EditorIssueFields } from "@/store/editor-store";
 import type { AsanaIssueFieldsValue } from "@/sidepanel/tabs/asanaFields/AsanaIssueFields";
 import type { ClickupIssueFieldsValue } from "@/sidepanel/tabs/clickupFields/ClickupIssueFields";
@@ -18,6 +19,7 @@ import type { LinearIssueFieldsValue } from "@/sidepanel/tabs/linearFields/Linea
 import type { NotionIssueFieldsValue } from "@/sidepanel/tabs/notionFields/NotionIssueFields";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import type { SlackIssueFieldsValue } from "@/sidepanel/tabs/slackFields/SlackIssueFields";
+import type { WebhookAuth } from "@/types/webhook";
 import type {
   AsanaLastSubmitFields,
   ClickupLastSubmitFields,
@@ -319,6 +321,22 @@ export function slackSubmitArgs(input: SubmitBase & {
     inlineImages,
     channelId: input.channelId,
     mentions: fields.mentions,
+  };
+}
+
+// lastSubmitFields 쌍이 없다 — 제출 필드가 없으므로 기억할 목적지도 없다
+// (LastSubmitFieldsByPlatform.webhook이 never라 타입이 그 호출 자체를 막는다).
+export function webhookSubmitArgs(input: SubmitBase & {
+  auth: WebhookAuth;
+  idempotencyKey: string;
+}): WebhookSubmitInput {
+  const { ctx, inlineImages, captureFiles } = input;
+  return {
+    ctx,
+    ...media(captureFiles),
+    inlineImages,
+    auth: input.auth,
+    idempotencyKey: input.idempotencyKey,
   };
 }
 

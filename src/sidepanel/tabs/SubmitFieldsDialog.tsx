@@ -125,6 +125,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const asanaAccount = useSettingsStore((s) => s.accounts.asana);
   const clickupAccount = useSettingsStore((s) => s.accounts.clickup);
   const slackAccount = useSettingsStore((s) => s.accounts.slack);
+  const webhookAccount = useSettingsStore((s) => s.accounts.webhook);
   const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
 
   useEffect(() => {
@@ -139,6 +140,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const asanaConfigured = !!asanaAccount;
   const clickupConfigured = !!clickupAccount;
   const slackConfigured = !!slackAccount;
+  const webhookConfigured = !!webhookAccount;
   // 삼항 체인은 clickup 누락이 조용히 Notion으로 새므로 exhaustive switch로 전환 (회귀 방지).
   const platformConfigured = ((): boolean => {
     switch (platform) {
@@ -149,6 +151,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       case "asana": return asanaConfigured;
       case "clickup": return clickupConfigured;
       case "slack": return slackConfigured;
+      case "webhook": return webhookConfigured;
       case "notion": return notionConfigured;
       default: {
         const _exhaustive: never = platform;
@@ -166,6 +169,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       case "asana": return !!asanaFields.workspaceGid;
       case "clickup": return !!clickupFields.workspaceId && !!clickupFields.listId;
       case "slack": return !!slackFields.channelId;
+      // 제출 필드가 없다 — 고를 대상이 수신 서버 쪽에 존재하지 않는다.
+      case "webhook": return true;
       case "notion": return !!notionFields.databaseId;
       default: {
         const _exhaustive: never = platform;
@@ -225,6 +230,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
         asana: asanaFields.cc?.length,
         clickup: clickupFields.cc?.length,
         slack: undefined,
+        webhook: undefined,
         notion: notionFields.cc?.length,
       }[platform];
       toast.error(

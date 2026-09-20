@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WebhookUrlError, normalizeWebhookUrl } from "../webhookUrlPolicy";
+import { WebhookUrlError, normalizeWebhookUrl } from "../webhook-url-policy";
 
 function reject(input: string): string {
   try {
@@ -61,7 +61,29 @@ describe("normalizeWebhookUrl", () => {
     });
   });
 
+  describe("IPv6 사설 대역", () => {
+    it.each(["http://[fd00::1]/hook", "http://[fc00::5]", "http://[fe80::1]"])(
+      "%s 는 사내망이라 통과한다",
+      (input) => {
+        expect(normalizeWebhookUrl(input).plaintext).toBe(true);
+      },
+    );
+
+    it("공인 IPv6 평문은 거부한다", () => {
+      expect(reject("http://[2001:db8::1]/hook")).toBe("insecure-public");
+    });
+  });
+
   describe("거부", () => {
+    it.each([
+      "https://user:pass@bugs.acme.io/intake",
+      "https://user@bugs.acme.io/intake",
+    ])("%s — URL에 박힌 자격증명은 거부한다", (input) => {
+      // 통과시키면 Request 생성자가 TypeError를 던져 원인 불명 "network" 실패가 되고,
+      // 비밀번호가 저장소에 URL 문자열로 남는다.
+      expect(reject(input)).toBe("credentials");
+    });
+
     it.each(["ftp://x", "javascript:alert(1)", "data:text/plain,x", "file:///etc/passwd"])(
       "%s 는 지원 스킴이 아니다",
       (input) => {

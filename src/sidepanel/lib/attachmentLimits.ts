@@ -17,6 +17,8 @@ export const PLATFORM_FILE_SIZE_LIMIT: Record<PlatformId, number | null> = {
   asana: null,
   clickup: null,
   slack: null,
+  // 단건 한도 없음 — 총량은 바디 크기 캡(WEBHOOK_BODY_MAX_BYTES)이 따로 본다.
+  webhook: null,
 };
 
 export interface AttachmentLimitWarning {

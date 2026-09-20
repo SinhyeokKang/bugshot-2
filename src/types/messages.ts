@@ -63,6 +63,7 @@ import type {
 } from "./asana";
 import type { ClickupCreateTaskPayload } from "./clickup";
 import type { SlackPostMessagePayload } from "./slack";
+import type { WebhookAuth, WebhookSubmitPayload } from "./webhook";
 
 export interface OAuthStartResultMsg {
   sites: JiraSite[];
@@ -252,6 +253,19 @@ export type BgRequest =
       files: Array<{ filename: string; dataUrl: string }>;
     }
   | { type: "slack.getPermalink"; channelId: string; ts: string }
+  // mode로 판별한다 — optional 필드의 존재 여부로 추론하면 multipart인데 payload가
+  // 빠진 요청이 json으로 새어 JSON.stringify(undefined)에서 TypeError가 난다.
+  // bodyLocale은 싣지 않는다: 본문을 사이드패널에서 완결해 보내므로 background realm에서
+  // 다시 감쌀 것이 없다(Jira·Notion만 그 재래핑이 필요한 구조다).
+  | {
+      type: "webhook.submit";
+      mode: "multipart";
+      auth: WebhookAuth;
+      payload: WebhookSubmitPayload;
+      files: Array<{ part: string; filename: string; dataUrl: string }>;
+    }
+  | { type: "webhook.submit"; mode: "json"; auth: WebhookAuth; body: unknown }
+  | { type: "webhook.test"; auth: WebhookAuth }
   | { type: "analytics.capture"; event: string; properties: Record<string, string> }
   | { type: "css.fetchSheets"; urls: string[] };
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSettableHeaderName } from "../webhookHeaderPolicy";
+import { isSettableHeaderName } from "../webhook-header-policy";
 
 describe("isSettableHeaderName", () => {
   // 브라우저가 거부하는 헤더는 fetch가 조용히 드롭한다(문법 오류만 TypeError).

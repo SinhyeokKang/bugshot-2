@@ -6,6 +6,7 @@ import type { GitlabAuth } from "@/types/gitlab";
 import type { AsanaAuth } from "@/types/asana";
 import type { ClickupAuth } from "@/types/clickup";
 import type { SlackAuth } from "@/types/slack";
+import type { WebhookAuth } from "@/types/webhook";
 
 export const SETTINGS_STORAGE_KEY = "bugshot-settings";
 
@@ -20,6 +21,7 @@ interface SettingsEnvelope {
       asana?: { auth?: AsanaAuth };
       clickup?: { auth?: ClickupAuth };
       slack?: { auth?: SlackAuth };
+      webhook?: { auth?: WebhookAuth };
     };
     jiraConfig?: { auth?: JiraAuth };
   };
@@ -28,8 +30,11 @@ interface SettingsEnvelope {
 
 type AccountsShape = NonNullable<NonNullable<SettingsEnvelope["state"]>["accounts"]>;
 type AccountKey = keyof AccountsShape;
-type AuthOf<K extends AccountKey> = NonNullable<NonNullable<AccountsShape[K]>["auth"]>;
-type OAuthAuthOf<K extends AccountKey> = Extract<AuthOf<K>, { kind: "oauth" }>;
+// 토큰 reader/writer는 OAuth를 가진 계정에만 존재한다. webhook의 auth에는 `kind` 판별자가
+// 없어서, 이 축을 AccountKey로 두면 아래 `cur.kind` 비교가 통째로 깨진다.
+type OAuthAccountKey = Exclude<AccountKey, "webhook">;
+type AuthOf<K extends OAuthAccountKey> = NonNullable<NonNullable<AccountsShape[K]>["auth"]>;
+type OAuthAuthOf<K extends OAuthAccountKey> = Extract<AuthOf<K>, { kind: "oauth" }>;
 
 async function readEnvelope(): Promise<
   { raw: unknown; envelope: SettingsEnvelope | null }
@@ -45,7 +50,7 @@ async function readEnvelope(): Promise<
   }
 }
 
-function reader<K extends AccountKey>(
+function reader<K extends OAuthAccountKey>(
   account: K,
   // jira만 v1 시절 `state.jiraConfig.auth`에 저장했다. 그 envelope이 남은 설치본이 있어
   // 폴백을 지우면 조용히 로그아웃된다.
@@ -58,7 +63,7 @@ function reader<K extends AccountKey>(
   };
 }
 
-interface OAuthWriteSpec<K extends AccountKey, A extends OAuthAuthOf<K>> {
+interface OAuthWriteSpec<K extends OAuthAccountKey, A extends OAuthAuthOf<K>> {
   account: K;
   // 갱신 대상 화이트리스트. 여기 없는 필드는 신원(cloudId·viewerLogin·grantedAt·baseUrl 등)이고
   // 갱신 응답에 값이 실려와도 건드리면 안 된다 — gitlab baseUrl은 self-managed 인스턴스 주소라
@@ -103,7 +108,7 @@ export function sameAuthIdentity(
   return true;
 }
 
-function writer<K extends AccountKey, A extends OAuthAuthOf<K>>(
+function writer<K extends OAuthAccountKey, A extends OAuthAuthOf<K>>(
   spec: OAuthWriteSpec<K, A>,
 ): (auth: A) => Promise<void> {
   return async (auth) => {
@@ -162,6 +167,9 @@ export const OAUTH_TOKEN_FIELDS = {
   asana: ["accessToken", "refreshToken", "expiresAt"],
   clickup: ["accessToken"],
   slack: ["accessToken"],
+  // OAuth가 없다. 사용자 헤더는 시크릿이지만 토큰 축이 아니라 신원 축이다 —
+  // 헤더를 바꾸면 다른 목적지일 수 있으므로 신원 비교에서 빼지 않는다.
+  webhook: [],
 } as const satisfies Record<AccountKey, readonly string[]>;
 
 // 계정 신원 판정에서 뺄 축 = 토큰 축 + 그랜트 발급 시각. `grantedAt`은 재연동마다 새로
@@ -190,6 +198,8 @@ export const ACCOUNT_IDENTITY_FIELDS: Record<AccountKey, readonly string[]> = {
   asana: [],
   clickup: [],
   slack: ["teamId"],
+  // 신원(엔드포인트 URL)이 auth 안에 있다.
+  webhook: [],
 };
 
 export const writeStoredOAuthTokens = writer({

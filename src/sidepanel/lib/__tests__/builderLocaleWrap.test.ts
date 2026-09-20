@@ -31,6 +31,7 @@ const WRAPPED = [
   "buildNotionIssueBody.ts",
   "buildReportData.ts",
   "buildSlackBody.ts",
+  "buildWebhookJsonBody.ts",
 ];
 
 // 감싸면 안 되거나 감쌀 진입점이 없는 파일 — 이유를 함께 박아 다음 사람이 판단을 복원할 수 있게 한다.
@@ -40,6 +41,8 @@ const EXEMPT: Record<string, string> = {
   "markdownToAdf.ts": "빌더 내부 변환기 — 진입점이 아니라 감싸진 구간 안에서만 불린다",
   "markdownToNotionBlocks.ts": "빌더 내부 변환기 — 위와 동일",
   "prepareUpload.ts": "에러 토스트 — 화면 언어가 정답",
+  "submitToWebhook.ts":
+    "에러 토스트 — 화면 언어가 정답. 본문에 실리는 문구는 buildWebhookJsonBody로 떼어내 거기서 감쌌다",
 };
 
 interface LibFile {

@@ -73,7 +73,7 @@ export function toUploadEntry(f: UploadFileInput): UploadEntry {
 export async function prepareUpload(
   input: PrepareUploadInput,
   uploadFn: UploadFn,
-  opts: { platform: "github" | "gitlab" },
+  opts: { platform: "github" | "gitlab" | "webhook" },
 ): Promise<PreparedUpload> {
   const imageInputs = input.images ?? [];
   const logs = input.logs ?? [];

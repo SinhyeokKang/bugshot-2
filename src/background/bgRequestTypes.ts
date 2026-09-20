@@ -111,6 +111,8 @@ const BG_REQUEST_TYPE_MAP: Record<BgRequest["type"], true> = {
   "slack.postMessage": true,
   "slack.uploadFiles": true,
   "slack.getPermalink": true,
+  "webhook.submit": true,
+  "webhook.test": true,
   "analytics.capture": true,
   "css.fetchSheets": true,
 };
