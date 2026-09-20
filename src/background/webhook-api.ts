@@ -231,8 +231,7 @@ async function send(
     const timedOut = (e as Error).name === "TimeoutError";
     if (!timedOut) throw new WebhookError(0, t("webhook.error.network"));
     // 초를 문구에 박지 않는다 — 제출 30초와 연결 테스트 8초가 같은 키를 쓰던 시절,
-    // 8초에 죽은 테스트가 "30초 안에 응답하지 않았습니다"로 떴다. 멱등 키 안내도 재전송이
-    // 있는 제출 경로에만 의미가 있어 테스트 전용 문구를 따로 둔다.
+    // 8초에 죽은 테스트가 "30초 안에 응답하지 않았습니다"로 떴다.
     const seconds = Math.round(timeoutMs / 1000);
     const key = timeoutMs === WEBHOOK_TEST_TIMEOUT_MS ? "webhook.error.timeoutTest" : "webhook.error.timeout";
     throw new WebhookError(0, t(key, { seconds }));
@@ -314,9 +313,15 @@ export async function submitWebhook(input: SubmitWebhookInput): Promise<WebhookS
   return result;
 }
 
-export async function testWebhook(auth: WebhookAuthLike): Promise<void> {
+export async function testWebhook(auth: WebhookAuthLike, sampleBody?: unknown): Promise<void> {
+  const body = JSON.stringify(sampleBody === undefined
+    ? { bugshot: { test: true, sentAt: Date.now() } }
+    : sampleBody);
+  if (exceedsUtf8(body, WEBHOOK_BODY_MAX_BYTES)) {
+    throw new WebhookError(0, t("webhook.error.tooLarge", { limit: capLabel() }));
+  }
   const headers = buildHeaders(auth, false);
-  headers["X-BugShot-Test"] = "1";
+  if (sampleBody === undefined) headers["X-BugShot-Test"] = "1";
   if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type")) {
     headers["Content-Type"] = "application/json";
   }
@@ -325,7 +330,7 @@ export async function testWebhook(auth: WebhookAuthLike): Promise<void> {
     {
       method: "POST",
       headers,
-      body: JSON.stringify({ bugshot: { test: true, sentAt: Date.now() } }),
+      body,
     },
     WEBHOOK_TEST_TIMEOUT_MS,
   );

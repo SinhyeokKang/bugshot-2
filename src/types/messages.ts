@@ -265,7 +265,7 @@ export type BgRequest =
       files: Array<{ part: string; filename: string; dataUrl: string }>;
     }
   | { type: "webhook.submit"; mode: "json"; auth: WebhookAuth; body: unknown }
-  | { type: "webhook.test"; auth: WebhookAuth }
+  | { type: "webhook.test"; auth: WebhookAuth; sampleBody?: unknown }
   | { type: "analytics.capture"; event: string; properties: Record<string, string> }
   | { type: "css.fetchSheets"; urls: string[] };
 

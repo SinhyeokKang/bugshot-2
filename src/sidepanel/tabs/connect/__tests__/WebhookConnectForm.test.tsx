@@ -50,6 +50,16 @@ async function openDialog() {
 }
 
 describe("WebhookConnectForm — 기본 화면", () => {
+  it("설명 안에서 수신 서버 계약 문서를 새 탭으로 연다", async () => {
+    await openDialog();
+    const link = screen.getByRole("link", { name: "webhook.contract.link" });
+    expect(link.getAttribute("href")).toBe(
+      "https://github.com/SinhyeokKang/bugshot-2/blob/main/docs/webhook-contract.md",
+    );
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.closest("p")?.textContent).toContain("webhook.dialog.body");
+  });
+
   it("입력 칸이 Endpoint·Secret 둘뿐이다", async () => {
     await openDialog();
     expect(screen.getByTestId("webhook-url")).toBeTruthy();
@@ -141,12 +151,30 @@ describe("WebhookConnectForm — 저장 게이트", () => {
 });
 
 describe("WebhookConnectForm — 연결 테스트", () => {
+  it("JSON은 실제 샘플 전송을 안내하고 현재 템플릿을 채워 보낸다", async () => {
+    useSettingsStore.setState({
+      accounts: { webhook: account({ format: "json", template: '{"content":"old"}' }) },
+    });
+    const user = await openDialog();
+    expect(screen.getByText("webhook.test.json.help")).toBeTruthy();
+    expect(screen.getByTestId("webhook-test").textContent).toContain("webhook.test.json.button");
+    await user.clear(screen.getByTestId("webhook-template"));
+    await user.click(screen.getByTestId("webhook-template"));
+    await user.paste('{"content":"{{title}}"}');
+    await user.click(screen.getByTestId("webhook-test"));
+    await waitFor(() => expect(sendBg).toHaveBeenCalledWith(expect.objectContaining({
+      type: "webhook.test",
+      sampleBody: { content: "Save button does nothing on the settings page" },
+    })));
+  });
+
   it("성공해도 저장은 별개다 — 테스트만으로 계정이 생기지 않는다", async () => {
     const user = await openDialog();
     await user.type(screen.getByTestId("webhook-url"), "https://hooks.example.com/bugshot");
     await user.click(screen.getByTestId("webhook-test"));
     await waitFor(() => expect(sendBg).toHaveBeenCalled());
     expect(sendBg.mock.calls[0][0]).toMatchObject({ type: "webhook.test" });
+    expect(sendBg.mock.calls[0][0]).not.toHaveProperty("sampleBody");
     expect(useSettingsStore.getState().accounts.webhook).toBeUndefined();
   });
 

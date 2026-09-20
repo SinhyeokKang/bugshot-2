@@ -94,7 +94,7 @@ function walk(node: unknown, visitLeaf: (s: string) => unknown): unknown {
 // 전부 채워 둔다: 하나라도 비면 사용자가 "그 변수는 안 되는구나"로 읽는다.
 export const SAMPLE_TEMPLATE_VARS: WebhookTemplateVars = {
   title: "Save button does nothing on the settings page",
-  body: "## Steps\n1. Open settings\n2. Press Save\n\n![screenshot-1.webp](cid:screenshot-1.webp)",
+  body: "## Steps\n1. Open settings\n2. Press Save",
   url: "https://example.com/settings",
   env: {
     os: "macOS 15.2",

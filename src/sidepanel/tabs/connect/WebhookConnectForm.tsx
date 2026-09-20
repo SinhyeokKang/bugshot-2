@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConnectedBadge } from "@/sidepanel/components/ConnectedBadge";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
+import { InlineLink } from "@/sidepanel/components/InlineLink";
 import { sendBg } from "@/lib/bg-client";
 import { normalizeWebhookUrl } from "@/lib/webhook-url-policy";
 import { renderWebhookTemplate, SAMPLE_TEMPLATE_VARS } from "@/sidepanel/lib/webhookTemplate";
@@ -165,7 +166,13 @@ function WebhookDialogBody({ onDone, onCancel }: { onDone: () => void; onCancel:
     setIssues([]);
     setTesting(true);
     try {
-      await sendBg({ type: "webhook.test", auth: verdict.auth });
+      await sendBg({
+        type: "webhook.test",
+        auth: verdict.auth,
+        ...(verdict.auth.format === "json"
+          ? { sampleBody: renderWebhookTemplate(verdict.auth.template!, SAMPLE_TEMPLATE_VARS) }
+          : {}),
+      });
       toast.success(t("webhook.test.success"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -182,7 +189,12 @@ function WebhookDialogBody({ onDone, onCancel }: { onDone: () => void; onCancel:
     <>
       <DialogHeader>
         <DialogTitle className="text-xl">{t("webhook.dialog.title")}</DialogTitle>
-        <DialogDescription>{t("webhook.dialog.body")}</DialogDescription>
+        <DialogDescription>
+          {t("webhook.dialog.body")}{" "}
+          <InlineLink href="https://github.com/SinhyeokKang/bugshot-2/blob/main/docs/webhook-contract.md">
+            {t("webhook.contract.link")}
+          </InlineLink>
+        </DialogDescription>
       </DialogHeader>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
@@ -334,6 +346,9 @@ function WebhookDialogBody({ onDone, onCancel }: { onDone: () => void; onCancel:
             ))}
           </ul>
         )}
+        {format === "json" && (
+          <p className="text-xs text-muted-foreground">{t("webhook.test.json.help")}</p>
+        )}
       </div>
 
       <DialogFooter className="flex-row justify-end">
@@ -352,7 +367,9 @@ function WebhookDialogBody({ onDone, onCancel }: { onDone: () => void; onCancel:
               <Loader2 className="h-4 w-4 animate-spin" />
             </span>
           )}
-          <span className={testing ? "opacity-0" : undefined}>{t("webhook.test.button")}</span>
+          <span className={testing ? "opacity-0" : undefined}>
+            {t(format === "json" ? "webhook.test.json.button" : "webhook.test.button")}
+          </span>
         </Button>
         <Button data-testid="webhook-save" onClick={handleSave}>
           {t("common.save")}

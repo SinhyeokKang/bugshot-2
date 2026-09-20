@@ -8,6 +8,7 @@ import {
   testWebhook,
 } from "../webhook-api";
 import type { WebhookSubmitPayload } from "@/types/webhook";
+import { setLocale } from "@/i18n";
 
 const URL_ = "https://bugs.acme.io/intake";
 
@@ -492,6 +493,33 @@ describe("submitWebhook — 전송 시점 2층 방어", () => {
 });
 
 describe("testWebhook — 연결 테스트", () => {
+  it.each([{ content: "BugShot sample" }, null, false, 0])("JSON 샘플 %j를 확인용 payload로 덮어쓰지 않는다", async (sampleBody) => {
+    const m = mockFetchOnce({ status: 204 });
+    await testWebhook(AUTH, sampleBody);
+    expect(m.jsonBodyAt(0)).toEqual(sampleBody);
+    const headers = m.callAt(0).init?.headers as Record<string, string>;
+    expect(headers["X-BugShot-Test"]).toBeUndefined();
+    expect(headers["Content-Type"]).toBe("application/json");
+  });
+
+  it("JSON 샘플도 제출과 같은 바디 상한을 적용한다", async () => {
+    const m = mockFetchOnce({ status: 204 });
+    await expect(testWebhook(AUTH, { content: "x".repeat(WEBHOOK_BODY_MAX_BYTES + 1) }))
+      .rejects.toBeInstanceOf(WebhookError);
+    expect(m.fn).not.toHaveBeenCalled();
+  });
+
+  it.each(["json", "multipart"] as const)("%s 제출 타임아웃은 수신 확인을 요구하고 재전송 안전을 보장하지 않는다", async (mode) => {
+    setLocale("ko");
+    const m = mockFetchOnce({ status: 204 });
+    m.fn.mockRejectedValueOnce(Object.assign(new Error("timed out"), { name: "TimeoutError" }));
+    const error = await submitWebhook(mode === "json"
+      ? { mode, auth: AUTH, body: { text: "report" } }
+      : { mode, auth: AUTH, payload: payload(), files: files() }).catch((e) => e as WebhookError);
+    expect((error as WebhookError).message).toContain("수신 여부를 확인");
+    expect((error as WebhookError).message).not.toContain("멱등 키로 중복이 걸러");
+  });
+
   it("X-BugShot-Test: 1 헤더를 실은 최소 페이로드를 POST한다", async () => {
     const m = mockFetchOnce({ status: 204 });
     await testWebhook(AUTH);
