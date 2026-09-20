@@ -36,6 +36,36 @@
 
 ---
 
+## 2026-09-20 — 목이 실제 Response의 body를 안 줘서, 임의 서버용 스트리밍 캡 루프가 한 번도 실행되지 않았다
+
+- **영역**: `툴체인`, `background`
+- **계열**: `라이브러리전제`, `미검증단언`
+- **그물**: `unit`
+- **증상**: 없음(잠복). webhook 에러 본문을 상한까지만 읽는 `readCappedErrorBody`의 스트리밍 경로 30줄이 테스트에서 0회 실행됐고, "거대한 에러 본문은 캡에서 잘린다"는 테스트는 실제로 마지막 `.slice()` 한 줄만 재고 있었다.
+- **근본 원인**: `src/test/fetch-mock.ts`의 목 응답이 `json()`·`text()`만 가진 객체였다. 실제 `Response`는 `body` 스트림을 갖는데 목이 그걸 안 줘서, 함수 첫 줄 `if (!res.body)` 폴백(=무제한 `res.text()`)으로 **모든 테스트가 빠졌다**. 그 폴백은 바로 위 주석이 "임의 서버 상대라 쓸 수 없다"고 적어둔 바로 그 동작이다. 목이 프리미티브를 부분만 재현하면, 그 프리미티브로 분기하는 코드는 테스트가 있어도 반대편만 돈다.
+- **재발 방지**: `grep -rn "res.body\|response.body" src --include=*.ts`로 스트림 분기를 쓰는 곳(현재 `webhook-api.ts`·`messages.ts:readCappedSheetText`·`ai-provider.ts`·`css-source-cache.ts`·`network-recorder.ts`)을 세고, 그 경로를 목으로 덮는 테스트가 **폴백이 아니라 스트림**을 타는지 뮤테이션으로 확인한다(분기 조건을 `if (true)`로 바꿔 red가 나는지). 목을 새로 만들 때는 "실제 객체가 가진 필드 중 코드가 분기에 쓰는 것"을 먼저 센다.
+- **관련**: `src/test/fetch-mock.ts:toResponse`, `src/background/webhook-api.ts:readCappedErrorBody`
+
+## 2026-09-20 — 소스 스캔 그물이 import 표기 하나만 봐서, 같은 것을 다르게 쓴 파일이 대상 집합에서 통째로 빠졌다
+
+- **영역**: `i18n`, `툴체인`
+- **계열**: `미검증단언`, `드리프트`
+- **그물**: `unit`
+- **증상**: 없음(잠복). 본문 언어 래핑 게이트가 대상을 "본문 헬퍼를 import하는 파일"로 잡는데 그 판정이 `./`·`../` 상대경로만 매칭해, `@/sidepanel/lib/issueBodyShared`로 쓴 빌더는 검사 대상이 아니게 된다. 같은 세션에 연결 폼 전수 그물도 대상을 `*ConnectForm.tsx` **파일명**으로 잡고 있어 성격이 다른 폼이 red를 냈다.
+- **근본 원인**: 소스 스캔은 "무엇을 대상으로 볼 것인가"를 문자열 패턴으로 정하는데, 그 패턴이 **현재 저장소에 우연히 존재하는 표기**에 맞춰져 있었다. `sidepanel`은 CLAUDE.md가 `@/` 유지를 지역 관례로 명시한 디렉터리라 그 표기가 언제든 나온다. 0건이라는 현재 사실이 그물의 사정거리를 대신하고 있었다.
+- **재발 방지**: 소스 스캔 그물을 쓰거나 고칠 때 **표기 변형을 합성 소스로 직접 단언한다**(상대경로·`@/` 별칭·`import * as`). 대상 축을 좁히는 변경에는 "축 밖으로 빠지는 파일이 정확히 이것뿐"이라는 앵커를 함께 둔다 — 예외 목록을 박으면 장부가 되고, 앵커가 없으면 대상이 0건이 돼도 green이다. 점검 대상: `builderLocaleWrap.test.ts`·`bodyLocaleBackground.test.ts`·`JiraConnectFlow.test.tsx`·`bundleBoundary.test.ts`·`import-convention.test.ts`.
+- **관련**: `src/sidepanel/lib/__tests__/builderLocaleWrap.test.ts:IMPORTS_BODY_HELPER`, `src/sidepanel/tabs/connect/__tests__/JiraConnectFlow.test.tsx`
+
+## 2026-09-20 — 새로 짠 단언이 비교 대상에 가변값을 끼워 넣어, 분기를 지워도 통과했다
+
+- **영역**: `background`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 없음(리뷰 반영 중 자체 발견). 401·403·5xx를 일반 status 문구와 가르는 분기를 넣고 "네 문구가 서로 다르다"로 고정했는데, `statusKey`의 401 분기를 통째로 지워도 테스트가 green이었다.
+- **근본 원인**: 일반 문구가 `{status}`를 치환한다. 401이 일반 문구로 떨어져도 결과 문자열에 "401"이 박혀 418과 달라 보였다 — 단언이 잰 것은 "문구 템플릿이 갈리는가"가 아니라 "상태코드가 다른가"였다. **가변값이 섞인 출력끼리 비교하면 그 가변값이 차이를 만들어 준다.**
+- **재발 방지**: 출력 비교로 분기를 고정할 때는 **분기와 무관한 가변 성분을 먼저 지우고** 비교한다(`msg.replace(/\d+/g, "#")` 류). 그리고 새로 짠 그물은 **지키겠다고 한 분기를 실제로 죽여보는 것**으로 검증한다 — 같은 파일의 다른 단언들이 green이면 red 하나가 그 그물의 사정거리다.
+- **관련**: `src/background/webhook-api.ts:statusKey`, `src/background/__tests__/webhook-api.test.ts`
+
 ## 2026-09-20 — 본문 언어를 감싸는 그물이 t()를 **직접 import한 파일만** 봐서, 공용 헬퍼 경유로 부르는 새 파일이 통째로 스캔 밖이었다
 
 - **영역**: `i18n`, `lib`
