@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-20T16:56:29.507Z",
+  "generatedAt": "2026-09-22T04:06:03.399Z",
   "logic": {
     "covered": 24447,
     "total": 26862,
@@ -12,9 +12,9 @@
       "pct": 60.21
     },
     "branches": {
-      "covered": 9672,
-      "total": 11006,
-      "pct": 87.87
+      "covered": 9673,
+      "total": 11007,
+      "pct": 87.88
     },
     "functions": {
       "covered": 1869,
