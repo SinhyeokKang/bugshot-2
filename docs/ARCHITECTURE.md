@@ -77,14 +77,21 @@ chrome.action.onClicked.addListener((tab) => {
 
 - **존재는 저장분이 권위** — 메모리에만 있는 레코드는 드롭한다. 아니면 저쪽이 지운 이슈가 이쪽 배열로 되살아나고, `removeIssue`가 blob을 같은 틱에 지우므로 미디어 없는 좀비가 된다.
 - **`submitted`는 `draft`로 역행하지 않는다** — `updatedAt` 비교보다 **앞선다**. 역행이 곧 중복 제출이다.
-- **나머지는 `updatedAt` 최신 승자, 동률은 메모리.** 동률을 무변경으로 읽는 규칙이라 **레코드를 바꾸는 모든 액션이 `updatedAt`을 올려야 한다** — `patchIssue`·`patchDraftSnapshot`·`patchDraftBufferedImageFlags`가 안 올리던 시절엔 logs 토글·제출 목적지·첨부 메타·blob 정합 플래그가 무음으로 버려졌다. 그래서 `applyDraftFieldEdit`은 `updatedAt`을 싣지 않는다(소유권은 `patchIssue`). 그물은 `issues.map` 뮤테이터 전수 소스 스캔.
+- **나머지는 `updatedAt` 최신 승자, 동률은 메모리.** 동률을 무변경으로 읽는 규칙이라 **레코드를 바꾸는 모든 액션이 `updatedAt`을 올려야 한다** — `patchIssue`·`patchDraftSnapshot`·`patchDraftBufferedImageFlags`가 안 올리던 시절엔 logs 토글·제출 목적지·첨부 메타·blob 정합 플래그가 무음으로 버려졌다. 그래서 `applyDraftFieldEdit`은 `updatedAt`을 싣지 않는다(소유권은 `patchIssue`). 그물은 `issues.map` 뮤테이터 전수 소스 스캔. 수용한 잔여는 **같은 밀리초의 양쪽 수정**이다 — 동률인데 내용이 갈려 발산이 남는다. 저장분 채택으로 수렴시켜 봤다가 되돌렸다(한 write 뒤처진 저장분이 메모리의 최신 편집을 덮고, 무변경 레코드 전부가 JSON 직렬화 2회를 타며, 키 순서만 달라도 오판한다).
+- **역행 금지는 쓰기 측에도 있다.** merge는 읽기만 고치므로, 다른 인스턴스가 제출한 뒤 이쪽 에디터가 previewing에 남아 있으면 재확정(`confirmDraft` → `saveDraft`)이 `status: "draft"`를 실어 submitted를 덮는다(레이스 없이 순차로 재현된다). `saveDraft`는 기존 레코드가 `submitted`면 **쓰기 자체를 건너뛴다** — `status`만 고정하고 나머지를 병합하면 하이브리드가 되어 더 나쁘다(`platform`이 갈려 배지가 다른 트래커를 조회하고, `stripSubmitted`가 지운 `apiHostsDerived`·로그 blob 키가 부활하며, `updatedAt`이 최신이라 그 오염이 다음 merge에서 이겨 storage로 나간다). 정상 재확정은 기존이 draft라 안 걸린다. **다만 이건 status 역행만 막는다 — 제출 진입점에 상태 검사가 없어 중복 티켓 자체는 남는다.**
 - **필드 병합은 하지 않는다** — 레코드 하나를 통째로 고른다. 필드를 섞으면 "키 없음"이 "기존 값 유지"로 뒤집혀 사용자가 비운 필드가 되살아난다(POSTMORTEM 2026-07-26 A-11).
 
-예외가 하나 있다. **로컬 에디터가 들고 있고(`editor-store.currentIssueId`) 아직 `draft`인 레코드는 저장분에 없어도 보전한다.** 존재 권위를 예외 없이 적용하면 저쪽이 그 초안을 지운 순간 이쪽 메모리에서도 사라지고, 이어지는 `markSubmitted`가 `.map`에 안 걸려 **무음 no-op**이 된다 — 티켓은 목적지에 생겼는데 로컬엔 key/url이 없어 status 조회도 중복 방지도 못 한다. `submitted`까지 보전하지 않는 건 `currentIssueId`가 제출 후에도 남기 때문이다(해제는 `reset()` 한 곳뿐이고 `EDITOR_SNAPSHOT_KEYS`라 패널을 닫았다 열어도 복원된다) — 그걸 보전하면 위 좀비가 그대로 돌아온다.
+예외가 하나 있다. **제출 요청이 나가 있는 레코드는 저장분에 없어도 보전한다**(`submittingIds`). 존재 권위를 예외 없이 적용하면 저쪽이 그 이슈를 지운 순간 이쪽 메모리에서도 사라지고, 응답이 돌아왔을 때 `markSubmitted`가 `.map`에 안 걸려 **무음 no-op**이 된다 — 티켓은 목적지에 생겼는데 로컬엔 key/url이 없어 status 조회도 중복 방지도 못 한다.
 
-**자기 write는 걸러야 한다.** 모든 뮤테이터가 `updatedAt`을 올리므로 `oldValue !== newValue` 에코 가드로는 자기 write가 안 걸러진다. 안 거르면 (1) 제출 이슈 N건 목록에서 status 배지 N개가 각각 전체 blob의 get+parse+merge를 태우고 (2) 그 rehydrate의 `getItem`이 나간 사이 로컬 삭제가 일어나면 존재 권위가 방금 지운 레코드를 되살린다(**삭제는 `updatedAt` 축 밖이다** — `removeIssue`는 `filter`라 비교할 타임스탬프가 없다). 그래서 `issuesStorage`가 마지막으로 쓴 문자열을 기억하고 `shouldSyncIssuesChange`가 그걸 대조한다.
+기준이 편집 소유권(`editor-store.currentIssueId`)이 아닌 이유가 둘이다. (1) **목록 상세창 제출은 `currentIssueId`를 안 쓴다** — 대상이 `IssueListTab`의 React state라, 소유권으로 게이트하면 저장 draft 재제출 경로가 통째로 보호 밖이다. (2) `currentIssueId`는 제출 후에도 남아(해제는 `reset()`뿐, `EDITOR_SNAPSHOT_KEYS`라 패널 재개에도 복원된다) 보전이 무기한이 된다 — 그건 저쪽이 지운 이슈를 blob 없이 영영 살려두는 좀비다. in-flight 구간은 요청 하나로 유한하고, Slack 보존 이슈의 트래커 승격(이미 `submitted`인 레코드를 제출)까지 status 무관하게 덮는다.
 
-트리거는 `sidepanel/lib/issues-sync.ts`의 `installIssuesSync`다. **`main.tsx`에 두지 않는 게 규칙이다** — 엔트리는 import 즉시 ReactDOM을 마운트해 테스트가 못 태우고, 실제로 엔트리에 뒀을 때 리스너 삭제·`area` 가드 파괴·분기 무력화가 전부 green으로 통과했다(소스 문자열 스캔은 그물이 아니라 형태 잠금이다). 다른 인스턴스의 배지 버스트는 trailing throttle(300ms)로 접는다.
+**보호는 `withIssueSubmitGuard`로만 건다** — try/finally를 호출부에 맡기면 해제를 빠뜨릴 수 있고, 빠뜨린 보전은 무기한이 되어 그 레코드가 다음 로컬 뮤테이션의 직렬화에 실려 저장분으로 되돌아간다(blob 없이, 모든 인스턴스에). 그물은 "`markSubmitted`를 부르는 `sidepanel/**` 파일은 `withIssueSubmitGuard`도 부르고, `begin/endIssueSubmit`을 직접 부르지 않는다" 소스 스캔이다(주석은 코드로 안 친다).
+
+**자기 write는 걸러야 한다.** 모든 뮤테이터가 `updatedAt`을 올리므로 `oldValue !== newValue` 에코 가드로는 자기 write가 안 걸러진다. 안 거르면 (1) 제출 이슈 N건 목록에서 status 배지 N개가 각각 전체 blob의 get+parse+merge를 태우고 (2) 그 rehydrate의 `getItem`이 나간 사이 로컬 삭제가 일어나면 존재 권위가 방금 지운 레코드를 되살린다(**삭제는 `updatedAt` 축 밖이다** — `removeIssue`는 `filter`라 비교할 타임스탬프가 없다).
+
+그래서 `issuesStorage`가 **아직 `onChanged`가 안 돌아온 자기 write들의 집합**을 들고 `shouldSyncIssuesChange`가 대조하며 소비한다. 하나가 아니라 집합인 건 write가 버스트로 나가고 이벤트가 그보다 늦게 오기 때문이고(토큰 한 개면 버스트 N건 중 N-1건이 남의 write로 오판된다), 소비하는 건 값으로만 대조하면 다른 인스턴스가 우연히 같은 상태로 되돌리는 write(추가했다 삭제)가 직렬화 byte-identical이라 영구히 자기 write로 오판되기 때문이다.
+
+트리거는 `sidepanel/lib/issues-sync.ts`의 `installIssuesSync`다. **`main.tsx`에 두지 않는 게 규칙이다** — 엔트리는 import 즉시 ReactDOM을 마운트해 테스트가 못 태우고, 실제로 엔트리에 뒀을 때 리스너 삭제·`area` 가드 파괴·분기 무력화가 전부 green으로 통과했다(소스 문자열 스캔은 그물이 아니라 형태 잠금이다). **throttle은 쓰지 않는다** — `createTrailingThrottle`은 leading edge가 없어 첫 flush부터 지연되고, 그 대기 구간에 로컬 뮤테이션이 끼어들면 원격 삭제를 못 읽은 배열이 storage를 덮은 뒤 뒤늦은 rehydrate가 그걸 읽어 지워진 레코드를 양쪽에 되살린다. 읽기 증폭은 위 자기 write 집합이 막는다.
 
 **고아 blob prune은 마운트 rehydrate에만 맡긴다.** 외부 write로 촉발된 rehydrate에서 돌리면, 캡처를 막 끝내 blob을 pending에서 issue id로 rekey했지만 레코드가 아직 영속 전인 인스턴스의 살아있는 blob이 고아로 판정된다(`isPendingKey` 가드는 rekey 전까지만 보호한다). 다만 외부 변경이 마운트 hydration을 추월하면 zustand의 `hydrationVersion` 가드가 마운트 콜백을 건너뛰어 **그 세션 prune이 0회**가 될 수 있다 — 세션 1회 플래그로 보정하지 않는 건 그 플래그가 실패 경로에서 켜진 채 남으면 prune이 영구 무력화되기 때문이다(POSTMORTEM 2026-07-23). 실패 방향이 "미삭제"라 안전하고 다음 마운트가 수거한다.
 
