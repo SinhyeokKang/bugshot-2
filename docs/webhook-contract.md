@@ -1,28 +1,28 @@
-# Custom Webhook 계약
+# Custom Webhook contract
 
-BugShot의 **Custom Webhook** 연동은 버그 리포트를 사용자가 지정한 서버로 직접 POST한다. BugShot 서버를 거치지 않는다 — 이 문서는 그 서버를 직접 짜는 사람을 위한 것이다.
+BugShot's **Custom Webhook** integration POSTs bug reports directly to a server you specify. Reports never pass through a BugShot server. This document is for developers building the receiving server.
 
-형식은 둘이고 **연동 설정의 `형식`에서 고른다**.
+Choose one of two formats under **Format** in the integration settings.
 
-| | multipart | JSON 템플릿 |
+| | Multipart | JSON template |
 |---|---|---|
-| 요청 | `multipart/form-data` 단일 POST | `application/json` 단일 POST |
-| 캡처 미디어 | 파일 파트로 함께 간다 | **가지 않는다** |
-| 성공 판정 | 2xx **그리고** 응답의 `{key, url}` | 2xx만 |
-| 응답 | 읽는다 (계약) | **읽지 않는다** (204가 정상) |
-| BugShot 이슈 목록 | 행이 생긴다 | **행이 생기지 않는다** |
+| Request | One `multipart/form-data` POST | One `application/json` POST |
+| Captured media | Included as file parts | **Not sent** |
+| Success | 2xx **and** a `{key, url}` response | Any 2xx |
+| Response body | Read and validated against the contract | **Not read** (204 is valid) |
+| BugShot issue list | An entry is recorded | **No entry is recorded** |
 
 ---
 
-## 1. 인증
+## 1. Authentication
 
-시크릿을 설정하면 매 요청에 이렇게 온다.
+When a secret is configured, every request includes:
 
 ```
-Authorization: Bearer <시크릿>
+Authorization: Bearer <secret>
 ```
 
-**서명이 아니다.** 수신 측 검증은 문자열 비교 한 줄이면 된다.
+**This is not a signature.** The receiver can validate it by comparing the header value:
 
 ```js
 if (req.headers.authorization !== `Bearer ${process.env.BUGSHOT_SECRET}`) {
@@ -31,15 +31,15 @@ if (req.headers.authorization !== `Bearer ${process.env.BUGSHOT_SECRET}`) {
 }
 ```
 
-HMAC 서명을 쓰지 않는 이유는 위협 모델이 다르기 때문이다. 이 요청은 확장이 사용자의 브라우저에서 사용자가 지정한 주소로 직접 보내고, 중계 서버가 없다. 시크릿을 아는 주체와 서명 키를 아는 주체가 같은 하나(그 사용자)라서, 서명이 추가로 증명해 주는 게 없다.
+BugShot does not use HMAC signing. Requests originate in the user's browser and go directly to the endpoint they choose, without an intermediary server. In this model, the same user would hold both the bearer secret and a signing key; a signature would not establish a separate sender identity.
 
-시크릿은 `chrome.storage.local`에 평문으로 저장된다(8개 플랫폼 토큰과 같은 자리). 확장 설정에 접근할 수 있는 사람은 읽을 수 있다 — 그 사실을 전제로 시크릿의 권한 범위를 정하라.
+The secret is stored in plaintext in `chrome.storage.local`, alongside the other eight platforms' tokens. Anyone with access to the extension's settings can read it. Scope the secret's permissions accordingly.
 
-**고급 설정에서 `Authorization` 헤더를 직접 정의하면 그쪽이 이긴다.** 시크릿은 무시된다(더 구체적인 의도로 본다).
+**An explicit `Authorization` header in Advanced settings takes precedence.** If one is present, the Secret field is ignored.
 
-### 브라우저가 못 싣는 헤더
+### Headers the browser cannot send
 
-고급 요청 헤더는 아래를 **거부한다**(저장 시점에 막는다). `fetch`가 조용히 드롭하는 이름들이라, 통과시키면 "넣었는데 안 나간다"가 된다.
+The following custom header names are **rejected when saving** because the browser's `fetch` implementation can silently drop them:
 
 ```
 accept-charset · accept-encoding · access-control-request-headers
@@ -48,66 +48,67 @@ date · dnt · expect · host · keep-alive · origin · referer · set-cookie
 te · trailer · transfer-encoding · upgrade · via
 ```
 
-여기에 더해 `Proxy-*`·`Sec-*` 접두사 전체가 막히고, 이름은 RFC 7230 token이어야 하며, 같은 이름을 대소문자만 바꿔 두 번 넣을 수 없다.
+Names beginning with `Proxy-` or `Sec-` are also rejected. Names must be valid RFC 7230 tokens, and duplicate names are rejected case-insensitively.
 
 ---
 
-## 2. multipart 모드
+## 2. Multipart mode
 
-### 파트 구성
+### Parts
 
-| 파트 이름 | 내용 |
+| Part name | Content |
 |---|---|
-| `payload` | 아래 JSON 문자열 |
-| *(파일명)* | 캡처 파일. 파트 이름이 곧 파일명이다 |
+| `payload` | The JSON string described below |
+| *(filename)* | A captured file; its part name is its filename |
 
-파일 파트의 이름은 `screenshot-1.webp`·`replay.mp4`·`logs.html`처럼 **파일명 그대로**다. 고정 이름이 아니라 그 리포트가 실제로 담은 것에 따라 달라지므로, **파트 이름을 하드코딩하지 말고 `payload.media[].part`를 읽어라.**
+File parts use names such as `screenshot-1.webp`, `replay.mp4`, and `logs.html`. The exact names depend on the report. **Read `payload.media[].part` instead of hardcoding part names.**
 
-`Content-Type`은 확장이 지정하지 않는다 — 브라우저가 boundary를 붙인다. 고급 설정에서 `Content-Type`을 넣어도 multipart 모드에서는 제거된다(boundary 없는 요청이 나가면 수신 서버 파싱이 무음으로 실패한다).
+BugShot lets the browser set `Content-Type` with the correct boundary. A custom `Content-Type` header is removed in multipart mode, because sending it without a boundary would prevent the receiver from parsing the request.
 
-### `payload` 스키마
+### `payload` schema
 
 ```jsonc
 {
   "title": "Save button does nothing on the settings page",
-  // 마크다운. 미디어는 cid:<파트 이름>으로 참조한다 (§2.3)
+  // Markdown; media references use cid:<part name> (see below).
   "body": "## Steps\n1. ...\n\n![screenshot-1.webp](cid:screenshot-1.webp)",
   "environment": [
-    // 파생 행이 먼저, 사용자·자동 추가 행이 뒤에. 본문 `## 재현 환경` 섹션과 같은 출처다
+    // Derived rows first, then user-added and automatically added rows.
+    // These share their source with the body's reproduction environment section.
     { "label": "OS", "value": "macOS 15.2" },
     { "label": "Browser", "value": "Chrome 140" },
     { "label": "Page", "value": "https://example.com/settings" },
-    { "label": "DOM", "value": "#settings-form > button.save" },  // 선택된 요소가 있을 때만
+    { "label": "DOM", "value": "#settings-form > button.save" }, // Only when an element is selected.
     { "label": "Viewport", "value": "1440×900" },
-    { "label": "Captured", "value": "2026. 01. 01. 09:00:00 GMT+9" },
+    { "label": "Captured", "value": "Jan 1, 2026, 9:00:00 AM GMT+9" },
     { "label": "API Hosts", "value": "api.example.com" }
   ],
-  "logSummary": "console 3 · network 1 · action 12",   // 로그가 없으면 생략된다
+  "logSummary": "console 3 · network 1 · action 12", // Omitted when no logs are included.
   "media": [
     {
-      "part": "screenshot-1.webp",      // multipart 파트 이름
-      "filename": "screenshot-1.webp",  // 사용자에게 보일 이름 (첨부는 원본명이라 다를 수 있다)
+      "part": "screenshot-1.webp",     // Multipart part name.
+      "filename": "screenshot-1.webp", // Display name; attachments retain their original name.
       "contentType": "image/webp",
-      "kind": "image"                   // image | video | logs | attachment | inline
+      "kind": "image"                 // image | video | logs | attachment | inline
     }
   ],
   "bugshot": {
-    "version": "1.7.40",
+    "version": "1.7.42",
     "sentAt": 1767225600000,
-    "idempotencyKey": "3f0c…"           // §4
+    "idempotencyKey": "3f0c…"          // See section 4.
   }
 }
 ```
 
-`title`·`body`·`environment`·`media`·`bugshot`은 항상 있다. `logSummary`는 로그를 담지 않은 리포트에서 생략된다.
+`title`, `body`, `environment`, `media`, and `bugshot` are always present. `logSummary` is omitted when the report includes no logs.
 
-`environment`의 `label`은 파생 행만 고정 문자열(`OS`·`Browser`·`Page`·`DOM`·`Viewport`·`Captured`)이고, 값의 표기(날짜 스켈레톤 등)와 뒤따르는 커스텀 행의 라벨은 사용자가 고른 **본문 언어**를 따른다. **라벨로 찾되 순서에 기대지 말라** — 요소가 선택되지 않은 리포트엔 `DOM`이, 뷰포트를 못 읽은 리포트엔 `Viewport`가 없다.
+Derived `environment` labels are fixed strings: `OS`, `Browser`, `Page`, `DOM`, `Viewport`, and `Captured`. Value formatting, including dates, and labels in subsequent custom rows follow the user's **issue body language**. **Look up rows by label rather than position.** Reports without a selected element omit `DOM`; reports without viewport information omit `Viewport`.
 
-`logSummary`는 사람이 읽는 문장이 아니라 **한 줄 카운트 요약**이다(`console`·`network`·`action` 중 담긴 것만 ` · `로 잇는다). 사람이 읽을 서술은 `body`의 `## 로그 요약` 섹션에 있다.
+`logSummary` is a **single-line count summary**, not prose. It joins the included `console`, `network`, and `action` counts with ` · `. The body's log summary section contains the human-readable description.
 
-### `cid:` 참조
+### `cid:` references
 
-본문의 이미지·링크는 아직 URL이 없다 — 업로드와 생성이 같은 요청이라 확장이 URL을 미리 알 방법이 없다. 그래서 본문은 `cid:<파트 이름>`으로 참조하고, **수신 서버가 파일을 저장한 뒤 자기 URL로 치환한다.**
+Images and links in the body do not have hosted URLs yet: uploading files and creating the issue happen in the same request. The body therefore uses `cid:<part name>`. **The receiver must store the files and replace these references with its own URLs.**
 
 ```js
 let body = payload.body;
@@ -116,76 +117,76 @@ for (const m of payload.media) {
 }
 ```
 
-치환하지 않아도 리포트는 읽을 수 있지만 이미지가 깨진 링크로 남는다.
+Without this replacement, the report text remains readable, but its media links will not resolve.
 
-### 응답 (계약)
+### Required response
 
 ```json
 { "key": "BUG-128", "url": "https://tracker.example.com/BUG-128" }
 ```
 
-**둘 다 필수다.** 하나라도 없으면 확장은 제출을 **실패로 처리하고 리포트 원본을 그대로 남긴다** — 열 수 없는 링크가 이슈 목록에 남는 것보다 낫다고 판단했다. 2xx를 돌려주면서 본문을 비우면 사용자는 "전송했는데 실패로 나온다"를 보게 된다.
+**Both fields are required.** If either is missing, BugShot treats submission as **failed and retains the original report** rather than recording an issue without a usable link. Returning 2xx with an empty body will appear to the user as a failed submission even if the server stored the report.
 
-필드 이름은 몇 가지 별칭을 받는다(기존 트래커 API를 그대로 프록시하는 경우를 위해서다).
+A few field aliases are accepted to support receivers that proxy an existing tracker API:
 
-- `key` ← `key` · `id` · `number` · `iid` (숫자여도 된다. 문자열로 변환된다)
-- `url` ← `url` · `html_url` · `web_url` · `link` (문자열이어야 한다)
+- `key`: `key`, `id`, `number`, or `iid`. Numeric values are converted to strings.
+- `url`: `url`, `html_url`, `web_url`, or `link`. The value must be a string.
 
 ---
 
-## 3. JSON 템플릿 모드
+## 3. JSON template mode
 
-Slack·Discord처럼 **스키마가 정해진 제3자 훅**으로 보낼 때 쓴다. 설정한 템플릿이 그대로 요청 바디가 된다.
+Use this mode for **third-party hooks with a predefined schema**, such as Slack or Discord. Your template defines the request body.
 
 ```json
 { "text": "🐛 {{title}}\n{{url}}\n\n{{body}}" }
 ```
 
-- 템플릿은 **유효한 JSON**이어야 하고, 저장 시점에 검사한다.
-- `{{...}}`는 **문자열 리프 안에서만** 치환된다. 리프 전체가 하나의 placeholder면 타입이 보존된다(`"{{media.count}}"` → `2`).
-- **캡처 미디어는 가지 않는다.** 바디에 실을 방법이 base64뿐인데 영상이 거의 항상 크기 상한을 넘긴다.
-- **응답을 읽지 않는다.** 2xx면 성공이고, 그래서 **BugShot 이슈 목록에 행이 생기지 않는다.**
+- The template must be **valid JSON** and is validated when saving.
+- `{{...}}` substitution happens **only inside string values**. When a whole string consists of one placeholder, its value retains its type (`"{{media.count}}"` becomes `2`).
+- **Captured media is not sent.** Embedding it would require base64, and video would typically exceed the body size limit.
+- **The response body is not read.** Any 2xx succeeds, and **no entry is recorded in BugShot's issue list**.
 
-### 쓸 수 있는 변수
+### Available variables
 
-| 경로 | 값 |
+| Path | Value |
 |---|---|
-| `{{title}}` | 리포트 제목 |
-| `{{body}}` | 마크다운 본문. 미디어 자리에는 "본문에 인라인하지 못했다"는 안내가 들어가고, 로그 요약은 건수만 남는다(파일이 안 가므로 `logs.html`을 가리키지 않는다) |
-| `{{url}}` | 버그가 난 페이지 주소 |
-| `{{capturedAt}}` | 캡처 시각 (ISO 8601) |
-| `{{logSummary}}` | 로그 요약 한 줄 |
-| `{{env.os}}` `{{env.browser}}` `{{env.viewport}}` `{{env.selector}}` | 재현 환경 |
-| `{{sections.<id>}}` | 본문 섹션 하나 |
-| `{{media.count}}` | 리포트가 담은 캡처 파일 개수 — **이 모드에선 전송되지 않는 파일의 개수다** |
-| `{{media.0.filename}}` `{{media.0.contentType}}` | N번째 캡처 파일의 메타데이터. 파일 자체는 가지 않으므로 "무엇이 찍혔는지"를 알리는 용도다. 없는 인덱스를 참조하면 제출이 실패한다 |
+| `{{title}}` | Report title |
+| `{{body}}` | Markdown body. Media is replaced with a notice that it could not be embedded; the log summary retains only counts and does not refer to `logs.html`, since that file is not sent. |
+| `{{url}}` | URL of the page where the bug occurred |
+| `{{capturedAt}}` | Capture time in ISO 8601 format |
+| `{{logSummary}}` | Single-line log summary |
+| `{{env.os}}` `{{env.browser}}` `{{env.viewport}}` `{{env.selector}}` | Reproduction environment |
+| `{{sections.<id>}}` | An individual body section |
+| `{{media.count}}` | Number of captured files in the report — **these files are not sent in this mode** |
+| `{{media.0.filename}}` `{{media.0.contentType}}` | Metadata for the file at index N. This describes what was captured, without sending the file. Referencing a nonexistent index causes submission to fail. |
 
-목록에 없는 이름은 **저장이 거부된다** — 제출 시점에 처음 알게 되는 일이 없도록.
+Unlisted variable names are **rejected when saving**, so you can correct them before submitting a report.
 
 ---
 
-## 4. 멱등 키와 중복
+## 4. Idempotency and duplicates
 
-`payload.bugshot.idempotencyKey`는 **한 리포트에 하나**이고, 같은 리포트를 다시 보내면 같은 값이 온다. 이슈 레코드 id(`crypto.randomUUID`)를 그대로 쓴다.
+`payload.bugshot.idempotencyKey` identifies **one report**. Sending the same report again sends the same value. It is the issue record's ID, generated with `crypto.randomUUID`.
 
-이게 필요한 이유: 요청이 타임아웃되거나 확장의 service worker가 도중에 종료되면 **서버가 받았는지 알 수 있는 방법이 없다.** 그 상태에서 사용자가 다시 보내면 같은 리포트가 두 번 도착한다.
+If a request times out or the extension's service worker stops during delivery, **BugShot cannot know whether the server received it**. A user retry can therefore deliver the same report twice.
 
 ```js
-const seen = new Set();                                  // 실제로는 영속 저장소에
+const seen = new Set(); // Use persistent storage in production.
 const key = payload.bugshot.idempotencyKey;
 if (seen.has(key)) return res.writeHead(200).end(JSON.stringify(prior[key]));
 seen.add(key);
 ```
 
-두 번째 요청에도 **첫 번째와 같은 `{key, url}`을 돌려주는 것**이 맞다(에러가 아니다).
+For a duplicate request, return **the same `{key, url}` as the first response**, rather than an error.
 
-JSON 템플릿 모드에서는 멱등 키가 전송되지 않고 템플릿 변수로도 노출되지 않는다. 타임아웃 뒤 다시 보내면 중복될 수 있으므로 수신 여부부터 확인하라. multipart 모드도 수신 서버가 이 키로 중복을 처리해야 한다 — 확장이 중복 방지를 보장하지 않는다.
+JSON template mode does not send an idempotency key or expose one as a template variable. Retrying after a timeout can create duplicates, so check whether the request arrived first. Multipart receivers must also implement deduplication using the key; the extension does not guarantee duplicate prevention.
 
 ---
 
-## 5. 연결 테스트 요청
+## 5. Connection tests
 
-**multipart 모드**의 `연결 테스트` 버튼은 **리포트가 아닌** 작은 요청을 보낸다.
+In **multipart mode**, **Test connection** sends a small probe **instead of a report**:
 
 ```
 POST <endpoint>
@@ -195,34 +196,34 @@ X-BugShot-Test: 1
 {"bugshot":{"test":true,"sentAt":1767225600000}}
 ```
 
-`X-BugShot-Test: 1`을 보고 **저장하지 말고 2xx만 돌려주면 된다.** 이 요청에는 `payload`도 파일 파트도 없다. 타임아웃은 8초다(실제 제출은 30초).
+When `X-BugShot-Test: 1` is present, **return any 2xx without storing a report**. The probe has no `payload` or file parts. Its timeout is 8 seconds, compared with 30 seconds for a submission.
 
-**JSON 템플릿 모드**에서는 버튼이 `샘플 전송`으로 바뀐다. 현재 편집 중인 템플릿을 고정 예시 데이터로 채워 POST하고, `X-BugShot-Test` 헤더는 자동으로 붙이지 않는다. 실제 제출과 같은 JSON 형식이라 수신처에 **실제 메시지가 생성될 수 있다**. 현재 캡처 데이터나 미디어는 사용하지 않으며, 전송 결과는 화면의 미리보기와 같다. 2xx면 성공이고, 타임아웃은 8초·바디 상한은 제출과 같은 25MB다. 타임아웃이어도 샘플이 이미 도착했을 수 있으니 재시도 전에 확인하라.
+In **JSON template mode**, the button becomes **Send sample**. It fills the currently edited template with fixed sample data and POSTs the result. BugShot does not automatically add `X-BugShot-Test`. Because this uses the same JSON format as a real submission, **it can create a real message at the destination**. It uses no current capture data or media; the body matches the on-screen preview. Any 2xx succeeds. The timeout is 8 seconds and the body limit is 25MB, as for submissions. A timeout does not mean the sample failed to arrive; check before retrying.
 
 ---
 
-## 6. 상한과 거부 규칙
+## 6. Limits and rejection rules
 
-| | |
+| Rule | Behavior |
 |---|---|
-| 요청 타임아웃 | 30초 (연결 테스트는 8초) |
-| 바디 상한 | 25MB — 넘으면 **보내기 전에** 중단한다 |
-| 리다이렉트 | **따라가지 않는다.** 3xx는 실패로 처리한다 — `Authorization`이 다른 호스트로 새는 걸 막는다. 최종 주소를 설정에 직접 넣어라 |
-| 쿠키 | 붙지 않는다 (`credentials: "omit"`) |
-| 주소 | `https`만. `http`는 사설망(loopback·RFC1918·링크로컬·IPv6 ULA·점 없는 호스트명·`.local`·`.internal`)에서만 허용하고, 그때 설정 화면에 평문 경고가 뜬다 |
-| 에러 본문 | 실패 시 응답 본문 앞 8KB만 읽고, 제어·방향 전환 문자를 걷고 공백을 접어 앞 200자를 실패 안내 뒤에 덧붙인다(`수신 서버 응답: …`). 그 안에 **요청 헤더 값이나 엔드포인트 주소**(경로 전체·쿼리·20자 이상 경로 세그먼트)가 되비치면 `***`로 가린다 — 경로에 토큰을 박는 수신처(Slack·Discord)를 위해서다 |
+| Request timeout | 30 seconds; 8 seconds for connection tests and samples |
+| Body size | 25MB; larger requests are rejected **before sending** |
+| Redirects | **Not followed.** A 3xx is treated as a failure to prevent forwarding `Authorization` to another host. Configure the final endpoint URL directly. |
+| Cookies | Not sent (`credentials: "omit"`) |
+| Endpoint | `https` only, except that `http` is allowed for private destinations: loopback, RFC1918, link-local, IPv6 ULA, single-label hostnames, `.local`, and `.internal`. The settings form warns when using plaintext HTTP. |
+| Error body | BugShot reads at most the first 8KB, removes control and directional characters, collapses whitespace, and appends the first 200 characters to the failure message as the receiver's response. Reflected **request header values and endpoint URL components** (the full path, query, and path segments of at least 20 characters) are masked with `***`, including tokens embedded in Slack or Discord endpoint paths. |
 
 ---
 
-## 7. 레퍼런스 수신 서버
+## 7. Reference receiver
 
-의존성 없이 도는 최소 구현이다. `node server.mjs`로 띄우고 엔드포인트에 `http://localhost:8787/bugshot`을 넣으면 된다(사설망이라 평문 http가 허용된다).
+This minimal example has no dependencies. Run it with `node server.mjs` and configure `http://localhost:8787/bugshot` as the endpoint. Plaintext HTTP is allowed for this local address.
 
 ```js
 import { createServer } from "node:http";
 
 const SECRET = process.env.BUGSHOT_SECRET ?? "dev-secret";
-const seen = new Map(); // idempotencyKey → 이전 응답. 실제로는 영속 저장소에.
+const seen = new Map(); // idempotencyKey → previous response. Use persistent storage in production.
 
 createServer((req, res) => {
   const reply = (code, body) => {
@@ -239,20 +240,20 @@ createServer((req, res) => {
     const boundary = /boundary=(.+)$/.exec(req.headers["content-type"] ?? "")?.[1];
     if (!boundary) return reply(415, { error: "expected multipart" });
 
-    // payload 파트만 꺼낸다. 파일 파트는 같은 방식으로 이름(payload.media[].part)을 찾아 저장한다.
+    // Extract only payload. Locate file parts by payload.media[].part to store them separately.
     const part = raw.split(`--${boundary}`).find((p) => p.includes('name="payload"'));
     const payloadText = part.slice(part.indexOf("\r\n\r\n") + 4).trim();
     const payload = JSON.parse(Buffer.from(payloadText, "binary").toString("utf8"));
 
     const key = payload.bugshot.idempotencyKey;
-    if (seen.has(key)) return reply(200, seen.get(key)); // 중복: 첫 응답을 그대로 돌려준다
+    if (seen.has(key)) return reply(200, seen.get(key)); // Return the original response for duplicates.
     const result = { key: `BUG-${seen.size + 1}`, url: `http://localhost:8787/r/${key}` };
     seen.set(key, result);
 
     console.log(payload.title, "·", payload.media.map((m) => m.part).join(", "));
-    reply(201, result); // {key, url}이 없으면 확장이 실패로 처리한다
+    reply(201, result); // BugShot treats a response without {key, url} as a failure.
   });
 }).listen(8787);
 ```
 
-파일 파트를 실제로 저장하려면 `busboy` 같은 파서를 쓰는 편이 낫다 — 위 문자열 분해는 `payload`(텍스트)까지만 안전하다.
+Use a multipart parser such as `busboy` to store the actual file parts. The string splitting above is only intended for the text `payload` part.
