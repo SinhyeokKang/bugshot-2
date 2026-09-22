@@ -42,11 +42,16 @@ import {
   getAttachmentBlobKeys,
 } from "../blob-db";
 import {
+  mergeIssueLists,
+  mergeIssuesState,
   migrateIssuesState,
+  rehydrateIssuesFromExternalWrite,
   shouldPruneAfterRehydrate,
+  shouldSyncIssuesChange,
   stripSubmitted,
   useIssuesStore,
   type IssueRecord,
+  type IssuesState,
 } from "../issues-store";
 import { dataUrlToBlob, saveImageBlobRaw } from "../blob-db";
 
@@ -584,5 +589,170 @@ describe("pruneOrphanBlobs — rehydrate 실패 시 fail-closed", () => {
 
     expect(deleteVideoBlob).toHaveBeenCalledWith("orphan");
     expect(deleteVideoBlob).not.toHaveBeenCalledWith("keep");
+  });
+
+  // 다른 인스턴스의 write로 촉발된 rehydrate에서 prune을 돌리면, 캡처를 막 끝내 blob을
+  // issue id로 rekey했지만 레코드가 아직 storage에 안 들어간 인스턴스의 살아있는 blob이
+  // 지워진다(pending 접두사 가드는 rekey 전까지만 보호). prune은 마운트 1회만.
+  it("외부 write로 촉발된 rehydrate에서는 prune을 돌리지 않는다", async () => {
+    getItem.mockResolvedValue({
+      [KEY]: JSON.stringify({ state: { issues: [{ id: "keep" }] }, version: 5 }),
+    });
+    vi.mocked(getVideoBlobKeys).mockResolvedValue(["keep", "orphan"]);
+
+    await rehydrateIssuesFromExternalWrite();
+    await flush();
+
+    expect(deleteVideoBlob).not.toHaveBeenCalled();
+  });
+
+  // 억제는 1회성이어야 한다 — 플래그가 켜진 채 남으면 다음 마운트의 prune이 영구 무력화돼
+  // 고아 blob이 무기한 누적된다(용량 축).
+  it("외부 rehydrate 이후의 마운트 rehydrate는 다시 prune한다", async () => {
+    getItem.mockResolvedValue({
+      [KEY]: JSON.stringify({ state: { issues: [{ id: "keep" }] }, version: 5 }),
+    });
+    vi.mocked(getVideoBlobKeys).mockResolvedValue(["keep", "orphan"]);
+
+    await rehydrateIssuesFromExternalWrite();
+    await flush();
+    await useIssuesStore.persist.rehydrate();
+    await flush();
+
+    expect(deleteVideoBlob).toHaveBeenCalledWith("orphan");
+  });
+});
+
+// #240: 사이드패널 인스턴스가 둘 이상이면 각자 마운트 시점 스냅샷을 계속 재직렬화해
+// 마지막 write가 issues 배열을 통째로 덮었다 — 제출된 이슈가 Draft로 되돌아가고(중복 제출),
+// 삭제된 이슈가 미디어 없이 되살아났다. persist merge가 그 병합 규칙의 단일 출처다.
+describe("mergeIssueLists (크로스 인스턴스 병합 규칙)", () => {
+  const rec = (patch: Partial<IssueRecord> & { id: string }): IssueRecord => ({
+    status: "draft",
+    platform: "jira",
+    title: patch.id,
+    createdAt: 0,
+    updatedAt: 0,
+    pageUrl: "https://example.com",
+    draft: { title: "", sections: {} },
+    snapshot: { before: false, after: false },
+    ...patch,
+  });
+
+  // 역행은 단순 스냅샷 지연이 아니라 비용을 만든다 — Draft로 보이면 사용자가 다시 제출해
+  // 목적지 플랫폼에 중복 티켓이 생긴다. 그래서 updatedAt보다 우선하는 규칙으로 둔다.
+  it("submitted를 draft로 되돌리지 않는다 — updatedAt이 더 새로워도", () => {
+    const persisted = [rec({ id: "a", status: "draft", updatedAt: 999 })];
+    const current = [rec({ id: "a", status: "submitted", updatedAt: 100, key: "BUG-1" })];
+
+    const out = mergeIssueLists(persisted, current);
+
+    expect(out).toHaveLength(1);
+    expect(out[0].status).toBe("submitted");
+    expect(out[0].key).toBe("BUG-1");
+  });
+
+  it("다른 인스턴스의 제출 결과를 받아들인다 (정방향)", () => {
+    const persisted = [rec({ id: "a", status: "submitted", updatedAt: 200, key: "BUG-2", url: "https://x/2" })];
+    const current = [rec({ id: "a", status: "draft", updatedAt: 100 })];
+
+    const out = mergeIssueLists(persisted, current);
+
+    expect(out[0].status).toBe("submitted");
+    expect(out[0].key).toBe("BUG-2");
+    expect(out[0].url).toBe("https://x/2");
+  });
+
+  // 존재 권위를 메모리에 주면 A가 삭제한 이슈가 B의 배열로 되살아난다 — removeIssue가 blob을
+  // 즉시 지웠으므로 미디어 없는 좀비 레코드가 목록에 남는다.
+  it("저장분에서 사라진 레코드는 드롭한다 (삭제 좀비 금지)", () => {
+    const persisted = [rec({ id: "a" })];
+    const current = [rec({ id: "a" }), rec({ id: "b" })];
+
+    expect(mergeIssueLists(persisted, current).map((i) => i.id)).toEqual(["a"]);
+  });
+
+  it("저장분에만 있는 레코드를 받아들이고 저장분 순서를 따른다", () => {
+    const persisted = [rec({ id: "b" }), rec({ id: "a" })];
+    const current = [rec({ id: "a" })];
+
+    expect(mergeIssueLists(persisted, current).map((i) => i.id)).toEqual(["b", "a"]);
+  });
+
+  it("status가 같으면 updatedAt 최신이 이긴다 (양방향)", () => {
+    const persisted = [
+      rec({ id: "a", updatedAt: 100, title: "old-a" }),
+      rec({ id: "b", updatedAt: 300, title: "new-b" }),
+    ];
+    const current = [
+      rec({ id: "a", updatedAt: 200, title: "new-a" }),
+      rec({ id: "b", updatedAt: 200, title: "old-b" }),
+    ];
+
+    const out = mergeIssueLists(persisted, current);
+
+    expect(out.map((i) => i.title)).toEqual(["new-a", "new-b"]);
+  });
+
+  // 무변경 병합이 새 배열을 반환하면, 자기 write가 촉발한 onChanged마다 set(replace)로
+  // 전 레코드 identity가 갈려 issue 구독 effect가 재실행되고 storage write가 한 번 더 돈다
+  // (그 write가 다시 onChanged를 깨워 ping-pong). 참조 보존이 그 두 개를 동시에 막는다.
+  it("변경이 없으면 현재 배열을 참조까지 그대로 반환한다 (에코·리렌더 방지)", () => {
+    const current = [rec({ id: "a", updatedAt: 100 }), rec({ id: "b", updatedAt: 200 })];
+    const persisted = JSON.parse(JSON.stringify(current)) as IssueRecord[];
+
+    expect(mergeIssueLists(persisted, current)).toBe(current);
+  });
+});
+
+describe("mergeIssuesState (persist merge 진입점)", () => {
+  const state = (): IssuesState => useIssuesStore.getState();
+
+  // zustand persist는 merge 결과를 set(state, true)로 **replace** 한다. issues만 담아
+  // 돌려주면 액션 전체가 사라져 스토어가 죽는다.
+  it("액션을 보존한다 (set replace=true 대응)", () => {
+    const current = state();
+    const out = mergeIssuesState({ issues: [{ id: "a" }] }, current);
+
+    expect(typeof out.addIssue).toBe("function");
+    expect(out.removeIssue).toBe(current.removeIssue);
+    expect(out.issues.map((i) => i.id)).toEqual(["a"]);
+  });
+
+  // 최초 실행(저장분 없음)에도 merge는 호출된다 — persistedState가 undefined다.
+  it("저장분이 없으면 현재 상태를 그대로 돌려준다", () => {
+    const current = state();
+    const out = mergeIssuesState(undefined, current);
+
+    expect(out.issues).toBe(current.issues);
+  });
+
+  // 버전이 같으면 migrate가 돌지 않아 issues 비배열 오염이 merge까지 그대로 온다.
+  // 그걸 []로 읽으면 메모리의 살아있는 초안이 통째로 날아간다(fail-closed).
+  it("저장분의 issues가 배열이 아니면 현재 목록을 유지한다", () => {
+    const current = state();
+    const out = mergeIssuesState({ issues: "corrupt" }, current);
+
+    expect(out.issues).toBe(current.issues);
+  });
+});
+
+describe("shouldSyncIssuesChange (에코 가드)", () => {
+  it("변경 없음·동일 값 에코는 무시한다", () => {
+    expect(shouldSyncIssuesChange(undefined)).toBe(false);
+    expect(shouldSyncIssuesChange({ oldValue: "x", newValue: "x" })).toBe(false);
+  });
+
+  it("값이 바뀌었거나 새로 생겼으면 동기화한다", () => {
+    expect(shouldSyncIssuesChange({ oldValue: "x", newValue: "y" })).toBe(true);
+    expect(shouldSyncIssuesChange({ newValue: "y" })).toBe(true);
+  });
+});
+
+describe("shouldPruneAfterRehydrate — external 인자", () => {
+  it("외부 write로 촉발된 rehydrate면 정상 응답에서도 prune하지 않는다", () => {
+    expect(shouldPruneAfterRehydrate(undefined, true)).toBe(false);
+    expect(shouldPruneAfterRehydrate(undefined, false)).toBe(true);
+    expect(shouldPruneAfterRehydrate(new Error("io"), true)).toBe(false);
   });
 });
