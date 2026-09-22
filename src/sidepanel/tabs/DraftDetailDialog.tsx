@@ -852,7 +852,7 @@ export function DraftDetailDialog({
 
   function handleSaveEdit(nextValue: string) {
     if (!issue || !editTarget) return;
-    patchIssue(issue.id, applyDraftFieldEdit(issue, editTarget, nextValue, Date.now()));
+    patchIssue(issue.id, applyDraftFieldEdit(issue, editTarget, nextValue));
     setEditTarget(null);
   }
 

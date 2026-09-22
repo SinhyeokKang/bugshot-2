@@ -7,7 +7,6 @@ import {
 import type { IssueRecord } from "@/store/issues-store";
 import type { TextIssueSection } from "../bodyBlocks";
 
-const NOW = 1_700_000_000_000;
 
 const section = (
   id: TextIssueSection["id"],
@@ -41,21 +40,24 @@ describe("applyDraftFieldEdit", () => {
     const target: DraftEditTarget = { kind: "title", value: "원래 제목" };
 
     it("최상위 title과 draft.title을 모두 새 값으로 갱신", () => {
-      const patch = applyDraftFieldEdit(makeIssue(), target, "새 제목", NOW);
+      const patch = applyDraftFieldEdit(makeIssue(), target, "새 제목");
       expect(patch.title).toBe("새 제목");
       expect(patch.draft?.title).toBe("새 제목");
     });
 
     it("draft.sections와 draft.environment를 보존", () => {
       const issue = makeIssue();
-      const patch = applyDraftFieldEdit(issue, target, "새 제목", NOW);
+      const patch = applyDraftFieldEdit(issue, target, "새 제목");
       expect(patch.draft?.sections).toEqual(issue.draft.sections);
       expect(patch.draft?.environment).toEqual(issue.draft.environment);
     });
 
-    it("updatedAt을 주입한 now로 설정", () => {
-      const patch = applyDraftFieldEdit(makeIssue(), target, "새 제목", NOW);
-      expect(patch.updatedAt).toBe(NOW);
+    // updatedAt 소유권은 patchIssue에 있다 — 여기서 실으면 스프레드 뒤 Date.now()에 덮여
+    // 항상 폐기되고, 주입값이 살아있다고 믿는 호출부가 stale timestamp로 병합 동률 규칙을
+    // 다시 연다.
+    it("updatedAt을 싣지 않는다 (patchIssue가 소유)", () => {
+      const patch = applyDraftFieldEdit(makeIssue(), target, "새 제목");
+      expect("updatedAt" in patch).toBe(false);
     });
   });
 
@@ -67,22 +69,17 @@ describe("applyDraftFieldEdit", () => {
     };
 
     it("대상 섹션 값만 새 값으로 갱신", () => {
-      const patch = applyDraftFieldEdit(makeIssue(), target, "새 발생현상", NOW);
+      const patch = applyDraftFieldEdit(makeIssue(), target, "새 발생현상");
       expect(patch.draft?.sections.description).toBe("새 발생현상");
     });
 
     it("다른 섹션·draft.title·최상위 title·environment를 보존", () => {
       const issue = makeIssue();
-      const patch = applyDraftFieldEdit(issue, target, "새 발생현상", NOW);
+      const patch = applyDraftFieldEdit(issue, target, "새 발생현상");
       expect(patch.draft?.sections.stepsToReproduce).toBe("1. 원래 절차");
       expect(patch.draft?.title).toBe("원래 제목");
       expect(patch.title).toBeUndefined();
       expect(patch.draft?.environment).toEqual(issue.draft.environment);
-    });
-
-    it("updatedAt을 주입한 now로 설정", () => {
-      const patch = applyDraftFieldEdit(makeIssue(), target, "새 발생현상", NOW);
-      expect(patch.updatedAt).toBe(NOW);
     });
 
     it("존재하지 않던 신규 sectionId 편집 시 키를 추가하고 기존 키를 보존", () => {
@@ -91,14 +88,14 @@ describe("applyDraftFieldEdit", () => {
         section: section("expectedResult"),
         value: "",
       };
-      const patch = applyDraftFieldEdit(makeIssue(), newTarget, "기대 결과", NOW);
+      const patch = applyDraftFieldEdit(makeIssue(), newTarget, "기대 결과");
       expect(patch.draft?.sections.expectedResult).toBe("기대 결과");
       expect(patch.draft?.sections.description).toBe("원래 발생현상");
       expect(patch.draft?.sections.stepsToReproduce).toBe("1. 원래 절차");
     });
 
     it("빈 문자열로 편집 시 해당 키를 빈 값으로 설정(clear 허용)", () => {
-      const patch = applyDraftFieldEdit(makeIssue(), target, "", NOW);
+      const patch = applyDraftFieldEdit(makeIssue(), target, "");
       expect(patch.draft?.sections.description).toBe("");
     });
   });
@@ -109,13 +106,11 @@ describe("applyDraftFieldEdit", () => {
         makeIssue(),
         { kind: "title", value: "x" },
         "새 제목",
-        NOW,
       );
       const sectionPatch = applyDraftFieldEdit(
         makeIssue(),
         { kind: "section", section: section("description"), value: "x" },
         "새 값",
-        NOW,
       );
       expect("id" in titlePatch).toBe(false);
       expect("id" in sectionPatch).toBe(false);
@@ -128,7 +123,6 @@ describe("applyDraftFieldEdit", () => {
         issue,
         { kind: "section", section: section("description"), value: "x" },
         "새 값",
-        NOW,
       );
       expect(issue).toEqual(snapshot);
     });
@@ -139,7 +133,6 @@ describe("applyDraftFieldEdit", () => {
         issue,
         { kind: "title", value: "x" },
         "새 제목",
-        NOW,
       );
       expect(patch.draft).not.toBe(issue.draft);
     });

@@ -63,8 +63,131 @@ export function stripSubmitted(
 
 // zustand의 postRehydration 콜백은 성공·실패 양쪽에서 발화한다. 실패 시엔 저장분을 못 읽은
 // 것이므로 참조 집합(issues)이 비어 보이고, 그대로 prune하면 살아있는 blob을 전부 지운다.
-export function shouldPruneAfterRehydrate(error: unknown): boolean {
-  return error == null;
+// 외부 write로 촉발된 rehydrate도 마찬가지로 prune 대상이 아니다 — 아래 주석 참조.
+export function shouldPruneAfterRehydrate(
+  error: unknown,
+  isExternalSync = false,
+): boolean {
+  return error == null && !isExternalSync;
+}
+
+// 다른 사이드패널 인스턴스의 write로 촉발된 rehydrate 구간. 그 구간의 prune은 금지다 —
+// 캡처를 막 끝내 blob을 pending에서 issue id로 rekey했지만 레코드가 아직 storage에 안
+// 들어간 인스턴스의 살아있는 blob이 고아로 판정된다(isPendingKey 가드는 rekey 전까지만
+// 보호한다). 고아 수거는 마운트 rehydrate에만 맡긴다.
+// depth 카운터인 이유: 변경이 연달아 오면 앞선 finally가 뒤 구간의 플래그를 끈다.
+// 수용한 잔여: 외부 변경이 마운트 hydration을 추월하면 zustand의 hydrationVersion 가드가
+// 마운트 콜백을 아예 건너뛰므로(middleware.js) 그 세션은 prune이 0회다 — 즉 "세션 1회"가
+// 아니라 "세션 0~1회"다. 고아는 다음 마운트가 수거하니 용량 축이고, 반대 방향(과잉 삭제)이
+// 아니라 안전한 실패 모드다. 세션 플래그로 보정하지 않는 건 그 플래그가 실패 경로에서
+// 켜진 채 남으면 prune이 영구 무력화되기 때문이다(POSTMORTEM 2026-07-23).
+let externalSyncDepth = 0;
+
+export async function rehydrateIssuesFromExternalWrite(): Promise<void> {
+  externalSyncDepth += 1;
+  try {
+    await useIssuesStore.persist.rehydrate();
+  } finally {
+    externalSyncDepth -= 1;
+  }
+}
+
+// settings의 에코 가드와 같은 이유 — chrome.storage는 값이 안 바뀌어도 set마다 발화한다.
+export function shouldSyncIssuesChange(
+  change: chrome.storage.StorageChange | undefined,
+): boolean {
+  if (!change) return false;
+  return change.oldValue !== change.newValue;
+}
+
+function pickIssue(persisted: IssueRecord, current: IssueRecord): IssueRecord {
+  // 역행 금지. submitted가 draft로 되돌아가면 사용자가 다시 제출해 목적지 플랫폼에 중복
+  // 티켓이 생기고, stripSubmitted가 이미 지운 blob을 참조하는 레코드가 남는다.
+  if (persisted.status !== current.status) {
+    return persisted.status === "submitted" ? persisted : current;
+  }
+  // 동률이면 메모리를 유지한다 — 자기 write가 촉발한 onChanged에서 레코드 identity가 갈리는
+  // 걸 막는다. 동률이 곧 무변경이어야 이게 성립하므로, 레코드를 바꾸는 모든 액션이
+  // updatedAt을 올린다(patch* 3종 포함 — 안 올리면 상대의 변경이 무음으로 버려진다).
+  return persisted.updatedAt > current.updatedAt ? persisted : current;
+}
+
+/**
+ * 저장분과 메모리의 issue 목록을 레코드 단위로 합친다(#240).
+ *
+ * 인스턴스가 둘 이상이면 각자 마운트 시점 스냅샷을 계속 재직렬화하므로, 병합 없이는 마지막
+ * write가 배열을 통째로 덮는다 — 제출된 이슈가 Draft로 되돌아가고 삭제된 이슈가 미디어 없이
+ * 되살아난다. 규칙은 셋이다:
+ * - **존재는 저장분이 권위** — 메모리에만 있는 레코드는 드롭한다(삭제 좀비 금지).
+ * - **submitted는 draft로 역행하지 않는다** — updatedAt보다 우선한다.
+ * - 나머지는 updatedAt 최신 승자, 동률은 메모리.
+ *
+ * 필드 단위 병합은 하지 않는다 — 레코드 하나를 통째로 고른다. 필드를 섞으면 "키 없음"이
+ * "기존 값 유지"로 뒤집혀 사용자가 비운 필드가 되살아난다(POSTMORTEM 2026-07-26 A-11).
+ *
+ * 무변경이면 current를 **참조까지 그대로** 돌려준다 — 그래야 자기 write가 촉발한 rehydrate가
+ * 구독을 건드리지 않는다.
+ *
+ * 예외가 하나 있다 — `ownedId`(로컬 에디터가 들고 있는 레코드)가 **아직 draft이면** 저장분에
+ * 없어도 보전한다. 존재 권위를 예외 없이 적용하면 다른 인스턴스가 그 초안을 지운 순간 이쪽
+ * 메모리에서도 사라지고, 이어지는 `markSubmitted`가 **무음 no-op**이 된다 — 티켓은
+ * 목적지에 생겼는데 로컬엔 key/url이 없어 status 조회도, 중복 제출 방지도 못 한다(#240이
+ * 실제로 비용을 치른 그 형태). 제출 in-flight 구간은 `markSubmitted` 직전까지 draft라
+ * 이 조건으로 덮인다.
+ *
+ * submitted까지 보전하지 않는 이유: `currentIssueId`는 제출 후에도 남는다(`onSubmitted`는
+ * phase만 옮기고, 해제는 사용자가 성공 화면을 닫아 `reset()`이 돌 때뿐이며 세션 스냅샷으로
+ * 복원되기까지 한다). 그걸 보전하면 다른 창이 지운 **제출 완료** 이슈가 blob 없이 되살아나
+ * #240이 고발한 좀비 그대로가 된다. 그 구간엔 위 정당화(뒤따를 markSubmitted)도 없다.
+ *
+ * 남는 구멍: 서로의 read 사이에 끼어든 진짜 동시 write는 여전히 배열을 덮는다. 특히 방금
+ * 만들어 아직 영속 전인 레코드는 드롭되는데, 이건 병합 도입 **전보다 악화**다 — 전에는
+ * issues에 외부 rehydrate가 없어 메모리에 살아남아 다음 write로 복구됐다. 창이 `saveDraft`의
+ * storage.set in-flight 구간(수 ms)이고, 그 구간의 레코드는 대개 `ownedId`라 위 예외가 덮는다.
+ */
+export function mergeIssueLists(
+  persisted: IssueRecord[],
+  current: IssueRecord[],
+  ownedId?: string | null,
+): IssueRecord[] {
+  const byId = new Map(current.map((issue) => [issue.id, issue]));
+  const merged = persisted.map((p) => {
+    const c = byId.get(p.id);
+    return c ? pickIssue(p, c) : p;
+  });
+  const owned = ownedId ? byId.get(ownedId) : undefined;
+  if (owned?.status === "draft" && !merged.some((issue) => issue.id === ownedId)) {
+    merged.push(owned);
+  }
+  return sameRefs(merged, current) ? current : merged;
+}
+
+function sameRefs(next: IssueRecord[], prev: IssueRecord[]): boolean {
+  return next.length === prev.length
+    && next.every((issue, index) => issue === prev[index]);
+}
+
+// persist merge 진입점. zustand는 이 결과를 set(state, true)로 **replace** 하므로 액션까지
+// 든 완전한 상태를 돌려줘야 한다. 저장분이 없거나(최초 실행) issues가 배열이 아니면
+// (버전이 같아 migrate가 안 돈 오염) 메모리를 유지한다 — []로 읽으면 초안이 통째로 날아간다.
+// 무변경이면 state 객체까지 그대로 돌려준다(zustand가 Object.is로 리스너를 건너뛴다).
+// issues 외의 저장분 키는 버린다 — 이 스토어의 영속 필드는 issues 단독이고,
+// IssuesState에 영속 필드가 추가되면 여기 명시해야 한다(그물: issues-store.test.ts
+// "영속 필드는 issues 단독").
+export function mergeIssuesState(
+  persisted: unknown,
+  current: IssuesState,
+): IssuesState {
+  const source = persisted && typeof persisted === "object"
+    ? persisted as Record<string, unknown>
+    : null;
+  if (!source || !Array.isArray(source.issues)) return current;
+  const issues = mergeIssueLists(
+    source.issues as IssueRecord[],
+    current.issues,
+    useEditorStore.getState().currentIssueId,
+  );
+  return issues === current.issues ? current : { ...current, issues };
 }
 
 async function pruneOrphanBlobs(): Promise<void> {
@@ -336,7 +459,7 @@ export async function migrateIssuesState(
   return state as unknown as IssuesState;
 }
 
-interface IssuesState {
+export interface IssuesState {
   issues: IssueRecord[];
   saveDraft: (record: IssueRecord) => void;
   markSubmitted: (id: string, patch: Partial<IssueRecord>) => void;
@@ -403,16 +526,22 @@ export const useIssuesStore = create<IssuesState>()(
               : x,
           ),
         })),
+      // updatedAt을 함께 올린다 — 안 올리면 다른 인스턴스와 동률이 되어 이 변경이 병합에서
+      // 무음으로 버려진다(logsAttached·platform·attachments는 사용자 데이터다).
+      // 정렬·표시는 submittedAt/createdAt을 쓰므로 UI 영향은 없다. 스프레드 **뒤**에 두는 건
+      // 의도다 — 호출부가 stale timestamp를 실어 동률 규칙을 다시 열 수 없게 한다.
       patchIssue: (id, patch) =>
         set((s) => ({
           issues: s.issues.map((x) =>
-            x.id === id ? { ...x, ...patch } : x,
+            x.id === id ? { ...x, ...patch, updatedAt: Date.now() } : x,
           ),
         })),
       patchDraftSnapshot: (id, patch) =>
         set((s) => ({
           issues: s.issues.map((x) =>
-            x.id === id ? { ...x, snapshot: { ...x.snapshot, ...patch } } : x,
+            x.id === id
+              ? { ...x, snapshot: { ...x.snapshot, ...patch }, updatedAt: Date.now() }
+              : x,
           ),
         })),
       // 버퍼 element의 blob 저장 실패 시 hasBefore/hasAfter를 레코드와 일치시킨다(플래그-blob 정합).
@@ -425,6 +554,7 @@ export const useIssuesStore = create<IssuesState>()(
                   bufferedElements: x.bufferedElements.map((b, i) =>
                     i === index ? { ...b, ...patch } : b,
                   ),
+                  updatedAt: Date.now(),
                 }
               : x,
           ),
@@ -455,8 +585,9 @@ export const useIssuesStore = create<IssuesState>()(
       version: ISSUES_STORE_VERSION,
       storage: createJSONStorage(() => failClosedLocalStorage),
       migrate: migrateIssuesState,
+      merge: mergeIssuesState,
       onRehydrateStorage: () => (_state, error) => {
-        if (!shouldPruneAfterRehydrate(error)) return;
+        if (!shouldPruneAfterRehydrate(error, externalSyncDepth > 0)) return;
         void pruneOrphanBlobs();
       },
     },

@@ -54,6 +54,7 @@ import {
   type IssuesState,
 } from "../issues-store";
 import { dataUrlToBlob, saveImageBlobRaw } from "../blob-db";
+import { useEditorStore } from "../editor-store";
 
 interface LegacyShape {
   id: string;
@@ -695,8 +696,61 @@ describe("mergeIssueLists (크로스 인스턴스 병합 규칙)", () => {
   });
 
   // 무변경 병합이 새 배열을 반환하면, 자기 write가 촉발한 onChanged마다 set(replace)로
-  // 전 레코드 identity가 갈려 issue 구독 effect가 재실행되고 storage write가 한 번 더 돈다
-  // (그 write가 다시 onChanged를 깨워 ping-pong). 참조 보존이 그 두 개를 동시에 막는다.
+  // 전 레코드 identity가 갈려 issue 구독 effect가 재실행된다. (storage write는 안 늘어난다 —
+  // zustand는 migrated일 때만 setItem을 태운다. 참조 보존이 막는 건 리렌더 쪽이다.)
+  it("내용이 같고 순서만 다르면 새 배열이다 (위치도 상태다)", () => {
+    const a = rec({ id: "a", updatedAt: 100 });
+    const b = rec({ id: "b", updatedAt: 200 });
+    const current = [a, b];
+    const persisted = [
+      JSON.parse(JSON.stringify(b)) as IssueRecord,
+      JSON.parse(JSON.stringify(a)) as IssueRecord,
+    ];
+
+    const out = mergeIssueLists(persisted, current);
+
+    expect(out).not.toBe(current);
+    expect(out.map((i) => i.id)).toEqual(["b", "a"]);
+  });
+
+  // 존재 권위를 예외 없이 적용하면 다른 인스턴스가 지운 순간 이쪽 메모리에서도 사라지고,
+  // 이어지는 markSubmitted가 무음 no-op이 된다 — 티켓은 생겼는데 로컬에 key/url이 없다.
+  it("에디터가 들고 있는 레코드는 저장분에 없어도 보전한다", () => {
+    const persisted = [rec({ id: "a" })];
+    const current = [rec({ id: "a" }), rec({ id: "editing" })];
+
+    const out = mergeIssueLists(persisted, current, "editing");
+
+    expect(out.map((i) => i.id)).toEqual(["a", "editing"]);
+  });
+
+  it("보전 대상이 저장분에도 있으면 중복 추가하지 않는다", () => {
+    const persisted = [rec({ id: "editing", status: "submitted", updatedAt: 9 })];
+    const current = [rec({ id: "editing", updatedAt: 1 })];
+
+    const out = mergeIssueLists(persisted, current, "editing");
+
+    expect(out.map((i) => i.id)).toEqual(["editing"]);
+    expect(out[0].status).toBe("submitted");
+  });
+
+  // currentIssueId는 제출 후에도 남는다(해제는 성공 화면을 닫을 때뿐이고 세션 스냅샷으로
+  // 복원까지 된다). submitted까지 보전하면 다른 창이 지운 제출 완료 이슈가 blob 없이
+  // 되살아나 #240이 고발한 좀비 그대로가 된다 — 그 구간엔 markSubmitted 정당화도 없다.
+  it("소유 레코드라도 이미 submitted면 보전하지 않는다", () => {
+    const persisted = [rec({ id: "a" })];
+    const current = [rec({ id: "a" }), rec({ id: "editing", status: "submitted" })];
+
+    expect(mergeIssueLists(persisted, current, "editing").map((i) => i.id)).toEqual(["a"]);
+  });
+
+  it("편집 중이 아닌 레코드는 예외 없이 드롭한다 (좀비 예외를 넓히지 않는다)", () => {
+    const persisted = [rec({ id: "a" })];
+    const current = [rec({ id: "a" }), rec({ id: "gone" })];
+
+    expect(mergeIssueLists(persisted, current, "editing").map((i) => i.id)).toEqual(["a"]);
+  });
+
   it("변경이 없으면 현재 배열을 참조까지 그대로 반환한다 (에코·리렌더 방지)", () => {
     const current = [rec({ id: "a", updatedAt: 100 }), rec({ id: "b", updatedAt: 200 })];
     const persisted = JSON.parse(JSON.stringify(current)) as IssueRecord[];
@@ -712,9 +766,12 @@ describe("mergeIssuesState (persist merge 진입점)", () => {
   // 돌려주면 액션 전체가 사라져 스토어가 죽는다.
   it("액션을 보존한다 (set replace=true 대응)", () => {
     const current = state();
+    // 앵커: 이 단언이 없으면 앞선 rehydrate 케이스가 스토어를 액션 없는 상태로 replace해둔
+    // 경우 아래가 undefined === undefined로 통과한다 — 잡겠다던 실패 모드가 그물을 무력화한다.
+    expect(typeof current.saveDraft).toBe("function");
     const out = mergeIssuesState({ issues: [{ id: "a" }] }, current);
 
-    expect(typeof out.addIssue).toBe("function");
+    expect(out.saveDraft).toBe(current.saveDraft);
     expect(out.removeIssue).toBe(current.removeIssue);
     expect(out.issues.map((i) => i.id)).toEqual(["a"]);
   });
@@ -725,6 +782,23 @@ describe("mergeIssuesState (persist merge 진입점)", () => {
     const out = mergeIssuesState(undefined, current);
 
     expect(out.issues).toBe(current.issues);
+  });
+
+  // 보전 축이 persist 경로에 실제로 배선됐는지 — mergeIssueLists 인자만 테스트하면
+  // mergeIssuesState가 currentIssueId를 안 넘겨도 green이다.
+  it("editor-store의 currentIssueId를 보전 대상으로 넘긴다", () => {
+    const prev = useEditorStore.getState().currentIssueId;
+    useEditorStore.setState({ currentIssueId: "editing" });
+    try {
+      const current = {
+        ...state(),
+        issues: [{ id: "editing", status: "draft", updatedAt: 1 } as IssueRecord],
+      };
+      const out = mergeIssuesState({ issues: [] }, current);
+      expect(out.issues.map((i) => i.id)).toEqual(["editing"]);
+    } finally {
+      useEditorStore.setState({ currentIssueId: prev });
+    }
   });
 
   // 버전이 같으면 migrate가 돌지 않아 issues 비배열 오염이 merge까지 그대로 온다.
@@ -754,5 +828,148 @@ describe("shouldPruneAfterRehydrate — external 인자", () => {
     expect(shouldPruneAfterRehydrate(undefined, true)).toBe(false);
     expect(shouldPruneAfterRehydrate(undefined, false)).toBe(true);
     expect(shouldPruneAfterRehydrate(new Error("io"), true)).toBe(false);
+  });
+});
+
+// merge 규칙을 함수로만 테스트하면 persist 옵션에 배선하는 줄을 지워도 전부 green이다
+// (POSTMORTEM: migrate 콜백이 never-called여도 단계 테스트는 통과했다와 같은 축).
+describe("persist 옵션 배선", () => {
+  it("merge 옵션이 mergeIssuesState다", () => {
+    expect(useIssuesStore.persist.getOptions().merge).toBe(mergeIssuesState);
+  });
+
+  it("배선된 merge가 역행 금지 규칙을 태운다", () => {
+    const merge = useIssuesStore.persist.getOptions().merge!;
+    const current = {
+      ...useIssuesStore.getState(),
+      issues: [
+        {
+          id: "a",
+          status: "submitted",
+          updatedAt: 1,
+          key: "BUG-9",
+        } as unknown as IssueRecord,
+      ],
+    };
+
+    const out = merge({ issues: [{ id: "a", status: "draft", updatedAt: 99 }] }, current);
+
+    expect((out as IssuesState).issues[0].status).toBe("submitted");
+  });
+});
+
+// mergeIssuesState는 저장분의 issues만 취한다. IssuesState에 영속 필드가 추가되면 migrate는
+// 돌지만 값은 하이드레이트에서 조용히 버려지고 메모리 기본값이 남는다 — 타입도 런타임도
+// 안 잡으므로 필드 축을 소스에서 센다.
+describe("영속 필드는 issues 단독", () => {
+  it("IssuesState의 비-액션 필드가 늘면 red (mergeIssuesState에 명시해야 한다)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(
+      new URL("../issues-store.ts", import.meta.url),
+      "utf8",
+    );
+    const body = /export interface IssuesState \{([\s\S]*?)\n\}/.exec(src)?.[1];
+    expect(body).toBeTruthy();
+    // 액션은 값이 `(`로 시작한다(여러 줄에 걸친 시그니처도 첫 줄이 `(`로 끝난다).
+    const fields = body!
+      .split("\n")
+      .map((line) => /^ {2}(\w+)\??: (?!\()/.exec(line))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => m[1]);
+
+    expect(fields).toEqual(["issues"]);
+  });
+});
+
+describe("patch* 액션의 updatedAt", () => {
+  const base = (): IssueRecord => ({
+    id: "p1",
+    status: "draft",
+    platform: "jira",
+    title: "t",
+    createdAt: 1,
+    updatedAt: 1,
+    pageUrl: "https://example.com",
+    draft: { title: "", sections: {} },
+    snapshot: { before: false, after: false },
+    bufferedElements: [
+      {
+        selector: "div",
+        tagName: "div",
+        frameId: 0,
+        origin: "",
+        styleEdits: { classList: [], inlineStyle: {}, text: "" },
+        selectionSnapshot: {
+          classList: [],
+          specifiedStyles: {},
+          computedStyles: {},
+          text: null,
+          viewport: { width: 1, height: 1 },
+          capturedAt: 0,
+        },
+        hasBefore: false,
+        hasAfter: false,
+      },
+    ],
+  });
+
+  const at = () => useIssuesStore.getState().issues[0].updatedAt;
+
+  // 액션이 persist setItem을 태우므로 스텁이 없으면 chrome is not defined 스택이 출력에 쌓인다.
+  beforeEach(() => {
+    vi.stubGlobal("chrome", {
+      storage: {
+        local: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}), remove: vi.fn(async () => {}) },
+      },
+    });
+  });
+
+  afterEach(() => {
+    useIssuesStore.setState({ issues: [] });
+    vi.unstubAllGlobals();
+  });
+
+  // updatedAt을 안 올리면 다른 인스턴스와 동률이 되어 이 변경이 병합에서 무음으로 버려진다.
+  // logsAttached·platform·attachments는 사용자 데이터고, snapshot·buffered 플래그는
+  // 레코드↔blob 정합 보정이라 유실되면 없는 blob을 참조하는 레코드가 남는다.
+  it("patchIssue가 updatedAt을 올린다 (사용자 데이터 보전)", () => {
+    useIssuesStore.setState({ issues: [base()] });
+    useIssuesStore.getState().patchIssue("p1", { logsAttached: false });
+    expect(at()).toBeGreaterThan(1);
+  });
+
+  it("patchDraftSnapshot이 updatedAt을 올린다", () => {
+    useIssuesStore.setState({ issues: [base()] });
+    useIssuesStore.getState().patchDraftSnapshot("p1", { before: true });
+    expect(at()).toBeGreaterThan(1);
+  });
+
+  it("patchDraftBufferedImageFlags가 updatedAt을 올린다", () => {
+    useIssuesStore.setState({ issues: [base()] });
+    useIssuesStore.getState().patchDraftBufferedImageFlags("p1", 0, { hasBefore: true });
+    expect(at()).toBeGreaterThan(1);
+  });
+});
+
+// pickIssue의 "동률은 메모리 유지"는 **동률 = 무변경**을 전제한다. 레코드를 바꾸면서
+// updatedAt을 안 올리는 뮤테이터가 하나라도 생기면 그 변경만 크로스 인스턴스에서 무음으로
+// 사라진다 — 타입도 런타임도 안 잡으므로 소스에서 센다(현재 예외 0건이라 래칫으로 건다).
+describe("레코드를 바꾸는 액션은 updatedAt을 올린다", () => {
+  it("issues.map 뮤테이터 전수에 updatedAt이 있다", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(
+      new URL("../issues-store.ts", import.meta.url),
+      "utf8",
+    );
+    const blocks = src.split(/issues: s\.issues\.map\(/).slice(1);
+    expect(blocks.length).toBeGreaterThan(0);
+
+    const missing = blocks.filter((block) => {
+      // 다음 액션 정의 전까지를 그 뮤테이터의 본문으로 본다.
+      const body = block.split(/\n {6}\w+: \(/)[0];
+      return !/updatedAt/.test(body) && !/stripSubmitted/.test(body);
+    });
+
+    expect(missing).toEqual([]);
   });
 });
