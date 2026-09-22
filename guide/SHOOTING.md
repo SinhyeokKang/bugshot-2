@@ -4,7 +4,7 @@
 
 > 이 파일은 `guide/` 루트(ko/en 상위)에 있어 **docs-portal 서빙 대상이 아니다** — 레포에만 남는 내부 문서다. `AUTHORING.md`와 같은 위치·같은 성격이고, `docs/features/`(구현 후 삭제되는 백로그)에 두지 않는 이유도 그것이다.
 
-대상은 146장(로케일당 73장, `readme-1` 제외). 실행체는 **Aside 세션의 REPL**(Playwright `page` + 저수준 CDP `page._sendToTarget`)이고 `manual-smoke`와 같은 배관이다. 새 의존성·새 권한·새 스크립트 0개.
+대상은 154장(로케일당 77장, `readme-1` 제외). 실행체는 **Aside 세션의 REPL**(Playwright `page` + 저수준 CDP `page._sendToTarget`)이고 `manual-smoke`와 같은 배관이다. 새 의존성·새 권한·새 스크립트 0개.
 
 > 왜 e2e 하네스가 아닌가: `dist-e2e`를 로드한 별도 Playwright 인스턴스는 **연동이 비어 있어** 전부 목킹해야 한다. Aside 브라우저에는 이미 BugShot이 UNPACKED(`/Users/.../bugshot-2/dist`)로 설치돼 있고 실제 연동이 살아 있어 "실제 사용 중인 화면"이 그대로 나온다. 또한 이 세션의 Bash 샌드박스는 Chrome 프로세스 기동 자체가 막혀 있어(crashpad mach bootstrap 거부 → SIGABRT) 별도 인스턴스는 애초에 못 띄운다.
 
@@ -163,7 +163,18 @@ Aside 세션에서:
 
 ## 8. 진행 상태 / 핸드오프 (2026-08-09 기준)
 
-### ko: 62 / 73 — 자동 촬영분 완료
+### 2026-09-22: Ego로 Custom Webhook ko/en 8장 촬영
+
+`integrations-custom-webhook-1`~`4`를 ko/en 각각 촬영했다. 순서대로 연결 진입, Endpoint·시크릿·연결 테스트, JSON 템플릿·미리보기·샘플 전송, 설정 수정 진입이다. placeholder 8장을 실제 화면으로 교체했다.
+
+- **런타임**: Ego Lite 0.5.0.32의 `ego-browser` TaskSpace. 이 환경에는 스토어판 BugShot 1.7.42(`ohakhekagkodklkickemonmifdcbhmig`)가 설치돼 있었다. `chrome://extensions`의 `chrome.developerPrivate.getExtensionsInfo`와 패널의 `chrome.runtime.getManifest()`로 버전을 확인했다. 로컬 `dist`는 1.7.40이어서 사용하지 않았다. 언팩 개발판 ID를 하드코딩하지 않는다.
+- **가능 범위**: 확장 페이지 탐색·DOM 조작·CDP·`chrome.tabs`/`chrome.windows` API 접근을 확인했다. 이번 컷은 설정 UI만 찍으므로 대상 탭의 캡처나 별도 팝업 창이 필요하지 않았다. 녹화·페이지 캡처 지원까지 검증한 것은 아니다.
+- **촬영**: 폭 520 CSS px·DPR 2, 기본 높이 760. JSON 고급 설정 컷만 설명 문장이 잘리지 않도록 높이 820에서 내부 스크롤을 끝까지 내렸다. `Page.captureScreenshot`에 명시적 `clip: {x:0,y:0,width:520,height,scale:1}`을 전달해 1040px 폭 원본을 받았다. `page.screenshot()`과 clip 없는 CDP 캡처는 수동 metrics override와 조합했을 때 timeout·폭 변경이 발생했다. 명시적 clip 경로는 정상 동작했다.
+- **합성**: §3의 1600×1000 JPG q92·그라데이션·그림자·1040px 카드 폭 유지. 중간 밴드 offset은 1·4번 `-480`, 2번 `-270`, 3번 `-460`. ko/en 동일. 브라우저 canvas로 합성 후 8장을 각각 시각 검수했다.
+- **데이터**: `https://hooks.example.com/bugshot`·`example-secret`만 사용했다. 연결 테스트·샘플 전송은 실행하지 않았다. 4번 컷을 위해 저장한 임시 Webhook 연동은 제거했고 기존 연동을 유지했다. 언어는 촬영 전 값인 English로 복원했다.
+
+
+### ko: 66 / 77 — 자동 촬영분 완료
 
 커밋 6개로 반영됨: `42f36e8b`(49장) → `39d6223b`(log viewer 5) → `8fe17834`(이슈 목록·플랫폼 3) → `9af6d7c3`(웹스토어·플랫폼 그리드 2) → `c15d597a`(핸드오프) → `fc8c1516`(페이지 캡처 진행 1).
 
@@ -193,7 +204,7 @@ AI 배너 컷은 **해결됐다** — §5의 BYOK Gemini 키로 `settings-ai-1`�
 
 > **낡은 `dist`를 찍을 뻔했다.** i18n 개명 커밋보다 9분 먼저 빌드된 `dist`가 남아 있어 옛 라벨이 그대로 박힐 뻔했다 — 산출물 문자열을 직접 grep해 잡았다(`grep -rl "<새 문구>" dist/`). **시각 비교만으로는 모른다** — §7 재개 절차의 "dist가 마지막 커밋보다 오래됐는가"를 mtime이 아니라 **바뀐 문자열이 산출물에 있는지**로 확인할 것. 또 `pnpm build` 뒤에 **확장을 리로드**해야 한다(`chrome.developerPrivate.reload(<id>)`) — 언팩 확장은 자동으로 안 바뀐다.
 
-### en: 62 / 73 — 자동 촬영분 완료
+### en: 66 / 77 — 자동 촬영분 완료
 
 ko와 같은 파이프라인을 그대로 돌렸다. 남은 11장은 ko와 동일하다(녹화 계열, 수동 전용).
 

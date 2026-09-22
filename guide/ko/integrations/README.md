@@ -9,4 +9,5 @@
 ## 바로가기
 
 - [플랫폼 연동](platforms.md) — 8개 플랫폼을 연결하는 방법과 입력값.
+- [Custom Webhook](custom-webhook.md) — 직접 운영하는 서버로 리포트 보내기.
 - [이슈 트래킹](issue-tracking.md) — 작성한 초안·제출한 이슈를 모아 보고 관리.

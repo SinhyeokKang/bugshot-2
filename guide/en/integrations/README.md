@@ -9,4 +9,5 @@ No platform connected yet? No worries. You can still capture and draft as usual,
 ## Jump to
 
 - [Connecting Platforms](platforms.md) — How to connect all eight platforms and what each needs.
+- [Custom Webhook](custom-webhook.md) — Send reports to a server you run.
 - [Issue Tracking](issue-tracking.md) — Browse and manage your drafts and submitted issues.

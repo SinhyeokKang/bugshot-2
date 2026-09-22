@@ -5,6 +5,7 @@
   - [FAQ](faq.md)
 - [Integrations](integrations/README.md)
   - [Connecting Platforms](integrations/platforms.md)
+  - [Custom Webhook](integrations/custom-webhook.md)
   - [Issue Tracking](integrations/issue-tracking.md)
 - [Settings](settings/README.md)
   - [Issue Settings](settings/issue.md)

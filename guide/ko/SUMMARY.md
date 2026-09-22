@@ -5,6 +5,7 @@
   - [자주 묻는 질문](faq.md)
 - [연동 설정](integrations/README.md)
   - [플랫폼 연동](integrations/platforms.md)
+  - [Custom Webhook](integrations/custom-webhook.md)
   - [이슈 트래킹](integrations/issue-tracking.md)
 - [기본 설정](settings/README.md)
   - [이슈 설정](settings/issue.md)
