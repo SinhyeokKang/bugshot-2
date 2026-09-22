@@ -163,6 +163,17 @@ Aside 세션에서:
 
 ## 8. 진행 상태 / 핸드오프 (2026-08-09 기준)
 
+### 2026-09-22: Ego로 Custom Webhook ko/en 8장 촬영
+
+`integrations-custom-webhook-1`~`4`를 ko/en 각각 촬영했다. 순서대로 연결 진입, Endpoint·시크릿·연결 테스트, JSON 템플릿·미리보기·샘플 전송, 설정 수정 진입이다. placeholder 8장을 실제 화면으로 교체했다.
+
+- **런타임**: Ego Lite 0.5.0.32의 `ego-browser` TaskSpace. 이 환경에는 스토어판 BugShot 1.7.42(`ohakhekagkodklkickemonmifdcbhmig`)가 설치돼 있었다. `chrome://extensions`의 `chrome.developerPrivate.getExtensionsInfo`와 패널의 `chrome.runtime.getManifest()`로 버전을 확인했다. 로컬 `dist`는 1.7.40이어서 사용하지 않았다. 언팩 개발판 ID를 하드코딩하지 않는다.
+- **가능 범위**: 확장 페이지 탐색·DOM 조작·CDP·`chrome.tabs`/`chrome.windows` API 접근을 확인했다. 이번 컷은 설정 UI만 찍으므로 대상 탭의 캡처나 별도 팝업 창이 필요하지 않았다. 녹화·페이지 캡처 지원까지 검증한 것은 아니다.
+- **촬영**: 폭 520 CSS px·DPR 2, 기본 높이 760. JSON 고급 설정 컷만 설명 문장이 잘리지 않도록 높이 820에서 내부 스크롤을 끝까지 내렸다. `Page.captureScreenshot`에 명시적 `clip: {x:0,y:0,width:520,height,scale:1}`을 전달해 1040px 폭 원본을 받았다. `page.screenshot()`과 clip 없는 CDP 캡처는 수동 metrics override와 조합했을 때 timeout·폭 변경이 발생했다. 명시적 clip 경로는 정상 동작했다.
+- **합성**: §3의 1600×1000 JPG q92·그라데이션·그림자·1040px 카드 폭 유지. 중간 밴드 offset은 1·4번 `-480`, 2번 `-270`, 3번 `-460`. ko/en 동일. 브라우저 canvas로 합성 후 8장을 각각 시각 검수했다.
+- **데이터**: `https://hooks.example.com/bugshot`·`example-secret`만 사용했다. 연결 테스트·샘플 전송은 실행하지 않았다. 4번 컷을 위해 저장한 임시 Webhook 연동은 제거했고 기존 연동을 유지했다. 언어는 촬영 전 값인 English로 복원했다.
+
+
 ### ko: 62 / 73 — 자동 촬영분 완료
 
 커밋 6개로 반영됨: `42f36e8b`(49장) → `39d6223b`(log viewer 5) → `8fe17834`(이슈 목록·플랫폼 3) → `9af6d7c3`(웹스토어·플랫폼 그리드 2) → `c15d597a`(핸드오프) → `fc8c1516`(페이지 캡처 진행 1).

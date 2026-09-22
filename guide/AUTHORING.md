@@ -18,7 +18,7 @@
 
 ## 2. IA / 파일 트리 (언어당 동일 — ko/en 양쪽 대칭)
 
-25페이지 × 2언어 = 50개 마크다운 + 언어별 `SUMMARY.md`(= 총 52파일) + 언어별 더미 이미지.
+26페이지 × 2언어 = 52개 마크다운 + 언어별 `SUMMARY.md`(= 총 54파일) + 언어별 더미 이미지.
 
 ```
 README.md                       # 1. BugShot 소개 (SUMMARY 최상단 라벨)
@@ -26,7 +26,8 @@ quick-start.md                  # 1-1. 빠른 시작
 faq.md                          # 1-2. 자주 묻는 질문 (강점 간접 안내 — 단일 페이지, SUMMARY상 소개 하위)
 integrations/README.md          # 2. 연동 설정 (개요 + 바로가기)
 integrations/platforms.md       # 2-1. 플랫폼 연동
-integrations/issue-tracking.md  # 2-2. 이슈 트래킹
+integrations/custom-webhook.md  # 2-2. Custom Webhook (사용자 서버 연결·테스트·전송 형식)
+integrations/issue-tracking.md  # 2-3. 이슈 트래킹
 settings/README.md              # 3. 기본 설정 (개요 + 바로가기)
 settings/issue.md               # 3-1. 이슈 설정
 settings/ai.md                  # 3-2. AI LLM 연동
@@ -110,6 +111,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
 | 액션 로그 동작 종류 | `src/types/action.ts` (`ActionEntryKind`), 라벨 `src/i18n/namespaces/logs.ts` (`actionLog.filter.*`/`verb.*`), 렌더 `src/sidepanel/components/ActionLogContent.tsx` |
 | 녹화 모드·파일 첨부·리플레이 설정 라벨 | `src/i18n/namespaces/settings.ts` + `src/sidepanel/components/RecordingSettingsCard.tsx` + `src/store/settings-ui-store.ts` |
 | 가이드 URL (bug-shot.com/{locale}/docs) | `src/lib/external-links.ts` (`USER_GUIDE_URLS`) |
+| Custom Webhook 연결·형식·테스트·수정 | `src/sidepanel/tabs/connect/WebhookConnectForm.tsx` · `src/background/webhook-api.ts` · `src/sidepanel/lib/submitToWebhook.ts` · `src/i18n/namespaces/integrations.ts`(`webhook.*`), 수신 규격은 `docs/webhook-contract.md` |
 | 연동 탭 **서브탭** 자동 선택(내 연동/플랫폼 추가) | `src/sidepanel/tabs/integrationsTabUtils.ts` (`pickInitialSubTab`) |
 | 연동 CTA 배너(연동 0개 유도) | `src/sidepanel/components/IntegrationsCta.tsx`, 라벨 `src/i18n/namespaces/app.ts` (`platform.cta.body`/`.action`) |
 | 참조(CC) 멀티셀렉트·멘션 | `src/sidepanel/lib/ccMention.ts`(멘션 노드) · `buildMarkdownIssueBody.ts`(푸터 직전 삽입) · `hooks/usePlatformFields.ts`(상위값 스코프 prefill) · 라벨 `src/i18n/namespaces/settings.ts`(`field.cc.*`). **CC는 Slack 제외 7개 플랫폼** — Slack만 CC 대신 `mentions`(`src/types/platform.ts`) |
@@ -172,7 +174,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
   > ClickUp은 이슈 대상이 **Workspace → Space → List 3단계**다(다른 플랫폼은 1~2단계). 연결 후 기본값·이슈 제출 모두 이 3단계로 List를 고른다. 토큰은 만료가 없어 재연결만 있고 자동 갱신은 없다.
   > **Slack은 이슈 트래커가 아니라 메시지 앱**이다(8번째 플랫폼). 다른 7개와 갈리는 점: OAuth **user token 전용**(BYOK·토큰 입력 없음 — connect 다이얼로그 없이 바로 OAuth), 대상은 **채널/비공개 채널/DM**(본인이 멤버인 대화만), 전송 구조는 **제목=부모 메시지 / 상세 본문·첨부=스레드 답글**, **멘션** 멤버 지정(`@이름` 알림), 메시지엔 상태가 없어 **폴링 없는 "전송됨" 정적 배지**(배지 자체는 클릭 불가 — permalink 이동은 **카드 본문** 클릭). 연결 후 기본값은 채널. 대상: `integrations/platforms.md`(ko/en, "Slack — 채널·DM" 소절), `integrations/README.md`, `faq.md`.
   > **Slack 이슈 승격(slack-issue-promotion)**: Slack 제출 이슈는 다른 플랫폼과 달리 원본 데이터(캡처·영상·로그·draft)를 **폐기하지 않고 보존**한다(`slackPreserved` 플래그). Slack 제외 트래커가 1개 이상 연결돼 있으면 이슈 목록 카드 우측에 **자세히**(en `View details`, `issueList.viewDetail`)·**트래커로 등록**(en `Promote to tracker`, `issueList.promote`) 두 버튼이 동적 노출(트래커 연결 상태 기준 — 미연결이면 미노출 + 기존 "전송됨" 배지 유지). [자세히]=보존 원본 확인 + **draft 필드 편집 가능**(`canEditDraftFields` = draft or slackPreserved — 승격 전 문구 다듬기, 로컬 draft만 갱신·발송된 Slack 메시지 불변·트래커 승격에만 반영), [승격]=Slack 제외 제출 다이얼로그로 정식 트래커 등록(등록 후 일반 이슈로 강등, Slack 이력 폐기). **카드 본문 클릭은 항상 permalink 이동(불변)**. **승격 백링크(slack-promotion-thread-link)**: 트래커 등록 성공 시 원 Slack 메시지 스레드에 트래커 이슈 링크 댓글이 1개 남는다(`[BugShot] {platform}에 이슈로 등록되었습니다.\n<url>` — 본인 user token 후속 댓글, best-effort·실패해도 승격은 정상). 가이드엔 내부 동작(파싱·조용한 drop) 노출 없이 "원 스레드에 트래커 링크 댓글이 남아 팀원이 어디 정리됐는지 안다" 수준으로만. 대상: `integrations/platforms.md`(ko/en, "나중에 정식 트래커로 승격하기" 소절).
-  > **Custom Webhook은 플랫폼이 아니라 사용자 서버다**(9번째 제출 대상). 다른 8개와 갈리는 점: **브랜드 2열 그리드 밖** 구분선 아래 단독 진입(OAuth도 토큰 발급 페이지도 없어 수단 선택·재연동 확인 관용구가 전부 빈다), 연결 창은 **Endpoint + 시크릿 두 칸**이고 나머지(형식·요청 헤더·JSON 템플릿·미리보기)는 접이식 `고급` 안(저장된 고급 값이 있으면 펼친 채로 열린다), 시크릿은 `Authorization: Bearer`로 나가며 **서명이 아니다**, 형식이 둘이라 **JSON 템플릿을 고르면 미디어가 안 가고 이슈 목록 행도 안 생긴다**(응답을 읽지 않는다 — 가이드에 이 차이를 반드시 쓴다), 상태 조회 API가 없어 **폴링 없는 정적 "전송됨" 배지**(Slack과 같은 형태), 연결 후 기본값 개념 없음(목적지가 주소 하나). 연결 창의 계약 문서는 인라인 링크이며, **Multipart는 `연결 테스트`, JSON은 `샘플 전송`**(현재 템플릿 + 고정 예시 데이터로 실제 메시지 전송 가능, 캡처 데이터 없음)으로 구분한다. **받는 서버의 신뢰·책임이 사용자에게 있다는 점을 가이드가 회피하지 않는다.** 수신부 규격은 `docs/webhook-contract.md`가 단일 출처이고 가이드는 그쪽으로 링크만 건다(형식 세부를 가이드에 복제하지 않는다 — 두 벌이 갈린다). 대상: `integrations/platforms.md`(ko/en, "Custom Webhook" 소절 + 표 행), `integrations/README.md`, `quick-start.md`, `README.md`, `faq.md`.
+  > **Custom Webhook은 플랫폼이 아니라 사용자 서버다**(9번째 제출 대상). 다른 8개와 갈리는 점: **브랜드 2열 그리드 밖** 구분선 아래 단독 진입(OAuth도 토큰 발급 페이지도 없어 수단 선택·재연동 확인 관용구가 전부 빈다), 연결 창은 **Endpoint + 시크릿 두 칸**이고 나머지(형식·요청 헤더·JSON 템플릿·미리보기)는 접이식 `고급` 안(저장된 고급 값이 있으면 펼친 채로 열린다), 시크릿은 `Authorization: Bearer`로 나가며 **서명이 아니다**, 형식이 둘이라 **JSON 템플릿을 고르면 미디어가 안 가고 이슈 목록 행도 안 생긴다**(응답을 읽지 않는다 — 가이드에 이 차이를 반드시 쓴다), 상태 조회 API가 없어 **폴링 없는 정적 "등록됨" 배지**(en `Submitted`, `issueList.submitted`), 연결 후 기본값 개념 없음(목적지가 주소 하나). 연결 창의 계약 문서는 인라인 링크이며, **Multipart는 `연결 테스트`, JSON은 `샘플 전송`**(현재 템플릿 + 고정 예시 데이터로 실제 메시지 전송 가능, 캡처 데이터 없음)으로 구분한다. **받는 서버의 신뢰·책임이 사용자에게 있다는 점을 가이드가 회피하지 않는다.** 수신부 규격은 영문 단일 문서 `docs/webhook-contract.md`가 단일 출처이고 가이드는 그쪽으로 링크만 건다(형식 세부를 가이드에 복제하지 않는다 — 두 벌이 갈린다). 대상: `integrations/custom-webhook.md`(ko/en, 설정 절차·전송 형식·테스트·수정), `integrations/platforms.md`(소개 링크 + 표 행), `integrations/README.md`, `quick-start.md`, `README.md`, `faq.md`.
   > **플랫폼 표는 stale 위험이 크다.** 신규 플랫폼(예: azure-devops)이 머지되면 이 표와 `integrations/platforms.md`(ko/en)를 즉시 갱신한다. 플랫폼 추가는 별도 `docs(guide)` 갱신 대상.
 
 ## 5. 톤앤매너
@@ -297,7 +299,7 @@ grep -rn '🌐' ko en && echo "REMAINING 🌐 (should be none)" || echo "OK: no 
 
 ## 10. 작업 팁
 
-- 섹션 단위로 끊어 ko·en을 함께 작성(52파일을 한 번에 쓰면 품질 편차). 톤 일관성을 위해 소개(README)를 먼저 써서 어휘·문체 기준을 잡는다.
+- 섹션 단위로 끊어 ko·en을 함께 작성(54파일을 한 번에 쓰면 품질 편차). 톤 일관성을 위해 소개(README)를 먼저 써서 어휘·문체 기준을 잡는다.
 - 라벨/사실 일괄 변경은 `sed`로, 톤 워싱은 페이지별 재작성으로(문맥 의존).
 - 이 문서(`guide/AUTHORING.md`)도 IA·톤·운영 방식·사실 스냅샷이 바뀌면 함께 갱신한다.
 - 가이드 작성·갱신은 **`/guide` 스킬**이 이 매뉴얼을 로드해 실행한다(`.claude/commands/guide.md`). `/feature` tasks의 "가이드 영향" + `/implement` 보고의 "가이드 영향 ⚠️" 플래그가 진입 신호. `/push`는 stale을 감지하는 게이트일 뿐, 무거운 작성은 `/guide`로 분리한다.

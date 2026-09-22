@@ -14,7 +14,7 @@ It's simpler than it sounds — three steps and you're done.
 
 OAuth is usually the easiest. That said, if your org policy blocks OAuth or you'd rather use a token, the token method works just as well. Note that **Slack supports OAuth only**, so hitting "Connect Slack" takes you straight to the login window.
 
-Below those eight sits **Custom Webhook**, on its own line under a divider. It isn't a service BugShot set up for you — it's a way to **send reports to a server you built yourself**, which is why it doesn't sit in the brand grid. [Custom Webhook](#custom-webhook--send-to-a-server-you-built) below covers it.
+Below those eight sits **Custom Webhook**, on its own line under a divider. It isn't a service BugShot set up for you — it's a way to **send reports to a server you built yourself**, which is why it doesn't sit in the brand grid. The [Custom Webhook guide](custom-webhook.md) covers setup and delivery.
 
 ## What each platform needs
 
@@ -28,7 +28,7 @@ Below those eight sits **Custom Webhook**, on its own line under a divider. It i
 | Asana | OAuth / PAT | pat | app.asana.com my-apps |
 | ClickUp | OAuth / API Token | pat | app.clickup.com Settings > Apps |
 | Slack | OAuth only | — (no token entry) | — |
-| Custom Webhook | Enter the address yourself | The receiving address (**https only** — an internal network or localhost may use http), secret (optional) | — (a server you built) |
+| [Custom Webhook](custom-webhook.md) | Enter the address yourself | The receiving address (**https only** — an internal network or localhost may use http), secret (optional) | — (a server you built) |
 
 ## Slack — a quick share to a channel or DM
 
@@ -51,29 +51,6 @@ Shared something to Slack and then realized it deserves a proper issue too? No w
 - **Promote to tracker**: opens the submit dialog (with Slack left out). Pick a tracker, file it as a formal issue, and the card turns into a regular issue while the Slack history is cleared. BugShot also drops a **comment linking to the new tracker issue right in the original Slack thread**, so teammates following that conversation can see exactly where it landed.
 
 > If you haven't connected a tracker yet, the two buttons stay hidden and you'll just see the "Submitted" badge and a shortcut to the message, as before. Connect a tracker later and the buttons quietly show up on the same card. Clicking the card body always jumps to the Slack message — that never changes, so don't worry.
-
-## Custom Webhook — send to a server you built
-
-Maybe your team's tool isn't one of the eight above, or you'd rather drop reports straight into an internal system. **Custom Webhook** sends the report **as-is to a server you run yourself**. You'll find it at the bottom of the "Add platform" screen, under a divider.
-
-One thing to know up front: this is a feature **you have to bring a server for**. There's nowhere BugShot receives these on your behalf — the report goes straight to the address you type in. The [receiving-server contract](https://github.com/SinhyeokKang/bugshot-2/blob/main/docs/webhook-contract.md) lays out the format and includes a reference server you can run as-is.
-
-The connect dialog is deliberately small — two fields.
-
-- **Endpoint**: where the report goes. For safety only `https` is accepted — except for **non-public addresses** like an internal network or `localhost`, where `http` is allowed and a heads-up about sending in the clear appears under the field.
-- **Secret** (optional): fill it in and every request carries it as an `Authorization: Bearer <secret>` header. Your server just checks that the value matches to know the request really came from your BugShot.
-
-Need more than that? Open **Advanced**. It stays folded by default, and reopens already expanded if you've set something in there before.
-
-- **Format**: **Multipart** (the default) sends your captured images, video, and log files along in one request, then uses the address your server returns to add a row to the issue list. **JSON template** is for places with a fixed shape of their own, like Slack or Discord — with it **no media goes along and no row lands in the issue list** (BugShot doesn't read the response). Whichever you pick, a line right under the field keeps telling you what it does.
-- **Request headers**: if your server expects extra headers, add them as name/value pairs. Names the browser can't send (`Cookie`, `Host`, and friends) or the same name twice are flagged when you save — better than typing one in and having it silently never go out.
-- **JSON template**: appears once you pick the JSON format. Drop values in with double braces like `{{title}}` and `{{body}}`; every name you can use is listed under the field, and anything outside that list is refused at save time. The **preview** just below fills your template with a sample report so you can see the shape before anything is sent.
-
-With Multipart, **Test connection** sends a small check instead of a report; your server can acknowledge it without storing anything, as described in the contract. With JSON template, the button becomes **Send sample** and fills your current template with example data. It uses no capture data, but **it can create a real message at the destination**. A timeout does not mean nothing arrived, so check before sending again.
-
-To change the address or the template later, come back to the same spot — once connected, the button reads **Edit your custom webhook** and opens the form with everything you saved already filled in.
-
-> What the receiving server does with the data is **yours to decide and yours to answer for**. Reports can carry sensitive things — screenshots, logs — so take a moment to be sure that address is somewhere you trust before entering it along with a secret. Also note BugShot **won't follow a redirect** to another address: that keeps your secret from leaking to a server you didn't pick, so point the endpoint at the final address directly.
 
 ## Defaults after connecting
 
