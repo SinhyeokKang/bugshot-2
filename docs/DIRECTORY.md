@@ -141,14 +141,14 @@ docs/                    # 프로젝트 레퍼런스 문서 (루트엔 CLAUDE.md
 ├── PERMISSION.md    # Chrome 권한 전체 레퍼런스 (activeTab·OAuth 토큰 흐름 등)
 ├── CI.md            # GitHub Actions 구성·게이트·함정 (job 4개·샤딩·xvfb depth 24·nightly notify). CI 수정·실패 진단 시 먼저 읽는다
 ├── POSTMORTEM.md    # 회귀·버그 사후분석 회고 누적 (/postmortem)
-├── webhook-contract.md # Custom Webhook 수신 서버 계약 — 인증(`Authorization: Bearer`, 서명 아님)·multipart 파트 구성·`cid:` 치환·**필수 응답 `{key,url}`**·멱등 키 dedup·multipart 연결 테스트(`X-BugShot-Test: 1`)와 JSON 템플릿 `샘플 전송`(헤더 없이 실제 메시지가 생길 수 있다)의 구분·상한/거부 규칙·템플릿 변수 화이트리스트 + 의존성 없는 레퍼런스 서버. 수신부를 직접 짜는 사용자가 독자다
+├── webhook-contract.md # Custom Webhook 수신 서버 계약(**영문** — 수신부를 짜는 외부 개발자가 독자라 ko/en 쌍이 아니다) — 인증(`Authorization: Bearer`, 서명 아님)·multipart 파트 구성·`cid:` 치환·**필수 응답 `{key,url}`**·멱등 키 dedup·multipart 연결 테스트(`X-BugShot-Test: 1`)와 JSON 템플릿 `샘플 전송`(헤더 없이 실제 메시지가 생길 수 있다)의 구분·상한/거부 규칙·템플릿 변수 화이트리스트 + 의존성 없는 레퍼런스 서버. 수신부를 직접 짜는 사용자가 독자다
 ├── __tests__/       # 문서 안 레퍼런스 코드의 그물 — webhook-contract.md의 수신 서버 예제를 `vm`으로 추출·실행해 UTF-8 제목 보존 등을 단언. 예제를 테스트로 복제하지 않아 문서만 고쳐도 회귀가 red로 잡힌다(`src/` 밖 트랙이지만 `pnpm test`에 포함)
 ├── privacy.ko.md   # 개인정보처리방침 ko 원본 (bug-shot.com/ko/privacy 서빙 소스)
 ├── privacy.en.md   # 개인정보처리방침 en 번역 (ko와 항상 동기화)
 ├── _config.yml      # GitHub Pages(jekyll-theme-minimal) 서빙 설정 — `exclude: [features]`라 기획 문서는 공개에서 빠진다
 └── features/        # /feature 산출물 — 기능별 디렉터리에 prd.md·design.md·tasks.md. /implement·/ship bypass가 계획 원본으로 읽는다
     └── DROPPED.md   # 안 하기로 한 기획의 사유 기록. 기획을 접으면 디렉터리를 그냥 지우지 말고 여기 항목을 남긴다(왜 안 하는지 + 무엇이 바뀌면 다시 볼 만한지). /feature 0단계가 새 기획 착수 전 이 파일을 grep해 과거 판단을 소환한다
-guide/                   # 사용자 가이드 소스 (ko/en). bugshot-web docs-portal이 빌드타임에 fetch → bug-shot.com/{locale}/docs로 서빙. guide/{ko,en}/ 각각 SUMMARY.md + README.md + quick-start.md + faq.md + assets/ + 6개 섹션(integrations·settings·element·screenshot·video·logs) 25페이지. 작성 규칙은 guide/AUTHORING.md
+guide/                   # 사용자 가이드 소스 (ko/en). bugshot-web docs-portal이 빌드타임에 fetch → bug-shot.com/{locale}/docs로 서빙. guide/{ko,en}/ 각각 SUMMARY.md + README.md + quick-start.md + faq.md + assets/ + 6개 섹션(integrations·settings·element·screenshot·video·logs) 26페이지. 작성 규칙은 guide/AUTHORING.md
 scripts/                 # 저장소 유지보수 스크립트 (빌드 파이프라인 밖)
 ├── sync-agents.mjs   # Codex 미러 생성기 — CLAUDE.md→AGENTS.md(.agents/PREAMBLE.md 프리펜드) + .claude/commands/*.md→.agents/skills/source-command-*/SKILL.md. 본문 무치환 복제, 고아 미러 삭제, `--check`로 드리프트만 검출(exit 1). `pnpm sync:agents` / PostToolUse 훅 / `/push` 게이트가 호출
 ├── check-prearm-chunk.mjs  # pre-arm 청크 형태 검사 — 빌드 산출물의 manifest에서 recorders-entry 항목을 찾아 world=MAIN·run_at=document_start·loader 미강등·IIFE 시작·잔여 static import 0을 대조(exit 1). recorders-entry에 외부 static import가 유입되면 crxjs가 async loader로 되돌아가 pre-arm 버퍼링이 조용히 죽는데 typecheck·유닛이 못 잡는다(행동 검증은 e2e/logs-prearm.spec.ts지만 CI에 없음). `pnpm check:prearm` / CI가 호출
