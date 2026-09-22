@@ -43,6 +43,8 @@ import {
 } from "../blob-db";
 import {
   beginIssueSubmit,
+  canSubmitIssue,
+  IssueAlreadySubmittedError,
   endIssueSubmit,
   mergeIssueLists,
   withIssueSubmitGuard,
@@ -1205,5 +1207,104 @@ describe("제출 경로의 in-flight 보호", () => {
       .map((f) => f.path);
 
     expect(offenders).toEqual([]);
+  });
+});
+
+// #240 잔여: status 역행은 막혔지만 제출 진입점에 상태 검사가 없어 중복 티켓 자체는 남았다.
+// A 패널이 previewing에 있는 사이 B가 같은 이슈를 제출하면, A의 [제출]이 그대로 눌려
+// 목적지에 같은 내용의 티켓이 하나 더 생긴다. 요청이 나가기 전에 끊는다.
+describe("canSubmitIssue", () => {
+  const rec = (patch: Partial<IssueRecord>): IssueRecord => ({
+    id: "a",
+    status: "draft",
+    platform: "jira",
+    title: "t",
+    createdAt: 0,
+    updatedAt: 0,
+    pageUrl: "https://example.com",
+    draft: { title: "", sections: {} },
+    snapshot: { before: false, after: false },
+    ...patch,
+  });
+
+  it("draft는 제출할 수 있다", () => {
+    expect(canSubmitIssue(rec({ status: "draft" }))).toBe(true);
+  });
+
+  it("이미 제출된 이슈는 막는다", () => {
+    expect(canSubmitIssue(rec({ status: "submitted", key: "BUG-1" }))).toBe(false);
+  });
+
+  // Slack 공유본의 트래커 승격은 submitted 레코드를 정당하게 다시 제출한다 —
+  // status만 보고 막으면 그 기능이 함께 죽는다.
+  it("Slack 보존 이슈는 승격을 위해 허용한다", () => {
+    expect(canSubmitIssue(rec({ status: "submitted", slackPreserved: true }))).toBe(true);
+  });
+});
+
+describe("withIssueSubmitGuard — 중복 제출 차단", () => {
+  const seed = (patch: Partial<IssueRecord>) => {
+    useIssuesStore.setState({
+      issues: [{
+        id: "dup",
+        status: "draft",
+        platform: "jira",
+        title: "t",
+        createdAt: 0,
+        updatedAt: 0,
+        pageUrl: "https://example.com",
+        draft: { title: "", sections: {} },
+        snapshot: { before: false, after: false },
+        ...patch,
+      } as IssueRecord],
+    });
+  };
+
+  beforeEach(() => {
+    vi.stubGlobal("chrome", {
+      storage: {
+        local: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}), remove: vi.fn(async () => {}) },
+      },
+    });
+  });
+
+  afterEach(() => {
+    useIssuesStore.setState({ issues: [] });
+    vi.unstubAllGlobals();
+  });
+
+  it("이미 제출된 레코드면 요청을 실행하지 않고 던진다", async () => {
+    seed({ status: "submitted", key: "BUG-7" });
+    const run = vi.fn(async () => "sent");
+
+    await expect(withIssueSubmitGuard("dup", run)).rejects.toBeInstanceOf(
+      IssueAlreadySubmittedError,
+    );
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  // toast가 "어디에 이미 올라갔는지"를 보여줄 수 있어야 사용자가 막다른 길로 느끼지 않는다.
+  it("던지는 에러가 기존 티켓 key를 싣는다", async () => {
+    seed({ status: "submitted", key: "BUG-7" });
+
+    await expect(withIssueSubmitGuard("dup", async () => "sent")).rejects.toMatchObject({
+      issueKey: "BUG-7",
+    });
+  });
+
+  it("Slack 보존 이슈는 통과시킨다 (승격)", async () => {
+    seed({ status: "submitted", slackPreserved: true });
+    await expect(withIssueSubmitGuard("dup", async () => "sent")).resolves.toBe("sent");
+  });
+
+  it("draft는 통과시킨다", async () => {
+    seed({ status: "draft" });
+    await expect(withIssueSubmitGuard("dup", async () => "sent")).resolves.toBe("sent");
+  });
+
+  // 레코드를 못 찾는 건 차단 근거가 아니다 — 막으면 정상 제출이 죽는다(fail-open).
+  it("레코드가 없으면 막지 않는다", async () => {
+    useIssuesStore.setState({ issues: [] });
+    await expect(withIssueSubmitGuard("missing", async () => "sent")).resolves.toBe("sent");
   });
 });

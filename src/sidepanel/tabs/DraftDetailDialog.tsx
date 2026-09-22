@@ -38,6 +38,7 @@ import {
 import { bodyBlocks, type TextIssueSection } from "@/sidepanel/lib/bodyBlocks";
 import { useEditorStore } from "@/store/editor-store";
 import {
+  isSlackPreserved,
   useIssuesStore,
   withIssueSubmitGuard,
   type IssueRecord,
@@ -53,7 +54,6 @@ import {
 } from "@/store/settings-store";
 import {
   canEditDraftFields,
-  isSlackPreserved,
   resolveInitialPlatform,
   submittablePlatforms,
 } from "./issueListUtils";

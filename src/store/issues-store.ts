@@ -146,8 +146,38 @@ export function endIssueSubmit(id: string): void {
   submittingIds.delete(id);
 }
 
+// Slack 공유로 원본 데이터를 보존 중인 submitted 이슈 (승격 대상).
+// issueListUtils가 여기서 re-export한다 — 제출 가능 판정이 store에 있어야 하고(관문이
+// store다) 같은 술어를 두 벌 두면 한쪽만 고쳐진다.
+export function isSlackPreserved(issue: IssueRecord): boolean {
+  return issue.status === "submitted" && !!issue.slackPreserved;
+}
+
+// 제출을 허용하는 레코드 상태. 이미 제출된 이슈를 다시 보내면 목적지에 중복 티켓이 생긴다
+// — Slack 보존본만 예외로, 트래커 승격이 submitted 레코드를 정당하게 다시 제출한다.
+export function canSubmitIssue(issue: IssueRecord): boolean {
+  return issue.status === "draft" || isSlackPreserved(issue);
+}
+
+// 이미 제출된 이슈의 재제출 거부. 메시지는 UI가 붙인다 — store는 i18n을 import하지 않는다
+// (SubmitFieldsDialog의 제출 실패 catch가 이 타입을 보고 toast 문구를 고른다).
+export class IssueAlreadySubmittedError extends Error {
+  readonly issueKey?: string;
+
+  constructor(issueKey?: string) {
+    super("issue already submitted");
+    this.name = "IssueAlreadySubmittedError";
+    this.issueKey = issueKey;
+  }
+}
+
 /**
  * 제출 요청 구간 동안 레코드를 병합의 존재 권위에서 보전한다(#240).
+ *
+ * 보내기 전에 레코드 상태도 본다 — 다른 인스턴스가 먼저 제출했는데 이쪽 화면이 previewing에
+ * 남아 있으면 [제출]이 그대로 눌려 목적지에 중복 티켓이 생긴다. 그 경우 요청을 아예 안 보내고
+ * `IssueAlreadySubmittedError`를 던진다. 레코드를 못 찾으면 막지 않는다 — 차단 근거가 아니고,
+ * 막으면 정상 제출이 죽는다.
  *
  * try/finally를 호출부에 맡기지 않는 게 핵심이다 — 해제를 빠뜨리면 보전이 무기한이 되고,
  * 그 레코드는 다음 로컬 뮤테이션의 직렬화에 실려 **저장분으로 되돌아간다**(blob 없이, 모든
@@ -158,6 +188,10 @@ export async function withIssueSubmitGuard<T>(
   run: () => Promise<T>,
 ): Promise<T> {
   if (!id) return run();
+  const issue = useIssuesStore.getState().issues.find((x) => x.id === id);
+  if (issue && !canSubmitIssue(issue)) {
+    throw new IssueAlreadySubmittedError(issue.key);
+  }
   beginIssueSubmit(id);
   try {
     return await run();
