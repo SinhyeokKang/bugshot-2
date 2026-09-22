@@ -346,7 +346,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 | 키 | 데이터 | 사용처 |
 |---|---|---|
 | `bugshot-settings` | 플랫폼 계정·OAuth 토큰·submit 기본값·titlePrefix | `settings-store.ts` (Zustand persist), `settings-storage.ts` (bg 직접 접근) |
-| `bugshot-issues` | `IssueRecord[]` 이슈 기록 | `issues-store.ts` (Zustand persist) |
+| `bugshot-issues` | `IssueRecord[]` 이슈 기록 | `issues-store.ts` (Zustand persist + 레코드 단위 `merge`), `sidepanel/lib/issues-sync.ts` (`storage.onChanged` 구독 — 다른 사이드패널 인스턴스의 write를 읽어 rehydrate) |
 | `bugshot-app-settings` | 테마·언어(UI/AI 출력/이슈 본문 3축)·이슈 섹션 구성·LLM 설정(**BYOK API 키 포함** — `apiKeyObfuscatingStorage`가 persist 경유로 난독화해 넣는다. 평문은 아니지만 **암호화도 아니다**)·replay 활성화·**파일 첨부 활성화**(`attachmentsEnabled`, 기본 off)·**재현 과정 AI 자동 채움**(`autoReproPrefill`, 기본 on)·녹화 모드(tab/screen)·스타일 편집 뷰 | `settings-ui-store.ts` (Zustand persist) |
 | `bugshot:install-id` | 익명 설치 ID (UUID, 최초 1회 생성) | `background/analytics.ts` — PostHog `distinct_id` |
 
