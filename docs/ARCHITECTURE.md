@@ -78,7 +78,7 @@ chrome.action.onClicked.addListener((tab) => {
 - **존재는 저장분이 권위** — 메모리에만 있는 레코드는 드롭한다. 아니면 저쪽이 지운 이슈가 이쪽 배열로 되살아나고, `removeIssue`가 blob을 같은 틱에 지우므로 미디어 없는 좀비가 된다.
 - **`submitted`는 `draft`로 역행하지 않는다** — `updatedAt` 비교보다 **앞선다**. 역행이 곧 중복 제출이다.
 - **나머지는 `updatedAt` 최신 승자, 동률은 메모리.** 동률을 무변경으로 읽는 규칙이라 **레코드를 바꾸는 모든 액션이 `updatedAt`을 올려야 한다** — `patchIssue`·`patchDraftSnapshot`·`patchDraftBufferedImageFlags`가 안 올리던 시절엔 logs 토글·제출 목적지·첨부 메타·blob 정합 플래그가 무음으로 버려졌다. 그래서 `applyDraftFieldEdit`은 `updatedAt`을 싣지 않는다(소유권은 `patchIssue`). 그물은 `issues.map` 뮤테이터 전수 소스 스캔. 수용한 잔여는 **같은 밀리초의 양쪽 수정**이다 — 동률인데 내용이 갈려 발산이 남는다. 저장분 채택으로 수렴시켜 봤다가 되돌렸다(한 write 뒤처진 저장분이 메모리의 최신 편집을 덮고, 무변경 레코드 전부가 JSON 직렬화 2회를 타며, 키 순서만 달라도 오판한다).
-- **역행 금지는 쓰기 측에도 있다.** merge는 읽기만 고치므로, 다른 인스턴스가 제출한 뒤 이쪽 에디터가 previewing에 남아 있으면 재확정(`confirmDraft` → `saveDraft`)이 `status: "draft"`를 실어 submitted를 덮는다(레이스 없이 순차로 재현된다). `saveDraft`는 기존 레코드가 `submitted`면 **쓰기 자체를 건너뛴다** — `status`만 고정하고 나머지를 병합하면 하이브리드가 되어 더 나쁘다(`platform`이 갈려 배지가 다른 트래커를 조회하고, `stripSubmitted`가 지운 `apiHostsDerived`·로그 blob 키가 부활하며, `updatedAt`이 최신이라 그 오염이 다음 merge에서 이겨 storage로 나간다). 정상 재확정은 기존이 draft라 안 걸린다. **다만 이건 status 역행만 막는다 — 제출 진입점에 상태 검사가 없어 중복 티켓 자체는 남는다.**
+- **역행 금지는 쓰기 측에도 있다.** merge는 읽기만 고치므로, 다른 인스턴스가 제출한 뒤 이쪽 에디터가 previewing에 남아 있으면 재확정(`confirmDraft` → `saveDraft`)이 `status: "draft"`를 실어 submitted를 덮는다(레이스 없이 순차로 재현된다). `saveDraft`는 기존 레코드가 `submitted`면 **쓰기 자체를 건너뛴다** — `status`만 고정하고 나머지를 병합하면 하이브리드가 되어 더 나쁘다(`platform`이 갈려 배지가 다른 트래커를 조회하고, `stripSubmitted`가 지운 `apiHostsDerived`·로그 blob 키가 부활하며, `updatedAt`이 최신이라 그 오염이 다음 merge에서 이겨 storage로 나간다). 정상 재확정은 기존이 draft라 안 걸린다. 중복 티켓 자체는 제출 진입점에서 막는다(아래).
 - **필드 병합은 하지 않는다** — 레코드 하나를 통째로 고른다. 필드를 섞으면 "키 없음"이 "기존 값 유지"로 뒤집혀 사용자가 비운 필드가 되살아난다(POSTMORTEM 2026-07-26 A-11).
 
 예외가 하나 있다. **제출 요청이 나가 있는 레코드는 저장분에 없어도 보전한다**(`submittingIds`). 존재 권위를 예외 없이 적용하면 저쪽이 그 이슈를 지운 순간 이쪽 메모리에서도 사라지고, 응답이 돌아왔을 때 `markSubmitted`가 `.map`에 안 걸려 **무음 no-op**이 된다 — 티켓은 목적지에 생겼는데 로컬엔 key/url이 없어 status 조회도 중복 방지도 못 한다.
@@ -86,6 +86,14 @@ chrome.action.onClicked.addListener((tab) => {
 기준이 편집 소유권(`editor-store.currentIssueId`)이 아닌 이유가 둘이다. (1) **목록 상세창 제출은 `currentIssueId`를 안 쓴다** — 대상이 `IssueListTab`의 React state라, 소유권으로 게이트하면 저장 draft 재제출 경로가 통째로 보호 밖이다. (2) `currentIssueId`는 제출 후에도 남아(해제는 `reset()`뿐, `EDITOR_SNAPSHOT_KEYS`라 패널 재개에도 복원된다) 보전이 무기한이 된다 — 그건 저쪽이 지운 이슈를 blob 없이 영영 살려두는 좀비다. in-flight 구간은 요청 하나로 유한하고, Slack 보존 이슈의 트래커 승격(이미 `submitted`인 레코드를 제출)까지 status 무관하게 덮는다.
 
 **보호는 `withIssueSubmitGuard`로만 건다** — try/finally를 호출부에 맡기면 해제를 빠뜨릴 수 있고, 빠뜨린 보전은 무기한이 되어 그 레코드가 다음 로컬 뮤테이션의 직렬화에 실려 저장분으로 되돌아간다(blob 없이, 모든 인스턴스에). 그물은 "`markSubmitted`를 부르는 `sidepanel/**` 파일은 `withIssueSubmitGuard`도 부르고, `begin/endIssueSubmit`을 직접 부르지 않는다" 소스 스캔이다(주석은 코드로 안 친다).
+
+그 가드가 **제출 게이트**도 겸한다. 요청을 보내기 전에 레코드를 조회해 `canSubmitIssue`(= `draft`이거나 Slack 보존본)가 아니면 `IssueAlreadySubmittedError`를 던져 **요청을 아예 안 보낸다** — 다른 인스턴스가 먼저 제출했는데 이쪽 화면이 previewing에 남아 있으면 `[제출]`이 그대로 눌려 목적지에 중복 티켓이 생기기 때문이다. Slack 보존본이 예외인 건 트래커 승격이 `submitted` 레코드를 정당하게 다시 제출해서다(승격 후엔 `stripSubmitted`가 `slackPreserved`를 지워 3차 제출이 막힌다). 레코드를 못 찾으면 막지 않는다 — 차단 근거가 아니고 막으면 정상 제출이 죽는다.
+
+**가드는 `pageUrl` 정정보다 앞이어야 한다**(`IssueCreateModal.handleSubmit`). 뒤에 두면 차단되는 경우마다 `patchIssue`가 먼저 나가 이미 제출된 레코드의 `pageUrl`을 이 패널의 탭 URL로 덮고, `patchIssue`가 스프레드 뒤에 `updatedAt`을 올리므로 그 오염이 병합의 최신 승자가 되어 **모든 인스턴스로 퍼진다**(요청은 안 나갔는데 오염만 남는다). 순서를 `pageUrl-callsites.test.ts`가 잠근다.
+
+store는 i18n을 import하지 않으므로(현재 0건) 문구는 UI가 붙인다 — `sidepanel/lib/submitBlockedToast.ts`가 toast까지 치고, `SubmitFieldsDialog`의 제출 실패 catch가 그걸 먼저 호출해 **`trackSubmit` failure 집계를 건너뛴다**(요청이 안 나갔으니 실패가 아니다). 헬퍼가 표시까지 맡는 건 그물 때문이다 — 문구 선택만 빼고 표시를 컴포넌트에 남기면 파라미터·description 누락이 전 스위트 green으로 통과한다(실측).
+
+**남는 창**: 검사는 가드 진입 1회이고 실제 요청은 blob 인코딩 뒤에 나가므로, 그 사이에 다른 인스턴스가 제출하면 여전히 중복이 난다. 완전 봉쇄는 목적지측 멱등 키가 필요한데 webhook 외엔 없다. 차단 후에도 `[제출]` 버튼은 활성으로 남는다(toast는 고정 id라 쌓이지는 않는다).
 
 **자기 write는 걸러야 한다.** 모든 뮤테이터가 `updatedAt`을 올리므로 `oldValue !== newValue` 에코 가드로는 자기 write가 안 걸러진다. 안 거르면 (1) 제출 이슈 N건 목록에서 status 배지 N개가 각각 전체 blob의 get+parse+merge를 태우고 (2) 그 rehydrate의 `getItem`이 나간 사이 로컬 삭제가 일어나면 존재 권위가 방금 지운 레코드를 되살린다(**삭제는 `updatedAt` 축 밖이다** — `removeIssue`는 `filter`라 비교할 타임스탬프가 없다).
 
