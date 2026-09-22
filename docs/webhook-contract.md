@@ -130,7 +130,7 @@ Without this replacement, the report text remains readable, but its media links 
 A few field aliases are accepted to support receivers that proxy an existing tracker API:
 
 - `key`: `key`, `id`, `number`, or `iid`. Numeric values are converted to strings.
-- `url`: `url`, `html_url`, `web_url`, or `link`. The value must be a string.
+- `url`: `url`, `html_url`, `web_url`, or `link`. The value must be a string carrying an `http` or `https` scheme, because BugShot opens it as a browser tab from the issue list. A relative path, or any other scheme, is ignored — and with no other usable candidate the response then fails the contract above.
 
 ---
 
@@ -210,7 +210,8 @@ In **JSON template mode**, the button becomes **Send sample**. It fills the curr
 | Body size | 25MB; larger requests are rejected **before sending** |
 | Redirects | **Not followed.** A 3xx is treated as a failure to prevent forwarding `Authorization` to another host. Configure the final endpoint URL directly. |
 | Cookies | Not sent (`credentials: "omit"`) |
-| Endpoint | `https` only, except that `http` is allowed for private destinations: loopback, RFC1918, link-local, IPv6 ULA, single-label hostnames, `.local`, and `.internal`. The settings form warns when using plaintext HTTP. |
+| Endpoint | `https` only, except that `http` is allowed for private destinations: loopback and `0.0.0.0/8`, RFC1918, CGNAT `100.64.0.0/10`, link-local, IPv6 ULA, single-label hostnames, and the `.localhost`, `.local`, and `.internal` suffixes. The settings form warns when using plaintext HTTP. |
+| Credentials in the URL | A `user:pass@` endpoint is **rejected when saving**. Put the credential in the Secret field, or in an explicit header, instead. |
 | Error body | BugShot reads at most the first 8KB, removes control and directional characters, collapses whitespace, and appends the first 200 characters to the failure message as the receiver's response. Reflected **request header values and endpoint URL components** (the full path, query, and path segments of at least 20 characters) are masked with `***`, including tokens embedded in Slack or Discord endpoint paths. |
 
 ---
