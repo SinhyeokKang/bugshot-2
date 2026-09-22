@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
 import type { PlatformId } from "@/types/platform";
 import type { EnvironmentRow } from "@/types/environment";
 import { migrateIssueToV4 } from "./issues-migrations";
@@ -66,7 +66,7 @@ export function stripSubmitted(
 // 외부 write로 촉발된 rehydrate도 마찬가지로 prune 대상이 아니다 — 아래 주석 참조.
 export function shouldPruneAfterRehydrate(
   error: unknown,
-  isExternalSync = false,
+  isExternalSync: boolean,
 ): boolean {
   return error == null && !isExternalSync;
 }
@@ -92,12 +92,34 @@ export async function rehydrateIssuesFromExternalWrite(): Promise<void> {
   }
 }
 
+// persist가 마지막으로 쓴 직렬화 문자열. onChanged는 자기 write에도 발화하는데, 모든
+// 뮤테이터가 updatedAt을 올리므로 값 비교(oldValue !== newValue)로는 자기 write가 안 걸러진다.
+// 그걸 그대로 두면 (1) 제출 이슈 N건 목록에서 status 배지 N개가 각각 전체 blob의
+// get+parse+merge를 태우고 (2) 그 rehydrate의 getItem이 나간 사이 로컬 삭제가 일어나면
+// merge의 "존재는 저장분이 권위"가 방금 지운 레코드를 되살린다(삭제는 updatedAt 축 밖이다).
+let lastWrittenIssues: string | null = null;
+
+const issuesStorage: StateStorage = {
+  ...failClosedLocalStorage,
+  async setItem(name, value) {
+    lastWrittenIssues = value;
+    await failClosedLocalStorage.setItem(name, value);
+  },
+};
+
 // settings의 에코 가드와 같은 이유 — chrome.storage는 값이 안 바뀌어도 set마다 발화한다.
+// 거기에 자기 write 필터를 더한다(위 주석).
 export function shouldSyncIssuesChange(
   change: chrome.storage.StorageChange | undefined,
+  lastWritten: string | null = null,
 ): boolean {
   if (!change) return false;
-  return change.oldValue !== change.newValue;
+  if (change.oldValue === change.newValue) return false;
+  return lastWritten === null || change.newValue !== lastWritten;
+}
+
+export function lastWrittenIssuesValue(): string | null {
+  return lastWrittenIssues;
 }
 
 function pickIssue(persisted: IssueRecord, current: IssueRecord): IssueRecord {
@@ -140,10 +162,20 @@ function pickIssue(persisted: IssueRecord, current: IssueRecord): IssueRecord {
  * 복원되기까지 한다). 그걸 보전하면 다른 창이 지운 **제출 완료** 이슈가 blob 없이 되살아나
  * #240이 고발한 좀비 그대로가 된다. 그 구간엔 위 정당화(뒤따를 markSubmitted)도 없다.
  *
- * 남는 구멍: 서로의 read 사이에 끼어든 진짜 동시 write는 여전히 배열을 덮는다. 특히 방금
- * 만들어 아직 영속 전인 레코드는 드롭되는데, 이건 병합 도입 **전보다 악화**다 — 전에는
- * issues에 외부 rehydrate가 없어 메모리에 살아남아 다음 write로 복구됐다. 창이 `saveDraft`의
- * storage.set in-flight 구간(수 ms)이고, 그 구간의 레코드는 대개 `ownedId`라 위 예외가 덮는다.
+ * 보전된 draft는 blob이 없을 수 있다 — `removeIssue`는 레코드를 지우면서 blob 6종을 같은
+ * 틱에 삭제하므로, 저쪽이 지운 뒤 이쪽이 보전하면 스크린샷·로그가 빠진 채 편집이 이어진다.
+ * 그건 보전이 만든 손실이 아니라 저쪽 삭제가 만든 손실이고(보전을 빼도 blob은 안 돌아온다),
+ * 이 예외는 `reset()`이 돌 때까지 — `currentIssueId`가 세션 스냅샷으로 복원되므로 패널을
+ * 닫았다 열어도 — 유지된다.
+ *
+ * 남는 구멍: 서로의 read 사이에 끼어든 진짜 동시 write는 여전히 배열을 덮는다. 방금 만들어
+ * 아직 영속 전인 레코드도 드롭될 수 있다(창은 그 write의 storage 왕복이 끝날 때까지). 그
+ * 구간의 레코드는 대개 `ownedId`라 위 예외가 덮고, 아니어도 그 write의 onChanged가 다음
+ * rehydrate를 예약해 자기치유된다.
+ *
+ * merge 결과는 storage로 되쓰이지 않는다 — zustand는 migrate가 돈 경우에만 setItem을 태운다.
+ * 메모리가 이긴 레코드는 다음 로컬 뮤테이션이 있어야 영속되고, 그 전에 패널이 닫히면 저장분이
+ * 남는다. 대신 이 성질 덕에 두 인스턴스가 서로의 rehydrate를 무한히 깨우는 루프가 없다.
  */
 export function mergeIssueLists(
   persisted: IssueRecord[],
@@ -583,7 +615,7 @@ export const useIssuesStore = create<IssuesState>()(
     {
       name: ISSUES_PERSIST_KEY,
       version: ISSUES_STORE_VERSION,
-      storage: createJSONStorage(() => failClosedLocalStorage),
+      storage: createJSONStorage(() => issuesStorage),
       migrate: migrateIssuesState,
       merge: mergeIssuesState,
       onRehydrateStorage: () => (_state, error) => {

@@ -545,8 +545,8 @@ describe("pruneOrphanBlobs — rehydrate 실패 시 fail-closed", () => {
   });
 
   it("에러가 있으면 prune 판정이 false, 없으면 true", () => {
-    expect(shouldPruneAfterRehydrate(new Error("io"))).toBe(false);
-    expect(shouldPruneAfterRehydrate(undefined)).toBe(true);
+    expect(shouldPruneAfterRehydrate(new Error("io"), false)).toBe(false);
+    expect(shouldPruneAfterRehydrate(undefined, false)).toBe(true);
   });
 
   it("storage 조회가 reject하면 삭제가 0건 (전부 orphan 오판 금지)", async () => {
@@ -821,6 +821,12 @@ describe("shouldSyncIssuesChange (에코 가드)", () => {
     expect(shouldSyncIssuesChange({ oldValue: "x", newValue: "y" })).toBe(true);
     expect(shouldSyncIssuesChange({ newValue: "y" })).toBe(true);
   });
+
+  // 모든 뮤테이터가 updatedAt을 올리므로 값 비교로는 자기 write가 안 걸러진다.
+  it("자기가 마지막으로 쓴 값이면 무시한다", () => {
+    expect(shouldSyncIssuesChange({ oldValue: "x", newValue: "mine" }, "mine")).toBe(false);
+    expect(shouldSyncIssuesChange({ oldValue: "mine", newValue: "theirs" }, "mine")).toBe(true);
+  });
 });
 
 describe("shouldPruneAfterRehydrate — external 인자", () => {
@@ -873,7 +879,7 @@ describe("영속 필드는 issues 단독", () => {
     // 액션은 값이 `(`로 시작한다(여러 줄에 걸친 시그니처도 첫 줄이 `(`로 끝난다).
     const fields = body!
       .split("\n")
-      .map((line) => /^ {2}(\w+)\??: (?!\()/.exec(line))
+      .map((line) => /^ {2}(?:readonly )?(\w+)\??: (?!\()/.exec(line))
       .filter((m): m is RegExpExecArray => m !== null)
       .map((m) => m[1]);
 
@@ -961,7 +967,9 @@ describe("레코드를 바꾸는 액션은 updatedAt을 올린다", () => {
       new URL("../issues-store.ts", import.meta.url),
       "utf8",
     );
-    const blocks = src.split(/issues: s\.issues\.map\(/).slice(1);
+    // 콜백 인자명에 고정하지 않는다 — set((state) => ...) 로 쓴 신규 뮤테이터가 새면
+    // 래칫이 아니라 장부가 된다.
+    const blocks = src.split(/issues:\s*\w+\.issues\.map\(/).slice(1);
     expect(blocks.length).toBeGreaterThan(0);
 
     const missing = blocks.filter((block) => {
