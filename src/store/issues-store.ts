@@ -92,34 +92,78 @@ export async function rehydrateIssuesFromExternalWrite(): Promise<void> {
   }
 }
 
-// persist가 마지막으로 쓴 직렬화 문자열. onChanged는 자기 write에도 발화하는데, 모든
-// 뮤테이터가 updatedAt을 올리므로 값 비교(oldValue !== newValue)로는 자기 write가 안 걸러진다.
-// 그걸 그대로 두면 (1) 제출 이슈 N건 목록에서 status 배지 N개가 각각 전체 blob의
-// get+parse+merge를 태우고 (2) 그 rehydrate의 getItem이 나간 사이 로컬 삭제가 일어나면
-// merge의 "존재는 저장분이 권위"가 방금 지운 레코드를 되살린다(삭제는 updatedAt 축 밖이다).
-let lastWrittenIssues: string | null = null;
+// 아직 onChanged가 돌아오지 않은 자기 write의 직렬화 문자열들. onChanged는 자기 write에도
+// 발화하는데, 모든 뮤테이터가 updatedAt을 올리므로 값 비교(oldValue !== newValue)로는
+// 자기 write가 안 걸러지고, 그러면 제출 이슈 N건 목록에서 status 배지 N개가 각각 전체
+// blob의 get+parse+merge를 태운다.
+//
+// **하나가 아니라 집합인 이유**: write는 버스트로 나가고 onChanged는 그보다 늦게 도착한다.
+// "마지막으로 쓴 값" 한 개만 들고 있으면 버스트 N건 중 N-1건이 남의 write로 오판된다.
+//
+// **소비하는 이유**: 값으로만 대조하고 남겨두면, 다른 인스턴스가 우연히 같은 상태로 되돌리는
+// write(레코드를 추가했다 삭제)는 직렬화가 byte-identical이라 영구히 자기 write로 오판되고,
+// 그 삭제를 영영 못 받는다. 그래서 한 번 걸러내면 지운다.
+//
+// 상한이 있는 이유: 확장 리로드 등으로 onChanged를 영영 못 받는 항목이 남을 수 있다.
+const PENDING_OWN_WRITES_CAP = 32;
+const pendingOwnWrites = new Set<string>();
 
 const issuesStorage: StateStorage = {
   ...failClosedLocalStorage,
   async setItem(name, value) {
-    lastWrittenIssues = value;
+    pendingOwnWrites.add(value);
+    if (pendingOwnWrites.size > PENDING_OWN_WRITES_CAP) {
+      pendingOwnWrites.delete(pendingOwnWrites.values().next().value as string);
+    }
     await failClosedLocalStorage.setItem(name, value);
   },
 };
 
 // settings의 에코 가드와 같은 이유 — chrome.storage는 값이 안 바뀌어도 set마다 발화한다.
-// 거기에 자기 write 필터를 더한다(위 주석).
+// 거기에 자기 write 토큰 소비를 더한다(위 주석). 순수 함수가 아닌 건 의도다 — 토큰이
+// 1회용이어야 해서 판정과 소비가 같은 자리에 있어야 한다.
 export function shouldSyncIssuesChange(
   change: chrome.storage.StorageChange | undefined,
-  lastWritten: string | null = null,
 ): boolean {
   if (!change) return false;
   if (change.oldValue === change.newValue) return false;
-  return lastWritten === null || change.newValue !== lastWritten;
+  if (typeof change.newValue === "string" && pendingOwnWrites.delete(change.newValue)) {
+    return false;
+  }
+  return true;
 }
 
-export function lastWrittenIssuesValue(): string | null {
-  return lastWrittenIssues;
+// 제출 요청이 나가 있는 레코드 id. merge의 존재 권위에서 이것만 예외다 — 상세 주석은
+// mergeIssueLists JSDoc. 두 제출 관문(IssueCreateModal·DraftDetailDialog의 handleSubmit)이
+// withIssueSubmitGuard로 감싼다.
+const submittingIds = new Set<string>();
+
+export function beginIssueSubmit(id: string): void {
+  submittingIds.add(id);
+}
+
+export function endIssueSubmit(id: string): void {
+  submittingIds.delete(id);
+}
+
+/**
+ * 제출 요청 구간 동안 레코드를 병합의 존재 권위에서 보전한다(#240).
+ *
+ * try/finally를 호출부에 맡기지 않는 게 핵심이다 — 해제를 빠뜨리면 보전이 무기한이 되고,
+ * 그 레코드는 다음 로컬 뮤테이션의 직렬화에 실려 **저장분으로 되돌아간다**(blob 없이, 모든
+ * 인스턴스에). 호출부가 틀릴 수 없는 모양으로 둔다.
+ */
+export async function withIssueSubmitGuard<T>(
+  id: string | null | undefined,
+  run: () => Promise<T>,
+): Promise<T> {
+  if (!id) return run();
+  beginIssueSubmit(id);
+  try {
+    return await run();
+  } finally {
+    endIssueSubmit(id);
+  }
 }
 
 function pickIssue(persisted: IssueRecord, current: IssueRecord): IssueRecord {
@@ -131,6 +175,12 @@ function pickIssue(persisted: IssueRecord, current: IssueRecord): IssueRecord {
   // 동률이면 메모리를 유지한다 — 자기 write가 촉발한 onChanged에서 레코드 identity가 갈리는
   // 걸 막는다. 동률이 곧 무변경이어야 이게 성립하므로, 레코드를 바꾸는 모든 액션이
   // updatedAt을 올린다(patch* 3종 포함 — 안 올리면 상대의 변경이 무음으로 버려진다).
+  //
+  // 수용한 잔여: 두 인스턴스가 **같은 밀리초**에 같은 레코드를 다르게 고치면 동률인데 내용이
+  // 갈려 발산이 남는다. 저장분 채택으로 수렴시켜 봤다가 되돌렸다 — 그 방향은 한 write 뒤처진
+  // 저장분이 메모리의 최신 편집을 조용히 덮고(merge 결과는 미영속이라 발산이 그대로 남는다),
+  // 무변경 레코드 전부가 JSON 직렬화 2회를 타며, 키 순서만 달라도 "다름"으로 오판한다.
+  // 로컬에서 도달하는 경로도 못 찾았다.
   return persisted.updatedAt > current.updatedAt ? persisted : current;
 }
 
@@ -150,23 +200,22 @@ function pickIssue(persisted: IssueRecord, current: IssueRecord): IssueRecord {
  * 무변경이면 current를 **참조까지 그대로** 돌려준다 — 그래야 자기 write가 촉발한 rehydrate가
  * 구독을 건드리지 않는다.
  *
- * 예외가 하나 있다 — `ownedId`(로컬 에디터가 들고 있는 레코드)가 **아직 draft이면** 저장분에
- * 없어도 보전한다. 존재 권위를 예외 없이 적용하면 다른 인스턴스가 그 초안을 지운 순간 이쪽
- * 메모리에서도 사라지고, 이어지는 `markSubmitted`가 **무음 no-op**이 된다 — 티켓은
- * 목적지에 생겼는데 로컬엔 key/url이 없어 status 조회도, 중복 제출 방지도 못 한다(#240이
- * 실제로 비용을 치른 그 형태). 제출 in-flight 구간은 `markSubmitted` 직전까지 draft라
- * 이 조건으로 덮인다.
+ * 예외가 하나 있다 — **제출 요청이 나가 있는 레코드**(`protectedIds`)는 저장분에 없어도
+ * 보전한다. 존재 권위를 예외 없이 적용하면 다른 인스턴스가 그 이슈를 지운 순간 이쪽
+ * 메모리에서도 사라지고, 응답이 돌아왔을 때 `markSubmitted`가 `.map`에 안 걸려 **무음
+ * no-op**이 된다 — 티켓은 목적지에 생겼는데 로컬엔 key/url이 없어 status 조회도, 중복 제출
+ * 방지도 못 한다(#240이 실제로 비용을 치른 그 형태).
  *
- * submitted까지 보전하지 않는 이유: `currentIssueId`는 제출 후에도 남는다(`onSubmitted`는
- * phase만 옮기고, 해제는 사용자가 성공 화면을 닫아 `reset()`이 돌 때뿐이며 세션 스냅샷으로
- * 복원되기까지 한다). 그걸 보전하면 다른 창이 지운 **제출 완료** 이슈가 blob 없이 되살아나
- * #240이 고발한 좀비 그대로가 된다. 그 구간엔 위 정당화(뒤따를 markSubmitted)도 없다.
+ * 기준이 편집 소유권(`editor-store.currentIssueId`)이 아닌 이유가 둘이다. (1) 목록 상세창
+ * 제출은 `currentIssueId`를 쓰지 않는다 — 대상이 `IssueListTab`의 React state라, 소유권으로
+ * 게이트하면 저장 draft 재제출 9경로가 통째로 보호 밖이다. (2) `currentIssueId`는 제출 후에도
+ * 남는다(해제는 `reset()`뿐이고 세션 스냅샷으로 복원까지 된다) — 무기한 보전은 다른 창이 지운
+ * 이슈를 blob 없이 영영 살려두는 좀비가 된다. in-flight 구간은 요청 하나로 **유한**하고,
+ * Slack 보존 이슈의 트래커 승격(이미 submitted인 레코드를 제출)까지 status 무관하게 덮는다.
  *
- * 보전된 draft는 blob이 없을 수 있다 — `removeIssue`는 레코드를 지우면서 blob 6종을 같은
- * 틱에 삭제하므로, 저쪽이 지운 뒤 이쪽이 보전하면 스크린샷·로그가 빠진 채 편집이 이어진다.
- * 그건 보전이 만든 손실이 아니라 저쪽 삭제가 만든 손실이고(보전을 빼도 blob은 안 돌아온다),
- * 이 예외는 `reset()`이 돌 때까지 — `currentIssueId`가 세션 스냅샷으로 복원되므로 패널을
- * 닫았다 열어도 — 유지된다.
+ * 보전된 레코드는 blob이 없을 수 있다 — `removeIssue`는 레코드를 지우면서 blob 6종을 같은
+ * 틱에 삭제한다. 그건 보전이 만든 손실이 아니라 저쪽 삭제가 만든 손실이다(보전을 빼도 blob은
+ * 안 돌아오고, 대신 티켓 식별자까지 잃는다).
  *
  * 남는 구멍: 서로의 read 사이에 끼어든 진짜 동시 write는 여전히 배열을 덮는다. 방금 만들어
  * 아직 영속 전인 레코드도 드롭될 수 있다(창은 그 write의 storage 왕복이 끝날 때까지). 그
@@ -180,16 +229,19 @@ function pickIssue(persisted: IssueRecord, current: IssueRecord): IssueRecord {
 export function mergeIssueLists(
   persisted: IssueRecord[],
   current: IssueRecord[],
-  ownedId?: string | null,
+  protectedIds?: ReadonlySet<string>,
 ): IssueRecord[] {
   const byId = new Map(current.map((issue) => [issue.id, issue]));
   const merged = persisted.map((p) => {
     const c = byId.get(p.id);
     return c ? pickIssue(p, c) : p;
   });
-  const owned = ownedId ? byId.get(ownedId) : undefined;
-  if (owned?.status === "draft" && !merged.some((issue) => issue.id === ownedId)) {
-    merged.push(owned);
+  if (protectedIds?.size) {
+    const kept = new Set(merged.map((issue) => issue.id));
+    for (const id of protectedIds) {
+      const issue = byId.get(id);
+      if (issue && !kept.has(id)) merged.push(issue);
+    }
   }
   return sameRefs(merged, current) ? current : merged;
 }
@@ -217,7 +269,7 @@ export function mergeIssuesState(
   const issues = mergeIssueLists(
     source.issues as IssueRecord[],
     current.issues,
-    useEditorStore.getState().currentIssueId,
+    submittingIds,
   );
   return issues === current.issues ? current : { ...current, issues };
 }
@@ -520,6 +572,17 @@ export const useIssuesStore = create<IssuesState>()(
           // 통째 교체가 아니라 병합 — patchIssue로만 세팅되는 필드(logsAttached·attachments·
           // 제출 결과)가 재확정 한 번에 사라지던 구멍을 막는다. record가 키를 명시적으로
           // undefined로 실어 보내면 그건 그대로 폐기된다(spread가 undefined도 덮어쓴다).
+          // 역행 금지는 merge(읽기)에만 있으면 쓰기가 우회한다. 다른 인스턴스가 제출한 뒤
+          // 이쪽 에디터가 previewing에 남아 있으면 재확정이 status: "draft"를 실어 보내
+          // submitted를 덮는다(레이스 없이 순차로 재현된다).
+          //
+          // status만 고정하고 나머지를 병합하면 더 나쁘다 — record는 confirmDraft의
+          // baseDraftRecord()라 platform이 이쪽 targetPlatform으로 갈리고(배지가 다른 트래커에
+          // 그 key로 조회한다), stripSubmitted가 지운 apiHostsDerived·로그 blob 키가 부활하며,
+          // updatedAt이 최신이라 그 하이브리드가 다음 merge에서 이겨 storage로 나간다.
+          // 그래서 쓰기 자체를 건너뛴다. 정상 재확정은 기존 레코드가 draft라 여기 안 걸린다
+          // (confirmDraft는 phase "drafting" 전용이고, 로컬 제출은 phase를 done으로 옮긴다).
+          if (existing?.status === "submitted") return s;
           const next: IssueRecord = {
             ...existing,
             ...record,

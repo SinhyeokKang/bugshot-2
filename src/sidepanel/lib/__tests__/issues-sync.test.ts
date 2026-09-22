@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ISSUES_PERSIST_KEY } from "@/lib/session-keys";
 
 const rehydrate = vi.fn(() => Promise.resolve());
-const lastWritten = vi.fn((): string | null => null);
+const shouldSync = vi.fn((_c?: chrome.storage.StorageChange): boolean => true);
 
 vi.mock("@/store/issues-store", async () => {
   const actual = await vi.importActual<typeof import("@/store/issues-store")>(
@@ -11,7 +11,7 @@ vi.mock("@/store/issues-store", async () => {
   return {
     ...actual,
     rehydrateIssuesFromExternalWrite: () => rehydrate(),
-    lastWrittenIssuesValue: () => lastWritten(),
+    shouldSyncIssuesChange: (c: chrome.storage.StorageChange | undefined) => shouldSync(c),
   };
 });
 
@@ -32,9 +32,8 @@ describe("installIssuesSync", () => {
   });
 
   beforeEach(() => {
-    vi.useFakeTimers();
     vi.clearAllMocks();
-    lastWritten.mockReturnValue(null);
+    shouldSync.mockReturnValue(true);
     listeners = [];
     removed = [];
     vi.stubGlobal("chrome", {
@@ -45,12 +44,11 @@ describe("installIssuesSync", () => {
         },
       },
     });
-    dispose = installIssuesSync(300);
+    dispose = installIssuesSync();
   });
 
   afterEach(() => {
     dispose();
-    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -62,64 +60,42 @@ describe("installIssuesSync", () => {
     expect(listeners).toHaveLength(1);
   });
 
-  it("값이 바뀌면 throttle 간격 뒤에 rehydrate한다", () => {
+  // throttle을 두면 그 대기 구간에 로컬 뮤테이션이 끼어들어 원격 삭제를 못 읽은 배열이
+  // storage를 덮고, 뒤늦은 rehydrate가 이미 덮인 storage를 읽어 지워진 레코드를 되살린다.
+  it("변경을 즉시 rehydrate한다 (지연 없음)", () => {
     fire(change("a", "b"));
-    expect(rehydrate).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(300);
     expect(rehydrate).toHaveBeenCalledTimes(1);
   });
 
-  // 다른 인스턴스의 배지 버스트가 전체 blob get+parse+merge를 N번 태우면 안 된다.
-  it("연속 변경을 1회로 접는다", () => {
+  it("연속 변경을 삼키지 않는다", () => {
     fire(change("a", "b"));
     fire(change("b", "c"));
-    fire(change("c", "d"));
-
-    vi.advanceTimersByTime(300);
-    expect(rehydrate).toHaveBeenCalledTimes(1);
+    expect(rehydrate).toHaveBeenCalledTimes(2);
   });
 
-  it("local이 아닌 area는 무시한다", () => {
+  it("local이 아닌 area는 무시한다 (판정 자체를 안 태운다)", () => {
     fire(change("a", "b"), "sync");
-    vi.advanceTimersByTime(300);
+    expect(shouldSync).not.toHaveBeenCalled();
     expect(rehydrate).not.toHaveBeenCalled();
   });
 
-  it("다른 키의 변경은 무시한다", () => {
+  // 다른 키의 변경이 issues 판정으로 새면 무관한 write마다 전체 blob을 다시 읽는다.
+  it("issues 키의 변경만 판정에 넘긴다", () => {
     fire({ "bugshot-settings": { oldValue: "a", newValue: "b" } });
-    vi.advanceTimersByTime(300);
-    expect(rehydrate).not.toHaveBeenCalled();
+    expect(shouldSync).toHaveBeenCalledWith(undefined);
   });
 
-  it("동일 값 에코는 무시한다", () => {
-    fire(change("a", "a"));
-    vi.advanceTimersByTime(300);
-    expect(rehydrate).not.toHaveBeenCalled();
-  });
-
-  // 모든 뮤테이터가 updatedAt을 올려 값 비교로는 자기 write가 안 걸러진다. 안 거르면 배지
-  // 버스트가 읽기를 증폭시키고, 그 rehydrate의 getItem 중 로컬 삭제가 merge로 되살아난다.
-  it("자기가 마지막으로 쓴 값은 무시한다", () => {
-    lastWritten.mockReturnValue("mine");
-    fire(change("old", "mine"));
-    vi.advanceTimersByTime(300);
-    expect(rehydrate).not.toHaveBeenCalled();
-  });
-
-  it("자기 write 이후 들어온 다른 값은 동기화한다", () => {
-    lastWritten.mockReturnValue("mine");
-    fire(change("mine", "theirs"));
-    vi.advanceTimersByTime(300);
-    expect(rehydrate).toHaveBeenCalledTimes(1);
-  });
-
-  it("dispose가 리스너를 떼고 대기 중인 rehydrate를 취소한다", () => {
+  // 에코·자기 write 판정은 store가 토큰을 소비하며 내린다 — 여기선 그 답을 따르기만 한다.
+  it("판정이 false면 rehydrate하지 않는다", () => {
+    shouldSync.mockReturnValue(false);
     fire(change("a", "b"));
-    dispose();
-    vi.advanceTimersByTime(300);
-
     expect(rehydrate).not.toHaveBeenCalled();
+  });
+
+  it("dispose가 리스너를 뗀다", () => {
+    dispose();
+    fire(change("a", "b"));
+
     expect(removed).toHaveLength(1);
   });
 });

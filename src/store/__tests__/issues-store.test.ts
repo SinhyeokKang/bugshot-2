@@ -42,7 +42,10 @@ import {
   getAttachmentBlobKeys,
 } from "../blob-db";
 import {
+  beginIssueSubmit,
+  endIssueSubmit,
   mergeIssueLists,
+  withIssueSubmitGuard,
   mergeIssuesState,
   migrateIssuesState,
   rehydrateIssuesFromExternalWrite,
@@ -54,7 +57,6 @@ import {
   type IssuesState,
 } from "../issues-store";
 import { dataUrlToBlob, saveImageBlobRaw } from "../blob-db";
-import { useEditorStore } from "../editor-store";
 
 interface LegacyShape {
   id: string;
@@ -715,40 +717,58 @@ describe("mergeIssueLists (크로스 인스턴스 병합 규칙)", () => {
 
   // 존재 권위를 예외 없이 적용하면 다른 인스턴스가 지운 순간 이쪽 메모리에서도 사라지고,
   // 이어지는 markSubmitted가 무음 no-op이 된다 — 티켓은 생겼는데 로컬에 key/url이 없다.
-  it("에디터가 들고 있는 레코드는 저장분에 없어도 보전한다", () => {
+  // 제출이 나가 있는 레코드는 저장분에서 사라져도 보전한다 — 안 그러면 응답이 돌아왔을 때
+  // markSubmitted가 .map에 안 걸려 무음 no-op이 되고, 티켓은 목적지에 생겼는데 로컬엔
+  // key/url이 없다. 편집 소유권(currentIssueId)이 아니라 **실제 in-flight 구간**이 기준이다
+  // — 목록 상세창 제출은 currentIssueId를 안 쓰고, 소유권은 제출 후에도 안 풀린다.
+  it("제출 중인 레코드는 저장분에 없어도 보전한다", () => {
     const persisted = [rec({ id: "a" })];
-    const current = [rec({ id: "a" }), rec({ id: "editing" })];
+    const current = [rec({ id: "a" }), rec({ id: "sending" })];
 
-    const out = mergeIssueLists(persisted, current, "editing");
+    const out = mergeIssueLists(persisted, current, new Set(["sending"]));
 
-    expect(out.map((i) => i.id)).toEqual(["a", "editing"]);
+    expect(out.map((i) => i.id)).toEqual(["a", "sending"]);
+  });
+
+  // Slack 보존 이슈의 트래커 승격은 이미 submitted인 레코드를 제출한다. status로 게이트하면
+  // 그 경로가 보호 밖으로 샌다 — in-flight 구간은 status와 무관하게 보전한다.
+  it("제출 중이면 submitted 레코드도 보전한다 (Slack 승격 경로)", () => {
+    const persisted = [rec({ id: "a" })];
+    const current = [rec({ id: "a" }), rec({ id: "promoting", status: "submitted" })];
+
+    const out = mergeIssueLists(persisted, current, new Set(["promoting"]));
+
+    expect(out.map((i) => i.id)).toEqual(["a", "promoting"]);
   });
 
   it("보전 대상이 저장분에도 있으면 중복 추가하지 않는다", () => {
-    const persisted = [rec({ id: "editing", status: "submitted", updatedAt: 9 })];
-    const current = [rec({ id: "editing", updatedAt: 1 })];
+    const persisted = [rec({ id: "sending", status: "submitted", updatedAt: 9 })];
+    const current = [rec({ id: "sending", updatedAt: 1 })];
 
-    const out = mergeIssueLists(persisted, current, "editing");
+    const out = mergeIssueLists(persisted, current, new Set(["sending"]));
 
-    expect(out.map((i) => i.id)).toEqual(["editing"]);
+    expect(out.map((i) => i.id)).toEqual(["sending"]);
     expect(out[0].status).toBe("submitted");
   });
 
-  // currentIssueId는 제출 후에도 남는다(해제는 성공 화면을 닫을 때뿐이고 세션 스냅샷으로
-  // 복원까지 된다). submitted까지 보전하면 다른 창이 지운 제출 완료 이슈가 blob 없이
-  // 되살아나 #240이 고발한 좀비 그대로가 된다 — 그 구간엔 markSubmitted 정당화도 없다.
-  it("소유 레코드라도 이미 submitted면 보전하지 않는다", () => {
-    const persisted = [rec({ id: "a" })];
-    const current = [rec({ id: "a" }), rec({ id: "editing", status: "submitted" })];
-
-    expect(mergeIssueLists(persisted, current, "editing").map((i) => i.id)).toEqual(["a"]);
-  });
-
-  it("편집 중이 아닌 레코드는 예외 없이 드롭한다 (좀비 예외를 넓히지 않는다)", () => {
+  // 보전은 제출 요청 구간으로 유한해야 한다 — 무기한이면 다른 창이 지운 레코드가 영영
+  // 살아남아 blob 없는 좀비가 된다.
+  it("제출 중이 아닌 레코드는 예외 없이 드롭한다", () => {
     const persisted = [rec({ id: "a" })];
     const current = [rec({ id: "a" }), rec({ id: "gone" })];
 
-    expect(mergeIssueLists(persisted, current, "editing").map((i) => i.id)).toEqual(["a"]);
+    expect(mergeIssueLists(persisted, current, new Set(["sending"])).map((i) => i.id))
+      .toEqual(["a"]);
+    expect(mergeIssueLists(persisted, current).map((i) => i.id)).toEqual(["a"]);
+  });
+
+  // 동률 = 무변경이 전제다(모든 뮤테이터가 updatedAt을 올린다). 저장분 채택으로 바꾸면
+  // 한 write 뒤처진 저장분이 메모리의 최신 편집을 조용히 덮는 반대 방향이 열린다.
+  it("동률이면 메모리를 유지한다", () => {
+    const persisted = [rec({ id: "a", updatedAt: 5, title: "theirs" })];
+    const current = [rec({ id: "a", updatedAt: 5, title: "mine" })];
+
+    expect(mergeIssueLists(persisted, current)[0].title).toBe("mine");
   });
 
   it("변경이 없으면 현재 배열을 참조까지 그대로 반환한다 (에코·리렌더 방지)", () => {
@@ -784,21 +804,46 @@ describe("mergeIssuesState (persist merge 진입점)", () => {
     expect(out.issues).toBe(current.issues);
   });
 
+  // 제출은 실패한다 — 네트워크·권한·업로드 어느 단계에서든 throw한다. 해제가 finally에
+  // 없으면 그 레코드가 영구 보전되고, 다음 로컬 뮤테이션의 직렬화에 실려 저장분으로
+  // 되돌아간다(blob 없이, 모든 인스턴스에).
+  it("withIssueSubmitGuard는 run이 reject해도 보호를 해제한다", async () => {
+    const current = {
+      ...state(),
+      issues: [{ id: "boom", status: "draft", updatedAt: 1 } as IssueRecord],
+    };
+
+    let protectedDuringRun: string[] = [];
+    await expect(
+      withIssueSubmitGuard("boom", async () => {
+        protectedDuringRun = mergeIssuesState({ issues: [] }, current).issues.map((i) => i.id);
+        throw new Error("submit failed");
+      }),
+    ).rejects.toThrow("submit failed");
+
+    expect(protectedDuringRun).toEqual(["boom"]);
+    expect(mergeIssuesState({ issues: [] }, current).issues).toEqual([]);
+  });
+
+  it("withIssueSubmitGuard는 id가 없으면 그대로 실행한다", async () => {
+    await expect(withIssueSubmitGuard(null, async () => "ok")).resolves.toBe("ok");
+  });
+
   // 보전 축이 persist 경로에 실제로 배선됐는지 — mergeIssueLists 인자만 테스트하면
-  // mergeIssuesState가 currentIssueId를 안 넘겨도 green이다.
-  it("editor-store의 currentIssueId를 보전 대상으로 넘긴다", () => {
-    const prev = useEditorStore.getState().currentIssueId;
-    useEditorStore.setState({ currentIssueId: "editing" });
+  // mergeIssuesState가 in-flight 집합을 안 넘겨도 green이다.
+  it("in-flight 제출 집합을 보전 대상으로 넘긴다", () => {
+    const current = {
+      ...state(),
+      issues: [{ id: "sending", status: "draft", updatedAt: 1 } as IssueRecord],
+    };
+    beginIssueSubmit("sending");
     try {
-      const current = {
-        ...state(),
-        issues: [{ id: "editing", status: "draft", updatedAt: 1 } as IssueRecord],
-      };
-      const out = mergeIssuesState({ issues: [] }, current);
-      expect(out.issues.map((i) => i.id)).toEqual(["editing"]);
+      expect(mergeIssuesState({ issues: [] }, current).issues.map((i) => i.id))
+        .toEqual(["sending"]);
     } finally {
-      useEditorStore.setState({ currentIssueId: prev });
+      endIssueSubmit("sending");
     }
+    expect(mergeIssuesState({ issues: [] }, current).issues).toEqual([]);
   });
 
   // 버전이 같으면 migrate가 돌지 않아 issues 비배열 오염이 merge까지 그대로 온다.
@@ -811,7 +856,36 @@ describe("mergeIssuesState (persist merge 진입점)", () => {
   });
 });
 
-describe("shouldSyncIssuesChange (에코 가드)", () => {
+describe("shouldSyncIssuesChange (에코 가드 + 자기 write 소비)", () => {
+  let written: string[];
+
+  beforeEach(() => {
+    written = [];
+    vi.stubGlobal("chrome", {
+      storage: {
+        local: {
+          get: vi.fn(async () => ({})),
+          set: vi.fn(async (items: Record<string, string>) => {
+            for (const v of Object.values(items)) written.push(v);
+          }),
+          remove: vi.fn(async () => {}),
+        },
+      },
+    });
+  });
+
+  afterEach(() => {
+    useIssuesStore.setState({ issues: [] });
+    vi.unstubAllGlobals();
+  });
+
+  // persist가 실제로 쓴 문자열을 얻는다 — 손으로 만든 리터럴은 어댑터 배선을 안 태운다.
+  const writeOnce = async (id: string): Promise<string> => {
+    useIssuesStore.setState({ issues: [{ id } as IssueRecord] });
+    await Promise.resolve();
+    return written[written.length - 1];
+  };
+
   it("변경 없음·동일 값 에코는 무시한다", () => {
     expect(shouldSyncIssuesChange(undefined)).toBe(false);
     expect(shouldSyncIssuesChange({ oldValue: "x", newValue: "x" })).toBe(false);
@@ -823,9 +897,34 @@ describe("shouldSyncIssuesChange (에코 가드)", () => {
   });
 
   // 모든 뮤테이터가 updatedAt을 올리므로 값 비교로는 자기 write가 안 걸러진다.
-  it("자기가 마지막으로 쓴 값이면 무시한다", () => {
-    expect(shouldSyncIssuesChange({ oldValue: "x", newValue: "mine" }, "mine")).toBe(false);
-    expect(shouldSyncIssuesChange({ oldValue: "mine", newValue: "theirs" }, "mine")).toBe(true);
+  it("자기가 방금 쓴 값이면 무시한다", async () => {
+    const mine = await writeOnce("a");
+    expect(shouldSyncIssuesChange({ oldValue: "old", newValue: mine })).toBe(false);
+  });
+
+  // 토큰이 1회용이어야 한다. "마지막으로 쓴 값"으로 남겨두면, 다른 인스턴스가 우연히 같은
+  // 상태로 되돌리는 write(추가했다 삭제)가 영구히 자기 write로 오판돼 그 변경을 영영 못 받는다.
+  it("같은 값이 다시 와도 두 번째는 남의 write로 본다", async () => {
+    const mine = await writeOnce("a");
+    expect(shouldSyncIssuesChange({ oldValue: "old", newValue: mine })).toBe(false);
+    expect(shouldSyncIssuesChange({ oldValue: "other", newValue: mine })).toBe(true);
+  });
+
+  // write는 버스트로 나가고 onChanged는 그보다 늦게 도착한다. 토큰을 하나만 들고 있으면
+  // 버스트 N건 중 N-1건이 남의 write로 오판돼 그만큼 전량 rehydrate가 돈다.
+  it("버스트로 쓴 값들을 전부 자기 write로 본다", async () => {
+    const first = await writeOnce("a");
+    const second = await writeOnce("b");
+    expect(first).not.toBe(second);
+
+    expect(shouldSyncIssuesChange({ oldValue: "old", newValue: first })).toBe(false);
+    expect(shouldSyncIssuesChange({ oldValue: first, newValue: second })).toBe(false);
+  });
+
+  it("자기 write와 다른 값은 토큰을 소비하지 않는다", async () => {
+    const mine = await writeOnce("a");
+    expect(shouldSyncIssuesChange({ oldValue: mine, newValue: "theirs" })).toBe(true);
+    expect(shouldSyncIssuesChange({ oldValue: "old", newValue: mine })).toBe(false);
   });
 });
 
@@ -979,5 +1078,132 @@ describe("레코드를 바꾸는 액션은 updatedAt을 올린다", () => {
     });
 
     expect(missing).toEqual([]);
+  });
+});
+
+// 역행 금지가 읽기(merge) 측에만 있으면 쓰기가 그걸 우회한다. A가 previewing 중 B가 같은
+// 이슈를 제출하면 A는 submitted를 정상 반영하지만 editor는 previewing 그대로고, backToDraft
+// 후 재확정하면 confirmDraft의 baseDraftRecord가 status: "draft"를 실어 submitted를 덮는다
+// (레이스도 콜드스타트도 필요 없다). 정상 흐름은 기존 레코드가 draft라 이 가드에 안 걸린다.
+describe("saveDraft — submitted 역행 금지 (쓰기 측)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("chrome", {
+      storage: {
+        local: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}), remove: vi.fn(async () => {}) },
+      },
+    });
+  });
+
+  afterEach(() => {
+    useIssuesStore.setState({ issues: [] });
+    vi.unstubAllGlobals();
+  });
+
+  const submitted = (): IssueRecord => ({
+    id: "s1",
+    status: "submitted",
+    platform: "jira",
+    title: "t",
+    createdAt: 1,
+    updatedAt: 1,
+    pageUrl: "https://example.com",
+    draft: { title: "", sections: {} },
+    snapshot: { before: false, after: false },
+    key: "BUG-1",
+    url: "https://jira/BUG-1",
+  });
+
+  it("기존 레코드가 submitted면 draft로 되돌리지 않는다", () => {
+    useIssuesStore.setState({ issues: [submitted()] });
+    useIssuesStore.getState().saveDraft({
+      ...submitted(),
+      status: "draft",
+      title: "edited",
+    });
+
+    const out = useIssuesStore.getState().issues[0];
+    expect(out.status).toBe("submitted");
+    expect(out.key).toBe("BUG-1");
+  });
+
+  // status만 고정하고 나머지를 병합하면 하이브리드가 된다 — platform이 이쪽 targetPlatform으로
+  // 갈려 배지가 다른 트래커를 조회하고, stripSubmitted가 지운 apiHostsDerived·로그 blob 키가
+  // 부활하며, updatedAt이 최신이라 그 오염이 다음 merge에서 이겨 storage로 나간다.
+  it("쓰기 자체를 건너뛴다 (하이브리드 레코드를 만들지 않는다)", () => {
+    useIssuesStore.setState({ issues: [submitted()] });
+    useIssuesStore.getState().saveDraft({
+      ...submitted(),
+      status: "draft",
+      title: "edited",
+      platform: "github",
+      apiHostsDerived: "internal-admin.acme.com",
+    });
+
+    const out = useIssuesStore.getState().issues[0];
+    expect(out.title).toBe("t");
+    expect(out.platform).toBe("jira");
+    expect(out.apiHostsDerived).toBeUndefined();
+  });
+
+  it("기존이 draft면 그대로 draft다 (정상 재확정 무영향)", () => {
+    useIssuesStore.setState({ issues: [{ ...submitted(), status: "draft", key: undefined }] });
+    useIssuesStore.getState().saveDraft({ ...submitted(), status: "draft" });
+
+    expect(useIssuesStore.getState().issues[0].status).toBe("draft");
+  });
+});
+
+// in-flight 보전은 제출 관문이 등록해야만 동작한다. 관문은 지금 둘(IssueCreateModal·
+// DraftDetailDialog의 handleSubmit)이고 각각 플랫폼 9분기를 감싼다 — 분기 18곳을 열거하면
+// 다음 플랫폼이 목록 밖에서 새므로, "markSubmitted를 부르는 파일은 보호도 건다"는 불변식으로
+// 센다. 셋째 제출 경로가 생기면 보호 없이는 red다.
+//
+// 주석은 코드가 아니다 — 삭제 뮤테이션은 흔히 주석 처리다(pageUrl-callsites.test.ts가 같은
+// 이유로 codeOnly를 쓴다). 스코프도 디렉터리 하나가 아니라 sidepanel 전체를 재귀로 훑는다:
+// tabs/statusBadges/가 이미 서브디렉터리이고, 관문이 components/로 옮겨가도 걸려야 한다.
+describe("제출 경로의 in-flight 보호", () => {
+  const load = async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const walk = (dir: URL): URL[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        if (e.name === "__tests__") return [];
+        const child = new URL(e.isDirectory() ? `${e.name}/` : e.name, dir);
+        if (e.isDirectory()) return walk(child);
+        return /\.tsx?$/.test(e.name) ? [child] : [];
+      });
+    const codeOnly = (f: URL) =>
+      readFileSync(f, "utf8")
+        .split("\n")
+        .map((line) => line.replace(/\/\/.*$/, ""))
+        .join("\n");
+    const files = walk(new URL("../../sidepanel/", import.meta.url));
+    return files.map((f) => ({ path: f.pathname, code: codeOnly(f) }));
+  };
+
+  it("스캔 대상이 비어 있지 않다", async () => {
+    const files = await load();
+    expect(files.length).toBeGreaterThan(50);
+    expect(files.some((f) => /\bmarkSubmitted\(/.test(f.code))).toBe(true);
+  });
+
+  it("markSubmitted/markSlackShared를 부르는 파일은 withIssueSubmitGuard로 감싼다", async () => {
+    const files = await load();
+    const offenders = files
+      .filter((f) => /\b(markSubmitted|markSlackShared)\(/.test(f.code))
+      .filter((f) => !/\bwithIssueSubmitGuard\(/.test(f.code))
+      .map((f) => f.path);
+
+    expect(offenders).toEqual([]);
+  });
+
+  // 해제를 호출부에 맡기면 빠뜨릴 수 있고, 빠뜨린 보전은 무기한이 되어 그 레코드가 다음
+  // 로컬 뮤테이션의 직렬화에 실려 저장분으로 되돌아간다(blob 없이, 모든 인스턴스에).
+  it("관문이 begin/end를 직접 부르지 않는다 (해제를 못 빠뜨리게)", async () => {
+    const files = await load();
+    const offenders = files
+      .filter((f) => /\b(beginIssueSubmit|endIssueSubmit)\(/.test(f.code))
+      .map((f) => f.path);
+
+    expect(offenders).toEqual([]);
   });
 });

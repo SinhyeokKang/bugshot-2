@@ -11,7 +11,7 @@ import { pruneOrphanInlineImages, getAttachmentBlob } from "@/store/blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { useEditorStore, whenAttachmentBlobsReady } from "@/store/editor-store";
-import { useIssuesStore } from "@/store/issues-store";
+import { useIssuesStore, withIssueSubmitGuard } from "@/store/issues-store";
 import {
   connectedPlatforms,
   jiraSiteId,
@@ -519,6 +519,9 @@ export function IssueCreateModal() {
     // confirmDraft가 확정 시점 URL로 레코드를 동결했는데 그 뒤 탭이 이동했으면, 지금 나가는
     // 본문의 Page와 목록·검색·상세가 읽는 pageUrl이 갈린다. 실제로 제출되는 값으로 맞춘다.
     if (currentIssueId) patchIssue(currentIssueId, { pageUrl: ctx.url });
+    // 요청이 나가 있는 동안 다른 인스턴스가 이 레코드를 지워도 병합이 드롭하지 않게 잡아둔다
+    // — 드롭되면 응답 후 markSubmitted가 무음 no-op이라 티켓 key/url을 잃는다(#240).
+    return withIssueSubmitGuard(currentIssueId, async () => {
     const inlineImages = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
     const captureFiles = await buildEditorCaptureFiles(ctx);
     let result: NormalizedSubmitResult;
@@ -536,6 +539,7 @@ export function IssueCreateModal() {
     );
     void pruneOrphanInlineImages(activeRefs);
     return result;
+    });
   }
 
   const canOpen = available.length > 0;
