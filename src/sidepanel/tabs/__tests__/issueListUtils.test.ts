@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { isSlackPreserved } from "@/store/issues-store";
 import {
   canEditDraftFields,
   canPromoteSlack,
@@ -6,7 +7,6 @@ import {
   dateMonthStyle,
   formatIssueKey,
   isRefreshable,
-  isSlackPreserved,
   matchesQuery,
   matchesStatus,
   parseGithubIssueNumber,

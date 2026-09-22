@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { toastSubmitBlocked } from "@/sidepanel/lib/submitBlockedToast";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -207,6 +208,11 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
     try {
       result = await onSubmit(platform);
     } catch (err) {
+      // 중복 차단은 제출 실패가 아니다 — 요청이 아예 안 나갔으므로 failure로 세지 않는다.
+      if (toastSubmitBlocked(err, t)) {
+        setSubmit({ status: "idle" });
+        return;
+      }
       // result는 onSubmit 성공/예외에만 묶는다. onSuccess/onOpenChange 예외가
       // failure로 오집계·toast 오표시되지 않게 try를 onSubmit으로 좁힌다.
       {

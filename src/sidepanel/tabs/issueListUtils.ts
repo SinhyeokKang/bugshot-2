@@ -1,7 +1,7 @@
 import { dateBcp47, getLocale, type TranslationFn } from "@/i18n";
 import { localeValue, type LocaleMode, type LocaleTable } from "@/i18n/locales";
 import { extractNotionPageId } from "@/lib/notion-page-id";
-import type { IssueRecord } from "@/store/issues-store";
+import { isSlackPreserved, type IssueRecord } from "@/store/issues-store";
 import { connectedPlatforms } from "@/store/settings-store";
 import type { Accounts, PlatformId } from "@/types/platform";
 
@@ -107,11 +107,6 @@ export function matchesQuery(issue: IssueRecord, q: string): boolean {
 export function matchesStatus(issue: IssueRecord, filter: StatusFilter): boolean {
   if (filter === "all") return true;
   return issue.status === filter;
-}
-
-// Slack 공유로 원본 데이터를 보존 중인 submitted 이슈 (승격 대상).
-export function isSlackPreserved(issue: IssueRecord): boolean {
-  return issue.status === "submitted" && !!issue.slackPreserved;
 }
 
 // 초안 필드(제목·섹션) 편집 허용 조건. 미제출 draft + Slack 보존 이슈(승격 전 문구 다듬기).

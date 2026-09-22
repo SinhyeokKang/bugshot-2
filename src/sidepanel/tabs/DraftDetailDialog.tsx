@@ -37,7 +37,12 @@ import {
 } from "@/store/settings-ui-store";
 import { bodyBlocks, type TextIssueSection } from "@/sidepanel/lib/bodyBlocks";
 import { useEditorStore } from "@/store/editor-store";
-import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
+import {
+  isSlackPreserved,
+  useIssuesStore,
+  withIssueSubmitGuard,
+  type IssueRecord,
+} from "@/store/issues-store";
 import { clearPicker } from "@/sidepanel/picker-control";
 import { useTabNav } from "@/sidepanel/tab-nav";
 import { IntegrationsCta } from "@/sidepanel/components/IntegrationsCta";
@@ -49,7 +54,6 @@ import {
 } from "@/store/settings-store";
 import {
   canEditDraftFields,
-  isSlackPreserved,
   resolveInitialPlatform,
   submittablePlatforms,
 } from "./issueListUtils";
@@ -813,6 +817,10 @@ export function DraftDetailDialog({
   }
 
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
+    // 요청이 나가 있는 동안 다른 인스턴스가 이 레코드를 지워도 병합이 드롭하지 않게 잡아둔다
+    // — 드롭되면 응답 후 markSubmitted가 무음 no-op이라 티켓 key/url을 잃는다(#240).
+    // 이 경로는 currentIssueId를 안 쓴다(대상이 IssueListTab의 React state다).
+    return withIssueSubmitGuard(issue?.id, async () => {
     // markSubmitted가 issue.url/key를 트래커 값으로 덮고 slackPreserved를 비우므로 사전 캡처.
     const slackOrigin =
       issue && isSlackPreserved(issue) && slackAccount
@@ -842,6 +850,7 @@ export function DraftDetailDialog({
       void pruneOrphanInlineImages(activeRefs);
     }
     return result;
+    });
   }
 
   function handleDelete() {
@@ -852,7 +861,7 @@ export function DraftDetailDialog({
 
   function handleSaveEdit(nextValue: string) {
     if (!issue || !editTarget) return;
-    patchIssue(issue.id, applyDraftFieldEdit(issue, editTarget, nextValue, Date.now()));
+    patchIssue(issue.id, applyDraftFieldEdit(issue, editTarget, nextValue));
     setEditTarget(null);
   }
 

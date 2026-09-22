@@ -160,6 +160,18 @@ describe('label: "Page" 행 — target 직참조 금지', () => {
 describe("제출 funnel — 레코드 pageUrl 정정", () => {
   const SRC = codeOnly("src/sidepanel/tabs/IssueCreateModal.tsx");
 
+  // 이미 제출된 레코드면 withIssueSubmitGuard가 던져 요청을 막는데, 그 가드가 이 정정보다
+  // 뒤에 있으면 "요청은 안 나갔는데 pageUrl 오염만 퍼지는" 상태가 된다 — patchIssue는
+  // 스프레드 뒤에 updatedAt을 올리므로 그 write가 #240 병합의 최신 승자가 되어 다른
+  // 인스턴스가 기록한 값을 덮는다. 순서가 곧 불변식이라 여기서 함께 잠근다.
+  it("차단 가드가 pageUrl 정정보다 앞이다", () => {
+    const body = SRC.slice(SRC.indexOf("async function handleSubmit"));
+    const guardAt = body.indexOf("withIssueSubmitGuard(");
+    const patchAt = body.indexOf("pageUrl: ctx.url");
+    expect(guardAt).toBeGreaterThanOrEqual(0);
+    expect(patchAt).toBeGreaterThan(guardAt);
+  });
+
   it("handleSubmit이 ctx를 만든 뒤 레코드를 같은 값으로 맞춘다", () => {
     const body = SRC.slice(SRC.indexOf("async function handleSubmit"));
     const ctxAt = body.indexOf("buildCtx()");

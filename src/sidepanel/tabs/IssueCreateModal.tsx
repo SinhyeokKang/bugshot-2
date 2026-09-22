@@ -11,7 +11,7 @@ import { pruneOrphanInlineImages, getAttachmentBlob } from "@/store/blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { useEditorStore, whenAttachmentBlobsReady } from "@/store/editor-store";
-import { useIssuesStore } from "@/store/issues-store";
+import { useIssuesStore, withIssueSubmitGuard } from "@/store/issues-store";
 import {
   connectedPlatforms,
   jiraSiteId,
@@ -516,6 +516,10 @@ export function IssueCreateModal() {
 
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
+    // 가드가 pageUrl 정정보다 **앞**이어야 한다 — 차단되는 경우는 정의상 레코드가 이미
+    // submitted이고, patchIssue는 스프레드 뒤에 updatedAt을 올리므로 그 write가 병합의 최신
+    // 승자가 되어 다른 인스턴스가 기록한 pageUrl을 덮는다(요청은 안 나갔는데 오염만 퍼진다).
+    return withIssueSubmitGuard(currentIssueId, async () => {
     // confirmDraft가 확정 시점 URL로 레코드를 동결했는데 그 뒤 탭이 이동했으면, 지금 나가는
     // 본문의 Page와 목록·검색·상세가 읽는 pageUrl이 갈린다. 실제로 제출되는 값으로 맞춘다.
     if (currentIssueId) patchIssue(currentIssueId, { pageUrl: ctx.url });
@@ -536,6 +540,7 @@ export function IssueCreateModal() {
     );
     void pruneOrphanInlineImages(activeRefs);
     return result;
+    });
   }
 
   const canOpen = available.length > 0;

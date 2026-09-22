@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { useSettingsStore } from "@/store/settings-store";
 import { SETTINGS_STORAGE_KEY } from "@/lib/settings-storage";
+import { installIssuesSync } from "./lib/issues-sync";
 import { resolveOsInfo } from "./lib/osInfo";
 import "@/styles/globals.css";
 
@@ -38,6 +39,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (!change || change.oldValue === change.newValue) return;
   void useSettingsStore.persist.rehydrate();
 });
+
+// 크로스 인스턴스 issue 목록 동기화(#240). 규칙·불변식은 issues-sync.ts / issues-store.ts.
+installIssuesSync();
 
 void resolveOsInfo();
 
