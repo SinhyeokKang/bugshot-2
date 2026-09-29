@@ -122,7 +122,7 @@ describe("submitToGitlab 역링크 보강", () => {
     expect(updateCall.description).toBe("see NEW_URL in logs");
     expect(updateCall.iid).toBe(42);
 
-    expect(res).toEqual({ key: "#42", url: ISSUE.url, logsDropped: false });
+    expect(res).toEqual({ key: "#42", url: ISSUE.url, logsDropped: false, mediaDropped: false });
   });
 
   it("보강(주입/재업로드) 실패는 격리 — 이슈는 생성되고 결과 반환", async () => {
@@ -145,7 +145,7 @@ describe("submitToGitlab 역링크 보강", () => {
         ([m]) => m.type === "gitlab.updateIssueDescription",
       ),
     ).toBe(false);
-    expect(res).toEqual({ key: "#42", url: ISSUE.url, logsDropped: false });
+    expect(res).toEqual({ key: "#42", url: ISSUE.url, logsDropped: false, mediaDropped: false });
   });
 });
 
@@ -259,6 +259,24 @@ describe("submitToGitlab logsDropped", () => {
     ).toBe(1);
   });
 
+  // 실패 케이스가 mediaDropped를 안 보면 반환을 false로 고정해도 구별이 안 된다.
+  it("캡처 이미지 업로드가 실패하면 mediaDropped: true", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "gitlab.uploadFiles")
+        return [{ ok: false, filename: "shot.webp" }];
+      if (msg.type === "gitlab.submitIssue") return ISSUE;
+      return undefined;
+    });
+
+    const res = await submitToGitlab({
+      ctx: makeCtx(),
+      projectId: 1,
+      images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
+    });
+
+    expect(res.mediaDropped).toBe(true);
+  });
+
   it("logs.html 업로드 성공이면 logsDropped: false", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
@@ -340,7 +358,7 @@ describe("submitToGitlab — 2차 본문 갱신 실패 (전수 표 gitlab 행)",
     });
 
     // ①② 완전 성공 경로와 동일한 반환값.
-    expect(res).toEqual({ key: "#42", url: ISSUE.url, logsDropped: false });
+    expect(res).toEqual({ key: "#42", url: ISSUE.url, logsDropped: false, mediaDropped: false });
     // ③ 업로드·생성·재업로드는 그대로 — 마지막 write만 무음으로 떨어진다.
     expect(sendBg.mock.calls.map(([m]) => m.type)).toEqual([
       "gitlab.uploadFiles",

@@ -226,8 +226,8 @@ export function IssueCreateModal() {
       }),
     );
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
-    onSubmitted({ key: result.key, url: result.url, platform: "jira", logsDropped: result.logsDropped });
-    return { key: result.key, url: result.url, logsDropped: result.logsDropped };
+    onSubmitted({ key: result.key, url: result.url, platform: "jira", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
+    return { key: result.key, url: result.url, logsDropped: result.logsDropped, mediaDropped: result.mediaDropped };
   }
 
   async function handleGithubSubmit(
@@ -262,7 +262,7 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("github", githubLastSubmitFields(ghFields));
     useSettingsStore.getState().setLastSubmittedPlatform("github");
-    onSubmitted({ key: result.key, url: result.url, platform: "github", logsDropped: result.logsDropped });
+    onSubmitted({ key: result.key, url: result.url, platform: "github", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -297,7 +297,7 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("linear", linearLastSubmitFields(linearFields));
     useSettingsStore.getState().setLastSubmittedPlatform("linear");
-    onSubmitted({ key: result.key, url: result.url, platform: "linear", logsDropped: result.logsDropped });
+    onSubmitted({ key: result.key, url: result.url, platform: "linear", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -336,7 +336,7 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("notion", notionLastSubmitFields(notionFields));
     useSettingsStore.getState().setLastSubmittedPlatform("notion");
-    onSubmitted({ key: result.key, url: result.url, platform: "notion", logsDropped: result.logsDropped });
+    onSubmitted({ key: result.key, url: result.url, platform: "notion", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -371,7 +371,7 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("gitlab", gitlabLastSubmitFields(gitlabFields));
     useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
-    onSubmitted({ key: result.key, url: result.url, platform: "gitlab", logsDropped: result.logsDropped });
+    onSubmitted({ key: result.key, url: result.url, platform: "gitlab", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -404,7 +404,7 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("asana", asanaLastSubmitFields(asanaFields));
     useSettingsStore.getState().setLastSubmittedPlatform("asana");
-    onSubmitted({ key: result.key, url: result.url, platform: "asana", logsDropped: result.logsDropped });
+    onSubmitted({ key: result.key, url: result.url, platform: "asana", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -439,7 +439,7 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("clickup", clickupLastSubmitFields(clickupFields));
     useSettingsStore.getState().setLastSubmittedPlatform("clickup");
-    onSubmitted({ key: result.key, url: result.url, platform: "clickup", logsDropped: result.logsDropped });
+    onSubmitted({ key: result.key, url: result.url, platform: "clickup", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -470,7 +470,7 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("slack", slackLastSubmitFields(slackFields));
     useSettingsStore.getState().setLastSubmittedPlatform("slack");
-    onSubmitted({ key: result.key, url: result.url, platform: "slack", logsDropped: result.logsDropped });
+    onSubmitted({ key: result.key, url: result.url, platform: "slack", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -508,9 +508,9 @@ export function IssueCreateModal() {
     // setLastSubmitFields 쌍은 없다(webhook?: never) — 기억할 제출 필드가 없다.
     useSettingsStore.getState().setLastSubmittedPlatform("webhook");
     const result: NormalizedSubmitResult = outcome.recorded
-      ? { key: outcome.key, url: outcome.url, logsDropped: outcome.logsDropped }
+      ? { key: outcome.key, url: outcome.url, logsDropped: outcome.logsDropped, mediaDropped: outcome.mediaDropped }
       : { key: "", url: "" };
-    onSubmitted({ key: result.key, url: result.url, platform: "webhook", logsDropped: result.logsDropped });
+    onSubmitted({ key: result.key, url: result.url, platform: "webhook", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 

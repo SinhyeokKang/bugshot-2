@@ -59,7 +59,26 @@ describe("submitToGithub logsDropped", () => {
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
     });
 
-    expect(res).toEqual({ key: "#7", url: ISSUE.url, logsDropped: true });
+    expect(res).toEqual({ key: "#7", url: ISSUE.url, logsDropped: true, mediaDropped: false });
+  });
+
+  // 인라인 이미지 실패는 본문 미첨부 목록에도 안 실려(extras에 인라인이 없다) 무음이었다.
+  it("인라인 이미지 업로드가 실패하면 mediaDropped: true", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "github.uploadFiles")
+        return [{ ok: false, filename: "inline-ref1.webp" }];
+      if (msg.type === "github.submitIssue") return ISSUE;
+      return undefined;
+    });
+
+    const res = await submitToGithub({
+      ctx: makeCtx(),
+      owner: "o",
+      repo: "r",
+      inlineImages: [{ refId: "ref1", dataUrl: "data:IMG" }],
+    });
+
+    expect(res.mediaDropped).toBe(true);
   });
 
   it("logs.html 업로드 성공이면 logsDropped: false", async () => {

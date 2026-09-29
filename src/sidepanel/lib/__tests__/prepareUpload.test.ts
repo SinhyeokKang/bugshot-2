@@ -140,6 +140,51 @@ describe("prepareUpload — logsDropped / requireMediaUpload", () => {
     expect(ok.logsDropped).toBe(false);
   });
 
+  // 캡처 이미지·영상은 url 없이도 본문의 미첨부 목록(extras→notInlined)에 이름이 남지만,
+  // **인라인 이미지는 그 목록에 들어가지 않는다** — 치환만 건너뛰어 `![](inline:ref)` 원문이
+  // 남을 뿐이라 제출자도 독자도 알 길이 없다. 그래서 이 축은 신호가 필요하다.
+  it("캡처 이미지 업로드 실패 시 mediaDropped=true", async () => {
+    const out = await prepareUpload(baseInput(), makeUploadFn(["shot.webp"]), {
+      platform: "github",
+    });
+    expect(out.mediaDropped).toBe(true);
+  });
+
+  it("영상 업로드 실패 시 mediaDropped=true", async () => {
+    const out = await prepareUpload(baseInput(), makeUploadFn(["recording.webm"]), {
+      platform: "github",
+    });
+    expect(out.mediaDropped).toBe(true);
+  });
+
+  it("인라인 이미지 업로드 실패 시 mediaDropped=true", async () => {
+    const out = await prepareUpload(baseInput(), makeUploadFn(["inline-ref1.webp"]), {
+      platform: "github",
+    });
+    expect(out.mediaDropped).toBe(true);
+  });
+
+  it("logs.html만 실패하면 mediaDropped는 false로 남는다 — 두 신호는 별개 축이다", async () => {
+    const out = await prepareUpload(baseInput(), makeUploadFn(["logs.html"]), {
+      platform: "github",
+    });
+    expect(out.mediaDropped).toBe(false);
+    expect(out.logsDropped).toBe(true);
+  });
+
+  it("사용자 첨부만 실패하면 mediaDropped를 켜지 않는다 — 본문 인라인 대상이 아니다", async () => {
+    const out = await prepareUpload(baseInput(), makeUploadFn(["att-1.png"]), {
+      platform: "github",
+    });
+    expect(out.mediaDropped).toBe(false);
+  });
+
+  it("전부 성공하면 두 신호 모두 false", async () => {
+    const out = await prepareUpload(baseInput(), makeUploadFn(), { platform: "github" });
+    expect(out.mediaDropped).toBe(false);
+    expect(out.logsDropped).toBe(false);
+  });
+
   it("requireMediaUpload: 미디어 업로드 누락이면 플랫폼 키로 throw", async () => {
     await expect(
       prepareUpload(

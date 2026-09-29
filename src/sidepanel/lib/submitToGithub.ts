@@ -41,7 +41,7 @@ export async function submitToGithub(
     },
     { platform: "github" },
   );
-  const { resolvedCtx, toMedia, toAttachmentMedia, logsDropped } = prepared;
+  const { resolvedCtx, toMedia, toAttachmentMedia, logsDropped, mediaDropped } = prepared;
 
   const imageInputs = input.images ?? [];
   const { body } = buildGithubIssueBody({
@@ -64,5 +64,5 @@ export async function submitToGithub(
       assignees: input.assignee ? [input.assignee] : undefined,
     },
   });
-  return { key: `#${result.number}`, url: result.url, logsDropped };
+  return { key: `#${result.number}`, url: result.url, logsDropped, mediaDropped };
 }

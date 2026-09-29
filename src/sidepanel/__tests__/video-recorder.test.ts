@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { createFinalizeGuard } from "../video-recorder";
+import { createFinalizeGuard, getMaxDuration } from "../video-recorder";
+import { formatMmSs } from "../lib/logRow";
 
 // onstop이 state를 비운 뒤 썸네일·탭 조회를 await 하는 창의 커밋/폐기 판정만 분리해 검증한다.
 describe("createFinalizeGuard", () => {
@@ -44,5 +45,17 @@ describe("createFinalizeGuard", () => {
     expect(g.end(first)).toBe("discard");
     const second = g.begin();
     expect(g.end(second)).toBe("commit");
+  });
+});
+
+// 녹화 상한은 타이머(maxTimer)와 진행 표기(IssueTab의 `elapsed / max`)가 같은 출처를 봐야 한다 —
+// 값만 바꾸고 표기 경로를 안 보면 "1:00에서 멈추는데 2:00으로 적힌" 상태가 무음으로 통과한다.
+describe("getMaxDuration", () => {
+  it("녹화 상한은 120초다", () => {
+    expect(getMaxDuration()).toBe(120);
+  });
+
+  it("진행 표기는 상한을 M:SS로 렌더한다", () => {
+    expect(formatMmSs(getMaxDuration())).toBe("2:00");
   });
 });

@@ -64,15 +64,33 @@ describe("submitToJira", () => {
     expect(arg.payload.bodyLocale).toBe("en");
   });
 
-  it("결과를 NormalizedSubmitResult로 매핑 (key/url/logsDropped)", async () => {
-    sendBg.mockResolvedValue({ ...RESULT, logsDropped: true });
+  it("결과를 NormalizedSubmitResult로 매핑 (key/url/logsDropped/mediaDropped)", async () => {
+    sendBg.mockResolvedValue({ ...RESULT, logsDropped: true, mediaDropped: false });
     const res = await submitToJira({
       ctx: makeCtx(),
       projectKey: "P",
       summary: "s",
       issueTypeId: "1",
     });
-    expect(res).toEqual({ key: "BUG-1", url: RESULT.url, logsDropped: true });
+    expect(res).toEqual({
+      key: "BUG-1",
+      url: RESULT.url,
+      logsDropped: true,
+      mediaDropped: false,
+    });
+  });
+
+  // background가 센 신호가 이 경계에서 떨어지면 토스트가 Jira에서만 영영 안 뜬다 —
+  // 이 매핑은 손으로 필드를 나열하는 형태라 타입이 누락을 안 잡는다(전부 optional).
+  it("background가 올린 mediaDropped를 그대로 싣는다", async () => {
+    sendBg.mockResolvedValue({ ...RESULT, logsDropped: false, mediaDropped: true });
+    const res = await submitToJira({
+      ctx: makeCtx(),
+      projectKey: "P",
+      summary: "s",
+      issueTypeId: "1",
+    });
+    expect(res.mediaDropped).toBe(true);
   });
 
   it("images/video/logs 순서로 첨부 조립", async () => {

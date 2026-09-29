@@ -152,7 +152,7 @@ describe("submitToAsana", () => {
       "asana.uploadFiles",
       "asana.updateTaskNotes",
     ]);
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false });
+    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false, mediaDropped: false });
 
     const submitCall = sendBg.mock.calls.find(
       ([m]) => m.type === "asana.submitIssue",
@@ -615,7 +615,7 @@ describe("submitToAsana — 2차 본문 갱신 실패 (전수 표 asana 행)", (
     });
 
     // ①② 완전 성공 경로와 동일한 반환값.
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false });
+    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false, mediaDropped: false });
     // ③ 생성·업로드는 그대로.
     expect(sendBg.mock.calls.map(([m]) => m.type)).toEqual([
       "asana.submitIssue",
@@ -779,7 +779,7 @@ describe("submitToAsana 사용자 첨부 파일명 충돌 (Task 8-1 재현)", ()
     });
 
     // 로그 첨부는 성공했으므로 "용량 초과로 누락" 경고가 뜨면 안 된다.
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false });
+    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false, mediaDropped: false });
     // 같은 뿌리의 세 번째 낙진: 백링크 주입도 파일명으로 판별하면 사용자가 올린 파일에
     // 이슈 URL이 박힌다. 우리 logs.html 하나에만 주입돼야 한다.
     expect(injectIssueUrl).toHaveBeenCalledTimes(1);
@@ -812,6 +812,100 @@ describe("submitToAsana 사용자 첨부 파일명 충돌 (Task 8-1 재현)", ()
       ],
     });
 
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: true });
+    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: true, mediaDropped: false });
+  });
+});
+
+// logsDropped와 같은 축의 누락이지만 신호가 없던 쪽 — 캡처 미디어.
+describe("submitToAsana — mediaDropped", () => {
+  it("영상 첨부 실패(gid null)면 mediaDropped: true", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "asana.submitIssue") return TASK;
+      if (msg.type === "asana.uploadFiles") return [{ ok: false, filename: "recording.mp4" }];
+      return undefined;
+    });
+
+    const res = await submitToAsana({
+      ctx: makeCtx({ captureMode: "video" }),
+      workspaceGid: "W",
+      video: { filename: "recording.mp4", dataUrl: "data:VIDEO" },
+    });
+
+    expect(res.mediaDropped).toBe(true);
+  });
+
+  // POSTMORTEM "파일명을 신원 축으로 쓴 어댑터 둘" 재발 방지 (4): 이 불리언은 양방향을
+  // 다 잠근다. 한 방향만 두면 위치 경계(`i < userAttachmentStart`)를 지워도 green이다.
+  it("캡처 이미지가 실패하고 동명의 사용자 첨부만 성공해도 mediaDropped는 true다", async () => {
+    sendBg.mockImplementation(
+      async (msg: { type: string; files?: Array<{ filename: string }> }) => {
+        if (msg.type === "asana.submitIssue") return TASK;
+        if (msg.type === "asana.uploadFiles")
+          // 0번이 우리 캡처, 1번이 동명의 사용자 첨부.
+          return (msg.files ?? []).map((f, i) => ({
+            ok: i !== 0,
+            filename: f.filename,
+            gid: `gid-${i}`,
+            viewUrl: `url-${i}`,
+          }));
+        return undefined;
+      },
+    );
+
+    const res = await submitToAsana({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      workspaceGid: "W",
+      images: [{ filename: "screenshot.webp", dataUrl: "data:IMG" }],
+      attachments: [{ filename: "screenshot.webp", dataUrl: "data:USER" }],
+    });
+
+    expect(res.mediaDropped).toBe(true);
+  });
+
+  it("캡처가 성공하면 동명의 사용자 첨부가 실패해도 mediaDropped는 false다", async () => {
+    sendBg.mockImplementation(
+      async (msg: { type: string; files?: Array<{ filename: string }> }) => {
+        if (msg.type === "asana.submitIssue") return TASK;
+        if (msg.type === "asana.uploadFiles")
+          return (msg.files ?? []).map((f, i) => ({
+            ok: i === 0,
+            filename: f.filename,
+            gid: `gid-${i}`,
+            viewUrl: `url-${i}`,
+          }));
+        return undefined;
+      },
+    );
+
+    const res = await submitToAsana({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      workspaceGid: "W",
+      images: [{ filename: "screenshot.webp", dataUrl: "data:IMG" }],
+      attachments: [{ filename: "screenshot.webp", dataUrl: "data:USER" }],
+    });
+
+    expect(res.mediaDropped).toBe(false);
+  });
+
+  it("logs.html만 실패하면 mediaDropped는 false로 남는다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "asana.submitIssue") return TASK;
+      if (msg.type === "asana.uploadFiles")
+        return [
+          { ok: true, filename: "screenshot.webp", gid: "img" },
+          { ok: false, filename: "logs.html" },
+        ];
+      return undefined;
+    });
+
+    const res = await submitToAsana({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      workspaceGid: "W",
+      images: [{ filename: "screenshot.webp", dataUrl: "data:IMG" }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(res.mediaDropped).toBe(false);
+    expect(res.logsDropped).toBe(true);
   });
 });

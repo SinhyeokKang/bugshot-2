@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { toastSubmitDropped } from "@/sidepanel/lib/submitDroppedToast";
 import {
   BookOpen,
   SquareMousePointer,
@@ -704,13 +705,11 @@ function SubmitSuccessPanel() {
   // 제출당 1회만 — t는 매 렌더 새 클로저라 dep만으로는 중복 발화. key 기준 ref 가드 + sonner id로 dedupe.
   const toastedKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!submitResult?.logsDropped) return;
+    if (!submitResult) return;
     if (toastedKeyRef.current === submitResult.key) return;
-    toastedKeyRef.current = submitResult.key;
-    toast.warning(
-      t("submit.logsDropped", { platform: t(PLATFORM_TAB_KEYS[submitResult.platform]) }),
-      { id: `logs-dropped-${submitResult.key}` },
-    );
+    if (toastSubmitDropped(submitResult, t(PLATFORM_TAB_KEYS[submitResult.platform]), t)) {
+      toastedKeyRef.current = submitResult.key;
+    }
   }, [submitResult, t]);
 
   if (!submitResult) return null;

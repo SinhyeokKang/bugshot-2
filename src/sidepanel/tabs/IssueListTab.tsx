@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { Inbox, Loader2, Search, SearchX, X } from "lucide-react";
-import { toast } from "sonner";
+import { toastSubmitDropped } from "@/sidepanel/lib/submitDroppedToast";
 import { useT } from "@/i18n";
 import { PLATFORM_TAB_KEYS } from "@/types/platform";
 import {
@@ -238,14 +238,9 @@ export function IssueListTab() {
           }
         }}
         onSubmitSuccess={(result) => {
-          // 라이브 흐름(IssueTab SubmitSuccessPanel)과 동일하게 logs.html 누락 경고 노출.
-          if (result.logsDropped && activeDraft?.platform) {
-            toast.warning(
-              t("submit.logsDropped", {
-                platform: t(PLATFORM_TAB_KEYS[activeDraft.platform]),
-              }),
-              { id: `logs-dropped-${result.key}` },
-            );
+          // 라이브 흐름(IssueTab SubmitSuccessPanel)과 같은 헬퍼 — 로그·캡처 2축을 한 토스트로.
+          if (activeDraft?.platform) {
+            toastSubmitDropped(result, t(PLATFORM_TAB_KEYS[activeDraft.platform]), t);
           }
           setDraftId(null);
           setAutoSubmit(false);

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
+import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER } from "@/lib/adf-sentinels";
+import { t } from "@/i18n";
 import type { JiraAdfDoc, JiraAuth } from "@/types/jira";
 
 const api = vi.hoisted(() => ({
@@ -61,6 +62,7 @@ const EXPECTED = {
   key: "BUG-42",
   url: "https://acme.atlassian.net/browse/BUG-42",
   logsDropped: false,
+  mediaDropped: false,
 };
 
 beforeEach(() => {
@@ -185,5 +187,141 @@ describe("jira.submitIssue — 사용자 첨부 파일명 충돌", () => {
         { filename: "logs.html", dataUrl: HTML, userAttachment: true },
       ]),
     ).resolves.toMatchObject({ logsDropped: false });
+  });
+});
+
+// ── 첨부가 전부 실패해도 본문에 sentinel 리터럴을 남기지 않는다 ────────────────
+// 생성 본문(`buildIssueAdf`)은 `__BUGSHOT_VIDEO__` 같은 리터럴을 박아두고, 그 자리를
+// 실제 media나 안내 문구로 바꾸는 건 2차 갱신뿐이다. 그 갱신을 uploadMap 크기로 게이트하면
+// **업로드가 전부 실패한 순간 치환 자체가 실행되지 않아** 리터럴이 이슈에 그대로 올라간다.
+// 영상과 logs.html은 함께 실패한다 — logs.html이 영상 dataUrl을 통째로 임베드해 항상 더 크다.
+describe("jira.submitIssue — 첨부 전량 실패 시 본문 sentinel", () => {
+  const VIDEO_DOC: JiraAdfDoc = {
+    version: 1,
+    type: "doc",
+    content: [{ type: "paragraph", content: [{ type: "text", text: VIDEO_PLACEHOLDER }] }],
+  };
+
+  const submitWithDoc = (description: JiraAdfDoc, attachments: unknown[]) =>
+    handleMessage(
+      {
+        type: "jira.submitIssue",
+        payload: { projectKey: "BUG", summary: "s", description, issueTypeId: "1" },
+        attachments,
+      } as never,
+      {} as chrome.runtime.MessageSender,
+    );
+
+  // 폴백 문구는 "첨부를 보라"가 아니어야 한다 — 그 첨부는 존재하지 않는다.
+  it("업로드 실패 폴백은 첨부 참조가 아니라 누락 고지를 쓴다", async () => {
+    api.uploadAttachment.mockRejectedValue(new Error("413"));
+
+    await submitWithDoc(VIDEO_DOC, [
+      { filename: "recording.mp4", dataUrl: "data:video/mp4;base64,AAAA" },
+    ]);
+
+    const doc = JSON.stringify(api.updateIssueDescription.mock.calls[0]?.[2]);
+    expect(doc).toContain(t("md.attachmentDropped"));
+    expect(doc).not.toContain(t("md.videoAttached"));
+  });
+
+  it("업로드가 전부 실패해도 2차 갱신이 돌아 영상 sentinel이 사라진다", async () => {
+    api.uploadAttachment.mockRejectedValue(new Error("413 Payload Too Large"));
+
+    await submitWithDoc(VIDEO_DOC, [
+      { filename: "recording.mp4", dataUrl: "data:video/mp4;base64,AAAA" },
+      { filename: "logs.html", dataUrl: "data:text/html;base64,AAAA" },
+    ]);
+
+    expect(api.updateIssueDescription).toHaveBeenCalledTimes(1);
+    const doc = JSON.stringify(api.updateIssueDescription.mock.calls[0]?.[2]);
+    expect(doc).not.toContain(VIDEO_PLACEHOLDER);
+  });
+
+  it("스크린샷 업로드만 실패하면 이미지 sentinel도 안내 문구로 바뀐다", async () => {
+    const IMAGE_DOC: JiraAdfDoc = {
+      version: 1,
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: IMAGE_PLACEHOLDER }] }],
+    };
+    api.uploadAttachment.mockImplementation(async (_a: unknown, _k: unknown, filename: string) => {
+      if (filename === "screenshot.webp") throw new Error("413");
+      return [{ id: "10002", filename }];
+    });
+
+    await submitWithDoc(IMAGE_DOC, [
+      { filename: "screenshot.webp", dataUrl: "data:image/webp;base64,AAAA" },
+      { filename: "logs.html", dataUrl: "data:text/html;base64,AAAA" },
+    ]);
+
+    const doc = JSON.stringify(api.updateIssueDescription.mock.calls[0]?.[2]);
+    expect(doc).not.toContain(IMAGE_PLACEHOLDER);
+  });
+
+  it("치환할 sentinel도 업로드 결과도 없으면 2차 갱신을 부르지 않는다", async () => {
+    api.uploadAttachment.mockRejectedValue(new Error("413"));
+
+    await submitWithDoc(DESCRIPTION, [
+      { filename: "recording.mp4", dataUrl: "data:video/mp4;base64,AAAA" },
+    ]);
+
+    expect(api.updateIssueDescription).not.toHaveBeenCalled();
+  });
+});
+
+// ── 캡처 미디어 업로드 실패를 사용자에게 알린다 ────────────────────────────────
+// logsDropped는 logs.html 전용 신호라, 영상·스크린샷이 상한에 걸려 통째로 빠져도
+// 토스트 한 줄 없이 "본문에 영상이 없는 이슈"가 조용히 올라간다.
+describe("jira.submitIssue — mediaDropped", () => {
+  const submitWith = (attachments: unknown[]) =>
+    handleMessage(
+      {
+        type: "jira.submitIssue",
+        payload: { projectKey: "BUG", summary: "s", description: DESCRIPTION, issueTypeId: "1" },
+        attachments,
+      } as never,
+      {} as chrome.runtime.MessageSender,
+    );
+
+  it("영상 업로드가 실패하면 mediaDropped: true", async () => {
+    api.uploadAttachment.mockImplementation(async (_a: unknown, _k: unknown, filename: string) => {
+      if (filename === "recording.mp4") throw new Error("413");
+      return [{ id: "10002", filename }];
+    });
+
+    await expect(
+      submitWith([
+        { filename: "recording.mp4", dataUrl: "data:video/mp4;base64,AAAA" },
+        { filename: "logs.html", dataUrl: "data:text/html;base64,AAAA" },
+      ]),
+    ).resolves.toMatchObject({ mediaDropped: true, logsDropped: false });
+  });
+
+  it("logs.html만 실패하면 mediaDropped는 false로 남는다 — 두 신호는 별개 축이다", async () => {
+    api.uploadAttachment.mockImplementation(async (_a: unknown, _k: unknown, filename: string) => {
+      if (filename === "logs.html") throw new Error("413");
+      return [{ id: "10001", filename, mediaApiFileId: "media-1" }];
+    });
+
+    await expect(
+      submitWith([
+        { filename: "screenshot.webp", dataUrl: "data:image/webp;base64,AAAA" },
+        { filename: "logs.html", dataUrl: "data:text/html;base64,AAAA" },
+      ]),
+    ).resolves.toMatchObject({ mediaDropped: false, logsDropped: true });
+  });
+
+  it("사용자 첨부 실패는 mediaDropped를 켜지 않는다 — 본문 인라인 대상이 아니다", async () => {
+    api.uploadAttachment.mockImplementation(async (_a: unknown, _k: unknown, filename: string) => {
+      if (api.uploadAttachment.mock.calls.length === 2) throw new Error("413");
+      return [{ id: "10001", filename, mediaApiFileId: "media-1" }];
+    });
+
+    await expect(
+      submitWith([
+        { filename: "screenshot.webp", dataUrl: "data:image/webp;base64,AAAA" },
+        { filename: "report.pdf", dataUrl: "data:application/pdf;base64,AAAA", userAttachment: true },
+      ]),
+    ).resolves.toMatchObject({ mediaDropped: false });
   });
 });

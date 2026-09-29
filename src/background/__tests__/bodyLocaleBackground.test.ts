@@ -49,15 +49,29 @@ const styleChangesTable = (asIs = "As is", toBe = "To be") => ({
 const doc = (content: unknown[]) => ({ version: 1 as const, type: "doc" as const, content });
 
 describe("Jira 본문 — background 생성 문자열", () => {
-  // 영상이 media로 안 붙었을 때 placeholder를 대체하는 문단.
+  // 첨부는 실재하되 media로 못 박았을 때 placeholder를 대체하는 문단.
+  // 업로드 자체가 실패한 경우는 아래 md.attachmentDropped 케이스가 따로 본다.
   it("bodyLocale en이면 영상 폴백 문단이 영어다", () => {
     const content = buildJiraDescriptionContent({
       description: doc([paragraph(VIDEO_PLACEHOLDER)]),
-      uploadMap: uploads({ "logs.html": "https://x/logs" }),
+      uploadMap: uploads({ "recording.mp4": "https://x/rec", "logs.html": "https://x/logs" }),
       bodyLocale: "en",
     });
     expect(JSON.stringify(content)).toContain("(See attached recording)");
     expect(JSON.stringify(content)).not.toContain("(첨부 녹화 파일 참조)");
+  });
+
+  // 업로드가 아예 실패한 경우의 문구는 다른 키다 — "첨부를 보라"고 쓰면 없는 파일을 가리킨다.
+  it("bodyLocale en이면 업로드 실패 고지도 영어다", () => {
+    const content = buildJiraDescriptionContent({
+      description: doc([paragraph(VIDEO_PLACEHOLDER)]),
+      uploadMap: uploads({}),
+      bodyLocale: "en",
+    });
+    const json = JSON.stringify(content);
+    expect(json).toContain("(upload failed — file not attached)");
+    expect(json).not.toContain("(첨부 실패 — 파일 없음)");
+    expect(json).not.toContain("(See attached recording)");
   });
 
   // 같은 키를 Linear·ClickUp·Markdown은 빌더 안에서 찍는데 Jira만 background다.
@@ -74,7 +88,11 @@ describe("Jira 본문 — background 생성 문자열", () => {
   it("bodyLocale ko면 두 문자열 모두 한국어다 (기본값 파리티)", () => {
     const content = buildJiraDescriptionContent({
       description: doc([paragraph(VIDEO_PLACEHOLDER), styleChangesTable("변경 전", "변경 후")]),
-      uploadMap: uploads({ "before-0.webp": "https://x/b", "after-0.webp": "https://x/a" }),
+      uploadMap: uploads({
+        "recording.mp4": "https://x/rec",
+        "before-0.webp": "https://x/b",
+        "after-0.webp": "https://x/a",
+      }),
       bodyLocale: "ko",
     });
     const json = JSON.stringify(content);
@@ -87,7 +105,7 @@ describe("Jira 본문 — background 생성 문자열", () => {
     setLocale("en");
     const content = buildJiraDescriptionContent({
       description: doc([paragraph(VIDEO_PLACEHOLDER)]),
-      uploadMap: uploads({ "logs.html": "https://x/logs" }),
+      uploadMap: uploads({ "recording.mp4": "https://x/rec", "logs.html": "https://x/logs" }),
     });
     expect(JSON.stringify(content)).toContain("(See attached recording)");
   });
@@ -96,7 +114,7 @@ describe("Jira 본문 — background 생성 문자열", () => {
     setLocale("ko");
     buildJiraDescriptionContent({
       description: doc([paragraph(VIDEO_PLACEHOLDER)]),
-      uploadMap: uploads({ "logs.html": "https://x/logs" }),
+      uploadMap: uploads({ "recording.mp4": "https://x/rec", "logs.html": "https://x/logs" }),
       bodyLocale: "en",
     });
     expect(getLocale()).toBe("ko");
@@ -109,7 +127,7 @@ describe("Jira 본문 — background 생성 문자열", () => {
     setLocale("en");
     const content = buildJiraDescriptionContent({
       description: doc([paragraph(VIDEO_PLACEHOLDER)]),
-      uploadMap: uploads({ "logs.html": "https://x/logs" }),
+      uploadMap: uploads({ "recording.mp4": "https://x/rec", "logs.html": "https://x/logs" }),
       bodyLocale: "jp" as LocaleMode,
     });
     expect(JSON.stringify(content)).toContain("(See attached recording)");
@@ -207,8 +225,9 @@ describe("background 본문 문자열 게이트", () => {
     expect(scanned.some((f) => f.file.includes("/"))).toBe(true);
   });
 
-  it("본문을 만들거나 대조하는 t() 키는 래핑된 다섯뿐이다", () => {
+  it("본문을 만들거나 대조하는 t() 키는 래핑된 여섯뿐이다", () => {
     expect(bodyKeys).toEqual([
+      "md.attachmentDropped",
       "md.videoAttached",
       "notion.attachmentSection",
       "styleTable.asIs",

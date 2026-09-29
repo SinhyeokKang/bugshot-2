@@ -30,6 +30,7 @@ export interface SubmitResult {
   url: string;
   platform: PlatformId;
   logsDropped?: boolean;
+  mediaDropped?: boolean;
 }
 
 export type EditorPhase =
@@ -444,6 +445,12 @@ function preserveBuffer(state: EditorState): Pick<EditorState, "bufferedElements
   return { bufferedElements: state.bufferedElements };
 }
 
+// pending 미러링 단일 경로 — onRecordingComplete·replaceVideo가 공유한다. 한쪽만 알리면
+// 트림 확정에서 잃은 녹화가 무음으로 빠진다.
+async function mirrorPendingVideo(tabId: number, blob: Blob): Promise<void> {
+  if (!(await saveVideoBlob(pendingKey(tabId), blob))) onBlobSaveFailed.fire();
+}
+
 // class 변경 후 picker.selectionUpdated의 specified/computed에는 인라인 편집값이 새어든다
 // (css-resolve가 el.style을 [inline] source로 접음). 편집 중(styleEdits.inlineStyle) prop의 diff
 // baseline은 편집 전 원본이어야 하므로, 재수집 패치에서 그 prop만 기존 selection 값으로 되돌린다.
@@ -647,15 +654,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt, trim = null) => {
     set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, videoTrimSource: null, replayTrim: trim, reproPrefillDone: false, apiHostsDismissed: false, apiHostsDerived: null, logsAttach: true, annotationTool: null });
     // drafting 중 패널을 닫아도 영상이 살아남도록 로그와 동일하게 pending:${tabId}에 미러링(hydrate가 복원).
+    // blob-db는 전 함수가 catch-and-return-false라 반환값을 버리면 쿼터 실패가 무음이 된다 —
+    // 패널을 다시 열었을 때 녹화만 조용히 사라진다. 확정 저장 경로와 같은 채널로 알린다.
     const tabId = get().target?.tabId;
-    if (tabId != null) void saveVideoBlob(pendingKey(tabId), blob);
+    if (tabId != null) void mirrorPendingVideo(tabId, blob);
   },
   resolveReplayTrim: () => set({ replayTrim: null }),
   // trim 확정 시 영상 메타만 교체 — phase·attach·target·videoCapturedAt(원본 캡처 시각)은 불변.
   replaceVideo: (blob, thumbnail, startedAt, endedAt, trimSource) => {
     set({ videoBlob: blob, videoThumbnail: thumbnail, videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: true, videoTrimSource: trimSource ?? null });
     const tabId = get().target?.tabId;
-    if (tabId != null) void saveVideoBlob(pendingKey(tabId), blob);
+    if (tabId != null) void mirrorPendingVideo(tabId, blob);
   },
   cancelRecording: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
   // screenshot도 freeform/video와 동일하게 진입 시 첨부 토글 자동 on (startCapturing·startElementShot). preserveLogs는 로그 데이터 보존용이고 attach는 덮어쓴다.

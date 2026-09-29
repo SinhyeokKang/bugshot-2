@@ -1,6 +1,7 @@
 const ko = {
   "submit.success": "이슈가 제출되었습니다",
   "submit.logsDropped": "{platform} 첨부 파일 용량 한도로 logs.html이 누락되었습니다",
+  "submit.mediaDropped": "일부 캡처 파일을 {platform}에 첨부하지 못한 채 등록되었습니다",
   "submit.alreadySubmitted": "이미 제출된 이슈입니다",
   "submit.alreadySubmittedAs": "이미 {key}로 제출된 이슈입니다",
   "submit.alreadySubmittedHint": "중복 등록을 막기 위해 보내지 않았습니다. 이슈 목록에서 등록된 이슈를 확인하세요.",
@@ -355,6 +356,7 @@ type Bundle = Record<keyof typeof ko, string>;
 const en = {
   "submit.success": "Issue submitted",
   "submit.logsDropped": "logs.html was dropped because it exceeds {platform}'s attachment size limit",
+  "submit.mediaDropped": "The issue was filed without some capture files — they could not be attached to {platform}",
   "submit.alreadySubmitted": "This issue has already been submitted",
   "submit.alreadySubmittedAs": "This issue was already submitted as {key}",
   "submit.alreadySubmittedHint": "Nothing was sent, to avoid filing it twice. Open it from the issue list.",
@@ -705,6 +707,7 @@ const en = {
 const fr = {
   "submit.success": "Ticket envoyé",
   "submit.logsDropped": "logs.html a été retiré car il dépasse la taille maximale des pièces jointes de {platform}",
+  "submit.mediaDropped": "Le ticket a été créé sans certains fichiers de capture — ils n’ont pas pu être joints à {platform}",
   "submit.alreadySubmitted": "Ce ticket a déjà été envoyé",
   "submit.alreadySubmittedAs": "Ce ticket a déjà été envoyé sous {key}",
   "submit.alreadySubmittedHint": "Rien n'a été envoyé, pour éviter un doublon. Ouvrez-le depuis la liste des tickets.",
