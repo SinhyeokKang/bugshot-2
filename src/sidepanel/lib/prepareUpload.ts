@@ -40,6 +40,11 @@ export interface PreparedUpload {
   toMedia: (f: UploadFileInput) => MarkdownMediaInput;
   toAttachmentMedia: (f: UploadFileInput) => MarkdownMediaInput;
   logsDropped: boolean;
+  // 캡처 미디어(이미지·영상·인라인)가 빠진 축. logs와 갈라 둔다 — 안내 문구가 다르고
+  // 한쪽만 실패하는 경우가 흔하다. **인라인 이미지가 이 축의 존재 이유다**: 캡처 이미지·영상은
+  // url 없이도 본문 미첨부 목록(extras→notInlined)에 이름이 남는데, 인라인은 그 목록에
+  // 들어가지 않아 치환만 건너뛴 채 `![](inline:ref)` 원문으로 남는다.
+  mediaDropped: boolean;
 }
 
 // hrefMap에서 기대 파일 중 업로드 누락(href 부재)이 있는지.
@@ -91,6 +96,9 @@ export async function prepareUpload(
 
   const hrefMap = new Map(uploadResults.map((r) => [r.filename, r.href]));
   const logsDropped = logs.some((l) => !hrefMap.get(l.filename));
+  const mediaDropped = [...imageInputs, ...(input.video ? [input.video] : []), ...inlineFiles].some(
+    (f) => !hrefMap.get(f.filename),
+  );
 
   if (input.requireMediaUpload) {
     const requiredMedia = [
@@ -142,5 +150,5 @@ export async function prepareUpload(
     };
   }
 
-  return { hrefMap, resolvedCtx, toMedia, toAttachmentMedia, logsDropped };
+  return { hrefMap, resolvedCtx, toMedia, toAttachmentMedia, logsDropped, mediaDropped };
 }

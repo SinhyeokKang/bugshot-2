@@ -69,8 +69,8 @@ describe("Jira 본문 — background 생성 문자열", () => {
       bodyLocale: "en",
     });
     const json = JSON.stringify(content);
-    expect(json).toContain("(not attached — over the size limit)");
-    expect(json).not.toContain("(용량 한도로 첨부되지 않음)");
+    expect(json).toContain("(upload failed — file not attached)");
+    expect(json).not.toContain("(첨부 실패 — 파일 없음)");
     expect(json).not.toContain("(See attached recording)");
   });
 

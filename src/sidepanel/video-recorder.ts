@@ -12,6 +12,12 @@ import { hideAnnotation } from "./annotation-control";
 
 const MAX_DURATION_SEC = 120;
 
+// 1Mbps — 상한을 2분으로 올리면서 2Mbps에서 내렸다. 제출은 영상과 그 영상을 통째로 품은
+// logs.html을 **한 sendBg 요청**에 싣고 둘 다 base64라, 전송량이 영상 바이트의 ~2.33배다.
+// 2Mbps×120초면 93MB로 Chromium의 64MiB 메시지 한도를 넘겨 제출 자체가 실패한다.
+// 이 값과 MAX_DURATION_SEC의 곱은 `lib/__tests__/recordingBudget.test.ts`가 잠근다.
+export const VIDEO_BITRATE_BPS = 1_000_000;
+
 interface RecorderState {
   stream: MediaStream;
   recorder: MediaRecorder;
@@ -66,9 +72,8 @@ function beginRecording(
   const mimeType = pickVideoRecorderMime();
   const recorder = new MediaRecorder(stream, {
     ...(mimeType ? { mimeType } : {}),
-    // 2Mbps — 텍스트를 선명히 인코딩할 헤드룸. 일반(저모션)은 quality-bound라 안 닿고 작게 유지,
-    // 과모션 세션만 이 선까지 써서 선명+커짐(소수 업로드 실패는 수용한 트레이드오프).
-    videoBitsPerSecond: 2_000_000,
+    // 일반(저모션)은 quality-bound라 이 선에 안 닿고 작게 유지되고, 과모션 세션만 여기까지 쓴다.
+    videoBitsPerSecond: VIDEO_BITRATE_BPS,
   });
 
   const chunks: Blob[] = [];
@@ -203,7 +208,7 @@ export async function startTabStream(tabId: number): Promise<MediaStream> {
         chromeMediaSource: "tab",
         chromeMediaSourceId: streamId,
         // 720p — 용량 우선. 픽셀이 적어 정적 녹화가 작다. 텍스트 절대 디테일은 1080p보다 낮지만
-        // bitrate 헤드룸(2Mbps)으로 아티팩트를 줄여 가독성을 끌어올린다.
+        // bitrate 헤드룸(VIDEO_BITRATE_BPS)으로 아티팩트를 줄여 가독성을 끌어올린다.
         maxWidth: 1280,
         maxHeight: 720,
         // ~30fps→12fps. fps는 per-frame 선명도(멈춰서 읽는 화질)와 무관하고 프레임 수만 줄여 용량↓.

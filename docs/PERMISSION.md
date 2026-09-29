@@ -207,7 +207,7 @@ video-capture.ts:startVideoCapture(tabId)
     → chrome.tabCapture.getMediaStreamId({ targetTabId })
     → navigator.mediaDevices.getUserMedia({ audio: false, video: { chromeMediaSource: "tab",
                                                               maxWidth: 1280, maxHeight: 720, maxFrameRate: 12 } })
-    → MediaRecorder 생성 (2Mbps, 1초 chunk, 최대 120초)
+    → MediaRecorder 생성 (1Mbps, 1초 chunk, 최대 120초)
     → recorder.onstop → Blob 조립 → 썸네일 생성 → editor store 저장
 ```
 
