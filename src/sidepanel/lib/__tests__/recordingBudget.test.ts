@@ -5,7 +5,7 @@ import { pickTrimBitrate } from "../../30s-replay/trim-math";
 
 // 제출은 영상과 logs.html을 **한 sendBg 요청**에 싣는다(submitToJira.ts:34-36 → :52).
 // logs.html은 그 영상을 base64로 통째로 다시 품으므로(buildCaptureFiles.ts:65-88) 전송량은
-// 영상 바이트의 약 2.33배가 된다. Chromium은 확장 메시지를 64MiB로 자른다.
+// 영상 바이트의 28/9(약 3.11)배가 된다. Chromium은 확장 메시지를 64MiB로 자른다.
 describe("worstCaseSubmitBytes", () => {
   it("영상 바이트를 base64 팽창 + logs.html 재임베드까지 계산한다", () => {
     // 1MB 영상 → base64 4/3MB(첨부) + 그걸 품은 html을 다시 base64 16/9MB(로그)

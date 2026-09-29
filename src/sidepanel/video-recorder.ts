@@ -13,7 +13,8 @@ import { hideAnnotation } from "./annotation-control";
 const MAX_DURATION_SEC = 120;
 
 // 1Mbps — 상한을 2분으로 올리면서 2Mbps에서 내렸다. 제출은 영상과 그 영상을 통째로 품은
-// logs.html을 **한 sendBg 요청**에 싣고 둘 다 base64라, 전송량이 영상 바이트의 ~2.33배다.
+// logs.html을 **한 sendBg 요청**에 싣고 둘 다 base64라, 전송량이 영상 바이트의 28/9(~3.11)배다
+// (첨부 4/3 + 그 dataUrl을 품은 html을 다시 base64로 16/9 — `lib/recordingBudget.ts`가 계산한다).
 // 2Mbps×120초면 93MB로 Chromium의 64MiB 메시지 한도를 넘겨 제출 자체가 실패한다.
 // 이 값과 MAX_DURATION_SEC의 곱은 `lib/__tests__/recordingBudget.test.ts`가 잠근다.
 export const VIDEO_BITRATE_BPS = 1_000_000;
