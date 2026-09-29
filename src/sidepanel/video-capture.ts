@@ -113,7 +113,7 @@ export async function startScreenCapture(
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({
       // displaySurface — 일반 화면 녹화는 "monitor"(전체 화면 먼저), 탭 녹화 폴백은 "browser"(탭 먼저).
-      // advisory 힌트라 강제는 아님. 1080p 상한 — 4K 전체화면 60초의 과압축·대용량(IndexedDB)을 방지. frameRate 12.
+      // advisory 힌트라 강제는 아님. 1080p 상한 — 4K 전체화면 2분의 과압축·대용량(IndexedDB)을 방지. frameRate 12.
       video: { displaySurface: opts?.preferTab ? "browser" : "monitor", width: { max: 1920 }, height: { max: 1080 }, frameRate: 12 },
       audio: false,
     });

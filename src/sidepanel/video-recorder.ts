@@ -10,7 +10,7 @@ import { generateThumbnail } from "./lib/video-thumbnail";
 import { trackViewport } from "./lib/trackViewport";
 import { hideAnnotation } from "./annotation-control";
 
-const MAX_DURATION_SEC = 60;
+const MAX_DURATION_SEC = 120;
 
 interface RecorderState {
   stream: MediaStream;

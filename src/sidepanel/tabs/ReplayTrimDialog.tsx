@@ -392,7 +392,7 @@ export default function ReplayTrimDialog({ videoBlob, source, onConfirm, onCance
               variant="outline"
               size="icon"
               className="h-8 w-8 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-              // 확정 버튼과 같은 관용구 — busy는 최대 15초라 pointer-events까지 죽이면
+              // 확정 버튼과 같은 관용구 — busy는 최대 30초라 pointer-events까지 죽이면
               // hover·title이 사라져 "왜 안 눌리나"에 대한 답이 화면에서 없어진다(DESIGN §14).
               aria-disabled={busy}
               onClick={() => { if (busy) return; setCancelOpen(true); }}
