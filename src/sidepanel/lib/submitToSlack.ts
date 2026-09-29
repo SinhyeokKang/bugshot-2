@@ -72,6 +72,13 @@ export async function submitToSlack(
   }
 
   let logsDropped = false;
+  let mediaDropped = false;
+  // 사용자 첨부를 뺀 캡처 미디어 — 본문·스레드에 실려야 할 것들이다.
+  const mediaFiles = [
+    ...(input.images ?? []),
+    ...(input.video ? [input.video] : []),
+    ...inlineFiles,
+  ];
   if (allFiles.length > 0) {
     const results = await sendBg<SlackUploadResult[]>({
       type: "slack.uploadFiles",
@@ -81,6 +88,7 @@ export async function submitToSlack(
     });
     const okByName = new Map(results.map((r) => [r.filename, r.ok]));
     logsDropped = logs.some((l) => !okByName.get(l.filename));
+    mediaDropped = mediaFiles.some((f) => !okByName.get(f.filename));
   }
 
   const { permalink } = await sendBg<SlackPermalinkResult>({
@@ -89,5 +97,5 @@ export async function submitToSlack(
     ts: parent.ts,
   });
 
-  return { key: parent.ts, url: permalink, logsDropped };
+  return { key: parent.ts, url: permalink, logsDropped, mediaDropped };
 }

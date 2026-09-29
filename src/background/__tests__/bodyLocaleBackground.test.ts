@@ -207,8 +207,9 @@ describe("background 본문 문자열 게이트", () => {
     expect(scanned.some((f) => f.file.includes("/"))).toBe(true);
   });
 
-  it("본문을 만들거나 대조하는 t() 키는 래핑된 다섯뿐이다", () => {
+  it("본문을 만들거나 대조하는 t() 키는 래핑된 여섯뿐이다", () => {
     expect(bodyKeys).toEqual([
+      "md.imageAttached",
       "md.videoAttached",
       "notion.attachmentSection",
       "styleTable.asIs",

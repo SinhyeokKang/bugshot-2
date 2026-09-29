@@ -103,7 +103,7 @@ describe("submitToClickup 제출 순서", () => {
     const update = sendBg.mock.calls.find(([m]) => m.type === "clickup.updateTaskMarkdown")![0];
     expect(update.markdownContent).toBe("WITH_URL");
 
-    expect(res).toEqual({ key: "t1", url: TASK.url, logsDropped: false });
+    expect(res).toEqual({ key: "t1", url: TASK.url, logsDropped: false, mediaDropped: false });
   });
 
   it("첨부가 없으면 업로드·2차 갱신을 건너뛴다", async () => {
@@ -263,7 +263,7 @@ describe("submitToClickup — 2차 본문 갱신 실패 (전수 표 clickup 행)
     });
 
     // ①② 완전 성공 경로와 동일한 반환값 — 여기가 위 "정직성" 주석이 가리키는 지점이다.
-    expect(res).toEqual({ key: "t1", url: TASK.url, logsDropped: false });
+    expect(res).toEqual({ key: "t1", url: TASK.url, logsDropped: false, mediaDropped: false });
     // ③ 생성·업로드는 그대로, 2차 갱신을 시도했다는 사실까지 고정.
     expect(sendBg.mock.calls.map(([m]) => m.type)).toEqual([
       "clickup.submitIssue",

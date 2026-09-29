@@ -2,7 +2,7 @@ import { getLocale, t, withLocale } from "@/i18n";
 import { resolveBodyLocale, type LocaleMode } from "@/i18n/locales";
 import type { PlatformId } from "@/types/platform";
 import { dataUrlToBlob } from "@/store/blob-db";
-import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
+import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, adfHasSentinel, parseInlinePlaceholder } from "@/lib/adf-sentinels";
 import { adfMediaNode, adfMediaSingle, adfVideoMediaSingle, type MediaSource } from "./lib/adf-media";
 import { injectLogsLink } from "./lib/adf-logs-link";
 import { injectSnapshotRows } from "./injectSnapshotRows";
@@ -837,6 +837,9 @@ async function submitIssue(
 
   const uploadMap = new Map<string, UploadedFile>();
   let logsDropped = false;
+  // 캡처 미디어(영상·스크린샷·인라인)가 상한에 걸려 빠진 축. logs.html 전용인 logsDropped와
+  // 갈라 둔다 — 안내 문구가 다르고, 한쪽만 실패하는 경우가 흔하다.
+  let mediaDropped = false;
   let logsUrl: string | undefined;
   const attachmentBase =
     auth.kind === "apiKey"
@@ -868,12 +871,18 @@ async function submitIssue(
         uploadMap.set(att.filename, { kind: "external", url, ...dims });
       }
     } catch (err) {
-      if (!att.userAttachment && att.filename === "logs.html") logsDropped = true;
+      if (!att.userAttachment) {
+        if (att.filename === "logs.html") logsDropped = true;
+        else mediaDropped = true;
+      }
       console.warn("[bugshot] attachment upload failed", att.filename, err);
     }
   }
 
-  if (uploadMap.size > 0) {
+  // uploadMap이 비어도 본문에 placeholder가 남아 있으면 갱신을 돌린다 — 건너뛰면 생성 본문의
+  // 리터럴(`__BUGSHOT_VIDEO__` 등)이 이슈에 그대로 보인다. 영상과 logs.html은 함께 실패하므로
+  // (logs.html이 영상을 통째로 임베드한다) uploadMap이 통째로 비는 건 드문 일이 아니다.
+  if (uploadMap.size > 0 || logsUrl || adfHasSentinel(payload.description.content)) {
     try {
       const content = buildJiraDescriptionContent({
         description: payload.description,
@@ -901,7 +910,7 @@ async function submitIssue(
     }
   }
 
-  return { key: issue.key, url: issueUrl, logsDropped };
+  return { key: issue.key, url: issueUrl, logsDropped, mediaDropped };
 }
 
 // background는 currentLocale 인스턴스가 사이드패널과 별도라(bg-init이 화면 언어로 세팅) 빌더
@@ -919,17 +928,21 @@ export function buildJiraDescriptionContent(input: {
   return withLocale(resolveBodyLocale(input.bodyLocale, getLocale()), () => {
     const content: unknown[] = [...description.content];
     const screenshotFile = uploadMap.get("screenshot.webp");
-    if (screenshotFile) {
-      const mediaPlaceholderIdx = content.findIndex(
-        (n) => {
-          const node = n as { type: string; content?: { text?: string }[] };
-          return node.type === "paragraph" && node.content?.[0]?.text === IMAGE_PLACEHOLDER;
-        },
-      );
-      if (mediaPlaceholderIdx >= 0) {
-        const mediaNode = adfMediaNode(mediaSrc(screenshotFile), screenshotFile);
-        content[mediaPlaceholderIdx] = adfMediaSingle(mediaNode);
-      }
+    const mediaPlaceholderIdx = content.findIndex(
+      (n) => {
+        const node = n as { type: string; content?: { text?: string }[] };
+        return node.type === "paragraph" && node.content?.[0]?.text === IMAGE_PLACEHOLDER;
+      },
+    );
+    if (screenshotFile && mediaPlaceholderIdx >= 0) {
+      const mediaNode = adfMediaNode(mediaSrc(screenshotFile), screenshotFile);
+      content[mediaPlaceholderIdx] = adfMediaSingle(mediaNode);
+    } else if (mediaPlaceholderIdx >= 0) {
+      // 업로드가 실패해 참조할 media가 없다 — 리터럴을 남기느니 안내 문구로 바꾼다.
+      content[mediaPlaceholderIdx] = {
+        type: "paragraph",
+        content: [{ type: "text", text: t("md.imageAttached") }],
+      };
     }
 
     // recording.{webm,mp4} — extension follows whatever the MediaRecorder produced.
@@ -967,7 +980,13 @@ export function buildJiraDescriptionContent(input: {
       const refId = parseInlinePlaceholder(node.content[0].text);
       if (!refId) continue;
       const file = uploadMap.get(inlineUploadFilename(refId));
-      if (!file) continue;
+      if (!file) {
+        content[i] = {
+          type: "paragraph",
+          content: [{ type: "text", text: t("md.imageAttached") }],
+        };
+        continue;
+      }
       const mediaNode = adfMediaNode(mediaSrc(file), file);
       content[i] = adfMediaSingle(mediaNode);
     }

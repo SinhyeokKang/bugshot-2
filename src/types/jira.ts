@@ -139,6 +139,7 @@ export interface JiraSubmitResult {
   key: string;
   url: string;
   logsDropped?: boolean;
+  mediaDropped?: boolean;
 }
 
 export interface JiraIssueStatus {

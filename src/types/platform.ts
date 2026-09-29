@@ -118,6 +118,10 @@ export interface NormalizedSubmitResult {
   url: string;
   // logs.html 첨부가 플랫폼 용량 한도로 격리 처리돼 누락됐을 때 true (이슈는 생성됨).
   logsDropped?: boolean;
+  // 캡처 미디어(영상·스크린샷·인라인 이미지)가 같은 이유로 누락됐을 때 true. logs와 갈라
+  // 두는 건 안내 문구가 다르고 한쪽만 실패하는 경우가 흔해서다. 업로드 실패를 throw나
+  // 본문 목록으로 이미 알리는 플랫폼(notion·linear·github·gitlab·webhook)은 세우지 않는다.
+  mediaDropped?: boolean;
 }
 
 export interface GitlabLastSubmitFields {

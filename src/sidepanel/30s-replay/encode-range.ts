@@ -17,6 +17,10 @@ const MAX_ENCODE_QUEUE = 8;
 const DEFAULT_PLAYBACK_RATE = 4;
 const DEFAULT_STALL_TIMEOUT_MS = 3000;
 const DEFAULT_METADATA_TIMEOUT_MS = 10_000;
+// seek은 metadata와 시한을 나눈다 — MediaRecorder가 낸 WebM엔 Cues 인덱스가 없어 착지가
+// 선형 스캔에 가깝고, 녹화 상한이 2분으로 오르면서 중후반 startSec이 metadata용 10초를
+// 넘길 수 있다. 넘기면 트림이 통째로 실패해(원본은 보존) 사용자가 다시 시도해야 한다.
+const DEFAULT_SEEK_TIMEOUT_MS = 30_000;
 const WATCHDOG_TICK_MS = 250;
 // flush는 큐에 남은 프레임을 전부 인코딩한다 — 재생 루프가 끝난 뒤라 watchdog이 이미 꺼져 있어
 // 자체 시한이 없으면 여기서 영구 대기한다(취소 경로도 없다).
@@ -41,6 +45,7 @@ export interface EncodeRangeOptions {
   playbackRate?: number;
   stallTimeoutMs?: number;
   metadataTimeoutMs?: number;
+  seekTimeoutMs?: number;
   onProgress?: (ratio: number) => void;
 }
 
@@ -84,6 +89,7 @@ export async function encodeVideoRange(opts: EncodeRangeOptions): Promise<Blob> 
     playbackRate = DEFAULT_PLAYBACK_RATE,
     stallTimeoutMs = DEFAULT_STALL_TIMEOUT_MS,
     metadataTimeoutMs = DEFAULT_METADATA_TIMEOUT_MS,
+    seekTimeoutMs = DEFAULT_SEEK_TIMEOUT_MS,
     onProgress,
   } = opts;
 
@@ -113,7 +119,7 @@ export async function encodeVideoRange(opts: EncodeRangeOptions): Promise<Blob> 
     // 이미 그 지점이면 seek을 걸지 않는다 — currentTime을 같은 값으로 쓰면 seeked가 안 오는
     // 브라우저가 있어 타임아웃으로 죽는다(뒤쪽만 자르는 startSec===0이 가장 흔한 경우).
     if (Math.abs(video.currentTime - startSec) > 1e-3) {
-      const seeked = onceEvent(video, "seeked", metadataTimeoutMs, "seek");
+      const seeked = onceEvent(video, "seeked", seekTimeoutMs, "seek");
       video.currentTime = startSec;
       await seeked;
     }

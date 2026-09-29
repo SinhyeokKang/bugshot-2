@@ -152,7 +152,7 @@ describe("submitToAsana", () => {
       "asana.uploadFiles",
       "asana.updateTaskNotes",
     ]);
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false });
+    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false, mediaDropped: false });
 
     const submitCall = sendBg.mock.calls.find(
       ([m]) => m.type === "asana.submitIssue",
@@ -615,7 +615,7 @@ describe("submitToAsana — 2차 본문 갱신 실패 (전수 표 asana 행)", (
     });
 
     // ①② 완전 성공 경로와 동일한 반환값.
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false });
+    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false, mediaDropped: false });
     // ③ 생성·업로드는 그대로.
     expect(sendBg.mock.calls.map(([m]) => m.type)).toEqual([
       "asana.submitIssue",
@@ -779,7 +779,7 @@ describe("submitToAsana 사용자 첨부 파일명 충돌 (Task 8-1 재현)", ()
     });
 
     // 로그 첨부는 성공했으므로 "용량 초과로 누락" 경고가 뜨면 안 된다.
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false });
+    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false, mediaDropped: false });
     // 같은 뿌리의 세 번째 낙진: 백링크 주입도 파일명으로 판별하면 사용자가 올린 파일에
     // 이슈 URL이 박힌다. 우리 logs.html 하나에만 주입돼야 한다.
     expect(injectIssueUrl).toHaveBeenCalledTimes(1);
@@ -812,7 +812,7 @@ describe("submitToAsana 사용자 첨부 파일명 충돌 (Task 8-1 재현)", ()
       ],
     });
 
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: true });
+    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: true, mediaDropped: false });
   });
 });
 

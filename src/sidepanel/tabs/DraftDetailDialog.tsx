@@ -491,7 +491,7 @@ export function DraftDetailDialog({
       }),
     );
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
-    return { key: result.key, url: result.url, logsDropped: result.logsDropped };
+    return { key: result.key, url: result.url, logsDropped: result.logsDropped, mediaDropped: result.mediaDropped };
   }
 
   async function handleGithubSubmit(
@@ -812,7 +812,7 @@ export function DraftDetailDialog({
     // setLastSubmitFields 쌍은 없다(webhook?: never) — 기억할 제출 필드가 없다.
     useSettingsStore.getState().setLastSubmittedPlatform("webhook");
     return outcome.recorded
-      ? { key: outcome.key, url: outcome.url, logsDropped: outcome.logsDropped }
+      ? { key: outcome.key, url: outcome.url, logsDropped: outcome.logsDropped, mediaDropped: outcome.mediaDropped }
       : { key: "", url: "" };
   }
 

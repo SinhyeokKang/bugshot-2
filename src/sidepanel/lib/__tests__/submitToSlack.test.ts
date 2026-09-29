@@ -89,6 +89,7 @@ describe("submitToSlack — 전송 순서", () => {
       key: "111",
       url: "https://slack.test/archives/C1/p111",
       logsDropped: false,
+      mediaDropped: false,
     });
   });
 });

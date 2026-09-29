@@ -238,14 +238,19 @@ export function IssueListTab() {
           }
         }}
         onSubmitSuccess={(result) => {
-          // 라이브 흐름(IssueTab SubmitSuccessPanel)과 동일하게 logs.html 누락 경고 노출.
-          if (result.logsDropped && activeDraft?.platform) {
-            toast.warning(
-              t("submit.logsDropped", {
-                platform: t(PLATFORM_TAB_KEYS[activeDraft.platform]),
-              }),
-              { id: `logs-dropped-${result.key}` },
-            );
+          // 라이브 흐름(IssueTab SubmitSuccessPanel)과 동일하게 누락 경고 노출 — 로그·캡처 2축.
+          if (activeDraft?.platform) {
+            const platform = t(PLATFORM_TAB_KEYS[activeDraft.platform]);
+            if (result.mediaDropped) {
+              toast.warning(t("submit.mediaDropped", { platform }), {
+                id: `media-dropped-${result.key}`,
+              });
+            }
+            if (result.logsDropped) {
+              toast.warning(t("submit.logsDropped", { platform }), {
+                id: `logs-dropped-${result.key}`,
+              });
+            }
           }
           setDraftId(null);
           setAutoSubmit(false);
