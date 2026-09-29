@@ -207,7 +207,7 @@ video-capture.ts:startVideoCapture(tabId)
     → chrome.tabCapture.getMediaStreamId({ targetTabId })
     → navigator.mediaDevices.getUserMedia({ audio: false, video: { chromeMediaSource: "tab",
                                                               maxWidth: 1280, maxHeight: 720, maxFrameRate: 12 } })
-    → MediaRecorder 생성 (2Mbps, 1초 chunk, 최대 60초)
+    → MediaRecorder 생성 (2Mbps, 1초 chunk, 최대 120초)
     → recorder.onstop → Blob 조립 → 썸네일 생성 → editor store 저장
 ```
 
@@ -230,7 +230,7 @@ video-capture.ts:startVideoCapture(tabId)
 세 경로가 권한 모델이 다르다.
 
 - **탭 녹화**: `tabCapture.getMediaStreamId` → 현재 탭 뷰포트만. `tabCapture` 권한 + activeTab 필요.
-- **화면 녹화**: `video-capture.ts:startScreenCapture` → `navigator.mediaDevices.getDisplayMedia({video:{displaySurface:"monitor", ≤1920×1080, frameRate:12}})`. **웹 표준 API라 추가 manifest 권한이 없다** — Chrome 화면 공유 picker가 사용자 동의를 직접 받고, 사용자가 [전체 화면/창/탭]을 고른다. transient user activation만 요구(버튼 onClick 첫 await로 호출). 사용자가 "공유 중지"(track `ended`) 또는 60초 상한 시 종료. tabCapture/activeTab/`<all_urls>` 어느 것도 불요.
+- **화면 녹화**: `video-capture.ts:startScreenCapture` → `navigator.mediaDevices.getDisplayMedia({video:{displaySurface:"monitor", ≤1920×1080, frameRate:12}})`. **웹 표준 API라 추가 manifest 권한이 없다** — Chrome 화면 공유 picker가 사용자 동의를 직접 받고, 사용자가 [전체 화면/창/탭]을 고른다. transient user activation만 요구(버튼 onClick 첫 await로 호출). 사용자가 "공유 중지"(track `ended`) 또는 120초 상한 시 종료. tabCapture/activeTab/`<all_urls>` 어느 것도 불요.
 - **30s Replay**: `tabCapture` 미사용. `captureVisibleTab` 폴링(600ms)으로 JPEG 프레임 수집 → WebCodecs `VideoEncoder`+`mp4-muxer` H.264 MP4.
 
 | | 탭 녹화 | 화면 녹화 | 30s Replay |
@@ -238,7 +238,7 @@ video-capture.ts:startVideoCapture(tabId)
 | API | `tabCapture.getMediaStreamId` | `getDisplayMedia` (웹 표준) | `captureVisibleTab` 폴링 |
 | 캡처 범위 | 현재 탭 뷰포트 | 사용자 선택 화면/창/탭 (탭 밖 포함) | 현재 탭 |
 | 오디오 | 없음 (`audio: false`) | 없음 (`audio: false`) | 없음 |
-| 최대 길이 | 60초 | 60초 | 30초 (링 버퍼) |
+| 최대 길이 | 120초 | 120초 | 30초 (링 버퍼) |
 | 출력 | WebM/MP4 (MediaRecorder) | WebM/MP4 (MediaRecorder) | H.264 MP4 (WebCodecs) |
 | 추가 권한 | `tabCapture` + activeTab | 없음 (user gesture만) | `<all_urls>` (설치 시 부여, required) |
 
