@@ -815,3 +815,44 @@ describe("submitToAsana 사용자 첨부 파일명 충돌 (Task 8-1 재현)", ()
     expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: true });
   });
 });
+
+// logsDropped와 같은 축의 누락이지만 신호가 없던 쪽 — 캡처 미디어.
+describe("submitToAsana — mediaDropped", () => {
+  it("영상 첨부 실패(gid null)면 mediaDropped: true", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "asana.submitIssue") return TASK;
+      if (msg.type === "asana.uploadFiles") return [{ ok: false, filename: "recording.mp4" }];
+      return undefined;
+    });
+
+    const res = await submitToAsana({
+      ctx: makeCtx({ captureMode: "video" }),
+      workspaceGid: "W",
+      video: { filename: "recording.mp4", dataUrl: "data:VIDEO" },
+    });
+
+    expect(res.mediaDropped).toBe(true);
+  });
+
+  it("logs.html만 실패하면 mediaDropped는 false로 남는다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "asana.submitIssue") return TASK;
+      if (msg.type === "asana.uploadFiles")
+        return [
+          { ok: true, filename: "screenshot.webp", gid: "img" },
+          { ok: false, filename: "logs.html" },
+        ];
+      return undefined;
+    });
+
+    const res = await submitToAsana({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      workspaceGid: "W",
+      images: [{ filename: "screenshot.webp", dataUrl: "data:IMG" }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(res.mediaDropped).toBe(false);
+    expect(res.logsDropped).toBe(true);
+  });
+});

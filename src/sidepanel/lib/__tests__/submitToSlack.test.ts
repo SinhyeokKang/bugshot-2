@@ -246,3 +246,60 @@ describe("submitToSlack — 인라인 이미지", () => {
     expect(sendBg.mock.calls.some((c) => c[0].type === "slack.uploadFiles")).toBe(true);
   });
 });
+
+// logsDropped는 logs.html 전용 신호라, 영상·스크린샷이 상한에 걸려 통째로 빠져도
+// 사용자에겐 아무 안내가 없다. Slack은 네이티브 첨부라 본문에 흔적조차 안 남는다.
+describe("submitToSlack — mediaDropped", () => {
+  it("영상 업로드가 실패하면 mediaDropped: true", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) =>
+      msg.type === "slack.uploadFiles"
+        ? [{ filename: "recording.mp4", ok: false }]
+        : defaultSendBg(msg as never),
+    );
+
+    const res = await submitToSlack({
+      ctx: makeCtx(),
+      channelId: "C1",
+      video: { filename: "recording.mp4", dataUrl: "data:VIDEO" },
+    });
+
+    expect(res.mediaDropped).toBe(true);
+  });
+
+  it("logs.html만 실패하면 mediaDropped는 false로 남는다 — 두 신호는 별개 축이다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) =>
+      msg.type === "slack.uploadFiles"
+        ? [
+            { filename: "screenshot.png", ok: true },
+            { filename: "logs.html", ok: false },
+          ]
+        : defaultSendBg(msg as never),
+    );
+
+    const res = await submitToSlack({
+      ctx: makeCtx(),
+      channelId: "C1",
+      images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(res.mediaDropped).toBe(false);
+    expect(res.logsDropped).toBe(true);
+  });
+
+  it("사용자 첨부 실패는 mediaDropped를 켜지 않는다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) =>
+      msg.type === "slack.uploadFiles"
+        ? [{ filename: "report.pdf", ok: false }]
+        : defaultSendBg(msg as never),
+    );
+
+    const res = await submitToSlack({
+      ctx: makeCtx(),
+      channelId: "C1",
+      attachments: [{ filename: "report.pdf", dataUrl: "data:PDF" }],
+    });
+
+    expect(res.mediaDropped).toBe(false);
+  });
+});

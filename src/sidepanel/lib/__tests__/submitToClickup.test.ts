@@ -277,3 +277,47 @@ describe("submitToClickup — 2차 본문 갱신 실패 (전수 표 clickup 행)
     ]);
   });
 });
+
+describe("submitToClickup — mediaDropped", () => {
+  const TASK2 = { id: "t1", url: "https://app.clickup.com/t/t1" };
+
+  it("영상 업로드가 실패하면 mediaDropped: true", async () => {
+    injectIssueUrl.mockResolvedValue("data:aug");
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "clickup.submitIssue") return TASK2;
+      if (msg.type === "clickup.uploadFile") return [{ ok: false, filename: "recording.mp4" }];
+      return undefined;
+    });
+
+    const res = await submitToClickup({
+      ctx: makeCtx(),
+      video: { filename: "recording.mp4", dataUrl: "data:VIDEO" },
+      listId: "l1",
+    });
+
+    expect(res.mediaDropped).toBe(true);
+  });
+
+  it("logs.html만 실패하면 mediaDropped는 false로 남는다", async () => {
+    injectIssueUrl.mockResolvedValue("data:aug");
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "clickup.submitIssue") return TASK2;
+      if (msg.type === "clickup.uploadFile")
+        return [
+          { ok: true, filename: "screenshot.webp", href: "https://cdn/img" },
+          { ok: false, filename: "logs.html" },
+        ];
+      return undefined;
+    });
+
+    const res = await submitToClickup({
+      ctx: makeCtx(),
+      images: [{ filename: "screenshot.webp", dataUrl: "data:IMG" }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+      listId: "l1",
+    });
+
+    expect(res.mediaDropped).toBe(false);
+    expect(res.logsDropped).toBe(true);
+  });
+});

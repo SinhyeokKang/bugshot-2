@@ -110,7 +110,7 @@ import {
   type CaptureMode,
   type EditorSnapshot,
 } from "../editor-store";
-import { dataUrlToBlob } from "../blob-db";
+import { dataUrlToBlob, saveVideoBlob } from "../blob-db";
 
 /* ------------------------------------------------------------------ */
 /*  Fixtures                                                           */
@@ -3375,5 +3375,45 @@ describe("confirmDraft pageUrl — 리졸버 경유", () => {
     useEditorStore.getState().confirmDraft();
 
     expect(mockSaveDraft.mock.calls[0][0].pageUrl).toBe(target.url);
+  });
+});
+
+// drafting 중 패널을 닫아도 영상이 살아남도록 pending:${tabId}에 미러링하는데, blob-db는
+// 전 함수가 catch-and-return-false라 `void`로 버리면 IDB 쿼터 실패가 통째로 무음이다 —
+// 패널을 다시 열면 녹화만 조용히 사라진다. 확정 저장 경로는 같은 헬퍼를 쓰면서 알린다.
+describe("pending 영상 미러링 실패 알림", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    vi.mocked(saveVideoBlob).mockResolvedValue(true);
+    vi.mocked(onBlobSaveFailed.fire).mockClear();
+  });
+
+  it("onRecordingComplete의 pending 미러링이 false를 resolve하면 알린다", async () => {
+    vi.mocked(saveVideoBlob).mockResolvedValue(false);
+    useEditorStore.setState({ target });
+
+    useEditorStore
+      .getState()
+      .onRecordingComplete(new Blob(["v"]), "t", { width: 800, height: 600 }, 1000, 5000);
+    await vi.waitFor(() => expect(onBlobSaveFailed.fire).toHaveBeenCalled());
+  });
+
+  it("replaceVideo(트림 확정)의 미러링 실패도 알린다", async () => {
+    vi.mocked(saveVideoBlob).mockResolvedValue(false);
+    useEditorStore.setState({ target });
+
+    useEditorStore.getState().replaceVideo(new Blob(["v2"]), "t2", 1000, 3000, "recording");
+    await vi.waitFor(() => expect(onBlobSaveFailed.fire).toHaveBeenCalled());
+  });
+
+  it("미러링이 성공하면 알리지 않는다", async () => {
+    useEditorStore.setState({ target });
+
+    useEditorStore
+      .getState()
+      .onRecordingComplete(new Blob(["v"]), "t", { width: 800, height: 600 }, 1000, 5000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(onBlobSaveFailed.fire).not.toHaveBeenCalled();
   });
 });
