@@ -259,6 +259,24 @@ describe("submitToGitlab logsDropped", () => {
     ).toBe(1);
   });
 
+  // 실패 케이스가 mediaDropped를 안 보면 반환을 false로 고정해도 구별이 안 된다.
+  it("캡처 이미지 업로드가 실패하면 mediaDropped: true", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "gitlab.uploadFiles")
+        return [{ ok: false, filename: "shot.webp" }];
+      if (msg.type === "gitlab.submitIssue") return ISSUE;
+      return undefined;
+    });
+
+    const res = await submitToGitlab({
+      ctx: makeCtx(),
+      projectId: 1,
+      images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
+    });
+
+    expect(res.mediaDropped).toBe(true);
+  });
+
   it("logs.html 업로드 성공이면 logsDropped: false", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")

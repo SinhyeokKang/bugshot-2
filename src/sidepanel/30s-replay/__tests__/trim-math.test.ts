@@ -313,19 +313,25 @@ describe("previewBoundsFor", () => {
 });
 
 describe("pickTrimBitrate", () => {
-  // clamp(byteSize * 8 / durationSec * 1.5, 800_000, 4_000_000)
+  // clamp(byteSize * 8 / durationSec, 800_000, 4_000_000)
   it("저모션(3MB/60s)은 하한 800kbps로 clamp", () => {
-    // 3e6*8/60 = 400_000 → ×1.5 = 600_000 → 하한
+    // 3e6*8/60 = 400_000 → 하한
     expect(pickTrimBitrate(3_000_000, 60)).toBe(800_000);
   });
 
-  it("고모션(15MB/60s)은 실측의 1.5배", () => {
-    // 15e6*8/60 = 2_000_000 → ×1.5 = 3_000_000
-    expect(pickTrimBitrate(15_000_000, 60)).toBe(3_000_000);
+  it("고모션(15MB/60s)은 실측 그대로", () => {
+    // 15e6*8/60 = 2_000_000
+    expect(pickTrimBitrate(15_000_000, 60)).toBe(2_000_000);
+  });
+
+  // 자르는 동작이 파일을 키우면 제출 페이로드가 메시지 한도를 넘는다(recordingBudget.test.ts).
+  it("관측 비트레이트를 넘기지 않는다", () => {
+    const observed = (15_000_000 * 8) / 60;
+    expect(pickTrimBitrate(15_000_000, 60)).toBeLessThanOrEqual(observed);
   });
 
   it("상한 초과는 4Mbps로 clamp", () => {
-    // 60e6*8/60 = 8_000_000 → ×1.5 = 12_000_000 → 상한
+    // 60e6*8/60 = 8_000_000 → 상한
     expect(pickTrimBitrate(60_000_000, 60)).toBe(4_000_000);
   });
 

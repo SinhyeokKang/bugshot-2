@@ -138,12 +138,17 @@ export function previewBoundsFor(
   return recordingLogTrimBounds(source.startedAt, range.startSec, range.endSec, opts.durationSec);
 }
 
-// 재인코딩 비트레이트 — 원본 실측 기반 적응. 녹화 상한은 2Mbps지만 저모션은 quality-bound라
-// 실측이 훨씬 낮다(video-recorder.ts 참조). 고정값을 쓰면 자르기만 했는데 파일이 몇 배로 커진다.
+// 재인코딩 비트레이트 — 원본 실측 기반 적응. 저모션은 quality-bound라 실측이 녹화 목표
+// (VIDEO_BITRATE_BPS)보다 훨씬 낮다. 고정값을 쓰면 자르기만 했는데 파일이 몇 배로 커진다.
+//
+// **관측값을 넘기지 않는다.** 예전엔 재인코딩 손실을 보상하려고 1.5배를 썼는데, 거의 안 자르는
+// 트림(119/120초)에서 결과가 원본의 1.49배가 됐다 — 자르는 동작이 파일을 키운 셈이고, 제출
+// 페이로드가 Chromium의 64MiB 메시지 한도를 넘겨 제출 자체가 실패했다. 손실 몇 %가 제출 실패보다
+// 낫다. 이 불변식은 `sidepanel/lib/__tests__/recordingBudget.test.ts`가 잠근다.
 export function pickTrimBitrate(byteSize: number, durationSec: number): number {
   if (!(durationSec > 0)) return TRIM_BITRATE_MAX;
   const observed = (byteSize * 8) / durationSec;
-  return Math.min(TRIM_BITRATE_MAX, Math.max(TRIM_BITRATE_MIN, observed * 1.5));
+  return Math.min(TRIM_BITRATE_MAX, Math.max(TRIM_BITRATE_MIN, observed));
 }
 
 // 로그 timestamp가 trim 경계 밖이면 true(잘려나갈 후보). trimByTime과 동일 inclusive 경계.
