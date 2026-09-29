@@ -834,6 +834,59 @@ describe("submitToAsana — mediaDropped", () => {
     expect(res.mediaDropped).toBe(true);
   });
 
+  // POSTMORTEM "파일명을 신원 축으로 쓴 어댑터 둘" 재발 방지 (4): 이 불리언은 양방향을
+  // 다 잠근다. 한 방향만 두면 위치 경계(`i < userAttachmentStart`)를 지워도 green이다.
+  it("캡처 이미지가 실패하고 동명의 사용자 첨부만 성공해도 mediaDropped는 true다", async () => {
+    sendBg.mockImplementation(
+      async (msg: { type: string; files?: Array<{ filename: string }> }) => {
+        if (msg.type === "asana.submitIssue") return TASK;
+        if (msg.type === "asana.uploadFiles")
+          // 0번이 우리 캡처, 1번이 동명의 사용자 첨부.
+          return (msg.files ?? []).map((f, i) => ({
+            ok: i !== 0,
+            filename: f.filename,
+            gid: `gid-${i}`,
+            viewUrl: `url-${i}`,
+          }));
+        return undefined;
+      },
+    );
+
+    const res = await submitToAsana({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      workspaceGid: "W",
+      images: [{ filename: "screenshot.webp", dataUrl: "data:IMG" }],
+      attachments: [{ filename: "screenshot.webp", dataUrl: "data:USER" }],
+    });
+
+    expect(res.mediaDropped).toBe(true);
+  });
+
+  it("캡처가 성공하면 동명의 사용자 첨부가 실패해도 mediaDropped는 false다", async () => {
+    sendBg.mockImplementation(
+      async (msg: { type: string; files?: Array<{ filename: string }> }) => {
+        if (msg.type === "asana.submitIssue") return TASK;
+        if (msg.type === "asana.uploadFiles")
+          return (msg.files ?? []).map((f, i) => ({
+            ok: i === 0,
+            filename: f.filename,
+            gid: `gid-${i}`,
+            viewUrl: `url-${i}`,
+          }));
+        return undefined;
+      },
+    );
+
+    const res = await submitToAsana({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      workspaceGid: "W",
+      images: [{ filename: "screenshot.webp", dataUrl: "data:IMG" }],
+      attachments: [{ filename: "screenshot.webp", dataUrl: "data:USER" }],
+    });
+
+    expect(res.mediaDropped).toBe(false);
+  });
+
   it("logs.html만 실패하면 mediaDropped는 false로 남는다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "asana.submitIssue") return TASK;

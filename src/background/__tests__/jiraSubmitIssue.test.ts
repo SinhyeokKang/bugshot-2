@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER } from "@/lib/adf-sentinels";
+import { t } from "@/i18n";
 import type { JiraAdfDoc, JiraAuth } from "@/types/jira";
 
 const api = vi.hoisted(() => ({
@@ -210,6 +211,19 @@ describe("jira.submitIssue — 첨부 전량 실패 시 본문 sentinel", () => 
       } as never,
       {} as chrome.runtime.MessageSender,
     );
+
+  // 폴백 문구는 "첨부를 보라"가 아니어야 한다 — 그 첨부는 존재하지 않는다.
+  it("업로드 실패 폴백은 첨부 참조가 아니라 누락 고지를 쓴다", async () => {
+    api.uploadAttachment.mockRejectedValue(new Error("413"));
+
+    await submitWithDoc(VIDEO_DOC, [
+      { filename: "recording.mp4", dataUrl: "data:video/mp4;base64,AAAA" },
+    ]);
+
+    const doc = JSON.stringify(api.updateIssueDescription.mock.calls[0]?.[2]);
+    expect(doc).toContain(t("md.attachmentDropped"));
+    expect(doc).not.toContain(t("md.videoAttached"));
+  });
 
   it("업로드가 전부 실패해도 2차 갱신이 돌아 영상 sentinel이 사라진다", async () => {
     api.uploadAttachment.mockRejectedValue(new Error("413 Payload Too Large"));

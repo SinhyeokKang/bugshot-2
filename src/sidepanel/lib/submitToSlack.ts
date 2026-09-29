@@ -73,13 +73,14 @@ export async function submitToSlack(
 
   let logsDropped = false;
   let mediaDropped = false;
-  // 사용자 첨부를 뺀 캡처 미디어 — 본문·스레드에 실려야 할 것들이다.
-  const mediaFiles = [
-    ...(input.images ?? []),
-    ...(input.video ? [input.video] : []),
-    ...inlineFiles,
-  ];
   if (allFiles.length > 0) {
+    // 사용자 첨부를 뺀 캡처 미디어 — jira의 `!att.userAttachment`, asana의 위치 경계와
+    // 같은 의미론이다. 사용자 첨부 실패는 이 축이 아니다.
+    const mediaFiles = [
+      ...(input.images ?? []),
+      ...(input.video ? [input.video] : []),
+      ...inlineFiles,
+    ];
     const results = await sendBg<SlackUploadResult[]>({
       type: "slack.uploadFiles",
       channelId: input.channelId,

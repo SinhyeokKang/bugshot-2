@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { toastSubmitDropped } from "@/sidepanel/lib/submitDroppedToast";
 import {
   BookOpen,
   SquareMousePointer,
@@ -704,20 +705,10 @@ function SubmitSuccessPanel() {
   // 제출당 1회만 — t는 매 렌더 새 클로저라 dep만으로는 중복 발화. key 기준 ref 가드 + sonner id로 dedupe.
   const toastedKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!submitResult?.logsDropped && !submitResult?.mediaDropped) return;
+    if (!submitResult) return;
     if (toastedKeyRef.current === submitResult.key) return;
-    toastedKeyRef.current = submitResult.key;
-    const platform = t(PLATFORM_TAB_KEYS[submitResult.platform]);
-    // 두 축은 따로 뜬다 — 한쪽만 빠지는 경우가 흔해서 합치면 안내가 거짓이 된다.
-    if (submitResult.mediaDropped) {
-      toast.warning(t("submit.mediaDropped", { platform }), {
-        id: `media-dropped-${submitResult.key}`,
-      });
-    }
-    if (submitResult.logsDropped) {
-      toast.warning(t("submit.logsDropped", { platform }), {
-        id: `logs-dropped-${submitResult.key}`,
-      });
+    if (toastSubmitDropped(submitResult, t(PLATFORM_TAB_KEYS[submitResult.platform]), t)) {
+      toastedKeyRef.current = submitResult.key;
     }
   }, [submitResult, t]);
 

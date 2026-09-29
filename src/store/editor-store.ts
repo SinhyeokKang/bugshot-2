@@ -441,14 +441,14 @@ function preserveLogs(state: EditorState): Pick<
 }
 
 // 복수 element 버퍼를 모드(picking) 재진입 시 보존. preserveLogs와 동형.
+function preserveBuffer(state: EditorState): Pick<EditorState, "bufferedElements"> {
+  return { bufferedElements: state.bufferedElements };
+}
+
 // pending 미러링 단일 경로 — onRecordingComplete·replaceVideo가 공유한다. 한쪽만 알리면
 // 트림 확정에서 잃은 녹화가 무음으로 빠진다.
 async function mirrorPendingVideo(tabId: number, blob: Blob): Promise<void> {
   if (!(await saveVideoBlob(pendingKey(tabId), blob))) onBlobSaveFailed.fire();
-}
-
-function preserveBuffer(state: EditorState): Pick<EditorState, "bufferedElements"> {
-  return { bufferedElements: state.bufferedElements };
 }
 
 // class 변경 후 picker.selectionUpdated의 specified/computed에는 인라인 편집값이 새어든다

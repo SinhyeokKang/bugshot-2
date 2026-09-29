@@ -882,7 +882,7 @@ async function submitIssue(
   // uploadMap이 비어도 본문에 placeholder가 남아 있으면 갱신을 돌린다 — 건너뛰면 생성 본문의
   // 리터럴(`__BUGSHOT_VIDEO__` 등)이 이슈에 그대로 보인다. 영상과 logs.html은 함께 실패하므로
   // (logs.html이 영상을 통째로 임베드한다) uploadMap이 통째로 비는 건 드문 일이 아니다.
-  if (uploadMap.size > 0 || logsUrl || adfHasSentinel(payload.description.content)) {
+  if (uploadMap.size > 0 || adfHasSentinel(payload.description.content)) {
     try {
       const content = buildJiraDescriptionContent({
         description: payload.description,
@@ -938,10 +938,10 @@ export function buildJiraDescriptionContent(input: {
       const mediaNode = adfMediaNode(mediaSrc(screenshotFile), screenshotFile);
       content[mediaPlaceholderIdx] = adfMediaSingle(mediaNode);
     } else if (mediaPlaceholderIdx >= 0) {
-      // 업로드가 실패해 참조할 media가 없다 — 리터럴을 남기느니 안내 문구로 바꾼다.
+      // 업로드가 실패해 참조할 media가 없다. "첨부를 보라"고 쓰면 독자가 없는 파일을 찾는다.
       content[mediaPlaceholderIdx] = {
         type: "paragraph",
-        content: [{ type: "text", text: t("md.imageAttached") }],
+        content: [{ type: "text", text: t("md.attachmentDropped") }],
       };
     }
 
@@ -959,9 +959,13 @@ export function buildJiraDescriptionContent(input: {
     if (videoFile?.kind === "media" && videoPlaceholderIdx >= 0) {
       content[videoPlaceholderIdx] = adfVideoMediaSingle(mediaSrc(videoFile));
     } else if (videoPlaceholderIdx >= 0) {
+      // 첨부는 됐지만 media로 못 박은 경우와 업로드 자체가 실패한 경우를 가른다 —
+      // 후자에 "첨부 참조"를 쓰면 없는 파일을 가리킨다.
       content[videoPlaceholderIdx] = {
         type: "paragraph",
-        content: [{ type: "text", text: t("md.videoAttached") }],
+        content: [
+          { type: "text", text: videoFile ? t("md.videoAttached") : t("md.attachmentDropped") },
+        ],
       };
     }
 
@@ -983,7 +987,7 @@ export function buildJiraDescriptionContent(input: {
       if (!file) {
         content[i] = {
           type: "paragraph",
-          content: [{ type: "text", text: t("md.imageAttached") }],
+          content: [{ type: "text", text: t("md.attachmentDropped") }],
         };
         continue;
       }

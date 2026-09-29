@@ -111,6 +111,7 @@ const ko = {
   "md.section.notes": "비고",
   "md.videoAttached": "(첨부 녹화 파일 참조)",
   "md.imageAttached": "(첨부 이미지 참조)",
+  "md.attachmentDropped": "(용량 한도로 첨부되지 않음)",
   // 클립보드 복사본에는 첨부가 없다 — 왜 없는지와 어디서 얻는지를 함께 적어 무음 유실을 막는다.
   "md.videoNotCopied": "(녹화 파일은 복사되지 않습니다 — 이슈로 제출하면 첨부됩니다)",
   "md.imageNotCopied": "(이미지는 복사되지 않습니다 — 이슈로 제출하면 첨부됩니다)",
@@ -253,6 +254,7 @@ const en = {
   "md.section.notes": "Notes",
   "md.videoAttached": "(See attached recording)",
   "md.imageAttached": "(See attached image)",
+  "md.attachmentDropped": "(not attached — over the size limit)",
   "md.videoNotCopied": "(Recordings are not copied — they are attached when you submit the issue)",
   "md.imageNotCopied": "(Images are not copied — they are attached when you submit the issue)",
   "md.inlineImageNotCopied": "(Image not copied — attached when you submit the issue)",
@@ -392,6 +394,7 @@ const fr = {
   "md.section.notes": "Notes",
   "md.videoAttached": "(Voir l’enregistrement joint)",
   "md.imageAttached": "(Voir l’image jointe)",
+  "md.attachmentDropped": "(non joint — dépasse la taille maximale)",
   "md.videoNotCopied": "(Les enregistrements ne sont pas copiés — ils sont joints à l’envoi du ticket)",
   "md.imageNotCopied": "(Les images ne sont pas copiées — elles sont jointes à l’envoi du ticket)",
   "md.inlineImageNotCopied": "(Image non copiée — jointe à l’envoi du ticket)",

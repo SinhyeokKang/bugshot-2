@@ -64,5 +64,10 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
     attachments,
     relates: input.relates?.map((r) => r.key),
   });
-  return { key: result.key, url: result.url, logsDropped: result.logsDropped };
+  return {
+    key: result.key,
+    url: result.url,
+    logsDropped: result.logsDropped,
+    mediaDropped: result.mediaDropped,
+  };
 }
