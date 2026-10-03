@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { enterDebug, expect, test } from "./fixtures/extension";
+import type { SubmissionRecoveryMeta } from "../src/types/attachment";
 
 // Custom Webhook — 연결 폼 게이트와 제출 동선. webhook.submit/webhook.test는 background SW
 // fetch라 panel.route로 못 잡으므로(GOTCHAS.md) sendMessage를 스파이로 가로챈다
@@ -13,7 +14,101 @@ const SETTINGS_KEY = "bugshot-settings";
 // 이슈는 settings와 다른 키에 쌓인다 — 이것도 같이 비우지 않으면 앞 케이스가 만든
 // 제출됨 행이 남아 "행을 만들지 않는다" 단언이 그 유물에 걸린다(GOTCHAS.md 스토리지 오염).
 const ISSUES_KEY = "bugshot-issues";
+const APP_SETTINGS_KEY = "bugshot-app-settings";
 const HOOK_URL = "https://hooks.example.com/bugshot";
+const SOURCE_TEXT = "webhook recovery source";
+const ownedPages: Page[] = [];
+const ownedIssueIds = new Set<string>();
+
+interface SavedIssue {
+  id: string;
+  title: string;
+  status: string;
+  key?: string;
+  submissionRecoveryId?: string;
+  attachments?: { id: string }[];
+}
+
+async function savedIssues(panel: Page): Promise<SavedIssue[]> {
+  return panel.evaluate(async (key) => {
+    const raw = (await chrome.storage.local.get(key))[key];
+    return raw ? JSON.parse(raw).state.issues : [];
+  }, ISSUES_KEY);
+}
+
+async function durableState(panel: Page, issueId: string) {
+  const issue = (await savedIssues(panel)).find((i) => i.id === issueId);
+  const recovery = await panel.evaluate(async ({ issueId, attachments }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open("bugshot-video");
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    try {
+      const get = <T,>(store: string, key: string) => new Promise<T>((resolve, reject) => {
+        const req = db.transaction(store, "readonly").objectStore(store).get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      const journal = await get<SubmissionRecoveryMeta | undefined>("submissionRecovery", `attempt:${issueId}`);
+      const sources = await Promise.all((journal?.files ?? []).map(async (file) => {
+        const blob = await get<Blob | undefined>(file.source.kind === "original" ? file.source.store : "submissionRecovery", file.source.key);
+        return { id: file.id, size: blob?.size ?? 0 };
+      }));
+      const originals = await Promise.all(attachments.map(async (file) => {
+        const blob = await get<Blob | undefined>("attachments", `${issueId}:${file.id}`);
+        return { id: file.id, text: blob ? await blob.text() : null };
+      }));
+      return { journal: journal ?? null, sources, originals };
+    } finally {
+      db.close();
+    }
+  }, { issueId, attachments: issue?.attachments ?? [] });
+  return { issue, ...recovery };
+}
+
+// Close writers before removing only this spec's journal and source keys.
+test.afterEach(async ({ ext }) => {
+  for (const page of ownedPages.splice(0)) if (!page.isClosed()) await page.close();
+  const issueIds = [...ownedIssueIds];
+  ownedIssueIds.clear();
+  await ext.evalInExt(async ({ issueIds, keys }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open("bugshot-video");
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    try {
+      const tx = db.transaction([...db.objectStoreNames], "readwrite");
+      for (const name of db.objectStoreNames) {
+        const store = tx.objectStore(name);
+        const req = store.openCursor();
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (!cursor) return;
+          if (name === "submissionRecovery" && issueIds.includes(cursor.value?.issueId)) {
+            const meta = cursor.value as SubmissionRecoveryMeta;
+            for (const file of meta.files) {
+              if (file.source.kind === "generated") store.delete(file.source.key);
+            }
+            cursor.delete();
+          } else if (typeof cursor.key === "string" && issueIds.some((id) => cursor.key === id || String(cursor.key).startsWith(`${id}:`))) {
+            cursor.delete();
+          }
+          cursor.continue();
+        };
+      }
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } finally {
+      db.close();
+    }
+    await chrome.storage.local.remove(keys);
+  }, { issueIds, keys: [SETTINGS_KEY, ISSUES_KEY, APP_SETTINGS_KEY] });
+});
 
 function webhookAccount(format: "multipart" | "json" = "multipart") {
   return {
@@ -67,25 +162,31 @@ function envelope(accounts: Record<string, unknown>) {
 
 async function seed(panel: Page, value: string) {
   await panel.evaluate(
-    async ([key, val, issuesKey]) => {
+    async ([key, val, issuesKey, appKey]) => {
       await chrome.storage.local.remove(issuesKey);
-      await chrome.storage.local.set({ [key]: val });
+      await chrome.storage.local.set({ [key]: val, [appKey]: JSON.stringify({ state: { attachmentsEnabled: true }, version: 11 }) });
     },
-    [SETTINGS_KEY, value, ISSUES_KEY] as const,
+    [SETTINGS_KEY, value, ISSUES_KEY, APP_SETTINGS_KEY] as const,
   );
   await panel.reload();
 }
 
-async function spySendMessage(panel: Page, submitReply: Record<string, unknown>) {
-  await panel.evaluate((reply) => {
-    const w = window as unknown as { __webhookSubmits?: unknown[]; __webhookTests?: unknown[] };
+type SubmitReply =
+  | { ok: true; result: { key?: string; url?: string } }
+  | { ok: false; error: string; status: number };
+
+async function spySendMessage(panel: Page, submitReply: SubmitReply) {
+  const submits: unknown[] = [];
+  await panel.exposeFunction("__recordWebhookSubmit", (msg: unknown) => submits.push(msg));
+  const install = (reply: SubmitReply) => {
+    const w = window as unknown as { __webhookSubmits?: unknown[]; __webhookTests?: unknown[]; __recordWebhookSubmit: (msg: unknown) => Promise<void> };
     w.__webhookSubmits = [];
     w.__webhookTests = [];
     const orig = chrome.runtime.sendMessage.bind(chrome.runtime);
     chrome.runtime.sendMessage = ((msg: { type?: string }, cb?: (r: unknown) => void) => {
       if (msg?.type === "webhook.submit") {
         (w.__webhookSubmits as unknown[]).push(msg);
-        cb?.(reply);
+        void w.__recordWebhookSubmit(msg).then(() => cb?.(reply));
         return;
       }
       if (msg?.type === "webhook.test") {
@@ -99,7 +200,10 @@ async function spySendMessage(panel: Page, submitReply: Record<string, unknown>)
       }
       return orig(msg as never, cb as never);
     }) as typeof chrome.runtime.sendMessage;
-  }, submitReply);
+  };
+  await panel.addInitScript(install, submitReply);
+  await panel.evaluate(install, submitReply);
+  return submits;
 }
 
 async function openPanelOn(ext: Parameters<Parameters<typeof test>[2]>[0]["ext"]) {
@@ -107,30 +211,35 @@ async function openPanelOn(ext: Parameters<Parameters<typeof test>[2]>[0]["ext"]
   await fixture.goto(ext.fixtureUrl("basic.html"));
   const tabId = await ext.fixtureTabId();
   const panel = await ext.openPanel(tabId);
+  ownedPages.push(panel, fixture);
   return { fixture, panel };
 }
 
-async function cleanup(fixture: Page, panel: Page) {
-  await panel.evaluate((keys) => chrome.storage.local.remove(keys), [SETTINGS_KEY, ISSUES_KEY]);
-  await panel.close();
-  await fixture.close();
-}
-
-async function openSubmitDialog(panel: Page, title: string) {
+async function openSubmitDialog(panel: Page, title: string, attachSource = false) {
   await enterDebug(panel);
   await panel.getByTestId("mode-freeform").click();
   await expect(panel.getByTestId("drafting-panel")).toBeVisible();
   await panel.getByTestId("draft-title").fill(title);
+  if (attachSource) {
+    await panel.getByTestId("attachment-input").setInputFiles({ name: "recovery.txt", mimeType: "text/plain", buffer: Buffer.from(SOURCE_TEXT) });
+    await expect(panel.getByTestId("attachment-item")).toHaveCount(1);
+  }
+  await expect(panel.getByTestId("to-preview")).not.toHaveAttribute("aria-disabled", "true");
   await panel.getByTestId("to-preview").click();
+  await expect.poll(async () => (await savedIssues(panel)).find((i) => i.title === title)?.id).toBeTruthy();
+  const issueId = (await savedIssues(panel)).find((i) => i.title === title)!.id;
+  ownedIssueIds.add(issueId);
+  await expect.poll(async () => (await savedIssues(panel)).map((i) => i.id)).toEqual([issueId]);
   const open = panel.getByTestId("issue-submit-open");
   await expect(open).toBeVisible();
   await open.click();
   await expect(panel.getByTestId("submit-issue-confirm")).toBeVisible();
+  return issueId;
 }
 
 test.describe.serial("Custom Webhook 연결 폼", () => {
   test("연결 테스트가 2xx면 저장되고 다이얼로그가 닫힌다", async ({ ext }) => {
-    const { fixture, panel } = await openPanelOn(ext);
+    const { panel } = await openPanelOn(ext);
     await panel.evaluate((keys) => chrome.storage.local.remove(keys), [SETTINGS_KEY, ISSUES_KEY]);
     await spySendMessage(panel, { ok: true, result: {} });
 
@@ -149,12 +258,10 @@ test.describe.serial("Custom Webhook 연결 폼", () => {
       return raw ? JSON.parse(raw).state?.accounts?.webhook?.auth?.url : null;
     }, SETTINGS_KEY);
     expect(saved).toBe(HOOK_URL);
-
-    await cleanup(fixture, panel);
   });
 
   test("공인망 http는 저장이 거부되고 사유가 뜬다", async ({ ext }) => {
-    const { fixture, panel } = await openPanelOn(ext);
+    const { panel } = await openPanelOn(ext);
 
     await panel.getByTestId("tab-integrations").click();
     await panel.getByTestId("webhook-connect-entry").click();
@@ -168,76 +275,121 @@ test.describe.serial("Custom Webhook 연결 폼", () => {
       return raw ? JSON.parse(raw).state?.accounts?.webhook ?? null : null;
     }, SETTINGS_KEY);
     expect(saved).toBeNull();
-
-    await cleanup(fixture, panel);
   });
 });
 
 test.describe.serial("Custom Webhook 제출", () => {
   test("multipart 성공은 이슈 목록 행을 만든다", async ({ ext }) => {
-    const { fixture, panel } = await openPanelOn(ext);
+    const { panel } = await openPanelOn(ext);
     await seed(panel, envelope({ webhook: webhookAccount() }));
     await spySendMessage(panel, {
       ok: true,
       result: { key: "BUG-1", url: "https://hooks.example.com/r/BUG-1" },
     });
 
-    await openSubmitDialog(panel, "webhook multipart e2e");
+    const issueId = await openSubmitDialog(panel, "webhook multipart e2e", true);
     await expect(panel.getByTestId("webhook-submit-note")).toBeVisible();
     await panel.getByTestId("submit-issue-confirm").click();
 
     await expect
       .poll(() => panel.evaluate(() => (window as unknown as { __webhookSubmits: unknown[] }).__webhookSubmits.length))
       .toBe(1);
+    await expect.poll(async () => {
+      const state = await durableState(panel, issueId);
+      return { status: state.issue?.status, key: state.issue?.key, recoveryId: state.issue?.submissionRecoveryId, journal: state.journal };
+    }).toEqual({ status: "submitted", key: "BUG-1", recoveryId: undefined, journal: null });
     await panel.getByTestId("tab-issue-list").click();
     await panel.getByTestId("filter-submitted").click();
     await expect(panel.getByTestId("issue-row").getByText("webhook multipart e2e")).toBeVisible();
     await expect(panel.getByTestId("webhook-submitted-badge")).toBeVisible();
-
-    await cleanup(fixture, panel);
   });
 
   // json 템플릿은 응답을 읽지 않아 식별자가 없다 — 제출됨 행을 만들면 열 수 없는 링크가
   // 남는다. draft 행 자체는 preview 진입(confirmDraft)이 이미 만들어 뒀고 그대로 보존된다:
   // 수신 서버가 무엇을 했는지 모르는 채 원본을 파괴하지 않는다(Slack 보존과 같은 판단).
   test("json 모드 성공은 제출됨 행을 만들지 않고 draft를 보존한다", async ({ ext }) => {
-    const { fixture, panel } = await openPanelOn(ext);
+    const { panel } = await openPanelOn(ext);
     await seed(panel, envelope({ webhook: webhookAccount("json") }));
-    await spySendMessage(panel, { ok: true, result: {} });
+    const submits = await spySendMessage(panel, { ok: true, result: {} });
 
-    await openSubmitDialog(panel, "webhook json e2e");
+    const issueId = await openSubmitDialog(panel, "webhook json e2e", true);
     await panel.getByTestId("submit-issue-confirm").click();
 
     await expect
       .poll(() => panel.evaluate(() => (window as unknown as { __webhookSubmits: unknown[] }).__webhookSubmits.length))
       .toBe(1);
+    await expect(panel.getByTestId("submit-fields-dialog")).toBeHidden();
+    await expect.poll(async () => {
+      const state = await durableState(panel, issueId);
+      return { status: state.issue?.status, key: state.issue?.key, recoveryId: state.issue?.submissionRecoveryId, journal: state.journal, texts: state.originals.map((f) => f.text) };
+    }).toEqual({ status: "draft", key: undefined, recoveryId: undefined, journal: null, texts: [SOURCE_TEXT] });
     await panel.getByTestId("tab-issue-list").click();
     await panel.getByTestId("filter-draft").click();
     await expect(panel.getByTestId("issue-row").getByText("webhook json e2e")).toBeVisible();
     await expect(panel.getByTestId("webhook-submitted-badge")).toBeHidden();
-
-    await cleanup(fixture, panel);
+    expect(submits).toEqual([expect.objectContaining({ type: "webhook.submit", mode: "json", body: { text: "webhook json e2e" } })]);
+    expect(submits[0]).not.toHaveProperty("files");
   });
 
-  test("제출이 실패하면 draft가 목록에 남는다", async ({ ext }) => {
-    const { fixture, panel } = await openPanelOn(ext);
+  test("HTTP 400 확정 거절은 원본을 보존하고 draft 재제출을 허용한다", async ({ ext }) => {
+    const { panel } = await openPanelOn(ext);
     await seed(panel, envelope({ webhook: webhookAccount() }));
-    await spySendMessage(panel, { ok: false, error: { message: "boom", status: 500 } });
+    const submits = await spySendMessage(panel, { ok: false, error: "rejected", status: 400 });
 
-    await openSubmitDialog(panel, "webhook failure e2e");
-    await panel.getByTestId("submit-issue-confirm").click();
-
-    await expect
-      .poll(() => panel.evaluate(() => (window as unknown as { __webhookSubmits: unknown[] }).__webhookSubmits.length))
-      .toBe(1);
-    await expect(panel.getByTestId("submit-fields-dialog")).toBeVisible();
+    const issueId = await openSubmitDialog(panel, "webhook rejection e2e", true);
+    for (const count of [1, 2]) {
+      await panel.getByTestId("submit-issue-confirm").click();
+      await expect.poll(() => submits.length).toBe(count);
+      await expect(panel.getByTestId("submit-issue-confirm")).toBeEnabled();
+      await expect(panel.getByTestId("submit-fields-dialog")).toBeVisible();
+      await expect.poll(async () => {
+        const state = await durableState(panel, issueId);
+        return { status: state.issue?.status, recoveryId: state.issue?.submissionRecoveryId, journal: state.journal, texts: state.originals.map((f) => f.text) };
+      }).toEqual({ status: "draft", recoveryId: undefined, journal: null, texts: [SOURCE_TEXT] });
+    }
     await panel.keyboard.press("Escape");
     await panel.getByTestId("tab-issue-list").click();
     await panel.getByTestId("filter-draft").click();
-    await expect(panel.getByTestId("issue-row").getByText("webhook failure e2e")).toBeVisible();
+    await expect(panel.getByTestId("issue-row").getByText("webhook rejection e2e")).toBeVisible();
     await expect(panel.getByTestId("webhook-submitted-badge")).toBeHidden();
+  });
 
-    await cleanup(fixture, panel);
+  test("HTTP 500은 unknown journal과 원본을 보존하고 재열기 뒤 중복 생성을 차단한다", async ({ ext }) => {
+    const { panel } = await openPanelOn(ext);
+    await seed(panel, envelope({ webhook: webhookAccount() }));
+    const submits = await spySendMessage(panel, { ok: false, error: "ambiguous", status: 500 });
+
+    const issueId = await openSubmitDialog(panel, "webhook unknown e2e", true);
+    await panel.getByTestId("submit-issue-confirm").click();
+    await expect.poll(() => submits.length).toBe(1);
+    await expect(panel.getByTestId("submit-fields-dialog")).toBeHidden();
+    await expect.poll(async () => (await durableState(panel, issueId)).journal?.phase).toBe("unknown");
+    const before = await durableState(panel, issueId);
+    expect(before.issue?.submissionRecoveryId).toBe(before.journal?.attemptId);
+    expect(before.journal?.destination).toBeUndefined();
+    expect(before.journal?.results).toEqual(before.journal?.files.map((f) => expect.objectContaining({ fileId: f.id, delivery: "unknown" })));
+    expect(before.journal?.files.some((f) => f.kind === "user")).toBe(true);
+    expect(before.sources.length).toBeGreaterThan(0);
+    expect(before.sources.every((f) => f.size > 0)).toBe(true);
+    expect(before.originals.map((f) => f.text)).toEqual([SOURCE_TEXT]);
+
+    await panel.reload();
+    await panel.getByTestId("tab-issue-list").click();
+    await panel.getByTestId("filter-draft").click();
+    await panel.getByTestId("issue-row").getByText("webhook unknown e2e").click();
+    await expect(panel.getByTestId("draft-detail-dialog")).toBeVisible();
+    await panel.getByTestId("detail-submit-open").click();
+    await panel.getByTestId("submit-issue-confirm").click();
+    await expect(panel.locator('[data-sonner-toast][data-type="error"]')).toBeVisible();
+    await expect(panel.getByTestId("submit-issue-confirm")).toBeEnabled();
+    expect(submits).toHaveLength(1);
+    const after = await durableState(panel, issueId);
+    expect(after.journal).toEqual(before.journal);
+    expect(after.sources).toEqual(before.sources);
+    expect(after.originals).toEqual(before.originals);
+    expect(after.issue?.submissionRecoveryId).toBe(before.journal?.attemptId);
+    expect(after.issue?.status).toBe("draft");
+    expect(after.issue?.key).toBeUndefined();
   });
 });
 
@@ -245,7 +397,7 @@ test.describe.serial("Custom Webhook 제출", () => {
 // 여기가 그 첫 픽셀 실측이고, 유닛(jsdom)은 레이아웃이 0이라 원리적으로 못 본다.
 test.describe.serial("제출 탭 줄 — 9개 연결", () => {
   test("그리드를 버리고 가로 스크롤로 전부 도달 가능하다", async ({ ext }) => {
-    const { fixture, panel } = await openPanelOn(ext);
+    const { panel } = await openPanelOn(ext);
     await seed(panel, envelope(allNineAccounts()));
     await spySendMessage(panel, { ok: true, result: { key: "K", url: "https://x/K" } });
 
@@ -270,7 +422,5 @@ test.describe.serial("제출 탭 줄 — 9개 연결", () => {
     await expect(triggers.last()).toHaveAttribute("aria-selected", "true");
     await triggers.first().click();
     await expect(triggers.first()).toHaveAttribute("aria-selected", "true");
-
-    await cleanup(fixture, panel);
   });
 });
