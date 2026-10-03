@@ -1,7 +1,7 @@
 import { readSubmissionRecovery } from "@/store/blob-db";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
-import { CircleAlert, FileText, Trash2, Upload } from "lucide-react";
+import { CircleAlert, FileText, Loader2, RotateCw, Trash2, Upload } from "lucide-react";
 import { useT } from "@/i18n";
 import {
   AlertDialog,
@@ -19,6 +19,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ButtonGroup } from "@/components/ui/button-group";
 import { isSlackPreserved, useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore } from "@/store/settings-store";
+import type { SubmissionRecoveryMeta } from "@/types/attachment";
+import { pendingFileCount, retryUiState } from "@/sidepanel/lib/retryUi";
+import { startAttachmentRetry, useRetrySession } from "@/sidepanel/lib/retrySession";
 import { PlatformChip } from "./statusBadges/PlatformChip";
 import { SubmittedBadge } from "./statusBadges/SubmittedBadge";
 import { canPromoteSlack, formatDate, formatIssueKey, issueTimestamp } from "./issueListUtils";
@@ -45,18 +48,23 @@ export function IssueRow({
   const promotable = canPromoteSlack(issue, accounts);
   const [unknownCreation, setUnknownCreation] = useState(issue.status !== "submitted");
   const [localMissing, setLocalMissing] = useState(false);
+  const [meta, setMeta] = useState<SubmissionRecoveryMeta | null>(null);
+  const session = useRetrySession(issue.id);
+  const retryState = retryUiState(meta, session.stopReason);
   useEffect(() => {
     let cancelled = false;
     setLocalMissing(false);
+    if (!issue.submissionRecoveryId) setMeta(null);
     setUnknownCreation(issue.status !== "submitted");
-    if (issue.submissionRecoveryId) void readSubmissionRecovery(issue.id).then((meta) => {
-      if (!cancelled && meta && meta.attemptId === issue.submissionRecoveryId) {
-        setLocalMissing(!!meta.localFilesRemoved);
-        setUnknownCreation(!meta.destination);
+    if (issue.submissionRecoveryId) void readSubmissionRecovery(issue.id).then((current) => {
+      if (!cancelled && current && current.attemptId === issue.submissionRecoveryId) {
+        setLocalMissing(!!current.localFilesRemoved);
+        setUnknownCreation(!current.destination);
+        setMeta(current);
       }
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [issue, refreshKey]);
+  }, [issue, refreshKey, session.finishedAt]);
   const [hoverSuppressed, setHoverSuppressed] = useState(false);
   const hoverGuard = {
     onMouseEnter: () => setHoverSuppressed(true),
@@ -111,6 +119,7 @@ export function IssueRow({
       {recovering ? (
         <ButtonGroup className="shrink-0" onClick={(e) => e.stopPropagation()} {...hoverGuard}>
           <Button variant="outline" size="icon" className="h-8 w-8" aria-label={t("issueList.viewDetail")} ref={recoveryTrigger} data-testid="recovery-detail-open" onClick={handleCardClick}><FileText /></Button>
+          {retryState.canRetry && <Button variant="outline" size="icon" className="h-8 w-8" aria-label={t(session.running ? "recovery.retrying" : "recovery.retry")} title={t(session.running ? "recovery.retrying" : "recovery.retry")} disabled={session.running} aria-busy={session.running} data-testid="recovery-row-retry" onClick={() => void startAttachmentRetry(issue.id, pendingFileCount(meta))}>{session.running ? <Loader2 className="animate-spin" /> : <RotateCw />}</Button>}
           {isSlackPreserved(issue) && <TooltipProvider><Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon" className="h-8 w-8 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-background aria-disabled:hover:text-foreground" aria-disabled aria-label={t("issueList.promote")} data-testid="promote-issue" onClick={() => {}}><Upload /></Button></TooltipTrigger><TooltipContent>{t("recovery.promotionBlocked")}</TooltipContent></Tooltip></TooltipProvider>}
         </ButtonGroup>
       ) : promotable ? (

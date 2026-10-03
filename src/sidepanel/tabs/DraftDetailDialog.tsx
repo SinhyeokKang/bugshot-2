@@ -1,9 +1,11 @@
 import { AttachmentRecoveryPanel } from "@/sidepanel/components/AttachmentRecoveryPanel";
 import { PageScroll } from "@/sidepanel/components/Section";
+import { pendingFileCount, retryUiState } from "@/sidepanel/lib/retryUi";
+import { startAttachmentRetry, useRetrySession } from "@/sidepanel/lib/retrySession";
 import { loadSubmissionLogs, expectedSubmissionSources, assertSubmissionSources, prepareSubmissionRecovery, runSubmissionRecovery, withSubmissionProgress, MissingSubmissionFilesError, type SubmissionProgress } from "@/sidepanel/lib/submissionRecovery";
 import type { SubmissionFile, SubmissionRecoveryMeta } from "@/types/attachment";
 import { toast } from "sonner";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import type { ActionLog } from "@/types/action";
@@ -11,7 +13,7 @@ import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, getActionLog,
 import type { UserAttachmentMeta } from "@/types/attachment";
 import type { EnvironmentRow } from "@/types/environment";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
-import { Pencil } from "lucide-react";
+import { Loader2, Pencil, RotateCw } from "lucide-react";
 import { useT } from "@/i18n";
 import { resolveBodyLocale } from "@/i18n/locales";
 import { cn } from "@/lib/utils";
@@ -158,13 +160,32 @@ export function DraftDetailDialog(props: {
   const t = useT();
   const { issue, open, onOpenChange } = props;
   const [recoveryMeta, setRecoveryMeta] = useState<SubmissionRecoveryMeta | null>(null);
-  const recoveryUrl = recoveryMeta?.issueId === issue?.id && recoveryMeta?.attemptId === issue?.submissionRecoveryId ? recoveryMeta?.destination?.url : undefined;
+  const currentMeta = recoveryMeta?.issueId === issue?.id && recoveryMeta?.attemptId === issue?.submissionRecoveryId ? recoveryMeta : null;
+  const session = useRetrySession(issue?.id ?? "");
+  const retryState = retryUiState(currentMeta, session.stopReason);
+  const retryButton = useRef<HTMLButtonElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const recoveringId = useRef<string | null>(null);
+  const wasRunning = useRef(false);
+  // A disabled button drops focus; hand it back when the run ends so the keyboard user keeps their place.
+  useEffect(() => {
+    const ended = wasRunning.current && !session.running;
+    wasRunning.current = session.running;
+    if (ended && open && document.activeElement === document.body) (retryButton.current ?? closeButton.current)?.focus();
+  }, [session.running, open]);
+  // A finished retry takes the record out of recovery; this detail then has nothing left to show.
+  useEffect(() => {
+    if (!open) recoveringId.current = null;
+    else if (issue?.submissionRecoveryId) recoveringId.current = issue.id;
+    else if (recoveringId.current && recoveringId.current === issue?.id && issue.status === "submitted") { recoveringId.current = null; onOpenChange(false); }
+  });
   if (issue?.submissionRecoveryId) return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent onCloseAutoFocus={(event) => { event.preventDefault(); props.onRecoveryCloseAutoFocus?.(); }} className="flex max-h-[80vh] w-[90vw] max-w-[800px] flex-col gap-5 rounded-3xl p-6 sm:rounded-3xl" data-testid="draft-detail-dialog" aria-describedby={undefined}>
       <DialogHeader><DialogTitle>{issue.title || t("common.untitled")}</DialogTitle></DialogHeader>
       <PageScroll><AttachmentRecoveryPanel key={issue.submissionRecoveryId} issueId={issue.id} attemptId={issue.submissionRecoveryId} allowManage onMetaLoaded={setRecoveryMeta} onConfirmed={() => onOpenChange(false)} /></PageScroll>
-      <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>{t("common.close")}</Button>
-        {recoveryUrl && <Button asChild><a href={recoveryUrl} target="_blank" rel="noopener noreferrer">{t("recovery.openIssue")}</a></Button>}
+      <DialogFooter><Button variant="outline" ref={closeButton} onClick={() => onOpenChange(false)}>{t("common.close")}</Button>
+        {retryState.showOpenIssue && <Button asChild variant={retryState.canRetry ? "outline" : "default"}><a href={currentMeta?.destination?.url} target="_blank" rel="noopener noreferrer">{t("recovery.openIssue")}</a></Button>}
+        {retryState.canRetry && <Button ref={retryButton} disabled={session.running} aria-busy={session.running} data-testid="recovery-retry" onClick={() => void startAttachmentRetry(issue.id, pendingFileCount(currentMeta))}>{session.running ? <Loader2 className="animate-spin" /> : <RotateCw />}{t(session.running ? "recovery.retrying" : "recovery.retry")}</Button>}
       </DialogFooter>
     </DialogContent>
   </Dialog>;

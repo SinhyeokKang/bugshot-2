@@ -94,7 +94,7 @@ it("completing from the detail closes the detail and still toasts once", async (
     return outcome({ status: "complete", remaining: 0 });
   });
   const dialog = await openDetail();
-  await userEvent.click(within(dialog).getByTestId("recovery-retry"));
+  await userEvent.click(await within(dialog).findByTestId("recovery-retry"));
   await waitFor(() => expect(screen.queryByTestId("draft-detail-dialog")).toBeNull());
   expect(mocks.success).toHaveBeenCalledTimes(1);
   expect(mocks.warning).not.toHaveBeenCalled();
@@ -104,10 +104,10 @@ it("a run-level stop hides the footer retry, keeps download and explains why", a
   await boot();
   mocks.run.mockResolvedValue(outcome({ status: "blocked", reason: "account-changed" }));
   const dialog = await openDetail();
-  await userEvent.click(within(dialog).getByTestId("recovery-retry"));
+  await userEvent.click(await within(dialog).findByTestId("recovery-retry"));
   await waitFor(() => expect(within(dialog).queryByTestId("recovery-retry")).toBeNull());
   expect(within(dialog).getByTestId("recovery-retry-notice").getAttribute("data-reason")).toBe("account-changed");
-  expect(within(dialog).getAllByTestId("recovery-file-download")).toHaveLength(1);
+  expect(await within(dialog).findAllByTestId("recovery-file-row")).toHaveLength(1);
   expect(within(dialog).getByRole("link", { name: "recovery.openIssue" })).toBeTruthy();
 });
 
@@ -115,10 +115,10 @@ it("a missing remote issue also drops the issue link", async () => {
   await boot();
   mocks.run.mockResolvedValue(outcome({ status: "blocked", reason: "remote-missing" }));
   const dialog = await openDetail();
-  await userEvent.click(within(dialog).getByTestId("recovery-retry"));
+  await userEvent.click(await within(dialog).findByTestId("recovery-retry"));
   await waitFor(() => expect(within(dialog).queryByTestId("recovery-retry")).toBeNull());
   expect(within(dialog).queryByRole("link", { name: "recovery.openIssue" })).toBeNull();
-  expect(within(dialog).getAllByTestId("recovery-file-download")).toHaveLength(1);
+  expect(await within(dialog).findAllByTestId("recovery-file-row")).toHaveLength(1);
 });
 
 it("a retry made from the row while the detail is closed toasts the partial result once and keeps no stale status", async () => {
@@ -135,7 +135,7 @@ it("a slot-less legacy record offers download only: no retry in row or detail", 
   await screen.findByTestId("recovery-row-warning");
   expect(screen.queryByTestId("recovery-row-retry")).toBeNull();
   const dialog = await openDetail();
+  expect(await within(dialog).findAllByTestId("recovery-file-row")).toHaveLength(1);
   expect(within(dialog).queryByTestId("recovery-retry")).toBeNull();
   expect(within(dialog).getByTestId("recovery-retry-notice").getAttribute("data-reason")).toBe("legacy");
-  expect(within(dialog).getAllByTestId("recovery-file-download")).toHaveLength(1);
 });
