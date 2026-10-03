@@ -11,12 +11,14 @@
 
 | Batch | Model / effort | Reason | Status |
 |---|---|---|---|
-| B6 retry APIs (Task 9) | Opus / high | eight-provider contracts, account identity, fenced IDB revision invariants | in progress |
+| B6 retry APIs (Task 9) | Opus / high | eight-provider contracts, account identity, fenced IDB revision invariants | handoff ready (`b762b62f`, gates exit 0: 8303 passed); independent Opus review running |
 | B7 retry runner (Task 10) | Opus / high | shared submission lock, no-duplicate stage resume, 3-way body patch | planned (after B6 in dev) |
 | B8 retry UI (Task 11) | Sonnet / high | UI/a11y wiring on a settled runner contract | planned (after B7 in dev) |
 | B9 acceptance (Task 12) | Sonnet / high | phase-2 e2e, docs; coordinator owns docs freshness/runtime | planned (after B8 in dev) |
 
 Serial order B6 → B7 → B8 → B9 (each consumes the previous contract; shared files: blob-db, types/attachment, messages registries, IssueRow/DraftDetailDialog, i18n).
+
+- B6 worker: worktree `attachment-recovery-cc-b6`, terminal B6-opus. Deviations to judge in review: Slack initial submit staged per file (grant→bytes→complete), identity lookup at partial-failure time, checkpoint-save failure disables auto-retry only. Coordinator-owned follow-ups from B6: DIRECTORY.md stale `slack.uploadFiles`, privacy ko/en retention of `lastWritten`/`accountIdentity`/remote locators, 3 POSTMORTEM candidates.
 
 > Historical note: Codex stop (2026-10-04) — see [handoff.md](./handoff.md). Earlier automatic phase-transition instructions are superseded.
 
