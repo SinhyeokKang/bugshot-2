@@ -55,6 +55,11 @@ for (const provider of ["clickup", "asana", "slack"] as const) {
     await submitSaved(panel);
     await expect(panel.getByTestId("submit-success-partial")).toBeVisible();
     expect(creates(calls, provider)).toHaveLength(1);
+    if (provider === "slack") {
+      // Staged upload: the rejected allocation must stop bytes and complete for that file.
+      expect(calls.filter((m) => m.type === "slack.requestFileUpload").length).toBeGreaterThan(0);
+      expect(calls.filter((m) => /^slack\.(sendFileUpload|completeFileUploads)$/.test(m.type))).toEqual([]);
+    }
     await acknowledge(panel);
     if (provider === "slack") {
       const promote = panel.getByTestId("promote-issue");

@@ -633,6 +633,16 @@ describe("retry snapshot storage", () => {
     expect((await db.readSubmissionRecovery("issue"))?.retry?.accountIdentity).toBe('["github","1"]');
   });
 
+  it("refuses an identity once the submission left the created window", async () => {
+    await begin();
+    await expect(db.checkpointAttachmentRetry("issue", "attempt", 0, { accountIdentity: '["github","1"]' })).rejects.toThrow();
+    await created();
+    await db.checkpointSubmission("issue", "attempt", { phase: "partial", results: [] });
+    const before = await db.readSubmissionRecovery("issue");
+    await expect(db.checkpointAttachmentRetry("issue", "attempt", 0, { accountIdentity: '["github","1"]' })).rejects.toThrow();
+    expect(await db.readSubmissionRecovery("issue")).toEqual(before);
+  });
+
   it("rejects stale attempts and never resurrects a deleted journal", async () => {
     await begin();
     await expect(db.checkpointAttachmentRetry("issue", "stale", 0, {})).rejects.toThrow();

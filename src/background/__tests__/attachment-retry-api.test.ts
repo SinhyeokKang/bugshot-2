@@ -76,6 +76,19 @@ describe("existing-issue reads and writes never create", () => {
     await expect(linear.updateIssueDescription(auth.linear, "issue", "desired")).rejects.toMatchObject({ status: 200 });
   });
 
+  it("Linear normalizes an unresolvable issue id on the root lookup to 404", async () => {
+    responses(
+      { data: null, errors: [{ message: "Entity not found: Issue", path: ["issue"], extensions: { type: "invalid input" } }] },
+      { data: { issue: null } },
+      { data: null, errors: [{ message: "slow down", path: ["issue"], extensions: { type: "ratelimited" } }] },
+      { data: null, errors: [{ message: "bad cursor", path: ["issue", "attachments"], extensions: { type: "invalid input" } }] },
+    );
+    await expect(linear.getIssueAttachments(auth.linear, "gone")).rejects.toMatchObject({ status: 404 });
+    await expect(linear.getIssueAttachments(auth.linear, "gone")).rejects.toMatchObject({ status: 404 });
+    await expect(linear.getIssueAttachments(auth.linear, "issue")).rejects.toMatchObject({ status: 200 });
+    await expect(linear.getIssueAttachments(auth.linear, "issue")).rejects.toMatchObject({ status: 200 });
+  });
+
   it("Linear reads the viewer and organization IDs in one query", async () => {
     const fetch = responses({ data: { viewer: { id: "user" }, organization: { id: "org" } } });
     expect(await linear.getViewerIdentity(auth.linear)).toEqual({ userId: "user", organizationId: "org" });
@@ -139,6 +152,18 @@ describe("Notion child blocks under the fixed API version", () => {
     responses({ results: [] }, { results: [{ id: "existing", type: "heading_1" }] });
     await expect(notion.appendBlockChildren(auth.notion, "page", [{ type: "paragraph" }])).rejects.toThrow();
     await expect(notion.appendBlockChildren(auth.notion, "page", [{ type: "paragraph" }])).rejects.toThrow();
+  });
+
+  it("normalizes an append rejected because the target is archived to 404", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ object: "error", status: 400, code: "validation_error", message: "archived" }), { status: 400 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ object: "block", id: "page", archived: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ object: "error", status: 400, code: "validation_error", message: "bad children" }), { status: 400 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ object: "block", id: "page", archived: false, in_trash: false }), { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(notion.appendBlockChildren(auth.notion, "page", [{ type: "paragraph" }])).rejects.toMatchObject({ status: 404 });
+    await expect(notion.appendBlockChildren(auth.notion, "page", [{ type: "paragraph" }])).rejects.toMatchObject({ status: 400 });
+    expect(methods(fetch)).toEqual(["PATCH", "GET", "PATCH", "GET"]);
   });
 
   it("deletes a single block", async () => {

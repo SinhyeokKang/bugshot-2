@@ -247,6 +247,23 @@ describe("Slack staged uploads", () => {
     expect(result.attachments?.map((r) => r.delivery)).toEqual(["failed", "failed"]);
   });
 
+  it("drops the discarded Slack file id when the bytes upload fails", async () => {
+    const base = handlers(() => ({ ok: true }));
+    rpc({ ...base, "slack.sendFileUpload": (msg: any) => { if (msg.fileId === "user:a") throw Object.assign(new Error("413"), { status: 413 }); return { ok: true }; } });
+    await submit();
+    const final = checkpoints.filter((c) => c.fileId === "user:a").at(-1)!;
+    expect(final).toMatchObject({ upload: "failed" });
+    expect("uploaded" in final && final.uploaded === undefined).toBe(true);
+    expect(last(user.id).uploaded).toBeUndefined();
+  });
+
+  it("rejects a non-base64 data URL before allocating", async () => {
+    rpc(handlers(() => ({ ok: true })));
+    await submitToSlack({ ctx, channelId: "C", attachments: [{ filename: "a.pdf", dataUrl: "x" }], submissionFiles: [{ ...user, dataUrl: "data:text/plain,abc" }], progress });
+    expect(events).not.toContain("send:slack.requestFileUpload");
+    expect(last(user.id)).toMatchObject({ upload: "failed" });
+  });
+
   it("excludes a file whose allocation failed from bytes and complete", async () => {
     const base = handlers(() => ({ ok: true }));
     rpc({ ...base, "slack.requestFileUpload": (msg: any) => { if (msg.fileId === "user:a") throw Object.assign(new Error("denied"), { status: 200 }); return base["slack.requestFileUpload"](msg); } });
