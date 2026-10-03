@@ -27,4 +27,6 @@ Re-fetches the current status of a submitted issue from the platform (open, clos
 
 ## Delete all
 
-Clears every issue in the list at once. Only the drafts and records stored locally are deleted — issues already filed on the platform stay put, so no need to worry.
+Clears every issue in the list at once. Local drafts, records, and their associated recovery data are cleaned up — issues already filed on the platform stay put, so no need to worry.
+
+If attachment delivery or a later submission step is incomplete, or issue creation cannot be confirmed, the files needed for recovery stay in your browser. They expire 30 days after the submission attempt and are cleaned up when you next open the side panel after expiry. Deleting the issue record also removes its recovery record. A file shared with another draft may remain for that draft.
