@@ -101,13 +101,13 @@
   - `recovery-retry`(2단계), `recovery-retry-status`(live region) — e2e 11~15
 - **검증**:
   - [ ] 확인·닫기·패널 재시작 후 표시/파일이 남고 다운로드 바이트가 같다.
-  - [ ] 파일 유실·만료면 성공 토스트 없이 로컬 파일 없음 표시. Notion 로그는 ZIP 다운로드 가능.
-  - [ ] 다운로드만으로 상태가 완료로 바뀌지 않는다. 로컬 사본 삭제 후 표시·사본이 정리되고 원격 호출은 0회.
-  - [ ] 등록되지 않았음 확인 → AlertDialog 확인 후 draft로 돌아가고, 취소하면 상태 불변.
-  - [ ] 이슈 삭제/전체 삭제에 journal 정리가 포함된다. Slack 원본 보존·승격과 일반 복구 상태가 섞이지 않는다.
-  - [ ] 정상 제출·Webhook JSON UI는 기존 동작 유지. 복구 상세는 계정 해제 후에도 열린다.
-  - [ ] 기존 `DraftDetailDialog`의 draft·Slack 보존 상세 동작이 유지된다.
-  - [ ] partial 레코드는 `IssueStatus = "submitted"` + `submissionRecoveryId`로 표현되고 `filter-submitted`에 보이며 `filter-draft`에는 없다. 승격 버튼(`promote-issue`)은 미완료 첨부가 있으면 비활성.
+  - [x] 파일 유실·만료면 성공 토스트 없이 로컬 파일 없음 표시. Notion 로그는 ZIP 다운로드 가능.
+  - [x] 다운로드만으로 상태가 완료로 바뀌지 않는다. 등록이 확인된 항목의 명시적 로컬 사본 삭제 후 표시·사본이 정리되고 원격 호출은 0회. unknown은 파일 삭제 후에도 생성 차단을 유지하며, 자동 만료는 로컬 파일 없음 표시를 남긴다.
+  - [x] 등록되지 않았음 확인 → AlertDialog 확인 후 draft로 돌아가고, 취소하면 상태 불변.
+  - [x] 이슈 삭제/전체 삭제에 journal 정리가 포함된다. Slack 원본 보존·승격과 일반 복구 상태가 섞이지 않는다.
+  - [x] 정상 제출·Webhook JSON UI는 기존 동작 유지. 복구 상세는 계정 해제 후에도 열린다.
+  - [x] 기존 `DraftDetailDialog`의 draft·Slack 보존 상세 동작이 유지된다.
+  - [x] partial 레코드는 `IssueStatus = "submitted"` + `submissionRecoveryId`로 표현되고 `filter-submitted`에 보이며 `filter-draft`에는 없다. 승격 버튼(`promote-issue`)은 미완료 첨부가 있으면 비활성.
   - [ ] 키보드 접근(행 버튼 `aria-label`, Dialog 포커스)·색+아이콘+텍스트 병기.
 
 ### Task 8: 1단계 통합 검증과 문서 [1단계]

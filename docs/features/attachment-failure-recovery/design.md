@@ -239,7 +239,7 @@ creating 중 응답 유실 또는 종료는 unknown이다. 서버가 명시적�
 
 - 제출된 이슈용 상세는 지금 없다. 새 화면을 만들지 않고 `DraftDetailDialog`를 **읽기 전용 복구 모드**로 재사용한다. 편집 컨트롤은 숨기고 `AttachmentRecoveryPanel` 섹션, 남은 보존 기간(“N일 후 로컬 사본이 자동 삭제돼요”), 푸터 [이슈 열기][첨부 재시도]를 붙인다. 복구 레코드를 editable draft로 취급하지 않는다. 코드로 열 때는 `blurActiveElement()`를 먼저 호출한다.
 - `AttachmentRecoveryPanel`은 파일명·종류·단계·현지화된 이유·재시도 진행·다운로드를 표시한다. 파일명은 `truncate` + `title={filename}`, 사유 줄은 `break-words`로 줄바꿈한다. 미완료 파일을 먼저 정렬하고 완료 파일은 “완료 n개”로 접는다. 패널은 Dialog 본문 스크롤을 따르고 내부 스크롤을 중첩하지 않는다. 파일별 상태는 lucide `h-4 w-4` 아이콘 + 텍스트를 함께 쓴다. 패널 안 텍스트 버튼은 `size="sm"`. raw API body, 개발용 마커, 내부 attemptId는 노출하지 않는다.
-- **로컬 사본 삭제**: 기존 `AlertDialog` 패턴으로 확인을 받는다. 본문: “원격 이슈는 그대로 남고, 이 파일들은 다시 첨부할 수 없어요.” 원격 상태는 수정하지 않는다. Slack의 기존 `slackPreserved` 원본은 이 동작으로 지우지 않는다. 이슈 삭제는 기존 원본과 복구 자료 모두 지운다.
+- **로컬 사본 삭제**: 기존 `AlertDialog` 패턴으로 확인을 받는다. 본문: “원격 이슈는 그대로 남고, 이 파일들은 다시 첨부할 수 없어요.” 원격 상태는 수정하지 않는다. Slack의 기존 `slackPreserved` 원본은 이 동작으로 지우지 않는다. 이슈 삭제는 기존 원본과 복구 자료 모두 지운다. known-created partial은 submitted 목적지를 먼저 영속한 뒤 복구 journal·포인터를 정리한다. unknown은 파일을 지워도 journal·포인터와 생성 차단을 남기며, 자동 만료도 명시적 포기로 취급하지 않는다. complete-but-retained는 로컬 완료 처리 실패를 안내하고 partial/unknown 전용 삭제를 노출하지 않는다.
 - **등록되지 않았음 확인**(미확인 상태 전용): 상세 푸터의 보조 버튼. AlertDialog 문구: “목적지에서 이슈가 없는 걸 확인했나요? 실제로 등록됐다면 같은 이슈가 두 번 만들어집니다.” 확인 시 draft로 되돌린다.
 - 재시도 완료 피드백: 끝나면 `role="status" aria-live="polite"` 영역에 요약 한 줄만 읽는다(파일마다 읽지 않음). 상세가 열려 있으면 패널을 갱신하고, 다른 화면에서 끝나면 `toast.success`(“첨부 3개 완료”) 또는 경고 토스트(“다시 2개 실패”)를 하나 띄운다.
 
