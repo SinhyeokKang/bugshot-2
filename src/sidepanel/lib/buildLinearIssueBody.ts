@@ -19,6 +19,7 @@ export interface LinearMediaInput {
 }
 
 export interface LinearBuildInput {
+  logsUrl?: string;
   ctx: MarkdownContext;
   images?: LinearMediaInput[];
   video?: LinearMediaInput;
@@ -113,7 +114,7 @@ function buildLinearIssueBodyInner(
       }
     }
 
-    emitMarkdownLogSummary(lines, ctx);
+    emitMarkdownLogSummary(lines, ctx, input.logsUrl);
   };
 
   for (const block of bodyBlocks(ctx.sectionConfig)) {

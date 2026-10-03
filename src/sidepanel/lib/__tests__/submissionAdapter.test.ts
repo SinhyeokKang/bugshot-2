@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { bindSubmissionFiles, deliveryResults } from "../submissionAdapter";
+import { describe, expect, it, vi } from "vitest";
+import { bindSubmissionFiles, deliveryResults, submitCreation } from "../submissionAdapter";
 import type { SubmissionFile } from "@/types/attachment";
 
 const files: SubmissionFile[] = [
@@ -23,4 +23,39 @@ describe("prepared adapter files", () => {
     const result = deliveryResults(files, [{ fileId: "user:u", ok: true, href: "https://host/u" }, { fileId: "logs", ok: true, href: "https://host/l" }, { fileId: "logs", ok: true, href: "https://host/l" }]);
     expect(result.map((r) => r.delivery)).toEqual(["unknown", "unknown", "attached"]);
   });
+});
+
+describe("creation rejection classification", () => {
+  it("only treats definite client rejection as safe to resubmit", async () => {
+    const { submitCreation } = await import("../submissionAdapter");
+    for (const status of [400, 401, 403, 404, 413, 422, 429]) {
+      await expect(submitCreation(undefined, async () => { throw Object.assign(new Error("private raw body"), { status }); })).rejects.toMatchObject({ name: "SubmissionCreationRejectedError" });
+    }
+    for (const status of [408, 500, 502, 504, undefined]) {
+      const error = Object.assign(new Error("ambiguous"), { status });
+      await expect(submitCreation(undefined, async () => { throw error; })).rejects.toBe(error);
+    }
+  });
+});
+
+it.each(["channel_not_found", "invalid_auth", "not_in_channel", "ratelimited"])("classifies positive Slack %s creation rejection across RPC", async (code) => {
+  const { postMessage } = await import("@/background/slack-api");
+  const { serializePlatformError } = await import("@/background/platformErrors");
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false, error: code }), { status: 200 })));
+  await expect(submitCreation(undefined, async () => {
+    try { return await postMessage({ accessToken: "dummy" } as never, { channelId: "C", text: "title" }); }
+    catch (e) { throw Object.assign(new Error("RPC error"), serializePlatformError(e)); }
+  })).rejects.toMatchObject({ name: "SubmissionCreationRejectedError" });
+  vi.unstubAllGlobals();
+});
+
+it.each([{ ok: false, error: "unknown_error" }, { error: "channel_not_found" }, {}])("keeps malformed or unknown Slack replies ambiguous: %j", async (body) => {
+  const { postMessage } = await import("@/background/slack-api");
+  const { serializePlatformError } = await import("@/background/platformErrors");
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })));
+  await expect(submitCreation(undefined, async () => {
+    try { return await postMessage({ accessToken: "dummy" } as never, { channelId: "C", text: "title" }); }
+    catch (e) { throw Object.assign(new Error("RPC error"), serializePlatformError(e)); }
+  })).rejects.not.toMatchObject({ name: "SubmissionCreationRejectedError" });
+  vi.unstubAllGlobals();
 });

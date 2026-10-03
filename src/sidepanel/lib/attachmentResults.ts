@@ -1,4 +1,4 @@
-import type { AttachmentFailureCode, AttachmentResult, SubmissionFile } from "@/types/attachment";
+import type { AttachmentResult, SubmissionFile } from "@/types/attachment";
 
 export type AttachmentEvidence = AttachmentResult & { locator?: string };
 
@@ -17,16 +17,7 @@ export function reconcileAttachmentResults(
   });
 }
 
-export function attachmentFailureCode(error: { httpStatus?: number; message?: string }): AttachmentFailureCode {
-  switch (error.httpStatus) {
-    case 401: return "authentication";
-    case 403: return "permission";
-    case 413: return "size-limit";
-    case 429: return "rate-limit";
-    case 408: case 504: return "timeout";
-    default: return "unknown";
-  }
-}
+export { attachmentFailureCode } from "@/lib/attachment-failure";
 
 export function submissionPresentation(creation: "created" | "unknown", results: readonly AttachmentResult[]) {
   const screen = creation === "unknown" ? "unknown"

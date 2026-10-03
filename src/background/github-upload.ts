@@ -1,6 +1,8 @@
+import { safeAttachmentFailure } from "@/lib/attachment-failure";
 import type { UploadFileResult } from "@/types/messages";
 
 export interface GithubUploadFileEntry {
+  fileId?: string;
   filename: string;
   contentType: string;
   dataUrl: string;
@@ -42,7 +44,7 @@ async function ensureGithubTab(owner: string, repo: string): Promise<{ tabId: nu
 }
 
 interface PageUploadResult {
-  files: Array<{ filename: string; href: string | null }>;
+  files: Array<{ fileId?: string; status?: number; name?: string; filename: string; href: string | null }>;
   debug: string[];
 }
 
@@ -51,15 +53,15 @@ interface PageUploadResult {
 // world — module-scope references won't survive the boundary.
 async function pageBatchUploadFn(
   repoId: number,
-  files: Array<{ filename: string; contentType: string; dataUrl: string }>,
+  files: Array<{ fileId?: string; filename: string; contentType: string; dataUrl: string }>,
 ): Promise<PageUploadResult> {
   async function uploadOne(
-    file: { filename: string; contentType: string; dataUrl: string },
-  ): Promise<{ filename: string; href: string | null; debug: string[] }> {
+    file: { fileId?: string; filename: string; contentType: string; dataUrl: string },
+  ): Promise<{ fileId?: string; status?: number; name?: string; filename: string; href: string | null; debug: string[] }> {
     const debug: string[] = [];
     try {
       const idx = file.dataUrl.indexOf(";base64,");
-      if (idx < 0) { debug.push(`${file.filename}: invalid dataUrl`); return { filename: file.filename, href: null, debug }; }
+      if (idx < 0) { debug.push(`${file.filename}: invalid dataUrl`); return { ...(file.fileId ? { fileId: file.fileId } : {}), filename: file.filename, href: null, debug }; }
       const binary = atob(file.dataUrl.slice(idx + ";base64,".length));
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -83,7 +85,7 @@ async function pageBatchUploadFn(
       if (!policyRes.ok) {
         const body = await policyRes.text().catch(() => "");
         debug.push(`${file.filename}: policy ${policyRes.status} ${body.substring(0, 200)}`);
-        return { filename: file.filename, href: null, debug };
+        return { ...(file.fileId ? { fileId: file.fileId } : {}), filename: file.filename, href: null, status: policyRes.status, debug };
       }
       const policy = await policyRes.json();
       debug.push(`${file.filename}: policy ok, upload_url=${policy.upload_url?.substring(0, 80)}`);
@@ -101,7 +103,7 @@ async function pageBatchUploadFn(
       });
       if (!s3Res.ok) {
         debug.push(`${file.filename}: s3 ${s3Res.status}`);
-        return { filename: file.filename, href: null, debug };
+        return { ...(file.fileId ? { fileId: file.fileId } : {}), filename: file.filename, href: null, status: s3Res.status, debug };
       }
       debug.push(`${file.filename}: s3 ok (${s3Res.status})`);
 
@@ -116,19 +118,20 @@ async function pageBatchUploadFn(
       });
       if (!finalRes.ok) {
         debug.push(`${file.filename}: finalize ${finalRes.status}`);
-        return { filename: file.filename, href: null, debug };
+        return { ...(file.fileId ? { fileId: file.fileId } : {}), filename: file.filename, href: null, status: finalRes.status, debug };
       }
       debug.push(`${file.filename}: success href=${policy.asset.href}`);
-      return { filename: file.filename, href: policy.asset.href as string, debug };
+      return { ...(file.fileId ? { fileId: file.fileId } : {}), filename: file.filename, href: policy.asset.href as string, debug };
     } catch (e) {
       debug.push(`${file.filename}: exception ${e}`);
-      return { filename: file.filename, href: null, debug };
+      const name = e instanceof Error && ["TypeError", "AbortError", "TimeoutError"].includes(e.name) ? e.name : undefined;
+      return { name, ...(file.fileId ? { fileId: file.fileId } : {}), filename: file.filename, href: null, debug };
     }
   }
 
   const settled = await Promise.all(files.map((f) => uploadOne(f)));
   return {
-    files: settled.map((r) => ({ filename: r.filename, href: r.href })),
+    files: settled.map((r) => ({ ...(r.fileId ? { fileId: r.fileId } : {}), filename: r.filename, href: r.href, ...(r.status ? { status: r.status } : {}), ...(r.name ? { name: r.name } : {}) })),
     debug: settled.flatMap((r) => r.debug),
   };
 }
@@ -142,8 +145,8 @@ export async function uploadGithubFiles(
   if (files.length === 0) return [];
   // 페이지 주입 함수는 MAIN world라 self-contained여야 하므로 내부 형태({href: null})는
   // 그대로 두고, 경계에서만 판별자 union으로 정규화한다.
-  const allFailed = (): UploadFileResult[] =>
-    files.map((f) => ({ ok: false, filename: f.filename }));
+  const allFailed = (error?: unknown): UploadFileResult[] =>
+    files.map((f) => ({ ok: false, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, failure: safeAttachmentFailure(error) }));
 
   let tabId: number;
   let created = false;
@@ -154,7 +157,7 @@ export async function uploadGithubFiles(
     created = tab.created;
   } catch (err) {
     console.warn("[bugshot] github tab not available", err);
-    return allFailed();
+    return allFailed(err);
   }
 
   try {
@@ -171,12 +174,12 @@ export async function uploadGithubFiles(
     if (!pageResult) return allFailed();
     return pageResult.files.map((f) =>
       f.href
-        ? { ok: true as const, filename: f.filename, href: f.href }
-        : { ok: false as const, filename: f.filename },
+        ? { ok: true as const, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, href: f.href }
+        : { ok: false as const, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, failure: safeAttachmentFailure(f) },
     );
   } catch (err) {
     console.warn("[bugshot] github upload script injection failed", err);
-    return allFailed();
+    return allFailed(err);
   } finally {
     if (created) chrome.tabs.remove(tabId).catch(() => {});
   }

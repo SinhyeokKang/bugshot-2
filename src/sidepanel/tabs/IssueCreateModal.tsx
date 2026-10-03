@@ -1,4 +1,4 @@
-import { loadSubmissionLogs, assertSubmissionAdaptersReady, expectedSubmissionSources, assertSubmissionSources, prepareSubmissionRecovery, runSubmissionRecovery, withSubmissionProgress, MissingSubmissionFilesError, type SubmissionProgress } from "@/sidepanel/lib/submissionRecovery";
+import { loadSubmissionLogs, expectedSubmissionSources, assertSubmissionSources, prepareSubmissionRecovery, runSubmissionRecovery, withSubmissionProgress, MissingSubmissionFilesError, type SubmissionProgress } from "@/sidepanel/lib/submissionRecovery";
 import type { SubmissionFile } from "@/types/attachment";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -530,7 +530,6 @@ export function IssueCreateModal() {
     await loadSubmissionLogs({ ...record, logsAttached: useEditorStore.getState().logsAttach }, transmitFiles);
     const inlineImages = transmitFiles ? await resolveInlineImagesForSections(ctx.sections, sectionConfig) : [];
     const captureFiles = transmitFiles ? await buildEditorCaptureFiles(ctx) : { images: [], logs: [], attachments: [] };
-    assertSubmissionAdaptersReady();
     const prepared = await prepareSubmissionRecovery({ issue: record, platform: submitPlatform, files: [
       ...sources,
       ...captureFiles.logs.map((f) => ({ id: "logs", kind: "logs" as const, filename: f.filename, contentType: "text/html", blob: dataUrlToBlob(f.dataUrl) })),

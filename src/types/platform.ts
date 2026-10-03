@@ -116,6 +116,7 @@ export interface NotionLastSubmitFields {
 
 export interface NormalizedSubmitResult {
   recorded?: boolean;
+  submissionFailure?: AttachmentResult["failure"];
   recovery?: { state: "partial" | "unknown"; storageFailed?: boolean; issueId: string; attemptId: string };
   // Optional only while existing adapters migrate to per-file results.
   attachments?: AttachmentResult[];

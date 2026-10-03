@@ -512,7 +512,7 @@ describe("uploadFiles — external upload 3단", () => {
 
     const results = await uploadFiles(auth, "C1", "1.1", [file()]);
 
-    expect(results).toEqual([{ filename: "shot.png", ok: false }]);
+    expect(results).toEqual([{ filename: "shot.png", ok: false, failure: { stage: "upload", code: "size-limit", httpStatus: 413 } }]);
     expect(mf.fn.mock.calls.length).toBe(2);
   });
 
@@ -529,9 +529,9 @@ describe("uploadFiles — external upload 3단", () => {
       },
     ]);
 
-    const results = await uploadFiles(auth, "C1", "1.1", [file()]);
+    const results = await uploadFiles(auth, "C1", "1.1", [{ ...file(), fileId: "capture:screenshot" }]);
 
-    expect(results).toEqual([{ filename: "shot.png", ok: false }]);
+    expect(results).toEqual([{ fileId: "capture:screenshot", remoteFileId: "F1", filename: "shot.png", ok: false, failure: { stage: "link", code: "permission", httpStatus: 200 } }]);
   });
 
   it("일부 파일만 실패하면 성공분만 complete에 싣는다", async () => {
@@ -553,10 +553,17 @@ describe("uploadFiles — external upload 3단", () => {
     ]);
 
     expect(results).toEqual([
-      { filename: "bad.png", ok: false },
+      { filename: "bad.png", ok: false, failure: { stage: "upload", code: "authentication", httpStatus: 200 } },
       { filename: "good.png", ok: true },
     ]);
     const last = mf.fn.mock.calls.length - 1;
     expect(paramsAt(last).get("files")).toBe('[{"id":"F2","title":"good.png"}]');
   });
+});
+
+it.each([413, 401, 403, 429, 504])("Slack raw byte HTTP %s retains safe upload metadata", async (status) => {
+  mf = mockFetchOnce([{ body: { ok: true, upload_url: "https://upload.example/bytes", file_id: "F1" } }, { status, body: { secret: "private response" } }]);
+  const results = await uploadFiles(auth, "C", "1.2", [{ fileId: "logs", filename: "logs.html", blob: new Blob(["logs"]) }]);
+  expect(results[0]).toMatchObject({ fileId: "logs", ok: false, failure: { stage: "upload", httpStatus: status } });
+  expect(JSON.stringify(results)).not.toContain("private");
 });

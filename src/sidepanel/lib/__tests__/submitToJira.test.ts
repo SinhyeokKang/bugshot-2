@@ -45,8 +45,7 @@ beforeEach(() => {
 });
 
 function attachmentFilenames(): string[] {
-  const arg = sendBg.mock.calls[0][0] as { attachments: { filename: string }[] };
-  return arg.attachments.map((a) => a.filename);
+  return sendBg.mock.calls.filter(([m]) => m.type === "jira.uploadAttachment").map(([m]) => m.attachment.filename);
 }
 
 describe("submitToJira", () => {
@@ -75,14 +74,13 @@ describe("submitToJira", () => {
     expect(res).toEqual({
       key: "BUG-1",
       url: RESULT.url,
-      logsDropped: true,
-      mediaDropped: false,
+
     });
   });
 
   // background가 센 신호가 이 경계에서 떨어지면 토스트가 Jira에서만 영영 안 뜬다 —
   // 이 매핑은 손으로 필드를 나열하는 형태라 타입이 누락을 안 잡는다(전부 optional).
-  it("background가 올린 mediaDropped를 그대로 싣는다", async () => {
+  it("does not trust legacy drop flags in the create response", async () => {
     sendBg.mockResolvedValue({ ...RESULT, logsDropped: false, mediaDropped: true });
     const res = await submitToJira({
       ctx: makeCtx(),
@@ -90,7 +88,7 @@ describe("submitToJira", () => {
       summary: "s",
       issueTypeId: "1",
     });
-    expect(res.mediaDropped).toBe(true);
+    expect(res.mediaDropped).toBeUndefined();
   });
 
   it("images/video/logs 순서로 첨부 조립", async () => {
@@ -126,5 +124,21 @@ describe("submitToJira", () => {
       attachments: [{ filename: "raw.bin", dataUrl: "data:X", displayName: "이름.png" }],
     });
     expect(attachmentFilenames()).toContain("이름.png");
+  });
+});
+
+describe("Jira submission message budget", () => {
+  it("sends a 120-second recording and embedded logs in separate one-file messages", async () => {
+    const video = { filename: "recording.mp4", dataUrl: `data:video/mp4;base64,${"A".repeat(20_000_000)}` };
+    const logs = { filename: "logs.html", dataUrl: `data:text/html;base64,${"A".repeat(27_000_000)}` };
+    await submitToJira({ ctx: { ...makeCtx(), captureMode: "video" }, projectKey: "P", summary: "Title", issueTypeId: "1", video, logs: [logs] });
+    const requests = sendBg.mock.calls.map(([m]) => m);
+    const uploads = requests.filter((m) => m.type === "jira.uploadAttachment");
+    expect(uploads).toHaveLength(2);
+    expect(uploads.map((m) => m.attachment.filename)).toEqual(["recording.mp4", "logs.html"]);
+    for (const request of requests) {
+      expect(JSON.stringify(request).length).toBeLessThan(64 * 1024 * 1024);
+      expect(request).not.toHaveProperty("attachments");
+    }
   });
 });

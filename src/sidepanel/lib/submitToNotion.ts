@@ -1,3 +1,5 @@
+import { safeAttachmentFailure } from "@/lib/attachment-failure";
+import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
 import { buildNotionIssueBody } from "./buildNotionIssueBody";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { type InlineImageInput } from "./resolveInlineImages";
@@ -13,13 +15,15 @@ import type { NormalizedSubmitResult } from "@/types/platform";
 import { inlinePlaceholderId, inlineUploadFilename } from "@/lib/inline-ref";
 
 export interface NotionFileInput {
+  fileId?: string;
+  contentType?: string;
   filename: string;
   dataUrl: string;
   // 사용자 첨부: file block 표시명(원본). 업로드 filename은 고유.
   displayName?: string;
 }
 
-export interface NotionSubmitInput {
+export interface NotionSubmitInput extends SubmissionAdapterInput {
   ctx: MarkdownContext;
   images?: NotionFileInput[];
   video?: NotionFileInput;
@@ -39,25 +43,28 @@ export interface NotionSubmitInput {
 export async function submitToNotion(
   input: NotionSubmitInput,
 ): Promise<NormalizedSubmitResult> {
+  input = bindSubmissionFiles(input);
   const inlineImages = input.inlineImages ?? [];
 
   // 1. inline image 업로드
-  const inlineUploaded: { refId: string; fileUploadId: string }[] = [];
+  const inlineUploaded: { fileId?: string; refId: string; fileUploadId: string }[] = [];
   for (const img of inlineImages) {
     const res = await sendBg<NotionFileUploadResult>({
       type: "notion.uploadFile",
-      filename: inlineUploadFilename(img.refId),
-      contentType: "image/webp",
+      fileId: img.fileId,
+      filename: img.filename ?? inlineUploadFilename(img.refId),
+      contentType: img.contentType ?? "image/webp",
       dataUrl: img.dataUrl,
     });
-    inlineUploaded.push({ refId: img.refId, fileUploadId: res.fileUploadId });
+    if (img.fileId && res.fileId !== img.fileId) throw new Error("Invalid upload response");
+    inlineUploaded.push({ fileId: img.fileId, refId: img.refId, fileUploadId: res.fileUploadId });
   }
 
   // 2. blocks 빌드 — logs.html은 Notion이 text/html을 403으로 거부해서 .zip으로 래핑.
   const mappedLogs = input.logs
     ? await Promise.all(
         input.logs.map(async (f) => {
-          if (guessUploadMime(f.filename) === "text/html") {
+          if (!input.submissionFiles && guessUploadMime(f.filename) === "text/html") {
             const z = await zipLogsHtml(f.filename, f.dataUrl);
             return {
               filename: z.filename,
@@ -67,8 +74,9 @@ export async function submitToNotion(
             };
           }
           return {
+            fileId: f.fileId,
             filename: f.filename,
-            contentType: guessUploadMime(f.filename),
+            contentType: f.contentType ?? guessUploadMime(f.filename),
             dataUrl: f.dataUrl,
             category: "log" as const,
           };
@@ -78,14 +86,16 @@ export async function submitToNotion(
   const { blocks, attachments } = buildNotionIssueBody({
     ctx: input.ctx,
     images: input.images?.map((f) => ({
+      fileId: f.fileId,
       filename: f.filename,
-      contentType: guessUploadMime(f.filename),
+      contentType: f.contentType ?? guessUploadMime(f.filename),
       dataUrl: f.dataUrl,
     })),
     video: input.video
       ? {
+          fileId: input.video.fileId,
           filename: input.video.filename,
-          contentType: guessUploadMime(input.video.filename),
+          contentType: input.video.contentType ?? guessUploadMime(input.video.filename),
           dataUrl: input.video.dataUrl,
         }
       : undefined,
@@ -93,8 +103,9 @@ export async function submitToNotion(
     userAttachments: input.attachments?.map((f) => {
       const name = f.displayName ?? f.filename;
       return {
+        fileId: f.fileId,
         filename: name,
-        contentType: guessUploadMime(name),
+        contentType: f.contentType ?? guessUploadMime(name),
         dataUrl: f.dataUrl,
         category: "other" as const,
       };
@@ -104,17 +115,21 @@ export async function submitToNotion(
   });
 
   // 3. 일반 첨부 업로드 — 직렬 (Notion rate limit 보호)
-  const uploaded: { placeholderId: string; fileUploadId: string; filename: string; category: typeof attachments[number]["category"] }[] = [];
+  const uploaded: { fileId?: string; placeholderId: string; fileUploadId: string; filename: string; category: typeof attachments[number]["category"] }[] = [];
+  const failures: import("./submissionAdapter").DeliveryResponse[] = [];
   let logsDropped = false;
   for (const a of attachments) {
     try {
       const res = await sendBg<NotionFileUploadResult>({
         type: "notion.uploadFile",
+        fileId: a.fileId,
         filename: a.filename,
         contentType: a.contentType,
         dataUrl: a.dataUrl,
       });
+      if (!res.fileUploadId || (a.fileId && res.fileId !== a.fileId)) throw new Error("Invalid upload response");
       uploaded.push({
+        fileId: a.fileId,
         placeholderId: a.placeholderId,
         fileUploadId: res.fileUploadId,
         filename: a.filename,
@@ -125,7 +140,8 @@ export async function submitToNotion(
       // image/video는 본문 핵심이라 strict 유지(전체 실패). 승격(requireMediaUpload)이면
       // 사용자 첨부(other)도 strict — 원본 파괴 전에 중단. 로그는 승격에서도 best-effort.
       if (a.category === "log" || (a.category === "other" && !input.requireMediaUpload)) {
-        logsDropped = true;
+        if (a.category === "log") logsDropped = true;
+        failures.push({ fileId: a.fileId, ok: false, failure: safeAttachmentFailure(err) });
         continue;
       }
       throw err;
@@ -135,6 +151,7 @@ export async function submitToNotion(
   // 4. inline uploads를 uploaded 배열에 추가
   for (const iu of inlineUploaded) {
     uploaded.push({
+      fileId: iu.fileId,
       placeholderId: inlinePlaceholderId(iu.refId),
       fileUploadId: iu.fileUploadId,
       filename: inlineUploadFilename(iu.refId),
@@ -142,7 +159,7 @@ export async function submitToNotion(
     });
   }
 
-  const result = await sendBg<NotionCreatePageResult>({
+  const result = await submitCreation(input.progress, () => sendBg<NotionCreatePageResult>({
     type: "notion.submitPage",
     payload: {
       bodyLocale: input.ctx.bodyLocale,
@@ -154,8 +171,9 @@ export async function submitToNotion(
       blocks,
       attachments: uploaded,
     },
-  });
+  }));
+  await input.progress?.created({ platform: "notion", key: result.pageId.replace(/-/g, "").slice(0, 8), url: result.url, locator: { pageId: result.pageId } });
 
   const shortKey = result.pageId.replace(/-/g, "").slice(0, 8);
-  return { key: shortKey, url: result.url, logsDropped };
+  return { key: shortKey, url: result.url, logsDropped, ...(input.submissionFiles ? { attachments: deliveryResults(input.submissionFiles, [...failures, ...(result.attachedFileIds ? uploaded : []).map((r) => ({ fileId: r.fileId, ok: result.attachedFileIds?.includes(r.fileId ?? "") ?? false, href: result.url, failure: { stage: "body", code: "body-limit" } as const }))]) } : {}) };
 }

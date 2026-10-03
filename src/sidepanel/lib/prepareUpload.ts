@@ -6,6 +6,8 @@ import type { MarkdownMediaInput } from "./buildMarkdownIssueBody";
 import { inlineUploadFilename } from "@/lib/inline-ref";
 
 export interface UploadFileInput {
+  contentType?: string;
+  fileId?: string;
   filename: string;
   dataUrl: string;
   // 사용자 첨부: 업로드 식별용 filename(고유)과 본문 표시명(원본) 분리.
@@ -13,6 +15,7 @@ export interface UploadFileInput {
 }
 
 export interface PrepareUploadInput {
+  submissionFiles?: import("@/types/attachment").SubmissionFile[];
   ctx: MarkdownContext;
   images?: UploadFileInput[];
   video?: UploadFileInput;
@@ -25,6 +28,7 @@ export interface PrepareUploadInput {
 }
 
 export interface UploadEntry {
+  fileId?: string;
   filename: string;
   contentType: string;
   dataUrl: string;
@@ -32,9 +36,10 @@ export interface UploadEntry {
 
 export type UploadFn = (
   files: UploadEntry[],
-) => Promise<Array<{ filename: string; href: string | null }>>;
+) => Promise<Array<{ fileId?: string; failure?: import("@/types/attachment").AttachmentResult["failure"]; filename: string; href: string | null }>>;
 
 export interface PreparedUpload {
+  responses: import("./submissionAdapter").DeliveryResponse[];
   hrefMap: Map<string, string | null>;
   resolvedCtx: MarkdownContext;
   toMedia: (f: UploadFileInput) => MarkdownMediaInput;
@@ -62,15 +67,17 @@ export function toInlineUploadFiles(
 ): Array<UploadFileInput & { refId: string }> {
   return (inlineImages ?? []).map((img) => ({
     refId: img.refId,
-    filename: inlineUploadFilename(img.refId),
+    fileId: img.fileId,
+    filename: img.filename ?? inlineUploadFilename(img.refId),
     dataUrl: img.dataUrl,
   }));
 }
 
 export function toUploadEntry(f: UploadFileInput): UploadEntry {
   return {
+    ...(f.fileId ? { fileId: f.fileId } : {}),
     filename: f.filename,
-    contentType: guessUploadMime(f.filename),
+    contentType: f.contentType ?? guessUploadMime(f.filename),
     dataUrl: f.dataUrl,
   };
 }
@@ -94,10 +101,13 @@ export async function prepareUpload(
 
   const uploadResults = await uploadFn(allFiles.map(toUploadEntry));
 
-  const hrefMap = new Map(uploadResults.map((r) => [r.filename, r.href]));
-  const logsDropped = logs.some((l) => !hrefMap.get(l.filename));
+  const hrefMap = new Map(allFiles.map((f) => {
+    const matches = uploadResults.filter((r) => f.fileId ? r.fileId === f.fileId : r.filename === f.filename);
+    return [f.fileId ?? f.filename, matches.length === 1 ? matches[0].href : null];
+  }));
+  const logsDropped = logs.some((l) => !hrefMap.get(l.fileId ?? l.filename));
   const mediaDropped = [...imageInputs, ...(input.video ? [input.video] : []), ...inlineFiles].some(
-    (f) => !hrefMap.get(f.filename),
+    (f) => !hrefMap.get(f.fileId ?? f.filename),
   );
 
   if (input.requireMediaUpload) {
@@ -106,7 +116,7 @@ export async function prepareUpload(
       ...(input.video ? [input.video] : []),
       ...inlineFiles,
       ...userAttachments,
-    ].map((f) => f.filename);
+    ].map((f) => f.fileId ?? f.filename);
     if (someUploadMissing(requiredMedia, hrefMap)) {
       throw new Error(t(`${opts.platform}.error.mediaUploadFailed`));
     }
@@ -116,7 +126,7 @@ export async function prepareUpload(
   if (inlineFiles.length > 0) {
     const refToUrl = new Map<string, string>();
     for (const f of inlineFiles) {
-      const href = hrefMap.get(f.filename);
+      const href = hrefMap.get(f.fileId ?? f.filename);
       if (href) refToUrl.set(f.refId, href);
     }
     if (refToUrl.size > 0) {
@@ -135,8 +145,8 @@ export async function prepareUpload(
   function toMedia(f: UploadFileInput): MarkdownMediaInput {
     return {
       filename: f.filename,
-      contentType: guessUploadMime(f.filename),
-      url: hrefMap.get(f.filename) ?? undefined,
+      contentType: f.contentType ?? guessUploadMime(f.filename),
+      url: hrefMap.get(f.fileId ?? f.filename) ?? undefined,
     };
   }
 
@@ -146,9 +156,9 @@ export async function prepareUpload(
     return {
       filename: name,
       contentType: guessUploadMime(name),
-      url: hrefMap.get(f.filename) ?? undefined,
+      url: hrefMap.get(f.fileId ?? f.filename) ?? undefined,
     };
   }
 
-  return { hrefMap, resolvedCtx, toMedia, toAttachmentMedia, logsDropped, mediaDropped };
+  return { responses: uploadResults.map((r) => ({ ...r, ok: !!r.href, href: r.href ?? undefined })), hrefMap, resolvedCtx, toMedia, toAttachmentMedia, logsDropped, mediaDropped };
 }

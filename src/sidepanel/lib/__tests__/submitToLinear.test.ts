@@ -7,7 +7,7 @@ vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) })
 // "logs.html" 토큰이 있어야만(injectLogsMarkdownLink가 실제로 바꿔야만) 호출된다.
 let linearBody = "BODY";
 vi.mock("../buildLinearIssueBody", () => ({
-  buildLinearIssueBody: () => ({ body: linearBody }),
+  buildLinearIssueBody: (input: { logsUrl?: string }) => ({ body: input.logsUrl ? linearBody.replace("logs.html", `[logs.html](${input.logsUrl})`) : linearBody }),
 }));
 const replaceInlineRefs = vi.fn((s: string, _map?: Map<string, string>) => s);
 vi.mock("../resolveInlineImages", () => ({
@@ -175,11 +175,11 @@ describe("submitToLinear — 인라인 이미지", () => {
       if (msg.type === "linear.createAttachment") return { ok: true };
       return undefined;
     });
-    await submitToLinear({
+    await expect(submitToLinear({
       ctx: makeCtx(),
       teamId: "T",
       inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
-    } as never);
+    } as never)).rejects.toThrow("Invalid upload response");
     expect(replaceInlineRefs).not.toHaveBeenCalled();
   });
 

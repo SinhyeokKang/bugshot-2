@@ -717,8 +717,14 @@ function safeDestinationUrl(value: unknown): boolean {
       && ![...url.searchParams.keys()].some((key) => /^(x-amz-|x-goog-)|^(signature|sig|token|access_token|api_key|AWSAccessKeyId|GoogleAccessId)$/i.test(key));
   } catch { return false; }
 }
+function validateFailure(value: unknown): void {
+  const failure = record(value, ["stage", "code", "httpStatus"]);
+  if (!["source", "upload", "link", "body"].includes(String(failure.stage))
+    || !["missing-source", "local-storage", "authentication", "permission", "size-limit", "rate-limit", "network", "timeout", "invalid-response", "body-limit", "unknown"].includes(String(failure.code))
+    || (failure.httpStatus !== undefined && (!Number.isInteger(failure.httpStatus) || Number(failure.httpStatus) < 100 || Number(failure.httpStatus) > 599))) throw new Error("Invalid recovery failure");
+}
 function validateRecovery(value: unknown): SubmissionRecoveryMeta {
-  const meta = record(value, ["attemptId", "issueId", "title", "platform", "createdAt", "expiresAt", "phase", "destination", "files", "results", "updatedAt", "localFilesRemoved"]);
+  const meta = record(value, ["attemptId", "issueId", "title", "platform", "createdAt", "expiresAt", "phase", "destination", "files", "results", "updatedAt", "localFilesRemoved", "submissionFailure"]);
   if (!nonempty(meta.attemptId) || !nonempty(meta.issueId) || typeof meta.title !== "string"
     || typeof meta.platform !== "string" || !Object.hasOwn(DESTINATION_KEYS, meta.platform)
     || typeof meta.phase !== "string" || !Object.hasOwn(RECOVERY_TRANSITIONS, meta.phase)
@@ -742,6 +748,7 @@ function validateRecovery(value: unknown): SubmissionRecoveryMeta {
       throw new Error("Invalid recovery source");
     }
   }
+  if (meta.submissionFailure !== undefined) validateFailure(meta.submissionFailure);
   const resultIds = new Set<string>();
   for (const value of meta.results) {
     const result = record(value, ["fileId", "delivery", "presentation", "failure"]);
@@ -750,10 +757,7 @@ function validateRecovery(value: unknown): SubmissionRecoveryMeta {
       || !["complete", "failed", "not-applicable"].includes(String(result.presentation))) throw new Error("Invalid recovery result");
     resultIds.add(result.fileId);
     if (result.failure !== undefined) {
-      const failure = record(result.failure, ["stage", "code", "httpStatus"]);
-      if (!["source", "upload", "link", "body"].includes(String(failure.stage))
-        || !["missing-source", "local-storage", "authentication", "permission", "size-limit", "rate-limit", "network", "timeout", "invalid-response", "body-limit", "unknown"].includes(String(failure.code))
-        || (failure.httpStatus !== undefined && (!Number.isInteger(failure.httpStatus) || Number(failure.httpStatus) < 100 || Number(failure.httpStatus) > 599))) throw new Error("Invalid recovery failure");
+      validateFailure(result.failure);
     }
   }
   if (meta.destination !== undefined) {
@@ -765,7 +769,7 @@ function validateRecovery(value: unknown): SubmissionRecoveryMeta {
       || (remote.platform === "webhook" && !safeDestinationUrl(locator.url))) throw new Error("Invalid recovery locator");
   }
   if (["created", "partial", "complete"].includes(meta.phase) && !meta.destination) throw new Error("Missing recovery destination");
-  if (meta.phase === "complete" && (resultIds.size !== ids.size
+  if (meta.phase === "complete" && (meta.submissionFailure !== undefined || resultIds.size !== ids.size
     || meta.results.some((r) => r.delivery !== "attached" || r.presentation === "failed" || r.failure !== undefined))) throw new Error("Incomplete recovery results");
   return value as SubmissionRecoveryMeta;
 }
@@ -812,7 +816,7 @@ async function recoveriesIn(tx: IDBTransaction): Promise<SubmissionRecoveryMeta[
 export async function beginSubmissionRecovery(meta: SubmissionRecoveryMeta, generated: Map<string, Blob>): Promise<void> {
   const snapshot = validateRecovery(structuredClone(meta));
   const blobs = new Map(generated);
-  if (snapshot.phase !== "prepared" || snapshot.destination || snapshot.results.length) throw new Error("Recovery must begin prepared");
+  if (snapshot.phase !== "prepared" || snapshot.destination || snapshot.results.length || snapshot.submissionFailure) throw new Error("Recovery must begin prepared");
   const expected = snapshot.files.filter((f) => f.source.kind === "generated").map((f) => f.source.key);
   if (blobs.size !== expected.length || expected.some((key) => !(blobs.get(key) instanceof Blob))) throw new Error("Missing generated recovery file");
   await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES], "readwrite", async (tx) => {
@@ -833,7 +837,7 @@ export async function beginSubmissionRecovery(meta: SubmissionRecoveryMeta, gene
 export async function checkpointSubmission(
   issueId: string,
   attemptId: string,
-  patch: Pick<SubmissionRecoveryMeta, "phase" | "destination" | "results">,
+  patch: Pick<SubmissionRecoveryMeta, "phase" | "destination" | "results" | "submissionFailure">,
 ): Promise<void> {
   const update = structuredClone(patch);
   await recoveryTransaction([STORE_RECOVERY], "readwrite", async (tx) => {
@@ -849,7 +853,7 @@ export async function checkpointSubmission(
         || (previous.url && incoming.url && previous.url !== incoming.url)) throw new Error("Recovery destination cannot change");
       destination = { ...incoming, url: incoming.url ?? previous.url };
     }
-    const next = validateRecovery({ ...current, phase: update.phase, results: update.results,
+    const next = validateRecovery({ ...current, phase: update.phase, results: update.results, submissionFailure: update.submissionFailure,
       destination, updatedAt: Math.max(Date.now(), current.updatedAt + 1) });
     store.put(next, `attempt:${issueId}`);
   });

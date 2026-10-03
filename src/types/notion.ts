@@ -121,6 +121,7 @@ export interface NotionUser {
 export type NotionAttachmentCategory = "image" | "video" | "log" | "other";
 
 export interface NotionAttachmentInput {
+  fileId?: string;
   placeholderId: string;
   filename: string;
   contentType: string;
@@ -143,10 +144,11 @@ export interface NotionCreatePagePayload {
   statusOption?: { propertyName: string; optionName: string };
   selectValues: NotionSelectFieldValue[];
   blocks: NotionBlock[];
-  attachments: { placeholderId: string; fileUploadId: string; filename: string; category: NotionAttachmentCategory }[];
+  attachments: { fileId?: string; placeholderId: string; fileUploadId: string; filename: string; category: NotionAttachmentCategory }[];
 }
 
 export interface NotionCreatePageResult {
+  attachedFileIds?: string[];
   pageId: string;
   url: string;
 }
@@ -160,6 +162,7 @@ export interface NotionPageStatus {
 }
 
 export interface NotionFileUploadResult {
+  fileId?: string;
   fileUploadId: string;
   expiresAt: number;
 }

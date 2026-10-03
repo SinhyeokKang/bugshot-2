@@ -24,6 +24,7 @@ import { inlinePlaceholderId } from "@/lib/inline-ref";
 import { listItems, sectionLabel } from "./issueBodyShared";
 
 export interface NotionMediaInput {
+  fileId?: string;
   filename: string;
   contentType: string;
   dataUrl: string;
@@ -104,6 +105,7 @@ function buildNotionIssueBodyInner(
     placeholderId: string,
   ): void => {
     attachments.push({
+      ...(media.fileId ? { fileId: media.fileId } : {}),
       placeholderId,
       filename: media.filename,
       contentType: media.contentType,

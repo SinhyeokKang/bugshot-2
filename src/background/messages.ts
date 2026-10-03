@@ -1,3 +1,4 @@
+import { safeAttachmentFailure } from "@/lib/attachment-failure";
 import { getLocale, t, withLocale } from "@/i18n";
 import { resolveBodyLocale, type LocaleMode } from "@/i18n/locales";
 import type { PlatformId } from "@/types/platform";
@@ -296,6 +297,35 @@ export async function handleMessage(
         message.hierarchyLevels,
       );
 
+    case "jira.createIssue": {
+      const auth = await ensureFreshAuth(await loadAuth());
+      const description = { ...message.payload.description, content: buildJiraDescriptionContent({ description: message.payload.description, uploadMap: new Map(), bodyLocale: message.payload.bodyLocale }) };
+      const issue = await createIssue(auth, { ...message.payload, description });
+      return { key: issue.key, url: buildIssueUrl(auth, issue.key), siteId: auth.kind === "oauth" ? auth.cloudId : auth.baseUrl };
+    }
+    case "jira.uploadAttachment": {
+      const auth = await ensureFreshAuth(await loadAuth());
+      const att = message.attachment;
+      const results = await uploadAttachment(auth, message.issueKey, att.filename, dataUrlToBlob(att.dataUrl));
+      const r = results[0];
+      if (!r?.id) return { fileId: att.fileId, ok: false, filename: att.filename };
+      const base = (auth.kind === "apiKey" ? auth.baseUrl : auth.siteUrl).replace(/\/+$/, "");
+      const href = `${base}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
+      const mediaId = !att.userAttachment && att.filename !== "logs.html"
+        ? r.mediaApiFileId || await getMediaFileId(auth, String(r.id)) : undefined;
+      const file: UploadedFile = mediaId ? { kind: "media", mediaId, width: att.width, height: att.height } : { kind: "external", url: href, width: att.width, height: att.height };
+      return { fileId: att.fileId, ok: true, filename: att.filename, href, file };
+    }
+    case "jira.updateIssueDescription": {
+      const auth = await ensureFreshAuth(await loadAuth());
+      const content = buildJiraDescriptionContent({ description: message.description, uploadMap: new Map(message.uploads.map((r) => [r.filename, r.file])), logsUrl: message.logsUrl, bodyLocale: message.bodyLocale });
+      await updateIssueDescription(auth, message.issueKey, { version: 1, type: "doc", content });
+      for (const key of message.relates ?? []) {
+        try { await createIssueLink(auth, message.issueKey, key); } catch { /* Links do not affect attachment delivery. */ }
+      }
+      return { ok: true };
+    }
+
     case "jira.submitIssue":
       // 제출은 호출 체인이 길어 auth를 값으로 들고 다닌다. 만료 토큰으로 진입하면 갱신이
       // authedFetch 안에만 갇혀 호출자 사본은 계속 낡은 채로 남는다 — 진입 시 한 번 신선화.
@@ -401,7 +431,7 @@ export async function handleMessage(
       const auth = await loadLinearAuth();
       const blob = dataUrlToBlob(message.dataUrl);
       const assetUrl = await uploadFileToLinear(auth, message.filename, message.contentType, blob);
-      return { assetUrl };
+      return { assetUrl, ...(message.fileId ? { fileId: message.fileId } : {}) };
     }
 
     case "linear.createAttachment": {
@@ -448,13 +478,16 @@ export async function handleMessage(
     case "notion.getDatabaseSchema":
       return getNotionDatabaseSchema(await loadNotionAuth(), message.databaseId);
 
-    case "notion.uploadFile":
-      return uploadNotionFile(
+    case "notion.uploadFile": {
+      const uploaded = await uploadNotionFile(
         await loadNotionAuth(),
         message.filename,
         message.contentType,
         message.dataUrl,
       );
+
+      return { ...uploaded, ...(message.fileId ? { fileId: message.fileId } : {}) };
+    }
 
     case "notion.submitPage":
       return createNotionPage(await loadNotionAuth(), message.payload);
@@ -506,10 +539,10 @@ export async function handleMessage(
           );
           // url은 타입만 string이고 값은 미검증 API 응답이다 — 비면 ok:false로 접는다
           // (clickup·asana 핸들러와 같은 가드). 안 접으면 소비처가 href: undefined를 본문에 박는다.
-          if (url) results.push({ ok: true, filename: f.filename, href: url });
-          else results.push({ ok: false, filename: f.filename });
-        } catch {
-          results.push({ ok: false, filename: f.filename });
+          if (url) results.push({ ok: true, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, href: url });
+          else results.push({ ok: false, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename });
+        } catch (error) {
+          results.push({ ok: false, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, failure: safeAttachmentFailure(error) });
         }
       }
       return results;
@@ -590,10 +623,10 @@ export async function handleMessage(
           );
           // clickup과 대칭 — locator 없는 성공은 성공이 아니다. ok:true + gid undefined가
           // 나가면 소비처가 data-asana-gid="undefined"를 본문에 박는다.
-          if (gid) results.push({ ok: true, filename: f.filename, gid, viewUrl });
-          else results.push({ ok: false, filename: f.filename });
-        } catch {
-          results.push({ ok: false, filename: f.filename });
+          if (gid) results.push({ ok: true, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, gid, viewUrl });
+          else results.push({ ok: false, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename });
+        } catch (error) {
+          results.push({ ok: false, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, failure: safeAttachmentFailure(error) });
         }
       }
       return results;
@@ -661,10 +694,10 @@ export async function handleMessage(
             f.filename,
             blob,
           );
-          if (url) results.push({ ok: true, filename: f.filename, href: url });
-          else results.push({ ok: false, filename: f.filename });
-        } catch {
-          results.push({ ok: false, filename: f.filename });
+          if (url) results.push({ ok: true, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, href: url });
+          else results.push({ ok: false, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename });
+        } catch (error) {
+          results.push({ ok: false, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, failure: safeAttachmentFailure(error) });
         }
       }
       return results;
@@ -708,6 +741,7 @@ export async function handleMessage(
     case "slack.uploadFiles": {
       const auth = await loadSlackAuth();
       const files = message.files.map((f) => ({
+        ...(f.fileId ? { fileId: f.fileId } : {}),
         filename: f.filename,
         blob: dataUrlToBlob(f.dataUrl),
       }));
@@ -996,6 +1030,14 @@ export function buildJiraDescriptionContent(input: {
     }
 
     if (logsUrl) injectLogsLink(content, logsUrl);
+    else {
+      for (let i = 0; i < content.length; i++) {
+        const node = content[i] as { type?: string; content?: { text?: string }[] };
+        if (node.type === "paragraph" && node.content?.some((n) => n.text === t("logSummary.logs.lead")) && node.content.some((n) => n.text === "logs.html")) {
+          content[i] = { type: "paragraph", content: [{ type: "text", text: `logs.html: ${t("md.attachmentDropped")}` }] };
+        }
+      }
+    }
 
     return content;
   });

@@ -197,8 +197,8 @@ describe("buildGitlabIssueBody — element 복수", () => {
       ctx: makeCtx({ networkLogSummary: { captured: 5, errors: [] } }),
       logs: [{ filename: "logs.html", contentType: "text/html" }],
     });
-    expect(out.body).toContain("logSummary.logs.detail file=logs.html");
-    expect(out.body).toContain("**logSummary.logs.lead**");
+    expect(out.body).toContain("logs.html: md.attachmentDropped");
+    expect(out.body).not.toContain("**logSummary.logs.lead**");
     expect(out.body).not.toContain("_logSummary.logs.detail");
   });
 });

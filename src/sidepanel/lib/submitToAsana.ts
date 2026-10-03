@@ -1,3 +1,5 @@
+import { safeAttachmentFailure } from "@/lib/attachment-failure";
+import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
 import type { AsanaUploadFileResult } from "@/types/messages";
 import { buildAsanaIssueBody, type AsanaMediaInput } from "./buildAsanaIssueBody";
 import { resolveStyleElements, type MarkdownContext } from "./buildIssueMarkdown";
@@ -20,13 +22,15 @@ import type { NormalizedSubmitResult } from "@/types/platform";
 export type { NormalizedSubmitResult } from "@/types/platform";
 
 export interface AsanaFileInput {
+  fileId?: string;
+  contentType?: string;
   filename: string;
   dataUrl: string;
   // 사용자 첨부: task 첨부 표시명(원본). 본문 인라인 없음.
   displayName?: string;
 }
 
-export interface AsanaSubmitInput {
+export interface AsanaSubmitInput extends SubmissionAdapterInput {
   ctx: import("./buildIssueMarkdown").MarkdownContext;
   images?: AsanaFileInput[];
   video?: AsanaFileInput;
@@ -110,9 +114,11 @@ export function renameStyleElementFilenames(
 export async function submitToAsana(
   input: AsanaSubmitInput,
 ): Promise<NormalizedSubmitResult> {
-  const imageInputs = await Promise.all((input.images ?? []).map(webpToJpeg));
+  const originalImages = input.images ?? [];
+  input = bindSubmissionFiles(input);
+  const imageInputs = input.submissionFiles ? input.images ?? [] : await Promise.all((input.images ?? []).map(webpToJpeg));
   const renames = new Map<string, string>();
-  (input.images ?? []).forEach((orig, i) => {
+  originalImages.forEach((orig, i) => {
     if (orig.filename !== imageInputs[i].filename) {
       renames.set(orig.filename, imageInputs[i].filename);
     }
@@ -123,7 +129,7 @@ export async function submitToAsana(
   const inlineEntries = await Promise.all(
     (input.inlineImages ?? []).map(async (img) => ({
       refId: img.refId,
-      file: await webpToJpeg({
+      file: input.submissionFiles ? { fileId: img.fileId, filename: img.filename!, dataUrl: img.dataUrl } : await webpToJpeg({
         filename: inlineUploadFilename(img.refId, imageExtFromDataUrl(img.dataUrl)),
         dataUrl: img.dataUrl,
       }),
@@ -132,6 +138,7 @@ export async function submitToAsana(
   const logs = input.logs ?? [];
   // 사용자 첨부: webpToJpeg·renameStyleElement·imageRefs 인라인에 안 섞고 task 첨부로만(표시명=원본).
   const userAttachmentFiles = (input.attachments ?? []).map((f) => ({
+    fileId: f.fileId,
     filename: f.displayName ?? f.filename,
     dataUrl: f.dataUrl,
   }));
@@ -161,7 +168,7 @@ export async function submitToAsana(
   const htmlNotes = cc.length > 0 ? injectAsanaCc(baseHtml, cc) : baseHtml;
 
   // Asana attachment는 parent task gid가 필수 → createTask 먼저, 그다음 첨부 (Jira 패턴).
-  const task = await sendBg<AsanaCreateTaskResult>({
+  const task = await submitCreation(input.progress, () => sendBg<AsanaCreateTaskResult>({
     type: "asana.submitIssue",
     payload: {
       workspaceGid: input.workspaceGid,
@@ -170,8 +177,11 @@ export async function submitToAsana(
       htmlNotes,
       assigneeGid: input.assigneeGid,
     },
-  });
+  }));
+  await input.progress?.created({ platform: "asana", key: task.gid, url: task.permalinkUrl, locator: { taskGid: task.gid } });
 
+  let responses: AsanaUploadFileResult[] = [];
+  let bodyFailed = false;
   let logsDropped = false;
   let mediaDropped = false;
   if (allFiles.length > 0) {
@@ -179,7 +189,7 @@ export async function submitToAsana(
     // 1회 업로드로 끝낸다 (GitLab처럼 생성 후 재업로드 불필요).
     const uploadFiles = await Promise.all(
       allFiles.map(async (f, i) =>
-        i < userAttachmentStart && f.filename === "logs.html"
+        !input.submissionFiles && i < userAttachmentStart && f.filename === "logs.html"
           ? { ...f, dataUrl: await injectIssueUrl(f.dataUrl, task.permalinkUrl, task.gid) }
           : f,
       ),
@@ -190,13 +200,19 @@ export async function submitToAsana(
       type: "asana.uploadFiles",
       parent: task.gid,
       files: uploadFiles.map(toUploadEntry),
-    });
+    }).catch((error) => allFiles.map((f) => ({ fileId: f.fileId, filename: f.filename, ok: false as const, failure: safeAttachmentFailure(error) })));
 
     // 업로드된 이미지 GID로 본문을 갱신해 인라인(<img data-asana-gid>) 표시.
     // Asana는 선(先)첨부 → 후(後)본문참조라 create 후 update 2-write가 필요하다.
     // 원본 픽셀 크기를 직접 박아 썸네일 크기 렌더와 Asana 후처리 지연을 회피한다.
     const byName = new Map<string, { gid: string; viewUrl?: string }>();
+    responses = results;
     results.forEach((r, i) => {
+      if (input.submissionFiles) {
+        const f = allFiles.find((f) => f.fileId === r.fileId);
+        if (r.ok && f && input.submissionFiles.find((p) => p.id === r.fileId)?.kind !== "user" && results.filter((other) => other.fileId === r.fileId).length === 1) byName.set(f.filename, { gid: r.gid, viewUrl: r.viewUrl });
+        return;
+      }
       // 사용자 첨부는 본문 인라인 안 하므로 byName에서 제외 — imageRefs 매칭 오염 방지.
       if (r.ok && i < userAttachmentStart) byName.set(r.filename, { gid: r.gid, viewUrl: r.viewUrl });
     });
@@ -222,20 +238,23 @@ export async function submitToAsana(
         if (uploaded) imageRefs[inlineRefUrl(refId)] = await buildInlineRef(uploaded, file.dataUrl);
       }),
     );
-    if (Object.keys(imageRefs).length > 0) {
+    const logsDelivered = logs.length > 0 && !logsDropped;
+    if (Object.keys(imageRefs).length > 0 || logsDelivered) {
       try {
         // injectAsanaCc 누락 시 2차 write가 cc를 sentinel 문자열로 되돌린다.
-        const updatedHtml = markdownToAsanaHtml(body, imageRefs);
+        const updatedBody = logsDelivered ? buildAsanaIssueBody({ ctx: { ...ctx, logsDeliveryConfirmed: true }, images: imageInputs.map(toMedia), hasCc: cc.length > 0 }).body : body;
+        const updatedHtml = markdownToAsanaHtml(updatedBody, imageRefs);
         await sendBg({
           type: "asana.updateTaskNotes",
           taskGid: task.gid,
           htmlNotes: cc.length > 0 ? injectAsanaCc(updatedHtml, cc) : updatedHtml,
         });
       } catch {
+        bodyFailed = true;
         // 본문 갱신 실패해도 task·첨부는 보존 (이미지는 task 첨부로 남음).
       }
     }
   }
 
-  return { key: task.gid, url: task.permalinkUrl, logsDropped, mediaDropped };
+  return { key: task.gid, url: task.permalinkUrl, logsDropped, mediaDropped, ...(input.submissionFiles ? { attachments: deliveryResults(input.submissionFiles, responses.map((r) => ({ ...r, href: r.ok ? r.gid : undefined })), bodyFailed) } : {}) };
 }

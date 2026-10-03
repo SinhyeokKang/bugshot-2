@@ -55,6 +55,7 @@ export interface SlackPostResult {
 }
 
 export interface SlackUploadResult {
+  remoteFileId?: string;
   fileId?: string;
   failure?: AttachmentResult["failure"];
   filename: string;

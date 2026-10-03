@@ -1,3 +1,5 @@
+import { safeAttachmentFailure } from "@/lib/attachment-failure";
+import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
 import { buildSlackBody } from "./buildSlackBody";
 import { splitSlackText } from "./splitSlackText";
 import { escapeMrkdwn } from "./markdownToMrkdwn";
@@ -14,12 +16,14 @@ import type { NormalizedSubmitResult } from "@/types/platform";
 export type { NormalizedSubmitResult } from "@/types/platform";
 
 export interface SlackFileInput {
+  fileId?: string;
+  contentType?: string;
   filename: string;
   dataUrl: string;
   displayName?: string;
 }
 
-export interface SlackSubmitInput {
+export interface SlackSubmitInput extends SubmissionAdapterInput {
   ctx: import("./buildIssueMarkdown").MarkdownContext;
   images?: SlackFileInput[];
   video?: SlackFileInput;
@@ -34,6 +38,7 @@ export interface SlackSubmitInput {
 // 공용판이 얹는 contentType이 쓰이지 않은 채 메시지 경계를 넘는다.
 function toUploadEntry(f: SlackFileInput) {
   return {
+    ...(f.fileId ? { fileId: f.fileId } : {}),
     filename: f.filename,
     dataUrl: f.dataUrl,
   };
@@ -42,6 +47,7 @@ function toUploadEntry(f: SlackFileInput) {
 export async function submitToSlack(
   input: SlackSubmitInput,
 ): Promise<NormalizedSubmitResult> {
+  input = bindSubmissionFiles(input);
   const logs = input.logs ?? [];
   const inlineFiles = toInlineUploadFiles(input.inlineImages);
   const allFiles = [
@@ -57,10 +63,11 @@ export async function submitToSlack(
   const safeTitle = escapeMrkdwn(input.ctx.title.trim());
   const parentText = mentionLine ? `*${safeTitle}*\n${mentionLine}` : `*${safeTitle}*`;
 
-  const parent = await sendBg<SlackPostResult>({
+  const parent = await submitCreation(input.progress, () => sendBg<SlackPostResult>({
     type: "slack.postMessage",
     payload: { channelId: input.channelId, text: parentText },
-  });
+  }));
+  await input.progress?.created({ platform: "slack", key: parent.ts, locator: { channelId: input.channelId, ts: parent.ts } });
 
   // 상세 본문은 스레드 답글로 — 채널 타임라인은 제목만 남는다.
   // 4000자를 넘으면 Slack이 임의로 쪼개 코드블럭 펜스를 깨므로, 펜스를 보존해 직접 나눠 보낸다.
@@ -71,6 +78,7 @@ export async function submitToSlack(
     });
   }
 
+  let responses: SlackUploadResult[] = [];
   let logsDropped = false;
   let mediaDropped = false;
   if (allFiles.length > 0) {
@@ -86,17 +94,25 @@ export async function submitToSlack(
       channelId: input.channelId,
       threadTs: parent.ts,
       files: allFiles.map(toUploadEntry),
-    });
-    const okByName = new Map(results.map((r) => [r.filename, r.ok]));
-    logsDropped = logs.some((l) => !okByName.get(l.filename));
-    mediaDropped = mediaFiles.some((f) => !okByName.get(f.filename));
+    }).catch((error) => allFiles.map((f) => ({ fileId: f.fileId, filename: f.filename, ok: false as const, failure: safeAttachmentFailure(error) })));
+    responses = results;
+    const okByName = new Map(allFiles.map((f) => { const found = results.filter((r) => f.fileId ? r.fileId === f.fileId : r.filename === f.filename); return [f.fileId ?? f.filename, found.length === 1 && found[0].ok]; }));
+    logsDropped = logs.some((l) => !okByName.get(l.fileId ?? l.filename));
+    mediaDropped = mediaFiles.some((f) => !okByName.get(f.fileId ?? f.filename));
   }
 
-  const { permalink } = await sendBg<SlackPermalinkResult>({
+  let permalinkFailure: import("@/types/attachment").AttachmentResult["failure"];
+  const permalinkResult = await sendBg<SlackPermalinkResult>({
     type: "slack.getPermalink",
     channelId: input.channelId,
     ts: parent.ts,
-  });
+  }).catch((error) => { permalinkFailure = safeAttachmentFailure(error, "body"); return { permalink: "" }; });
 
-  return { key: parent.ts, url: permalink, logsDropped, mediaDropped };
+  const permalink = permalinkResult?.permalink;
+  try {
+    const url = new URL(permalink);
+    if (url.protocol !== "https:" || url.username || url.password) throw new Error("Invalid permalink");
+  } catch { permalinkFailure ??= { stage: "body", code: "invalid-response" }; }
+  const permalinkFailed = !!permalinkFailure;
+  return { ...(permalinkFailed ? { submissionFailure: permalinkFailure } : {}), key: parent.ts, url: permalinkFailed ? "" : permalink, logsDropped, mediaDropped, ...(input.submissionFiles ? { attachments: deliveryResults(input.submissionFiles, responses.map((r) => ({ ...r, href: r.remoteFileId, ...(permalinkFailed ? { presentation: "failed" as const, ...(r.ok ? { failure: permalinkFailure } : {}) } : {}) })), permalinkFailed) } : {}) };
 }

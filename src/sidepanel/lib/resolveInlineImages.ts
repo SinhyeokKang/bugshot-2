@@ -27,6 +27,9 @@ export function replaceInlineRefs(
 }
 
 export interface InlineImageInput {
+  fileId?: string;
+  filename?: string;
+  contentType?: string;
   refId: string;
   dataUrl: string;
 }

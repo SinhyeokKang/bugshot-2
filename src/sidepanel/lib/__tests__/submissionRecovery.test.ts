@@ -133,9 +133,7 @@ it("freezes Notion ZIP bytes before any remote work", async () => {
   expect(prepared.meta.files[0]).toMatchObject({ filename: "logs.zip", contentType: "application/zip", source: { kind: "generated" } });
   expect(new Uint8Array(await (await db.readRecoveryFile(prepared.meta, "logs"))!.arrayBuffer()).slice(0, 2)).toEqual(new Uint8Array([80, 75]));
 });
-it("keeps the production adapter gate closed until B3 connects checkpoints", () => {
-  expect(() => recovery.assertSubmissionAdaptersReady()).toThrow("integration");
-});
+
 it("partial cleanup removes only completed originals after durable list persistence", async () => {
   await db.saveAttachmentBlob("i", "a", new Blob(["done"]));
   await db.saveAttachmentBlob("i", "b", new Blob(["failed"]));
@@ -415,4 +413,23 @@ it("a newer active attempt prevents stale confirmation and orphan repair from cl
   expect((await db.readSubmissionRecovery("i"))?.attemptId).not.toBe("a");
   release();
   await pending;
+});
+
+it.each(["thread", "permalink", "empty", "missing", "success"])("real zero-file Slack %s retains failures independently of file results", async (mode) => {
+  const { submitToSlack } = await import("../submitToSlack");
+  vi.mocked(chrome.runtime.sendMessage).mockImplementation(((m: { type: string; payload?: { threadTs?: string } }, cb: (r: unknown) => void) => {
+    if (m.type === "slack.postMessage") return cb(mode === "thread" && m.payload?.threadTs ? { ok: false, error: "private body", status: 403 } : { ok: true, result: { ts: "1.2" } });
+    if (m.type === "slack.getPermalink") return cb(mode === "permalink" ? { ok: false, error: "lost response" } : { ok: true, result: mode === "missing" ? {} : { permalink: mode === "empty" ? "" : "https://slack.com/archives/C/p12" } });
+  }) as never);
+  const record = { ...issue(), platform: "slack" as const };
+  store.useIssuesStore.setState({ issues: [record] });
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: record, platform: "slack", files: [] });
+  const result = await recovery.runSubmissionRecovery(prepared, (progress) => submitToSlack({ ctx: { bodyLocale: "en", captureMode: "freeform", title: "Title", sections: {}, sectionConfig: [], url: "", selector: "", tagName: "", classListBefore: [], classListAfter: [], specifiedStyles: {}, tokens: [], viewport: { width: 100, height: 100 }, capturedAt: 1, diffs: [], environment: [] }, channelId: "C", submissionFiles: [], progress }));
+  if (mode === "success") { expect(result.recovery).toBeUndefined(); expect(await db.readSubmissionRecovery("i")).toBeNull(); return; }
+  expect(result).toMatchObject({ key: "1.2", attachments: [], recovery: { state: "partial" } });
+  const journal = await db.readSubmissionRecovery("i");
+  expect(journal).toMatchObject({ phase: "partial", destination: { locator: { channelId: "C", ts: "1.2" } }, submissionFailure: { stage: "body" } });
+  expect(JSON.stringify(journal)).not.toContain("private body");
+  await recovery.reconcileSubmissionRecovery();
+  expect((await db.readSubmissionRecovery("i"))?.phase).toBe("partial");
 });

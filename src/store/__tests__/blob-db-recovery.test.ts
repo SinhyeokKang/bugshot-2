@@ -447,3 +447,18 @@ it("strict completion cleanup preserves originals shared by another journal or o
   expect(await db.getInlineImage("journal-shared")).not.toBeNull();
   expect(await db.getInlineImage("draft-shared")).not.toBeNull();
 });
+
+it("preserves submission-level failure across expiry and rejects premature complete or unsafe fields", async () => {
+  await db.beginSubmissionRecovery(meta(), new Map());
+  await db.checkpointSubmission("issue", "attempt", { phase: "creating", results: [] });
+  const destination = { platform: "github" as const, key: "#1", locator: { owner: "o", repo: "r", number: "1" } };
+  await db.checkpointSubmission("issue", "attempt", { phase: "created", destination, results: [] });
+  const submissionFailure = { stage: "body" as const, code: "permission" as const, httpStatus: 403 };
+  await expect(db.checkpointSubmission("issue", "attempt", { phase: "complete", results: [], submissionFailure })).rejects.toThrow();
+  await expect(db.checkpointSubmission("issue", "attempt", { phase: "partial", results: [], submissionFailure: { ...submissionFailure, message: "secret response" } } as never)).rejects.toThrow();
+  await db.checkpointSubmission("issue", "attempt", { phase: "partial", results: [], submissionFailure });
+  await db.expireSubmissionRecovery("issue", "attempt", 2592000002);
+  expect(await db.readSubmissionRecovery("issue")).toMatchObject({ phase: "partial", destination, submissionFailure });
+  await db.deleteSubmissionRecovery("issue", "attempt");
+  expect(await db.readSubmissionRecovery("issue")).toBeNull();
+});

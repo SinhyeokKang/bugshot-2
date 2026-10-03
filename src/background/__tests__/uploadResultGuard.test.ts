@@ -16,7 +16,7 @@ const SOURCE = readFileSync(
 );
 
 // locator를 실은 성공 push. 새 플랫폼이 per-file 격리 업로드를 추가하면 여기에 잡힌다.
-const OK_PUSH_RE = /results\.push\(\{\s*ok:\s*true,[^}]*\}\)/g;
+const OK_PUSH_RE = /results\.push\(\{\s*ok:\s*true,[^\n;]*\}\)/g;
 
 describe("업로드 결과 판별자 — locator 없는 성공 금지", () => {
   const okPushes = [...SOURCE.matchAll(OK_PUSH_RE)].map((m) => m[0]);
@@ -42,7 +42,7 @@ describe("업로드 결과 판별자 — locator 없는 성공 금지", () => {
     // userAttachmentStart 경계가 그 위에 서 있다). 예외 분기가 push를 빠뜨리면 결과가
     // 한 칸 밀려 사용자 첨부가 캡처 자리로 들어가고, 그건 어느 유닛 테스트에도 안 걸린다.
     const catchPushes =
-      SOURCE.match(/\}\s*catch\s*\{\s*results\.push\(\{\s*ok:\s*false,/g) ?? [];
+      SOURCE.match(/\}\s*catch(?:\s*\([^)]*\))?\s*\{\s*results\.push\(\{\s*ok:\s*false,/g) ?? [];
     expect(catchPushes.length).toBe(okPushes.length);
   });
 

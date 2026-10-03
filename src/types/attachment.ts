@@ -65,6 +65,7 @@ export interface SubmissionRecoveryMeta {
   destination?: CreatedDestination;
   files: Array<Omit<SubmissionFile, "dataUrl"> & { source: RecoverySource; originalSource?: Extract<RecoverySource, { kind: "original" }> }>;
   results: AttachmentResult[];
+  submissionFailure?: AttachmentResult["failure"];
   updatedAt: number;
 }
 

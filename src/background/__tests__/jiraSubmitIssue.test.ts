@@ -325,3 +325,30 @@ describe("jira.submitIssue — mediaDropped", () => {
     ).resolves.toMatchObject({ mediaDropped: false });
   });
 });
+
+describe("Jira split submission messages", () => {
+  it("creates a safe initial body before any upload and refreshes authentication", async () => {
+    const result = await handleMessage({ type: "jira.createIssue", payload: { projectKey: "P", summary: "Title", issueTypeId: "1", bodyLocale: "en", description: { version: 1, type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: IMAGE_PLACEHOLDER }] }] } } }, {});
+    expect(result).toMatchObject({ key: "BUG-42", siteId: AUTH.baseUrl });
+    expect(JSON.stringify(api.createIssue.mock.calls[0][1])).not.toContain(IMAGE_PLACEHOLDER);
+    expect(api.uploadAttachment).not.toHaveBeenCalled();
+    expect(api.ensureFreshAuth).toHaveBeenCalledOnce();
+  });
+  it("returns the submitted file ID even when user and capture names collide", async () => {
+    for (const fileId of ["capture:screenshot", "user:screenshot"]) {
+      const result = await handleMessage({ type: "jira.uploadAttachment", issueKey: "P-1", attachment: { fileId, filename: "screenshot.webp", dataUrl: "data:image/webp;base64,QQ==", userAttachment: fileId.startsWith("user:") } }, {});
+      expect(result).toMatchObject({ fileId, ok: true });
+    }
+    expect(api.ensureFreshAuth).toHaveBeenCalledTimes(2);
+  });
+  it("does not accept an empty attachment response", async () => {
+    api.uploadAttachment.mockResolvedValueOnce([]);
+    const result = await handleMessage({ type: "jira.uploadAttachment", issueKey: "P-1", attachment: { fileId: "user:a", filename: "logs.html", dataUrl: "data:text/html;base64,QQ==", userAttachment: true } }, {});
+    expect(result).toMatchObject({ fileId: "user:a", ok: false });
+  });
+  it("refreshes auth for description updates and preserves bodyLocale", async () => {
+    await handleMessage({ type: "jira.updateIssueDescription", issueKey: "P-1", bodyLocale: "en", description: { version: 1, type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: VIDEO_PLACEHOLDER }] }] }, uploads: [] }, {});
+    expect(api.ensureFreshAuth).toHaveBeenCalledOnce();
+    expect(JSON.stringify(api.updateIssueDescription.mock.calls[0][2])).toContain("file not attached");
+  });
+});

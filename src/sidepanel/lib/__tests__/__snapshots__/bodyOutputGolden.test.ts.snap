@@ -21,7 +21,7 @@ exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildAsanaI
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -654,7 +654,7 @@ md.imageAttached
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -697,7 +697,7 @@ exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildLinear
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -974,8 +974,6 @@ exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildSlackB
 
 *logSummary.title*
 
-*logSummary.logs.lead* logSummary.logs.detail file=logs.html
-
 • logSummary.network.line n=12 errors=3
 • logSummary.console.line n=8 errors=2 warns=1
 • logSummary.action.line n=5
@@ -1038,7 +1036,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildAsanaIssueBody > element 
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -1079,7 +1077,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildAsanaIssueBody > freeform
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -1126,7 +1124,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildAsanaIssueBody > screensh
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -1167,7 +1165,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildAsanaIssueBody > video �
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -3546,7 +3544,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildIssueMarkdown > element �
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -3604,7 +3602,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildIssueMarkdown > freeform 
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -3696,7 +3694,7 @@ md.imageAttached
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -3788,7 +3786,7 @@ md.videoAttached
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -3834,7 +3832,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildLinearIssueBody > element
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -3874,7 +3872,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildLinearIssueBody > freefor
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -3918,7 +3916,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildLinearIssueBody > screens
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -3962,7 +3960,7 @@ exports[`본문 출력 골든 — 기본 순서 > buildLinearIssueBody > video �
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -4989,8 +4987,6 @@ exports[`본문 출력 골든 — 기본 순서 > buildSlackBody > element 모�
 
 *logSummary.title*
 
-*logSummary.logs.lead* logSummary.logs.detail file=logs.html
-
 • logSummary.network.line n=12 errors=3
 • logSummary.console.line n=8 errors=2 warns=1
 • logSummary.action.line n=5
@@ -5027,8 +5023,6 @@ exports[`본문 출력 골든 — 기본 순서 > buildSlackBody > freeform 모�
 2. 2단계 클릭
 
 *logSummary.title*
-
-*logSummary.logs.lead* logSummary.logs.detail file=logs.html
 
 • logSummary.network.line n=12 errors=3
 • logSummary.console.line n=8 errors=2 warns=1
@@ -5067,8 +5061,6 @@ exports[`본문 출력 골든 — 기본 순서 > buildSlackBody > screenshot �
 
 *logSummary.title*
 
-*logSummary.logs.lead* logSummary.logs.detail file=logs.html
-
 • logSummary.network.line n=12 errors=3
 • logSummary.console.line n=8 errors=2 warns=1
 • logSummary.action.line n=5
@@ -5105,8 +5097,6 @@ exports[`본문 출력 골든 — 기본 순서 > buildSlackBody > video 모드 
 2. 2단계 클릭
 
 *logSummary.title*
-
-*logSummary.logs.lead* logSummary.logs.detail file=logs.html
 
 • logSummary.network.line n=12 errors=3
 • logSummary.console.line n=8 errors=2 warns=1
@@ -8414,7 +8404,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown —
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -8509,7 +8499,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown —
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -8605,7 +8595,7 @@ md.videoAttached
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.action.line n=7
 
@@ -8785,7 +8775,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown —
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1
@@ -8871,7 +8861,7 @@ exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown —
 
 ## logSummary.title
 
-**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+logs.html: md.attachmentDropped
 
 - logSummary.network.line n=12 errors=3
 - logSummary.console.line n=8 errors=2 warns=1

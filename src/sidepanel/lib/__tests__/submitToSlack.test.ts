@@ -155,7 +155,7 @@ describe("submitToSlack — 긴 본문 분할", () => {
   it("Slack 한계를 넘는 본문은 펜스를 유지한 채 여러 스레드 답글로 나간다", async () => {
     const huge = Array.from({ length: 400 }, (_, i) => `  "key${i}": ${i},`).join("\n");
     mockBody = ["*발생 현상*", "```json", huge, "```"].join("\n");
-    sendBg.mockImplementation(defaultSendBg);
+    sendBg.mockImplementation(async (msg) => defaultSendBg(msg));
 
     await submitToSlack({ ctx: makeCtx(), channelId: "C1" });
 

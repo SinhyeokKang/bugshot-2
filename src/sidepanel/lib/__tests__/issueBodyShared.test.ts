@@ -83,7 +83,7 @@ describe("emitMarkdownLogSummary", () => {
   it("logsHref가 없으면 평문 logs.html", () => {
     const lines: string[] = [];
     emitMarkdownLogSummary(lines, ctx({ networkLogSummary: net }));
-    expect(lines.join("\n")).toContain("file=logs.html");
+    expect(lines.join("\n")).toContain("logs.html: md.attachmentDropped");
     expect(lines.join("\n")).not.toContain("](");
   });
 
@@ -204,7 +204,7 @@ describe("emitMarkdownLogSummary — 클립보드 복사 축", () => {
     emitMarkdownLogSummary(lines, ctx);
     const out = lines.join("\n");
 
-    expect(out).toContain("logSummary.logs.lead");
+    expect(out).toContain("md.attachmentDropped");
     expect(out).toContain("logs.html");
     expect(out).not.toContain("logSummary.logs.notCopied");
   });

@@ -1,4 +1,4 @@
-import { loadSubmissionLogs, assertSubmissionAdaptersReady, expectedSubmissionSources, assertSubmissionSources, prepareSubmissionRecovery, runSubmissionRecovery, withSubmissionProgress, MissingSubmissionFilesError, type SubmissionProgress } from "@/sidepanel/lib/submissionRecovery";
+import { loadSubmissionLogs, expectedSubmissionSources, assertSubmissionSources, prepareSubmissionRecovery, runSubmissionRecovery, withSubmissionProgress, MissingSubmissionFilesError, type SubmissionProgress } from "@/sidepanel/lib/submissionRecovery";
 import type { SubmissionFile } from "@/types/attachment";
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
@@ -461,8 +461,7 @@ export function DraftDetailDialog({
         summary: issue.draft.title,
       }), submissionProgress, submissionFiles),
     );
-    // 승격 가드 없음: submitToJira는 업로드+생성이 단일 atomic 호출(jira.submitIssue)이라
-    // 프론트가 첨부 부분 실패를 신호받지 못한다. 가드하려면 background 핸들러 수정 필요. (docs/POSTMORTEM.md)
+    // Jira creates first; recovery retains the destination and incomplete originals.
     markSubmitted(issue.id, {
       platform: "jira",
       key: result.key,
@@ -783,7 +782,6 @@ export function DraftDetailDialog({
     await assertSubmissionSources(sources);
     const { ctx, captureFiles } = await buildCtxForSubmit(transmitFiles);
     submissionInlineImages = transmitFiles ? await resolveInlineImagesForSections(ctx.sections, sectionConfig) : [];
-    assertSubmissionAdaptersReady();
     const prepared = await prepareSubmissionRecovery({ issue, platform: submitPlatform, files: [
       ...sources,
       ...captureFiles.logs.map((f) => ({ id: "logs", kind: "logs" as const, filename: f.filename, contentType: "text/html", blob: dataUrlToBlob(f.dataUrl) })),

@@ -1,3 +1,4 @@
+import { safeAttachmentFailure } from "@/lib/attachment-failure";
 import { ISSUES_PERSIST_KEY } from "@/lib/session-keys";
 import { MissingSubmissionFilesError } from "@/types/attachment";
 import type { AttachmentResult, CreatedDestination, RecoverySource, SubmissionFile, SubmissionRecoveryMeta } from "@/types/attachment";
@@ -202,7 +203,7 @@ export async function runSubmissionRecovery(
       } catch { return storageFailure(); }
       return { key: "", url: "", attachments: unknownResults(current), recovery: { state: "unknown", issueId, attemptId } };
     }
-    result = { key: current.destination.key, url: current.destination.url ?? "", attachments: unknownResults(current) };
+    result = { key: current.destination.key, url: current.destination.url ?? "", attachments: unknownResults(current), submissionFailure: safeAttachmentFailure(error, "body") };
   }
   let current: SubmissionRecoveryMeta | null;
   try { current = await readSubmissionRecovery(issueId); }
@@ -218,12 +219,12 @@ export async function runSubmissionRecovery(
     const matches = (result.attachments ?? []).filter((r) => r.fileId === f.id);
     return matches.length === 1 ? { ...matches[0], ...(matches[0].failure ? { presentation: "failed" as const } : {}) } : { fileId: f.id, delivery: "unknown" as const, presentation: "failed" as const, failure: { stage: "upload" as const, code: "invalid-response" as const } };
   });
-  const phase = results.every(completed) ? "complete" : "partial";
+  const phase = !result.submissionFailure && results.every(completed) ? "complete" : "partial";
   const destination = current.destination;
   const canonical = { ...result, key: destination.key, url: destination.url ?? "", attachments: results };
   try {
     const enriched = !destination.url && result.key === destination.key && result.url ? { ...destination, url: result.url } : destination;
-    await checkpointSubmission(issueId, attemptId, { phase, results, destination: enriched });
+    await checkpointSubmission(issueId, attemptId, { phase, results, destination: enriched, submissionFailure: result.submissionFailure });
     const finalized = (await readSubmissionRecovery(issueId))!;
     canonical.url = finalized.destination?.url ?? "";
     await finish(finalized, patch());
@@ -343,11 +344,6 @@ export async function assertSubmissionSources(files: SubmissionFileIntent[]): Pr
   const missing: string[] = [];
   for (const file of files) if (file.source && !await readOriginalRecoverySource(file.source)) missing.push(file.id);
   if (missing.length) throw new MissingSubmissionFilesError(missing);
-}
-
-// B3 removes this gate only after all adapters await both checkpoints.
-export function assertSubmissionAdaptersReady(): void {
-  throw new Error("Submission recovery adapter integration is pending");
 }
 
 export function withSubmissionProgress<T>(input: T, progress: SubmissionProgress, files: SubmissionFile[]): T & { progress: SubmissionProgress; submissionFiles: SubmissionFile[] } {
