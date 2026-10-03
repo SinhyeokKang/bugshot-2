@@ -41,13 +41,15 @@ export function injectSnapshotRows<T>(
   getFile: (name: string) => T | undefined,
   makeSnapshotRow: (before: T | undefined, after: T | undefined) => unknown,
   headers: StyleTableHeaders,
+  // Retry renders only its own slot tables; the element index still counts every style table.
+  inScope: (idx: number) => boolean = () => true,
 ): void {
   let elementIndex = 0;
   for (let idx = 0; idx < content.length; idx++) {
     if (!isStyleChangesTable(content[idx], headers)) continue;
     const before = getFile(`before-${elementIndex}.webp`);
     const after = getFile(`after-${elementIndex}.webp`);
-    if (before || after) {
+    if ((before || after) && inScope(idx)) {
       const tbl = JSON.parse(JSON.stringify(content[idx])) as { content: unknown[] };
       tbl.content.splice(1, 0, makeSnapshotRow(before, after));
       content[idx] = tbl;

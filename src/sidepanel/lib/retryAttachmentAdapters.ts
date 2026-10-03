@@ -54,11 +54,13 @@ export function fileFinished(platform: SubmissionRecoveryMeta["platform"], file:
 export function planFileStage(platform: SubmissionRecoveryMeta["platform"], file: Pick<RecoveryFile, "kind">, cp: AttachmentCheckpoint, hasSlot = true): RetryStage | null {
   if (fileFinished(platform, file, cp)) return null;
   if ((platform === "github" || platform === "gitlab") && cp.body !== "not-applicable" && !hasSlot) return null;
+  // Slack discards an uncompleted upload, so only an unconfirmed complete is never redone.
   if (platform === "slack") return cp.link === "unknown" ? null : "upload";
-  // ClickUp lists attachments without names, so a lost upload there cannot be checked or resent.
-  if (cp.upload !== "done") return cp.upload === "unknown" && platform === "clickup" ? null : "upload";
+  // An upload whose result is unknown is sent again only where it cannot surface on the issue by
+  // itself (Notion's unattached upload) or after a name check (Jira/Asana attachment lists).
+  if (cp.upload !== "done") return cp.upload === "unknown" && !["notion", "jira", "asana"].includes(platform) ? null : "upload";
   if (!isDone(cp.link)) return cp.link === "unknown" && platform === "notion" ? null : "link";
-  return "body";
+  return hasSlot ? "body" : null;
 }
 
 // Classifies a remote failure; a fatal one is persisted by the caller and then stops the run.
@@ -92,7 +94,8 @@ async function probe<T>(read: () => Promise<T>): Promise<T> {
 interface BodyIo {
   format: "markdown" | "adf" | "asana-html";
   read(): Promise<string>;
-  write(body: string, slotFiles: readonly string[]): Promise<string>;
+  // `slotUnits`: top-level positions of our restored units in `body` (Jira renders only those).
+  write(body: string, slotFiles: readonly string[], slotUnits: readonly number[]): Promise<string>;
   value(cp: AttachmentCheckpoint): string | undefined;
   // Provider-specific check on the planned body; false turns the planned slots into conflicts.
   valid?(body: string, slotFiles: readonly string[]): boolean;
@@ -125,7 +128,8 @@ function uploadedFrom<T extends { fileId?: string; ok: boolean; failure?: Failur
 async function bodyStage(ctx: RetryContext, io: BodyIo): Promise<void> {
   const { meta } = ctx;
   const readyFile = (f: RecoveryFile) => { const cp = ctx.checkpoint(f.id); return cp.upload === "done" && isDone(cp.link) ? io.value(cp) : undefined; };
-  const targets = meta.files.filter((f) => { const cp = ctx.checkpoint(f.id); return cp.upload === "done" && isDone(cp.link) && !isDone(cp.body); }).map((f) => f.id);
+  const slotted = new Set(meta.retry.bodyPlan.replacements.map((r) => r.fileId));
+  const targets = meta.files.filter((f) => { const cp = ctx.checkpoint(f.id); return cp.upload === "done" && isDone(cp.link) && !isDone(cp.body) && slotted.has(f.id); }).map((f) => f.id);
   if (!targets.length) return;
   const ready = new Map(meta.files.flatMap((f) => { const v = readyFile(f); return v === undefined ? [] : [[f.id, v] as const]; }));
   const plan = (remote: string) => planAttachmentBodyPatch(meta.retry.bodyPlan, remote, ready, targets);
@@ -135,11 +139,11 @@ async function bodyStage(ctx: RetryContext, io: BodyIo): Promise<void> {
   for (let attempt = 0; result.body !== null; attempt++) {
     const latest = await probe(io.read);
     if (latest === remote) break;
-    if (attempt === 1) { result = { ...result, body: null, conflict: [...result.conflict, ...result.written], written: [], slotFiles: [] }; break; }
+    if (attempt === 1) { result = { ...result, body: null, conflict: [...result.conflict, ...result.written], written: [], slotFiles: [], slotUnits: [] }; break; }
     remote = latest;
     result = plan(remote);
   }
-  if (result.body !== null && io.valid && !io.valid(result.body, result.slotFiles)) result = { ...result, body: null, conflict: [...result.conflict, ...result.written], written: [], slotFiles: [] };
+  if (result.body !== null && io.valid && !io.valid(result.body, result.slotFiles)) result = { ...result, body: null, conflict: [...result.conflict, ...result.written], written: [], slotFiles: [], slotUnits: [] };
   if (result.present.length) await ctx.save(...result.present.map((fileId) => ({ fileId, body: "done" as const })));
   if (result.conflict.length) await ctx.save(...result.conflict.map((fileId) => ({ fileId, body: "conflict" as const })));
   for (const id of result.present) ctx.emit(id, "body", "done");
@@ -148,7 +152,7 @@ async function bodyStage(ctx: RetryContext, io: BodyIo): Promise<void> {
   const body = result.body;
   for (const id of result.written) ctx.emit(id, "body", "running");
   await ctx.save(...result.written.map((fileId) => ({ fileId, body: "unknown" as const })));
-  const written = await guarded(ctx, result.written, "body", () => io.write(body, result.slotFiles),
+  const written = await guarded(ctx, result.written, "body", () => io.write(body, result.slotFiles, result.slotUnits),
     (failure) => result.written.map((fileId) => ({ fileId, body: failedStageState(failure) })));
   if (written === undefined) return;
   await ctx.saveBody(written, ...result.written.map((fileId) => ({ fileId, body: "done" as const })));
@@ -162,8 +166,11 @@ const filesAt = (ctx: RetryContext, stage: RetryStage) => {
 
 // Provider attachment listings let a lost upload be checked before it is sent again; a file that
 // may already be there is left unknown instead of risking a duplicate attachment.
-function reconcileUnknownUploads(ctx: RetryContext, files: RecoveryFile[], remoteNames: readonly string[]): RecoveryFile[] {
-  return files.filter((f) => ctx.checkpoint(f.id).upload !== "unknown" || !remoteNames.includes(f.filename));
+// Attachments this submission already owns (by id) never count as a lost upload's copy.
+function reconcileUnknownUploads(ctx: RetryContext, files: RecoveryFile[], remote: ReadonlyArray<{ id: string; name: string }>): RecoveryFile[] {
+  const owned = new Set(ctx.meta.files.flatMap((f) => { const u = ctx.checkpoint(f.id).uploaded; return u && "id" in u ? [u.id] : []; }));
+  const names = remote.filter((a) => !owned.has(a.id)).map((a) => a.name);
+  return files.filter((f) => ctx.checkpoint(f.id).upload !== "unknown" || !names.includes(f.filename));
 }
 
 type Adapter = (ctx: RetryContext) => Promise<void>;
@@ -214,7 +221,7 @@ const asana: Adapter = async (ctx) => {
   const { taskGid } = dest<"asana">(ctx).locator;
   const fetchTask = () => sendBg<{ htmlNotes: string; attachments: Array<{ gid: string; name: string }> }>({ type: "asana.getTaskAttachments", taskGid });
   const task = await probe(fetchTask);
-  await uploadStage(ctx, reconcileUnknownUploads(ctx, filesAt(ctx, "upload"), task.attachments.map((a) => a.name)), async (file, dataUrl) => {
+  await uploadStage(ctx, reconcileUnknownUploads(ctx, filesAt(ctx, "upload"), task.attachments.map((a) => ({ id: a.gid, name: a.name }))), async (file, dataUrl) => {
     const results = await sendBg<AsanaUploadFileResult[]>({ type: "asana.uploadFiles", parent: taskGid, files: [entry(file, dataUrl)] });
     return { platform: "asana", id: uploadedFrom(results, file.id).gid };
   });
@@ -228,7 +235,7 @@ const jira: Adapter = async (ctx) => {
   const fetchIssue = () => sendBg<{ description: JiraAdfDoc | null; attachments: Array<{ id: string; filename: string }> }>({ type: "jira.getIssueAttachments", issueKey });
   const issue = await probe(fetchIssue);
   const fileOf = (id: string) => ctx.meta.files.find((f) => f.id === id)!;
-  await uploadStage(ctx, reconcileUnknownUploads(ctx, filesAt(ctx, "upload"), issue.attachments.map((a) => a.filename)), async (file, dataUrl) => {
+  await uploadStage(ctx, reconcileUnknownUploads(ctx, filesAt(ctx, "upload"), issue.attachments.map((a) => ({ id: a.id, name: a.filename }))), async (file, dataUrl) => {
     const [attachment] = await annotateAttachmentDimensions([{ fileId: file.id, filename: file.filename, dataUrl, ...(file.kind === "user" ? { userAttachment: true } : {}) }]);
     const r = await sendBg<UploadFileResult & { attachmentId?: string; file?: { kind: "media"; mediaId: string } | { kind: "external"; url: string } }>({ type: "jira.uploadAttachment", issueKey, attachment });
     const ok = uploadedFrom([r], file.id);
@@ -249,7 +256,7 @@ const jira: Adapter = async (ctx) => {
     },
     read: async () => JSON.stringify((await fetchIssue()).description ?? { version: 1, type: "doc", content: [] }),
     value: (cp) => cp.uploaded?.platform === "jira" ? cp.uploaded.mediaId ?? cp.uploaded.href : undefined,
-    write: async (body, slotFiles) => {
+    write: async (body, slotFiles, slotUnits) => {
       const uploads = await Promise.all(slotFiles.map(fileOf).filter((f) => f.kind !== "logs" && f.kind !== "user").map(async (f) => {
         const uploaded = ctx.checkpoint(f.id).uploaded;
         if (uploaded?.platform !== "jira") throw new Error("Missing Jira attachment");
@@ -260,9 +267,9 @@ const jira: Adapter = async (ctx) => {
         return { filename: jiraBodyFilename(f), file: uploaded.mediaId ? { kind: "media" as const, mediaId: uploaded.mediaId, ...size } : { kind: "external" as const, url: uploaded.href, ...size } };
       }));
       const logsCp = logs && ctx.checkpoint(logs.id);
-      // Always pass a finished logs link: without it the background rewrites a linked logs line.
+      // A finished logs link travels along so a restored logs slot renders linked, never "dropped".
       const logsUrl = logsCp?.upload === "done" && logsCp.uploaded?.platform === "jira" ? logsCp.uploaded.href : undefined;
-      const written = await sendBg<{ description?: JiraAdfDoc }>({ type: "jira.updateIssueDescription", issueKey, description: JSON.parse(body) as JiraAdfDoc, bodyLocale: ctx.meta.retry.bodyLocale, uploads, ...(logsUrl ? { logsUrl } : {}) });
+      const written = await sendBg<{ description?: JiraAdfDoc }>({ type: "jira.updateIssueDescription", issueKey, description: JSON.parse(body) as JiraAdfDoc, bodyLocale: ctx.meta.retry.bodyLocale, uploads, ...(logsUrl ? { logsUrl } : {}), slots: [...slotUnits] });
       return JSON.stringify(written?.description ?? JSON.parse(body));
     } });
 };

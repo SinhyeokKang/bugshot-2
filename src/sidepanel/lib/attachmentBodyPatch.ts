@@ -235,6 +235,8 @@ export interface BodyPatchResult {
   // Every file of the groups `body` rewrites, including already finished members (a Jira style
   // table re-renders both of its snapshot images).
   slotFiles: string[];
+  // Positions of the units `body` inserts, in the resulting unit array.
+  slotUnits: number[];
 }
 
 interface Slot { members: string[]; pre: string[]; old: string[]; post: string[]; insert: string[] }
@@ -254,7 +256,7 @@ export function planAttachmentBodyPatch(
   ready: ReadonlyMap<string, string>,
   targets: readonly string[],
 ): BodyPatchResult {
-  const result: BodyPatchResult = { body: null, written: [], present: [], conflict: [], waiting: [], slotFiles: [] };
+  const result: BodyPatchResult = { body: null, written: [], present: [], conflict: [], waiting: [], slotFiles: [], slotUnits: [] };
   const wanted = new Set(targets);
   const adf = plan.format === "adf";
   const lineBased = plan.format === "markdown" || plan.format === "asana-html";
@@ -321,6 +323,11 @@ export function planAttachmentBodyPatch(
   const appliedGroups = [...new Set(applied.map((e) => e.group))];
   result.written = appliedGroups.flatMap((id) => groupFiles.get(id)!);
   result.slotFiles = appliedGroups.flatMap((id) => groups.get(id)![0].members);
+  let shift = 0;
+  for (const e of [...applied].sort((a, b) => a.at - b.at)) {
+    result.slotUnits.push(...e.insert.map((_, n) => e.at + shift + n));
+    shift += e.insert.length - e.length;
+  }
 
   if (adf) {
     const content = [...nodes!];

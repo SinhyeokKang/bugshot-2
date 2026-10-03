@@ -42,10 +42,12 @@ export function planAttachmentRetry(meta: SubmissionRecoveryMeta): Array<{ fileI
 export function attachmentRetryBlocker(meta: SubmissionRecoveryMeta): AttachmentRetryReason | null {
   const blocker = retrySnapshotBlocker(meta);
   if (blocker || planAttachmentRetry(meta).length) return blocker;
-  // Unfinished GitHub/GitLab files without a recorded body slot can only be downloaded.
-  const slotless = (meta.platform === "github" || meta.platform === "gitlab") && meta.retry!.checkpoints.some((cp) =>
-    cp.upload !== "done" && cp.body !== "not-applicable" && !meta.retry!.bodyPlan.replacements.some((r) => r.fileId === cp.fileId));
-  return slotless ? "legacy" : "ambiguous";
+  // A body place that was never recorded cannot be patched safely: download only.
+  return meta.retry!.checkpoints.some((cp) => slotlessBody(meta, cp)) ? "legacy" : "ambiguous";
+}
+
+function slotlessBody(meta: SubmissionRecoveryMeta, cp: AttachmentCheckpoint): boolean {
+  return cp.body !== "done" && cp.body !== "not-applicable" && !meta.retry!.bodyPlan.replacements.some((r) => r.fileId === cp.fileId);
 }
 
 // What the recovery UI says about a record from durable state alone. Body conflicts keep the retry
@@ -166,9 +168,8 @@ async function checkIdentity(meta: RetryMeta): Promise<AttachmentRetryReason | n
     const result = await sendBg<{ identity?: unknown }>({ type: `${meta.platform as RetryPlatform}.getAccountIdentity`, destination: meta.destination });
     return result?.identity === meta.retry.accountIdentity ? null : "account-changed";
   } catch (error) {
-    const reason = retryFailureReason(error);
-    // Disconnected or unreadable connection: same outcome as a different account — reconnect first.
-    return reason === "ambiguous" ? "account-changed" : reason;
+    // Only a lookup that answered with another account is a change; a failed lookup is unknown.
+    return retryFailureReason(error);
   }
 }
 
@@ -200,6 +201,6 @@ function reasonOf(meta: RetryMeta, checkpoints: Map<string, AttachmentCheckpoint
   // Left unknown after reconciling against the provider's attachment list: may already be there.
   const stuck = (f: RetryMeta["files"][number]) => planFileStage(meta.platform, f, checkpoints.get(f.id)!, meta.retry.bodyPlan.replacements.some((r) => r.fileId === f.id)) === null
     || (checkpoints.get(f.id)!.upload === "unknown" && (meta.platform === "jira" || meta.platform === "asana"));
-  if (open.length && open.every(stuck)) return "ambiguous";
+  if (open.length && open.every(stuck)) return open.some((f) => slotlessBody(meta, checkpoints.get(f.id)!)) ? "legacy" : "ambiguous";
   return undefined;
 }

@@ -77,7 +77,7 @@ export async function submitCreation<T>(progress: SubmissionProgress | undefined
 }
 
 // Retry slots are best effort: a failure to compute them leaves the record without slots, which a
-// retry treats as a body conflict — it must never fail the already-created submission.
+// retry offers as download only (legacy) — it must never fail the already-created submission.
 export async function recordBodySlots(
   progress: SubmissionProgress | undefined,
   lastWritten: string,

@@ -163,10 +163,11 @@ function destinationFields(destination: CreatedDestination): Partial<IssueRecord
   }
 }
 
-async function finish(meta: SubmissionRecoveryMeta, patch: Partial<IssueRecord> = {}, reconcile = false): Promise<void> {
+async function finish(meta: SubmissionRecoveryMeta, patch: Partial<IssueRecord> = {}, reconcile = false, keepSubmittedAt = false): Promise<void> {
   const destination = meta.destination;
   if (!destination) throw new Error("Missing created destination");
   if (!useIssuesStore.getState().issues.some((i) => i.id === meta.issueId)) await restoreRecord(meta);
+  const submittedAt = keepSubmittedAt ? useIssuesStore.getState().issues.find((i) => i.id === meta.issueId)?.submittedAt : undefined;
   const preserveOriginals = destination.platform === "slack";
   const stored = reconcile ? await chrome.storage.local.get(ISSUES_PERSIST_KEY) : {};
   const serialized = stored[ISSUES_PERSIST_KEY];
@@ -180,7 +181,7 @@ async function finish(meta: SubmissionRecoveryMeta, patch: Partial<IssueRecord> 
     ...destinationFields(destination), ...patch, platform: destination.platform, key: destination.key, url: destination.url,
     submissionRecoveryId: meta.attemptId,
     ...(preserveOriginals ? { slackPreserved: true } : {}),
-  }, { preserveOriginals });
+  }, { preserveOriginals, ...(submittedAt ? { submittedAt } : {}) });
   await cleanupSubmissionOriginals(meta.issueId, meta.attemptId);
   if (meta.phase === "complete") {
     await deleteSubmissionRecovery(meta.issueId, meta.attemptId);
@@ -324,7 +325,7 @@ export async function runSubmissionRecovery(
 // then original cleanup, then journal deletion. Caller holds the issue lock.
 export async function completeRecoveredSubmission(meta: SubmissionRecoveryMeta): Promise<void> {
   if (meta.phase !== "complete") throw new Error("Recovery is not complete");
-  await finish(meta);
+  await finish(meta, {}, false, true);
 }
 
 async function reconcileMissingJournal(issueId: string): Promise<void> {

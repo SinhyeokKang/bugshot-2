@@ -117,7 +117,7 @@ export type BgRequest =
   // Existing-issue reads/updates for attachment retry. None of them may fall back to creation.
   | { type: `${RetryPlatform}.getAccountIdentity`; destination: CreatedDestination }
   | { type: "jira.getIssueAttachments"; issueKey: string }
-  | { type: "jira.updateIssueDescription"; issueKey: string; description: import("./jira").JiraAdfDoc; bodyLocale?: import("@/i18n/locales").LocaleMode; uploads: Array<{ filename: string; file: { kind: "media"; mediaId: string; width?: number; height?: number } | { kind: "external"; url: string; width?: number; height?: number } }>; logsUrl?: string; relates?: string[] }
+  | { type: "jira.updateIssueDescription"; issueKey: string; description: import("./jira").JiraAdfDoc; bodyLocale?: import("@/i18n/locales").LocaleMode; uploads: Array<{ filename: string; file: { kind: "media"; mediaId: string; width?: number; height?: number } | { kind: "external"; url: string; width?: number; height?: number } }>; logsUrl?: string; relates?: string[]; slots?: number[] }
   | { type: "github.oauth.available" }
   | { type: "github.startOAuth" }
   | { type: "github.testPat"; pat: string }

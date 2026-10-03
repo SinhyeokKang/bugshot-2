@@ -332,7 +332,7 @@ export async function handleMessage(
     }
     case "jira.updateIssueDescription": {
       const auth = await ensureFreshAuth(await loadAuth());
-      const content = buildJiraDescriptionContent({ description: message.description, uploadMap: new Map(message.uploads.map((r) => [r.filename, r.file])), logsUrl: message.logsUrl, bodyLocale: message.bodyLocale });
+      const content = buildJiraDescriptionContent({ description: message.description, uploadMap: new Map(message.uploads.map((r) => [r.filename, r.file])), logsUrl: message.logsUrl, bodyLocale: message.bodyLocale, ...(message.slots ? { only: new Set(message.slots) } : {}) });
       const description: JiraAdfDoc = { version: 1, type: "doc", content };
       await updateIssueDescription(auth, message.issueKey, description);
       for (const key of message.relates ?? []) {
@@ -921,17 +921,20 @@ export function buildJiraDescriptionContent(input: {
   uploadMap: Map<string, UploadedFile>;
   logsUrl?: string;
   bodyLocale?: LocaleMode;
+  // Attachment retry: the top-level nodes it restored. Everything else is the remote's own content.
+  only?: ReadonlySet<number>;
 }): unknown[] {
   const { description, uploadMap, logsUrl } = input;
+  const inScope = (idx: number) => !input.only || input.only.has(idx);
   // 누락(구버전 메시지)과 오염을 한 호출로 흡수한다 — 메시지 게이트는 type만 보므로 여기가
   // 이 realm의 마지막 관문이고, 통과시키면 사전 조회가 undefined라 t()가 죽는다.
   return withLocale(resolveBodyLocale(input.bodyLocale, getLocale()), () => {
     const content: unknown[] = [...description.content];
     const screenshotFile = uploadMap.get("screenshot.webp");
     const mediaPlaceholderIdx = content.findIndex(
-      (n) => {
+      (n, idx) => {
         const node = n as { type: string; content?: { text?: string }[] };
-        return node.type === "paragraph" && node.content?.[0]?.text === IMAGE_PLACEHOLDER;
+        return inScope(idx) && node.type === "paragraph" && node.content?.[0]?.text === IMAGE_PLACEHOLDER;
       },
     );
     if (screenshotFile && mediaPlaceholderIdx >= 0) {
@@ -951,9 +954,9 @@ export function buildJiraDescriptionContent(input: {
       if (/^recording\.(webm|mp4)$/i.test(name)) { videoFile = file; break; }
     }
     const videoPlaceholderIdx = content.findIndex(
-      (n) => {
+      (n, idx) => {
         const node = n as { type: string; content?: { text?: string }[] };
-        return node.type === "paragraph" && node.content?.[0]?.text === VIDEO_PLACEHOLDER;
+        return inScope(idx) && node.type === "paragraph" && node.content?.[0]?.text === VIDEO_PLACEHOLDER;
       },
     );
     if (videoFile?.kind === "media" && videoPlaceholderIdx >= 0) {
@@ -975,12 +978,12 @@ export function buildJiraDescriptionContent(input: {
       injectSnapshotRows(content, (name) => uploadMap.get(name), snapshotRow, {
         asIs: t("styleTable.asIs"),
         toBe: t("styleTable.toBe"),
-      });
+      }, inScope);
     }
 
     for (let i = 0; i < content.length; i++) {
       const node = content[i] as { type: string; content?: { text?: string }[] };
-      if (node.type !== "paragraph" || !node.content?.[0]?.text) continue;
+      if (!inScope(i) || node.type !== "paragraph" || !node.content?.[0]?.text) continue;
       const refId = parseInlinePlaceholder(node.content[0].text);
       if (!refId) continue;
       const file = uploadMap.get(inlineUploadFilename(refId));
@@ -995,11 +998,11 @@ export function buildJiraDescriptionContent(input: {
       content[i] = adfMediaSingle(mediaNode);
     }
 
-    if (logsUrl) injectLogsLink(content, logsUrl);
+    if (logsUrl) injectLogsLink(content.filter((_, i) => inScope(i)), logsUrl);
     else {
       for (let i = 0; i < content.length; i++) {
         const node = content[i] as { type?: string; content?: { text?: string }[] };
-        if (node.type === "paragraph" && node.content?.some((n) => n.text === t("logSummary.logs.lead")) && node.content.some((n) => n.text === "logs.html")) {
+        if (inScope(i) && node.type === "paragraph" && node.content?.some((n) => n.text === t("logSummary.logs.lead")) && node.content.some((n) => n.text === "logs.html")) {
           content[i] = { type: "paragraph", content: [{ type: "text", text: `logs.html: ${t("md.attachmentDropped")}` }] };
         }
       }
