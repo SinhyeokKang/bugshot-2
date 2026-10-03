@@ -17,6 +17,7 @@ vi.mock("@/lib/settings-storage", async (original) => ({
 }));
 import { handleMessage } from "../messages";
 import { BG_REQUEST_TYPES } from "../bgRequestTypes";
+import { serializePlatformError } from "../platformErrors";
 
 const AUTH = {
   jira: { kind: "oauth", cloudId: "cloud-1", siteUrl: "https://acme.atlassian.net", email: "a@b.c", accessToken: "t1", refreshToken: "r1", expiresAt: Date.now() + 3600_000 },
@@ -132,6 +133,14 @@ describe("account identity", () => {
     stored.auth = {};
     vi.stubGlobal("fetch", vi.fn());
     await expect(identity("github")).rejects.toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each(Object.keys(AUTH) as Array<keyof typeof AUTH>)("a disconnected %s crosses the message boundary as 401 not_connected", async (platform) => {
+    stored.auth = {};
+    vi.stubGlobal("fetch", vi.fn());
+    const error = await identity(platform).then(() => undefined, (e: unknown) => e);
+    expect(serializePlatformError(error)).toMatchObject({ status: 401, body: { code: "not_connected" } });
     expect(fetch).not.toHaveBeenCalled();
   });
 });

@@ -629,10 +629,26 @@ describe("retryAttachments — fix round 1", () => {
     expect(sendBg).not.toHaveBeenCalled();
   });
 
+  it("a disconnected platform is an authentication stop with reconnect guidance and no writes", async () => {
+    const plan = ghPlan({}, [logs.id]);
+    await seed({ files: [logs], bodyPlan: plan });
+    rpc({ "github.getAccountIdentity": () => { throw Object.assign(new Error("Platform is not connected"), { status: 401, body: { code: "not_connected" } }); } });
+    expect(await runner.retryAttachments("i")).toMatchObject({ status: "blocked", reason: "authentication" });
+    expect(types()).toEqual(["github.getAccountIdentity"]);
+  });
+
+  it("a record mixing an unconfirmed upload with a slot-less file reports the unconfirmed one, not legacy", async () => {
+    const plan = ghPlan({}, [logs.id]);
+    await seed({ files: [logs, userPdf], bodyPlan: plan, checkpoints: [cp(logs.id, { upload: "unknown" }), cp(userPdf.id)] });
+    rpc({});
+    expect(runner.attachmentRetryBlocker((await db.readSubmissionRecovery("i"))!)).toBe("ambiguous");
+    expect(await runner.retryAttachments("i")).toMatchObject({ status: "blocked", reason: "ambiguous" });
+    expect(sendBg).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["a network failure", () => { throw new TypeError("Failed to fetch"); }],
     ["a provider 503", () => { throw httpError(503); }],
-    ["a disconnected platform", () => { throw new Error("Platform is not connected"); }],
   ])("an identity lookup that fails with %s is ambiguous, not a different account, and writes nothing", async (_, lookup) => {
     const plan = ghPlan({}, [logs.id]);
     await seed({ files: [logs], bodyPlan: plan });
@@ -776,6 +792,8 @@ describe("retryAttachments — fix round 1", () => {
     });
     expect((await runner.retryAttachments("i")).status).toBe("complete");
     expect(sent("clickup.uploadFile")).toEqual([{ type: "clickup.uploadFile", taskId: "task", files: [expect.objectContaining({ fileId: capture.id })] }]);
+    expect(sent("clickup.getTaskAttachments").length).toBeGreaterThan(0);
+    expect(sent("clickup.getTaskAttachments").every((m) => JSON.stringify(m) === JSON.stringify({ type: "clickup.getTaskAttachments", taskId: "task" }))).toBe(true);
     expect(sent("clickup.updateTaskMarkdown")).toEqual([{ type: "clickup.updateTaskMarkdown", taskId: "task", markdownContent: ghBody({ [capture.id]: HREF[capture.id] }) }]);
   });
 
@@ -793,6 +811,8 @@ describe("retryAttachments — fix round 1", () => {
     });
     expect((await runner.retryAttachments("i")).status).toBe("complete");
     expect(sent("asana.uploadFiles")).toEqual([{ type: "asana.uploadFiles", parent: "task", files: [expect.objectContaining({ fileId: capture.id })] }]);
+    expect(sent("asana.getTaskAttachments").length).toBeGreaterThan(0);
+    expect(sent("asana.getTaskAttachments").every((m) => JSON.stringify(m) === JSON.stringify({ type: "asana.getTaskAttachments", taskGid: "task" }))).toBe(true);
     expect(sent("asana.updateTaskNotes")).toEqual([{ type: "asana.updateTaskNotes", taskGid: "task", htmlNotes: notes("g-1") }]);
   });
 
