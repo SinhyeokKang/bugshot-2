@@ -11,8 +11,8 @@
 
 | Batch | Model / effort | Reason | Status |
 |---|---|---|---|
-| B6 retry APIs (Task 9) | Opus / high | eight-provider contracts, account identity, fenced IDB revision invariants | review 1: 🔴0 🟡5 → fix1 sent |
-| B7 retry runner (Task 10) | Opus / high | shared submission lock, no-duplicate stage resume, 3-way body patch | planned (after B6 in dev) |
+| B6 retry APIs (Task 9) | Opus / high | eight-provider contracts, account identity, fenced IDB revision invariants | integrated `5ae8e683..07ec078a` (fix1: e2e 53 passed, 8310 tests); main-checkout gate exit 0; worktree removed |
+| B7 retry runner (Task 10) | Opus / high | shared submission lock, no-duplicate stage resume, 3-way body patch | in progress (worktree `attachment-recovery-cc-b7`, brief `.scratch/brief-cc-b7.md`) |
 | B8 retry UI (Task 11) | Sonnet / high | UI/a11y wiring on a settled runner contract | planned (after B7 in dev) |
 | B9 acceptance (Task 12) | Sonnet / high | phase-2 e2e, docs; coordinator owns docs freshness/runtime | planned (after B8 in dev) |
 
@@ -21,6 +21,8 @@ Serial order B6 → B7 → B8 → B9 (each consumes the previous contract; share
 - B6 worker: worktree `attachment-recovery-cc-b6`, terminal B6-opus. Deviations to judge in review: Slack initial submit staged per file (grant→bytes→complete), identity lookup at partial-failure time, checkpoint-save failure disables auto-retry only. Coordinator-owned follow-ups from B6: DIRECTORY.md stale `slack.uploadFiles`, privacy ko/en retention of `lastWritten`/`accountIdentity`/remote locators, 3 POSTMORTEM candidates.
 - B6 review 1 (Opus, report-only): integrable, 🔴0. 🟡 routed to fix1: storage-enforced identity no-backfill, document Slack ambiguous→unknown phase-1 change, run Slack/recovery e2e (worker allowed `build:e2e` for this round), Linear/Notion not-found → remote-missing, identity-timeout test. Deviations (a) Slack staged initial submit, (b) identity at partial time, (c) checkpoint failure disables auto-retry only — all accepted.
 - Coordinator decisions (per design, user said "예정대로만 진행"): Notion API-key identity fail-closed when fixed-version `workspace_id` absent; other platforms' multi-file initial submit unchanged (phase-1 scope; retry path one file per message in B7); ≤10s identity lookup on partial path accepted.
+- B6 integrated; coordinator docs: DIRECTORY Slack staged messages, privacy ko/en retry snapshot fields (effective date unchanged 2026-10-04 — revisit at phase-2 release), design Slack row. POSTMORTEM candidates deferred to one batch at B9: platform error `code` lost across message boundary, checkpoint inside the remote-call try, `expect` inside runner-caught callbacks silently passes.
+- Decision for B7: body-slot plan option (a) — record replacements at first submit; missing replacements → conflict/download-only.
 
 > Historical note: Codex stop (2026-10-04) — see [handoff.md](./handoff.md). Earlier automatic phase-transition instructions are superseded.
 
