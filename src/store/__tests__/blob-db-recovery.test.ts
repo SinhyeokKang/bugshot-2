@@ -509,4 +509,27 @@ describe("explicit recovery local removal", () => {
     expect((await db.readSubmissionRecovery("issue"))?.localFilesRemoved).toBeUndefined();
     expect(await db.getInlineImage("shared")).not.toBeNull();
   });
+  it("rejects an active creation and rolls back bytes if the marker write fails", async () => {
+    await db.beginSubmissionRecovery(meta(), new Map());
+    await db.checkpointSubmission("issue", "attempt", { phase: "creating", results: [] });
+    await expect(db.removeSubmissionRecoveryFiles("issue", "attempt")).rejects.toThrow("not settled");
+    await db.checkpointSubmission("issue", "attempt", { phase: "unknown", results: [] });
+    await db.dismissUnknownSubmission("issue", "attempt");
+    const m = await prepare();
+    const put = IDBObjectStore.prototype.put;
+    vi.spyOn(IDBObjectStore.prototype, "put").mockImplementation(function (this: IDBObjectStore, value, key) {
+      if (value?.localFilesRemoved) throw new Error("disk failed");
+      return put.call(this, value, key);
+    });
+    await expect(db.removeSubmissionRecoveryFiles("issue", "attempt")).rejects.toThrow("disk failed");
+    expect(await db.readRecoveryFile(m, "f")).not.toBeNull();
+    expect((await db.readSubmissionRecovery("issue"))?.localFilesRemoved).toBeUndefined();
+  });
+  it("keeps ordinary persisted draft references", async () => {
+    await prepare();
+    vi.stubGlobal("chrome", { storage: { session: { get: async () => ({}) }, local: { get: async () => ({ "bugshot-issues": JSON.stringify({ state: { issues: [{ id: "another", draft: { sections: { actual: "![](inline:shared)" } } }] } }) }) } } });
+    await db.removeSubmissionRecoveryFiles("issue", "attempt");
+    expect(await db.getInlineImage("shared")).not.toBeNull();
+  });
+
 });

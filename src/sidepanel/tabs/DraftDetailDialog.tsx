@@ -1,5 +1,7 @@
+import { AttachmentRecoveryPanel } from "@/sidepanel/components/AttachmentRecoveryPanel";
+import { PageScroll } from "@/sidepanel/components/Section";
 import { loadSubmissionLogs, expectedSubmissionSources, assertSubmissionSources, prepareSubmissionRecovery, runSubmissionRecovery, withSubmissionProgress, MissingSubmissionFilesError, type SubmissionProgress } from "@/sidepanel/lib/submissionRecovery";
-import type { SubmissionFile } from "@/types/attachment";
+import type { SubmissionFile, SubmissionRecoveryMeta } from "@/types/attachment";
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
 import type { NetworkLog } from "@/types/network";
@@ -145,7 +147,31 @@ type SubmitFields = {
   cc?: { accountId: string; displayName: string }[];
 };
 
-export function DraftDetailDialog({
+export function DraftDetailDialog(props: {
+  issue: IssueRecord | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSubmitSuccess?: (result: NormalizedSubmitResult) => void;
+  autoOpenSubmit?: boolean;
+}) {
+  const t = useT();
+  const { issue, open, onOpenChange } = props;
+  const [recoveryMeta, setRecoveryMeta] = useState<SubmissionRecoveryMeta | null>(null);
+  const recoveryUrl = recoveryMeta?.issueId === issue?.id && recoveryMeta?.attemptId === issue?.submissionRecoveryId ? recoveryMeta?.destination?.url : undefined;
+  if (issue?.submissionRecoveryId) return <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="flex max-h-[80vh] w-[90vw] max-w-[800px] flex-col gap-5 rounded-3xl p-6 sm:rounded-3xl" data-testid="draft-detail-dialog" aria-describedby={undefined}>
+      <DialogHeader><DialogTitle>{issue.title || t("common.untitled")}</DialogTitle></DialogHeader>
+      <PageScroll><AttachmentRecoveryPanel key={issue.submissionRecoveryId} issueId={issue.id} attemptId={issue.submissionRecoveryId} allowManage onMetaLoaded={setRecoveryMeta} onConfirmed={() => onOpenChange(false)} /></PageScroll>
+      <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>{t("common.close")}</Button>
+        {recoveryUrl && <Button asChild><a href={recoveryUrl} target="_blank" rel="noopener noreferrer">{t("recovery.openIssue")}</a></Button>}
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>;
+  if (issue?.status === "submitted" && !isSlackPreserved(issue)) return null;
+  return <EditableDraftDetailDialog {...props} />;
+}
+
+function EditableDraftDetailDialog({
   issue,
   open,
   onOpenChange,

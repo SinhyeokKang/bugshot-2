@@ -433,3 +433,154 @@ it.each(["thread", "permalink", "empty", "missing", "success"])("real zero-file 
   await recovery.reconcileSubmissionRecovery();
   expect((await db.readSubmissionRecovery("i"))?.phase).toBe("partial");
 });
+
+async function partialSlack() {
+  const record = { ...issue(), platform: "slack" as const };
+  store.useIssuesStore.setState({ issues: [record] });
+  await db.saveAttachmentBlob("i", "pdf", new Blob(["source"]));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: record, platform: "slack", files: [{ id: "user:pdf", kind: "user", filename: "file.pdf", contentType: "application/pdf", source: { kind: "original", store: "attachments", key: "i:pdf" } }] });
+  await recovery.runSubmissionRecovery(prepared, async (p) => {
+    await p.beforeCreate();
+    await p.created({ platform: "slack", key: "1.2", url: "https://slack.com/message", locator: { channelId: "C", ts: "1.2" } });
+    throw new Error("upload failed");
+  });
+  return prepared;
+}
+it("explicit Slack copy removal releases promotion but preserves submitted source and remote calls stay zero", async () => {
+  const prepared = await partialSlack();
+  await recovery.deleteSubmissionLocalFiles("i", prepared.meta.attemptId);
+  expect(await db.readSubmissionRecovery("i")).toBeNull();
+  expect(store.useIssuesStore.getState().issues[0]).toMatchObject({ status: "submitted", slackPreserved: true, key: "1.2", submissionRecoveryId: undefined });
+  expect(await (await db.getAttachmentBlob("i", "pdf"))?.text()).toBe("source");
+  expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+  const create = vi.fn();
+  await store.withIssueSubmitGuard("i", async () => {
+    const next = await recovery.prepareSubmissionRecovery({ issue: store.useIssuesStore.getState().issues[0], platform: "github", files: [] });
+    await recovery.runSubmissionRecovery(next, async (p) => { await p.beforeCreate(); create(); await p.created(destination); return { key: "#1", url: destination.url!, attachments: [] }; });
+  });
+  await expect(store.withIssueSubmitGuard("i", async () => create())).rejects.toThrow();
+  expect(create).toHaveBeenCalledOnce();
+});
+it("expiry alone never releases Slack promotion", async () => {
+  const prepared = await partialSlack();
+  await db.expireSubmissionRecovery("i", prepared.meta.attemptId, prepared.meta.expiresAt + 1);
+  expect((await db.readSubmissionRecovery("i"))?.localFilesRemoved).toBe(true);
+  await expect(store.withIssueSubmitGuard("i", async () => {})).rejects.toThrow();
+});
+it("explicit removal refuses unknown and stale release but still marks unknown files removed", async () => {
+  const prepared = await partialSlack();
+  await expect(recovery.deleteSubmissionLocalFiles("i", "stale")).rejects.toThrow();
+  expect(await db.readSubmissionRecovery("i")).not.toBeNull();
+  await recovery.deleteSubmissionLocalFiles("i", prepared.meta.attemptId);
+  const next = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "slack", files: [] });
+  await recovery.runSubmissionRecovery(next, async (p) => { await p.beforeCreate(); throw new Error("lost"); });
+  await recovery.deleteSubmissionLocalFiles("i", next.meta.attemptId);
+  expect(await db.readSubmissionRecovery("i")).toMatchObject({ phase: "unknown", localFilesRemoved: true });
+  await expect(store.withIssueSubmitGuard("i", async () => {})).rejects.toThrow();
+});
+it("failed explicit release stays blocked and restart repairs a missing journal", async () => {
+  const prepared = await partialSlack();
+  vi.mocked(chrome.storage.local.set).mockRejectedValueOnce(new Error("quota"));
+  await expect(recovery.deleteSubmissionLocalFiles("i", prepared.meta.attemptId)).rejects.toThrow();
+  expect(store.useIssuesStore.getState().issues[0].submissionRecoveryId).toBe(prepared.meta.attemptId);
+  await expect(store.withIssueSubmitGuard("i", async () => {})).rejects.toThrow();
+  await recovery.reconcileSubmissionRecovery();
+  expect(store.useIssuesStore.getState().issues[0]).toMatchObject({ status: "submitted", slackPreserved: true, submissionRecoveryId: undefined });
+  expect(await db.getAttachmentBlob("i", "pdf")).not.toBeNull();
+});
+
+it("two panels cannot promote twice after explicit Slack recovery removal", async () => {
+  const first = await partialSlack();
+  await recovery.deleteSubmissionLocalFiles("i", first.meta.attemptId);
+  vi.resetModules();
+  const otherStore = await import("@/store/issues-store");
+  const otherRecovery = await import("../submissionRecovery");
+  await otherStore.useIssuesStore.persist.rehydrate();
+  const create = vi.fn(async () => destination);
+  const perform = (s: typeof store, r: typeof recovery) => s.withIssueSubmitGuard("i", async () => {
+    const prepared = await r.prepareSubmissionRecovery({ issue: s.useIssuesStore.getState().issues[0], platform: "github", files: [] });
+    return r.runSubmissionRecovery(prepared, async (p) => { await p.beforeCreate(); await p.created(await create()); return { key: destination.key, url: destination.url!, attachments: [] }; });
+  });
+  await perform(store, recovery);
+  expect(otherStore.useIssuesStore.getState().issues[0].platform).toBe("slack");
+  await expect(perform(otherStore, otherRecovery)).rejects.toThrow();
+  expect(create).toHaveBeenCalledOnce();
+});
+it("local removal fails closed under the shared active-operation lock", async () => {
+  const prepared = await partialSlack();
+  await store.withIssueOperationLock("i", async () => {
+    await expect(recovery.deleteSubmissionLocalFiles("i", prepared.meta.attemptId)).rejects.toThrow();
+    expect((await db.readSubmissionRecovery("i"))?.localFilesRemoved).toBeUndefined();
+  });
+});
+
+async function partialGithub() {
+  await db.saveAttachmentBlob("i", "pdf", new Blob(["source"]));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [{ id: "user:pdf", kind: "user", filename: "file.pdf", contentType: "application/pdf", source: { kind: "original", store: "attachments", key: "i:pdf" } }] });
+  await recovery.runSubmissionRecovery(prepared, async (p) => {
+    await p.beforeCreate(); await p.created(destination);
+    return { key: destination.key, url: destination.url!, attachments: [{ fileId: "user:pdf", delivery: "failed", presentation: "failed" }] };
+  });
+  return prepared;
+}
+it("explicit known non-Slack abandonment clears copies and warning without remote completion claims", async () => {
+  const prepared = await partialGithub();
+  await recovery.deleteSubmissionLocalFiles("i", prepared.meta.attemptId);
+  expect(await db.readSubmissionRecovery("i")).toBeNull();
+  expect(store.useIssuesStore.getState().issues[0]).toMatchObject({ status: "submitted", key: "#1", submissionRecoveryId: undefined });
+  expect(await db.getAttachmentBlob("i", "pdf")).toBeNull();
+  expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+});
+it("non-Slack pointer-clear failure retains a blocked indicator and restart repairs it", async () => {
+  const prepared = await partialGithub();
+  vi.mocked(chrome.storage.local.set).mockRejectedValueOnce(new Error("quota"));
+  await expect(recovery.deleteSubmissionLocalFiles("i", prepared.meta.attemptId)).rejects.toThrow();
+  expect(store.useIssuesStore.getState().issues[0].submissionRecoveryId).toBe(prepared.meta.attemptId);
+  await recovery.reconcileSubmissionRecovery();
+  expect(store.useIssuesStore.getState().issues[0]).toMatchObject({ status: "submitted", key: "#1", submissionRecoveryId: undefined });
+});
+it("non-Slack TTL retains the warning until explicit abandonment and a stale attempt cannot remove a new journal", async () => {
+  const prepared = await partialGithub();
+  await db.expireSubmissionRecovery("i", prepared.meta.attemptId, prepared.meta.expiresAt + 1);
+  expect(store.useIssuesStore.getState().issues[0].submissionRecoveryId).toBe(prepared.meta.attemptId);
+  expect((await db.readSubmissionRecovery("i"))?.phase).toBe("partial");
+  await recovery.deleteSubmissionLocalFiles("i", prepared.meta.attemptId);
+  const next = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
+  await expect(recovery.deleteSubmissionLocalFiles("i", prepared.meta.attemptId)).rejects.toThrow();
+  expect((await db.readSubmissionRecovery("i"))?.attemptId).toBe(next.meta.attemptId);
+});
+
+it("unknown local removal invalidates mounted consumers through the existing issue store", async () => {
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
+  await recovery.runSubmissionRecovery(prepared, async (p) => { await p.beforeCreate(); throw new Error("lost"); });
+  const before = store.useIssuesStore.getState().issues[0];
+  await recovery.deleteSubmissionLocalFiles("i", prepared.meta.attemptId);
+  const after = store.useIssuesStore.getState().issues[0];
+  expect(after).not.toBe(before);
+  expect(after.updatedAt).toBeGreaterThan(before.updatedAt);
+  expect(after.submissionRecoveryId).toBe(prepared.meta.attemptId);
+});
+it("expiry invalidation preserves newer durable fields and does not echo on repeated reconciliation", async () => {
+  const prepared = await partialGithub();
+  const local = store.useIssuesStore.getState().issues[0];
+  const durable = { ...local, title: "Newer panel title", updatedAt: local.updatedAt + 100 };
+  await chrome.storage.local.set({ "bugshot-issues": JSON.stringify({ state: { issues: [durable] }, version: 4 }) });
+  await recovery.reconcileSubmissionRecovery(prepared.meta.expiresAt + 1);
+  const after = store.useIssuesStore.getState().issues[0];
+  expect(after).not.toBe(local);
+  expect(after.title).toBe("Newer panel title");
+  expect(after.updatedAt).toBeGreaterThan(durable.updatedAt);
+  const writes = vi.mocked(chrome.storage.local.set).mock.calls.length;
+  await recovery.reconcileSubmissionRecovery(prepared.meta.expiresAt + 1);
+  expect(vi.mocked(chrome.storage.local.set).mock.calls).toHaveLength(writes);
+});
+
+it("abandonment waits for durable submitted identity before destroying copies", async () => {
+  const prepared = await partialGithub();
+  await chrome.storage.local.set({ "bugshot-issues": JSON.stringify({ state: { issues: [{ ...issue(), submissionRecoveryId: prepared.meta.attemptId }] }, version: 4 }) });
+  vi.mocked(chrome.storage.local.set).mockRejectedValueOnce(new Error("quota"));
+  await expect(recovery.deleteSubmissionLocalFiles("i", prepared.meta.attemptId)).rejects.toThrow();
+  expect((await db.readSubmissionRecovery("i"))?.phase).toBe("partial");
+  expect(await db.getAttachmentBlob("i", "pdf")).not.toBeNull();
+  expect(store.useIssuesStore.getState().issues[0].submissionRecoveryId).toBe(prepared.meta.attemptId);
+});

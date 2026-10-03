@@ -995,6 +995,31 @@ export async function expireSubmissionRecovery(issueId: string, attemptId: strin
   });
 }
 
+export async function removeSubmissionRecoveryFiles(issueId: string, attemptId: string): Promise<void> {
+  const inlineRefs = await collectAllActiveInlineRefs([issueId]);
+  const local = await chrome.storage.local.get(ISSUES_PERSIST_KEY);
+  const raw = local[ISSUES_PERSIST_KEY];
+  const persisted = typeof raw === "string" ? JSON.parse(raw) : raw;
+  const owner = persisted?.state?.issues?.find((issue: { id: string }) => issue.id === issueId);
+  await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES], "readwrite", async (tx) => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    const current = await requireAttempt(store, issueId, attemptId);
+    if (current.phase !== "partial" && current.phase !== "unknown") throw new Error("Recovery is not settled");
+    const retained = (await recoveriesIn(tx)).filter((meta) => meta.issueId !== issueId && meta.expiresAt > Date.now());
+    if (current.platform !== "slack" && !owner?.slackPreserved) {
+      for (const source of current.files.flatMap(originalRecoverySources)) {
+        // Non-inline originals belong to their issue key; never delete another owner's bytes.
+        if (source.store !== STORE_INLINE_IMAGES && source.key !== issueId && !source.key.startsWith(`${issueId}:`)) continue;
+        if ((source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
+          || retained.some((other) => protectsSource(other, source.store, source.key))) continue;
+        tx.objectStore(source.store).delete(source.key);
+      }
+    }
+    for (const { source } of current.files) if (source.kind === "generated") store.delete(source.key);
+    store.put({ ...current, localFilesRemoved: true, updatedAt: Math.max(Date.now(), current.updatedAt + 1) }, `attempt:${issueId}`);
+  });
+}
+
 export async function cleanupSubmissionOriginals(issueId: string, attemptId: string): Promise<void> {
   const inlineRefs = await collectAllActiveInlineRefs([issueId]);
   await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES, STORE_NETWORK, STORE_CONSOLE, STORE_ACTION], "readwrite", async (tx) => {

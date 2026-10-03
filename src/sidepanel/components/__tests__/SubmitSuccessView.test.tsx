@@ -29,3 +29,17 @@ describe("SubmitSuccessView", () => {
     expect(screen.getByText("submit.success")).toBeTruthy();
   });
 });
+
+it("hides the review request for a known-created zero-file recovery", () => {
+  render(<SubmitSuccessView result={{ key: "1", url: "https://example.com/1", attachments: [], submissionFailure: { stage: "body", code: "network" } }} onClose={() => {}} />);
+  expect(screen.getByTestId("submit-success-partial")).toBeTruthy();
+  expect(screen.getByText("recovery.createdTitle")).toBeTruthy();
+  expect(screen.queryByText("settings.review")).toBeNull();
+});
+
+it.each(["partial", "unknown"] as const)("renders authoritative %s recovery even with an empty result list", (state) => {
+  render(<SubmitSuccessView result={{ key: "", url: "", attachments: [], recovery: { state, issueId: "i", attemptId: "a", storageFailed: true } }} onClose={() => {}} />);
+  expect(screen.getByTestId(`submit-success-${state}`)).toBeTruthy();
+  expect(screen.getByText(state === "unknown" ? "recovery.error" : "recovery.storageFailed")).toBeTruthy();
+  expect(screen.queryByText("settings.review")).toBeNull();
+});

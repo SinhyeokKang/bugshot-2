@@ -4,10 +4,10 @@ const { readRecoveryFile, triggerDownload } = vi.hoisted(() => ({ readRecoveryFi
 vi.mock("@/store/blob-db", () => ({ readRecoveryFile }));
 vi.mock("../downloadCapture", () => ({ triggerDownload }));
 import { downloadRecoveryFile, recoveryScreen, recoveryFileState } from "../attachmentRecovery";
-const meta = { issueId: "i", attemptId: "a", files: [
-  { id: "logs", filename: "logs.zip", contentType: "application/zip" },
-  { id: "user:1", filename: "logs.zip", contentType: "application/pdf" },
-] } as SubmissionRecoveryMeta;
+const meta: SubmissionRecoveryMeta = { issueId: "i", attemptId: "a", title: "Report", platform: "notion", phase: "partial", createdAt: 1, updatedAt: 1, expiresAt: Date.now() + 10000, results: [], files: [
+  { id: "logs", kind: "logs", filename: "logs.zip", contentType: "application/zip", source: { kind: "generated", key: "file:a:logs" } },
+  { id: "user:1", kind: "user", filename: "logs.zip", contentType: "application/pdf", source: { kind: "original", store: "attachments", key: "i:1" } },
+] };
 beforeEach(() => vi.clearAllMocks());
 describe("recovery presentation and downloads", () => {
   it("keeps authoritative recovery even with no failed files", () => {
@@ -41,4 +41,15 @@ describe("recovery presentation and downloads", () => {
     await expect(downloadRecoveryFile(meta, "logs")).rejects.toThrow();
     expect(triggerDownload).not.toHaveBeenCalled();
   });
+  it("keeps an Asana JPEG's frozen MIME, extension and bytes", async () => {
+    const jpeg = new Blob([new Uint8Array([255, 216, 255, 217])], { type: "image/jpeg" });
+    const image: SubmissionRecoveryMeta = { ...meta, files: [{ id: "capture:screenshot", kind: "capture", filename: "screenshot.jpg", contentType: "image/jpeg", source: { kind: "generated", key: "file:a:capture:screenshot" } }] };
+    readRecoveryFile.mockResolvedValue(jpeg);
+    await downloadRecoveryFile(image, "capture:screenshot");
+    const [bytes, name] = triggerDownload.mock.calls[0];
+    expect(name).toBe("screenshot.jpg");
+    expect(bytes.type).toBe("image/jpeg");
+    expect(new Uint8Array(await bytes.arrayBuffer())).toEqual(new Uint8Array([255, 216, 255, 217]));
+  });
+
 });

@@ -5,10 +5,10 @@ import type { AttachmentResult, CreatedDestination, RecoverySource, SubmissionFi
 import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
 import {
   beginSubmissionRecovery, blobToDataUrl, dataUrlToBlob, checkpointSubmission, cleanupSubmissionOriginals,
-  deleteSubmissionRecovery, discardPreparedSubmission, discardRejectedSubmission, dismissUnknownSubmission, expireSubmissionRecovery,
+  removeSubmissionRecoveryFiles, deleteSubmissionRecovery, discardPreparedSubmission, discardRejectedSubmission, dismissUnknownSubmission, expireSubmissionRecovery,
   listSubmissionRecoveries, readOriginalRecoverySource, readSubmissionRecovery, getNetworkLog, getConsoleLog, getActionLog,
 } from "@/store/blob-db";
-import { isIssueSubmitting, withIssueOperationLock, IssueAlreadySubmittedError, persistIssuesMutation, useIssuesStore, type IssueRecord } from "@/store/issues-store";
+import { mergeIssueLists, isIssueSubmitting, withIssueOperationLock, IssueAlreadySubmittedError, persistIssuesMutation, useIssuesStore, type IssueRecord } from "@/store/issues-store";
 
 import { extractInlineRefs, type SectionFilter } from "./resolveInlineImages";
 import { supportsConsoleNetworkLog, supportsActionLog } from "./captureLogSupport";
@@ -250,6 +250,20 @@ async function reconcileMissingJournal(issueId: string): Promise<void> {
   })));
 }
 
+async function notifyRecoveryChange(issueId: string, attemptId: string): Promise<void> {
+  const stored = await chrome.storage.local.get(ISSUES_PERSIST_KEY);
+  const raw = stored[ISSUES_PERSIST_KEY];
+  const persisted: IssueRecord | undefined = typeof raw === "string"
+    ? JSON.parse(raw).state?.issues?.find((issue: IssueRecord) => issue.id === issueId) : undefined;
+  const current = useIssuesStore.getState().issues.find((issue) => issue.id === issueId);
+  if (!persisted || persisted.submissionRecoveryId !== attemptId || current?.submissionRecoveryId !== attemptId) return;
+  await persistIssuesMutation(() => useIssuesStore.setState((s) => ({ issues: s.issues.map((issue) => {
+    if (issue.id !== issueId || issue.submissionRecoveryId !== attemptId) return issue;
+    const winner = mergeIssueLists([persisted], [issue])[0];
+    return { ...winner, updatedAt: Math.max(Date.now(), winner.updatedAt + 1) };
+  }) })));
+}
+
 export async function reconcileSubmissionRecovery(now = Date.now()): Promise<void> {
   const ids = new Set([
     ...(await listSubmissionRecoveries()).map((meta) => meta.issueId),
@@ -279,12 +293,38 @@ export async function reconcileSubmissionRecovery(now = Date.now()): Promise<voi
         }
         if (meta.phase === "complete" || meta.phase === "partial") await finish(meta, {}, true);
         else await restoreRecord(meta);
-        if (meta.phase !== "complete" && meta.expiresAt <= now) await expireSubmissionRecovery(meta.issueId, meta.attemptId, now);
+        if (meta.phase !== "complete" && !meta.localFilesRemoved && meta.expiresAt <= now) {
+          await expireSubmissionRecovery(meta.issueId, meta.attemptId, now);
+          await notifyRecoveryChange(meta.issueId, meta.attemptId);
+        }
       });
     } catch (error) {
       if (!(error instanceof IssueAlreadySubmittedError)) throw error;
     }
   }
+}
+
+export async function deleteSubmissionLocalFiles(issueId: string, attemptId: string): Promise<void> {
+  await withIssueOperationLock(issueId, async () => {
+    const meta = await readSubmissionRecovery(issueId);
+    if (!meta || meta.attemptId !== attemptId) throw new Error("Recovery attempt changed");
+    const releaseKnown = meta.phase === "partial" && !!meta.destination;
+    if (releaseKnown) await finish(meta, {}, true);
+    await removeSubmissionRecoveryFiles(issueId, attemptId);
+    if (!releaseKnown) {
+      if (!meta.localFilesRemoved) await notifyRecoveryChange(issueId, attemptId);
+      return;
+    }
+    await deleteSubmissionRecovery(issueId, attemptId);
+    try {
+      await reconcileMissingJournal(issueId);
+    } catch (error) {
+      // Keep this panel blocked too when the durable pointer clear fails; restart repairs the orphan.
+      useIssuesStore.setState((s) => ({ issues: s.issues.map((i) => i.id === issueId
+        ? { ...i, submissionRecoveryId: attemptId, updatedAt: Math.max(Date.now(), i.updatedAt + 1) } : i) }));
+      throw error;
+    }
+  });
 }
 
 export async function confirmSubmissionNotRegistered(issueId: string, attemptId: string): Promise<void> {

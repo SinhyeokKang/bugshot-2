@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { toastSubmitDropped } from "@/sidepanel/lib/submitDroppedToast";
 import {
   BookOpen,
   SquareMousePointer,
@@ -41,7 +40,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { isCaptureEntryScreen } from "@/lib/capture-commands";
-import { PLATFORM_TAB_KEYS } from "@/types/platform";
 import { userGuideUrl } from "@/lib/external-links";
 import { SubmitSuccessView } from "@/sidepanel/components/SubmitSuccessView";
 import { useEditorStore } from "@/store/editor-store";
@@ -698,19 +696,8 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
 }
 
 function SubmitSuccessPanel() {
-  const t = useT();
   const submitResult = useEditorStore((s) => s.submitResult);
   const reset = useEditorStore((s) => s.reset);
-
-  // 제출당 1회만 — t는 매 렌더 새 클로저라 dep만으로는 중복 발화. key 기준 ref 가드 + sonner id로 dedupe.
-  const toastedKeyRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!submitResult) return;
-    if (toastedKeyRef.current === submitResult.key) return;
-    if (toastSubmitDropped(submitResult, t(PLATFORM_TAB_KEYS[submitResult.platform]), t)) {
-      toastedKeyRef.current = submitResult.key;
-    }
-  }, [submitResult, t]);
 
   if (!submitResult) return null;
 

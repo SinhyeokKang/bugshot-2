@@ -8,6 +8,7 @@ import type { Accounts, PlatformId } from "@/types/platform";
 export type StatusFilter = "all" | "submitted" | "draft";
 
 export function isRefreshable(issue: IssueRecord): boolean {
+  if (issue.submissionRecoveryId) return false;
   if (issue.status !== "submitted" || !issue.url || !issue.key) return false;
   if (issue.platform === "jira") return true;
   if (issue.platform === "github") {
@@ -106,13 +107,13 @@ export function matchesQuery(issue: IssueRecord, q: string): boolean {
 
 export function matchesStatus(issue: IssueRecord, filter: StatusFilter): boolean {
   if (filter === "all") return true;
-  return issue.status === filter;
+  return issue.submissionRecoveryId ? filter === "submitted" : issue.status === filter;
 }
 
 // 초안 필드(제목·섹션) 편집 허용 조건. 미제출 draft + Slack 보존 이슈(승격 전 문구 다듬기).
 // Slack 보존 편집은 로컬 draft만 갱신 — 이미 발송된 Slack 메시지는 불변, 트래커 승격에만 반영.
 export function canEditDraftFields(issue: IssueRecord): boolean {
-  return issue.status === "draft" || isSlackPreserved(issue);
+  return !issue.submissionRecoveryId && (issue.status === "draft" || isSlackPreserved(issue));
 }
 
 // 승격 가능한 트래커(= Slack 제외 연결 플랫폼).
@@ -122,7 +123,7 @@ export function promotableTargets(accounts: Accounts): PlatformId[] {
 
 // Slack 보존 이슈 + 승격 대상 트래커 1개 이상 → [자세히]·[승격] 노출 조건.
 export function canPromoteSlack(issue: IssueRecord, accounts: Accounts): boolean {
-  return isSlackPreserved(issue) && promotableTargets(accounts).length > 0;
+  return !issue.submissionRecoveryId && isSlackPreserved(issue) && promotableTargets(accounts).length > 0;
 }
 
 // 제출 다이얼로그 available 탭. Slack 보존 이슈는 Slack 탭 제외.
@@ -130,6 +131,7 @@ export function submittablePlatforms(
   issue: IssueRecord,
   accounts: Accounts,
 ): PlatformId[] {
+  if (issue.submissionRecoveryId) return [];
   return isSlackPreserved(issue)
     ? promotableTargets(accounts)
     : connectedPlatforms(accounts);
