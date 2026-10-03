@@ -36,6 +36,26 @@
 
 ---
 
+## 2026-10-04 — 부분 완료 정리는 원본 키뿐 아니라 완료된 생성물 바이트도 끝내야 한다
+
+- **영역**: `store`, `lib`, `e2e`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: 배포 전 실제 브라우저 수용 테스트에서 인라인 이미지·사용자 파일·캡처 중 하나만 실패해도 이미 첨부 완료된 logs.html 사본이 복구 저장소에 남았다. 저장소 정리를 고친 뒤에도 Slack의 실제 제출 경로는 해당 함수를 건너뛰었다.
+- **근본 원인**: 전체 성공은 journal 삭제가 생성물까지 지워 누락을 가렸다. partial에서는 원본 키 정리만 실행해 같은 journal에 있는 완료 생성물을 남겼다. Slack 원본 보존을 호출부에서 정리 전체 생략으로 구현해, 저장소 함수 안의 원본·생성물 구분을 테스트해도 실제 제출에는 적용되지 않았다.
+- **재발 방지**: 혼합 성공·실패 제출 후 파일 ID별 실제 IDB 바이트 집합을 검사한다. 영속 submitted 쓰기 이후에만 완료된 생성물을 지우고, 실패 생성물·공유 원본·Slack 보존 원본은 별도로 보호한다. helper 직접 호출뿐 아니라 실제 runner의 Slack partial 경로를 통과시켜 완료 생성물 부재와 실패 파일/원본 보존을 함께 단언한다. 오래된 attempt·활성 phase·영속 쓰기 reject도 같은 그물에 포함한다.
+- **관련**: `src/store/blob-db.ts:cleanupSubmissionOriginals`, `src/sidepanel/lib/submissionRecovery.ts:finish`, `src/store/__tests__/blob-db-recovery.test.ts`, `src/sidepanel/lib/__tests__/submissionRecovery.test.ts`, `e2e/attachment-recovery.spec.ts`. 선행: 2026-10-03 공유 원본 수명·제출 잠금/완료 사실 분리.
+
+## 2026-10-04 — 진입 버튼 blur와 공용 Dialog 자동 포커스 차단을 합치면 키보드 복귀점이 사라진다
+
+- **영역**: `컴포넌트`, `e2e`
+- **계열**: `라이브러리전제`, `미검증단언`
+- **그물**: `e2e`
+- **증상**: 복구 상세를 키보드로 열고 닫으면 목록의 상세 버튼으로 포커스가 돌아오지 않았다. jsdom의 진입 버튼 blur 검증은 통과했지만 전체 브라우저 왕복은 실패했다.
+- **근본 원인**: 기존 행 클릭 규칙은 진입 전에 blur하고, 공용 DialogContent는 onCloseAutoFocus를 막는다. 상태로 여는 새 복구 상세에는 Radix Trigger가 없으므로 프리미티브가 복귀 대상을 기억할 수 없었다. 진입 순간 검증만으로 접근성 왕복을 완료로 간주했다.
+- **재발 방지**: 복구 상세의 실제 진입 버튼을 명시적으로 기억하고 복구 분기의 닫힘에만 복원한다. 공용 Dialog 정책과 일반 draft·Slack 상세 동작은 유지한다. native Chromium에서 행 버튼→상세→중첩 AlertDialog→취소/Escape→상세 닫기까지 포커스·열린 다이얼로그 수·mutation 0을 검사한다. AlertDialog가 보인다는 단언과 초기 포커스가 준비됐다는 단언을 구분하며, 실패를 취소 정책 추정으로 덮지 않는다.
+- **관련**: `src/sidepanel/tabs/IssueRow.tsx`, `src/sidepanel/tabs/IssueListTab.tsx`, `src/sidepanel/tabs/DraftDetailDialog.tsx`, `e2e/attachment-recovery-browser.spec.ts`, `e2e/attachment-recovery.spec.ts`. 선행: 2026-10-04 복구 파일 삭제/포기 수명.
+
 ## 2026-10-04 — 복구 파일 삭제와 복구 포기는 다르다: 영속 상태가 화면과 액션을 결정해야 한다
 
 - **영역**: `컴포넌트`, `store`, `lib`
