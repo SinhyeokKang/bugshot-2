@@ -317,7 +317,7 @@ planAttachmentBodyPatch(plan: AttachmentBodyPlan, remoteBody: string):
 
 파일 ID/remote locator는 재시도 후에도 유지한다. `NormalizedSubmitResult`는 생성된 목적지가 있는 최종 결과만 표현한다. 생성 여부 unknown은 예외를 일반 toast로만 소비하지 않고 journal과 별도 결과 화면으로 처리한다.
 
-1. `navigator.locks.request("bugshot:retry:<issueId>", { ifAvailable: true })`로 배타를 얻는다. 못 얻으면 다른 패널이 실행 중이므로 시작하지 않는다. 락 안에서 IDB 트랜잭션으로 현재 attemptId/revision을 검사하고 revision을 올린다. 부분 완료에 대해서만 허용하며 이미 완료된 파일은 제외한다.
+1. 초기 제출·복구 판정·로컬 삭제와 같은 `withIssueOperationLock`(`bugshot-submission:<issueId>`, `ifAvailable: true`)으로 배타를 얻는다. 재시도 전용 별도 이름의 락을 만들지 않는다. 못 얻으면 다른 패널이 실행 중이므로 시작하지 않는다. 락 안에서 IDB 트랜잭션으로 현재 attemptId/revision을 검사하고 revision을 올린다. 부분 완료에 대해서만 허용하며 이미 완료된 파일은 제외한다.
 2. 계정 신원을 최초 제출 당시와 비교한다. 같은 계정의 토큰 refresh는 기존 runner 사용, 다른 계정/workspace/baseUrl이거나 연결이 해제됐으면 중단하고 재연결을 안내한다. 토큰 자체는 journal에 저장하지 않는다.
 3. 원격 대상과 최신 본문을 조회한다. 404/권한 없음은 생성으로 대체하지 않는다. 재시도 입력은 새 captures나 새 logs가 아니라 journal이 가리키는 보존 원본·생성물이다.
 4. upload=done인 파일은 locator를 재사용한다. link=done이면 body만 처리한다. pending/확정 failed만 해당 단계 호출. 응답 직후 checkpoint를 저장한 다음 단계로 이동한다. 업로드는 **메시지당 1파일**로 보낸다. 사용자 첨부 50MB는 `recordingBudget.ts`의 64MiB 예산 밖이므로 여러 파일을 한 `sendBg`에 싣지 않는다.
