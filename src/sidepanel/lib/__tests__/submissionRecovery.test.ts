@@ -698,3 +698,22 @@ it("records no snapshot without a bound bodyLocale or for webhook", async () => 
     }).catch(() => {});
   }
 });
+
+it("disables auto-retry instead of failing the submission when a retry checkpoint cannot be stored", async () => {
+  answerIdentity(() => ({ ok: true, result: { identity: '["github","42"]' } }));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [logsIntent()] });
+  const result = await recovery.runSubmissionRecovery(prepared, async (progress) => {
+    const input = recovery.withSubmissionProgress({ ctx: { bodyLocale: "en" as const } }, progress, prepared.files);
+    await input.progress.beforeCreate();
+    await input.progress.created(destination);
+    await input.progress.fileCheckpoint({ fileId: "not-in-journal", upload: "failed" });
+    await input.progress.bodyWritten("later body");
+    return partialResult;
+  });
+  expect(result).toMatchObject({ key: "#1", recovery: { state: "partial" } });
+  expect(result.recovery?.storageFailed).toBeUndefined();
+  expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+  const retry = (await db.readSubmissionRecovery("i"))!.retry!;
+  expect(retry.accountIdentity).toBeNull();
+  expect(retry.bodyPlan.lastWritten).toBe("");
+});

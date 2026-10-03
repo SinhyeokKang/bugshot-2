@@ -57,13 +57,19 @@ export async function installRpc(panel: Page, provider: Provider, options: { fai
         }
         if (msg.type === "slack.postMessage") return options.slackFailure === "thread" ? failure() : success({ ts: "42.2" });
         if (msg.type === "slack.getPermalink") return options.slackFailure === "permalink" ? failure() : success({ permalink: remote });
+        if (msg.type === "slack.requestFileUpload") {
+          if (options.pending === "upload") return;
+          if (options.rejectUpload || options.failIds?.some((id) => msg.fileId === id || msg.fileId?.startsWith(id))) return failure();
+          return success({ fileId: `remote-${msg.fileId}`, uploadUrl: "https://files.slack.com/upload/v1/e2e" });
+        }
+        if (msg.type === "slack.sendFileUpload" || msg.type === "slack.completeFileUploads") return success({ ok: true });
         if (/\.(uploadFiles|uploadAttachment)$/.test(msg.type)) {
           if (options.pending === "upload") return;
           if (options.rejectUpload) return failure();
           const files = msg.files ?? [msg.attachment];
           const result = files.map((f: any) => options.failIds?.some((id) => f.fileId === id || f.fileId?.startsWith(id))
             ? { fileId: f.fileId, filename: f.filename, ok: false, failure: { stage: "upload", code: "permission", httpStatus: 403 } }
-            : { fileId: f.fileId, filename: f.filename, ok: true, href: `https://example.com/files/${encodeURIComponent(f.fileId)}`, gid: `gid-${f.fileId}`, remoteFileId: `remote-${f.fileId}`, file: { kind: "external", url: `https://example.com/files/${encodeURIComponent(f.fileId)}` } });
+            : { fileId: f.fileId, filename: f.filename, ok: true, href: `https://example.com/files/${encodeURIComponent(f.fileId)}`, gid: `gid-${f.fileId}`, file: { kind: "external", url: `https://example.com/files/${encodeURIComponent(f.fileId)}` } });
           return success(msg.attachment ? result[0] : result);
         }
         if (msg.type === "notion.getDatabaseSchema") return success({ titlePropertyName: "Name", statusProperty: null, selectProperties: [] });

@@ -1,10 +1,12 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
 import { ISSUES_PERSIST_KEY } from "@/lib/session-keys";
+import { sendBg } from "@/lib/bg-client";
 import { MissingSubmissionFilesError } from "@/types/attachment";
-import type { AttachmentResult, CreatedDestination, RecoverySource, SubmissionFile, SubmissionRecoveryMeta } from "@/types/attachment";
+import type { AttachmentBodyPlan, AttachmentCheckpoint, AttachmentCheckpointPatch, AttachmentResult, CreatedDestination, RecoverySource, RetryPlatform, SubmissionFile, SubmissionRecoveryMeta } from "@/types/attachment";
+import type { LocaleMode } from "@/i18n/locales";
 import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
 import {
-  beginSubmissionRecovery, blobToDataUrl, dataUrlToBlob, checkpointSubmission, cleanupSubmissionOriginals,
+  beginSubmissionRecovery, blobToDataUrl, dataUrlToBlob, checkpointSubmission, checkpointAttachmentRetry, cleanupSubmissionOriginals, initializeAttachmentRetry,
   removeSubmissionRecoveryFiles, deleteSubmissionRecovery, discardPreparedSubmission, discardRejectedSubmission, dismissUnknownSubmission, expireSubmissionRecovery,
   listSubmissionRecoveries, readOriginalRecoverySource, readSubmissionRecovery, getNetworkLog, getConsoleLog, getActionLog,
 } from "@/store/blob-db";
@@ -15,11 +17,15 @@ import { supportsConsoleNetworkLog, supportsActionLog } from "./captureLogSuppor
 import { zipLogsHtml } from "./zipLogsHtml";
 import { loadImage } from "@/sidepanel/capture";
 import { resolveDraftStyleElements } from "./resolveDraftStyleElements";
+import { initialAttachmentCheckpoints } from "./attachmentCheckpoints";
 
 export interface SubmissionProgress {
   attemptId: string;
   beforeCreate(): Promise<void>;
   created(remote: CreatedDestination): Promise<void>;
+  // Adapters await these right after a remote response, before their next remote write.
+  fileCheckpoint(...files: AttachmentCheckpointPatch[]): Promise<void>;
+  bodyWritten(lastWritten: string, ...files: AttachmentCheckpointPatch[]): Promise<void>;
 }
 export class SubmissionCreationRejectedError extends Error {
   constructor() {
@@ -100,6 +106,31 @@ export async function prepareSubmissionRecovery(input: {
   return { meta, files };
 }
 
+const BODY_FORMAT: Record<RetryPlatform, AttachmentBodyPlan["format"]> = {
+  github: "markdown", gitlab: "markdown", linear: "markdown", clickup: "markdown",
+  jira: "adf", asana: "asana-html", notion: "notion-blocks", slack: "slack-thread",
+};
+const IDENTITY_TIMEOUT_MS = 10_000;
+// withSubmissionProgress hands the submitted ctx.bodyLocale to the run that owns the progress.
+const localeBinders = new WeakMap<SubmissionProgress, (locale: LocaleMode) => void>();
+
+async function lookupAccountIdentity(destination: CreatedDestination): Promise<string | null> {
+  if (destination.platform === "webhook") return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const result = await Promise.race([
+      sendBg<{ identity?: unknown }>({ type: `${destination.platform}.getAccountIdentity`, destination }),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Identity lookup timed out")), IDENTITY_TIMEOUT_MS); }),
+    ]);
+    const identity = result?.identity;
+    return typeof identity === "string" && JSON.parse(identity)[0] === destination.platform ? identity : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const unknownResults = (meta: SubmissionRecoveryMeta): AttachmentResult[] => meta.files.map((f) => ({
   fileId: f.id, delivery: "unknown", presentation: "failed", failure: { stage: "upload", code: "unknown" },
 }));
@@ -166,9 +197,54 @@ export async function runSubmissionRecovery(
     key: knownDestination?.key ?? "", url: knownDestination?.url ?? "", attachments: unknownResults(prepared.meta),
     recovery: { state: knownDestination ? "partial" : "unknown", issueId, attemptId, storageFailed: true },
   });
+  const platform = prepared.meta.platform;
+  let bodyLocale: LocaleMode | undefined;
+  let snapshotReady: boolean | undefined;
+  let revision = 0;
+  const checkpoints = new Map<string, AttachmentCheckpoint>();
+  let writes: Promise<unknown> = Promise.resolve();
+  const serial = <T>(task: () => Promise<T>): Promise<T> => {
+    const next = writes.then(task);
+    writes = next.catch(() => {});
+    return next;
+  };
+  // Retry metadata never blocks the submission itself: once a snapshot write fails, later writes
+  // and the identity are skipped, so accountIdentity stays null and auto-retry fails closed.
+  let retryDisabled = false;
+  // Lazily created on the first hook, which always runs while the journal is still prepared.
+  const ensureSnapshot = async (): Promise<boolean> => {
+    if (snapshotReady !== undefined) return snapshotReady;
+    if (platform === "webhook" || !bodyLocale) return (snapshotReady = false);
+    const initial = initialAttachmentCheckpoints(platform, prepared.meta.files);
+    try {
+      await initializeAttachmentRetry(issueId, attemptId, {
+        schemaVersion: 1, accountIdentity: null, bodyLocale, revision: 0, checkpoints: initial,
+        bodyPlan: { format: BODY_FORMAT[platform], lastWritten: "", replacements: [] },
+      });
+    } catch { return (snapshotReady = false); }
+    for (const cp of initial) checkpoints.set(cp.fileId, cp);
+    return (snapshotReady = true);
+  };
+  const writeRetry = (patch: { files?: AttachmentCheckpointPatch[]; lastWritten?: string; accountIdentity?: string }) => serial(async () => {
+    if (retryDisabled || !(await ensureSnapshot())) return;
+    try {
+      const merged = (patch.files ?? []).map((file) => {
+        const current = checkpoints.get(file.fileId);
+        if (!current) throw new Error("Unknown checkpoint file");
+        return { ...current, ...file };
+      });
+      revision = await checkpointAttachmentRetry(issueId, attemptId, revision, {
+        checkpoints: merged,
+        ...(patch.lastWritten !== undefined ? { lastWritten: patch.lastWritten } : {}),
+        ...(patch.accountIdentity !== undefined ? { accountIdentity: patch.accountIdentity } : {}),
+      });
+      for (const cp of merged) checkpoints.set(cp.fileId, cp);
+    } catch { retryDisabled = true; }
+  });
   const progress: SubmissionProgress = {
     attemptId,
     beforeCreate: async () => {
+      await serial(ensureSnapshot);
       await checkpointSubmission(issueId, attemptId, { phase: "creating", results: [] });
       creationStarted = true;
     },
@@ -176,7 +252,10 @@ export async function runSubmissionRecovery(
       await checkpointSubmission(issueId, attemptId, { phase: "created", destination, results: [] });
       knownDestination = structuredClone(destination);
     },
+    fileCheckpoint: (...files) => writeRetry({ files }),
+    bodyWritten: (lastWritten, ...files) => writeRetry({ files, lastWritten }),
   };
+  localeBinders.set(progress, (locale) => { bodyLocale ??= locale; });
   let result: NormalizedSubmitResult;
   try {
     result = await submit(progress);
@@ -224,6 +303,12 @@ export async function runSubmissionRecovery(
   const canonical = { ...result, key: destination.key, url: destination.url ?? "", attachments: results };
   try {
     const enriched = !destination.url && result.key === destination.key && result.url ? { ...destination, url: result.url } : destination;
+    await writes;
+    if (phase === "partial" && snapshotReady && !retryDisabled) {
+      const identity = await lookupAccountIdentity(enriched);
+      // An unverified identity only blocks automatic retry; the partial result still completes.
+      if (identity) await writeRetry({ accountIdentity: identity });
+    }
     await checkpointSubmission(issueId, attemptId, { phase, results, destination: enriched, submissionFailure: result.submissionFailure });
     const finalized = (await readSubmissionRecovery(issueId))!;
     canonical.url = finalized.destination?.url ?? "";
@@ -386,6 +471,7 @@ export async function assertSubmissionSources(files: SubmissionFileIntent[]): Pr
   if (missing.length) throw new MissingSubmissionFilesError(missing);
 }
 
-export function withSubmissionProgress<T>(input: T, progress: SubmissionProgress, files: SubmissionFile[]): T & { progress: SubmissionProgress; submissionFiles: SubmissionFile[] } {
+export function withSubmissionProgress<T extends { ctx: { bodyLocale: LocaleMode } }>(input: T, progress: SubmissionProgress, files: SubmissionFile[]): T & { progress: SubmissionProgress; submissionFiles: SubmissionFile[] } {
+  localeBinders.get(progress)?.(input.ctx.bodyLocale);
   return { ...input, progress, submissionFiles: files };
 }

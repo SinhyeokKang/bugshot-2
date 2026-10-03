@@ -1,4 +1,4 @@
-import type { AttachmentResult } from "./attachment";
+import type { AttachmentResult, CreatedDestination, RetryPlatform } from "./attachment";
 import type {
   JiraAttachmentInput,
   JiraConfigPayload,
@@ -114,6 +114,9 @@ export type BgRequest =
   | { type: "jira.getSprint"; sprintId: number }
   | { type: "jira.createIssue"; payload: JiraCreateIssuePayload }
   | { type: "jira.uploadAttachment"; issueKey: string; attachment: JiraAttachmentInput }
+  // Existing-issue reads/updates for attachment retry. None of them may fall back to creation.
+  | { type: `${RetryPlatform}.getAccountIdentity`; destination: CreatedDestination }
+  | { type: "jira.getIssueAttachments"; issueKey: string }
   | { type: "jira.updateIssueDescription"; issueKey: string; description: import("./jira").JiraAdfDoc; bodyLocale?: import("@/i18n/locales").LocaleMode; uploads: Array<{ filename: string; file: { kind: "media"; mediaId: string; width?: number; height?: number } | { kind: "external"; url: string; width?: number; height?: number } }>; logsUrl?: string; relates?: string[] }
   | { type: "github.oauth.available" }
   | { type: "github.startOAuth" }
@@ -133,6 +136,8 @@ export type BgRequest =
       type: "github.submitIssue";
       payload: GithubCreateIssuePayload;
     }
+  | { type: "github.getIssueBody"; owner: string; repo: string; number: number }
+  | { type: "github.updateIssueBody"; owner: string; repo: string; number: number; body: string }
   | {
       type: "github.getIssueStatus";
       owner: string;
@@ -163,6 +168,7 @@ export type BgRequest =
   | { type: "linear.getWorkflowStates"; issueIdentifier: string }
   | { type: "linear.updateIssueState"; issueId: string; stateId: string }
   | { type: "linear.updateIssueDescription"; issueId: string; description: string }
+  | { type: "linear.getIssueAttachments"; issueId: string }
   | { type: "notion.oauth.available" }
   | { type: "notion.startOAuth" }
   | { type: "notion.testToken"; token: string }
@@ -175,6 +181,10 @@ export type BgRequest =
   | { type: "notion.submitPage"; payload: NotionCreatePagePayload }
   | { type: "notion.getPageStatus"; pageId: string }
   | { type: "notion.updatePageStatus"; pageId: string; propertyName: string; optionName: string }
+  | { type: "notion.getBlockChildren"; blockId: string }
+  | { type: "notion.appendBlockChildren"; blockId: string; children: Record<string, unknown>[] }
+  | { type: "notion.deleteBlock"; blockId: string }
+  | { type: "notion.getFileUpload"; fileUploadId: string }
   | { type: "gitlab.oauth.available" }
   | { type: "gitlab.startOAuth" }
   | { type: "gitlab.testPat"; pat: string; baseUrl: string }
@@ -190,6 +200,7 @@ export type BgRequest =
     }
   | { type: "gitlab.submitIssue"; payload: GitlabCreateIssuePayload }
   | { type: "gitlab.getIssueStatus"; projectId: number; iid: number }
+  | { type: "gitlab.getIssueDescription"; projectId: number; iid: number }
   | {
       type: "gitlab.updateIssueState";
       projectId: number;
@@ -218,6 +229,7 @@ export type BgRequest =
   | { type: "asana.submitIssue"; payload: AsanaCreateTaskPayload }
   | { type: "asana.updateTaskNotes"; taskGid: string; htmlNotes: string }
   | { type: "asana.getTaskStatus"; taskGid: string }
+  | { type: "asana.getTaskAttachments"; taskGid: string }
   | { type: "asana.setCompleted"; taskGid: string; completed: boolean }
   | { type: "clickup.oauth.available" }
   | { type: "clickup.startOAuth" }
@@ -236,6 +248,7 @@ export type BgRequest =
   | { type: "clickup.submitIssue"; payload: ClickupCreateTaskPayload }
   | { type: "clickup.updateTaskMarkdown"; taskId: string; markdownContent: string }
   | { type: "clickup.getTaskStatus"; taskId: string }
+  | { type: "clickup.getTaskAttachments"; taskId: string }
   | { type: "clickup.setCompleted"; taskId: string; completed: boolean }
   | { type: "slack.oauth.available" }
   | { type: "slack.startOAuth" }
@@ -243,12 +256,10 @@ export type BgRequest =
   | { type: "slack.listChannels" }
   | { type: "slack.listMembers" }
   | { type: "slack.postMessage"; payload: SlackPostMessagePayload }
-  | {
-      type: "slack.uploadFiles";
-      channelId: string;
-      threadTs: string;
-      files: Array<{ fileId?: string; filename: string; dataUrl: string }>;
-    }
+  // One file per bytes message; the sidepanel checkpoints between stages.
+  | { type: "slack.requestFileUpload"; fileId?: string; filename: string; length: number }
+  | { type: "slack.sendFileUpload"; fileId?: string; uploadUrl: string; filename: string; dataUrl: string }
+  | { type: "slack.completeFileUploads"; channelId: string; threadTs: string; files: Array<{ id: string; title: string }> }
   | { type: "slack.getPermalink"; channelId: string; ts: string }
   // mode로 판별한다 — optional 필드의 존재 여부로 추론하면 multipart인데 payload가
   // 빠진 요청이 json으로 새어 JSON.stringify(undefined)에서 TypeError가 난다.

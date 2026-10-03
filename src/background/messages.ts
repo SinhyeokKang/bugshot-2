@@ -29,6 +29,7 @@ import {
   searchUsers,
   transitionIssue as jiraTransitionIssue,
   getMediaFileId,
+  getIssueAttachments as getJiraIssueAttachments,
   updateIssueDescription,
   uploadAttachment,
   ensureFreshAuth,
@@ -36,6 +37,8 @@ import {
 import {
   createIssue as createGithubIssue,
   getIssueStatus as getGithubIssueStatus,
+  getIssueBody as getGithubIssueBody,
+  updateIssueBody as updateGithubIssueBody,
   updateIssueState as updateGithubIssueState,
   githubFetch,
   getMyself as githubGetMyself,
@@ -48,6 +51,7 @@ import {
   createAttachment as createLinearAttachment,
   createIssue as createLinearIssue,
   getIssueStatus as getLinearIssueStatus,
+  getIssueAttachments as getLinearIssueAttachments,
   getLabels as getLinearLabels,
   getMembers as getLinearMembers,
   getMyself as linearGetMyself,
@@ -61,6 +65,7 @@ import {
 import {
   createIssue as createGitlabIssue,
   getIssueStatus as getGitlabIssueStatus,
+  getIssueDescription as getGitlabIssueDescription,
   getMyself as gitlabGetMyself,
   getProjectLabels,
   getProjectMembers,
@@ -73,6 +78,7 @@ import {
   createTask as createAsanaTask,
   getMyself as asanaGetMyself,
   getTaskStatus as getAsanaTaskStatus,
+  getTaskAttachments as getAsanaTaskAttachments,
   getWorkspaces as getAsanaWorkspaces,
   searchProjects as searchAsanaProjects,
   searchUsers as searchAsanaUsers,
@@ -87,6 +93,7 @@ import {
   getMyself as clickupGetMyself,
   getSpaces as getClickupSpaces,
   getTaskStatus as getClickupTaskStatus,
+  getTaskAttachments as getClickupTaskAttachments,
   getTeams as getClickupTeams,
   setTaskCompleted as setClickupTaskCompleted,
   updateTaskMarkdown as updateClickupTaskMarkdown,
@@ -105,8 +112,12 @@ import {
   listChannels as slackListChannels,
   listMembers as slackListMembers,
   postMessage as slackPostMessage,
-  uploadFiles as slackUploadFiles,
+  requestFileUpload as slackRequestFileUpload,
+  sendFileUpload as slackSendFileUpload,
+  completeFileUploads as slackCompleteFileUploads,
+  slackCompleteOutcome,
 } from "./slack-api";
+import { resolveAccountIdentity } from "./account-identity";
 import { startSlackOAuth } from "./slack-oauth";
 import { submitWebhook, testWebhook } from "./webhook-api";
 import { captureEvent } from "./analytics";
@@ -120,6 +131,10 @@ import {
   searchDatabases as searchNotionDatabases,
   updatePageStatus as updateNotionPageStatus,
   uploadFile as uploadNotionFile,
+  getBlockChildren as getNotionBlockChildren,
+  appendBlockChildren as appendNotionBlockChildren,
+  deleteBlock as deleteNotionBlock,
+  getFileUpload as getNotionFileUpload,
 } from "./notion-api";
 import {
   readStoredAuth,
@@ -136,7 +151,7 @@ import type { NotionAuth } from "@/types/notion";
 import type { GitlabAuth } from "@/types/gitlab";
 import type { AsanaAuth } from "@/types/asana";
 import type { ClickupAuth } from "@/types/clickup";
-import type { SlackAuth } from "@/types/slack";
+import type { SlackAuth, SlackCompleteResult } from "@/types/slack";
 import { inlineUploadFilename } from "@/lib/inline-ref";
 
 async function loadAuth(): Promise<JiraAuth> {
@@ -300,7 +315,7 @@ export async function handleMessage(
       const auth = await ensureFreshAuth(await loadAuth());
       const description = { ...message.payload.description, content: buildJiraDescriptionContent({ description: message.payload.description, uploadMap: new Map(), bodyLocale: message.payload.bodyLocale }) };
       const issue = await createIssue(auth, { ...message.payload, description });
-      return { key: issue.key, url: buildIssueUrl(auth, issue.key), siteId: auth.kind === "oauth" ? auth.cloudId : auth.baseUrl };
+      return { key: issue.key, url: buildIssueUrl(auth, issue.key), siteId: auth.kind === "oauth" ? auth.cloudId : auth.baseUrl, description };
     }
     case "jira.uploadAttachment": {
       const auth = await ensureFreshAuth(await loadAuth());
@@ -313,17 +328,31 @@ export async function handleMessage(
       const mediaId = !att.userAttachment && att.filename !== "logs.html"
         ? r.mediaApiFileId || await getMediaFileId(auth, String(r.id)) : undefined;
       const file: UploadedFile = mediaId ? { kind: "media", mediaId, width: att.width, height: att.height } : { kind: "external", url: href, width: att.width, height: att.height };
-      return { fileId: att.fileId, ok: true, filename: att.filename, href, file };
+      return { fileId: att.fileId, ok: true, filename: att.filename, href, file, attachmentId: String(r.id) };
     }
     case "jira.updateIssueDescription": {
       const auth = await ensureFreshAuth(await loadAuth());
       const content = buildJiraDescriptionContent({ description: message.description, uploadMap: new Map(message.uploads.map((r) => [r.filename, r.file])), logsUrl: message.logsUrl, bodyLocale: message.bodyLocale });
-      await updateIssueDescription(auth, message.issueKey, { version: 1, type: "doc", content });
+      const description: JiraAdfDoc = { version: 1, type: "doc", content };
+      await updateIssueDescription(auth, message.issueKey, description);
       for (const key of message.relates ?? []) {
         try { await createIssueLink(auth, message.issueKey, key); } catch { /* Links do not affect attachment delivery. */ }
       }
-      return { ok: true };
+      return { ok: true, description };
     }
+    case "jira.getIssueAttachments":
+      return getJiraIssueAttachments(await ensureFreshAuth(await loadAuth()), message.issueKey);
+
+    case "jira.getAccountIdentity":
+    case "github.getAccountIdentity":
+    case "gitlab.getAccountIdentity":
+    case "linear.getAccountIdentity":
+    case "notion.getAccountIdentity":
+    case "asana.getAccountIdentity":
+    case "clickup.getAccountIdentity":
+    case "slack.getAccountIdentity":
+      if (`${message.destination.platform}.getAccountIdentity` !== message.type) throw new Error("Identity platform mismatch");
+      return { identity: await resolveAccountIdentity(message.destination) };
 
 
     case "github.startOAuth":
@@ -367,6 +396,13 @@ export async function handleMessage(
 
     case "github.submitIssue":
       return createGithubIssue(await loadGithubAuth(), message.payload);
+
+    case "github.getIssueBody":
+      return { body: await getGithubIssueBody(await loadGithubAuth(), message.owner, message.repo, message.number) };
+
+    case "github.updateIssueBody":
+      await updateGithubIssueBody(await loadGithubAuth(), message.owner, message.repo, message.number, message.body);
+      return { ok: true };
 
     case "github.getIssueStatus":
       return getGithubIssueStatus(
@@ -443,6 +479,9 @@ export async function handleMessage(
       await updateLinearIssueDescription(await loadLinearAuth(), message.issueId, message.description);
       return { ok: true };
 
+    case "linear.getIssueAttachments":
+      return getLinearIssueAttachments(await loadLinearAuth(), message.issueId);
+
     case "notion.startOAuth":
       return trackConnect("notion", () => startNotionOAuth());
 
@@ -487,6 +526,19 @@ export async function handleMessage(
 
     case "notion.updatePageStatus":
       return updateNotionPageStatus(await loadNotionAuth(), message.pageId, message.propertyName, message.optionName);
+
+    case "notion.getBlockChildren":
+      return { blocks: await getNotionBlockChildren(await loadNotionAuth(), message.blockId) };
+
+    case "notion.appendBlockChildren":
+      return { blockIds: await appendNotionBlockChildren(await loadNotionAuth(), message.blockId, message.children) };
+
+    case "notion.deleteBlock":
+      await deleteNotionBlock(await loadNotionAuth(), message.blockId);
+      return { ok: true };
+
+    case "notion.getFileUpload":
+      return getNotionFileUpload(await loadNotionAuth(), message.fileUploadId);
 
     case "gitlab.startOAuth":
       return trackConnect("gitlab", () => startGitlabOAuth());
@@ -540,6 +592,9 @@ export async function handleMessage(
 
     case "gitlab.submitIssue":
       return createGitlabIssue(await loadGitlabAuth(), message.payload);
+
+    case "gitlab.getIssueDescription":
+      return { description: await getGitlabIssueDescription(await loadGitlabAuth(), message.projectId, message.iid) };
 
     case "gitlab.getIssueStatus":
       return getGitlabIssueStatus(
@@ -632,6 +687,9 @@ export async function handleMessage(
         message.htmlNotes,
       );
 
+    case "asana.getTaskAttachments":
+      return getAsanaTaskAttachments(await loadAsanaAuth(), message.taskGid);
+
     case "asana.getTaskStatus":
       return getAsanaTaskStatus(await loadAsanaAuth(), message.taskGid);
 
@@ -703,6 +761,9 @@ export async function handleMessage(
         message.markdownContent,
       );
 
+    case "clickup.getTaskAttachments":
+      return getClickupTaskAttachments(await loadClickupAuth(), message.taskId);
+
     case "clickup.getTaskStatus":
       return getClickupTaskStatus(await loadClickupAuth(), message.taskId);
 
@@ -728,14 +789,22 @@ export async function handleMessage(
     case "slack.postMessage":
       return slackPostMessage(await loadSlackAuth(), message.payload);
 
-    case "slack.uploadFiles": {
+    case "slack.requestFileUpload":
+      return slackRequestFileUpload(await loadSlackAuth(), message.filename, message.length);
+
+    case "slack.sendFileUpload":
+      await slackSendFileUpload(message.uploadUrl, message.filename, dataUrlToBlob(message.dataUrl));
+      return { ok: true };
+
+    case "slack.completeFileUploads": {
       const auth = await loadSlackAuth();
-      const files = message.files.map((f) => ({
-        ...(f.fileId ? { fileId: f.fileId } : {}),
-        filename: f.filename,
-        blob: dataUrlToBlob(f.dataUrl),
-      }));
-      return slackUploadFiles(auth, message.channelId, message.threadTs, files);
+      // Never retried here: a second complete for the same upload is not an idempotent retry.
+      try {
+        await slackCompleteFileUploads(auth, message.channelId, message.threadTs, message.files);
+        return { ok: true } satisfies SlackCompleteResult;
+      } catch (error) {
+        return { ok: false, outcome: slackCompleteOutcome(error), failure: safeAttachmentFailure(error, "link") } satisfies SlackCompleteResult;
+      }
     }
 
     case "slack.getPermalink":

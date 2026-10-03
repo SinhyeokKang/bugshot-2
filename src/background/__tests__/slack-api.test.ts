@@ -25,7 +25,7 @@ import {
   normalizeChannel,
   normalizeMember,
   postMessage,
-  uploadFiles,
+  sendFileUpload,
 } from "../slack-api";
 
 // Slack conversations 항목은 is_im/is_mpim/is_private 플래그로 종류가 갈린다.
@@ -194,7 +194,7 @@ describe("slackFetch 배선 (getMyself 경유)", () => {
     expect(se.code).toBe("not_in_channel");
     expect(se.message).toBe("slack.error.notInChannel");
     expect(se.status).toBe(200);
-    expect(se.body).toEqual({ platform: "slack" });
+    expect(se.body).toEqual({ platform: "slack", code: "not_in_channel" });
   });
 
   it("HTTP 429 → json() 파싱 전에 ratelimited로 분기", async () => {
@@ -469,101 +469,11 @@ describe("getPermalink", () => {
   });
 });
 
-describe("uploadFiles — external upload 3단", () => {
-  const file = () => ({ filename: "shot.png", blob: new Blob(["hello"]) });
-
-  it("URL 발급 → 바이트 POST → complete 순으로 부르고 ok:true를 반환한다", async () => {
-    mf = mockFetchRoutes([
-      {
-        match: "files.getUploadURLExternal",
-        respond: { body: { ok: true, upload_url: "https://upload.example/u1", file_id: "F1" } },
-      },
-      { match: "https://upload.example/u1", respond: { body: "OK" } },
-      { match: "files.completeUploadExternal", respond: { body: { ok: true } } },
-    ]);
-
-    const results = await uploadFiles(auth, "C1", "1.1", [file()]);
-
-    expect(mf.fn.mock.calls.length).toBe(3);
-    // 1단: 파일명 + 바이트 길이
-    expect(paramsAt(0).get("filename")).toBe("shot.png");
-    expect(paramsAt(0).get("length")).toBe("5");
-    // 2단: multipart 바이트 POST
-    expect(mf.callAt(1).url).toBe("https://upload.example/u1");
-    expect(mf.callAt(1).init?.method).toBe("POST");
-    expect(mf.formDataAt(1).get("file")).toBeInstanceOf(Blob);
-    // 3단: file_id·title 배열 JSON + 채널·스레드
-    const p = paramsAt(2);
-    expect(p.get("files")).toBe('[{"id":"F1","title":"shot.png"}]');
-    expect(p.get("channel_id")).toBe("C1");
-    expect(p.get("thread_ts")).toBe("1.1");
-    expect(results).toEqual([{ filename: "shot.png", ok: true }]);
-  });
-
-  it("바이트 POST가 실패하면 그 파일만 ok:false이고 complete를 안 부른다", async () => {
-    mf = mockFetchRoutes([
-      {
-        match: "files.getUploadURLExternal",
-        respond: { body: { ok: true, upload_url: "https://upload.example/u1", file_id: "F1" } },
-      },
-      { match: "https://upload.example/u1", respond: { status: 413 } },
-      { match: "files.completeUploadExternal", respond: { body: { ok: true } } },
-    ]);
-
-    const results = await uploadFiles(auth, "C1", "1.1", [file()]);
-
-    expect(results).toEqual([{ filename: "shot.png", ok: false, failure: { stage: "upload", code: "size-limit", httpStatus: 413 } }]);
-    expect(mf.fn.mock.calls.length).toBe(2);
-  });
-
-  it("complete가 실패하면 성공했던 파일까지 전부 ok:false", async () => {
-    mf = mockFetchRoutes([
-      {
-        match: "files.getUploadURLExternal",
-        respond: { body: { ok: true, upload_url: "https://upload.example/u1", file_id: "F1" } },
-      },
-      { match: "https://upload.example/u1", respond: { body: "OK" } },
-      {
-        match: "files.completeUploadExternal",
-        respond: { body: { ok: false, error: "not_in_channel" } },
-      },
-    ]);
-
-    const results = await uploadFiles(auth, "C1", "1.1", [{ ...file(), fileId: "capture:screenshot" }]);
-
-    expect(results).toEqual([{ fileId: "capture:screenshot", remoteFileId: "F1", filename: "shot.png", ok: false, failure: { stage: "link", code: "permission", httpStatus: 200 } }]);
-  });
-
-  it("일부 파일만 실패하면 성공분만 complete에 싣는다", async () => {
-    mf = mockFetchRoutes([
-      {
-        match: "files.getUploadURLExternal",
-        respond: [
-          { body: { ok: false, error: "invalid_auth" } },
-          { body: { ok: true, upload_url: "https://upload.example/u2", file_id: "F2" } },
-        ],
-      },
-      { match: "https://upload.example/u2", respond: { body: "OK" } },
-      { match: "files.completeUploadExternal", respond: { body: { ok: true } } },
-    ]);
-
-    const results = await uploadFiles(auth, "C1", "1.1", [
-      { filename: "bad.png", blob: new Blob(["x"]) },
-      { filename: "good.png", blob: new Blob(["yy"]) },
-    ]);
-
-    expect(results).toEqual([
-      { filename: "bad.png", ok: false, failure: { stage: "upload", code: "authentication", httpStatus: 200 } },
-      { filename: "good.png", ok: true },
-    ]);
-    const last = mf.fn.mock.calls.length - 1;
-    expect(paramsAt(last).get("files")).toBe('[{"id":"F2","title":"good.png"}]');
-  });
-});
-
-it.each([413, 401, 403, 429, 504])("Slack raw byte HTTP %s retains safe upload metadata", async (status) => {
-  mf = mockFetchOnce([{ body: { ok: true, upload_url: "https://upload.example/bytes", file_id: "F1" } }, { status, body: { secret: "private response" } }]);
-  const results = await uploadFiles(auth, "C", "1.2", [{ fileId: "logs", filename: "logs.html", blob: new Blob(["logs"]) }]);
-  expect(results[0]).toMatchObject({ fileId: "logs", ok: false, failure: { stage: "upload", httpStatus: status } });
-  expect(JSON.stringify(results)).not.toContain("private");
+// The batched uploadFiles helper was split into requestFileUpload/sendFileUpload/completeFileUploads
+// (staged checkpoints); stage contracts live in attachment-retry-api.test.ts.
+it.each([413, 401, 403, 429, 504])("Slack raw byte HTTP %s keeps only a safe status", async (status) => {
+  mf = mockFetchOnce([{ status, body: { secret: "private response" } }]);
+  const error = await sendFileUpload("https://files.slack.com/upload/v1/bytes", "logs.html", new Blob(["logs"])).catch((e: unknown) => e);
+  expect(error).toMatchObject({ status });
+  expect(JSON.stringify(error)).not.toContain("private");
 });

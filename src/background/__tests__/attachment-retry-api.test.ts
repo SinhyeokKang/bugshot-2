@@ -72,7 +72,8 @@ describe("existing-issue reads and writes never create", () => {
     );
     expect(await linear.getIssueAttachments(auth.linear, "issue")).toEqual({ description: "remote", attachments: [{ id: "a", url: "https://files/a" }, { id: "b", url: "https://files/b" }] });
     expect(JSON.parse(fetch.mock.calls[1][1].body).variables.after).toBe("cursor");
-    await expect(linear.updateIssueDescription(auth.linear, "issue", "desired")).rejects.toThrow();
+    // A definite refusal keeps HTTP 200 so the sidepanel records "failed", not an ambiguous outcome.
+    await expect(linear.updateIssueDescription(auth.linear, "issue", "desired")).rejects.toMatchObject({ status: 200 });
   });
 
   it("Linear reads the viewer and organization IDs in one query", async () => {
@@ -124,7 +125,7 @@ describe("Notion child blocks under the fixed API version", () => {
   });
 
   it("appends at most 100 blocks at the end and returns every new block ID", async () => {
-    const fetch = responses({ results: [{ id: "c" }] });
+    const fetch = responses({ results: [{ id: "c", type: "paragraph" }] });
     expect(await notion.appendBlockChildren(auth.notion, "page", [{ object: "block", type: "paragraph", paragraph: { rich_text: [] } }])).toEqual(["c"]);
     const body = JSON.parse(fetch.mock.calls[0][1].body);
     expect(Object.keys(body)).toEqual(["children"]);
@@ -135,7 +136,8 @@ describe("Notion child blocks under the fixed API version", () => {
   });
 
   it("rejects an append response whose IDs cannot be matched one-to-one", async () => {
-    responses({ results: [] });
+    responses({ results: [] }, { results: [{ id: "existing", type: "heading_1" }] });
+    await expect(notion.appendBlockChildren(auth.notion, "page", [{ type: "paragraph" }])).rejects.toThrow();
     await expect(notion.appendBlockChildren(auth.notion, "page", [{ type: "paragraph" }])).rejects.toThrow();
   });
 
@@ -169,12 +171,17 @@ describe("Slack upload stages are separate requests", () => {
     expect(await slack.requestFileUpload(auth.slack, "file.txt", 3)).toEqual({ fileId: "F1", uploadUrl: "https://files.slack.com/upload/v1/abc" });
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch.mock.calls[0][0]).toContain("files.getUploadURLExternal");
+    const form = fetch.mock.calls[0][1].body as URLSearchParams;
+    expect([form.get("filename"), form.get("length")]).toEqual(["file.txt", "3"]);
   });
 
   it("sends bytes only to an https files.slack.com URL", async () => {
     const fetch = responses({});
     await slack.sendFileUpload("https://files.slack.com/upload/v1/abc", "file.txt", new Blob(["abc"]));
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][1].method).toBe("POST");
+    const sent = (fetch.mock.calls[0][1].body as FormData).get("file") as File;
+    expect([sent.name, await sent.text()]).toEqual(["file.txt", "abc"]);
     await expect(slack.sendFileUpload("https://evil.example/upload", "file.txt", new Blob(["abc"]))).rejects.toThrow();
     await expect(slack.sendFileUpload("http://files.slack.com/upload", "file.txt", new Blob(["abc"]))).rejects.toThrow();
     expect(fetch).toHaveBeenCalledTimes(1);

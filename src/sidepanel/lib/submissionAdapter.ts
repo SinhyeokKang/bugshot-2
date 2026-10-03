@@ -1,7 +1,8 @@
 import { resolveStyleElements, type MarkdownContext } from "./buildIssueMarkdown";
-import type { AttachmentResult, SubmissionFile } from "@/types/attachment";
+import type { AttachmentCheckpointPatch, AttachmentResult, SubmissionFile, UploadedAttachment } from "@/types/attachment";
 import type { SubmissionProgress } from "./submissionRecovery";
 import { reconcileAttachmentResults, type AttachmentEvidence } from "./attachmentResults";
+import { failedStageState } from "./attachmentCheckpoints";
 
 export interface SubmissionAdapterInput {
   progress?: SubmissionProgress;
@@ -32,19 +33,32 @@ export interface DeliveryResponse {
   href?: string;
   failure?: AttachmentResult["failure"];
   presentation?: AttachmentResult["presentation"];
+  // A write that may or may not have landed (e.g. Slack complete internal_error).
+  ambiguous?: boolean;
 }
 export function deliveryResults(files: readonly SubmissionFile[], responses: readonly DeliveryResponse[], bodyFailed = false): AttachmentResult[] {
   const evidence: AttachmentEvidence[] = responses.filter((r) => r.fileId).map((r) => {
     const kind = files.find((f) => f.id === r.fileId)?.kind;
     const presentation = !r.ok ? "failed" : r.presentation ?? (r.ok ? bodyFailed && kind !== "user" ? "failed" : kind === "user" ? "not-applicable" : "complete" : "failed");
-    const ambiguous = r.failure?.stage === "upload" && (
-      (r.failure.httpStatus === undefined && ["network", "timeout", "unknown"].includes(r.failure.code))
-      || r.failure.httpStatus === 408 || (r.failure.httpStatus ?? 0) >= 500
-    );
-    return { fileId: r.fileId!, delivery: r.ok ? "attached" : ambiguous ? "unknown" : "failed", locator: r.href, presentation,
+    const ambiguous = r.failure?.stage === "upload" && failedStageState(r.failure) === "unknown";
+    return { fileId: r.fileId!, delivery: r.ok ? "attached" : ambiguous || r.ambiguous ? "unknown" : "failed", locator: r.href, presentation,
       ...(!r.ok ? { failure: r.failure ?? { stage: "upload" as const, code: "unknown" as const } } : presentation === "failed" ? { failure: r.failure ?? { stage: "body" as const, code: "unknown" as const } } : {}) };
   });
   return reconcileAttachmentResults(files, evidence);
+}
+
+// Upload-stage checkpoint from one batch response, keyed by file ID like deliveryResults.
+export function uploadCheckpoints(
+  files: readonly SubmissionFile[],
+  responses: readonly DeliveryResponse[],
+  locator: (response: DeliveryResponse) => UploadedAttachment | undefined,
+): AttachmentCheckpointPatch[] {
+  return files.map((file) => {
+    const matches = responses.filter((r) => r.fileId === file.id);
+    const response = matches.length === 1 ? matches[0] : undefined;
+    const uploaded = response?.ok ? locator(response) : undefined;
+    return uploaded ? { fileId: file.id, upload: "done", uploaded } : { fileId: file.id, upload: response ? failedStageState(response.failure) : "unknown" };
+  });
 }
 
 export async function submitCreation<T>(progress: SubmissionProgress | undefined, create: () => Promise<T>): Promise<T> {

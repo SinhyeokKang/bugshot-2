@@ -1,5 +1,5 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, submitCreation, uploadCheckpoints, type SubmissionAdapterInput } from "./submissionAdapter";
 import type { UploadFileResult } from "@/types/messages";
 import { buildGithubIssueBody } from "./buildGithubIssueBody";
 import { prepareUpload, type UploadFileInput } from "./prepareUpload";
@@ -45,6 +45,8 @@ export async function submitToGithub(
     { platform: "github" },
   );
   const { resolvedCtx, toMedia, toAttachmentMedia } = prepared;
+  const uploads = uploadCheckpoints(input.submissionFiles ?? [], prepared.responses, (r) => r.href ? { platform: "github", href: r.href } : undefined);
+  if (uploads.length) await input.progress?.fileCheckpoint(...uploads);
 
   const imageInputs = input.images ?? [];
   const { body } = buildGithubIssueBody({
@@ -68,5 +70,6 @@ export async function submitToGithub(
     },
   }));
   await input.progress?.created({ platform: "github", key: `#${result.number}`, url: result.url, locator: { owner: input.owner, repo: input.repo, number: String(result.number) } });
+  await input.progress?.bodyWritten(body, ...uploads.filter((u) => u.upload === "done").map((u) => ({ fileId: u.fileId, body: "done" as const })));
   return { key: `#${result.number}`, url: result.url, attachments: deliveryResults(input.submissionFiles ?? [], prepared.responses) };
 }

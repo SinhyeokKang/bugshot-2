@@ -53,6 +53,7 @@ describe("retryFailureReason", () => {
     expect(retryFailureReason({ status: 200, code: "missing_scope" })).toBe("permission");
     expect(retryFailureReason({ status: 200, code: "token_revoked" })).toBe("authentication");
     expect(retryFailureReason({ status: 200, code: "channel_not_found" })).toBe("remote-missing");
+    expect(retryFailureReason({ status: 200, body: { platform: "slack", code: "not_in_channel" } })).toBe("permission");
     expect(retryFailureReason(new TypeError("Failed to fetch"))).toBe("ambiguous");
     expect(retryFailureReason(undefined)).toBe("ambiguous");
   });

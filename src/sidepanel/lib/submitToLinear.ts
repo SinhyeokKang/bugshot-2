@@ -1,5 +1,6 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
 import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { failedStageState } from "./attachmentCheckpoints";
 import {
   buildLinearIssueBody,
   type LinearMediaInput,
@@ -53,17 +54,24 @@ export async function submitToLinear(
   input: LinearSubmitInput,
 ): Promise<NormalizedSubmitResult> {
   input = bindSubmissionFiles(input);
+  const progress = input.progress;
+  // Pre-create uploads are strict (any failure aborts before creation), so only successes are recorded.
+  const uploadAndCheckpoint = async (file: LinearFileInput): Promise<LinearMediaInput> => {
+    const uploaded = await uploadFile(file);
+    if (file.fileId) await progress?.fileCheckpoint({ fileId: file.fileId, upload: "done", uploaded: { platform: "linear", href: uploaded.assetUrl! } });
+    return uploaded;
+  };
   const uploadPromises: Promise<LinearMediaInput>[] = [];
   const imageIndexes = input.images ?? [];
-  for (const img of imageIndexes) uploadPromises.push(uploadFile(img));
-  const videoPromise = input.video ? uploadFile(input.video) : null;
+  for (const img of imageIndexes) uploadPromises.push(uploadAndCheckpoint(img));
+  const videoPromise = input.video ? uploadAndCheckpoint(input.video) : null;
 
   const [imageResults, videoResult, inlineResults] = await Promise.all([
     Promise.all(uploadPromises),
     videoPromise,
     Promise.all(
       (input.inlineImages ?? []).map(async (img) => {
-        const result = await uploadFile({
+        const result = await uploadAndCheckpoint({
           fileId: img.fileId,
           contentType: img.contentType,
           filename: img.filename ?? inlineUploadFilename(img.refId),
@@ -114,6 +122,7 @@ export async function submitToLinear(
     },
   }));
   await input.progress?.created({ platform: "linear", key: result.identifier, url: result.url, locator: { issueId: result.id } });
+  await progress?.bodyWritten(body, ...(input.submissionFiles ?? []).filter((f) => ["capture", "video", "inline"].includes(f.kind)).map((f) => ({ fileId: f.id, body: "done" as const })));
 
   const responses: import("./submissionAdapter").DeliveryResponse[] = [];
   for (const f of input.submissionFiles ?? []) {
@@ -127,23 +136,35 @@ export async function submitToLinear(
         ? await injectIssueUrl(file.dataUrl, result.url, result.identifier) : file.dataUrl;
       uploaded = await uploadFile({ ...file, dataUrl });
     } catch (error) {
-      responses.push({ fileId: file.fileId, ok: false, failure: safeAttachmentFailure(error) });
+      const failure = safeAttachmentFailure(error);
+      responses.push({ fileId: file.fileId, ok: false, failure });
+      if (file.fileId) await progress?.fileCheckpoint({ fileId: file.fileId, upload: failedStageState(failure) });
       continue;
     }
+    if (file.fileId) await progress?.fileCheckpoint({ fileId: file.fileId, upload: "done", uploaded: { platform: "linear", href: uploaded.assetUrl! } });
     let linked = false;
+    let linkFailure: ReturnType<typeof safeAttachmentFailure> | undefined;
     try {
       const response = await sendBg<{ ok: boolean }>({ type: "linear.createAttachment", issueId: result.id, title: file.displayName ?? file.filename, url: uploaded.assetUrl! });
       linked = response?.ok === true;
-    } catch { /* The body link is an independent delivery path for logs. */ }
+    } catch (error) { linkFailure = safeAttachmentFailure(error, "link"); /* The body link is an independent delivery path for logs. */ }
+    if (file.fileId) await progress?.fileCheckpoint({ fileId: file.fileId, link: linked ? "done" : linkFailure ? failedStageState(linkFailure) : "failed" });
     let bodyLinked = false;
+    let linkedBody = body;
     if (isLog) {
+      try { linkedBody = buildLinearIssueBody({ ctx: resolvedCtx, images: imageResults, video: videoResult ?? undefined, cc: input.cc?.map((u) => u.name), logsUrl: uploaded.assetUrl }).body; }
+      catch { /* Preserve the native attachment result. */ }
+    }
+    if (linkedBody !== body) {
+      let bodyFailure: ReturnType<typeof safeAttachmentFailure> | undefined;
       try {
-        const linkedBody = buildLinearIssueBody({ ctx: resolvedCtx, images: imageResults, video: videoResult ?? undefined, cc: input.cc?.map((u) => u.name), logsUrl: uploaded.assetUrl }).body;
-        if (linkedBody !== body) {
-          const response = await sendBg<{ ok: boolean }>({ type: "linear.updateIssueDescription", issueId: result.id, description: linkedBody });
-          bodyLinked = response?.ok === true;
-        }
-      } catch { /* Preserve the native attachment result. */ }
+        const response = await sendBg<{ ok: boolean }>({ type: "linear.updateIssueDescription", issueId: result.id, description: linkedBody });
+        bodyLinked = response?.ok === true;
+      } catch (error) { bodyFailure = safeAttachmentFailure(error, "body"); /* Preserve the native attachment result. */ }
+      if (file.fileId) {
+        if (bodyLinked) await progress?.bodyWritten(linkedBody, { fileId: file.fileId, body: "done" });
+        else await progress?.fileCheckpoint({ fileId: file.fileId, body: bodyFailure ? failedStageState(bodyFailure) : "failed" });
+      }
     }
     responses.push({ fileId: file.fileId, ok: linked || bodyLinked, href: uploaded.assetUrl, presentation: isLog && !bodyLinked && linked ? "failed" : isLog ? "complete" : "not-applicable",
       ...(!linked && !bodyLinked ? { failure: { stage: "link", code: "unknown" } as const } : {}) });

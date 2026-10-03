@@ -1,5 +1,6 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, submitCreation, uploadCheckpoints, type SubmissionAdapterInput } from "./submissionAdapter";
+import { failedStageState } from "./attachmentCheckpoints";
 import type { AsanaUploadFileResult } from "@/types/messages";
 import { buildAsanaIssueBody, type AsanaMediaInput } from "./buildAsanaIssueBody";
 import { resolveStyleElements, type MarkdownContext } from "./buildIssueMarkdown";
@@ -179,6 +180,7 @@ export async function submitToAsana(
     },
   }));
   await input.progress?.created({ platform: "asana", key: task.gid, url: task.permalinkUrl, locator: { taskGid: task.gid } });
+  await input.progress?.bodyWritten(htmlNotes);
 
   let responses: AsanaUploadFileResult[] = [];
   let bodyFailed = false;
@@ -205,6 +207,8 @@ export async function submitToAsana(
     // 원본 픽셀 크기를 직접 박아 썸네일 크기 렌더와 Asana 후처리 지연을 회피한다.
     const byName = new Map<string, { gid: string; viewUrl?: string }>();
     responses = results;
+    const uploads = uploadCheckpoints(input.submissionFiles ?? [], results.map((r) => ({ ...r, href: r.ok ? r.gid : undefined })), (r) => r.href ? { platform: "asana", id: r.href } : undefined);
+    if (uploads.length) await input.progress?.fileCheckpoint(...uploads);
     results.forEach((r, i) => {
       if (input.submissionFiles) {
         const f = allFiles.find((f) => f.fileId === r.fileId);
@@ -231,19 +235,28 @@ export async function submitToAsana(
     );
     const logsDelivered = logs.length > 0 && logs.every((f) => byName.has(f.filename));
     if (Object.keys(imageRefs).length > 0 || logsDelivered) {
+      // Files whose reference lands in this notes write: inlined images plus confirmed logs.
+      const inBody = [...imageInputs, ...inlineEntries.map((e) => e.file), ...(logsDelivered ? logs : [])]
+        .filter((f) => f.fileId && byName.has(f.filename)).map((f) => f.fileId!);
+      let notes: string | undefined;
+      let bodyFailure: ReturnType<typeof safeAttachmentFailure> | undefined;
       try {
         // injectAsanaCc 누락 시 2차 write가 cc를 sentinel 문자열로 되돌린다.
         const updatedBody = logsDelivered ? buildAsanaIssueBody({ ctx: { ...ctx, logsDeliveryConfirmed: true }, images: imageInputs.map(toMedia), hasCc: cc.length > 0 }).body : body;
         const updatedHtml = markdownToAsanaHtml(updatedBody, imageRefs);
+        notes = cc.length > 0 ? injectAsanaCc(updatedHtml, cc) : updatedHtml;
         await sendBg({
           type: "asana.updateTaskNotes",
           taskGid: task.gid,
-          htmlNotes: cc.length > 0 ? injectAsanaCc(updatedHtml, cc) : updatedHtml,
+          htmlNotes: notes,
         });
-      } catch {
+      } catch (error) {
         bodyFailed = true;
+        bodyFailure = safeAttachmentFailure(error, "body");
         // 본문 갱신 실패해도 task·첨부는 보존 (이미지는 task 첨부로 남음).
       }
+      if (!bodyFailed && notes !== undefined) await input.progress?.bodyWritten(notes, ...inBody.map((fileId) => ({ fileId, body: "done" as const })));
+      else if (inBody.length) await input.progress?.fileCheckpoint(...inBody.map((fileId) => ({ fileId, body: failedStageState(bodyFailure) })));
     }
   }
 

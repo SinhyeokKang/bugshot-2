@@ -340,7 +340,8 @@ export async function updateIssueDescription(
     }`,
     { id: issueId, description },
   );
-  if (result.issueUpdate?.success !== true) throw new Error("Linear description update was not acknowledged");
+  // A definite "no" from the API, not a lost response: status 200 keeps it classified as failed.
+  if (result.issueUpdate?.success !== true) throw new LinearError(200, "Linear description update was not acknowledged");
 }
 
 export async function requestFileUpload(
@@ -416,7 +417,13 @@ export async function createAttachment(
     }`,
     { input: { issueId, title, url } },
   );
-  if (result.attachmentCreate?.success !== true) throw new Error("Linear attachment was not acknowledged");
+  if (result.attachmentCreate?.success !== true) throw new LinearError(200, "Linear attachment was not acknowledged");
+}
+
+export async function getViewerIdentity(auth: LinearAuth): Promise<{ userId: string; organizationId: string }> {
+  const data = await linearGraphQL<{ viewer?: { id?: string }; organization?: { id?: string } }>(auth, `{ viewer { id } organization { id } }`);
+  if (!data.viewer?.id || !data.organization?.id) throw new Error("Invalid Linear viewer response");
+  return { userId: data.viewer.id, organizationId: data.organization.id };
 }
 
 export async function getIssueAttachments(auth: LinearAuth, issueId: string): Promise<{ description: string; attachments: Array<{ id: string; url: string }> }> {

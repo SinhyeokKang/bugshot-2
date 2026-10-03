@@ -247,9 +247,21 @@ export async function setTaskCompleted(
   return normalizeTaskStatus(raw);
 }
 
-export async function getTaskAttachments(auth: AsanaAuth, taskGid: string) {
-  const task = await asanaFetch<{ html_notes: string; attachments: Array<{ gid: string; permanent_url?: string }> }>(auth,
-    `/tasks/${encodeURIComponent(taskGid)}?opt_fields=html_notes,attachments.gid,attachments.permanent_url`);
-  if (typeof task.html_notes !== "string" || !Array.isArray(task.attachments)) throw new Error("Invalid Asana task response");
-  return { htmlNotes: task.html_notes, attachments: task.attachments.map(({ gid, permanent_url }) => ({ gid, permanent_url })) };
+// The task object has no attachments field; they are listed by parent. Max page size is 100,
+// so a full page means the list may be truncated — fail closed instead of paginating blindly.
+export async function getTaskAttachments(
+  auth: AsanaAuth,
+  taskGid: string,
+): Promise<{ htmlNotes: string; workspaceGid: string; attachments: Array<{ gid: string; name: string }> }> {
+  const task = await asanaFetch<{ html_notes?: string; workspace?: { gid?: string } }>(
+    auth,
+    `/tasks/${encodeURIComponent(taskGid)}?opt_fields=html_notes,workspace`,
+  );
+  const attachments = await asanaFetch<Array<{ gid: string; name?: string }>>(
+    auth,
+    `/attachments?parent=${encodeURIComponent(taskGid)}&opt_fields=name&limit=100`,
+  );
+  if (typeof task.html_notes !== "string" || !task.workspace?.gid || !Array.isArray(attachments)) throw new Error("Invalid Asana task response");
+  if (attachments.length >= 100) throw new Error("Asana attachment list may be truncated");
+  return { htmlNotes: task.html_notes, workspaceGid: task.workspace.gid, attachments: attachments.map(({ gid, name }) => ({ gid, name: name ?? "" })) };
 }

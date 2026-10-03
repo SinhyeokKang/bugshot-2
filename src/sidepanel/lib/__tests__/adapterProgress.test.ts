@@ -25,6 +25,13 @@ const providers = [
   ["webhook", submitToWebhook, { auth: { url: "https://hook.example", format: "multipart" }, idempotencyKey: "same" }, "webhook.submit", { key: "w", url: "https://hook.example/w" }],
   ["jira", submitToJira, { projectKey: "P", summary: "Title", issueTypeId: "1" }, "jira.createIssue", { key: "P-1", url: "https://jira.example/browse/P-1", siteId: "s" }],
 ] as const;
+// Retry checkpoints are covered in adapterCheckpoints.test.ts; these suites only need them inert.
+const checkpointHooks = { fileCheckpoint: async () => {}, bodyWritten: async () => {} };
+const slackStaged = (msg: { type: string; fileId?: string }, rejected?: string) => {
+  if (msg.type === "slack.requestFileUpload") { if (msg.fileId === rejected) throw new Error("denied"); return { fileId: `F-${msg.fileId}`, uploadUrl: "https://files.slack.com/upload/v1/x" }; }
+  if (msg.type === "slack.sendFileUpload" || msg.type === "slack.completeFileUploads") return { ok: true };
+  return undefined;
+};
 beforeEach(() => {
   vi.stubGlobal("chrome", { runtime: { getManifest: () => ({ version: "1" }) } });
   sendBg.mockReset();
@@ -39,7 +46,7 @@ describe.each(providers)("%s creation checkpoint", (_name, submit, args, createT
       if (msg.type === "slack.getPermalink") return { permalink: "https://slack.com/archives/c/p12" };
       return {};
     });
-    const progress = { attemptId: "attempt", beforeCreate: vi.fn(async () => { events.push("creating"); }), created: vi.fn(async () => { events.push("created"); throw new Error("checkpoint failed"); }) };
+    const progress = { attemptId: "attempt", beforeCreate: vi.fn(async () => { events.push("creating"); }), created: vi.fn(async () => { events.push("created"); throw new Error("checkpoint failed"); }), ...checkpointHooks };
     await expect(submit({ ctx, ...args, submissionFiles: [], progress } as never)).rejects.toThrow("checkpoint failed");
     expect(events.indexOf("creating")).toBe(events.indexOf(createType) - 1);
     expect(events.at(-1)).toBe("created");
@@ -58,13 +65,15 @@ describe.each(providers)("%s prepared file delivery", (name, submit, args, creat
       if (msg.type === "linear.uploadFile") return { fileId: msg.fileId, assetUrl: "https://files.example/file" };
       if (msg.type === "notion.uploadFile") return { fileId: msg.fileId, fileUploadId: "remote-file" };
       if (msg.type === "jira.uploadAttachment") return { fileId: msg.attachment.fileId, filename: msg.attachment.filename, ok: true, href: "https://files.example/file", file: { kind: "external", url: "https://files.example/file" } };
+      const staged = slackStaged(msg);
+      if (staged) return staged;
       if (msg.files) return msg.files.map((f: { fileId: string; filename: string }) => ({ fileId: f.fileId, filename: f.filename, ok: true, href: "https://files.example/file", gid: "gid", remoteFileId: "remote-file" }));
       return { ok: true };
     });
-    const progress = { attemptId: "a", beforeCreate: vi.fn(async () => {}), created: vi.fn(async () => {}) };
+    const progress = { attemptId: "a", beforeCreate: vi.fn(async () => {}), created: vi.fn(async () => {}), ...checkpointHooks };
     const result = await submit({ ctx: { ...ctx, captureMode: kind === "video" ? "video" : "screenshot", sections: { description: "![pic](inline:ref)" }, sectionConfig: [{ id: "description", enabled: true, renderAs: "paragraph", builtIn: true }], actionLogCaptured: kind === "logs" ? 1 : undefined }, ...args, submissionFiles: [file], progress } as never);
     expect(result).toMatchObject({ attachments: [{ fileId: id, delivery: "attached" }] });
-    const uploads = sendBg.mock.calls.map(([m]) => m).filter((m) => m.type.includes("upload"));
+    const uploads = sendBg.mock.calls.map(([m]) => m).filter((m) => /upload/i.test(m.type));
     if (name !== "webhook") {
       expect(uploads.length).toBeGreaterThan(0);
       const sent = uploads.flatMap((m) => m.files ?? [m.attachment ?? m]);
@@ -90,7 +99,7 @@ describe.each(providers)("%s missing delivery evidence", (name, submit, args, cr
       if (msg.files) return [];
       return { ok: true };
     });
-    const progress = { attemptId: "a", beforeCreate: vi.fn(async () => {}), created: vi.fn(async () => {}) };
+    const progress = { attemptId: "a", beforeCreate: vi.fn(async () => {}), created: vi.fn(async () => {}), ...checkpointHooks };
     const pending = submit({ ctx: { ...ctx, captureMode: kind === "video" ? "video" : "screenshot", sections: { description: "![pic](inline:ref)" }, sectionConfig: [{ id: "description", enabled: true, renderAs: "paragraph", builtIn: true }], actionLogCaptured: kind === "logs" ? 1 : undefined }, ...args, submissionFiles: [file], progress } as never);
     if (name === "webhook" || (["linear", "notion"].includes(name) && ["capture", "video", "inline"].includes(kind))) {
       await expect(pending).rejects.toThrow();
@@ -119,10 +128,12 @@ describe.each(providers)("%s colliding user filenames", (name, submit, args, cre
       }
       const uploaded = (f: { fileId: string }) => ({ fileId: f.fileId, filename, ok: f.fileId !== "user:u", href: "https://files.example/file", gid: "gid", remoteFileId: "remote-file", file: { kind: "external", url: "https://files.example/file" } });
       if (msg.type === "jira.uploadAttachment") return uploaded(msg.attachment);
+      const staged = slackStaged(msg, "user:u");
+      if (staged) return staged;
       if (msg.files) return msg.files.map(uploaded);
       return { ok: true };
     });
-    const result = await submit({ ctx: { ...ctx, captureMode: "screenshot", actionLogCaptured: 1 }, ...args, attachments: [{ filename: `u__${filename}`, displayName: filename, dataUrl: "old" }], submissionFiles, progress: { attemptId: "a", beforeCreate: async () => {}, created: async () => {} } } as never);
+    const result = await submit({ ctx: { ...ctx, captureMode: "screenshot", actionLogCaptured: 1 }, ...args, attachments: [{ filename: `u__${filename}`, displayName: filename, dataUrl: "old" }], submissionFiles, progress: { attemptId: "a", beforeCreate: async () => {}, created: async () => {}, ...checkpointHooks } } as never);
     expect(result).toMatchObject({ attachments: [
       { fileId: "capture:screenshot", delivery: "attached" },
       { fileId: "logs", delivery: "attached" },
@@ -159,10 +170,11 @@ describe.each(providers)("%s rejected uploads", (name, submit, args, createType,
       if (msg.type === "linear.uploadFile") throw new Error("upload failed");
       if (msg.type === "notion.uploadFile") throw new Error("upload failed");
       if (msg.type === "jira.uploadAttachment") return { fileId: msg.attachment.fileId, filename: msg.attachment.filename, ok: false, href: "https://files.example/file", file: { kind: "external", url: "https://files.example/file" } };
+      if (msg.type === "slack.requestFileUpload") throw new Error("upload failed");
       if (msg.files) return msg.files.map((f: { fileId: string; filename: string }) => ({ ...f, ok: false }));
       return { ok: true };
     });
-    const progress = { attemptId: "a", beforeCreate: vi.fn(async () => {}), created: vi.fn(async () => {}) };
+    const progress = { attemptId: "a", beforeCreate: vi.fn(async () => {}), created: vi.fn(async () => {}), ...checkpointHooks };
     const pending = submit({ ctx: { ...ctx, captureMode: kind === "video" ? "video" : "screenshot", sections: { description: "![pic](inline:ref)" }, sectionConfig: [{ id: "description", enabled: true, renderAs: "paragraph", builtIn: true }], actionLogCaptured: kind === "logs" ? 1 : undefined }, ...args, submissionFiles: [file], progress } as never);
     if (name === "webhook" || (["linear", "notion"].includes(name) && ["capture", "video", "inline"].includes(kind))) {
       await expect(pending).rejects.toThrow();
@@ -190,7 +202,8 @@ describe("provider-specific attachment completion", () => {
   it("Slack retains successful file delivery but reports a failed permalink boundary", async () => {
     sendBg.mockImplementation(async (msg) => {
       if (msg.type === "slack.postMessage") return { ts: "1.2" };
-      if (msg.type === "slack.uploadFiles") return [{ fileId: "user:u", filename: "u.pdf", ok: true, remoteFileId: "F1" }];
+      const staged = slackStaged(msg);
+      if (staged) return staged;
       if (msg.type === "slack.getPermalink") throw new Error("lost response");
     });
     const result = await submitToSlack({ ctx, channelId: "c", submissionFiles: [{ id: "user:u", kind: "user", filename: "u.pdf", contentType: "application/pdf", dataUrl: "data:application/pdf;base64,QQ==" }] });
@@ -218,7 +231,8 @@ it.each(["jpg", "png"])("Jira maps prepared %s comparison captures to actual ADF
 it.each(["reject", "missing", "empty"])("Slack preserves presentation failure on %s permalink", async (mode) => {
   sendBg.mockImplementation(async (m) => {
     if (m.type === "slack.postMessage") return { ts: "1.2" };
-    if (m.type === "slack.uploadFiles") return m.files.map((f: { fileId: string; filename: string }) => ({ ...f, ok: true, remoteFileId: "F1" }));
+    const staged = slackStaged(m);
+    if (staged) return staged;
     if (mode === "reject") throw new Error("lost response");
     return mode === "empty" ? { permalink: "" } : {};
   });
@@ -230,7 +244,9 @@ it.each([true, false])("Slack log summary is truthful before upload success=%s",
   const texts: string[] = [];
   sendBg.mockImplementation(async (m) => {
     if (m.type === "slack.postMessage") { texts.push(m.payload.text); return { ts: "1.2" }; }
-    if (m.type === "slack.uploadFiles") return [{ fileId: "logs", filename: "logs.html", ok, remoteFileId: ok ? "F1" : undefined }];
+    if (m.type === "slack.requestFileUpload" && !ok) throw new Error("denied");
+    const staged = slackStaged(m);
+    if (staged) return staged;
     return { permalink: "https://slack.com/archives/C/p12" };
   });
   await submitToSlack({ ctx: { ...ctx, actionLogCaptured: 1 }, channelId: "C", submissionFiles: [{ id: "logs", kind: "logs", filename: "logs.html", contentType: "text/html", dataUrl: "data:text/html;base64,QQ==" }] });

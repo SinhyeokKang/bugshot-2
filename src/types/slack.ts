@@ -54,13 +54,9 @@ export interface SlackPostResult {
   ts: string; // 메시지 timestamp (= 식별자)
 }
 
-export interface SlackUploadResult {
-  remoteFileId?: string;
-  fileId?: string;
-  failure?: AttachmentResult["failure"];
-  filename: string;
-  ok: boolean;
-}
+export type SlackCompleteResult =
+  | { ok: true }
+  | { ok: false; outcome: "failed" | "ambiguous"; failure: NonNullable<AttachmentResult["failure"]> };
 
 export interface SlackPermalinkResult {
   permalink: string;

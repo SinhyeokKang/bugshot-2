@@ -94,6 +94,23 @@ describe("upload-first markdown providers", () => {
     expect(last(user.id)).toMatchObject({ upload: "done", body: "done", uploaded: { platform: "gitlab", href: "/uploads/abc/a.pdf" } });
   });
 
+  it("GitLab records the backlinked logs URL with the swapped body and surfaces a storage failure", async () => {
+    const html = `data:text/html;base64,${Buffer.from("<html><body></body></html>").toString("base64")}`;
+    rpc({
+      "gitlab.uploadFiles": (msg) => msg.files.map((f: any) => ({ fileId: f.fileId, filename: f.filename, ok: true, href: `/uploads/${gitlabUploads++}/logs.html` })),
+      "gitlab.submitIssue": () => ({ iid: 3, url: "https://gitlab.com/o/r/-/issues/3" }),
+      "gitlab.updateIssueDescription": () => ({}),
+    });
+    let gitlabUploads = 1;
+    const logsFile = { ...logs, dataUrl: html };
+    await submitToGitlab({ ctx, projectId: 4, logs: [{ filename: "logs.html", dataUrl: html }], submissionFiles: [logsFile], progress });
+    expect(last(logs.id).uploaded).toEqual({ platform: "gitlab", href: "/uploads/2/logs.html" });
+    expect(bodies.at(-1)).toContain("/uploads/2/logs.html");
+    gitlabUploads = 1;
+    progress.bodyWritten.mockImplementation(async (body: string) => { if (body.includes("/uploads/2/")) throw new Error("quota"); });
+    await expect(submitToGitlab({ ctx, projectId: 4, logs: [{ filename: "logs.html", dataUrl: html }], submissionFiles: [logsFile], progress })).rejects.toThrow("quota");
+  });
+
   it("Linear checkpoints uploads before creation and links logs before the body update", async () => {
     rpc({
       "linear.uploadFile": (msg) => ({ fileId: msg.fileId, assetUrl: `https://uploads.linear.app/${msg.fileId}` }),

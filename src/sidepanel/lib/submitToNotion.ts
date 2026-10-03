@@ -1,5 +1,6 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
 import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { failedStageState } from "./attachmentCheckpoints";
 import { buildNotionIssueBody } from "./buildNotionIssueBody";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { type InlineImageInput } from "./resolveInlineImages";
@@ -57,6 +58,7 @@ export async function submitToNotion(
       dataUrl: img.dataUrl,
     });
     if (img.fileId && res.fileId !== img.fileId) throw new Error("Invalid upload response");
+    if (img.fileId) await input.progress?.fileCheckpoint({ fileId: img.fileId, upload: "done", uploaded: { platform: "notion", id: res.fileUploadId, expiresAt: res.expiresAt ?? null } });
     inlineUploaded.push({ fileId: img.fileId, refId: img.refId, fileUploadId: res.fileUploadId });
   }
 
@@ -118,8 +120,9 @@ export async function submitToNotion(
   const uploaded: { fileId?: string; placeholderId: string; fileUploadId: string; filename: string; category: typeof attachments[number]["category"] }[] = [];
   const failures: import("./submissionAdapter").DeliveryResponse[] = [];
   for (const a of attachments) {
+    let res: NotionFileUploadResult;
     try {
-      const res = await sendBg<NotionFileUploadResult>({
+      res = await sendBg<NotionFileUploadResult>({
         type: "notion.uploadFile",
         fileId: a.fileId,
         filename: a.filename,
@@ -127,23 +130,27 @@ export async function submitToNotion(
         dataUrl: a.dataUrl,
       });
       if (!res.fileUploadId || (a.fileId && res.fileId !== a.fileId)) throw new Error("Invalid upload response");
-      uploaded.push({
-        fileId: a.fileId,
-        placeholderId: a.placeholderId,
-        fileUploadId: res.fileUploadId,
-        filename: a.filename,
-        category: a.category,
-      });
     } catch (err) {
       // 로그·사용자 첨부 실패는 격리 — 누락 placeholder 블록은 createPage에서 자연 스킵.
       // image/video는 본문 핵심이라 strict 유지(전체 실패). 승격(requireMediaUpload)이면
       // 사용자 첨부(other)도 strict — 원본 파괴 전에 중단. 로그는 승격에서도 best-effort.
       if (a.category === "log" || (a.category === "other" && !input.requireMediaUpload)) {
-        failures.push({ fileId: a.fileId, ok: false, failure: safeAttachmentFailure(err) });
+        const failure = safeAttachmentFailure(err);
+        failures.push({ fileId: a.fileId, ok: false, failure });
+        if (a.fileId) await input.progress?.fileCheckpoint({ fileId: a.fileId, upload: failedStageState(failure) });
         continue;
       }
       throw err;
     }
+    // Outside the try: a storage failure must stop the submission, not read as an upload failure.
+    if (a.fileId) await input.progress?.fileCheckpoint({ fileId: a.fileId, upload: "done", uploaded: { platform: "notion", id: res.fileUploadId, expiresAt: res.expiresAt ?? null } });
+    uploaded.push({
+      fileId: a.fileId,
+      placeholderId: a.placeholderId,
+      fileUploadId: res.fileUploadId,
+      filename: a.filename,
+      category: a.category,
+    });
   }
 
   // 4. inline uploads를 uploaded 배열에 추가
@@ -171,6 +178,9 @@ export async function submitToNotion(
     },
   }));
   await input.progress?.created({ platform: "notion", key: result.pageId.replace(/-/g, "").slice(0, 8), url: result.url, locator: { pageId: result.pageId } });
+  // Files cut by the 100-block limit stay link=pending; retry appends them to this page.
+  const linked = uploaded.filter((u) => u.fileId && result.attachedFileIds?.includes(u.fileId)).map((u) => ({ fileId: u.fileId!, link: "done" as const }));
+  if (linked.length) await input.progress?.fileCheckpoint(...linked);
 
   const shortKey = result.pageId.replace(/-/g, "").slice(0, 8);
   return { key: shortKey, url: result.url, attachments: deliveryResults(input.submissionFiles ?? [], [...failures, ...(result.attachedFileIds ? uploaded : []).map((r) => ({ fileId: r.fileId, ok: result.attachedFileIds?.includes(r.fileId ?? "") ?? false, href: result.url, failure: { stage: "body", code: "body-limit" } as const }))]) };

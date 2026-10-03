@@ -40,7 +40,7 @@ const DESTINATION: Record<keyof typeof AUTH, CreatedDestination> = {
 };
 // URL substring → JSON body. Order-independent so parallel reads stay deterministic.
 function route(table: Array<[string, unknown]>) {
-  const fetch = vi.fn(async (url: string) => {
+  const fetch = vi.fn(async (url: string, _init?: RequestInit) => {
     const hit = table.find(([part]) => String(url).includes(part));
     if (!hit) throw new Error(`unexpected fetch ${url}`);
     return new Response(JSON.stringify(hit[1]), { status: 200 });
@@ -167,7 +167,7 @@ describe("existing-issue read handlers", () => {
   });
 
   it("returns Notion append block IDs and refuses an oversized batch before any request", async () => {
-    const fetch = route([["/blocks/page/children", { results: [{ id: "n1" }] }]]);
+    const fetch = route([["/blocks/page/children", { results: [{ id: "n1", type: "paragraph" }] }]]);
     expect(await handleMessage({ type: "notion.appendBlockChildren", blockId: "page", children: [{ type: "paragraph" }] }, {})).toEqual({ blockIds: ["n1"] });
     await expect(handleMessage({ type: "notion.appendBlockChildren", blockId: "page", children: Array(101).fill({ type: "paragraph" }) }, {})).rejects.toThrow();
     expect(fetch).toHaveBeenCalledTimes(1);

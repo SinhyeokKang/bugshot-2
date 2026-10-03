@@ -164,7 +164,7 @@ export interface NotionPageStatus {
 export interface NotionFileUploadResult {
   fileId?: string;
   fileUploadId: string;
-  expiresAt: number;
+  expiresAt: number | null;
 }
 
 export interface NotionMyself {
