@@ -1,7 +1,8 @@
+import { preparedInput, echoFileIds, expectFileOutcome } from "@/test/submission-fixture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
-vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: async (...a: unknown[]) => echoFileIds(a[0], await sendBg(...a)) }));
 
 // 스레드 본문 빌더는 mock — MarkdownContext 처리는 buildSlackBody 자체 테스트의 몫.
 let mockBody = "BODY";
@@ -60,11 +61,11 @@ describe("submitToSlack — 전송 순서", () => {
         : defaultSendBg(msg as never),
     );
 
-    const res = await submitToSlack({
+    const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
       images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
-    });
+    }));
 
     const types = sendBg.mock.calls.map(([m]) => m.type);
     expect(types).toEqual([
@@ -85,12 +86,11 @@ describe("submitToSlack — 전송 순서", () => {
     // permalink는 부모 ts로 조회, 결과 url에 반영.
     const permalinkCall = sendBg.mock.calls.find(([m]) => m.type === "slack.getPermalink")![0];
     expect(permalinkCall.ts).toBe("111");
-    expect(res).toEqual({
+    expect(res).toMatchObject({
       key: "111",
       url: "https://slack.test/archives/C1/p111",
-      logsDropped: false,
-      mediaDropped: false,
     });
+    expectFileOutcome(res, "logs", false);
   });
 });
 
@@ -139,13 +139,13 @@ describe("submitToSlack — logsDropped", () => {
         : defaultSendBg(msg as never),
     );
 
-    const res = await submitToSlack({
+    const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "logs", true);
   });
 });
 
@@ -223,14 +223,14 @@ describe("submitToSlack — 인라인 이미지", () => {
         : defaultSendBg(msg as never),
     );
 
-    const res = await submitToSlack({
+    const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
-    } as never);
+    } as never));
 
-    expect(res.logsDropped).toBe(false);
+    expectFileOutcome(res, "logs", false);
   });
 
   it("인라인 이미지만 있고 다른 첨부가 없어도 업로드를 호출한다", async () => {
@@ -258,13 +258,13 @@ describe("submitToSlack — mediaDropped", () => {
         : defaultSendBg(msg as never),
     );
 
-    const res = await submitToSlack({
+    const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
       video: { filename: "recording.mp4", dataUrl: "data:VIDEO" },
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(true);
+    expectFileOutcome(res, "media", true);
   });
 
   it("logs.html만 실패하면 mediaDropped는 false로 남는다 — 두 신호는 별개 축이다", async () => {
@@ -277,15 +277,15 @@ describe("submitToSlack — mediaDropped", () => {
         : defaultSendBg(msg as never),
     );
 
-    const res = await submitToSlack({
+    const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
       images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(false);
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "media", false);
+    expectFileOutcome(res, "logs", true);
   });
 
   it("사용자 첨부 실패는 mediaDropped를 켜지 않는다", async () => {
@@ -295,12 +295,12 @@ describe("submitToSlack — mediaDropped", () => {
         : defaultSendBg(msg as never),
     );
 
-    const res = await submitToSlack({
+    const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
       attachments: [{ filename: "report.pdf", dataUrl: "data:PDF" }],
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(false);
+    expectFileOutcome(res, "media", false);
   });
 });

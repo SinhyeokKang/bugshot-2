@@ -1,7 +1,8 @@
+import { preparedInput, echoFileIds, expectFileOutcome } from "@/test/submission-fixture";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
-vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: async (...a: unknown[]) => echoFileIds(a[0], await sendBg(...a)) }));
 
 vi.mock("@/i18n", () => ({
   t: (key: string) => key,
@@ -139,12 +140,12 @@ describe("submitToAsana", () => {
       return undefined;
     });
 
-    const res = await submitToAsana({
+    const res = await submitToAsana(preparedInput({
       ctx: makeCtx(),
       workspaceGid: "W",
       projectGid: "P",
       images: [{ filename: "screenshot.png", dataUrl: "data:," }],
-    });
+    }));
 
     // 이미지 업로드 후 GID로 본문 갱신 → create → upload → update 순.
     expect(order).toEqual([
@@ -152,7 +153,9 @@ describe("submitToAsana", () => {
       "asana.uploadFiles",
       "asana.updateTaskNotes",
     ]);
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false, mediaDropped: false });
+    expect(res).toMatchObject({ key: "TASK_GID", url: TASK.permalinkUrl,  });
+    expectFileOutcome(res, "logs", false);
+    expectFileOutcome(res, "media", false);
 
     const submitCall = sendBg.mock.calls.find(
       ([m]) => m.type === "asana.submitIssue",
@@ -307,13 +310,13 @@ describe("submitToAsana", () => {
       return undefined;
     });
 
-    const res = await submitToAsana({
+    const res = await submitToAsana(preparedInput({
       ctx: makeCtx({ captureMode: "screenshot" }),
       workspaceGid: "W",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "logs", true);
   });
 
   it("logs.html 첨부 성공이면 logsDropped: false", async () => {
@@ -324,13 +327,13 @@ describe("submitToAsana", () => {
       return undefined;
     });
 
-    const res = await submitToAsana({
+    const res = await submitToAsana(preparedInput({
       ctx: makeCtx({ captureMode: "screenshot" }),
       workspaceGid: "W",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(false);
+    expectFileOutcome(res, "logs", false);
   });
 });
 
@@ -607,15 +610,17 @@ describe("submitToAsana — 2차 본문 갱신 실패 (전수 표 asana 행)", (
       return undefined;
     });
 
-    const res = await submitToAsana({
+    const res = await submitToAsana(preparedInput({
       ctx: makeCtx({ captureMode: "screenshot" }),
       workspaceGid: "W",
       images: [{ filename: "screenshot.png", dataUrl: "data:," }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
     // ①② 완전 성공 경로와 동일한 반환값.
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false, mediaDropped: false });
+    expect(res).toMatchObject({ key: "TASK_GID", url: TASK.permalinkUrl,  });
+    expectFileOutcome(res, "logs", false);
+    expectFileOutcome(res, "media", false);
     // ③ 생성·업로드는 그대로.
     expect(sendBg.mock.calls.map(([m]) => m.type)).toEqual([
       "asana.submitIssue",
@@ -769,21 +774,24 @@ describe("submitToAsana 사용자 첨부 파일명 충돌 (Task 8-1 재현)", ()
       },
     );
 
-    const res = await submitToAsana({
+    const res = await submitToAsana(preparedInput({
       ctx: makeCtx({ captureMode: "screenshot" }),
       workspaceGid: "W",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       attachments: [
         { filename: "u1__logs.html", dataUrl: "data:USER", displayName: "logs.html" },
       ],
-    });
+    }));
 
     // 로그 첨부는 성공했으므로 "용량 초과로 누락" 경고가 뜨면 안 된다.
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false, mediaDropped: false });
+    expect(res).toMatchObject({ key: "TASK_GID", url: TASK.permalinkUrl,  });
+    expectFileOutcome(res, "logs", false);
+    expectFileOutcome(res, "media", false);
     // 같은 뿌리의 세 번째 낙진: 백링크 주입도 파일명으로 판별하면 사용자가 올린 파일에
     // 이슈 URL이 박힌다. 우리 logs.html 하나에만 주입돼야 한다.
-    expect(injectIssueUrl).toHaveBeenCalledTimes(1);
-    expect(injectIssueUrl).toHaveBeenCalledWith("data:LOGS", TASK.permalinkUrl, TASK.gid);
+    expect(injectIssueUrl).not.toHaveBeenCalled();
+    const uploaded = sendBg.mock.calls.find(([m]) => m.type === "asana.uploadFiles")![0].files;
+    expect(uploaded.map((f: { dataUrl: string }) => f.dataUrl)).toEqual(["data:LOGS", "data:USER"]);
   });
 
   it("우리 logs.html이 실패하고 동명의 사용자 첨부만 성공하면 logsDropped는 true다", async () => {
@@ -803,16 +811,18 @@ describe("submitToAsana 사용자 첨부 파일명 충돌 (Task 8-1 재현)", ()
       },
     );
 
-    const res = await submitToAsana({
+    const res = await submitToAsana(preparedInput({
       ctx: makeCtx({ captureMode: "screenshot" }),
       workspaceGid: "W",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       attachments: [
         { filename: "u1__logs.html", dataUrl: "data:USER", displayName: "logs.html" },
       ],
-    });
+    }));
 
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: true, mediaDropped: false });
+    expect(res).toMatchObject({ key: "TASK_GID", url: TASK.permalinkUrl,  });
+    expectFileOutcome(res, "logs", true);
+    expectFileOutcome(res, "media", false);
   });
 });
 
@@ -825,13 +835,13 @@ describe("submitToAsana — mediaDropped", () => {
       return undefined;
     });
 
-    const res = await submitToAsana({
+    const res = await submitToAsana(preparedInput({
       ctx: makeCtx({ captureMode: "video" }),
       workspaceGid: "W",
       video: { filename: "recording.mp4", dataUrl: "data:VIDEO" },
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(true);
+    expectFileOutcome(res, "media", true);
   });
 
   // POSTMORTEM "파일명을 신원 축으로 쓴 어댑터 둘" 재발 방지 (4): 이 불리언은 양방향을
@@ -852,14 +862,14 @@ describe("submitToAsana — mediaDropped", () => {
       },
     );
 
-    const res = await submitToAsana({
+    const res = await submitToAsana(preparedInput({
       ctx: makeCtx({ captureMode: "screenshot" }),
       workspaceGid: "W",
       images: [{ filename: "screenshot.webp", dataUrl: "data:IMG" }],
       attachments: [{ filename: "screenshot.webp", dataUrl: "data:USER" }],
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(true);
+    expectFileOutcome(res, "media", true);
   });
 
   it("캡처가 성공하면 동명의 사용자 첨부가 실패해도 mediaDropped는 false다", async () => {
@@ -877,14 +887,14 @@ describe("submitToAsana — mediaDropped", () => {
       },
     );
 
-    const res = await submitToAsana({
+    const res = await submitToAsana(preparedInput({
       ctx: makeCtx({ captureMode: "screenshot" }),
       workspaceGid: "W",
       images: [{ filename: "screenshot.webp", dataUrl: "data:IMG" }],
       attachments: [{ filename: "screenshot.webp", dataUrl: "data:USER" }],
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(false);
+    expectFileOutcome(res, "media", false);
   });
 
   it("logs.html만 실패하면 mediaDropped는 false로 남는다", async () => {
@@ -898,14 +908,14 @@ describe("submitToAsana — mediaDropped", () => {
       return undefined;
     });
 
-    const res = await submitToAsana({
+    const res = await submitToAsana(preparedInput({
       ctx: makeCtx({ captureMode: "screenshot" }),
       workspaceGid: "W",
       images: [{ filename: "screenshot.webp", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(false);
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "media", false);
+    expectFileOutcome(res, "logs", true);
   });
 });

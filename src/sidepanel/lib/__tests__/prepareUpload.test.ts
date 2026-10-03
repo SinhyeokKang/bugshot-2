@@ -134,10 +134,10 @@ describe("prepareUpload — logsDropped / requireMediaUpload", () => {
     const dropped = await prepareUpload(baseInput(), makeUploadFn(["logs.html"]), {
       platform: "github",
     });
-    expect(dropped.logsDropped).toBe(true);
+    expect(dropped.responses.find((r) => r.filename === "logs.html")?.ok).toBe(false);
 
     const ok = await prepareUpload(baseInput(), makeUploadFn(), { platform: "github" });
-    expect(ok.logsDropped).toBe(false);
+    expect(ok.responses.find((r) => r.filename === "logs.html")?.ok).toBe(true);
   });
 
   // 캡처 이미지·영상은 url 없이도 본문의 미첨부 목록(extras→notInlined)에 이름이 남지만,
@@ -147,42 +147,42 @@ describe("prepareUpload — logsDropped / requireMediaUpload", () => {
     const out = await prepareUpload(baseInput(), makeUploadFn(["shot.webp"]), {
       platform: "github",
     });
-    expect(out.mediaDropped).toBe(true);
+    expect(out.responses.filter((r) => ["shot.webp", "recording.webm", "inline-ref1.webp"].includes(r.filename ?? "")).some((r) => !r.ok)).toBe(true);
   });
 
   it("영상 업로드 실패 시 mediaDropped=true", async () => {
     const out = await prepareUpload(baseInput(), makeUploadFn(["recording.webm"]), {
       platform: "github",
     });
-    expect(out.mediaDropped).toBe(true);
+    expect(out.responses.filter((r) => ["shot.webp", "recording.webm", "inline-ref1.webp"].includes(r.filename ?? "")).some((r) => !r.ok)).toBe(true);
   });
 
   it("인라인 이미지 업로드 실패 시 mediaDropped=true", async () => {
     const out = await prepareUpload(baseInput(), makeUploadFn(["inline-ref1.webp"]), {
       platform: "github",
     });
-    expect(out.mediaDropped).toBe(true);
+    expect(out.responses.filter((r) => ["shot.webp", "recording.webm", "inline-ref1.webp"].includes(r.filename ?? "")).some((r) => !r.ok)).toBe(true);
   });
 
   it("logs.html만 실패하면 mediaDropped는 false로 남는다 — 두 신호는 별개 축이다", async () => {
     const out = await prepareUpload(baseInput(), makeUploadFn(["logs.html"]), {
       platform: "github",
     });
-    expect(out.mediaDropped).toBe(false);
-    expect(out.logsDropped).toBe(true);
+    expect(out.responses.filter((r) => ["shot.webp", "recording.webm", "inline-ref1.webp"].includes(r.filename ?? "")).some((r) => !r.ok)).toBe(false);
+    expect(out.responses.find((r) => r.filename === "logs.html")?.ok).toBe(false);
   });
 
   it("사용자 첨부만 실패하면 mediaDropped를 켜지 않는다 — 본문 인라인 대상이 아니다", async () => {
     const out = await prepareUpload(baseInput(), makeUploadFn(["att-1.png"]), {
       platform: "github",
     });
-    expect(out.mediaDropped).toBe(false);
+    expect(out.responses.filter((r) => ["shot.webp", "recording.webm", "inline-ref1.webp"].includes(r.filename ?? "")).some((r) => !r.ok)).toBe(false);
   });
 
   it("전부 성공하면 두 신호 모두 false", async () => {
     const out = await prepareUpload(baseInput(), makeUploadFn(), { platform: "github" });
-    expect(out.mediaDropped).toBe(false);
-    expect(out.logsDropped).toBe(false);
+    expect(out.responses.filter((r) => ["shot.webp", "recording.webm", "inline-ref1.webp"].includes(r.filename ?? "")).some((r) => !r.ok)).toBe(false);
+    expect(out.responses.find((r) => r.filename === "logs.html")?.ok).toBe(true);
   });
 
   it("requireMediaUpload: 미디어 업로드 누락이면 플랫폼 키로 throw", async () => {
@@ -210,7 +210,7 @@ describe("prepareUpload — logsDropped / requireMediaUpload", () => {
         makeUploadFn(["logs.html"]),
         { platform: "github" },
       ),
-    ).resolves.toMatchObject({ logsDropped: true });
+    ).resolves.toMatchObject({ responses: expect.arrayContaining([expect.objectContaining({ filename: "logs.html", ok: false })]) });
   });
 });
 

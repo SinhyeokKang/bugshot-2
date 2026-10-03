@@ -1,7 +1,8 @@
+import { preparedInput, echoFileIds, expectFileOutcome } from "@/test/submission-fixture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
-vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: async (...a: unknown[]) => echoFileIds(a[0], await sendBg(...a)) }));
 
 // 본문은 테스트별로 바꿀 수 있다 — 2차 갱신(updateIssueDescription)은 본문에 평문
 // "logs.html" 토큰이 있어야만(injectLogsMarkdownLink가 실제로 바꿔야만) 호출된다.
@@ -63,17 +64,17 @@ describe("submitToLinear logsDropped", () => {
       return undefined;
     });
 
-    const res = await submitToLinear({
+    const res = await submitToLinear(preparedInput({
       ctx: makeCtx(),
       teamId: "T",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res).toEqual({
+    expect(res).toMatchObject({
       key: "ENG-1",
       url: ISSUE.url,
-      logsDropped: true,
     });
+    expectFileOutcome(res, "logs", true);
   });
 
   it("logs.html 업로드 성공이면 logsDropped: false", async () => {
@@ -84,13 +85,13 @@ describe("submitToLinear logsDropped", () => {
       return undefined;
     });
 
-    const res = await submitToLinear({
+    const res = await submitToLinear(preparedInput({
       ctx: makeCtx(),
       teamId: "T",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(false);
+    expectFileOutcome(res, "logs", false);
   });
 
   it("이미지 업로드 실패는 격리 대상 아님 — 전체 reject", async () => {
@@ -206,17 +207,18 @@ describe("submitToLinear — 2차 본문 갱신 실패 (전수 표 linear 행)",
       return undefined;
     });
 
-    const res = await submitToLinear({
+    const res = await submitToLinear(preparedInput({
       ctx: makeCtx(),
       teamId: "T",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       attachments: [
         { filename: "user-1.pdf", dataUrl: "data:A", displayName: "보고서.pdf" },
       ],
-    });
+    }));
 
     // ①② 완전 성공 경로와 동일한 반환값.
-    expect(res).toEqual({ key: "ENG-1", url: ISSUE.url, logsDropped: false });
+    expect(res).toMatchObject({ key: "ENG-1", url: ISSUE.url,  });
+    expectFileOutcome(res, "logs", false);
     // 2차 갱신을 시도는 했다(격리가 호출 자체를 없앤 게 아니다).
     const types = sendBg.mock.calls.map(([m]) => m.type);
     expect(types).toContain("linear.updateIssueDescription");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reconcileAttachmentResults, attachmentFailureCode, submissionPresentation, legacyAttachmentDrops } from "../attachmentResults";
+import { reconcileAttachmentResults, attachmentFailureCode, submissionPresentation } from "../attachmentResults";
 import type { AttachmentResult, SubmissionFile } from "@/types/attachment";
 
 const files: SubmissionFile[] = [
@@ -12,7 +12,8 @@ describe("attachment result contracts", () => {
   it("matches stable IDs, never filenames, and separates user files from logs", () => {
     const results = reconcileAttachmentResults(files, [attached("logs")]);
     expect(results.map((r) => r.delivery)).toEqual(["attached", "unknown"]);
-    expect(legacyAttachmentDrops(files, results)).toEqual({ logsDropped: false, mediaDropped: false });
+    expect(results[0].fileId).toBe("logs");
+    expect(results[1].fileId).toBe("user:a");
   });
   it("treats missing, duplicate and empty locator evidence conservatively", () => {
     for (const evidence of [[], [attached("logs"), attached("logs")], [{ ...attached("logs"), locator: "  " }]]) {

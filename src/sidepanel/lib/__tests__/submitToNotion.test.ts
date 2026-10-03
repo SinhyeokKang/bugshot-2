@@ -1,11 +1,12 @@
+import { preparedInput, echoFileIds, expectFileOutcome } from "@/test/submission-fixture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
-vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: async (...a: unknown[]) => echoFileIds(a[0], await sendBg(...a)) }));
 
 const attachments = vi.fn();
 vi.mock("../buildNotionIssueBody", () => ({
-  buildNotionIssueBody: () => ({ blocks: [], attachments: attachments() }),
+  buildNotionIssueBody: (input: { logs?: { fileId?: string }[] }) => ({ blocks: [], attachments: attachments().map((a: { category: string }) => ({ ...a, ...(a.category === "log" ? { fileId: input.logs?.[0]?.fileId } : {}) })) }),
 }));
 vi.mock("../zipLogsHtml", () => ({
   zipLogsHtml: async (filename: string) => ({
@@ -65,15 +66,15 @@ describe("submitToNotion logsDropped", () => {
       return undefined;
     });
 
-    const res = await submitToNotion({
+    const res = await submitToNotion(preparedInput({
       ctx: makeCtx(),
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       databaseId: "DB",
       titlePropertyName: "Name",
       selectValues: [],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "logs", true);
     expect(res.url).toBe(PAGE.url);
   });
 
@@ -87,15 +88,15 @@ describe("submitToNotion logsDropped", () => {
       return undefined;
     });
 
-    const res = await submitToNotion({
+    const res = await submitToNotion(preparedInput({
       ctx: makeCtx(),
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       databaseId: "DB",
       titlePropertyName: "Name",
       selectValues: [],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(false);
+    expectFileOutcome(res, "logs", false);
   });
 
   it("requireMediaUpload면 사용자 첨부(other) 실패도 throw — submitPage 미호출", async () => {
@@ -140,16 +141,16 @@ describe("submitToNotion logsDropped", () => {
       return undefined;
     });
 
-    const res = await submitToNotion({
+    const res = await submitToNotion(preparedInput({
       ctx: makeCtx(),
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       databaseId: "DB",
       titlePropertyName: "Name",
       selectValues: [],
       requireMediaUpload: true,
-    });
+    }));
 
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "logs", true);
   });
 
   it("이미지 첨부 실패는 격리 대상 아님 — 전체 reject", async () => {

@@ -1,8 +1,9 @@
+import { preparedInput, echoFileIds, expectFileOutcome } from "@/test/submission-fixture";
 import type { UploadFileResult } from "@/types/messages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
-vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: async (...a: unknown[]) => echoFileIds(a[0], await sendBg(...a)) }));
 
 // url이 채워지면 다른 본문을 반환 → 2차 갱신(updateTaskMarkdown) 트리거 검증용.
 const buildBody = vi.fn(
@@ -83,11 +84,11 @@ describe("submitToClickup 제출 순서", () => {
       return undefined;
     });
 
-    const res = await submitToClickup({
+    const res = await submitToClickup(preparedInput({
       ctx: makeCtx(),
       images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
       listId: "l1",
-    });
+    }));
 
     const types = sendBg.mock.calls.map(([m]) => m.type);
     expect(types).toEqual([
@@ -103,7 +104,9 @@ describe("submitToClickup 제출 순서", () => {
     const update = sendBg.mock.calls.find(([m]) => m.type === "clickup.updateTaskMarkdown")![0];
     expect(update.markdownContent).toBe("WITH_URL");
 
-    expect(res).toEqual({ key: "t1", url: TASK.url, logsDropped: false, mediaDropped: false });
+    expect(res).toMatchObject({ key: "t1", url: TASK.url,  });
+    expectFileOutcome(res, "logs", false);
+    expectFileOutcome(res, "media", false);
   });
 
   it("첨부가 없으면 업로드·2차 갱신을 건너뛴다", async () => {
@@ -128,13 +131,13 @@ describe("submitToClickup logsDropped", () => {
       return undefined;
     });
 
-    const res = await submitToClickup({
+    const res = await submitToClickup(preparedInput({
       ctx: makeCtx(),
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       listId: "l1",
-    });
+    }));
 
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "logs", true);
   });
 });
 
@@ -196,14 +199,14 @@ describe("submitToClickup 업로드 판별자", () => {
       return undefined;
     });
 
-    const res = await submitToClickup({
+    const res = await submitToClickup(preparedInput({
       ctx: makeCtx(),
       listId: "l1",
       images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(false);
+    expectFileOutcome(res, "logs", false);
     // 값 축 — 성공분 href가 본문 조립까지 도달하고 실패분은 url 없이 넘어간다.
     const arg = buildBody.mock.calls.at(-1)?.[0] as {
       logs?: Array<{ filename: string; url?: string | null }>;
@@ -255,15 +258,17 @@ describe("submitToClickup — 2차 본문 갱신 실패 (전수 표 clickup 행)
       return undefined;
     });
 
-    const res = await submitToClickup({
+    const res = await submitToClickup(preparedInput({
       ctx: makeCtx(),
       listId: "l1",
       images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
     // ①② 완전 성공 경로와 동일한 반환값 — 여기가 위 "정직성" 주석이 가리키는 지점이다.
-    expect(res).toEqual({ key: "t1", url: TASK.url, logsDropped: false, mediaDropped: false });
+    expect(res).toMatchObject({ key: "t1", url: TASK.url,  });
+    expectFileOutcome(res, "logs", false);
+    expectFileOutcome(res, "media", false);
     // ③ 생성·업로드는 그대로, 2차 갱신을 시도했다는 사실까지 고정.
     expect(sendBg.mock.calls.map(([m]) => m.type)).toEqual([
       "clickup.submitIssue",
@@ -289,13 +294,13 @@ describe("submitToClickup — mediaDropped", () => {
       return undefined;
     });
 
-    const res = await submitToClickup({
+    const res = await submitToClickup(preparedInput({
       ctx: makeCtx(),
       video: { filename: "recording.mp4", dataUrl: "data:VIDEO" },
       listId: "l1",
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(true);
+    expectFileOutcome(res, "media", true);
   });
 
   it("logs.html만 실패하면 mediaDropped는 false로 남는다", async () => {
@@ -310,14 +315,14 @@ describe("submitToClickup — mediaDropped", () => {
       return undefined;
     });
 
-    const res = await submitToClickup({
+    const res = await submitToClickup(preparedInput({
       ctx: makeCtx(),
       images: [{ filename: "screenshot.webp", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       listId: "l1",
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(false);
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "media", false);
+    expectFileOutcome(res, "logs", true);
   });
 });
