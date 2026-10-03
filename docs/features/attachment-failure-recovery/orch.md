@@ -1,6 +1,24 @@
 # Attachment failure recovery orchestration
 
-> **STOPPED for Claude Code handoff (2026-10-04 KST).** User explicitly stopped Codex, requested all task worktrees reclaimed and final handoff documented. Do not resume automatically. See [handoff.md](./handoff.md) for release evidence, unfinished B6 snapshot and remaining work. This status supersedes earlier automatic phase-transition instructions.
+> **RESUMED by Claude Code (2026-10-04 KST)** on the user's explicit `/orchestrate` instruction after the Codex stop documented in [handoff.md](./handoff.md). Scope: phase 2 (B6–B9, Tasks 9–12). End state is remote dev push + verify/e2e-gate green on that SHA; **phase-2 merge/deploy is not authorized**.
+
+## Claude Code resume (phase 2)
+
+- Starting dev: `015a6de8` (handoff commit; clean). Coordinator: Claude Code / Opus. Workers: Claude Code only (same family — no Codex crossover without explicit permission).
+- Decision R1 (user): B6 continues from the preserved Codex WIP — new worktree from dev, cherry-pick `03069183` + `c14ad183`, worker treats them as an unreviewed draft (review diff/tests first, then complete).
+- Decision R2 (user): per-batch model/effort plan below confirmed. Independent reviews/CTO: Opus / high.
+- Workers launched via `orca worktree create` + `orca terminal create --command 'claude --model <m> --effort <e>'`; permission mode inherits the user's default (no bypass flag added). Handoff: `<worktree>/.scratch/handoff-<batch>.md`; coordinator watches with `orca terminal wait --for tui-idle`.
+
+| Batch | Model / effort | Reason | Status |
+|---|---|---|---|
+| B6 retry APIs (Task 9) | Opus / high | eight-provider contracts, account identity, fenced IDB revision invariants | in progress |
+| B7 retry runner (Task 10) | Opus / high | shared submission lock, no-duplicate stage resume, 3-way body patch | planned (after B6 in dev) |
+| B8 retry UI (Task 11) | Sonnet / high | UI/a11y wiring on a settled runner contract | planned (after B7 in dev) |
+| B9 acceptance (Task 12) | Sonnet / high | phase-2 e2e, docs; coordinator owns docs freshness/runtime | planned (after B8 in dev) |
+
+Serial order B6 → B7 → B8 → B9 (each consumes the previous contract; shared files: blob-db, types/attachment, messages registries, IssueRow/DraftDetailDialog, i18n).
+
+> Historical note: Codex stop (2026-10-04) — see [handoff.md](./handoff.md). Earlier automatic phase-transition instructions are superseded.
 
 ## Scope and decisions
 
