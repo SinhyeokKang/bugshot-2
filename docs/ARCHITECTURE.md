@@ -83,7 +83,11 @@ chrome.action.onClicked.addListener((tab) => {
 
 `installIssuesSync`가 초기화·외부 동기화 뒤 `reconcileSubmissionRecovery`를 호출한다. 활성 락이 없는 중단 시도만 복구하며, journal 삭제 후 목록 저장이 실패해 남은 포인터도 최신 저장분을 대조해 정리한다. 이미 submitted인 항목을 draft로 되돌리지 않는다. 만료는 생성 후 30일이며 journal 메타를 남기고 바이트를 정리한다. 만료 journal끼리는 공유 원본을 보존하지 못하고, 살아 있는 다른 참조로 바이트가 남아도 `localFilesRemoved`가 만료 항목의 읽기를 차단한다.
 
-`removeIssue`·`clearIssues`는 `Promise<void>`를 반환한다. journal 정리가 실패하면 목록을 유지하며, 상세창은 삭제 성공 후에만 닫힌다. 전체 삭제는 시작 시 대상 ID를 고정해 기다리는 동안 추가된 이슈나 새 편집 세션을 지우지 않는다. 두 제출 진입점과 9개 플랫폼 어댑터는 준비된 파일 및 실제 생성 전후 콜백을 공유한다. 복구 화면은 후속 UI 배치에서 연결한다.
+`removeIssue`·`clearIssues`는 `Promise<void>`를 반환한다. journal 정리가 실패하면 목록을 유지하며, 상세창은 삭제 성공 후에만 닫힌다. 전체 삭제는 시작 시 대상 ID를 고정해 기다리는 동안 추가된 이슈나 새 편집 세션을 지우지 않는다. 두 제출 진입점과 9개 플랫폼 어댑터는 준비된 파일 및 실제 생성 전후 콜백을 공유한다. 완료 화면과 목록의 복구 상세는 `AttachmentRecoveryPanel`을 공유한다.
+
+복구 상세는 `DraftDetailDialog`의 읽기 전용 분기다. 계정 연결 여부와 무관하게 열리고 목적지는 현재 attempt의 journal에서 읽는다. 승격 중 unknown에는 이전 Slack submitted 상태·URL이 남을 수 있어 이를 새 목적지의 증거로 쓰지 않는다. partial은 submitted와 복구 포인터로 표현하고 unknown도 새 제출 가능한 draft 목록에서 제외한다. `attachmentRecovery.ts`는 파일 ID로 보존된 ZIP/JPEG 등 실제 제출 바이트와 이름을 다운로드하며 원격 완료 상태를 바꾸지 않는다. 파일 0개의 `submissionFailure`와 `phase:complete`인데 남은 journal(로컬 완료 처리 실패)도 별도 안내한다. complete에는 partial/unknown 전용 삭제 컨트롤을 노출하지 않는다.
+
+명시적 **로컬 사본 삭제**는 `deleteSubmissionLocalFiles`가 같은 Web Lock 아래 `removeSubmissionRecoveryFiles`의 attempt·settled-phase fence를 거친다. 실제 현재 시각으로 살아 있는 공유 참조와 Slack 보존 원본을 보호하며 바이트와 `localFilesRemoved`를 원자적으로 변경한다. known-created partial은 submitted 목적지를 먼저 영속한 뒤 복구 journal·포인터까지 정리해 경고를 해제한다. 원격 요청이나 첨부 성공 상태로의 변경은 없다. unknown 삭제는 생성 차단을 남기고 자동 만료도 명시적 포기가 아니므로 경고와 journal이 남는다. unknown 삭제·새 만료처럼 journal만 바꾸는 작업은 `notifyRecoveryChange`가 최신 durable 레코드를 병합하고 updatedAt을 올려 기존 목록 구독자를 갱신한다. 이미 정리된 만료 항목은 다시 통지하지 않아 동기화 루프를 막는다. Chrome 알림 write 실패 시 열린 다른 패널의 표시가 잠시 늦을 수 있지만 실행 시점의 journal fence는 유지된다.
 
 `sidepanel/lib/submissionAdapter.ts`는 준비 파일의 ID·바이트를 실제 업로드 입력에 연결하고, 원격 생성 전후 콜백을 await하며, 반환 증거를 파일 ID로 한 번만 정규화한다. 생성 전 업로드가 필요한 플랫폼의 기존 순서는 유지한다. Asana JPEG·Notion ZIP은 준비된 바이트를 다시 변환하지 않는다. `lib/attachment-failure.ts`는 원문 오류 대신 허용된 stage/code/httpStatus만 전달한다. Slack의 HTTP 200 `ok:false`도 명시적 부모 생성 거절 코드일 때만 안전한 boolean으로 전달해 draft 재시도를 허용하고, 알 수 없는 코드·5xx·응답 유실은 unknown으로 둔다.
 
