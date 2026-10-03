@@ -375,13 +375,15 @@ test.describe.serial("Custom Webhook 제출", () => {
 
     await panel.reload();
     await panel.getByTestId("tab-issue-list").click();
-    await panel.getByTestId("filter-draft").click();
-    await panel.getByTestId("issue-row").getByText("webhook unknown e2e").click();
+    await panel.getByTestId("filter-submitted").click();
+    await expect(panel.getByTestId("recovery-row-warning")).toBeVisible();
+    await panel.getByTestId("recovery-detail-open").click();
     await expect(panel.getByTestId("draft-detail-dialog")).toBeVisible();
-    await panel.getByTestId("detail-submit-open").click();
-    await panel.getByTestId("submit-issue-confirm").click();
-    await expect(panel.locator('[data-sonner-toast][data-type="error"]')).toBeVisible();
-    await expect(panel.getByTestId("submit-issue-confirm")).toBeEnabled();
+    await expect(panel.getByTestId("detail-submit-open")).toHaveCount(0);
+    await expect(panel.getByTestId("submit-issue-confirm")).toHaveCount(0);
+    await expect(panel.getByTestId("recovery-confirm-not-registered")).toBeVisible();
+    await expect(panel.getByTestId("draft-detail-dialog").getByTestId("recovery-file-download").first()).toBeVisible();
+    await expect(panel.getByTestId("recovery-retry")).toHaveCount(0);
     expect(submits).toHaveLength(1);
     const after = await durableState(panel, issueId);
     expect(after.journal).toEqual(before.journal);
