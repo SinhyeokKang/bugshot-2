@@ -1,3 +1,4 @@
+import type { CreatedDestination, RecoverySource, SubmissionRecoveryMeta } from "@/types/attachment";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import type { ActionLog } from "@/types/action";
@@ -5,7 +6,7 @@ import { EDITOR_SESSION_PREFIX, ISSUES_PERSIST_KEY } from "@/lib/session-keys";
 import { INLINE_REF_RE } from "@/lib/inline-ref";
 
 const DB_NAME = "bugshot-video";
-const DB_VERSION = 8;
+const DB_VERSION = 9;
 const STORE_VIDEO = "blobs";
 const STORE_IMAGES = "images";
 const STORE_NETWORK = "networkLogs";
@@ -14,15 +15,18 @@ const STORE_ACTION = "actionLogs";
 const STORE_INLINE_IMAGES = "inlineImages";
 const STORE_INLINE_ORIGINS = "inlineImageOrigins";
 const STORE_ATTACHMENTS = "attachments";
+const STORE_RECOVERY = "submissionRecovery";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
+    let blocked = false;
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_RECOVERY)) db.createObjectStore(STORE_RECOVERY);
       if (!db.objectStoreNames.contains(STORE_VIDEO)) {
         db.createObjectStore(STORE_VIDEO);
       }
@@ -49,11 +53,13 @@ function openDb(): Promise<IDBDatabase> {
       }
     };
     req.onblocked = () => {
+      blocked = true;
       dbPromise = null;
-      reject(new Error("DB upgrade blocked by open connection"));
+      reject(new Error("Please close other BugShot panels and try again."));
     };
     req.onsuccess = () => {
       const db = req.result;
+      if (blocked) { db.close(); return; }
       db.onversionchange = () => { db.close(); dbPromise = null; };
       resolve(db);
     };
@@ -69,6 +75,7 @@ function txComplete(tx: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
   });
 }
 
@@ -102,10 +109,7 @@ export async function getVideoBlob(issueId: string): Promise<Blob | null> {
 
 export async function deleteVideoBlob(issueId: string): Promise<void> {
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_VIDEO, "readwrite");
-    tx.objectStore(STORE_VIDEO).delete(issueId);
-    await txComplete(tx);
+    await deleteUnprotectedKeys(STORE_VIDEO, (key) => key === issueId);
   } catch (e) {
     console.warn("[blob-db] deleteVideoBlob failed:", e);
   }
@@ -126,10 +130,7 @@ export async function getVideoBlobKeys(): Promise<string[]> {
 
 export async function clearVideoBlobs(): Promise<void> {
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_VIDEO, "readwrite");
-    tx.objectStore(STORE_VIDEO).clear();
-    await txComplete(tx);
+    await deleteUnprotectedKeys(STORE_VIDEO, () => true);
   } catch (e) {
     console.warn("[blob-db] clearVideoBlobs failed:", e);
   }
@@ -193,22 +194,7 @@ export async function getImageBlob(
 
 export async function deleteImageBlobs(issueId: string): Promise<void> {
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_IMAGES, "readwrite");
-    const store = tx.objectStore(STORE_IMAGES);
-    // before/after + 임의 개수의 b${n}-* 버퍼 슬롯을 모두 정리(접두사 매치) — 고아 방지.
-    const prefix = `${issueId}:`;
-    await new Promise<void>((resolve, reject) => {
-      const req = store.getAllKeys();
-      req.onsuccess = () => {
-        for (const k of req.result as string[]) {
-          if (k.startsWith(prefix)) store.delete(k);
-        }
-        resolve();
-      };
-      req.onerror = () => reject(req.error);
-    });
-    await txComplete(tx);
+    await deleteUnprotectedKeys(STORE_IMAGES, (key) => key.startsWith(`${issueId}:`));
   } catch (e) {
     console.warn("[blob-db] deleteImageBlobs failed:", e);
   }
@@ -229,10 +215,7 @@ export async function getImageBlobKeys(): Promise<string[]> {
 
 export async function clearImageBlobs(): Promise<void> {
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_IMAGES, "readwrite");
-    tx.objectStore(STORE_IMAGES).clear();
-    await txComplete(tx);
+    await deleteUnprotectedKeys(STORE_IMAGES, () => true);
   } catch (e) {
     console.warn("[blob-db] clearImageBlobs failed:", e);
   }
@@ -457,11 +440,7 @@ export async function getInlineImage(refId: string): Promise<Blob | null> {
 
 async function deleteInlineImages(refIds: string[]): Promise<void> {
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_INLINE_IMAGES, "readwrite");
-    const store = tx.objectStore(STORE_INLINE_IMAGES);
-    for (const id of refIds) store.delete(id);
-    await txComplete(tx);
+    await deleteUnprotectedKeys(STORE_INLINE_IMAGES, (key) => refIds.includes(key));
   } catch (e) {
     console.warn("[blob-db] deleteInlineImages failed:", e);
   }
@@ -483,10 +462,7 @@ async function getInlineImageKeys(): Promise<string[]> {
 // 테스트 전용 export — 프로덕션 호출처 0, blob-db-inline-origins.test.ts가 부른다.
 export async function clearInlineImages(): Promise<void> {
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_INLINE_IMAGES, "readwrite");
-    tx.objectStore(STORE_INLINE_IMAGES).clear();
-    await txComplete(tx);
+    await deleteUnprotectedKeys(STORE_INLINE_IMAGES, () => true);
   } catch (e) {
     console.warn("[blob-db] clearInlineImages failed:", e);
   }
@@ -538,13 +514,8 @@ export async function hasInlineOrigin(refId: string): Promise<boolean> {
 }
 
 export async function deleteInlineOrigins(refIds: string[]): Promise<void> {
-  if (refIds.length === 0) return;
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_INLINE_ORIGINS, "readwrite");
-    const store = tx.objectStore(STORE_INLINE_ORIGINS);
-    for (const id of refIds) store.delete(id);
-    await txComplete(tx);
+    await deleteUnprotectedKeys(STORE_INLINE_ORIGINS, (key) => refIds.includes(key));
   } catch (e) {
     console.warn("[blob-db] deleteInlineOrigins failed:", e);
   }
@@ -569,7 +540,7 @@ function scanInlineRefs(text: string, out: Set<string>): void {
   for (const m of text.matchAll(INLINE_REF_RE)) out.add(m[2]);
 }
 
-async function collectAllActiveInlineRefs(): Promise<Set<string>> {
+async function collectAllActiveInlineRefs(excludedIssueIds: string[] = []): Promise<Set<string>> {
   const refs = new Set<string>();
   const sessionData = await chrome.storage.session.get(null);
   for (const [key, value] of Object.entries(sessionData)) {
@@ -581,10 +552,11 @@ async function collectAllActiveInlineRefs(): Promise<Set<string>> {
   const localData = await chrome.storage.local.get(ISSUES_PERSIST_KEY);
   const raw = localData[ISSUES_PERSIST_KEY];
   const store = (typeof raw === "string" ? JSON.parse(raw) : raw) as
-    | { state?: { issues?: Array<{ draft?: { sections?: Record<string, string> } }> } }
+    | { state?: { issues?: Array<{ id?: string; draft?: { sections?: Record<string, string> } }> } }
     | undefined;
   if (store?.state?.issues) {
     for (const issue of store.state.issues) {
+      if (issue.id && excludedIssueIds.includes(issue.id)) continue;
       if (!issue.draft?.sections) continue;
       for (const text of Object.values(issue.draft.sections)) scanInlineRefs(text, refs);
     }
@@ -644,10 +616,7 @@ export async function getAttachmentBlob(owner: string, id: string): Promise<Blob
 
 export async function deleteAttachmentBlob(owner: string, id: string): Promise<void> {
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_ATTACHMENTS, "readwrite");
-    tx.objectStore(STORE_ATTACHMENTS).delete(attachmentKey(owner, id));
-    await txComplete(tx);
+    await deleteUnprotectedKeys(STORE_ATTACHMENTS, (key) => key === attachmentKey(owner, id));
   } catch (e) {
     console.warn("[blob-db] deleteAttachmentBlob failed:", e);
   }
@@ -655,21 +624,7 @@ export async function deleteAttachmentBlob(owner: string, id: string): Promise<v
 
 export async function deleteAttachmentBlobs(owner: string): Promise<void> {
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_ATTACHMENTS, "readwrite");
-    const store = tx.objectStore(STORE_ATTACHMENTS);
-    const prefix = `${owner}:`;
-    await new Promise<void>((resolve, reject) => {
-      const req = store.getAllKeys();
-      req.onsuccess = () => {
-        for (const k of req.result as string[]) {
-          if (k.startsWith(prefix)) store.delete(k);
-        }
-        resolve();
-      };
-      req.onerror = () => reject(req.error);
-    });
-    await txComplete(tx);
+    await deleteUnprotectedKeys(STORE_ATTACHMENTS, (key) => key.startsWith(`${owner}:`));
   } catch (e) {
     console.warn("[blob-db] deleteAttachmentBlobs failed:", e);
   }
@@ -690,10 +645,7 @@ export async function getAttachmentBlobKeys(): Promise<string[]> {
 
 export async function clearAttachmentBlobs(): Promise<void> {
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_ATTACHMENTS, "readwrite");
-    tx.objectStore(STORE_ATTACHMENTS).clear();
-    await txComplete(tx);
+    await deleteUnprotectedKeys(STORE_ATTACHMENTS, () => true);
   } catch (e) {
     console.warn("[blob-db] clearAttachmentBlobs failed:", e);
   }
@@ -737,4 +689,379 @@ export function dataUrlToBlob(dataUrl: string): Blob {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return new Blob([bytes], { type: mime });
+}
+
+// Recovery reads fail closed: malformed metadata must never authorize GC.
+const DESTINATION_KEYS: Record<CreatedDestination["platform"], readonly string[]> = {
+  jira: ["issueKey", "siteId"], github: ["owner", "repo", "number"], gitlab: ["projectId", "iid"],
+  linear: ["issueId"], notion: ["pageId"], asana: ["taskGid"], clickup: ["taskId"],
+  slack: ["channelId", "ts"], webhook: ["key", "url"],
+};
+const ORIGINAL_STORES = [STORE_VIDEO, STORE_IMAGES, STORE_INLINE_IMAGES, STORE_ATTACHMENTS];
+const RECOVERY_TRANSITIONS: Record<SubmissionRecoveryMeta["phase"], readonly SubmissionRecoveryMeta["phase"][]> = {
+  prepared: ["creating"], creating: ["created", "unknown"], created: ["partial", "complete"],
+  partial: ["partial", "complete"], complete: [], unknown: ["created"],
+};
+
+function record(value: unknown, keys: readonly string[]): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || Object.keys(value).some((key) => !keys.includes(key))) throw new Error("Invalid recovery metadata");
+  return value as Record<string, unknown>;
+}
+function nonempty(value: unknown): value is string { return typeof value === "string" && value.trim().length > 0; }
+function safeDestinationUrl(value: unknown): boolean {
+  if (!nonempty(value)) return false;
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password
+      && ![...url.searchParams.keys()].some((key) => /^(x-amz-|x-goog-)|^(signature|sig|token|access_token|api_key|AWSAccessKeyId|GoogleAccessId)$/i.test(key));
+  } catch { return false; }
+}
+function validateFailure(value: unknown): void {
+  const failure = record(value, ["stage", "code", "httpStatus"]);
+  if (!["source", "upload", "link", "body"].includes(String(failure.stage))
+    || !["missing-source", "local-storage", "authentication", "permission", "size-limit", "rate-limit", "network", "timeout", "invalid-response", "body-limit", "unknown"].includes(String(failure.code))
+    || (failure.httpStatus !== undefined && (!Number.isInteger(failure.httpStatus) || Number(failure.httpStatus) < 100 || Number(failure.httpStatus) > 599))) throw new Error("Invalid recovery failure");
+}
+function validateRecovery(value: unknown): SubmissionRecoveryMeta {
+  const meta = record(value, ["attemptId", "issueId", "title", "platform", "createdAt", "expiresAt", "phase", "destination", "files", "results", "updatedAt", "localFilesRemoved", "submissionFailure"]);
+  if (!nonempty(meta.attemptId) || !nonempty(meta.issueId) || typeof meta.title !== "string"
+    || typeof meta.platform !== "string" || !Object.hasOwn(DESTINATION_KEYS, meta.platform)
+    || typeof meta.phase !== "string" || !Object.hasOwn(RECOVERY_TRANSITIONS, meta.phase)
+    || ![meta.createdAt, meta.expiresAt, meta.updatedAt].every((n) => typeof n === "number" && Number.isFinite(n))
+    || !Array.isArray(meta.files) || !Array.isArray(meta.results)) throw new Error("Invalid recovery metadata");
+  if (meta.localFilesRemoved !== undefined && typeof meta.localFilesRemoved !== "boolean") throw new Error("Invalid recovery expiry marker");
+  const ids = new Set<string>();
+  for (const value of meta.files) {
+    const file = record(value, ["id", "kind", "filename", "contentType", "source", "originalSource"]);
+    if (!nonempty(file.id) || ids.has(file.id) || !["capture", "video", "inline", "logs", "user"].includes(String(file.kind))
+      || typeof file.filename !== "string" || typeof file.contentType !== "string") throw new Error("Invalid recovery file");
+    if (file.originalSource !== undefined) {
+      const original = record(file.originalSource, ["kind", "store", "key"]);
+      if (original.kind !== "original" || !ORIGINAL_STORES.includes(String(original.store)) || !nonempty(original.key)) throw new Error("Invalid original recovery source");
+    }
+    ids.add(file.id);
+    const source = record(file.source, ["kind", "store", "key"]);
+    if (!nonempty(source.key) || (source.kind !== "original" && source.kind !== "generated")
+      || (source.kind === "original" && !ORIGINAL_STORES.includes(String(source.store)))
+      || (source.kind === "generated" && (source.store !== undefined || source.key !== `file:${meta.attemptId}:${file.id}`))) {
+      throw new Error("Invalid recovery source");
+    }
+  }
+  if (meta.submissionFailure !== undefined) validateFailure(meta.submissionFailure);
+  const resultIds = new Set<string>();
+  for (const value of meta.results) {
+    const result = record(value, ["fileId", "delivery", "presentation", "failure"]);
+    if (!nonempty(result.fileId) || !ids.has(result.fileId) || resultIds.has(result.fileId)
+      || !["attached", "failed", "unknown"].includes(String(result.delivery))
+      || !["complete", "failed", "not-applicable"].includes(String(result.presentation))) throw new Error("Invalid recovery result");
+    resultIds.add(result.fileId);
+    if (result.failure !== undefined) {
+      validateFailure(result.failure);
+    }
+  }
+  if (meta.destination !== undefined) {
+    const remote = record(meta.destination, ["platform", "key", "url", "locator"]);
+    if (remote.platform !== meta.platform || !nonempty(remote.key) || (remote.url !== undefined && !safeDestinationUrl(remote.url))) throw new Error("Invalid recovery destination");
+    const allowed = DESTINATION_KEYS[remote.platform as CreatedDestination["platform"]];
+    const locator = record(remote.locator, allowed);
+    if (allowed.some((key) => !nonempty(locator[key]))
+      || (remote.platform === "webhook" && !safeDestinationUrl(locator.url))) throw new Error("Invalid recovery locator");
+  }
+  if (["created", "partial", "complete"].includes(meta.phase) && !meta.destination) throw new Error("Missing recovery destination");
+  if (meta.phase === "complete" && (meta.submissionFailure !== undefined || resultIds.size !== ids.size
+    || meta.results.some((r) => r.delivery !== "attached" || r.presentation === "failed" || r.failure !== undefined))) throw new Error("Incomplete recovery results");
+  return value as SubmissionRecoveryMeta;
+}
+
+function requestResult<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function recoveryTransaction<T>(
+  stores: string[],
+  mode: IDBTransactionMode,
+  run: (tx: IDBTransaction) => Promise<T>,
+): Promise<T> {
+  const db = await openDb();
+  const tx = db.transaction(stores, mode);
+  const done = txComplete(tx);
+  // Observe abort immediately even when a request rejects before awaiting completion.
+  void done.catch(() => {});
+  try {
+    const result = await run(tx);
+    await done;
+    return result;
+  } catch (error) {
+    try { tx.abort(); } catch { /* It may already have aborted. */ }
+    await done.catch(() => {});
+    throw error;
+  }
+}
+
+async function recoveriesIn(tx: IDBTransaction): Promise<SubmissionRecoveryMeta[]> {
+  const range = IDBKeyRange.bound("attempt:", "attempt:\uffff");
+  const values: unknown[] = await requestResult(tx.objectStore(STORE_RECOVERY).getAll(range));
+  const keys = await requestResult(tx.objectStore(STORE_RECOVERY).getAllKeys(range));
+  return values.map((value, index) => {
+    const meta = validateRecovery(value);
+    if (keys[index] !== `attempt:${meta.issueId}`) throw new Error("Invalid recovery issue key");
+    return meta;
+  });
+}
+
+export async function beginSubmissionRecovery(meta: SubmissionRecoveryMeta, generated: Map<string, Blob>): Promise<void> {
+  const snapshot = validateRecovery(structuredClone(meta));
+  const blobs = new Map(generated);
+  if (snapshot.phase !== "prepared" || snapshot.destination || snapshot.results.length || snapshot.submissionFailure) throw new Error("Recovery must begin prepared");
+  const expected = snapshot.files.filter((f) => f.source.kind === "generated").map((f) => f.source.key);
+  if (blobs.size !== expected.length || expected.some((key) => !(blobs.get(key) instanceof Blob))) throw new Error("Missing generated recovery file");
+  await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES], "readwrite", async (tx) => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    const key = `attempt:${snapshot.issueId}`;
+    if (await requestResult(store.getKey(key)) !== undefined) throw new Error("Submission recovery already exists");
+    for (const source of snapshot.files.flatMap(originalRecoverySources)) {
+      if (source.kind === "original" && !(await requestResult(tx.objectStore(source.store).get(source.key)) instanceof Blob)) throw new Error("Missing original recovery file");
+    }
+    store.put(snapshot, key);
+    for (const [key, blob] of blobs) {
+      if (await requestResult(store.getKey(key)) !== undefined) throw new Error("Recovery file key already exists");
+      store.put(blob, key);
+    }
+  });
+}
+
+export async function checkpointSubmission(
+  issueId: string,
+  attemptId: string,
+  patch: Pick<SubmissionRecoveryMeta, "phase" | "destination" | "results" | "submissionFailure">,
+): Promise<void> {
+  const update = structuredClone(patch);
+  await recoveryTransaction([STORE_RECOVERY], "readwrite", async (tx) => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    const current = await requireAttempt(store, issueId, attemptId);
+    if (!RECOVERY_TRANSITIONS[current.phase].includes(update.phase)) throw new Error("Invalid recovery transition");
+    let destination = update.destination ?? current.destination;
+    if (current.destination && update.destination) {
+      const previous = current.destination;
+      const incoming = update.destination;
+      if (previous.platform !== incoming.platform || previous.key !== incoming.key
+        || Object.entries(previous.locator).some(([key, value]) => (incoming.locator as Record<string, string>)[key] !== value)
+        || (previous.url && incoming.url && previous.url !== incoming.url)) throw new Error("Recovery destination cannot change");
+      destination = { ...incoming, url: incoming.url ?? previous.url };
+    }
+    const next = validateRecovery({ ...current, phase: update.phase, results: update.results, submissionFailure: update.submissionFailure,
+      destination, updatedAt: Math.max(Date.now(), current.updatedAt + 1) });
+    store.put(next, `attempt:${issueId}`);
+  });
+}
+
+async function requireAttempt(store: IDBObjectStore, issueId: string, attemptId: string): Promise<SubmissionRecoveryMeta> {
+  const value: unknown = await requestResult(store.get(`attempt:${issueId}`));
+  if (value === undefined) throw new Error("Submission recovery no longer exists");
+  const meta = validateRecovery(value);
+  if (meta.issueId !== issueId || meta.attemptId !== attemptId) throw new Error("Stale submission attempt");
+  return meta;
+}
+
+export async function readSubmissionRecovery(issueId: string): Promise<SubmissionRecoveryMeta | null> {
+  return recoveryTransaction([STORE_RECOVERY], "readonly", async (tx) => {
+    const value: unknown = await requestResult(tx.objectStore(STORE_RECOVERY).get(`attempt:${issueId}`));
+    if (value === undefined) return null;
+    const meta = validateRecovery(value);
+    if (meta.issueId !== issueId) throw new Error("Invalid recovery issue key");
+    return meta;
+  });
+}
+
+export async function listSubmissionRecoveries(): Promise<SubmissionRecoveryMeta[]> {
+  return recoveryTransaction([STORE_RECOVERY], "readonly", recoveriesIn);
+}
+
+export async function readRecoveryFile(meta: SubmissionRecoveryMeta, fileId: string): Promise<Blob | null> {
+  return recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES], "readonly", async (tx) => {
+    const value: unknown = await requestResult(tx.objectStore(STORE_RECOVERY).get(`attempt:${meta.issueId}`));
+    if (value === undefined) return null;
+    const current = validateRecovery(value);
+    if (current.issueId !== meta.issueId) throw new Error("Invalid recovery issue key");
+    if (current.attemptId !== meta.attemptId || current.localFilesRemoved) return null;
+    const source = current.files.find((file) => file.id === fileId)?.source;
+    if (!source) return null;
+    const blob: unknown = await requestResult(tx.objectStore(source.kind === "original" ? source.store : STORE_RECOVERY).get(source.key));
+    return blob instanceof Blob ? blob : null;
+  });
+}
+
+function deleteJournal(store: IDBObjectStore, meta: SubmissionRecoveryMeta): void {
+  for (const file of meta.files) if (file.source.kind === "generated") store.delete(file.source.key);
+  store.delete(`attempt:${meta.issueId}`);
+}
+
+export async function deleteSubmissionRecovery(issueId: string, attemptId: string): Promise<void> {
+  await recoveryTransaction([STORE_RECOVERY], "readwrite", async (tx) => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    deleteJournal(store, await requireAttempt(store, issueId, attemptId));
+  });
+}
+
+export async function deleteOriginalKeys(issueId: string, attemptId: string, sources: RecoverySource[]): Promise<void> {
+  const requested = structuredClone(sources);
+  const inlineRefs = await collectAllActiveInlineRefs([issueId]);
+  await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES], "readwrite", async (tx) => {
+    const current = await requireAttempt(tx.objectStore(STORE_RECOVERY), issueId, attemptId);
+    if (current.phase !== "partial" && current.phase !== "complete") throw new Error("Recovery is not finalized");
+    const retained = (await recoveriesIn(tx)).filter((meta) => meta.issueId !== issueId);
+    for (const source of requested) {
+      if (source.kind !== "original") continue;
+      const files = current.files.filter((f) => originalRecoverySources(f).some((s) => s.store === source.store && s.key === source.key));
+      if (!files.length || files.some((file) => !current.results.some((r) => r.fileId === file.id && r.delivery === "attached" && r.presentation !== "failed" && !r.failure))) {
+        throw new Error("Cannot delete incomplete recovery source");
+      }
+      if ((source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
+        || retained.some((meta) => protectsSource(meta, source.store, source.key))) continue;
+      tx.objectStore(source.store).delete(source.key);
+    }
+  });
+}
+
+export async function purgeRecoveryForIssues(issueIds: string[]): Promise<void> {
+  if (!issueIds.length) return;
+  const inlineRefs = await collectAllActiveInlineRefs(issueIds);
+  await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES], "readwrite", async (tx) => {
+    const all = await recoveriesIn(tx);
+    const retained = all.filter((meta) => !issueIds.includes(meta.issueId));
+    for (const meta of all.filter((meta) => issueIds.includes(meta.issueId))) {
+      for (const source of meta.files.flatMap(originalRecoverySources)) {
+        if (source.kind === "original" && !(source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
+          && !retained.some((other) => protectsSource(other, source.store, source.key))) tx.objectStore(source.store).delete(source.key);
+      }
+      deleteJournal(tx.objectStore(STORE_RECOVERY), meta);
+    }
+  });
+}
+
+function protectsSource(meta: SubmissionRecoveryMeta, store: string, key: string): boolean {
+  return !meta.localFilesRemoved && meta.files.some((file) => originalRecoverySources(file).some((source) => source.store === store && source.key === key));
+}
+
+async function deleteUnprotectedKeys(storeName: string, matches: (key: string) => boolean): Promise<void> {
+  await recoveryTransaction([STORE_RECOVERY, storeName], "readwrite", async (tx) => {
+    const live = await recoveriesIn(tx);
+    const store = tx.objectStore(storeName);
+    const keys = await requestResult(store.getAllKeys());
+    const protectedStore = storeName === STORE_INLINE_ORIGINS ? STORE_INLINE_IMAGES : storeName;
+    for (const key of keys) {
+      if (typeof key === "string" && matches(key) && !live.some((meta) => protectsSource(meta, protectedStore, key))) store.delete(key);
+    }
+  });
+}
+
+export async function readOriginalRecoverySource(source: Extract<RecoverySource, { kind: "original" }>): Promise<Blob | null> {
+  return recoveryTransaction([source.store], "readonly", async (tx) => {
+    const value: unknown = await requestResult(tx.objectStore(source.store).get(source.key));
+    return value instanceof Blob ? value : null;
+  });
+}
+
+export async function dismissUnknownSubmission(issueId: string, attemptId: string): Promise<void> {
+  await recoveryTransaction([STORE_RECOVERY], "readwrite", async (tx) => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    const current = await requireAttempt(store, issueId, attemptId);
+    if (current.phase !== "unknown" || current.destination) throw new Error("Submission is not unknown");
+    deleteJournal(store, current);
+  });
+}
+
+function originalRecoverySources(file: SubmissionRecoveryMeta["files"][number]): Array<Extract<RecoverySource, { kind: "original" }>> {
+  return [...(file.source.kind === "original" ? [file.source] : []), ...(file.originalSource ? [file.originalSource] : [])];
+}
+
+export async function expireSubmissionRecovery(issueId: string, attemptId: string, now = Date.now()): Promise<void> {
+  const expiredIds = (await listSubmissionRecoveries()).filter((meta) => meta.expiresAt <= now).map((meta) => meta.issueId);
+  const inlineRefs = await collectAllActiveInlineRefs(expiredIds);
+  await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES], "readwrite", async (tx) => {
+    const current = await requireAttempt(tx.objectStore(STORE_RECOVERY), issueId, attemptId);
+    if (current.expiresAt > now) return;
+    const retained = (await recoveriesIn(tx)).filter((meta) => meta.issueId !== issueId && meta.expiresAt > now);
+    for (const source of current.files.flatMap(originalRecoverySources)) {
+      if (!(source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
+        && !retained.some((other) => protectsSource(other, source.store, source.key))) tx.objectStore(source.store).delete(source.key);
+    }
+    for (const { source } of current.files) if (source.kind === "generated") tx.objectStore(STORE_RECOVERY).delete(source.key);
+    tx.objectStore(STORE_RECOVERY).put({ ...current, localFilesRemoved: true }, `attempt:${issueId}`);
+  });
+}
+
+export async function removeSubmissionRecoveryFiles(issueId: string, attemptId: string): Promise<void> {
+  const inlineRefs = await collectAllActiveInlineRefs([issueId]);
+  const local = await chrome.storage.local.get(ISSUES_PERSIST_KEY);
+  const raw = local[ISSUES_PERSIST_KEY];
+  const persisted = typeof raw === "string" ? JSON.parse(raw) : raw;
+  const owner = persisted?.state?.issues?.find((issue: { id: string }) => issue.id === issueId);
+  await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES], "readwrite", async (tx) => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    const current = await requireAttempt(store, issueId, attemptId);
+    if (current.phase !== "partial" && current.phase !== "unknown") throw new Error("Recovery is not settled");
+    const retained = (await recoveriesIn(tx)).filter((meta) => meta.issueId !== issueId && meta.expiresAt > Date.now());
+    if (current.platform !== "slack" && !owner?.slackPreserved) {
+      for (const source of current.files.flatMap(originalRecoverySources)) {
+        // Non-inline originals belong to their issue key; never delete another owner's bytes.
+        if (source.store !== STORE_INLINE_IMAGES && source.key !== issueId && !source.key.startsWith(`${issueId}:`)) continue;
+        if ((source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
+          || retained.some((other) => protectsSource(other, source.store, source.key))) continue;
+        tx.objectStore(source.store).delete(source.key);
+      }
+    }
+    for (const { source } of current.files) if (source.kind === "generated") store.delete(source.key);
+    store.put({ ...current, localFilesRemoved: true, updatedAt: Math.max(Date.now(), current.updatedAt + 1) }, `attempt:${issueId}`);
+  });
+}
+
+export async function cleanupSubmissionOriginals(issueId: string, attemptId: string): Promise<void> {
+  const inlineRefs = await collectAllActiveInlineRefs([issueId]);
+  await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES, STORE_NETWORK, STORE_CONSOLE, STORE_ACTION], "readwrite", async (tx) => {
+    const current = await requireAttempt(tx.objectStore(STORE_RECOVERY), issueId, attemptId);
+    if (current.phase !== "partial" && current.phase !== "complete") throw new Error("Recovery is not finalized");
+    const completed = (file: SubmissionRecoveryMeta["files"][number]) => current.results.some((r) => r.fileId === file.id && r.delivery === "attached" && r.presentation !== "failed" && !r.failure);
+    for (const file of current.files) {
+      if (file.source.kind === "generated" && completed(file)) tx.objectStore(STORE_RECOVERY).delete(file.source.key);
+    }
+    if (current.platform === "slack") return;
+    const retained = (await recoveriesIn(tx)).filter((meta) => meta.issueId !== issueId);
+    const incomplete = current.files.filter((file) => !completed(file)).flatMap(originalRecoverySources);
+    for (const storeName of ORIGINAL_STORES) {
+      const store = tx.objectStore(storeName);
+      const referenced = current.files.flatMap(originalRecoverySources).filter((s) => s.store === storeName).map((s) => s.key);
+      const keys = await requestResult(store.getAllKeys());
+      for (const key of keys) {
+        if (typeof key !== "string" || !(referenced.includes(key) || (storeName !== STORE_INLINE_IMAGES && (key === issueId || key.startsWith(`${issueId}:`))))) continue;
+        if (incomplete.some((s) => s.store === storeName && s.key === key)
+          || (storeName === STORE_INLINE_IMAGES && inlineRefs.has(key))
+          || retained.some((meta) => protectsSource(meta, storeName, key))) continue;
+        store.delete(key);
+      }
+    }
+    for (const store of [STORE_NETWORK, STORE_CONSOLE, STORE_ACTION]) tx.objectStore(store).delete(issueId);
+  });
+}
+
+export async function discardPreparedSubmission(issueId: string, attemptId: string): Promise<void> {
+  await recoveryTransaction([STORE_RECOVERY], "readwrite", async (tx) => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    const current = await requireAttempt(store, issueId, attemptId);
+    if (current.phase !== "prepared") throw new Error("Submission has started");
+    deleteJournal(store, current);
+  });
+}
+
+export async function discardRejectedSubmission(issueId: string, attemptId: string): Promise<void> {
+  await recoveryTransaction([STORE_RECOVERY], "readwrite", async (tx) => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    const current = await requireAttempt(store, issueId, attemptId);
+    if (current.destination || (current.phase !== "creating" && current.phase !== "unknown")) throw new Error("Submission creation cannot be rejected");
+    deleteJournal(store, current);
+  });
 }

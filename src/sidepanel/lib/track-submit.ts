@@ -1,5 +1,5 @@
 import { sendBg } from "@/lib/bg-client";
-import type { PlatformId } from "@/types/platform";
+import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
 import type { CaptureMode } from "@/store/editor-store";
 
 // 트림된 영상의 출처. replay_trimmed는 원래 30s Replay 전용이었는데 탭/화면 녹화도 이 플래그를
@@ -34,20 +34,22 @@ export function submitEventProperties(
 export function trackSubmit(
   platform: PlatformId,
   captureMode: CaptureMode | undefined,
-  result: "success" | "failure",
+  result: "success" | "failure" | NormalizedSubmitResult,
   replayTrimmed = false,
   trimSource: TrimSourceKind | null = null,
   projectOverridden: boolean | null = null,
   sprintFieldShown: boolean | null = null,
   sprintSelected: boolean | null = null,
 ): void {
+  const classification = typeof result === "string" ? result : result.recovery?.state === "unknown" ? null : "success";
+  if (!classification) return;
   sendBg({
     type: "analytics.capture",
     event: "issue_submitted",
     properties: submitEventProperties(
       platform,
       captureMode,
-      result,
+      classification,
       replayTrimmed,
       trimSource,
       projectOverridden,

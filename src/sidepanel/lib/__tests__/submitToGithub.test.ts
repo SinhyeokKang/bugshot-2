@@ -1,7 +1,8 @@
+import { preparedInput, echoFileIds, expectFileOutcome } from "@/test/submission-fixture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
-vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: async (...a: unknown[]) => echoFileIds(a[0], await sendBg(...a)) }));
 
 vi.mock("../buildGithubIssueBody", () => ({
   buildGithubIssueBody: () => ({ body: "BODY" }),
@@ -43,8 +44,8 @@ beforeEach(() => {
   sendBg.mockReset();
 });
 
-describe("submitToGithub logsDropped", () => {
-  it("logs.html 업로드가 href:null(영상/용량 초과)이면 logsDropped: true", async () => {
+describe("submitToGithub log attachment outcomes", () => {
+  it("logs.html 업로드가 href:null(영상/용량 초과)이면 logs 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
         return [{ ok: false, filename: "logs.html" }];
@@ -52,18 +53,20 @@ describe("submitToGithub logsDropped", () => {
       return undefined;
     });
 
-    const res = await submitToGithub({
+    const res = await submitToGithub(preparedInput({
       ctx: makeCtx(),
       owner: "o",
       repo: "r",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res).toEqual({ key: "#7", url: ISSUE.url, logsDropped: true, mediaDropped: false });
+    expect(res).toMatchObject({ key: "#7", url: ISSUE.url,  });
+    expectFileOutcome(res, "logs", true);
+    expectFileOutcome(res, "media", false);
   });
 
   // 인라인 이미지 실패는 본문 미첨부 목록에도 안 실려(extras에 인라인이 없다) 무음이었다.
-  it("인라인 이미지 업로드가 실패하면 mediaDropped: true", async () => {
+  it("인라인 이미지 업로드가 실패하면 미디어 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
         return [{ ok: false, filename: "inline-ref1.webp" }];
@@ -71,17 +74,17 @@ describe("submitToGithub logsDropped", () => {
       return undefined;
     });
 
-    const res = await submitToGithub({
+    const res = await submitToGithub(preparedInput({
       ctx: makeCtx(),
       owner: "o",
       repo: "r",
       inlineImages: [{ refId: "ref1", dataUrl: "data:IMG" }],
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(true);
+    expectFileOutcome(res, "media", true);
   });
 
-  it("logs.html 업로드 성공이면 logsDropped: false", async () => {
+  it("logs.html 업로드 성공이면 logs 파일 완료 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
         return [{ ok: true, filename: "logs.html", href: "LOGS_HREF" }];
@@ -89,14 +92,14 @@ describe("submitToGithub logsDropped", () => {
       return undefined;
     });
 
-    const res = await submitToGithub({
+    const res = await submitToGithub(preparedInput({
       ctx: makeCtx(),
       owner: "o",
       repo: "r",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(false);
+    expectFileOutcome(res, "logs", false);
   });
 });
 
@@ -186,16 +189,16 @@ describe("submitToGithub requireMediaUpload (승격 보호)", () => {
       return undefined;
     });
 
-    const res = await submitToGithub({
+    const res = await submitToGithub(preparedInput({
       ctx: makeCtx(),
       owner: "o",
       repo: "r",
       images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       requireMediaUpload: true,
-    });
+    }));
 
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "logs", true);
     expect(submitCallCount()).toBe(1);
   });
 
@@ -236,18 +239,18 @@ describe("submitToGithub 업로드 판별자", () => {
       return undefined;
     });
 
-    const res = await submitToGithub({
+    const res = await submitToGithub(preparedInput({
       ctx: makeCtx(),
       owner: "o",
       repo: "r",
       images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "logs", true);
   });
 
-  it("판별자 형태에서 전부 성공이면 logsDropped: false", async () => {
+  it("판별자 형태에서 전부 성공이면 logs 파일 완료 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
         return [{ ok: true, filename: "logs.html", href: "LOGS_HREF" }];
@@ -255,13 +258,13 @@ describe("submitToGithub 업로드 판별자", () => {
       return undefined;
     });
 
-    const res = await submitToGithub({
+    const res = await submitToGithub(preparedInput({
       ctx: makeCtx(),
       owner: "o",
       repo: "r",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(false);
+    expectFileOutcome(res, "logs", false);
   });
 });

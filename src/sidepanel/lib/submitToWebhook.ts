@@ -1,3 +1,4 @@
+import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
 import { sendBg } from "@/lib/bg-client";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import type { WebhookAuth, WebhookSubmitResult } from "@/types/webhook";
@@ -22,7 +23,7 @@ export type WebhookSubmitOutcome =
   | ({ recorded: true } & NormalizedSubmitResult)
   | { recorded: false; key?: undefined; url?: undefined };
 
-export interface WebhookSubmitInput {
+export interface WebhookSubmitInput extends SubmissionAdapterInput {
   ctx: MarkdownContext;
   auth: WebhookAuth;
   images?: UploadFileInput[];
@@ -37,8 +38,8 @@ export interface WebhookSubmitInput {
 // 네트워크를 타지 않는 가짜 업로드. 업로드와 생성이 같은 요청이라 URL을 미리 받을 수 없어,
 // 본문 빌더가 요구하는 href 자리를 cid: 참조로 채운다. 그래서 someUploadMissing이 항상
 // false가 되는 것이 **의도**다 — 여기엔 실패할 업로드 자체가 없다.
-const cidUploadFn = async (files: { filename: string }[]) =>
-  files.map((f) => ({ filename: f.filename, href: `cid:${f.filename}` }));
+const cidUploadFn = async (files: { fileId?: string; filename: string }[]) =>
+  files.map((f) => ({ fileId: f.fileId, filename: f.filename, href: `cid:${f.filename}` }));
 
 function templateVars(
   ctx: MarkdownContext,
@@ -80,6 +81,7 @@ function templateVars(
 export async function submitToWebhook(
   input: WebhookSubmitInput,
 ): Promise<WebhookSubmitOutcome> {
+  if (input.auth.format !== "json") input = bindSubmissionFiles(input);
   const files = [
     ...(input.images ?? []),
     ...(input.video ? [input.video] : []),
@@ -94,12 +96,12 @@ export async function submitToWebhook(
       input.auth.template,
       templateVars(input.ctx, body, sections, files),
     );
-    await sendBg<WebhookSubmitResult>({
+    await submitCreation(input.progress, () => sendBg<WebhookSubmitResult>({
       type: "webhook.submit",
       mode: "json",
       auth: input.auth,
       body: rendered,
-    });
+    }));
     // 제3자 훅은 식별자를 돌려주지 않는 게 정상이라(Discord의 204) 행을 만들 근거가 없다.
     return { recorded: false };
   }
@@ -108,7 +110,7 @@ export async function submitToWebhook(
   // 실어야 참조가 고아가 되지 않는다 — 같은 헬퍼로 이름을 뽑아 두 곳이 갈리지 않게 한다.
   const inlineFiles = toInlineUploadFiles(input.inlineImages);
   const prepared = await prepareUpload(input, cidUploadFn, { platform: "webhook" });
-  const { resolvedCtx, toMedia, toAttachmentMedia, logsDropped } = prepared;
+  const { resolvedCtx, toMedia, toAttachmentMedia } = prepared;
 
   const imageInputs = input.images ?? [];
   const { body } = buildMarkdownIssueBody(
@@ -141,7 +143,7 @@ export async function submitToWebhook(
   // "업로드는 성공했는데 생성이 실패"가 구조적으로 불가능하다 — POSTMORTEM 2026-06-30
   // 분류의 (d) atomic 군(Jira와 같다). 호출부는 이 함수가 resolve한 뒤에만 markSubmitted로
   // 원본을 파괴하고, 실패는 전부 throw로 나가 draft·blob이 보존된다.
-  const result = await sendBg<WebhookSubmitResult>({
+  const result = await submitCreation(input.progress, () => sendBg<WebhookSubmitResult>({
     type: "webhook.submit",
     mode: "multipart",
     auth: input.auth,
@@ -151,10 +153,11 @@ export async function submitToWebhook(
       filename: f.displayName ?? f.filename,
       dataUrl: f.dataUrl,
     })),
-  });
+  }));
 
   // background가 계약 위반이면 이미 throw했다. 그래도 캐스트 대신 확인하는 건, 그 가드가
   // 사라졌을 때 여기서 key·url 없는 행이 조용히 만들어지지 않게 하려는 것이다.
   if (!result.key || !result.url) throw new Error(t("webhook.error.contract"));
-  return { recorded: true, key: result.key, url: result.url, logsDropped };
+  await input.progress?.created({ platform: "webhook", key: result.key, url: result.url, locator: { key: result.key, url: result.url } });
+  return { recorded: true, key: result.key, url: result.url, attachments: deliveryResults(input.submissionFiles ?? [], (input.submissionFiles ?? []).map((f) => ({ fileId: f.id, ok: true, href: result.url }))) };
 }

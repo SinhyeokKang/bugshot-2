@@ -1,7 +1,8 @@
+import { preparedInput, echoFileIds, expectFileOutcome } from "@/test/submission-fixture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
-vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: async (...a: unknown[]) => echoFileIds(a[0], await sendBg(...a)) }));
 
 // 스레드 본문 빌더는 mock — MarkdownContext 처리는 buildSlackBody 자체 테스트의 몫.
 let mockBody = "BODY";
@@ -60,11 +61,11 @@ describe("submitToSlack — 전송 순서", () => {
         : defaultSendBg(msg as never),
     );
 
-    const res = await submitToSlack({
+    const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
       images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
-    });
+    }));
 
     const types = sendBg.mock.calls.map(([m]) => m.type);
     expect(types).toEqual([
@@ -85,12 +86,11 @@ describe("submitToSlack — 전송 순서", () => {
     // permalink는 부모 ts로 조회, 결과 url에 반영.
     const permalinkCall = sendBg.mock.calls.find(([m]) => m.type === "slack.getPermalink")![0];
     expect(permalinkCall.ts).toBe("111");
-    expect(res).toEqual({
+    expect(res).toMatchObject({
       key: "111",
       url: "https://slack.test/archives/C1/p111",
-      logsDropped: false,
-      mediaDropped: false,
     });
+    expectFileOutcome(res, "logs", false);
   });
 });
 
@@ -131,21 +131,21 @@ describe("submitToSlack — 첨부 없음", () => {
   });
 });
 
-describe("submitToSlack — logsDropped", () => {
-  it("logs.html 업로드가 실패(ok:false)하면 logsDropped: true", async () => {
+describe("submitToSlack — log attachment outcomes", () => {
+  it("logs.html 업로드가 실패(ok:false)하면 logs 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) =>
       msg.type === "slack.uploadFiles"
         ? [{ filename: "logs.html", ok: false }]
         : defaultSendBg(msg as never),
     );
 
-    const res = await submitToSlack({
+    const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "logs", true);
   });
 });
 
@@ -155,7 +155,7 @@ describe("submitToSlack — 긴 본문 분할", () => {
   it("Slack 한계를 넘는 본문은 펜스를 유지한 채 여러 스레드 답글로 나간다", async () => {
     const huge = Array.from({ length: 400 }, (_, i) => `  "key${i}": ${i},`).join("\n");
     mockBody = ["*발생 현상*", "```json", huge, "```"].join("\n");
-    sendBg.mockImplementation(defaultSendBg);
+    sendBg.mockImplementation(async (msg) => defaultSendBg(msg));
 
     await submitToSlack({ ctx: makeCtx(), channelId: "C1" });
 
@@ -212,8 +212,8 @@ describe("submitToSlack — 인라인 이미지", () => {
     ]);
   });
 
-  // 인라인 이미지 업로드 실패는 logsDropped(로그 전용 신호)를 오염시키면 안 된다.
-  it("인라인 업로드가 실패해도 logsDropped는 로그 기준으로만 판정한다", async () => {
+  // 인라인 이미지 실패가 로그 파일의 완료 결과를 바꾸면 안 된다.
+  it("인라인 업로드가 실패해도 logs 파일 결과는 독립적으로 유지한다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) =>
       msg.type === "slack.uploadFiles"
         ? [
@@ -223,14 +223,14 @@ describe("submitToSlack — 인라인 이미지", () => {
         : defaultSendBg(msg as never),
     );
 
-    const res = await submitToSlack({
+    const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
-    } as never);
+    } as never));
 
-    expect(res.logsDropped).toBe(false);
+    expectFileOutcome(res, "logs", false);
   });
 
   it("인라인 이미지만 있고 다른 첨부가 없어도 업로드를 호출한다", async () => {
@@ -248,26 +248,25 @@ describe("submitToSlack — 인라인 이미지", () => {
   });
 });
 
-// logsDropped는 logs.html 전용 신호라, 영상·스크린샷이 상한에 걸려 통째로 빠져도
-// 사용자에겐 아무 안내가 없다. Slack은 네이티브 첨부라 본문에 흔적조차 안 남는다.
-describe("submitToSlack — mediaDropped", () => {
-  it("영상 업로드가 실패하면 mediaDropped: true", async () => {
+// Slack 네이티브 첨부도 영상·스크린샷별 실패 결과를 보존한다.
+describe("submitToSlack — media attachment outcomes", () => {
+  it("영상 업로드가 실패하면 미디어 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) =>
       msg.type === "slack.uploadFiles"
         ? [{ filename: "recording.mp4", ok: false }]
         : defaultSendBg(msg as never),
     );
 
-    const res = await submitToSlack({
+    const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
       video: { filename: "recording.mp4", dataUrl: "data:VIDEO" },
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(true);
+    expectFileOutcome(res, "media", true);
   });
 
-  it("logs.html만 실패하면 mediaDropped는 false로 남는다 — 두 신호는 별개 축이다", async () => {
+  it("logs.html만 실패하면 미디어 파일 완료 상태를 유지한다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) =>
       msg.type === "slack.uploadFiles"
         ? [
@@ -277,30 +276,30 @@ describe("submitToSlack — mediaDropped", () => {
         : defaultSendBg(msg as never),
     );
 
-    const res = await submitToSlack({
+    const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
       images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(false);
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "media", false);
+    expectFileOutcome(res, "logs", true);
   });
 
-  it("사용자 첨부 실패는 mediaDropped를 켜지 않는다", async () => {
+  it("사용자 첨부 실패는 미디어 파일 완료 상태를 유지한다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) =>
       msg.type === "slack.uploadFiles"
         ? [{ filename: "report.pdf", ok: false }]
         : defaultSendBg(msg as never),
     );
 
-    const res = await submitToSlack({
+    const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
       attachments: [{ filename: "report.pdf", dataUrl: "data:PDF" }],
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(false);
+    expectFileOutcome(res, "media", false);
   });
 });

@@ -88,11 +88,10 @@ describe("buildSlackBody — 섹션", () => {
 });
 
 describe("buildSlackBody — 로그 안내 문구", () => {
-  it("첫 문장은 mrkdwn *볼드*, italic 래핑 제거", () => {
-    const { body } = buildSlackBody({ ctx: makeCtx({ actionLogCaptured: 5 }) });
-    expect(body).toContain("*logSummary.logs.lead*");
-    expect(body).toContain("logSummary.logs.detail file=logs.html");
-    expect(body).not.toContain("_logSummary.logs.detail");
+  it.each([false, true])("업로드 전에는 로그 수만 표시한다 (logsNotAttached=%s)", (logsNotAttached) => {
+    const { body } = buildSlackBody({ ctx: makeCtx({ actionLogCaptured: 5, logsNotAttached }) });
+    expect(body).toContain("logSummary.action.line n=5");
+    expect(body).not.toMatch(/logSummary.logs.lead|logSummary.logs.detail|attachmentDropped/);
   });
 });
 

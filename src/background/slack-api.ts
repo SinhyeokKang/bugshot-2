@@ -1,3 +1,4 @@
+import { safeAttachmentFailure } from "@/lib/attachment-failure";
 import { t } from "@/i18n";
 import type {
   SlackAuth,
@@ -19,7 +20,7 @@ export class SlackError extends Error {
     public code: string,
     message: string,
     public status = 200,
-    public body: { platform: "slack" } = { platform: "slack" },
+    public body: { platform: "slack"; creationRejected?: boolean } = { platform: "slack" },
   ) {
     super(message);
     this.name = "SlackError";
@@ -71,7 +72,10 @@ async function slackFetch<T>(
   const data = (await res.json()) as { ok: boolean; error?: string } & T;
   if (!data.ok) {
     const code = data.error ?? "unknown_error";
-    throw new SlackError(code, messageForSlackError(code), res.status);
+    throw new SlackError(code, messageForSlackError(code), res.status, {
+      platform: "slack",
+      ...(method === "chat.postMessage" && data.ok === false && ["channel_not_found", "not_in_channel", "invalid_auth", "token_revoked", "account_inactive", "is_archived", "missing_scope", "no_permission", "ratelimited"].includes(code) ? { creationRejected: true } : {}),
+    });
   }
   return data;
 }
@@ -204,7 +208,7 @@ export async function uploadFiles(
   auth: SlackAuth,
   channelId: string,
   threadTs: string,
-  files: Array<{ filename: string; blob: Blob }>,
+  files: Array<{ fileId?: string; filename: string; blob: Blob }>,
 ): Promise<SlackUploadResult[]> {
   const results: SlackUploadResult[] = [];
   const uploaded: Array<{ id: string; title: string }> = [];
@@ -219,11 +223,11 @@ export async function uploadFiles(
       const form = new FormData();
       form.append("file", f.blob, f.filename);
       const put = await fetch(u.upload_url, { method: "POST", body: form });
-      if (!put.ok) throw new Error(`upload failed: ${put.status}`);
+      if (!put.ok) throw new SlackError("upload_failed", "Upload failed", put.status);
       uploaded.push({ id: u.file_id, title: f.filename });
-      results.push({ filename: f.filename, ok: true });
-    } catch {
-      results.push({ filename: f.filename, ok: false });
+      results.push({ ...(f.fileId ? { fileId: f.fileId, remoteFileId: u.file_id } : {}), filename: f.filename, ok: true });
+    } catch (error) {
+      results.push({ ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, ok: false, failure: safeAttachmentFailure(error) });
     }
   }
 
@@ -234,9 +238,9 @@ export async function uploadFiles(
         channel_id: channelId,
         thread_ts: threadTs,
       });
-    } catch {
+    } catch (error) {
       // complete 실패 시 첨부가 채널에 안 붙으므로 전부 실패 처리.
-      return results.map((r) => ({ ...r, ok: false }));
+      return results.map((r) => r.ok ? ({ ...r, ok: false, failure: safeAttachmentFailure(error, "link") }) : r);
     }
   }
   return results;

@@ -71,11 +71,20 @@ async function spySendMessage(panel: Page) {
         });
         return;
       }
-      if (msg?.type === "jira.submitIssue") {
+      if (msg?.type === "jira.uploadAttachment") {
+          const attachment = (msg as unknown as { attachment: { fileId: string; filename: string } }).attachment;
+          cb?.({ ok: true, result: { ...attachment, ok: true, href: "https://your.atlassian.net/attachment/logs", file: { kind: "external", url: "https://your.atlassian.net/attachment/logs" } } });
+          return;
+        }
+        if (msg?.type === "jira.updateIssueDescription") {
+        cb?.({ ok: true, result: { ok: true } });
+        return;
+      }
+      if (msg?.type === "jira.createIssue") {
         (w.__jiraSubmits as unknown[]).push(
           (msg as unknown as { payload?: unknown }).payload,
         );
-        cb?.({ ok: true, result: { key: "API-1", url: jiraUrl } });
+        cb?.({ ok: true, result: { key: "API-1", url: jiraUrl, siteId: "cloud-1" } });
         return;
       }
       return orig(msg as never, cb as never);

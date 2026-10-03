@@ -66,6 +66,7 @@ export interface MarkdownContext {
   // 제출이지만 로그 파일이 동봉되지 않는 경로(webhook json 템플릿 모드). LogSummaryContext와
   // 같은 축이고 여기선 emitMarkdownLogSummary로 그대로 흘러간다.
   logsNotAttached?: boolean;
+  logsDeliveryConfirmed?: boolean;
 }
 
 // 한 element의 본문 직렬화 컨텍스트. beforeFilename/afterFilename은 머지·dedup 후 최종

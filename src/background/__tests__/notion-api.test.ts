@@ -740,6 +740,17 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
       expect(Object.keys(body.properties)).toEqual(["이름"]);
     });
 
+    it.each([99, 100, 101])("reports actual file membership at emitted block %i", async (position) => {
+      mf = mockFetchOnce({ body: { id: "page", url: "https://notion.so/page" } });
+      const blocks: NotionCreatePagePayload["blocks"] = Array.from({ length: position - 1 }, () => ({ type: "paragraph", text: "line" }));
+      blocks.push({ type: "image", placeholderId: "picture" });
+      const result = await createPage(AUTH, payload({ blocks, attachments: [{ fileId: "capture:screenshot", placeholderId: "picture", filename: "screenshot.webp", fileUploadId: "upload", category: "image" }] }));
+      const sent = mf.jsonBodyAt(0) as { children: unknown[] };
+      expect(sent.children).toHaveLength(100);
+      expect(JSON.stringify(sent.children).includes('"file_upload":{"id":"upload"}')).toBe(position <= 100);
+      expect(result.attachedFileIds).toEqual(position <= 100 ? ["capture:screenshot"] : []);
+    });
+
     it("children이 100개를 넘으면 잘라 보내고 경고를 남긴다", async () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       mf = mockFetchOnce({ body: { id: "PG3", url: "u" } });

@@ -662,7 +662,18 @@ export async function createPage(
       children: expanded.slice(0, 100),
     },
   });
-  return { pageId: data.id, url: data.url };
+  const emitted = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== "object") return;
+    const record = value as Record<string, unknown>;
+    if (record.type === "file_upload" && record.file_upload && typeof record.file_upload === "object") {
+      const id = (record.file_upload as { id?: unknown }).id;
+      if (typeof id === "string") emitted.add(id);
+    }
+    for (const child of Object.values(record)) visit(child);
+  };
+  visit(expanded.slice(0, 100));
+  return { pageId: data.id, url: data.url, ...(payload.attachments.some((a) => a.fileId) ? { attachedFileIds: payload.attachments.filter((a) => a.fileId && emitted.has(a.fileUploadId)).map((a) => a.fileId!) } : {}) };
 }
 
 export interface NotionPageRaw {

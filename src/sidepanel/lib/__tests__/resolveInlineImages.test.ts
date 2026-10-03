@@ -305,3 +305,9 @@ describe("placeholderSectionImages", () => {
     expect(out.description).toBe(PH);
   });
 });
+
+it("submission resolution rejects missing images in enabled paragraphs", async () => {
+  const { resolveInlineImagesForSections } = await import("../resolveInlineImages");
+  await expect(resolveInlineImagesForSections({ body: "![](inline:missing)" }, [{ id: "body", enabled: true, renderAs: "paragraph" }])).rejects.toThrow();
+  await expect(resolveInlineImagesForSections({ body: "![](inline:missing)" }, [{ id: "body", enabled: false, renderAs: "paragraph" }])).resolves.toEqual([]);
+});

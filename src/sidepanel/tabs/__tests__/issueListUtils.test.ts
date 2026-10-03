@@ -660,3 +660,18 @@ describe("isRefreshable — gitlab 분기", () => {
     expect(isRefreshable(issue)).toBe(false);
   });
 });
+
+describe("recovery submission restrictions", () => {
+  it("keeps recovery read-only even if a stale record says draft", () => {
+    const issue = makeIssue({ status: "draft", submissionRecoveryId: "attempt" });
+    expect(canEditDraftFields(issue)).toBe(false);
+    expect(submittablePlatforms(issue, {})).toEqual([]);
+    expect(isRefreshable({ ...issue, status: "submitted", platform: "jira", key: "A-1", url: "https://example.com" })).toBe(false);
+  });
+});
+
+it("groups all recovery records under submitted rather than editable drafts", () => {
+  const issue = makeIssue({ status: "draft", submissionRecoveryId: "a" });
+  expect(matchesStatus(issue, "submitted")).toBe(true);
+  expect(matchesStatus(issue, "draft")).toBe(false);
+});

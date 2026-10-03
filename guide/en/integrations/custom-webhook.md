@@ -31,7 +31,7 @@ You can leave **Advanced** closed for the default setup. Open it when your recei
 | Format | What is sent | After submission |
 |---|---|---|
 | **Multipart** (default) | The body, captured images, video, log files, and attachments in one request | An issue-list entry links to the address returned by your server |
-| **JSON template** | A JSON body shaped for the receiver. **No media is sent** | **No issue-list entry is created** |
+| **JSON template** | A JSON body shaped for the receiver. **No media is sent** | **No Submitted entry · draft and originals retained** |
 
 Add **Request headers** as name/value pairs if your server needs them. Headers the browser cannot send and duplicate names are flagged when saving. An explicit `Authorization` header takes precedence over the **Secret** field.
 
@@ -47,6 +47,6 @@ With JSON template selected, **Send sample** replaces **Test connection**. It fi
 
 To change the address, secret, or template, open **Integrations → Add platform → Edit your custom webhook**. Your saved values are filled in, so just change what you need and click **Save**.
 
-Reports submitted with Multipart appear in the issue list as **Submitted**. Click the card to open the address returned by your server. Server-side progress is not synced back to BugShot; check that address for updates. JSON template submissions leave no issue-list entry, so check the destination for the result.
+Reports submitted with Multipart appear in the issue list as **Submitted**. Click the card to open the address returned by your server. Server-side progress is not synced back to BugShot; check that address for updates. JSON template submissions keep the draft and original files without creating a Submitted entry, so check the destination for the result.
 
-If a connection or submission fails, follow the message to check the address and secret. Even if the server responds, a Multipart response missing the required fields is treated as a failed submission, and your original report is retained. Ask your server developer to check the response requirements in the contract.
+If a connection or submission is explicitly rejected, follow the message to check the address and secret. A lost response, server error, or Multipart response with missing required values can leave registration uncertain. BugShot then blocks resubmission and preserves the originals. Check what happened at the destination and follow the confirmation steps in [Issue Tracking](issue-tracking.md). Webhook recovery provides saved-file downloads without automatic retransmission.

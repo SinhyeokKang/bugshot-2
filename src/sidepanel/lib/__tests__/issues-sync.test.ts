@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ISSUES_PERSIST_KEY } from "@/lib/session-keys";
 
+const reconcile = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("../submissionRecovery", () => ({ reconcileSubmissionRecovery: reconcile }));
+
 const rehydrate = vi.fn(() => Promise.resolve());
 const shouldSync = vi.fn((_c?: chrome.storage.StorageChange): boolean => true);
 
@@ -98,4 +101,24 @@ describe("installIssuesSync", () => {
 
     expect(removed).toHaveLength(1);
   });
+});
+
+it("reconciles recovery on install and after an external issues write", async () => {
+  const callbacks: Listener[] = [];
+  vi.stubGlobal("chrome", { storage: { onChanged: { addListener: (fn: Listener) => callbacks.push(fn), removeListener: vi.fn() } } });
+  const { useIssuesStore } = await import("@/store/issues-store");
+  const hydrated = vi.spyOn(useIssuesStore.persist, "hasHydrated").mockReturnValue(true);
+  reconcile.mockClear();
+  const dispose = installIssuesSync();
+  await Promise.resolve();
+  expect(reconcile).toHaveBeenCalled();
+  reconcile.mockClear();
+  shouldSync.mockReturnValue(true);
+  callbacks[0]({ [ISSUES_PERSIST_KEY]: { newValue: "remote" } }, "local");
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(reconcile).toHaveBeenCalledTimes(1);
+  dispose();
+  hydrated.mockRestore();
+  vi.unstubAllGlobals();
 });

@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { FileText, Trash2, Upload } from "lucide-react";
+import { readSubmissionRecovery } from "@/store/blob-db";
+import { toast } from "sonner";
+import { useEffect, useRef, useState } from "react";
+import { CircleAlert, FileText, Trash2, Upload } from "lucide-react";
 import { useT } from "@/i18n";
 import {
   AlertDialog,
@@ -13,8 +15,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ButtonGroup } from "@/components/ui/button-group";
-import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
+import { isSlackPreserved, useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { PlatformChip } from "./statusBadges/PlatformChip";
 import { SubmittedBadge } from "./statusBadges/SubmittedBadge";
@@ -29,15 +32,31 @@ export function IssueRow({
 }: {
   issue: IssueRecord;
   refreshKey: number;
-  onOpenDraft: () => void;
+  onOpenDraft: (recoveryTrigger?: HTMLButtonElement | null) => void;
   onOpenSubmit: () => void;
   onBadgeLoaded: () => void;
 }) {
   const t = useT();
-  const isSubmitted = issue.status === "submitted" && !!issue.url;
+  const recoveryTrigger = useRef<HTMLButtonElement>(null);
+  const recovering = !!issue.submissionRecoveryId;
+  const isSubmitted = issue.status === "submitted" && (!!issue.url || recovering);
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const accounts = useSettingsStore((s) => s.accounts);
   const promotable = canPromoteSlack(issue, accounts);
+  const [unknownCreation, setUnknownCreation] = useState(issue.status !== "submitted");
+  const [localMissing, setLocalMissing] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setLocalMissing(false);
+    setUnknownCreation(issue.status !== "submitted");
+    if (issue.submissionRecoveryId) void readSubmissionRecovery(issue.id).then((meta) => {
+      if (!cancelled && meta && meta.attemptId === issue.submissionRecoveryId) {
+        setLocalMissing(!!meta.localFilesRemoved);
+        setUnknownCreation(!meta.destination);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [issue, refreshKey]);
   const [hoverSuppressed, setHoverSuppressed] = useState(false);
   const hoverGuard = {
     onMouseEnter: () => setHoverSuppressed(true),
@@ -54,7 +73,7 @@ export function IssueRow({
   }
 
   const handleCardClick = () => {
-    if (isSubmitted) {
+    if (isSubmitted && issue.url && !recovering) {
       chrome.tabs.create({ url: issue.url!, active: true });
     } else {
       // Card는 비포커서블이라 직전 포커스(탭 trigger 등)가 그대로 남는다.
@@ -63,7 +82,7 @@ export function IssueRow({
       if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
         document.activeElement.blur();
       }
-      onOpenDraft();
+      onOpenDraft(recovering ? recoveryTrigger.current : undefined);
     }
   };
 
@@ -87,8 +106,14 @@ export function IssueRow({
           ) : null}
           <span className="min-w-0 truncate">{textMetaParts.join(" · ")}</span>
         </span>
+        {recovering && <span className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400" data-testid="recovery-row-warning"><CircleAlert className="h-4 w-4 shrink-0" />{t(localMissing ? "recovery.localMissing" : unknownCreation ? "recovery.unknownWarning" : "recovery.needsAttention")}</span>}
       </div>
-      {promotable ? (
+      {recovering ? (
+        <ButtonGroup className="shrink-0" onClick={(e) => e.stopPropagation()} {...hoverGuard}>
+          <Button variant="outline" size="icon" className="h-8 w-8" aria-label={t("issueList.viewDetail")} ref={recoveryTrigger} data-testid="recovery-detail-open" onClick={handleCardClick}><FileText /></Button>
+          {isSlackPreserved(issue) && <TooltipProvider><Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon" className="h-8 w-8 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-background aria-disabled:hover:text-foreground" aria-disabled aria-label={t("issueList.promote")} data-testid="promote-issue" onClick={() => {}}><Upload /></Button></TooltipTrigger><TooltipContent>{t("recovery.promotionBlocked")}</TooltipContent></Tooltip></TooltipProvider>}
+        </ButtonGroup>
+      ) : promotable ? (
         <ButtonGroup className="shrink-0" onClick={(e) => e.stopPropagation()} {...hoverGuard}>
           <Button
             variant="outline"
@@ -97,7 +122,7 @@ export function IssueRow({
             aria-label={t("issueList.viewDetail")}
             title={t("issueList.viewDetail")}
             data-testid="view-detail-issue"
-            onClick={onOpenDraft}
+            onClick={() => onOpenDraft()}
           >
             <FileText />
           </Button>
@@ -158,7 +183,7 @@ export function IssueRow({
             <AlertDialogFooter>
               <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => removeIssue(issue.id)}
+                onClick={() => { void removeIssue(issue.id).catch(() => toast.error(t("bg.error.unknown"))); }}
               >
                 {t("issueList.deleteIssue")}
               </AlertDialogAction>

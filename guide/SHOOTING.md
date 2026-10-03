@@ -163,6 +163,17 @@ Aside 세션에서:
 
 ## 8. 진행 상태 / 핸드오프 (2026-08-09 기준)
 
+### 2026-10-04: 첨부 복구 화면 촬영 대기
+
+Ego TaskSpace에서 `chrome.developerPrivate.getExtensionsInfo`를 조회했다. 스토어판 1.7.45(`ohakhekagkodklkickemonmifdcbhmig`, FROM_STORE)만 활성화돼 있고 개발판 UNPACKED 확장이 없어 새 복구 UI는 촬영하지 못했다. 외부 업로드도 실행하지 않았다. 최종 빌드 후 개발판 로드가 필요하다.
+
+- `integrations-issue-tracking-3` ko/en: 신규 복구 상세 자리, placeholder 유지.
+- `video-issue-6` ko/en: 기존 이미지가 완료 화면 캡션과 달리 제출창이고, ko에도 영문 화면을 사용했다. 양쪽을 placeholder로 되돌렸으며 영상 제출 완료 화면 재촬영이 필요하다.
+- `integrations-issue-tracking-1`, `element-issue-6`, `screenshot-issue-6` ko/en: 실제 이미지를 확인했다. 정상 목록·정상 완료 화면은 이번 조건부 복구 UI 변경으로 달라지지 않아 유지한다.
+- `integrations-issue-tracking-2` ko/en: 기존 이미지의 실제 내용인 초안 상세에서 여는 제출창으로 캡션을 맞췄다.
+
+아래 과거 촬영 수량은 당시 기록이며 현재 placeholder 목록은 AUTHORING.md가 정본이다.
+
 ### 2026-09-22: Ego로 Custom Webhook ko/en 8장 촬영
 
 `integrations-custom-webhook-1`~`4`를 ko/en 각각 촬영했다. 순서대로 연결 진입, Endpoint·시크릿·연결 테스트, JSON 템플릿·미리보기·샘플 전송, 설정 수정 진입이다. placeholder 8장을 실제 화면으로 교체했다.

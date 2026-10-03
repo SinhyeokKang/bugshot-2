@@ -227,6 +227,7 @@ describe("background 본문 문자열 게이트", () => {
 
   it("본문을 만들거나 대조하는 t() 키는 래핑된 여섯뿐이다", () => {
     expect(bodyKeys).toEqual([
+      "logSummary.logs.lead",
       "md.attachmentDropped",
       "md.videoAttached",
       "notion.attachmentSection",

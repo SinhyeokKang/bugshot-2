@@ -7,16 +7,14 @@ import { describe, it, expect } from "vitest";
 // 비면 소비처가 `href: undefined`·`gid: undefined`를 이슈 본문에 문자열로 박는다
 // (gitlab만 이 가드가 없어 `body.split(old).join(undefined)`가 "undefined"를 남겼다).
 //
-// 이 그물이 소스 스캔인 이유: 핸들러는 `chrome.runtime.onMessage` 라우터 안이라 유닛으로
-// 못 부르고, 소비처(`submitToX`) 테스트는 background가 무엇을 세웠는지 못 본다. 겨냥하는
-// 것은 로직이 아니라 **호출부 누락**이다(connect-reason-coverage.test.ts와 같은 형태).
+// 실제 핸들러 동작은 별도 테스트가 검증한다. 이 스캔은 새 per-file 분기의 누락을 잡는다.
 const SOURCE = readFileSync(
   join(process.cwd(), "src/background/messages.ts"),
   "utf8",
 );
 
 // locator를 실은 성공 push. 새 플랫폼이 per-file 격리 업로드를 추가하면 여기에 잡힌다.
-const OK_PUSH_RE = /results\.push\(\{\s*ok:\s*true,[^}]*\}\)/g;
+const OK_PUSH_RE = /results\.push\(\{\s*ok:\s*true,[^\n;]*\}\)/g;
 
 describe("업로드 결과 판별자 — locator 없는 성공 금지", () => {
   const okPushes = [...SOURCE.matchAll(OK_PUSH_RE)].map((m) => m[0]);
@@ -24,6 +22,12 @@ describe("업로드 결과 판별자 — locator 없는 성공 금지", () => {
   // 스캔 대상이 비면 아래 검사가 항진명제다(POSTMORTEM 2026-08-19).
   it("스캔이 성공 push를 실제로 찾는다 (앵커)", () => {
     expect(okPushes.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("success and failure branches preserve stable file IDs", () => {
+    const pushes = SOURCE.match(/results\.push\(\{\s*ok:\s*(?:true|false),[^\n;]*\}\)/g) ?? [];
+    expect(pushes.length).toBeGreaterThanOrEqual(9);
+    for (const push of pushes) expect(push).toContain("fileId: f.fileId");
   });
 
   it("모든 성공 push가 locator 가드 뒤에 온다", () => {
@@ -37,12 +41,10 @@ describe("업로드 결과 판별자 — locator 없는 성공 금지", () => {
     expect(unguarded).toEqual([]);
   });
 
-  it("catch 분기도 ok:false를 push한다 (결과 배열의 1:1 순서 불변식)", () => {
-    // 소비처가 결과 배열을 **입력 files와 같은 인덱스**로 읽는다(submitToAsana의
-    // userAttachmentStart 경계가 그 위에 서 있다). 예외 분기가 push를 빠뜨리면 결과가
-    // 한 칸 밀려 사용자 첨부가 캡처 자리로 들어가고, 그건 어느 유닛 테스트에도 안 걸린다.
+  it("catch 분기도 ok:false를 push한다 (파일 결과 누락 금지)", () => {
+    // 실패 응답도 남겨야 기대 파일 집합과 결과를 대조할 수 있다.
     const catchPushes =
-      SOURCE.match(/\}\s*catch\s*\{\s*results\.push\(\{\s*ok:\s*false,/g) ?? [];
+      SOURCE.match(/\}\s*catch(?:\s*\([^)]*\))?\s*\{\s*results\.push\(\{\s*ok:\s*false,/g) ?? [];
     expect(catchPushes.length).toBe(okPushes.length);
   });
 

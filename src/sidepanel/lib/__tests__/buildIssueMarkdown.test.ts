@@ -960,8 +960,8 @@ describe("로그 요약 — action 로그 단독 (video, net/con 없음)", () =>
     const md = buildIssueMarkdown(makeCtx({ captureMode: "video", selector: "", actionLogCaptured: 7 }));
     expect(md).toContain("logSummary.title");
     expect(md).toContain("logSummary.action.line n=7");
-    expect(md).toContain("logSummary.logs.detail file=logs.html");
-    expect(md).toContain("**logSummary.logs.lead**");
+    expect(md).toContain("logs.html: md.attachmentDropped");
+    expect(md).toContain("md.attachmentDropped");
     expect(md).not.toContain("_logSummary.logs.detail");
   });
 
@@ -1149,7 +1149,7 @@ describe("forClipboard — 복사본은 존재하지 않는 첨부를 가리키�
       const md = buildIssueMarkdown(makeCtx({ captureMode: "screenshot", ...logs }));
 
       expect(md).toContain("md.imageAttached");
-      expect(md).toContain("logSummary.logs.lead");
+      expect(md).toContain("md.attachmentDropped");
       expect(md).toContain("logs.html");
       expect(md).not.toContain("md.imageNotCopied");
       expect(md).not.toContain("logSummary.logs.notCopied");

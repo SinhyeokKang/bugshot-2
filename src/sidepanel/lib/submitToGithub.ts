@@ -1,3 +1,5 @@
+import { safeAttachmentFailure } from "@/lib/attachment-failure";
+import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
 import type { UploadFileResult } from "@/types/messages";
 import { buildGithubIssueBody } from "./buildGithubIssueBody";
 import { prepareUpload, type UploadFileInput } from "./prepareUpload";
@@ -10,7 +12,7 @@ export type { NormalizedSubmitResult } from "@/types/platform";
 
 export type GithubFileInput = UploadFileInput;
 
-export interface GithubSubmitInput {
+export interface GithubSubmitInput extends SubmissionAdapterInput {
   ctx: import("./buildIssueMarkdown").MarkdownContext;
   images?: GithubFileInput[];
   video?: GithubFileInput;
@@ -28,6 +30,7 @@ export interface GithubSubmitInput {
 export async function submitToGithub(
   input: GithubSubmitInput,
 ): Promise<NormalizedSubmitResult> {
+  input = bindSubmissionFiles(input);
   const prepared = await prepareUpload(
     input,
     async (files) => {
@@ -36,12 +39,12 @@ export async function submitToGithub(
         owner: input.owner,
         repo: input.repo,
         files,
-      });
-      return results.map((r) => ({ filename: r.filename, href: r.ok ? r.href : null }));
+      }).catch((error) => files.map((f) => ({ fileId: f.fileId, filename: f.filename, ok: false as const, failure: safeAttachmentFailure(error) })));
+      return results.map((r) => ({ fileId: r.fileId, failure: r.failure, filename: r.filename, href: r.ok ? r.href : null }));
     },
     { platform: "github" },
   );
-  const { resolvedCtx, toMedia, toAttachmentMedia, logsDropped, mediaDropped } = prepared;
+  const { resolvedCtx, toMedia, toAttachmentMedia } = prepared;
 
   const imageInputs = input.images ?? [];
   const { body } = buildGithubIssueBody({
@@ -53,7 +56,7 @@ export async function submitToGithub(
     cc: input.cc,
   });
 
-  const result = await sendBg<GithubCreateIssueResult>({
+  const result = await submitCreation(input.progress, () => sendBg<GithubCreateIssueResult>({
     type: "github.submitIssue",
     payload: {
       owner: input.owner,
@@ -63,6 +66,7 @@ export async function submitToGithub(
       labels: input.label ? [input.label] : undefined,
       assignees: input.assignee ? [input.assignee] : undefined,
     },
-  });
-  return { key: `#${result.number}`, url: result.url, logsDropped, mediaDropped };
+  }));
+  await input.progress?.created({ platform: "github", key: `#${result.number}`, url: result.url, locator: { owner: input.owner, repo: input.repo, number: String(result.number) } });
+  return { key: `#${result.number}`, url: result.url, attachments: deliveryResults(input.submissionFiles ?? [], prepared.responses) };
 }

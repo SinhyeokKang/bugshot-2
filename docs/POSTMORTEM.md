@@ -36,6 +36,86 @@
 
 ---
 
+## 2026-10-04 — 부분 완료 정리는 원본 키뿐 아니라 완료된 생성물 바이트도 끝내야 한다
+
+- **영역**: `store`, `lib`, `e2e`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: 배포 전 실제 브라우저 수용 테스트에서 인라인 이미지·사용자 파일·캡처 중 하나만 실패해도 이미 첨부 완료된 logs.html 사본이 복구 저장소에 남았다. 저장소 정리를 고친 뒤에도 Slack의 실제 제출 경로는 해당 함수를 건너뛰었다.
+- **근본 원인**: 전체 성공은 journal 삭제가 생성물까지 지워 누락을 가렸다. partial에서는 원본 키 정리만 실행해 같은 journal에 있는 완료 생성물을 남겼다. Slack 원본 보존을 호출부에서 정리 전체 생략으로 구현해, 저장소 함수 안의 원본·생성물 구분을 테스트해도 실제 제출에는 적용되지 않았다.
+- **재발 방지**: 혼합 성공·실패 제출 후 파일 ID별 실제 IDB 바이트 집합을 검사한다. 영속 submitted 쓰기 이후에만 완료된 생성물을 지우고, 실패 생성물·공유 원본·Slack 보존 원본은 별도로 보호한다. helper 직접 호출뿐 아니라 실제 runner의 Slack partial 경로를 통과시켜 완료 생성물 부재와 실패 파일/원본 보존을 함께 단언한다. 오래된 attempt·활성 phase·영속 쓰기 reject도 같은 그물에 포함한다.
+- **관련**: `src/store/blob-db.ts:cleanupSubmissionOriginals`, `src/sidepanel/lib/submissionRecovery.ts:finish`, `src/store/__tests__/blob-db-recovery.test.ts`, `src/sidepanel/lib/__tests__/submissionRecovery.test.ts`, `e2e/attachment-recovery.spec.ts`. 선행: 2026-10-03 공유 원본 수명·제출 잠금/완료 사실 분리.
+
+## 2026-10-04 — 진입 버튼 blur와 공용 Dialog 자동 포커스 차단을 합치면 키보드 복귀점이 사라진다
+
+- **영역**: `컴포넌트`, `e2e`
+- **계열**: `라이브러리전제`, `미검증단언`
+- **그물**: `e2e`
+- **증상**: 복구 상세를 키보드로 열고 닫으면 목록의 상세 버튼으로 포커스가 돌아오지 않았다. jsdom의 진입 버튼 blur 검증은 통과했지만 전체 브라우저 왕복은 실패했다.
+- **근본 원인**: 기존 행 클릭 규칙은 진입 전에 blur하고, 공용 DialogContent는 onCloseAutoFocus를 막는다. 상태로 여는 새 복구 상세에는 Radix Trigger가 없으므로 프리미티브가 복귀 대상을 기억할 수 없었다. 진입 순간 검증만으로 접근성 왕복을 완료로 간주했다.
+- **재발 방지**: 복구 상세의 실제 진입 버튼을 명시적으로 기억하고 복구 분기의 닫힘에만 복원한다. 공용 Dialog 정책과 일반 draft·Slack 상세 동작은 유지한다. native Chromium에서 행 버튼→상세→중첩 AlertDialog→취소/Escape→상세 닫기까지 포커스·열린 다이얼로그 수·mutation 0을 검사한다. AlertDialog가 보인다는 단언과 초기 포커스가 준비됐다는 단언을 구분하며, 실패를 취소 정책 추정으로 덮지 않는다.
+- **관련**: `src/sidepanel/tabs/IssueRow.tsx`, `src/sidepanel/tabs/IssueListTab.tsx`, `src/sidepanel/tabs/DraftDetailDialog.tsx`, `e2e/attachment-recovery-browser.spec.ts`, `e2e/attachment-recovery.spec.ts`. 선행: 2026-10-04 복구 파일 삭제/포기 수명.
+
+## 2026-10-04 — 복구 파일 삭제와 복구 포기는 다르다: 영속 상태가 화면과 액션을 결정해야 한다
+
+- **영역**: `컴포넌트`, `store`, `lib`
+- **계열**: `미검증단언`, `드리프트`
+- **그물**: `jsdom`
+- **증상**: 배포 전 UI 리뷰에서 일반 플랫폼의 로컬 사본 삭제를 확인해도 경고·확인 필요 개수·복구 상세가 계속 남았다. 원격 처리가 끝난 뒤 로컬 저장이 실패한 항목은 다시 상세를 열면 실패 이유가 사라졌고, 화면의 삭제 버튼은 저장소 phase 검사에 항상 거부됐다. 다른 패널의 파일 정리도 열린 화면에 반영되지 않았다.
+- **근본 원인**: 바이트 정리라는 공통 결과에 묶여 명시적 복구 포기와 자동 만료를 같은 상태로 처리했다. Slack 승격 예외만 해제했지만 일반 이슈에도 포기 계약이 있었다. 최초 완료 화면의 ephemeral storageFailed와 영속 journal의 complete-but-retained 상태도 구분하지 않아, 재진입 화면은 실패 설명을 재구성하지 못했다. 관리 버튼은 자료 존재만 보고 노출하고 실제 mutation의 phase 허용표를 따르지 않았다. IDB 메타만 바꾸면 Chrome 목록 구독자는 변화가 없었다.
+- **재발 방지**: `rg 'localFilesRemoved|submissionRecoveryId|phase.*complete|allowManage' src/sidepanel src/store`로 명시적 포기·TTL·unknown·로컬 완료 실패를 각각 대조한다. 실제 IssueListTab→상세→AlertDialog→IDB/store 경로로 파일뿐 아니라 경고·개수·행 전환·remote 0회를 단언한다. known-created는 durable submitted 뒤 journal/포인터를 정리하되 unknown 삭제는 생성 차단을 남긴다. complete 영속 상세는 파일 0개도 실패 설명과 phase-valid 액션을 검증한다. journal-only 변경은 기존 목록 레코드 갱신으로 구독자를 깨우고, 최신 durable 필드 보존·반복 reconciliation 무추가 write·두 mounted 소비자 갱신을 함께 고정한다.
+- **관련**: `src/sidepanel/lib/submissionRecovery.ts:deleteSubmissionLocalFiles`·`notifyRecoveryChange`, `src/store/blob-db.ts:removeSubmissionRecoveryFiles`, `src/sidepanel/components/AttachmentRecoveryPanel.tsx`, `src/sidepanel/tabs/IssueRow.tsx`, `src/sidepanel/tabs/__tests__/recoveryAbandonment.test.tsx`, `src/sidepanel/lib/__tests__/submissionRecovery.test.ts`. 최종 독립 229개 및 전체 8135개 테스트 통과. 선행: 2026-10-03 공유 원본 수명·지연 storage 이벤트·빈 파일 결과 완료 판정.
+
+## 2026-10-03 — 파일 결과가 모두 완료여도 제출은 실패할 수 있다: 빈 집합과 본문 반영은 별도 증거다
+
+- **영역**: `어댑터`, `background`, `store`, `lib`
+- **계열**: `미검증단언`, `복제본`, `fail-open`
+- **그물**: `unit`
+- **증상**: 첨부 복구 어댑터의 배포 전 리뷰에서 파일 없는 Slack 제출의 부모 생성 뒤 상세 전송·permalink 조회가 실패해도 정상 완료로 처리해 목적지 journal을 지웠다. Jira는 실제 MIME에 맞춘 JPEG/PNG 비교 캡처를 업로드하고도 본문에서 누락한 채 완료로 보고했다. Slack 본문은 업로드 전에 첨부 성공을 주장했고, 명시적인 HTTP 200 거절과 HTTP 413 등 업로드 실패 사유도 RPC 경계에서 구분을 잃었다.
+- **근본 원인**: `[].every(completed)`는 참이지만 제출 전체의 성공 증거는 아니다. 파일별 결과에만 실패를 담으면 파일이 없는 후속 작업에는 실패를 저장할 자리가 없다. 업로드와 본문 삽입도 다른 단계인데, MIME 정규화로 파일명이 바뀐 뒤 내부 ADF 슬롯은 이전 확장자를 조회했다. 업로드·본문 update의 성공 응답만 검사하는 매트릭스는 실제 전송 본문 누락을 못 잡았다. HTTP transport 상태와 provider mutation 결과가 다르며, 여러 어댑터의 catch가 구조화된 상태를 bare `ok:false`로 줄이면서 안전하게 전달할 수 있던 실패 사유까지 버렸다.
+- **재발 방지**: `rg 'every\(.*complete|presentation.*complete|ok: false' src/sidepanel/lib src/background`의 결과 판정은 빈 파일 집합·후속 본문 실패·빈 locator를 함께 검사한다. 제출 전체 실패를 파일과 독립된 `submissionFailure`로 영속하고, 실제 어댑터→runner→IDB→재시작 복구까지 단언한다. 첨부 ID·실제 MIME·표시 파일명을 분리하고, 같은 이름의 사용자 파일과 JPEG/PNG before/after를 넣어 최종 ADF의 media ID까지 검사한다. 첫 외부 본문은 업로드 전에 성공을 주장하지 않아야 하며 정상 업로드 뒤에도 거짓 실패 안내가 없어야 한다. RPC의 안전한 stage/code/httpStatus 투영을 공용화하고 401/403/413/429·응답 유실을 실제 producer 경계마다 주입한다. Slack의 HTTP 200 거절은 명시적으로 확인한 코드만 no-create로 분류한다.
+- **관련**: `src/sidepanel/lib/submissionRecovery.ts:runSubmissionRecovery`, `src/store/blob-db.ts:checkpointSubmission`, `src/sidepanel/lib/submitToJira.ts`, `src/sidepanel/lib/submitToSlack.ts`, `src/sidepanel/lib/buildSlackBody.ts`, `src/lib/attachment-failure.ts`, `src/background/slack-api.ts`, `src/sidepanel/lib/__tests__/adapterProgress.test.ts`, `src/sidepanel/lib/__tests__/submissionRecovery.test.ts`, `src/background/__tests__/uploadFailure.test.ts`. 독립 리뷰의 기존 실패 재현 10개가 수정 후 그대로 통과했다. 선행: 2026-09-29 첨부 축 누락, 2026-10-03 공유 원본 수명·다른 패널의 stale draft.
+
+## 2026-10-03 — 제출 잠금과 완료 사실은 별개다: 락이 풀린 뒤에도 다른 패널의 메모리는 draft다
+
+- **영역**: `store`, `lib`
+- **계열**: `미검증단언`, `라이브러리전제`
+- **그물**: `unit`
+- **증상**: 첨부 복구 수명 구현의 배포 전 리뷰에서 다른 패널이 진행 중인 제출을 미확인으로 바꿔 해제할 수 있었다. Web Lock을 붙인 뒤에도 첫 패널의 정상 완료·journal 삭제 후 storage 이벤트를 아직 받지 않은 둘째 패널이 같은 이슈를 다시 생성하는 반례가 남았다. 별도로 미확인 해제의 journal 삭제 뒤 목록 저장 실패는 재제출할 수 없는 포인터를 남겼고, 새 완료 경로는 전송 파일에 없는 원시 로그·썸네일·변환 전 원본을 정리하지 않았다.
+- **근본 원인**: 모듈 지역 제출 집합은 다른 realm의 작업을 보지 못한다. Web Lock도 동시 실행만 막으며 이전 작업의 완료 사실을 기억하지 않는다. journal 부재는 미제출의 증거가 아니고, chrome.storage 이벤트가 모든 패널의 메모리에 즉시 반영된다는 보장도 없다. IDB와 Chrome 목록 저장 사이에는 단일 트랜잭션이 없으며, 전송 기대 파일 집합과 로컬에서 정리해야 할 원본 집합도 같지 않다. 메타를 유지하는 만료 journal끼리 공유 참조를 보호하면 바이트가 영구 보존된다.
+- **재발 방지**: `rg 'withIssueSubmitGuard|withIssueOperationLock|reconcileSubmissionRecovery' src`의 진입점은 같은 origin-wide 잠금을 쓰고, 획득 **뒤** 최신 영속 submitted·복구 포인터·삭제 상태를 읽은 다음 외부 호출을 허용한다. 별도 store 모듈 인스턴스 두 개와 공유 IDB·Chrome 저장소·Web Locks mock으로 활성 제출뿐 아니라 정상 완료 뒤 storage 이벤트 지연까지 검사하고 create 총 1회를 단언한다. 두 저장소 사이 각 종료 경계와 정확한 persist Promise의 pending/reject를 주입한다. journal 삭제 뒤 남은 포인터는 영속 submitted를 draft로 되돌리지 않고 정리한다. 완료 정리는 불필요한 issue 소유 원본까지 포함하되 미완료·공유 참조와 Slack 보존본을 지킨다. 만료된 참조는 보존 권한에서 빼고 다른 owner 때문에 바이트가 남아도 만료 항목의 읽기를 막는다.
+- **관련**: `src/store/issues-store.ts:withIssueSubmitGuard`·`withIssueOperationLock`·`markSubmittedDurably`, `src/store/blob-db.ts:cleanupSubmissionOriginals`·`expireSubmissionRecovery`, `src/sidepanel/lib/submissionRecovery.ts:reconcileSubmissionRecovery`·`confirmSubmissionNotRegistered`, `src/test/web-locks.ts`, `src/sidepanel/lib/__tests__/submissionRecovery.test.ts`. 선행: 2026-09-22 크로스 인스턴스 상태 역행, 2026-10-03 공유 원본 수명.
+
+## 2026-10-03 — 복구 journal의 소유 이슈와 인라인 원본의 공유 수명은 같은 경계가 아니다
+
+- **영역**: `store`, `lib`
+- **계열**: `미검증단언`, `fail-open`
+- **그물**: `unit`
+- **증상**: 첨부 복구 저장소 구현 중 독립 리뷰에서, A의 완료·삭제가 같은 인라인 원본을 사용하는 B의 복구 항목 또는 일반 draft 파일을 지울 수 있음을 발견했다. 배포 전 공유 참조·오래된 정리 호출 회귀 테스트로 고정했다. 별도로 생성 직후 URL 없이 저장한 Slack 목적지에 permalink를 보완하는 정상 체크포인트가 실패했다.
+- **근본 원인**: journal은 issueId로 묶였지만 inlineImages 키는 전역 refId라, 이슈 단위 삭제 권한을 원본의 독점 소유권으로 볼 수 없었다. 명시적 원본 정리 API는 기존 GC의 공유 참조 검사도 우회했고 attemptId를 받지 않아 늦은 이전 시도의 정리가 새 시도의 원본에 닿을 수 있었다. 목적지 비교는 식별자와 늦게 얻는 URL을 통째로 JSON.stringify해 속성 순서와 링크 보완까지 목적지 변경으로 오판했다.
+- **재발 방지**: `rg 'deleteOriginalKeys|purgeRecoveryForIssues|objectStore.*delete' src/store`로 새 직접 삭제 경로가 기존 GC의 참조 보호를 우회하는지 확인한다. issueId·attemptId·완료 파일 소속을 같은 IDB 트랜잭션에서 검증하고 다른 journal·일반 draft·편집 세션의 공유 참조를 함께 보호한다. 조회 실패는 삭제 중단으로 처리하며, 공유 원본·stale cleanup·중간 abort·삭제 거부 뒤 원본 보존을 fake-IDB로 단언한다. 원격 목적지 비교는 platform/key/locator의 의미 값만 고정하고 URL 보완과 속성 순서 변경을 별도 테스트한다.
+- **관련**: `src/store/blob-db.ts:deleteOriginalKeys`·`purgeRecoveryForIssues`·`beginSubmissionRecovery`·`checkpointSubmission`, `src/store/__tests__/blob-db-recovery.test.ts`, `src/store/issues-store.ts:clearIssues`(비동기 정리 중 새 에디터 보존), `src/store/__tests__/issues-store.test.ts`. 선행: 2026-06-30 승격 원본 소실, 2026-09-22 크로스 인스턴스 상태 역행.
+
+## 2026-09-29 — 녹화 상한과 비트레이트는 독립 상수처럼 생겼지만 곱이 제출 한도를 정한다
+
+- **영역**: `미디어`, `lib`
+- **계열**: `미검증단언`, `드리프트`
+- **그물**: `unit`
+- **증상**: 녹화 상한을 60초→2분으로 올리자 **첨부만 빠지는 게 아니라 제출 자체가 실패**했다(`Message exceeded maximum allowed size of 64MiB.`). 별개로, 거의 안 자르는 트림(119/120초)의 결과 파일이 **원본의 1.49배**가 됐다 — 자르는 동작이 파일을 키워서 트림 후에 한도를 넘는 경우까지 생겼다. 그리고 2분 녹화의 중후반을 시작점으로 트림하면 seek이 통째로 타임아웃나 트림이 실패했다.
+- **근본 원인**: `MAX_DURATION_SEC`(video-recorder)과 `videoBitsPerSecond`(MediaRecorder 인자)는 파일도 다르고 각각 자기 WHY 주석을 달고 있어 **독립 상수처럼 보이지만, 제출 페이로드를 정하는 건 그 곱**이다. 게다가 곱한 바이트가 그대로 나가지 않는다 — 제출은 `recording.mp4` 첨부와 **그 영상을 통째로 임베드한 `logs.html`**을 **한 `sendBg`**에 싣고 둘 다 base64라, 전송량이 영상 바이트의 4/3 + (4/3)² = **28/9(~3.11)배**가 된다(`buildCaptureFiles.ts`가 같은 dataUrl을 양쪽에 쓴다). 2Mbps×120초 = 30MB가 93MB가 되는 구조인데, 이 3.11배 인자는 **어느 상수 옆에도 적혀 있지 않았다**. 트림 쪽은 전제가 다르게 깨졌다 — `pickTrimBitrate`의 `observed * 1.5`(재인코딩 손실 보상)는 *"트림은 구간을 줄이는 동작이니 결과가 원본보다 작다"*를 암묵 전제했는데, 거의 안 자르는 트림에서 길이 축이 안 줄어 배율만 남는다. seek 타임아웃은 상한 인상의 파생이다 — MediaRecorder가 낸 WebM엔 Cues 인덱스가 없어 착지가 선형 스캔에 가까운데, 그 seek이 metadata용 10초 시한을 **공유**하고 있었다.
+- **재발 방지**: (1) **상한류 상수를 올리기 전에 "이 값이 다른 값과 곱해져 어떤 한도에 부딪히는가"를 먼저 묻는다** — 독립으로 보이는 상수 2개가 한 한도를 공유하면 개별 리뷰로는 원리적으로 안 잡힌다. 그 곱을 계산하는 모듈(`sidepanel/lib/recordingBudget.ts`)을 단일 출처로 두고 **테스트가 곱을 한도의 80%로 잠그게** 한다 — 어느 한쪽만 올려도 red가 되는 게 핵심이고, 두 상수 옆 주석은 그 모듈을 가리키기만 한다. (2) **한 요청에 같은 데이터가 두 번 실리는 경로를 의심한다** — `grep -n "videoDataUrl" src/sidepanel/lib/buildCaptureFiles.ts`처럼 **같은 dataUrl 변수를 재사용하는 자리**가 그 신호다(재사용은 메모리 최적화지만 전송량은 두 배가 된다). base64 팽창은 중첩되면 4/3이 아니라 (4/3)ⁿ이다. (3) **"줄이는 동작"에 배율 보정을 넣을 때 경계값을 넣어본다** — 전수 대상은 `grep -rn "\* 1\.[0-9]" src/sidepanel/` 류의 보정 계수이고, 확인할 케이스는 *거의 안 줄이는 입력*(`n-1`/`n`)이다. 평균 입력에선 배율이 길이 감소에 가려 안 보인다. (4) **타임아웃 상수를 공유하는 두 대기가 같은 축인지 본다** — metadata 로드와 seek은 둘 다 `<video>` 이벤트지만 소요 시간이 입력 길이에 비례하는 쪽은 seek뿐이다. 길이 상한을 올리면 *길이에 비례하는 대기*만 골라 시한을 다시 본다. (5) **비트레이트는 MediaRecorder에 주는 목표값이지 보장이 아니다** — 계산상 여유가 유닛에서 green이어도 과모션 실녹화는 초과할 수 있다. 80% 마진이 그 몫이고, 실물 1회(`/manual-smoke`)가 유일한 확인 수단이다.
+- **관련**: `src/sidepanel/lib/recordingBudget.ts`(신설 — `MESSAGE_BYTES_LIMIT`·`worstCaseSubmitBytes`), `src/sidepanel/video-recorder.ts`(`MAX_DURATION_SEC`·`VIDEO_BITRATE_BPS` export), `src/sidepanel/30s-replay/trim-math.ts:pickTrimBitrate`, `src/sidepanel/30s-replay/encode-range.ts`(`DEFAULT_SEEK_TIMEOUT_MS` 분리), `src/sidepanel/lib/buildCaptureFiles.ts`(영상 dataUrl 2회 탑재 지점). 그물: `src/sidepanel/lib/__tests__/recordingBudget.test.ts`(곱 × 한도 80% · 트림이 원본 예산을 안 넘음), `src/sidepanel/30s-replay/__tests__/trim-math.test.ts`. 문서: CLAUDE.md "영상" 항목.
+
+## 2026-09-29 — 첨부 업로드 실패는 logs.html만 셌다: 캡처가 빠져도 이슈는 완성된 얼굴로 등록됐다
+
+- **영역**: `어댑터`, `background`, `store`, `컴포넌트`
+- **계열**: `fail-open`, `복제본`
+- **그물**: `unit`
+- **증상**: 스크린샷·영상·붙여넣기 인라인 이미지가 용량 한도로 업로드 실패해도 **아무 신호 없이** 이슈가 등록됐다 — 사용자는 첨부가 다 붙은 이슈로 알고 창을 닫는다. Jira는 한술 더 떠 업로드가 전부 실패하면 본문에 `__BUGSHOT_VIDEO__` 같은 **내부 마커가 리터럴로** 남았다. 별개로, 패널을 닫았다 열면 녹화만 조용히 사라지는 경우가 있었다.
+- **근본 원인**: 셋 다 "실패했는데 실패했다고 말할 자리가 없다"의 다른 얼굴이다. ① 업로드 실패 분기가 `if (!att.userAttachment && att.filename === "logs.html") logsDropped = true`로 **logs.html만 조건에 넣고 else가 없었다** — 캡처 미디어는 분기 자체를 통과하지 못했다. github·gitlab은 캡처 이미지·영상이면 본문 "미첨부 목록"에 이름이라도 남지만 **인라인 이미지는 그 목록에 안 들어가** 치환만 건너뛴 채 `![](inline:ref)` 원문으로 남는다 — 즉 축이 셋인데 하나만 세고 있었다. ② Jira 2차 본문 갱신의 게이트가 `if (uploadMap.size > 0)`였다. "업로드 결과가 있을 때만 본문을 고친다"는 *"결과가 없으면 고칠 게 없다"*로 이어지는데 **실제론 없을 때 고칠 게 가장 많다**(placeholder가 전부 남아 있다). 게다가 영상과 logs.html은 logs.html이 영상을 임베드하는 구조라 **함께 실패**해서 uploadMap이 통째로 비는 건 드문 일이 아니다. ③ `saveVideoBlob`은 blob-db 전 함수가 catch-and-return-false 규약이라 **throw하지 않는다**. 확정 저장 경로는 반환값을 보고 `onBlobSaveFailed`를 쐈는데 pending 미러 2곳(`onRecordingComplete`·`replaceVideo`)은 `void saveVideoBlob(...)`로 버려서 쿼터 실패가 무음이 됐다 — 같은 처방이 한 곳에만 적용된 복제본 형태다. ④ 경고 표시 자체도 컴포넌트 2곳(`IssueTab` 라이브 / `IssueListTab` 저장 draft 재제출)에 복제돼 있어 축을 하나 늘리면 한쪽만 고치기 쉬웠고, 두 축을 토스트 2개로 쪼개면 sonner 기본(`expand=false`)에서 뒤 토스트가 `opacity:0`으로 가려지고 `ui/sonner.tsx`의 **인자 없는 `toast.dismiss()`**가 보이는 쪽을 닫을 때 못 읽은 쪽까지 함께 사라진다.
+- **재발 방지**: (1) **`if (조건) 플래그 = true`에 else가 없으면 "나머지는 정상"을 단언한 것인지 묻는다** — 실패 집계 분기에서 특정 파일명·종류를 조건으로 박았으면 **그 조건 밖의 실패가 어디로 가는지** 답이 있어야 한다. 전수 대상은 `grep -rn "Dropped = true" src/`와 업로드 결과를 Map으로 되받는 자리(`grep -rn "hrefMap\|okByName\|urlMap" src/sidepanel/lib/`). (2) **"결과가 있을 때만 후처리"류 게이트는 결과가 0건인 경우를 따로 본다** — 0건이 *할 일 없음*인지 *가장 할 일 많음*인지는 후처리가 무엇인지에 달렸다. placeholder 치환·정리 작업이면 후자다. 이번 처방은 게이트를 결과 유무가 아니라 **본문에 마커가 남았는지**(`adfHasSentinel`)로 바꾼 것이다. (3) **catch-and-return-false 규약 모듈은 호출부가 반환값을 버리는 곳을 전수로 센다** — `grep -rn "void saveVideoBlob\|void save.*Blob" src/`. throw하지 않는 API는 `void`가 곧 무음이고, typecheck도 테스트도 안 잡는다. (4) **토스트·다이얼로그 같은 표시를 컴포넌트에 남기면 누락이 전 스위트 green으로 통과한다** — 문구 선택만이 아니라 **표시 여부 판단까지** `sidepanel/lib/*`의 헬퍼로 뗀다(`submitBlockedToast`·`llmErrorToast`가 선례). 소비처가 둘 이상이면 이미 복제본이다. (5) **경고를 여러 개 띄울 수 있다고 전제하지 않는다** — 겹침·dismiss 동작은 토스트 라이브러리 설정에 달렸고, 이 저장소는 한 번에 하나만 제대로 읽힌다. 축이 늘면 토스트를 늘리는 게 아니라 **한 토스트에 합친다**.
+- **관련**: `src/sidepanel/lib/prepareUpload.ts`(`mediaDropped` — github·gitlab·webhook 공용), `src/sidepanel/lib/submitTo{Asana,Clickup,Slack,Jira,Github,Gitlab}.ts`, `src/background/messages.ts:submitIssue`·`buildJiraDescriptionContent`, `src/lib/adf-sentinels.ts:adfHasSentinel`(신설), `src/sidepanel/lib/submitDroppedToast.ts`(신설 — 표시 단일 경로), `src/store/editor-store.ts:mirrorPendingVideo`, `src/types/platform.ts:NormalizedSubmitResult.mediaDropped`. 그물: `src/sidepanel/lib/__tests__/{prepareUpload,submitDroppedToast,submitToAsana,submitToClickup,submitToSlack}.test.ts`, `src/lib/__tests__/adf-sentinels.test.ts`, `src/background/__tests__/jiraSubmitIssue.test.ts`, `src/store/__tests__/editor-store.test.ts`. **미해결 잔여**: markdown 플랫폼(github·gitlab·clickup·webhook)의 인라인 이미지는 여전히 본문에 `![](inline:ref)` 원문이 남는다 — 알림 축만 덮었고 본문 축은 Jira(ADF)만 치환된다.
+
 ## 2026-09-22 — zustand persist는 인스턴스가 하나라고 전제한다: 두 번째 사이드패널이 제출된 이슈를 Draft로 되돌려 중복 티켓
 
 - **영역**: `store`

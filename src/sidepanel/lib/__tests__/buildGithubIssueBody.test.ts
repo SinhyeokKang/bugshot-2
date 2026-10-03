@@ -114,7 +114,7 @@ describe("buildGithubIssueBody — 첨부 안내", () => {
       logs: [{ filename: "logs.html", contentType: "text/html" }],
     };
     const out = buildGithubIssueBody(input);
-    expect(out.body).toContain("logSummary.logs.detail file=logs.html");
+    expect(out.body).toContain("logs.html: md.attachmentDropped");
   });
 
   it("안내 문구는 첨부 섹션당 1회만 (모든 항목마다 반복 X)", () => {

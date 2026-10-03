@@ -35,6 +35,7 @@ export interface LogSummaryContext {
   // forClipboard와 합치지 않는 건 문구 때문이다: "복사되지 않습니다"는 여기서 거짓이고,
   // 이 경로엔 "제출하면 첨부된다"는 후속 약속도 없다. 리드 문장 자체를 생략한다.
   logsNotAttached?: boolean;
+  logsDeliveryConfirmed?: boolean;
 }
 
 export function sectionLabel(section: IssueSection): string {
@@ -69,6 +70,8 @@ export function emitMarkdownLogSummary(
     // 복사본에 없는 파일을 가리키지 않는다. logsHref가 와도 링크를 만들지 않는 게 중요하다 —
     // 호출부가 축과 href를 함께 넘기는 실수를 해도 거짓 링크가 새지 않아야 한다.
     lines.push(`**${t("logSummary.logs.notCopied")}**`, "");
+  } else if (!logsHref && !ctx.logsDeliveryConfirmed) {
+    lines.push(`logs.html: ${t("md.attachmentDropped")}`, "");
   } else {
     const file = logsHref ? `[logs.html](${logsHref})` : "logs.html";
     lines.push(`**${t("logSummary.logs.lead")}** ${t("logSummary.logs.detail", { file })}`, "");

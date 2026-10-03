@@ -1,7 +1,8 @@
+import { preparedInput, echoFileIds, expectFileOutcome } from "@/test/submission-fixture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
-vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: async (...a: unknown[]) => echoFileIds(a[0], await sendBg(...a)) }));
 
 const buildGitlabBody = vi.fn((_input: unknown) => ({ body: "see OLD_URL in logs" }));
 vi.mock("../buildGitlabIssueBody", () => ({
@@ -97,11 +98,11 @@ describe("submitToGitlab 역링크 보강", () => {
     );
     injectIssueUrl.mockResolvedValue("data:LOGSHTML+url");
 
-    const res = await submitToGitlab({
+    const res = await submitToGitlab(preparedInput({
       ctx: makeCtx(),
       projectId: 7,
       logs: [{ filename: "logs.html", dataUrl: "data:LOGSHTML" }],
-    });
+    }));
 
     // 순서: 업로드 → 생성 → 재업로드 → description 갱신
     const types = sendBg.mock.calls.map(([m]) => m.type);
@@ -122,7 +123,9 @@ describe("submitToGitlab 역링크 보강", () => {
     expect(updateCall.description).toBe("see NEW_URL in logs");
     expect(updateCall.iid).toBe(42);
 
-    expect(res).toEqual({ key: "#42", url: ISSUE.url, logsDropped: false, mediaDropped: false });
+    expect(res).toMatchObject({ key: "#42", url: ISSUE.url,  });
+    expectFileOutcome(res, "logs", false);
+    expectFileOutcome(res, "media", false);
   });
 
   it("보강(주입/재업로드) 실패는 격리 — 이슈는 생성되고 결과 반환", async () => {
@@ -134,18 +137,20 @@ describe("submitToGitlab 역링크 보강", () => {
     });
     injectIssueUrl.mockRejectedValue(new Error("inject failed"));
 
-    const res = await submitToGitlab({
+    const res = await submitToGitlab(preparedInput({
       ctx: makeCtx(),
       projectId: 7,
       logs: [{ filename: "logs.html", dataUrl: "data:LOGSHTML" }],
-    });
+    }));
 
     expect(
       sendBg.mock.calls.some(
         ([m]) => m.type === "gitlab.updateIssueDescription",
       ),
     ).toBe(false);
-    expect(res).toEqual({ key: "#42", url: ISSUE.url, logsDropped: false, mediaDropped: false });
+    expect(res).toMatchObject({ key: "#42", url: ISSUE.url,  });
+    expectFileOutcome(res, "logs", false);
+    expectFileOutcome(res, "media", false);
   });
 });
 
@@ -206,15 +211,15 @@ describe("submitToGitlab requireMediaUpload (승격 보호)", () => {
       return undefined;
     });
 
-    const res = await submitToGitlab({
+    const res = await submitToGitlab(preparedInput({
       ctx: makeCtx(),
       projectId: 7,
       images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       requireMediaUpload: true,
-    });
+    }));
 
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "logs", true);
     expect(submitCallCount()).toBe(1);
   });
 
@@ -237,8 +242,8 @@ describe("submitToGitlab requireMediaUpload (승격 보호)", () => {
   });
 });
 
-describe("submitToGitlab logsDropped", () => {
-  it("logs.html 업로드가 null(용량 초과)이면 logsDropped: true", async () => {
+describe("submitToGitlab log attachment outcomes", () => {
+  it("logs.html 업로드가 null(용량 초과)이면 logs 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
         return [{ ok: false, filename: "logs.html" }];
@@ -246,21 +251,21 @@ describe("submitToGitlab logsDropped", () => {
       return undefined;
     });
 
-    const res = await submitToGitlab({
+    const res = await submitToGitlab(preparedInput({
       ctx: makeCtx(),
       projectId: 7,
       logs: [{ filename: "logs.html", dataUrl: "data:LOGSHTML" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "logs", true);
     // 업로드 실패 시 역링크 보강(재업로드)도 시도하지 않음.
     expect(
       sendBg.mock.calls.filter(([m]) => m.type === "gitlab.uploadFiles").length,
     ).toBe(1);
   });
 
-  // 실패 케이스가 mediaDropped를 안 보면 반환을 false로 고정해도 구별이 안 된다.
-  it("캡처 이미지 업로드가 실패하면 mediaDropped: true", async () => {
+  // 실패 파일의 결과를 직접 검사해 성공으로 고정한 반환을 잡는다.
+  it("캡처 이미지 업로드가 실패하면 미디어 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
         return [{ ok: false, filename: "shot.webp" }];
@@ -268,16 +273,16 @@ describe("submitToGitlab logsDropped", () => {
       return undefined;
     });
 
-    const res = await submitToGitlab({
+    const res = await submitToGitlab(preparedInput({
       ctx: makeCtx(),
       projectId: 1,
       images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(true);
+    expectFileOutcome(res, "media", true);
   });
 
-  it("logs.html 업로드 성공이면 logsDropped: false", async () => {
+  it("logs.html 업로드 성공이면 logs 파일 완료 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
         return [{ ok: true, filename: "logs.html", href: "OK_URL" }];
@@ -286,13 +291,13 @@ describe("submitToGitlab logsDropped", () => {
     });
     injectIssueUrl.mockResolvedValue("data:aug");
 
-    const res = await submitToGitlab({
+    const res = await submitToGitlab(preparedInput({
       ctx: makeCtx(),
       projectId: 7,
       logs: [{ filename: "logs.html", dataUrl: "data:LOGSHTML" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(false);
+    expectFileOutcome(res, "logs", false);
   });
 });
 
@@ -308,14 +313,14 @@ describe("submitToGitlab 업로드 판별자", () => {
       return undefined;
     });
 
-    const res = await submitToGitlab({
+    const res = await submitToGitlab(preparedInput({
       ctx: makeCtx(),
       projectId: 7,
       images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(false);
+    expectFileOutcome(res, "logs", false);
     // 값 축 — 성공분 href가 본문 조립까지 도달하고 실패분은 url 없이 넘어간다.
     const arg = buildGitlabBody.mock.calls.at(-1)?.[0] as {
       logs?: Array<{ filename: string; url?: string | null }>;
@@ -350,15 +355,17 @@ describe("submitToGitlab — 2차 본문 갱신 실패 (전수 표 gitlab 행)",
     });
     injectIssueUrl.mockResolvedValue("data:LOGSHTML+url");
 
-    const res = await submitToGitlab({
+    const res = await submitToGitlab(preparedInput({
       ctx: makeCtx(),
       projectId: 7,
       images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGSHTML" }],
-    });
+    }));
 
     // ①② 완전 성공 경로와 동일한 반환값.
-    expect(res).toEqual({ key: "#42", url: ISSUE.url, logsDropped: false, mediaDropped: false });
+    expect(res).toMatchObject({ key: "#42", url: ISSUE.url,  });
+    expectFileOutcome(res, "logs", false);
+    expectFileOutcome(res, "media", false);
     // ③ 업로드·생성·재업로드는 그대로 — 마지막 write만 무음으로 떨어진다.
     expect(sendBg.mock.calls.map(([m]) => m.type)).toEqual([
       "gitlab.uploadFiles",

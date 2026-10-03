@@ -109,7 +109,7 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
   const { networkLogSummary: net, consoleLogSummary: con, actionLogCaptured: act } = ctx;
   if (!net && !con && !act) return;
   lines.push(`*${t("logSummary.title")}*`, "");
-  lines.push(`*${t("logSummary.logs.lead")}* ${t("logSummary.logs.detail", { file: "logs.html" })}`, "");
+
   if (net) {
     lines.push(
       networkErrorCount(net) > 0

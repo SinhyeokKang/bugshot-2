@@ -425,8 +425,8 @@ describe("buildLinearIssueBody — action 로그 단독 (video, net/con 없음)"
     });
     expect(out.body).toContain("logSummary.action.line n=7");
     // 평문 logs.html 유지 → 사후 injectLogsMarkdownLink가 링크로 치환.
-    expect(out.body).toContain("logSummary.logs.detail file=logs.html");
-    expect(out.body).toContain("**logSummary.logs.lead**");
+    expect(out.body).toContain("logs.html: md.attachmentDropped");
+    expect(out.body).toContain("md.attachmentDropped");
     expect(out.body).not.toContain("_logSummary.logs.detail");
   });
 });

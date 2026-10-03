@@ -1,3 +1,4 @@
+import { MissingSubmissionFilesError } from "@/types/attachment";
 import { getInlineImage, blobToDataUrl } from "@/store/blob-db";
 import { INLINE_REF_RE } from "@/lib/inline-ref";
 
@@ -26,6 +27,9 @@ export function replaceInlineRefs(
 }
 
 export interface InlineImageInput {
+  fileId?: string;
+  filename?: string;
+  contentType?: string;
   refId: string;
   dataUrl: string;
 }
@@ -50,7 +54,7 @@ export async function resolveInlineImagesForSections(
   await Promise.all(
     refIds.map(async (refId) => {
       const blob = await getInlineImage(refId);
-      if (!blob) return;
+      if (!blob) throw new MissingSubmissionFilesError([`inline:${refId}`]);
       const dataUrl = await blobToDataUrl(blob);
       results.push({ refId, dataUrl });
     }),

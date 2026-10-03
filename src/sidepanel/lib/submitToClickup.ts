@@ -1,3 +1,5 @@
+import { safeAttachmentFailure } from "@/lib/attachment-failure";
+import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
 import type { UploadFileResult } from "@/types/messages";
 import {
   buildClickupIssueBody,
@@ -14,13 +16,15 @@ import { injectIssueUrl } from "@/lib/inject-issue-url";
 export type { NormalizedSubmitResult } from "@/types/platform";
 
 export interface ClickupFileInput {
+  fileId?: string;
+  contentType?: string;
   filename: string;
   dataUrl: string;
   // 사용자 첨부: 업로드 식별용 filename(고유)과 본문 표시명(원본) 분리.
   displayName?: string;
 }
 
-export interface ClickupSubmitInput {
+export interface ClickupSubmitInput extends SubmissionAdapterInput {
   ctx: import("./buildIssueMarkdown").MarkdownContext;
   images?: ClickupFileInput[];
   video?: ClickupFileInput;
@@ -35,6 +39,7 @@ export interface ClickupSubmitInput {
 export async function submitToClickup(
   input: ClickupSubmitInput,
 ): Promise<NormalizedSubmitResult> {
+  input = bindSubmissionFiles(input);
   const imageInputs = input.images ?? [];
   const logs = input.logs ?? [];
   const userAttachments = input.attachments ?? [];
@@ -58,7 +63,7 @@ export async function submitToClickup(
     return {
       filename: f.filename,
       contentType: guessUploadMime(f.filename),
-      url: urlMap?.get(f.filename) ?? undefined,
+      url: urlMap?.get(f.fileId ?? f.filename) ?? undefined,
     };
   }
 
@@ -75,7 +80,7 @@ export async function submitToClickup(
     }).body;
 
   const body1 = buildBody(input.ctx);
-  const task = await sendBg<ClickupCreateTaskResult>({
+  const task = await submitCreation(input.progress, () => sendBg<ClickupCreateTaskResult>({
     type: "clickup.submitIssue",
     payload: {
       listId: input.listId,
@@ -83,15 +88,16 @@ export async function submitToClickup(
       markdownContent: body1,
       assignees: input.assigneeId ? [input.assigneeId] : undefined,
     },
-  });
+  }));
+  await input.progress?.created({ platform: "clickup", key: task.id, url: task.url, locator: { taskId: task.id } });
 
-  let logsDropped = false;
-  let mediaDropped = false;
+  let responses: UploadFileResult[] = [];
+  let bodyFailed = false;
   if (allFiles.length > 0) {
     // task URL을 이미 알고 있으니 logs.html에 백링크를 미리 주입해 1회 업로드로 끝낸다.
     const uploadFiles = await Promise.all(
       allFiles.map(async (f) =>
-        f.filename === "logs.html"
+        !input.submissionFiles && f.filename === "logs.html"
           ? { ...f, dataUrl: await injectIssueUrl(f.dataUrl, task.url, task.id) }
           : f,
       ),
@@ -101,20 +107,17 @@ export async function submitToClickup(
       type: "clickup.uploadFile",
       taskId: task.id,
       files: uploadFiles.map(toUploadEntry),
-    });
+    }).catch((error) => allFiles.map((f) => ({ fileId: f.fileId, filename: f.filename, ok: false as const, failure: safeAttachmentFailure(error) })));
 
-    const urlMap = new Map(results.map((r) => [r.filename, r.ok ? r.href : null]));
-    logsDropped = logs.some((l) => !urlMap.get(l.filename));
-    mediaDropped = [...imageInputs, ...(input.video ? [input.video] : []), ...inlineFiles].some(
-      (f) => !urlMap.get(f.filename),
-    );
+    responses = results;
+    const urlMap = new Map(allFiles.map((f) => { const found = results.filter((r) => f.fileId ? r.fileId === f.fileId : r.filename === f.filename); const r = found.length === 1 ? found[0] : undefined; return [f.fileId ?? f.filename, r?.ok ? r.href : null]; }));
 
     // 본문 붙여넣기 인라인 이미지: 업로드 URL로 본문 src(`inline:refId`)를 치환.
     let resolvedCtx = input.ctx;
     if (inlineFiles.length > 0) {
       const refToUrl = new Map<string, string>();
       for (const f of inlineFiles) {
-        const url = urlMap.get(f.filename);
+        const url = urlMap.get(f.fileId ?? f.filename);
         if (url) refToUrl.set(f.refId, url);
       }
       if (refToUrl.size > 0) {
@@ -140,10 +143,11 @@ export async function submitToClickup(
           markdownContent: body2,
         });
       } catch {
+        bodyFailed = true;
         // 본문 갱신 실패해도 task·첨부는 보존 (이미지는 task 첨부로 남음).
       }
     }
   }
 
-  return { key: task.id, url: task.url, logsDropped, mediaDropped };
+  return { key: task.id, url: task.url, attachments: deliveryResults(input.submissionFiles ?? [], responses.map((r) => ({ ...r, href: r.ok ? r.href : undefined })), bodyFailed) };
 }

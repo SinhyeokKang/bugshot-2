@@ -117,6 +117,7 @@ export interface JiraCreateIssueResult {
 }
 
 export interface JiraAttachmentInput {
+  fileId?: string;
   filename: string;
   dataUrl: string;
   width?: number;
@@ -129,18 +130,14 @@ export interface JiraAttachmentInput {
 }
 
 export interface JiraAttachmentResult {
+  fileId?: string;
   id: string;
   filename: string;
   content?: string;
   mediaApiFileId?: string;
 }
 
-export interface JiraSubmitResult {
-  key: string;
-  url: string;
-  logsDropped?: boolean;
-  mediaDropped?: boolean;
-}
+
 
 export interface JiraIssueStatus {
   name: string;

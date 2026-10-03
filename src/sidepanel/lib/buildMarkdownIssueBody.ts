@@ -1,3 +1,4 @@
+import { INLINE_REF_RE } from "@/lib/inline-ref";
 import { t, withLocale } from "@/i18n";
 import { escapeTableCell as escapeCell } from "./markdownCell";
 import { bodyBlocks } from "./bodyBlocks";
@@ -129,7 +130,7 @@ function buildMarkdownIssueBodyInner(
       continue;
     }
     const section = block.section;
-    const content = ctx.sections[section.id] ?? "";
+    const content = (ctx.sections[section.id] ?? "").replace(INLINE_REF_RE, () => t("md.attachmentDropped"));
     lines.push(`## ${sectionLabel(section)}`, "");
     if (section.renderAs === "orderedList") {
       const items = listItems(content);

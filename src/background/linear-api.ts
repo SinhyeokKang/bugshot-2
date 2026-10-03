@@ -331,7 +331,7 @@ export async function updateIssueDescription(
   issueId: string,
   description: string,
 ): Promise<void> {
-  await linearGraphQL<{ issueUpdate: { success: boolean } }>(
+  const result = await linearGraphQL<{ issueUpdate: { success: boolean } }>(
     auth,
     `mutation($id: String!, $description: String!) {
       issueUpdate(id: $id, input: { description: $description }) {
@@ -340,6 +340,7 @@ export async function updateIssueDescription(
     }`,
     { id: issueId, description },
   );
+  if (result.issueUpdate?.success !== true) throw new Error("Linear description update was not acknowledged");
 }
 
 export async function requestFileUpload(
@@ -406,7 +407,7 @@ export async function createAttachment(
   title: string,
   url: string,
 ): Promise<void> {
-  await linearGraphQL(
+  const result = await linearGraphQL<{ attachmentCreate: { success: boolean } }>(
     auth,
     `mutation($input: AttachmentCreateInput!) {
       attachmentCreate(input: $input) {
@@ -415,4 +416,5 @@ export async function createAttachment(
     }`,
     { input: { issueId, title, url } },
   );
+  if (result.attachmentCreate?.success !== true) throw new Error("Linear attachment was not acknowledged");
 }

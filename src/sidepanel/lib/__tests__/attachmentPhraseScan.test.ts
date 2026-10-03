@@ -36,7 +36,6 @@ const SUBMIT_ONLY_EXEMPT = [
   "src/sidepanel/lib/buildIssueAdf.ts",
   "src/sidepanel/lib/buildNotionIssueBody.ts",
   "src/sidepanel/lib/buildLinearIssueBody.ts",
-  "src/sidepanel/lib/buildSlackBody.ts",
 ] as const;
 
 // 사전 정의 파일은 키의 출처라 대상이 아니다.

@@ -1,0 +1,23 @@
+import { afterEach, expect, it, vi } from "vitest";
+import type { SubmissionRecoveryMeta } from "@/types/attachment";
+const { read } = vi.hoisted(() => ({ read: vi.fn() }));
+vi.mock("@/store/blob-db", () => ({ readRecoveryFile: read }));
+import { downloadRecoveryFile } from "../attachmentRecovery";
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+it("passes frozen ZIP bytes and the stored name through the actual browser download helper", async () => {
+  const blob = new Blob([new Uint8Array([80, 75, 3, 4])], { type: "application/zip" });
+  read.mockResolvedValue(blob);
+  const create = vi.fn((_blob: Blob) => "blob:recovery");
+  const revoke = vi.fn();
+  vi.stubGlobal("URL", { createObjectURL: create, revokeObjectURL: revoke });
+  const clicked: Array<{ name: string; href: string }> = [];
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) { clicked.push({ name: this.download, href: this.href }); });
+  const meta: SubmissionRecoveryMeta = { issueId: "i", attemptId: "a", title: "Report", platform: "notion", phase: "partial", createdAt: 1, updatedAt: 1, expiresAt: Date.now() + 10000, destination: { platform: "notion", key: "N", locator: { pageId: "page" } }, results: [{ fileId: "logs", delivery: "failed", presentation: "failed" }], files: [{ id: "logs", kind: "logs", filename: "logs.zip", contentType: "application/zip", source: { kind: "generated", key: "file:a:logs" } }] };
+  expect(await downloadRecoveryFile(meta, "logs")).toBe(true);
+  expect(clicked).toEqual([{ name: "logs.zip", href: "blob:recovery" }]);
+  expect(create).toHaveBeenCalledWith(blob);
+  const bytes = await new Promise<ArrayBuffer>((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result as ArrayBuffer); reader.readAsArrayBuffer(create.mock.calls[0][0]); });
+  expect(new Uint8Array(bytes)).toEqual(new Uint8Array([80, 75, 3, 4]));
+  expect(revoke).toHaveBeenCalledWith("blob:recovery");
+  expect(meta.results[0].delivery).toBe("failed");
+});

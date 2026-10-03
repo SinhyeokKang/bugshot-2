@@ -674,3 +674,14 @@ describe("createAttachment", () => {
     expect(sent.query).toContain("attachmentCreate(input: $input)");
   });
 });
+
+describe("mutation result acknowledgements", () => {
+  it("rejects attachmentCreate success:false", async () => {
+    mf = mockFetchOnce({ body: { data: { attachmentCreate: { success: false } } } });
+    await expect(createAttachment(AUTH, "issue", "file", "https://example.com/file")).rejects.toThrow();
+  });
+  it("rejects issueUpdate success:false", async () => {
+    mf = mockFetchOnce({ body: { data: { issueUpdate: { success: false } } } });
+    await expect(updateIssueDescription(AUTH, "issue", "body")).rejects.toThrow();
+  });
+});

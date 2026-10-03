@@ -1,8 +1,7 @@
+import { toast } from "sonner";
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { Inbox, Loader2, Search, SearchX, X } from "lucide-react";
-import { toastSubmitDropped } from "@/sidepanel/lib/submitDroppedToast";
 import { useT } from "@/i18n";
-import { PLATFORM_TAB_KEYS } from "@/types/platform";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +43,7 @@ export function IssueListTab() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pendingRef = useRef(0);
+  const recoveryTrigger = useRef<HTMLButtonElement | null>(null);
   const [successResult, setSuccessResult] = useState<NormalizedSubmitResult | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -51,7 +51,7 @@ export function IssueListTab() {
   const displayable = useMemo(
     () =>
       issues.filter(
-        (i) => i.status === "submitted" || !!i.selectionSnapshot || i.captureMode === "screenshot" || i.captureMode === "video" || i.captureMode === "freeform",
+        (i) => !!i.submissionRecoveryId || i.status === "submitted" || !!i.selectionSnapshot || i.captureMode === "screenshot" || i.captureMode === "video" || i.captureMode === "freeform",
       ),
     [issues],
   );
@@ -114,7 +114,7 @@ export function IssueListTab() {
             <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
               <TabsList className="h-9">
                 <TabsTrigger value="all" data-testid="filter-all">{t("issueList.filter.all")}</TabsTrigger>
-                <TabsTrigger value="submitted" data-testid="filter-submitted">{t("issueList.filter.submitted")}</TabsTrigger>
+                <TabsTrigger value="submitted" data-testid="filter-submitted">{t("issueList.filter.submitted")}{displayable.some((i) => i.submissionRecoveryId) && <span className="ml-1" aria-label={t("recovery.needsAttention")}>({displayable.filter((i) => i.submissionRecoveryId).length})</span>}</TabsTrigger>
                 <TabsTrigger value="draft" data-testid="filter-draft">{t("issueList.filter.draft")}</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -168,7 +168,8 @@ export function IssueListTab() {
                   <IssueRow
                     issue={issue}
                     refreshKey={refreshKey}
-                    onOpenDraft={() => {
+                    onOpenDraft={(trigger) => {
+                      recoveryTrigger.current = trigger ?? null;
                       setDraftId(issue.id);
                       setAutoSubmit(false);
                     }}
@@ -203,7 +204,7 @@ export function IssueListTab() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-                  <AlertDialogAction onClick={clearIssues}>
+                  <AlertDialogAction onClick={() => { void clearIssues().catch(() => toast.error(t("bg.error.unknown"))); }}>
                     {t("issueList.deleteAll")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -231,17 +232,15 @@ export function IssueListTab() {
         issue={activeDraft}
         open={!!activeDraft}
         autoOpenSubmit={autoSubmit}
+        onRecoveryCloseAutoFocus={() => recoveryTrigger.current?.focus()}
         onOpenChange={(v) => {
           if (!v) {
+            setRefreshKey((n) => n + 1);
             setDraftId(null);
             setAutoSubmit(false);
           }
         }}
         onSubmitSuccess={(result) => {
-          // 라이브 흐름(IssueTab SubmitSuccessPanel)과 같은 헬퍼 — 로그·캡처 2축을 한 토스트로.
-          if (activeDraft?.platform) {
-            toastSubmitDropped(result, t(PLATFORM_TAB_KEYS[activeDraft.platform]), t);
-          }
           setDraftId(null);
           setAutoSubmit(false);
           setSuccessResult(result);

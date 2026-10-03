@@ -55,3 +55,15 @@ Capture works on regular web pages (`http`, `https`) and local files (`file`). I
 ### Where is my data stored?
 
 What you capture, your in-progress drafts, and your settings all stay **only inside your browser (locally)** until you submit an issue. Issues are sent solely to the platforms you've connected yourself, and only at the moment you submit. Those connections happen only through official OAuth or a token you enter — so you can use it with no privacy worries, with peace of mind.
+
+### Why does it say the issue was registered but an attachment failed?
+
+Issue creation and file delivery can finish separately. Open **Attachments need attention**, check each file, and download a saved copy to attach to the existing issue yourself. A file may have uploaded without being linked to the issue or its body, so check the destination before resubmitting the whole issue. If the cause cannot be verified, BugShot says so rather than guessing.
+
+### How long are recovery files kept?
+
+They stay in your browser for 30 days from the submission attempt and are cleaned up when you open the side panel after expiry. **Local file unavailable** means the copy expired or is no longer in browser storage, so it cannot be downloaded. You can also choose **Delete local copies** earlier; the remote issue and attachments stay unchanged. Originals shared with another draft or preserved for Slack promotion may remain.
+
+### What if registration could not be confirmed?
+
+A lost response can leave registration uncertain, so BugShot blocks resubmission to prevent duplicates. Check that the issue does not exist at the destination before choosing **Confirm not registered**. Deleting local files alone does not lift this block. See [Issue Tracking](integrations/issue-tracking.md) for the steps.

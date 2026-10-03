@@ -1,17 +1,32 @@
-import { ArrowUpRight, CircleCheck } from "lucide-react";
+import type { NormalizedSubmitResult } from "@/types/platform";
+import { recoveryScreen } from "@/sidepanel/lib/attachmentRecovery";
+import { AttachmentRecoveryPanel } from "./AttachmentRecoveryPanel";
+import { ArrowUpRight, CircleCheck, CircleAlert } from "lucide-react";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
-import { PageShell } from "@/sidepanel/components/Section";
+import { PageFooter, PageScroll, PageShell } from "@/sidepanel/components/Section";
 import { STORE_REVIEW_URL } from "@/lib/external-links";
 
 export function SubmitSuccessView({
   result,
   onClose,
 }: {
-  result: { key: string; url: string };
+  result: NormalizedSubmitResult;
   onClose: () => void;
 }) {
   const t = useT();
+  const state = recoveryScreen(result);
+  const count = (result.attachments ?? []).filter((r) => r.delivery !== "attached" || r.presentation === "failed").length;
+  if (state !== "success") return <PageShell data-testid={`submit-success-${state}`}>
+    <PageScroll contentClassName="gap-4 p-4">
+      <CircleAlert className="h-6 w-6 text-amber-700 dark:text-amber-400" />
+      <h3 className="text-lg font-semibold">{t(state === "unknown" ? "recovery.unknownTitle" : count ? "recovery.partialTitle" : "recovery.createdTitle", { n: count })}</h3>
+      {result.recovery?.storageFailed && <p className="text-sm">{t(state === "unknown" ? "recovery.error" : "recovery.storageFailed")}</p>}
+      {result.url && <Button asChild variant="outline"><a href={result.url} target="_blank" rel="noopener noreferrer">{result.key || t("recovery.openIssue")}<ArrowUpRight /></a></Button>}
+      {result.recovery && <AttachmentRecoveryPanel key={result.recovery.attemptId} issueId={result.recovery.issueId} attemptId={result.recovery.attemptId} />}
+    </PageScroll>
+    <PageFooter><Button onClick={onClose}>{t("common.ok")}</Button></PageFooter>
+  </PageShell>;
   return (
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">

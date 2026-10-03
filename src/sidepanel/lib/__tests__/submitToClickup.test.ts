@@ -1,8 +1,9 @@
+import { preparedInput, echoFileIds, expectFileOutcome } from "@/test/submission-fixture";
 import type { UploadFileResult } from "@/types/messages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendBg = vi.fn();
-vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
+vi.mock("@/lib/bg-client", () => ({ sendBg: async (...a: unknown[]) => echoFileIds(a[0], await sendBg(...a)) }));
 
 // url이 채워지면 다른 본문을 반환 → 2차 갱신(updateTaskMarkdown) 트리거 검증용.
 const buildBody = vi.fn(
@@ -83,11 +84,11 @@ describe("submitToClickup 제출 순서", () => {
       return undefined;
     });
 
-    const res = await submitToClickup({
+    const res = await submitToClickup(preparedInput({
       ctx: makeCtx(),
       images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
       listId: "l1",
-    });
+    }));
 
     const types = sendBg.mock.calls.map(([m]) => m.type);
     expect(types).toEqual([
@@ -103,7 +104,9 @@ describe("submitToClickup 제출 순서", () => {
     const update = sendBg.mock.calls.find(([m]) => m.type === "clickup.updateTaskMarkdown")![0];
     expect(update.markdownContent).toBe("WITH_URL");
 
-    expect(res).toEqual({ key: "t1", url: TASK.url, logsDropped: false, mediaDropped: false });
+    expect(res).toMatchObject({ key: "t1", url: TASK.url,  });
+    expectFileOutcome(res, "logs", false);
+    expectFileOutcome(res, "media", false);
   });
 
   it("첨부가 없으면 업로드·2차 갱신을 건너뛴다", async () => {
@@ -118,8 +121,8 @@ describe("submitToClickup 제출 순서", () => {
   });
 });
 
-describe("submitToClickup logsDropped", () => {
-  it("logs.html 업로드가 null이면 logsDropped: true", async () => {
+describe("submitToClickup log attachment outcomes", () => {
+  it("logs.html 업로드가 null이면 logs 파일 실패 결과", async () => {
     injectIssueUrl.mockResolvedValue("data:aug");
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "clickup.submitIssue") return TASK;
@@ -128,13 +131,13 @@ describe("submitToClickup logsDropped", () => {
       return undefined;
     });
 
-    const res = await submitToClickup({
+    const res = await submitToClickup(preparedInput({
       ctx: makeCtx(),
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       listId: "l1",
-    });
+    }));
 
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "logs", true);
   });
 });
 
@@ -196,14 +199,14 @@ describe("submitToClickup 업로드 판별자", () => {
       return undefined;
     });
 
-    const res = await submitToClickup({
+    const res = await submitToClickup(preparedInput({
       ctx: makeCtx(),
       listId: "l1",
       images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
-    expect(res.logsDropped).toBe(false);
+    expectFileOutcome(res, "logs", false);
     // 값 축 — 성공분 href가 본문 조립까지 도달하고 실패분은 url 없이 넘어간다.
     const arg = buildBody.mock.calls.at(-1)?.[0] as {
       logs?: Array<{ filename: string; url?: string | null }>;
@@ -231,7 +234,7 @@ describe("submitToClickup 업로드 판별자", () => {
 //
 // 각 행이 잠그는 계약 3개:
 //   ① 2차 갱신이 reject해도 제출이 reject되지 않는다
-//   ② 반환값(key·url·logsDropped)이 완전 성공 경로와 동일하다
+//   ② 생성된 목적지(key·url)가 첨부 실패에도 유지된다
 //   ③ 1차 생성과 첨부 업로드는 그대로 남는다(첨부 보존)
 //
 // **정직성은 이 표의 범위가 아니다.** clickup의 bare `catch {}`는 rethrow·플래그·로그가 없어
@@ -255,15 +258,17 @@ describe("submitToClickup — 2차 본문 갱신 실패 (전수 표 clickup 행)
       return undefined;
     });
 
-    const res = await submitToClickup({
+    const res = await submitToClickup(preparedInput({
       ctx: makeCtx(),
       listId: "l1",
       images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-    });
+    }));
 
     // ①② 완전 성공 경로와 동일한 반환값 — 여기가 위 "정직성" 주석이 가리키는 지점이다.
-    expect(res).toEqual({ key: "t1", url: TASK.url, logsDropped: false, mediaDropped: false });
+    expect(res).toMatchObject({ key: "t1", url: TASK.url,  });
+    expectFileOutcome(res, "logs", false);
+    expectFileOutcome(res, "media", false);
     // ③ 생성·업로드는 그대로, 2차 갱신을 시도했다는 사실까지 고정.
     expect(sendBg.mock.calls.map(([m]) => m.type)).toEqual([
       "clickup.submitIssue",
@@ -278,10 +283,10 @@ describe("submitToClickup — 2차 본문 갱신 실패 (전수 표 clickup 행)
   });
 });
 
-describe("submitToClickup — mediaDropped", () => {
+describe("submitToClickup — media attachment outcomes", () => {
   const TASK2 = { id: "t1", url: "https://app.clickup.com/t/t1" };
 
-  it("영상 업로드가 실패하면 mediaDropped: true", async () => {
+  it("영상 업로드가 실패하면 미디어 파일 실패 결과", async () => {
     injectIssueUrl.mockResolvedValue("data:aug");
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "clickup.submitIssue") return TASK2;
@@ -289,16 +294,16 @@ describe("submitToClickup — mediaDropped", () => {
       return undefined;
     });
 
-    const res = await submitToClickup({
+    const res = await submitToClickup(preparedInput({
       ctx: makeCtx(),
       video: { filename: "recording.mp4", dataUrl: "data:VIDEO" },
       listId: "l1",
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(true);
+    expectFileOutcome(res, "media", true);
   });
 
-  it("logs.html만 실패하면 mediaDropped는 false로 남는다", async () => {
+  it("logs.html만 실패하면 미디어 파일 완료 상태를 유지한다", async () => {
     injectIssueUrl.mockResolvedValue("data:aug");
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "clickup.submitIssue") return TASK2;
@@ -310,14 +315,14 @@ describe("submitToClickup — mediaDropped", () => {
       return undefined;
     });
 
-    const res = await submitToClickup({
+    const res = await submitToClickup(preparedInput({
       ctx: makeCtx(),
       images: [{ filename: "screenshot.webp", dataUrl: "data:IMG" }],
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
       listId: "l1",
-    });
+    }));
 
-    expect(res.mediaDropped).toBe(false);
-    expect(res.logsDropped).toBe(true);
+    expectFileOutcome(res, "media", false);
+    expectFileOutcome(res, "logs", true);
   });
 });

@@ -1,0 +1,94 @@
+---
+name: "source-command-push"
+description: "원격 푸시 전 상태 점검 + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.{md,ko.md}/docs/PERMISSION.md/docs/privacy.{ko,en}.md/docs/CI.md/guide/ 신선도 확인 + Codex 미러 게이트 + 푸시"
+---
+
+# source-command-push
+
+Use this skill when the user asks to run the migrated source command `push`.
+
+## Command Template
+
+원격(`origin`)에 현재 브랜치를 안전하게 푸시한다. 푸시 전에 저장소 문서의 신선도를 점검하고 필요시 업데이트까지 커밋한다.
+
+## 절차
+
+0. **브랜치 가드** — `git branch --show-current`로 현재 브랜치 확인. `main`이면 즉시 중단하고 안내:
+   > main은 브랜치 프로텍션으로 직접 push가 막혀 있습니다. 작업 변경은 `/merge`로 PR 흐름을 타고, 배포 커밋(버전 범프 + tag)은 `/deploy`에서 처리하세요.
+
+1. **상태 점검 (병렬 실행)**
+   - `git status` — 미커밋 변경 확인
+   - `git log @{u}..HEAD --oneline` — 푸시될 커밋 목록
+   - `git log -1 --stat` — 마지막 커밋 규모
+   - 현재 브랜치: `git branch --show-current`
+
+2. **미커밋 변경이 있으면 바로 커밋한다.** `/push`를 실행한 시점에 커밋 의도가 있다고 간주. 변경 파일을 stage하고 **영문 커밋 메시지**로 커밋한 뒤 푸시 절차를 계속 진행한다. 허락을 구하지 않는다.
+
+3. **푸시될 커밋이 없으면** "푸시할 커밋 없음" 알리고 종료.
+
+4. **문서 신선도 검사 (트라이아지 → 정밀).** 검사 대상이 9개라 무겁게 느껴지지만, 본질은 **diff를 한 번 읽고 트리거에 걸리는 문서만 골라내는 것**이다. 문서 수만큼 비용이 늘지 않는다.
+
+   **4a. 트라이아지 (1회, 가볍게).** 푸시될 커밋들의 diff(`git diff @{u}..HEAD`)를 **한 번** 훑어, 아래 트리거에 걸리는 문서를 **후보 목록**으로 매핑한다. 이 단계에서는 문서를 읽지 않는다 — diff와 트리거만 본다.
+   - **후보가 0개면 검사 종료하고 바로 5단계(푸시)로 간다.** 대부분의 push가 여기서 통과한다.
+   - 후보가 1개 이상이면 4b로 진행하되, **걸린 문서만** 다룬다.
+
+   트리거:
+   - 새 디렉터리/파일 추가·삭제 (특히 `src/` 하위 구조 변화)
+   - `package.json`의 scripts 변경
+   - `manifest.config.ts` 변경 (권한/명령어/스킴)
+   - `src/background/tab-bindings.ts`, `src/sidepanel/App.tsx` 등 아키텍처 핵심 파일의 큰 변경
+   - 새 하위 시스템 도입 (예: 새 스토어, 새 훅 카테고리)
+   - 새로운 컨벤션·게이트웨이·주의사항이 커밋 메시지에서 드러남
+   - 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남
+   - 사용자 노출 UX·기능 추가/변경 → **guide/ 업데이트 후보** (`guide/ko`·`guide/en` 양쪽 대조, 커밋 prefix `docs(guide): ...`). **guide/ 작성·수정 전 반드시 `guide/AUTHORING.md`를 먼저 읽고 그 규칙(IA·톤·UI 라벨·footer·검증)대로 한다.**
+   - 가이드 IA·운영 방식·톤·UI 라벨 규칙·사실 스냅샷(특히 플랫폼 표)·지원 플랫폼 등 **가이드 작성 기준 자체가 바뀜** → **guide/AUTHORING.md 업데이트 후보**
+   - 워크플로우/스킬 라인업 변경
+   - `.github/workflows/*.yml`·`playwright.config.ts`·`e2e/fixtures/extension.ts` 변경, e2e spec 수 증감, 샤드 개수·required status check 변경 → **docs/CI.md 업데이트 후보**
+   - `manifest.config.ts`의 permissions·host_permissions·optional_host_permissions 변경, 새 플랫폼/연동 추가, 새 데이터 수집·외부 전송 메커니즘 도입 → **docs/privacy.{ko,en}.md 업데이트 후보** (ko 원본·en 번역 양쪽 동시)
+   - **⚠️ privacy 전용 트리거 (manifest diff와 무관 — 과거 심사 탈락 원인):** 새 기능이 *기존* 권한(광역 `https://*/*`·`<all_urls>`·`activeTab`·`tabCapture`·`scripting` 등)을 **새 목적으로 사용**하거나, 새 캡처·수집·저장·전송 *동작*을 추가하면 manifest 텍스트가 그대로여도 privacy 갱신 후보다. **manifest diff가 0이라는 이유로 privacy 검사를 건너뛰지 말 것.** 판단은 권한 문자열이 아니라 **실제 코드 동작**에 건다: diff에서 `chrome.permissions.request` / `captureVisibleTab` / `tabCapture` / `chrome.scripting` / 신규 `fetch`·외부 엔드포인트 / `chrome.storage`·IndexedDB 신규 write 호출이 보이면 무조건 docs/privacy.{ko,en}.md를 대조한다. (예: 30s Replay가 기존 optional 권한으로 `captureVisibleTab` 상시 캡처를 추가했으나 manifest는 불변이라 트리거를 빠져나간 사례.)
+
+   **4b. 후보 정밀 검사.** 트라이아지에서 걸린 문서만 아래 관점으로 실제 읽고 대조한다. 안 걸린 문서는 열지 않는다.
+
+   검사 대상 9개:
+   - **CLAUDE.md** — 코드 컨벤션, 게이트웨이, 워크플로우 등 해당 섹션이 최신인지 확인
+   - **docs/DIRECTORY.md** — 디렉터리 구조·파일별 역할이 현재 코드베이스와 일치하는지 확인
+   - **docs/ARCHITECTURE.md** — Side Panel 탭 스코프, 세션 영속화, 인증 플로우, 어댑터 패턴, 토큰 체인, CSSOM 캐시, DOM lazy load, 이슈 섹션 구성, 마이그레이션 등 설계 상세가 최신인지 확인
+   - **README.{md,ko.md}** — 기능 목록, 설치/사용법, 스크린샷 설명, 아키텍처·개인정보 섹션이 현재 코드와 맞는지 확인. **en(`README.md`)이 원본, ko(`README.ko.md`)가 번역이라 내용이 항상 같아야 한다 — 한쪽을 고치면 반드시 다른 쪽도 같은 커밋에서 함께 고친다**(한쪽만 고치면 즉시 stale). 섹션 구성(헤딩 순서·개수)도 대칭을 유지한다. ko는 링크를 한국어 리소스로 돌린다(`docs/privacy.ko.md`, `bug-shot.com/ko/…`, 히어로는 `guide/ko/assets/`) — 이건 대칭 위반이 아니라 의도된 로케일 차이다.
+   - **docs/PERMISSION.md** — Chrome 권한 전체 레퍼런스(activeTab 라이프사이클, OAuth 토큰 흐름, optional permission 등)가 현재 manifest·코드와 일치하는지 확인. 권한 추가/삭제, 사용처 변경, 새 API 호출 추가 시 갱신
+   - **docs/privacy.{ko,en}.md** — 권한·호스트 권한·수집 정보·외부 전송 대상·저장 방식이 현재 매니페스트·**코드 동작**과 일치하는지 확인. 매니페스트뿐 아니라 캡처/수집/전송 *동작*까지 본다. **ko가 원본, en은 번역이라 내용이 항상 같아야 한다 — 갱신 시 ko/en 양쪽 본문과 상단 시행일을 오늘 날짜로 함께 갱신**한다(한쪽만 고치면 en이 stale).
+   - **docs/CI.md** — CI job 구성(`verify`·`e2e` 샤드·`e2e-gate`·`notify`)·트리거 이벤트·required status check·xvfb/launch args 전제·`.env.ci` secret 비의존·`retries`/`forbidOnly` 분기가 현재 `.github/workflows/ci.yml`·`playwright.config.ts`와 일치하는지 확인. spec/테스트 개수 같은 수치도 대조. 커밋 prefix `docs(CI): ...`
+   - **guide/** — 사용자 노출 UX·기능 변경 시 `guide/ko`·`guide/en`(사용 가이드, ko/en 양쪽)이 현재 동작과 맞는지 대조. **작성·수정에 들어가기 전 `guide/AUTHORING.md`를 먼저 읽어 IA·톤·UI 라벨·footer·검증 규칙을 그대로 따른다** (가이드 작업의 단일 출처). **변경 규모가 크면(여러 페이지·IA 변경) 여기서 직접 쓰지 말고 `/guide` 스킬로 분리**하고, 작은 문구 수정만 인라인 처리. 커밋 prefix `docs(guide): ...`
+   - **guide/AUTHORING.md** — 가이드 작성 매뉴얼 자체의 신선도. 가이드 운영 규칙(IA/파일 트리·톤·사실 대조 소스·현재 사실 스냅샷·플랫폼 표·footer·검증 체크리스트)이 코드/구조 변경으로 어긋났는지 확인. 새 플랫폼 연동·단축키 변경·로그 정책 변경·본문 섹션 변경·새 페이지 추가 등이 diff에 보이면 AUTHORING.md의 해당 스냅샷·표를 갱신. 커밋 prefix `docs(guide): ...`
+
+   해당되는 변경을 발견하면:
+   - 각 문서를 실제로 읽고 대응 섹션이 최신 상태인지 비교
+   - 업데이트가 필요하면 확인 없이 바로 Edit으로 반영
+   - 문서별로 별도 커밋 (예: `docs(CLAUDE): update tab scope session description`, `docs(README): add new feature description`, `docs(privacy): add new platform data disclosure`)
+   - 변경 불필요하면 건너뜀
+
+   **4c. Codex 미러 게이트 (기계 검사, 1줄).** 문서 트리아지와 무관하게 항상 `pnpm sync:agents:check`를 돌린다.
+   - 통과 → 한 줄로 보고하고 다음 단계.
+   - 드리프트 검출 → `pnpm sync:agents`로 재생성하고 `docs(AGENTS): sync codex mirror` 커밋을 얹은 뒤 계속 진행(확인 불필요 — 순수 생성물이다).
+   - 스크립트가 **에러**로 죽으면(치환 assert 실패 등) 중단하고 원인을 보고한다. 미러는 `CLAUDE.md`·`.claude/commands/`의 생성물이므로 원본을 고치는 게 정답이고, `AGENTS.md`·`.agents/skills/`를 직접 편집해 맞추지 않는다.
+
+5. **푸시 실행.** 확인 없이 바로 푸시한다:
+   - 푸시 **직전** `git rev-parse HEAD`를 기억해둔다 (6단계에서 run을 특정하는 데 쓴다).
+   - `git push` (upstream 없으면 `git push -u origin <branch>`)
+   - 출력에서 결과 줄만 발췌해 보고
+
+   **e2e는 여기서 돌리지 않는다.** 차단 게이트는 CI가 단독으로 맡는다(`e2e-gate` required check). 로컬에서 미리 보고 싶으면 사용자가 `/e2e-run`을 따로 호출한다.
+
+6. **CI run 안내 (논블로킹).** 푸시 성공 후 한 줄만 덧붙이고 **종료한다. 기다리지 않는다.**
+   ```
+   gh run list --branch <branch> --workflow ci.yml --limit 10 --json headSha,url,status
+   ```
+   - `headSha`가 5단계에서 기억한 HEAD와 **일치하는** run이 있으면 그 URL을 보고.
+   - 푸시 직후라 아직 등록 전이거나 일치하는 run이 없으면 `https://github.com/<owner>/<repo>/actions`로 폴백. **최신 run을 그냥 집지 않는다** — 이전 커밋의 run URL을 보고하면 오보가 된다.
+   - 결과 확인은 사용자 몫이다. `gh run watch`로 대기하지 않는다 — 세션을 잡지 않는 게 CI 이관의 목적이다.
+
+## 금지 사항
+
+- `git push --force` / `--force-with-lease`는 **사용자가 명시 요청**한 경우에만. main/master에는 force push 금지 (요청받으면 경고 후 재확인).
+- `--no-verify`로 hook 스킵 금지. hook 실패하면 원인 수정이 우선.
+- `.env`, 크레덴셜 파일 등은 staged여도 경고하고 멈춤.
+- `.env`, 크레덴셜 파일 등은 staged여도 경고하고 멈춤.

@@ -102,11 +102,20 @@ async function spySendMessage(panel: Page) {
           });
           return;
         }
-        if (msg?.type === "jira.submitIssue") {
+        if (msg?.type === "jira.uploadAttachment") {
+          const attachment = (msg as unknown as { attachment: { fileId: string; filename: string } }).attachment;
+          cb?.({ ok: true, result: { ...attachment, ok: true, href: "https://your.atlassian.net/attachment/logs", file: { kind: "external", url: "https://your.atlassian.net/attachment/logs" } } });
+          return;
+        }
+        if (msg?.type === "jira.updateIssueDescription") {
+          cb?.({ ok: true, result: { ok: true } });
+          return;
+        }
+        if (msg?.type === "jira.createIssue") {
           (w.__jiraSubmits as unknown[]).push(
             (msg as unknown as { payload?: unknown }).payload,
           );
-          cb?.({ ok: true, result: { key: "WEB-1", url: jiraUrl } });
+          cb?.({ ok: true, result: { key: "WEB-1", url: jiraUrl, siteId: "cloud-1" } });
           return;
         }
         if (msg?.type === "analytics.capture") {
@@ -170,6 +179,31 @@ async function selectIssueType(panel: Page, name: string) {
 // (jira-project-sticky.spec이 같은 이유로 파일을 갈랐다). 편집 세션 키가 `editor:${tabId}`라
 // **탭이 다르면 세션도 새것**이므로, 케이스마다 fixture 페이지를 달리해 탭을 가른다.
 // storage seed는 전역이라 한 번만 심으면 뒤에 열리는 패널이 전부 읽는다.
+
+async function awaitDurableSubmission(panel: Page) {
+  await expect.poll(() => panel.evaluate(async () => {
+    const raw = (await chrome.storage.local.get("bugshot-issues"))["bugshot-issues"];
+    const record = JSON.parse(raw ?? "{}").state?.issues?.find((i: { key: string }) => i.key === "WEB-1");
+    return { status: record?.status, recovery: !!record?.submissionRecoveryId };
+  })).toEqual({ status: "submitted", recovery: false }).catch(async (error) => {
+    console.log("Submission journal diagnostic", await panel.evaluate(async () => {
+      const journal = await new Promise((resolve, reject) => {
+        const open = indexedDB.open("bugshot-video");
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const tx = db.transaction("submissionRecovery");
+          const read = tx.objectStore("submissionRecovery").getAll();
+          read.onsuccess = () => resolve(read.result);
+          tx.oncomplete = () => db.close();
+        };
+      });
+      return JSON.stringify({ journal, storage: (await chrome.storage.local.get("bugshot-issues"))["bugshot-issues"] });
+    }));
+    throw error;
+  });
+}
+
 test.describe.serial("Jira 제출 시 스프린트 선택", () => {
   const opened: Page[] = [];
 
@@ -203,11 +237,11 @@ test.describe.serial("Jira 제출 시 스프린트 선택", () => {
   });
 
   test.afterAll(async ({ ext }) => {
+    for (const p of opened) await p.close();
     await ext.evalInExt(
       (keys: string[]) => chrome.storage.local.remove(keys),
       [SETTINGS_KEY, "bugshot-issues"],
     );
-    for (const p of opened) await p.close();
   });
 
   test("판정이 필드 있음이면 스프린트 행이 보이고 고른 값이 payload에 실린다", async ({
@@ -226,6 +260,7 @@ test.describe.serial("Jira 제출 시 스프린트 선택", () => {
     await confirm.click();
 
     await expect.poll(() => submits(panel)).toHaveLength(1);
+    await awaitDurableSubmission(panel);
     const [payload] = await submits(panel);
     expect(payload.sprintId).toBe(42);
   });
@@ -250,6 +285,7 @@ test.describe.serial("Jira 제출 시 스프린트 선택", () => {
     await confirm.click();
 
     await expect.poll(() => submits(panel)).toHaveLength(1);
+    await awaitDurableSubmission(panel);
     const [payload] = await submits(panel);
     expect(payload.issueTypeId).toBe(NO_SPRINT_TYPE);
     // 스파이는 구조화 복제 **이전**에 잡으므로 undefined 프로퍼티가 아직 남아 있다(실제로
@@ -288,6 +324,7 @@ test.describe.serial("Jira 제출 시 스프린트 선택", () => {
     await confirm.click();
 
     await expect.poll(() => submits(panel)).toHaveLength(1);
+    await awaitDurableSubmission(panel);
     const [payload] = await submits(panel);
     expect(payload.sprintId).toBe(43);
   });

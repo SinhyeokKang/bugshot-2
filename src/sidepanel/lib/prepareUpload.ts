@@ -6,6 +6,8 @@ import type { MarkdownMediaInput } from "./buildMarkdownIssueBody";
 import { inlineUploadFilename } from "@/lib/inline-ref";
 
 export interface UploadFileInput {
+  contentType?: string;
+  fileId?: string;
   filename: string;
   dataUrl: string;
   // 사용자 첨부: 업로드 식별용 filename(고유)과 본문 표시명(원본) 분리.
@@ -13,6 +15,7 @@ export interface UploadFileInput {
 }
 
 export interface PrepareUploadInput {
+  submissionFiles?: import("@/types/attachment").SubmissionFile[];
   ctx: MarkdownContext;
   images?: UploadFileInput[];
   video?: UploadFileInput;
@@ -25,6 +28,7 @@ export interface PrepareUploadInput {
 }
 
 export interface UploadEntry {
+  fileId?: string;
   filename: string;
   contentType: string;
   dataUrl: string;
@@ -32,19 +36,15 @@ export interface UploadEntry {
 
 export type UploadFn = (
   files: UploadEntry[],
-) => Promise<Array<{ filename: string; href: string | null }>>;
+) => Promise<Array<{ fileId?: string; failure?: import("@/types/attachment").AttachmentResult["failure"]; filename: string; href: string | null }>>;
 
 export interface PreparedUpload {
+  responses: import("./submissionAdapter").DeliveryResponse[];
   hrefMap: Map<string, string | null>;
   resolvedCtx: MarkdownContext;
   toMedia: (f: UploadFileInput) => MarkdownMediaInput;
   toAttachmentMedia: (f: UploadFileInput) => MarkdownMediaInput;
-  logsDropped: boolean;
-  // 캡처 미디어(이미지·영상·인라인)가 빠진 축. logs와 갈라 둔다 — 안내 문구가 다르고
-  // 한쪽만 실패하는 경우가 흔하다. **인라인 이미지가 이 축의 존재 이유다**: 캡처 이미지·영상은
-  // url 없이도 본문 미첨부 목록(extras→notInlined)에 이름이 남는데, 인라인은 그 목록에
-  // 들어가지 않아 치환만 건너뛴 채 `![](inline:ref)` 원문으로 남는다.
-  mediaDropped: boolean;
+
 }
 
 // hrefMap에서 기대 파일 중 업로드 누락(href 부재)이 있는지.
@@ -62,15 +62,17 @@ export function toInlineUploadFiles(
 ): Array<UploadFileInput & { refId: string }> {
   return (inlineImages ?? []).map((img) => ({
     refId: img.refId,
-    filename: inlineUploadFilename(img.refId),
+    fileId: img.fileId,
+    filename: img.filename ?? inlineUploadFilename(img.refId),
     dataUrl: img.dataUrl,
   }));
 }
 
 export function toUploadEntry(f: UploadFileInput): UploadEntry {
   return {
+    ...(f.fileId ? { fileId: f.fileId } : {}),
     filename: f.filename,
-    contentType: guessUploadMime(f.filename),
+    contentType: f.contentType ?? guessUploadMime(f.filename),
     dataUrl: f.dataUrl,
   };
 }
@@ -94,11 +96,10 @@ export async function prepareUpload(
 
   const uploadResults = await uploadFn(allFiles.map(toUploadEntry));
 
-  const hrefMap = new Map(uploadResults.map((r) => [r.filename, r.href]));
-  const logsDropped = logs.some((l) => !hrefMap.get(l.filename));
-  const mediaDropped = [...imageInputs, ...(input.video ? [input.video] : []), ...inlineFiles].some(
-    (f) => !hrefMap.get(f.filename),
-  );
+  const hrefMap = new Map(allFiles.map((f) => {
+    const matches = uploadResults.filter((r) => f.fileId ? r.fileId === f.fileId : r.filename === f.filename);
+    return [f.fileId ?? f.filename, matches.length === 1 ? matches[0].href : null];
+  }));
 
   if (input.requireMediaUpload) {
     const requiredMedia = [
@@ -106,7 +107,7 @@ export async function prepareUpload(
       ...(input.video ? [input.video] : []),
       ...inlineFiles,
       ...userAttachments,
-    ].map((f) => f.filename);
+    ].map((f) => f.fileId ?? f.filename);
     if (someUploadMissing(requiredMedia, hrefMap)) {
       throw new Error(t(`${opts.platform}.error.mediaUploadFailed`));
     }
@@ -116,7 +117,7 @@ export async function prepareUpload(
   if (inlineFiles.length > 0) {
     const refToUrl = new Map<string, string>();
     for (const f of inlineFiles) {
-      const href = hrefMap.get(f.filename);
+      const href = hrefMap.get(f.fileId ?? f.filename);
       if (href) refToUrl.set(f.refId, href);
     }
     if (refToUrl.size > 0) {
@@ -135,8 +136,8 @@ export async function prepareUpload(
   function toMedia(f: UploadFileInput): MarkdownMediaInput {
     return {
       filename: f.filename,
-      contentType: guessUploadMime(f.filename),
-      url: hrefMap.get(f.filename) ?? undefined,
+      contentType: f.contentType ?? guessUploadMime(f.filename),
+      url: hrefMap.get(f.fileId ?? f.filename) ?? undefined,
     };
   }
 
@@ -146,9 +147,9 @@ export async function prepareUpload(
     return {
       filename: name,
       contentType: guessUploadMime(name),
-      url: hrefMap.get(f.filename) ?? undefined,
+      url: hrefMap.get(f.fileId ?? f.filename) ?? undefined,
     };
   }
 
-  return { hrefMap, resolvedCtx, toMedia, toAttachmentMedia, logsDropped, mediaDropped };
+  return { responses: uploadResults.map((r) => ({ ...r, ok: !!r.href, href: r.href ?? undefined })), hrefMap, resolvedCtx, toMedia, toAttachmentMedia };
 }
