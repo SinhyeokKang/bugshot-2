@@ -740,3 +740,33 @@ export async function updatePageStatus(
   );
   return parsePageStatus(data);
 }
+
+export interface NotionRemoteBlock { id: string; type?: string; [key: string]: unknown }
+export async function getBlockChildren(auth: NotionAuth, blockId: string): Promise<NotionRemoteBlock[]> {
+  const blocks: NotionRemoteBlock[] = [];
+  let cursor: string | undefined;
+  const seen = new Set<string>();
+  do {
+    const page = await notionFetch<{ results: NotionRemoteBlock[]; has_more: boolean; next_cursor?: string | null }>(auth,
+      `/blocks/${encodeURIComponent(blockId)}/children?page_size=100${cursor ? `&start_cursor=${encodeURIComponent(cursor)}` : ""}`);
+    if (!Array.isArray(page.results) || page.results.some(b => typeof b.id !== "string" || !b.id)) throw new Error("Invalid Notion children");
+    blocks.push(...page.results);
+    cursor = page.has_more ? page.next_cursor ?? undefined : undefined;
+    if (page.has_more && (!cursor || seen.has(cursor))) throw new Error("Invalid Notion cursor");
+    if (cursor) seen.add(cursor);
+  } while (cursor);
+  return blocks;
+}
+// One response per batch lets the sidepanel persist IDs before any subsequent write.
+export async function appendBlockChildren(auth: NotionAuth, blockId: string, children: Record<string, unknown>[]): Promise<NotionRemoteBlock[]> {
+  if (!children.length || children.length > 100) throw new Error("Notion append requires 1–100 blocks");
+  const result = await notionFetch<{ results: NotionRemoteBlock[] }>(auth, `/blocks/${encodeURIComponent(blockId)}/children`, { method: "PATCH", body: { children } });
+  if (!Array.isArray(result.results) || result.results.length !== children.length || result.results.some(b => !b.id)) throw new Error("Unacknowledged Notion append");
+  return result.results;
+}
+export async function updateBlock(auth: NotionAuth, blockId: string, block: Record<string, unknown>): Promise<NotionRemoteBlock> {
+  return notionFetch(auth, `/blocks/${encodeURIComponent(blockId)}`, { method: "PATCH", body: block });
+}
+export async function deleteBlock(auth: NotionAuth, blockId: string): Promise<void> {
+  await notionFetch(auth, `/blocks/${encodeURIComponent(blockId)}`, { method: "DELETE" });
+}

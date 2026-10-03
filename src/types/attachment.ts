@@ -66,6 +66,7 @@ export interface SubmissionRecoveryMeta {
   files: Array<Omit<SubmissionFile, "dataUrl"> & { source: RecoverySource; originalSource?: Extract<RecoverySource, { kind: "original" }> }>;
   results: AttachmentResult[];
   submissionFailure?: AttachmentResult["failure"];
+  retrySnapshot?: AttachmentRetrySnapshot;
   updatedAt: number;
 }
 
@@ -74,4 +75,34 @@ export class MissingSubmissionFilesError extends Error {
     super("Submission source files are missing");
     this.name = "MissingSubmissionFilesError";
   }
+}
+
+export type AttachmentRetryReason = "authentication" | "permission" | "account-changed" | "remote-missing" | "unavailable" | "ambiguous" | "body-conflict" | "legacy" | "webhook-unsupported";
+export type AttachmentRetryResponse<T> = { ok: true; value: T } | { ok: false; reason: AttachmentRetryReason };
+export type UploadedAttachment =
+  | { platform: "github" | "gitlab" | "linear" | "clickup"; href: string; id?: string }
+  | { platform: "jira"; id: string; href: string; mediaId?: string }
+  | { platform: "asana"; id: string; href?: string }
+  | { platform: "notion"; id: string; expiresAt: number }
+  | { platform: "slack"; id: string };
+export interface AttachmentCheckpoint {
+  fileId: string;
+  upload: "pending" | "done" | "failed" | "unknown";
+  link: "pending" | "done" | "failed" | "unknown" | "not-applicable";
+  body: "pending" | "done" | "failed" | "unknown" | "conflict" | "not-applicable";
+  uploaded?: UploadedAttachment;
+  linkedId?: string;
+}
+export interface AttachmentBodyPlan {
+  format: "markdown" | "adf" | "asana-html" | "notion-blocks" | "slack-thread";
+  lastWritten: string;
+  replacements: Array<{ fileId: string; anchor: string; before: string; after?: string; renderTemplate: string }>;
+}
+export interface AttachmentRetrySnapshot {
+  schemaVersion: 1;
+  accountIdentity: string;
+  bodyLocale: import("@/i18n/locales").LocaleMode;
+  checkpoints: AttachmentCheckpoint[];
+  bodyPlan: AttachmentBodyPlan;
+  revision: number;
 }

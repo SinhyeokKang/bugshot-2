@@ -1,3 +1,5 @@
+import { LOCALES } from "@/i18n/locales";
+import type { AttachmentRetrySnapshot, AttachmentCheckpoint, AttachmentBodyPlan } from "@/types/attachment";
 import type { CreatedDestination, RecoverySource, SubmissionRecoveryMeta } from "@/types/attachment";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
@@ -723,8 +725,45 @@ function validateFailure(value: unknown): void {
     || !["missing-source", "local-storage", "authentication", "permission", "size-limit", "rate-limit", "network", "timeout", "invalid-response", "body-limit", "unknown"].includes(String(failure.code))
     || (failure.httpStatus !== undefined && (!Number.isInteger(failure.httpStatus) || Number(failure.httpStatus) < 100 || Number(failure.httpStatus) > 599))) throw new Error("Invalid recovery failure");
 }
+function validateRetrySnapshot(value: unknown, ids: Set<string>, platform: string): void {
+  const snapshot = record(value, ["schemaVersion", "accountIdentity", "bodyLocale", "checkpoints", "bodyPlan", "revision"]);
+  if (snapshot.schemaVersion !== 1 || !nonempty(snapshot.accountIdentity)
+    || !(LOCALES as readonly unknown[]).includes(snapshot.bodyLocale) || !Number.isSafeInteger(snapshot.revision) || Number(snapshot.revision) < 0
+    || !Array.isArray(snapshot.checkpoints) || platform === "webhook") throw new Error("Invalid retry snapshot");
+  const seen = new Set<string>();
+  for (const value of snapshot.checkpoints) {
+    const cp = record(value, ["fileId", "upload", "link", "body", "uploaded", "linkedId"]);
+    if (!nonempty(cp.fileId) || !ids.has(cp.fileId) || seen.has(cp.fileId)
+      || !["pending", "done", "failed", "unknown"].includes(String(cp.upload))
+      || !["pending", "done", "failed", "unknown", "not-applicable"].includes(String(cp.link))
+      || !["pending", "done", "failed", "unknown", "conflict", "not-applicable"].includes(String(cp.body))
+      || (cp.linkedId !== undefined && !nonempty(cp.linkedId))) throw new Error("Invalid file checkpoint");
+    seen.add(cp.fileId);
+    if (cp.uploaded !== undefined) {
+      const allowed: Record<string, string[]> = {
+        github: ["platform", "href", "id"], gitlab: ["platform", "href", "id"], linear: ["platform", "href", "id"], clickup: ["platform", "href", "id"],
+        jira: ["platform", "id", "href", "mediaId"], asana: ["platform", "id", "href"], notion: ["platform", "id", "expiresAt"], slack: ["platform", "id"],
+      };
+      const remote = record(cp.uploaded, allowed[platform] ?? []);
+      if (remote.platform !== platform || (remote.href !== undefined && !safeDestinationUrl(remote.href))
+        || (["github", "gitlab", "linear", "clickup", "jira"].includes(platform) && !safeDestinationUrl(remote.href))
+        || (["jira", "asana", "notion", "slack"].includes(platform) && !nonempty(remote.id))
+        || (remote.id !== undefined && !nonempty(remote.id)) || (remote.mediaId !== undefined && !nonempty(remote.mediaId))
+        || (platform === "notion" && (typeof remote.expiresAt !== "number" || !Number.isFinite(remote.expiresAt)))) throw new Error("Invalid uploaded locator");
+    }
+    if (cp.upload === "done" && !cp.uploaded) throw new Error("Missing uploaded locator");
+  }
+  if (seen.size !== ids.size) throw new Error("Missing file checkpoint");
+  const plan = record(snapshot.bodyPlan, ["format", "lastWritten", "replacements"]);
+  if (!["markdown", "adf", "asana-html", "notion-blocks", "slack-thread"].includes(String(plan.format)) || typeof plan.lastWritten !== "string" || !Array.isArray(plan.replacements)) throw new Error("Invalid body plan");
+  for (const value of plan.replacements) {
+    const item = record(value, ["fileId", "anchor", "before", "after", "renderTemplate"]);
+    if (!nonempty(item.fileId) || !ids.has(item.fileId) || typeof item.anchor !== "string" || typeof item.before !== "string" || typeof item.renderTemplate !== "string" || (item.after !== undefined && typeof item.after !== "string")) throw new Error("Invalid body replacement");
+  }
+}
+
 function validateRecovery(value: unknown): SubmissionRecoveryMeta {
-  const meta = record(value, ["attemptId", "issueId", "title", "platform", "createdAt", "expiresAt", "phase", "destination", "files", "results", "updatedAt", "localFilesRemoved", "submissionFailure"]);
+  const meta = record(value, ["attemptId", "issueId", "title", "platform", "createdAt", "expiresAt", "phase", "destination", "files", "results", "updatedAt", "localFilesRemoved", "submissionFailure", "retrySnapshot"]);
   if (!nonempty(meta.attemptId) || !nonempty(meta.issueId) || typeof meta.title !== "string"
     || typeof meta.platform !== "string" || !Object.hasOwn(DESTINATION_KEYS, meta.platform)
     || typeof meta.phase !== "string" || !Object.hasOwn(RECOVERY_TRANSITIONS, meta.phase)
@@ -748,6 +787,7 @@ function validateRecovery(value: unknown): SubmissionRecoveryMeta {
       throw new Error("Invalid recovery source");
     }
   }
+  if (meta.retrySnapshot !== undefined) validateRetrySnapshot(meta.retrySnapshot, ids, String(meta.platform));
   if (meta.submissionFailure !== undefined) validateFailure(meta.submissionFailure);
   const resultIds = new Set<string>();
   for (const value of meta.results) {
@@ -1063,5 +1103,35 @@ export async function discardRejectedSubmission(issueId: string, attemptId: stri
     const current = await requireAttempt(store, issueId, attemptId);
     if (current.destination || (current.phase !== "creating" && current.phase !== "unknown")) throw new Error("Submission creation cannot be rejected");
     deleteJournal(store, current);
+  });
+}
+
+export async function initializeAttachmentRetry(issueId: string, attemptId: string, snapshot: AttachmentRetrySnapshot): Promise<void> {
+  const value = structuredClone(snapshot);
+  await recoveryTransaction([STORE_RECOVERY], "readwrite", async tx => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    const current = await requireAttempt(store, issueId, attemptId);
+    if (current.phase !== "prepared" || current.retrySnapshot || value.revision !== 0 || current.localFilesRemoved) throw new Error("Retry snapshot cannot be initialized");
+    store.put(validateRecovery({ ...current, retrySnapshot: value, updatedAt: Math.max(Date.now(), current.updatedAt + 1) }), `attempt:${issueId}`);
+  });
+}
+
+export async function checkpointAttachmentRetry(issueId: string, attemptId: string, expectedRevision: number,
+  patch: { checkpoint?: AttachmentCheckpoint; bodyPlan?: AttachmentBodyPlan }): Promise<number> {
+  const update = structuredClone(patch);
+  return recoveryTransaction([STORE_RECOVERY], "readwrite", async tx => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    const current = await requireAttempt(store, issueId, attemptId);
+    const snapshot = current.retrySnapshot;
+    if (!snapshot || snapshot.revision !== expectedRevision || current.localFilesRemoved || current.phase === "complete" || current.phase === "unknown") throw new Error("Stale retry revision or unavailable recovery");
+    if (update.checkpoint && !snapshot.checkpoints.some(cp => cp.fileId === update.checkpoint!.fileId)) throw new Error("Unknown retry file");
+    const revision = expectedRevision + 1;
+    const next = validateRecovery({ ...current, updatedAt: Math.max(Date.now(), current.updatedAt + 1), retrySnapshot: {
+      ...snapshot, revision,
+      checkpoints: snapshot.checkpoints.map(cp => cp.fileId === update.checkpoint?.fileId ? update.checkpoint : cp),
+      bodyPlan: update.bodyPlan ?? snapshot.bodyPlan,
+    } });
+    store.put(next, `attempt:${issueId}`);
+    return revision;
   });
 }

@@ -245,3 +245,20 @@ export async function uploadFiles(
   }
   return results;
 }
+
+export async function requestFileUpload(auth: SlackAuth, filename: string, length: number): Promise<{ fileId: string; uploadUrl: string }> {
+  const result = await slackFetch<{ file_id: string; upload_url: string }>(auth, "files.getUploadURLExternal", { filename, length });
+  if (!result.file_id || !result.upload_url) throw new Error("Invalid Slack upload allocation");
+  return { fileId: result.file_id, uploadUrl: result.upload_url };
+}
+export async function sendFileUpload(uploadUrl: string, filename: string, blob: Blob): Promise<void> {
+  const url = new URL(uploadUrl);
+  if (url.protocol !== "https:" || url.hostname !== "files.slack.com" || url.username || url.password) throw new Error("Invalid Slack upload URL");
+  const form = new FormData();
+  form.append("file", blob, filename);
+  const response = await fetch(url.href, { method: "POST", body: form });
+  if (!response.ok) throw new SlackError("upload_failed", "Upload failed", response.status);
+}
+export async function completeFileUpload(auth: SlackAuth, channelId: string, threadTs: string, fileId: string, filename: string): Promise<void> {
+  await slackFetch(auth, "files.completeUploadExternal", { files: JSON.stringify([{ id: fileId, title: filename }]), channel_id: channelId, thread_ts: threadTs });
+}

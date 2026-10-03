@@ -701,3 +701,10 @@ export async function searchEpics(
   );
   return res.issues;
 }
+
+export async function getIssueAttachments(auth: JiraAuth, issueKey: string) {
+  const issue = await jiraFetch<{ fields: { description: JiraAdfDoc | null; attachment: Array<{ id: string; filename: string; content: string }> } }>(auth,
+    `/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=description,attachment`);
+  if (!issue.fields || !Array.isArray(issue.fields.attachment) || !("description" in issue.fields)) throw new Error("Invalid Jira attachment response");
+  return { description: issue.fields.description, attachments: issue.fields.attachment.map(({ id, filename, content }) => ({ id, filename, content })) };
+}

@@ -418,3 +418,22 @@ export async function createAttachment(
   );
   if (result.attachmentCreate?.success !== true) throw new Error("Linear attachment was not acknowledged");
 }
+
+export async function getIssueAttachments(auth: LinearAuth, issueId: string): Promise<{ description: string; attachments: Array<{ id: string; url: string }> }> {
+  const attachments: Array<{ id: string; url: string }> = [];
+  let after: string | null = null;
+  let description = "";
+  const cursors = new Set<string>();
+  do {
+    const result: { issue: { description: string | null; attachments: { nodes: Array<{ id: string; url: string }>; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } } = await linearGraphQL(auth,
+      `query($id: String!, $after: String) { issue(id: $id) { description attachments(first: 100, after: $after) { nodes { id url } pageInfo { hasNextPage endCursor } } } }`, { id: issueId, after });
+    if (!result.issue || !Array.isArray(result.issue.attachments?.nodes) || (result.issue.description !== null && typeof result.issue.description !== "string")) throw new Error("Invalid Linear issue response");
+    description = result.issue.description ?? "";
+    attachments.push(...result.issue.attachments.nodes);
+    const page = result.issue.attachments.pageInfo;
+    after = page.hasNextPage ? page.endCursor : null;
+    if (page.hasNextPage && (!after || cursors.has(after))) throw new Error("Invalid Linear cursor");
+    if (after) cursors.add(after);
+  } while (after);
+  return { description, attachments };
+}

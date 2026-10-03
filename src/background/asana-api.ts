@@ -246,3 +246,10 @@ export async function setTaskCompleted(
   );
   return normalizeTaskStatus(raw);
 }
+
+export async function getTaskAttachments(auth: AsanaAuth, taskGid: string) {
+  const task = await asanaFetch<{ html_notes: string; attachments: Array<{ gid: string; permanent_url?: string }> }>(auth,
+    `/tasks/${encodeURIComponent(taskGid)}?opt_fields=html_notes,attachments.gid,attachments.permanent_url`);
+  if (typeof task.html_notes !== "string" || !Array.isArray(task.attachments)) throw new Error("Invalid Asana task response");
+  return { htmlNotes: task.html_notes, attachments: task.attachments.map(({ gid, permanent_url }) => ({ gid, permanent_url })) };
+}

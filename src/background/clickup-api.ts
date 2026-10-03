@@ -267,3 +267,10 @@ export async function setTaskCompleted(
   });
   return normalizeTaskStatus(raw);
 }
+
+export async function getTaskAttachments(auth: ClickupAuth, taskId: string) {
+  const task = await clickupFetch<{ markdown_description?: string; attachments?: Array<{ id: string; url?: string }> }>(auth,
+    `/task/${encodeURIComponent(taskId)}?include_markdown_description=true`);
+  if (typeof task.markdown_description !== "string" || !Array.isArray(task.attachments)) throw new Error("Unavailable ClickUp markdown representation");
+  return { markdown: task.markdown_description, attachments: task.attachments.map(({ id, url }) => ({ id, url })) };
+}

@@ -292,3 +292,9 @@ export async function updateIssueState(
   );
   return normalizeIssueStatus(raw);
 }
+
+export async function getIssueDescription(auth: GitlabAuth, projectId: number, iid: number): Promise<string> {
+  const issue = await gitlabFetch<{ description: string | null }>(auth, `/projects/${projectId}/issues/${iid}`);
+  if (issue.description !== null && typeof issue.description !== "string") throw new Error("Missing GitLab description");
+  return issue.description ?? "";
+}
