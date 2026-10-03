@@ -24,70 +24,180 @@ function responses(...bodies: unknown[]) {
   vi.stubGlobal("fetch", fetch);
   return fetch;
 }
+const methods = (fetch: ReturnType<typeof vi.fn>) => fetch.mock.calls.map(([, init]) => (init?.method ?? "GET") as string);
 afterEach(() => vi.unstubAllGlobals());
-describe("existing remote attachment recovery APIs", () => {
-  it("GitHub only reads and patches body of the same issue", async () => {
-    const fetch = responses({ body: "remote" }, { body: "desired" });
+
+describe("existing-issue reads and writes never create", () => {
+  it("GitHub reads the body and PATCHes only the body field of the same issue", async () => {
+    const fetch = responses({ body: "remote", title: "t", state: "open" }, { body: "desired" });
     expect(await github.getIssueBody(auth.github, "owner", "repo", 7)).toBe("remote");
     await github.updateIssueBody(auth.github, "owner", "repo", 7, "desired");
     expect(fetch.mock.calls.map(([url]) => url)).toEqual(Array(2).fill("https://api.github.com/repos/owner/repo/issues/7"));
-    expect(fetch.mock.calls[1][1]).toMatchObject({ method: "PATCH", body: JSON.stringify({ body: "desired" }) });
+    expect(methods(fetch)).toEqual(["GET", "PATCH"]);
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ body: "desired" });
   });
-  it("GitLab reads description without creation fallback", async () => {
+
+  it("GitHub treats a null body as empty", async () => {
+    responses({ body: null });
+    expect(await github.getIssueBody(auth.github, "o", "r", 1)).toBe("");
+  });
+
+  it.each([401, 403, 404])("GitHub %i rejects without a second request", async (status) => {
+    const fetch = vi.fn().mockResolvedValue(new Response("{}", { status }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(github.getIssueBody(auth.github, "o", "r", 1)).rejects.toMatchObject({ status });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(methods(fetch)).toEqual(["GET"]);
+  });
+
+  it("GitLab reads the description of projectId/iid", async () => {
     const fetch = responses({ description: "remote" });
     expect(await gitlab.getIssueDescription(auth.gitlab, 4, 7)).toBe("remote");
-    expect(fetch.mock.calls[0][0]).toContain("/projects/4/issues/7");
-    expect(fetch.mock.calls[0][1].method).not.toBe("POST");
+    expect(fetch.mock.calls[0][0]).toBe("https://gitlab.com/api/v4/projects/4/issues/7");
+    expect(methods(fetch)).toEqual(["GET"]);
   });
-  it("Jira preserves attachment IDs alongside ADF", async () => {
+
+  it("Jira returns ADF and attachment IDs without content URLs", async () => {
     const description = { version: 1, type: "doc", content: [] };
-    responses({ fields: { description, attachment: [{ id: "a1", filename: "f", content: "https://test.atlassian.net/file/a1" }] } });
-    expect(await jira.getIssueAttachments(auth.jira, "BUG-1")).toEqual({ description, attachments: [{ id: "a1", filename: "f", content: "https://test.atlassian.net/file/a1" }] });
+    const fetch = responses({ fields: { description, attachment: [{ id: "10001", filename: "f.png", content: "https://test.atlassian.net/rest/api/3/attachment/content/10001" }] } });
+    expect(await jira.getIssueAttachments(auth.jira, "BUG-1")).toEqual({ description, attachments: [{ id: "10001", filename: "f.png" }] });
+    expect(fetch.mock.calls[0][0]).toBe("https://test.atlassian.net/rest/api/3/issue/BUG-1?fields=description,attachment");
   });
-  it("Linear reads all attachment pages and rejects unsuccessful update", async () => {
+
+  it("Linear reads every attachment page and rejects success:false updates", async () => {
     const fetch = responses(
       { data: { issue: { description: "remote", attachments: { nodes: [{ id: "a", url: "https://files/a" }], pageInfo: { hasNextPage: true, endCursor: "cursor" } } } } },
       { data: { issue: { description: "remote", attachments: { nodes: [{ id: "b", url: "https://files/b" }], pageInfo: { hasNextPage: false, endCursor: null } } } } },
       { data: { issueUpdate: { success: false } } },
     );
-    expect((await linear.getIssueAttachments(auth.linear, "issue")).attachments.map(a => a.id)).toEqual(["a", "b"]);
+    expect(await linear.getIssueAttachments(auth.linear, "issue")).toEqual({ description: "remote", attachments: [{ id: "a", url: "https://files/a" }, { id: "b", url: "https://files/b" }] });
     expect(JSON.parse(fetch.mock.calls[1][1].body).variables.after).toBe("cursor");
     await expect(linear.updateIssueDescription(auth.linear, "issue", "desired")).rejects.toThrow();
   });
-  it("Asana returns HTML notes and attachment IDs without signed download URLs", async () => {
-    responses({ data: { html_notes: "<body>remote</body>", attachments: [{ gid: "a", permanent_url: "https://app.asana.com/a" }] } });
-    expect(await asana.getTaskAttachments(auth.asana, "task")).toEqual({ htmlNotes: "<body>remote</body>", attachments: [{ gid: "a", permanent_url: "https://app.asana.com/a" }] });
+
+  it("Linear reads the viewer and organization IDs in one query", async () => {
+    const fetch = responses({ data: { viewer: { id: "user" }, organization: { id: "org" } } });
+    expect(await linear.getViewerIdentity(auth.linear)).toEqual({ userId: "user", organizationId: "org" });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
-  it("ClickUp requires the actual markdown representation", async () => {
-    const fetch = responses({ markdown_description: "remote", attachments: [{ id: "a" }] }, { description: "plain" });
-    expect((await clickup.getTaskAttachments(auth.clickup, "task")).markdown).toBe("remote");
+
+  it("Asana reads html_notes, workspace and attachment names", async () => {
+    const fetch = responses(
+      { data: { html_notes: "<body>remote</body>", workspace: { gid: "ws" } } },
+      { data: [{ gid: "a1", name: "logs.html" }] },
+    );
+    expect(await asana.getTaskAttachments(auth.asana, "task")).toEqual({ htmlNotes: "<body>remote</body>", workspaceGid: "ws", attachments: [{ gid: "a1", name: "logs.html" }] });
+    expect(fetch.mock.calls[1][0]).toContain("/attachments?parent=task");
+    expect(methods(fetch)).toEqual(["GET", "GET"]);
+  });
+
+  it("Asana fails closed when the attachment list may be truncated", async () => {
+    responses({ data: { html_notes: "", workspace: { gid: "ws" } } }, { data: Array.from({ length: 100 }, (_, i) => ({ gid: String(i), name: "f" })) });
+    await expect(asana.getTaskAttachments(auth.asana, "task")).rejects.toThrow();
+  });
+
+  it("ClickUp requires the markdown representation and returns the team", async () => {
+    const fetch = responses({ markdown_description: "remote", team_id: "team", attachments: [{ id: "a", url: "https://t.clickup-attachments.com/a.png" }] }, { description: "plain" });
+    expect(await clickup.getTaskAttachments(auth.clickup, "task")).toEqual({ markdown: "remote", teamId: "team", attachments: [{ id: "a", url: "https://t.clickup-attachments.com/a.png" }] });
     expect(fetch.mock.calls[0][0]).toContain("include_markdown_description=true");
     await expect(clickup.getTaskAttachments(auth.clickup, "task")).rejects.toThrow();
   });
-  it("Notion paginates reads and returns append IDs with fixed version", async () => {
-    const fetch = responses({ results: [{ id: "a" }], has_more: true, next_cursor: "next" }, { results: [{ id: "b" }], has_more: false }, { results: [{ id: "c" }] });
-    expect((await notion.getBlockChildren(auth.notion, "page")).map(b => b.id)).toEqual(["a", "b"]);
+});
+
+describe("Notion child blocks under the fixed API version", () => {
+  it("paginates children and projects only id, type, text and file name", async () => {
+    const fetch = responses(
+      { results: [{ id: "a", type: "paragraph", paragraph: { rich_text: [{ plain_text: "hello " }, { plain_text: "world" }] } }], has_more: true, next_cursor: "next" },
+      { results: [{ id: "b", type: "file", file: { name: "report.pdf", caption: [], file: { url: "https://signed.example/x?X-Amz-Signature=s" } } }], has_more: false, next_cursor: null },
+    );
+    expect(await notion.getBlockChildren(auth.notion, "page")).toEqual([
+      { id: "a", type: "paragraph", plainText: "hello world" },
+      { id: "b", type: "file", plainText: "", name: "report.pdf" },
+    ]);
     expect(fetch.mock.calls[1][0]).toContain("start_cursor=next");
-    expect(await notion.appendBlockChildren(auth.notion, "page", [{ object: "block", type: "paragraph", paragraph: { rich_text: [] } }])).toEqual([{ id: "c" }]);
-    expect(fetch.mock.calls[2][1].headers["Notion-Version"]).toBe("2022-06-28");
+    expect(fetch.mock.calls[0][1].headers["Notion-Version"]).toBe("2022-06-28");
+  });
+
+  it("rejects a repeated cursor instead of looping", async () => {
+    responses({ results: [], has_more: true, next_cursor: "same" }, { results: [], has_more: true, next_cursor: "same" });
+    await expect(notion.getBlockChildren(auth.notion, "page")).rejects.toThrow();
+  });
+
+  it("appends at most 100 blocks at the end and returns every new block ID", async () => {
+    const fetch = responses({ results: [{ id: "c" }] });
+    expect(await notion.appendBlockChildren(auth.notion, "page", [{ object: "block", type: "paragraph", paragraph: { rich_text: [] } }])).toEqual(["c"]);
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(Object.keys(body)).toEqual(["children"]);
+    expect(fetch.mock.calls[0][1].method).toBe("PATCH");
     await expect(notion.appendBlockChildren(auth.notion, "page", Array(101).fill({}))).rejects.toThrow();
-    expect(fetch).toHaveBeenCalledTimes(3);
-  });
-  it("Slack allocates an ID separately from bytes and complete", async () => {
-    const fetch = responses({ ok: true, file_id: "F1", upload_url: "https://files.slack.com/upload/1" }, {}, { ok: true, files: [{ id: "F1" }] });
-    const allocated = await slack.requestFileUpload(auth.slack, "file.txt", 3);
-    expect(allocated).toEqual({ fileId: "F1", uploadUrl: "https://files.slack.com/upload/1" });
+    await expect(notion.appendBlockChildren(auth.notion, "page", [])).rejects.toThrow();
     expect(fetch).toHaveBeenCalledTimes(1);
-    await slack.sendFileUpload(allocated.uploadUrl, "file.txt", new Blob(["abc"]));
-    await slack.completeFileUpload(auth.slack, "C1", "1.2", "F1", "file.txt");
-    expect(fetch.mock.calls[2][0]).toContain("files.completeUploadExternal");
-    expect(fetch.mock.calls[2][1].body.get("thread_ts")).toBe("1.2");
   });
-  it.each([401, 403, 404])("GitHub %i fails without creating an issue", async status => {
-    const fetch = vi.fn().mockResolvedValue(new Response("{}", { status }));
-    vi.stubGlobal("fetch", fetch);
-    await expect(github.getIssueBody(auth.github, "o", "r", 1)).rejects.toThrow();
+
+  it("rejects an append response whose IDs cannot be matched one-to-one", async () => {
+    responses({ results: [] });
+    await expect(notion.appendBlockChildren(auth.notion, "page", [{ type: "paragraph" }])).rejects.toThrow();
+  });
+
+  it("deletes a single block", async () => {
+    const fetch = responses({ id: "x", archived: true });
+    await notion.deleteBlock(auth.notion, "x");
+    expect(fetch.mock.calls[0]).toEqual([expect.stringContaining("/blocks/x"), expect.objectContaining({ method: "DELETE" })]);
+  });
+
+  it("reads an upload status with a nullable expiry", async () => {
+    responses({ id: "u", status: "uploaded", expiry_time: null }, { id: "u", status: "pending", expiry_time: "2026-10-04T00:00:00.000Z" });
+    expect(await notion.getFileUpload(auth.notion, "u")).toEqual({ status: "uploaded", expiresAt: null });
+    expect(await notion.getFileUpload(auth.notion, "u")).toEqual({ status: "pending", expiresAt: Date.parse("2026-10-04T00:00:00.000Z") });
+  });
+
+  it("returns a null expiry from a new upload instead of NaN", async () => {
+    responses({ id: "u", upload_url: "https://api.notion.com/v1/file_uploads/u/send", expiry_time: null }, { id: "u", status: "uploaded" });
+    expect(await notion.uploadFile(auth.notion, "a.txt", "text/plain", "data:text/plain;base64,QQ==")).toEqual({ fileUploadId: "u", expiresAt: null });
+  });
+
+  it("reads the bot and workspace IDs of an API-key connection, failing closed without a workspace", async () => {
+    responses({ id: "bot-user", type: "bot", bot: { workspace_id: "ws" } }, { id: "bot-user", type: "bot", bot: {} });
+    expect(await notion.getBotIdentity(auth.notion)).toEqual({ botId: "bot-user", workspaceId: "ws" });
+    expect(await notion.getBotIdentity(auth.notion)).toEqual({ botId: "bot-user" });
+  });
+});
+
+describe("Slack upload stages are separate requests", () => {
+  it("allocates an ID without sending bytes or completing", async () => {
+    const fetch = responses({ ok: true, file_id: "F1", upload_url: "https://files.slack.com/upload/v1/abc" });
+    expect(await slack.requestFileUpload(auth.slack, "file.txt", 3)).toEqual({ fileId: "F1", uploadUrl: "https://files.slack.com/upload/v1/abc" });
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(fetch.mock.calls[0][1].method).not.toBe("POST");
+    expect(fetch.mock.calls[0][0]).toContain("files.getUploadURLExternal");
+  });
+
+  it("sends bytes only to an https files.slack.com URL", async () => {
+    const fetch = responses({});
+    await slack.sendFileUpload("https://files.slack.com/upload/v1/abc", "file.txt", new Blob(["abc"]));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await expect(slack.sendFileUpload("https://evil.example/upload", "file.txt", new Blob(["abc"]))).rejects.toThrow();
+    await expect(slack.sendFileUpload("http://files.slack.com/upload", "file.txt", new Blob(["abc"]))).rejects.toThrow();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("completes several files into the parent thread with one call", async () => {
+    const fetch = responses({ ok: true, files: [{ id: "F1" }, { id: "F2" }] });
+    await slack.completeFileUploads(auth.slack, "C1", "1.2", [{ id: "F1", title: "a.txt" }, { id: "F2", title: "b.txt" }]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const form = fetch.mock.calls[0][1].body as URLSearchParams;
+    expect(form.get("thread_ts")).toBe("1.2");
+    expect(form.get("channel_id")).toBe("C1");
+    expect(JSON.parse(form.get("files")!)).toEqual([{ id: "F1", title: "a.txt" }, { id: "F2", title: "b.txt" }]);
+  });
+
+  it.each([
+    [new slack.SlackError("internal_error", "x"), "ambiguous"],
+    [new slack.SlackError("fatal_error", "x"), "ambiguous"],
+    [new slack.SlackError("unknown_error", "x", 503), "ambiguous"],
+    [new TypeError("Failed to fetch"), "ambiguous"],
+    [new slack.SlackError("channel_not_found", "x"), "failed"],
+    [new slack.SlackError("invalid_auth", "x"), "failed"],
+  ] as const)("classifies a complete failure %# as %s", (error, outcome) => {
+    expect(slack.slackCompleteOutcome(error)).toBe(outcome);
   });
 });

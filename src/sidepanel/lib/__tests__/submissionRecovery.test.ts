@@ -622,3 +622,79 @@ it("Slack partial runner releases completed generated logs but preserves origina
   expect(await (await db.getAttachmentBlob("i", "pdf"))?.text()).toBe("original");
   expect(store.useIssuesStore.getState().issues[0]).toMatchObject({ status: "submitted", slackPreserved: true });
 });
+
+const logsIntent = () => ({ id: "logs", kind: "logs" as const, filename: "logs.html", contentType: "text/html", blob: new Blob(["l"], { type: "text/html" }) });
+const answerIdentity = (reply: (msg: { type: string }) => unknown) => vi.mocked(chrome.runtime.sendMessage).mockImplementation(((msg: { type: string }, cb: (r: unknown) => void) => { cb(reply(msg)); }) as never);
+const partialResult = { key: "#1", url: destination.url!, attachments: [{ fileId: "logs", delivery: "failed" as const, presentation: "failed" as const, failure: { stage: "upload" as const, code: "permission" as const, httpStatus: 403 } }] };
+
+it("snapshots the submitted bodyLocale and persists file checkpoints before the next adapter step", async () => {
+  answerIdentity(() => ({ ok: false, error: "offline" }));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [logsIntent()] });
+  await recovery.runSubmissionRecovery(prepared, async (progress) => {
+    const input = recovery.withSubmissionProgress({ ctx: { bodyLocale: "ko" as const } }, progress, prepared.files);
+    await input.progress.fileCheckpoint({ fileId: "logs", upload: "done", uploaded: { platform: "github", href: "https://github.com/user-attachments/files/1/logs.html" } });
+    const retry = (await db.readSubmissionRecovery("i"))!.retry!;
+    expect(retry).toMatchObject({ bodyLocale: "ko", accountIdentity: null, revision: 1, bodyPlan: { format: "markdown", lastWritten: "" } });
+    expect(retry.checkpoints).toEqual([{ fileId: "logs", upload: "done", link: "not-applicable", body: "pending", uploaded: { platform: "github", href: "https://github.com/user-attachments/files/1/logs.html" } }]);
+    await input.progress.beforeCreate();
+    await input.progress.created(destination);
+    await input.progress.bodyWritten("created body");
+    expect((await db.readSubmissionRecovery("i"))!.retry!.bodyPlan.lastWritten).toBe("created body");
+    return partialResult;
+  });
+});
+
+it("resolves the account identity only for a partial result and stores it in the snapshot", async () => {
+  answerIdentity(() => ({ ok: true, result: { identity: '["github","42"]' } }));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [logsIntent()] });
+  const result = await recovery.runSubmissionRecovery(prepared, async (progress) => {
+    const input = recovery.withSubmissionProgress({ ctx: { bodyLocale: "en" as const } }, progress, prepared.files);
+    await input.progress.beforeCreate();
+    await input.progress.created(destination);
+    return partialResult;
+  });
+  expect(result.recovery).toMatchObject({ state: "partial" });
+  expect(vi.mocked(chrome.runtime.sendMessage).mock.calls.map(([m]) => m)).toEqual([{ type: "github.getAccountIdentity", destination }]);
+  expect((await db.readSubmissionRecovery("i"))!.retry!.accountIdentity).toBe('["github","42"]');
+});
+
+it("keeps a partial submission intact when the identity lookup fails", async () => {
+  answerIdentity(() => ({ ok: false, error: "401", status: 401 }));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [logsIntent()] });
+  const result = await recovery.runSubmissionRecovery(prepared, async (progress) => {
+    const input = recovery.withSubmissionProgress({ ctx: { bodyLocale: "en" as const } }, progress, prepared.files);
+    await input.progress.beforeCreate();
+    await input.progress.created(destination);
+    return partialResult;
+  });
+  expect(result).toMatchObject({ key: "#1", recovery: { state: "partial" } });
+  expect(result.recovery?.storageFailed).toBeUndefined();
+  const meta = (await db.readSubmissionRecovery("i"))!;
+  expect(meta.phase).toBe("partial");
+  expect(meta.retry!.accountIdentity).toBeNull();
+});
+
+it("makes no identity request for a complete submission", async () => {
+  answerIdentity(() => ({ ok: true, result: { identity: '["github","42"]' } }));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [logsIntent()] });
+  await recovery.runSubmissionRecovery(prepared, async (progress) => {
+    const input = recovery.withSubmissionProgress({ ctx: { bodyLocale: "en" as const } }, progress, prepared.files);
+    await input.progress.beforeCreate();
+    await input.progress.created(destination);
+    return { key: "#1", url: destination.url!, attachments: [{ fileId: "logs", delivery: "attached", presentation: "complete" }] };
+  });
+  expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+  expect(await db.readSubmissionRecovery("i")).toBeNull();
+});
+
+it("records no snapshot without a bound bodyLocale or for webhook", async () => {
+  for (const platform of ["github", "webhook"] as const) {
+    const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform, files: [logsIntent()] });
+    await recovery.runSubmissionRecovery(prepared, async (progress) => {
+      const bound = platform === "webhook" ? recovery.withSubmissionProgress({ ctx: { bodyLocale: "en" as const } }, progress, prepared.files).progress : progress;
+      await bound.fileCheckpoint({ fileId: "logs", upload: "failed" });
+      expect((await db.readSubmissionRecovery("i"))!.retry).toBeUndefined();
+      throw new Error("stop before creation");
+    }).catch(() => {});
+  }
+});
