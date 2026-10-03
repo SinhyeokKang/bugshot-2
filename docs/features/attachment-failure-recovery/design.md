@@ -224,7 +224,7 @@ creating 중 응답 유실 또는 종료는 unknown이다. 서버가 명시적�
 - 성공: 기존 화면 그대로(초록 `CircleCheck`, 스토어 리뷰 버튼 포함).
 - 부분 완료: amber `CircleAlert`, 별도 제목 키(“이슈는 등록됐어요 · 첨부 N개 확인 필요”), **스토어 리뷰 요청 버튼 숨김**. 가운데 정렬 컬럼 대신 위쪽 정렬 `PageScroll`에 이슈 링크와 `AttachmentRecoveryPanel`을 넣고 `PageFooter`에 [확인]을 둔다.
 - 등록 여부 미확인: 같은 레이아웃에 “등록됐는지 확인할 수 없어요” 제목과 다운로드만 둔다.
-- partial을 기존 성공 토스트 뒤에 숨기지 않는다. 완료 화면이 뜬 경로에서는 `toastSubmitDropped` 토스트를 띄우지 않는다. 표시 여부는 `attachmentResults.ts`의 순수 함수로 판정하고 토스트·패널이 한 경로만 타게 한다(POSTMORTEM 2026-09-29의 토스트 판정 lib화 교훈).
+- partial을 기존 성공 토스트 뒤에 숨기지 않는다. `attachmentResults.ts`의 순수 함수로 파일 결과를 판정해 완료 화면의 복구 패널에 표시한다. 전 어댑터 전환 후 기존 누락 토스트와 boolean 계약은 제거했다(POSTMORTEM 2026-09-29의 판정 lib화 교훈).
 - `SubmitFieldsDialog`의 성공 callback과 analytics가 partial을 전체 실패로 재분류하지 않게 한다. 신규 분석 속성은 추가하지 않는다.
 
 **이슈 목록 (`IssueRow`·`IssueListTab`)**
@@ -255,7 +255,7 @@ creating 중 응답 유실 또는 종료는 unknown이다. 서버가 명시적�
 | 생성 여부 unknown 제목 | 등록됐는지 확인할 수 없어요 |
 | 자료 삭제 | 로컬 사본 삭제 |
 
-이행 기간에 남는 기존 `submit.logsDropped`의 “용량 한도로” 표현은 원인을 단정하므로 원인 중립 문구로 바꾼다.
+이행 기간의 기존 누락 안내는 원인을 단정하지 않아야 한다. 전 어댑터 전환 후 `submit.logsDropped` 등 기존 누락 토스트 키는 제거하고 파일별 안전한 실패 사유로 대체했다.
 
 **재시도할 수 없는 상태 (2단계)**
 
