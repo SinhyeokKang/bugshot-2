@@ -14,7 +14,7 @@ Even when the list grows, you'll find things fast.
 
 ## Open a row
 
-![Issue detail view](../assets/integrations-issue-tracking-2.jpg)
+![Submit dialog opened from a saved draft](../assets/integrations-issue-tracking-2.jpg)
 
 What opens depends on the row’s state.
 

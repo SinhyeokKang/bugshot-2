@@ -14,7 +14,7 @@
 
 ## 행을 열면
 
-![이슈 상세 보기](../assets/integrations-issue-tracking-2.jpg)
+![초안 상세에서 여는 이슈 제출창](../assets/integrations-issue-tracking-2.jpg)
 
 행의 상태에 따라 열리는 화면이 다릅니다.
 
