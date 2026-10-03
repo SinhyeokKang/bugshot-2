@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-10-04 — 복구 파일 삭제와 복구 포기는 다르다: 영속 상태가 화면과 액션을 결정해야 한다
+
+- **영역**: `컴포넌트`, `store`, `lib`
+- **계열**: `미검증단언`, `드리프트`
+- **그물**: `jsdom`
+- **증상**: 배포 전 UI 리뷰에서 일반 플랫폼의 로컬 사본 삭제를 확인해도 경고·확인 필요 개수·복구 상세가 계속 남았다. 원격 처리가 끝난 뒤 로컬 저장이 실패한 항목은 다시 상세를 열면 실패 이유가 사라졌고, 화면의 삭제 버튼은 저장소 phase 검사에 항상 거부됐다. 다른 패널의 파일 정리도 열린 화면에 반영되지 않았다.
+- **근본 원인**: 바이트 정리라는 공통 결과에 묶여 명시적 복구 포기와 자동 만료를 같은 상태로 처리했다. Slack 승격 예외만 해제했지만 일반 이슈에도 포기 계약이 있었다. 최초 완료 화면의 ephemeral storageFailed와 영속 journal의 complete-but-retained 상태도 구분하지 않아, 재진입 화면은 실패 설명을 재구성하지 못했다. 관리 버튼은 자료 존재만 보고 노출하고 실제 mutation의 phase 허용표를 따르지 않았다. IDB 메타만 바꾸면 Chrome 목록 구독자는 변화가 없었다.
+- **재발 방지**: `rg 'localFilesRemoved|submissionRecoveryId|phase.*complete|allowManage' src/sidepanel src/store`로 명시적 포기·TTL·unknown·로컬 완료 실패를 각각 대조한다. 실제 IssueListTab→상세→AlertDialog→IDB/store 경로로 파일뿐 아니라 경고·개수·행 전환·remote 0회를 단언한다. known-created는 durable submitted 뒤 journal/포인터를 정리하되 unknown 삭제는 생성 차단을 남긴다. complete 영속 상세는 파일 0개도 실패 설명과 phase-valid 액션을 검증한다. journal-only 변경은 기존 목록 레코드 갱신으로 구독자를 깨우고, 최신 durable 필드 보존·반복 reconciliation 무추가 write·두 mounted 소비자 갱신을 함께 고정한다.
+- **관련**: `src/sidepanel/lib/submissionRecovery.ts:deleteSubmissionLocalFiles`·`notifyRecoveryChange`, `src/store/blob-db.ts:removeSubmissionRecoveryFiles`, `src/sidepanel/components/AttachmentRecoveryPanel.tsx`, `src/sidepanel/tabs/IssueRow.tsx`, `src/sidepanel/tabs/__tests__/recoveryAbandonment.test.tsx`, `src/sidepanel/lib/__tests__/submissionRecovery.test.ts`. 최종 독립 229개 및 전체 8135개 테스트 통과. 선행: 2026-10-03 공유 원본 수명·지연 storage 이벤트·빈 파일 결과 완료 판정.
+
 ## 2026-10-03 — 파일 결과가 모두 완료여도 제출은 실패할 수 있다: 빈 집합과 본문 반영은 별도 증거다
 
 - **영역**: `어댑터`, `background`, `store`, `lib`
