@@ -193,7 +193,7 @@ e2e 스파이는 각 Page에서 `chrome.runtime.sendMessage`를 가로채 `msg.t
 8. 로그 OFF로 제출하면 결과의 `recovery-file-row` 중 `data-file-id=logs`가 없고, 이미지 실패 시 이미지 행만 있다.
 9. 정상 제출이면 `submit-success-partial`이 없고 기존 성공 화면이 보이며 목록에 `recovery-row-warning`이 없다.
 10. Slack 승격에서 미디어 업로드 실패는 기존 `requireMediaUpload` 가드로 생성 메시지 0회(`slack-promote-media-guard.spec.ts` 유지), Webhook JSON은 `recovery-row-warning` 없이 기존 보존 규칙 유지.
-16. Webhook multipart 부분 실패 항목의 상세에는 `recovery-retry`가 없고 `recovery-file-download`만 있다.
+16. Webhook multipart는 단일 원자 요청이라 파일별 부분 성공을 응답으로 가정하지 않는다. HTTP 500 등 생성 여부 미확인 항목의 상세에는 `recovery-retry`가 없고 `recovery-file-download`로 원본을 받을 수 있다. HTTP 400 확정 거절은 별도로 draft 재제출을 허용한다.
 
 **2단계**
 
