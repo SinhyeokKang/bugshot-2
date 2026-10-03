@@ -36,6 +36,60 @@
 
 ---
 
+## 2026-10-04 — 숨은 탭에 마운트된 화면도 "열린 화면"으로 집계된다
+
+- **영역**: `컴포넌트`
+- **계열**: `미검증단언`
+- **그물**: `jsdom`
+- **증상**: (리뷰에서 발견, 출시 전) 제출이 부분 완료로 끝난 뒤 이슈 목록 행에서 [첨부 재시도]를 누르면 결과 토스트가 뜨지 않았다. 완료 요약은 보이지 않는 Debug 탭의 live region에만 들어갔다.
+- **근본 원인**: `AttachmentRecoveryPanel`이 마운트될 때마다 "열린 복구 상세"로 등록됐고, 그 상태면 토스트 대신 상세 안 live region으로 알렸다. 그런데 같은 패널을 쓰는 완료 화면(`SubmitSuccessView`)은 Debug 탭에 있고, `App.tsx`는 탭을 언마운트하지 않고 `hidden`으로만 숨긴다. 그래서 "마운트됨 = 사용자에게 보임" 전제가 틀렸다.
+- **재발 방지**: "지금 보이는가"를 판정하는 등록(열린 상세·포커스 소유·announce 대상)은 공용 하위 컴포넌트의 mount effect에 두지 않고, 그 화면을 실제로 여는 분기(Dialog `open` 등)에 둔다. 사이드패널 탭 하위에서 `useEffect(() => register…)` 류를 grep해 탭 숨김 상태에서도 등록이 살아 있는지 확인한다. 테스트는 숨은 화면과 동작 화면을 함께 렌더해 알림이 정확히 1회인지 단언한다.
+- **관련**: `src/sidepanel/tabs/DraftDetailDialog.tsx`(등록 위치), `src/sidepanel/components/AttachmentRecoveryPanel.tsx`(live region `allowManage` 한정), `src/sidepanel/lib/retrySession.ts:registerRetryDetail`, `src/sidepanel/tabs/__tests__/IssueRow.retry.test.tsx`.
+
+## 2026-10-04 — 원격 첨부를 이름으로 대조하면 같은 제출의 동명 파일이 "이미 있음"이 된다
+
+- **영역**: `어댑터`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: (리뷰에서 발견, 출시 전) Jira·Asana에서 사용자 파일 `screenshot.webp`가 업로드되고, 같은 이름의 캡처 업로드가 결과 불명(`unknown`)이면 재시도가 캡처를 영원히 보내지 않았다. 버튼은 계속 보이지만 눌러도 결과가 없었다.
+- **근본 원인**: 결과 불명 업로드를 원격 첨부 목록에서 파일명으로 대조했다. 이 레코드가 이미 소유한 첨부까지 후보에 넣었다. 2026-08-20(파일명은 식별자가 아니다)과 같은 함정이 재시도 경로에서 재발한 것이다.
+- **재발 방지**: 원격 목록 대조 전에 이 레코드의 done 체크포인트 `uploaded.id`를 빼고, 남은 것만 이름으로 본다. 이름 일치는 성공 승격 근거가 아니라 "보내지 않기" 근거로만 쓴다(fail closed). `rg -n "filename ===|\.name ===|title ===" src/sidepanel/lib` 결과 중 원격 목록과 비교하는 곳을 전수 확인하고, 동명 사용자 파일 케이스 테스트를 둔다.
+- **관련**: `src/sidepanel/lib/retryAttachmentAdapters.ts`, `src/sidepanel/lib/__tests__/retryAttachments.test.ts`("name reconciliation ignores attachments this submission already owns"). 선행: 2026-08-20 파일명 식별자.
+
+## 2026-10-04 — 원격 호출과 같은 try에 둔 체크포인트, 메시지 경계에서 사라지는 에러 code
+
+- **영역**: `어댑터`, `background`
+- **계열**: `복제본`, `fail-open`
+- **그물**: `unit`
+- **증상**: (리뷰에서 발견, 출시 전) 두 가지였다.
+  - 체크포인트 저장이 실패하면 "업로드 실패"로 기록되거나 그냥 삼켜졌다(Notion·Slack·GitLab·Linear 4개 어댑터).
+  - Slack이 HTTP 200 + `code`로 돌려준 실패가 사이드패널에서 전부 `unknown`으로 분류됐다.
+- **근본 원인**:
+  - ① 어댑터마다 `try { await sendBg(...); await progress.fileCheckpoint(...) } catch → failed` 꼴로, 저장 단계와 원격 단계를 한 catch가 받았다.
+  - ② `serializePlatformError`는 `{status, body}`만 메시지로 넘긴다. 그런데 Slack 분류는 에러 객체의 `code`를 읽었다. background에서 쓰는 필드와 경계를 넘어 살아남는 필드가 달랐다.
+- **재발 방지**:
+  - 체크포인트는 원격 호출 try **밖**에서, 응답을 받은 직후·다음 원격 write 전에 쓴다. `rg -n 'fileCheckpoint|bodyWritten' src/sidepanel/lib/submitTo*.ts`로 각 호출이 어느 try 블록에 있는지 확인한다.
+  - 사이드패널이 분류에 쓰는 에러 필드는 `body`에 실어 보내고, 메시지 왕복(직렬화→역직렬화) 뒤 분류를 단위 테스트로 고정한다. `rg 'error.code|"code" in' src/lib src/sidepanel/lib`.
+- **관련**: `src/sidepanel/lib/submitTo{Notion,Slack,Gitlab,Linear}.ts`, `src/background/slack-api.ts:SlackError`, `src/lib/attachment-failure.ts:errorCode`, `src/sidepanel/lib/__tests__/adapterCheckpoints.test.ts`.
+
+## 2026-10-04 — 아무것도 검증하지 않는 테스트의 세 가지 형태
+
+- **영역**: `lib`, `store`
+- **계열**: `fail-open`
+- **그물**: `unit`
+- **증상**: 2단계 작업 중 green이던 테스트가 실제로는 대상을 검증하지 않았다. 리뷰와 변이 확인으로 드러났다.
+- **근본 원인**:
+  - ① **runner가 잡는 콜백 안의 `expect`**: `runSubmissionRecovery`는 어댑터 예외를 partial 결과로 바꾼다. 그래서 콜백 안 단언이 실패해도 테스트는 통과한다.
+  - ② **보호 삭제 API로 "원본 유실"을 재현**: `deleteAttachmentBlob`은 journal이 참조하는 키를 지우지 않는다. 그래서 local-missing 테스트가 원본이 살아 있는 채로 통과할 뻔했다.
+  - ③ **global 정규식(`/…/g`) 상수를 `.test`에 공유**: `lastIndex`가 호출 사이에 남아 판정이 번갈아 틀린다.
+  - (덤) fake-indexeddb의 구조적 복제는 값이 `undefined`인 키를 떨어뜨린다. 그래서 "필드 제거" 테스트가 실제 Chrome 동작을 증명하지 못했다.
+- **재발 방지**:
+  - runner·try/catch로 감싸이는 콜백에서는 값만 캡처하고 단언은 밖에서 한다. `rg -n "expect\(" src/**/__tests__ | 콜백 내부`를 리뷰 체크로 둔다.
+  - 유실 재현은 raw IDB delete로 한다.
+  - global 정규식은 `.test`용 non-global 쌍둥이를 따로 둔다. `rg -n "= /.*/g;" src/sidepanel/lib`.
+  - 새 테스트는 대상을 되돌리는 변이로 한 번 red를 확인한다.
+- **관련**: `src/sidepanel/lib/__tests__/submissionRecovery.test.ts`, `src/sidepanel/lib/__tests__/retryAttachments.test.ts`, `src/sidepanel/lib/attachmentBodyPatch.ts`(`HAS_SLOT`), `src/store/blob-db.ts`(undefined `uploaded` 거부).
+
 ## 2026-10-04 — 부분 완료 정리는 원본 키뿐 아니라 완료된 생성물 바이트도 끝내야 한다
 
 - **영역**: `store`, `lib`, `e2e`
