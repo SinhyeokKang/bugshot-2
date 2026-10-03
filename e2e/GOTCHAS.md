@@ -123,3 +123,5 @@
 - 뮤테이션은 **타입 유효**하게 만든다. `if (false && …)`·존재하지 않는 리터럴 비교는 `TS2367`류로 빌드를 죽인다. 분기를 통째로 지우거나 반환값을 바꾸는 쪽이 안전하다.
 - 빌드 출력을 죽이지 말고 최소한 마지막 줄(`✓ built in …`)은 확인한다.
 - 확실히 하려면 산출물에서 직접 센다: `grep -rl "<마커>" dist-e2e/assets/*.js`.
+
+- **제출 오류 목은 실제 RPC 형식을 따른다**: `BgResponse` 실패는 `{ ok: false, error: string, status: number }`다. `error.status`로 중첩하면 HTTP400도 명확한 거절로 전달되지 않는다. Webhook HTTP400의 재제출 가능성과 HTTP500의 unknown journal·중복 생성 차단을 별도 검증한다. 복구 journal이 생기는 테스트는 패널 writer를 닫은 뒤 테스트 소유 IDB 자료와 Chrome 목록을 정리한다. 목록만 지우면 다음 패널의 reconciliation이 남은 journal에서 행을 복원한다.
