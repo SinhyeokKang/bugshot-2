@@ -7,7 +7,7 @@ import type { SubmissionRecoveryMeta } from "@/types/attachment";
 import type { RetryAttachmentsOutcome } from "@/sidepanel/lib/retryAttachments";
 
 const mocks = vi.hoisted(() => ({ read: vi.fn(), run: vi.fn(), slack: vi.fn(() => false) }));
-vi.mock("@/store/blob-db", () => ({ readSubmissionRecovery: mocks.read }));
+vi.mock("@/store/blob-db", () => ({ readSubmissionRecovery: mocks.read, readRecoveryFile: async () => new Blob(["x"]) }));
 vi.mock("@/store/issues-store", () => ({ isSlackPreserved: mocks.slack, useIssuesStore: (select: (s: unknown) => unknown) => select({ removeIssue: vi.fn(), issues: [] }) }));
 vi.mock("@/store/settings-store", () => ({ useSettingsStore: (select: (s: unknown) => unknown) => select({ accounts: {} }) }));
 vi.mock("@/i18n", () => ({ useT: () => (key: string) => key, dateBcp47: () => "en-US", getLocale: () => "en", t: (key: string) => key }));

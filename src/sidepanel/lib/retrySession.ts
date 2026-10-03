@@ -1,9 +1,10 @@
 import { toast } from "sonner";
 import { create } from "zustand";
 import { t } from "@/i18n";
-import type { AttachmentRetryReason } from "@/types/attachment";
+import { useSettingsStore } from "@/store/settings-store";
+import type { SubmissionRecoveryMeta } from "@/types/attachment";
 import { retryAttachments, type RetryProgressEvent } from "./retryAttachments";
-import { sessionStopReason, retrySummary, retrySummaryText, type RetrySummary } from "./retryUi";
+import { pendingFileCount, retrySummary, retrySummaryText, sessionStopReason, type RetryStop, type RetrySummary } from "./retryUi";
 
 export interface RetrySession {
   running: boolean;
@@ -11,8 +12,8 @@ export interface RetrySession {
   progress: Record<string, { stage: RetryProgressEvent["stage"]; state: RetryProgressEvent["state"] }>;
   // One-line result for the detail's live region; set only while that detail is open.
   summary: RetrySummary | null;
-  // A run-level stop (404/403/401/account) hides retry for this panel session and this attempt only.
-  stop: { reason: AttachmentRetryReason; attemptId: string } | null;
+  // A run-level stop (404/403/401/account) hides retry for this panel session, attempt and account only.
+  stop: RetryStop | null;
   // Bumped when a run ends so mounted rows and panels re-read the journal.
   finishedAt: number;
 }
@@ -26,6 +27,9 @@ interface RetrySessionsState {
 export const EMPTY_RETRY_SESSION: RetrySession = { running: false, progress: {}, summary: null, stop: null, finishedAt: 0 };
 
 export const useRetrySessions = create<RetrySessionsState>(() => ({ sessions: {}, details: {} }));
+
+// The connected account object of a platform; a reconnect swaps it, which lifts that platform's stops.
+export const useRetryAccount = (platform: string): unknown => useSettingsStore((s) => (s.accounts as Record<string, unknown>)[platform]);
 
 export const useRetrySession = (issueId: string): RetrySession => useRetrySessions((s) => s.sessions[issueId] ?? EMPTY_RETRY_SESSION);
 
@@ -50,18 +54,19 @@ export function registerRetryDetail(issueId: string): () => void {
 
 // The single entry for retry actions: rows and the detail footer both call this, so a second press
 // while one run is in flight never reaches the runner.
-export async function startAttachmentRetry(issueId: string, pending: number, attemptId: string): Promise<void> {
+export async function startAttachmentRetry(issueId: string, meta: SubmissionRecoveryMeta, account: unknown): Promise<void> {
   if (useRetrySessions.getState().sessions[issueId]?.running) return;
   patch(issueId, { running: true, progress: {}, summary: null });
   let summary: RetrySummary | null = null;
-  let stop: RetrySession["stop"] = null;
+  const pending = pendingFileCount(meta);
+  let stop: RetryStop | null = null;
   try {
     const outcome = await retryAttachments(issueId, {
       onProgress: (event) => patch(issueId, { progress: { ...useRetrySessions.getState().sessions[issueId]?.progress, [event.fileId]: { stage: event.stage, state: event.state } } }),
     });
     summary = retrySummary(outcome, pending);
     const reason = sessionStopReason(outcome);
-    stop = reason ? { reason, attemptId } : null;
+    stop = reason ? { reason, attemptId: meta.attemptId, account } : null;
   } catch {
     toast.error(t("bg.error.unknown"));
   }

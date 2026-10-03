@@ -38,7 +38,7 @@ describe("recovery notice per unavailable state", () => {
     ["authentication", retryMeta(), "authentication"],
     ["account-changed", retryMeta(), "account-changed"],
   ] as const)("explains %s with its own copy", async (reason, meta, stopReason) => {
-    if (stopReason) session({ stop: { reason: stopReason, attemptId: "a" } });
+    if (stopReason) session({ stop: { reason: stopReason, attemptId: "a", account: undefined } });
     await load(meta);
     expect(notice()?.getAttribute("data-reason")).toBe(reason);
     expect(notice()?.textContent).toBe(`recovery.retry.reason.${reason}`);
@@ -59,7 +59,7 @@ describe("recovery notice per unavailable state", () => {
   });
 
   it("keeps downloads available whatever the reason", async () => {
-    session({ stop: { reason: "account-changed", attemptId: "a" } });
+    session({ stop: { reason: "account-changed", attemptId: "a", account: undefined } });
     await load(retryMeta());
     expect(screen.getAllByTestId("recovery-file-download")).toHaveLength(1);
   });
@@ -95,7 +95,7 @@ describe("running state", () => {
     const name = "とても長い日本語のファイル名".repeat(8) + ".webp";
     const meta = retryMeta();
     meta.files[0] = { ...meta.files[0], filename: name };
-    session({ stop: { reason: "permission", attemptId: "a" } });
+    session({ stop: { reason: "permission", attemptId: "a", account: undefined } });
     await load(meta);
     const title = screen.getByTitle(name);
     expect(title.className).toContain("truncate");

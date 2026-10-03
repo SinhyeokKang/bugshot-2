@@ -9,7 +9,7 @@ import { useIssuesStore } from "@/store/issues-store";
 import type { SubmissionRecoveryMeta } from "@/types/attachment";
 import { downloadRecoveryFile, recoveryFileState } from "@/sidepanel/lib/attachmentRecovery";
 import { RETRY_REASON_KEY, retrySummaryText, retryUiState } from "@/sidepanel/lib/retryUi";
-import { registerRetryDetail, useRetrySession } from "@/sidepanel/lib/retrySession";
+import { useRetryAccount, useRetrySession } from "@/sidepanel/lib/retrySession";
 import { deleteSubmissionLocalFiles, confirmSubmissionNotRegistered } from "@/sidepanel/lib/submissionRecovery";
 import { Section } from "./Section";
 
@@ -26,8 +26,8 @@ export function AttachmentRecoveryPanel({ issueId, attemptId, allowManage = fals
   const [revision, setRevision] = useState(0);
   const session = useRetrySession(issueId);
   const locked = busy || session.running;
-  const reason = retryUiState(meta, session.stop).reason;
-  useEffect(() => registerRetryDetail(issueId), [issueId]);
+  const account = useRetryAccount(meta?.platform ?? "");
+  const reason = retryUiState(meta, session.stop, account).reason;
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -87,8 +87,8 @@ export function AttachmentRecoveryPanel({ issueId, attemptId, allowManage = fals
     </Card>;
   };
   return <div className="min-w-0 space-y-3" aria-busy={busy || loading}>
-    <p role="status" aria-live="polite" data-testid="recovery-retry-status" className={session.summary ? "break-words text-sm" : "sr-only"}>{session.summary ? retrySummaryText(session.summary, t) : ""}</p>
-    {loading && <p role="status" className="text-sm text-muted-foreground">{t("recovery.loading")}</p>}
+    {allowManage && <p role="status" aria-live="polite" data-testid="recovery-retry-status" className={session.summary ? "break-words text-sm" : "sr-only"}>{session.summary ? retrySummaryText(session.summary, t) : ""}</p>}
+    {loading && !meta && <p role="status" className="text-sm text-muted-foreground">{t("recovery.loading")}</p>}
     {error && <p role="alert" className="break-words text-sm">{t("recovery.error")}</p>}
     {meta && <>
       {meta.phase === "complete" && <p className="break-words text-sm">{t("recovery.storageFailed")}</p>}
