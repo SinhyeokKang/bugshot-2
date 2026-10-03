@@ -75,9 +75,15 @@ chrome.action.onClicked.addListener((tab) => {
 
 체크포인트와 삭제는 issueId·attemptId를 검증한다. complete는 기대 파일 ID마다 완료 결과가 정확히 하나 있을 때만 허용한다. 목적지의 platform·key·locator는 고정하고, 처음 없었던 URL을 같은 목적지의 permalink로 보완할 수 있다. 파일명은 식별자가 아니며 결과 대조·실패 코드·표시 경로의 순수 판정은 `sidepanel/lib/attachmentResults.ts`, 계약 타입은 `types/attachment.ts`가 담당한다.
 
-`deleteOriginalKeys(issueId, attemptId, sources)`는 현재 partial/complete journal에 속한 완료 원본만 정리한다. 목록의 제출 상태 영속화 뒤, journal 삭제 전에 호출해야 한다. 다른 journal과 일반 draft·에디터가 공유하는 inline 원본은 보존한다. `purgeRecoveryForIssues`도 공유 참조를 보호하고, 참조 조회 실패 시 삭제하지 않는다. 기존 Blob 삭제·clear·inline GC는 recovery store를 함께 잠그고 참조 키를 제외한다. chrome.storage 참조 수집과 IDB 사이에는 원자적 잠금이 없으며 기존 inline GC의 참조 스냅샷 모델을 따른다.
+`deleteOriginalKeys(issueId, attemptId, sources)`는 현재 partial/complete journal에 속한 완료 원본만 정리한다. 제출 실행기는 더 넓은 `cleanupSubmissionOriginals`를 써 미완료·공유 참조를 보존하면서 원시 로그·썸네일·비전송 미디어도 정리한다. Asana 변환본의 `originalSource`는 변환 전 원본 키를 추적한다. 정리는 목록의 제출 상태 영속화 뒤, journal 삭제 전에 수행한다. complete 포인터도 정리가 끝날 때까지 유지한다. `purgeRecoveryForIssues`는 공유 참조를 보호하고 참조 조회 실패 시 삭제하지 않는다. 기존 Blob 삭제·clear·inline GC는 recovery store를 함께 잠그고 참조 키를 제외한다. chrome.storage 참조 수집과 IDB 사이에는 원자적 잠금이 없으며 기존 inline GC의 참조 스냅샷 모델을 따른다.
 
-`removeIssue`·`clearIssues`는 `Promise<void>`를 반환한다. journal 정리가 실패하면 목록을 유지하며, 상세창은 삭제 성공 후에만 닫힌다. 전체 삭제는 시작 시 대상 ID를 고정해 기다리는 동안 추가된 이슈나 새 편집 세션을 지우지 않는다. 이 저장소 기반과 기존 삭제 호출부는 연결됐으며, 신규 제출의 생성 체크포인트·30일 만료·복구 화면은 후속 배치에서 연결한다.
+`sidepanel/lib/submissionRecovery.ts`는 기대 원본을 읽기 전에 결정하고, 저장 로그 키의 유실을 검사하며, logs.html·Asana JPEG·Notion ZIP을 journal 저장 전에 확정한다. 원본은 기존 키를 참조하고 생성물만 별도 보관한다. `beforeCreate`/`created` 체크포인트와 결과 완료를 조정하며, `markSubmittedDurably`가 정확한 persist Promise 성공을 확인한 뒤에만 정리한다. 이 write는 `pendingOwnWrites` 에코 가드에도 등록된다. 생성 이후 로컬 완료 처리가 실패하면 확정 목적지와 `recovery.storageFailed`를 반환한다. 첨부 행이 전부 성공해도 이 상태는 복구가 필요하다. 명시적 생성 거절만 `SubmissionCreationRejectedError`로 draft 재시도를 허용하며, 응답 유실·5xx·파싱 실패는 unknown이다.
+
+최초 제출·재시작 복구·미확인 해제·삭제는 `issues-store.ts:withIssueOperationLock`의 `bugshot-submission:<issueId>` Web Lock을 공유한다. `withIssueSubmitGuard`는 준비부터 완료까지 락을 유지하고, 획득 뒤 최신 Chrome 저장분과 journal을 확인한다. storage 이벤트가 늦게 도착한 패널도 이미 완료된 이슈를 새로 만들지 못한다. 잠금 API 부재·저장분 읽기 실패·손상 데이터는 제출을 차단하며 Slack 보존본 승격 예외는 유지한다. 2단계 재첨부도 같은 잠금을 써야 한다.
+
+`installIssuesSync`가 초기화·외부 동기화 뒤 `reconcileSubmissionRecovery`를 호출한다. 활성 락이 없는 중단 시도만 복구하며, journal 삭제 후 목록 저장이 실패해 남은 포인터도 최신 저장분을 대조해 정리한다. 이미 submitted인 항목을 draft로 되돌리지 않는다. 만료는 생성 후 30일이며 journal 메타를 남기고 바이트를 정리한다. 만료 journal끼리는 공유 원본을 보존하지 못하고, 살아 있는 다른 참조로 바이트가 남아도 `localFilesRemoved`가 만료 항목의 읽기를 차단한다.
+
+`removeIssue`·`clearIssues`는 `Promise<void>`를 반환한다. journal 정리가 실패하면 목록을 유지하며, 상세창은 삭제 성공 후에만 닫힌다. 전체 삭제는 시작 시 대상 ID를 고정해 기다리는 동안 추가된 이슈나 새 편집 세션을 지우지 않는다. 현재 배치에서는 두 제출 진입점까지 연결했으나, 실제 플랫폼 콜백·준비 파일 소비가 연결될 때까지 `assertSubmissionAdaptersReady`가 제출을 차단한다. 이 중간 상태는 푸시하지 않으며, 복구 화면은 후속 배치 소유다.
 
 ### issue 목록 크로스 인스턴스 병합 (#240)
 
