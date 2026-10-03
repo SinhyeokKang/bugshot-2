@@ -69,11 +69,20 @@ async function spySendMessage(panel: Page) {
         });
         return;
       }
-      if (msg?.type === "jira.submitIssue") {
+      if (msg?.type === "jira.uploadAttachment") {
+          const attachment = (msg as unknown as { attachment: { fileId: string; filename: string } }).attachment;
+          cb?.({ ok: true, result: { ...attachment, ok: true, href: "https://your.atlassian.net/attachment/logs", file: { kind: "external", url: "https://your.atlassian.net/attachment/logs" } } });
+          return;
+        }
+        if (msg?.type === "jira.updateIssueDescription") {
+          cb?.({ ok: true, result: { ok: true } });
+          return;
+        }
+        if (msg?.type === "jira.createIssue") {
         (w.__jiraSubmits as unknown[]).push(
           (msg as unknown as { payload?: unknown }).payload,
         );
-        cb?.({ ok: true, result: { key: "API-1", url: jiraUrl } });
+        cb?.({ ok: true, result: { key: "API-1", url: jiraUrl, siteId: "cloud-1" } });
         return;
       }
       if (msg?.type === "analytics.capture") {
@@ -128,6 +137,15 @@ async function lastSubmitJira(panel: Page) {
   return (await settingsState(panel))?.lastSubmitFields?.jira ?? null;
 }
 
+
+async function awaitDurableSubmission(panel: Page) {
+  await expect.poll(() => panel.evaluate(async () => {
+    const raw = (await chrome.storage.local.get("bugshot-issues"))["bugshot-issues"];
+    const record = JSON.parse(raw ?? "{}").state?.issues?.find((i: { key: string }) => i.key === "API-1");
+    return { status: record?.status, recovery: !!record?.submissionRecoveryId };
+  })).toEqual({ status: "submitted", recovery: false });
+}
+
 test.describe.serial("Jira 프로젝트 제출 시 전환", () => {
   let fixture: Page;
   let panel: Page;
@@ -145,10 +163,10 @@ test.describe.serial("Jira 프로젝트 제출 시 전환", () => {
     await spySendMessage(panel);
   });
 
-  test.afterAll(async () => {
-    await panel.evaluate((key) => chrome.storage.local.remove(key), SETTINGS_KEY);
+  test.afterAll(async ({ ext }) => {
     await panel.close();
     await fixture.close();
+    await ext.evalInExt((keys) => chrome.storage.local.remove(keys), [SETTINGS_KEY, "bugshot-issues"]);
   });
 
   test("프로젝트를 바꾸면 이슈타입이 비고 전환한 프로젝트의 목록이 열린다", async () => {
@@ -184,6 +202,7 @@ test.describe.serial("Jira 프로젝트 제출 시 전환", () => {
         ),
       )
       .toHaveLength(1);
+    await awaitDurableSubmission(panel);
     const [payload] = await panel.evaluate(
       () =>
         (window as unknown as { __jiraSubmits?: { projectKey?: string }[] })
