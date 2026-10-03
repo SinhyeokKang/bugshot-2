@@ -136,6 +136,8 @@ test("pending create reload becomes unknown; cancellation preserves it and confi
   await trigger.focus(); await panel.keyboard.press("Enter");
   await expect(panel.getByRole("alertdialog")).toBeVisible();
   await expect(panel.getByRole("alertdialog").getByRole("button").first()).toBeFocused();
+  // 새 레이어는 한 렌더 뒤에야 Escape를 받는다(GOTCHAS "DismissableLayer 등록 지연").
+  await panel.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await panel.keyboard.press("Escape");
   await expect(panel.getByRole("alertdialog")).toHaveCount(0);
   await expect(panel.getByTestId("draft-detail-dialog")).toBeVisible();
