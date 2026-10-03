@@ -42,8 +42,10 @@ export function planAttachmentRetry(meta: SubmissionRecoveryMeta): Array<{ fileI
 export function attachmentRetryBlocker(meta: SubmissionRecoveryMeta): AttachmentRetryReason | null {
   const blocker = retrySnapshotBlocker(meta);
   if (blocker || planAttachmentRetry(meta).length) return blocker;
-  // A body place that was never recorded cannot be patched safely: download only.
-  return meta.retry!.checkpoints.some((cp) => slotlessBody(meta, cp)) ? "legacy" : "ambiguous";
+  // A body place that was never recorded makes only that file download-only; the record is legacy
+  // when nothing else is left, otherwise the other files' state speaks for it.
+  const open = meta.files.filter((f) => { const cp = meta.retry!.checkpoints.find((c) => c.fileId === f.id); return cp && !fileFinished(meta.platform, f, cp); });
+  return open.length && open.every((f) => slotlessBody(meta, meta.retry!.checkpoints.find((c) => c.fileId === f.id)!)) ? "legacy" : "ambiguous";
 }
 
 function slotlessBody(meta: SubmissionRecoveryMeta, cp: AttachmentCheckpoint): boolean {
@@ -201,6 +203,6 @@ function reasonOf(meta: RetryMeta, checkpoints: Map<string, AttachmentCheckpoint
   // Left unknown after reconciling against the provider's attachment list: may already be there.
   const stuck = (f: RetryMeta["files"][number]) => planFileStage(meta.platform, f, checkpoints.get(f.id)!, meta.retry.bodyPlan.replacements.some((r) => r.fileId === f.id)) === null
     || (checkpoints.get(f.id)!.upload === "unknown" && (meta.platform === "jira" || meta.platform === "asana"));
-  if (open.length && open.every(stuck)) return open.some((f) => slotlessBody(meta, checkpoints.get(f.id)!)) ? "legacy" : "ambiguous";
+  if (open.length && open.every(stuck)) return open.every((f) => slotlessBody(meta, checkpoints.get(f.id)!)) ? "legacy" : "ambiguous";
   return undefined;
 }
