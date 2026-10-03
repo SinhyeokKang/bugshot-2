@@ -14,10 +14,10 @@
 - **변경 대상**: `src/types/{attachment,platform,messages,jira,slack}.ts`, 신규 `src/sidepanel/lib/attachmentResults.ts`와 테스트.
 - **작업 내용**: 파일 ID·종류·단계·실패 코드·delivery/presentation 계약과 기대 집합 대조를 먼저 테스트로 고정한다. 결과 → 표시 경로(성공 화면 / 부분 완료 패널 / 미확인 / 토스트 여부) 판정을 이 lib의 순수 함수로 둔다. `logsDropped`/`mediaDropped`와 호환되는 파생 함수를 이행 기간에만 둔다.
 - **검증**:
-  - [ ] 사용자 파일 실패와 로그 실패가 분리된다. 같은 표시명·빈 locator·빠진 응답·중복 응답을 성공으로 간주하지 않는다.
-  - [ ] 업로드 성공/연결 실패, 첨부 성공/본문 실패, 의도적 미전송을 서로 구분한다.
-  - [ ] 원인 미확인은 unknown이며 HTTP 403을 size-limit로 추측하지 않는다.
-  - [ ] 표시 판정: partial/unknown이면 완료 화면 패널 경로이고 토스트를 띄우지 않는다. 성공이면 기존 성공 화면.
+  - [x] 사용자 파일 실패와 로그 실패가 분리된다. 같은 표시명·빈 locator·빠진 응답·중복 응답을 성공으로 간주하지 않는다.
+  - [x] 업로드 성공/연결 실패, 첨부 성공/본문 실패, 의도적 미전송을 서로 구분한다.
+  - [x] 원인 미확인은 unknown이며 HTTP 403을 size-limit로 추측하지 않는다.
+  - [x] 표시 판정: partial/unknown이면 완료 화면 패널 경로이고 토스트를 띄우지 않는다. 성공이면 기존 성공 화면.
 
 ### Task 2: 전송 전 원본 검사와 제출 시점 생성물 확정 [1단계]
 - **변경 대상**: `resolveInlineImages.ts`, `buildCaptureFiles.ts`, `buildEditorCapture.ts`, 두 제출 진입점, 신규 `submissionRecovery.ts`.
@@ -34,14 +34,14 @@
 - **검증**:
   - [ ] 기존 v8 데이터 보존, 열린 연결의 versionchange/blocked 처리가 유지되고 blocked는 안내 문구로 이어진다.
   - [ ] 생성물 quota 실패 시 메타나 파일 일부만 남지 않고 외부 요청도 없다.
-  - [ ] 동시 begin 2회 중 하나만 성공한다(fake-indexeddb). 오래된 attempt의 checkpoint/delete는 새 attempt를 변경하지 않는다.
-  - [ ] `pruneOrphanBlobs`(`issues-store.ts:311`)·inline GC가 live journal이 가리키는 원본 키와 recovery store를 건드리지 않는다.
-  - [ ] journal 삭제가 실패하면 목록 항목도 유지된다(삭제 순서: journal → 목록).
-  - [ ] `removeIssue`·`clearIssues`가 `purgeRecoveryForIssues`를 호출한다.
+  - [x] 동시 begin 2회 중 하나만 성공한다(fake-indexeddb). 오래된 attempt의 checkpoint/delete는 새 attempt를 변경하지 않는다.
+  - [x] `pruneOrphanBlobs`(`issues-store.ts:311`)·inline GC가 live journal이 가리키는 원본 키와 recovery store를 건드리지 않는다.
+  - [x] journal 삭제가 실패하면 목록 항목도 유지된다(삭제 순서: journal → 목록).
+  - [x] `removeIssue`·`clearIssues`가 `purgeRecoveryForIssues`를 호출한다.
   - [ ] 생성 후 로그가 늘어나도 journal의 logs.html은 최초 바이트 그대로다(Task 2에서 이동).
   - [ ] 기대 파일 0개 제출도 빈 journal이 생기고 완료 시 정리된다.
-  - [ ] `store/__tests__/bundleBoundary.test.ts`의 `ALLOWED`가 늘지 않는다.
-  - [ ] 기존 e2e seed spec이 v9에서 VersionError 없이 돈다.
+  - [x] `store/__tests__/bundleBoundary.test.ts`의 `ALLOWED`가 늘지 않는다.
+  - [x] 기존 e2e seed spec이 v9에서 VersionError 없이 돈다.
 
 ### Task 4: 생성 체크포인트·영속 완료 API·제출 수명 [1단계]
 - **변경 대상**: `issues-store.ts`, `editor-store.ts`, `IssueCreateModal.tsx`, `DraftDetailDialog.tsx`, `SubmitFieldsDialog.tsx`, `submissionRecovery.ts`.

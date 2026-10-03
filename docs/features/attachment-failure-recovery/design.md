@@ -157,11 +157,12 @@ deleteSubmissionRecovery(issueId: string, attemptId: string): Promise<void>;
 // needs no sidepanel/lib import (bundleBoundary).
 purgeRecoveryForIssues(issueIds: string[]): Promise<void>;
 // Deletes the original-store keys of completed files only.
-deleteOriginalKeys(sources: RecoverySource[]): Promise<void>;
+deleteOriginalKeys(issueId: string, attemptId: string, sources: RecoverySource[]): Promise<void>;
 ```
 
 - `begin`은 같은 issueId의 미완료 attempt가 있으면 거절한다. 확인·생성을 같은 IDB 트랜잭션으로 수행해 두 패널의 중복 시작을 막는다. 기존 `withIssueSubmitGuard`는 프로세스 내 집합이므로 이 용도로 충분하지 않다.
 - 체크포인트는 attemptId 일치와 허용 상태 전이를 확인한다. 오래된 호출이 새 제출 결과를 덮지 못한다. 네트워크 await를 IDB transaction 안에 넣지 않는다.
+- 원본 정리도 현재 issueId·attemptId를 같은 트랜잭션에서 검증한다. `deleteOriginalKeys`는 partial/complete journal의 완료된 파일만 정리하며 다른 journal·일반 draft·편집 세션이 참조하는 원본을 보존한다. 목록 영속화 성공 뒤, journal 삭제 전에 호출한다. 참조 조회 실패는 삭제로 진행하지 않는다. 생성 시 원본 존재도 journal 트랜잭션 안에서 다시 확인한다.
 - **삭제 보류**: 현재 원본 Blob을 지우는 곳은 `markSubmitted`(`issues-store.ts:628-640`)뿐이다. `stripSubmitted`(:34-62)는 Blob을 지우지 않고 레코드의 `attachments`·`draft`·log blob key 같은 메타만 비운다. 부분 완료(또는 unknown)면 완료 경로가 `markSubmitted`의 전체 삭제 대신 완료된 파일의 원본 키만 `deleteOriginalKeys`로 지우고, 미완료 파일의 원본은 남긴다. 미완료 파일의 위치는 journal의 `RecoverySource`가 들고 있으므로 `stripSubmitted`가 레코드 메타를 비워도 찾을 수 있다.
 - **GC 제외**: 부분 완료 레코드는 목록에 남아 `pruneOrphanBlobs`(`issues-store.ts:311`, 목록에 없는 issueId 키만 지움)는 원본을 건드리지 않는다. 다만 inline GC처럼 레코드의 `draft.sections` 참조로 살아있음을 판정하는 경로는 `stripSubmitted` 뒤에 참조가 사라지므로, live journal의 `RecoverySource` 키를 제외 집합으로 받는다. journal store 자체는 별도 store라 어떤 기존 GC도 순회하지 않는다.
 - `IssueRecord`에는 optional `submissionRecoveryId`만 추가한다. journal이 복구 상태의 단일 출처다. 없음은 기존 동작이며 별도 issues-store version bump는 불필요하다. 부분 완료 포인터를 `stripSubmitted`가 의도적으로 보존하고, 해제 액션은 `updatedAt`을 갱신한다(#240 병합 규칙의 전제).

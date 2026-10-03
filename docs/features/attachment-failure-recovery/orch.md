@@ -14,8 +14,8 @@
 
 | Batch | Tasks / ownership | Prerequisite | Gate | Status |
 |---|---|---|---|---|
-| B1 contracts/storage | 1, 3: attachment contracts, attachmentResults, blob-db, issues-store cleanup/GC, e2e DB seed | none | contract/IDB tests + common gate + independent review | implementing |
-| B2 lifecycle | 2, 4: file preparation, submissionRecovery, store durability, both submit entry points | B1 | missing sources/unknown/reconcile/durability tests + common gate + independent review | planned |
+| B1 contracts/storage | 1, 3: attachment contracts, attachmentResults, blob-db, issues-store cleanup/GC, e2e DB seed | none | contract/IDB tests + common gate + independent review | integrated; all gates passed |
+| B2 lifecycle | 2, 4: file preparation, submissionRecovery, store durability, both submit entry points | B1 | missing sources/unknown/reconcile/durability tests + common gate + independent review | launching |
 | B3 adapters/body | 5, 6: all nine adapters, APIs/messages, Jira split, safe body fallbacks | B2 | platform matrix + common gate + independent review | planned |
 | B4 recovery UI | 7: panel, success/list/detail, download, i18n | B3 | interaction/accessibility tests + common gate + independent review | planned |
 | B5 acceptance | 8: obsolete contract removal, integration/e2e, guide/privacy/docs | B4 | phase-1 e2e + common gate + independent review | planned |
@@ -52,4 +52,6 @@ The plan permits narrower platform fan-out after contracts settle, but shared me
 - Security/codehealth review settled and released. Its final snapshot confirmed complete-result checks, generated-key collision rejection, and async callers fixed; shared original deletion still blocks. Routed safe failure-field projection, duplicate expected IDs, destination URL validation within the design, collision/transaction-abort tests to B1. Final CTO gate pending.
 - B1 fix-round evidence (worker report): `pnpm test` exit 0, 405 files / 7790 passed / 2 skipped; `pnpm typecheck` and `pnpm sync:agents:check` exit 0 after test-fixture type corrections. v9 seed e2e verification pending. Final CTO task `task_240d82dd98e4` / dispatch `ctx_2436f73b9450` launched.
 - B1 cleanup contract correction: `deleteOriginalKeys(issueId, attemptId, sources)` validates the current partial/complete journal and successful matching sources. B2 must invoke after durable submitted persistence and before journal deletion. Other journal/draft/session refs remain protected; reference lookup failure aborts before writes. `begin` checks original existence in the same transaction. B2 brief updated.
+- B1 final: CTO PASS after reproducing and fixing stable Slack identity/permalink enrichment (133 selected tests independently passed). Owner final gates exit 0: 405 files / 7798 passed / 2 skipped, typecheck, mirror; existing v9 seed e2e passed twice. Nonblocking destructive-guard test branches were also added before final commit. Source commits `fd8d42ed`, `d62a8847`, `93ae8889`, `101ebcb9` integrated as `526106ab`, `080b3d26`, `e3cb4c9d`, `df334be2`. All four B1 worker/reviewer terminals released; handoff/CTO report copied to coordinator scratch before cleanup. Main-checkout integration gate running.
+- B1 main-checkout integration `pnpm typecheck && pnpm test && pnpm sync:agents:check` exited 0; 405 files / 7798 passed / 2 skipped. Clean worker checkout and `git cherry dev` four minus entries verified before cleanup. Tasks 1 and proven storage checks marked; B2-dependent acceptance remains unchecked.
 - No external upload has run yet.
