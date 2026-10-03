@@ -22,7 +22,6 @@ const BG_REQUEST_TYPE_MAP: Record<BgRequest["type"], true> = {
   "jira.sprintFieldMeta": true,
   "jira.listSprints": true,
   "jira.getSprint": true,
-  "jira.submitIssue": true,
   "jira.createIssue": true,
   "jira.uploadAttachment": true,
   "jira.updateIssueDescription": true,

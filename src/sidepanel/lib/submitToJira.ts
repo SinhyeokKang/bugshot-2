@@ -94,6 +94,6 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
     await sendBg({ type: "jira.updateIssueDescription", issueKey: result.key, description, bodyLocale: input.ctx.bodyLocale, uploads, logsUrl, relates: input.relates?.map((r) => r.key) });
   } catch { bodyFailed = true; }
   return { key: result.key, url: result.url,
-    ...(input.submissionFiles ? { attachments: deliveryResults(input.submissionFiles, responses, bodyFailed) } : {}),
+    attachments: deliveryResults(input.submissionFiles ?? [], responses, bodyFailed),
   };
 }

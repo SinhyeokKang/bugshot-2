@@ -63,7 +63,7 @@ describe("submitToJira", () => {
     expect(arg.payload.bodyLocale).toBe("en");
   });
 
-  it("결과를 NormalizedSubmitResult로 매핑 (key/url/logsDropped/mediaDropped)", async () => {
+  it("결과를 NormalizedSubmitResult로 매핑 (key/url/attachments)", async () => {
     sendBg.mockResolvedValue({ ...RESULT, logsDropped: true, mediaDropped: false });
     const res = await submitToJira({
       ctx: makeCtx(),
@@ -74,12 +74,11 @@ describe("submitToJira", () => {
     expect(res).toEqual({
       key: "BUG-1",
       url: RESULT.url,
-
+      attachments: [],
     });
   });
 
-  // background가 센 신호가 이 경계에서 떨어지면 토스트가 Jira에서만 영영 안 뜬다 —
-  // 이 매핑은 손으로 필드를 나열하는 형태라 타입이 누락을 안 잡는다(전부 optional).
+  // 생성 응답의 옛 집계 필드는 새 파일별 결과에 섞이지 않는다.
   it("does not trust legacy drop flags in the create response", async () => {
     sendBg.mockResolvedValue({ ...RESULT, logsDropped: false, mediaDropped: true });
     const res = await submitToJira({
@@ -88,7 +87,7 @@ describe("submitToJira", () => {
       summary: "s",
       issueTypeId: "1",
     });
-    expect(res.mediaDropped).toBeUndefined();
+    expect(res).not.toHaveProperty("mediaDropped");
   });
 
   it("images/video/logs 순서로 첨부 조립", async () => {

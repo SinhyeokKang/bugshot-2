@@ -701,7 +701,7 @@ function SubmitSuccessPanel() {
 
   if (!submitResult) return null;
 
-  return <SubmitSuccessView result={submitResult} onClose={() => reset()} />;
+  return <SubmitSuccessView result={{ ...submitResult, attachments: submitResult.attachments ?? [] }} onClose={() => reset()} />;
 }
 
 function SessionExpiredDialog({

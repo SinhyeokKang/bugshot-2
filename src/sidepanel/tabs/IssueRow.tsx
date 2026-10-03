@@ -1,6 +1,6 @@
 import { readSubmissionRecovery } from "@/store/blob-db";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CircleAlert, FileText, Trash2, Upload } from "lucide-react";
 import { useT } from "@/i18n";
 import {
@@ -32,11 +32,12 @@ export function IssueRow({
 }: {
   issue: IssueRecord;
   refreshKey: number;
-  onOpenDraft: () => void;
+  onOpenDraft: (recoveryTrigger?: HTMLButtonElement | null) => void;
   onOpenSubmit: () => void;
   onBadgeLoaded: () => void;
 }) {
   const t = useT();
+  const recoveryTrigger = useRef<HTMLButtonElement>(null);
   const recovering = !!issue.submissionRecoveryId;
   const isSubmitted = issue.status === "submitted" && (!!issue.url || recovering);
   const removeIssue = useIssuesStore((s) => s.removeIssue);
@@ -81,7 +82,7 @@ export function IssueRow({
       if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
         document.activeElement.blur();
       }
-      onOpenDraft();
+      onOpenDraft(recovering ? recoveryTrigger.current : undefined);
     }
   };
 
@@ -109,7 +110,7 @@ export function IssueRow({
       </div>
       {recovering ? (
         <ButtonGroup className="shrink-0" onClick={(e) => e.stopPropagation()} {...hoverGuard}>
-          <Button variant="outline" size="icon" className="h-8 w-8" aria-label={t("issueList.viewDetail")} data-testid="recovery-detail-open" onClick={handleCardClick}><FileText /></Button>
+          <Button variant="outline" size="icon" className="h-8 w-8" aria-label={t("issueList.viewDetail")} ref={recoveryTrigger} data-testid="recovery-detail-open" onClick={handleCardClick}><FileText /></Button>
           {isSlackPreserved(issue) && <TooltipProvider><Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon" className="h-8 w-8 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-background aria-disabled:hover:text-foreground" aria-disabled aria-label={t("issueList.promote")} data-testid="promote-issue" onClick={() => {}}><Upload /></Button></TooltipTrigger><TooltipContent>{t("recovery.promotionBlocked")}</TooltipContent></Tooltip></TooltipProvider>}
         </ButtonGroup>
       ) : promotable ? (
@@ -121,7 +122,7 @@ export function IssueRow({
             aria-label={t("issueList.viewDetail")}
             title={t("issueList.viewDetail")}
             data-testid="view-detail-issue"
-            onClick={onOpenDraft}
+            onClick={() => onOpenDraft()}
           >
             <FileText />
           </Button>

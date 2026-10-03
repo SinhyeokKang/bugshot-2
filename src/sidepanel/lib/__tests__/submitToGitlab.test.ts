@@ -242,8 +242,8 @@ describe("submitToGitlab requireMediaUpload (승격 보호)", () => {
   });
 });
 
-describe("submitToGitlab logsDropped", () => {
-  it("logs.html 업로드가 null(용량 초과)이면 logsDropped: true", async () => {
+describe("submitToGitlab log attachment outcomes", () => {
+  it("logs.html 업로드가 null(용량 초과)이면 logs 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
         return [{ ok: false, filename: "logs.html" }];
@@ -264,8 +264,8 @@ describe("submitToGitlab logsDropped", () => {
     ).toBe(1);
   });
 
-  // 실패 케이스가 mediaDropped를 안 보면 반환을 false로 고정해도 구별이 안 된다.
-  it("캡처 이미지 업로드가 실패하면 mediaDropped: true", async () => {
+  // 실패 파일의 결과를 직접 검사해 성공으로 고정한 반환을 잡는다.
+  it("캡처 이미지 업로드가 실패하면 미디어 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
         return [{ ok: false, filename: "shot.webp" }];
@@ -282,7 +282,7 @@ describe("submitToGitlab logsDropped", () => {
     expectFileOutcome(res, "media", true);
   });
 
-  it("logs.html 업로드 성공이면 logsDropped: false", async () => {
+  it("logs.html 업로드 성공이면 logs 파일 완료 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
         return [{ ok: true, filename: "logs.html", href: "OK_URL" }];

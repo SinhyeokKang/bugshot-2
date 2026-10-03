@@ -24,17 +24,3 @@ export function submissionPresentation(creation: "created" | "unknown", results:
     : results.some((r) => r.delivery !== "attached" || r.presentation === "failed") ? "partial" : "success";
   return { screen, showPanel: screen !== "success", showToast: false } as const;
 }
-
-export function legacyAttachmentDrops(
-  files: ReadonlyArray<Pick<SubmissionFile, "id" | "kind">>,
-  results: readonly AttachmentResult[],
-): { logsDropped: boolean; mediaDropped: boolean } {
-  const dropped = (file: (typeof files)[number]) => {
-    const matches = results.filter((r) => r.fileId === file.id);
-    return matches.length !== 1 || matches[0].delivery !== "attached";
-  };
-  return {
-    logsDropped: files.some((f) => f.kind === "logs" && dropped(f)),
-    mediaDropped: files.some((f) => ["capture", "video", "inline"].includes(f.kind) && dropped(f)),
-  };
-}

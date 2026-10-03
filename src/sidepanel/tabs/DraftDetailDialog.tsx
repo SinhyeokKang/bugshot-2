@@ -148,6 +148,7 @@ type SubmitFields = {
 };
 
 export function DraftDetailDialog(props: {
+  onRecoveryCloseAutoFocus?: () => void;
   issue: IssueRecord | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -159,7 +160,7 @@ export function DraftDetailDialog(props: {
   const [recoveryMeta, setRecoveryMeta] = useState<SubmissionRecoveryMeta | null>(null);
   const recoveryUrl = recoveryMeta?.issueId === issue?.id && recoveryMeta?.attemptId === issue?.submissionRecoveryId ? recoveryMeta?.destination?.url : undefined;
   if (issue?.submissionRecoveryId) return <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="flex max-h-[80vh] w-[90vw] max-w-[800px] flex-col gap-5 rounded-3xl p-6 sm:rounded-3xl" data-testid="draft-detail-dialog" aria-describedby={undefined}>
+    <DialogContent onCloseAutoFocus={(event) => { event.preventDefault(); props.onRecoveryCloseAutoFocus?.(); }} className="flex max-h-[80vh] w-[90vw] max-w-[800px] flex-col gap-5 rounded-3xl p-6 sm:rounded-3xl" data-testid="draft-detail-dialog" aria-describedby={undefined}>
       <DialogHeader><DialogTitle>{issue.title || t("common.untitled")}</DialogTitle></DialogHeader>
       <PageScroll><AttachmentRecoveryPanel key={issue.submissionRecoveryId} issueId={issue.id} attemptId={issue.submissionRecoveryId} allowManage onMetaLoaded={setRecoveryMeta} onConfirmed={() => onOpenChange(false)} /></PageScroll>
       <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>{t("common.close")}</Button>
@@ -507,7 +508,7 @@ function EditableDraftDetailDialog({
       }),
     );
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
-    return { key: result.key, url: result.url, logsDropped: result.logsDropped, mediaDropped: result.mediaDropped, attachments: result.attachments };
+    return { key: result.key, url: result.url, attachments: result.attachments };
   }
 
   async function handleGithubSubmit(
@@ -788,8 +789,8 @@ function EditableDraftDetailDialog({
     // setLastSubmitFields 쌍은 없다(webhook?: never) — 기억할 제출 필드가 없다.
     useSettingsStore.getState().setLastSubmittedPlatform("webhook");
     return outcome.recorded
-      ? { key: outcome.key, url: outcome.url, logsDropped: outcome.logsDropped, mediaDropped: outcome.mediaDropped, attachments: outcome.attachments }
-      : { key: "", url: "", recorded: false };
+      ? { key: outcome.key, url: outcome.url, attachments: outcome.attachments }
+      : { key: "", url: "", recorded: false, attachments: [] };
   }
 
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {

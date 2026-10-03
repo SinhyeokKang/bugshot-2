@@ -43,6 +43,7 @@ export function IssueListTab() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pendingRef = useRef(0);
+  const recoveryTrigger = useRef<HTMLButtonElement | null>(null);
   const [successResult, setSuccessResult] = useState<NormalizedSubmitResult | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -167,7 +168,8 @@ export function IssueListTab() {
                   <IssueRow
                     issue={issue}
                     refreshKey={refreshKey}
-                    onOpenDraft={() => {
+                    onOpenDraft={(trigger) => {
+                      recoveryTrigger.current = trigger ?? null;
                       setDraftId(issue.id);
                       setAutoSubmit(false);
                     }}
@@ -230,6 +232,7 @@ export function IssueListTab() {
         issue={activeDraft}
         open={!!activeDraft}
         autoOpenSubmit={autoSubmit}
+        onRecoveryCloseAutoFocus={() => recoveryTrigger.current?.focus()}
         onOpenChange={(v) => {
           if (!v) {
             setRefreshKey((n) => n + 1);

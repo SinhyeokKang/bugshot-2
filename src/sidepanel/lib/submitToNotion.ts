@@ -117,7 +117,6 @@ export async function submitToNotion(
   // 3. 일반 첨부 업로드 — 직렬 (Notion rate limit 보호)
   const uploaded: { fileId?: string; placeholderId: string; fileUploadId: string; filename: string; category: typeof attachments[number]["category"] }[] = [];
   const failures: import("./submissionAdapter").DeliveryResponse[] = [];
-  let logsDropped = false;
   for (const a of attachments) {
     try {
       const res = await sendBg<NotionFileUploadResult>({
@@ -140,7 +139,6 @@ export async function submitToNotion(
       // image/video는 본문 핵심이라 strict 유지(전체 실패). 승격(requireMediaUpload)이면
       // 사용자 첨부(other)도 strict — 원본 파괴 전에 중단. 로그는 승격에서도 best-effort.
       if (a.category === "log" || (a.category === "other" && !input.requireMediaUpload)) {
-        if (a.category === "log") logsDropped = true;
         failures.push({ fileId: a.fileId, ok: false, failure: safeAttachmentFailure(err) });
         continue;
       }
@@ -175,5 +173,5 @@ export async function submitToNotion(
   await input.progress?.created({ platform: "notion", key: result.pageId.replace(/-/g, "").slice(0, 8), url: result.url, locator: { pageId: result.pageId } });
 
   const shortKey = result.pageId.replace(/-/g, "").slice(0, 8);
-  return { key: shortKey, url: result.url, logsDropped, ...(input.submissionFiles ? { attachments: deliveryResults(input.submissionFiles, [...failures, ...(result.attachedFileIds ? uploaded : []).map((r) => ({ fileId: r.fileId, ok: result.attachedFileIds?.includes(r.fileId ?? "") ?? false, href: result.url, failure: { stage: "body", code: "body-limit" } as const }))]) } : {}) };
+  return { key: shortKey, url: result.url, attachments: deliveryResults(input.submissionFiles ?? [], [...failures, ...(result.attachedFileIds ? uploaded : []).map((r) => ({ fileId: r.fileId, ok: result.attachedFileIds?.includes(r.fileId ?? "") ?? false, href: result.url, failure: { stage: "body", code: "body-limit" } as const }))]) };
 }

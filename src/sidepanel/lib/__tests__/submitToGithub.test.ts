@@ -44,8 +44,8 @@ beforeEach(() => {
   sendBg.mockReset();
 });
 
-describe("submitToGithub logsDropped", () => {
-  it("logs.html 업로드가 href:null(영상/용량 초과)이면 logsDropped: true", async () => {
+describe("submitToGithub log attachment outcomes", () => {
+  it("logs.html 업로드가 href:null(영상/용량 초과)이면 logs 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
         return [{ ok: false, filename: "logs.html" }];
@@ -66,7 +66,7 @@ describe("submitToGithub logsDropped", () => {
   });
 
   // 인라인 이미지 실패는 본문 미첨부 목록에도 안 실려(extras에 인라인이 없다) 무음이었다.
-  it("인라인 이미지 업로드가 실패하면 mediaDropped: true", async () => {
+  it("인라인 이미지 업로드가 실패하면 미디어 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
         return [{ ok: false, filename: "inline-ref1.webp" }];
@@ -84,7 +84,7 @@ describe("submitToGithub logsDropped", () => {
     expectFileOutcome(res, "media", true);
   });
 
-  it("logs.html 업로드 성공이면 logsDropped: false", async () => {
+  it("logs.html 업로드 성공이면 logs 파일 완료 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
         return [{ ok: true, filename: "logs.html", href: "LOGS_HREF" }];
@@ -250,7 +250,7 @@ describe("submitToGithub 업로드 판별자", () => {
     expectFileOutcome(res, "logs", true);
   });
 
-  it("판별자 형태에서 전부 성공이면 logsDropped: false", async () => {
+  it("판별자 형태에서 전부 성공이면 logs 파일 완료 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
         return [{ ok: true, filename: "logs.html", href: "LOGS_HREF" }];

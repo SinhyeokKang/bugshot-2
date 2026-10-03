@@ -119,7 +119,6 @@ export async function submitToLinear(
   for (const f of input.submissionFiles ?? []) {
     if (["capture", "video", "inline"].includes(f.kind)) responses.push({ fileId: f.id, ok: true, href: result.url });
   }
-  let logsDropped = false;
   for (const file of [...(input.logs ?? []), ...(input.attachments ?? [])]) {
     const isLog = (input.logs ?? []).includes(file);
     let uploaded: LinearMediaInput;
@@ -128,7 +127,6 @@ export async function submitToLinear(
         ? await injectIssueUrl(file.dataUrl, result.url, result.identifier) : file.dataUrl;
       uploaded = await uploadFile({ ...file, dataUrl });
     } catch (error) {
-      if (isLog) logsDropped = true;
       responses.push({ fileId: file.fileId, ok: false, failure: safeAttachmentFailure(error) });
       continue;
     }
@@ -150,6 +148,6 @@ export async function submitToLinear(
     responses.push({ fileId: file.fileId, ok: linked || bodyLinked, href: uploaded.assetUrl, presentation: isLog && !bodyLinked && linked ? "failed" : isLog ? "complete" : "not-applicable",
       ...(!linked && !bodyLinked ? { failure: { stage: "link", code: "unknown" } as const } : {}) });
   }
-  const attachments = input.submissionFiles ? deliveryResults(input.submissionFiles, responses) : undefined;
-  return { key: result.identifier, url: result.url, logsDropped, ...(attachments ? { attachments } : {}) };
+  const attachments = deliveryResults(input.submissionFiles ?? [], responses);
+  return { key: result.identifier, url: result.url, attachments };
 }

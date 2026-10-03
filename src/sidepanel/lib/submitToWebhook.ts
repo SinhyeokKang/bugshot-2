@@ -110,7 +110,7 @@ export async function submitToWebhook(
   // 실어야 참조가 고아가 되지 않는다 — 같은 헬퍼로 이름을 뽑아 두 곳이 갈리지 않게 한다.
   const inlineFiles = toInlineUploadFiles(input.inlineImages);
   const prepared = await prepareUpload(input, cidUploadFn, { platform: "webhook" });
-  const { resolvedCtx, toMedia, toAttachmentMedia, logsDropped } = prepared;
+  const { resolvedCtx, toMedia, toAttachmentMedia } = prepared;
 
   const imageInputs = input.images ?? [];
   const { body } = buildMarkdownIssueBody(
@@ -159,5 +159,5 @@ export async function submitToWebhook(
   // 사라졌을 때 여기서 key·url 없는 행이 조용히 만들어지지 않게 하려는 것이다.
   if (!result.key || !result.url) throw new Error(t("webhook.error.contract"));
   await input.progress?.created({ platform: "webhook", key: result.key, url: result.url, locator: { key: result.key, url: result.url } });
-  return { recorded: true, key: result.key, url: result.url, logsDropped, ...(input.submissionFiles ? { attachments: deliveryResults(input.submissionFiles, input.submissionFiles.map((f) => ({ fileId: f.id, ok: true, href: result.url }))) } : {}) };
+  return { recorded: true, key: result.key, url: result.url, attachments: deliveryResults(input.submissionFiles ?? [], (input.submissionFiles ?? []).map((f) => ({ fileId: f.id, ok: true, href: result.url }))) };
 }

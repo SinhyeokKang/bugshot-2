@@ -9,7 +9,6 @@ import type {
   JiraPriority,
   JiraProject,
   JiraSite,
-  JiraSubmitResult,
   JiraTransition,
   JiraUser,
 } from "./jira";
@@ -113,12 +112,6 @@ export type BgRequest =
   | { type: "jira.sprintFieldMeta"; projectKey: string; issueTypeId: string }
   | { type: "jira.listSprints"; projectKey: string }
   | { type: "jira.getSprint"; sprintId: number }
-  | {
-      type: "jira.submitIssue";
-      payload: JiraCreateIssuePayload;
-      attachments: JiraAttachmentInput[];
-      relates?: string[];
-    }
   | { type: "jira.createIssue"; payload: JiraCreateIssuePayload }
   | { type: "jira.uploadAttachment"; issueKey: string; attachment: JiraAttachmentInput }
   | { type: "jira.updateIssueDescription"; issueKey: string; description: import("./jira").JiraAdfDoc; bodyLocale?: import("@/i18n/locales").LocaleMode; uploads: Array<{ filename: string; file: { kind: "media"; mediaId: string; width?: number; height?: number } | { kind: "external"; url: string; width?: number; height?: number } }>; logsUrl?: string; relates?: string[] }
@@ -294,7 +287,6 @@ export type {
   JiraPriority,
   JiraProject,
   JiraSite,
-  JiraSubmitResult,
   JiraTransition,
   JiraUser,
   GithubCreateIssuePayload,

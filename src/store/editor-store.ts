@@ -31,8 +31,6 @@ export interface SubmitResult {
   key: string;
   url: string;
   platform: PlatformId;
-  logsDropped?: boolean;
-  mediaDropped?: boolean;
 }
 
 export type EditorPhase =

@@ -93,8 +93,6 @@ export async function submitToClickup(
 
   let responses: UploadFileResult[] = [];
   let bodyFailed = false;
-  let logsDropped = false;
-  let mediaDropped = false;
   if (allFiles.length > 0) {
     // task URL을 이미 알고 있으니 logs.html에 백링크를 미리 주입해 1회 업로드로 끝낸다.
     const uploadFiles = await Promise.all(
@@ -113,10 +111,6 @@ export async function submitToClickup(
 
     responses = results;
     const urlMap = new Map(allFiles.map((f) => { const found = results.filter((r) => f.fileId ? r.fileId === f.fileId : r.filename === f.filename); const r = found.length === 1 ? found[0] : undefined; return [f.fileId ?? f.filename, r?.ok ? r.href : null]; }));
-    logsDropped = logs.some((l) => !urlMap.get(l.fileId ?? l.filename));
-    mediaDropped = [...imageInputs, ...(input.video ? [input.video] : []), ...inlineFiles].some(
-      (f) => !urlMap.get(f.fileId ?? f.filename),
-    );
 
     // 본문 붙여넣기 인라인 이미지: 업로드 URL로 본문 src(`inline:refId`)를 치환.
     let resolvedCtx = input.ctx;
@@ -155,5 +149,5 @@ export async function submitToClickup(
     }
   }
 
-  return { key: task.id, url: task.url, logsDropped, mediaDropped, ...(input.submissionFiles ? { attachments: deliveryResults(input.submissionFiles, responses.map((r) => ({ ...r, href: r.ok ? r.href : undefined })), bodyFailed) } : {}) };
+  return { key: task.id, url: task.url, attachments: deliveryResults(input.submissionFiles ?? [], responses.map((r) => ({ ...r, href: r.ok ? r.href : undefined })), bodyFailed) };
 }

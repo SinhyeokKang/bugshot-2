@@ -48,7 +48,7 @@ export async function submitToGitlab(
     },
     { platform: "gitlab" },
   );
-  const { resolvedCtx, toMedia, toAttachmentMedia, logsDropped, mediaDropped, hrefMap } = prepared;
+  const { resolvedCtx, toMedia, toAttachmentMedia, hrefMap } = prepared;
 
   const imageInputs = input.images ?? [];
   const { body } = buildGitlabIssueBody({
@@ -101,5 +101,5 @@ export async function submitToGitlab(
     }
   }
 
-  return { key: `#${result.iid}`, url: result.url, logsDropped, mediaDropped, ...(input.submissionFiles ? { attachments: deliveryResults(input.submissionFiles, prepared.responses) } : {}) };
+  return { key: `#${result.iid}`, url: result.url, attachments: deliveryResults(input.submissionFiles ?? [], prepared.responses) };
 }

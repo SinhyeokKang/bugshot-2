@@ -52,8 +52,8 @@ beforeEach(() => {
   linearBody = "BODY";
 });
 
-describe("submitToLinear logsDropped", () => {
-  it("logs.html 업로드 실패 시 logsDropped: true (이슈는 생성)", async () => {
+describe("submitToLinear log attachment outcomes", () => {
+  it("logs.html 업로드 실패 시 logs 파일 실패 결과 (이슈는 생성)", async () => {
     sendBg.mockImplementation(async (msg: { type: string; filename?: string }) => {
       if (msg.type === "linear.submitIssue") return ISSUE;
       if (msg.type === "linear.uploadFile") {
@@ -77,7 +77,7 @@ describe("submitToLinear logsDropped", () => {
     expectFileOutcome(res, "logs", true);
   });
 
-  it("logs.html 업로드 성공이면 logsDropped: false", async () => {
+  it("logs.html 업로드 성공이면 logs 파일 완료 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string; filename?: string }) => {
       if (msg.type === "linear.submitIssue") return ISSUE;
       if (msg.type === "linear.uploadFile") return { assetUrl: `asset-${msg.filename}` };

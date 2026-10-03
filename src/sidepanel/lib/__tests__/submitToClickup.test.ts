@@ -121,8 +121,8 @@ describe("submitToClickup 제출 순서", () => {
   });
 });
 
-describe("submitToClickup logsDropped", () => {
-  it("logs.html 업로드가 null이면 logsDropped: true", async () => {
+describe("submitToClickup log attachment outcomes", () => {
+  it("logs.html 업로드가 null이면 logs 파일 실패 결과", async () => {
     injectIssueUrl.mockResolvedValue("data:aug");
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "clickup.submitIssue") return TASK;
@@ -234,7 +234,7 @@ describe("submitToClickup 업로드 판별자", () => {
 //
 // 각 행이 잠그는 계약 3개:
 //   ① 2차 갱신이 reject해도 제출이 reject되지 않는다
-//   ② 반환값(key·url·logsDropped)이 완전 성공 경로와 동일하다
+//   ② 생성된 목적지(key·url)가 첨부 실패에도 유지된다
 //   ③ 1차 생성과 첨부 업로드는 그대로 남는다(첨부 보존)
 //
 // **정직성은 이 표의 범위가 아니다.** clickup의 bare `catch {}`는 rethrow·플래그·로그가 없어
@@ -283,10 +283,10 @@ describe("submitToClickup — 2차 본문 갱신 실패 (전수 표 clickup 행)
   });
 });
 
-describe("submitToClickup — mediaDropped", () => {
+describe("submitToClickup — media attachment outcomes", () => {
   const TASK2 = { id: "t1", url: "https://app.clickup.com/t/t1" };
 
-  it("영상 업로드가 실패하면 mediaDropped: true", async () => {
+  it("영상 업로드가 실패하면 미디어 파일 실패 결과", async () => {
     injectIssueUrl.mockResolvedValue("data:aug");
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "clickup.submitIssue") return TASK2;
@@ -303,7 +303,7 @@ describe("submitToClickup — mediaDropped", () => {
     expectFileOutcome(res, "media", true);
   });
 
-  it("logs.html만 실패하면 mediaDropped는 false로 남는다", async () => {
+  it("logs.html만 실패하면 미디어 파일 완료 상태를 유지한다", async () => {
     injectIssueUrl.mockResolvedValue("data:aug");
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "clickup.submitIssue") return TASK2;

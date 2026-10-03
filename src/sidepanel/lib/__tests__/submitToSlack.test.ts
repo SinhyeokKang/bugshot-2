@@ -131,8 +131,8 @@ describe("submitToSlack — 첨부 없음", () => {
   });
 });
 
-describe("submitToSlack — logsDropped", () => {
-  it("logs.html 업로드가 실패(ok:false)하면 logsDropped: true", async () => {
+describe("submitToSlack — log attachment outcomes", () => {
+  it("logs.html 업로드가 실패(ok:false)하면 logs 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) =>
       msg.type === "slack.uploadFiles"
         ? [{ filename: "logs.html", ok: false }]
@@ -212,8 +212,8 @@ describe("submitToSlack — 인라인 이미지", () => {
     ]);
   });
 
-  // 인라인 이미지 업로드 실패는 logsDropped(로그 전용 신호)를 오염시키면 안 된다.
-  it("인라인 업로드가 실패해도 logsDropped는 로그 기준으로만 판정한다", async () => {
+  // 인라인 이미지 실패가 로그 파일의 완료 결과를 바꾸면 안 된다.
+  it("인라인 업로드가 실패해도 logs 파일 결과는 독립적으로 유지한다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) =>
       msg.type === "slack.uploadFiles"
         ? [
@@ -248,10 +248,9 @@ describe("submitToSlack — 인라인 이미지", () => {
   });
 });
 
-// logsDropped는 logs.html 전용 신호라, 영상·스크린샷이 상한에 걸려 통째로 빠져도
-// 사용자에겐 아무 안내가 없다. Slack은 네이티브 첨부라 본문에 흔적조차 안 남는다.
-describe("submitToSlack — mediaDropped", () => {
-  it("영상 업로드가 실패하면 mediaDropped: true", async () => {
+// Slack 네이티브 첨부도 영상·스크린샷별 실패 결과를 보존한다.
+describe("submitToSlack — media attachment outcomes", () => {
+  it("영상 업로드가 실패하면 미디어 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) =>
       msg.type === "slack.uploadFiles"
         ? [{ filename: "recording.mp4", ok: false }]
@@ -267,7 +266,7 @@ describe("submitToSlack — mediaDropped", () => {
     expectFileOutcome(res, "media", true);
   });
 
-  it("logs.html만 실패하면 mediaDropped는 false로 남는다 — 두 신호는 별개 축이다", async () => {
+  it("logs.html만 실패하면 미디어 파일 완료 상태를 유지한다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) =>
       msg.type === "slack.uploadFiles"
         ? [
@@ -288,7 +287,7 @@ describe("submitToSlack — mediaDropped", () => {
     expectFileOutcome(res, "logs", true);
   });
 
-  it("사용자 첨부 실패는 mediaDropped를 켜지 않는다", async () => {
+  it("사용자 첨부 실패는 미디어 파일 완료 상태를 유지한다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) =>
       msg.type === "slack.uploadFiles"
         ? [{ filename: "report.pdf", ok: false }]

@@ -161,6 +161,6 @@ it("recovery outcomes never send destination, filenames or failure content to an
   trackSubmit("github", "freeform", { key: "PRIVATE-123", url: "https://private.example.com", attachments: [{ fileId: "customer.pdf", delivery: "failed", presentation: "failed" }], recovery: { state: "partial", issueId: "private-id", attemptId: "private-attempt", storageFailed: true } });
   expect(sendBg).toHaveBeenCalledWith({ type: "analytics.capture", event: "issue_submitted", properties: { platform: "github", capture_mode: "freeform", result: "success", replay_trimmed: "false", trim_source: "none" } });
   sendBg.mockClear();
-  trackSubmit("github", "freeform", { key: "", url: "", recovery: { state: "unknown", issueId: "private-id", attemptId: "private-attempt" } });
+  trackSubmit("github", "freeform", { key: "", url: "", attachments: [], recovery: { state: "unknown", issueId: "private-id", attemptId: "private-attempt" } });
   expect(sendBg).not.toHaveBeenCalled();
 });

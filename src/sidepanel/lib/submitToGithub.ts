@@ -44,7 +44,7 @@ export async function submitToGithub(
     },
     { platform: "github" },
   );
-  const { resolvedCtx, toMedia, toAttachmentMedia, logsDropped, mediaDropped } = prepared;
+  const { resolvedCtx, toMedia, toAttachmentMedia } = prepared;
 
   const imageInputs = input.images ?? [];
   const { body } = buildGithubIssueBody({
@@ -68,5 +68,5 @@ export async function submitToGithub(
     },
   }));
   await input.progress?.created({ platform: "github", key: `#${result.number}`, url: result.url, locator: { owner: input.owner, repo: input.repo, number: String(result.number) } });
-  return { key: `#${result.number}`, url: result.url, logsDropped, mediaDropped, ...(input.submissionFiles ? { attachments: deliveryResults(input.submissionFiles, prepared.responses) } : {}) };
+  return { key: `#${result.number}`, url: result.url, attachments: deliveryResults(input.submissionFiles ?? [], prepared.responses) };
 }

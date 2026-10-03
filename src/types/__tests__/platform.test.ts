@@ -6,7 +6,7 @@ import type {
 
 describe("NormalizedSubmitResult", () => {
   it("key와 url 필드를 가진다", () => {
-    const result: NormalizedSubmitResult = { key: "#42", url: "https://example.com" };
+    const result: NormalizedSubmitResult = { key: "#42", url: "https://example.com", attachments: [] };
     expect(result.key).toBe("#42");
     expect(result.url).toBe("https://example.com");
   });

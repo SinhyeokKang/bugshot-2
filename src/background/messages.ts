@@ -3,14 +3,13 @@ import { getLocale, t, withLocale } from "@/i18n";
 import { resolveBodyLocale, type LocaleMode } from "@/i18n/locales";
 import type { PlatformId } from "@/types/platform";
 import { dataUrlToBlob } from "@/store/blob-db";
-import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, adfHasSentinel, parseInlinePlaceholder } from "@/lib/adf-sentinels";
+import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
 import { adfMediaNode, adfMediaSingle, adfVideoMediaSingle, type MediaSource } from "./lib/adf-media";
 import { injectLogsLink } from "./lib/adf-logs-link";
 import { injectSnapshotRows } from "./injectSnapshotRows";
 import { captureOwnedTab, captureThrottle } from "./capture-throttle";
-import { injectIssueUrl } from "@/lib/inject-issue-url";
 import { isFetchableSheetUrl } from "@/lib/ssrf-guard";
-import type { JiraAdfDoc, JiraAttachmentInput, JiraAuth, JiraCreateIssuePayload, JiraSubmitResult } from "@/types/jira";
+import type { JiraAdfDoc, JiraAuth } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
 import type { AsanaUploadFileResult, BgRequest, UploadFileResult } from "@/types/messages";
 import {
@@ -326,15 +325,6 @@ export async function handleMessage(
       return { ok: true };
     }
 
-    case "jira.submitIssue":
-      // 제출은 호출 체인이 길어 auth를 값으로 들고 다닌다. 만료 토큰으로 진입하면 갱신이
-      // authedFetch 안에만 갇혀 호출자 사본은 계속 낡은 채로 남는다 — 진입 시 한 번 신선화.
-      return submitIssue(
-        await ensureFreshAuth(await loadAuth()),
-        message.payload,
-        message.attachments,
-        message.relates,
-      );
 
     case "github.startOAuth":
       return trackConnect("github", () => startGithubOAuth());
@@ -850,101 +840,6 @@ async function readCappedSheetText(
     offset += c.byteLength;
   }
   return new TextDecoder().decode(merged);
-}
-
-async function submitIssue(
-  auth: JiraAuth,
-  payload: JiraCreateIssuePayload,
-  attachments: JiraAttachmentInput[],
-  relates: string[] | undefined,
-): Promise<JiraSubmitResult> {
-  const issue = await createIssue(auth, payload);
-  const issueUrl = buildIssueUrl(auth, issue.key);
-
-  // 이름이 아니라 userAttachment 표식으로 가른다 — 사용자가 올린 logs.html에 이슈 URL을
-  // 주입하면 그 사람 파일을 우리가 고쳐 올리는 셈이다.
-  for (const att of attachments) {
-    if (!att.userAttachment && att.filename === "logs.html") {
-      att.dataUrl = await injectIssueUrl(att.dataUrl, issueUrl, issue.key);
-    }
-  }
-
-  const uploadMap = new Map<string, UploadedFile>();
-  let logsDropped = false;
-  // 캡처 미디어(영상·스크린샷·인라인)가 상한에 걸려 빠진 축. logs.html 전용인 logsDropped와
-  // 갈라 둔다 — 안내 문구가 다르고, 한쪽만 실패하는 경우가 흔하다.
-  let mediaDropped = false;
-  let logsUrl: string | undefined;
-  const attachmentBase =
-    auth.kind === "apiKey"
-      ? auth.baseUrl.replace(/\/+$/, "")
-      : auth.siteUrl.replace(/\/+$/, "");
-  for (const att of attachments) {
-    try {
-      const blob = dataUrlToBlob(att.dataUrl);
-      const results = await uploadAttachment(auth, issue.key, att.filename, blob);
-      const r = results[0];
-      // logs.html은 mediaId를 안 쓰고 첨부 링크로만 나가므로 probe(최대 5.3초)를 태우지 않는다.
-      const needsMediaId = att.filename !== "logs.html";
-      const mediaId = needsMediaId
-        ? r?.mediaApiFileId || (r?.id ? await getMediaFileId(auth, String(r.id)) : undefined)
-        : undefined;
-      const dims = { width: att.width, height: att.height };
-      // logs.html은 media로 임베드하지 않고 본문 안내 문구에 첨부 링크로 단다.
-      if (!att.userAttachment && att.filename === "logs.html" && r?.id) {
-        logsUrl = `${attachmentBase}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
-      }
-      // uploadMap은 파일명 키라 뒤가 앞을 덮는다. 사용자 첨부를 넣으면 동명의 캡처 자리를
-      // 차지해 **사용자 파일이 이슈 본문에 인라인된다** — 본문 참조는 캡처만 대상이다.
-      if (att.userAttachment) {
-        // 첨부로만 올라가면 된다(업로드 자체는 위에서 이미 끝났다).
-      } else if (mediaId) {
-        uploadMap.set(att.filename, { kind: "media", mediaId, ...dims });
-      } else if (r?.id) {
-        const url = `${attachmentBase}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
-        uploadMap.set(att.filename, { kind: "external", url, ...dims });
-      }
-    } catch (err) {
-      if (!att.userAttachment) {
-        if (att.filename === "logs.html") logsDropped = true;
-        else mediaDropped = true;
-      }
-      console.warn("[bugshot] attachment upload failed", att.filename, err);
-    }
-  }
-
-  // uploadMap이 비어도 본문에 placeholder가 남아 있으면 갱신을 돌린다 — 건너뛰면 생성 본문의
-  // 리터럴(`__BUGSHOT_VIDEO__` 등)이 이슈에 그대로 보인다. 영상과 logs.html은 함께 실패하므로
-  // (logs.html이 영상을 통째로 임베드한다) uploadMap이 통째로 비는 건 드문 일이 아니다.
-  if (uploadMap.size > 0 || adfHasSentinel(payload.description.content)) {
-    try {
-      const content = buildJiraDescriptionContent({
-        description: payload.description,
-        uploadMap,
-        logsUrl,
-        bodyLocale: payload.bodyLocale,
-      });
-
-      await updateIssueDescription(auth, issue.key, {
-        version: 1,
-        type: "doc",
-        content,
-      });
-    } catch (err) {
-      // 실패한 첨부 식별에는 파일명이면 충분하다 — mediaId·URL은 SW 콘솔에 남길 이유가 없다.
-      console.warn("[bugshot] description update with images failed", err, [...uploadMap.keys()]);
-    }
-  }
-
-  for (const relatesKey of relates ?? []) {
-    try {
-      await createIssueLink(auth, issue.key, relatesKey);
-    } catch (err) {
-      console.warn("[bugshot] issue link failed", relatesKey, err);
-    }
-  }
-
-  return { key: issue.key, url: issueUrl, logsDropped, mediaDropped };
 }
 
 // background는 currentLocale 인스턴스가 사이드패널과 별도라(bg-init이 화면 언어로 세팅) 빌더

@@ -232,7 +232,7 @@ export function IssueCreateModal() {
       }),
     );
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
-    return { key: result.key, url: result.url, logsDropped: result.logsDropped, mediaDropped: result.mediaDropped, attachments: result.attachments };
+    return { key: result.key, url: result.url, attachments: result.attachments };
   }
 
   async function handleGithubSubmit(
@@ -506,8 +506,8 @@ export function IssueCreateModal() {
     // setLastSubmitFields 쌍은 없다(webhook?: never) — 기억할 제출 필드가 없다.
     useSettingsStore.getState().setLastSubmittedPlatform("webhook");
     const result: NormalizedSubmitResult = outcome.recorded
-      ? { key: outcome.key, url: outcome.url, logsDropped: outcome.logsDropped, mediaDropped: outcome.mediaDropped, attachments: outcome.attachments }
-      : { key: "", url: "", recorded: false };
+      ? { key: outcome.key, url: outcome.url, attachments: outcome.attachments }
+      : { key: "", url: "", recorded: false, attachments: [] };
     return result;
   }
 

@@ -147,7 +147,7 @@ async function finish(meta: SubmissionRecoveryMeta, patch: Partial<IssueRecord> 
     submissionRecoveryId: meta.attemptId,
     ...(preserveOriginals ? { slackPreserved: true } : {}),
   }, { preserveOriginals });
-  if (!preserveOriginals) await cleanupSubmissionOriginals(meta.issueId, meta.attemptId);
+  await cleanupSubmissionOriginals(meta.issueId, meta.attemptId);
   if (meta.phase === "complete") {
     await deleteSubmissionRecovery(meta.issueId, meta.attemptId);
     await reconcileMissingJournal(meta.issueId);

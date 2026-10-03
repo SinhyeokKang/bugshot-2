@@ -302,7 +302,7 @@ describe("submitToAsana", () => {
     expect(res.url).toBe(TASK.permalinkUrl);
   });
 
-  it("logs.html 첨부 실패(gid null)면 logsDropped: true", async () => {
+  it("logs.html 첨부 실패(gid null)면 logs 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "asana.submitIssue") return TASK;
       if (msg.type === "asana.uploadFiles")
@@ -319,7 +319,7 @@ describe("submitToAsana", () => {
     expectFileOutcome(res, "logs", true);
   });
 
-  it("logs.html 첨부 성공이면 logsDropped: false", async () => {
+  it("logs.html 첨부 성공이면 logs 파일 완료 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "asana.submitIssue") return TASK;
       if (msg.type === "asana.uploadFiles")
@@ -759,7 +759,7 @@ describe("submitToAsana 사용자 첨부 파일명 충돌 (Task 8-1 재현)", ()
     });
   });
 
-  it("사용자가 logs.html과 동명의 파일을 첨부해도 logsDropped는 false로 남는다", async () => {
+  it("사용자가 logs.html과 동명의 파일을 첨부해도 logs 파일 완료 상태를 유지한다", async () => {
     sendBg.mockImplementation(
       async (msg: { type: string; files?: Array<{ filename: string }> }) => {
         if (msg.type === "asana.submitIssue") return TASK;
@@ -794,7 +794,7 @@ describe("submitToAsana 사용자 첨부 파일명 충돌 (Task 8-1 재현)", ()
     expect(uploaded.map((f: { dataUrl: string }) => f.dataUrl)).toEqual(["data:LOGS", "data:USER"]);
   });
 
-  it("우리 logs.html이 실패하고 동명의 사용자 첨부만 성공하면 logsDropped는 true다", async () => {
+  it("우리 logs.html이 실패하고 동명의 사용자 첨부만 성공하면 logs 파일 실패 상태를 유지한다", async () => {
     // 반대 방향. 이름으로 매칭하면 사용자 파일의 성공이 우리 실패를 가려 경고가 무음으로 사라진다.
     sendBg.mockImplementation(
       async (msg: { type: string; files?: Array<{ filename: string }> }) => {
@@ -826,9 +826,9 @@ describe("submitToAsana 사용자 첨부 파일명 충돌 (Task 8-1 재현)", ()
   });
 });
 
-// logsDropped와 같은 축의 누락이지만 신호가 없던 쪽 — 캡처 미디어.
-describe("submitToAsana — mediaDropped", () => {
-  it("영상 첨부 실패(gid null)면 mediaDropped: true", async () => {
+// 로그와 캡처 미디어의 파일별 결과를 독립적으로 검사한다.
+describe("submitToAsana — media attachment outcomes", () => {
+  it("영상 첨부 실패(gid null)면 미디어 파일 실패 결과", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "asana.submitIssue") return TASK;
       if (msg.type === "asana.uploadFiles") return [{ ok: false, filename: "recording.mp4" }];
@@ -846,7 +846,7 @@ describe("submitToAsana — mediaDropped", () => {
 
   // POSTMORTEM "파일명을 신원 축으로 쓴 어댑터 둘" 재발 방지 (4): 이 불리언은 양방향을
   // 다 잠근다. 한 방향만 두면 위치 경계(`i < userAttachmentStart`)를 지워도 green이다.
-  it("캡처 이미지가 실패하고 동명의 사용자 첨부만 성공해도 mediaDropped는 true다", async () => {
+  it("캡처 이미지가 실패하고 동명의 사용자 첨부만 성공해도 캡처 파일 실패 상태를 유지한다", async () => {
     sendBg.mockImplementation(
       async (msg: { type: string; files?: Array<{ filename: string }> }) => {
         if (msg.type === "asana.submitIssue") return TASK;
@@ -872,7 +872,7 @@ describe("submitToAsana — mediaDropped", () => {
     expectFileOutcome(res, "media", true);
   });
 
-  it("캡처가 성공하면 동명의 사용자 첨부가 실패해도 mediaDropped는 false다", async () => {
+  it("캡처가 성공하면 동명의 사용자 첨부가 실패해도 캡처 파일 완료 상태를 유지한다", async () => {
     sendBg.mockImplementation(
       async (msg: { type: string; files?: Array<{ filename: string }> }) => {
         if (msg.type === "asana.submitIssue") return TASK;
@@ -897,7 +897,7 @@ describe("submitToAsana — mediaDropped", () => {
     expectFileOutcome(res, "media", false);
   });
 
-  it("logs.html만 실패하면 mediaDropped는 false로 남는다", async () => {
+  it("logs.html만 실패하면 미디어 파일 완료 상태를 유지한다", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "asana.submitIssue") return TASK;
       if (msg.type === "asana.uploadFiles")

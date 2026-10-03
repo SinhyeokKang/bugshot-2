@@ -182,8 +182,6 @@ export async function submitToAsana(
 
   let responses: AsanaUploadFileResult[] = [];
   let bodyFailed = false;
-  let logsDropped = false;
-  let mediaDropped = false;
   if (allFiles.length > 0) {
     // create가 upload보다 먼저라 task URL을 이미 알고 있음 → logs.html에 백링크를 미리 주입해
     // 1회 업로드로 끝낸다 (GitLab처럼 생성 후 재업로드 불필요).
@@ -216,13 +214,6 @@ export async function submitToAsana(
       // 사용자 첨부는 본문 인라인 안 하므로 byName에서 제외 — imageRefs 매칭 오염 방지.
       if (r.ok && i < userAttachmentStart) byName.set(r.filename, { gid: r.gid, viewUrl: r.viewUrl });
     });
-    logsDropped = (input.logs ?? []).some((l) => !byName.has(l.filename));
-    // byName은 캡처만 담는다(사용자 첨부는 위에서 제외) — 이미지·영상·인라인이 대상.
-    mediaDropped = [
-      ...imageInputs,
-      ...(input.video ? [input.video] : []),
-      ...inlineEntries.map((e) => e.file),
-    ].some((f) => !byName.has(f.filename));
     const imageRefs: Record<string, AsanaInlineImage> = {};
     // 캡처 이미지: 본문 src = 파일명.
     await Promise.all(
@@ -238,7 +229,7 @@ export async function submitToAsana(
         if (uploaded) imageRefs[inlineRefUrl(refId)] = await buildInlineRef(uploaded, file.dataUrl);
       }),
     );
-    const logsDelivered = logs.length > 0 && !logsDropped;
+    const logsDelivered = logs.length > 0 && logs.every((f) => byName.has(f.filename));
     if (Object.keys(imageRefs).length > 0 || logsDelivered) {
       try {
         // injectAsanaCc 누락 시 2차 write가 cc를 sentinel 문자열로 되돌린다.
@@ -256,5 +247,5 @@ export async function submitToAsana(
     }
   }
 
-  return { key: task.gid, url: task.permalinkUrl, logsDropped, mediaDropped, ...(input.submissionFiles ? { attachments: deliveryResults(input.submissionFiles, responses.map((r) => ({ ...r, href: r.ok ? r.gid : undefined })), bodyFailed) } : {}) };
+  return { key: task.gid, url: task.permalinkUrl, attachments: deliveryResults(input.submissionFiles ?? [], responses.map((r) => ({ ...r, href: r.ok ? r.gid : undefined })), bodyFailed) };
 }

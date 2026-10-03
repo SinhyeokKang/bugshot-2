@@ -79,16 +79,7 @@ export async function submitToSlack(
   }
 
   let responses: SlackUploadResult[] = [];
-  let logsDropped = false;
-  let mediaDropped = false;
   if (allFiles.length > 0) {
-    // 사용자 첨부를 뺀 캡처 미디어 — jira의 `!att.userAttachment`, asana의 위치 경계와
-    // 같은 의미론이다. 사용자 첨부 실패는 이 축이 아니다.
-    const mediaFiles = [
-      ...(input.images ?? []),
-      ...(input.video ? [input.video] : []),
-      ...inlineFiles,
-    ];
     const results = await sendBg<SlackUploadResult[]>({
       type: "slack.uploadFiles",
       channelId: input.channelId,
@@ -96,9 +87,6 @@ export async function submitToSlack(
       files: allFiles.map(toUploadEntry),
     }).catch((error) => allFiles.map((f) => ({ fileId: f.fileId, filename: f.filename, ok: false as const, failure: safeAttachmentFailure(error) })));
     responses = results;
-    const okByName = new Map(allFiles.map((f) => { const found = results.filter((r) => f.fileId ? r.fileId === f.fileId : r.filename === f.filename); return [f.fileId ?? f.filename, found.length === 1 && found[0].ok]; }));
-    logsDropped = logs.some((l) => !okByName.get(l.fileId ?? l.filename));
-    mediaDropped = mediaFiles.some((f) => !okByName.get(f.fileId ?? f.filename));
   }
 
   let permalinkFailure: import("@/types/attachment").AttachmentResult["failure"];
@@ -114,5 +102,5 @@ export async function submitToSlack(
     if (url.protocol !== "https:" || url.username || url.password) throw new Error("Invalid permalink");
   } catch { permalinkFailure ??= { stage: "body", code: "invalid-response" }; }
   const permalinkFailed = !!permalinkFailure;
-  return { ...(permalinkFailed ? { submissionFailure: permalinkFailure } : {}), key: parent.ts, url: permalinkFailed ? "" : permalink, logsDropped, mediaDropped, ...(input.submissionFiles ? { attachments: deliveryResults(input.submissionFiles, responses.map((r) => ({ ...r, href: r.remoteFileId, ...(permalinkFailed ? { presentation: "failed" as const, ...(r.ok ? { failure: permalinkFailure } : {}) } : {}) })), permalinkFailed) } : {}) };
+  return { ...(permalinkFailed ? { submissionFailure: permalinkFailure } : {}), key: parent.ts, url: permalinkFailed ? "" : permalink, attachments: deliveryResults(input.submissionFiles ?? [], responses.map((r) => ({ ...r, href: r.remoteFileId, ...(permalinkFailed ? { presentation: "failed" as const, ...(r.ok ? { failure: permalinkFailure } : {}) } : {}) })), permalinkFailed) };
 }

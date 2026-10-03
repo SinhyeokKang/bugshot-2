@@ -1025,9 +1025,13 @@ export async function cleanupSubmissionOriginals(issueId: string, attemptId: str
   await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES, STORE_NETWORK, STORE_CONSOLE, STORE_ACTION], "readwrite", async (tx) => {
     const current = await requireAttempt(tx.objectStore(STORE_RECOVERY), issueId, attemptId);
     if (current.phase !== "partial" && current.phase !== "complete") throw new Error("Recovery is not finalized");
+    const completed = (file: SubmissionRecoveryMeta["files"][number]) => current.results.some((r) => r.fileId === file.id && r.delivery === "attached" && r.presentation !== "failed" && !r.failure);
+    for (const file of current.files) {
+      if (file.source.kind === "generated" && completed(file)) tx.objectStore(STORE_RECOVERY).delete(file.source.key);
+    }
     if (current.platform === "slack") return;
     const retained = (await recoveriesIn(tx)).filter((meta) => meta.issueId !== issueId);
-    const incomplete = current.files.filter((file) => !current.results.some((r) => r.fileId === file.id && r.delivery === "attached" && r.presentation !== "failed" && !r.failure)).flatMap(originalRecoverySources);
+    const incomplete = current.files.filter((file) => !completed(file)).flatMap(originalRecoverySources);
     for (const storeName of ORIGINAL_STORES) {
       const store = tx.objectStore(storeName);
       const referenced = current.files.flatMap(originalRecoverySources).filter((s) => s.store === storeName).map((s) => s.key);

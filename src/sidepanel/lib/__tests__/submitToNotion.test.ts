@@ -52,8 +52,8 @@ beforeEach(() => {
   attachments.mockReset();
 });
 
-describe("submitToNotion logsDropped", () => {
-  it("로그 첨부 업로드 실패(용량 초과) 시 logsDropped: true (페이지는 생성)", async () => {
+describe("submitToNotion log attachment outcomes", () => {
+  it("로그 첨부 업로드 실패(용량 초과) 시 logs 파일 실패 결과 (페이지는 생성)", async () => {
     attachments.mockReturnValue([
       { placeholderId: "log-0", filename: "logs.html.zip", contentType: "application/zip", dataUrl: "data:zip", category: "log" },
     ]);
@@ -78,7 +78,7 @@ describe("submitToNotion logsDropped", () => {
     expect(res.url).toBe(PAGE.url);
   });
 
-  it("로그 첨부 성공이면 logsDropped: false", async () => {
+  it("로그 첨부 성공이면 logs 파일 완료 결과", async () => {
     attachments.mockReturnValue([
       { placeholderId: "log-0", filename: "logs.html.zip", contentType: "application/zip", dataUrl: "data:zip", category: "log" },
     ]);
