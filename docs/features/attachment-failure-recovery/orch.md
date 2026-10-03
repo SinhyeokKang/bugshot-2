@@ -20,8 +20,8 @@
 | B4 recovery UI | 7: panel, success/list/detail, download, i18n | B3 | interaction/accessibility tests + common gate + independent review | integrated dee24a11 |
 | B5 acceptance | 8: obsolete contract removal, integration/e2e, guide/privacy/docs | B4 | phase-1 e2e + common gate + independent review | integrated80b2204e; gates/reviews passed |
 | R runtime | final build; serial real-tab/UI verification and guide screenshots | B5 | record observed evidence and unavailable axes | capability check complete; actual runtime/shots unavailable |
-| D1 release | phase-1 push/CI, merge/sync, deploy | R | CI green, release artifacts and deployment evidence | authorized patch1.7.46; preparing PR |
-| B6 retry APIs | 9: existing remote issue read/update and file checkpoints | D1 | eight-platform contracts + common gate + independent review | planned |
+| D1 release | phase-1 push/CI, merge/sync, deploy | R | CI green, release artifacts and deployment evidence | complete: v1.7.46 tag/store ZIP/Release draft; store upload manual |
+| B6 retry APIs | 9: existing remote issue read/update and file checkpoints | D1 | eight-platform contracts + common gate + independent review | dispatching |
 | B7 retry runner | 10: stage resume, locks, body patch | B6 | no-create/no-duplicate/concurrency/conflict tests + common gate + independent review | planned |
 | B8 retry UI | 11: retry actions and feedback | B7 | UI/accessibility tests + common gate + independent review | planned |
 | B9 final acceptance | 12: retry e2e, docs, runtime validation, dev push | B8 | phase-2 acceptance and documented runtime evidence | planned |
@@ -133,3 +133,5 @@ The plan permits narrower platform fan-out after contracts settle, but shared me
 - Phase-one dev0b6bf0cc CI [37137888536](https://github.com/SinhyeokKang/bugshot-2/actions/runs/37137888536) completed SUCCESS (verify, four E2E shards, e2e-gate). User briefly paused the pipeline, then authorized patch bump and this deployment. Version-only commit1c4a151b sets1.7.46; lockfile has no version delta. Coverage and PR checks remain release gates.
 
 - User explicitly reaffirmed patch deployment after the orchestrate-skill boundary clarification. Updated the skill original and generated mirror: final remote dev SHA plus verify/e2e-gate green are the normal endpoint; merge/deploy remain separate instructions. Skill validation and mirror checks passed. Release coverage run exited0: logic92.3% (+1.3pp), one declining file submitToClickup100→99%, so baseline remains unchanged.
+
+- D1 complete: [PR247](https://github.com/SinhyeokKang/bugshot-2/pull/247) all required checks passed, squash merged as `eca47ebaa712b67516ce21a46a82e64f9164ba0e`. Verified empty dev/main content diff before dev synchronization; no unmerged work discarded. Tag `v1.7.46` points to the squash commit. Store build exited0; manifest1.7.46 has no development key, ZIP integrity passed. Asset `bugshot-v1.7.46.zip` (4,249,801 bytes; SHA25675d771af989bd85f272ba9d6888870aaa78af7adc5e73934d68611158a56fd77) uploaded to [Release draft](https://github.com/SinhyeokKang/bugshot-2/releases/tag/untagged-13b83d770efe4be081db). Store dashboard upload/review submission and Release publication remain manual; no store publication claim. Automatic phase2 starts now under the earlier instruction, ending at remote dev push plus exact-HEAD CI green.
