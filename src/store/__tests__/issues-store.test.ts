@@ -1375,3 +1375,20 @@ describe("deferred clear editor ownership", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("durable recovery completion", () => {
+  it("observes its persist rejection and performs no destructive cleanup", async () => {
+    useIssuesStore.setState({ issues: [{ ...baseLegacy, platform: "jira", status: "draft" } as IssueRecord] });
+    vi.mocked(chrome.storage.local.set).mockRejectedValueOnce(new Error("durable quota"));
+    await expect(useIssuesStore.getState().markSubmittedDurably("x", { key: "NEW-1" })).rejects.toThrow("durable quota");
+    expect(deleteVideoBlob).not.toHaveBeenCalled();
+    expect(deleteImageBlobs).not.toHaveBeenCalled();
+  });
+  it("registers the exact durable write in the own-write echo guard", async () => {
+    useIssuesStore.setState({ issues: [{ ...baseLegacy, platform: "jira", status: "draft" } as IssueRecord] });
+    await useIssuesStore.getState().markSubmittedDurably("x", { key: "NEW-2" });
+    const write = vi.mocked(chrome.storage.local.set).mock.calls.at(-1)![0];
+    expect(shouldSyncIssuesChange({ newValue: write["bugshot-issues"] })).toBe(false);
+    expect(shouldSyncIssuesChange({ newValue: write["bugshot-issues"] })).toBe(true);
+  });
+});
