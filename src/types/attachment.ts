@@ -60,9 +60,17 @@ export interface SubmissionRecoveryMeta {
   platform: CreatedDestination["platform"];
   createdAt: number;
   expiresAt: number;
+  localFilesRemoved?: boolean;
   phase: "prepared" | "creating" | "created" | "partial" | "complete" | "unknown";
   destination?: CreatedDestination;
-  files: Array<Omit<SubmissionFile, "dataUrl"> & { source: RecoverySource }>;
+  files: Array<Omit<SubmissionFile, "dataUrl"> & { source: RecoverySource; originalSource?: Extract<RecoverySource, { kind: "original" }> }>;
   results: AttachmentResult[];
   updatedAt: number;
+}
+
+export class MissingSubmissionFilesError extends Error {
+  constructor(readonly fileIds: string[]) {
+    super("Submission source files are missing");
+    this.name = "MissingSubmissionFilesError";
+  }
 }

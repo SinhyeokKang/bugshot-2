@@ -9,6 +9,7 @@ import { clearPicker } from "@/sidepanel/picker-clear";
 import {
   purgeRecoveryForIssues,
   listSubmissionRecoveries,
+  readSubmissionRecovery,
   deleteVideoBlob,
   getVideoBlobKeys,
   deleteImageBlobs,
@@ -36,7 +37,7 @@ export function stripSubmitted(
     ...patch,
     status: "submitted",
     submittedAt: Date.now(),
-    updatedAt: Date.now(),
+    updatedAt: Math.max(Date.now(), issue.updatedAt + 1),
     snapshot: { before: false, after: false },
     draft: { title: "", sections: {}, environment: [] },
     styleEdits: undefined,
@@ -104,6 +105,17 @@ export async function rehydrateIssuesFromExternalWrite(): Promise<void> {
 const PENDING_OWN_WRITES_CAP = 32;
 const pendingOwnWrites = new Set<string>();
 
+let durableWriteObserver: ((write: Promise<void>) => void) | undefined;
+
+export async function persistIssuesMutation(run: () => void): Promise<void> {
+  let write: Promise<void> | undefined;
+  if (durableWriteObserver) throw new Error("Nested durable issue write");
+  durableWriteObserver = (value) => { write = value; };
+  try { run(); } finally { durableWriteObserver = undefined; }
+  if (!write) throw new Error("Missing durable issue write");
+  await write;
+}
+
 const issuesStorage: StateStorage = {
   ...failClosedLocalStorage,
   async setItem(name, value) {
@@ -111,7 +123,14 @@ const issuesStorage: StateStorage = {
     if (pendingOwnWrites.size > PENDING_OWN_WRITES_CAP) {
       pendingOwnWrites.delete(pendingOwnWrites.values().next().value as string);
     }
-    await failClosedLocalStorage.setItem(name, value);
+    if (durableWriteObserver) {
+      const write = (async () => { await chrome.storage.local.set({ [name]: value }); })();
+      durableWriteObserver(write);
+      // Zustand does not return this Promise from an action. The observer owns rejection.
+      await write.catch(() => { pendingOwnWrites.delete(value); });
+    } else {
+      await failClosedLocalStorage.setItem(name, value);
+    }
   },
 };
 
@@ -138,6 +157,10 @@ export function beginIssueSubmit(id: string): void {
   submittingIds.add(id);
 }
 
+export function isIssueSubmitting(id: string): boolean {
+  return submittingIds.has(id);
+}
+
 export function endIssueSubmit(id: string): void {
   submittingIds.delete(id);
 }
@@ -152,7 +175,8 @@ export function isSlackPreserved(issue: IssueRecord): boolean {
 // 제출을 허용하는 레코드 상태. 이미 제출된 이슈를 다시 보내면 목적지에 중복 티켓이 생긴다
 // — Slack 보존본만 예외로, 트래커 승격이 submitted 레코드를 정당하게 다시 제출한다.
 export function canSubmitIssue(issue: IssueRecord): boolean {
-  return issue.status === "draft" || isSlackPreserved(issue);
+  return !submittingIds.has(issue.id) && !issue.submissionRecoveryId
+    && (issue.status === "draft" || isSlackPreserved(issue));
 }
 
 // 이미 제출된 이슈의 재제출 거부. 메시지는 UI가 붙인다 — store는 i18n을 import하지 않는다
@@ -172,13 +196,21 @@ export class IssueAlreadySubmittedError extends Error {
  *
  * 보내기 전에 레코드 상태도 본다 — 다른 인스턴스가 먼저 제출했는데 이쪽 화면이 previewing에
  * 남아 있으면 [제출]이 그대로 눌려 목적지에 중복 티켓이 생긴다. 그 경우 요청을 아예 안 보내고
- * `IssueAlreadySubmittedError`를 던진다. 레코드를 못 찾으면 막지 않는다 — 차단 근거가 아니고,
- * 막으면 정상 제출이 죽는다.
+ * `IssueAlreadySubmittedError`를 던진다. 지역 레코드가 있는데 저장분이 사라졌으면 삭제로
+ * 취급한다. 양쪽 모두 레코드가 없는 기존 호출 경로는 유지한다.
  *
  * try/finally를 호출부에 맡기지 않는 게 핵심이다 — 해제를 빠뜨리면 보전이 무기한이 되고,
  * 그 레코드는 다음 로컬 뮤테이션의 직렬화에 실려 **저장분으로 되돌아간다**(blob 없이, 모든
  * 인스턴스에). 호출부가 틀릴 수 없는 모양으로 둔다.
  */
+export async function withIssueOperationLock<T>(id: string, run: () => Promise<T>): Promise<T> {
+  if (!globalThis.navigator?.locks) throw new Error("Submission locking is unavailable");
+  return navigator.locks.request(`bugshot-submission:${id}`, { ifAvailable: true }, async (lock) => {
+    if (!lock) throw new IssueAlreadySubmittedError();
+    return run();
+  });
+}
+
 export async function withIssueSubmitGuard<T>(
   id: string | null | undefined,
   run: () => Promise<T>,
@@ -190,7 +222,20 @@ export async function withIssueSubmitGuard<T>(
   }
   beginIssueSubmit(id);
   try {
-    return await run();
+    return await withIssueOperationLock(id, async () => {
+      // A completed attempt has no journal; storage events may not have reached this panel yet.
+      const stored = await chrome.storage.local.get(ISSUES_PERSIST_KEY);
+      const raw = stored[ISSUES_PERSIST_KEY];
+      const records: IssueRecord[] = raw == null ? [] : JSON.parse(raw).state.issues;
+      if (!Array.isArray(records)) throw new Error("Invalid persisted issues");
+      const durable = records.find((record) => record.id === id);
+      if ((issue && !durable) || (durable && (durable.submissionRecoveryId
+        || (durable.status !== "draft" && !isSlackPreserved(durable))))) {
+        throw new IssueAlreadySubmittedError(durable?.key ?? issue?.key);
+      }
+      if (await readSubmissionRecovery(id)) throw new IssueAlreadySubmittedError(issue?.key);
+      return run();
+    });
   } finally {
     endIssueSubmit(id);
   }
@@ -457,6 +502,7 @@ export interface IssueRecord {
   // 사용자 직접 첨부 파일 메타. Blob은 attachments store에 `${id}:${meta.id}` 키로. optional이라 버전 bump 불필요.
   attachments?: UserAttachmentMeta[];
 
+  submissionRecoveryId?: string;
   submittedAt?: number;
   platform: PlatformId;
   key?: string;
@@ -579,6 +625,7 @@ export interface IssuesState {
   issues: IssueRecord[];
   saveDraft: (record: IssueRecord) => void;
   markSubmitted: (id: string, patch: Partial<IssueRecord>) => void;
+  markSubmittedDurably: (id: string, patch: Partial<IssueRecord>, opts?: { preserveOriginals?: boolean }) => Promise<void>;
   // Slack 공유 — markSubmitted와 정반대로 데이터를 보존한다(blob 삭제 없음).
   markSlackShared: (id: string, patch: { key: string; url: string }) => void;
   patchIssue: (id: string, patch: Partial<IssueRecord>) => void;
@@ -636,6 +683,16 @@ export const useIssuesStore = create<IssuesState>()(
         deleteActionLog(id).catch(() => {});
         deleteAttachmentBlobs(id).catch(() => {});
       },
+      markSubmittedDurably: async (id, patch, opts) => {
+        if (!useIssuesStore.getState().issues.some((x) => x.id === id)) throw new Error("Missing issue record");
+        await persistIssuesMutation(() => set((s) => ({
+          issues: s.issues.map((x) => x.id === id
+            ? opts?.preserveOriginals
+              ? { ...x, ...patch, status: "submitted", submittedAt: Date.now(), updatedAt: Math.max(Date.now(), x.updatedAt + 1) }
+              : stripSubmitted(x, patch)
+            : x),
+        })));
+      },
       markSlackShared: (id, patch) =>
         set((s) => ({
           issues: s.issues.map((x) =>
@@ -686,7 +743,8 @@ export const useIssuesStore = create<IssuesState>()(
               : x,
           ),
         })),
-      removeIssue: async (id) => {
+      removeIssue: async (id) => withIssueOperationLock(id, async () => {
+        if (submittingIds.has(id)) throw new IssueAlreadySubmittedError();
         await purgeRecoveryForIssues([id]);
         set((s) => ({ issues: s.issues.filter((x) => x.id !== id) }));
         deleteVideoBlob(id).catch(() => {});
@@ -696,20 +754,27 @@ export const useIssuesStore = create<IssuesState>()(
         deleteActionLog(id).catch(() => {});
         deleteAttachmentBlobs(id).catch(() => {});
         resetEditorIfEditing(id);
-      },
+      }),
       clearIssues: async () => {
         const editorAtStart = useEditorStore.getState();
         const ids = useIssuesStore.getState().issues.map((issue) => issue.id);
-        await purgeRecoveryForIssues(ids);
-        set((s) => ({ issues: s.issues.filter((issue) => !ids.includes(issue.id)) }));
-        for (const id of ids) deleteVideoBlob(id).catch(() => {});
-        for (const id of ids) deleteImageBlobs(id).catch(() => {});
-        for (const id of ids) deleteNetworkLog(id).catch(() => {});
-        for (const id of ids) deleteConsoleLog(id).catch(() => {});
-        for (const id of ids) deleteActionLog(id).catch(() => {});
-        for (const id of ids) deleteAttachmentBlobs(id).catch(() => {});
-        const editor = useEditorStore.getState();
-        if (editor === editorAtStart || (editor.currentIssueId && ids.includes(editor.currentIssueId))) resetEditorIfEditing(null);
+        if (ids.some((id) => submittingIds.has(id))) throw new IssueAlreadySubmittedError();
+        const remove = async () => {
+          await purgeRecoveryForIssues(ids);
+          set((s) => ({ issues: s.issues.filter((issue) => !ids.includes(issue.id)) }));
+          for (const id of ids) deleteVideoBlob(id).catch(() => {});
+          for (const id of ids) deleteImageBlobs(id).catch(() => {});
+          for (const id of ids) deleteNetworkLog(id).catch(() => {});
+          for (const id of ids) deleteConsoleLog(id).catch(() => {});
+          for (const id of ids) deleteActionLog(id).catch(() => {});
+          for (const id of ids) deleteAttachmentBlobs(id).catch(() => {});
+          const editor = useEditorStore.getState();
+          if (editor === editorAtStart || (editor.currentIssueId && ids.includes(editor.currentIssueId))) resetEditorIfEditing(null);
+        };
+        const lockIds = [...ids].sort();
+        const lockAll = (index: number): Promise<void> => index === ids.length ? remove()
+          : withIssueOperationLock(lockIds[index], () => lockAll(index + 1));
+        await lockAll(0);
       },
     }),
     {

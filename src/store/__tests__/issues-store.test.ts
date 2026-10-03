@@ -1,3 +1,4 @@
+import { mockWebLocks } from "@/test/web-locks";
 import { useEditorStore } from "../editor-store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrateIssueToV4 } from "../issues-migrations";
@@ -8,6 +9,7 @@ import type { PlatformId } from "@/types/platform";
 vi.mock("../blob-db", () => ({
   purgeRecoveryForIssues: vi.fn(() => Promise.resolve()),
   listSubmissionRecoveries: vi.fn(() => Promise.resolve([])),
+  readSubmissionRecovery: vi.fn(() => Promise.resolve(null)),
   deleteVideoBlob: vi.fn(() => Promise.resolve()),
   clearVideoBlobs: vi.fn(() => Promise.resolve()),
   getVideoBlobKeys: vi.fn(() => Promise.resolve([])),
@@ -79,6 +81,8 @@ interface LegacyShape {
   url?: string;
   jiraSiteId?: string;
 }
+
+beforeEach(() => mockWebLocks());
 
 const baseLegacy: LegacyShape = {
   id: "x",
@@ -835,6 +839,9 @@ describe("mergeIssuesState (persist merge 진입점)", () => {
       ...state(),
       issues: [{ id: "boom", status: "draft", updatedAt: 1 } as IssueRecord],
     };
+    vi.stubGlobal("chrome", { storage: { local: { get: vi.fn(async () => ({
+      "bugshot-issues": JSON.stringify({ state: current }),
+    })) } } });
 
     let protectedDuringRun: string[] = [];
     await expect(
@@ -846,6 +853,7 @@ describe("mergeIssuesState (persist merge 진입점)", () => {
 
     expect(protectedDuringRun).toEqual(["boom"]);
     expect(mergeIssuesState({ issues: [] }, current).issues).toEqual([]);
+    vi.unstubAllGlobals();
   });
 
   it("withIssueSubmitGuard는 id가 없으면 그대로 실행한다", async () => {
@@ -1282,9 +1290,10 @@ describe("withIssueSubmitGuard — 중복 제출 차단", () => {
   };
 
   beforeEach(() => {
+    const persisted: Record<string, unknown> = {};
     vi.stubGlobal("chrome", {
       storage: {
-        local: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}), remove: vi.fn(async () => {}) },
+        local: { get: vi.fn(async () => ({ ...persisted })), set: vi.fn(async (values: Record<string, unknown>) => { Object.assign(persisted, values); }), remove: vi.fn(async () => {}) },
       },
     });
   });
@@ -1377,6 +1386,11 @@ describe("deferred clear editor ownership", () => {
 });
 
 describe("durable recovery completion", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("chrome", { storage: { local: { set: vi.fn(async () => {}), get: vi.fn(async () => ({})) } } });
+  });
+  afterEach(() => vi.unstubAllGlobals());
   it("observes its persist rejection and performs no destructive cleanup", async () => {
     useIssuesStore.setState({ issues: [{ ...baseLegacy, platform: "jira", status: "draft" } as IssueRecord] });
     vi.mocked(chrome.storage.local.set).mockRejectedValueOnce(new Error("durable quota"));
@@ -1387,7 +1401,7 @@ describe("durable recovery completion", () => {
   it("registers the exact durable write in the own-write echo guard", async () => {
     useIssuesStore.setState({ issues: [{ ...baseLegacy, platform: "jira", status: "draft" } as IssueRecord] });
     await useIssuesStore.getState().markSubmittedDurably("x", { key: "NEW-2" });
-    const write = vi.mocked(chrome.storage.local.set).mock.calls.at(-1)![0];
+    const write = vi.mocked(chrome.storage.local.set).mock.calls.at(-1)![0] as Record<string, unknown>;
     expect(shouldSyncIssuesChange({ newValue: write["bugshot-issues"] })).toBe(false);
     expect(shouldSyncIssuesChange({ newValue: write["bugshot-issues"] })).toBe(true);
   });

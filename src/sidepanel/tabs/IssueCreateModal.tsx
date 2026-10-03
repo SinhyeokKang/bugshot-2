@@ -1,3 +1,5 @@
+import { loadSubmissionLogs, assertSubmissionAdaptersReady, expectedSubmissionSources, assertSubmissionSources, prepareSubmissionRecovery, runSubmissionRecovery, withSubmissionProgress, MissingSubmissionFilesError, type SubmissionProgress } from "@/sidepanel/lib/submissionRecovery";
+import type { SubmissionFile } from "@/types/attachment";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,11 +9,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
-import { pruneOrphanInlineImages, getAttachmentBlob } from "@/store/blob-db";
+import { pruneOrphanInlineImages, getAttachmentBlob, dataUrlToBlob } from "@/store/blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { useEditorStore, whenAttachmentBlobsReady } from "@/store/editor-store";
-import { useIssuesStore, withIssueSubmitGuard } from "@/store/issues-store";
+import { useIssuesStore, withIssueSubmitGuard, type IssueRecord } from "@/store/issues-store";
 import {
   connectedPlatforms,
   jiraSiteId,
@@ -147,8 +149,11 @@ export function IssueCreateModal() {
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
 
   const currentIssueId = useEditorStore((s) => s.currentIssueId);
-  const markSubmitted = useIssuesStore((s) => s.markSubmitted);
-  const markSlackShared = useIssuesStore((s) => s.markSlackShared);
+  let submissionPatch: Partial<IssueRecord> = {};
+  let submissionProgress: SubmissionProgress;
+  let submissionFiles: SubmissionFile[] = [];
+  const markSubmitted = (_id: string, patch: Partial<IssueRecord>) => { submissionPatch = patch; };
+  const markSlackShared = (_id: string, patch: { key: string; url: string }) => { submissionPatch = { ...patch, slackPreserved: true }; };
   const patchIssue = useIssuesStore((s) => s.patchIssue);
 
   // ctx·캡처 입력은 buildEditorCapture(단일 출처)에 위임 — 패널 로그 다운로드와 동일한 logs.html 보장.
@@ -168,7 +173,8 @@ export function IssueCreateModal() {
       const loaded = await Promise.all(
         userAttachmentMetas.map(async (meta) => {
           const blob = await getAttachmentBlob(currentIssueId, meta.id);
-          return blob ? { meta, blob } : null;
+          if (!blob) throw new MissingSubmissionFilesError([`user:${meta.id}`]);
+          return { meta, blob };
         }),
       );
       userAttachments = loaded.filter(
@@ -195,7 +201,7 @@ export function IssueCreateModal() {
     }
     if (!issueFields.issueTypeId) throw new Error(t("create.requiredMissing"));
     const result = await submitToJira(
-      jiraSubmitArgs({
+      withSubmissionProgress(jiraSubmitArgs({
         ctx,
         inlineImages,
         captureFiles,
@@ -203,7 +209,7 @@ export function IssueCreateModal() {
         projectKey,
         issueTypeId: issueFields.issueTypeId,
         summary: draft!.title,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
@@ -226,8 +232,7 @@ export function IssueCreateModal() {
       }),
     );
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
-    onSubmitted({ key: result.key, url: result.url, platform: "jira", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
-    return { key: result.key, url: result.url, logsDropped: result.logsDropped, mediaDropped: result.mediaDropped };
+    return { key: result.key, url: result.url, logsDropped: result.logsDropped, mediaDropped: result.mediaDropped, attachments: result.attachments };
   }
 
   async function handleGithubSubmit(
@@ -241,14 +246,14 @@ export function IssueCreateModal() {
     if (!ghFields.owner || !ghFields.repo) throw new Error(t("create.requiredMissing"));
 
     const result = await submitToGithub(
-      githubSubmitArgs({
+      withSubmissionProgress(githubSubmitArgs({
         ctx,
         inlineImages,
         captureFiles,
         fields: ghFields,
         owner: ghFields.owner,
         repo: ghFields.repo,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
@@ -262,7 +267,6 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("github", githubLastSubmitFields(ghFields));
     useSettingsStore.getState().setLastSubmittedPlatform("github");
-    onSubmitted({ key: result.key, url: result.url, platform: "github", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -277,13 +281,13 @@ export function IssueCreateModal() {
     if (!linearFields.teamId) throw new Error(t("create.requiredMissing"));
 
     const result = await submitToLinear(
-      linearSubmitArgs({
+      withSubmissionProgress(linearSubmitArgs({
         ctx,
         inlineImages,
         captureFiles,
         fields: linearFields,
         teamId: linearFields.teamId,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
@@ -297,7 +301,6 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("linear", linearLastSubmitFields(linearFields));
     useSettingsStore.getState().setLastSubmittedPlatform("linear");
-    onSubmitted({ key: result.key, url: result.url, platform: "linear", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -313,14 +316,14 @@ export function IssueCreateModal() {
       throw new Error(t("create.requiredMissing"));
     }
     const result = await submitToNotion(
-      notionSubmitArgs({
+      withSubmissionProgress(notionSubmitArgs({
         ctx,
         inlineImages,
         captureFiles,
         fields: notionFields,
         databaseId: notionFields.databaseId,
         schema: notionSchema,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     if (currentIssueId) {
       const pageId = extractNotionPageId(result.url);
@@ -336,7 +339,6 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("notion", notionLastSubmitFields(notionFields));
     useSettingsStore.getState().setLastSubmittedPlatform("notion");
-    onSubmitted({ key: result.key, url: result.url, platform: "notion", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -351,13 +353,13 @@ export function IssueCreateModal() {
     if (!gitlabFields.projectId) throw new Error(t("create.requiredMissing"));
 
     const result = await submitToGitlab(
-      gitlabSubmitArgs({
+      withSubmissionProgress(gitlabSubmitArgs({
         ctx,
         inlineImages,
         captureFiles,
         fields: gitlabFields,
         projectId: gitlabFields.projectId,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
@@ -371,7 +373,6 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("gitlab", gitlabLastSubmitFields(gitlabFields));
     useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
-    onSubmitted({ key: result.key, url: result.url, platform: "gitlab", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -386,13 +387,13 @@ export function IssueCreateModal() {
     if (!asanaFields.workspaceGid) throw new Error(t("create.requiredMissing"));
 
     const result = await submitToAsana(
-      asanaSubmitArgs({
+      withSubmissionProgress(asanaSubmitArgs({
         ctx,
         inlineImages,
         captureFiles,
         fields: asanaFields,
         workspaceGid: asanaFields.workspaceGid,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
@@ -404,7 +405,6 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("asana", asanaLastSubmitFields(asanaFields));
     useSettingsStore.getState().setLastSubmittedPlatform("asana");
-    onSubmitted({ key: result.key, url: result.url, platform: "asana", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -421,13 +421,13 @@ export function IssueCreateModal() {
     }
 
     const result = await submitToClickup(
-      clickupSubmitArgs({
+      withSubmissionProgress(clickupSubmitArgs({
         ctx,
         inlineImages,
         captureFiles,
         fields: clickupFields,
         listId: clickupFields.listId,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
@@ -439,7 +439,6 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("clickup", clickupLastSubmitFields(clickupFields));
     useSettingsStore.getState().setLastSubmittedPlatform("clickup");
-    onSubmitted({ key: result.key, url: result.url, platform: "clickup", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -454,13 +453,13 @@ export function IssueCreateModal() {
     if (!slackFields.channelId) throw new Error(t("create.requiredMissing"));
 
     const result = await submitToSlack(
-      slackSubmitArgs({
+      withSubmissionProgress(slackSubmitArgs({
         ctx,
         inlineImages,
         captureFiles,
         fields: slackFields,
         channelId: slackFields.channelId,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     if (currentIssueId) {
       markSlackShared(currentIssueId, {
@@ -470,7 +469,6 @@ export function IssueCreateModal() {
     }
     useSettingsStore.getState().setLastSubmitFields("slack", slackLastSubmitFields(slackFields));
     useSettingsStore.getState().setLastSubmittedPlatform("slack");
-    onSubmitted({ key: result.key, url: result.url, platform: "slack", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
     return result;
   }
 
@@ -487,13 +485,13 @@ export function IssueCreateModal() {
     if (!currentIssueId) throw new Error(t("create.requiredMissing"));
 
     const outcome = await submitToWebhook(
-      webhookSubmitArgs({
+      withSubmissionProgress(webhookSubmitArgs({
         ctx,
         inlineImages,
         captureFiles,
         auth: webhookAccount.auth,
         issueId: currentIssueId,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     // json 템플릿 모드는 응답을 읽지 않아 식별자가 없다 — 행을 만들 근거가 없고, 만들면
     // 열 수 없는 링크가 목록에 남는다. 판별자를 런타임에서도 본다: `recorded: false` 쪽에
@@ -508,9 +506,8 @@ export function IssueCreateModal() {
     // setLastSubmitFields 쌍은 없다(webhook?: never) — 기억할 제출 필드가 없다.
     useSettingsStore.getState().setLastSubmittedPlatform("webhook");
     const result: NormalizedSubmitResult = outcome.recorded
-      ? { key: outcome.key, url: outcome.url, logsDropped: outcome.logsDropped, mediaDropped: outcome.mediaDropped }
-      : { key: "", url: "" };
-    onSubmitted({ key: result.key, url: result.url, platform: "webhook", logsDropped: result.logsDropped, mediaDropped: result.mediaDropped });
+      ? { key: outcome.key, url: outcome.url, logsDropped: outcome.logsDropped, mediaDropped: outcome.mediaDropped, attachments: outcome.attachments }
+      : { key: "", url: "", recorded: false };
     return result;
   }
 
@@ -523,8 +520,25 @@ export function IssueCreateModal() {
     // confirmDraft가 확정 시점 URL로 레코드를 동결했는데 그 뒤 탭이 이동했으면, 지금 나가는
     // 본문의 Page와 목록·검색·상세가 읽는 pageUrl이 갈린다. 실제로 제출되는 값으로 맞춘다.
     if (currentIssueId) patchIssue(currentIssueId, { pageUrl: ctx.url });
-    const inlineImages = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    const captureFiles = await buildEditorCaptureFiles(ctx);
+    if (!currentIssueId) throw new Error(t("create.requiredMissing"));
+    const record = useIssuesStore.getState().issues.find((i) => i.id === currentIssueId);
+    if (!record) throw new Error(t("create.requiredMissing"));
+    const transmitFiles = submitPlatform !== "webhook" || webhookAccount?.auth.format !== "json";
+    const sources = expectedSubmissionSources({ ...record, draft: { ...record.draft, sections: ctx.sections }, attachments }, { sectionConfig, attachmentsEnabled, transmitFiles });
+    await whenAttachmentBlobsReady();
+    await assertSubmissionSources(sources);
+    await loadSubmissionLogs({ ...record, logsAttached: useEditorStore.getState().logsAttach }, transmitFiles);
+    const inlineImages = transmitFiles ? await resolveInlineImagesForSections(ctx.sections, sectionConfig) : [];
+    const captureFiles = transmitFiles ? await buildEditorCaptureFiles(ctx) : { images: [], logs: [], attachments: [] };
+    assertSubmissionAdaptersReady();
+    const prepared = await prepareSubmissionRecovery({ issue: record, platform: submitPlatform, files: [
+      ...sources,
+      ...captureFiles.logs.map((f) => ({ id: "logs", kind: "logs" as const, filename: f.filename, contentType: "text/html", blob: dataUrlToBlob(f.dataUrl) })),
+    ] });
+    submissionPatch = {};
+    submissionFiles = prepared.files;
+    const result = await runSubmissionRecovery(prepared, async (progress) => {
+      submissionProgress = progress;
     let result: NormalizedSubmitResult;
     if (submitPlatform === "github") result = await handleGithubSubmit(ctx, inlineImages, captureFiles);
     else if (submitPlatform === "linear") result = await handleLinearSubmit(ctx, inlineImages, captureFiles);
@@ -535,6 +549,9 @@ export function IssueCreateModal() {
     else if (submitPlatform === "slack") result = await handleSlackSubmit(ctx, inlineImages, captureFiles);
     else if (submitPlatform === "webhook") result = await handleWebhookSubmit(ctx, inlineImages, captureFiles);
     else result = await handleJiraSubmit(ctx, inlineImages, captureFiles);
+      return result;
+    }, () => submissionPatch);
+    onSubmitted({ ...result, platform: submitPlatform });
     const activeRefs = extractInlineRefs(
       Object.values(draft?.sections ?? {}).join("\n"),
     );

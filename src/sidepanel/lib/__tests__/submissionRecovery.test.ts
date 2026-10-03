@@ -1,3 +1,4 @@
+import { mockWebLocks } from "@/test/web-locks";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import type { CreatedDestination, SubmissionRecoveryMeta } from "@/types/attachment";
@@ -11,9 +12,15 @@ const destination: CreatedDestination = { platform: "github", key: "#1", url: "h
 const meta = (): SubmissionRecoveryMeta => ({ attemptId: "a", issueId: "i", title: "Report", platform: "github", createdAt: 1, expiresAt: Date.now() + 2592000000, updatedAt: 1, phase: "prepared", files: [], results: [] });
 beforeEach(async () => {
   vi.resetModules();
+  mockWebLocks();
+  vi.stubGlobal("FileReader", class {
+    result = ""; onload = () => {};
+    readAsDataURL(blob: Blob) { void blob.arrayBuffer().then((bytes) => { this.result = `data:${blob.type};base64,${Buffer.from(bytes).toString("base64")}`; this.onload(); }); }
+  });
   vi.stubGlobal("indexedDB", new IDBFactory());
   vi.stubGlobal("IDBKeyRange", IDBKeyRange);
-  vi.stubGlobal("chrome", { storage: { local: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) }, session: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) } }, runtime: { sendMessage: vi.fn() } });
+  const persisted: Record<string, unknown> = {};
+  vi.stubGlobal("chrome", { storage: { local: { get: vi.fn(async () => ({ ...persisted })), set: vi.fn(async (values: Record<string, unknown>) => { Object.assign(persisted, values); }) }, session: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) } }, runtime: { sendMessage: vi.fn() } });
   db = await import("@/store/blob-db");
   store = await import("@/store/issues-store");
   recovery = await import("../submissionRecovery");
@@ -23,7 +30,14 @@ afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it.each(["inline", "video", "capture", "user"] as const)("missing %s source prevents any external call", async (kind) => {
   const remote = vi.fn();
-  await expect(recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [{ id: kind, kind, filename: "file", contentType: "image/png", source: { kind: "original", store: "images", key: "absent" } }] }).then(remote)).rejects.toThrow();
+  const record: IssueRecord = { ...issue(),
+    captureMode: kind === "video" ? "video" as const : kind === "capture" ? "screenshot" as const : "freeform" as const,
+    draft: { title: "Report", sections: kind === "inline" ? { body: "![image](inline:missing)" } : {} },
+    attachments: kind === "user" ? [{ id: "missing", filename: "file.pdf", contentType: "application/pdf", size: 1 }] : [],
+  };
+  const files = recovery.expectedSubmissionSources(record, { sectionConfig: [{ id: "body", enabled: true, renderAs: "paragraph" }] });
+  expect(files).toHaveLength(1);
+  await expect(recovery.prepareSubmissionRecovery({ issue: record, platform: "github", files }).then(remote)).rejects.toThrow();
   expect(remote).not.toHaveBeenCalled();
   expect(await db.listSubmissionRecoveries()).toEqual([]);
 });
@@ -66,7 +80,7 @@ it("preserves created identity when the upload RPC throws", async () => {
 it("a failed submitted write retains a complete journal and bytes for reconciliation", async () => {
   const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
   vi.mocked(chrome.storage.local.set).mockRejectedValueOnce(new Error("quota"));
-  await expect(recovery.runSubmissionRecovery(prepared, async (p) => { await p.beforeCreate(); await p.created(destination); return { key: "#1", url: destination.url!, attachments: [] }; })).rejects.toThrow("quota");
+  await expect(recovery.runSubmissionRecovery(prepared, async (p) => { await p.beforeCreate(); await p.created(destination); return { key: "#1", url: destination.url!, attachments: [] }; })).resolves.toMatchObject({ key: "#1", recovery: { state: "partial", storageFailed: true } });
   expect((await db.readSubmissionRecovery("i"))?.phase).toBe("complete");
   await recovery.reconcileSubmissionRecovery();
   expect(store.useIssuesStore.getState().issues[0].status).toBe("submitted");
@@ -102,4 +116,303 @@ it("expiry drops bytes but retains file names and remote state", async () => {
   expect(current.files[0].filename).toBe("logs.html");
   expect(current.destination).toEqual(destination);
   expect(await db.readRecoveryFile(current, "logs")).toBeNull();
+});
+it("expected sources exclude disabled sections, disabled user files and JSON transmissions", () => {
+  const record = { ...issue(), captureMode: "video" as const, draft: { title: "r", sections: { enabled: "![x](inline:one)", disabled: "![x](inline:two)" } }, attachments: [{ id: "pdf", filename: "file.pdf", contentType: "application/pdf", size: 1 }] };
+  const options = { sectionConfig: [{ id: "enabled", enabled: true, renderAs: "paragraph" }, { id: "disabled", enabled: false, renderAs: "paragraph" }], attachmentsEnabled: false };
+  expect(recovery.expectedSubmissionSources(record, options).map((f) => f.id)).toEqual(["video", "inline:one"]);
+  expect(recovery.expectedSubmissionSources(record, { ...options, transmitFiles: false })).toEqual([]);
+});
+it("download metadata follows the actual original MIME", async () => {
+  await db.saveImageBlobRaw("i", "before", new Blob(["jpeg"], { type: "image/jpeg" }));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [{ id: "capture:screenshot", kind: "capture", filename: "screenshot.webp", contentType: "image/webp", source: { kind: "original", store: "images", key: "i:before" } }] });
+  expect(prepared.meta.files[0]).toMatchObject({ filename: "screenshot.jpg", contentType: "image/jpeg" });
+});
+it("freezes Notion ZIP bytes before any remote work", async () => {
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "notion", files: [{ id: "logs", kind: "logs", filename: "logs.html", contentType: "text/html", blob: new Blob(["<html>frozen</html>"], { type: "text/html" }) }] });
+  expect(prepared.meta.files[0]).toMatchObject({ filename: "logs.zip", contentType: "application/zip", source: { kind: "generated" } });
+  expect(new Uint8Array(await (await db.readRecoveryFile(prepared.meta, "logs"))!.arrayBuffer()).slice(0, 2)).toEqual(new Uint8Array([80, 75]));
+});
+it("keeps the production adapter gate closed until B3 connects checkpoints", () => {
+  expect(() => recovery.assertSubmissionAdaptersReady()).toThrow("integration");
+});
+it("partial cleanup removes only completed originals after durable list persistence", async () => {
+  await db.saveAttachmentBlob("i", "a", new Blob(["done"]));
+  await db.saveAttachmentBlob("i", "b", new Blob(["failed"]));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: ["a", "b"].map((id) => ({ id: `user:${id}`, kind: "user", filename: `${id}.pdf`, contentType: "application/pdf", source: { kind: "original", store: "attachments", key: `i:${id}` } })) });
+  await recovery.runSubmissionRecovery(prepared, async (p) => { await p.beforeCreate(); await p.created(destination); return { key: "#1", url: destination.url!, attachments: [
+    { fileId: "user:a", delivery: "attached", presentation: "complete" }, { fileId: "user:b", delivery: "failed", presentation: "failed", failure: { stage: "upload", code: "network" } },
+  ] }; });
+  expect(await db.getAttachmentBlob("i", "a")).toBeNull();
+  expect(await (await db.getAttachmentBlob("i", "b"))!.text()).toBe("failed");
+  expect(store.useIssuesStore.getState().issues[0].attachments).toBeUndefined();
+});
+it("reconciliation is idempotent and does not echo-write an unchanged partial record", async () => {
+  const m = meta();
+  await db.beginSubmissionRecovery(m, new Map());
+  await db.checkpointSubmission("i", "a", { phase: "creating", results: [] });
+  await db.checkpointSubmission("i", "a", { phase: "created", destination, results: [] });
+  await recovery.reconcileSubmissionRecovery();
+  const calls = vi.mocked(chrome.storage.local.set).mock.calls.length;
+  await recovery.reconcileSubmissionRecovery();
+  expect(vi.mocked(chrome.storage.local.set).mock.calls).toHaveLength(calls);
+});
+it("JSON Webhook acknowledgement retains the draft without recovery files", async () => {
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "webhook", files: [] });
+  const result = await recovery.runSubmissionRecovery(prepared, async (p) => { await p.beforeCreate(); return { key: "", url: "", recorded: false }; });
+  expect(result).toMatchObject({ key: "", url: "" });
+  expect(await db.readSubmissionRecovery("i")).toBeNull();
+  expect(store.useIssuesStore.getState().issues[0].status).toBe("draft");
+});
+it("a prepared crash is retryable without deleting the original draft bytes", async () => {
+  await db.saveVideoBlob("i", new Blob(["video"]));
+  await db.beginSubmissionRecovery(meta(), new Map());
+  await recovery.reconcileSubmissionRecovery();
+  expect(await db.readSubmissionRecovery("i")).toBeNull();
+  expect(store.canSubmitIssue(store.useIssuesStore.getState().issues[0])).toBe(true);
+  expect(await db.getVideoBlob("i")).not.toBeNull();
+});
+it("restores a lost list entry from a created journal with provider locator fields", async () => {
+  await db.beginSubmissionRecovery(meta(), new Map());
+  await db.checkpointSubmission("i", "a", { phase: "creating", results: [] });
+  await db.checkpointSubmission("i", "a", { phase: "created", destination, results: [] });
+  store.useIssuesStore.setState({ issues: [] });
+  await recovery.reconcileSubmissionRecovery();
+  expect(store.useIssuesStore.getState().issues[0]).toMatchObject({ id: "i", status: "submitted", key: "#1", githubOwner: "o", githubRepo: "r", submissionRecoveryId: "a" });
+});
+it("blocks promotion, duplicate submission and deletion during the original submission", async () => {
+  let release!: () => void;
+  const pending = store.withIssueSubmitGuard("i", () => new Promise<void>((resolve) => { release = resolve; }));
+  await vi.waitFor(() => expect(release).toBeDefined());
+  expect(store.canSubmitIssue({ ...issue(), status: "submitted", slackPreserved: true })).toBe(false);
+  await expect(store.withIssueSubmitGuard("i", async () => {})).rejects.toThrow();
+  await expect(store.useIssuesStore.getState().removeIssue("i")).rejects.toThrow();
+  await expect(store.useIssuesStore.getState().clearIssues()).rejects.toThrow();
+  release();
+  await pending;
+});
+it("successful Slack sharing retains original bytes and permits later promotion", async () => {
+  await db.saveAttachmentBlob("i", "pdf", new Blob(["source"]));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "slack", files: [{ id: "user:pdf", kind: "user", filename: "file.pdf", contentType: "application/pdf", source: { kind: "original", store: "attachments", key: "i:pdf" } }] });
+  await recovery.runSubmissionRecovery(prepared, async (p) => { await p.beforeCreate(); await p.created({ platform: "slack", key: "123.4", locator: { channelId: "C1", ts: "123.4" } }); return { key: "123.4", url: "", attachments: [{ fileId: "user:pdf", delivery: "attached", presentation: "complete" }] }; });
+  expect(await db.getAttachmentBlob("i", "pdf")).not.toBeNull();
+  expect(await db.readSubmissionRecovery("i")).toBeNull();
+  expect(store.canSubmitIssue(store.useIssuesStore.getState().issues[0])).toBe(true);
+});
+it("freezes the Asana JPEG before submission while leaving original webp bytes at their key", async () => {
+  await db.saveImageBlobRaw("i", "before", new Blob(["webp"], { type: "image/webp" }));
+  const capture = await import("@/sidepanel/capture");
+  vi.spyOn(capture, "loadImage").mockResolvedValue({ naturalWidth: 10, naturalHeight: 10 } as HTMLImageElement);
+  vi.stubGlobal("document", { createElement: () => ({ width: 0, height: 0, getContext: () => ({ fillRect() {}, drawImage() {}, fillStyle: "" }), toDataURL: () => "data:image/jpeg;base64,anBlZw==" }) });
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "asana", files: [{ id: "capture:screenshot", kind: "capture", filename: "screenshot.webp", contentType: "image/webp", source: { kind: "original", store: "images", key: "i:before" } }] });
+  expect(prepared.meta.files[0]).toMatchObject({ filename: "screenshot.jpg", contentType: "image/jpeg", source: { kind: "generated" } });
+  expect(await (await db.readRecoveryFile(prepared.meta, "capture:screenshot"))!.text()).toBe("jpeg");
+  expect(await (await db.getImageBlob("i", "before"))!.text()).toBe("webp");
+});
+it("a failed created checkpoint stops follow-up upload and preserves unknown creation", async () => {
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
+  const upload = vi.fn();
+  const checkpoint = vi.spyOn(db, "checkpointSubmission");
+  const result = await recovery.runSubmissionRecovery(prepared, async (p) => {
+    await p.beforeCreate();
+    checkpoint.mockRejectedValueOnce(new Error("disk failed"));
+    await p.created(destination);
+    upload();
+    return { key: "#1", url: destination.url!, attachments: [] };
+  });
+  expect(upload).not.toHaveBeenCalled();
+  expect(result.recovery?.state).toBe("unknown");
+  expect((await db.readSubmissionRecovery("i"))?.phase).toBe("unknown");
+});
+it("known creation rejection is retryable while ambiguous errors remain unknown", async () => {
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
+  await expect(recovery.runSubmissionRecovery(prepared, async (p) => {
+    await p.beforeCreate();
+    throw new recovery.SubmissionCreationRejectedError();
+  })).rejects.toBeInstanceOf(recovery.SubmissionCreationRejectedError);
+  expect(await db.readSubmissionRecovery("i")).toBeNull();
+  expect(store.canSubmitIssue(store.useIssuesStore.getState().issues[0])).toBe(true);
+});
+
+it("does not reconcile or dismiss another live panel's initial submission", async () => {
+  let release!: () => void;
+  let started!: () => void;
+  const ready = new Promise<void>((resolve) => { started = resolve; });
+  const create = vi.fn(async () => { started(); await new Promise<void>((resolve) => { release = resolve; }); return destination; });
+  const pending = store.withIssueSubmitGuard("i", async () => {
+    const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
+    return recovery.runSubmissionRecovery(prepared, async (p) => { await p.beforeCreate(); await p.created(await create()); return { key: "#1", url: destination.url!, attachments: [] }; });
+  });
+  await ready;
+  const active = (await db.readSubmissionRecovery("i"))!;
+  vi.resetModules();
+  const other = await import("../submissionRecovery");
+  const otherStore = await import("@/store/issues-store");
+  await other.reconcileSubmissionRecovery();
+  await expect(other.confirmSubmissionNotRegistered("i", active.attemptId)).rejects.toThrow();
+  await expect(otherStore.withIssueSubmitGuard("i", async () => { await create(); })).rejects.toThrow();
+  expect((await db.readSubmissionRecovery("i"))?.phase).toBe("creating");
+  expect(create).toHaveBeenCalledTimes(1);
+  release();
+  await pending;
+});
+it("blocks a stale second panel after completion before storage events arrive", async () => {
+  vi.resetModules();
+  const otherStore = await import("@/store/issues-store");
+  const otherRecovery = await import("../submissionRecovery");
+  await otherStore.useIssuesStore.persist.rehydrate();
+  expect(otherStore.useIssuesStore.getState().issues[0].status).toBe("draft");
+  const create = vi.fn(async () => destination);
+  const perform = (s: typeof store, r: typeof recovery) => s.withIssueSubmitGuard("i", async () => {
+    const prepared = await r.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
+    return r.runSubmissionRecovery(prepared, async (p) => {
+      await p.beforeCreate();
+      await p.created(await create());
+      return { key: destination.key, url: destination.url!, attachments: [] };
+    });
+  });
+  await perform(store, recovery);
+  expect(await db.readSubmissionRecovery("i")).toBeNull();
+  const completed = await chrome.storage.local.get("bugshot-issues");
+  expect(JSON.parse(completed["bugshot-issues"]).state.issues[0]).toMatchObject({ status: "submitted", key: destination.key, url: destination.url });
+  expect(otherStore.useIssuesStore.getState().issues[0].status).toBe("draft");
+  await expect(perform(otherStore, otherRecovery)).rejects.toBeInstanceOf(otherStore.IssueAlreadySubmittedError);
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(await chrome.storage.local.get("bugshot-issues")).toEqual(completed);
+});
+it.each(["read failure", "deleted", "recovery pointer"])("fails closed before preparation on durable %s", async (state) => {
+  if (state === "read failure") vi.mocked(chrome.storage.local.get).mockRejectedValueOnce(new Error("read failed"));
+  else await chrome.storage.local.set({ "bugshot-issues": JSON.stringify({ state: { issues: state === "deleted" ? [] : [{ ...issue(), submissionRecoveryId: "active" }] }, version: 4 }) });
+  const prepare = vi.fn();
+  await expect(store.withIssueSubmitGuard("i", prepare)).rejects.toThrow();
+  expect(prepare).not.toHaveBeenCalled();
+  expect(store.useIssuesStore.getState().issues[0]).toEqual(issue());
+});
+it("allows durable Slack promotion without replacing newer local fields", async () => {
+  store.useIssuesStore.setState({ issues: [{ ...issue(), title: "local edit", updatedAt: 3 }] });
+  await chrome.storage.local.set({ "bugshot-issues": JSON.stringify({ state: { issues: [{ ...issue(), status: "submitted", slackPreserved: true, updatedAt: 2 }] }, version: 4 }) });
+  await expect(store.withIssueSubmitGuard("i", async () => "promoted")).resolves.toBe("promoted");
+  expect(store.useIssuesStore.getState().issues[0].title).toBe("local edit");
+});
+it("repairs a dangling draft pointer after confirmation deletion and Chrome write failure", async () => {
+  await db.beginSubmissionRecovery(meta(), new Map());
+  await db.checkpointSubmission("i", "a", { phase: "creating", results: [] });
+  await recovery.reconcileSubmissionRecovery();
+  const persisted = { ...store.useIssuesStore.getState().issues[0] };
+  vi.mocked(chrome.storage.local.set).mockRejectedValueOnce(new Error("quota"));
+  await expect(recovery.confirmSubmissionNotRegistered("i", "a")).rejects.toThrow("quota");
+  store.useIssuesStore.setState({ issues: [persisted] });
+  await recovery.reconcileSubmissionRecovery();
+  expect(await db.readSubmissionRecovery("i")).toBeNull();
+  expect(store.canSubmitIssue(store.useIssuesStore.getState().issues[0])).toBe(true);
+});
+it("waits for the exact submitted write before cleanup, then cleans raw logs and residual media", async () => {
+  await db.saveVideoBlob("i", new Blob(["unused"]));
+  await db.saveImageBlobRaw("i", "before", new Blob(["thumbnail"]));
+  await db.saveAttachmentBlob("i", "disabled", new Blob(["disabled file"]));
+  await db.saveNetworkLog("i", { id: "n", startedAt: 0, endedAt: 1, totalSeen: 1, captured: 1, requests: [], warnings: [] });
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
+  const write = vi.mocked(chrome.storage.local.set).getMockImplementation()! as (values: unknown) => Promise<void>;
+  let release!: () => void;
+  vi.mocked(chrome.storage.local.set).mockImplementationOnce((values) => new Promise<void>((resolve) => { release = () => { void Promise.resolve(write(values)).then(resolve); }; }));
+  const pending = recovery.runSubmissionRecovery(prepared, async (p) => { await p.beforeCreate(); await p.created(destination); return { key: "#1", url: destination.url!, attachments: [] }; });
+  await vi.waitFor(() => expect(release).toBeDefined());
+  expect((await db.readSubmissionRecovery("i"))?.phase).toBe("complete");
+  expect(await db.getNetworkLog("i")).not.toBeNull();
+  expect(await db.getVideoBlob("i")).not.toBeNull();
+  vi.spyOn(Date, "now").mockReturnValue(store.useIssuesStore.getState().issues[0].updatedAt + 10);
+  store.useIssuesStore.getState().patchIssue("i", { title: "unrelated update" });
+  await Promise.resolve();
+  expect(await db.getNetworkLog("i")).not.toBeNull();
+  release();
+  await pending;
+  expect(await db.getNetworkLog("i")).toBeNull();
+  expect(await db.getVideoBlob("i")).toBeNull();
+  expect(await db.getImageBlob("i", "before")).toBeNull();
+  expect(await db.getAttachmentBlob("i", "disabled")).toBeNull();
+  expect(store.useIssuesStore.getState().issues[0].title).toBe("unrelated update");
+});
+it.each(["networkLogBlobKey", "consoleLogBlobKey", "actionLogBlobKey"] as const)("saved %s missing source blocks the preparation boundary", async (key) => {
+  const remote = vi.fn();
+  await expect(recovery.loadSubmissionLogs({ ...issue(), [key]: "missing" }).then(remote)).rejects.toBeInstanceOf(recovery.MissingSubmissionFilesError);
+  expect(remote).not.toHaveBeenCalled();
+  expect(await recovery.loadSubmissionLogs({ ...issue(), [key]: "missing", logsAttached: false })).toEqual({ networkLog: null, consoleLog: null, actionLog: null });
+  expect(await recovery.loadSubmissionLogs({ ...issue(), [key]: "missing" }, false)).toEqual({ networkLog: null, consoleLog: null, actionLog: null });
+  expect(await recovery.loadSubmissionLogs({ ...issue(), [key]: "missing", captureMode: "element" })).toEqual({ networkLog: null, consoleLog: null, actionLog: null });
+});
+it("returns the immutable checkpoint destination instead of an inconsistent adapter result", async () => {
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
+  const result = await recovery.runSubmissionRecovery(prepared, async (p) => { await p.beforeCreate(); await p.created(destination); return { key: "wrong", url: "https://example.com/wrong", attachments: [] }; });
+  expect(result).toMatchObject({ key: destination.key, url: destination.url });
+});
+it("orphan-pointer reconciliation never downgrades a durably submitted destination", async () => {
+  store.useIssuesStore.setState({ issues: [{ ...issue(), submissionRecoveryId: "gone" }] });
+  const saved = { ...issue(), status: "submitted" as const, key: "REMOTE-1", url: destination.url, submissionRecoveryId: undefined };
+  vi.mocked(chrome.storage.local.get).mockImplementationOnce(async () => ({ "bugshot-issues": JSON.stringify({ state: { issues: [saved] }, version: 5 }) }));
+  await recovery.reconcileSubmissionRecovery();
+  expect(store.useIssuesStore.getState().issues[0]).toMatchObject({ status: "submitted", key: "REMOTE-1" });
+  expect(store.canSubmitIssue(store.useIssuesStore.getState().issues[0])).toBe(false);
+});
+it.each(["checkpoint", "cleanup", "journal-delete"])("post-create %s failure returns a recovery outcome and can resume cleanup", async (boundary) => {
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
+  const result = await recovery.runSubmissionRecovery(prepared, async (p) => {
+    await p.beforeCreate(); await p.created(destination);
+    if (boundary === "checkpoint") vi.spyOn(db, "checkpointSubmission").mockRejectedValueOnce(new Error("checkpoint unavailable"));
+    if (boundary === "cleanup") vi.spyOn(db, "cleanupSubmissionOriginals").mockRejectedValueOnce(new Error("cleanup unavailable"));
+    if (boundary === "journal-delete") vi.spyOn(db, "deleteSubmissionRecovery").mockRejectedValueOnce(new Error("delete unavailable"));
+    return { key: "#1", url: destination.url!, attachments: [] };
+  });
+  expect(result).toMatchObject({ key: "#1", url: destination.url, recovery: { state: "partial", storageFailed: true } });
+  expect((await db.readSubmissionRecovery("i"))?.destination).toEqual(destination);
+  await recovery.reconcileSubmissionRecovery();
+  expect(store.useIssuesStore.getState().issues[0].status).toBe("submitted");
+  if (boundary !== "checkpoint") expect(await db.readSubmissionRecovery("i")).toBeNull();
+});
+it("persists canonical permalink enrichment before returning it", async () => {
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
+  const { url: _url, ...withoutUrl } = destination;
+  const result = await recovery.runSubmissionRecovery(prepared, async (p) => { await p.beforeCreate(); await p.created(withoutUrl); return { key: destination.key, url: destination.url!, attachments: [] }; });
+  expect(result.url).toBe(destination.url);
+  expect(store.useIssuesStore.getState().issues[0].url).toBe(destination.url);
+});
+it("post-create journal read failure still returns the known destination", async () => {
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
+  const result = await recovery.runSubmissionRecovery(prepared, async (p) => {
+    await p.beforeCreate(); await p.created(destination);
+    vi.spyOn(db, "readSubmissionRecovery").mockRejectedValueOnce(new Error("read unavailable"));
+    return { key: destination.key, url: destination.url!, attachments: [] };
+  });
+  expect(result).toMatchObject({ key: destination.key, recovery: { state: "partial", storageFailed: true } });
+});
+it("concurrent initialization and external-sync reconciliation serialize completion cleanup", async () => {
+  await db.beginSubmissionRecovery(meta(), new Map());
+  await db.checkpointSubmission("i", "a", { phase: "creating", results: [] });
+  await db.checkpointSubmission("i", "a", { phase: "created", destination, results: [] });
+  await db.checkpointSubmission("i", "a", { phase: "complete", results: [] });
+  const cleanup = vi.spyOn(db, "cleanupSubmissionOriginals");
+  await Promise.all([recovery.reconcileSubmissionRecovery(), recovery.reconcileSubmissionRecovery()]);
+  expect(cleanup).toHaveBeenCalledTimes(1);
+  expect(await db.readSubmissionRecovery("i")).toBeNull();
+  expect(store.useIssuesStore.getState().issues[0]).toMatchObject({ status: "submitted", key: destination.key, submissionRecoveryId: undefined });
+});
+it("a newer active attempt prevents stale confirmation and orphan repair from clearing its pointer", async () => {
+  await db.beginSubmissionRecovery(meta(), new Map());
+  await db.checkpointSubmission("i", "a", { phase: "creating", results: [] });
+  await recovery.reconcileSubmissionRecovery();
+  await recovery.confirmSubmissionNotRegistered("i", "a");
+  let release!: () => void;
+  let started!: () => void;
+  const ready = new Promise<void>((resolve) => { started = resolve; });
+  const pending = store.withIssueSubmitGuard("i", async () => {
+    const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [] });
+    started();
+    await new Promise<void>((resolve) => { release = resolve; });
+    return recovery.runSubmissionRecovery(prepared, async (p) => { await p.beforeCreate(); await p.created(destination); return { key: destination.key, url: destination.url!, attachments: [] }; });
+  });
+  await ready;
+  await expect(recovery.confirmSubmissionNotRegistered("i", "a")).rejects.toThrow();
+  await recovery.reconcileSubmissionRecovery();
+  expect((await db.readSubmissionRecovery("i"))?.attemptId).not.toBe("a");
+  release();
+  await pending;
 });

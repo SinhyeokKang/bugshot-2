@@ -718,17 +718,22 @@ function safeDestinationUrl(value: unknown): boolean {
   } catch { return false; }
 }
 function validateRecovery(value: unknown): SubmissionRecoveryMeta {
-  const meta = record(value, ["attemptId", "issueId", "title", "platform", "createdAt", "expiresAt", "phase", "destination", "files", "results", "updatedAt"]);
+  const meta = record(value, ["attemptId", "issueId", "title", "platform", "createdAt", "expiresAt", "phase", "destination", "files", "results", "updatedAt", "localFilesRemoved"]);
   if (!nonempty(meta.attemptId) || !nonempty(meta.issueId) || typeof meta.title !== "string"
     || typeof meta.platform !== "string" || !Object.hasOwn(DESTINATION_KEYS, meta.platform)
     || typeof meta.phase !== "string" || !Object.hasOwn(RECOVERY_TRANSITIONS, meta.phase)
     || ![meta.createdAt, meta.expiresAt, meta.updatedAt].every((n) => typeof n === "number" && Number.isFinite(n))
     || !Array.isArray(meta.files) || !Array.isArray(meta.results)) throw new Error("Invalid recovery metadata");
+  if (meta.localFilesRemoved !== undefined && typeof meta.localFilesRemoved !== "boolean") throw new Error("Invalid recovery expiry marker");
   const ids = new Set<string>();
   for (const value of meta.files) {
-    const file = record(value, ["id", "kind", "filename", "contentType", "source"]);
+    const file = record(value, ["id", "kind", "filename", "contentType", "source", "originalSource"]);
     if (!nonempty(file.id) || ids.has(file.id) || !["capture", "video", "inline", "logs", "user"].includes(String(file.kind))
       || typeof file.filename !== "string" || typeof file.contentType !== "string") throw new Error("Invalid recovery file");
+    if (file.originalSource !== undefined) {
+      const original = record(file.originalSource, ["kind", "store", "key"]);
+      if (original.kind !== "original" || !ORIGINAL_STORES.includes(String(original.store)) || !nonempty(original.key)) throw new Error("Invalid original recovery source");
+    }
     ids.add(file.id);
     const source = record(file.source, ["kind", "store", "key"]);
     if (!nonempty(source.key) || (source.kind !== "original" && source.kind !== "generated")
@@ -814,7 +819,7 @@ export async function beginSubmissionRecovery(meta: SubmissionRecoveryMeta, gene
     const store = tx.objectStore(STORE_RECOVERY);
     const key = `attempt:${snapshot.issueId}`;
     if (await requestResult(store.getKey(key)) !== undefined) throw new Error("Submission recovery already exists");
-    for (const { source } of snapshot.files) {
+    for (const source of snapshot.files.flatMap(originalRecoverySources)) {
       if (source.kind === "original" && !(await requestResult(tx.objectStore(source.store).get(source.key)) instanceof Blob)) throw new Error("Missing original recovery file");
     }
     store.put(snapshot, key);
@@ -878,7 +883,7 @@ export async function readRecoveryFile(meta: SubmissionRecoveryMeta, fileId: str
     if (value === undefined) return null;
     const current = validateRecovery(value);
     if (current.issueId !== meta.issueId) throw new Error("Invalid recovery issue key");
-    if (current.attemptId !== meta.attemptId) return null;
+    if (current.attemptId !== meta.attemptId || current.localFilesRemoved) return null;
     const source = current.files.find((file) => file.id === fileId)?.source;
     if (!source) return null;
     const blob: unknown = await requestResult(tx.objectStore(source.kind === "original" ? source.store : STORE_RECOVERY).get(source.key));
@@ -907,7 +912,7 @@ export async function deleteOriginalKeys(issueId: string, attemptId: string, sou
     const retained = (await recoveriesIn(tx)).filter((meta) => meta.issueId !== issueId);
     for (const source of requested) {
       if (source.kind !== "original") continue;
-      const files = current.files.filter((f) => f.source.kind === "original" && f.source.store === source.store && f.source.key === source.key);
+      const files = current.files.filter((f) => originalRecoverySources(f).some((s) => s.store === source.store && s.key === source.key));
       if (!files.length || files.some((file) => !current.results.some((r) => r.fileId === file.id && r.delivery === "attached" && r.presentation !== "failed" && !r.failure))) {
         throw new Error("Cannot delete incomplete recovery source");
       }
@@ -925,7 +930,7 @@ export async function purgeRecoveryForIssues(issueIds: string[]): Promise<void> 
     const all = await recoveriesIn(tx);
     const retained = all.filter((meta) => !issueIds.includes(meta.issueId));
     for (const meta of all.filter((meta) => issueIds.includes(meta.issueId))) {
-      for (const { source } of meta.files) {
+      for (const source of meta.files.flatMap(originalRecoverySources)) {
         if (source.kind === "original" && !(source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
           && !retained.some((other) => protectsSource(other, source.store, source.key))) tx.objectStore(source.store).delete(source.key);
       }
@@ -935,7 +940,7 @@ export async function purgeRecoveryForIssues(issueIds: string[]): Promise<void> 
 }
 
 function protectsSource(meta: SubmissionRecoveryMeta, store: string, key: string): boolean {
-  return meta.files.some(({ source }) => source.kind === "original" && source.store === store && source.key === key);
+  return !meta.localFilesRemoved && meta.files.some((file) => originalRecoverySources(file).some((source) => source.store === store && source.key === key));
 }
 
 async function deleteUnprotectedKeys(storeName: string, matches: (key: string) => boolean): Promise<void> {
@@ -947,5 +952,83 @@ async function deleteUnprotectedKeys(storeName: string, matches: (key: string) =
     for (const key of keys) {
       if (typeof key === "string" && matches(key) && !live.some((meta) => protectsSource(meta, protectedStore, key))) store.delete(key);
     }
+  });
+}
+
+export async function readOriginalRecoverySource(source: Extract<RecoverySource, { kind: "original" }>): Promise<Blob | null> {
+  return recoveryTransaction([source.store], "readonly", async (tx) => {
+    const value: unknown = await requestResult(tx.objectStore(source.store).get(source.key));
+    return value instanceof Blob ? value : null;
+  });
+}
+
+export async function dismissUnknownSubmission(issueId: string, attemptId: string): Promise<void> {
+  await recoveryTransaction([STORE_RECOVERY], "readwrite", async (tx) => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    const current = await requireAttempt(store, issueId, attemptId);
+    if (current.phase !== "unknown" || current.destination) throw new Error("Submission is not unknown");
+    deleteJournal(store, current);
+  });
+}
+
+function originalRecoverySources(file: SubmissionRecoveryMeta["files"][number]): Array<Extract<RecoverySource, { kind: "original" }>> {
+  return [...(file.source.kind === "original" ? [file.source] : []), ...(file.originalSource ? [file.originalSource] : [])];
+}
+
+export async function expireSubmissionRecovery(issueId: string, attemptId: string, now = Date.now()): Promise<void> {
+  const expiredIds = (await listSubmissionRecoveries()).filter((meta) => meta.expiresAt <= now).map((meta) => meta.issueId);
+  const inlineRefs = await collectAllActiveInlineRefs(expiredIds);
+  await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES], "readwrite", async (tx) => {
+    const current = await requireAttempt(tx.objectStore(STORE_RECOVERY), issueId, attemptId);
+    if (current.expiresAt > now) return;
+    const retained = (await recoveriesIn(tx)).filter((meta) => meta.issueId !== issueId && meta.expiresAt > now);
+    for (const source of current.files.flatMap(originalRecoverySources)) {
+      if (!(source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
+        && !retained.some((other) => protectsSource(other, source.store, source.key))) tx.objectStore(source.store).delete(source.key);
+    }
+    for (const { source } of current.files) if (source.kind === "generated") tx.objectStore(STORE_RECOVERY).delete(source.key);
+    tx.objectStore(STORE_RECOVERY).put({ ...current, localFilesRemoved: true }, `attempt:${issueId}`);
+  });
+}
+
+export async function cleanupSubmissionOriginals(issueId: string, attemptId: string): Promise<void> {
+  const inlineRefs = await collectAllActiveInlineRefs([issueId]);
+  await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES, STORE_NETWORK, STORE_CONSOLE, STORE_ACTION], "readwrite", async (tx) => {
+    const current = await requireAttempt(tx.objectStore(STORE_RECOVERY), issueId, attemptId);
+    if (current.phase !== "partial" && current.phase !== "complete") throw new Error("Recovery is not finalized");
+    if (current.platform === "slack") return;
+    const retained = (await recoveriesIn(tx)).filter((meta) => meta.issueId !== issueId);
+    const incomplete = current.files.filter((file) => !current.results.some((r) => r.fileId === file.id && r.delivery === "attached" && r.presentation !== "failed" && !r.failure)).flatMap(originalRecoverySources);
+    for (const storeName of ORIGINAL_STORES) {
+      const store = tx.objectStore(storeName);
+      const referenced = current.files.flatMap(originalRecoverySources).filter((s) => s.store === storeName).map((s) => s.key);
+      const keys = await requestResult(store.getAllKeys());
+      for (const key of keys) {
+        if (typeof key !== "string" || !(referenced.includes(key) || (storeName !== STORE_INLINE_IMAGES && (key === issueId || key.startsWith(`${issueId}:`))))) continue;
+        if (incomplete.some((s) => s.store === storeName && s.key === key)
+          || (storeName === STORE_INLINE_IMAGES && inlineRefs.has(key))
+          || retained.some((meta) => protectsSource(meta, storeName, key))) continue;
+        store.delete(key);
+      }
+    }
+    for (const store of [STORE_NETWORK, STORE_CONSOLE, STORE_ACTION]) tx.objectStore(store).delete(issueId);
+  });
+}
+
+export async function discardPreparedSubmission(issueId: string, attemptId: string): Promise<void> {
+  await recoveryTransaction([STORE_RECOVERY], "readwrite", async (tx) => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    const current = await requireAttempt(store, issueId, attemptId);
+    if (current.phase !== "prepared") throw new Error("Submission has started");
+    deleteJournal(store, current);
+  });
+}
+
+export async function discardRejectedSubmission(issueId: string, attemptId: string): Promise<void> {
+  await recoveryTransaction([STORE_RECOVERY], "readwrite", async (tx) => {
+    const store = tx.objectStore(STORE_RECOVERY);
+    const current = await requireAttempt(store, issueId, attemptId);
+    if (current.destination || (current.phase !== "creating" && current.phase !== "unknown")) throw new Error("Submission creation cannot be rejected");
+    deleteJournal(store, current);
   });
 }

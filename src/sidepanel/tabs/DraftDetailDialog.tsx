@@ -1,9 +1,11 @@
+import { loadSubmissionLogs, assertSubmissionAdaptersReady, expectedSubmissionSources, assertSubmissionSources, prepareSubmissionRecovery, runSubmissionRecovery, withSubmissionProgress, MissingSubmissionFilesError, type SubmissionProgress } from "@/sidepanel/lib/submissionRecovery";
+import type { SubmissionFile } from "@/types/attachment";
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import type { ActionLog } from "@/types/action";
-import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, getActionLog, getAttachmentBlob, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
+import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, getActionLog, getAttachmentBlob, blobToDataUrl, dataUrlToBlob, pruneOrphanInlineImages } from "@/store/blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
 import type { EnvironmentRow } from "@/types/environment";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
@@ -168,8 +170,12 @@ export function DraftDetailDialog({
   const slackAccount = accounts.slack;
   const webhookAccount = accounts.webhook;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
-  const markSubmitted = useIssuesStore((s) => s.markSubmitted);
-  const markSlackShared = useIssuesStore((s) => s.markSlackShared);
+  let submissionPatch: Partial<IssueRecord> = {};
+  let submissionProgress: SubmissionProgress;
+  let submissionFiles: SubmissionFile[] = [];
+  let submissionInlineImages: Awaited<ReturnType<typeof resolveInlineImagesForSections>> = [];
+  const markSubmitted = (_id: string, patch: Partial<IssueRecord>) => { submissionPatch = patch; };
+  const markSlackShared = (_id: string, patch: { key: string; url: string }) => { submissionPatch = { ...patch, slackPreserved: true }; };
   const patchIssue = useIssuesStore((s) => s.patchIssue);
   const sectionConfig = useSettingsUiStore((s) => s.issueSections);
   // 이슈 목록에서 과거 draft를 재제출하는 경로 — MarkdownContext의 세 번째 생산지다.
@@ -345,30 +351,18 @@ export function DraftDetailDialog({
       hasBufferedStyle);
   const hasScreenshot = isScreenshot && !!issue.snapshot.before;
 
-  async function buildCtxForSubmit() {
+  async function buildCtxForSubmit(transmitFiles = true) {
     if (!issue) throw new Error(t("create.requiredMissing"));
     const sel = issue.selectionSnapshot;
     // logsAttached === false면 blob이 있어도 logs.html 미첨부(편집 이슈의 통짜 토글). undefined = 첨부.
-    const logsOn = issue.logsAttached !== false;
-    let networkLog: NetworkLog | null = null;
-    if (logsOn && supportsConsoleNetworkLog(issue.captureMode) && issue.networkLogBlobKey) {
-      networkLog = await getNetworkLog(issue.networkLogBlobKey);
-    }
-    let consoleLogForSubmit: ConsoleLog | null = null;
-    if (logsOn && supportsConsoleNetworkLog(issue.captureMode) && issue.consoleLogBlobKey) {
-      consoleLogForSubmit = await getConsoleLog(issue.consoleLogBlobKey);
-    }
-    let actionLogForSubmit: ActionLog | null = null;
-    if (logsOn && supportsActionLog(issue.captureMode) && issue.actionLogBlobKey) {
-      actionLogForSubmit = await getActionLog(issue.actionLogBlobKey);
-    }
+    const { networkLog, consoleLog: consoleLogForSubmit, actionLog: actionLogForSubmit } = await loadSubmissionLogs(issue, transmitFiles);
     // legacy no-diff draft fallback — 현재 element diff도 없고 버퍼도 없을 때만. 버퍼가 있으면
     // element 모드를 유지해 버퍼 변경이 본문에서 소실되지 않게 한다(라이브 제출과 파리티).
     const legacyNoDiff =
       !isScreenshot && !isVideo && !isFreeform && diffs.length === 0 && !hasBufferedStyle;
     const isElement = !isScreenshot && !isVideo && !isFreeform && !legacyNoDiff;
     // 현재 + 버퍼 element를 라이브와 동일 규칙으로 병합 — 본문·캡처 파일 인덱스 단일 출처.
-    const styleImages = isElement ? await loadDraftStyleImages(issue) : null;
+    const styleImages = transmitFiles && isElement ? await loadDraftStyleImages(issue) : null;
     const styleElementsForSubmit = styleImages
       ? resolveDraftStyleElements(issue, styleImages)
       : [];
@@ -399,11 +393,12 @@ export function DraftDetailDialog({
 
     // 사용자 첨부: 확정 draft라 blob은 issueId 키. 메타 순서대로 로드(없으면 제외).
     let userAttachments: { meta: UserAttachmentMeta; blob: Blob }[] | undefined;
-    if (issue.attachments?.length) {
+    if (transmitFiles && issue.attachments?.length) {
       const loaded = await Promise.all(
         issue.attachments.map(async (meta) => {
           const blob = await getAttachmentBlob(issue.id, meta.id);
-          return blob ? { meta, blob } : null;
+          if (!blob) throw new MissingSubmissionFilesError([`user:${meta.id}`]);
+          return { meta, blob };
         }),
       );
       userAttachments = loaded.filter(
@@ -411,8 +406,8 @@ export function DraftDetailDialog({
       );
     }
 
-    const videoBlob = isVideo ? await getVideoBlob(issue.id) : null;
-    const beforeBlob = (isScreenshot || legacyNoDiff) && issue.snapshot.before
+    const videoBlob = transmitFiles && isVideo ? await getVideoBlob(issue.id) : null;
+    const beforeBlob = transmitFiles && (isScreenshot || legacyNoDiff) && issue.snapshot.before
       ? await getImageBlob(issue.id, "before")
       : null;
     const beforeDataUrl = beforeBlob ? await blobToDataUrl(beforeBlob) : null;
@@ -454,9 +449,9 @@ export function DraftDetailDialog({
     }
     if (!fields.issueTypeId) throw new Error(t("create.requiredMissing"));
 
-    const jiraInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const jiraInline = submissionInlineImages;
     const result = await submitToJira(
-      jiraSubmitArgs({
+      withSubmissionProgress(jiraSubmitArgs({
         ctx,
         inlineImages: jiraInline,
         captureFiles,
@@ -464,7 +459,7 @@ export function DraftDetailDialog({
         projectKey,
         issueTypeId: fields.issueTypeId,
         summary: issue.draft.title,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     // 승격 가드 없음: submitToJira는 업로드+생성이 단일 atomic 호출(jira.submitIssue)이라
     // 프론트가 첨부 부분 실패를 신호받지 못한다. 가드하려면 background 핸들러 수정 필요. (docs/POSTMORTEM.md)
@@ -477,11 +472,6 @@ export function DraftDetailDialog({
       priorityName: fields.priorityName,
       assigneeName: fields.assigneeName,
     });
-    if (useEditorStore.getState().currentIssueId === issue.id) {
-      const tabId = useEditorStore.getState().target?.tabId;
-      if (tabId != null) void clearPicker(tabId);
-      useEditorStore.getState().reset();
-    }
     useSettingsStore.getState().setLastSubmitFields(
       "jira",
       jiraLastSubmitFields({
@@ -492,7 +482,7 @@ export function DraftDetailDialog({
       }),
     );
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
-    return { key: result.key, url: result.url, logsDropped: result.logsDropped, mediaDropped: result.mediaDropped };
+    return { key: result.key, url: result.url, logsDropped: result.logsDropped, mediaDropped: result.mediaDropped, attachments: result.attachments };
   }
 
   async function handleGithubSubmit(
@@ -505,9 +495,9 @@ export function DraftDetailDialog({
     }
     if (!ghFields.owner || !ghFields.repo) throw new Error(t("create.requiredMissing"));
 
-    const ghInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const ghInline = submissionInlineImages;
     const result = await submitToGithub(
-      githubSubmitArgs({
+      withSubmissionProgress(githubSubmitArgs({
         ctx,
         inlineImages: ghInline,
         captureFiles,
@@ -516,7 +506,7 @@ export function DraftDetailDialog({
         repo: ghFields.repo,
         // 승격은 markSubmitted가 Slack 원본을 파괴하므로 미디어 업로드 실패 시 등록 전 중단.
         requireMediaUpload: isSlackPreserved(issue),
-      }),
+      }), submissionProgress, submissionFiles),
     );
     markSubmitted(issue.id, {
       platform: "github",
@@ -526,11 +516,6 @@ export function DraftDetailDialog({
       githubRepo: ghFields.repo,
       githubLabels: ghFields.label ? [ghFields.label] : undefined,
     });
-    if (useEditorStore.getState().currentIssueId === issue.id) {
-      const tabId = useEditorStore.getState().target?.tabId;
-      if (tabId != null) void clearPicker(tabId);
-      useEditorStore.getState().reset();
-    }
     useSettingsStore.getState().setLastSubmitFields("github", githubLastSubmitFields(ghFields));
     useSettingsStore.getState().setLastSubmittedPlatform("github");
     return result;
@@ -546,15 +531,15 @@ export function DraftDetailDialog({
     }
     if (!linearFields.teamId) throw new Error(t("create.requiredMissing"));
 
-    const linearInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const linearInline = submissionInlineImages;
     const result = await submitToLinear(
-      linearSubmitArgs({
+      withSubmissionProgress(linearSubmitArgs({
         ctx,
         inlineImages: linearInline,
         captureFiles,
         fields: linearFields,
         teamId: linearFields.teamId,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     // 승격 가드 불필요: submitToLinear는 이미지·비디오·인라인을 생성 전 업로드하고 실패 시 throw하므로
     // (href:null soft-fail 없음) 미디어 실패는 markSubmitted에 도달하지 못한다 — 원본 보존됨.
@@ -566,11 +551,6 @@ export function DraftDetailDialog({
       linearTeamKey: linearFields.teamKey,
       linearLabelName: linearFields.labelName,
     });
-    if (useEditorStore.getState().currentIssueId === issue.id) {
-      const tabId = useEditorStore.getState().target?.tabId;
-      if (tabId != null) void clearPicker(tabId);
-      useEditorStore.getState().reset();
-    }
     useSettingsStore.getState().setLastSubmitFields("linear", linearLastSubmitFields(linearFields));
     useSettingsStore.getState().setLastSubmittedPlatform("linear");
     return result;
@@ -590,9 +570,9 @@ export function DraftDetailDialog({
       throw new Error(t("create.requiredMissing"));
     }
 
-    const notionInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const notionInline = submissionInlineImages;
     const result = await submitToNotion(
-      notionSubmitArgs({
+      withSubmissionProgress(notionSubmitArgs({
         ctx,
         inlineImages: notionInline,
         captureFiles,
@@ -602,7 +582,7 @@ export function DraftDetailDialog({
         // 승격은 markSubmitted가 Slack 원본을 파괴하므로 사용자 첨부 업로드 실패 시 등록 전 중단.
         // (이미지·비디오는 submitToNotion에서 상시 strict라 별도 가드 불필요.)
         requireMediaUpload: isSlackPreserved(issue),
-      }),
+      }), submissionProgress, submissionFiles),
     );
     const pageId = extractNotionPageId(result.url);
     markSubmitted(issue.id, {
@@ -614,11 +594,6 @@ export function DraftDetailDialog({
       notionDatabaseTitle: notionFields.databaseTitle,
       notionStatusOption: notionFields.statusOption,
     });
-    if (useEditorStore.getState().currentIssueId === issue.id) {
-      const tabId = useEditorStore.getState().target?.tabId;
-      if (tabId != null) void clearPicker(tabId);
-      useEditorStore.getState().reset();
-    }
     useSettingsStore.getState().setLastSubmitFields("notion", notionLastSubmitFields(notionFields));
     useSettingsStore.getState().setLastSubmittedPlatform("notion");
     return result;
@@ -634,9 +609,9 @@ export function DraftDetailDialog({
     }
     if (!gitlabFields.projectId) throw new Error(t("create.requiredMissing"));
 
-    const gitlabInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const gitlabInline = submissionInlineImages;
     const result = await submitToGitlab(
-      gitlabSubmitArgs({
+      withSubmissionProgress(gitlabSubmitArgs({
         ctx,
         inlineImages: gitlabInline,
         captureFiles,
@@ -644,7 +619,7 @@ export function DraftDetailDialog({
         projectId: gitlabFields.projectId,
         // 승격은 markSubmitted가 Slack 원본을 파괴하므로 미디어 업로드 실패 시 등록 전 중단.
         requireMediaUpload: isSlackPreserved(issue),
-      }),
+      }), submissionProgress, submissionFiles),
     );
     markSubmitted(issue.id, {
       platform: "gitlab",
@@ -654,11 +629,6 @@ export function DraftDetailDialog({
       gitlabIssueIid: Number(result.key.replace(/^#/, "")),
       gitlabLabels: gitlabFields.label ? [gitlabFields.label] : undefined,
     });
-    if (useEditorStore.getState().currentIssueId === issue.id) {
-      const tabId = useEditorStore.getState().target?.tabId;
-      if (tabId != null) void clearPicker(tabId);
-      useEditorStore.getState().reset();
-    }
     useSettingsStore.getState().setLastSubmitFields("gitlab", gitlabLastSubmitFields(gitlabFields));
     useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
     return result;
@@ -674,15 +644,15 @@ export function DraftDetailDialog({
     }
     if (!asanaFields.workspaceGid) throw new Error(t("create.requiredMissing"));
 
-    const asanaInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const asanaInline = submissionInlineImages;
     const result = await submitToAsana(
-      asanaSubmitArgs({
+      withSubmissionProgress(asanaSubmitArgs({
         ctx,
         inlineImages: asanaInline,
         captureFiles,
         fields: asanaFields,
         workspaceGid: asanaFields.workspaceGid,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     // 승격 가드 없음: submitToAsana는 task를 먼저 생성하고(attachment에 parent gid 필요) 그 뒤 업로드해서,
     // 업로드 부분 실패를 등록 전에 막을 수 없다(생성→업로드 역순). 보호하려면 사전 probe/롤백 설계 필요. (docs/POSTMORTEM.md)
@@ -692,11 +662,6 @@ export function DraftDetailDialog({
       url: result.url,
       asanaTaskGid: result.key,
     });
-    if (useEditorStore.getState().currentIssueId === issue.id) {
-      const tabId = useEditorStore.getState().target?.tabId;
-      if (tabId != null) void clearPicker(tabId);
-      useEditorStore.getState().reset();
-    }
     useSettingsStore.getState().setLastSubmitFields("asana", asanaLastSubmitFields(asanaFields));
     useSettingsStore.getState().setLastSubmittedPlatform("asana");
     return result;
@@ -714,15 +679,15 @@ export function DraftDetailDialog({
       throw new Error(t("create.requiredMissing"));
     }
 
-    const clickupInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const clickupInline = submissionInlineImages;
     const result = await submitToClickup(
-      clickupSubmitArgs({
+      withSubmissionProgress(clickupSubmitArgs({
         ctx,
         inlineImages: clickupInline,
         captureFiles,
         fields: clickupFields,
         listId: clickupFields.listId,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     // 승격 가드 없음: submitToClickup은 task를 먼저 생성하고(attachment에 task id 필요) 그 뒤 업로드해서,
     // 업로드 부분 실패를 등록 전에 막을 수 없다(생성→업로드 역순). 보호하려면 사전 probe/롤백 설계 필요. (docs/POSTMORTEM.md)
@@ -732,11 +697,6 @@ export function DraftDetailDialog({
       url: result.url,
       clickupTaskId: result.key,
     });
-    if (useEditorStore.getState().currentIssueId === issue.id) {
-      const tabId = useEditorStore.getState().target?.tabId;
-      if (tabId != null) void clearPicker(tabId);
-      useEditorStore.getState().reset();
-    }
     useSettingsStore.getState().setLastSubmitFields("clickup", clickupLastSubmitFields(clickupFields));
     useSettingsStore.getState().setLastSubmittedPlatform("clickup");
     return result;
@@ -752,25 +712,20 @@ export function DraftDetailDialog({
     }
     if (!slackFields.channelId) throw new Error(t("create.requiredMissing"));
 
-    const slackInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const slackInline = submissionInlineImages;
     const result = await submitToSlack(
-      slackSubmitArgs({
+      withSubmissionProgress(slackSubmitArgs({
         ctx,
         inlineImages: slackInline,
         captureFiles,
         fields: slackFields,
         channelId: slackFields.channelId,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     markSlackShared(issue.id, {
       key: result.key,
       url: result.url,
     });
-    if (useEditorStore.getState().currentIssueId === issue.id) {
-      const tabId = useEditorStore.getState().target?.tabId;
-      if (tabId != null) void clearPicker(tabId);
-      useEditorStore.getState().reset();
-    }
     useSettingsStore.getState().setLastSubmitFields("slack", slackLastSubmitFields(slackFields));
     useSettingsStore.getState().setLastSubmittedPlatform("slack");
     return result;
@@ -785,15 +740,15 @@ export function DraftDetailDialog({
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.webhook") }));
     }
 
-    const inlineImages = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const inlineImages = submissionInlineImages;
     const outcome = await submitToWebhook(
-      webhookSubmitArgs({
+      withSubmissionProgress(webhookSubmitArgs({
         ctx,
         inlineImages,
         captureFiles,
         auth: webhookAccount.auth,
         issueId: issue.id,
-      }),
+      }), submissionProgress, submissionFiles),
     );
     // json 템플릿 모드는 응답을 읽지 않아 식별자가 없다 — 행을 만들면 열 수 없는 링크가
     // 남는다. 판별자를 런타임에서도 본다: `recorded: false` 쪽 key·url이 optional undefined라
@@ -805,16 +760,11 @@ export function DraftDetailDialog({
         url: outcome.url,
       });
     }
-    if (useEditorStore.getState().currentIssueId === issue.id) {
-      const tabId = useEditorStore.getState().target?.tabId;
-      if (tabId != null) void clearPicker(tabId);
-      useEditorStore.getState().reset();
-    }
     // setLastSubmitFields 쌍은 없다(webhook?: never) — 기억할 제출 필드가 없다.
     useSettingsStore.getState().setLastSubmittedPlatform("webhook");
     return outcome.recorded
-      ? { key: outcome.key, url: outcome.url, logsDropped: outcome.logsDropped, mediaDropped: outcome.mediaDropped }
-      : { key: "", url: "" };
+      ? { key: outcome.key, url: outcome.url, logsDropped: outcome.logsDropped, mediaDropped: outcome.mediaDropped, attachments: outcome.attachments }
+      : { key: "", url: "", recorded: false };
   }
 
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
@@ -827,7 +777,21 @@ export function DraftDetailDialog({
       issue && isSlackPreserved(issue) && slackAccount
         ? { permalink: issue.url ?? "", ts: issue.key ?? "" }
         : null;
-    const { ctx, captureFiles } = await buildCtxForSubmit();
+    if (!issue) throw new Error(t("create.requiredMissing"));
+    const transmitFiles = submitPlatform !== "webhook" || webhookAccount?.auth.format !== "json";
+    const sources = expectedSubmissionSources(issue, { sectionConfig, transmitFiles });
+    await assertSubmissionSources(sources);
+    const { ctx, captureFiles } = await buildCtxForSubmit(transmitFiles);
+    submissionInlineImages = transmitFiles ? await resolveInlineImagesForSections(ctx.sections, sectionConfig) : [];
+    assertSubmissionAdaptersReady();
+    const prepared = await prepareSubmissionRecovery({ issue, platform: submitPlatform, files: [
+      ...sources,
+      ...captureFiles.logs.map((f) => ({ id: "logs", kind: "logs" as const, filename: f.filename, contentType: "text/html", blob: dataUrlToBlob(f.dataUrl) })),
+    ] });
+    submissionPatch = {};
+    submissionFiles = prepared.files;
+    const result = await runSubmissionRecovery(prepared, async (progress) => {
+      submissionProgress = progress;
     let result: NormalizedSubmitResult;
     if (submitPlatform === "github") result = await handleGithubSubmit(ctx, captureFiles);
     else if (submitPlatform === "linear") result = await handleLinearSubmit(ctx, captureFiles);
@@ -838,6 +802,13 @@ export function DraftDetailDialog({
     else if (submitPlatform === "slack") result = await handleSlackSubmit(ctx, captureFiles);
     else if (submitPlatform === "webhook") result = await handleWebhookSubmit(ctx, captureFiles);
     else result = await handleJiraSubmit(ctx, captureFiles);
+      return result;
+    }, () => submissionPatch);
+    if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
+      useEditorStore.getState().reset();
+    }
     if (slackOrigin && submitPlatform !== "slack" && result.url) {
       const text = `${t("slack.promotedComment", {
         platform: t(PLATFORM_TAB_KEYS[submitPlatform]),

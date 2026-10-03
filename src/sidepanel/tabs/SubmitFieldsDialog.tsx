@@ -250,7 +250,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
     trackSubmit(
       platform,
       captureMode,
-      "success",
+      result,
       submitted.videoTrimmed,
       submitted.videoTrimSource,
       projectOverridden,

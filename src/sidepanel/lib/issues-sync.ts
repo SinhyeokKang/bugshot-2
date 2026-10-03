@@ -1,6 +1,8 @@
+import { reconcileSubmissionRecovery } from "./submissionRecovery";
 import {
   rehydrateIssuesFromExternalWrite,
   shouldSyncIssuesChange,
+  useIssuesStore,
 } from "@/store/issues-store";
 import { ISSUES_PERSIST_KEY } from "@/lib/session-keys";
 
@@ -16,17 +18,21 @@ import { ISSUES_PERSIST_KEY } from "@/lib/session-keys";
 // 지워진 레코드를 양쪽에 되살린다. 읽기 증폭은 자기 write 토큰이 이미 막는다
 // (shouldSyncIssuesChange) — 남는 건 진짜 원격 변경뿐이라 접을 이유가 없다.
 export function installIssuesSync(): () => void {
+  const reconcile = () => { void reconcileSubmissionRecovery().catch((error) => console.warn("[submission-recovery] reconciliation failed", error)); };
+  const stopHydration = useIssuesStore.persist.onFinishHydration(reconcile);
+  if (useIssuesStore.persist.hasHydrated()) reconcile();
   const onChanged = (
     changes: Record<string, chrome.storage.StorageChange>,
     area: string,
   ): void => {
     if (area !== "local") return;
     if (!shouldSyncIssuesChange(changes[ISSUES_PERSIST_KEY])) return;
-    void rehydrateIssuesFromExternalWrite();
+    void rehydrateIssuesFromExternalWrite().then(reconcile).catch((error) => console.warn("[issues-sync] hydration failed", error));
   };
 
   chrome.storage.onChanged.addListener(onChanged);
   return () => {
+    stopHydration();
     chrome.storage.onChanged.removeListener(onChanged);
   };
 }

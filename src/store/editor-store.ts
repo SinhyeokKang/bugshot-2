@@ -6,7 +6,7 @@ import type { ConsoleLog } from "@/types/console";
 import type { ActionLog } from "@/types/action";
 import type { PlatformId } from "@/types/platform";
 import type { EnvironmentRow } from "@/types/environment";
-import type { UserAttachmentMeta } from "@/types/attachment";
+import type { AttachmentResult, UserAttachmentMeta } from "@/types/attachment";
 import { onBlobSaveFailed } from "@/lib/app-events";
 import { useIssuesStore, type IssueRecord } from "./issues-store";
 import { jiraSiteId, useSettingsStore } from "./settings-store";
@@ -26,6 +26,8 @@ export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
 export type RecordingSource = "tab" | "screen";
 
 export interface SubmitResult {
+  attachments?: AttachmentResult[];
+  recovery?: { state: "partial" | "unknown"; storageFailed?: boolean; issueId: string; attemptId: string };
   key: string;
   url: string;
   platform: PlatformId;
