@@ -52,6 +52,14 @@ Shared something to Slack and then realized it deserves a proper issue too? No w
 
 > If you haven't connected a tracker yet, the two buttons stay hidden and you'll just see the "Submitted" badge and a shortcut to the message, as before. Connect a tracker later and the buttons quietly show up on the same card. Clicking the card body always jumps to the Slack message — that never changes, so don't worry.
 
+
+**Promote to tracker** is blocked while recovery needs attention. After checking the registered Slack message, you can dismiss that recovery with **Delete local copies** and promote it. Originals kept for promotion are preserved. Expiry alone or uncertain registration does not lift the block.
+
+
+## Why attachment results differ
+
+Uploading a file, linking it to an issue, and inserting its body link are separate steps. BugShot distinguishes an attached file from a missing body link. On paths that prepare files before creating the issue, including Linear and Notion, that step can fail before an issue exists. If a created issue has a recovery notice, check its destination and saved files in [Issue Tracking](issue-tracking.md) before creating another issue.
+
 ## Defaults after connecting
 
 ![Setting defaults after connecting](../assets/integrations-platforms-3.jpg)
