@@ -5,6 +5,8 @@ import type { PlatformId } from "@/types/platform";
 // 보존/폐기 분기 검증: delete*Blob 호출 자체를 감시해야 하므로 blob-db를 모킹.
 // (state 필드만 보면 실수로 delete가 들어가도 통과하므로 — design.md 위험 요소)
 vi.mock("../blob-db", () => ({
+  purgeRecoveryForIssues: vi.fn(() => Promise.resolve()),
+  listSubmissionRecoveries: vi.fn(() => Promise.resolve([])),
   deleteVideoBlob: vi.fn(() => Promise.resolve()),
   clearVideoBlobs: vi.fn(() => Promise.resolve()),
   getVideoBlobKeys: vi.fn(() => Promise.resolve([])),
@@ -28,6 +30,8 @@ vi.mock("../blob-db", () => ({
 }));
 
 import {
+  purgeRecoveryForIssues,
+  listSubmissionRecoveries,
   deleteVideoBlob,
   deleteImageBlobs,
   deleteNetworkLog,
@@ -1306,5 +1310,32 @@ describe("withIssueSubmitGuard — 중복 제출 차단", () => {
   it("레코드가 없으면 막지 않는다", async () => {
     useIssuesStore.setState({ issues: [] });
     await expect(withIssueSubmitGuard("missing", async () => "sent")).resolves.toBe("sent");
+  });
+});
+
+
+describe("recovery purge ordering", () => {
+  const record = { ...baseLegacy, status: "draft" as const } as IssueRecord;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("chrome", { storage: { local: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}), remove: vi.fn(async () => {}) } } });
+    useIssuesStore.setState({ issues: [record] });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+  it.each(["removeIssue", "clearIssues"] as const)("%s leaves the list untouched when purge fails", async (action) => {
+    vi.mocked(purgeRecoveryForIssues).mockRejectedValueOnce(new Error("disk failure"));
+    await expect(useIssuesStore.getState()[action](record.id)).rejects.toThrow("disk failure");
+    expect(useIssuesStore.getState().issues).toEqual([record]);
+    expect(deleteVideoBlob).not.toHaveBeenCalled();
+  });
+  it.each(["removeIssue", "clearIssues"] as const)("%s waits for purge before list removal", async (action) => {
+    let finish!: () => void;
+    vi.mocked(purgeRecoveryForIssues).mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const pending = useIssuesStore.getState()[action](record.id);
+    expect(purgeRecoveryForIssues).toHaveBeenCalledWith([record.id]);
+    expect(useIssuesStore.getState().issues).toEqual([record]);
+    finish();
+    await pending;
+    expect(useIssuesStore.getState().issues).toEqual([]);
   });
 });
