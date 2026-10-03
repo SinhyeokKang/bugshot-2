@@ -462,3 +462,51 @@ it("preserves submission-level failure across expiry and rejects premature compl
   await db.deleteSubmissionRecovery("issue", "attempt");
   expect(await db.readSubmissionRecovery("issue")).toBeNull();
 });
+
+describe("explicit recovery local removal", () => {
+  async function prepare(issueId = "issue", attemptId = "attempt", platform: "github" | "slack" = "github") {
+    const m = { ...meta(issueId, attemptId), platform, expiresAt: Date.now() + 86_400_000,
+      files: [{ id: "f", kind: "inline" as const, filename: "same.png", contentType: "image/png", source: { kind: "original" as const, store: "inlineImages" as const, key: "shared" } }] };
+    await db.saveInlineImage("shared", new Blob(["original"]));
+    await db.beginSubmissionRecovery(m, new Map());
+    await db.checkpointSubmission(issueId, attemptId, { phase: "creating", results: [] });
+    await db.checkpointSubmission(issueId, attemptId, { phase: "unknown", results: [] });
+    return (await db.readSubmissionRecovery(issueId))!;
+  }
+  it("removes local bytes without removing metadata and refuses stale attempts", async () => {
+    const m = await prepare();
+    await expect(db.removeSubmissionRecoveryFiles("issue", "stale")).rejects.toThrow();
+    expect(await db.getInlineImage("shared")).not.toBeNull();
+    await db.removeSubmissionRecoveryFiles("issue", "attempt");
+    expect((await db.readSubmissionRecovery("issue"))?.localFilesRemoved).toBe(true);
+    expect(await db.readRecoveryFile(m, "f")).toBeNull();
+    expect(await db.getInlineImage("shared")).toBeNull();
+  });
+  it("preserves another unexpired owner while fencing the removed reader", async () => {
+    const first = await prepare();
+    const second = await prepare("other", "other-attempt");
+    await db.removeSubmissionRecoveryFiles("issue", "attempt");
+    expect(await db.readRecoveryFile(first, "f")).toBeNull();
+    expect(await (await db.readRecoveryFile(second, "f"))?.text()).toBe("original");
+  });
+  it("preserves ordinary draft and editor session inline references", async () => {
+    const m = await prepare();
+    vi.stubGlobal("chrome", { storage: { session: { get: async () => ({ "editor:1": { draft: { sections: { actual: "![img](inline:shared)" } } } }) }, local: { get: async () => ({}) } } });
+    await db.removeSubmissionRecoveryFiles("issue", "attempt");
+    expect(await db.getInlineImage("shared")).not.toBeNull();
+    expect(await db.readRecoveryFile(m, "f")).toBeNull();
+  });
+  it("keeps Slack preserved originals", async () => {
+    const m = await prepare("issue", "attempt", "slack");
+    await db.removeSubmissionRecoveryFiles("issue", "attempt");
+    expect(await db.getInlineImage("shared")).not.toBeNull();
+    expect(await db.readRecoveryFile(m, "f")).toBeNull();
+  });
+  it("fails closed on source-reference read failure and active creation", async () => {
+    await prepare();
+    vi.stubGlobal("chrome", { storage: { session: { get: async () => { throw new Error("read failed"); } } } });
+    await expect(db.removeSubmissionRecoveryFiles("issue", "attempt")).rejects.toThrow();
+    expect((await db.readSubmissionRecovery("issue"))?.localFilesRemoved).toBeUndefined();
+    expect(await db.getInlineImage("shared")).not.toBeNull();
+  });
+});
