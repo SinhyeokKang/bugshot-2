@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-10-03 — 제출 잠금과 완료 사실은 별개다: 락이 풀린 뒤에도 다른 패널의 메모리는 draft다
+
+- **영역**: `store`, `lib`
+- **계열**: `미검증단언`, `라이브러리전제`
+- **그물**: `unit`
+- **증상**: 첨부 복구 수명 구현의 배포 전 리뷰에서 다른 패널이 진행 중인 제출을 미확인으로 바꿔 해제할 수 있었다. Web Lock을 붙인 뒤에도 첫 패널의 정상 완료·journal 삭제 후 storage 이벤트를 아직 받지 않은 둘째 패널이 같은 이슈를 다시 생성하는 반례가 남았다. 별도로 미확인 해제의 journal 삭제 뒤 목록 저장 실패는 재제출할 수 없는 포인터를 남겼고, 새 완료 경로는 전송 파일에 없는 원시 로그·썸네일·변환 전 원본을 정리하지 않았다.
+- **근본 원인**: 모듈 지역 제출 집합은 다른 realm의 작업을 보지 못한다. Web Lock도 동시 실행만 막으며 이전 작업의 완료 사실을 기억하지 않는다. journal 부재는 미제출의 증거가 아니고, chrome.storage 이벤트가 모든 패널의 메모리에 즉시 반영된다는 보장도 없다. IDB와 Chrome 목록 저장 사이에는 단일 트랜잭션이 없으며, 전송 기대 파일 집합과 로컬에서 정리해야 할 원본 집합도 같지 않다. 메타를 유지하는 만료 journal끼리 공유 참조를 보호하면 바이트가 영구 보존된다.
+- **재발 방지**: `rg 'withIssueSubmitGuard|withIssueOperationLock|reconcileSubmissionRecovery' src`의 진입점은 같은 origin-wide 잠금을 쓰고, 획득 **뒤** 최신 영속 submitted·복구 포인터·삭제 상태를 읽은 다음 외부 호출을 허용한다. 별도 store 모듈 인스턴스 두 개와 공유 IDB·Chrome 저장소·Web Locks mock으로 활성 제출뿐 아니라 정상 완료 뒤 storage 이벤트 지연까지 검사하고 create 총 1회를 단언한다. 두 저장소 사이 각 종료 경계와 정확한 persist Promise의 pending/reject를 주입한다. journal 삭제 뒤 남은 포인터는 영속 submitted를 draft로 되돌리지 않고 정리한다. 완료 정리는 불필요한 issue 소유 원본까지 포함하되 미완료·공유 참조와 Slack 보존본을 지킨다. 만료된 참조는 보존 권한에서 빼고 다른 owner 때문에 바이트가 남아도 만료 항목의 읽기를 막는다.
+- **관련**: `src/store/issues-store.ts:withIssueSubmitGuard`·`withIssueOperationLock`·`markSubmittedDurably`, `src/store/blob-db.ts:cleanupSubmissionOriginals`·`expireSubmissionRecovery`, `src/sidepanel/lib/submissionRecovery.ts:reconcileSubmissionRecovery`·`confirmSubmissionNotRegistered`, `src/test/web-locks.ts`, `src/sidepanel/lib/__tests__/submissionRecovery.test.ts`. 선행: 2026-09-22 크로스 인스턴스 상태 역행, 2026-10-03 공유 원본 수명.
+
 ## 2026-10-03 — 복구 journal의 소유 이슈와 인라인 원본의 공유 수명은 같은 경계가 아니다
 
 - **영역**: `store`, `lib`
