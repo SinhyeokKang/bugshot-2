@@ -117,7 +117,7 @@
   - [x] `pnpm typecheck`, `pnpm test` 통과(i18n 키 대칭은 `locales.test.ts`·log-viewer `i18n.test.ts`가 자동 검사). 이 명령들은 구현 단계에서만 실행한다.
   - [x] 신규 lib 파일이 커버리지 로직 스코프에 남는다(`BROWSER_BOUND_EXACT` 미등재).
   - [x] `/e2e-write`로 아래 1단계 시나리오를 green까지 작성한다. 일반 빌드는 자동 실행하지 않는다.
-  - [ ] GitHub MAIN world 변경에 대한 실탭 smoke 결과를 기록한다. 실행 환경이 없으면 미검증 범위를 명시한다.
+  - [x] GitHub MAIN world 변경에 대한 실탭 smoke 결과를 기록한다. 실행 환경이 없으면 미검증 범위를 명시한다. — R: 개발용 UNPACKED 확장 부재로 실탭 업로드·반환값·임시 탭 정리 미검증.
   - [x] `docs/privacy.{ko,en}.md`가 보존 범위·30일 기한·삭제 방법을 명시하고 "제출 성공 시 blob 자동 삭제" 서술과 모순되지 않는다.
   - [x] 회고에 사용자 첨부 축 누락·업로드/연결 혼동·삭제 보류 수명·Jira 분해 함정을 기록한다.
   - [ ] 수동: 좁은 패널·라이트/다크에서 완료 화면 변형·목록 행·복구 상세를 확인한다(amber AA 미검증 조합 육안 확인).
