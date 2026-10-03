@@ -463,7 +463,7 @@ const fr = {
   "recovery.retrying": "Nouvelle tentative en cours",
   "recovery.retry.fileConflict": "Le corps du ticket a été modifié, le lien n’a pas été ajouté",
   "recovery.retry.summary.complete": "Pièces jointes terminées : {n}",
-  "recovery.retry.summary.partial": "{n} échecs de nouveau",
+  "recovery.retry.summary.partial": "De nouveau en échec : {n}",
   "recovery.retry.summary.needsCheck": "Résultat à vérifier",
   "recovery.retry.summary.storageFailed": "Le résultat n’a pas pu être enregistré localement. Vérifiez-le à nouveau dans la liste des tickets.",
   "recovery.retry.stage.upload": "Envoi",

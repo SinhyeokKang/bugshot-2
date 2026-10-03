@@ -6,6 +6,7 @@ vi.mock("../retryAttachments", async (original) => ({ ...await original<typeof i
 vi.mock("sonner", () => ({ toast: { success: mocks.success, warning: mocks.warning, error: mocks.error } }));
 vi.mock("@/i18n", () => ({ t: (key: string, params?: Record<string, unknown>) => params ? `${key}:${JSON.stringify(params)}` : key }));
 import { failedCheckpoint, retryMeta } from "@/test/retry-meta";
+import { useSettingsStore } from "@/store/settings-store";
 import { registerRetryDetail, resetRetrySessions, startAttachmentRetry, useRetrySessions } from "../retrySession";
 
 const ACCOUNT = { token: "t1" };
@@ -14,14 +15,18 @@ const session = (id = "issue") => useRetrySessions.getState().sessions[id];
 const outcome = (patch: Partial<RetryAttachmentsOutcome>): RetryAttachmentsOutcome => ({ status: "partial", attachments: [], remaining: 1, ...patch });
 const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = new Promise<T>((r) => { resolve = r; }); return { promise, resolve }; };
 
-beforeEach(() => { vi.clearAllMocks(); resetRetrySessions(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  resetRetrySessions();
+  useSettingsStore.setState({ accounts: { github: ACCOUNT } as never });
+});
 
 describe("startAttachmentRetry", () => {
   it("runs once for consecutive calls and exposes a running state meanwhile", async () => {
     const gate = deferred<RetryAttachmentsOutcome>();
     mocks.run.mockReturnValue(gate.promise);
-    const first = startAttachmentRetry("issue", meta(2), ACCOUNT);
-    const second = startAttachmentRetry("issue", meta(2), ACCOUNT);
+    const first = startAttachmentRetry("issue", meta(2));
+    const second = startAttachmentRetry("issue", meta(2));
     expect(session().running).toBe(true);
     gate.resolve(outcome({ status: "complete", remaining: 0 }));
     await Promise.all([first, second]);
@@ -32,7 +37,7 @@ describe("startAttachmentRetry", () => {
   it("collects per-file progress while running and clears it afterwards", async () => {
     const gate = deferred<RetryAttachmentsOutcome>();
     mocks.run.mockImplementation((_id: string, options: { onProgress: (e: RetryProgressEvent) => void }) => { options.onProgress({ fileId: "f", stage: "upload", state: "running" }); return gate.promise; });
-    const done = startAttachmentRetry("issue", meta(1), ACCOUNT);
+    const done = startAttachmentRetry("issue", meta(1));
     expect(session().progress).toEqual({ f: { stage: "upload", state: "running" } });
     gate.resolve(outcome({ status: "complete", remaining: 0 }));
     await done;
@@ -42,7 +47,7 @@ describe("startAttachmentRetry", () => {
   it("toasts success once on complete, even while the detail is open", async () => {
     const unregister = registerRetryDetail("issue");
     mocks.run.mockResolvedValue(outcome({ status: "complete", remaining: 0 }));
-    await startAttachmentRetry("issue", meta(3), ACCOUNT);
+    await startAttachmentRetry("issue", meta(3));
     expect(mocks.success).toHaveBeenCalledTimes(1);
     expect(mocks.success).toHaveBeenCalledWith('recovery.retry.summary.complete:{"n":3}');
     expect(session().summary).toBeNull();
@@ -52,7 +57,7 @@ describe("startAttachmentRetry", () => {
   it("puts a partial result in the detail live region and does not toast it", async () => {
     const unregister = registerRetryDetail("issue");
     mocks.run.mockResolvedValue(outcome({ remaining: 2 }));
-    await startAttachmentRetry("issue", meta(3), ACCOUNT);
+    await startAttachmentRetry("issue", meta(3));
     expect(session().summary).toEqual({ kind: "partial", n: 2 });
     expect(mocks.warning).not.toHaveBeenCalled();
     expect(mocks.success).not.toHaveBeenCalled();
@@ -61,7 +66,7 @@ describe("startAttachmentRetry", () => {
 
   it("shows exactly one warning toast when the detail is closed", async () => {
     mocks.run.mockResolvedValue(outcome({ remaining: 2 }));
-    await startAttachmentRetry("issue", meta(3), ACCOUNT);
+    await startAttachmentRetry("issue", meta(3));
     expect(mocks.warning).toHaveBeenCalledTimes(1);
     expect(mocks.warning).toHaveBeenCalledWith('recovery.retry.summary.partial:{"n":2}');
     expect(session().summary).toBeNull();
@@ -72,32 +77,42 @@ describe("startAttachmentRetry", () => {
     const second = registerRetryDetail("issue");
     first();
     mocks.run.mockResolvedValue(outcome({ remaining: 1 }));
-    await startAttachmentRetry("issue", meta(1), ACCOUNT);
+    await startAttachmentRetry("issue", meta(1));
     expect(session().summary).not.toBeNull();
     second();
     mocks.run.mockResolvedValue(outcome({ remaining: 1 }));
-    await startAttachmentRetry("issue", meta(1), ACCOUNT);
+    await startAttachmentRetry("issue", meta(1));
     expect(mocks.warning).toHaveBeenCalledTimes(1);
   });
 
   it("hides retry for the session after a stop that is not persisted, and keeps nothing for others", async () => {
     mocks.run.mockResolvedValue(outcome({ status: "blocked", reason: "remote-missing" }));
-    await startAttachmentRetry("issue", meta(1), ACCOUNT);
+    await startAttachmentRetry("issue", meta(1));
     expect(session().stop).toEqual({ reason: "remote-missing", attemptId: "a", account: ACCOUNT });
     expect(session("other")).toBeUndefined();
   });
 
+  it("keeps the account that was in force when the run ended, not the one at click time", async () => {
+    const refreshed = { token: "t2" };
+    mocks.run.mockImplementation(async () => {
+      useSettingsStore.setState({ accounts: { github: refreshed } as never });
+      return outcome({ status: "blocked", reason: "permission" });
+    });
+    await startAttachmentRetry("issue", meta(1));
+    expect(session().stop?.account).toBe(refreshed);
+  });
+
   it("clears an earlier stop reason only when a later run is not blocked the same way", async () => {
     mocks.run.mockResolvedValueOnce(outcome({ status: "blocked", reason: "permission" }));
-    await startAttachmentRetry("issue", meta(1), ACCOUNT);
+    await startAttachmentRetry("issue", meta(1));
     mocks.run.mockResolvedValueOnce(outcome({ reason: "body-conflict" }));
-    await startAttachmentRetry("issue", meta(1), ACCOUNT);
+    await startAttachmentRetry("issue", meta(1));
     expect(session().stop).toBeNull();
   });
 
   it("stays silent with no spinner when another panel holds the issue", async () => {
     mocks.run.mockResolvedValue(outcome({ status: "busy", remaining: 0 }));
-    await startAttachmentRetry("issue", meta(1), ACCOUNT);
+    await startAttachmentRetry("issue", meta(1));
     expect(session().running).toBe(false);
     expect(mocks.success).not.toHaveBeenCalled();
     expect(mocks.warning).not.toHaveBeenCalled();
@@ -106,24 +121,24 @@ describe("startAttachmentRetry", () => {
 
   it("shows a static needs-confirmation for an unknown result", async () => {
     mocks.run.mockResolvedValue(outcome({ reason: "ambiguous" }));
-    await startAttachmentRetry("issue", meta(1), ACCOUNT);
+    await startAttachmentRetry("issue", meta(1));
     expect(session().running).toBe(false);
     expect(mocks.warning).toHaveBeenCalledWith("recovery.retry.summary.needsCheck");
   });
 
   it("recovers from an unexpected throw with one error toast and no stuck spinner", async () => {
     mocks.run.mockRejectedValue(new Error("boom"));
-    await startAttachmentRetry("issue", meta(1), ACCOUNT);
+    await startAttachmentRetry("issue", meta(1));
     expect(session().running).toBe(false);
     expect(mocks.error).toHaveBeenCalledTimes(1);
   });
 
   it("bumps finishedAt so mounted rows and panels re-read the journal", async () => {
     mocks.run.mockResolvedValue(outcome({}));
-    await startAttachmentRetry("issue", meta(1), ACCOUNT);
+    await startAttachmentRetry("issue", meta(1));
     const first = session().finishedAt;
     mocks.run.mockResolvedValue(outcome({}));
-    await startAttachmentRetry("issue", meta(1), ACCOUNT);
+    await startAttachmentRetry("issue", meta(1));
     expect(session().finishedAt).toBeGreaterThan(first);
   });
 });

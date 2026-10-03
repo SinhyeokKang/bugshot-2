@@ -28,8 +28,9 @@ export interface RetryUiState {
   showOpenIssue: boolean;
 }
 
-// A stop is remembered with the account object it happened under: connecting the platform again
-// replaces that object, which ends the stop without any subscription.
+// A stop is remembered with the account object it happened under. Any replacement of that object
+// (a reconnect, but also a token refresh or settings rehydrate) ends it; harmless, since pressing
+// again re-detects the same stop with zero writes.
 export interface RetryStop { reason: AttachmentRetryReason; attemptId: string; account: unknown }
 
 export function retryUiState(meta: SubmissionRecoveryMeta | null, stop: RetryStop | null = null, account: unknown = undefined): RetryUiState {

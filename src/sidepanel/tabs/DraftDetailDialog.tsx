@@ -168,19 +168,29 @@ export function DraftDetailDialog(props: {
   const inRecovery = open && !!issue?.submissionRecoveryId;
   useEffect(() => (inRecovery ? registerRetryDetail(issue!.id) : undefined), [inRecovery, issue?.id]);
   const recoveringId = useRef<string | null>(null);
+  const hadRetry = useRef(false);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  // Written during render on purpose: an effect would run after the frame that must not reach the edit branch.
   if (!open) recoveringId.current = null;
   else if (issue?.submissionRecoveryId) recoveringId.current = issue.id;
   // The frame where a finished retry clears the pointer must not fall into the edit branch.
   const finishedRecovery = open && !!issue && !issue.submissionRecoveryId && recoveringId.current === issue.id;
   useEffect(() => { if (finishedRecovery) onOpenChange(false); });
+  // A stop removes the focused retry button; keep the keyboard inside the dialog instead of on its frame.
+  useEffect(() => {
+    const lost = hadRetry.current && !retryState.canRetry;
+    hadRetry.current = retryState.canRetry;
+    const active = document.activeElement;
+    if (lost && (active === document.body || active?.getAttribute("role") === "dialog")) closeButton.current?.focus();
+  }, [retryState.canRetry]);
   if (finishedRecovery) return null;
   if (issue?.submissionRecoveryId) return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent onCloseAutoFocus={(event) => { event.preventDefault(); props.onRecoveryCloseAutoFocus?.(); }} className="flex max-h-[80vh] w-[90vw] max-w-[800px] flex-col gap-5 rounded-3xl p-6 sm:rounded-3xl" data-testid="draft-detail-dialog" aria-describedby={undefined}>
       <DialogHeader><DialogTitle>{issue.title || t("common.untitled")}</DialogTitle></DialogHeader>
       <PageScroll><AttachmentRecoveryPanel key={issue.submissionRecoveryId} issueId={issue.id} attemptId={issue.submissionRecoveryId} allowManage onMetaLoaded={setRecoveryMeta} onConfirmed={() => onOpenChange(false)} /></PageScroll>
-      <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>{t("common.close")}</Button>
+      <DialogFooter><Button variant="outline" ref={closeButton} onClick={() => onOpenChange(false)}>{t("common.close")}</Button>
         {retryState.showOpenIssue && <Button asChild variant={retryState.canRetry ? "outline" : "default"}><a href={currentMeta?.destination?.url} target="_blank" rel="noopener noreferrer">{t("recovery.openIssue")}</a></Button>}
-        {retryState.canRetry && <Button className="aria-disabled:cursor-not-allowed aria-disabled:hover:bg-primary" aria-disabled={session.running} aria-busy={session.running} data-testid="recovery-retry" onClick={() => { if (!session.running) void startAttachmentRetry(issue.id, currentMeta!, account); }}>{session.running ? <Loader2 className="animate-spin" /> : <RotateCw />}{t(session.running ? "recovery.retrying" : "recovery.retry")}</Button>}
+        {retryState.canRetry && <Button className="aria-disabled:cursor-not-allowed aria-disabled:hover:bg-primary" aria-disabled={session.running} aria-busy={session.running} data-testid="recovery-retry" onClick={() => { if (!session.running) void startAttachmentRetry(issue.id, currentMeta!); }}>{session.running ? <Loader2 className="animate-spin" /> : <RotateCw />}{t(session.running ? "recovery.retrying" : "recovery.retry")}</Button>}
       </DialogFooter>
     </DialogContent>
   </Dialog>;

@@ -54,7 +54,7 @@ export function registerRetryDetail(issueId: string): () => void {
 
 // The single entry for retry actions: rows and the detail footer both call this, so a second press
 // while one run is in flight never reaches the runner.
-export async function startAttachmentRetry(issueId: string, meta: SubmissionRecoveryMeta, account: unknown): Promise<void> {
+export async function startAttachmentRetry(issueId: string, meta: SubmissionRecoveryMeta): Promise<void> {
   if (useRetrySessions.getState().sessions[issueId]?.running) return;
   patch(issueId, { running: true, progress: {}, summary: null });
   let summary: RetrySummary | null = null;
@@ -66,7 +66,8 @@ export async function startAttachmentRetry(issueId: string, meta: SubmissionReco
     });
     summary = retrySummary(outcome, pending);
     const reason = sessionStopReason(outcome);
-    stop = reason ? { reason, attemptId: meta.attemptId, account } : null;
+    // Read now, not at click time: a token refresh during the run replaces the account object.
+    stop = reason ? { reason, attemptId: meta.attemptId, account: (useSettingsStore.getState().accounts as Record<string, unknown>)[meta.platform] } : null;
   } catch {
     toast.error(t("bg.error.unknown"));
   }

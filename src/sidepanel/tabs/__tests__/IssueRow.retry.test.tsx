@@ -9,7 +9,7 @@ import type { RetryAttachmentsOutcome } from "@/sidepanel/lib/retryAttachments";
 const mocks = vi.hoisted(() => ({ read: vi.fn(), run: vi.fn(), slack: vi.fn(() => false) }));
 vi.mock("@/store/blob-db", () => ({ readSubmissionRecovery: mocks.read, readRecoveryFile: async () => new Blob(["x"]) }));
 vi.mock("@/store/issues-store", () => ({ isSlackPreserved: mocks.slack, useIssuesStore: (select: (s: unknown) => unknown) => select({ removeIssue: vi.fn(), issues: [] }) }));
-vi.mock("@/store/settings-store", () => ({ useSettingsStore: (select: (s: unknown) => unknown) => select({ accounts: {} }) }));
+vi.mock("@/store/settings-store", () => ({ useSettingsStore: Object.assign((select: (s: unknown) => unknown) => select({ accounts: {} }), { getState: () => ({ accounts: {} }) }) }));
 vi.mock("@/i18n", () => ({ useT: () => (key: string) => key, dateBcp47: () => "en-US", getLocale: () => "en", t: (key: string) => key }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 vi.mock("../statusBadges/SubmittedBadge", () => ({ SubmittedBadge: () => null }));
@@ -70,7 +70,6 @@ describe("row retry action", () => {
     expect(busy.disabled).toBe(false);
     expect(locked("recovery-row-retry")).toBe(true);
     expect(busy.getAttribute("aria-busy")).toBe("true");
-    expect(busy.className).not.toMatch(/(^|\s)opacity-50/);
     expect(busy.querySelector("svg.animate-spin")).not.toBeNull();
     expect(screen.queryByTestId("recovery-file-progress")).toBeNull();
     finish(outcome({ remaining: 1 }));

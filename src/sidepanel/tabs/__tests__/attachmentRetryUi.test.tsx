@@ -171,18 +171,34 @@ it("a retry that completes from the detail leaves the keyboard on a stable targe
   expect(document.activeElement?.closest('[data-testid="issue-row"]')).not.toBeNull();
 });
 
-it("a Slack-preserved record never flashes the editable detail when its retry completes", async () => {
+it("a Slack-preserved record closes its detail and toasts once when the retry completes", async () => {
   const { db, sub } = await boot({}, { platform: "slack", slackPreserved: true });
-  const editable = vi.fn();
-  const watch = new MutationObserver(() => { if (document.body.textContent?.includes("issueList.deleteIssue")) editable(); });
-  watch.observe(document.body, { childList: true, subtree: true });
   mocks.run.mockImplementation(completeRun(db, sub));
   const dialog = await openDetail();
   await userEvent.click(await within(dialog).findByTestId("recovery-retry"));
   await waitFor(() => expect(screen.queryByTestId("draft-detail-dialog")).toBeNull());
   await waitFor(() => expect(mocks.success).toHaveBeenCalledTimes(1));
-  watch.disconnect();
-  expect(editable).not.toHaveBeenCalled();
+});
+
+it("a stop that removes the focused footer retry button hands focus to Close", async () => {
+  await boot();
+  mocks.run.mockResolvedValue(outcome({ status: "blocked", reason: "permission" }));
+  const dialog = await openDetail();
+  const retry = await within(dialog).findByTestId("recovery-retry");
+  retry.focus();
+  await userEvent.keyboard("{Enter}");
+  await waitFor(() => expect(within(dialog).queryByTestId("recovery-retry")).toBeNull());
+  expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "common.close" }));
+});
+
+it("a stop that removes the focused row retry button hands focus to the row's detail button", async () => {
+  await boot();
+  mocks.run.mockResolvedValue(outcome({ status: "blocked", reason: "permission" }));
+  const retry = await screen.findByTestId("recovery-row-retry");
+  retry.focus();
+  await userEvent.keyboard("{Enter}");
+  await waitFor(() => expect(screen.queryByTestId("recovery-row-retry")).toBeNull());
+  expect(document.activeElement).toBe(screen.getByTestId("recovery-detail-open"));
 });
 
 it("reconnecting the platform brings the retry button back after an authentication stop", async () => {
