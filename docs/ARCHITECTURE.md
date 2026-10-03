@@ -79,7 +79,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 `sidepanel/lib/submissionRecovery.ts`는 기대 원본을 읽기 전에 결정하고, 저장 로그 키의 유실을 검사하며, logs.html·Asana JPEG·Notion ZIP을 journal 저장 전에 확정한다. 원본은 기존 키를 참조하고 생성물만 별도 보관한다. `beforeCreate`/`created` 체크포인트와 결과 완료를 조정하며, `markSubmittedDurably`가 정확한 persist Promise 성공을 확인한 뒤에만 정리한다. 이 write는 `pendingOwnWrites` 에코 가드에도 등록된다. 생성 이후 로컬 완료 처리가 실패하면 확정 목적지와 `recovery.storageFailed`를 반환한다. 첨부 행이 전부 성공해도 이 상태는 복구가 필요하다. 명시적 생성 거절만 `SubmissionCreationRejectedError`로 draft 재시도를 허용하며, 응답 유실·5xx·파싱 실패는 unknown이다.
 
-최초 제출·재시작 복구·미확인 해제·삭제는 `issues-store.ts:withIssueOperationLock`의 `bugshot-submission:<issueId>` Web Lock을 공유한다. `withIssueSubmitGuard`는 준비부터 완료까지 락을 유지하고, 획득 뒤 최신 Chrome 저장분과 journal을 확인한다. storage 이벤트가 늦게 도착한 패널도 이미 완료된 이슈를 새로 만들지 못한다. 잠금 API 부재·저장분 읽기 실패·손상 데이터는 제출을 차단하며 Slack 보존본 승격 예외는 유지한다. 2단계 재첨부도 같은 잠금을 써야 한다.
+최초 제출·재시작 복구·미확인 해제·삭제는 `issues-store.ts:withIssueOperationLock`의 `bugshot-submission:<issueId>` Web Lock을 공유한다. `withIssueSubmitGuard`는 준비부터 완료까지 락을 유지하고, 획득 뒤 최신 Chrome 저장분과 journal을 확인한다. storage 이벤트가 늦게 도착한 패널도 이미 완료된 이슈를 새로 만들지 못한다. 잠금 API 부재·저장분 읽기 실패·손상 데이터는 제출을 차단하며 Slack 보존본 승격 예외는 유지한다. 2단계 재첨부(`retryAttachments`)도 같은 잠금을 쓴다(아래 "첨부 재시도").
 
 `installIssuesSync`가 초기화·외부 동기화 뒤 `reconcileSubmissionRecovery`를 호출한다. 활성 락이 없는 중단 시도만 복구하며, journal 삭제 후 목록 저장이 실패해 남은 포인터도 최신 저장분을 대조해 정리한다. 이미 submitted인 항목을 draft로 되돌리지 않는다. 만료는 생성 후 30일이며 journal 메타를 남기고 바이트를 정리한다. 만료 journal끼리는 공유 원본을 보존하지 못하고, 살아 있는 다른 참조로 바이트가 남아도 `localFilesRemoved`가 만료 항목의 읽기를 차단한다.
 
@@ -88,6 +88,29 @@ chrome.action.onClicked.addListener((tab) => {
 복구 상세는 `DraftDetailDialog`의 읽기 전용 분기다. 계정 연결 여부와 무관하게 열리고 목적지는 현재 attempt의 journal에서 읽는다. 승격 중 unknown에는 이전 Slack submitted 상태·URL이 남을 수 있어 이를 새 목적지의 증거로 쓰지 않는다. partial은 submitted와 복구 포인터로 표현하고 unknown도 새 제출 가능한 draft 목록에서 제외한다. `attachmentRecovery.ts`는 파일 ID로 보존된 ZIP/JPEG 등 실제 제출 바이트와 이름을 다운로드하며 원격 완료 상태를 바꾸지 않는다. 파일 0개의 `submissionFailure`와 `phase:complete`인데 남은 journal(로컬 완료 처리 실패)도 별도 안내한다. complete에는 partial/unknown 전용 삭제 컨트롤을 노출하지 않는다. 목록은 복구 상세를 연 실제 버튼을 기억해 닫을 때 포커스를 복원한다. 이 복구 분기만 `onCloseAutoFocus`를 재정의하며 공용 Dialog의 기본 차단과 일반 draft·Slack 상세는 유지한다.
 
 명시적 **로컬 사본 삭제**는 `deleteSubmissionLocalFiles`가 같은 Web Lock 아래 `removeSubmissionRecoveryFiles`의 attempt·settled-phase fence를 거친다. 실제 현재 시각으로 살아 있는 공유 참조와 Slack 보존 원본을 보호하며 바이트와 `localFilesRemoved`를 원자적으로 변경한다. known-created partial은 submitted 목적지를 먼저 영속한 뒤 복구 journal·포인터까지 정리해 경고를 해제한다. 원격 요청이나 첨부 성공 상태로의 변경은 없다. unknown 삭제는 생성 차단을 남기고 자동 만료도 명시적 포기가 아니므로 경고와 journal이 남는다. unknown 삭제·새 만료처럼 journal만 바꾸는 작업은 `notifyRecoveryChange`가 최신 durable 레코드를 병합하고 updatedAt을 올려 기존 목록 구독자를 갱신한다. 이미 정리된 만료 항목은 다시 통지하지 않아 동기화 루프를 막는다. Chrome 알림 write 실패 시 열린 다른 패널의 표시가 잠시 늦을 수 있지만 실행 시점의 journal fence는 유지된다.
+
+### 첨부 재시도 (2단계)
+
+**재시도 스냅샷은 최초 제출에만 생긴다.** `initializeAttachmentRetry`는 prepared journal에만 `retry` 필드를 만든다. 1단계 레코드엔 backfill하지 않으므로, snapshot 없는 레코드는 `legacy`(다운로드 전용)다. 이후 쓰기는 `checkpointAttachmentRetry`가 같은 tx에서 attempt fence와 revision CAS를 확인한다. `accountIdentity`는 `phase === "created"` 창에서만 1회 쓸 수 있다 — 저장 계층이 강제하지 않으면 재시도 시점의 "현재 계정"이 빈 칸을 채워 계정 비교를 무력화한다. 신원은 연결 시점 저장값이 아니라 partial 직후 현재 연결에서 조회한다(GitHub numeric id·Linear org 등이 저장돼 있지 않다. 최대 10초, 실패하면 null → 그 레코드는 자동 재시도 불가). 체크포인트 저장 실패는 제출을 막지 않고 그 레코드의 자동 재시도만 끈다.
+
+**체크포인트는 원격 응답을 받은 사이드패널이 다음 원격 write 전에 쓰고, 원격 호출과 같은 `try`에 두지 않는다** — 같은 try면 저장 실패가 "업로드 실패"로 오분류된다. Slack 최초 제출도 이 때문에 파일별 grant→bytes(메시지당 1파일)→complete 1회로 단계화됐다. complete의 internal/fatal/5xx/네트워크는 `unknown`이고 다시 호출하지 않는다(현재 scope로 결과를 조회할 수 없다).
+
+**runner는 원격 이슈를 새로 만들지 않는다.** `retryAttachments(issueId)`는 `bugshot-submission:<issueId>` 락을 `ifAvailable`로 잡고(못 잡으면 `busy`, 메시지 0) journal을 재조회한 뒤, 모든 원격 읽기·쓰기 전에 `${platform}.getAccountIdentity`를 비교한다. 다른 계정이면 `account-changed`, 미연결은 401 `not_connected` → `authentication`, 네트워크 오류는 `ambiguous`다. 404/403/401은 쓰기 없이 멈추고 다운로드를 남긴다. 결과를 모르는 업로드는 자동 반복하지 않는다. 예외는 세 경우뿐이다:
+
+- Slack complete 전 업로드 — 미완 업로드는 Slack이 폐기한다.
+- Notion 미연결 업로드 — 연결되지 않은 업로드는 만료된다.
+- Jira·Asana — 원격 첨부 목록에서 이 레코드가 이미 소유한 id를 뺀 뒤 이름으로 대조할 수 있다.
+
+업로드는 플랫폼과 무관하게 메시지당 1파일이다(64MiB 메시지 한도). 원본 삭제는 `markSubmittedDurably` 성공 뒤에만 하고, 재시도로 완료돼도 원래 `submittedAt`을 보존한다.
+
+**본문은 3-way 패치이고 우리 슬롯만 바꾼다.** 최초 제출 어댑터가 `bodyWritten`과 함께 `bodyPlan.replacements`를 기록한다. 항목은 파일별 anchor·before·after·renderTemplate이고, 단위는 markdown/asana-html이면 줄, ADF면 정규화한 top-level 노드다. `attachmentBodyPatch`는 `lastWritten`·최신 원격·원하는 결과로 그 자리만 교체한다.
+
+- 슬롯이 수정·중복·부재면 `body-conflict`이고 본문 쓰기는 0이다.
+- 쓰기 직전 다시 읽어 바뀌었으면 한 번만 재계산한다.
+- 슬롯 기록이 없는 파일은 그 파일만 다운로드 전용이다. 재렌더로 위치를 추측하면 before/after처럼 반복되는 캡션에서 엉뚱한 자리를 바꾼다.
+- Jira는 슬롯을 placeholder로 되돌린 뒤 background가 **슬롯 위치만** 렌더한다(`slots` 인자). 인자가 없으면 최초 제출과 같은 전체 렌더이고, 전체 렌더는 사용자 문장 속 `logs.html`에도 링크를 건다.
+
+정지 사유(404/403/401/계정 변경)는 영속하지 않는다. UI 세션 상태로만 버튼을 숨기고, 다시 눌러도 쓰기 0으로 재감지된다.
 
 `sidepanel/lib/submissionAdapter.ts`는 준비 파일의 ID·바이트를 실제 업로드 입력에 연결하고, 원격 생성 전후 콜백을 await하며, 반환 증거를 파일 ID로 한 번만 정규화한다. 생성 전 업로드가 필요한 플랫폼의 기존 순서는 유지한다. Asana JPEG·Notion ZIP은 준비된 바이트를 다시 변환하지 않는다. `lib/attachment-failure.ts`는 원문 오류 대신 허용된 stage/code/httpStatus만 전달한다. Slack의 HTTP 200 `ok:false`도 명시적 부모 생성 거절 코드일 때만 안전한 boolean으로 전달해 draft 재시도를 허용하고, 알 수 없는 코드·5xx·응답 유실은 unknown으로 둔다.
 
