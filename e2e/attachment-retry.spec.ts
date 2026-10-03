@@ -58,7 +58,20 @@ async function openDetail(panel: Page) {
   await expect(panel.getByTestId("recovery-file-row").first()).toBeVisible();
 }
 const successToast = (panel: Page) => panel.locator('[data-sonner-toast][data-type="success"]');
-const sent = (calls: Rpc[], from: number) => calls.slice(from);
+const warningToast = (panel: Page) => panel.locator('[data-sonner-toast][data-type="warning"]');
+// What a retry may send per platform. Anything else (a new write type the permissive stub would
+// silently accept) fails the flow; list refreshes and analytics ride along.
+const RETRY_TYPES: Record<string, RegExp> = {
+  github: /^github\.(getAccountIdentity|getIssueBody|uploadFiles|updateIssueBody|getIssueStatus)$/,
+  clickup: /^clickup\.(getAccountIdentity|getTaskAttachments|uploadFile|updateTaskMarkdown|getTaskStatus)$/,
+  notion: /^notion\.(getAccountIdentity|getBlockChildren|getFileUpload|uploadFile|appendBlockChildren|getPageStatus)$/,
+  slack: /^slack\.(getAccountIdentity|requestFileUpload|sendFileUpload|completeFileUploads)$/,
+};
+function sent(calls: Rpc[], from: number, provider?: Provider) {
+  const slice = calls.slice(from).filter((m) => !m.type.startsWith("analytics."));
+  if (provider) expect(slice.filter((m) => !RETRY_TYPES[provider].test(m.type)).map((m) => m.type)).toEqual([]);
+  return calls.slice(from);
+}
 // A retry must never create: across the whole flow the spy sees exactly the first creation.
 const expectOneCreation = (calls: Rpc[]) => expect(calls.filter(isCreate)).toHaveLength(1);
 const blobPresent = (panel: Page, store: string, key: string) => panel.evaluate(async ({ store, key }) => {
@@ -75,7 +88,7 @@ test("11: retry uploads one file per message for every failed file and patches t
   await submitPartial(panel);
   const before = await state(panel, id);
   expect(before.journal?.phase).toBe("partial");
-  expect(before.journal?.retry?.accountIdentity).not.toBeNull();
+  expect(before.journal?.retry?.accountIdentity).toEqual(expect.any(String));
   const failed = before.journal!.files.map((f) => f.id).sort();
   expect(failed).toEqual(["capture:screenshot", "inline:recover-image", "logs", "user:pdf"]);
   const logsBytes = before.sources.find((s) => s.id === "logs")!.bytes;
@@ -90,7 +103,7 @@ test("11: retry uploads one file per message for every failed file and patches t
   await expect(panel.getByTestId("recovery-row-warning")).toHaveCount(0);
   await expect.poll(() => blobPresent(panel, "attachments", `${id}:pdf`)).toBe(false);
 
-  const retry = sent(calls, mark);
+  const retry = sent(calls, mark, "github");
   const uploads = ofType(retry, "github.uploadFiles");
   expect(uploads).toHaveLength(failed.length);
   expect(uploads.every((m) => m.files!.length === 1)).toBe(true);
@@ -128,7 +141,7 @@ test("12: an upload that succeeded while the body write failed retries as a body
   const mark = calls.length;
   await pressRowRetry(panel);
   await expect(successToast(panel)).toBeVisible();
-  const retry = sent(calls, mark);
+  const retry = sent(calls, mark, "clickup");
   expect(ofType(retry, "clickup.uploadFile")).toHaveLength(0);
   const updates = ofType(retry, "clickup.updateTaskMarkdown");
   expect(updates).toHaveLength(1);
@@ -160,7 +173,7 @@ test("a partial re-success leaves the next retry only the files that failed agai
   await pressRowRetry(panel);
   await expect(successToast(panel)).toBeVisible();
   expect(ofType(sent(calls, mark), "github.uploadFiles").map((m) => m.files![0].fileId)).toEqual(["inline:recover-image"]);
-  expect(ofType(sent(calls, mark), "github.updateIssueBody")).toHaveLength(1);
+  expect(ofType(sent(calls, mark, "github"), "github.updateIssueBody")).toHaveLength(1);
   expectOneCreation(calls);
   expect((await state(panel, id)).journal).toBeUndefined();
 });
@@ -175,7 +188,7 @@ test("13: remote prose written meanwhile survives the body patch", async ({ ext 
   const mark = calls.length;
   await pressRowRetry(panel);
   await expect(successToast(panel)).toBeVisible();
-  const updates = ofType(sent(calls, mark), "github.updateIssueBody");
+  const updates = ofType(sent(calls, mark, "github"), "github.updateIssueBody");
   expect(updates).toHaveLength(1);
   expect(updates[0].body).toContain("외부 편집");
   expect(updates[0].body).toContain("https://example.com/files/capture%3Ascreenshot");
@@ -200,21 +213,29 @@ test("13: a deleted attachment place is a conflict: no body write, no second upl
   await setRemote(panel, { rejectUpload: false });
   let mark = calls.length;
   await pressRowRetry(panel);
+  // The run is over once the conflict is durable and its result was announced (warning toast).
   await expect.poll(async () => (await state(panel, id)).journal?.retry?.checkpoints[0]?.body).toBe("conflict");
-  expect(ofType(sent(calls, mark), "github.updateIssueBody")).toEqual([]);
+  await expect(warningToast(panel)).toBeVisible();
+  await expect(panel.getByTestId("recovery-row-retry")).not.toHaveAttribute("aria-busy", "true");
+  expect(ofType(sent(calls, mark, "github"), "github.updateIssueBody")).toEqual([]);
   expect(await remoteBody(panel)).toBe(erased);
   await openDetail(panel);
   // The product shows the file as attached (its upload stands) with the conflict explanation.
   const row = panel.getByTestId("recovery-file-row");
   await expect(row).toHaveAttribute("data-state", "attached");
   await expect(row).toContainText("The issue body was edited");
+  await expect(panel.getByTestId("recovery-retry-notice")).toHaveAttribute("data-reason", "body-conflict");
   await panel.keyboard.press("Escape");
+  await expect(panel.getByTestId("draft-detail-dialog")).toBeHidden();
 
   // Pressing again resends nothing: the upload is checkpointed and the place is still gone.
+  // Dismiss the first run's toast so the second run's own announcement marks its end.
+  await panel.locator("[data-sonner-toast]").first().click();
+  await expect(panel.locator("[data-sonner-toast]")).toHaveCount(0);
   mark = calls.length;
   await pressRowRetry(panel);
-  await expect.poll(() => ofType(sent(calls, mark), "github.getIssueBody").length).toBeGreaterThan(0);
-  await flush(panel);
+  await expect(warningToast(panel)).toBeVisible();
+  expect(ofType(sent(calls, mark, "github"), "github.getIssueBody").length).toBeGreaterThan(0);
   expect(ofType(sent(calls, mark), "github.uploadFiles")).toEqual([]);
   expect(ofType(sent(calls, mark), "github.updateIssueBody")).toEqual([]);
   expectOneCreation(calls);
@@ -237,7 +258,7 @@ test("15: a Notion file cut by the 100-block page limit is appended to the origi
   const mark = calls.length;
   await pressRowRetry(panel);
   await expect(successToast(panel)).toBeVisible();
-  const retry = sent(calls, mark);
+  const retry = sent(calls, mark, "notion");
   const appends = ofType(retry, "notion.appendBlockChildren");
   expect(appends).toHaveLength(1);
   expect(appends[0].blockId).toBe("page-42");
@@ -260,7 +281,7 @@ test("15: a failed Slack file is reattached in the original thread without a new
   const mark = calls.length;
   await pressRowRetry(panel);
   await expect(successToast(panel)).toBeVisible();
-  const retry = sent(calls, mark);
+  const retry = sent(calls, mark, "slack");
   expect(ofType(retry, "slack.requestFileUpload")).toHaveLength(1);
   const bytes = ofType(retry, "slack.sendFileUpload");
   expect(bytes).toHaveLength(1);
@@ -316,7 +337,7 @@ for (const stop of STOPS) {
     await expect(panel.getByTestId("recovery-retry-notice")).toHaveAttribute("data-reason", stop.reason);
     await expect(panel.getByTestId("recovery-file-download")).toBeVisible();
     await expect(panel.getByTestId("draft-detail-dialog").locator(`a[href="${REMOTE}"]`)).toHaveCount(stop.issueLink ? 1 : 0);
-    const retry = sent(calls, mark);
+    const retry = sent(calls, mark, "github");
     expect(retry.filter((m) => /\.(uploadFiles|updateIssueBody)$/.test(m.type))).toEqual([]);
     expect(retry.filter(isCreate)).toEqual([]);
     expectOneCreation(calls);
@@ -353,6 +374,23 @@ test("a lookup that cannot be answered shows a static check-needed note and keep
   await expect(panel.getByTestId("recovery-row-retry")).toBeVisible();
   await expect(panel.getByTestId("recovery-row-retry").locator("svg.animate-spin")).toHaveCount(0);
   expect(sent(calls, mark).filter((m) => !/\.getAccountIdentity$/.test(m.type))).toEqual([]);
+  expectOneCreation(calls);
+});
+
+test("a record whose account was never verified offers no retry from the start, only the download", async ({ ext }) => {
+  const { panel, id } = await start(ext, "github", { kinds: ["user"] });
+  // The identity lookup fails while the issue is submitted, so the journal keeps accountIdentity null.
+  const calls = await remote(panel, "github", { rejectUpload: true, identity: "network" });
+  await submitPartial(panel);
+  expect((await state(panel, id)).journal?.retry?.accountIdentity).toBeNull();
+  await expect(panel.getByTestId("recovery-row-retry")).toHaveCount(0);
+  await openDetail(panel);
+  await expect(panel.getByTestId("recovery-retry")).toHaveCount(0);
+  await expect(panel.getByTestId("recovery-retry-notice")).toHaveAttribute("data-reason", "account-unverified");
+  const pending = panel.waitForEvent("download");
+  await panel.getByTestId("recovery-file-download").click();
+  expect((await pending).suggestedFilename()).toBe("customer.pdf");
+  expect(calls.filter((m) => /\.(updateIssueBody|getIssueBody)$/.test(m.type))).toEqual([]);
   expectOneCreation(calls);
 });
 
@@ -402,7 +440,7 @@ test("a preserved file that is gone locally is skipped without an upload while t
   await panel.getByTestId("tab-issue-list").click();
   await pressRowRetry(panel);
   await expect.poll(async () => (await state(panel, id)).journal?.results.find((r) => r.fileId === "user:pdf")?.failure).toEqual({ stage: "source", code: "local-storage" });
-  const retry = sent(calls, mark);
+  const retry = sent(calls, mark, "github");
   expect(ofType(retry, "github.uploadFiles").map((m) => m.files![0].fileId)).toEqual(["inline:recover-image"]);
   await expect(panel.getByTestId("recovery-row-warning")).toBeVisible();
   await openDetail(panel);
@@ -448,6 +486,9 @@ test("a native Web Lock held by another panel makes the retry a silent no-op unt
   await pressRowRetry(panel);
   await expect(panel.getByTestId("recovery-row-retry").locator("svg.animate-spin")).toHaveCount(0);
   await flush(panel);
+  // The product asks for the lock with ifAvailable: nothing may be waiting for it, and the holder still has it.
+  const locks = await panel.evaluate(async () => { const q = await navigator.locks.query(); return { held: (q.held ?? []).filter((l) => l.name?.startsWith("bugshot-submission:")).length, pending: (q.pending ?? []).filter((l) => l.name?.startsWith("bugshot-submission:")).length }; });
+  expect(locks).toEqual({ held: 1, pending: 0 });
   expect(sent(calls, mark)).toEqual([]);
   expect((await state(panel, id)).journal?.phase).toBe("partial");
   await second.evaluate(() => (window as any).__releaseRecoveryLock());

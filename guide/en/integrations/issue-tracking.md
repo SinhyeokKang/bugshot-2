@@ -38,7 +38,7 @@ A missing file does not mean starting over with a new issue. Press the circular-
 - **Other people's edits stay.** If someone added a sentence or changed the status or assignee meanwhile, BugShot leaves that alone and fills only the places meant for attachments.
 - **An edited or deleted attachment place is never overwritten.** The file row shows **The issue body was edited, so the link was not added**, and files that already uploaded are not sent again. Open the issue to check it yourself.
 - **One run at a time.** While it runs, the button shows a spinner (and **Retrying attachments** in the recovery details), and extra clicks start nothing. If another side panel is already working on the same issue, your press is quietly skipped. **Delete local copies** is locked during a retry.
-- **You get the result right away.** When everything finishes, you see **Attachments done: N** and the notice disappears. If some fail again, you see **N failed again** and the remaining files update. A write whose outcome cannot be known is shown only as **Result needs checking** and is never repeated.
+- **You get the result right away.** When everything finishes, you see **Attachments done: N** and the notice disappears. If some fail again, you see **N failed again** and the remaining files update. An upload or link that could end up duplicated is shown as **Result needs checking** when its outcome is unknown, and is not resent automatically (platform exceptions are in [Platforms](platforms.md)).
 
 > A retry reads the issue body and then updates it right away, so if someone edits the same body at almost the same moment, their change can be overwritten. It is rare, but on an issue many people are editing, open it once after the retry.
 
@@ -55,7 +55,7 @@ If the button is hidden or stops after you press it, the recovery details explai
 | Issue not found (404, deleted, etc.) | A new one is not created | Download the files and attach them where needed. **Open issue** is hidden because the link leads nowhere |
 | Result needs checking | The files may already be there, so they are not resent | Use **Open issue** to check; download if they are missing |
 | Record left by an earlier version | Automatic retry not supported | Download and attach yourself |
-| Custom Webhook | Automatic re-attach not supported | Download the files to use them |
+| Custom Webhook | There is no retry button | Download the files to use them |
 | **Local file unavailable** (only one file is missing) | Only that file cannot be retried | The other files can still be retried |
 | **Local file unavailable** (expired, or local copies were deleted) | The button is hidden | Nothing is left to retry, so open the issue and check it yourself |
 
