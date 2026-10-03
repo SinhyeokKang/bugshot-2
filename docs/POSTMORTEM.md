@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-10-03 — 파일 결과가 모두 완료여도 제출은 실패할 수 있다: 빈 집합과 본문 반영은 별도 증거다
+
+- **영역**: `어댑터`, `background`, `store`, `lib`
+- **계열**: `미검증단언`, `복제본`, `fail-open`
+- **그물**: `unit`
+- **증상**: 첨부 복구 어댑터의 배포 전 리뷰에서 파일 없는 Slack 제출의 부모 생성 뒤 상세 전송·permalink 조회가 실패해도 정상 완료로 처리해 목적지 journal을 지웠다. Jira는 실제 MIME에 맞춘 JPEG/PNG 비교 캡처를 업로드하고도 본문에서 누락한 채 완료로 보고했다. Slack 본문은 업로드 전에 첨부 성공을 주장했고, 명시적인 HTTP 200 거절과 HTTP 413 등 업로드 실패 사유도 RPC 경계에서 구분을 잃었다.
+- **근본 원인**: `[].every(completed)`는 참이지만 제출 전체의 성공 증거는 아니다. 파일별 결과에만 실패를 담으면 파일이 없는 후속 작업에는 실패를 저장할 자리가 없다. 업로드와 본문 삽입도 다른 단계인데, MIME 정규화로 파일명이 바뀐 뒤 내부 ADF 슬롯은 이전 확장자를 조회했다. 업로드·본문 update의 성공 응답만 검사하는 매트릭스는 실제 전송 본문 누락을 못 잡았다. HTTP transport 상태와 provider mutation 결과가 다르며, 여러 어댑터의 catch가 구조화된 상태를 bare `ok:false`로 줄이면서 안전하게 전달할 수 있던 실패 사유까지 버렸다.
+- **재발 방지**: `rg 'every\(.*complete|presentation.*complete|ok: false' src/sidepanel/lib src/background`의 결과 판정은 빈 파일 집합·후속 본문 실패·빈 locator를 함께 검사한다. 제출 전체 실패를 파일과 독립된 `submissionFailure`로 영속하고, 실제 어댑터→runner→IDB→재시작 복구까지 단언한다. 첨부 ID·실제 MIME·표시 파일명을 분리하고, 같은 이름의 사용자 파일과 JPEG/PNG before/after를 넣어 최종 ADF의 media ID까지 검사한다. 첫 외부 본문은 업로드 전에 성공을 주장하지 않아야 하며 정상 업로드 뒤에도 거짓 실패 안내가 없어야 한다. RPC의 안전한 stage/code/httpStatus 투영을 공용화하고 401/403/413/429·응답 유실을 실제 producer 경계마다 주입한다. Slack의 HTTP 200 거절은 명시적으로 확인한 코드만 no-create로 분류한다.
+- **관련**: `src/sidepanel/lib/submissionRecovery.ts:runSubmissionRecovery`, `src/store/blob-db.ts:checkpointSubmission`, `src/sidepanel/lib/submitToJira.ts`, `src/sidepanel/lib/submitToSlack.ts`, `src/sidepanel/lib/buildSlackBody.ts`, `src/lib/attachment-failure.ts`, `src/background/slack-api.ts`, `src/sidepanel/lib/__tests__/adapterProgress.test.ts`, `src/sidepanel/lib/__tests__/submissionRecovery.test.ts`, `src/background/__tests__/uploadFailure.test.ts`. 독립 리뷰의 기존 실패 재현 10개가 수정 후 그대로 통과했다. 선행: 2026-09-29 첨부 축 누락, 2026-10-03 공유 원본 수명·다른 패널의 stale draft.
+
 ## 2026-10-03 — 제출 잠금과 완료 사실은 별개다: 락이 풀린 뒤에도 다른 패널의 메모리는 draft다
 
 - **영역**: `store`, `lib`
