@@ -83,9 +83,13 @@ interface SubmissionRecoveryMeta {
   platform: PlatformId;
   createdAt: number;
   expiresAt: number; // createdAt + 30 days
+  localFilesRemoved?: boolean;
   phase: "prepared" | "creating" | "created" | "partial" | "complete" | "unknown";
   destination?: CreatedDestination;
-  files: Array<Omit<SubmissionFile, "dataUrl"> & { source: RecoverySource }>;
+  files: Array<Omit<SubmissionFile, "dataUrl"> & {
+    source: RecoverySource;
+    originalSource?: Extract<RecoverySource, { kind: "original" }>;
+  }>;
   results: AttachmentResult[];
   // Phase 2 only.
   retry?: AttachmentRetrySnapshot;
@@ -158,15 +162,17 @@ deleteSubmissionRecovery(issueId: string, attemptId: string): Promise<void>;
 purgeRecoveryForIssues(issueIds: string[]): Promise<void>;
 // Deletes the original-store keys of completed files only.
 deleteOriginalKeys(issueId: string, attemptId: string, sources: RecoverySource[]): Promise<void>;
+// Also removes unneeded issue-owned raw logs, thumbnails and pre-transform media.
+cleanupSubmissionOriginals(issueId: string, attemptId: string): Promise<void>;
 ```
 
-- `begin`은 같은 issueId의 미완료 attempt가 있으면 거절한다. 확인·생성을 같은 IDB 트랜잭션으로 수행해 두 패널의 중복 시작을 막는다. 기존 `withIssueSubmitGuard`는 프로세스 내 집합이므로 이 용도로 충분하지 않다.
+- `begin`은 같은 issueId의 미완료 attempt가 있으면 거절한다. 확인·생성을 같은 IDB 트랜잭션으로 수행한다. `withIssueSubmitGuard`는 프로세스 내 집합에 더해 `bugshot-submission:<issueId>` Web Lock을 준비부터 완료까지 잡는다. 락 획득 뒤 최신 Chrome 저장분의 submitted·복구 포인터·삭제 여부를 읽고, 이후 journal을 확인한다. 이전 패널이 정상 완료해 journal을 지운 뒤라도 storage 이벤트를 아직 받지 않은 패널의 재생성을 막는다. 저장분 읽기 실패와 잠금 API 부재는 제출을 차단한다. Slack 보존본 승격 예외는 유지한다.
 - 체크포인트는 attemptId 일치와 허용 상태 전이를 확인한다. 오래된 호출이 새 제출 결과를 덮지 못한다. 네트워크 await를 IDB transaction 안에 넣지 않는다.
 - 원본 정리도 현재 issueId·attemptId를 같은 트랜잭션에서 검증한다. `deleteOriginalKeys`는 partial/complete journal의 완료된 파일만 정리하며 다른 journal·일반 draft·편집 세션이 참조하는 원본을 보존한다. 목록 영속화 성공 뒤, journal 삭제 전에 호출한다. 참조 조회 실패는 삭제로 진행하지 않는다. 생성 시 원본 존재도 journal 트랜잭션 안에서 다시 확인한다.
-- **삭제 보류**: 현재 원본 Blob을 지우는 곳은 `markSubmitted`(`issues-store.ts:628-640`)뿐이다. `stripSubmitted`(:34-62)는 Blob을 지우지 않고 레코드의 `attachments`·`draft`·log blob key 같은 메타만 비운다. 부분 완료(또는 unknown)면 완료 경로가 `markSubmitted`의 전체 삭제 대신 완료된 파일의 원본 키만 `deleteOriginalKeys`로 지우고, 미완료 파일의 원본은 남긴다. 미완료 파일의 위치는 journal의 `RecoverySource`가 들고 있으므로 `stripSubmitted`가 레코드 메타를 비워도 찾을 수 있다.
+- **삭제 보류**: `markSubmittedDurably`는 해당 목록 write의 성공을 관찰하고 Blob을 지우지 않는다. 이후 `cleanupSubmissionOriginals`가 미완료 파일·공유 참조를 보호하면서 완료 원본과 불필요한 issue 소유 원시 로그·썸네일·비전송 미디어를 한 트랜잭션에서 정리한다. Asana 변환본의 `originalSource`도 추적한다. 목록 메타를 비우는 `stripSubmitted` 뒤에도 journal에서 남은 원본을 찾는다. complete 포인터는 정리와 journal 삭제가 끝날 때까지 유지하고, journal 삭제 뒤 포인터 저장이 실패하면 재시작 시 최신 저장분을 우선해 포인터만 정리한다. Slack 보존본은 이 자동 정리에서 제외한다.
 - **GC 제외**: 부분 완료 레코드는 목록에 남아 `pruneOrphanBlobs`(`issues-store.ts:311`, 목록에 없는 issueId 키만 지움)는 원본을 건드리지 않는다. 다만 inline GC처럼 레코드의 `draft.sections` 참조로 살아있음을 판정하는 경로는 `stripSubmitted` 뒤에 참조가 사라지므로, live journal의 `RecoverySource` 키를 제외 집합으로 받는다. journal store 자체는 별도 store라 어떤 기존 GC도 순회하지 않는다.
 - `IssueRecord`에는 optional `submissionRecoveryId`만 추가한다. journal이 복구 상태의 단일 출처다. 없음은 기존 동작이며 별도 issues-store version bump는 불필요하다. 부분 완료 포인터를 `stripSubmitted`가 의도적으로 보존하고, 해제 액션은 `updatedAt`을 갱신한다(#240 병합 규칙의 전제).
-- **보존 기한**: `expiresAt = createdAt + 30일`. 패널 초기화 시 `reconcileSubmissionRecovery`가 만료 journal의 생성물·보류 원본을 지우고 레코드는 “로컬 파일 없음” 상태로 둔다. 원격 상태는 건드리지 않는다.
+- **보존 기한**: `expiresAt = createdAt + 30일`. 패널 초기화 시 `reconcileSubmissionRecovery`가 만료 journal의 생성물·보류 원본을 지우고 메타의 `localFilesRemoved`를 기록한다. 만료 journal끼리는 보존 근거가 되지 않는다. 미만료 journal·일반 draft·편집 세션의 공유 참조 때문에 원본 바이트를 유지하더라도 만료된 journal의 읽기는 “로컬 파일 없음”으로 처리한다. 원격 상태는 건드리지 않는다.
 - **삭제 순서**: 일반 제출 완료·로컬 사본 삭제·이슈 삭제·전체 이슈 삭제에 각각 journal 정리를 연결한다. 사용자 삭제는 journal 무효화/삭제를 먼저 완료한 뒤 목록을 삭제해 재시작 reconciliation이 지운 항목을 부활시키지 않게 한다. journal 삭제가 실패하면 목록 항목도 지우지 않는다. 늦게 도착한 checkpoint는 존재하지 않는 attempt를 다시 만들지 않는다. 브라우저 저장 데이터 제거는 기존과 같이 복구 불가다.
 - **영속 완료 관찰 API**: complete journal을 먼저 기록하고 이슈 목록에 submitted를 영속한 뒤 사본·원본을 삭제한다. 현재 `markSubmitted`는 동기 void이고, persist `setItem`(`issues-store.ts:111-120`)은 Promise를 호출자에게 돌려주지 않으며 `chromeLocalStorage.setItem`은 에러를 삼킨다(`store/chrome-storage.ts:18-23`). 그래서 `markSubmittedDurably(id, patch, opts): Promise<void>`를 신설해 해당 write의 성공/실패를 관찰하고, 실패면 reject해 호출자가 삭제를 건너뛰게 한다. 이 write도 `pendingOwnWrites` 에코 가드 집합에 들어가야 하며, 그 상호작용을 테스트로 고정한다. 기존 `markSubmitted`는 정상 제출 경로를 위해 시그니처를 유지한다. 중간 종료 시 journal로 목록을 복구한다.
 - 조회 시 복구 Blob이 유실됐거나 만료로 지워졌으면 다운로드 버튼 대신 “로컬 파일 없음”을 표시한다. 다운로드 동작을 성공으로 위장하지 않는다.
@@ -177,7 +183,7 @@ deleteOriginalKeys(issueId: string, attemptId: string, sources: RecoverySource[]
 
 **Jira 분해**: 현재 `jira.submitIssue`는 생성·업로드·본문 갱신을 background 단일 메시지(`messages.ts:821-911`) 안에서 수행해 사이드패널이 생성 시점을 볼 수 없다. 이를 `jira.createIssue` / `jira.uploadAttachment`(파일당 1메시지) / `jira.updateIssueDescription` 세 메시지로 쪼개 다른 8개 플랫폼과 같은 사이드패널 오케스트레이션으로 맞춘다. 이로써 background의 IDB 쓰기, 업로드 전체가 `onMessage` 하나에 묶이는 SW 수명 문제, 다파일 단일 메시지의 64MiB 한도 위험이 함께 사라진다. 승격 원본 소실 회고(POSTMORTEM 2026-06-30)가 요구한 프로토콜 변경과 같은 방향이다. 기존 refresh 경로(`jira-api.ts`)와 `getMediaFileId` 폴백은 각 메시지 안에서 유지한다. 본문 빌더의 `withLocale` 래핑은 분해 후에도 background `updateIssueDescription` 진입점에 그대로 두고 `bodyLocale`을 payload로 싣는다.
 
-created 이후 실패는 destination과 파일 결과를 가진 부분 완료로 반환한다. 업로드 배치 자체가 throw하면 미완료 파일은 unknown으로 표시한다. per-file 확정 실패는 failed다. 생성까지 성공한 제출을 일반 에러 catch로 되돌려 “제출 실패 → 다시 제출” 흐름으로 보내지 않는다.
+created 이후 실패는 destination과 파일 결과를 가진 부분 완료로 반환한다. 업로드 배치 자체가 throw하면 미완료 파일은 unknown으로 표시한다. per-file 확정 실패는 failed다. 생성 이후 로컬 체크포인트·목록 저장·정리가 실패하면 `recovery.storageFailed`와 확정 목적지를 가진 결과를 전달한다. 저장 실패를 정상 완료로 숨기거나 일반 “제출 실패 → 다시 제출” 경로로 보내지 않는다. UI는 첨부 결과가 모두 성공이어도 `recovery`를 우선한다.
 
 **생성 전 실패는 현행 유지**: prepared에서 생성 전 확정 실패(Linear `submitToLinear.ts`·Notion `submitToNotion.ts`의 생성 전 업로드 `Promise.all` throw 포함)는 기존처럼 제출 실패로 draft에 돌아가 재시도 가능하다. Slack 승격의 `requireMediaUpload` 가드(`DraftDetailDialog.tsx:517,603,645`)도 유지한다. 새 시도 전 이전 journal을 정리하며 원본 draft Blob은 원래 삭제되지 않았으므로 그대로다. 이미 올라간 미연결 파일은 원격 롤백하지 않는다.
 
@@ -185,7 +191,7 @@ creating 중 응답 유실 또는 종료는 unknown이다. 서버가 명시적�
 
 초기화와 외부 issues 동기화 시 journal을 읽어 목록 포인터를 복원하고 만료 journal을 정리하는 `reconcileSubmissionRecovery`를 신규 lib에 둔다. `main.tsx`에 상태 판단을 인라인하지 않는다. 기존 #240 병합 규칙의 submitted 우선·updatedAt·echo 가드를 유지한다. 목록 레코드가 사라졌어도 journal의 최소 title/platform/issueId/생성시각 메타로 복구 항목을 복원할 수 있게 구현 타입에 포함한다. 계정이 해제돼도 로컬 다운로드는 가능해야 한다.
 
-같은 패널에서 최초 제출이 in-flight이면 `withIssueSubmitGuard`/`canSubmitIssue`(`issues-store.ts:186`)가 그 이슈의 재시도·승격·로컬 사본 삭제도 막는다.
+초기 제출·reconcile·미확인 해제·이슈 삭제는 같은 Web Lock을 공유한다. 다른 패널이 진행 중인 prepared/creating attempt를 중단된 것으로 오판해 폐기하지 않는다. 2단계 재첨부도 같은 잠금 이름을 사용한다. unknown 해제의 journal 삭제 뒤 목록 저장 실패로 남은 포인터는 락 안에서 최신 저장분을 대조해 정리하며, 이미 submitted인 상태를 draft로 되돌리지 않는다.
 
 ### 4. 플랫폼별 완료 판정
 

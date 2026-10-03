@@ -25,7 +25,7 @@
 - **검증**:
   - [ ] 누락 inline·영상·스크린샷·사용자 파일 각각에서 외부 생성 호출 0회.
   - [ ] 로그 OFF·비활성 섹션·Webhook JSON은 누락으로 오탐하지 않는다.
-  - [ ] 원본 파일은 새 Blob으로 복제되지 않는다(journal에 원본 키만 기록).
+  - [x] 원본 파일은 새 Blob으로 복제되지 않는다(journal에 원본 키만 기록).
   - [ ] JPEG 원본 다운로드의 확장자/MIME이 일치하고 업로드 엔드포인트 변경은 없다.
 
 ### Task 3: IDB 복구 journal·삭제 보류·정리 API [1단계]
@@ -38,8 +38,8 @@
   - [x] `pruneOrphanBlobs`(`issues-store.ts:311`)·inline GC가 live journal이 가리키는 원본 키와 recovery store를 건드리지 않는다.
   - [x] journal 삭제가 실패하면 목록 항목도 유지된다(삭제 순서: journal → 목록).
   - [x] `removeIssue`·`clearIssues`가 `purgeRecoveryForIssues`를 호출한다.
-  - [ ] 생성 후 로그가 늘어나도 journal의 logs.html은 최초 바이트 그대로다(Task 2에서 이동).
-  - [ ] 기대 파일 0개 제출도 빈 journal이 생기고 완료 시 정리된다.
+  - [x] 생성 후 로그가 늘어나도 journal의 logs.html은 최초 바이트 그대로다(Task 2에서 이동).
+  - [x] 기대 파일 0개 제출도 빈 journal이 생기고 완료 시 정리된다.
   - [x] `store/__tests__/bundleBoundary.test.ts`의 `ALLOWED`가 늘지 않는다.
   - [x] 기존 e2e seed spec이 v9에서 VersionError 없이 돈다.
 
@@ -48,15 +48,15 @@
 - **작업 내용**: 생성 직전/직후 체크포인트, 부분 결과 완료, 재시작 reconciliation(만료 정리 포함), submitted 포인터 보존을 두 진입점에 공통 연결한다. 모든 체크포인트는 사이드패널이 쓴다. `markSubmittedDurably(id, patch, opts): Promise<void>`를 신설해 persist write 성공을 관찰하고, partial이면 완료 파일 원본만 지운다. 등록 여부 미확인 해제(**등록되지 않았음 확인**) 액션을 둔다.
 - **검증**:
   - [ ] 원격 생성 이후 upload RPC throw에서 기존 key/id를 보존하며 create 호출은 한 번이다.
-  - [ ] creating 중 종료는 unknown, created 중 종료는 기존 목적지 있는 복구 항목으로 돌아온다.
-  - [ ] 다른 패널의 stale draft·unknown 해제가 최신 created 상태를 역행시키지 않는다. unknown 해제는 실행 직전 journal 재조회 결과 created면 거부된다.
-  - [ ] `markSubmittedDurably`: persist write reject를 주입하면 reject하고 사본·원본이 삭제되지 않는다. 이 write가 `pendingOwnWrites` 에코 가드에 들어가 자기 write를 외부 변경으로 오인하지 않는다.
-  - [ ] complete journal → submitted 목록 영속 → 삭제의 각 경계에서 종료해도 reconcile로 복구된다.
-  - [ ] partial이면 미완료 파일의 원본 키는 남고 완료 파일 원본만 지워진다. `stripSubmitted`가 비운 메타와 무관하게 journal로 원본을 찾는다.
-  - [ ] 만료(30일) journal은 reconcile에서 정리되고 레코드는 "로컬 파일 없음"이 된다.
-  - [ ] 같은 패널에서 최초 제출 in-flight 중에는 `withIssueSubmitGuard`/`canSubmitIssue`가 그 이슈의 승격·로컬 사본 삭제를 막는다.
-  - [ ] 회귀 기준: 기존 `issues-store.test.ts`의 markSubmitted(:336-370)·merge(:634-780) 테스트가 무변경 green.
-  - [ ] analytics는 기존 `track-submit.test.ts`를 확장해 신규 속성·파일명이 추가되지 않음을 고정한다.
+  - [x] creating 중 종료는 unknown, created 중 종료는 기존 목적지 있는 복구 항목으로 돌아온다.
+  - [x] 다른 패널의 stale draft·unknown 해제가 최신 created 상태를 역행시키지 않는다. unknown 해제는 실행 직전 journal 재조회 결과 created면 거부된다.
+  - [x] `markSubmittedDurably`: persist write reject를 주입하면 reject하고 사본·원본이 삭제되지 않는다. 이 write가 `pendingOwnWrites` 에코 가드에 들어가 자기 write를 외부 변경으로 오인하지 않는다.
+  - [x] complete journal → submitted 목록 영속 → 삭제의 각 경계에서 종료해도 reconcile로 복구된다.
+  - [x] partial이면 미완료 파일의 원본 키는 남고 완료 파일 원본만 지워진다. `stripSubmitted`가 비운 메타와 무관하게 journal로 원본을 찾는다.
+  - [x] 만료(30일) journal은 reconcile에서 정리되고 레코드는 "로컬 파일 없음"이 된다.
+  - [x] 같은 패널에서 최초 제출 in-flight 중에는 `withIssueSubmitGuard`/`canSubmitIssue`가 그 이슈의 승격·로컬 사본 삭제를 막는다.
+  - [x] 회귀 기준: 기존 `issues-store.test.ts`의 markSubmitted(:336-370)·merge(:634-780) 테스트가 무변경 green.
+  - [x] analytics는 기존 `track-submit.test.ts`를 확장해 신규 속성·파일명이 추가되지 않음을 고정한다.
 
 ### Task 5: 어댑터별 파일 도달 판정 + Jira 메시지 분해 [1단계]
 - **변경 대상**: `submitTo*.ts`, `prepareUpload.ts`, `submitAdapters.ts`, background `messages.ts`·`bgRequestTypes.ts`·`jira-api.ts`와 각 API 모듈, `src/types/jira.ts`.
