@@ -65,17 +65,17 @@ function issuesEnvelope() {
 
 // screenshot 제출이 captureFiles.images=[screenshot.webp]를 만들도록 before 이미지 blob을 IndexedDB
 // (bugshot-video DB, images store, key `${id}:before`)에 직접 넣는다. blobToDataUrl만 거치므로
-// 내용은 임의 바이트면 충분. openDb와 동일한 v7 전 store 스키마로 열어 앱 open과 충돌하지 않게 한다.
+// 내용은 임의 바이트면 충분. openDb와 동일한 v9 전 store 스키마로 열어 앱 open과 충돌하지 않게 한다.
 async function seedBeforeImage(
   panel: Awaited<ReturnType<typeof seedAndOpenList>>["panel"],
 ) {
   await panel.evaluate(async (issueId) => {
     await new Promise<void>((resolve, reject) => {
-      // 앱 openDb와 동일 스키마·버전이라야 VersionError가 안 난다(현재 DB_VERSION=8, store 8개).
-      const req = indexedDB.open("bugshot-video", 8);
+      // 앱 openDb와 동일 스키마·버전이라야 VersionError가 안 난다(현재 DB_VERSION=9, store 9개).
+      const req = indexedDB.open("bugshot-video", 9);
       req.onupgradeneeded = () => {
         const db = req.result;
-        for (const s of ["blobs", "images", "networkLogs", "consoleLogs", "actionLogs", "inlineImages", "inlineImageOrigins", "attachments"]) {
+        for (const s of ["blobs", "images", "networkLogs", "consoleLogs", "actionLogs", "inlineImages", "inlineImageOrigins", "attachments", "submissionRecovery"]) {
           if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
         }
       };
