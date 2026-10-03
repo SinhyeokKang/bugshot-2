@@ -83,7 +83,13 @@ chrome.action.onClicked.addListener((tab) => {
 
 `installIssuesSync`가 초기화·외부 동기화 뒤 `reconcileSubmissionRecovery`를 호출한다. 활성 락이 없는 중단 시도만 복구하며, journal 삭제 후 목록 저장이 실패해 남은 포인터도 최신 저장분을 대조해 정리한다. 이미 submitted인 항목을 draft로 되돌리지 않는다. 만료는 생성 후 30일이며 journal 메타를 남기고 바이트를 정리한다. 만료 journal끼리는 공유 원본을 보존하지 못하고, 살아 있는 다른 참조로 바이트가 남아도 `localFilesRemoved`가 만료 항목의 읽기를 차단한다.
 
-`removeIssue`·`clearIssues`는 `Promise<void>`를 반환한다. journal 정리가 실패하면 목록을 유지하며, 상세창은 삭제 성공 후에만 닫힌다. 전체 삭제는 시작 시 대상 ID를 고정해 기다리는 동안 추가된 이슈나 새 편집 세션을 지우지 않는다. 현재 배치에서는 두 제출 진입점까지 연결했으나, 실제 플랫폼 콜백·준비 파일 소비가 연결될 때까지 `assertSubmissionAdaptersReady`가 제출을 차단한다. 이 중간 상태는 푸시하지 않으며, 복구 화면은 후속 배치 소유다.
+`removeIssue`·`clearIssues`는 `Promise<void>`를 반환한다. journal 정리가 실패하면 목록을 유지하며, 상세창은 삭제 성공 후에만 닫힌다. 전체 삭제는 시작 시 대상 ID를 고정해 기다리는 동안 추가된 이슈나 새 편집 세션을 지우지 않는다. 두 제출 진입점과 9개 플랫폼 어댑터는 준비된 파일 및 실제 생성 전후 콜백을 공유한다. 복구 화면은 후속 UI 배치에서 연결한다.
+
+`sidepanel/lib/submissionAdapter.ts`는 준비 파일의 ID·바이트를 실제 업로드 입력에 연결하고, 원격 생성 전후 콜백을 await하며, 반환 증거를 파일 ID로 한 번만 정규화한다. 생성 전 업로드가 필요한 플랫폼의 기존 순서는 유지한다. Asana JPEG·Notion ZIP은 준비된 바이트를 다시 변환하지 않는다. `lib/attachment-failure.ts`는 원문 오류 대신 허용된 stage/code/httpStatus만 전달한다. Slack의 HTTP 200 `ok:false`도 명시적 부모 생성 거절 코드일 때만 안전한 boolean으로 전달해 draft 재시도를 허용하고, 알 수 없는 코드·5xx·응답 유실은 unknown으로 둔다.
+
+파일 결과와 독립된 `submissionFailure`는 생성 뒤 본문 전송·permalink 처리 같은 후속 실패다. 파일이 0개여도 이 값이 있으면 partial이며, complete 저장은 거부된다. 이슈의 channelId/ts 등 목적지와 실패는 재시작·만료 뒤에도 남는다. 따라서 `attachments.every(...)`만으로 제출 전체 완료를 판정하지 않는다. Slack은 업로드 전 본문에 로그 개수만 적고 첨부 성공을 미리 주장하지 않으며, 빈 값·누락·안전하지 않은 permalink도 실패로 보존한다.
+
+Jira의 생산 제출은 `jira.createIssue` → 파일별 `jira.uploadAttachment` → `jira.updateIssueDescription`으로 분리된다. 생성 직후 목적지를 먼저 저장하고, 영상·logs.html도 각각 한 메시지로 보낸다. 최초 생성 ADF부터 내부 sentinel을 제거한 안전한 본문을 사용하며, 업로드 응답의 ID와 media locator로 후속 본문을 구성한다. 실제 MIME에 따라 `.jpg`/`.png`로 바뀐 비교 캡처도 `capture:before-N`/`after-N` ID로 내부 ADF 슬롯에 연결한다. 파일명 충돌이나 HTTP 갱신 성공만으로 본문 반영을 추정하지 않는다. 이전 `jira.submitIssue`는 기존 회귀 테스트 이행용으로만 남으며 생산 호출은 없다.
 
 ### issue 목록 크로스 인스턴스 병합 (#240)
 
