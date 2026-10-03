@@ -12,7 +12,7 @@
 | Batch | Model / effort | Reason | Status |
 |---|---|---|---|
 | B6 retry APIs (Task 9) | Opus / high | eight-provider contracts, account identity, fenced IDB revision invariants | integrated `5ae8e683..07ec078a` (fix1: e2e 53 passed, 8310 tests); main-checkout gate exit 0; worktree removed |
-| B7 retry runner (Task 10) | Opus / high | shared submission lock, no-duplicate stage resume, 3-way body patch | integrated `2d4fcad3..24a856a5` (fix1 re-review 🔴0; main gate exit 0); fix2 (disconnected→authentication, narrower legacy) in progress |
+| B7 retry runner (Task 10) | Opus / high | shared submission lock, no-duplicate stage resume, 3-way body patch | integrated `2d4fcad3..24a856a5` (fix1 re-review 🔴0; main gate exit 0); fix2 `9dcc5a76`,`8dc8a436` integrated (coordinator-reviewed small diff; main gate exit 0); worktree removed |
 | B8 retry UI (Task 11) | Sonnet / high | UI/a11y wiring on a settled runner contract | in progress (worktree `attachment-recovery-cc-b8`; parallel with B7 fix2 — no shared files) |
 | B9 acceptance (Task 12) | Sonnet / high | phase-2 e2e, docs; coordinator owns docs freshness/runtime | planned (after B8 in dev) |
 
