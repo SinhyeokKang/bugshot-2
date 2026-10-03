@@ -6,15 +6,16 @@ import { failedCheckpoint, retryMeta } from "@/test/retry-meta";
 import type { SubmissionRecoveryMeta } from "@/types/attachment";
 import type { RetryAttachmentsOutcome } from "@/sidepanel/lib/retryAttachments";
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), run: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), run: vi.fn(), slack: vi.fn(() => false) }));
 vi.mock("@/store/blob-db", () => ({ readSubmissionRecovery: mocks.read }));
-vi.mock("@/store/issues-store", () => ({ isSlackPreserved: () => false, useIssuesStore: (select: (s: unknown) => unknown) => select({ removeIssue: vi.fn() }) }));
+vi.mock("@/store/issues-store", () => ({ isSlackPreserved: mocks.slack, useIssuesStore: (select: (s: unknown) => unknown) => select({ removeIssue: vi.fn(), issues: [] }) }));
 vi.mock("@/store/settings-store", () => ({ useSettingsStore: (select: (s: unknown) => unknown) => select({ accounts: {} }) }));
 vi.mock("@/i18n", () => ({ useT: () => (key: string) => key, dateBcp47: () => "en-US", getLocale: () => "en", t: (key: string) => key }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 vi.mock("../statusBadges/SubmittedBadge", () => ({ SubmittedBadge: () => null }));
 vi.mock("@/sidepanel/lib/retryAttachments", async (original) => ({ ...await original<typeof import("@/sidepanel/lib/retryAttachments")>(), retryAttachments: mocks.run }));
 import { IssueRow } from "../IssueRow";
+import { SubmitSuccessView } from "@/sidepanel/components/SubmitSuccessView";
 import { resetRetrySessions } from "@/sidepanel/lib/retrySession";
 import type { IssueRecord } from "@/store/issues-store";
 
@@ -27,7 +28,8 @@ const settle = () => act(async () => { for (let i = 0; i < 4; i++) await Promise
 const retryButton = () => screen.queryByTestId("recovery-row-retry");
 const outcome = (patch: Partial<RetryAttachmentsOutcome> = {}): RetryAttachmentsOutcome => ({ status: "partial", attachments: [], remaining: 1, ...patch });
 
-beforeEach(() => { resetRetrySessions(); });
+const locked = (id: string) => screen.getByTestId(id).getAttribute("aria-disabled") === "true";
+beforeEach(() => { resetRetrySessions(); mocks.slack.mockReturnValue(false); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("row retry action", () => {
@@ -65,12 +67,14 @@ describe("row retry action", () => {
     expect(mocks.run).toHaveBeenCalledTimes(1);
     expect(mocks.run).toHaveBeenCalledWith("issue", expect.anything());
     const busy = screen.getByTestId("recovery-row-retry") as HTMLButtonElement;
-    expect(busy.disabled).toBe(true);
+    expect(busy.disabled).toBe(false);
+    expect(locked("recovery-row-retry")).toBe(true);
     expect(busy.getAttribute("aria-busy")).toBe("true");
+    expect(busy.className).not.toMatch(/(^|\s)opacity-50/);
     expect(busy.querySelector("svg.animate-spin")).not.toBeNull();
     expect(screen.queryByTestId("recovery-file-progress")).toBeNull();
     finish(outcome({ remaining: 1 }));
-    await waitFor(() => expect((screen.getByTestId("recovery-row-retry") as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect(locked("recovery-row-retry")).toBe(false));
     expect(screen.getByTestId("recovery-row-retry").querySelector("svg.animate-spin")).toBeNull();
   });
 
@@ -87,7 +91,7 @@ describe("row retry action", () => {
     mocks.run.mockResolvedValue(outcome({ status: "busy", remaining: 0 }));
     renderRow();
     await userEvent.click(await screen.findByTestId("recovery-row-retry"));
-    await waitFor(() => expect((screen.getByTestId("recovery-row-retry") as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect(locked("recovery-row-retry")).toBe(false));
     expect(toast.warning).not.toHaveBeenCalled();
     expect(toast.success).not.toHaveBeenCalled();
   });
@@ -113,7 +117,7 @@ describe("row retry action", () => {
     renderRow();
     await userEvent.click(await screen.findByTestId("recovery-row-retry"));
     await waitFor(() => expect(toast.warning).toHaveBeenCalledWith("recovery.retry.summary.needsCheck"));
-    expect((screen.getByTestId("recovery-row-retry") as HTMLButtonElement).disabled).toBe(false);
+    expect(locked("recovery-row-retry")).toBe(false);
   });
 
   it("keeps the row layout inside the panel with a long multilingual title", async () => {
@@ -122,5 +126,37 @@ describe("row retry action", () => {
     const group = (await screen.findByTestId("recovery-row-retry")).parentElement!;
     expect(group.className).toContain("shrink-0");
     expect(within(screen.getByTestId("issue-row")).getByText(/非常に長い/).className).toContain("truncate");
+  });
+});
+
+describe("Slack promotion while retrying", () => {
+  it("keeps promote aria-disabled and inert while a run is in flight", async () => {
+    mocks.slack.mockReturnValue(true);
+    let finish!: (value: RetryAttachmentsOutcome) => void;
+    mocks.run.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    const submit = vi.fn();
+    mocks.read.mockResolvedValue(retryMeta());
+    render(<IssueRow issue={{ ...issue, platform: "slack" }} refreshKey={0} onOpenDraft={vi.fn()} onOpenSubmit={submit} onBadgeLoaded={vi.fn()} />);
+    await userEvent.click(await screen.findByTestId("recovery-row-retry"));
+    expect(locked("recovery-row-retry")).toBe(true);
+    expect(locked("promote-issue")).toBe(true);
+    await userEvent.click(screen.getByTestId("promote-issue"));
+    expect(submit).not.toHaveBeenCalled();
+    finish(outcome());
+    await waitFor(() => expect(locked("recovery-row-retry")).toBe(false));
+    expect(locked("promote-issue")).toBe(true);
+  });
+});
+
+describe("hidden success view", () => {
+  it("does not swallow the list row's completion toast: a partial result toasts exactly once", async () => {
+    mocks.run.mockResolvedValue(outcome({ remaining: 1 }));
+    mocks.read.mockResolvedValue(retryMeta());
+    const result = { key: "#7", url: issue.url!, attachments: [], recovery: { state: "partial" as const, issueId: "issue", attemptId: "a" } };
+    render(<><SubmitSuccessView result={result} onClose={vi.fn()} /><IssueRow issue={issue} refreshKey={0} onOpenDraft={vi.fn()} onOpenSubmit={vi.fn()} onBadgeLoaded={vi.fn()} /></>);
+    await screen.findAllByTestId("recovery-file-row");
+    await userEvent.click(await screen.findByTestId("recovery-row-retry"));
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId("recovery-retry-status")).toBeNull();
   });
 });

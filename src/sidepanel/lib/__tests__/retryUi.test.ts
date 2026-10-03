@@ -3,6 +3,7 @@ import { failedCheckpoint, failedResult, retryMeta } from "@/test/retry-meta";
 import type { RetryAttachmentsOutcome } from "../retryAttachments";
 import { RETRY_REASON_KEY, pendingFileCount, retrySummary, retryUiState, sessionStopReason } from "../retryUi";
 
+const ACCOUNT = { token: "t1" };
 const uploadedGithub = (fileId: string, patch = {}) => failedCheckpoint(fileId, { upload: "done", uploaded: { platform: "github", href: `https://x/${fileId}` }, ...patch });
 
 describe("retryUiState — unavailable-state matrix", () => {
@@ -43,18 +44,25 @@ describe("retryUiState — unavailable-state matrix", () => {
   });
 
   it.each(["account-changed", "remote-missing", "permission", "authentication"] as const)("a %s stop hides retry for the session without persisting", (stop) => {
-    const state = retryUiState(retryMeta(), { reason: stop, attemptId: "a" });
+    const state = retryUiState(retryMeta(), { reason: stop, attemptId: "a", account: ACCOUNT }, ACCOUNT);
     expect(state.canRetry).toBe(false);
     expect(state.reason).toBe(stop);
   });
 
   it("drops the issue link only when the remote issue is gone", () => {
-    expect(retryUiState(retryMeta(), { reason: "remote-missing", attemptId: "a" }).showOpenIssue).toBe(false);
-    for (const stop of ["account-changed", "permission", "authentication"] as const) expect(retryUiState(retryMeta(), { reason: stop, attemptId: "a" }).showOpenIssue).toBe(true);
+    expect(retryUiState(retryMeta(), { reason: "remote-missing", attemptId: "a", account: ACCOUNT }, ACCOUNT).showOpenIssue).toBe(false);
+    for (const stop of ["account-changed", "permission", "authentication"] as const) expect(retryUiState(retryMeta(), { reason: stop, attemptId: "a", account: ACCOUNT }, ACCOUNT).showOpenIssue).toBe(true);
   });
 
   it("ignores a session stop recorded for an earlier attempt of the same issue", () => {
-    expect(retryUiState(retryMeta(), { reason: "permission", attemptId: "older" })).toEqual({ canRetry: true, reason: null, showOpenIssue: true });
+    expect(retryUiState(retryMeta(), { reason: "permission", attemptId: "older", account: ACCOUNT }, ACCOUNT)).toEqual({ canRetry: true, reason: null, showOpenIssue: true });
+  });
+
+  it("ignores a session stop once the platform was reconnected", () => {
+    const stop = { reason: "authentication" as const, attemptId: "a", account: ACCOUNT };
+    expect(retryUiState(retryMeta(), stop, { token: "t2" })).toEqual({ canRetry: true, reason: null, showOpenIssue: true });
+    expect(retryUiState(retryMeta(), stop, undefined).canRetry).toBe(true);
+    expect(retryUiState(retryMeta(), stop, ACCOUNT).canRetry).toBe(false);
   });
 
   it("has a copy key for every reason", () => {

@@ -17,7 +17,7 @@ const FILE = "capture:after-0";
 const record: IssueRecord = { id: "issue", title: "Report", platform: "github", key: "#7", url: "https://github.com/o/r/issues/7", status: "submitted", submissionRecoveryId: "a", createdAt: 1, updatedAt: 1, pageUrl: "", draft: { title: "Report", sections: {} }, snapshot: { before: false, after: false } };
 const outcome = (patch: Partial<RetryAttachmentsOutcome> = {}): RetryAttachmentsOutcome => ({ status: "partial", attachments: [], remaining: 1, ...patch });
 
-async function boot(patch: Parameters<typeof retryMeta>[0] = {}) {
+async function boot(patch: Parameters<typeof retryMeta>[0] = {}, issueOverride: Partial<IssueRecord> = {}) {
   vi.resetModules();
   mockWebLocks();
   vi.stubGlobal("indexedDB", new IDBFactory());
@@ -32,7 +32,7 @@ async function boot(patch: Parameters<typeof retryMeta>[0] = {}) {
   await useIssuesStore.persist.rehydrate();
   await useSettingsStore.persist.rehydrate();
   useSettingsStore.setState({ accounts: {} });
-  useIssuesStore.setState({ issues: [record] });
+  useIssuesStore.setState({ issues: [{ ...record, ...issueOverride }] });
   const meta = retryMeta(patch);
   await db.beginSubmissionRecovery({ issueId: "issue", attemptId: "a", title: "Report", platform: meta.platform, phase: "prepared", createdAt: 1, updatedAt: 1, expiresAt: Date.now() + 10 * 86_400_000,
     files: meta.files, results: [] }, new Map(meta.files.map((f) => [f.source.key, new Blob(["bytes"])])));
@@ -41,7 +41,7 @@ async function boot(patch: Parameters<typeof retryMeta>[0] = {}) {
   await db.checkpointSubmission("issue", "a", { phase: "created", destination: meta.destination, results: [] });
   await db.checkpointSubmission("issue", "a", { phase: "partial", destination: meta.destination, results: meta.results });
   render(<IssueListTab />);
-  return { db, sub, useIssuesStore };
+  return { db, sub, useIssuesStore, useSettingsStore };
 }
 const openDetail = async () => { await userEvent.click(await screen.findByTestId("recovery-detail-open")); return screen.findByTestId("draft-detail-dialog"); };
 
@@ -57,17 +57,17 @@ it("footer retry runs once, shows per-file progress only in the detail, and anno
   const retry = await within(dialog).findByTestId("recovery-retry");
   await userEvent.dblClick(retry);
   expect(mocks.run).toHaveBeenCalledTimes(1);
-  expect((within(dialog).getByTestId("recovery-retry") as HTMLButtonElement).disabled).toBe(true);
+  expect(within(dialog).getByTestId("recovery-retry").getAttribute("aria-disabled")).toBe("true");
   expect(within(dialog).getByTestId("recovery-retry").getAttribute("aria-busy")).toBe("true");
   act(() => progress({ fileId: FILE, stage: "upload", state: "running" }));
   expect(within(dialog).getByTestId("recovery-file-progress")).toBeTruthy();
   expect(within(dialog).getByTestId("recovery-delete-local").getAttribute("aria-disabled")).toBe("true");
-  expect((screen.getByTestId("recovery-row-retry") as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByTestId("recovery-row-retry").getAttribute("aria-disabled")).toBe("true");
   expect(within(dialog).getByTestId("recovery-retry-status").textContent).toBe("");
   await act(async () => finish(outcome({ remaining: 1 })));
   await waitFor(() => expect(within(dialog).getByTestId("recovery-retry-status").textContent).toBe("recovery.retry.summary.partial"));
   expect(mocks.warning).not.toHaveBeenCalled();
-  expect((within(dialog).getByTestId("recovery-retry") as HTMLButtonElement).disabled).toBe(false);
+  expect(within(dialog).getByTestId("recovery-retry").getAttribute("aria-disabled")).toBe("false");
   expect(within(dialog).queryByTestId("recovery-file-progress")).toBeNull();
 });
 
@@ -138,4 +138,58 @@ it("a slot-less legacy record offers download only: no retry in row or detail", 
   expect(await within(dialog).findAllByTestId("recovery-file-row")).toHaveLength(1);
   expect(within(dialog).queryByTestId("recovery-retry")).toBeNull();
   expect(within(dialog).getByTestId("recovery-retry-notice").getAttribute("data-reason")).toBe("legacy");
+});
+
+const completeRun = (db: typeof import("@/store/blob-db"), sub: typeof import("@/sidepanel/lib/submissionRecovery")) => async () => {
+  await db.checkpointSubmission("issue", "a", { phase: "complete", destination: (await db.readSubmissionRecovery("issue"))!.destination, results: [{ fileId: FILE, delivery: "attached", presentation: "complete" }] });
+  await sub.completeRecoveredSubmission((await db.readSubmissionRecovery("issue"))!);
+  return outcome({ status: "complete", remaining: 0 });
+};
+
+it("only the managing detail counts as open, and closing it unregisters", async () => {
+  await boot();
+  const { useRetrySessions } = await import("@/sidepanel/lib/retrySession");
+  await screen.findByTestId("recovery-row-warning");
+  expect(useRetrySessions.getState().details.issue ?? 0).toBe(0);
+  const dialog = await openDetail();
+  await within(dialog).findAllByTestId("recovery-file-row");
+  expect(useRetrySessions.getState().details.issue).toBe(1);
+  await userEvent.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByTestId("draft-detail-dialog")).toBeNull());
+  expect(useRetrySessions.getState().details.issue).toBe(0);
+});
+
+it("a retry that completes from the detail leaves the keyboard on a stable target", async () => {
+  const { db, sub } = await boot();
+  mocks.run.mockImplementation(completeRun(db, sub));
+  const dialog = await openDetail();
+  const retry = await within(dialog).findByTestId("recovery-retry");
+  retry.focus();
+  await userEvent.keyboard("{Enter}");
+  await waitFor(() => expect(screen.queryByTestId("draft-detail-dialog")).toBeNull());
+  await waitFor(() => expect(document.activeElement).not.toBe(document.body));
+  expect(document.activeElement?.closest('[data-testid="issue-row"]')).not.toBeNull();
+});
+
+it("a Slack-preserved record never flashes the editable detail when its retry completes", async () => {
+  const { db, sub } = await boot({}, { platform: "slack", slackPreserved: true });
+  const editable = vi.fn();
+  const watch = new MutationObserver(() => { if (document.body.textContent?.includes("issueList.deleteIssue")) editable(); });
+  watch.observe(document.body, { childList: true, subtree: true });
+  mocks.run.mockImplementation(completeRun(db, sub));
+  const dialog = await openDetail();
+  await userEvent.click(await within(dialog).findByTestId("recovery-retry"));
+  await waitFor(() => expect(screen.queryByTestId("draft-detail-dialog")).toBeNull());
+  await waitFor(() => expect(mocks.success).toHaveBeenCalledTimes(1));
+  watch.disconnect();
+  expect(editable).not.toHaveBeenCalled();
+});
+
+it("reconnecting the platform brings the retry button back after an authentication stop", async () => {
+  const { useSettingsStore } = await boot();
+  mocks.run.mockResolvedValue(outcome({ status: "blocked", reason: "authentication" }));
+  await userEvent.click(await screen.findByTestId("recovery-row-retry"));
+  await waitFor(() => expect(screen.queryByTestId("recovery-row-retry")).toBeNull());
+  act(() => { useSettingsStore.setState({ accounts: { github: { token: "fresh" } } as never }); });
+  expect(await screen.findByTestId("recovery-row-retry")).toBeTruthy();
 });

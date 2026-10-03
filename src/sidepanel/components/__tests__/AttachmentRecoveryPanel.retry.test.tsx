@@ -115,11 +115,24 @@ describe("live region", () => {
     expect(region.textContent).toBe('recovery.retry.summary.partial:{"n":2}');
   });
 
-  it("registers as an open detail while mounted, so a finished run is announced here instead of toasted", async () => {
-    await load(retryMeta());
-    expect(useRetrySessions.getState().details.issue).toBe(1);
-    cleanup();
+  it("a panel that cannot manage is not an open detail and has no live region", async () => {
+    mocks.read.mockResolvedValue(retryMeta());
+    render(<AttachmentRecoveryPanel issueId="issue" attemptId="a" />);
+    await screen.findAllByTestId("recovery-file-row");
     expect(useRetrySessions.getState().details.issue ?? 0).toBe(0);
+    expect(screen.queryByTestId("recovery-retry-status")).toBeNull();
+  });
+
+  it("does not re-insert the loading status around the summary when it re-reads the journal", async () => {
+    await load(retryMeta());
+    let release!: (meta: SubmissionRecoveryMeta) => void;
+    mocks.read.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+    act(() => { session({ summary: { kind: "partial", n: 1 }, finishedAt: 1 }); });
+    const statuses = () => screen.queryAllByRole("status").filter((el) => el.textContent);
+    await waitFor(() => expect(mocks.read.mock.calls.length).toBeGreaterThan(1));
+    expect(statuses().map((el) => el.textContent)).toEqual(['recovery.retry.summary.partial:{"n":1}']);
+    await act(async () => release(retryMeta()));
+    expect(statuses()).toHaveLength(1);
   });
 
   it("reloads the journal when a run finishes", async () => {
