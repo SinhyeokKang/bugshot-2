@@ -30,7 +30,14 @@ it("confirmed non-Slack abandonment removes the actual persistent pointer, row w
   await db.checkpointSubmission("i", "a", { phase: "partial", results: [], submissionFailure: { stage: "body", code: "network" } });
   render(<IssueListTab />);
   expect(screen.getByTestId("filter-submitted").textContent).toContain("(1)");
-  await userEvent.click(screen.getByTestId("recovery-detail-open"));
+  const trigger = screen.getByTestId("recovery-detail-open");
+  trigger.focus();
+  await userEvent.keyboard("{Enter}");
+  await screen.findByTestId("recovery-delete-local");
+  await userEvent.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByTestId("draft-detail-dialog")).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
+  await userEvent.keyboard("{Enter}");
   await userEvent.click(await screen.findByTestId("recovery-delete-local"));
   await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "recovery.deleteLocal" }));
   await waitFor(() => expect(screen.queryByTestId("recovery-row-warning")).toBeNull());
