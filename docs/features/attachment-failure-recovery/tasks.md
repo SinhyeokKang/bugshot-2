@@ -166,10 +166,10 @@
 ### Task 12: 2단계 통합 검증과 문서 [2단계]
 - **변경 대상**: e2e spec, `docs/{ARCHITECTURE,POSTMORTEM}.md`, 가이드.
 - **검증**:
-  - [ ] `pnpm typecheck`, `pnpm test` 통과.
-  - [ ] `/e2e-write`로 아래 2단계 시나리오를 green까지 작성한다.
-  - [ ] 수동: 8플랫폼 실계정에서 기존 이슈 첨부/본문 갱신과 원격 동시 편집 시 race 한계를 확인·기록한다.
-  - [ ] 회고에 단계 재개·본문 충돌·락 함정을 기록한다.
+  - [x] `pnpm typecheck`, `pnpm test` 통과.
+  - [x] `/e2e-write`로 아래 2단계 시나리오를 green까지 작성한다(`e2e/attachment-retry.spec.ts` 21 tests, Jira 재시도는 단위 테스트로 대체).
+  - [ ] 수동: 8플랫폼 실계정에서 기존 이슈 첨부/본문 갱신과 원격 동시 편집 시 race 한계를 확인·기록한다. — 미확인: unpacked dist 로드 프로필·연결 계정 없음(2026-10-04 TaskSpace 7은 스토어 1.7.46만).
+  - [x] 회고에 단계 재개·본문 충돌·락 함정을 기록한다.
 
 ## 테스트 계획
 

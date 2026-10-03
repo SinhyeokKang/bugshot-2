@@ -14,7 +14,7 @@
 | B6 retry APIs (Task 9) | Opus / high | eight-provider contracts, account identity, fenced IDB revision invariants | integrated `5ae8e683..07ec078a` (fix1: e2e 53 passed, 8310 tests); main-checkout gate exit 0; worktree removed |
 | B7 retry runner (Task 10) | Opus / high | shared submission lock, no-duplicate stage resume, 3-way body patch | integrated `2d4fcad3..24a856a5` (fix1 re-review 🔴0; main gate exit 0); fix2 `9dcc5a76`,`8dc8a436` integrated (coordinator-reviewed small diff; main gate exit 0); worktree removed |
 | B8 retry UI (Task 11) | Sonnet / high | UI/a11y wiring on a settled runner contract | integrated `35a93d1e..daa13789` (fix1 verified 🔴0; main gate exit 0) |
-| B9 acceptance (Task 12) | Sonnet / high | phase-2 e2e, docs; coordinator owns docs freshness/runtime | in progress (worktree `attachment-recovery-cc-b9`; e2e 11/12/13/15 + guide ko/en) |
+| B9 acceptance (Task 12) | Sonnet / high | phase-2 e2e, docs; coordinator owns docs freshness/runtime | integrated (review 🔴0 → fix1; e2e 21 tests; guide ko/en); worktree removed |
 
 Serial order B6 → B7 → B8 → B9 (each consumes the previous contract; shared files: blob-db, types/attachment, messages registries, IssueRow/DraftDetailDialog, i18n).
 
@@ -29,6 +29,10 @@ Serial order B6 → B7 → B8 → B9 (each consumes the previous contract; share
 - B7 fix1 re-review (Opus): 🔴0, integrable. Remaining 🟡 routed to B7 fix2: disconnected connection → `authentication` (decision), `legacy` only when all unfinished files are slot-less. B8 launched in parallel (B8 consumes runner API only; WAITING FOR B7 protocol if an API change is needed).
 - B8 handoff `19cd40bd` (gates exit 0, 8512 tests). Worker skipped /ship's parallel /code-review (skill-gate skip — told not to repeat). Review 1 (Opus): 🔴 hidden SubmitSuccessView counted as open detail → row retry toast lost; 🟡 `disabled`→`aria-disabled` (DESIGN), focus/Slack flash on auto-close, stale session stop after reconnect, loading status re-announced, Slack promote running assertion. Deviations accepted: [이슈 열기] hidden only on remote-missing; session stop per attempt; completion toast even with detail open.
 - B8 fix1 verification (Opus): confirmed, 🔴0. Notes: session stop clears on any settings rehydrate (fail-open, re-detected with zero writes — accepted); completion close now independent of status (intended). Coordinator docs: ARCHITECTURE "첨부 재시도 (2단계)", DIRECTORY retry modules.
+- B9 review (Opus): 🔴0; fix1 guide fact wording, Webhook row, 13b wait, Web Lock pending assertion, account-unverified e2e, write allowlist. Coordinator: tasks.md scenario 13 now judged by `recovery-retry-notice[data-reason=body-conflict]`; docs/CI.md 82 spec / 372 tests; POSTMORTEM 4 entries.
+- Phase-1 Escape flake (~4%, two specs): B8 A/B showed pre-existing (A 5.8% vs B 3.3%, pre-B8 not lower); root cause Radix DismissableLayer registers one render after mount. Spec-side two-frame wait + GOTCHAS entry (`2d71c59c`), 80/80 + 80/80.
+- Runtime: `pnpm build` exit 0 (manifest 1.7.46). Verification worker: TaskSpace 7 has only store 1.7.46, zero unpacked — every runtime-only axis unverified (real-tab GitHub upload, 8-platform identity, Jira retry flow, Notion fixed-version append/workspace_id, Slack multi-file complete, ClickUp team_id, update permissions, 400px/dark, screen reader). Loading dist needs user action in the browser.
+- All worktrees removed.
 
 > Historical note: Codex stop (2026-10-04) — see [handoff.md](./handoff.md). Earlier automatic phase-transition instructions are superseded.
 
