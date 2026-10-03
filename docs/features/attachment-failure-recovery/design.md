@@ -91,6 +91,7 @@ interface SubmissionRecoveryMeta {
     originalSource?: Extract<RecoverySource, { kind: "original" }>;
   }>;
   results: AttachmentResult[];
+  submissionFailure?: AttachmentResult["failure"];
   // Phase 2 only.
   retry?: AttachmentRetrySnapshot;
   updatedAt: number;
@@ -176,6 +177,8 @@ cleanupSubmissionOriginals(issueId: string, attemptId: string): Promise<void>;
 - **삭제 순서**: 일반 제출 완료·로컬 사본 삭제·이슈 삭제·전체 이슈 삭제에 각각 journal 정리를 연결한다. 사용자 삭제는 journal 무효화/삭제를 먼저 완료한 뒤 목록을 삭제해 재시작 reconciliation이 지운 항목을 부활시키지 않게 한다. journal 삭제가 실패하면 목록 항목도 지우지 않는다. 늦게 도착한 checkpoint는 존재하지 않는 attempt를 다시 만들지 않는다. 브라우저 저장 데이터 제거는 기존과 같이 복구 불가다.
 - **영속 완료 관찰 API**: complete journal을 먼저 기록하고 이슈 목록에 submitted를 영속한 뒤 사본·원본을 삭제한다. 현재 `markSubmitted`는 동기 void이고, persist `setItem`(`issues-store.ts:111-120`)은 Promise를 호출자에게 돌려주지 않으며 `chromeLocalStorage.setItem`은 에러를 삼킨다(`store/chrome-storage.ts:18-23`). 그래서 `markSubmittedDurably(id, patch, opts): Promise<void>`를 신설해 해당 write의 성공/실패를 관찰하고, 실패면 reject해 호출자가 삭제를 건너뛰게 한다. 이 write도 `pendingOwnWrites` 에코 가드 집합에 들어가야 하며, 그 상호작용을 테스트로 고정한다. 기존 `markSubmitted`는 정상 제출 경로를 위해 시그니처를 유지한다. 중간 종료 시 journal로 목록을 복구한다.
 - 조회 시 복구 Blob이 유실됐거나 만료로 지워졌으면 다운로드 버튼 대신 “로컬 파일 없음”을 표시한다. 다운로드 동작을 성공으로 위장하지 않는다.
+
+파일 결과와 별개인 `submissionFailure`는 부모 생성 뒤 Slack 상세 메시지·permalink 처리 실패 같은 제출 전체의 후속 실패를 저장한다. 파일이 0개라도 이 값이 있으면 partial이며 complete 체크포인트는 거부된다. 생성 이전 begin에는 허용하지 않고, 재시작·만료에도 보존한다. `NormalizedSubmitResult`도 같은 선택 필드를 전달한다. B4 UI는 파일 결과의 `every`만으로 완료를 판정하지 않는다.
 
 ### 3. 생성 체크포인트와 중단
 

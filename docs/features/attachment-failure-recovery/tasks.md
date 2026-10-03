@@ -47,7 +47,7 @@
 - **변경 대상**: `issues-store.ts`, `editor-store.ts`, `IssueCreateModal.tsx`, `DraftDetailDialog.tsx`, `SubmitFieldsDialog.tsx`, `submissionRecovery.ts`.
 - **작업 내용**: 생성 직전/직후 체크포인트, 부분 결과 완료, 재시작 reconciliation(만료 정리 포함), submitted 포인터 보존을 두 진입점에 공통 연결한다. 모든 체크포인트는 사이드패널이 쓴다. `markSubmittedDurably(id, patch, opts): Promise<void>`를 신설해 persist write 성공을 관찰하고, partial이면 완료 파일 원본만 지운다. 등록 여부 미확인 해제(**등록되지 않았음 확인**) 액션을 둔다.
 - **검증**:
-  - [ ] 원격 생성 이후 upload RPC throw에서 기존 key/id를 보존하며 create 호출은 한 번이다.
+  - [x] 원격 생성 이후 upload RPC throw에서 기존 key/id를 보존하며 create 호출은 한 번이다.
   - [x] creating 중 종료는 unknown, created 중 종료는 기존 목적지 있는 복구 항목으로 돌아온다.
   - [x] 다른 패널의 stale draft·unknown 해제가 최신 created 상태를 역행시키지 않는다. unknown 해제는 실행 직전 journal 재조회 결과 created면 거부된다.
   - [x] `markSubmittedDurably`: persist write reject를 주입하면 reject하고 사본·원본이 삭제되지 않는다. 이 write가 `pendingOwnWrites` 에코 가드에 들어가 자기 write를 외부 변경으로 오인하지 않는다.
@@ -62,27 +62,27 @@
 - **변경 대상**: `submitTo*.ts`, `prepareUpload.ts`, `submitAdapters.ts`, background `messages.ts`·`bgRequestTypes.ts`·`jira-api.ts`와 각 API 모듈, `src/types/jira.ts`.
 - **작업 내용**: 설계의 플랫폼 표에 따라 9개 경로를 전환한다. 파일 ID를 응답까지 왕복시킨다. 기존 upload/auth 처리 구조는 유지한다. `jira.submitIssue`를 `jira.createIssue` / `jira.uploadAttachment`(파일당 1메시지) / `jira.updateIssueDescription`으로 분해하고 `submitToJira.ts`가 오케스트레이션한다. `withLocale` 래핑은 background `updateIssueDescription` 진입점에 유지하고 `bodyLocale`을 payload로 싣는다. 생성 전 업로드 실패(Linear·Notion)와 Slack 승격 `requireMediaUpload` 가드는 현행 동작을 유지한다.
 - **검증**:
-  - [ ] 전 플랫폼에 capture/video/inline/logs/user 성공·실패·응답 누락 매트릭스를 적용한다.
-  - [ ] 9개 어댑터 전부: 사용자 파일명이 `logs.html`/`screenshot.webp`인 경우 캡처·로그 결과와 섞이지 않는다.
-  - [ ] Linear는 `attachmentCreate.success:false`, attachment 연결과 본문 갱신 동시 실패를 검출한다.
-  - [ ] Linear·Notion 생성 전 업로드 실패는 기존처럼 제출 실패 + draft 유지, journal은 prepared에서 정리된다.
-  - [ ] Jira 분해: 정상 제출 결과(key·첨부·ADF)가 분해 전과 같다. 빈 attachment 응답·사용자 파일 실패가 보존된다. 401 refresh 경로가 각 메시지에서 동작한다. 120초 영상 + logs.html도 메시지당 1파일이라 64MiB를 넘지 않는다.
-  - [ ] Jira 분해 후 background 진입점이 `builderLocaleWrap`/`bodyLocaleBackground` 스캔 분류에 맞게 등재된다.
-  - [ ] Slack complete 실패·permalink 실패가 보존된다.
-  - [ ] Notion 본문 99/100/101블록에서 파일이 실제 요청에 들어갔는지를 검사한다(`createPage`의 `slice(0, 100)` 경계).
-  - [ ] GitLab 역링크 보강 실패는 기존 첨부 성공을 뒤집지 않는다.
-  - [ ] Webhook multipart 파트/계약·JSON 비전송·idempotencyKey가 유지된다.
-  - [ ] GitHub 주입 함수는 직렬화 후에도 module closure를 참조하지 않는다.
-  - [ ] 신설·삭제 메시지가 union·handler·`BG_REQUEST_TYPE_MAP`에서 일치한다.
+  - [x] 전 플랫폼에 capture/video/inline/logs/user 성공·실패·응답 누락 매트릭스를 적용한다.
+  - [x] 9개 어댑터 전부: 사용자 파일명이 `logs.html`/`screenshot.webp`인 경우 캡처·로그 결과와 섞이지 않는다.
+  - [x] Linear는 `attachmentCreate.success:false`, attachment 연결과 본문 갱신 동시 실패를 검출한다.
+  - [x] Linear·Notion 생성 전 업로드 실패는 기존처럼 제출 실패 + draft 유지, journal은 prepared에서 정리된다.
+  - [x] Jira 분해: 정상 제출 결과(key·첨부·ADF)가 분해 전과 같다. 빈 attachment 응답·사용자 파일 실패가 보존된다. 401 refresh 경로가 각 메시지에서 동작한다. 120초 영상 + logs.html도 메시지당 1파일이라 64MiB를 넘지 않는다.
+  - [x] Jira 분해 후 background 진입점이 `builderLocaleWrap`/`bodyLocaleBackground` 스캔 분류에 맞게 등재된다.
+  - [x] Slack complete 실패·permalink 실패가 보존된다.
+  - [x] Notion 본문 99/100/101블록에서 파일이 실제 요청에 들어갔는지를 검사한다(`createPage`의 `slice(0, 100)` 경계).
+  - [x] GitLab 역링크 보강 실패는 기존 첨부 성공을 뒤집지 않는다.
+  - [x] Webhook multipart 파트/계약·JSON 비전송·idempotencyKey가 유지된다.
+  - [x] GitHub 주입 함수는 직렬화 후에도 module closure를 참조하지 않는다.
+  - [x] 신설·삭제 메시지가 union·handler·`BG_REQUEST_TYPE_MAP`에서 일치한다.
 
 ### Task 6: 거짓 첨부 문구와 내부 마커 제거 [1단계]
 - **변경 대상**: `issueBodyShared.ts`, `resolveInlineImages.ts`, `buildMarkdownIssueBody.ts`, `buildClickupIssueBody.ts`, Jira ADF 생성·갱신 경로, 필요한 기타 빌더.
 - **작업 내용**: 사용자 로그 제외와 전송 실패를 구분한다. 최초 생성 본문부터 안전한 폴백을 쓰고 확정 업로드 결과로 참조를 갱신한다.
 - **검증**:
-  - [ ] GitHub/GitLab/ClickUp 실패 본문에 `inline:`이 없다.
-  - [ ] Jira의 첨부 전부 실패 + 본문 갱신 실패에서도 원격 최초 본문에 내부 sentinel이 없다.
-  - [ ] 링크 없는 로그에 “첨부됨”을 무조건 출력하지 않는다. 정상 본문과 bodyLocale은 유지된다.
-  - [ ] 새 본문 문구 키가 `bodyLocaleBackground.test.ts` 화이트리스트에 등재된다.
+  - [x] GitHub/GitLab/ClickUp 실패 본문에 `inline:`이 없다.
+  - [x] Jira의 첨부 전부 실패 + 본문 갱신 실패에서도 원격 최초 본문에 내부 sentinel이 없다.
+  - [x] 링크 없는 로그에 “첨부됨”을 무조건 출력하지 않는다. 정상 본문과 bodyLocale은 유지된다.
+  - [x] 새 본문 문구 키가 `bodyLocaleBackground.test.ts` 화이트리스트에 등재된다(새 i18n 키 없음; 기존 로그 문구 조회와 새 Jira 진입점을 스캔에 반영).
 
 ### Task 7: 완료 화면 변형·목록 표시·복구 상세·로컬 정리 [1단계]
 - **변경 대상**: 신규 `AttachmentRecoveryPanel.tsx`, `SubmitSuccessView.tsx`, `IssueTab.tsx`, `IssueListTab.tsx`, `IssueRow.tsx`, `DraftDetailDialog.tsx`(읽기 전용 복구 모드), `src/sidepanel/tabs/issueListUtils.ts`, 다운로드 helper와 i18n.
