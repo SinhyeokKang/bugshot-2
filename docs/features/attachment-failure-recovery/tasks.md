@@ -108,18 +108,18 @@
   - [x] 정상 제출·Webhook JSON UI는 기존 동작 유지. 복구 상세는 계정 해제 후에도 열린다.
   - [x] 기존 `DraftDetailDialog`의 draft·Slack 보존 상세 동작이 유지된다.
   - [x] partial 레코드는 `IssueStatus = "submitted"` + `submissionRecoveryId`로 표현되고 `filter-submitted`에 보이며 `filter-draft`에는 없다. 승격 버튼(`promote-issue`)은 미완료 첨부가 있으면 비활성.
-  - [ ] 키보드 접근(행 버튼 `aria-label`, Dialog 포커스)·색+아이콘+텍스트 병기.
+  - [x] 키보드 접근(행 버튼 `aria-label`, Dialog 포커스)·색+아이콘+텍스트 병기.
 
 ### Task 8: 1단계 통합 검증과 문서 [1단계]
 - **변경 대상**: 회귀 테스트·e2e spec, `docs/{ARCHITECTURE,DIRECTORY,POSTMORTEM}.md`, `docs/privacy.{ko,en}.md`, 가이드.
 - **작업 내용**: 결과 계약 전환 완료 후 옛 boolean과 중복 toast 경로를 제거한다. 함께 갱신할 대상: `submitDroppedToast.test.ts`, `uploadResultGuard.test.ts`(소스 스캔), `jiraSubmitIssue.test.ts`, `submitTo*.test.ts` 8개, i18n `submit.logsDropped`/`submit.mediaDropped`(전 로케일, 이행 기간에는 원인 중립 문구로 교체). 보존 정책(부분 실패 시 미완료 원본 최대 30일·사용자 삭제)과 실패 안내를 문서화한다. 개인정보 문서는 ko 원본·en 번역 본문과 시행일을 함께 갱신한다.
 - **검증**:
-  - [ ] `pnpm typecheck`, `pnpm test` 통과(i18n 키 대칭은 `locales.test.ts`·log-viewer `i18n.test.ts`가 자동 검사). 이 명령들은 구현 단계에서만 실행한다.
-  - [ ] 신규 lib 파일이 커버리지 로직 스코프에 남는다(`BROWSER_BOUND_EXACT` 미등재).
-  - [ ] `/e2e-write`로 아래 1단계 시나리오를 green까지 작성한다. 일반 빌드는 자동 실행하지 않는다.
+  - [x] `pnpm typecheck`, `pnpm test` 통과(i18n 키 대칭은 `locales.test.ts`·log-viewer `i18n.test.ts`가 자동 검사). 이 명령들은 구현 단계에서만 실행한다.
+  - [x] 신규 lib 파일이 커버리지 로직 스코프에 남는다(`BROWSER_BOUND_EXACT` 미등재).
+  - [x] `/e2e-write`로 아래 1단계 시나리오를 green까지 작성한다. 일반 빌드는 자동 실행하지 않는다.
   - [ ] GitHub MAIN world 변경에 대한 실탭 smoke 결과를 기록한다. 실행 환경이 없으면 미검증 범위를 명시한다.
-  - [ ] `docs/privacy.{ko,en}.md`가 보존 범위·30일 기한·삭제 방법을 명시하고 "제출 성공 시 blob 자동 삭제" 서술과 모순되지 않는다.
-  - [ ] 회고에 사용자 첨부 축 누락·업로드/연결 혼동·삭제 보류 수명·Jira 분해 함정을 기록한다.
+  - [x] `docs/privacy.{ko,en}.md`가 보존 범위·30일 기한·삭제 방법을 명시하고 "제출 성공 시 blob 자동 삭제" 서술과 모순되지 않는다.
+  - [x] 회고에 사용자 첨부 축 누락·업로드/연결 혼동·삭제 보류 수명·Jira 분해 함정을 기록한다.
   - [ ] 수동: 좁은 패널·라이트/다크에서 완료 화면 변형·목록 행·복구 상세를 확인한다(amber AA 미검증 조합 육안 확인).
 
 ## 2단계 태스크
