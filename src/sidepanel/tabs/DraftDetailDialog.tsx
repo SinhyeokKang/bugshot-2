@@ -162,7 +162,7 @@ export function DraftDetailDialog(props: {
   const [recoveryMeta, setRecoveryMeta] = useState<SubmissionRecoveryMeta | null>(null);
   const currentMeta = recoveryMeta?.issueId === issue?.id && recoveryMeta?.attemptId === issue?.submissionRecoveryId ? recoveryMeta : null;
   const session = useRetrySession(issue?.id ?? "");
-  const retryState = retryUiState(currentMeta, session.stopReason);
+  const retryState = retryUiState(currentMeta, session.stop);
   const retryButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const recoveringId = useRef<string | null>(null);
@@ -185,7 +185,7 @@ export function DraftDetailDialog(props: {
       <PageScroll><AttachmentRecoveryPanel key={issue.submissionRecoveryId} issueId={issue.id} attemptId={issue.submissionRecoveryId} allowManage onMetaLoaded={setRecoveryMeta} onConfirmed={() => onOpenChange(false)} /></PageScroll>
       <DialogFooter><Button variant="outline" ref={closeButton} onClick={() => onOpenChange(false)}>{t("common.close")}</Button>
         {retryState.showOpenIssue && <Button asChild variant={retryState.canRetry ? "outline" : "default"}><a href={currentMeta?.destination?.url} target="_blank" rel="noopener noreferrer">{t("recovery.openIssue")}</a></Button>}
-        {retryState.canRetry && <Button ref={retryButton} disabled={session.running} aria-busy={session.running} data-testid="recovery-retry" onClick={() => void startAttachmentRetry(issue.id, pendingFileCount(currentMeta))}>{session.running ? <Loader2 className="animate-spin" /> : <RotateCw />}{t(session.running ? "recovery.retrying" : "recovery.retry")}</Button>}
+        {retryState.canRetry && <Button ref={retryButton} disabled={session.running} aria-busy={session.running} data-testid="recovery-retry" onClick={() => void startAttachmentRetry(issue.id, pendingFileCount(currentMeta), currentMeta!.attemptId)}>{session.running ? <Loader2 className="animate-spin" /> : <RotateCw />}{t(session.running ? "recovery.retrying" : "recovery.retry")}</Button>}
       </DialogFooter>
     </DialogContent>
   </Dialog>;

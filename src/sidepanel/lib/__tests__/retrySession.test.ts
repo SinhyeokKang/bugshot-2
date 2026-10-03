@@ -17,8 +17,8 @@ describe("startAttachmentRetry", () => {
   it("runs once for consecutive calls and exposes a running state meanwhile", async () => {
     const gate = deferred<RetryAttachmentsOutcome>();
     mocks.run.mockReturnValue(gate.promise);
-    const first = startAttachmentRetry("issue", 2);
-    const second = startAttachmentRetry("issue", 2);
+    const first = startAttachmentRetry("issue", 2, "a");
+    const second = startAttachmentRetry("issue", 2, "a");
     expect(session().running).toBe(true);
     gate.resolve(outcome({ status: "complete", remaining: 0 }));
     await Promise.all([first, second]);
@@ -29,7 +29,7 @@ describe("startAttachmentRetry", () => {
   it("collects per-file progress while running and clears it afterwards", async () => {
     const gate = deferred<RetryAttachmentsOutcome>();
     mocks.run.mockImplementation((_id: string, options: { onProgress: (e: RetryProgressEvent) => void }) => { options.onProgress({ fileId: "f", stage: "upload", state: "running" }); return gate.promise; });
-    const done = startAttachmentRetry("issue", 1);
+    const done = startAttachmentRetry("issue", 1, "a");
     expect(session().progress).toEqual({ f: { stage: "upload", state: "running" } });
     gate.resolve(outcome({ status: "complete", remaining: 0 }));
     await done;
@@ -39,7 +39,7 @@ describe("startAttachmentRetry", () => {
   it("toasts success once on complete, even while the detail is open", async () => {
     const unregister = registerRetryDetail("issue");
     mocks.run.mockResolvedValue(outcome({ status: "complete", remaining: 0 }));
-    await startAttachmentRetry("issue", 3);
+    await startAttachmentRetry("issue", 3, "a");
     expect(mocks.success).toHaveBeenCalledTimes(1);
     expect(mocks.success).toHaveBeenCalledWith('recovery.retry.summary.complete:{"n":3}');
     expect(session().summary).toBeNull();
@@ -49,7 +49,7 @@ describe("startAttachmentRetry", () => {
   it("puts a partial result in the detail live region and does not toast it", async () => {
     const unregister = registerRetryDetail("issue");
     mocks.run.mockResolvedValue(outcome({ remaining: 2 }));
-    await startAttachmentRetry("issue", 3);
+    await startAttachmentRetry("issue", 3, "a");
     expect(session().summary).toEqual({ kind: "partial", n: 2 });
     expect(mocks.warning).not.toHaveBeenCalled();
     expect(mocks.success).not.toHaveBeenCalled();
@@ -58,7 +58,7 @@ describe("startAttachmentRetry", () => {
 
   it("shows exactly one warning toast when the detail is closed", async () => {
     mocks.run.mockResolvedValue(outcome({ remaining: 2 }));
-    await startAttachmentRetry("issue", 3);
+    await startAttachmentRetry("issue", 3, "a");
     expect(mocks.warning).toHaveBeenCalledTimes(1);
     expect(mocks.warning).toHaveBeenCalledWith('recovery.retry.summary.partial:{"n":2}');
     expect(session().summary).toBeNull();
@@ -69,32 +69,32 @@ describe("startAttachmentRetry", () => {
     const second = registerRetryDetail("issue");
     first();
     mocks.run.mockResolvedValue(outcome({ remaining: 1 }));
-    await startAttachmentRetry("issue", 1);
+    await startAttachmentRetry("issue", 1, "a");
     expect(session().summary).not.toBeNull();
     second();
     mocks.run.mockResolvedValue(outcome({ remaining: 1 }));
-    await startAttachmentRetry("issue", 1);
+    await startAttachmentRetry("issue", 1, "a");
     expect(mocks.warning).toHaveBeenCalledTimes(1);
   });
 
   it("hides retry for the session after a stop that is not persisted, and keeps nothing for others", async () => {
     mocks.run.mockResolvedValue(outcome({ status: "blocked", reason: "remote-missing" }));
-    await startAttachmentRetry("issue", 1);
-    expect(session().stopReason).toBe("remote-missing");
+    await startAttachmentRetry("issue", 1, "a");
+    expect(session().stop).toEqual({ reason: "remote-missing", attemptId: "a" });
     expect(session("other")).toBeUndefined();
   });
 
   it("clears an earlier stop reason only when a later run is not blocked the same way", async () => {
     mocks.run.mockResolvedValueOnce(outcome({ status: "blocked", reason: "permission" }));
-    await startAttachmentRetry("issue", 1);
+    await startAttachmentRetry("issue", 1, "a");
     mocks.run.mockResolvedValueOnce(outcome({ reason: "body-conflict" }));
-    await startAttachmentRetry("issue", 1);
-    expect(session().stopReason).toBeNull();
+    await startAttachmentRetry("issue", 1, "a");
+    expect(session().stop).toBeNull();
   });
 
   it("stays silent with no spinner when another panel holds the issue", async () => {
     mocks.run.mockResolvedValue(outcome({ status: "busy", remaining: 0 }));
-    await startAttachmentRetry("issue", 1);
+    await startAttachmentRetry("issue", 1, "a");
     expect(session().running).toBe(false);
     expect(mocks.success).not.toHaveBeenCalled();
     expect(mocks.warning).not.toHaveBeenCalled();
@@ -103,24 +103,24 @@ describe("startAttachmentRetry", () => {
 
   it("shows a static needs-confirmation for an unknown result", async () => {
     mocks.run.mockResolvedValue(outcome({ reason: "ambiguous" }));
-    await startAttachmentRetry("issue", 1);
+    await startAttachmentRetry("issue", 1, "a");
     expect(session().running).toBe(false);
     expect(mocks.warning).toHaveBeenCalledWith("recovery.retry.summary.needsCheck");
   });
 
   it("recovers from an unexpected throw with one error toast and no stuck spinner", async () => {
     mocks.run.mockRejectedValue(new Error("boom"));
-    await startAttachmentRetry("issue", 1);
+    await startAttachmentRetry("issue", 1, "a");
     expect(session().running).toBe(false);
     expect(mocks.error).toHaveBeenCalledTimes(1);
   });
 
   it("bumps finishedAt so mounted rows and panels re-read the journal", async () => {
     mocks.run.mockResolvedValue(outcome({}));
-    await startAttachmentRetry("issue", 1);
+    await startAttachmentRetry("issue", 1, "a");
     const first = session().finishedAt;
     mocks.run.mockResolvedValue(outcome({}));
-    await startAttachmentRetry("issue", 1);
+    await startAttachmentRetry("issue", 1, "a");
     expect(session().finishedAt).toBeGreaterThan(first);
   });
 });

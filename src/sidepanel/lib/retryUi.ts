@@ -28,8 +28,9 @@ export interface RetryUiState {
   showOpenIssue: boolean;
 }
 
-export function retryUiState(meta: SubmissionRecoveryMeta | null, stopReason: AttachmentRetryReason | null = null): RetryUiState {
+export function retryUiState(meta: SubmissionRecoveryMeta | null, stop: { reason: AttachmentRetryReason; attemptId: string } | null = null): RetryUiState {
   if (!meta) return { canRetry: false, reason: null, showOpenIssue: false };
+  const stopReason = stop?.attemptId === meta.attemptId ? stop.reason : null;
   const registered = meta.phase === "partial" && !!meta.destination;
   const reason = registered ? stopReason ?? attachmentRecoveryReason(meta) : null;
   return {

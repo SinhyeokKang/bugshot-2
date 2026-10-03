@@ -11,8 +11,8 @@ export interface RetrySession {
   progress: Record<string, { stage: RetryProgressEvent["stage"]; state: RetryProgressEvent["state"] }>;
   // One-line result for the detail's live region; set only while that detail is open.
   summary: RetrySummary | null;
-  // A run-level stop (404/403/401/account) hides retry for this panel session only.
-  stopReason: AttachmentRetryReason | null;
+  // A run-level stop (404/403/401/account) hides retry for this panel session and this attempt only.
+  stop: { reason: AttachmentRetryReason; attemptId: string } | null;
   // Bumped when a run ends so mounted rows and panels re-read the journal.
   finishedAt: number;
 }
@@ -23,7 +23,7 @@ interface RetrySessionsState {
   details: Record<string, number>;
 }
 
-export const EMPTY_RETRY_SESSION: RetrySession = { running: false, progress: {}, summary: null, stopReason: null, finishedAt: 0 };
+export const EMPTY_RETRY_SESSION: RetrySession = { running: false, progress: {}, summary: null, stop: null, finishedAt: 0 };
 
 export const useRetrySessions = create<RetrySessionsState>(() => ({ sessions: {}, details: {} }));
 
@@ -50,23 +50,24 @@ export function registerRetryDetail(issueId: string): () => void {
 
 // The single entry for retry actions: rows and the detail footer both call this, so a second press
 // while one run is in flight never reaches the runner.
-export async function startAttachmentRetry(issueId: string, pending: number): Promise<void> {
+export async function startAttachmentRetry(issueId: string, pending: number, attemptId: string): Promise<void> {
   if (useRetrySessions.getState().sessions[issueId]?.running) return;
   patch(issueId, { running: true, progress: {}, summary: null });
   let summary: RetrySummary | null = null;
-  let stopReason: AttachmentRetryReason | null = null;
+  let stop: RetrySession["stop"] = null;
   try {
     const outcome = await retryAttachments(issueId, {
       onProgress: (event) => patch(issueId, { progress: { ...useRetrySessions.getState().sessions[issueId]?.progress, [event.fileId]: { stage: event.stage, state: event.state } } }),
     });
     summary = retrySummary(outcome, pending);
-    stopReason = sessionStopReason(outcome);
+    const reason = sessionStopReason(outcome);
+    stop = reason ? { reason, attemptId } : null;
   } catch {
     toast.error(t("bg.error.unknown"));
   }
   // A finished record leaves recovery and its detail disappears, so completion is always toasted.
   const announceInDetail = !!summary && summary.kind !== "complete" && (useRetrySessions.getState().details[issueId] ?? 0) > 0;
-  patch(issueId, { running: false, progress: {}, stopReason, summary: announceInDetail ? summary : null, finishedAt: useRetrySessions.getState().sessions[issueId].finishedAt + 1 });
+  patch(issueId, { running: false, progress: {}, stop, summary: announceInDetail ? summary : null, finishedAt: useRetrySessions.getState().sessions[issueId].finishedAt + 1 });
   if (summary && !announceInDetail) {
     const message = retrySummaryText(summary, t);
     if (summary.kind === "complete") toast.success(message);

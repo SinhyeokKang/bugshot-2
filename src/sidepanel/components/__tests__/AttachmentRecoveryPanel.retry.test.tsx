@@ -14,7 +14,7 @@ import { AttachmentRecoveryPanel } from "../AttachmentRecoveryPanel";
 import { resetRetrySessions, useRetrySessions } from "@/sidepanel/lib/retrySession";
 
 const session = (patch: Partial<ReturnType<typeof useRetrySessions.getState>["sessions"][string]> = {}) =>
-  useRetrySessions.setState({ sessions: { issue: { running: false, progress: {}, summary: null, stopReason: null, finishedAt: 0, ...patch } } });
+  useRetrySessions.setState({ sessions: { issue: { running: false, progress: {}, summary: null, stop: null, finishedAt: 0, ...patch } } });
 const load = async (meta: SubmissionRecoveryMeta) => {
   mocks.read.mockResolvedValue(meta);
   mocks.bytes.mockResolvedValue(new Blob(["x"]));
@@ -38,7 +38,7 @@ describe("recovery notice per unavailable state", () => {
     ["authentication", retryMeta(), "authentication"],
     ["account-changed", retryMeta(), "account-changed"],
   ] as const)("explains %s with its own copy", async (reason, meta, stopReason) => {
-    if (stopReason) session({ stopReason });
+    if (stopReason) session({ stop: { reason: stopReason, attemptId: "a" } });
     await load(meta);
     expect(notice()?.getAttribute("data-reason")).toBe(reason);
     expect(notice()?.textContent).toBe(`recovery.retry.reason.${reason}`);
@@ -49,8 +49,17 @@ describe("recovery notice per unavailable state", () => {
     expect(notice()).toBeNull();
   });
 
+  it("stays quiet when every file is already attached and only a submission-level failure remains", async () => {
+    const meta = retryMeta({ checkpoints: [failedCheckpoint("capture:after-0", { upload: "done", body: "done", uploaded: { platform: "github", href: "https://x" } })], submissionFailure: { stage: "body", code: "network" } });
+    meta.results[0] = { fileId: "capture:after-0", delivery: "attached", presentation: "complete" };
+    mocks.read.mockResolvedValue(meta);
+    render(<AttachmentRecoveryPanel issueId="issue" attemptId="a" allowManage />);
+    await screen.findByText(/recovery.submissionFailed/);
+    expect(notice()).toBeNull();
+  });
+
   it("keeps downloads available whatever the reason", async () => {
-    session({ stopReason: "account-changed" });
+    session({ stop: { reason: "account-changed", attemptId: "a" } });
     await load(retryMeta());
     expect(screen.getAllByTestId("recovery-file-download")).toHaveLength(1);
   });
@@ -86,7 +95,7 @@ describe("running state", () => {
     const name = "とても長い日本語のファイル名".repeat(8) + ".webp";
     const meta = retryMeta();
     meta.files[0] = { ...meta.files[0], filename: name };
-    session({ stopReason: "permission" });
+    session({ stop: { reason: "permission", attemptId: "a" } });
     await load(meta);
     const title = screen.getByTitle(name);
     expect(title.className).toContain("truncate");

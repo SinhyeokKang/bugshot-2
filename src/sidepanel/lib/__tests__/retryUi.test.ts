@@ -43,14 +43,18 @@ describe("retryUiState — unavailable-state matrix", () => {
   });
 
   it.each(["account-changed", "remote-missing", "permission", "authentication"] as const)("a %s stop hides retry for the session without persisting", (stop) => {
-    const state = retryUiState(retryMeta(), stop);
+    const state = retryUiState(retryMeta(), { reason: stop, attemptId: "a" });
     expect(state.canRetry).toBe(false);
     expect(state.reason).toBe(stop);
   });
 
   it("drops the issue link only when the remote issue is gone", () => {
-    expect(retryUiState(retryMeta(), "remote-missing").showOpenIssue).toBe(false);
-    for (const stop of ["account-changed", "permission", "authentication"] as const) expect(retryUiState(retryMeta(), stop).showOpenIssue).toBe(true);
+    expect(retryUiState(retryMeta(), { reason: "remote-missing", attemptId: "a" }).showOpenIssue).toBe(false);
+    for (const stop of ["account-changed", "permission", "authentication"] as const) expect(retryUiState(retryMeta(), { reason: stop, attemptId: "a" }).showOpenIssue).toBe(true);
+  });
+
+  it("ignores a session stop recorded for an earlier attempt of the same issue", () => {
+    expect(retryUiState(retryMeta(), { reason: "permission", attemptId: "older" })).toEqual({ canRetry: true, reason: null, showOpenIssue: true });
   });
 
   it("has a copy key for every reason", () => {

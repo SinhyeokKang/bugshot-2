@@ -26,7 +26,7 @@ export function AttachmentRecoveryPanel({ issueId, attemptId, allowManage = fals
   const [revision, setRevision] = useState(0);
   const session = useRetrySession(issueId);
   const locked = busy || session.running;
-  const reason = retryUiState(meta, session.stopReason).reason;
+  const reason = retryUiState(meta, session.stop).reason;
   useEffect(() => registerRetryDetail(issueId), [issueId]);
   useEffect(() => {
     let cancelled = false;
@@ -95,7 +95,7 @@ export function AttachmentRecoveryPanel({ issueId, attemptId, allowManage = fals
       {meta.submissionFailure && <p className="break-words text-sm">{t("recovery.submissionFailed")} {t(`recovery.reason.${meta.submissionFailure.code}`)}</p>}
       {!meta.destination && <p className="text-sm">{t("recovery.unknownBody")}</p>}
       <p className="text-sm text-muted-foreground">{meta.localFilesRemoved ? t("recovery.localMissing") : t("recovery.retention", { n: Math.max(0, Math.ceil((meta.expiresAt - Date.now()) / 86_400_000)) })}</p>
-      {allowManage && reason && reason !== "local-missing" && <p className="flex items-start gap-1.5 break-words text-sm" data-testid="recovery-retry-notice" data-reason={reason}><CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" /><span className="min-w-0">{t(RETRY_REASON_KEY[reason])}</span></p>}
+      {allowManage && incomplete.length > 0 && reason && reason !== "local-missing" && <p className="flex items-start gap-1.5 break-words text-sm" data-testid="recovery-retry-notice" data-reason={reason}><CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" /><span className="min-w-0">{t(RETRY_REASON_KEY[reason])}</span></p>}
       {incomplete.map(row)}
       {complete.length > 0 && <Section collapsible defaultOpen={false} title={t("recovery.completed", { n: complete.length })}><div className="space-y-3">{complete.map(row)}</div></Section>}
       {allowManage && <div className="flex flex-wrap gap-2">
