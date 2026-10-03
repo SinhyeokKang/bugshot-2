@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { Inbox, Loader2, Search, SearchX, X } from "lucide-react";
 import { toastSubmitDropped } from "@/sidepanel/lib/submitDroppedToast";
@@ -203,7 +204,7 @@ export function IssueListTab() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-                  <AlertDialogAction onClick={clearIssues}>
+                  <AlertDialogAction onClick={() => { void clearIssues().catch(() => toast.error(t("bg.error.unknown"))); }}>
                     {t("issueList.deleteAll")}
                   </AlertDialogAction>
                 </AlertDialogFooter>

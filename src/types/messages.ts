@@ -1,3 +1,4 @@
+import type { AttachmentResult } from "./attachment";
 import type {
   JiraAttachmentInput,
   JiraConfigPayload,
@@ -76,13 +77,13 @@ export interface OAuthStartResultMsg {
 // 갈랐고 플랫폼마다 필드명이 달라 소비처가 조용히 틀릴 수 있었다. handleMessage가
 // Promise<unknown>이라 typecheck가 양단을 대조하지 못하므로, 핸들러 반환 annotation과
 // 소비처 sendBg<...>를 **함께** 명시해야 한다(한쪽만 하면 다른 쪽이 남는다).
-export type UploadFileResult =
+export type UploadFileResult = { fileId?: string; failure?: AttachmentResult["failure"] } & (
   | { ok: true; filename: string; href: string }
-  | { ok: false; filename: string };
+  | { ok: false; filename: string });
 
-export type AsanaUploadFileResult =
+export type AsanaUploadFileResult = { fileId?: string; failure?: AttachmentResult["failure"] } & (
   | { ok: true; filename: string; gid: string; viewUrl?: string }
-  | { ok: false; filename: string };
+  | { ok: false; filename: string });
 
 export type BgRequest =
   | { type: "ping" }
@@ -130,7 +131,7 @@ export type BgRequest =
       type: "github.uploadFiles";
       owner: string;
       repo: string;
-      files: Array<{ filename: string; contentType: string; dataUrl: string }>;
+      files: Array<{ fileId?: string; filename: string; contentType: string; dataUrl: string }>;
     }
   | {
       type: "github.submitIssue";
@@ -160,7 +161,7 @@ export type BgRequest =
   | { type: "linear.getLabels"; teamId: string }
   | { type: "linear.getMembers"; teamId: string }
   | { type: "linear.submitIssue"; payload: LinearCreateIssuePayload }
-  | { type: "linear.uploadFile"; filename: string; contentType: string; dataUrl: string }
+  | { type: "linear.uploadFile"; fileId?: string; filename: string; contentType: string; dataUrl: string }
   | { type: "linear.createAttachment"; issueId: string; title: string; url: string }
   | { type: "linear.getIssueStatus"; issueId: string }
   | { type: "linear.getWorkflowStates"; issueIdentifier: string }
@@ -174,7 +175,7 @@ export type BgRequest =
   | { type: "notion.listUsers" }
   | { type: "notion.searchDatabases"; query: string }
   | { type: "notion.getDatabaseSchema"; databaseId: string }
-  | { type: "notion.uploadFile"; filename: string; contentType: string; dataUrl: string }
+  | { type: "notion.uploadFile"; fileId?: string; filename: string; contentType: string; dataUrl: string }
   | { type: "notion.submitPage"; payload: NotionCreatePagePayload }
   | { type: "notion.getPageStatus"; pageId: string }
   | { type: "notion.updatePageStatus"; pageId: string; propertyName: string; optionName: string }
@@ -189,7 +190,7 @@ export type BgRequest =
   | {
       type: "gitlab.uploadFiles";
       projectId: number;
-      files: Array<{ filename: string; contentType: string; dataUrl: string }>;
+      files: Array<{ fileId?: string; filename: string; contentType: string; dataUrl: string }>;
     }
   | { type: "gitlab.submitIssue"; payload: GitlabCreateIssuePayload }
   | { type: "gitlab.getIssueStatus"; projectId: number; iid: number }
@@ -216,7 +217,7 @@ export type BgRequest =
   | {
       type: "asana.uploadFiles";
       parent: string;
-      files: Array<{ filename: string; contentType: string; dataUrl: string }>;
+      files: Array<{ fileId?: string; filename: string; contentType: string; dataUrl: string }>;
     }
   | { type: "asana.submitIssue"; payload: AsanaCreateTaskPayload }
   | { type: "asana.updateTaskNotes"; taskGid: string; htmlNotes: string }
@@ -234,7 +235,7 @@ export type BgRequest =
   | {
       type: "clickup.uploadFile";
       taskId: string;
-      files: Array<{ filename: string; contentType: string; dataUrl: string }>;
+      files: Array<{ fileId?: string; filename: string; contentType: string; dataUrl: string }>;
     }
   | { type: "clickup.submitIssue"; payload: ClickupCreateTaskPayload }
   | { type: "clickup.updateTaskMarkdown"; taskId: string; markdownContent: string }
@@ -250,7 +251,7 @@ export type BgRequest =
       type: "slack.uploadFiles";
       channelId: string;
       threadTs: string;
-      files: Array<{ filename: string; dataUrl: string }>;
+      files: Array<{ fileId?: string; filename: string; dataUrl: string }>;
     }
   | { type: "slack.getPermalink"; channelId: string; ts: string }
   // mode로 판별한다 — optional 필드의 존재 여부로 추론하면 multipart인데 payload가
@@ -262,7 +263,7 @@ export type BgRequest =
       mode: "multipart";
       auth: WebhookAuth;
       payload: WebhookSubmitPayload;
-      files: Array<{ part: string; filename: string; dataUrl: string }>;
+      files: Array<{ fileId?: string; part: string; filename: string; dataUrl: string }>;
     }
   | { type: "webhook.submit"; mode: "json"; auth: WebhookAuth; body: unknown }
   | { type: "webhook.test"; auth: WebhookAuth; sampleBody?: unknown }

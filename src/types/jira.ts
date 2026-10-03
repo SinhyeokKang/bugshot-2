@@ -1,3 +1,4 @@
+import type { AttachmentResult } from "./attachment";
 import type { LocaleMode } from "@/i18n/locales";
 export interface JiraApiKeyAuth {
   kind: "apiKey";
@@ -117,6 +118,7 @@ export interface JiraCreateIssueResult {
 }
 
 export interface JiraAttachmentInput {
+  fileId?: string;
   filename: string;
   dataUrl: string;
   width?: number;
@@ -129,6 +131,7 @@ export interface JiraAttachmentInput {
 }
 
 export interface JiraAttachmentResult {
+  fileId?: string;
   id: string;
   filename: string;
   content?: string;
@@ -136,6 +139,7 @@ export interface JiraAttachmentResult {
 }
 
 export interface JiraSubmitResult {
+  attachments?: AttachmentResult[];
   key: string;
   url: string;
   logsDropped?: boolean;

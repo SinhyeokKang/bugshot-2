@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useState } from "react";
 import { FileText, Trash2, Upload } from "lucide-react";
 import { useT } from "@/i18n";
@@ -158,7 +159,7 @@ export function IssueRow({
             <AlertDialogFooter>
               <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => removeIssue(issue.id)}
+                onClick={() => { void removeIssue(issue.id).catch(() => toast.error(t("bg.error.unknown"))); }}
               >
                 {t("issueList.deleteIssue")}
               </AlertDialogAction>

@@ -1,6 +1,6 @@
-import { IDBFactory, IDBObjectStore } from "fake-indexeddb";
+import { IDBFactory, IDBKeyRange, IDBObjectStore } from "fake-indexeddb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { SubmissionRecoveryMeta } from "@/types/attachment";
+import type { AttachmentResult, SubmissionRecoveryMeta } from "@/types/attachment";
 
 let db: typeof import("../blob-db");
 const meta = (issueId = "issue", attemptId = "attempt"): SubmissionRecoveryMeta => ({
@@ -24,6 +24,7 @@ const keys = async () => {
 beforeEach(async () => {
   vi.resetModules();
   vi.stubGlobal("indexedDB", new IDBFactory());
+  vi.stubGlobal("IDBKeyRange", IDBKeyRange);
   vi.stubGlobal("chrome", { storage: { session: { get: async () => ({}) }, local: { get: async () => ({}) } } });
   db = await import("../blob-db");
 });
@@ -33,6 +34,9 @@ describe("submission recovery storage", () => {
   it("creates and cleans even an empty-file journal", async () => {
     await db.beginSubmissionRecovery(meta(), new Map());
     expect(await db.listSubmissionRecoveries()).toEqual([meta()]);
+    await db.checkpointSubmission("issue", "attempt", { phase: "creating", results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "created", destination: { platform: "github", key: "1", locator: { owner: "o", repo: "r", number: "1" } }, results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "complete", results: [] });
     await db.deleteSubmissionRecovery("issue", "attempt");
     expect(await db.readSubmissionRecovery("issue")).toBeNull();
     expect(await keys()).toEqual([]);
@@ -99,7 +103,10 @@ describe("submission recovery storage", () => {
     await Promise.all([db.deleteVideoBlob("orphan"), db.deleteImageBlobs("orphan"), db.deleteAttachmentBlobs("orphan"), db.deleteAttachmentBlob("orphan", "a"), db.pruneOrphanInlineImages([])]);
     await Promise.all([db.clearVideoBlobs(), db.clearImageBlobs(), db.clearAttachmentBlobs(), db.clearInlineImages()]);
     for (const file of value.files) expect(await db.readRecoveryFile(value, file.id)).not.toBeNull();
-    await db.deleteOriginalKeys([value.files[0].source]);
+    await db.checkpointSubmission("issue", "attempt", { phase: "creating", results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "created", destination: { platform: "github", key: "1", locator: { owner: "o", repo: "r", number: "1" } }, results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "partial", results: [{ fileId: "video", delivery: "attached", presentation: "complete" }] });
+    await db.deleteOriginalKeys("issue", "attempt", [value.files[0].source]);
     expect(await db.getVideoBlob("orphan")).toBeNull();
     expect(await db.getImageBlob("orphan", "before")).not.toBeNull();
     await db.purgeRecoveryForIssues(["issue"]);
@@ -111,12 +118,23 @@ describe("submission recovery storage", () => {
   it("upgrades v8 without losing existing stores and closes on versionchange", async () => {
     const req = indexedDB.open("bugshot-video", 8);
     req.onupgradeneeded = () => {
-      for (const name of ["blobs", "images", "networkLogs", "consoleLogs", "actionLogs", "inlineImages", "inlineImageOrigins", "attachments"]) req.result.createObjectStore(name);
+      for (const name of ["blobs", "images", "networkLogs", "consoleLogs", "actionLogs", "inlineImages", "inlineImageOrigins", "attachments"]) {
+        req.result.createObjectStore(name);
+        req.transaction!.objectStore(name).put(new Blob([name]), "v8-bytes");
+      }
       req.transaction!.objectStore("blobs").put(new Blob(["v8"]), "old");
     };
     await new Promise<void>((resolve) => { req.onsuccess = () => { req.result.close(); resolve(); }; });
     await db.beginSubmissionRecovery(meta(), new Map());
     expect(await (await db.getVideoBlob("old"))?.text()).toBe("v8");
+    const conn = await open();
+    for (const name of ["blobs", "images", "networkLogs", "consoleLogs", "actionLogs", "inlineImages", "inlineImageOrigins", "attachments"]) {
+      const tx = conn.transaction(name);
+      const req = tx.objectStore(name).get("v8-bytes");
+      const blob = await new Promise<Blob>((resolve) => { tx.oncomplete = () => resolve(req.result); });
+      expect(await blob.text()).toBe(name);
+    }
+    conn.close();
     const upgraded = await open(10);
     upgraded.close();
   });
@@ -127,4 +145,198 @@ describe("submission recovery storage", () => {
     await db.beginSubmissionRecovery(meta(), new Map());
     expect(await db.readSubmissionRecovery("issue")).not.toBeNull();
   });
+  it("fails closed on malformed journal reads, including inline GC", async () => {
+    await db.saveInlineImage("ref", new Blob(["keep"]));
+    const conn = await open();
+    const tx = conn.transaction("submissionRecovery", "readwrite");
+    tx.objectStore("submissionRecovery").put({ issueId: "bad", files: "corrupt" }, "attempt:bad");
+    await new Promise<void>((resolve) => { tx.oncomplete = () => { conn.close(); resolve(); }; });
+    await expect(db.listSubmissionRecoveries()).rejects.toThrow();
+    await db.pruneOrphanInlineImages([]);
+    expect(await db.getInlineImage("ref")).not.toBeNull();
+  });
+  it("rejects secrets and data URLs in persisted metadata", async () => {
+    await expect(db.beginSubmissionRecovery({ ...meta(), accessToken: "secret" } as SubmissionRecoveryMeta, new Map())).rejects.toThrow();
+    const value = meta();
+    value.files = [{ id: "a", kind: "user", filename: "a", contentType: "text/plain", dataUrl: "data:x", source: { kind: "original", store: "attachments", key: "issue:a" } } as SubmissionRecoveryMeta["files"][number]];
+    await expect(db.beginSubmissionRecovery(value, new Map())).rejects.toThrow();
+  });
+  it("rejects incomplete completion and destination changes", async () => {
+    await db.saveVideoBlob("issue", new Blob(["video"]));
+    const value = meta();
+    value.files = [{ id: "video", kind: "video", filename: "v.mp4", contentType: "video/mp4", source: { kind: "original", store: "blobs", key: "issue" } }];
+    await db.beginSubmissionRecovery(value, new Map());
+    await db.checkpointSubmission("issue", "attempt", { phase: "creating", results: [] });
+    const destination = { platform: "github" as const, key: "1", locator: { owner: "o", repo: "r", number: "1" } };
+    await db.checkpointSubmission("issue", "attempt", { phase: "created", destination, results: [] });
+    await expect(db.checkpointSubmission("issue", "attempt", { phase: "complete", results: [] })).rejects.toThrow();
+    await expect(db.checkpointSubmission("issue", "attempt", { phase: "partial", destination: { ...destination, key: "2" }, results: [] })).rejects.toThrow();
+  });
+  it("purging one issue preserves original keys shared with another live journal", async () => {
+    await db.saveInlineImage("shared", new Blob(["keep"]));
+    const first = meta();
+    first.files = [{ id: "inline:shared", kind: "inline", filename: "i.png", contentType: "image/png", source: { kind: "original", store: "inlineImages", key: "shared" } }];
+    await db.beginSubmissionRecovery(first, new Map());
+    await db.beginSubmissionRecovery({ ...first, issueId: "other", attemptId: "other" }, new Map());
+    await db.purgeRecoveryForIssues(["issue"]);
+    expect(await db.getInlineImage("shared")).not.toBeNull();
+  });
+
+  it("fences original cleanup to its attempt and preserves other journals", async () => {
+    await db.saveInlineImage("shared", new Blob(["keep"]));
+    const first = meta();
+    first.files = [{ id: "inline:shared", kind: "inline", filename: "i.png", contentType: "image/png", source: { kind: "original", store: "inlineImages", key: "shared" } }];
+    await db.beginSubmissionRecovery(first, new Map());
+    await db.beginSubmissionRecovery({ ...first, issueId: "other", attemptId: "other" }, new Map());
+    await db.checkpointSubmission("issue", "attempt", { phase: "creating", results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "created", destination: { platform: "github", key: "1", locator: { owner: "o", repo: "r", number: "1" } }, results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "complete", results: [{ fileId: "inline:shared", delivery: "attached", presentation: "complete" }] });
+    await db.deleteOriginalKeys("issue", "attempt", [first.files[0].source]);
+    expect(await db.getInlineImage("shared")).not.toBeNull();
+    await db.deleteSubmissionRecovery("issue", "attempt");
+    await db.beginSubmissionRecovery({ ...first, attemptId: "new" }, new Map());
+    await expect(db.deleteOriginalKeys("issue", "attempt", [first.files[0].source])).rejects.toThrow();
+    expect(await db.getInlineImage("shared")).not.toBeNull();
+  });
+  it.each(["draft", "session"])("preserves inline bytes shared by an ordinary %s during purge", async (owner) => {
+    await db.saveInlineImage("shared", new Blob(["keep"]));
+    const value = meta();
+    value.files = [{ id: "inline:shared", kind: "inline", filename: "i.png", contentType: "image/png", source: { kind: "original", store: "inlineImages", key: "shared" } }];
+    await db.beginSubmissionRecovery(value, new Map());
+    const draft = { sections: { description: "![image](inline:shared)" } };
+    if (owner === "session") vi.stubGlobal("chrome", { storage: { session: { get: async () => ({ "editor:7": { draft } }) }, local: { get: async () => ({}) } } });
+    else vi.stubGlobal("chrome", { storage: { session: { get: async () => ({}) }, local: { get: async () => ({ "bugshot-issues": JSON.stringify({ state: { issues: [{ id: "other", draft }] } }) }) } } });
+    await db.purgeRecoveryForIssues(["issue"]);
+    expect(await db.getInlineImage("shared")).not.toBeNull();
+    expect(await db.readSubmissionRecovery("issue")).toBeNull();
+  });
+  it("failed ordinary reference lookup prevents destructive purge writes", async () => {
+    await db.beginSubmissionRecovery(meta(), new Map());
+    vi.stubGlobal("chrome", { storage: { session: { get: async () => { throw new Error("unavailable"); } } } });
+    const deletes = vi.spyOn(IDBObjectStore.prototype, "delete");
+    await expect(db.purgeRecoveryForIssues(["issue"])).rejects.toThrow("unavailable");
+    expect(deletes).not.toHaveBeenCalled();
+    expect(await db.readSubmissionRecovery("issue")).not.toBeNull();
+  });
+  it("rejects mismatched IDB keys before listing or destructive purge", async () => {
+    await db.beginSubmissionRecovery(meta(), new Map());
+    const conn = await open();
+    const tx = conn.transaction("submissionRecovery", "readwrite");
+    tx.objectStore("submissionRecovery").put(meta("wrong"), "attempt:issue");
+    await new Promise<void>((resolve) => { tx.oncomplete = () => { conn.close(); resolve(); }; });
+    const deletes = vi.spyOn(IDBObjectStore.prototype, "delete");
+    await expect(db.listSubmissionRecoveries()).rejects.toThrow();
+    await expect(db.purgeRecoveryForIssues(["wrong"])).rejects.toThrow();
+    expect(deletes).not.toHaveBeenCalled();
+    expect(await keys()).toEqual(["attempt:issue"]);
+  });
+  it("rejects generated key collisions and preserves the first byte snapshot", async () => {
+    const value = meta();
+    value.files = [{ id: "logs", kind: "logs", filename: "logs.html", contentType: "text/html", source: { kind: "generated", key: "file:attempt:logs" } }];
+    await db.beginSubmissionRecovery(value, new Map([["file:attempt:logs", new Blob(["first"])]]));
+    await expect(db.beginSubmissionRecovery({ ...value, issueId: "second" }, new Map([["file:attempt:logs", new Blob(["second"])]]))).rejects.toThrow();
+    expect(await (await db.readRecoveryFile(value, "logs"))?.text()).toBe("first");
+    expect(await db.readSubmissionRecovery("second")).toBeNull();
+  });
+
+  it.each(["https://user:pass@host/issue", "https://host/file?X-Amz-Signature=secret", "javascript:alert(1)"])("rejects unsafe destination URLs: %s", async (url) => {
+    await db.beginSubmissionRecovery(meta(), new Map());
+    await db.checkpointSubmission("issue", "attempt", { phase: "creating", results: [] });
+    await expect(db.checkpointSubmission("issue", "attempt", { phase: "created", results: [], destination: { platform: "github", key: "1", url, locator: { owner: "o", repo: "r", number: "1" } } })).rejects.toThrow();
+  });
+
+  it("rolls back on asynchronous transaction abort after successful requests", async () => {
+    const value = meta();
+    value.files = [{ id: "logs", kind: "logs", filename: "logs.html", contentType: "text/html", source: { kind: "generated", key: "file:attempt:logs" } }];
+    const originalPut = IDBObjectStore.prototype.put;
+    vi.spyOn(IDBObjectStore.prototype, "put").mockImplementation(function (this: IDBObjectStore, value, key) {
+      const request = originalPut.call(this, value, key);
+      if (key === "file:attempt:logs") request.addEventListener("success", () => this.transaction.abort());
+      return request;
+    });
+    await expect(db.beginSubmissionRecovery(value, new Map([["file:attempt:logs", new Blob(["first"])]]))).rejects.toThrow();
+    expect(await keys()).toEqual([]);
+  });
+  it("cannot journal an original that GC removed before begin", async () => {
+    const value = meta();
+    value.files = [{ id: "video", kind: "video", filename: "v.mp4", contentType: "video/mp4", source: { kind: "original", store: "blobs", key: "issue" } }];
+    await expect(db.beginSubmissionRecovery(value, new Map())).rejects.toThrow();
+    expect(await db.readSubmissionRecovery("issue")).toBeNull();
+  });
+
+  it("can fill a created destination permalink without changing its identity", async () => {
+    const value = { ...meta(), platform: "slack" as const };
+    await db.beginSubmissionRecovery(value, new Map());
+    await db.checkpointSubmission("issue", "attempt", { phase: "creating", results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "created", destination: { platform: "slack", key: "1.2", locator: { channelId: "C1", ts: "1.2" } }, results: [] });
+    await expect(db.checkpointSubmission("issue", "attempt", { phase: "complete", destination: { platform: "slack", key: "1.2", locator: { channelId: "C2", ts: "1.2" } }, results: [] })).rejects.toThrow();
+    await db.checkpointSubmission("issue", "attempt", { phase: "complete", destination: { platform: "slack", key: "1.2", url: "https://workspace.slack.com/archives/C1/p12", locator: { ts: "1.2", channelId: "C1" } }, results: [] });
+    expect((await db.readSubmissionRecovery("issue"))?.destination?.url).toBe("https://workspace.slack.com/archives/C1/p12");
+  });
+
+  it.each<AttachmentResult>([
+    { fileId: "video", delivery: "failed", presentation: "not-applicable" },
+    { fileId: "video", delivery: "unknown", presentation: "not-applicable" },
+    { fileId: "video", delivery: "attached", presentation: "failed" },
+    { fileId: "video", delivery: "attached", presentation: "complete", failure: { stage: "body", code: "unknown" } },
+  ])("rejects invalid completion without changing its prior checkpoint: %j", async (result) => {
+    await db.saveVideoBlob("issue", new Blob(["keep"]));
+    const value = meta();
+    value.files = [{ id: "video", kind: "video", filename: "v.mp4", contentType: "video/mp4", source: { kind: "original", store: "blobs", key: "issue" } }];
+    await db.beginSubmissionRecovery(value, new Map());
+    await db.checkpointSubmission("issue", "attempt", { phase: "creating", results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "created", destination: { platform: "github", key: "1", locator: { owner: "o", repo: "r", number: "1" } }, results: [] });
+    const before = await db.readSubmissionRecovery("issue");
+    await expect(db.checkpointSubmission("issue", "attempt", { phase: "complete", results: [result] })).rejects.toThrow();
+    expect(await db.readSubmissionRecovery("issue")).toEqual(before);
+    expect(await (await db.getVideoBlob("issue"))?.text()).toBe("keep");
+  });
+  it("cannot release a key shared by complete and incomplete files in the same attempt", async () => {
+    await db.saveVideoBlob("issue", new Blob(["keep"]));
+    const value = meta();
+    value.files = ["video", "copy"].map((id) => ({ id, kind: "video", filename: "v.mp4", contentType: "video/mp4", source: { kind: "original", store: "blobs", key: "issue" } }));
+    await db.beginSubmissionRecovery(value, new Map());
+    await db.checkpointSubmission("issue", "attempt", { phase: "creating", results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "created", destination: { platform: "github", key: "1", locator: { owner: "o", repo: "r", number: "1" } }, results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "partial", results: [{ fileId: "video", delivery: "attached", presentation: "complete" }] });
+    const before = await db.readSubmissionRecovery("issue");
+    await expect(db.deleteOriginalKeys("issue", "attempt", [value.files[0].source])).rejects.toThrow();
+    expect(await (await db.getVideoBlob("issue"))?.text()).toBe("keep");
+    expect(await db.readSubmissionRecovery("issue")).toEqual(before);
+  });
+  it("rolls back an earlier completed-source deletion when a later source is incomplete", async () => {
+    await db.saveVideoBlob("done", new Blob(["done"]));
+    await db.saveVideoBlob("pending", new Blob(["pending"]));
+    const value = meta();
+    value.files = ["done", "pending"].map((id) => ({ id, kind: "video", filename: "v.mp4", contentType: "video/mp4", source: { kind: "original", store: "blobs", key: id } }));
+    await db.beginSubmissionRecovery(value, new Map());
+    await db.checkpointSubmission("issue", "attempt", { phase: "creating", results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "created", destination: { platform: "github", key: "1", locator: { owner: "o", repo: "r", number: "1" } }, results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "partial", results: [{ fileId: "done", delivery: "attached", presentation: "complete" }] });
+    const before = await db.readSubmissionRecovery("issue");
+    await expect(db.deleteOriginalKeys("issue", "attempt", value.files.map((f) => f.source))).rejects.toThrow();
+    expect(await (await db.getVideoBlob("done"))?.text()).toBe("done");
+    expect(await (await db.getVideoBlob("pending"))?.text()).toBe("pending");
+    expect(await db.readSubmissionRecovery("issue")).toEqual(before);
+  });
+  it("explicit original cleanup preserves ordinary references and fails closed on their lookup", async () => {
+    await db.saveInlineImage("ref", new Blob(["keep"]));
+    const value = meta();
+    value.files = [{ id: "inline:ref", kind: "inline", filename: "i.png", contentType: "image/png", source: { kind: "original", store: "inlineImages", key: "ref" } }];
+    await db.beginSubmissionRecovery(value, new Map());
+    await db.checkpointSubmission("issue", "attempt", { phase: "creating", results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "created", destination: { platform: "github", key: "1", locator: { owner: "o", repo: "r", number: "1" } }, results: [] });
+    await db.checkpointSubmission("issue", "attempt", { phase: "complete", results: [{ fileId: "inline:ref", delivery: "attached", presentation: "complete" }] });
+    vi.stubGlobal("chrome", { storage: { session: { get: async () => ({ "editor:7": { draft: { sections: { description: "![](inline:ref)" } } } }) }, local: { get: async () => ({}) } } });
+    await db.deleteOriginalKeys("issue", "attempt", [value.files[0].source]);
+    expect(await (await db.getInlineImage("ref"))?.text()).toBe("keep");
+    const before = await db.readSubmissionRecovery("issue");
+    vi.stubGlobal("chrome", { storage: { session: { get: async () => { throw new Error("unavailable"); } } } });
+    const deletes = vi.spyOn(IDBObjectStore.prototype, "delete");
+    await expect(db.deleteOriginalKeys("issue", "attempt", [value.files[0].source])).rejects.toThrow();
+    expect(deletes).not.toHaveBeenCalled();
+    expect(await (await db.getInlineImage("ref"))?.text()).toBe("keep");
+    expect(await db.readSubmissionRecovery("issue")).toEqual(before);
+  });
+
 });

@@ -1,3 +1,4 @@
+import { useEditorStore } from "../editor-store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrateIssueToV4 } from "../issues-migrations";
 import type { PlatformId } from "@/types/platform";
@@ -550,6 +551,22 @@ describe("pruneOrphanBlobs — rehydrate 실패 시 fail-closed", () => {
     // setState는 persist의 setItem을 태우므로 chrome 스텁이 살아있는 동안 되돌린다.
     useIssuesStore.setState({ issues: [] });
     vi.unstubAllGlobals();
+  });
+
+  it("journal enumeration failure prevents every orphan deletion", async () => {
+    vi.mocked(listSubmissionRecoveries).mockRejectedValueOnce(new Error("journal unavailable"));
+    getItem.mockResolvedValue({ [KEY]: JSON.stringify({ state: { issues: [] }, version: 5 }) });
+    await useIssuesStore.persist.rehydrate();
+    await flush();
+    for (const fn of allDeletes()) expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("journal-only issues remain in the prune live set", async () => {
+    vi.mocked(listSubmissionRecoveries).mockResolvedValueOnce([{ issueId: "issue-1" } as Awaited<ReturnType<typeof listSubmissionRecoveries>>[number]]);
+    getItem.mockResolvedValue({ [KEY]: JSON.stringify({ state: { issues: [] }, version: 5 }) });
+    await useIssuesStore.persist.rehydrate();
+    await flush();
+    for (const fn of allDeletes()) expect(fn).not.toHaveBeenCalled();
   });
 
   it("에러가 있으면 prune 판정이 false, 없으면 true", () => {
@@ -1337,5 +1354,24 @@ describe("recovery purge ordering", () => {
     finish();
     await pending;
     expect(useIssuesStore.getState().issues).toEqual([]);
+  });
+});
+
+
+describe("deferred clear editor ownership", () => {
+  it("preserves a new pending editor opened while purge is pending", async () => {
+    vi.stubGlobal("chrome", { storage: { local: { set: vi.fn(async () => {}) } } });
+    let finish!: () => void;
+    vi.mocked(purgeRecoveryForIssues).mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+    useIssuesStore.setState({ issues: [] });
+    const oldEditor = useEditorStore.getState();
+    const pending = useIssuesStore.getState().clearIssues();
+    useEditorStore.setState({ currentIssueId: null, phase: "drafting", draft: { title: "New draft", sections: {} } });
+    finish();
+    await pending;
+    expect(useEditorStore.getState().draft?.title).toBe("New draft");
+    expect(useEditorStore.getState().phase).toBe("drafting");
+    useEditorStore.setState(oldEditor);
+    vi.unstubAllGlobals();
   });
 });

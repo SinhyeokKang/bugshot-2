@@ -1,3 +1,4 @@
+import type { AttachmentResult } from "./attachment";
 import type { PlatformAccountBase } from "./platform";
 
 export interface SlackOAuthAuth {
@@ -54,6 +55,8 @@ export interface SlackPostResult {
 }
 
 export interface SlackUploadResult {
+  fileId?: string;
+  failure?: AttachmentResult["failure"];
   filename: string;
   ok: boolean;
 }

@@ -1,3 +1,4 @@
+import type { AttachmentResult } from "./attachment";
 import type { JiraAuth } from "./jira";
 import type { GithubAccount } from "./github";
 import type { LinearAccount } from "./linear";
@@ -114,6 +115,8 @@ export interface NotionLastSubmitFields {
 }
 
 export interface NormalizedSubmitResult {
+  // Optional only while existing adapters migrate to per-file results.
+  attachments?: AttachmentResult[];
   key: string;
   url: string;
   // logs.html 첨부가 플랫폼 용량 한도로 격리 처리돼 누락됐을 때 true (이슈는 생성됨).

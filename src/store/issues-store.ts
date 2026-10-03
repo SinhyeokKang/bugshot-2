@@ -7,23 +7,19 @@ import { failClosedLocalStorage } from "./chrome-storage";
 import { useEditorStore, type CaptureMode } from "./editor-store";
 import { clearPicker } from "@/sidepanel/picker-clear";
 import {
+  purgeRecoveryForIssues,
+  listSubmissionRecoveries,
   deleteVideoBlob,
-  clearVideoBlobs,
   getVideoBlobKeys,
   deleteImageBlobs,
-  clearImageBlobs,
   getImageBlobKeys,
   deleteNetworkLog,
-  clearNetworkLogs,
   getNetworkLogKeys,
   deleteConsoleLog,
-  clearConsoleLogs,
   getConsoleLogKeys,
   deleteActionLog,
-  clearActionLogs,
   getActionLogKeys,
   deleteAttachmentBlobs,
-  clearAttachmentBlobs,
   getAttachmentBlobKeys,
   saveImageBlobRaw,
   dataUrlToBlob,
@@ -309,9 +305,11 @@ export function mergeIssuesState(
 }
 
 async function pruneOrphanBlobs(): Promise<void> {
+  const recoveries = await listSubmissionRecoveries();
   const currentIds = new Set(
     useIssuesStore.getState().issues.map((i) => i.id),
   );
+  for (const meta of recoveries) currentIds.add(meta.issueId);
   const deletions: Promise<unknown>[] = [];
   const videoBlobKeys = await getVideoBlobKeys();
   for (const key of videoBlobKeys) {
@@ -590,8 +588,8 @@ export interface IssuesState {
     index: number,
     patch: { hasBefore?: boolean; hasAfter?: boolean },
   ) => void;
-  removeIssue: (id: string) => void;
-  clearIssues: () => void;
+  removeIssue: (id: string) => Promise<void>;
+  clearIssues: () => Promise<void>;
 }
 
 export const useIssuesStore = create<IssuesState>()(
@@ -688,7 +686,8 @@ export const useIssuesStore = create<IssuesState>()(
               : x,
           ),
         })),
-      removeIssue: (id) => {
+      removeIssue: async (id) => {
+        await purgeRecoveryForIssues([id]);
         set((s) => ({ issues: s.issues.filter((x) => x.id !== id) }));
         deleteVideoBlob(id).catch(() => {});
         deleteImageBlobs(id).catch(() => {});
@@ -698,15 +697,19 @@ export const useIssuesStore = create<IssuesState>()(
         deleteAttachmentBlobs(id).catch(() => {});
         resetEditorIfEditing(id);
       },
-      clearIssues: () => {
-        set({ issues: [] });
-        clearVideoBlobs().catch(() => {});
-        clearImageBlobs().catch(() => {});
-        clearNetworkLogs().catch(() => {});
-        clearConsoleLogs().catch(() => {});
-        clearActionLogs().catch(() => {});
-        clearAttachmentBlobs().catch(() => {});
-        resetEditorIfEditing(null);
+      clearIssues: async () => {
+        const editorAtStart = useEditorStore.getState();
+        const ids = useIssuesStore.getState().issues.map((issue) => issue.id);
+        await purgeRecoveryForIssues(ids);
+        set((s) => ({ issues: s.issues.filter((issue) => !ids.includes(issue.id)) }));
+        for (const id of ids) deleteVideoBlob(id).catch(() => {});
+        for (const id of ids) deleteImageBlobs(id).catch(() => {});
+        for (const id of ids) deleteNetworkLog(id).catch(() => {});
+        for (const id of ids) deleteConsoleLog(id).catch(() => {});
+        for (const id of ids) deleteActionLog(id).catch(() => {});
+        for (const id of ids) deleteAttachmentBlobs(id).catch(() => {});
+        const editor = useEditorStore.getState();
+        if (editor === editorAtStart || (editor.currentIssueId && ids.includes(editor.currentIssueId))) resetEditorIfEditing(null);
       },
     }),
     {
@@ -717,7 +720,7 @@ export const useIssuesStore = create<IssuesState>()(
       merge: mergeIssuesState,
       onRehydrateStorage: () => (_state, error) => {
         if (!shouldPruneAfterRehydrate(error, externalSyncDepth > 0)) return;
-        void pruneOrphanBlobs();
+        void pruneOrphanBlobs().catch((error) => console.warn("[issues-store] prune failed:", error));
       },
     },
   ),

@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
@@ -853,10 +854,14 @@ export function DraftDetailDialog({
     });
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!issue) return;
-    removeIssue(issue.id);
-    onOpenChange(false);
+    try {
+      await removeIssue(issue.id);
+      onOpenChange(false);
+    } catch {
+      toast.error(t("bg.error.unknown"));
+    }
   }
 
   function handleSaveEdit(nextValue: string) {

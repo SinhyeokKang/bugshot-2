@@ -38,4 +38,11 @@ describe("attachment result contracts", () => {
     expect(submissionPresentation("created", [])).toEqual({ screen: "success", showPanel: false, showToast: false });
     expect(submissionPresentation("created", reconcileAttachmentResults(files, []))).toEqual({ screen: "partial", showPanel: true, showToast: false });
   });
+  it("rejects duplicate intentions and strips raw error fields", () => {
+    expect(() => reconcileAttachmentResults([files[0], files[0]], [attached("logs")])).toThrow();
+    const failure = { stage: "upload" as const, code: "unknown" as const, httpStatus: 500, token: "secret", rawBody: "private" };
+    expect(reconcileAttachmentResults([files[0]], [{ fileId: "logs", delivery: "failed", presentation: "not-applicable", failure }])[0].failure)
+      .toEqual({ stage: "upload", code: "unknown", httpStatus: 500 });
+  });
+
 });
