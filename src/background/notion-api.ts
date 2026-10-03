@@ -779,7 +779,18 @@ export async function getBlockChildren(auth: NotionAuth, blockId: string): Promi
 // the sidepanel stores the returned IDs before any further write.
 export async function appendBlockChildren(auth: NotionAuth, blockId: string, children: Record<string, unknown>[]): Promise<string[]> {
   if (!children.length || children.length > 100) throw new Error("Notion append requires 1-100 blocks");
-  const result = await notionFetch<{ results?: Array<{ id?: unknown; type?: unknown }> }>(auth, `/blocks/${encodeURIComponent(blockId)}/children`, { method: "PATCH", body: { children } });
+  let result: { results?: Array<{ id?: unknown; type?: unknown }> };
+  try {
+    result = await notionFetch(auth, `/blocks/${encodeURIComponent(blockId)}/children`, { method: "PATCH", body: { children } });
+  } catch (error) {
+    // A trashed target is rejected as a generic 400 validation_error; the documented signal is the
+    // block's own archived/in_trash flag, read only after the rejected (non-applied) write.
+    if (error instanceof NotionError && error.status === 400) {
+      const target = await notionFetch<{ archived?: unknown; in_trash?: unknown }>(auth, `/blocks/${encodeURIComponent(blockId)}`);
+      if (target.archived === true || target.in_trash === true) throw new NotionError(404, messageForNotionStatus(404), { code: "object_not_found" });
+    }
+    throw error;
+  }
   const blocks = result.results ?? [];
   // Some versions answered with the parent's existing children; a 1:1 type match is the minimum
   // evidence these are the new blocks. On mismatch the write may have landed: callers treat the

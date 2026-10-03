@@ -426,14 +426,30 @@ export async function getViewerIdentity(auth: LinearAuth): Promise<{ userId: str
   return { userId: data.viewer.id, organizationId: data.organization.id };
 }
 
+// Linear answers HTTP 200 with GraphQL errors; there is no documented not-found code. The only
+// input of the root `issue(id:)` lookup is the id, so an "invalid input" error on that exact path
+// (SDK errorMap type) means the id no longer resolves for this token.
+function isUnresolvedIssue(error: unknown): boolean {
+  if (!(error instanceof LinearError) || error.status !== 200 || !Array.isArray(error.body)) return false;
+  return error.body.some((e: { path?: unknown; extensions?: { type?: unknown } }) =>
+    Array.isArray(e.path) && e.path.length === 1 && e.path[0] === "issue" && e.extensions?.type === "invalid input");
+}
+
 export async function getIssueAttachments(auth: LinearAuth, issueId: string): Promise<{ description: string; attachments: Array<{ id: string; url: string }> }> {
   const attachments: Array<{ id: string; url: string }> = [];
   let after: string | null = null;
   let description = "";
   const cursors = new Set<string>();
   do {
-    const result: { issue: { description: string | null; attachments: { nodes: Array<{ id: string; url: string }>; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } } = await linearGraphQL(auth,
-      `query($id: String!, $after: String) { issue(id: $id) { description attachments(first: 100, after: $after) { nodes { id url } pageInfo { hasNextPage endCursor } } } }`, { id: issueId, after });
+    let result: { issue: { description: string | null; attachments: { nodes: Array<{ id: string; url: string }>; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } | null };
+    try {
+      result = await linearGraphQL(auth,
+        `query($id: String!, $after: String) { issue(id: $id) { description attachments(first: 100, after: $after) { nodes { id url } pageInfo { hasNextPage endCursor } } } }`, { id: issueId, after });
+    } catch (error) {
+      if (isUnresolvedIssue(error)) throw new LinearError(404, messageForLinearStatus(404), (error as LinearError).body);
+      throw error;
+    }
+    if (result.issue === null) throw new LinearError(404, messageForLinearStatus(404));
     if (!result.issue || !Array.isArray(result.issue.attachments?.nodes) || (result.issue.description !== null && typeof result.issue.description !== "string")) throw new Error("Invalid Linear issue response");
     description = result.issue.description ?? "";
     attachments.push(...result.issue.attachments.nodes);

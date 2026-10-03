@@ -756,6 +756,7 @@ function validateRetrySnapshot(value: unknown, ids: Set<string>, platform: strin
       || !["pending", "done", "failed", "unknown", "conflict", "not-applicable"].includes(String(cp.body))
       || (cp.linkedId !== undefined && !nonempty(cp.linkedId))) throw new Error("Invalid file checkpoint");
     seen.add(cp.fileId);
+    if (Object.hasOwn(cp, "uploaded") && cp.uploaded === undefined) throw new Error("Invalid uploaded locator");
     if (cp.uploaded !== undefined) validateUploaded(cp.uploaded, platform);
     if (cp.upload === "done" && !cp.uploaded) throw new Error("Missing uploaded locator");
   }
@@ -1132,7 +1133,8 @@ export async function checkpointAttachmentRetry(issueId: string, attemptId: stri
     const retry = current.retry;
     if (!retry || retry.revision !== expectedRevision || current.localFilesRemoved
       || current.phase === "complete" || current.phase === "unknown") throw new Error("Stale retry revision or unavailable recovery");
-    if (update.accountIdentity !== undefined && retry.accountIdentity !== null) throw new Error("Retry account identity is immutable");
+    // Written once by the initial submission between creation and finalization; never backfilled later.
+    if (update.accountIdentity !== undefined && (retry.accountIdentity !== null || current.phase !== "created")) throw new Error("Retry account identity is immutable");
     const incoming = new Map((update.checkpoints ?? []).map((cp) => [cp.fileId, cp]));
     if ([...incoming.keys()].some((id) => !retry.checkpoints.some((cp) => cp.fileId === id))) throw new Error("Unknown retry file");
     const revision = expectedRevision + 1;

@@ -36,7 +36,9 @@ export interface SlackSubmitInput extends SubmissionAdapterInput {
 
 // Byte length from the base64 payload without decoding it (120s video would be decoded twice).
 function base64ByteLength(dataUrl: string): number {
-  const payload = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  const marker = dataUrl.indexOf(";base64,");
+  if (!dataUrl.startsWith("data:") || marker < 0) throw new Error("Invalid data URL");
+  const payload = dataUrl.slice(marker + ";base64,".length);
   return Math.floor((payload.length * 3) / 4) - (payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0);
 }
 
@@ -82,7 +84,8 @@ export async function submitToSlack(
     // Before complete Slack discards the upload, so any pre-complete failure is safe to redo.
     const failed = async (error: unknown) => {
       responses.push({ fileId: file.fileId, filename: file.filename, ok: false, failure: safeAttachmentFailure(error) });
-      if (file.fileId) await input.progress?.fileCheckpoint({ fileId: file.fileId, upload: "failed" });
+      // The allocated id is discarded with the upload, so it must not look reusable.
+      if (file.fileId) await input.progress?.fileCheckpoint({ fileId: file.fileId, upload: "failed", uploaded: undefined });
     };
     let allocation: { fileId: string; uploadUrl: string };
     try {

@@ -23,7 +23,8 @@ export interface SubmissionProgress {
   attemptId: string;
   beforeCreate(): Promise<void>;
   created(remote: CreatedDestination): Promise<void>;
-  // Adapters await these right after a remote response, before their next remote write.
+  // Adapters await these right after a remote response, before their next remote write. They never
+  // reject: a storage failure only disables auto-retry for the record. `undefined` clears a field.
   fileCheckpoint(...files: AttachmentCheckpointPatch[]): Promise<void>;
   bodyWritten(lastWritten: string, ...files: AttachmentCheckpointPatch[]): Promise<void>;
 }
@@ -231,7 +232,9 @@ export async function runSubmissionRecovery(
       const merged = (patch.files ?? []).map((file) => {
         const current = checkpoints.get(file.fileId);
         if (!current) throw new Error("Unknown checkpoint file");
-        return { ...current, ...file };
+        const next: Record<string, unknown> = { ...current, ...file };
+        for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key];
+        return next as unknown as AttachmentCheckpoint;
       });
       revision = await checkpointAttachmentRetry(issueId, attemptId, revision, {
         checkpoints: merged,
