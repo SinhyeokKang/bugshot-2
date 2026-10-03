@@ -223,6 +223,8 @@ describe("Slack staged uploads", () => {
       "cp:user:a:link=unknown", "cp:user:b:link=unknown", "send:slack.completeFileUploads", "cp:user:a:link=done", "cp:user:b:link=done",
     ]);
     expect(checkpoints.find((c) => c.fileId === "user:a" && c.upload === "pending")?.uploaded).toEqual({ platform: "slack", id: "F-user:a" });
+    const grants = sendBg.mock.calls.map(([m]) => m).filter((m) => m.type === "slack.requestFileUpload");
+    expect(grants.map((m) => m.length)).toEqual([Buffer.from("user:a").length, Buffer.from("user:b").length]);
     const bytes = sendBg.mock.calls.map(([m]) => m).filter((m) => m.type === "slack.sendFileUpload");
     expect(bytes.map((m) => m.dataUrl)).toEqual([user.dataUrl, user2.dataUrl]);
     expect(sendBg.mock.calls.map(([m]) => m).find((m) => m.type === "slack.completeFileUploads")).toMatchObject({ channelId: "C", threadTs: "1.2", files: [{ id: "F-user:a", title: "a.pdf" }, { id: "F-user:b", title: "b.pdf" }] });

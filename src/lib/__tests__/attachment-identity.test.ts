@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attachmentAccountIdentity, retryFailureReason } from "../attachment-identity";
+import { attachmentAccountIdentity } from "../attachment-identity";
 
 describe("attachmentAccountIdentity", () => {
   it.each([
@@ -34,27 +34,5 @@ describe("attachmentAccountIdentity", () => {
     expect(attachmentAccountIdentity("linear", { organizationId: " ", userId: "u" })).toBeNull();
     expect(attachmentAccountIdentity("gitlab", { baseUrl: "https://user:secret@gitlab.example", userId: 1 })).toBeNull();
     expect(attachmentAccountIdentity("gitlab", { baseUrl: "not a url", userId: 1 })).toBeNull();
-  });
-});
-
-describe("retryFailureReason", () => {
-  it.each([
-    [401, "authentication"], [403, "permission"], [404, "remote-missing"], [410, "remote-missing"], [500, "ambiguous"],
-  ] as const)("maps HTTP %i to %s", (status, reason) => {
-    expect(retryFailureReason({ status, message: "secret", body: { token: "secret" } })).toBe(reason);
-  });
-
-  it("treats an exhausted OAuth refresh as authentication", () => {
-    expect(retryFailureReason({ status: 401, body: { platform: "jira", oauthRefreshFailed: true } })).toBe("authentication");
-    expect(retryFailureReason({ body: { oauthRefreshFailed: true } })).toBe("authentication");
-  });
-
-  it("maps provider codes and leaves an unknown outcome ambiguous", () => {
-    expect(retryFailureReason({ status: 200, code: "missing_scope" })).toBe("permission");
-    expect(retryFailureReason({ status: 200, code: "token_revoked" })).toBe("authentication");
-    expect(retryFailureReason({ status: 200, code: "channel_not_found" })).toBe("remote-missing");
-    expect(retryFailureReason({ status: 200, body: { platform: "slack", code: "not_in_channel" } })).toBe("permission");
-    expect(retryFailureReason(new TypeError("Failed to fetch"))).toBe("ambiguous");
-    expect(retryFailureReason(undefined)).toBe("ambiguous");
   });
 });

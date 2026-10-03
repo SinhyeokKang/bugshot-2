@@ -96,6 +96,8 @@ describe.each(providers)("%s missing delivery evidence", (name, submit, args, cr
       if (msg.type === "linear.uploadFile") return { assetUrl: "https://files.example/file" };
       if (msg.type === "notion.uploadFile") return { fileUploadId: "remote-file" };
       if (msg.type === "jira.uploadAttachment") return { filename: msg.attachment.filename, ok: true, href: "https://files.example/file", file: { kind: "external", url: "https://files.example/file" } };
+      // Staged Slack: an allocation without a file id is the missing-evidence case.
+      if (msg.type === "slack.requestFileUpload") return {};
       if (msg.files) return [];
       return { ok: true };
     });

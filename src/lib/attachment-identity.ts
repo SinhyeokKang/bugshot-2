@@ -1,4 +1,4 @@
-import type { AttachmentRetryReason, RetryPlatform } from "@/types/attachment";
+import type { RetryPlatform } from "@/types/attachment";
 
 // Stable per-account IDs only; tokens and display names never participate, so a refresh keeps the identity.
 const IDENTITY_FIELDS: Record<RetryPlatform, readonly string[]> = {
@@ -27,17 +27,4 @@ export function attachmentAccountIdentity(platform: RetryPlatform, input: Record
     parts.push(part);
   }
   return JSON.stringify([platform, ...parts]);
-}
-
-const AUTH_CODES = ["invalid_auth", "token_revoked", "account_inactive", "not_authed"];
-const PERMISSION_CODES = ["missing_scope", "no_permission", "not_in_channel", "restricted_action"];
-
-export function retryFailureReason(error: unknown): Extract<AttachmentRetryReason, "authentication" | "permission" | "remote-missing" | "ambiguous"> {
-  const value = error && typeof error === "object" ? error as { status?: unknown; code?: unknown; body?: unknown } : {};
-  const body = value.body && typeof value.body === "object" ? value.body as Record<string, unknown> : {};
-  const code = typeof value.code === "string" ? value.code : typeof body.code === "string" ? body.code : "";
-  if (body.oauthRefreshFailed === true || value.status === 401 || AUTH_CODES.includes(code)) return "authentication";
-  if (value.status === 403 || PERMISSION_CODES.includes(code)) return "permission";
-  if (value.status === 404 || value.status === 410 || code === "channel_not_found") return "remote-missing";
-  return "ambiguous";
 }

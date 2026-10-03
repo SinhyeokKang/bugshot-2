@@ -1,6 +1,5 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
 import { bindSubmissionFiles, deliveryResults, submitCreation, type DeliveryResponse, type SubmissionAdapterInput } from "./submissionAdapter";
-import { dataUrlToBlob } from "@/store/blob-db";
 import { buildSlackBody } from "./buildSlackBody";
 import { splitSlackText } from "./splitSlackText";
 import { escapeMrkdwn } from "./markdownToMrkdwn";
@@ -33,6 +32,12 @@ export interface SlackSubmitInput extends SubmissionAdapterInput {
   inlineImages?: InlineImageInput[];
   channelId: string;
   mentions?: { id: string; name: string }[];
+}
+
+// Byte length from the base64 payload without decoding it (120s video would be decoded twice).
+function base64ByteLength(dataUrl: string): number {
+  const payload = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  return Math.floor((payload.length * 3) / 4) - (payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0);
 }
 
 export async function submitToSlack(
@@ -85,7 +90,7 @@ export async function submitToSlack(
         type: "slack.requestFileUpload",
         ...(file.fileId ? { fileId: file.fileId } : {}),
         filename: file.filename,
-        length: dataUrlToBlob(file.dataUrl).size,
+        length: base64ByteLength(file.dataUrl),
       });
       if (!allocation?.fileId || !allocation.uploadUrl) throw new Error("Invalid Slack upload allocation");
     } catch (error) { await failed(error); continue; }

@@ -166,6 +166,15 @@ describe("existing-issue read handlers", () => {
     expect(fetch.mock.calls.map(([, init]) => (init as RequestInit | undefined)?.method ?? "GET")).toEqual(["GET", "PATCH"]);
   });
 
+  it("deletes a Notion block only for an extension page sender", async () => {
+    vi.stubGlobal("chrome", { runtime: { id: "ext" } });
+    const fetch = route([["/blocks/b1", { id: "b1", archived: true }]]);
+    await expect(handleMessage({ type: "notion.deleteBlock", blockId: "b1" }, { origin: "https://evil.example" })).rejects.toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await handleMessage({ type: "notion.deleteBlock", blockId: "b1" }, { origin: "chrome-extension://ext" })).toEqual({ ok: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("returns Notion append block IDs and refuses an oversized batch before any request", async () => {
     const fetch = route([["/blocks/page/children", { results: [{ id: "n1", type: "paragraph" }] }]]);
     expect(await handleMessage({ type: "notion.appendBlockChildren", blockId: "page", children: [{ type: "paragraph" }] }, {})).toEqual({ blockIds: ["n1"] });

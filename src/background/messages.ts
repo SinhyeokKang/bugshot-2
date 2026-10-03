@@ -534,6 +534,8 @@ export async function handleMessage(
       return { blockIds: await appendNotionBlockChildren(await loadNotionAuth(), message.blockId, message.children) };
 
     case "notion.deleteBlock":
+      // Irreversible (a page ID is also a block ID): only extension pages may ask for it.
+      if (sender.origin !== `chrome-extension://${chrome.runtime.id}`) throw new Error("notion.deleteBlock: sender is not an extension page");
       await deleteNotionBlock(await loadNotionAuth(), message.blockId);
       return { ok: true };
 

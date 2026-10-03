@@ -142,7 +142,7 @@ export async function submitToNotion(
       }
       throw err;
     }
-    // Outside the try: a storage failure must stop the submission, not read as an upload failure.
+    // Outside the try so a checkpoint problem is never misread as an upload failure.
     if (a.fileId) await input.progress?.fileCheckpoint({ fileId: a.fileId, upload: "done", uploaded: { platform: "notion", id: res.fileUploadId, expiresAt: res.expiresAt ?? null } });
     uploaded.push({
       fileId: a.fileId,
