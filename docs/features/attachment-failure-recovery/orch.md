@@ -15,7 +15,7 @@
 | Batch | Tasks / ownership | Prerequisite | Gate | Status |
 |---|---|---|---|---|
 | B1 contracts/storage | 1, 3: attachment contracts, attachmentResults, blob-db, issues-store cleanup/GC, e2e DB seed | none | contract/IDB tests + common gate + independent review | integrated; all gates passed |
-| B2 lifecycle | 2, 4: file preparation, submissionRecovery, store durability, both submit entry points | B1 | missing sources/unknown/reconcile/durability tests + common gate + independent review | launching |
+| B2 lifecycle | 2, 4: file preparation, submissionRecovery, store durability, both submit entry points | B1 | missing sources/unknown/reconcile/durability tests + common gate + independent review | implementing |
 | B3 adapters/body | 5, 6: all nine adapters, APIs/messages, Jira split, safe body fallbacks | B2 | platform matrix + common gate + independent review | planned |
 | B4 recovery UI | 7: panel, success/list/detail, download, i18n | B3 | interaction/accessibility tests + common gate + independent review | planned |
 | B5 acceptance | 8: obsolete contract removal, integration/e2e, guide/privacy/docs | B4 | phase-1 e2e + common gate + independent review | planned |
@@ -37,7 +37,7 @@
 | B3/B5 | adapter tests, bodyLocale scans, messages | serial |
 | all/B5 | ARCHITECTURE, DIRECTORY, POSTMORTEM, privacy, guide | coordinator integrates documentation after implementation |
 
-The plan permits narrower platform fan-out after contracts settle, but shared message registries and body builders make serial batches the initial schedule. Any split requires updated ownership here before dispatch. Reviews precede integration; defects return to owners. No intermediate feature push until all adapters and original-file protection are connected.
+The plan permits narrower platform fan-out after contracts settle, but shared message registries and body builders make serial batches the initial schedule. Any split requires updated ownership here before dispatch. Reviews precede integration; defects return to owners. Reviewed integrated batches may be pushed to dev for CI; phase-1 release waits until all adapters, original-file protection, and recovery UI are connected.
 
 ## Evidence and outstanding work
 
@@ -54,4 +54,6 @@ The plan permits narrower platform fan-out after contracts settle, but shared me
 - B1 cleanup contract correction: `deleteOriginalKeys(issueId, attemptId, sources)` validates the current partial/complete journal and successful matching sources. B2 must invoke after durable submitted persistence and before journal deletion. Other journal/draft/session refs remain protected; reference lookup failure aborts before writes. `begin` checks original existence in the same transaction. B2 brief updated.
 - B1 final: CTO PASS after reproducing and fixing stable Slack identity/permalink enrichment (133 selected tests independently passed). Owner final gates exit 0: 405 files / 7798 passed / 2 skipped, typecheck, mirror; existing v9 seed e2e passed twice. Nonblocking destructive-guard test branches were also added before final commit. Source commits `fd8d42ed`, `d62a8847`, `93ae8889`, `101ebcb9` integrated as `526106ab`, `080b3d26`, `e3cb4c9d`, `df334be2`. All four B1 worker/reviewer terminals released; handoff/CTO report copied to coordinator scratch before cleanup. Main-checkout integration gate running.
 - B1 main-checkout integration `pnpm typecheck && pnpm test && pnpm sync:agents:check` exited 0; 405 files / 7798 passed / 2 skipped. Clean worker checkout and `git cherry dev` four minus entries verified before cleanup. Tasks 1 and proven storage checks marked; B2-dependent acceptance remains unchecked.
+- B1 worktree removed via Orca after clean/cherry checks. B2 task `task_c41394048156` / dispatch `ctx_233229964814`, child `/Users/sinhyeok/orca/workspaces/bugshot-2/attachment-recovery-b2`, base `4e6e7734`. Reviews are coordinator-launched; no nested worker launch under the parent Run.
+- Deployment boundary clarification requested: repository `/deploy` ends at tag/store ZIP/Release draft; store upload/review submission is manual by that skill. Phase 1 implementation proceeds while the user clarifies whether the phase-2 gate is command completion or store publication.
 - No external upload has run yet.
