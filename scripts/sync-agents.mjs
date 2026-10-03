@@ -3,7 +3,7 @@
 //   CLAUDE.md            → AGENTS.md                                  (.agents/PREAMBLE.md 를 앞에 붙임)
 //   .claude/commands/*.md → .agents/skills/source-command-<n>/SKILL.md (래퍼만 씌우고 본문은 원문 그대로)
 // 본문은 치환하지 않는다 — 미러가 `CLAUDE.md`·`.claude/commands/` 원본을 그대로 가리켜야 정확하다.
-// Codex 런타임 차이(훅 부재·미제공 스킬 등)는 전부 PREAMBLE 로 몰아둔다.
+// Codex 런타임 차이(훅 부재 등)는 전부 PREAMBLE 로 몰아둔다.
 //
 // 사용: node scripts/sync-agents.mjs [--check]
 //   --check  파일을 쓰지 않고 드리프트만 검출 (드리프트 있으면 exit 1)
@@ -14,11 +14,6 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CHECK = process.argv.includes("--check");
-
-// 원격·릴리스 상태를 바꾸는 스킬은 Codex 런타임에서 쓰지 않으므로 미러하지 않는다.
-// (릴리스 파이프라인 게이트는 단일 창구여야 한다 — 원격 CI 결론 조회·버전 bump·tag가 경쟁하면 깨진다.)
-// (`ship`은 미러한다 — 12단계 `/e2e-run`까지가 전부 로컬이고, 13·14단계 중단 규칙은 스킬 본문에 박혀 있다.)
-const EXCLUDE = new Set(["push", "merge", "deploy", "sync"]);
 
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
 
@@ -64,7 +59,6 @@ const mirrored = new Set();
 for (const file of readdirSync(join(ROOT, ".claude/commands")).sort()) {
   if (!file.endsWith(".md")) continue;
   const name = file.slice(0, -3);
-  if (EXCLUDE.has(name)) continue;
   mirrored.add(`source-command-${name}`);
   outputs.set(
     `.agents/skills/source-command-${name}/SKILL.md`,
