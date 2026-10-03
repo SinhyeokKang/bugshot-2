@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-10-03 — 복구 journal의 소유 이슈와 인라인 원본의 공유 수명은 같은 경계가 아니다
+
+- **영역**: `store`, `lib`
+- **계열**: `미검증단언`, `fail-open`
+- **그물**: `unit`
+- **증상**: 첨부 복구 저장소 구현 중 독립 리뷰에서, A의 완료·삭제가 같은 인라인 원본을 사용하는 B의 복구 항목 또는 일반 draft 파일을 지울 수 있음을 발견했다. 배포 전 공유 참조·오래된 정리 호출 회귀 테스트로 고정했다. 별도로 생성 직후 URL 없이 저장한 Slack 목적지에 permalink를 보완하는 정상 체크포인트가 실패했다.
+- **근본 원인**: journal은 issueId로 묶였지만 inlineImages 키는 전역 refId라, 이슈 단위 삭제 권한을 원본의 독점 소유권으로 볼 수 없었다. 명시적 원본 정리 API는 기존 GC의 공유 참조 검사도 우회했고 attemptId를 받지 않아 늦은 이전 시도의 정리가 새 시도의 원본에 닿을 수 있었다. 목적지 비교는 식별자와 늦게 얻는 URL을 통째로 JSON.stringify해 속성 순서와 링크 보완까지 목적지 변경으로 오판했다.
+- **재발 방지**: `rg 'deleteOriginalKeys|purgeRecoveryForIssues|objectStore.*delete' src/store`로 새 직접 삭제 경로가 기존 GC의 참조 보호를 우회하는지 확인한다. issueId·attemptId·완료 파일 소속을 같은 IDB 트랜잭션에서 검증하고 다른 journal·일반 draft·편집 세션의 공유 참조를 함께 보호한다. 조회 실패는 삭제 중단으로 처리하며, 공유 원본·stale cleanup·중간 abort·삭제 거부 뒤 원본 보존을 fake-IDB로 단언한다. 원격 목적지 비교는 platform/key/locator의 의미 값만 고정하고 URL 보완과 속성 순서 변경을 별도 테스트한다.
+- **관련**: `src/store/blob-db.ts:deleteOriginalKeys`·`purgeRecoveryForIssues`·`beginSubmissionRecovery`·`checkpointSubmission`, `src/store/__tests__/blob-db-recovery.test.ts`, `src/store/issues-store.ts:clearIssues`(비동기 정리 중 새 에디터 보존), `src/store/__tests__/issues-store.test.ts`. 선행: 2026-06-30 승격 원본 소실, 2026-09-22 크로스 인스턴스 상태 역행.
+
 ## 2026-09-29 — 녹화 상한과 비트레이트는 독립 상수처럼 생겼지만 곱이 제출 한도를 정한다
 
 - **영역**: `미디어`, `lib`
