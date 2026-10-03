@@ -14,7 +14,7 @@
 
 | Batch | Tasks / ownership | Prerequisite | Gate | Status |
 |---|---|---|---|---|
-| B1 contracts/storage | 1, 3: attachment contracts, attachmentResults, blob-db, issues-store cleanup/GC, e2e DB seed | none | contract/IDB tests + common gate + independent review | planned |
+| B1 contracts/storage | 1, 3: attachment contracts, attachmentResults, blob-db, issues-store cleanup/GC, e2e DB seed | none | contract/IDB tests + common gate + independent review | implementing |
 | B2 lifecycle | 2, 4: file preparation, submissionRecovery, store durability, both submit entry points | B1 | missing sources/unknown/reconcile/durability tests + common gate + independent review | planned |
 | B3 adapters/body | 5, 6: all nine adapters, APIs/messages, Jira split, safe body fallbacks | B2 | platform matrix + common gate + independent review | planned |
 | B4 recovery UI | 7: panel, success/list/detail, download, i18n | B3 | interaction/accessibility tests + common gate + independent review | planned |
@@ -43,4 +43,7 @@ The plan permits narrower platform fan-out after contracts settle, but shared me
 
 - Intake: clean dev; PRD/design/tasks read. Initial phase-1-only scope superseded by the user's explicit automatic phase-2 direction.
 - Runtime uses the current Orca Run/worker-start/settlement/release protocol (the repository command's older terminal dispatch examples are superseded).
-- No implementation, verification, or external upload has run yet.
+- Run: `run_4c4aa54a7bb3`.
+- B1: task `task_4250f4ac2d07`, dispatch `ctx_bc1d17398661`; child `/Users/sinhyeok/orca/workspaces/bugshot-2/attachment-recovery-b1`; started from `c8db5463`. Live projection identifies `codex / gpt-6-astra`; effort inherited (not exposed by receipt). Dependency install succeeded. Implementation and gates pending.
+- B1 was informed of the expanded overall scope; its ownership remains unchanged.
+- No external upload has run yet.
