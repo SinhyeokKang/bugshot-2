@@ -12,8 +12,8 @@
 | Batch | Model / effort | Reason | Status |
 |---|---|---|---|
 | B6 retry APIs (Task 9) | Opus / high | eight-provider contracts, account identity, fenced IDB revision invariants | integrated `5ae8e683..07ec078a` (fix1: e2e 53 passed, 8310 tests); main-checkout gate exit 0; worktree removed |
-| B7 retry runner (Task 10) | Opus / high | shared submission lock, no-duplicate stage resume, 3-way body patch | review 1: 🔴0 🟡7 → fix1 sent |
-| B8 retry UI (Task 11) | Sonnet / high | UI/a11y wiring on a settled runner contract | planned (after B7 in dev) |
+| B7 retry runner (Task 10) | Opus / high | shared submission lock, no-duplicate stage resume, 3-way body patch | integrated `2d4fcad3..24a856a5` (fix1 re-review 🔴0; main gate exit 0); fix2 (disconnected→authentication, narrower legacy) in progress |
+| B8 retry UI (Task 11) | Sonnet / high | UI/a11y wiring on a settled runner contract | in progress (worktree `attachment-recovery-cc-b8`; parallel with B7 fix2 — no shared files) |
 | B9 acceptance (Task 12) | Sonnet / high | phase-2 e2e, docs; coordinator owns docs freshness/runtime | planned (after B8 in dev) |
 
 Serial order B6 → B7 → B8 → B9 (each consumes the previous contract; shared files: blob-db, types/attachment, messages registries, IssueRow/DraftDetailDialog, i18n).
@@ -26,6 +26,7 @@ Serial order B6 → B7 → B8 → B9 (each consumes the previous contract; share
 - B6 pushed `e26048b0`; CI [37145264306](https://github.com/SinhyeokKang/bugshot-2/actions/runs/37145264306) SUCCESS (verify, 4 e2e shards, e2e-gate).
 - B7 review 1 (Opus): 🔴0, 🟡: Jira/Asana name reconciliation vs same-submission duplicate names (POSTMORTEM 2026-08-20), slot-less records misclassified, identity network error shown as account-changed, Jira retry render scans whole ADF (`injectLogsLink`), `submittedAt` overwritten, deviation tests missing, Jira dims test.
 - Coordinator decisions (follow design per user "예정대로"): D1 GitHub/GitLab/Linear unknown upload results are NOT auto re-sent (design: ambiguous upload stops); Slack pre-complete and Notion unattached re-send accepted. D2 per-run stop reasons stay unpersisted.
+- B7 fix1 re-review (Opus): 🔴0, integrable. Remaining 🟡 routed to B7 fix2: disconnected connection → `authentication` (decision), `legacy` only when all unfinished files are slot-less. B8 launched in parallel (B8 consumes runner API only; WAITING FOR B7 protocol if an API change is needed).
 
 > Historical note: Codex stop (2026-10-04) — see [handoff.md](./handoff.md). Earlier automatic phase-transition instructions are superseded.
 
