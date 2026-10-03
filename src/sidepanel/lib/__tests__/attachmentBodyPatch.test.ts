@@ -99,6 +99,14 @@ describe("markdown three-way body patch", () => {
     expect(result).toMatchObject({ body: null, present: ["logs"], written: [], conflict: [] });
   });
 
+  it("never reports a deleted line as already gone while it is still in the body", () => {
+    const render = (success: ReadonlySet<string>) => (success.has("f") ? ["intro", `![f](${bodySlotToken("f")})`, "y"] : ["intro", "f dropped", "y", "1 dropped"]).join("\n");
+    const deletionBase = render(new Set());
+    const deletionPlan: AttachmentBodyPlan = { format: "markdown", lastWritten: deletionBase, replacements: buildBodyReplacements({ format: "markdown", base: deletionBase, pending: ["f"], render }) };
+    const result = planAttachmentBodyPatch(deletionPlan, "intro\nf dropped\ny\nUNRELATED\n1 dropped", new Map([["f", "U"]]), ["f"]);
+    expect(result).toMatchObject({ body: null, present: [], conflict: ["f"] });
+  });
+
   it("treats a file without a recorded slot as a conflict instead of guessing", () => {
     const legacy: AttachmentBodyPlan = { format: "markdown", lastWritten: base, replacements: [] };
     const result = planAttachmentBodyPatch(legacy, base, ready("logs"), ["logs"]);
@@ -140,6 +148,12 @@ describe("ADF three-way body patch (Jira)", () => {
     const remote = { ...written, content: written.content.map((n) => ({ ...n, attrs: { localId: "x" } })) };
     const result = planAttachmentBodyPatch(adfPlan, JSON.stringify(remote), new Map([["inline:r1", "media-2"]]), ["inline:r1"]);
     expect(result.written).toEqual(["inline:r1"]);
+  });
+
+  it("records a pending file without a template node as a no-op slot", () => {
+    const noop = buildAdfBodyReplacements({ written, template, slots: [], pending: ["logs"] });
+    const result = planAttachmentBodyPatch({ format: "adf", lastWritten: JSON.stringify(written), replacements: noop }, JSON.stringify(written), new Map([["logs", "https://x/logs"]]), ["logs"]);
+    expect(result).toMatchObject({ body: null, present: ["logs"], conflict: [] });
   });
 
   it("conflicts when the slot node was edited", () => {

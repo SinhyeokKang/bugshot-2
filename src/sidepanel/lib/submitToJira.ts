@@ -1,5 +1,9 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { buildAdfBodyReplacements } from "./attachmentBodyPatch";
+import { jiraBodyFilename } from "./uploadPayload";
+import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
+import { LOGS_LINK_LABEL } from "@/background/lib/adf-logs-link";
 import { failedStageState } from "./attachmentCheckpoints";
 import type { JiraAdfDoc } from "@/types/jira";
 import { buildIssueAdf } from "./buildIssueAdf";
@@ -30,6 +34,23 @@ export interface JiraSubmitInput extends SubmissionAdapterInput {
   sprintId?: number;
   relates?: { key: string; label: string }[];
   cc?: { accountId: string; displayName: string }[];
+}
+
+// Top-level template nodes a file renders into: placeholders, the i-th style table, the logs line.
+function jiraBodySlots(template: JiraAdfDoc, fileIds: readonly string[]): Array<{ index: number; fileIds: string[] }> {
+  const has = (id: string) => fileIds.includes(id);
+  let table = 0;
+  return template.content.flatMap((node, index) => {
+    const n = node as { type?: string; content?: Array<{ type?: string; text?: string }> };
+    const text = n.type === "paragraph" ? n.content?.[0]?.text : undefined;
+    const ids = n.type === "table" ? [`capture:before-${table}`, `capture:after-${table++}`]
+      : text === IMAGE_PLACEHOLDER ? ["capture:screenshot"]
+      : text === VIDEO_PLACEHOLDER ? ["video"]
+      : text && parseInlinePlaceholder(text) ? [`inline:${parseInlinePlaceholder(text)}`]
+      : n.type === "paragraph" && n.content?.some((c) => c.text === LOGS_LINK_LABEL) ? ["logs"] : [];
+    const present = ids.filter(has);
+    return present.length ? [{ index, fileIds: present }] : [];
+  });
 }
 
 export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSubmitResult> {
@@ -95,9 +116,7 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
     const r = matches.length === 1 ? matches[0] : undefined;
     if (!r?.ok || attachment.userAttachment) continue;
     const prepared = input.submissionFiles?.find((f) => f.id === attachment.fileId);
-    const bodyFilename = prepared?.id === "capture:screenshot" ? "screenshot.webp"
-      : prepared?.kind === "capture" && /^capture:(before|after)-\d+$/.test(prepared.id) ? `${prepared.id.slice("capture:".length)}.webp`
-      : prepared?.kind === "inline" ? inlineUploadFilename(prepared.id.slice("inline:".length)) : attachment.filename;
+    const bodyFilename = prepared ? jiraBodyFilename(prepared) : attachment.filename;
     if (r.file) uploads.push({ filename: bodyFilename, file: r.file });
     if (attachment.fileId === "logs" || (!attachment.fileId && attachment.filename === "logs.html")) logsUrl = r.href;
     if (attachment.fileId && (r.file || attachment.fileId === "logs")) inBody.push(attachment.fileId);
@@ -111,6 +130,14 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
   const bodyStates = inBody.map((fileId) => ({ fileId, body: bodyFailed ? failedStageState(bodyFailure) : "done" as const }));
   if (!bodyFailed && written?.description) await input.progress?.bodyWritten(JSON.stringify(written.description), ...bodyStates);
   else if (bodyStates.length) await input.progress?.fileCheckpoint(...bodyStates);
+  const lastWritten = !bodyFailed && written?.description ? written.description : result.description;
+  const placed = (input.submissionFiles ?? []).filter((f) => f.kind !== "user");
+  const pending = placed.filter((f) => bodyFailed || !written?.description || !inBody.includes(f.id)).map((f) => f.id);
+  // A slot also names files already in the body that share its node (a style table's pair).
+  if (lastWritten) await recordBodySlots(input.progress, JSON.stringify(lastWritten), pending, () => buildAdfBodyReplacements({
+    written: lastWritten, template: description, pending,
+    slots: jiraBodySlots(description, placed.map((f) => f.id)).filter((slot) => slot.fileIds.some((id) => pending.includes(id))),
+  }));
   return { key: result.key, url: result.url,
     attachments: deliveryResults(input.submissionFiles ?? [], responses, bodyFailed),
   };

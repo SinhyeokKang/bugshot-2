@@ -44,7 +44,8 @@ export interface PreparedUpload {
   resolvedCtx: MarkdownContext;
   toMedia: (f: UploadFileInput) => MarkdownMediaInput;
   toAttachmentMedia: (f: UploadFileInput) => MarkdownMediaInput;
-
+  // The same bindings with some files' hrefs replaced (retry slot rendering).
+  withHrefs: (overrides: ReadonlyMap<string, string | null>) => Pick<PreparedUpload, "resolvedCtx" | "toMedia" | "toAttachmentMedia">;
 }
 
 // hrefMap에서 기대 파일 중 업로드 누락(href 부재)이 있는지.
@@ -113,43 +114,47 @@ export async function prepareUpload(
     }
   }
 
-  let resolvedCtx = input.ctx;
-  if (inlineFiles.length > 0) {
-    const refToUrl = new Map<string, string>();
-    for (const f of inlineFiles) {
-      const href = hrefMap.get(f.fileId ?? f.filename);
-      if (href) refToUrl.set(f.refId, href);
+  const bind = (map: ReadonlyMap<string, string | null>): Pick<PreparedUpload, "resolvedCtx" | "toMedia" | "toAttachmentMedia"> => {
+    let resolvedCtx = input.ctx;
+    if (inlineFiles.length > 0) {
+      const refToUrl = new Map<string, string>();
+      for (const f of inlineFiles) {
+        const href = map.get(f.fileId ?? f.filename);
+        if (href) refToUrl.set(f.refId, href);
+      }
+      if (refToUrl.size > 0) {
+        resolvedCtx = {
+          ...input.ctx,
+          sections: Object.fromEntries(
+            Object.entries(input.ctx.sections).map(([k, v]) => [
+              k,
+              replaceInlineRefs(v, refToUrl),
+            ]),
+          ),
+        };
+      }
     }
-    if (refToUrl.size > 0) {
-      resolvedCtx = {
-        ...input.ctx,
-        sections: Object.fromEntries(
-          Object.entries(input.ctx.sections).map(([k, v]) => [
-            k,
-            replaceInlineRefs(v, refToUrl),
-          ]),
-        ),
+
+    function toMedia(f: UploadFileInput): MarkdownMediaInput {
+      return {
+        filename: f.filename,
+        contentType: f.contentType ?? guessUploadMime(f.filename),
+        url: map.get(f.fileId ?? f.filename) ?? undefined,
       };
     }
-  }
 
-  function toMedia(f: UploadFileInput): MarkdownMediaInput {
-    return {
-      filename: f.filename,
-      contentType: f.contentType ?? guessUploadMime(f.filename),
-      url: hrefMap.get(f.fileId ?? f.filename) ?? undefined,
-    };
-  }
+    // 사용자 첨부: 본문 표시명은 원본(displayName), url 매칭은 업로드 filename(고유).
+    function toAttachmentMedia(f: UploadFileInput): MarkdownMediaInput {
+      const name = f.displayName ?? f.filename;
+      return {
+        filename: name,
+        contentType: guessUploadMime(name),
+        url: map.get(f.fileId ?? f.filename) ?? undefined,
+      };
+    }
+    return { resolvedCtx, toMedia, toAttachmentMedia };
+  };
+  const withHrefs = (overrides: ReadonlyMap<string, string | null>) => bind(new Map([...hrefMap, ...overrides]));
 
-  // 사용자 첨부: 본문 표시명은 원본(displayName), url 매칭은 업로드 filename(고유).
-  function toAttachmentMedia(f: UploadFileInput): MarkdownMediaInput {
-    const name = f.displayName ?? f.filename;
-    return {
-      filename: name,
-      contentType: guessUploadMime(name),
-      url: hrefMap.get(f.fileId ?? f.filename) ?? undefined,
-    };
-  }
-
-  return { responses: uploadResults.map((r) => ({ ...r, ok: !!r.href, href: r.href ?? undefined })), hrefMap, resolvedCtx, toMedia, toAttachmentMedia };
+  return { responses: uploadResults.map((r) => ({ ...r, ok: !!r.href, href: r.href ?? undefined })), hrefMap, ...bind(hrefMap), withHrefs };
 }

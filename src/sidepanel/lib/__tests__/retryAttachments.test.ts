@@ -90,6 +90,7 @@ async function seed(o: {
   identity?: string | null;
   bodyLocale?: LocaleMode;
   noSnapshot?: boolean;
+  results?: AttachmentResult[];
 }): Promise<void> {
   const destination = o.destination ?? GITHUB;
   const platform = destination.platform;
@@ -112,7 +113,7 @@ async function seed(o: {
   await db.checkpointSubmission("i", "a", { phase: "creating", results: [] });
   await db.checkpointSubmission("i", "a", { phase: "created", destination, results: [] });
   if (!o.noSnapshot && o.identity !== null) await db.checkpointAttachmentRetry("i", "a", 0, { accountIdentity: o.identity ?? IDENTITY });
-  await db.checkpointSubmission("i", "a", { phase: "partial", destination, results: checkpoints.map(result) });
+  await db.checkpointSubmission("i", "a", { phase: "partial", destination, results: o.results ?? checkpoints.map(result) });
   const record: IssueRecord = { id: "i", title: "Report", platform, status: "submitted", key: destination.key, url: destination.url, createdAt: 1, updatedAt: 2, pageUrl: "", draft: { title: "", sections: {} }, snapshot: { before: false, after: false }, submissionRecoveryId: "a" };
   store.useIssuesStore.setState({ issues: [record] });
   persisted[ISSUES_PERSIST_KEY] = JSON.stringify({ state: { issues: [record] }, version: 0 });
@@ -227,9 +228,8 @@ describe("retryAttachments — GitHub stage resume", () => {
     await seed({ files: [logs], bodyPlan: { format: "markdown", lastWritten: ghBody({}), replacements: [] } });
     rpc(github({ body: ghBody({}) }));
     const outcome = await runner.retryAttachments("i");
-    expect(outcome).toMatchObject({ status: "partial", reason: "body-conflict" });
-    expect(sent("github.uploadFiles")).toHaveLength(0);
-    expect(sent("github.updateIssueBody")).toHaveLength(0);
+    expect(outcome).toMatchObject({ status: "blocked", reason: "legacy" });
+    expect(sendBg).not.toHaveBeenCalled();
   });
 
   it("a remote edit made while the retry runs is preserved by the write", async () => {
@@ -275,7 +275,17 @@ describe("retryAttachments — GitHub stage resume", () => {
     const pdf = { ...userPdf, original: { kind: "original" as const, store: "attachments" as const, key: "i:pdf" } };
     const plan = ghPlan({}, [userPdf.id]);
     await seed({ files: [pdf], bodyPlan: plan });
-    await db.deleteAttachmentBlob("i", "pdf");
+    // Browser storage cleared under us; the normal delete API would protect the journal's key.
+    await new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open("bugshot-video");
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const tx = open.result.transaction("attachments", "readwrite");
+        tx.objectStore("attachments").delete("i:pdf");
+        tx.oncomplete = () => { open.result.close(); resolve(); };
+        tx.onerror = () => reject(tx.error);
+      };
+    });
     rpc(github({ body: plan.lastWritten }));
     const outcome = await runner.retryAttachments("i");
     expect(outcome).toMatchObject({ status: "partial", reason: "local-missing" });
@@ -350,6 +360,21 @@ describe("retryAttachments — exclusivity and stops", () => {
   });
 });
 
+describe("retryAttachments — whole-submission failure", () => {
+  it("finishes the files but never completes a record with a submission failure, then hides retry", async () => {
+    const plan = ghPlan({}, [logs.id]);
+    await seed({ files: [logs], bodyPlan: plan });
+    const journal = (await db.readSubmissionRecovery("i"))!;
+    await db.checkpointSubmission("i", "a", { phase: "partial", destination: journal.destination, results: journal.results, submissionFailure: { stage: "body", code: "unknown" } });
+    rpc(github({ body: plan.lastWritten }));
+    expect(await runner.retryAttachments("i")).toMatchObject({ status: "partial", reason: "ambiguous", remaining: 0 });
+    const after = (await db.readSubmissionRecovery("i"))!;
+    expect(after.submissionFailure).toEqual({ stage: "body", code: "unknown" });
+    expect(after.results[0]).toMatchObject({ delivery: "attached", presentation: "complete" });
+    expect(runner.attachmentRetryBlocker(after)).toBe("ambiguous");
+  });
+});
+
 describe("retryAttachments — create-first and staged providers", () => {
   const JIRA: CreatedDestination = { platform: "jira", key: "BUG-1", url: "https://acme.atlassian.net/browse/BUG-1", locator: { issueKey: "BUG-1", siteId: "cloud" } };
   const para = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
@@ -375,6 +400,27 @@ describe("retryAttachments — create-first and staged providers", () => {
     expect(update.uploads).toEqual([{ filename: "screenshot.webp", file: { kind: "media", mediaId: "m-1" } }]);
     expect(update.description.content[1]).toEqual(para("__BUGSHOT_IMAGE__"));
     expect(update.relates).toBeUndefined();
+  });
+
+  it.each([
+    ["an added table", (t: (l: string) => unknown) => [para("Notes"), t("user table")], [] as unknown[]],
+    ["a replaced table", (t: (l: string) => unknown) => [para("Notes"), t("edited elsewhere")], ["second"]],
+  ])("Jira refuses a snapshot-row slot once the style tables no longer line up (%s)", async (_, tail, writtenTail) => {
+    const table = (label: string) => ({ type: "table", content: [{ type: "tableRow", content: [{ type: "tableCell", content: [para(label)] }] }] });
+    const template = { version: 1, type: "doc", content: [para("Environment"), table("styles"), para("Footer"), ...(writtenTail.length ? [para("Notes"), table("second")] : [])] };
+    const written = template;
+    const bodyPlan: AttachmentBodyPlan = { format: "adf", lastWritten: JSON.stringify(written), replacements: patch.buildAdfBodyReplacements({ written, template, slots: [{ index: 1, fileIds: ["capture:before-0", "capture:after-0"] }] }) };
+    const shot = (side: string): SeedFile => ({ id: `capture:${side}-0`, kind: "capture", filename: `${side}-0.webp`, contentType: "image/webp" });
+    const uploaded = (side: string) => cp(`capture:${side}-0`, { upload: "done", body: "failed", uploaded: { platform: "jira", id: side, href: `https://acme.atlassian.net/secure/attachment/1/${side}`, mediaId: `m-${side}` } });
+    await seed({ destination: JIRA, identity: '["jira","cloud","acc"]', files: [shot("before"), shot("after")], checkpoints: [uploaded("before"), uploaded("after")], bodyPlan });
+    const remote = { ...written, content: [...written.content.slice(0, 3), ...tail(table)] };
+    rpc({
+      "jira.getAccountIdentity": () => ({ identity: '["jira","cloud","acc"]' }),
+      "jira.getIssueAttachments": () => ({ description: remote, attachments: [] }),
+      "jira.updateIssueDescription": (msg) => ({ ok: true, description: msg.description }),
+    });
+    expect(await runner.retryAttachments("i")).toMatchObject({ status: "partial", reason: "body-conflict" });
+    expect(sent("jira.updateIssueDescription")).toHaveLength(0);
   });
 
   it.each([
@@ -426,12 +472,54 @@ describe("retryAttachments — create-first and staged providers", () => {
     expect(types().filter((t) => CREATE_TYPES.test(t) || t === "notion.deleteBlock")).toEqual([]);
   });
 
+  it("Notion keeps the recorded outcome of a file this run did not touch", async () => {
+    const other = { ...userPdf, id: "user:other", filename: "other.pdf" };
+    await seed({ destination: NOTION, identity: '["notion","w","b"]', files: [userPdf, other],
+      checkpoints: [
+        { fileId: userPdf.id, upload: "done", link: "pending", body: "not-applicable", uploaded: { platform: "notion", id: "up-1", expiresAt: null } },
+        { fileId: other.id, upload: "done", link: "unknown", body: "not-applicable", uploaded: { platform: "notion", id: "up-2", expiresAt: null } },
+      ],
+      results: [
+        { fileId: userPdf.id, delivery: "failed", presentation: "failed", failure: { stage: "body", code: "body-limit" } },
+        { fileId: other.id, delivery: "failed", presentation: "failed", failure: { stage: "body", code: "body-limit" } },
+      ] });
+    rpc({
+      "notion.getAccountIdentity": () => ({ identity: '["notion","w","b"]' }),
+      "notion.getBlockChildren": () => ({ blocks: [] }),
+      "notion.getFileUpload": () => ({ status: "uploaded", expiresAt: null }),
+      "notion.appendBlockChildren": (msg) => ({ blockIds: msg.children.map((_: unknown, i: number) => `blk-${i}`) }),
+    });
+    expect(await runner.retryAttachments("i")).toMatchObject({ status: "partial", remaining: 1 });
+    const results = (await db.readSubmissionRecovery("i"))!.results;
+    expect(results.find((r) => r.fileId === other.id)).toEqual({ fileId: other.id, delivery: "failed", presentation: "failed", failure: { stage: "body", code: "body-limit" } });
+    expect(results.find((r) => r.fileId === userPdf.id)).toMatchObject({ delivery: "attached", presentation: "not-applicable" });
+  });
+
+  it("Notion does not append an expired upload whose bytes are gone", async () => {
+    await db.saveAttachmentBlob("i", "pdf", new Blob(["pdf"], { type: "application/pdf" }));
+    const pdf = { ...userPdf, original: { kind: "original" as const, store: "attachments" as const, key: "i:pdf" } };
+    await seed({ destination: NOTION, identity: '["notion","w","b"]', files: [pdf], checkpoints: [{ fileId: userPdf.id, upload: "done", link: "pending", body: "not-applicable", uploaded: { platform: "notion", id: "up-old", expiresAt: 1 } }] });
+    await new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open("bugshot-video");
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const tx = open.result.transaction("attachments", "readwrite");
+        tx.objectStore("attachments").delete("i:pdf");
+        tx.oncomplete = () => { open.result.close(); resolve(); };
+      };
+    });
+    rpc({ "notion.getAccountIdentity": () => ({ identity: '["notion","w","b"]' }), "notion.getBlockChildren": () => ({ blocks: [] }) });
+    expect(await runner.retryAttachments("i")).toMatchObject({ status: "partial", reason: "local-missing" });
+    expect(sent("notion.uploadFile")).toHaveLength(0);
+    expect(sent("notion.appendBlockChildren")).toHaveLength(0);
+  });
+
   it("Notion never re-appends a block whose earlier append is unconfirmed", async () => {
     await seed({ destination: NOTION, identity: '["notion","w","b"]', files: [userPdf], checkpoints: [{ fileId: userPdf.id, upload: "done", link: "unknown", body: "not-applicable", uploaded: { platform: "notion", id: "up-1", expiresAt: null } }] });
     rpc({ "notion.getAccountIdentity": () => ({ identity: '["notion","w","b"]' }), "notion.getBlockChildren": () => ({ blocks: [] }) });
     const outcome = await runner.retryAttachments("i");
-    expect(outcome).toMatchObject({ status: "partial", reason: "ambiguous" });
-    expect(sent("notion.appendBlockChildren")).toHaveLength(0);
+    expect(outcome).toMatchObject({ status: "blocked", reason: "ambiguous" });
+    expect(sendBg).not.toHaveBeenCalled();
   });
 
   const SLACK: CreatedDestination = { platform: "slack", key: "1.2", url: "https://slack.com/archives/C/p12", locator: { channelId: "C", ts: "1.2" } };
@@ -453,8 +541,8 @@ describe("retryAttachments — create-first and staged providers", () => {
     await seed({ destination: SLACK, identity: '["slack","T","U"]', files: [userPdf], checkpoints: [{ fileId: userPdf.id, upload: "done", link: "unknown", body: "not-applicable", uploaded: { platform: "slack", id: "F1" } }] });
     rpc({ "slack.getAccountIdentity": () => ({ identity: '["slack","T","U"]' }) });
     const outcome = await runner.retryAttachments("i");
-    expect(outcome).toMatchObject({ status: "partial", reason: "ambiguous" });
-    expect(types().filter((t) => t.startsWith("slack.") && t !== "slack.getAccountIdentity")).toEqual([]);
+    expect(outcome).toMatchObject({ status: "blocked", reason: "ambiguous" });
+    expect(sendBg).not.toHaveBeenCalled();
   });
 });
 
@@ -463,7 +551,7 @@ describe("planAttachmentRetry", () => {
     attemptId: "a", issueId: "i", title: "t", platform, createdAt: 1, expiresAt: 2, updatedAt: 1, phase: "partial",
     files: checkpoints.map((c) => ({ id: c.fileId, kind: "capture", filename: `${c.fileId}.webp`, contentType: "image/webp", source: { kind: "generated", key: `file:a:${c.fileId}` } })),
     results: [], destination: GITHUB,
-    retry: { schemaVersion: 1, accountIdentity: IDENTITY, bodyLocale: "en", revision: 1, checkpoints, bodyPlan: { format: "markdown", lastWritten: "", replacements: [] } },
+    retry: { schemaVersion: 1, accountIdentity: IDENTITY, bodyLocale: "en", revision: 1, checkpoints, bodyPlan: { format: "markdown", lastWritten: "", replacements: checkpoints.map((c) => ({ fileId: c.fileId, anchor: "[]", before: "[]", after: "[]", renderTemplate: "[]" })) } },
   });
 
   it("resumes each file at its first unfinished stage and skips finished files", () => {
@@ -479,5 +567,19 @@ describe("planAttachmentRetry", () => {
   it("hides retry when nothing is actionable", () => {
     expect(runner.attachmentRetryBlocker({ ...meta([{ fileId: "a", upload: "done", link: "unknown", body: "not-applicable", uploaded: { platform: "slack", id: "F" } }], "slack"), destination: { platform: "slack", key: "1", locator: { channelId: "C", ts: "1" } } })).toBe("ambiguous");
     expect(runner.attachmentRetryBlocker(meta([cp("a")]))).toBeNull();
+  });
+
+  it("keeps a body conflict retryable and reports it from durable state", () => {
+    const conflicted = meta([cp("a", { upload: "done", body: "conflict", uploaded: { platform: "github", href: "https://x/a" } })]);
+    expect(runner.attachmentRetryBlocker(conflicted)).toBeNull();
+    expect(runner.attachmentRecoveryReason(conflicted)).toBe("body-conflict");
+    expect(runner.attachmentRecoveryReason(meta([cp("a")]))).toBeNull();
+  });
+
+  it("offers only a download for a GitHub file without a recorded body slot", () => {
+    const slotless = meta([cp("a")]);
+    slotless.retry!.bodyPlan.replacements = [];
+    expect(runner.planAttachmentRetry(slotless)).toEqual([]);
+    expect(runner.attachmentRetryBlocker(slotless)).toBe("legacy");
   });
 });

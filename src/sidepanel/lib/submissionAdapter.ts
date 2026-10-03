@@ -1,5 +1,5 @@
 import { resolveStyleElements, type MarkdownContext } from "./buildIssueMarkdown";
-import type { AttachmentCheckpointPatch, AttachmentResult, SubmissionFile, UploadedAttachment } from "@/types/attachment";
+import type { AttachmentBodyPlan, AttachmentCheckpointPatch, AttachmentResult, SubmissionFile, UploadedAttachment } from "@/types/attachment";
 import type { SubmissionProgress } from "./submissionRecovery";
 import { reconcileAttachmentResults, type AttachmentEvidence } from "./attachmentResults";
 import { failedStageState } from "./attachmentCheckpoints";
@@ -74,4 +74,18 @@ export async function submitCreation<T>(progress: SubmissionProgress | undefined
     }
     throw error;
   }
+}
+
+// Retry slots are best effort: a failure to compute them leaves the record without slots, which a
+// retry treats as a body conflict — it must never fail the already-created submission.
+export async function recordBodySlots(
+  progress: SubmissionProgress | undefined,
+  lastWritten: string,
+  pending: readonly string[],
+  compute: () => AttachmentBodyPlan["replacements"] | Promise<AttachmentBodyPlan["replacements"]>,
+): Promise<void> {
+  if (!progress?.bodySlots || !pending.length) return;
+  let replacements: AttachmentBodyPlan["replacements"];
+  try { replacements = await compute(); } catch { return; }
+  await progress.bodySlots(lastWritten, replacements);
 }

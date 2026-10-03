@@ -4,6 +4,7 @@ import { buildSlackBody } from "./buildSlackBody";
 import { splitSlackText } from "./splitSlackText";
 import { escapeMrkdwn } from "./markdownToMrkdwn";
 import { toInlineUploadFiles } from "./prepareUpload";
+import { base64ByteLength } from "./uploadPayload";
 import type { InlineImageInput } from "./resolveInlineImages";
 import { sendBg } from "@/lib/bg-client";
 import type {
@@ -32,14 +33,6 @@ export interface SlackSubmitInput extends SubmissionAdapterInput {
   inlineImages?: InlineImageInput[];
   channelId: string;
   mentions?: { id: string; name: string }[];
-}
-
-// Byte length from the base64 payload without decoding it (120s video would be decoded twice).
-function base64ByteLength(dataUrl: string): number {
-  const marker = dataUrl.indexOf(";base64,");
-  if (!dataUrl.startsWith("data:") || marker < 0) throw new Error("Invalid data URL");
-  const payload = dataUrl.slice(marker + ";base64,".length);
-  return Math.floor((payload.length * 3) / 4) - (payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0);
 }
 
 export async function submitToSlack(

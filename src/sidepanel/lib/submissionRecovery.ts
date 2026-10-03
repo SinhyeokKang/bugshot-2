@@ -27,6 +27,8 @@ export interface SubmissionProgress {
   // reject: a storage failure only disables auto-retry for the record. `undefined` clears a field.
   fileCheckpoint(...files: AttachmentCheckpointPatch[]): Promise<void>;
   bodyWritten(lastWritten: string, ...files: AttachmentCheckpointPatch[]): Promise<void>;
+  // After the last body write: where each unfinished file belongs in `lastWritten` (retry slots).
+  bodySlots?(lastWritten: string, replacements: AttachmentBodyPlan["replacements"]): Promise<void>;
 }
 export class SubmissionCreationRejectedError extends Error {
   constructor() {
@@ -226,7 +228,7 @@ export async function runSubmissionRecovery(
     for (const cp of initial) checkpoints.set(cp.fileId, cp);
     return (snapshotReady = true);
   };
-  const writeRetry = (patch: { files?: AttachmentCheckpointPatch[]; lastWritten?: string; accountIdentity?: string }) => serial(async () => {
+  const writeRetry = (patch: { files?: AttachmentCheckpointPatch[]; lastWritten?: string; accountIdentity?: string; replacements?: AttachmentBodyPlan["replacements"] }) => serial(async () => {
     if (retryDisabled || !(await ensureSnapshot())) return;
     try {
       const merged = (patch.files ?? []).map((file) => {
@@ -239,6 +241,7 @@ export async function runSubmissionRecovery(
       revision = await checkpointAttachmentRetry(issueId, attemptId, revision, {
         checkpoints: merged,
         ...(patch.lastWritten !== undefined ? { lastWritten: patch.lastWritten } : {}),
+        ...(patch.replacements !== undefined && patch.lastWritten !== undefined ? { bodyPlan: { format: BODY_FORMAT[platform as RetryPlatform], lastWritten: patch.lastWritten, replacements: patch.replacements } } : {}),
         ...(patch.accountIdentity !== undefined ? { accountIdentity: patch.accountIdentity } : {}),
       });
       for (const cp of merged) checkpoints.set(cp.fileId, cp);
@@ -257,6 +260,7 @@ export async function runSubmissionRecovery(
     },
     fileCheckpoint: (...files) => writeRetry({ files }),
     bodyWritten: (lastWritten, ...files) => writeRetry({ files, lastWritten }),
+    bodySlots: (lastWritten, replacements) => writeRetry({ lastWritten, replacements }),
   };
   localeBinders.set(progress, (locale) => { bodyLocale ??= locale; });
   let result: NormalizedSubmitResult;
@@ -322,6 +326,13 @@ export async function runSubmissionRecovery(
   return { ...canonical, ...(phase === "partial" ? { recovery: { state: "partial" as const, issueId, attemptId } } : {}) };
 }
 
+// A retry that completed every file finalizes like an initial submission: durable submitted write,
+// then original cleanup, then journal deletion. Caller holds the issue lock.
+export async function completeRecoveredSubmission(meta: SubmissionRecoveryMeta): Promise<void> {
+  if (meta.phase !== "complete") throw new Error("Recovery is not complete");
+  await finish(meta);
+}
+
 async function reconcileMissingJournal(issueId: string): Promise<void> {
   const current = useIssuesStore.getState().issues.find((issue) => issue.id === issueId);
   if (!current?.submissionRecoveryId) return;
@@ -338,7 +349,7 @@ async function reconcileMissingJournal(issueId: string): Promise<void> {
   })));
 }
 
-async function notifyRecoveryChange(issueId: string, attemptId: string): Promise<void> {
+export async function notifyRecoveryChange(issueId: string, attemptId: string): Promise<void> {
   const stored = await chrome.storage.local.get(ISSUES_PERSIST_KEY);
   const raw = stored[ISSUES_PERSIST_KEY];
   const persisted: IssueRecord | undefined = typeof raw === "string"

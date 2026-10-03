@@ -1,10 +1,11 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, submitCreation, uploadCheckpoints, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreation, uploadCheckpoints, type SubmissionAdapterInput } from "./submissionAdapter";
 import type { UploadFileResult } from "@/types/messages";
 import { buildGithubIssueBody } from "./buildGithubIssueBody";
 import { prepareUpload, type UploadFileInput } from "./prepareUpload";
 import type { InlineImageInput } from "./resolveInlineImages";
 import { sendBg } from "@/lib/bg-client";
+import { bodySlotToken, buildBodyReplacements } from "./attachmentBodyPatch";
 import type { GithubCreateIssueResult } from "@/types/github";
 import type { NormalizedSubmitResult } from "@/types/platform";
 
@@ -44,19 +45,19 @@ export async function submitToGithub(
     },
     { platform: "github" },
   );
-  const { resolvedCtx, toMedia, toAttachmentMedia } = prepared;
   const uploads = uploadCheckpoints(input.submissionFiles ?? [], prepared.responses, (r) => r.href ? { platform: "github", href: r.href } : undefined);
   if (uploads.length) await input.progress?.fileCheckpoint(...uploads);
 
   const imageInputs = input.images ?? [];
-  const { body } = buildGithubIssueBody({
-    ctx: resolvedCtx,
-    images: imageInputs.length > 0 ? imageInputs.map(toMedia) : undefined,
-    video: input.video ? toMedia(input.video) : undefined,
-    logs: (input.logs ?? []).map(toMedia),
-    attachments: (input.attachments ?? []).map(toAttachmentMedia),
+  const render = (bound: Pick<typeof prepared, "resolvedCtx" | "toMedia" | "toAttachmentMedia">) => buildGithubIssueBody({
+    ctx: bound.resolvedCtx,
+    images: imageInputs.length > 0 ? imageInputs.map(bound.toMedia) : undefined,
+    video: input.video ? bound.toMedia(input.video) : undefined,
+    logs: (input.logs ?? []).map(bound.toMedia),
+    attachments: (input.attachments ?? []).map(bound.toAttachmentMedia),
     cc: input.cc,
-  });
+  }).body;
+  const body = render(prepared);
 
   const result = await submitCreation(input.progress, () => sendBg<GithubCreateIssueResult>({
     type: "github.submitIssue",
@@ -71,5 +72,8 @@ export async function submitToGithub(
   }));
   await input.progress?.created({ platform: "github", key: `#${result.number}`, url: result.url, locator: { owner: input.owner, repo: input.repo, number: String(result.number) } });
   await input.progress?.bodyWritten(body, ...uploads.filter((u) => u.upload === "done").map((u) => ({ fileId: u.fileId, body: "done" as const })));
+  const pending = uploads.filter((u) => u.upload !== "done").map((u) => u.fileId);
+  await recordBodySlots(input.progress, body, pending, () => buildBodyReplacements({ format: "markdown", base: body, pending,
+    render: (success) => render(prepared.withHrefs(new Map([...success].map((id) => [id, bodySlotToken(id)])))) }));
   return { key: `#${result.number}`, url: result.url, attachments: deliveryResults(input.submissionFiles ?? [], prepared.responses) };
 }

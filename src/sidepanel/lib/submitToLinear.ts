@@ -1,5 +1,6 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bodySlotToken, buildBodyReplacements } from "./attachmentBodyPatch";
 import { failedStageState } from "./attachmentCheckpoints";
 import {
   buildLinearIssueBody,
@@ -128,6 +129,8 @@ export async function submitToLinear(
   for (const f of input.submissionFiles ?? []) {
     if (["capture", "video", "inline"].includes(f.kind)) responses.push({ fileId: f.id, ok: true, href: result.url });
   }
+  let lastBody = body;
+  const logsInBody: string[] = [];
   for (const file of [...(input.logs ?? []), ...(input.attachments ?? [])]) {
     const isLog = (input.logs ?? []).includes(file);
     let uploaded: LinearMediaInput;
@@ -166,9 +169,14 @@ export async function submitToLinear(
         else await progress?.fileCheckpoint({ fileId: file.fileId, body: bodyFailure ? failedStageState(bodyFailure) : "failed" });
       }
     }
+    if (bodyLinked) { lastBody = linkedBody; if (file.fileId) logsInBody.push(file.fileId); }
     responses.push({ fileId: file.fileId, ok: linked || bodyLinked, href: uploaded.assetUrl, presentation: isLog && !bodyLinked && linked ? "failed" : isLog ? "complete" : "not-applicable",
       ...(!linked && !bodyLinked ? { failure: { stage: "link", code: "unknown" } as const } : {}) });
   }
+  const pending = (input.logs ?? []).filter((f) => f.fileId && !logsInBody.includes(f.fileId)).map((f) => f.fileId!);
+  await recordBodySlots(progress, lastBody, pending, () => buildBodyReplacements({ format: "markdown", base: lastBody, pending,
+    render: (success) => buildLinearIssueBody({ ctx: resolvedCtx, images: imageResults, video: videoResult ?? undefined, cc: input.cc?.map((u) => u.name),
+      logsUrl: pending.find((id) => success.has(id)) ? bodySlotToken(pending.find((id) => success.has(id))!) : undefined }).body }));
   const attachments = deliveryResults(input.submissionFiles ?? [], responses);
   return { key: result.identifier, url: result.url, attachments };
 }
