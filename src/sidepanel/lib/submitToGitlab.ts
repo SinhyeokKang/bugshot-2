@@ -114,7 +114,7 @@ export async function submitToGitlab(
     if (swapped) relink = (text) => text.split(oldLogsUrl).join(swapped!.href);
   }
   const pending = uploads.filter((u) => u.upload !== "done").map((u) => u.fileId);
-  await recordBodySlots(input.progress, relink(body), pending, () => buildBodyReplacements({ format: "markdown", base: relink(body), pending,
+  await recordBodySlots(input.progress, relink(body), pending, () => buildBodyReplacements({ format: "markdown", bodyOnly: true, base: relink(body), pending,
     render: (success) => relink(render(prepared.withHrefs(new Map([...success].map((id) => [id, bodySlotToken(id)]))))) }));
 
   return { key: `#${result.iid}`, url: result.url, attachments: deliveryResults(input.submissionFiles ?? [], prepared.responses) };

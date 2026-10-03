@@ -77,6 +77,17 @@ describe("markdown adapters record fillable slots for unfinished files", () => {
     expect(slots).toEqual([]);
   });
 
+  it("GitHub records no slot for a file its body never references, so retry offers the download", async () => {
+    const orphan = file("inline:zzz", "inline", "inline-zzz.webp");
+    rpc({
+      "github.uploadFiles": (msg) => msg.files.map((f: any) => ({ fileId: f.fileId, filename: f.filename, ok: false, failure: { stage: "upload", code: "unknown" } })),
+      "github.submitIssue": () => ({ number: 1, url: "https://github.com/o/r/issues/1" }),
+    });
+    await submitToGithub({ ctx, owner: "o", repo: "r", inlineImages: [{ refId: "zzz", dataUrl: "x" }], submissionFiles: [orphan], progress });
+    expect(slots).toHaveLength(1);
+    expect(slots[0].replacements.filter((r) => r.fileId === orphan.id)).toEqual([]);
+  });
+
   it("GitLab: a failed upload is fillable with its project-relative path", async () => {
     const input = () => ({ ctx, projectId: 4, images: [{ filename: "screenshot.webp", dataUrl: "x" }], submissionFiles: [capture], progress });
     rpc({
@@ -92,6 +103,30 @@ describe("markdown adapters record fillable slots for unfinished files", () => {
     });
     await submitToGitlab(input());
     expect(result.body).toBe(sent("gitlab.submitIssue")[0].payload.description);
+  });
+
+  it("GitLab: slots are recorded against the description after the logs backlink swap", async () => {
+    const html = `data:text/html;base64,${Buffer.from("<html><body></body></html>").toString("base64")}`;
+    const logsFile = { ...logs, dataUrl: html };
+    const input = () => ({ ctx, projectId: 4, images: [{ filename: "screenshot.webp", dataUrl: "x" }], logs: [{ filename: "logs.html", dataUrl: html }], submissionFiles: [capture, logsFile], progress });
+    let reuploads = 0;
+    const handlers = (captureOk: boolean) => ({
+      "gitlab.uploadFiles": (msg: any) => msg.files.map((f: any) => f.fileId === "logs"
+        ? { fileId: f.fileId, filename: f.filename, ok: true, href: `/uploads/${++reuploads}/logs.html` }
+        : captureOk ? { fileId: f.fileId, filename: f.filename, ok: true, href: "/uploads/c/screenshot.webp" } : { fileId: f.fileId, filename: f.filename, ok: false, failure: { stage: "upload", code: "permission", httpStatus: 403 } }),
+      "gitlab.submitIssue": () => ({ iid: 3, url: "https://gitlab.com/o/r/-/issues/3" }),
+      "gitlab.updateIssueDescription": () => ({}),
+    });
+    rpc(handlers(false));
+    await submitToGitlab(input());
+    expect(slots[0].lastWritten).toBe(sent("gitlab.updateIssueDescription")[0].description);
+    const result = fill("markdown", { [capture.id]: "/uploads/c/screenshot.webp" }, [capture.id]);
+    sendBg.mockReset();
+    slots = [];
+    reuploads = 0;
+    rpc(handlers(true));
+    await submitToGitlab(input());
+    expect(result.body).toBe(sent("gitlab.updateIssueDescription")[0].description);
   });
 
   it("ClickUp: a failed second markdown write leaves every referenced file fillable from the first body", async () => {

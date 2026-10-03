@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SubmissionRecoveryMeta } from "@/types/attachment";
-import { failedStageState, initialAttachmentCheckpoints, retrySnapshotBlocker } from "../attachmentCheckpoints";
+import { failedStageState, initialAttachmentCheckpoints, mergeCheckpoint, retrySnapshotBlocker } from "../attachmentCheckpoints";
 
 const kinds = ["capture", "video", "inline", "logs", "user"] as const;
 const files = kinds.map((kind) => ({ id: kind === "user" ? "user:a" : kind, kind }));
@@ -65,5 +65,16 @@ describe("retrySnapshotBlocker", () => {
     expect(retrySnapshotBlocker(partial({ localFilesRemoved: true }))).toBe("local-missing");
     expect(retrySnapshotBlocker(partial({ platform: "webhook", destination: { platform: "webhook", key: "k", locator: { key: "k", url: "https://hook.example/k" } }, retry: undefined }))).toBe("webhook-unsupported");
     expect(retrySnapshotBlocker(partial({ phase: "unknown", destination: undefined }))).toBe("ambiguous");
+  });
+});
+
+describe("mergeCheckpoint", () => {
+  it("overlays a patch and drops fields set to undefined", () => {
+    expect(mergeCheckpoint({ fileId: "a", upload: "pending", link: "pending", body: "not-applicable", uploaded: { platform: "slack", id: "F" } }, { fileId: "a", upload: "failed", uploaded: undefined }))
+      .toStrictEqual({ fileId: "a", upload: "failed", link: "pending", body: "not-applicable" });
+  });
+
+  it("refuses a file without a checkpoint", () => {
+    expect(() => mergeCheckpoint(undefined, { fileId: "x", upload: "done" })).toThrow();
   });
 });

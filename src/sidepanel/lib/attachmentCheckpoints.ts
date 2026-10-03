@@ -1,4 +1,4 @@
-import type { AttachmentCheckpoint, AttachmentKind, AttachmentResult, AttachmentRetryReason, RetryPlatform, SubmissionRecoveryMeta } from "@/types/attachment";
+import type { AttachmentCheckpoint, AttachmentCheckpointPatch, AttachmentKind, AttachmentResult, AttachmentRetryReason, RetryPlatform, SubmissionRecoveryMeta } from "@/types/attachment";
 
 type Stages = Pick<AttachmentCheckpoint, "link" | "body">;
 const PENDING_BODY: Stages = { link: "not-applicable", body: "pending" };
@@ -36,4 +36,12 @@ export function retrySnapshotBlocker(meta: SubmissionRecoveryMeta): AttachmentRe
   if (meta.localFilesRemoved) return "local-missing";
   if (meta.retry.accountIdentity === null) return "account-unverified";
   return null;
+}
+
+// A patch over the current checkpoint; `undefined` clears a field (the journal rejects the key).
+export function mergeCheckpoint(current: AttachmentCheckpoint | undefined, patch: AttachmentCheckpointPatch): AttachmentCheckpoint {
+  if (!current) throw new Error("Unknown checkpoint file");
+  const next: Record<string, unknown> = { ...current, ...patch };
+  for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key];
+  return next as unknown as AttachmentCheckpoint;
 }

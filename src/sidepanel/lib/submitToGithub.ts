@@ -73,7 +73,7 @@ export async function submitToGithub(
   await input.progress?.created({ platform: "github", key: `#${result.number}`, url: result.url, locator: { owner: input.owner, repo: input.repo, number: String(result.number) } });
   await input.progress?.bodyWritten(body, ...uploads.filter((u) => u.upload === "done").map((u) => ({ fileId: u.fileId, body: "done" as const })));
   const pending = uploads.filter((u) => u.upload !== "done").map((u) => u.fileId);
-  await recordBodySlots(input.progress, body, pending, () => buildBodyReplacements({ format: "markdown", base: body, pending,
+  await recordBodySlots(input.progress, body, pending, () => buildBodyReplacements({ format: "markdown", bodyOnly: true, base: body, pending,
     render: (success) => render(prepared.withHrefs(new Map([...success].map((id) => [id, bodySlotToken(id)])))) }));
   return { key: `#${result.number}`, url: result.url, attachments: deliveryResults(input.submissionFiles ?? [], prepared.responses) };
 }

@@ -165,6 +165,19 @@ describe("retryAttachments — GitHub stage resume", () => {
     expect(events).toContain(`${capture.id}:body:done`);
   });
 
+  it("never leaves a file waiting on its slot group reported as running", async () => {
+    const grouped = (success: ReadonlySet<string>) => ["intro", ...(success.size ? ["## Attachments", ...[...success].sort().map((id) => `- ${patch.bodySlotToken(id)}`)] : ["(none)"]), "outro"].join("\n");
+    const lastWritten = grouped(new Set());
+    const bodyPlan: AttachmentBodyPlan = { format: "markdown", lastWritten, replacements: patch.buildBodyReplacements({ format: "markdown", base: lastWritten, pending: [logs.id, userPdf.id], render: grouped }) };
+    await seed({ files: [logs, userPdf], checkpoints: [cp(logs.id, { upload: "done", body: "failed", uploaded: { platform: "github", href: HREF.logs } }), cp(userPdf.id)], bodyPlan });
+    const rejectPdf: Handler = (msg) => msg.files.map((f: any) => ({ fileId: f.fileId, filename: f.filename, ok: false, failure: { stage: "upload", code: "size-limit", httpStatus: 413 } }));
+    rpc(github({ body: lastWritten }, { "github.uploadFiles": rejectPdf }));
+    const events: string[] = [];
+    await runner.retryAttachments("i", { onProgress: (e) => events.push(`${e.fileId}:${e.stage}:${e.state}`) });
+    expect(sent("github.updateIssueBody")).toHaveLength(0);
+    expect(events.filter((e) => e.startsWith(`${logs.id}:body:`))).toEqual([]);
+  });
+
   it("an uploaded file whose body write failed is not uploaded again — one body update only", async () => {
     const plan = ghPlan({}, [capture.id]);
     await seed({ files: [capture], checkpoints: [cp(capture.id, { upload: "done", body: "failed", uploaded: { platform: "github", href: HREF[capture.id] } })], bodyPlan: plan });

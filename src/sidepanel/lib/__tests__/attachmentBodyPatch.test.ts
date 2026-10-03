@@ -107,6 +107,27 @@ describe("markdown three-way body patch", () => {
     expect(result).toMatchObject({ body: null, present: [], conflict: ["f"] });
   });
 
+  it("ignores a slot-shaped string someone pasted into an unrelated remote line", () => {
+    const remote = `${base}\nnote: ${bodySlotToken("logs")}`;
+    const result = planAttachmentBodyPatch(plan(), remote, ready("logs"), ["logs"]);
+    expect(result.body).toBe(`${render({ logs: HREF.logs })}\nnote: ${bodySlotToken("logs")}`);
+  });
+
+  it("turns a slot it cannot fill into a conflict instead of throwing", () => {
+    const broken: AttachmentBodyPlan = { ...plan(), replacements: plan().replacements.map((r) => r.fileId === "logs" ? { ...r, renderTemplate: JSON.stringify([`[x](${bodySlotToken("ghost")})`]) } : r) };
+    const result = planAttachmentBodyPatch(broken, base, ready("logs"), ["logs"]);
+    expect(result).toMatchObject({ body: null, conflict: ["logs"] });
+  });
+
+  it("records no slot for a file the body never references when the body is its only path", () => {
+    const unreferenced = (success: ReadonlySet<string>) => ["intro", ...(success.has("a") ? [`![a](${bodySlotToken("a")})`] : ["a dropped"]), "outro"].join("\n");
+    const groupBase = unreferenced(new Set());
+    const strict = buildBodyReplacements({ format: "markdown", base: groupBase, pending: ["a", "b"], render: unreferenced, bodyOnly: true });
+    expect(strict.map((r) => r.fileId)).toEqual(["a"]);
+    const lenient = buildBodyReplacements({ format: "markdown", base: groupBase, pending: ["a", "b"], render: unreferenced });
+    expect(lenient.map((r) => r.fileId).sort()).toEqual(["a", "b"]);
+  });
+
   it("treats a file without a recorded slot as a conflict instead of guessing", () => {
     const legacy: AttachmentBodyPlan = { format: "markdown", lastWritten: base, replacements: [] };
     const result = planAttachmentBodyPatch(legacy, base, ready("logs"), ["logs"]);

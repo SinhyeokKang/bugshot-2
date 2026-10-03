@@ -17,7 +17,7 @@ import { supportsConsoleNetworkLog, supportsActionLog } from "./captureLogSuppor
 import { zipLogsHtml } from "./zipLogsHtml";
 import { loadImage } from "@/sidepanel/capture";
 import { resolveDraftStyleElements } from "./resolveDraftStyleElements";
-import { initialAttachmentCheckpoints } from "./attachmentCheckpoints";
+import { initialAttachmentCheckpoints, mergeCheckpoint } from "./attachmentCheckpoints";
 
 export interface SubmissionProgress {
   attemptId: string;
@@ -231,13 +231,7 @@ export async function runSubmissionRecovery(
   const writeRetry = (patch: { files?: AttachmentCheckpointPatch[]; lastWritten?: string; accountIdentity?: string; replacements?: AttachmentBodyPlan["replacements"] }) => serial(async () => {
     if (retryDisabled || !(await ensureSnapshot())) return;
     try {
-      const merged = (patch.files ?? []).map((file) => {
-        const current = checkpoints.get(file.fileId);
-        if (!current) throw new Error("Unknown checkpoint file");
-        const next: Record<string, unknown> = { ...current, ...file };
-        for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key];
-        return next as unknown as AttachmentCheckpoint;
-      });
+      const merged = (patch.files ?? []).map((file) => mergeCheckpoint(checkpoints.get(file.fileId), file));
       revision = await checkpointAttachmentRetry(issueId, attemptId, revision, {
         checkpoints: merged,
         ...(patch.lastWritten !== undefined ? { lastWritten: patch.lastWritten } : {}),

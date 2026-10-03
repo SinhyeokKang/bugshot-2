@@ -129,7 +129,6 @@ async function bodyStage(ctx: RetryContext, io: BodyIo): Promise<void> {
   if (!targets.length) return;
   const ready = new Map(meta.files.flatMap((f) => { const v = readyFile(f); return v === undefined ? [] : [[f.id, v] as const]; }));
   const plan = (remote: string) => planAttachmentBodyPatch(meta.retry.bodyPlan, remote, ready, targets);
-  for (const id of targets) ctx.emit(id, "body", "running");
   let remote = await probe(io.read);
   let result = plan(remote);
   // Re-read right before writing; one recompute on change, a second change is a conflict.
@@ -147,6 +146,7 @@ async function bodyStage(ctx: RetryContext, io: BodyIo): Promise<void> {
   for (const id of result.conflict) ctx.emit(id, "body", "conflict");
   if (result.body === null) return;
   const body = result.body;
+  for (const id of result.written) ctx.emit(id, "body", "running");
   await ctx.save(...result.written.map((fileId) => ({ fileId, body: "unknown" as const })));
   const written = await guarded(ctx, result.written, "body", () => io.write(body, result.slotFiles),
     (failure) => result.written.map((fileId) => ({ fileId, body: failedStageState(failure) })));

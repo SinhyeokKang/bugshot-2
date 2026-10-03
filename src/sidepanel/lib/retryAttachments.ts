@@ -3,7 +3,7 @@ import { sendBg } from "@/lib/bg-client";
 import type { AttachmentCheckpoint, AttachmentCheckpointPatch, AttachmentResult, AttachmentRetryReason, RetryPlatform, SubmissionRecoveryMeta } from "@/types/attachment";
 import { blobToDataUrl, checkpointAttachmentRetry, checkpointSubmission, readRecoveryFile, readSubmissionRecovery } from "@/store/blob-db";
 import { IssueAlreadySubmittedError, isIssueSubmitting, withIssueOperationLock } from "@/store/issues-store";
-import { retrySnapshotBlocker } from "./attachmentCheckpoints";
+import { mergeCheckpoint, retrySnapshotBlocker } from "./attachmentCheckpoints";
 import { RETRY_ADAPTERS, RetryStop, fileFinished, planFileStage, type RetryContext, type RetryFileState, type RetryStage } from "./retryAttachmentAdapters";
 import { completeRecoveredSubmission, notifyRecoveryChange } from "./submissionRecovery";
 
@@ -82,14 +82,16 @@ export async function retryAttachments(
 
 class StorageFailure extends Error {}
 
+const retryReady = (meta: SubmissionRecoveryMeta): meta is RetryMeta => !!meta.destination && !!meta.retry;
+
 async function run(issueId: string, onProgress?: (event: RetryProgressEvent) => void): Promise<RetryAttachmentsOutcome> {
   // Re-read inside the lock: whatever the caller saw may be stale.
   const current = await readSubmissionRecovery(issueId).catch(() => undefined);
   if (current === undefined) return { status: "blocked", reason: "ambiguous", attachments: [], remaining: 0, storageFailed: true };
   if (!current) return { status: "blocked", reason: "ambiguous", attachments: [], remaining: 0 };
   const blocker = retrySnapshotBlocker(current);
-  if (blocker) return { status: "blocked", reason: blocker, attachments: current.results, remaining: remainingOf(current.results) };
-  const meta = current as RetryMeta;
+  if (blocker || !retryReady(current)) return { status: "blocked", reason: blocker ?? "ambiguous", attachments: current.results, remaining: remainingOf(current.results) };
+  const meta = current;
   const idle = attachmentRetryBlocker(meta);
   if (idle) return { status: "blocked", reason: idle, attachments: meta.results, remaining: remainingOf(meta.results) };
 
@@ -103,11 +105,7 @@ async function run(issueId: string, onProgress?: (event: RetryProgressEvent) => 
   const localMissing = new Set<string>();
   const touched = new Set<string>();
   const write = async (patches: AttachmentCheckpointPatch[], lastWritten?: string) => {
-    const merged = patches.map((patch) => {
-      const next: Record<string, unknown> = { ...checkpoints.get(patch.fileId), ...patch };
-      for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key];
-      return next as unknown as AttachmentCheckpoint;
-    });
+    const merged = patches.map((patch) => mergeCheckpoint(checkpoints.get(patch.fileId), patch));
     try {
       revision = await checkpointAttachmentRetry(issueId, attemptId, revision, { checkpoints: merged, ...(lastWritten !== undefined ? { lastWritten } : {}) });
     } catch { throw new StorageFailure("Retry checkpoint failed"); }

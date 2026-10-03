@@ -13,10 +13,12 @@ const MAX_CONTEXT = 8;
 const MAX_VERIFIED_GROUPS = 4;
 const MAX_DIFF_CELLS = 4_000_000;
 const SLOT_RE = /BUGSHOTSLOT([0-9a-f]+)Z/g;
+// Non-global twin for `.test`, which would otherwise carry lastIndex between calls.
+const HAS_SLOT = /BUGSHOTSLOT[0-9a-f]+Z/;
 const NOOP = "[]";
 
 const hex = (value: string) => [...new TextEncoder().encode(value)].map((b) => b.toString(16).padStart(2, "0")).join("");
-const unhex = (value: string) => new TextDecoder().decode(new Uint8Array(value.match(/../g)!.map((b) => parseInt(b, 16))));
+const unhex = (value: string) => value.length % 2 ? "" : new TextDecoder().decode(new Uint8Array((value.match(/../g) ?? []).map((b) => parseInt(b, 16))));
 
 // Stands in for a URL/id inside a rendered body; alphanumeric so no renderer escapes it.
 export function bodySlotToken(fileId: string): string {
@@ -152,7 +154,7 @@ function applyHunks(base: string[], hunks: Hunk[]): string[] {
   return out;
 }
 
-function emit(hunks: Array<Anchored & { base: string[] }>, groups: string[][], pending: readonly string[], excluded: Set<string>): Replacement[] {
+function emit(hunks: Array<Anchored & { base: string[] }>, groups: string[][], noops: readonly string[], excluded: Set<string>): Replacement[] {
   const replacements: Replacement[] = [];
   const grouped = new Set<string>();
   for (const group of groups) {
@@ -162,7 +164,7 @@ function emit(hunks: Array<Anchored & { base: string[] }>, groups: string[][], p
     }
     for (const id of group) grouped.add(id);
   }
-  for (const id of pending) if (!grouped.has(id) && !excluded.has(id)) replacements.push({ fileId: id, anchor: NOOP, before: NOOP, after: NOOP, renderTemplate: NOOP });
+  for (const id of noops) if (!grouped.has(id) && !excluded.has(id)) replacements.push({ fileId: id, anchor: NOOP, before: NOOP, after: NOOP, renderTemplate: NOOP });
   return replacements;
 }
 
@@ -173,6 +175,9 @@ export function buildBodyReplacements(input: {
   base: string;
   pending: readonly string[];
   render: (success: ReadonlySet<string>) => string;
+  // The body is the file's only path (GitHub/GitLab): an unreferenced file gets no slot, so a
+  // retry offers its download instead of reporting it complete.
+  bodyOnly?: boolean;
 }): Replacement[] {
   const pending = [...new Set(input.pending)];
   if (!pending.length) return [];
@@ -196,7 +201,7 @@ export function buildBodyReplacements(input: {
     return true;
   };
   if (groups.length > 1 && !additive()) groups = [groups.flat()];
-  return emit(anchored.map((h) => ({ ...h, base: base.slice(h.start, h.end) })), groups, pending, unanchored);
+  return emit(anchored.map((h) => ({ ...h, base: base.slice(h.start, h.end) })), groups, input.bodyOnly ? [] : pending, unanchored);
 }
 
 // Jira: the safe ADF actually written keeps one top-level node per template node. A slot swaps our
@@ -275,11 +280,12 @@ export function planAttachmentBodyPatch(
   const recorded = new Set([...slots.values()].flatMap((s) => s.members));
   result.conflict.push(...[...wanted].filter((id) => !recorded.has(id)));
 
-  const fill = (units: string[]) => units.map((u) => u.replace(SLOT_RE, (_, h: string) => {
-    const value = ready.get(unhex(h));
-    if (value === undefined) throw new Error("Body slot without a ready value");
-    return value;
-  }));
+  // Only our recorded templates are filled; one that cannot be filled completely is a conflict.
+  const fill = (units: string[]): string[] | null => {
+    let missing = false;
+    const filled = units.map((u) => u.replace(SLOT_RE, (token, h: string) => ready.get(unhex(h)) ?? (missing = true, token)));
+    return missing || filled.some((u) => HAS_SLOT.test(u)) ? null : filled;
+  };
   const edits: Array<{ at: number; length: number; insert: string[]; group: string }> = [];
   const groupFiles = new Map<string, string[]>();
   for (const [id, group] of groups) {
@@ -291,9 +297,11 @@ export function planAttachmentBodyPatch(
     let conflict = false;
     for (const slot of group) {
       if (!slot.pre.length && !slot.old.length && !slot.post.length && !slot.insert.length) continue;
+      const insert = adf ? slot.insert : fill(slot.insert);
+      if (!insert) { conflict = true; break; }
       const at = occurrences(keys, [...slot.pre, ...slot.old, ...slot.post]);
-      if (at.length === 1) { pending.push({ at: at[0] + slot.pre.length, length: slot.old.length, insert: adf ? slot.insert : fill(slot.insert), group: id }); continue; }
-      if (!isPresent(keys, slot, adf, members.map((m) => ready.get(m)!), adf ? [] : fill(slot.insert))) { conflict = true; break; }
+      if (at.length === 1) { pending.push({ at: at[0] + slot.pre.length, length: slot.old.length, insert, group: id }); continue; }
+      if (!isPresent(keys, slot, adf, members.map((m) => ready.get(m)!), insert)) { conflict = true; break; }
     }
     if (conflict) result.conflict.push(...groupFiles.get(id)!);
     else if (pending.length) edits.push(...pending);
@@ -328,7 +336,6 @@ export function planAttachmentBodyPatch(
     const body = raw.join("\n");
     result.body = body;
   }
-  if (/BUGSHOTSLOT[0-9a-f]+Z/.test(result.body)) throw new Error("Unfilled body slot");
   return result;
 }
 
