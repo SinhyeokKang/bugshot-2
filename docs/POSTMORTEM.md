@@ -36,6 +36,24 @@
 
 ---
 
+## 2026-10-04 — "결과 불명"은 단계로 판정한다: 커밋 요청 전 거부는 확정 실패이고, 기록이 사라진 건 성공이 아니다
+
+- **영역**: `background`, `컴포넌트`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: 1.7.47 실사용 검증에서 두 가지가 나왔다.
+  - GitHub 업로드 탭이 다른 페이지로 이동해 업로드가 실패하면(#244의 실제 양상) 재시도 버튼이 아예 뜨지 않았다.
+  - 이슈 목록에서 재시도가 성공한 뒤, 숨은 Debug 탭의 완료 화면이 "처리하지 못했어요" 오류를 띄웠다.
+- **근본 원인**:
+  - ① 실패 분류가 오류 **종류**(TypeError → network → unknown)만 보고 **어느 요청에서** 났는지는 보지 않았다. GitHub 업로드는 policy → S3 → finalize 순서이고, finalize 전에 난 거부는 이슈에 아무것도 남기지 않는다. 그런데 이것까지 "중복될 수 있음"으로 묶여, 재전송 금지(D1)가 정작 가장 흔한 실패를 복구 불가로 만들었다.
+  - ② 복구 패널이 "journal 없음"을 오류로만 해석했다. journal은 재시도 완료로도, 로컬 사본 삭제(포기)로도 사라진다. 그래서 반대로 "성공"으로 단정해서도 안 된다(리뷰에서 같이 잡았다).
+- **재발 방지**:
+  - 외부 쓰기 실패를 unknown으로 분류할 때는 "커밋에 해당하는 요청이 나갔는가"를 단계 플래그로 기록하고, 그 전 거부는 `not-sent`(확정)로 둔다. 판정 위치: `src/background/github-upload.ts` `finalizing`, 탭 준비 실패도 `not-sent`.
+  - 다른 어댑터에 같은 다단계 업로드가 생기면 `rg -n "TypeError" src/background src/lib`로 단계 정보 없이 network로 떨어지는 곳을 확인한다.
+  - 기록의 부재는 중립 상태(`recovery.resolved`)로 표시하고, 성공·실패 어느 쪽도 단정하지 않는다.
+  - 판정은 실사용 경로로 한다. 이 두 결함은 mock e2e로는 green이었고, 실제 탭 이동과 탭 숨김 마운트에서만 드러났다.
+- **관련**: `src/background/github-upload.ts:pageBatchUploadFn`·`uploadGithubFiles`, `src/sidepanel/lib/attachmentCheckpoints.ts:failedStageState`, `src/sidepanel/components/AttachmentRecoveryPanel.tsx`(resolved), `src/sidepanel/lib/retryUi.ts:retrySummary`(conflict), `e2e/attachment-retry.spec.ts`. 선행: 2026-10-04 숨은 탭 마운트 집계.
+
 ## 2026-10-04 — 숨은 탭에 마운트된 화면도 "열린 화면"으로 집계된다
 
 - **영역**: `컴포넌트`
