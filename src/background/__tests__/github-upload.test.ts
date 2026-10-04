@@ -54,3 +54,9 @@ describe("GitHub upload network rejection", () => {
     expect(results[0]).toMatchObject({ ok: false, failure: { stage: "upload", code: "network" } });
   });
 });
+
+it("is not-sent when the GitHub tab never became available", async () => {
+  vi.stubGlobal("chrome", { tabs: { create: async () => { throw new Error("No tab"); }, remove: async () => {} }, scripting: { executeScript: vi.fn() } });
+  const results = await uploadGithubFiles("o", "r", 1, [{ fileId: "capture", filename: "screenshot.webp", contentType: "image/webp", dataUrl: "data:image/webp;base64,QQ==" }]);
+  expect(results[0]).toMatchObject({ ok: false, failure: { stage: "upload", code: "not-sent" } });
+});

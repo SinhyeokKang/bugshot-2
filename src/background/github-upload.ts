@@ -160,7 +160,8 @@ export async function uploadGithubFiles(
     created = tab.created;
   } catch (err) {
     console.warn("[bugshot] github tab not available", err);
-    return allFailed(err);
+    // No upload script ran, so nothing can be attached on GitHub.
+    return files.map((f) => ({ ok: false, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, failure: { stage: "upload", code: "not-sent" } }));
   }
 
   try {

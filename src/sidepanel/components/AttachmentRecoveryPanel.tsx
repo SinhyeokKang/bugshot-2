@@ -33,9 +33,10 @@ export function AttachmentRecoveryPanel({ issueId, attemptId, allowManage = fals
     let cancelled = false;
     setLoading(true);
     setError(false);
+    setResolved(false);
     void (async () => {
       const current = await readSubmissionRecovery(issueId);
-      // A retry elsewhere finished this recovery and released the record; that is completion, not a failure.
+      // The record was released elsewhere (a finished retry, or local copies deleted): not a failure, but not proof of success either.
       if (!current && issue?.status === "submitted" && !issue.submissionRecoveryId) { if (!cancelled) { setMeta(null); setResolved(true); } return; }
       if (!current || current.attemptId !== attemptId) throw new Error("Recovery unavailable");
       const absent = new Set<string>();
@@ -92,7 +93,7 @@ export function AttachmentRecoveryPanel({ issueId, attemptId, allowManage = fals
   return <div className="min-w-0 space-y-3" aria-busy={busy || loading}>
     {allowManage && <p role="status" aria-live="polite" data-testid="recovery-retry-status" className={session.summary ? "break-words text-sm" : "sr-only"}>{session.summary ? retrySummaryText(session.summary, t) : ""}</p>}
     {loading && !meta && <p role="status" className="text-sm text-muted-foreground">{t("recovery.loading")}</p>}
-    {resolved && <p className="flex items-center gap-1.5 text-sm" data-testid="recovery-resolved"><CircleCheck className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />{t("recovery.resolved")}</p>}
+    {resolved && <p role="status" className="break-words text-sm" data-testid="recovery-resolved">{t("recovery.resolved")}</p>}
     {error && <p role="alert" className="break-words text-sm">{t("recovery.error")}</p>}
     {meta && <>
       {meta.phase === "complete" && <p className="break-words text-sm">{t("recovery.storageFailed")}</p>}

@@ -124,8 +124,22 @@ describe("finished recovery", () => {
     mocks.issues = [{ id: "issue", status: "submitted" }];
     mocks.read.mockResolvedValue(undefined);
     render(<AttachmentRecoveryPanel issueId="issue" attemptId="a" />);
-    expect(await screen.findByTestId("recovery-resolved")).toBeTruthy();
+    const note = await screen.findByTestId("recovery-resolved");
+    // The journal also disappears when the user gave up by deleting local copies, so it must not claim success.
+    expect(note.getAttribute("role")).toBe("status");
+    expect(note.textContent).toBe("recovery.resolved");
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("drops the finished note when the panel reloads into a different outcome", async () => {
+    mocks.issues = [{ id: "issue", status: "submitted" }];
+    mocks.read.mockResolvedValue(undefined);
+    const view = render(<AttachmentRecoveryPanel issueId="issue" attemptId="a" />);
+    await screen.findByTestId("recovery-resolved");
+    mocks.issues = [{ id: "issue", status: "submitted", submissionRecoveryId: "b" }];
+    mocks.read.mockResolvedValue({ ...meta, attemptId: "b" });
+    view.rerender(<AttachmentRecoveryPanel issueId="issue" attemptId="a" />);
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.queryByTestId("recovery-resolved")).toBeNull();
   });
   it("keeps the error while the record still points at the missing journal", async () => {
     mocks.issues = [{ id: "issue", status: "submitted", submissionRecoveryId: "a" }];

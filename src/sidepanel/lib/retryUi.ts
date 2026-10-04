@@ -58,6 +58,7 @@ export type RetrySummary =
   | { kind: "complete"; n: number }
   | { kind: "partial"; n: number }
   | { kind: "needsCheck" }
+  | { kind: "conflict" }
   | { kind: "storageFailed" }
   | { kind: "blocked"; reason: AttachmentRetryReason };
 
@@ -68,7 +69,8 @@ export function retrySummary(outcome: RetryAttachmentsOutcome, pending: number):
   // A write whose result is unknown is shown as a static note, never as a count of failures.
   if (outcome.reason === "ambiguous") return { kind: "needsCheck" };
   // Uploaded files whose body link was blocked by an edited issue did not fail again.
-  if (outcome.reason === "body-conflict" && outcome.attachments.filter((r) => r.failure).every((r) => r.failure!.stage === "body")) return { kind: "blocked", reason: "body-conflict" };
+  const failures = outcome.attachments.filter((r) => r.failure);
+  if (outcome.reason === "body-conflict" && failures.length && failures.every((r) => r.failure!.stage === "body")) return { kind: "conflict" };
   if (outcome.status === "blocked" && outcome.reason) return { kind: "blocked", reason: outcome.reason };
   return { kind: "partial", n: outcome.remaining };
 }
@@ -78,6 +80,7 @@ export function retrySummaryText(summary: RetrySummary, t: TranslationFn): strin
     case "complete": return t("recovery.retry.summary.complete", { n: summary.n });
     case "partial": return t("recovery.retry.summary.partial", { n: summary.n });
     case "needsCheck": return t("recovery.retry.summary.needsCheck");
+    case "conflict": return t("recovery.retry.summary.conflict");
     case "storageFailed": return t("recovery.retry.summary.storageFailed");
     case "blocked": return t(RETRY_REASON_KEY[summary.reason]);
   }
