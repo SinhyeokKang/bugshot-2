@@ -625,7 +625,8 @@ export interface IssuesState {
   issues: IssueRecord[];
   saveDraft: (record: IssueRecord) => void;
   markSubmitted: (id: string, patch: Partial<IssueRecord>) => void;
-  markSubmittedDurably: (id: string, patch: Partial<IssueRecord>, opts?: { preserveOriginals?: boolean }) => Promise<void>;
+  // `submittedAt`: keep an earlier submit time (attachment retry completing an existing issue).
+  markSubmittedDurably: (id: string, patch: Partial<IssueRecord>, opts?: { preserveOriginals?: boolean; submittedAt?: number }) => Promise<void>;
   // Slack 공유 — markSubmitted와 정반대로 데이터를 보존한다(blob 삭제 없음).
   markSlackShared: (id: string, patch: { key: string; url: string }) => void;
   patchIssue: (id: string, patch: Partial<IssueRecord>) => void;
@@ -687,9 +688,9 @@ export const useIssuesStore = create<IssuesState>()(
         if (!useIssuesStore.getState().issues.some((x) => x.id === id)) throw new Error("Missing issue record");
         await persistIssuesMutation(() => set((s) => ({
           issues: s.issues.map((x) => x.id === id
-            ? opts?.preserveOriginals
-              ? { ...x, ...patch, status: "submitted", submittedAt: Date.now(), updatedAt: Math.max(Date.now(), x.updatedAt + 1) }
-              : stripSubmitted(x, patch)
+            ? { ...(opts?.preserveOriginals
+              ? { ...x, ...patch, status: "submitted" as const, submittedAt: Date.now(), updatedAt: Math.max(Date.now(), x.updatedAt + 1) }
+              : stripSubmitted(x, patch)), ...(opts?.submittedAt ? { submittedAt: opts.submittedAt } : {}) }
             : x),
         })));
       },

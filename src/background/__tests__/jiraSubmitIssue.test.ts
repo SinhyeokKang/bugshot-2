@@ -29,7 +29,7 @@ const doc = (marker: string): JiraAdfDoc => ({ version: 1, type: "doc", content:
 const submit = (files: SubmissionFile[] = [capture, logs]) => submitToJira({
   ctx: { bodyLocale: "en", sections: {}, styleElements: [] } as unknown as MarkdownContext,
   projectKey: "BUG", summary: "s", issueTypeId: "1", submissionFiles: files,
-  progress: { attemptId: "attempt", beforeCreate: async () => {}, created: async () => {} },
+  progress: { attemptId: "attempt", beforeCreate: async () => {}, created: async () => {}, fileCheckpoint: async () => {}, bodyWritten: async () => {} },
 });
 const resultFor = (result: Awaited<ReturnType<typeof submit>>, id: string) => result.attachments?.find((r) => r.fileId === id);
 

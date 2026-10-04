@@ -130,46 +130,46 @@
 - **변경 대상**: background API 모듈·messages/types/`bgRequestTypes.ts`, `SubmissionProgress.fileCheckpoint`(신규 `submissionRecovery.ts`의 인터페이스 확장 — 파일이 아님), `blob-db.ts`.
 - **작업 내용**: 설계 플랫폼 표의 body/attachment 조회 및 갱신 메시지를 추가하고 파일별 upload/link/body checkpoint를 저장한다. 계정 신원(플랫폼별 `accountIdentity`)·목적지 locator를 고정한다. 모든 체크포인트는 사이드패널의 응답 수신 지점에서 쓴다.
 - **검증**:
-  - [ ] 8개 플랫폼 각각 기존 이슈를 조회·갱신하고 생성 API를 호출하지 않는 mock 계약 테스트.
-  - [ ] GitHub는 body만 PATCH, Jira는 attachment id 재사용, Linear는 GraphQL success=false를 실패 처리.
-  - [ ] Notion child pagination·100개 이하 append·반환 block id 저장·미연결 upload 만료·응답 유실 재조회를 검증한다. 고정 API 버전에서 삽입 위치와 capability를 실계정 fixture로 확인한다.
-  - [ ] Slack file_id/complete 상태 보존, 같은 complete 무조건 재호출 금지, scope 추가 없음.
-  - [ ] 401 refresh 후 동일 계정 재개, 계정 변경·연결 해제·404·403 시 새 생성 없이 중단하고 크래시 없이 재연결 안내/다운로드를 반환한다.
-  - [ ] 8개 플랫폼의 `accountIdentity` 추출이 정의 표와 일치한다.
-  - [ ] 기존 메시지 허용 타입 Map·union·handler가 모두 일치한다.
+  - [x] 8개 플랫폼 각각 기존 이슈를 조회·갱신하고 생성 API를 호출하지 않는 mock 계약 테스트.
+  - [x] GitHub는 body만 PATCH, Jira는 attachment id 재사용, Linear는 GraphQL success=false를 실패 처리.
+  - [ ] Notion child pagination·100개 이하 append·반환 block id 저장·미연결 upload 만료·응답 유실 재조회를 검증한다. 고정 API 버전에서 삽입 위치와 capability를 실계정 fixture로 확인한다. — 단위 계약 테스트 완료, 실계정 fixture 미확인(런타임 전용).
+  - [x] Slack file_id/complete 상태 보존, 같은 complete 무조건 재호출 금지, scope 추가 없음.
+  - [x] 401 refresh 후 동일 계정 재개, 계정 변경·연결 해제·404·403 시 새 생성 없이 중단하고 크래시 없이 재연결 안내/다운로드를 반환한다.
+  - [x] 8개 플랫폼의 `accountIdentity` 추출이 정의 표와 일치한다.
+  - [x] 기존 메시지 허용 타입 Map·union·handler가 모두 일치한다.
 
 ### Task 10: 실패 단계 재개와 본문 패치 [2단계]
 - **변경 대상**: 신규 `retryAttachments.ts`, `retryAttachmentAdapters.ts`, `attachmentBodyPatch.ts`, journal revision 관리.
 - **작업 내용**: 이슈 목록에서 호출할 단일 runner를 만든다. `navigator.locks`로 이슈별 배타를 얻고 IDB 트랜잭션으로 revision을 검사한다. 첨부 관련 hunk만 3-way patch하고 성공한 upload/link를 재사용한다. 업로드는 메시지당 1파일. Webhook은 미지원 판정을 명시한다.
 - **검증**:
-  - [ ] upload 성공/body 실패 후 두 번째 시도는 upload 0회·body update 1회.
-  - [ ] 여러 파일 중 일부 재성공하면 다음 시도는 남은 파일만 처리한다.
-  - [ ] remote에 추가된 문장·상태·담당자는 유지, 첨부 자리 수정/삭제/모호한 중복 문구는 conflict로 차단.
-  - [ ] `navigator.locks` mock으로 동시 2회 호출 중 1회만 실행된다. 락 해제 후 unknown 쓰기가 남은 파일은 반복하지 않고 reconcile한다.
-  - [ ] 응답 유실/오래된 revision은 먼저 reconcile하고, 결과를 확인할 수 없는 쓰기는 반복하지 않는다.
-  - [ ] 제목·본문 언어·파일·로그는 현재 draft/설정 대신 최초 제출 snapshot을 사용한다. 현재 bodyLocale ≠ snapshot일 때 재시도 메시지 payload의 bodyLocale이 snapshot이다.
-  - [ ] 패치 빌더가 `t`/본문 헬퍼를 import하면 `builderLocaleWrap.test.ts`의 WRAPPED/EXEMPT에 분류된다.
-  - [ ] 재시도 중 보존 Blob이 유실되면 해당 파일은 `local-storage`/로컬 없음으로 표시되고 업로드 0회.
-  - [ ] 120초 영상 + logs.html 동시 실패 재시도에서 각 메시지가 1파일이다.
-  - [ ] complete 영속(`markSubmittedDurably`) 후에만 보존 자료 삭제. 실패한 metadata write는 자료를 보존한다.
+  - [x] upload 성공/body 실패 후 두 번째 시도는 upload 0회·body update 1회.
+  - [x] 여러 파일 중 일부 재성공하면 다음 시도는 남은 파일만 처리한다.
+  - [x] remote에 추가된 문장·상태·담당자는 유지, 첨부 자리 수정/삭제/모호한 중복 문구는 conflict로 차단.
+  - [x] `navigator.locks` mock으로 동시 2회 호출 중 1회만 실행된다. 락 해제 후 unknown 쓰기가 남은 파일은 반복하지 않고 reconcile한다.
+  - [x] 응답 유실/오래된 revision은 먼저 reconcile하고, 결과를 확인할 수 없는 쓰기는 반복하지 않는다.
+  - [x] 제목·본문 언어·파일·로그는 현재 draft/설정 대신 최초 제출 snapshot을 사용한다. 현재 bodyLocale ≠ snapshot일 때 재시도 메시지 payload의 bodyLocale이 snapshot이다.
+  - [x] 패치 빌더가 `t`/본문 헬퍼를 import하면 `builderLocaleWrap.test.ts`의 WRAPPED/EXEMPT에 분류된다.
+  - [x] 재시도 중 보존 Blob이 유실되면 해당 파일은 `local-storage`/로컬 없음으로 표시되고 업로드 0회.
+  - [x] 120초 영상 + logs.html 동시 실패 재시도에서 각 메시지가 1파일이다.
+  - [x] complete 영속(`markSubmittedDurably`) 후에만 보존 자료 삭제. 실패한 metadata write는 자료를 보존한다.
 
 ### Task 11: 재시도 UI·피드백 [2단계]
 - **변경 대상**: `IssueRow.tsx`, `AttachmentRecoveryPanel.tsx`, `DraftDetailDialog.tsx`(복구 모드 푸터), i18n.
 - **작업 내용**: 행 `ButtonGroup`에 [첨부 재시도] 추가, 재시도 불가 상태면 숨김. 실행 중 `Loader2` + `aria-busy` + `disabled`, 파일별 진행은 상세에만. 완료 요약은 `role="status" aria-live="polite"` 한 줄, 다른 화면에서 끝나면 토스트 하나. stale/unknown은 스피너 없이 "결과 확인 필요". 재시도 불가 상태표(design §5)의 대체 동작과 문구를 연결한다.
 - **검증**:
-  - [ ] 재시도 불가 상태(계정 변경·404·403·충돌·모호·Webhook·로컬 유실) 각각에서 버튼 노출/대체 동작/문구가 표와 일치한다.
-  - [ ] 연속 클릭은 한 번만 실행된다(버튼 disabled + 락).
-  - [ ] 성공 시 표시가 사라지고 `toast.success`가 뜬다. 재실패 시 "다시 N개 실패"와 갱신된 패널.
-  - [ ] live region은 완료 요약 한 번만 읽는다.
-  - [ ] 재시도 중 로컬 사본 삭제·Slack 승격이 차단된다.
+  - [x] 재시도 불가 상태(계정 변경·404·403·충돌·모호·Webhook·로컬 유실) 각각에서 버튼 노출/대체 동작/문구가 표와 일치한다.
+  - [x] 연속 클릭은 한 번만 실행된다(버튼 disabled + 락).
+  - [x] 성공 시 표시가 사라지고 `toast.success`가 뜬다. 재실패 시 "다시 N개 실패"와 갱신된 패널.
+  - [x] live region은 완료 요약 한 번만 읽는다.
+  - [x] 재시도 중 로컬 사본 삭제·Slack 승격이 차단된다.
 
 ### Task 12: 2단계 통합 검증과 문서 [2단계]
 - **변경 대상**: e2e spec, `docs/{ARCHITECTURE,POSTMORTEM}.md`, 가이드.
 - **검증**:
-  - [ ] `pnpm typecheck`, `pnpm test` 통과.
-  - [ ] `/e2e-write`로 아래 2단계 시나리오를 green까지 작성한다.
-  - [ ] 수동: 8플랫폼 실계정에서 기존 이슈 첨부/본문 갱신과 원격 동시 편집 시 race 한계를 확인·기록한다.
-  - [ ] 회고에 단계 재개·본문 충돌·락 함정을 기록한다.
+  - [x] `pnpm typecheck`, `pnpm test` 통과.
+  - [x] `/e2e-write`로 아래 2단계 시나리오를 green까지 작성한다(`e2e/attachment-retry.spec.ts` 21 tests, Jira 재시도는 단위 테스트로 대체).
+  - [ ] 수동: 8플랫폼 실계정에서 기존 이슈 첨부/본문 갱신과 원격 동시 편집 시 race 한계를 확인·기록한다. — 미확인: unpacked dist 로드 프로필·연결 계정 없음(2026-10-04 TaskSpace 7은 스토어 1.7.46만).
+  - [x] 회고에 단계 재개·본문 충돌·락 함정을 기록한다.
 
 ## 테스트 계획
 
@@ -199,7 +199,7 @@ e2e 스파이는 각 Page에서 `chrome.runtime.sendMessage`를 가로채 `msg.t
 
 11. 부분 완료 행의 `recovery-retry`를 누르면, 업로드 메시지가 실패 파일 수만큼, 본문 갱신 메시지가 1회 호출되고 생성 메시지는 0회다. 성공 후 `recovery-row-warning`이 사라진다.
 12. 업로드 성공/본문 갱신 실패 이슈를 재시도하면 업로드 메시지 0회, 본문 갱신 메시지 1회다.
-13. 본문 조회 스파이가 base에 사용자 문장 "외부 편집"을 추가한 본문을 반환하면, 본문 갱신 payload의 body에 "외부 편집"이 포함되고 `inline:`이 없다. 조회 본문에서 첨부 자리를 지운 경우에는 본문 갱신 호출 0회이고 해당 `recovery-file-row[data-state=conflict]`가 보인다.
+13. 본문 조회 스파이가 base에 사용자 문장 "외부 편집"을 추가한 본문을 반환하면, 본문 갱신 payload의 body에 "외부 편집"이 포함되고 `inline:`이 없다. 조회 본문에서 첨부 자리를 지운 경우에는 본문 갱신 호출 0회이고 `recovery-retry-notice[data-reason=body-conflict]`와 해당 파일 행의 충돌 문구(`recovery.retry.fileConflict`)가 보인다(행의 `data-state`는 전달 축이라 업로드가 성립한 파일은 `attached`).
 14. (단위 테스트로 이동) 두 패널 동시 재시도 외부 쓰기 1회 — Task 10 `navigator.locks` mock.
 15. Notion 101블록 제출에서 잘린 첨부를 재시도하면 append children 메시지의 대상 pageId가 원래 pageId이고 page 생성 메시지는 0회다. Slack 실패 파일 재시도는 업로드 메시지의 `thread_ts`가 원래 부모 ts이고 `postMessage` 호출은 0회다.
 

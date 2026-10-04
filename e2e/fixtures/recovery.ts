@@ -57,13 +57,19 @@ export async function installRpc(panel: Page, provider: Provider, options: { fai
         }
         if (msg.type === "slack.postMessage") return options.slackFailure === "thread" ? failure() : success({ ts: "42.2" });
         if (msg.type === "slack.getPermalink") return options.slackFailure === "permalink" ? failure() : success({ permalink: remote });
+        if (msg.type === "slack.requestFileUpload") {
+          if (options.pending === "upload") return;
+          if (options.rejectUpload || options.failIds?.some((id) => msg.fileId === id || msg.fileId?.startsWith(id))) return failure();
+          return success({ fileId: `remote-${msg.fileId}`, uploadUrl: "https://files.slack.com/upload/v1/e2e" });
+        }
+        if (msg.type === "slack.sendFileUpload" || msg.type === "slack.completeFileUploads") return success({ ok: true });
         if (/\.(uploadFiles|uploadAttachment)$/.test(msg.type)) {
           if (options.pending === "upload") return;
           if (options.rejectUpload) return failure();
           const files = msg.files ?? [msg.attachment];
           const result = files.map((f: any) => options.failIds?.some((id) => f.fileId === id || f.fileId?.startsWith(id))
             ? { fileId: f.fileId, filename: f.filename, ok: false, failure: { stage: "upload", code: "permission", httpStatus: 403 } }
-            : { fileId: f.fileId, filename: f.filename, ok: true, href: `https://example.com/files/${encodeURIComponent(f.fileId)}`, gid: `gid-${f.fileId}`, remoteFileId: `remote-${f.fileId}`, file: { kind: "external", url: `https://example.com/files/${encodeURIComponent(f.fileId)}` } });
+            : { fileId: f.fileId, filename: f.filename, ok: true, href: `https://example.com/files/${encodeURIComponent(f.fileId)}`, gid: `gid-${f.fileId}`, file: { kind: "external", url: `https://example.com/files/${encodeURIComponent(f.fileId)}` } });
           return success(msg.attachment ? result[0] : result);
         }
         if (msg.type === "notion.getDatabaseSchema") return success({ titlePropertyName: "Name", statusProperty: null, selectProperties: [] });
@@ -82,7 +88,7 @@ export async function installRpc(panel: Page, provider: Provider, options: { fai
   return calls;
 }
 
-export async function setup(ext: Extension, id: string, provider: Provider, options: { kinds?: ("capture" | "video" | "inline" | "user" | "logs")[]; missing?: string; locale?: "en" | "ko" | "fr"; theme?: "light" | "dark"; logsOff?: boolean; title?: string; webp?: boolean; filename?: string } = {}) {
+export async function setup(ext: Extension, id: string, provider: Provider, options: { kinds?: ("capture" | "video" | "inline" | "user" | "logs")[]; missing?: string; locale?: "en" | "ko" | "fr"; theme?: "light" | "dark"; logsOff?: boolean; title?: string; webp?: boolean; filename?: string; description?: string } = {}) {
   const fixture = await ext.context.newPage();
   await fixture.goto(ext.fixtureUrl("basic.html"));
   const tabId = await ext.fixtureTabId();
@@ -91,7 +97,7 @@ export async function setup(ext: Extension, id: string, provider: Provider, opti
   const issue = {
     id, status: "draft", platform: provider, title, createdAt: Date.now(), updatedAt: Date.now(), pageUrl: fixture.url(),
     captureMode: kinds.includes("video") ? "video" : kinds.includes("capture") ? "screenshot" : "freeform",
-    draft: { title, sections: { description: kinds.includes("inline") ? "![inline](inline:recover-image)" : "Broken page" } },
+    draft: { title, sections: { description: options.description ?? (kinds.includes("inline") ? "![inline](inline:recover-image)" : "Broken page") } },
     snapshot: { before: kinds.includes("capture"), after: false },
     ...(kinds.includes("video") ? { videoBlobKey: id } : {}),
     ...(kinds.includes("logs") ? { consoleLogBlobKey: id } : {}),
@@ -188,3 +194,122 @@ export async function cleanup(ext: Extension, pages: Page[], ids: string[]) {
     await chrome.storage.local.remove(keys);
   }, { ids, keys: KEYS });
 }
+
+export type RemoteConfig = {
+  // Per-file upload rejections (HTTP 403 inside a successful batch) and a whole-batch rejection.
+  failIds?: string[]; rejectUpload?: boolean;
+  // A held upload never answers: the retry stays running.
+  hangUpload?: boolean;
+  // GitHub/ClickUp body write.
+  bodyWrite?: "ok" | "reject";
+  // Status of the existing-issue read every retry starts with (401/403/404).
+  readStatus?: number;
+  // Account lookup: the submitting account, another account, or a lookup that cannot be answered.
+  identity?: "self" | "other" | "network";
+  slackComplete?: "ok" | "ambiguous";
+  // Webhook creation answered with this HTTP status.
+  createStatus?: number;
+};
+
+// A stateful remote for the phase-two flows: it remembers the issue body the create message sent,
+// serves it back to the existing-issue reads, and applies body writes, so a retry is judged by what
+// it sends to a remote that changed meanwhile. The page owns the state; use setRemote/setRemoteBody.
+export async function installRemote(panel: Page, provider: Provider, config: RemoteConfig = {}, calls: Rpc[] = []) {
+  await panel.exposeFunction("__recoveryRecord", (message: Rpc) => calls.push(message));
+  const install = ({ provider, config, remote }: { provider: Provider; config: RemoteConfig; remote: string }) => {
+    const w = window as any;
+    w.__recoveryRpcInstalled = true;
+    w.__remote = { config: { ...config }, body: null as string | null };
+    const state = w.__remote as { config: RemoteConfig; body: string | null };
+    const original = chrome.runtime.sendMessage.bind(chrome.runtime);
+    chrome.runtime.sendMessage = ((msg: Rpc, callback?: (response: unknown) => void) => {
+      if (!msg.type?.startsWith(`${provider}.`) && msg.type !== "analytics.capture") {
+        if (/^(github|jira|linear|notion|gitlab|asana|clickup|slack|webhook|analytics)\./.test(msg.type ?? "")) return callback?.({ ok: true, result: [] });
+        return original(msg as never, callback as never);
+      }
+      const ok = (result: unknown) => callback?.({ ok: true, result });
+      const fail = (status?: number, body?: unknown) => callback?.({ ok: false, error: "deterministic remote failure", ...(status ? { status } : {}), ...(body ? { body } : {}) });
+      const rejection = { stage: "upload", code: "permission", httpStatus: 403 };
+      const rejected = (id: string) => state.config.failIds?.some((f) => id === f || id?.startsWith(f));
+      void w.__recoveryRecord(msg).then(async () => {
+        const type: string = msg.type;
+        if (type === "analytics.capture") return ok(undefined);
+        if (type === `${provider}.getAccountIdentity`) {
+          const raw = (await chrome.storage.local.get("bugshot-settings"))["bugshot-settings"];
+          if (!raw || !JSON.parse(raw).state.accounts?.[provider]) return fail(401, { code: "not_connected" });
+          if (state.config.identity === "network") return fail();
+          return ok({ identity: JSON.stringify([provider, state.config.identity === "other" ? "someone-else" : "e2e-account"]) });
+        }
+        const create = /\.(submitIssue|createIssue|submit|submitPage)$/.test(type) || (type === "slack.postMessage" && !msg.payload?.threadTs);
+        if (create) {
+          if (provider === "webhook" && state.config.createStatus) return fail(state.config.createStatus);
+          if (provider === "notion") {
+            const blocks = msg.payload?.blocks?.length ?? 0;
+            const attachments: any[] = msg.payload?.attachments ?? [];
+            // The page holds 100 blocks: body blocks first, then the attachment heading and file blocks.
+            const attachedFileIds = attachments.filter((a, n) => a.category === "image" || a.category === "video" || blocks + 1 + n < 100).map((a) => a.fileId);
+            return ok({ pageId: "page-42", url: remote, attachedFileIds });
+          }
+          if (provider === "github") { state.body = msg.payload?.body ?? null; return ok({ number: 42, url: remote }); }
+          if (provider === "clickup") { state.body = msg.payload?.markdownContent ?? null; return ok({ id: "42", url: remote }); }
+          if (provider === "jira") return ok({ key: "BUG-42", url: remote, siteId: "site" });
+          if (provider === "asana") return ok({ gid: "42", permalinkUrl: remote });
+          if (provider === "slack") return ok({ ts: "42.1" });
+          return ok({ key: "42", url: remote });
+        }
+        if (type === "slack.postMessage") return ok({ ts: "42.2" });
+        if (type === "slack.getPermalink") return ok({ permalink: remote });
+        if (type === "slack.requestFileUpload") {
+          if (state.config.hangUpload) return;
+          if (state.config.rejectUpload || rejected(msg.fileId)) return fail(403);
+          return ok({ fileId: `remote-${msg.fileId}`, uploadUrl: "https://files.slack.com/upload/v1/e2e" });
+        }
+        if (type === "slack.sendFileUpload") return ok({ ok: true });
+        if (type === "slack.completeFileUploads") return ok(state.config.slackComplete === "ambiguous" ? { ok: false, outcome: "ambiguous", failure: { stage: "link", code: "unknown" } } : { ok: true });
+        if (/\.(uploadFiles|uploadFile|uploadAttachment)$/.test(type) && provider !== "notion") {
+          if (state.config.hangUpload) return;
+          if (state.config.rejectUpload) return fail(403);
+          const files: any[] = msg.files ?? [msg.attachment];
+          const result = files.map((f) => rejected(f.fileId)
+            ? { fileId: f.fileId, filename: f.filename, ok: false, failure: rejection }
+            : { fileId: f.fileId, filename: f.filename, ok: true, href: `https://example.com/files/${encodeURIComponent(f.fileId)}`, gid: `gid-${f.fileId}`, file: { kind: "external", url: `https://example.com/files/${encodeURIComponent(f.fileId)}` } });
+          return ok(msg.attachment ? result[0] : result);
+        }
+        if (type === "notion.getDatabaseSchema") return ok({ titlePropertyName: "Name", statusProperty: null, selectProperties: [] });
+        if (type === "notion.uploadFile") {
+          if (state.config.hangUpload) return;
+          return state.config.rejectUpload || rejected(msg.fileId) ? fail(403) : ok({ fileId: msg.fileId, fileUploadId: "upload-42" });
+        }
+        if (type === "jira.listProjects") return ok([{ id: "1", key: "BUG", name: "Bug" }]);
+        if (type === "jira.listIssueTypes") return ok([{ id: "1", name: "Bug" }]);
+        // Existing-issue reads of the retry: the probe and the body.
+        if (/\.(getIssueBody|getTaskAttachments|getBlockChildren|getIssueDescription|getIssueAttachments)$/.test(type)) {
+          if (state.config.readStatus) return fail(state.config.readStatus);
+          if (provider === "github") return ok({ body: state.body ?? "" });
+          if (provider === "clickup") return ok({ markdown: state.body ?? "", attachments: [] });
+          if (provider === "notion") return ok({ blocks: [] });
+          return ok({});
+        }
+        if (type === "notion.getFileUpload") return ok({ status: "uploaded", expiresAt: null });
+        if (type === "notion.appendBlockChildren") return ok({ blockIds: (msg.children as unknown[]).map((_, n) => `block-${n}`) });
+        if (type === "github.updateIssueBody" || type === "clickup.updateTaskMarkdown") {
+          if (state.config.bodyWrite === "reject") return fail(403);
+          state.body = msg.body ?? msg.markdownContent ?? null;
+          return ok({ ok: true });
+        }
+        // The list's status badge reads this shape; a wrong one makes the badge misrender.
+        if (type === "clickup.getTaskStatus") return ok({ id: "42", name: "Recovery acceptance", completed: false, url: remote });
+        if (/\.(getIssue|getTask|getIssueStatus|getTaskStatus)$/.test(type)) return ok({ title: "Recovery acceptance", status: "Open", url: remote });
+        if (/\.(update|createAttachment)/.test(type)) return ok({ ok: true });
+        return ok([]);
+      });
+    }) as typeof chrome.runtime.sendMessage;
+  };
+  const args = { provider, config, remote: REMOTE };
+  await panel.addInitScript(install, args);
+  await panel.evaluate(install, args);
+  return calls;
+}
+export const setRemote = (panel: Page, patch: RemoteConfig) => panel.evaluate((p) => { Object.assign((window as any).__remote.config, p); }, patch);
+export const remoteBody = (panel: Page) => panel.evaluate(() => (window as any).__remote.body as string | null);
+export const setRemoteBody = (panel: Page, body: string) => panel.evaluate((b) => { (window as any).__remote.body = b; }, body);

@@ -49,7 +49,7 @@ describe("serializePlatformError", () => {
 
     expect(out).not.toBeNull();
     expect(out?.status).toBe(200);
-    expect(out?.body).toEqual({ platform: "slack" });
+    expect(out?.body).toEqual({ platform: "slack", code: "token_revoked" });
   });
 
   // OAuthError는 플랫폼 테이블에 없어야 한다 — 뒤에 남은 OAuth 분기가 받아

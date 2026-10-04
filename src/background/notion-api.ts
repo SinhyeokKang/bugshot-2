@@ -268,14 +268,14 @@ export async function getDatabaseSchema(
 interface NotionFileUploadCreateResponse {
   id: string;
   upload_url: string;
-  expiry_time: string;
+  expiry_time: string | null;
 }
 
 export async function createFileUpload(
   auth: NotionAuth,
   filename: string,
   contentType: string,
-): Promise<{ id: string; uploadUrl: string; expiresAt: number }> {
+): Promise<{ id: string; uploadUrl: string; expiresAt: number | null }> {
   const data = await notionFetch<NotionFileUploadCreateResponse>(
     auth,
     "/file_uploads",
@@ -287,7 +287,7 @@ export async function createFileUpload(
   return {
     id: data.id,
     uploadUrl: data.upload_url,
-    expiresAt: Date.parse(data.expiry_time),
+    expiresAt: parseExpiry(data.expiry_time),
   };
 }
 
@@ -739,4 +739,80 @@ export async function updatePageStatus(
     },
   );
   return parsePageStatus(data);
+}
+
+// expiry_time is nullable once an upload is attached somewhere; never turn it into NaN.
+function parseExpiry(value: unknown): number | null {
+  const time = typeof value === "string" ? Date.parse(value) : NaN;
+  return Number.isFinite(time) ? time : null;
+}
+
+export interface NotionRemoteBlock { id: string; type: string; plainText: string; name?: string }
+type RawRichText = Array<{ plain_text?: string }>;
+type RawBlock = { id?: unknown; type?: unknown } & Record<string, { rich_text?: RawRichText; caption?: RawRichText; name?: string } | unknown>;
+
+// Projection only: signed file URLs in the raw block never leave the background.
+function projectBlock(raw: RawBlock): NotionRemoteBlock {
+  if (typeof raw.id !== "string" || !raw.id || typeof raw.type !== "string") throw new Error("Invalid Notion block");
+  const content = (raw[raw.type] ?? {}) as { rich_text?: RawRichText; caption?: RawRichText; name?: string };
+  const plainText = (content.rich_text ?? content.caption ?? []).map((t) => t.plain_text ?? "").join("");
+  return { id: raw.id, type: raw.type, plainText, ...(typeof content.name === "string" ? { name: content.name } : {}) };
+}
+
+export async function getBlockChildren(auth: NotionAuth, blockId: string): Promise<NotionRemoteBlock[]> {
+  const blocks: NotionRemoteBlock[] = [];
+  const seen = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    const page = await notionFetch<{ results?: RawBlock[]; has_more?: boolean; next_cursor?: string | null }>(auth,
+      `/blocks/${encodeURIComponent(blockId)}/children?page_size=100${cursor ? `&start_cursor=${encodeURIComponent(cursor)}` : ""}`);
+    if (!Array.isArray(page.results)) throw new Error("Invalid Notion children");
+    blocks.push(...page.results.map(projectBlock));
+    cursor = page.has_more ? page.next_cursor ?? undefined : undefined;
+    if (page.has_more && (!cursor || seen.has(cursor))) throw new Error("Invalid Notion cursor");
+    if (cursor) seen.add(cursor);
+  } while (cursor);
+  return blocks;
+}
+
+// Default end-of-page append (no position/after under the pinned version). One batch per call so
+// the sidepanel stores the returned IDs before any further write.
+export async function appendBlockChildren(auth: NotionAuth, blockId: string, children: Record<string, unknown>[]): Promise<string[]> {
+  if (!children.length || children.length > 100) throw new Error("Notion append requires 1-100 blocks");
+  let result: { results?: Array<{ id?: unknown; type?: unknown }> };
+  try {
+    result = await notionFetch(auth, `/blocks/${encodeURIComponent(blockId)}/children`, { method: "PATCH", body: { children } });
+  } catch (error) {
+    // A trashed target is rejected as a generic 400 validation_error; the documented signal is the
+    // block's own archived/in_trash flag, read only after the rejected (non-applied) write.
+    if (error instanceof NotionError && error.status === 400) {
+      const target = await notionFetch<{ archived?: unknown; in_trash?: unknown }>(auth, `/blocks/${encodeURIComponent(blockId)}`);
+      if (target.archived === true || target.in_trash === true) throw new NotionError(404, messageForNotionStatus(404), { code: "object_not_found" });
+    }
+    throw error;
+  }
+  const blocks = result.results ?? [];
+  // Some versions answered with the parent's existing children; a 1:1 type match is the minimum
+  // evidence these are the new blocks. On mismatch the write may have landed: callers treat the
+  // throw as ambiguous and must not append again.
+  if (blocks.length !== children.length || blocks.some((b, i) => typeof b.id !== "string" || !b.id || b.type !== children[i].type)) throw new Error("Unacknowledged Notion append");
+  return blocks.map((b) => b.id as string);
+}
+
+export async function deleteBlock(auth: NotionAuth, blockId: string): Promise<void> {
+  await notionFetch(auth, `/blocks/${encodeURIComponent(blockId)}`, { method: "DELETE" });
+}
+
+export async function getFileUpload(auth: NotionAuth, fileUploadId: string): Promise<{ status: string; expiresAt: number | null }> {
+  const data = await notionFetch<{ status?: unknown; expiry_time?: unknown }>(auth, `/file_uploads/${encodeURIComponent(fileUploadId)}`);
+  if (typeof data.status !== "string") throw new Error("Invalid Notion file upload");
+  return { status: data.status, expiresAt: parseExpiry(data.expiry_time) };
+}
+
+// API-key identity: the bot user ID plus bot.workspace_id when the pinned version returns it.
+export async function getBotIdentity(auth: NotionAuth): Promise<{ botId: string; workspaceId?: string }> {
+  const data = await notionFetch<{ id?: unknown; bot?: { workspace_id?: unknown } }>(auth, "/users/me");
+  if (typeof data.id !== "string" || !data.id) throw new Error("Invalid Notion bot response");
+  const workspaceId = data.bot?.workspace_id;
+  return { botId: data.id, ...(typeof workspaceId === "string" && workspaceId ? { workspaceId } : {}) };
 }

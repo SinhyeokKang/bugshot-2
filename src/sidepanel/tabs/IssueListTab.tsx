@@ -44,6 +44,7 @@ export function IssueListTab() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pendingRef = useRef(0);
   const recoveryTrigger = useRef<HTMLButtonElement | null>(null);
+  const recoveryIssueId = useRef<string | null>(null);
   const [successResult, setSuccessResult] = useState<NormalizedSubmitResult | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -170,6 +171,7 @@ export function IssueListTab() {
                     refreshKey={refreshKey}
                     onOpenDraft={(trigger) => {
                       recoveryTrigger.current = trigger ?? null;
+                      recoveryIssueId.current = trigger ? issue.id : null;
                       setDraftId(issue.id);
                       setAutoSubmit(false);
                     }}
@@ -232,7 +234,12 @@ export function IssueListTab() {
         issue={activeDraft}
         open={!!activeDraft}
         autoOpenSubmit={autoSubmit}
-        onRecoveryCloseAutoFocus={() => recoveryTrigger.current?.focus()}
+        onRecoveryCloseAutoFocus={() => {
+          // The trigger leaves the DOM when a finished retry turns the row into a plain submitted one.
+          const trigger = recoveryTrigger.current;
+          if (trigger?.isConnected) trigger.focus();
+          else document.querySelector<HTMLElement>(`[data-issue-id="${recoveryIssueId.current}"]`)?.focus();
+        }}
         onOpenChange={(v) => {
           if (!v) {
             setRefreshKey((n) => n + 1);

@@ -359,3 +359,12 @@ export async function createIssue(
     nodeId: raw.node_id,
   };
 }
+
+export async function getIssueBody(auth: GithubAuth, owner: string, repo: string, number: number): Promise<string> {
+  const issue = await githubFetch<{ body: string | null }>(auth, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${number}`);
+  if (issue.body !== null && typeof issue.body !== "string") throw new Error("Missing GitHub issue body");
+  return issue.body ?? "";
+}
+export async function updateIssueBody(auth: GithubAuth, owner: string, repo: string, number: number, body: string): Promise<void> {
+  await githubFetch(auth, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${number}`, { method: "PATCH", body: JSON.stringify({ body }) });
+}

@@ -1,5 +1,41 @@
 # Attachment failure recovery orchestration
 
+> **RESUMED by Claude Code (2026-10-04 KST)** on the user's explicit `/orchestrate` instruction after the Codex stop documented in [handoff.md](./handoff.md). Scope: phase 2 (B6–B9, Tasks 9–12). End state is remote dev push + verify/e2e-gate green on that SHA; **phase-2 merge/deploy is not authorized**.
+
+## Claude Code resume (phase 2)
+
+- Starting dev: `015a6de8` (handoff commit; clean). Coordinator: Claude Code / Opus. Workers: Claude Code only (same family — no Codex crossover without explicit permission).
+- Decision R1 (user): B6 continues from the preserved Codex WIP — new worktree from dev, cherry-pick `03069183` + `c14ad183`, worker treats them as an unreviewed draft (review diff/tests first, then complete).
+- Decision R2 (user): per-batch model/effort plan below confirmed. Independent reviews/CTO: Opus / high.
+- Workers launched via `orca worktree create` + `orca terminal create --command 'claude --model <m> --effort <e>'`; permission mode inherits the user's default (no bypass flag added). Handoff: `<worktree>/.scratch/handoff-<batch>.md`; coordinator watches with `orca terminal wait --for tui-idle`.
+
+| Batch | Model / effort | Reason | Status |
+|---|---|---|---|
+| B6 retry APIs (Task 9) | Opus / high | eight-provider contracts, account identity, fenced IDB revision invariants | integrated `5ae8e683..07ec078a` (fix1: e2e 53 passed, 8310 tests); main-checkout gate exit 0; worktree removed |
+| B7 retry runner (Task 10) | Opus / high | shared submission lock, no-duplicate stage resume, 3-way body patch | integrated `2d4fcad3..24a856a5` (fix1 re-review 🔴0; main gate exit 0); fix2 `9dcc5a76`,`8dc8a436` integrated (coordinator-reviewed small diff; main gate exit 0); worktree removed |
+| B8 retry UI (Task 11) | Sonnet / high | UI/a11y wiring on a settled runner contract | integrated `35a93d1e..daa13789` (fix1 verified 🔴0; main gate exit 0) |
+| B9 acceptance (Task 12) | Sonnet / high | phase-2 e2e, docs; coordinator owns docs freshness/runtime | integrated (review 🔴0 → fix1; e2e 21 tests; guide ko/en); worktree removed |
+
+Serial order B6 → B7 → B8 → B9 (each consumes the previous contract; shared files: blob-db, types/attachment, messages registries, IssueRow/DraftDetailDialog, i18n).
+
+- B6 worker: worktree `attachment-recovery-cc-b6`, terminal B6-opus. Deviations to judge in review: Slack initial submit staged per file (grant→bytes→complete), identity lookup at partial-failure time, checkpoint-save failure disables auto-retry only. Coordinator-owned follow-ups from B6: DIRECTORY.md stale `slack.uploadFiles`, privacy ko/en retention of `lastWritten`/`accountIdentity`/remote locators, 3 POSTMORTEM candidates.
+- B6 review 1 (Opus, report-only): integrable, 🔴0. 🟡 routed to fix1: storage-enforced identity no-backfill, document Slack ambiguous→unknown phase-1 change, run Slack/recovery e2e (worker allowed `build:e2e` for this round), Linear/Notion not-found → remote-missing, identity-timeout test. Deviations (a) Slack staged initial submit, (b) identity at partial time, (c) checkpoint failure disables auto-retry only — all accepted.
+- Coordinator decisions (per design, user said "예정대로만 진행"): Notion API-key identity fail-closed when fixed-version `workspace_id` absent; other platforms' multi-file initial submit unchanged (phase-1 scope; retry path one file per message in B7); ≤10s identity lookup on partial path accepted.
+- B6 integrated; coordinator docs: DIRECTORY Slack staged messages, privacy ko/en retry snapshot fields (effective date unchanged 2026-10-04 — revisit at phase-2 release), design Slack row. POSTMORTEM candidates deferred to one batch at B9: platform error `code` lost across message boundary, checkpoint inside the remote-call try, `expect` inside runner-caught callbacks silently passes.
+- Decision for B7: body-slot plan option (a) — record replacements at first submit; missing replacements → conflict/download-only.
+- B6 pushed `e26048b0`; CI [37145264306](https://github.com/SinhyeokKang/bugshot-2/actions/runs/37145264306) SUCCESS (verify, 4 e2e shards, e2e-gate).
+- B7 review 1 (Opus): 🔴0, 🟡: Jira/Asana name reconciliation vs same-submission duplicate names (POSTMORTEM 2026-08-20), slot-less records misclassified, identity network error shown as account-changed, Jira retry render scans whole ADF (`injectLogsLink`), `submittedAt` overwritten, deviation tests missing, Jira dims test.
+- Coordinator decisions (follow design per user "예정대로"): D1 GitHub/GitLab/Linear unknown upload results are NOT auto re-sent (design: ambiguous upload stops); Slack pre-complete and Notion unattached re-send accepted. D2 per-run stop reasons stay unpersisted.
+- B7 fix1 re-review (Opus): 🔴0, integrable. Remaining 🟡 routed to B7 fix2: disconnected connection → `authentication` (decision), `legacy` only when all unfinished files are slot-less. B8 launched in parallel (B8 consumes runner API only; WAITING FOR B7 protocol if an API change is needed).
+- B8 handoff `19cd40bd` (gates exit 0, 8512 tests). Worker skipped /ship's parallel /code-review (skill-gate skip — told not to repeat). Review 1 (Opus): 🔴 hidden SubmitSuccessView counted as open detail → row retry toast lost; 🟡 `disabled`→`aria-disabled` (DESIGN), focus/Slack flash on auto-close, stale session stop after reconnect, loading status re-announced, Slack promote running assertion. Deviations accepted: [이슈 열기] hidden only on remote-missing; session stop per attempt; completion toast even with detail open.
+- B8 fix1 verification (Opus): confirmed, 🔴0. Notes: session stop clears on any settings rehydrate (fail-open, re-detected with zero writes — accepted); completion close now independent of status (intended). Coordinator docs: ARCHITECTURE "첨부 재시도 (2단계)", DIRECTORY retry modules.
+- B9 review (Opus): 🔴0; fix1 guide fact wording, Webhook row, 13b wait, Web Lock pending assertion, account-unverified e2e, write allowlist. Coordinator: tasks.md scenario 13 now judged by `recovery-retry-notice[data-reason=body-conflict]`; docs/CI.md 82 spec / 372 tests; POSTMORTEM 4 entries.
+- Phase-1 Escape flake (~4%, two specs): B8 A/B showed pre-existing (A 5.8% vs B 3.3%, pre-B8 not lower); root cause Radix DismissableLayer registers one render after mount. Spec-side two-frame wait + GOTCHAS entry (`2d71c59c`), 80/80 + 80/80.
+- Runtime: `pnpm build` exit 0 (manifest 1.7.46). Verification worker: TaskSpace 7 has only store 1.7.46, zero unpacked — every runtime-only axis unverified (real-tab GitHub upload, 8-platform identity, Jira retry flow, Notion fixed-version append/workspace_id, Slack multi-file complete, ClickUp team_id, update permissions, 400px/dark, screen reader). Loading dist needs user action in the browser.
+- All worktrees removed.
+
+> Historical note: Codex stop (2026-10-04) — see [handoff.md](./handoff.md). Earlier automatic phase-transition instructions are superseded.
+
 ## Scope and decisions
 
 - Source: [PRD](./prd.md), [design](./design.md), [tasks](./tasks.md).
@@ -7,7 +43,7 @@
 - Execute both phases, Tasks 1–12. User steering on 2026-10-03: “지휘 커맨드잖아 1단계 배포 후 2단계 알아서 시작하면 돼”. Complete phase 1 deployment before automatically starting phase 2; no renewed permission for the phase transition. This explicitly extends the default orchestrate boundary to the required phase-1 merge/sync/deploy pipeline. Follow repository CI and release gates.
 - Preserve accepted design decisions: 30-day deferred deletion, generated bytes only copied, unknown creation blocks resubmission, no new permission/dependency/env, no investigation of #244's root cause.
 - Implementation uses isolated child worktrees based on local dev, as required by `/orchestrate`; independent reviews use the corresponding checkout read-only. Coordinator owns integration and documentation freshness.
-- Codex workers inherit the configured model and effort. The current Orca launch guide reserves model overrides for a user-named model; record effective launch metadata from receipts. All batches require invariant reasoning and independent review.
+- Historical execution used inherited Codex/gpt-6-astra and unobserved effort. This did **not** satisfy the required per-batch model/effort decision; user identified the intake omission. Do not treat inheritance as a completed selection. Current worker-start supports explicit --model/--effort. Claude Code must replan before resuming; no new model plan was completed before the stop instruction.
 - Each batch runs typecheck, full tests, and mirror check with unfiltered exit codes. `/ship bypass` ends at step 11 (commit); coordinator alone pushes and performs final build.
 
 ## Batches
@@ -20,8 +56,8 @@
 | B4 recovery UI | 7: panel, success/list/detail, download, i18n | B3 | interaction/accessibility tests + common gate + independent review | integrated dee24a11 |
 | B5 acceptance | 8: obsolete contract removal, integration/e2e, guide/privacy/docs | B4 | phase-1 e2e + common gate + independent review | integrated80b2204e; gates/reviews passed |
 | R runtime | final build; serial real-tab/UI verification and guide screenshots | B5 | record observed evidence and unavailable axes | capability check complete; actual runtime/shots unavailable |
-| D1 release | phase-1 push/CI, merge/sync, deploy | R | CI green, release artifacts and deployment evidence | authorized patch1.7.46; preparing PR |
-| B6 retry APIs | 9: existing remote issue read/update and file checkpoints | D1 | eight-platform contracts + common gate + independent review | planned |
+| D1 release | phase-1 push/CI, merge/sync, deploy | R | CI green, release artifacts and deployment evidence | complete: v1.7.46 tag/store ZIP/Release draft; store upload manual |
+| B6 retry APIs | 9: existing remote issue read/update and file checkpoints | D1 | eight-platform contracts + common gate + independent review | stopped incomplete; local snapshot c14ad183; not integrated |
 | B7 retry runner | 10: stage resume, locks, body patch | B6 | no-create/no-duplicate/concurrency/conflict tests + common gate + independent review | planned |
 | B8 retry UI | 11: retry actions and feedback | B7 | UI/accessibility tests + common gate + independent review | planned |
 | B9 final acceptance | 12: retry e2e, docs, runtime validation, dev push | B8 | phase-2 acceptance and documented runtime evidence | planned |
@@ -133,3 +169,9 @@ The plan permits narrower platform fan-out after contracts settle, but shared me
 - Phase-one dev0b6bf0cc CI [37137888536](https://github.com/SinhyeokKang/bugshot-2/actions/runs/37137888536) completed SUCCESS (verify, four E2E shards, e2e-gate). User briefly paused the pipeline, then authorized patch bump and this deployment. Version-only commit1c4a151b sets1.7.46; lockfile has no version delta. Coverage and PR checks remain release gates.
 
 - User explicitly reaffirmed patch deployment after the orchestrate-skill boundary clarification. Updated the skill original and generated mirror: final remote dev SHA plus verify/e2e-gate green are the normal endpoint; merge/deploy remain separate instructions. Skill validation and mirror checks passed. Release coverage run exited0: logic92.3% (+1.3pp), one declining file submitToClickup100→99%, so baseline remains unchanged.
+
+- D1 complete: [PR247](https://github.com/SinhyeokKang/bugshot-2/pull/247) all required checks passed, squash merged as `eca47ebaa712b67516ce21a46a82e64f9164ba0e`. Verified empty dev/main content diff before dev synchronization; no unmerged work discarded. Tag `v1.7.46` points to the squash commit. Store build exited0; manifest1.7.46 has no development key, ZIP integrity passed. Asset `bugshot-v1.7.46.zip` (4,249,801 bytes; SHA25675d771af989bd85f272ba9d6888870aaa78af7adc5e73934d68611158a56fd77) uploaded to [Release draft](https://github.com/SinhyeokKang/bugshot-2/releases/tag/untagged-13b83d770efe4be081db). Store dashboard upload/review submission and Release publication remain manual; no store publication claim. Automatic phase2 starts now under the earlier instruction, ending at remote dev push plus exact-HEAD CI green.
+
+- B6 started fromfd4e8ab1: task_f7207f18a833/dispatchctx_67e4ea28e025, isolated child attachment-recovery-b6, Codex inherited model/effort. Owner handles Task9 source/tests; parallel report-only official-provider contract research focuses on Notion fixed-version and Slack completion/scope limits, with no shared-file writes. Final independent implementation reviews still follow frozen source.
+
+- Final stop/handoff: user rejected the omitted model/effort planning and explicitly ordered Codex to stop, reclaim every task worktree and leave documentation for Claude Code. B6 test-first03069183 plus interrupted11-file implementation were preserved as WIPc14ad183 on local handoff/attachment-recovery-b6, never integrated/pushed. B6 log shows78 focused tests passing but no final direct-exit/type/full/review gate is claimed. Provider research is preserved in retry-api-research.md. B3 was clean/already integrated and also backed up. Both residual worktrees and all3 associated terminals were removed under the explicit user instruction; only the primary checkout remains. Verified git bundles and scratch evidence live in .scratch/attachment-handoff-20261004/. See handoff.md for exact refs, restore steps, runtime gaps and restart prerequisites. No further feature work or remote write after the stop.

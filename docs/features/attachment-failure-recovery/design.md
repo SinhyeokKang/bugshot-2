@@ -205,7 +205,7 @@ creating 중 응답 유실 또는 종료는 unknown이다. 서버가 명시적�
 | Linear | **현행 유지 — 제출 실패, draft 유지** | 이미지/영상은 생성 본문 참조, 로그는 attachment 연결 또는 본문 링크 중 하나 성공, 사용자 파일은 attachment 연결 성공 | `attachmentCreate.success`·`issueUpdate.success`를 확인. 두 로그 연결이 실패하면 link 실패. 파일 업로드 성공만으로 attached 금지 |
 | Notion | **현행 유지 — 제출 실패, draft 유지** | 생성 요청에 파일 참조 블록이 실제 포함되고 page 응답 성공 | 절단은 `createPage`의 `children: expanded.slice(0, 100)`(`notion-api.ts:652-662`)에서 일어나고 첨부 블록이 끝에 붙어 가장 먼저 잘린다. 100블록 밖 파일은 body-limit. 재시도에서 누락 첨부만 기존 page에 분할 append; 일반 본문 복원 제외 |
 | Asana/ClickUp | 해당 없음(생성 선행) | 생성된 task의 네이티브 첨부 locator | 본문 2차 write 실패와 첨부 실패를 구분. 생성 후 배치 요청 throw도 부분 완료 |
-| Slack | 해당 없음 | `completeUploadExternal` 성공 | complete 실패를 모든 해당 파일 실패로 전달. permalink 실패여도 channelId/ts 체크포인트로 새 post 방지 |
+| Slack | 해당 없음 | `completeUploadExternal` 성공 | 파일별 grant→bytes(메시지당 1파일) 뒤 complete 1회. 확정 거절은 해당 파일 실패, internal/fatal/5xx/네트워크는 unknown(재호출 없음 — 2단계 B6에서 변경). permalink 실패여도 channelId/ts 체크포인트로 새 post 방지 |
 | Slack → 트래커 승격 | **현행 유지 — `requireMediaUpload` 가드로 생성 전 중단** | 대상 트래커 규칙을 따른다 | 생성 이후 실패만 부분 완료 |
 | Webhook multipart | 해당 없음 | 파일 파트 포함 + 2xx + key/url 계약 성공 | 수신 서버 내부 저장을 별도로 보증하지 않음. 응답 유실은 unknown, idempotencyKey는 기존 issueId 유지 |
 | Webhook JSON | 해당 없음 | 파일 전송 대상 없음 | 기존 recorded:false·원본 보존 유지(`markSubmitted` 미호출). 파일 결과/복구 대상에서 제외 |

@@ -44,9 +44,23 @@ function defaultSendBg(msg: { type: string; payload?: { threadTs?: string } }) {
   if (msg.type === "slack.getPermalink") {
     return { permalink: "https://slack.test/archives/C1/p111" };
   }
-  if (msg.type === "slack.uploadFiles") return [];
+  if (msg.type === "slack.sendFileUpload" || msg.type === "slack.completeFileUploads") return { ok: true };
   return undefined;
 }
+
+// Staged upload fixture (grant → bytes → complete). Allocation fails for the listed filenames.
+function stagedSendBg(failed: string[] = []) {
+  return async (msg: { type: string; filename?: string }) => {
+    if (msg.type === "slack.requestFileUpload") {
+      if (failed.includes(msg.filename!)) throw new Error("denied");
+      return { fileId: `F-${msg.filename}`, uploadUrl: "https://files.slack.com/upload/v1/x" };
+    }
+    return defaultSendBg(msg as never);
+  };
+}
+const uploadedNames = () => sendBg.mock.calls.map(([m]) => m).filter((m) => m.type === "slack.sendFileUpload").map((m) => m.filename);
+const IMG = "data:image/png;base64,SU1H";
+const LOGS = "data:text/html;base64,TE9HUw==";
 
 beforeEach(() => {
   mockBody = "BODY";
@@ -55,23 +69,21 @@ beforeEach(() => {
 
 describe("submitToSlack — 전송 순서", () => {
   it("부모 메시지 → 스레드 답글 → 첨부 업로드 → permalink 순서로 호출", async () => {
-    sendBg.mockImplementation(async (msg: { type: string }) =>
-      msg.type === "slack.uploadFiles"
-        ? [{ filename: "screenshot.png", ok: true }]
-        : defaultSendBg(msg as never),
-    );
+    sendBg.mockImplementation(stagedSendBg());
 
     const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
-      images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
+      images: [{ filename: "screenshot.png", dataUrl: IMG }],
     }));
 
     const types = sendBg.mock.calls.map(([m]) => m.type);
     expect(types).toEqual([
       "slack.postMessage",
       "slack.postMessage",
-      "slack.uploadFiles",
+      "slack.requestFileUpload",
+      "slack.sendFileUpload",
+      "slack.completeFileUploads",
       "slack.getPermalink",
     ]);
 
@@ -116,7 +128,7 @@ describe("submitToSlack — 멘션", () => {
 });
 
 describe("submitToSlack — 첨부 없음", () => {
-  it("파일 첨부가 0개면 uploadFiles를 건너뛴다 (부모+스레드+permalink만)", async () => {
+  it("파일 첨부가 0개면 업로드 단계를 건너뛴다 (부모+스레드+permalink만)", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) =>
       defaultSendBg(msg as never),
     );
@@ -133,16 +145,12 @@ describe("submitToSlack — 첨부 없음", () => {
 
 describe("submitToSlack — log attachment outcomes", () => {
   it("logs.html 업로드가 실패(ok:false)하면 logs 파일 실패 결과", async () => {
-    sendBg.mockImplementation(async (msg: { type: string }) =>
-      msg.type === "slack.uploadFiles"
-        ? [{ filename: "logs.html", ok: false }]
-        : defaultSendBg(msg as never),
-    );
+    sendBg.mockImplementation(stagedSendBg(["logs.html"]));
 
     const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
-      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+      logs: [{ filename: "logs.html", dataUrl: LOGS }],
     }));
 
     expectFileOutcome(res, "logs", true);
@@ -175,112 +183,81 @@ describe("submitToSlack — 긴 본문 분할", () => {
 // 본문에 붙여넣은 인라인 이미지는 스레드 첨부로 함께 올라간다 (감사 🟡 항목).
 describe("submitToSlack — 인라인 이미지", () => {
   it("inline-{refId}.webp 이름으로 업로드 목록에 넣는다", async () => {
-    sendBg.mockImplementation(async (msg: { type: string }) =>
-      msg.type === "slack.uploadFiles"
-        ? [{ filename: "inline-r1.webp", ok: true }]
-        : defaultSendBg(msg as never),
-    );
+    sendBg.mockImplementation(stagedSendBg());
 
     await submitToSlack({
       ctx: makeCtx(),
       channelId: "C1",
-      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+      inlineImages: [{ refId: "r1", dataUrl: IMG }],
     } as never);
 
-    const upload = sendBg.mock.calls.find((c) => c[0].type === "slack.uploadFiles")![0];
-    expect(upload.files).toEqual([{ filename: "inline-r1.webp", dataUrl: "data:IMG1" }]);
+    const bytes = sendBg.mock.calls.map(([m]) => m).filter((m) => m.type === "slack.sendFileUpload");
+    expect(bytes).toEqual([expect.objectContaining({ filename: "inline-r1.webp", dataUrl: IMG })]);
   });
 
   it("일반 첨부와 함께 보내면 이미지·로그 뒤에 인라인이 붙는다", async () => {
-    sendBg.mockImplementation(async (msg: { type: string }) =>
-      msg.type === "slack.uploadFiles" ? [] : defaultSendBg(msg as never),
-    );
+    sendBg.mockImplementation(stagedSendBg());
 
     await submitToSlack({
       ctx: makeCtx(),
       channelId: "C1",
-      images: [{ filename: "shot.png", dataUrl: "data:SHOT" }],
-      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+      images: [{ filename: "shot.png", dataUrl: IMG }],
+      logs: [{ filename: "logs.html", dataUrl: LOGS }],
+      inlineImages: [{ refId: "r1", dataUrl: IMG }],
     } as never);
 
-    const upload = sendBg.mock.calls.find((c) => c[0].type === "slack.uploadFiles")![0];
-    expect(upload.files.map((f: { filename: string }) => f.filename)).toEqual([
-      "shot.png",
-      "logs.html",
-      "inline-r1.webp",
-    ]);
+    expect(uploadedNames()).toEqual(["shot.png", "logs.html", "inline-r1.webp"]);
   });
 
   // 인라인 이미지 실패가 로그 파일의 완료 결과를 바꾸면 안 된다.
   it("인라인 업로드가 실패해도 logs 파일 결과는 독립적으로 유지한다", async () => {
-    sendBg.mockImplementation(async (msg: { type: string }) =>
-      msg.type === "slack.uploadFiles"
-        ? [
-            { filename: "logs.html", ok: true },
-            { filename: "inline-r1.webp", ok: false },
-          ]
-        : defaultSendBg(msg as never),
-    );
+    sendBg.mockImplementation(stagedSendBg(["inline-r1.webp"]));
 
     const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
-      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+      logs: [{ filename: "logs.html", dataUrl: LOGS }],
+      inlineImages: [{ refId: "r1", dataUrl: IMG }],
     } as never));
 
     expectFileOutcome(res, "logs", false);
   });
 
   it("인라인 이미지만 있고 다른 첨부가 없어도 업로드를 호출한다", async () => {
-    sendBg.mockImplementation(async (msg: { type: string }) =>
-      msg.type === "slack.uploadFiles" ? [] : defaultSendBg(msg as never),
-    );
+    sendBg.mockImplementation(stagedSendBg());
 
     await submitToSlack({
       ctx: makeCtx(),
       channelId: "C1",
-      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+      inlineImages: [{ refId: "r1", dataUrl: IMG }],
     } as never);
 
-    expect(sendBg.mock.calls.some((c) => c[0].type === "slack.uploadFiles")).toBe(true);
+    expect(uploadedNames()).toEqual(["inline-r1.webp"]);
   });
 });
 
 // Slack 네이티브 첨부도 영상·스크린샷별 실패 결과를 보존한다.
 describe("submitToSlack — media attachment outcomes", () => {
   it("영상 업로드가 실패하면 미디어 파일 실패 결과", async () => {
-    sendBg.mockImplementation(async (msg: { type: string }) =>
-      msg.type === "slack.uploadFiles"
-        ? [{ filename: "recording.mp4", ok: false }]
-        : defaultSendBg(msg as never),
-    );
+    sendBg.mockImplementation(stagedSendBg(["recording.mp4"]));
 
     const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
-      video: { filename: "recording.mp4", dataUrl: "data:VIDEO" },
+      video: { filename: "recording.mp4", dataUrl: "data:video/mp4;base64,VklE" },
     }));
 
     expectFileOutcome(res, "media", true);
   });
 
   it("logs.html만 실패하면 미디어 파일 완료 상태를 유지한다", async () => {
-    sendBg.mockImplementation(async (msg: { type: string }) =>
-      msg.type === "slack.uploadFiles"
-        ? [
-            { filename: "screenshot.png", ok: true },
-            { filename: "logs.html", ok: false },
-          ]
-        : defaultSendBg(msg as never),
-    );
+    sendBg.mockImplementation(stagedSendBg(["logs.html"]));
 
     const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
-      images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
-      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+      images: [{ filename: "screenshot.png", dataUrl: IMG }],
+      logs: [{ filename: "logs.html", dataUrl: LOGS }],
     }));
 
     expectFileOutcome(res, "media", false);
@@ -288,16 +265,12 @@ describe("submitToSlack — media attachment outcomes", () => {
   });
 
   it("사용자 첨부 실패는 미디어 파일 완료 상태를 유지한다", async () => {
-    sendBg.mockImplementation(async (msg: { type: string }) =>
-      msg.type === "slack.uploadFiles"
-        ? [{ filename: "report.pdf", ok: false }]
-        : defaultSendBg(msg as never),
-    );
+    sendBg.mockImplementation(stagedSendBg(["report.pdf"]));
 
     const res = await submitToSlack(preparedInput({
       ctx: makeCtx(),
       channelId: "C1",
-      attachments: [{ filename: "report.pdf", dataUrl: "data:PDF" }],
+      attachments: [{ filename: "report.pdf", dataUrl: "data:application/pdf;base64,UERG" }],
     }));
 
     expectFileOutcome(res, "media", false);

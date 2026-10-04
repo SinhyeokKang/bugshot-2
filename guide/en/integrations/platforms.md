@@ -60,6 +60,23 @@ Shared something to Slack and then realized it deserves a proper issue too? No w
 
 Uploading a file, linking it to an issue, and inserting its body link are separate steps. BugShot distinguishes an attached file from a missing body link. On paths that prepare files before creating the issue, including Linear and Notion, that step can fail before an issue exists. If a created issue has a recovery notice, check its destination and saved files in [Issue Tracking](issue-tracking.md) before creating another issue.
 
+### How retry differs by platform
+
+**Retry attachments** only updates an issue (or message) that is already registered; on every platform it never creates a new one. Files reach an issue by different routes, though, so the steps it resumes differ a little. The same account must be connected for it to start.
+
+| Platform | What a retry does |
+|---|---|
+| GitHub · GitLab | Uploads the file, then fills its place in the issue body with the link. Files reach the issue only through that body link, so a record from before body places were saved can only be downloaded. |
+| Jira | Uploads the attachment to the issue and updates the description. For an upload whose result is unknown, it first checks whether an attachment with that name is already there and uploads only if not. |
+| Linear | Upload → attach to the issue → body link, skipping the steps already done. |
+| Asana | Like Jira, it checks for an attachment with the same name first, uploads if missing, then fills the link into the description. |
+| ClickUp | Uploads the file and updates the body. An upload whose result is unknown cannot be matched by name, so it is not resent; please check the issue. |
+| Notion | Appends files that were cut off by the 100-block page limit, or never attached, to the **end of the original page**. It never creates a new page. Uploads that failed or expired before being attached are uploaded again, but if it cannot confirm whether a file was already appended, it does not append it again, to avoid duplicates. |
+| Slack | Re-uploads failed files into the **original message's thread**. It sends no new message. If it cannot confirm a file reached the thread, it does not resend, to avoid duplicates. |
+| Custom Webhook | Not supported. The files go out in one request, so there is no way to tell which part succeeded; please download them instead. |
+
+An upload whose result cannot be confirmed is usually not resent automatically, to avoid duplicate attachments. You will see **Result needs checking** instead. The exceptions are Jira and Asana, which check for the same name first, and Notion and Slack uploads, which are discarded or expire before they are attached to anything. Full steps and the cases where retry is unavailable are in [Issue Tracking](issue-tracking.md).
+
 ## Defaults after connecting
 
 ![Setting defaults after connecting](../assets/integrations-platforms-3.jpg)

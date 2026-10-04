@@ -1,11 +1,9 @@
-import { safeAttachmentFailure } from "@/lib/attachment-failure";
 import { t } from "@/i18n";
 import type {
   SlackAuth,
   SlackChannel,
   SlackPostMessagePayload,
   SlackPostResult,
-  SlackUploadResult,
   SlackUser,
 } from "@/types/slack";
 
@@ -20,10 +18,12 @@ export class SlackError extends Error {
     public code: string,
     message: string,
     public status = 200,
-    public body: { platform: "slack"; creationRejected?: boolean } = { platform: "slack" },
+    public body: { platform: "slack"; creationRejected?: boolean; code?: string } = { platform: "slack" },
   ) {
     super(message);
     this.name = "SlackError";
+    // Slack failures are HTTP 200, so the code is the only signal the sidepanel can classify.
+    this.body = { ...body, code };
   }
 }
 
@@ -203,45 +203,37 @@ export async function getPermalink(
   return data.permalink;
 }
 
-// files 2-step 업로드: getUploadURLExternal → POST bytes → completeUploadExternal(thread_ts).
-export async function uploadFiles(
+// files 업로드 3단: getUploadURLExternal → POST bytes → completeUploadExternal(thread_ts).
+// 단계마다 별도 메시지라 사이드패널이 file_id를 bytes 전에, complete 의도를 complete 전에 기록한다.
+export async function requestFileUpload(auth: SlackAuth, filename: string, length: number): Promise<{ fileId: string; uploadUrl: string }> {
+  const result = await slackFetch<{ file_id?: string; upload_url?: string }>(auth, "files.getUploadURLExternal", { filename, length });
+  if (!result.file_id || !result.upload_url) throw new Error("Invalid Slack upload allocation");
+  return { fileId: result.file_id, uploadUrl: result.upload_url };
+}
+
+export async function sendFileUpload(uploadUrl: string, filename: string, blob: Blob): Promise<void> {
+  const url = new URL(uploadUrl);
+  if (url.protocol !== "https:" || url.hostname !== "files.slack.com" || url.username || url.password) throw new Error("Invalid Slack upload URL");
+  const form = new FormData();
+  form.append("file", blob, filename);
+  const response = await fetch(url.href, { method: "POST", body: form });
+  if (!response.ok) throw new SlackError("upload_failed", "Upload failed", response.status);
+}
+
+// complete는 업로드당 한 번만 호출할 수 있다 — 호출부가 재호출하지 않는다.
+export async function completeFileUploads(
   auth: SlackAuth,
   channelId: string,
   threadTs: string,
-  files: Array<{ fileId?: string; filename: string; blob: Blob }>,
-): Promise<SlackUploadResult[]> {
-  const results: SlackUploadResult[] = [];
-  const uploaded: Array<{ id: string; title: string }> = [];
+  files: Array<{ id: string; title: string }>,
+): Promise<void> {
+  await slackFetch(auth, "files.completeUploadExternal", { files: JSON.stringify(files), channel_id: channelId, thread_ts: threadTs });
+}
 
-  for (const f of files) {
-    try {
-      const u = await slackFetch<{ upload_url: string; file_id: string }>(
-        auth,
-        "files.getUploadURLExternal",
-        { filename: f.filename, length: f.blob.size },
-      );
-      const form = new FormData();
-      form.append("file", f.blob, f.filename);
-      const put = await fetch(u.upload_url, { method: "POST", body: form });
-      if (!put.ok) throw new SlackError("upload_failed", "Upload failed", put.status);
-      uploaded.push({ id: u.file_id, title: f.filename });
-      results.push({ ...(f.fileId ? { fileId: f.fileId, remoteFileId: u.file_id } : {}), filename: f.filename, ok: true });
-    } catch (error) {
-      results.push({ ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, ok: false, failure: safeAttachmentFailure(error) });
-    }
-  }
-
-  if (uploaded.length > 0) {
-    try {
-      await slackFetch(auth, "files.completeUploadExternal", {
-        files: JSON.stringify(uploaded),
-        channel_id: channelId,
-        thread_ts: threadTs,
-      });
-    } catch (error) {
-      // complete 실패 시 첨부가 채널에 안 붙으므로 전부 실패 처리.
-      return results.map((r) => r.ok ? ({ ...r, ok: false, failure: safeAttachmentFailure(error, "link") }) : r);
-    }
-  }
-  return results;
+// Slack documents internal_error/fatal_error as possibly partially applied; without files:read
+// the outcome cannot be confirmed, so those and transport failures stay ambiguous.
+const AMBIGUOUS_COMPLETE = ["internal_error", "fatal_error", "unknown_error", "request_timeout", "service_unavailable"];
+export function slackCompleteOutcome(error: unknown): "failed" | "ambiguous" {
+  if (!(error instanceof SlackError)) return "ambiguous";
+  return error.status >= 500 || AMBIGUOUS_COMPLETE.includes(error.code) ? "ambiguous" : "failed";
 }

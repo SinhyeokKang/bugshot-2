@@ -23,7 +23,7 @@ export function echoFileIds(message: unknown, result: unknown): unknown {
     return result.map((r) => {
       const at = remaining.findIndex((f) => f.filename === r.filename);
       const f = at < 0 ? undefined : remaining.splice(at, 1)[0];
-      return { ...r, ...(f?.fileId ? { fileId: f.fileId } : {}), ...(msg.type === "slack.uploadFiles" && r.ok ? { remoteFileId: r.remoteFileId ?? `remote:${f?.fileId}` } : {}) };
+      return { ...r, ...(f?.fileId ? { fileId: f.fileId } : {}) };
     });
   }
   if (result && typeof result === "object") {

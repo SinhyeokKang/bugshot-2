@@ -1,5 +1,6 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreation, uploadCheckpoints, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bodySlotToken, buildBodyReplacements } from "./attachmentBodyPatch";
 import type { UploadFileResult } from "@/types/messages";
 import { buildGitlabIssueBody } from "./buildGitlabIssueBody";
 import {
@@ -48,17 +49,20 @@ export async function submitToGitlab(
     },
     { platform: "gitlab" },
   );
-  const { resolvedCtx, toMedia, toAttachmentMedia, hrefMap } = prepared;
+  const { hrefMap } = prepared;
+  const uploads = uploadCheckpoints(input.submissionFiles ?? [], prepared.responses, (r) => r.href ? { platform: "gitlab", href: r.href } : undefined);
+  if (uploads.length) await input.progress?.fileCheckpoint(...uploads);
 
   const imageInputs = input.images ?? [];
-  const { body } = buildGitlabIssueBody({
-    ctx: resolvedCtx,
-    images: imageInputs.length > 0 ? imageInputs.map(toMedia) : undefined,
-    video: input.video ? toMedia(input.video) : undefined,
-    logs: (input.logs ?? []).map(toMedia),
-    attachments: (input.attachments ?? []).map(toAttachmentMedia),
+  const render = (bound: Pick<typeof prepared, "resolvedCtx" | "toMedia" | "toAttachmentMedia">) => buildGitlabIssueBody({
+    ctx: bound.resolvedCtx,
+    images: imageInputs.length > 0 ? imageInputs.map(bound.toMedia) : undefined,
+    video: input.video ? bound.toMedia(input.video) : undefined,
+    logs: (input.logs ?? []).map(bound.toMedia),
+    attachments: (input.attachments ?? []).map(bound.toAttachmentMedia),
     cc: input.cc,
-  });
+  }).body;
+  const body = render(prepared);
 
   const result = await submitCreation(input.progress, () => sendBg<GitlabCreateIssueResult>({
     type: "gitlab.submitIssue",
@@ -71,12 +75,17 @@ export async function submitToGitlab(
     },
   }));
   await input.progress?.created({ platform: "gitlab", key: `#${result.iid}`, url: result.url, locator: { projectId: String(input.projectId), iid: String(result.iid) } });
+  await input.progress?.bodyWritten(body, ...uploads.filter((u) => u.upload === "done").map((u) => ({ fileId: u.fileId, body: "done" as const })));
 
   // 이슈 생성 후 logs.html에 이슈 역링크를 주입해 재업로드하고 description의 URL을 교체.
   // GitLab은 업로드→생성 순서라 생성 시점엔 이슈 URL이 없음. 보강 실패는 제출을 깨지 않게 격리.
+  let relink = (text: string) => text;
   const logsHtml = (input.logs ?? []).find((l) => l.filename === "logs.html");
   const oldLogsUrl = hrefMap.get(logsHtml?.fileId ?? "logs.html");
   if (logsHtml && oldLogsUrl) {
+    // The old upload stays valid and referenced until the description swap succeeds, so the
+    // re-upload is recorded only together with the body that points at it.
+    let swapped: { description: string; href: string } | undefined;
     try {
       const augmented = await injectIssueUrl(
         logsHtml.dataUrl,
@@ -89,17 +98,24 @@ export async function submitToGitlab(
         files: [toUploadEntry({ fileId: logsHtml.fileId, filename: "logs.html", dataUrl: augmented })],
       });
       if (reUploaded?.ok && reUploaded.href && reUploaded.href !== oldLogsUrl) {
+        const description = body.split(oldLogsUrl).join(reUploaded.href);
         await sendBg({
           type: "gitlab.updateIssueDescription",
           projectId: input.projectId,
           iid: result.iid,
-          description: body.split(oldLogsUrl).join(reUploaded.href),
+          description,
         });
+        swapped = { description, href: reUploaded.href };
       }
     } catch {
       // 보강 실패: 이슈는 이미 생성됨 — 역링크 없는 logs.html로 둔다.
     }
+    if (swapped && logsHtml.fileId) await input.progress?.bodyWritten(swapped.description, { fileId: logsHtml.fileId, uploaded: { platform: "gitlab", href: swapped.href } });
+    if (swapped) relink = (text) => text.split(oldLogsUrl).join(swapped!.href);
   }
+  const pending = uploads.filter((u) => u.upload !== "done").map((u) => u.fileId);
+  await recordBodySlots(input.progress, relink(body), pending, () => buildBodyReplacements({ format: "markdown", bodyOnly: true, base: relink(body), pending,
+    render: (success) => relink(render(prepared.withHrefs(new Map([...success].map((id) => [id, bodySlotToken(id)]))))) }));
 
   return { key: `#${result.iid}`, url: result.url, attachments: deliveryResults(input.submissionFiles ?? [], prepared.responses) };
 }

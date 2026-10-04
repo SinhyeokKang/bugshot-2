@@ -42,6 +42,7 @@ const EXEMPT: Record<string, string> = {
   "markdownToAdf.ts": "빌더 내부 변환기 — 진입점이 아니라 감싸진 구간 안에서만 불린다",
   "markdownToNotionBlocks.ts": "빌더 내부 변환기 — 위와 동일",
   "prepareUpload.ts": "에러 토스트 — 화면 언어가 정답",
+  "retrySession.ts": "재시도 결과 토스트 — 화면 언어가 정답. 이슈 본문을 만들지 않는다",
   "submitToWebhook.ts":
     "에러 토스트 — 화면 언어가 정답. 본문에 실리는 문구는 buildWebhookJsonBody로 떼어내 거기서 감쌌다",
 };

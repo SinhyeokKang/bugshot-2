@@ -58,7 +58,19 @@ What you capture, your in-progress drafts, and your settings all stay **only ins
 
 ### Why does it say the issue was registered but an attachment failed?
 
-Issue creation and file delivery can finish separately. Open **Attachments need attention**, check each file, and download a saved copy to attach to the existing issue yourself. A file may have uploaded without being linked to the issue or its body, so check the destination before resubmitting the whole issue. If the cause cannot be verified, BugShot says so rather than guessing.
+Issue creation and file delivery can finish separately. Open **Attachments need attention**, check each file, then use **Retry attachments** to upload again to the existing issue, or download a saved copy and attach it yourself. A file may have uploaded without being linked to the issue or its body, so check the destination before resubmitting the whole issue. If the cause cannot be verified, BugShot says so rather than guessing.
+
+### Does retrying attachments create another issue?
+
+No. **Retry attachments** finds the issue that is already registered, uploads the files that are missing, and fills in body links. It never creates a new issue, so nothing is duplicated. Files that already uploaded are not sent again, and body text or status and assignee changes other people made meanwhile are left alone.
+
+### The retry button is missing, or it stops when I press it
+
+BugShot stops safely when the account is not the one that submitted, the connection was lost, you lack permission to edit the issue, or the issue was deleted. The recovery details explain why and what to do instead, and **Download** keeps working. Records left by an earlier version and Custom Webhook support download only. The cases are laid out in a table in [Issue Tracking](integrations/issue-tracking.md).
+
+### What does "The issue body was edited, so the link was not added" mean?
+
+Someone changed or deleted the spot meant for the attachment before the retry reached it. BugShot stops there rather than overwrite another person's edit, and files that already uploaded are not sent again. Open the issue and check the attachment and link yourself; you can still grab the files with **Download**.
 
 ### How long are recovery files kept?
 

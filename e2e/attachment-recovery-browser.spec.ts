@@ -252,6 +252,8 @@ test("keyboard recovery entry, alert focus trapping, cancel and explicit unknown
   await expect(page.getByTestId("recovery-delete-local")).toBeFocused();
   expect(await snapshot(page)).toEqual(before);
   await alert(page, "recovery-confirm-not-registered");
+  // 새 레이어는 한 렌더 뒤에야 Escape를 받는다(GOTCHAS "DismissableLayer 등록 지연").
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await page.evaluate(() => {
     (window as unknown as { escapeEvents: unknown[] }).escapeEvents = [];
     document.addEventListener("keydown", (event) => {

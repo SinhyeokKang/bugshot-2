@@ -622,3 +622,146 @@ it("Slack partial runner releases completed generated logs but preserves origina
   expect(await (await db.getAttachmentBlob("i", "pdf"))?.text()).toBe("original");
   expect(store.useIssuesStore.getState().issues[0]).toMatchObject({ status: "submitted", slackPreserved: true });
 });
+
+const logsIntent = () => ({ id: "logs", kind: "logs" as const, filename: "logs.html", contentType: "text/html", blob: new Blob(["l"], { type: "text/html" }) });
+const answerIdentity = (reply: (msg: { type: string }) => unknown) => vi.mocked(chrome.runtime.sendMessage).mockImplementation(((msg: { type: string }, cb: (r: unknown) => void) => { cb(reply(msg)); }) as never);
+const partialResult = { key: "#1", url: destination.url!, attachments: [{ fileId: "logs", delivery: "failed" as const, presentation: "failed" as const, failure: { stage: "upload" as const, code: "permission" as const, httpStatus: 403 } }] };
+
+it("snapshots the submitted bodyLocale and persists file checkpoints before the next adapter step", async () => {
+  answerIdentity(() => ({ ok: false, error: "offline" }));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [logsIntent()] });
+  // Captured inside, asserted outside: the run converts adapter exceptions into results.
+  let afterUpload: SubmissionRecoveryMeta["retry"];
+  let afterBody: SubmissionRecoveryMeta["retry"];
+  await recovery.runSubmissionRecovery(prepared, async (progress) => {
+    const input = recovery.withSubmissionProgress({ ctx: { bodyLocale: "ko" as const } }, progress, prepared.files);
+    await input.progress.fileCheckpoint({ fileId: "logs", upload: "done", uploaded: { platform: "github", href: "https://github.com/user-attachments/files/1/logs.html" } });
+    afterUpload = (await db.readSubmissionRecovery("i"))!.retry;
+    await input.progress.beforeCreate();
+    await input.progress.created(destination);
+    await input.progress.bodyWritten("created body");
+    afterBody = (await db.readSubmissionRecovery("i"))!.retry;
+    return partialResult;
+  });
+  expect(afterUpload).toMatchObject({ bodyLocale: "ko", accountIdentity: null, revision: 1, bodyPlan: { format: "markdown", lastWritten: "" } });
+  expect(afterUpload!.checkpoints).toEqual([{ fileId: "logs", upload: "done", link: "not-applicable", body: "pending", uploaded: { platform: "github", href: "https://github.com/user-attachments/files/1/logs.html" } }]);
+  expect(afterBody!.bodyPlan.lastWritten).toBe("created body");
+});
+
+it("resolves the account identity only for a partial result and stores it in the snapshot", async () => {
+  answerIdentity(() => ({ ok: true, result: { identity: '["github","42"]' } }));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [logsIntent()] });
+  const result = await recovery.runSubmissionRecovery(prepared, async (progress) => {
+    const input = recovery.withSubmissionProgress({ ctx: { bodyLocale: "en" as const } }, progress, prepared.files);
+    await input.progress.beforeCreate();
+    await input.progress.created(destination);
+    return partialResult;
+  });
+  expect(result.recovery).toMatchObject({ state: "partial" });
+  expect(vi.mocked(chrome.runtime.sendMessage).mock.calls.map(([m]) => m)).toEqual([{ type: "github.getAccountIdentity", destination }]);
+  expect((await db.readSubmissionRecovery("i"))!.retry!.accountIdentity).toBe('["github","42"]');
+});
+
+it("keeps a partial submission intact when the identity lookup fails", async () => {
+  answerIdentity(() => ({ ok: false, error: "401", status: 401 }));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [logsIntent()] });
+  const result = await recovery.runSubmissionRecovery(prepared, async (progress) => {
+    const input = recovery.withSubmissionProgress({ ctx: { bodyLocale: "en" as const } }, progress, prepared.files);
+    await input.progress.beforeCreate();
+    await input.progress.created(destination);
+    return partialResult;
+  });
+  expect(result).toMatchObject({ key: "#1", recovery: { state: "partial" } });
+  expect(result.recovery?.storageFailed).toBeUndefined();
+  const meta = (await db.readSubmissionRecovery("i"))!;
+  expect(meta.phase).toBe("partial");
+  expect(meta.retry!.accountIdentity).toBeNull();
+});
+
+it("makes no identity request for a complete submission", async () => {
+  answerIdentity(() => ({ ok: true, result: { identity: '["github","42"]' } }));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [logsIntent()] });
+  await recovery.runSubmissionRecovery(prepared, async (progress) => {
+    const input = recovery.withSubmissionProgress({ ctx: { bodyLocale: "en" as const } }, progress, prepared.files);
+    await input.progress.beforeCreate();
+    await input.progress.created(destination);
+    return { key: "#1", url: destination.url!, attachments: [{ fileId: "logs", delivery: "attached", presentation: "complete" }] };
+  });
+  expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+  expect(await db.readSubmissionRecovery("i")).toBeNull();
+});
+
+it("records no snapshot without a bound bodyLocale or for webhook", async () => {
+  for (const platform of ["github", "webhook"] as const) {
+    const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform, files: [logsIntent()] });
+    let stored: SubmissionRecoveryMeta | null = null;
+    await recovery.runSubmissionRecovery(prepared, async (progress) => {
+      const bound = platform === "webhook" ? recovery.withSubmissionProgress({ ctx: { bodyLocale: "en" as const } }, progress, prepared.files).progress : progress;
+      await bound.fileCheckpoint({ fileId: "logs", upload: "failed" });
+      stored = await db.readSubmissionRecovery("i");
+      throw new Error("stop before creation");
+    }).catch(() => {});
+    expect(stored).not.toBeNull();
+    expect(stored!.retry).toBeUndefined();
+  }
+});
+
+it("disables auto-retry instead of failing the submission when a retry checkpoint cannot be stored", async () => {
+  answerIdentity(() => ({ ok: true, result: { identity: '["github","42"]' } }));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [logsIntent()] });
+  const result = await recovery.runSubmissionRecovery(prepared, async (progress) => {
+    const input = recovery.withSubmissionProgress({ ctx: { bodyLocale: "en" as const } }, progress, prepared.files);
+    await input.progress.beforeCreate();
+    await input.progress.created(destination);
+    await input.progress.fileCheckpoint({ fileId: "not-in-journal", upload: "failed" });
+    await input.progress.bodyWritten("later body");
+    return partialResult;
+  });
+  expect(result).toMatchObject({ key: "#1", recovery: { state: "partial" } });
+  expect(result.recovery?.storageFailed).toBeUndefined();
+  expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+  const retry = (await db.readSubmissionRecovery("i"))!.retry!;
+  expect(retry.accountIdentity).toBeNull();
+  expect(retry.bodyPlan.lastWritten).toBe("");
+});
+
+it("resolves a hanging identity lookup to null after 10 seconds and still completes the partial result", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "github", files: [logsIntent()] });
+    let settled = false;
+    const run = recovery.runSubmissionRecovery(prepared, async (progress) => {
+      const input = recovery.withSubmissionProgress({ ctx: { bodyLocale: "en" as const } }, progress, prepared.files);
+      await input.progress.beforeCreate();
+      await input.progress.created(destination);
+      return partialResult;
+    }).finally(() => { settled = true; });
+    await vi.waitFor(() => expect(chrome.runtime.sendMessage).toHaveBeenCalledTimes(1));
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const result = await run;
+    expect(result.recovery).toMatchObject({ state: "partial" });
+    const meta = (await db.readSubmissionRecovery("i"))!;
+    expect(meta.phase).toBe("partial");
+    expect(meta.retry!.accountIdentity).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("removes a stale uploaded locator when a patch clears it", async () => {
+  answerIdentity(() => ({ ok: false, error: "offline" }));
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: issue(), platform: "slack", files: [logsIntent()] });
+  let checkpoint: unknown;
+  await recovery.runSubmissionRecovery(prepared, async (progress) => {
+    const input = recovery.withSubmissionProgress({ ctx: { bodyLocale: "en" as const } }, progress, prepared.files);
+    await input.progress.beforeCreate();
+    await input.progress.created({ platform: "slack", key: "1.2", locator: { channelId: "C", ts: "1.2" } });
+    await input.progress.fileCheckpoint({ fileId: "logs", upload: "pending", uploaded: { platform: "slack", id: "F1" } });
+    await input.progress.fileCheckpoint({ fileId: "logs", upload: "failed", uploaded: undefined });
+    checkpoint = (await db.readSubmissionRecovery("i"))!.retry!.checkpoints[0];
+    return { key: "1.2", url: "", attachments: [{ fileId: "logs", delivery: "failed", presentation: "failed", failure: { stage: "upload", code: "unknown" } }] };
+  });
+  expect(checkpoint).toStrictEqual({ fileId: "logs", upload: "failed", link: "pending", body: "not-applicable" });
+});

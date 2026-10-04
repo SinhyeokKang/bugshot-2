@@ -1,15 +1,16 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, submitCreation, type DeliveryResponse, type SubmissionAdapterInput } from "./submissionAdapter";
 import { buildSlackBody } from "./buildSlackBody";
 import { splitSlackText } from "./splitSlackText";
 import { escapeMrkdwn } from "./markdownToMrkdwn";
 import { toInlineUploadFiles } from "./prepareUpload";
+import { base64ByteLength } from "./uploadPayload";
 import type { InlineImageInput } from "./resolveInlineImages";
 import { sendBg } from "@/lib/bg-client";
 import type {
+  SlackCompleteResult,
   SlackPermalinkResult,
   SlackPostResult,
-  SlackUploadResult,
 } from "@/types/slack";
 import type { NormalizedSubmitResult } from "@/types/platform";
 
@@ -32,16 +33,6 @@ export interface SlackSubmitInput extends SubmissionAdapterInput {
   inlineImages?: InlineImageInput[];
   channelId: string;
   mentions?: { id: string; name: string }[];
-}
-
-// prepareUpload의 공용판을 쓰지 않는다 — slack.uploadFiles 페이로드는 {filename, dataUrl}뿐이라
-// 공용판이 얹는 contentType이 쓰이지 않은 채 메시지 경계를 넘는다.
-function toUploadEntry(f: SlackFileInput) {
-  return {
-    ...(f.fileId ? { fileId: f.fileId } : {}),
-    filename: f.filename,
-    dataUrl: f.dataUrl,
-  };
 }
 
 export async function submitToSlack(
@@ -78,15 +69,51 @@ export async function submitToSlack(
     });
   }
 
-  let responses: SlackUploadResult[] = [];
-  if (allFiles.length > 0) {
-    const results = await sendBg<SlackUploadResult[]>({
-      type: "slack.uploadFiles",
-      channelId: input.channelId,
-      threadTs: parent.ts,
-      files: allFiles.map(toUploadEntry),
-    }).catch((error) => allFiles.map((f) => ({ fileId: f.fileId, filename: f.filename, ok: false as const, failure: safeAttachmentFailure(error) })));
-    responses = results;
+  // grant → bytes → complete, one bytes message per file. The file ID is stored before bytes and
+  // the complete intent before complete, which runs once and is never repeated on ambiguity.
+  const responses: DeliveryResponse[] = [];
+  const granted: Array<{ fileId?: string; id: string; title: string }> = [];
+  for (const file of allFiles) {
+    // Before complete Slack discards the upload, so any pre-complete failure is safe to redo.
+    const failed = async (error: unknown) => {
+      responses.push({ fileId: file.fileId, filename: file.filename, ok: false, failure: safeAttachmentFailure(error) });
+      // The allocated id is discarded with the upload, so it must not look reusable.
+      if (file.fileId) await input.progress?.fileCheckpoint({ fileId: file.fileId, upload: "failed", uploaded: undefined });
+    };
+    let allocation: { fileId: string; uploadUrl: string };
+    try {
+      allocation = await sendBg<{ fileId: string; uploadUrl: string }>({
+        type: "slack.requestFileUpload",
+        ...(file.fileId ? { fileId: file.fileId } : {}),
+        filename: file.filename,
+        length: base64ByteLength(file.dataUrl),
+      });
+      if (!allocation?.fileId || !allocation.uploadUrl) throw new Error("Invalid Slack upload allocation");
+    } catch (error) { await failed(error); continue; }
+    const fileId = allocation.fileId;
+    if (file.fileId) await input.progress?.fileCheckpoint({ fileId: file.fileId, upload: "pending", uploaded: { platform: "slack", id: fileId } });
+    try {
+      await sendBg({ type: "slack.sendFileUpload", ...(file.fileId ? { fileId: file.fileId } : {}), uploadUrl: allocation.uploadUrl, filename: file.filename, dataUrl: file.dataUrl });
+    } catch (error) { await failed(error); continue; }
+    if (file.fileId) await input.progress?.fileCheckpoint({ fileId: file.fileId, upload: "done" });
+    granted.push({ fileId: file.fileId, id: fileId, title: file.filename });
+  }
+  if (granted.length > 0) {
+    const tracked = granted.filter((g) => g.fileId).map((g) => g.fileId!);
+    if (tracked.length) await input.progress?.fileCheckpoint(...tracked.map((fileId) => ({ fileId, link: "unknown" as const })));
+    let complete: SlackCompleteResult;
+    try {
+      complete = await sendBg<SlackCompleteResult>({ type: "slack.completeFileUploads", channelId: input.channelId, threadTs: parent.ts, files: granted.map(({ id, title }) => ({ id, title })) });
+    } catch (error) {
+      complete = { ok: false, outcome: "ambiguous", failure: safeAttachmentFailure(error, "link") };
+    }
+    const link = complete.ok ? "done" as const : complete.outcome === "failed" ? "failed" as const : "unknown" as const;
+    if (tracked.length) await input.progress?.fileCheckpoint(...tracked.map((fileId) => ({ fileId, link })));
+    for (const g of granted) {
+      responses.push(complete.ok
+        ? { fileId: g.fileId, filename: g.title, ok: true, href: g.id }
+        : { fileId: g.fileId, filename: g.title, ok: false, failure: { ...complete.failure, stage: "link" }, ambiguous: complete.outcome === "ambiguous" });
+    }
   }
 
   let permalinkFailure: import("@/types/attachment").AttachmentResult["failure"];
@@ -102,5 +129,5 @@ export async function submitToSlack(
     if (url.protocol !== "https:" || url.username || url.password) throw new Error("Invalid permalink");
   } catch { permalinkFailure ??= { stage: "body", code: "invalid-response" }; }
   const permalinkFailed = !!permalinkFailure;
-  return { ...(permalinkFailed ? { submissionFailure: permalinkFailure } : {}), key: parent.ts, url: permalinkFailed ? "" : permalink, attachments: deliveryResults(input.submissionFiles ?? [], responses.map((r) => ({ ...r, href: r.remoteFileId, ...(permalinkFailed ? { presentation: "failed" as const, ...(r.ok ? { failure: permalinkFailure } : {}) } : {}) })), permalinkFailed) };
+  return { ...(permalinkFailed ? { submissionFailure: permalinkFailure } : {}), key: parent.ts, url: permalinkFailed ? "" : permalink, attachments: deliveryResults(input.submissionFiles ?? [], responses.map((r) => ({ ...r, ...(permalinkFailed ? { presentation: "failed" as const, ...(r.ok ? { failure: permalinkFailure } : {}) } : {}) })), permalinkFailed) };
 }

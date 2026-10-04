@@ -1,5 +1,7 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreation, uploadCheckpoints, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bodySlotToken, buildBodyReplacements } from "./attachmentBodyPatch";
+import { failedStageState } from "./attachmentCheckpoints";
 import type { UploadFileResult } from "@/types/messages";
 import {
   buildClickupIssueBody,
@@ -90,6 +92,7 @@ export async function submitToClickup(
     },
   }));
   await input.progress?.created({ platform: "clickup", key: task.id, url: task.url, locator: { taskId: task.id } });
+  await input.progress?.bodyWritten(body1);
 
   let responses: UploadFileResult[] = [];
   let bodyFailed = false;
@@ -110,43 +113,60 @@ export async function submitToClickup(
     }).catch((error) => allFiles.map((f) => ({ fileId: f.fileId, filename: f.filename, ok: false as const, failure: safeAttachmentFailure(error) })));
 
     responses = results;
+    const uploads = uploadCheckpoints(input.submissionFiles ?? [], results.map((r) => ({ ...r, href: r.ok ? r.href : undefined })), (r) => r.href ? { platform: "clickup", href: r.href } : undefined);
+    if (uploads.length) await input.progress?.fileCheckpoint(...uploads);
     const urlMap = new Map(allFiles.map((f) => { const found = results.filter((r) => f.fileId ? r.fileId === f.fileId : r.filename === f.filename); const r = found.length === 1 ? found[0] : undefined; return [f.fileId ?? f.filename, r?.ok ? r.href : null]; }));
 
     // 본문 붙여넣기 인라인 이미지: 업로드 URL로 본문 src(`inline:refId`)를 치환.
-    let resolvedCtx = input.ctx;
-    if (inlineFiles.length > 0) {
+    const resolveCtx = (map: Map<string, string | null>) => {
       const refToUrl = new Map<string, string>();
       for (const f of inlineFiles) {
-        const url = urlMap.get(f.fileId ?? f.filename);
+        const url = map.get(f.fileId ?? f.filename);
         if (url) refToUrl.set(f.refId, url);
       }
-      if (refToUrl.size > 0) {
-        resolvedCtx = {
-          ...input.ctx,
-          sections: Object.fromEntries(
-            Object.entries(input.ctx.sections).map(([k, v]) => [
-              k,
-              replaceInlineRefs(v, refToUrl),
-            ]),
-          ),
-        };
-      }
-    }
+      return refToUrl.size === 0 ? input.ctx : {
+        ...input.ctx,
+        sections: Object.fromEntries(
+          Object.entries(input.ctx.sections).map(([k, v]) => [
+            k,
+            replaceInlineRefs(v, refToUrl),
+          ]),
+        ),
+      };
+    };
+    const resolvedCtx = resolveCtx(urlMap);
 
     // 업로드 URL을 반영해 본문을 재구성 → 인라인 렌더. 변경 있을 때만 2차 PUT.
     const body2 = buildBody(resolvedCtx, urlMap);
+    let lastWritten = body1;
+    let bodyDone: string[] = [];
     if (body2 !== body1) {
+      // User files are native task attachments only; every other uploaded file is referenced in body2.
+      const inBody = allFiles.filter((f) => f.fileId && !userAttachments.includes(f) && urlMap.get(f.fileId)).map((f) => f.fileId!);
+      let bodyFailure: ReturnType<typeof safeAttachmentFailure> | undefined;
       try {
         await sendBg({
           type: "clickup.updateTaskMarkdown",
           taskId: task.id,
           markdownContent: body2,
         });
-      } catch {
+      } catch (error) {
         bodyFailed = true;
+        bodyFailure = safeAttachmentFailure(error, "body");
         // 본문 갱신 실패해도 task·첨부는 보존 (이미지는 task 첨부로 남음).
       }
+      if (!bodyFailed) await input.progress?.bodyWritten(body2, ...inBody.map((fileId) => ({ fileId, body: "done" as const })));
+      else if (inBody.length) await input.progress?.fileCheckpoint(...inBody.map((fileId) => ({ fileId, body: failedStageState(bodyFailure) })));
+      if (!bodyFailed) { lastWritten = body2; bodyDone = inBody; }
     }
+    // User files are native task attachments; every other file has a body place until written.
+    const pending = allFiles.filter((f) => f.fileId && !userAttachments.includes(f) && !bodyDone.includes(f.fileId)).map((f) => f.fileId!);
+    await recordBodySlots(input.progress, lastWritten, pending, () => buildBodyReplacements({ format: "markdown", base: lastWritten, pending,
+      render: (success) => {
+        const map = new Map(urlMap);
+        for (const id of pending) map.set(id, success.has(id) ? bodySlotToken(id) : null);
+        return buildBody(resolveCtx(map), map);
+      } }));
   }
 
   return { key: task.id, url: task.url, attachments: deliveryResults(input.submissionFiles ?? [], responses.map((r) => ({ ...r, href: r.ok ? r.href : undefined })), bodyFailed) };
