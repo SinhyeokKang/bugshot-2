@@ -101,7 +101,7 @@ chrome.action.onClicked.addListener((tab) => {
 - Notion 미연결 업로드 — 연결되지 않은 업로드는 만료된다.
 - Jira·Asana — 원격 첨부 목록에서 이 레코드가 이미 소유한 id를 뺀 뒤 이름으로 대조할 수 있다.
 
-업로드는 플랫폼과 무관하게 메시지당 1파일이다(64MiB 메시지 한도). 원본 삭제는 `markSubmittedDurably` 성공 뒤에만 하고, 재시도로 완료돼도 원래 `submittedAt`을 보존한다.
+"결과 불명"은 오류 종류가 아니라 단계로 판정한다 — GitHub 페이지 업로드는 finalize 요청 전 거부(탭 이동·CORS)와 탭 준비 실패를 `not-sent`(확정 실패, 재시도 가능)로, finalize 이후 거부만 network(불명)로 둔다. 업로드는 플랫폼과 무관하게 메시지당 1파일이다(64MiB 메시지 한도). 원본 삭제는 `markSubmittedDurably` 성공 뒤에만 하고, 재시도로 완료돼도 원래 `submittedAt`을 보존한다.
 
 **본문은 3-way 패치이고 우리 슬롯만 바꾼다.** 최초 제출 어댑터가 `bodyWritten`과 함께 `bodyPlan.replacements`를 기록한다. 항목은 파일별 anchor·before·after·renderTemplate이고, 단위는 markdown/asana-html이면 줄, ADF면 정규화한 top-level 노드다. `attachmentBodyPatch`는 `lastWritten`·최신 원격·원하는 결과로 그 자리만 교체한다.
 
