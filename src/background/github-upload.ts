@@ -44,7 +44,7 @@ async function ensureGithubTab(owner: string, repo: string): Promise<{ tabId: nu
 }
 
 interface PageUploadResult {
-  files: Array<{ fileId?: string; status?: number; name?: string; filename: string; href: string | null }>;
+  files: Array<{ fileId?: string; status?: number; name?: string; notSent?: boolean; filename: string; href: string | null }>;
   debug: string[];
 }
 
@@ -57,8 +57,10 @@ async function pageBatchUploadFn(
 ): Promise<PageUploadResult> {
   async function uploadOne(
     file: { fileId?: string; filename: string; contentType: string; dataUrl: string },
-  ): Promise<{ fileId?: string; status?: number; name?: string; filename: string; href: string | null; debug: string[] }> {
+  ): Promise<{ fileId?: string; status?: number; name?: string; notSent?: boolean; filename: string; href: string | null; debug: string[] }> {
     const debug: string[] = [];
+    // Until the finalize request goes out nothing is attached on GitHub, so a rejection is a definite failure.
+    let finalizing = false;
     try {
       const idx = file.dataUrl.indexOf(";base64,");
       if (idx < 0) { debug.push(`${file.filename}: invalid dataUrl`); return { ...(file.fileId ? { fileId: file.fileId } : {}), filename: file.filename, href: null, debug }; }
@@ -111,6 +113,7 @@ async function pageBatchUploadFn(
       finalForm.append("authenticity_token", policy.asset_upload_authenticity_token);
       const finalUrl = new URL(policy.asset_upload_url, location.origin).href;
 
+      finalizing = true;
       const finalRes = await fetch(finalUrl, {
         method: "PUT",
         body: finalForm,
@@ -125,13 +128,13 @@ async function pageBatchUploadFn(
     } catch (e) {
       debug.push(`${file.filename}: exception ${e}`);
       const name = e instanceof Error && ["TypeError", "AbortError", "TimeoutError"].includes(e.name) ? e.name : undefined;
-      return { name, ...(file.fileId ? { fileId: file.fileId } : {}), filename: file.filename, href: null, debug };
+      return { name, ...(finalizing ? {} : { notSent: true }), ...(file.fileId ? { fileId: file.fileId } : {}), filename: file.filename, href: null, debug };
     }
   }
 
   const settled = await Promise.all(files.map((f) => uploadOne(f)));
   return {
-    files: settled.map((r) => ({ ...(r.fileId ? { fileId: r.fileId } : {}), filename: r.filename, href: r.href, ...(r.status ? { status: r.status } : {}), ...(r.name ? { name: r.name } : {}) })),
+    files: settled.map((r) => ({ ...(r.fileId ? { fileId: r.fileId } : {}), filename: r.filename, href: r.href, ...(r.status ? { status: r.status } : {}), ...(r.name ? { name: r.name } : {}), ...(r.notSent ? { notSent: true } : {}) })),
     debug: settled.flatMap((r) => r.debug),
   };
 }
@@ -175,7 +178,7 @@ export async function uploadGithubFiles(
     return pageResult.files.map((f) =>
       f.href
         ? { ok: true as const, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, href: f.href }
-        : { ok: false as const, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, failure: safeAttachmentFailure(f) },
+        : { ok: false as const, ...(f.fileId ? { fileId: f.fileId } : {}), filename: f.filename, failure: f.notSent ? { stage: "upload" as const, code: "not-sent" as const } : safeAttachmentFailure(f) },
     );
   } catch (err) {
     console.warn("[bugshot] github upload script injection failed", err);

@@ -722,7 +722,7 @@ function safeDestinationUrl(value: unknown): boolean {
 function validateFailure(value: unknown): void {
   const failure = record(value, ["stage", "code", "httpStatus"]);
   if (!["source", "upload", "link", "body"].includes(String(failure.stage))
-    || !["missing-source", "local-storage", "authentication", "permission", "size-limit", "rate-limit", "network", "timeout", "invalid-response", "body-limit", "unknown"].includes(String(failure.code))
+    || !["missing-source", "local-storage", "authentication", "permission", "size-limit", "rate-limit", "network", "timeout", "invalid-response", "body-limit", "not-sent", "unknown"].includes(String(failure.code))
     || (failure.httpStatus !== undefined && (!Number.isInteger(failure.httpStatus) || Number(failure.httpStatus) < 100 || Number(failure.httpStatus) > 599))) throw new Error("Invalid recovery failure");
 }
 const UPLOADED_KEYS: Record<string, readonly string[]> = {

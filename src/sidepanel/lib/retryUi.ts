@@ -67,6 +67,8 @@ export function retrySummary(outcome: RetryAttachmentsOutcome, pending: number):
   if (outcome.status === "complete") return { kind: "complete", n: pending || outcome.attachments.length };
   // A write whose result is unknown is shown as a static note, never as a count of failures.
   if (outcome.reason === "ambiguous") return { kind: "needsCheck" };
+  // Uploaded files whose body link was blocked by an edited issue did not fail again.
+  if (outcome.reason === "body-conflict" && outcome.attachments.filter((r) => r.failure).every((r) => r.failure!.stage === "body")) return { kind: "blocked", reason: "body-conflict" };
   if (outcome.status === "blocked" && outcome.reason) return { kind: "blocked", reason: outcome.reason };
   return { kind: "partial", n: outcome.remaining };
 }
