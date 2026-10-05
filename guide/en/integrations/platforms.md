@@ -66,7 +66,7 @@ Uploading a file, linking it to an issue, and inserting its body link are separa
 
 | Platform | What a retry does |
 |---|---|
-| GitHub · GitLab | Uploads the file, then fills its place in the issue body with the link. Files reach the issue only through that body link, so a record from before body places were saved can only be downloaded. |
+| GitHub · GitLab | Uploads the file, then fills its place in the issue body with the link. Files reach the issue only through that body link, so a record from before body places were saved can only be downloaded. On GitHub, an upload that was cut off before it reached GitHub (for example, the upload tab navigated away) is uploaded again. |
 | Jira | Uploads the attachment to the issue and updates the description. For an upload whose result is unknown, it first checks whether an attachment with that name is already there and uploads only if not. |
 | Linear | Upload → attach to the issue → body link, skipping the steps already done. |
 | Asana | Like Jira, it checks for an attachment with the same name first, uploads if missing, then fills the link into the description. |
@@ -75,7 +75,7 @@ Uploading a file, linking it to an issue, and inserting its body link are separa
 | Slack | Re-uploads failed files into the **original message's thread**. It sends no new message. If it cannot confirm a file reached the thread, it does not resend, to avoid duplicates. |
 | Custom Webhook | Not supported. The files go out in one request, so there is no way to tell which part succeeded; please download them instead. |
 
-An upload whose result cannot be confirmed is usually not resent automatically, to avoid duplicate attachments. You will see **Result needs checking** instead. The exceptions are Jira and Asana, which check for the same name first, and Notion and Slack uploads, which are discarded or expire before they are attached to anything. Full steps and the cases where retry is unavailable are in [Issue Tracking](issue-tracking.md).
+An upload whose result cannot be confirmed is usually not resent automatically, to avoid duplicate attachments. You will see **Result needs checking** instead. The exceptions are Jira and Asana, which check for the same name first, Notion and Slack uploads, which are discarded or expire before they are attached to anything, and GitHub uploads cut off before they reached GitHub. Full steps and the cases where retry is unavailable are in [Issue Tracking](issue-tracking.md).
 
 ## Defaults after connecting
 

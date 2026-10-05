@@ -198,6 +198,8 @@ export async function cleanup(ext: Extension, pages: Page[], ids: string[]) {
 export type RemoteConfig = {
   // Per-file upload rejections (HTTP 403 inside a successful batch) and a whole-batch rejection.
   failIds?: string[]; rejectUpload?: boolean;
+  // The per-file failure failIds answer with (default: HTTP 403).
+  failure?: { stage: "upload"; code: string; httpStatus?: number };
   // A held upload never answers: the retry stays running.
   hangUpload?: boolean;
   // GitHub/ClickUp body write.
@@ -229,7 +231,7 @@ export async function installRemote(panel: Page, provider: Provider, config: Rem
       }
       const ok = (result: unknown) => callback?.({ ok: true, result });
       const fail = (status?: number, body?: unknown) => callback?.({ ok: false, error: "deterministic remote failure", ...(status ? { status } : {}), ...(body ? { body } : {}) });
-      const rejection = { stage: "upload", code: "permission", httpStatus: 403 };
+      const rejection = () => state.config.failure ?? { stage: "upload", code: "permission", httpStatus: 403 };
       const rejected = (id: string) => state.config.failIds?.some((f) => id === f || id?.startsWith(f));
       void w.__recoveryRecord(msg).then(async () => {
         const type: string = msg.type;
@@ -271,7 +273,7 @@ export async function installRemote(panel: Page, provider: Provider, config: Rem
           if (state.config.rejectUpload) return fail(403);
           const files: any[] = msg.files ?? [msg.attachment];
           const result = files.map((f) => rejected(f.fileId)
-            ? { fileId: f.fileId, filename: f.filename, ok: false, failure: rejection }
+            ? { fileId: f.fileId, filename: f.filename, ok: false, failure: rejection() }
             : { fileId: f.fileId, filename: f.filename, ok: true, href: `https://example.com/files/${encodeURIComponent(f.fileId)}`, gid: `gid-${f.fileId}`, file: { kind: "external", url: `https://example.com/files/${encodeURIComponent(f.fileId)}` } });
           return ok(msg.attachment ? result[0] : result);
         }

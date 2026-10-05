@@ -32,6 +32,7 @@ describe("failedStageState", () => {
     [{ stage: "upload", code: "size-limit", httpStatus: 413 }, "failed"],
     [{ stage: "body", code: "unknown", httpStatus: 400 }, "failed"],
     [{ stage: "upload", code: "network" }, "unknown"],
+    [{ stage: "upload", code: "not-sent" }, "failed"],
     [{ stage: "upload", code: "timeout", httpStatus: 408 }, "unknown"],
     [{ stage: "body", code: "unknown", httpStatus: 502 }, "unknown"],
     [{ stage: "upload", code: "unknown" }, "unknown"],

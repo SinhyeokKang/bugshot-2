@@ -13,7 +13,7 @@ export type AttachmentKind = "capture" | "video" | "inline" | "logs" | "user";
 export type AttachmentFailureCode =
   | "missing-source" | "local-storage" | "authentication" | "permission"
   | "size-limit" | "rate-limit" | "network" | "timeout"
-  | "invalid-response" | "body-limit" | "unknown";
+  | "invalid-response" | "body-limit" | "not-sent" | "unknown";
 export type AttachmentStage = "source" | "upload" | "link" | "body";
 
 export interface SubmissionFile {

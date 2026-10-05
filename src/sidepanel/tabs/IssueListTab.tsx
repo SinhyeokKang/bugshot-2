@@ -120,7 +120,7 @@ export function IssueListTab() {
               </TabsList>
             </Tabs>
           </div>
-          <div className="relative ml-auto w-full max-w-[200px]">
+          <div className="relative ml-auto min-w-[120px] max-w-[200px] flex-1">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={t("issueList.search")}

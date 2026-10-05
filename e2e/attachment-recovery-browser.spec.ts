@@ -9,13 +9,13 @@ const LONG_NAME = `${"고객보고서_日本語_échec_".repeat(24)}.pdf`;
 const pages: Page[] = [];
 let ownedId = "";
 
-async function seed(ext: Extension, id: string, phase: "unknown" | "partial" | "draft", count = 1, theme = "light") {
+async function seed(ext: Extension, id: string, phase: "unknown" | "partial" | "draft", count = 1, theme = "light", title = "Browser recovery acceptance") {
   ownedId = id;
   const now = Date.now();
   const issue = {
-    id, title: "Browser recovery acceptance", platform: "github", status: phase === "partial" ? "submitted" : "draft",
+    id, title, platform: "github", status: phase === "partial" ? "submitted" : "draft",
     createdAt: now, updatedAt: now, pageUrl: "", captureMode: "freeform",
-    draft: { title: "Browser recovery acceptance", sections: { description: "Browser acceptance" } },
+    draft: { title, sections: { description: "Browser acceptance" } },
     snapshot: { before: false, after: false },
     ...(phase === "unknown" ? { attachments: Array.from({ length: count }, (_, n) => ({ id: `file-${n}`, filename: `${n}-${LONG_NAME}`, contentType: "application/pdf", size: Buffer.byteLength(BYTES) })) } : {}),
     ...(phase !== "draft" ? { submissionRecoveryId: `attempt-${id}` } : {}),
@@ -319,6 +319,32 @@ for (const theme of ["light", "dark"]) test(`400px ${theme} recovery keeps multi
   await page.keyboard.press("Escape");
   expect(await snapshot(page)).toEqual(before);
   await expectNoRemote(page);
+});
+
+// #250: a needs-attention count widened the status tabs until Draft scrolled out of view.
+// #249: the recovery detail title ran under the dialog close button.
+test("400px partial record keeps the Draft filter visible and a long recovery title clear of the close button", async ({ ext }) => {
+  const title = `${"Very long recovery title for layout ".repeat(4)}end`;
+  const tabId = await seed(ext, "browser-layout-title", "partial", 1, "light", title);
+  const page = await openPanel(ext, tabId);
+  await page.setViewportSize({ width: 400, height: 720 });
+  await expect(page.getByTestId("filter-submitted")).toContainText("(1)");
+  const draft = page.getByTestId("filter-draft");
+  await expect(draft).toBeInViewport({ ratio: 1 });
+  expect(await draft.evaluate((el) => {
+    const box = el.getBoundingClientRect(); const row = el.closest(".overflow-x-auto")!.getBoundingClientRect();
+    return box.left >= row.left && box.right <= row.right;
+  })).toBe(true);
+  const detail = await enterRecovery(page);
+  const heading = detail.getByRole("heading", { name: title });
+  const close = detail.locator("button").filter({ has: page.locator(".sr-only") });
+  await expect(close).toHaveCount(1);
+  const c = (await close.boundingBox())!;
+  // Measure the rendered text, not the element box: the fix is padding, which the box includes.
+  const lines = await heading.evaluate((el) => { const range = document.createRange(); range.selectNodeContents(el); return [...range.getClientRects()].map((r) => ({ top: r.top, bottom: r.bottom, right: r.right })); });
+  // Premise: the title wraps, so its first line really reaches the dialog's right edge.
+  expect(new Set(lines.map((l) => Math.round(l.top))).size).toBeGreaterThan(1);
+  for (const line of lines) expect(line.bottom <= c.y || line.top >= c.y + c.height || line.right <= c.x).toBe(true);
 });
 
 async function originalDraftSources(page: Page) {

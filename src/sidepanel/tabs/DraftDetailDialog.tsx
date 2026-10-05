@@ -186,7 +186,7 @@ export function DraftDetailDialog(props: {
   if (finishedRecovery) return null;
   if (issue?.submissionRecoveryId) return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent onCloseAutoFocus={(event) => { event.preventDefault(); props.onRecoveryCloseAutoFocus?.(); }} className="flex max-h-[80vh] w-[90vw] max-w-[800px] flex-col gap-5 rounded-3xl p-6 sm:rounded-3xl" data-testid="draft-detail-dialog" aria-describedby={undefined}>
-      <DialogHeader><DialogTitle>{issue.title || t("common.untitled")}</DialogTitle></DialogHeader>
+      <DialogHeader><DialogTitle className="break-words pr-8 text-xl leading-tight">{issue.title || t("common.untitled")}</DialogTitle></DialogHeader>
       <PageScroll><AttachmentRecoveryPanel key={issue.submissionRecoveryId} issueId={issue.id} attemptId={issue.submissionRecoveryId} allowManage onMetaLoaded={setRecoveryMeta} onConfirmed={() => onOpenChange(false)} /></PageScroll>
       <DialogFooter><Button variant="outline" ref={closeButton} onClick={() => onOpenChange(false)}>{t("common.close")}</Button>
         {retryState.showOpenIssue && <Button asChild variant={retryState.canRetry ? "outline" : "default"}><a href={currentMeta?.destination?.url} target="_blank" rel="noopener noreferrer">{t("recovery.openIssue")}</a></Button>}

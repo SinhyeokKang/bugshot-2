@@ -21,6 +21,7 @@ export function AttachmentRecoveryPanel({ issueId, attemptId, allowManage = fals
   const [meta, setMeta] = useState<SubmissionRecoveryMeta | null>(null);
   const [missing, setMissing] = useState<Set<string>>(new Set());
   const [error, setError] = useState(false);
+  const [resolved, setResolved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -32,8 +33,11 @@ export function AttachmentRecoveryPanel({ issueId, attemptId, allowManage = fals
     let cancelled = false;
     setLoading(true);
     setError(false);
+    setResolved(false);
     void (async () => {
       const current = await readSubmissionRecovery(issueId);
+      // The record was released elsewhere (a finished retry, or local copies deleted): not a failure, but not proof of success either.
+      if (!current && issue?.status === "submitted" && !issue.submissionRecoveryId) { if (!cancelled) { setMeta(null); setResolved(true); } return; }
       if (!current || current.attemptId !== attemptId) throw new Error("Recovery unavailable");
       const absent = new Set<string>();
       for (const file of current.files) {
@@ -89,6 +93,7 @@ export function AttachmentRecoveryPanel({ issueId, attemptId, allowManage = fals
   return <div className="min-w-0 space-y-3" aria-busy={busy || loading}>
     {allowManage && <p role="status" aria-live="polite" data-testid="recovery-retry-status" className={session.summary ? "break-words text-sm" : "sr-only"}>{session.summary ? retrySummaryText(session.summary, t) : ""}</p>}
     {loading && !meta && <p role="status" className="text-sm text-muted-foreground">{t("recovery.loading")}</p>}
+    {resolved && <p role="status" className="break-words text-sm" data-testid="recovery-resolved">{t("recovery.resolved")}</p>}
     {error && <p role="alert" className="break-words text-sm">{t("recovery.error")}</p>}
     {meta && <>
       {meta.phase === "complete" && <p className="break-words text-sm">{t("recovery.storageFailed")}</p>}

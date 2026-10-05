@@ -160,6 +160,7 @@ function emit(hunks: Array<Anchored & { base: string[] }>, groups: string[][], n
   for (const group of groups) {
     if (group.some((id) => excluded.has(id))) { for (const id of group) excluded.add(id); continue; }
     for (const h of hunks.filter((h) => group.some((id) => h.members.has(id)))) {
+      // Context units reach into neighbouring slots, so editing one slot also blocks the next one (#254).
       for (const fileId of group) replacements.push({ fileId, anchor: JSON.stringify(h.pre), before: JSON.stringify(h.base), after: JSON.stringify(h.post), renderTemplate: JSON.stringify(h.insert) });
     }
     for (const id of group) grouped.add(id);

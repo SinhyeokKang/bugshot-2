@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SubmissionRecoveryMeta } from "@/types/attachment";
-const mocks = vi.hoisted(() => ({ read: vi.fn(), bytes: vi.fn(), remove: vi.fn(), confirm: vi.fn(), download: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), bytes: vi.fn(), remove: vi.fn(), confirm: vi.fn(), download: vi.fn(), issues: [] as Array<Record<string, unknown>> }));
 vi.mock("@/store/blob-db", () => ({ readSubmissionRecovery: mocks.read, readRecoveryFile: mocks.bytes }));
-vi.mock("@/store/issues-store", () => ({ useIssuesStore: (select: (s: { issues: [] }) => unknown) => select({ issues: [] }) }));
+vi.mock("@/store/issues-store", () => ({ useIssuesStore: (select: (s: { issues: Array<Record<string, unknown>> }) => unknown) => select({ issues: mocks.issues }) }));
 vi.mock("@/sidepanel/lib/submissionRecovery", () => ({ deleteSubmissionLocalFiles: mocks.remove, confirmSubmissionNotRegistered: mocks.confirm }));
 vi.mock("@/sidepanel/lib/downloadCapture", () => ({ triggerDownload: mocks.download }));
 vi.mock("@/i18n", () => ({ useT: () => (key: string) => key }));
@@ -13,6 +13,7 @@ import { AttachmentRecoveryPanel } from "../AttachmentRecoveryPanel";
 let meta: SubmissionRecoveryMeta;
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.issues = [];
   meta = { issueId: "issue", attemptId: "a", title: "Report", platform: "notion", phase: "partial", createdAt: Date.now(), updatedAt: Date.now(), expiresAt: Date.now() + 86_400_000,
     destination: { platform: "notion", key: "N", url: "https://notion.so/page", locator: { pageId: "page" } },
     files: [ { id: "logs", kind: "logs", filename: "logs.zip", contentType: "application/zip", source: { kind: "generated", key: "zip" } }, { id: "user:1", kind: "user", filename: "logs.zip", contentType: "application/pdf", source: { kind: "original", store: "attachments", key: "issue:1" } } ],
@@ -114,4 +115,37 @@ describe("recovery interactions", () => {
     expect(screen.queryByTestId("recovery-confirm-not-registered")).toBeNull();
   });
 
+});
+
+// #253: a retry from the issue list finishes the recovery and deletes its journal while the
+// completion screen is still mounted; that is completion, not a storage failure.
+describe("finished recovery", () => {
+  it("shows completion instead of an error once the record no longer points at the journal", async () => {
+    mocks.issues = [{ id: "issue", status: "submitted" }];
+    mocks.read.mockResolvedValue(undefined);
+    render(<AttachmentRecoveryPanel issueId="issue" attemptId="a" />);
+    const note = await screen.findByTestId("recovery-resolved");
+    // The journal also disappears when the user gave up by deleting local copies, so it must not claim success.
+    expect(note.getAttribute("role")).toBe("status");
+    expect(note.textContent).toBe("recovery.resolved");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("drops the finished note when the panel reloads into a different outcome", async () => {
+    mocks.issues = [{ id: "issue", status: "submitted" }];
+    mocks.read.mockResolvedValue(undefined);
+    const view = render(<AttachmentRecoveryPanel issueId="issue" attemptId="a" />);
+    await screen.findByTestId("recovery-resolved");
+    mocks.issues = [{ id: "issue", status: "submitted", submissionRecoveryId: "b" }];
+    mocks.read.mockResolvedValue({ ...meta, attemptId: "b" });
+    view.rerender(<AttachmentRecoveryPanel issueId="issue" attemptId="a" />);
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.queryByTestId("recovery-resolved")).toBeNull();
+  });
+  it("keeps the error while the record still points at the missing journal", async () => {
+    mocks.issues = [{ id: "issue", status: "submitted", submissionRecoveryId: "a" }];
+    mocks.read.mockResolvedValue(undefined);
+    render(<AttachmentRecoveryPanel issueId="issue" attemptId="a" />);
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.queryByTestId("recovery-resolved")).toBeNull();
+  });
 });

@@ -125,6 +125,16 @@ test("11: retry uploads one file per message for every failed file and patches t
   expect(await remoteBody(panel)).toBe(updates[0].body);
 });
 
+// #252: a GitHub upload that never reached GitHub is a definite failure and can be retried; one whose
+// outcome is unknown stays download/open-issue only (decision D1).
+for (const [code, retryable] of [["not-sent", true], ["network", false]] as const) test(`GitHub ${code} upload failure ${retryable ? "offers" : "withholds"} retry`, async ({ ext }) => {
+  const { panel } = await start(ext, "github", { kinds: ["capture"] });
+  await remote(panel, "github", { failIds: ["capture:"], failure: { stage: "upload", code } });
+  await submitPartial(panel);
+  await expect(panel.getByTestId("recovery-row-warning")).toBeVisible();
+  await expect(panel.getByTestId("recovery-row-retry")).toHaveCount(retryable ? 1 : 0);
+});
+
 test("12: an upload that succeeded while the body write failed retries as a body write only", async ({ ext }) => {
   const { panel, id } = await start(ext, "clickup", { kinds: ["capture"] });
   const calls = await remote(panel, "clickup", { bodyWrite: "reject" });

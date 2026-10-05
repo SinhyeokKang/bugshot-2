@@ -87,7 +87,13 @@ describe("retrySummary", () => {
   });
   it("reports how many files failed again on partial", () => {
     expect(retrySummary(outcome({ remaining: 2 }), 3)).toEqual({ kind: "partial", n: 2 });
-    expect(retrySummary(outcome({ reason: "body-conflict", remaining: 1 }), 1)).toEqual({ kind: "partial", n: 1 });
+  });
+  // #254: uploads that landed but could not be linked are a body conflict, not "failed again".
+  it("names the body conflict when every remaining file only lacks its body link", () => {
+    const linkless = failedResult("a", { delivery: "attached", failure: { stage: "body", code: "unknown" } });
+    expect(retrySummary(outcome({ reason: "body-conflict", remaining: 1, attachments: [linkless] }), 1)).toEqual({ kind: "conflict" });
+    expect(retrySummary(outcome({ reason: "body-conflict", remaining: 0, attachments: [] }), 0)).toEqual({ kind: "partial", n: 0 });
+    expect(retrySummary(outcome({ reason: "body-conflict", remaining: 2, attachments: [linkless, failedResult("b")] }), 2)).toEqual({ kind: "partial", n: 2 });
   });
   it("shows a static needs-confirmation instead of a failure count when the result is unknown", () => {
     expect(retrySummary(outcome({ reason: "ambiguous" }), 1)).toEqual({ kind: "needsCheck" });
