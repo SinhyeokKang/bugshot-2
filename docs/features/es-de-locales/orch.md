@@ -15,8 +15,8 @@
 | 배치 | 소유 범위 | 선행 | 모델 / effort | 게이트 | 상태 |
 |---|---|---|---|---|---|
 | 구현 | src/i18n, src/log-viewer/i18n.ts, public/_locales, localeLabels/aiLanguage, 관련 unit/e2e, 가이드·README 등 지원 언어 안내 | 계획 커밋 | gpt-6-sol / high — 기존 패턴의 번역·등록 | TDD, typecheck, 전체 test, mirror check, 관련 e2e | 완료, 리뷰 대기 |
-| 독립 리뷰 | 구현 diff 읽기, .scratch 리뷰 보고만 | 구현 완료 | gpt-6-astra / medium — 누락·회귀 검증, 사용자 비용 제한 | 계획·증거 대조, 미해소 red/yellow 판정 | 진행 |
-| 수정 | 리뷰 지적의 구현 소유 파일 | 리뷰 결과 | gpt-6-sol / high | 변경 범위 검증 및 필수 게이트 | 필요시 |
+| 독립 리뷰 | 구현 diff 읽기, .scratch 리뷰 보고만 | 구현 완료 | gpt-6-astra / medium — 누락·회귀 검증, 사용자 비용 제한 | 계획·증거 대조, 미해소 red/yellow 판정 | 1차 완료, P2 2건·P3 1건 |
+| 수정 | 리뷰 지적의 구현 소유 파일 | 리뷰 결과 | gpt-6-sol / high | 변경 범위 검증 및 필수 게이트 | 1라운드 착수 |
 | 통합 | cherry-pick, tasks/orch 상태·문서 신선도 | 리뷰 통과 | 지휘자 | typecheck, 전체 test, mirror check | 대기 |
 
 ## 겹침·순서
@@ -38,9 +38,10 @@
 - 구현 검증: typecheck/test/sync check/parity/e2e 종료 코드 0. 전체 434파일·8,560테스트 통과·2 skipped; 사전 대칭 21건; 집중 e2e 44건 연속 2회. 400px 패널의 es/de Debug·Integrations·Issue Settings 6화면 확인. 초기 전체 테스트의 Jira OAuth 설정 누락은 `.env.ci`만 복사 후 해결.
 - 번역 초안은 Google Translate를 scratch에서 사용한 뒤 sol이 문맥·기술 용어·오류 안내·placeholder·좁은 UI 문구를 보정했다. 배포 코드에 외부 번역 서비스/의존성 추가 없음. 원어민 검수 없음.
 - 리뷰 Task `task_119d98a93a37`, Dispatch `ctx_e9c85707b542`, terminal `term_a46ae22b-f84a-48f9-a689-57c69e786194`. 최초 `ctx_67bdc9a2ebea`에서 업데이트 안내로 task 전달 전 실패했으며 같은 astra/medium 프로세스로 복구, turn_started 확인. 리뷰 범위 `266903e8..4931deb7`.
+- 1차 리뷰 완료: `.scratch/review-locales.md`. P2 독일어 400px 설정 푸터 버튼 잘림(문서 너비 단언의 사각), P2 독립 로그 뷰어 34키를 검증한다는 설명과 실제 공유키 단언의 불일치, P3 REVIEWED_LOCALES 기준/검사 대상의 문서 오해. 리뷰 terminal release 완료. 수정 브리프 [brief-fix1.md](./brief-fix1.md)로 sol/high에 라우팅.
 
 ## 잔여
 
-- 독립 리뷰 진행 중, dev 통합 대기.
+- 1차 리뷰 지적 수정·재검증·재리뷰·dev 통합 대기.
 - `guide/{ko,en}/assets/settings-general-1.jpg` 두 장은 언어 선택 목록이 오래됨. 구현 워커는 촬영 스킬의 특권 확장 런타임 부재를 보고했다. 테스트 화면 캡처는 가이드 규격 대체물이 아니다.
 - 원어민 검수 제외(사용자 결정). push 및 원격 CI는 Claude Code 인계 대상.
