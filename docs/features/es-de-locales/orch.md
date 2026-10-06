@@ -14,10 +14,10 @@
 
 | 배치 | 소유 범위 | 선행 | 모델 / effort | 게이트 | 상태 |
 |---|---|---|---|---|---|
-| 구현 | src/i18n, src/log-viewer/i18n.ts, public/_locales, localeLabels/aiLanguage, 관련 unit/e2e, 가이드·README 등 지원 언어 안내 | 계획 커밋 | gpt-6-sol / high — 기존 패턴의 번역·등록 | TDD, typecheck, 전체 test, mirror check, 관련 e2e | 완료, 리뷰 대기 |
-| 독립 리뷰 | 구현 diff 읽기, .scratch 리뷰 보고만 | 구현 완료 | gpt-6-astra / medium — 누락·회귀 검증, 사용자 비용 제한 | 계획·증거 대조, 미해소 red/yellow 판정 | 1차 완료, P2 2건·P3 1건 |
-| 수정 | 리뷰 지적의 구현 소유 파일 | 리뷰 결과 | gpt-6-sol / high | 변경 범위 검증 및 필수 게이트 | 1라운드 착수 |
-| 통합 | cherry-pick, tasks/orch 상태·문서 신선도 | 리뷰 통과 | 지휘자 | typecheck, 전체 test, mirror check | 대기 |
+| 구현 | src/i18n, src/log-viewer/i18n.ts, public/_locales, localeLabels/aiLanguage, 관련 unit/e2e, 가이드·README 등 지원 언어 안내 | 계획 커밋 | gpt-6-sol / high — 기존 패턴의 번역·등록 | TDD, typecheck, 전체 test, mirror check, 관련 e2e | 완료 |
+| 독립 리뷰 | 구현 diff 읽기, .scratch 리뷰 보고만 | 구현 완료 | gpt-6-astra / medium — 누락·회귀 검증, 사용자 비용 제한 | 계획·증거 대조, 미해소 red/yellow 판정 | 재리뷰 완료, 기존 3건 해소·신규 0건 |
+| 수정 | 리뷰 지적의 구현 소유 파일 | 리뷰 결과 | gpt-6-sol / high | 변경 범위 검증 및 필수 게이트 | 1라운드 완료 |
+| 통합 | cherry-pick, tasks/orch 상태·문서 신선도 | 리뷰 통과 | 지휘자 | typecheck, 전체 test, mirror check | 로컬 dev 통합·게이트 완료 |
 
 ## 겹침·순서
 
@@ -39,9 +39,15 @@
 - 번역 초안은 Google Translate를 scratch에서 사용한 뒤 sol이 문맥·기술 용어·오류 안내·placeholder·좁은 UI 문구를 보정했다. 배포 코드에 외부 번역 서비스/의존성 추가 없음. 원어민 검수 없음.
 - 리뷰 Task `task_119d98a93a37`, Dispatch `ctx_e9c85707b542`, terminal `term_a46ae22b-f84a-48f9-a689-57c69e786194`. 최초 `ctx_67bdc9a2ebea`에서 업데이트 안내로 task 전달 전 실패했으며 같은 astra/medium 프로세스로 복구, turn_started 확인. 리뷰 범위 `266903e8..4931deb7`.
 - 1차 리뷰 완료: `.scratch/review-locales.md`. P2 독일어 400px 설정 푸터 버튼 잘림(문서 너비 단언의 사각), P2 독립 로그 뷰어 34키를 검증한다는 설명과 실제 공유키 단언의 불일치, P3 REVIEWED_LOCALES 기준/검사 대상의 문서 오해. 리뷰 terminal release 완료. 수정 브리프 [brief-fix1.md](./brief-fix1.md)로 sol/high에 라우팅.
+- 수정 Task `task_2ab711876f96` / Dispatch `ctx_e3e88c50ba8a`(초기 `ctx_e49d7e26fc19`의 업데이트 안내를 동일 프로세스로 복구). `bb1a428f` → `f77c9277` → `3b435b13` → `9896ec39` → `7a5092bf`. 독일어 footer를 `Kontakt`/`Bewerten`으로 축약; 버튼/텍스트와 클리핑 조상 경계를 재는 e2e 추가. 기존 오른쪽 427px > 400px red 확인. 독립 뷰어 3키 표본의 실제 출력과 영어/raw-key 변이 2건 red 확인; 34키 전량 렌더 검증이라는 과장 제거. 고유명사 문서 정정 및 회고 추가.
+- 수정 게이트 모두 exit 0: typecheck, 전체 434파일·8,560테스트(2 skipped), 대칭 21건, mirror, postmortem check/report. 수정 대상 e2e 40건 2회 통과. 중간 변이 복원 누락으로 1회 실패한 뒤 원본 복원·재빌드·연속 통과 확인; 최종 log-viewer 사전에 변이 diff 없음. 수정 worker release 완료.
+- 재리뷰 Task `task_5c4612764825` / Dispatch `ctx_5796ded5ed84`(초기 `ctx_cc8398ca1342`의 업데이트 안내를 동일 astra/medium 프로세스로 복구). 범위 `4931deb7..7a5092bf` 6파일. 기존 3건 해소·신규 차단/권장/사소 발견 0, es/de 400px footer 이미지 직접 확인. `.scratch/review-fix1.md` 보고 후 reviewer release 완료.
+- dev 통합: 구현·수정 10커밋 모두 cherry-pick, 마지막 통합 해시 `904ca878`. 통합된 production/test/문서 내용은 워커 최종 HEAD와 동일. 통합 후 `pnpm typecheck`, `pnpm test`, `pnpm sync:agents:check` 각각 exit 0. 전체 434파일·8,560테스트 통과, 2 skipped. 배포 build/push/CI 실행 없음.
+- 원어민 검수 없이 자동 검증과 코드 리뷰만 수행했다. 레이아웃 확인 범위는 400px의 es/de Debug·Integrations·Issue Settings이며 전 화면·다른 폭·테마 전체를 승인한 것은 아니다.
+- 삭제 전 tracked 수정 0 및 `git cherry dev SinhyeokKang/es-de-locales`의 `+` 0 확인. 모든 워커 terminal release 후 Orca worktree·작업 브랜치 제거 완료(`git worktree list`는 원래 dev만, 작업 브랜치 조회 0). 인계·리뷰·로그·수정 후 이미지는 `/var/folders/3q/sr52cksn1ps_1q74ppwr3kjm0000gn/T/bugshot-es-de-evidence-5xnvdp_7/worker/`에 보관했고 통합 게이트 로그는 같은 상위 폴더에 보관했다. 장기 결론은 이 문서에 기록했다.
 
 ## 잔여
 
-- 1차 리뷰 지적 수정·재검증·재리뷰·dev 통합 대기.
+- 코드 구현·리뷰·로컬 통합 완료. 원격 완료/배포 완료로 표시하지 않는다.
 - `guide/{ko,en}/assets/settings-general-1.jpg` 두 장은 언어 선택 목록이 오래됨. 구현 워커는 촬영 스킬의 특권 확장 런타임 부재를 보고했다. 테스트 화면 캡처는 가이드 규격 대체물이 아니다.
 - 원어민 검수 제외(사용자 결정). push 및 원격 CI는 Claude Code 인계 대상.

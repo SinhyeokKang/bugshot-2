@@ -13,17 +13,22 @@
 
 ## 작업 및 검증
 
-- [ ] 등록 전 es/de 감지·정규화·UI/본문 언어·AI auto 매핑의 동작 테스트를 먼저 추가하고 의도한 red를 확인해 test 커밋한다.
-- [ ] `src/i18n/namespaces/*.ts`의 모든 키를 두 언어로 번역하고 `es.ts`·`de.ts`, 레지스트리·라벨·BCP47·AI 매핑을 연결한다.
-- [ ] `src/log-viewer/i18n.ts` 복제 사전과 `public/_locales/{es,de}/messages.json`을 추가한다. 공통 키 값·placeholder·고유명사 보존을 검증한다.
-- [ ] 기존 테스트의 미지원 언어 fixture가 es/de를 쓰는지 확인하고 실제 미지원 언어로 교체한다. 테스트를 약화시키지 않는다.
-- [ ] UI 언어 선택·영속화, 본문 언어 독립 선택과 실제 출력, 로그 뷰어 언어 출력의 es/de e2e를 기존 패턴으로 확장한다. 테스트로 결정적으로 관측할 수 있는 동작을 수동 잔여로 남기지 않는다.
-- [ ] 약 400px 패널의 두 언어 주요 화면을 확인한다. 필요시 긴 번역을 간결하게 조정하되 관련 없는 UI 리팩터는 하지 않는다. 브라우저 제약이 있으면 확인하지 못한 범위를 명시한다.
-- [ ] `pnpm typecheck`, `pnpm test`, `pnpm sync:agents:check` 통과. 사전 편집 후 i18n·log-viewer 대칭 테스트를 명시 실행한다.
-- [ ] `/e2e-write` 규칙에 따라 관련 spec 통과 및 재실행. `pnpm build`·`build:store`는 하지 않는다.
-- [ ] guide/ko·en 안내와 README 두 언어 등 이번 변경이 닿는 문서만 대조·갱신한다. 가이드 전 `guide/AUTHORING.md`를 읽는다.
-- [ ] astra medium 독립 리뷰에서 누락·회귀·미검증 항목을 확인하고 구현 워커가 필요한 수정을 완료한다.
-- [ ] 로컬 dev에 통합 후 필수 게이트를 확인하고 완료 증거·잔여를 orch.md에 기록한다.
+- [x] 등록 전 es/de 감지·정규화·UI/본문 언어·AI auto 매핑의 동작 테스트를 먼저 추가하고 의도한 red를 확인해 test 커밋한다.
+- [x] `src/i18n/namespaces/*.ts`의 모든 키를 두 언어로 번역하고 `es.ts`·`de.ts`, 레지스트리·라벨·BCP47·AI 매핑을 연결한다.
+- [x] `src/log-viewer/i18n.ts` 복제 사전과 `public/_locales/{es,de}/messages.json`을 추가한다. 공통 키 값·placeholder·고유명사 보존을 검증한다.
+- [x] 기존 테스트의 미지원 언어 fixture가 es/de를 쓰는지 확인하고 실제 미지원 언어로 교체한다. 테스트를 약화시키지 않는다.
+- [x] UI 언어 선택·영속화, 본문 언어 독립 선택과 실제 출력, 로그 뷰어 언어 출력의 es/de e2e를 기존 패턴으로 확장한다. 테스트로 결정적으로 관측할 수 있는 동작을 수동 잔여로 남기지 않는다.
+- [x] 약 400px 패널의 두 언어 주요 화면을 확인한다. 필요시 긴 번역을 간결하게 조정하되 관련 없는 UI 리팩터는 하지 않는다. 브라우저 제약이 있으면 확인하지 못한 범위를 명시한다.
+- [x] `pnpm typecheck`, `pnpm test`, `pnpm sync:agents:check` 통과. 사전 편집 후 i18n·log-viewer 대칭 테스트를 명시 실행한다.
+- [x] `/e2e-write` 규칙에 따라 관련 spec 통과 및 재실행. `pnpm build`·`build:store`는 하지 않는다.
+- [x] guide/ko·en 안내와 README 두 언어 등 이번 변경이 닿는 문서만 대조·갱신한다. 가이드 전 `guide/AUTHORING.md`를 읽는다.
+- [x] astra medium 독립 리뷰에서 누락·회귀·미검증 항목을 확인하고 구현 워커가 필요한 수정을 완료한다.
+- [x] 로컬 dev에 통합 후 필수 게이트를 확인하고 완료 증거·잔여를 orch.md에 기록한다.
+
+## 후속 인계
+
+- [ ] `guide/{ko,en}/assets/settings-general-1.jpg`의 오래된 언어 목록을 촬영 가능 런타임에서 갱신한다. 테스트용 스크린샷으로 가이드 이미지를 대체하지 않았다.
+- [ ] Claude Code에서 `/push` 실행 후 해당 dev SHA의 CI 확인. 이 세션은 로컬 통합까지만 수행했다.
 
 ## 선행 함정
 
