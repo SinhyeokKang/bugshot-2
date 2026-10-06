@@ -7,4 +7,6 @@ export const LOCALE_LABELS: Record<LocaleMode, string> = {
   ko: "한국어",
   en: "English",
   fr: "Français",
+  es: "Español",
+  de: "Deutsch",
 };

@@ -75,6 +75,13 @@ describe("resolveAiLanguage", () => {
 // `locale === "ko" ? "Korean" : "English"` 3항 연산자를 대체하는 맵. 3항으로 두면 새 로케일이
 // 조용히 English로 해석돼 UI는 그 언어인데 AI 초안만 영어로 나온다 — 타입이 안 잡는 무음 실패다.
 describe("localeAiPreset", () => {
+  it("es/de auto는 화면 언어를 호출 시점에 따른다", () => {
+    expect(localeAiPreset("es")).toBe("Spanish");
+    expect(localeAiPreset("de")).toBe("German");
+    expect(resolveAiLanguage("auto", "es")).toBe("Spanish");
+    expect(resolveAiLanguage("auto", "de")).toBe("German");
+    expect(resolveAiLanguage("French", "de")).toBe("French");
+  });
   it("현재 로케일을 각자의 프리셋으로 옮긴다", () => {
     expect(localeAiPreset("ko")).toBe("Korean");
     expect(localeAiPreset("en")).toBe("English");

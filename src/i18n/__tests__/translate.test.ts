@@ -60,6 +60,15 @@ describe("t — 런타임 번역", () => {
     setLocale("en");
     expect(dateBcp47()).toBe("en-US");
   });
+
+  it.each([["es", "Cancelar", "es-ES"], ["de", "Abbrechen", "de-DE"]] as const)(
+    "%s UI 번역과 날짜 태그를 출력한다", (locale, cancel, dateTag) => {
+      setLocale(locale);
+      expect(t("common.cancel")).toBe(cancel);
+      expect(dateBcp47()).toBe(dateTag);
+      expect(t("time.minutesAgo", { n: 5 })).toContain("5");
+    },
+  );
 });
 
 // TranslationKey는 닫힌 union이라 정상 호출부에선 미정의 키가 불가능하다. 도달 경로는 캐스트

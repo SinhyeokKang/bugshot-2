@@ -114,6 +114,22 @@ test.describe.serial("이슈 본문 언어", () => {
     expect(html).toMatch(/<\/(p|h1|h2|h3|li|td)>/);
   });
 
+  for (const [label, heading] of [["Español", "Entorno"], ["Deutsch", "Umgebung"]] as const) {
+    test(`본문 언어 ${label} → 복사 본문은 번역되고 화면·사용자 문구는 유지된다`, async () => {
+      await setBodyLocale(panel, label);
+      await expect(async () => {
+        await panel.getByTestId("tab-debug").click();
+        await expect(panel.getByTestId("tab-debug")).toHaveAttribute("data-state", "active");
+      }).toPass();
+      await expect(panel.getByTestId("preview-section-description")).toContainText("발생 현상");
+      await stubClipboard(panel);
+      const copied = await copiedText(panel);
+      expect(copied).toContain(`## ${heading}`);
+      expect(copied).not.toContain("## 재현 환경");
+      expect(copied).toContain("screen stays korean");
+    });
+  }
+
   test("본문 언어 자동 → 복사 마크다운 헤딩이 화면 언어를 따른다", async () => {
     await setBodyLocale(panel, "auto");
 

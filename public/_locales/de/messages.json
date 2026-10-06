@@ -1,0 +1,14 @@
+{
+  "EXT_NAME": {
+    "message": "BugShot — Fehler schnell melden"
+  },
+  "EXT_NAME_SHORT": {
+    "message": "BugShot"
+  },
+  "EXT_DESCRIPTION": {
+    "message": "Fehlerberichte in der Seitenleiste: Screenshots, Video, Konsolen-/Netzwerklogs, CSS-Änderungen; an Jira, GitHub und Notion senden."
+  },
+  "CMD_TOGGLE_PANEL": {
+    "message": "BugShot-Seitenleiste öffnen"
+  }
+}

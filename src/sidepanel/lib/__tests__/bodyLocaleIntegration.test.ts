@@ -85,6 +85,16 @@ afterEach(() => {
 });
 
 describe("본문 언어 — 실사전 통합 (화면 ko + bodyLocale en)", () => {
+  it.each([["es", "Entorno"], ["de", "Umgebung"]] as const)(
+    "%s 본문 헤딩이 실제 출력으로 나오고 화면 언어는 복원된다", (locale, heading) => {
+      for (const builder of BUILDERS) {
+        const out = serialize(builder.run(makeCtx(locale)));
+        expect(out, builder.name).toContain(heading);
+        expect(out, builder.name).not.toContain("재현 환경");
+        expect(getLocale(), builder.name).toBe("ko");
+      }
+    },
+  );
   it("스윕 대상이 11개 진입점이다 (자기검증 앵커)", () => {
     expect(BUILDERS).toHaveLength(11);
   });
