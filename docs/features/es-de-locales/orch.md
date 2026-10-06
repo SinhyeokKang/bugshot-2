@@ -51,3 +51,9 @@
 - 코드 구현·리뷰·로컬 통합 완료. 원격 완료/배포 완료로 표시하지 않는다.
 - `guide/{ko,en}/assets/settings-general-1.jpg` 두 장은 언어 선택 목록이 오래됨. 구현 워커는 촬영 스킬의 특권 확장 런타임 부재를 보고했다. 테스트 화면 캡처는 가이드 규격 대체물이 아니다.
 - 원어민 검수 제외(사용자 결정). push 및 원격 CI는 Claude Code 인계 대상.
+
+## 후속 push 허가
+
+- 사용자가 `/push` 요청 후 "걍 해 허가할게"로 이번 Codex 세션의 원격 push를 명시 허가했다. 위 로컬 종착점 결정은 최초 구현 작업 기록이며, 이번 push에는 사용자 추가 지시가 우선한다.
+- `source-command-push`로 dev 상태·upstream·문서 신선도·미러를 점검했다. CLAUDE.md의 복제 사전 목록에 es/de를 추가하고 AGENTS.md를 생성해 함께 커밋했다.
+- 가이드 이미지 두 장은 기존 잔여로 유지한다. push 이후 CI는 `/push` 규칙대로 해당 HEAD의 run URL만 안내하며 완료를 기다리지 않는다. merge·deploy는 허가 범위에 없다.

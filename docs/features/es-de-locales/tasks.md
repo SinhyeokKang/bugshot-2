@@ -28,7 +28,7 @@
 ## 후속 인계
 
 - [ ] `guide/{ko,en}/assets/settings-general-1.jpg`의 오래된 언어 목록을 촬영 가능 런타임에서 갱신한다. 테스트용 스크린샷으로 가이드 이미지를 대체하지 않았다.
-- [ ] Claude Code에서 `/push` 실행 후 해당 dev SHA의 CI 확인. 이 세션은 로컬 통합까지만 수행했다.
+- [ ] 푸시된 dev SHA의 CI 결과 확인. 사용자가 후속 지시로 이번 Codex 세션의 `/push`를 명시 허가했으며, CI 결과 대기는 `/push` 범위 밖이다.
 
 ## 선행 함정
 
