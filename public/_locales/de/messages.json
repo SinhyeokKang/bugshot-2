@@ -6,9 +6,9 @@
     "message": "BugShot"
   },
   "EXT_DESCRIPTION": {
-    "message": "Fehlerberichte im Seitenfenster: Screenshots, Video, Konsolen- und Netzwerklogs, CSS-Änderungen; an Jira, GitHub und Notion senden."
+    "message": "Fehlerberichte in der Seitenleiste: Screenshots, Video, Konsolen-/Netzwerklogs, CSS-Änderungen; an Jira, GitHub und Notion senden."
   },
   "CMD_TOGGLE_PANEL": {
-    "message": "BugShot-Seitenfenster öffnen"
+    "message": "BugShot-Seitenleiste öffnen"
   }
 }

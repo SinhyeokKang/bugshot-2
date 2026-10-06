@@ -47,7 +47,7 @@ const PLACEHOLDER = {
 } as const;
 
 const STANDALONE_LABELS = {
-  es: { report: "Informe", environment: "Entorno", timelineSearch: "Buscar línea de tiempo…" },
+  es: { report: "Informe", environment: "Entorno", timelineSearch: "Buscar en la línea de tiempo…" },
   de: { report: "Bericht", environment: "Umgebung", timelineSearch: "Zeitleiste durchsuchen…" },
 } as const;
 
