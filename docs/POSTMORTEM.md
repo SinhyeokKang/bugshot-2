@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-10-06 — 문서 폭이 정상이어도 설정 푸터 버튼은 잘릴 수 있다
+
+- **영역**: `i18n`, `e2e`
+- **계열**: `미검증단언`
+- **그물**: `시각`
+- **증상**: 400px 독일어 설정에서 리뷰 버튼 문구 오른쪽이 패널 밖으로 잘렸는데, 기존 레이아웃 e2e는 통과했다.
+- **근본 원인**: 연락·리뷰 버튼 묶음이 줄바꿈 없는 flex이고 긴 번역이 묶음 가용폭을 넘었다. 검사는 `documentElement.scrollWidth`와 본문 언어 컨트롤만 재서 내부 자식의 클리핑을 보지 못했다.
+- **재발 방지**: 좁은 패널 번역을 추가할 때 설정 푸터의 연락·리뷰 버튼과 텍스트 `Range` 경계를 뷰포트 및 `overflow-x` 클리핑 조상 경계와 비교한다. `documentElement.scrollWidth`만으로 가시성을 주장하지 않는다.
+- **관련**: `src/i18n/namespaces/settings.ts`(`settings.contact`·`settings.review`), `src/sidepanel/tabs/settings/SettingsFooter.tsx`, `e2e/settings-language.spec.ts`.
+
 ## 2026-10-04 — "결과 불명"은 단계로 판정한다: 커밋 요청 전 거부는 확정 실패이고, 기록이 사라진 건 성공이 아니다
 
 - **영역**: `background`, `컴포넌트`
