@@ -64,8 +64,32 @@ test("es/de 화면 언어 선택이 즉시 반영되고 패널 재로드 후에�
       });
       expect(geometry.pageWidth).toBeLessThanOrEqual(400);
       expect(geometry.controlRight).toBeLessThanOrEqual(400);
+      const footerBounds = await panel.locator('a[href^="mailto:"]').evaluate((contact) => {
+        const review = contact.nextElementSibling!;
+        const edges = (node: Element) => {
+          const rect = node.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const text = range.getBoundingClientRect();
+          let left = 0;
+          let right = window.innerWidth;
+          for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+            if (/(hidden|clip|auto|scroll)/.test(getComputedStyle(parent).overflowX)) {
+              const clip = parent.getBoundingClientRect();
+              left = Math.max(left, clip.left);
+              right = Math.min(right, clip.right);
+            }
+          }
+          return { left: Math.min(rect.left, text.left), right: Math.max(rect.right, text.right), clipLeft: left, clipRight: right };
+        };
+        return [edges(contact), edges(review)];
+      });
       if (process.env.LOCALE_LAYOUT_SHOTS === "1") {
         await panel.screenshot({ path: testInfo.outputPath(`${label}-issue-settings.png`) });
+      }
+      for (const { left, right, clipLeft, clipRight } of footerBounds) {
+        expect(left, `${label} footer left`).toBeGreaterThanOrEqual(clipLeft);
+        expect(right, `${label} footer right`).toBeLessThanOrEqual(clipRight);
       }
       await panel.reload();
       await openSettings(panel, "general");

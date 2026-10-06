@@ -8,6 +8,8 @@ import {
   makeConsoleLog,
   makeNetworkLog,
   makeReport,
+  generateTinyVideoDataUrl,
+  T0,
   stubClipboard,
   NET_BODY_NEEDLE,
   REPORT_COPY_MARKDOWN,
@@ -42,6 +44,11 @@ const PLACEHOLDER = {
   fr: { needle: "corps", exact: "Rechercher URL et corps…" },
   es: { needle: "cuerpo", exact: "Buscar URL y cuerpo…" },
   de: { needle: "Inhalt", exact: "URL und Inhalt suchen…" },
+} as const;
+
+const STANDALONE_LABELS = {
+  es: { report: "Informe", environment: "Entorno", timelineSearch: "Buscar línea de tiempo…" },
+  de: { report: "Bericht", environment: "Umgebung", timelineSearch: "Zeitleiste durchsuchen…" },
 } as const;
 
 // navigation 유형별 문구. 이 사전은 log-viewer 전용 **복제본**이라 메인 테이블이 갱신돼도
@@ -154,11 +161,29 @@ function labelSuite(lang: Lang, locale: string) {
 
 labelSuite("ko", "ko-KR");
 labelSuite("en", "en-US");
-// 독립 34키(logViewer.*·timeline.* 류 — 메인 사전과 drift 대조가 없는 축)를 실 번들 렌더로
-// 재는 유일한 자동 그물이 이 스위트다. 값 출처: src/log-viewer/i18n.ts.
 labelSuite("fr", "fr-FR");
 labelSuite("es", "es-ES");
 labelSuite("de", "de-DE");
+
+for (const [lang, locale] of [["es", "es-ES"], ["de", "de-DE"]] as const) {
+  test.describe(`standalone-only labels — ${lang}`, () => {
+    test.use({ locale });
+
+    test("report tab, environment heading, and timeline search render translated values", async ({ page }) => {
+      const dataUrl = await generateTinyVideoDataUrl(page);
+      await openViewer(page, {
+        video: { dataUrl, startedAt: T0 },
+        actionLog: makeActionLog(),
+        report: { ...makeReport(), envTitle: undefined },
+      });
+      const labels = STANDALONE_LABELS[lang];
+      await expect(page.getByTestId("logview-tab-report")).toContainText(labels.report);
+      await page.getByTestId("logview-tab-report").click();
+      await expect(page.getByRole("heading", { name: labels.environment })).toBeVisible();
+      await expect(page.getByTestId("timeline-search")).toHaveAttribute("placeholder", labels.timelineSearch);
+    });
+  });
+}
 
 // blob URL `<a download>` 클릭 → download 이벤트로 파일명 판정(download-buttons.spec 패턴).
 async function expectDownload(page: Page, testId: string, filename: string): Promise<void> {
