@@ -1,0 +1,14 @@
+{
+  "EXT_NAME": {
+    "message": "BugShot — Informa de errores en un instante"
+  },
+  "EXT_NAME_SHORT": {
+    "message": "BugShot"
+  },
+  "EXT_DESCRIPTION": {
+    "message": "Informa de errores desde el panel lateral: capturas, vídeo, registros de consola y red, edición CSS; envía a Jira, GitHub y Notion."
+  },
+  "CMD_TOGGLE_PANEL": {
+    "message": "Abrir el panel lateral de BugShot"
+  }
+}
