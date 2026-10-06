@@ -28,6 +28,8 @@ describe("LOCALE_LABELS", () => {
     expect(LOCALE_LABELS.ko).toBe("한국어");
     expect(LOCALE_LABELS.en).toBe("English");
     expect(LOCALE_LABELS.fr).toBe("Français");
+    expect(LOCALE_LABELS.es).toBe("Español");
+    expect(LOCALE_LABELS.de).toBe("Deutsch");
   });
 
   // 라벨이 겹치면 셀렉터에서 두 항목을 구분할 수 없다.
