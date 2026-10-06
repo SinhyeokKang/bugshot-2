@@ -14,7 +14,7 @@
 
 | 배치 | 소유 범위 | 선행 | 모델 / effort | 게이트 | 상태 |
 |---|---|---|---|---|---|
-| 구현 | src/i18n, src/log-viewer/i18n.ts, public/_locales, localeLabels/aiLanguage, 관련 unit/e2e, 가이드·README 등 지원 언어 안내 | 계획 커밋 | gpt-6-sol / high — 기존 패턴의 번역·등록 | TDD, typecheck, 전체 test, mirror check, 관련 e2e | 대기 |
+| 구현 | src/i18n, src/log-viewer/i18n.ts, public/_locales, localeLabels/aiLanguage, 관련 unit/e2e, 가이드·README 등 지원 언어 안내 | 계획 커밋 | gpt-6-sol / high — 기존 패턴의 번역·등록 | TDD, typecheck, 전체 test, mirror check, 관련 e2e | 진행 |
 | 독립 리뷰 | 구현 diff 읽기, .scratch 리뷰 보고만 | 구현 완료 | gpt-6-astra / medium — 누락·회귀 검증, 사용자 비용 제한 | 계획·증거 대조, 미해소 red/yellow 판정 | 대기 |
 | 수정 | 리뷰 지적의 구현 소유 파일 | 리뷰 결과 | gpt-6-sol / high | 변경 범위 검증 및 필수 게이트 | 필요시 |
 | 통합 | cherry-pick, tasks/orch 상태·문서 신선도 | 리뷰 통과 | 지휘자 | typecheck, 전체 test, mirror check | 대기 |
@@ -29,9 +29,13 @@
 
 ## 실행 기록
 
-- 계획 작성 완료. 워커 시작 전 로컬 커밋 예정.
+- 계획 커밋: `266903e8`.
+- Orca Run: `run_641efb0b48d5`, 구현 Task: `task_bef729a635da`.
+- 구현 worktree: `/Users/sinhyeokkang/orca/workspaces/bugshot-2/es-de-locales`, 시작 HEAD `266903e8`, 시작 상태 clean 확인.
+- 최초 Dispatch `ctx_5c33af04e509`는 Codex CLI 업데이트 안내에서 task 전달 전 실패. 업데이트를 건너뛰고 동일 sol/high 프로세스를 재사용했다(설치·권한 변경 없음).
+- 활성 Dispatch: `ctx_5321c45c9d2d`, terminal `term_4be190ca-0e55-4a6f-a718-1841ff7e36ac`. 모델/effort는 최초 launch.effective에서 `gpt-6-sol`/`high` 확인. 재사용 작업의 turn_started 확인.
 
 ## 잔여
 
-- 구현·검증·리뷰·통합 미착수.
+- 구현 진행 중, 검증·독립 리뷰·통합 대기.
 - 원어민 검수 제외(사용자 결정). push 및 원격 CI는 Claude Code 인계 대상.
