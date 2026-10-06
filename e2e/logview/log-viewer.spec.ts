@@ -22,7 +22,7 @@ import type { Page } from "@playwright/test";
 const originKey = (url: string) => new URL(url).origin;
 
 // log-viewer는 확장 없이 dist-log-viewer/index.html을 합성 데이터로 직접 여는 standalone HTML.
-// i18n은 navigator.language 기반(src/log-viewer/i18n.ts)이라 Playwright `locale`로 ko/en이 결정적.
+// i18n은 navigator.language 기반(src/log-viewer/i18n.ts)이라 Playwright `locale`로 언어가 결정적.
 // 핵심 회귀: ① 액션 필터 칩이 i18n 키 raw 문자열로 새지 않는다(actionLog.filter.keypress 등),
 //          ② 네트워크 검색 placeholder가 본문(body) 검색을 안내한다.
 
@@ -30,6 +30,8 @@ const ACTION_LABELS = {
   ko: { all: "전체", click: "클릭", navigation: "이동", input: "입력", keypress: "키", toggle: "토글", select: "선택" },
   en: { all: "All", click: "Click", navigation: "Navigation", input: "Input", keypress: "Keys", toggle: "Toggle", select: "Select" },
   fr: { all: "Toutes", click: "Clic", navigation: "Navigation", input: "Saisie", keypress: "Touches", toggle: "Bascule", select: "Sélection" },
+  es: { all: "Todos", click: "Clic", navigation: "Navegación", input: "Entrada", keypress: "Teclas", toggle: "Alternar", select: "Selección" },
+  de: { all: "Alle", click: "Klick", navigation: "Navigation", input: "Eingabe", keypress: "Tasten", toggle: "Umschalten", select: "Auswahl" },
 } as const;
 
 type Lang = keyof typeof ACTION_LABELS;
@@ -38,6 +40,8 @@ const PLACEHOLDER = {
   ko: { needle: "본문", exact: "URL·본문 검색…" },
   en: { needle: "body", exact: "Search URL & body…" },
   fr: { needle: "corps", exact: "Rechercher URL et corps…" },
+  es: { needle: "cuerpo", exact: "Buscar URL y cuerpo…" },
+  de: { needle: "Inhalt", exact: "URL und Inhalt suchen…" },
 } as const;
 
 // navigation 유형별 문구. 이 사전은 log-viewer 전용 **복제본**이라 메인 테이블이 갱신돼도
@@ -64,6 +68,20 @@ const NAV_TEXT = {
     "nv-reload": "Rechargement de",
     "nv-traverse": "Navigation via l’historique vers",
     "nv-legacy": "Navigation vers",
+  },
+  es: {
+    "nv-back": "Volvió a",
+    "nv-forward": "Avanzó a",
+    "nv-reload": "Recargó",
+    "nv-traverse": "Navegó por el historial a",
+    "nv-legacy": "Navegó a",
+  },
+  de: {
+    "nv-back": "Zurück zu",
+    "nv-forward": "Vorwärts zu",
+    "nv-reload": " neu geladen",
+    "nv-traverse": "Über den Verlauf zu",
+    "nv-legacy": "Zu",
   },
 } as const;
 
@@ -137,8 +155,10 @@ function labelSuite(lang: Lang, locale: string) {
 labelSuite("ko", "ko-KR");
 labelSuite("en", "en-US");
 // 독립 34키(logViewer.*·timeline.* 류 — 메인 사전과 drift 대조가 없는 축)를 실 번들 렌더로
-// 재는 유일한 자동 그물이 이 스위트다. 값 출처: src/log-viewer/i18n.ts frDict.
+// 재는 유일한 자동 그물이 이 스위트다. 값 출처: src/log-viewer/i18n.ts.
 labelSuite("fr", "fr-FR");
+labelSuite("es", "es-ES");
+labelSuite("de", "de-DE");
 
 // blob URL `<a download>` 클릭 → download 이벤트로 파일명 판정(download-buttons.spec 패턴).
 async function expectDownload(page: Page, testId: string, filename: string): Promise<void> {
