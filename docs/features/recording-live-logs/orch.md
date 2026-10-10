@@ -15,7 +15,7 @@
 |---|---|---|---|---|---|---|
 | B1 | 1·2·5 | `sidepanel/hooks/useRecordingElapsed.ts`(+test), `sidepanel/tabs/IssueTab.tsx`(RecordingState만), `i18n/namespaces/issue.ts`, `sidepanel/components/RecordingFloatingBar.tsx`(+test) | 계획 커밋 | Sonnet / high — 기존 effect 이전·마크업이 설계에 박혀 있는 기계적 구현, 소스 스캔 단언만 주의 | typecheck·test·sync:agents:check | dev 통합(`e37967bd`..`fe5b3ca2`), 1라운드 |
 | B2 | 4·6 | `styles/globals.css`, `styles/__tests__/tokens.test.ts`, `sidepanel/components/{Console,Network}LogContent.tsx`(+기존 test) | 계획 커밋 | Sonnet / high — 셀렉터 확장·optional prop. `parseTokens` 순서 의존과 공용 소비처 4곳 무변경이 위험축 | 동일 | dev 통합(`a93f0210`..`abc33041`), 1라운드 |
-| B3 | 7·8·10·9 + 가이드 | `sidepanel/tabs/{Console,Network}SubTab.tsx`(+신규 test), `sidepanel/tabs/DebugTab.tsx`(+test), `e2e/recording-live-logs.spec.ts`, `docs/DESIGN.md`, `e2e/{GOTCHAS,COVERAGE}.md`, `guide/{ko,en}/video/record.md`·`logs/README.md` | B1·B2 dev 통합 | Opus / high — 서브탭 불변식(hideSubTabs·폴링 deps)·e2e stub PoC 판단 | 동일 + 신규 e2e spec green | 구현 중 |
+| B3 | 7·8·10·9 + 가이드 | `sidepanel/tabs/{Console,Network}SubTab.tsx`(+신규 test), `sidepanel/tabs/DebugTab.tsx`(+test), `e2e/recording-live-logs.spec.ts`, `docs/DESIGN.md`, `e2e/{GOTCHAS,COVERAGE}.md`, `guide/{ko,en}/video/record.md`·`logs/README.md` | B1·B2 dev 통합 | Opus / high — 서브탭 불변식(hideSubTabs·폴링 deps)·e2e stub PoC 판단 | 동일 + 신규 e2e spec green | dev 통합(`05a40cb9`..`18d062dc`), 1라운드 |
 | 리뷰 | 배치별 | 읽기 전용, `.scratch` 보고 | 각 배치 인계 | Opus / medium — 독립 리뷰 | 계획·인계 대조, 🔴 0 | 대기 |
 
 ## 겹침·순서
@@ -51,6 +51,9 @@ Task 7·8은 같은 배치(B3)다 — 8만 먼저 들어가면 녹화 중 [Clear
 - B3 인계: `5bd1fc3a`(red) → `0b9d0214` → `ba070bb2`(refactor) → `efefb07c`(e2e) → `83905102`(DESIGN) → `d620156f`(guide). 게이트 exit 0(8,607 통과), e2e PoC 성공 → 시나리오 7개 spec, 2회 연속 green + 전체 e2e 397 green. 계획과 다른 점: `SettingsTab.tsx`에 `settings-theme` testid 1줄(소유 밖 — 리뷰 수용), 가이드 노출 문구를 "전체 화면·Chrome 창 공유 시"로 한정(리뷰 수용, 더 정확), logs/ 가이드 무변경(접근 조건 서술 없음). 인계 사본 `.scratch/rll/handoff-b3.md`.
 - B3 리뷰(opus/medium): 🔴 0 / 🟡 2(OS 테마·reduced-motion 잔여가 실은 `emulateMedia`로 자동화 가능, GOTCHAS의 0바이트 원인 단정 + 고정 sleep) / ⚪ 6. 지휘자 문서 드리프트: ARCHITECTURE.md:385(3종 폴링 조건), DIRECTORY.md(신규 3파일). README 기능 목록 추가는 하지 않음(리뷰 추천 — 녹화의 하위 기능).
 - B3 수정 라운드 1(`.scratch/rll/brief-b3-fix1.md`): 🟡1(지휘 규칙상 e2e로 잴 수 있는 (b)는 테스트로 — 사용자 결정 불요) + 🟡2 + ⚪1·⚪5.
+- B3 수정 `cba0df9f`(e2e: system 테마·reduced-motion 자동화, sleep→경과 시간 조건 대기) → `3ce30b8a`(COVERAGE·GOTCHAS). spec 8/8 3회 연속, 게이트 exit 0. 지휘자 diff 확인 후 통과 판정.
+- B3 dev 통합: cherry-pick `05a40cb9`..`18d062dc`(8커밋), `git cherry` 전부 `-`.
+- 지휘자 문서 커밋: `9e40ec38` ARCHITECTURE(3종 폴링 조건·이중 sync), `a8c89b8a` DIRECTORY(신규 3파일). tasks.md 태스크 검증 항목 체크(수동 테스트 목록은 런타임 검증 후).
 
 ## 잔여
 
