@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const getElapsedSec = vi.fn<() => number>();
@@ -27,6 +28,15 @@ describe("useRecordingElapsed", () => {
     getElapsedSec.mockReturnValue(7);
     const { result } = renderHook(() => useRecordingElapsed());
     expect(result.current.elapsedSec).toBe(7);
+  });
+
+  // 이펙트가 돌기 전(서버 렌더는 이펙트를 실행하지 않는다)의 첫 렌더가 이미 값을 들고 있어야 0:00 깜빡임이 없다.
+  it("첫 렌더(이펙트 flush 전)에 이미 getElapsedSec() 값이 반영돼 있다", () => {
+    getElapsedSec.mockReturnValue(12);
+    function Probe() {
+      return <span>{useRecordingElapsed().elapsedSec}</span>;
+    }
+    expect(renderToString(<Probe />)).toContain(">12<");
   });
 
   it("elapsed가 0이면 0이다", () => {
