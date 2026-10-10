@@ -46,6 +46,11 @@ Task 7·8은 같은 배치(B3)다 — 8만 먼저 들어가면 녹화 중 [Clear
 - B1 수정 `f0f7fe9c`(test) → `31ce9e29`(refactor): 실 Radix Tabs 포커스 복귀 + 포커스 선행 단언, 치수 계약 클래스, 첫 렌더 동기값(`renderToString`), 스캔 정규식 확장, 훅 단순화. 워커 게이트 exit 0(8,582 통과). 지휘자 diff 확인 후 통과 판정.
 - B1 dev 통합: cherry-pick `e37967bd`·`1e3f3e0a`·`dffabb50`·`fe5b3ca2`.
 - 통합 게이트(main 체크아웃, HEAD `fe5b3ca2`): `pnpm typecheck` 0 · `pnpm test` 0 · `pnpm sync:agents:check` 0.
+- B1 워크트리·브랜치 제거(`git cherry` 전부 `-`, 추적 변경 0, 인계 사본 `.scratch/rll/handoff-b1.md`).
+- B3: Orca 워크트리 `rll-b3`(시작 `2f361a6f`), terminal `term_22205ce5…`, `claude --model opus --effort high`, 브리프 `.scratch/rll/brief-b3.md`, turn_started 확인. B1·B2와 달리 /code-review·/refactor 스킬을 실제 호출하도록 지시.
+- B3 인계: `5bd1fc3a`(red) → `0b9d0214` → `ba070bb2`(refactor) → `efefb07c`(e2e) → `83905102`(DESIGN) → `d620156f`(guide). 게이트 exit 0(8,607 통과), e2e PoC 성공 → 시나리오 7개 spec, 2회 연속 green + 전체 e2e 397 green. 계획과 다른 점: `SettingsTab.tsx`에 `settings-theme` testid 1줄(소유 밖 — 리뷰 수용), 가이드 노출 문구를 "전체 화면·Chrome 창 공유 시"로 한정(리뷰 수용, 더 정확), logs/ 가이드 무변경(접근 조건 서술 없음). 인계 사본 `.scratch/rll/handoff-b3.md`.
+- B3 리뷰(opus/medium): 🔴 0 / 🟡 2(OS 테마·reduced-motion 잔여가 실은 `emulateMedia`로 자동화 가능, GOTCHAS의 0바이트 원인 단정 + 고정 sleep) / ⚪ 6. 지휘자 문서 드리프트: ARCHITECTURE.md:385(3종 폴링 조건), DIRECTORY.md(신규 3파일). README 기능 목록 추가는 하지 않음(리뷰 추천 — 녹화의 하위 기능).
+- B3 수정 라운드 1(`.scratch/rll/brief-b3-fix1.md`): 🟡1(지휘 규칙상 e2e로 잴 수 있는 (b)는 테스트로 — 사용자 결정 불요) + 🟡2 + ⚪1·⚪5.
 
 ## 잔여
 
