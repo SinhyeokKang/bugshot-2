@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/i18n", () => ({ useT: () => (key: string) => key, t: (key: string) => key }));
@@ -46,13 +46,26 @@ const activeSub = () =>
     (id) => screen.getByTestId(id).getAttribute("data-state") === "active",
   );
 
-function renderDebug(unsupported: boolean) {
-  return render(
+function debugTree(unsupported: boolean, activeMainTab = "debug") {
+  return (
     <TabSupportProvider value={unsupported}>
-      <DebugTab activeMainTab="debug" />
-    </TabSupportProvider>,
+      <DebugTab activeMainTab={activeMainTab} />
+    </TabSupportProvider>
   );
 }
+
+function renderDebug(unsupported: boolean, activeMainTab = "debug") {
+  return render(debugTree(unsupported, activeMainTab));
+}
+
+// Radix Tabs는 mousedown에 활성화된다 — user-event click은 fake timers 아래서 hang한다.
+const openSub = (id: string) => fireEvent.mouseDown(screen.getByTestId(id));
+
+const clearSyncMocks = () => {
+  syncNetworkRecorder.mockClear();
+  syncConsoleRecorder.mockClear();
+  syncActionRecorder.mockClear();
+};
 
 beforeEach(() => {
   phase = "idle";
@@ -79,9 +92,16 @@ describe("DebugTab — 서브탭 잠금", () => {
     expect(trigger("subtab-network").disabled).toBe(true);
   });
 
-  it("녹화 중이면 기존 잠금이 그대로 동작 (회귀 방지)", () => {
+  it("녹화 중에도 console/network 트리거가 활성", () => {
     phase = "recording";
     renderDebug(false);
+    expect(trigger("subtab-console").disabled).toBe(false);
+    expect(trigger("subtab-network").disabled).toBe(false);
+  });
+
+  it("녹화 중 + 미지원 페이지면 여전히 disabled", () => {
+    phase = "recording";
+    renderDebug(true);
     expect(trigger("subtab-console").disabled).toBe(true);
     expect(trigger("subtab-network").disabled).toBe(true);
   });
@@ -141,6 +161,89 @@ describe("DebugTab — 레코더 sync 폴링", () => {
       </TabSupportProvider>,
     );
     await vi.advanceTimersByTimeAsync(5000);
+    expect(syncNetworkRecorder).not.toHaveBeenCalled();
+  });
+});
+
+describe("DebugTab — 녹화 중 로그 서브탭", () => {
+  it("녹화 중 console에서 drafting으로 바뀌면 issue로 돌아오고, 이어 idle이 돼도 issue에 머문다", () => {
+    phase = "recording";
+    const { rerender } = renderDebug(false);
+    openSub("subtab-console");
+    expect(activeSub()).toBe("subtab-console");
+
+    phase = "drafting";
+    rerender(debugTree(false));
+    // drafting에선 hideSubTabs로 트리거가 없다 — 렌더된 서브탭 본체로 판정한다.
+    expect(screen.queryByTestId("stub-console")).toBeNull();
+    expect(screen.getByTestId("stub-issue")).toBeTruthy();
+
+    phase = "idle";
+    rerender(debugTree(false));
+    expect(activeSub()).toBe("subtab-issue");
+  });
+
+  it("녹화 중 console에서 idle로 바뀌면(취소) console에 머문다", () => {
+    phase = "recording";
+    const { rerender } = renderDebug(false);
+    openSub("subtab-console");
+
+    phase = "idle";
+    rerender(debugTree(false));
+    expect(activeSub()).toBe("subtab-console");
+  });
+});
+
+describe("DebugTab — 녹화 중 3종 폴링", () => {
+  it("녹화 중이면 console 서브탭에서도 network·action을 주기 동기화한다", async () => {
+    vi.useFakeTimers();
+    phase = "recording";
+    renderDebug(false);
+    openSub("subtab-console");
+    expect(activeSub()).toBe("subtab-console");
+    clearSyncMocks();
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(syncNetworkRecorder).toHaveBeenCalled();
+    expect(syncActionRecorder).toHaveBeenCalled();
+  });
+
+  it("idle + console 서브탭이면 DebugTab은 동기화하지 않는다 (기존 동작)", async () => {
+    vi.useFakeTimers();
+    renderDebug(false);
+    openSub("subtab-console");
+    expect(activeSub()).toBe("subtab-console");
+    clearSyncMocks();
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(syncNetworkRecorder).not.toHaveBeenCalled();
+    expect(syncActionRecorder).not.toHaveBeenCalled();
+  });
+
+  it("녹화 중이어도 다른 메인 탭이면 동기화하지 않는다", async () => {
+    vi.useFakeTimers();
+    phase = "recording";
+    renderDebug(false, "settings");
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(syncNetworkRecorder).not.toHaveBeenCalled();
+    expect(syncActionRecorder).not.toHaveBeenCalled();
+  });
+
+  it("녹화 중이어도 미지원 페이지면 동기화하지 않는다", async () => {
+    vi.useFakeTimers();
+    phase = "recording";
+    renderDebug(true);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(syncNetworkRecorder).not.toHaveBeenCalled();
+    expect(syncActionRecorder).not.toHaveBeenCalled();
+  });
+
+  // deps가 phase가 아니라 파생 불리언이어야 무관한 phase 전이마다 interval이 재시작되지 않는다.
+  it("issue 서브탭에서 picking → capturing 전이는 동기화를 재시작하지 않는다", () => {
+    vi.useFakeTimers();
+    phase = "picking";
+    const { rerender } = renderDebug(false);
+    clearSyncMocks();
+    phase = "capturing";
+    rerender(debugTree(false));
     expect(syncNetworkRecorder).not.toHaveBeenCalled();
   });
 });
