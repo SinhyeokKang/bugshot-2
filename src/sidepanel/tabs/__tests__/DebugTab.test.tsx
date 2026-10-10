@@ -69,9 +69,7 @@ const clearSyncMocks = () => {
 
 beforeEach(() => {
   phase = "idle";
-  syncNetworkRecorder.mockClear();
-  syncConsoleRecorder.mockClear();
-  syncActionRecorder.mockClear();
+  clearSyncMocks();
 });
 
 afterEach(() => {
@@ -241,9 +239,12 @@ describe("DebugTab — 녹화 중 3종 폴링", () => {
     vi.useFakeTimers();
     phase = "picking";
     const { rerender } = renderDebug(false);
+    expect(syncNetworkRecorder).toHaveBeenCalledTimes(1);
+    expect(syncActionRecorder).toHaveBeenCalledTimes(1);
     clearSyncMocks();
     phase = "capturing";
     rerender(debugTree(false));
     expect(syncNetworkRecorder).not.toHaveBeenCalled();
+    expect(syncActionRecorder).not.toHaveBeenCalled();
   });
 });

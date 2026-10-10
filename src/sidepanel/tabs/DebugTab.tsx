@@ -32,7 +32,7 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
   // 미지원 페이지에서는 로그가 아예 쌓이지 않으므로 잠근다. 녹화 중엔 열고, 진행 중 버퍼 Clear는 서브탭 footer가 막는다.
   const logTabsLocked = unsupported;
   const recording = phase === "recording";
-  // 녹화 중엔 로그 서브탭에 있어도 세 배지가 함께 오르게 3종을 모두 폴링한다.
+  // 녹화 중엔 로그 서브탭에서도 3종 레코더를 모두 동기화한다(콘솔 탭에 있어도 네트워크 배지가 오른다).
   // phase가 아니라 파생 불리언을 deps에 둬 무관한 phase 전이마다 interval이 재시작되지 않게 한다.
   const pollAll = sub === "issue" || recording;
 
