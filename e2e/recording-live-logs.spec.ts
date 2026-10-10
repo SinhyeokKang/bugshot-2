@@ -8,7 +8,7 @@ import type { LocaleMode } from "../src/i18n/locales";
 // 실 tabCapture는 자동화가 불안정해(capture.spec 주석) 화면 녹화 경로를 탄다. 패널 페이지의
 // getDisplayMedia를 canvas.captureStream()으로 stub하면 picker 없이 실제 MediaRecorder 세션이 돈다
 // (stub은 panel.evaluate로 심는다 — 녹화 버튼이 클릭 시점에 읽으므로 부팅 후 덮어도 반영).
-// 탭 녹화 실경로·OS 테마 전환·reduced motion·화면 녹화 중 탭 이동은 수동 잔여(COVERAGE.md).
+// 탭 녹화 실경로·화면 녹화 중 탭 이동·포커스 링 육안은 수동 잔여(COVERAGE.md).
 //
 // worker fixture가 프로필을 공유하므로 녹화 방식·테마·로케일은 afterAll/finally로 원래 값에 되돌린다
 // (GOTCHAS "설정 영속 오염").
@@ -54,6 +54,11 @@ test.describe.serial("recording-live-logs: 녹화 중 로그 서브탭", () => {
     await panel.getByTestId("mode-record").click();
     // 녹화 진입 = 진입 화면이 RecordingState로 바뀐다. 로그 서브탭 활성은 이 기능의 단언이라 여기서 보지 않는다.
     await expect(panel.getByTestId("mode-record")).toHaveCount(0);
+  }
+
+  // MediaRecorder가 청크를 내도록 녹화가 실제로 1초 이상 흐른 뒤 정지한다(고정 sleep 대신 경과 시간 조건).
+  async function waitElapsed() {
+    await expect(bar()).toContainText(/\d:(0[1-9]|[1-5]\d)/);
   }
 
   async function seedConsoleLog() {
@@ -126,10 +131,14 @@ test.describe.serial("recording-live-logs: 녹화 중 로그 서브탭", () => {
   });
 
   test.afterAll(async () => {
-    await openSettings(panel, "issue");
-    await panel.getByTestId(`recording-mode-${originalMode}`).click();
-    await panel.close();
-    await fixture.close();
+    // beforeAll이 panel 할당 전에 죽으면 여기서 원래 에러를 덮지 않는다.
+    if (panel) {
+      await openSettings(panel, "issue");
+      await panel.getByTestId(`recording-mode-${originalMode}`).click();
+      await expect(panel.getByTestId(`recording-mode-${originalMode}`)).toHaveAttribute("data-state", "active");
+      await panel.close();
+    }
+    await fixture?.close();
   });
 
   test("녹화를 시작하면 로그 서브탭이 열리고, 바는 로그 서브탭에만 뜬다", async () => {
@@ -159,7 +168,7 @@ test.describe.serial("recording-live-logs: 녹화 중 로그 서브탭", () => {
     await startRecording();
     await panel.getByTestId("subtab-console").click();
     await expect(bar()).toBeVisible();
-    await panel.waitForTimeout(1000); // MediaRecorder가 첫 청크를 낼 시간 — 0바이트 영상 경로는 이 spec의 대상이 아니다
+    await waitElapsed();
     await panel.getByTestId("recording-bar-stop").click();
     await expect(panel.getByTestId("replay-trim-overlay")).toBeVisible({ timeout: 15_000 });
     await closeTrim();
@@ -182,7 +191,7 @@ test.describe.serial("recording-live-logs: 녹화 중 로그 서브탭", () => {
     await startRecording();
     await panel.getByTestId("subtab-console").click();
     await expect(bar()).toBeVisible();
-    await panel.waitForTimeout(1000);
+    await waitElapsed();
     await panel.evaluate(() => {
       const stream = (window as unknown as { __stubStream: MediaStream }).__stubStream;
       stream.getVideoTracks()[0].dispatchEvent(new Event("ended"));
@@ -190,7 +199,7 @@ test.describe.serial("recording-live-logs: 녹화 중 로그 서브탭", () => {
     await expect(panel.getByTestId("replay-trim-overlay")).toBeVisible({ timeout: 15_000 });
   });
 
-  test("바는 앱 테마의 반대 표면이다 — 라이트에선 패널보다 어둡고 다크에선 밝다", async () => {
+  test("바는 앱 테마의 반대 표면이다 — 라이트에선 패널보다 어둡고 다크에선 밝으며, system은 OS 테마를 따라 뒤집힌다", async () => {
     const original = await currentTheme();
     try {
       await setTheme("light");
@@ -204,9 +213,35 @@ test.describe.serial("recording-live-logs: 녹화 중 로그 서브탭", () => {
       await enterDebug(panel);
       await expect(bar()).toBeVisible();
       expect(await lum('[data-testid="recording-bar"]')).toBeGreaterThan(await lum("body"));
+
+      // system 모드: OS 테마 변경(prefers-color-scheme change → useThemeEffect 구독)에 리로드 없이 뒤집힌다.
+      await setTheme("system");
+      await panel.emulateMedia({ colorScheme: "dark" });
+      await enterDebug(panel);
+      await expect(panel.locator("html")).toHaveClass(/\bdark\b/);
+      expect(await lum('[data-testid="recording-bar"]')).toBeGreaterThan(await lum("body"));
+      await panel.emulateMedia({ colorScheme: "light" });
+      await expect(panel.locator("html")).not.toHaveClass(/\bdark\b/);
+      expect(await lum('[data-testid="recording-bar"]')).toBeLessThan(await lum("body"));
     } finally {
+      await panel.emulateMedia({ colorScheme: null });
       await setTheme(original);
       await enterDebug(panel);
+    }
+  });
+
+  test("OS가 동작 줄이기면 바의 빨간 점 맥박이 멈춘다", async () => {
+    try {
+      await startRecording();
+      await panel.getByTestId("subtab-console").click();
+      const dot = bar().locator("span[aria-hidden]").first();
+      // 기준선을 명시한다 — 호스트 OS가 이미 reduce면 "애니메이션 있음" 단언이 거짓 red가 된다.
+      await panel.emulateMedia({ reducedMotion: "no-preference" });
+      await expect.poll(() => dot.evaluate((el) => getComputedStyle(el).animationName)).not.toBe("none");
+      await panel.emulateMedia({ reducedMotion: "reduce" });
+      await expect.poll(() => dot.evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
+    } finally {
+      await panel.emulateMedia({ reducedMotion: null });
     }
   });
 
