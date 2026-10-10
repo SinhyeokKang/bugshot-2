@@ -163,7 +163,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
         </div>
       ) : (
         <ScrollArea ref={listScrollRef} className="min-h-0 flex-1">
-          <div className={bottomInset ? "overflow-hidden pb-6" : "overflow-hidden"}>
+          <div data-testid="console-list-body" className={bottomInset ? "overflow-hidden pb-6" : "overflow-hidden"}>
             {filteredEntries.map((entry) => (
               <EntryAccordion
                 key={entry.id}

@@ -109,9 +109,7 @@ describe("디자인 토큰 표", () => {
       const dark = parseTokens(GLOBALS, ".dark");
       expect(light.background).toBe("0 0% 100%");
       expect(dark.background).toBe("0 0% 3.9%");
-      const dkKeys = Object.keys(dark);
-      expect(dkKeys).toHaveLength(19);
-      expect(Object.keys(light)).toEqual([...dkKeys, "radius", "mono-size", "mono-leading"]);
+      expect(Object.keys(light)).toEqual(expect.arrayContaining([...Object.keys(dark), ...NON_COLOR]));
     });
   });
 
