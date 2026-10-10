@@ -33,6 +33,15 @@ A timer shows the **elapsed time and the maximum length** while you record. Just
 
 For screen recording, you can also click the browser's **Stop sharing** bar at the top to finish. The video has a **maximum length** and stops on its own once it's reached, so there's no need to watch the clock.
 
+You can keep an eye on your logs while you record, too — open the **Console** or **Network** sub-tab and watch entries come in live, no need to stop first. On a log tab, a **recording bar** floats at the bottom with the elapsed time, so you can wrap up right from there:
+
+- **Stop** — Stop recording and move on to the trim screen.
+- **✕** (Cancel) — Discard the recording and stay on the log tab you were viewing.
+
+So the logs you're collecting can't be wiped mid-recording, the log tab's **Clear Log** and **Write issue** buttons are locked until the recording ends. Nothing to worry about — they come right back afterward.
+
+> If screen recording is sharing your **entire screen or the Chrome window**, the side panel ends up in the video too. Opening a log tab while recording means those log contents show in the recording, so take a quick look for anything sensitive.
+
 ## Drawing on screen
 
 ![Highlighting on screen with the pen while recording](../assets/video-record-4.jpg)

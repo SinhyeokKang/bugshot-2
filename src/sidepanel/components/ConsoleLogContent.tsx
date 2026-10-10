@@ -33,6 +33,8 @@ interface ConsoleLogContentProps {
   // 선택 모드(삽입 다이얼로그 전용, optional). 미공급 시 기존 표시 전용 동작.
   selectedId?: string | null;
   onActiveChange?: (id: string) => void;
+  // 하단에 떠 있는 오버레이(녹화 바)가 마지막 행을 덮지 않게 목록 끝에 여백을 둔다.
+  bottomInset?: boolean;
 }
 
 export function LevelIcon({ level }: { level: ConsoleLevel }) {
@@ -47,7 +49,7 @@ export function LevelIcon({ level }: { level: ConsoleLevel }) {
   }
 }
 
-export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted, selectedId, onActiveChange }: ConsoleLogContentProps) {
+export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted, selectedId, onActiveChange, bottomInset }: ConsoleLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ConsoleFilter>("all");
   const [originFilter, setOriginFilter] = useState<string | null>(null);
@@ -161,7 +163,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
         </div>
       ) : (
         <ScrollArea ref={listScrollRef} className="min-h-0 flex-1">
-          <div className="overflow-hidden">
+          <div data-testid="console-list-body" className={bottomInset ? "overflow-hidden pb-6" : "overflow-hidden"}>
             {filteredEntries.map((entry) => (
               <EntryAccordion
                 key={entry.id}

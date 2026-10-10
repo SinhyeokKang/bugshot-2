@@ -210,7 +210,7 @@ bug-shot.com 랜딩 기준. **친절하고 캐주얼하게.** ko/en은 같은 �
 - 가이드 본문은 **로케일별 실제 화면 라벨**을 인용한다(ko 가이드=ko UI, en 가이드=en UI). 실제 문구는 i18n 기준(`src/i18n/namespaces/`).
 - **영문 식별자를 그대로 쓰지 않는다.** 코드/설계의 영문 라벨(Element/Repick/Stop 등)은 식별용일 뿐이다. 예시(과거 실제 교정 사례):
   - `dom.repick` → ko "다시 선택" / en "Pick another element" (❌ "Repick")
-  - `issue.recording.stop` → ko "녹화 완료" / en "Stop recording" (❌ "Stop")
+  - `issue.recording.stop` → ko "녹화 완료" / en "Stop recording" (❌ "Stop") — 단, 녹화 중 로그 서브탭 하단 **녹화 바**의 버튼은 별도 키 `issue.recording.barStop`이라 실제 라벨이 ko "완료" / en "Stop"이다(바 폭 때문에 둔 짧은 전용 키 — 이 자리는 "Stop"이 맞다)
   - `networkLog.clear` → ko "로그 지우기" / en "Clear Log" (❌ "Clear")
   - `networkLog.detail.copyCurl` → ko "cURL 복사" / en "Copy as cURL" (❌ "Copy cURL")
 - **예외**: 실제 UI가 영문인 항목(스타일 패널 섹션명 Class/Layout/… 등)은 영문 그대로 쓰되 "화면에서 영문 표시"라고 한 줄 안내.

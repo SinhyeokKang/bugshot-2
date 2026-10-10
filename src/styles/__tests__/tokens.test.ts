@@ -88,6 +88,31 @@ function grayTokens(tokens: Record<string, string>): [string, string][] {
 }
 
 describe("디자인 토큰 표", () => {
+  // 반전 스코프(.theme-inverse): 토큰 블록을 복제하지 않고 셀렉터 리스트만 확장해 앱 테마의 반대 표를
+  // 받는다. parseTokens가 `":root {"`·`".dark {"`로 블록을 찾으므로 각 리스트의 **마지막** 셀렉터가
+  // :root/.dark여야 한다 — 순서가 바뀌면 토큰 표 대조 테스트들이 "블록이 없다"로 죽는다.
+  describe("반전 스코프 셀렉터 (.theme-inverse)", () => {
+    it("라이트 블록이 앱 다크일 때의 .theme-inverse를 받고 :root가 마지막이다", () => {
+      const { selectors } = parseRule(GLOBALS, ":root");
+      expect(selectors).toContain(".dark .theme-inverse");
+      expect(selectors.at(-1)).toBe(":root");
+    });
+
+    it("다크 블록이 앱 라이트일 때의 .theme-inverse를 받고 .dark가 마지막이다", () => {
+      const { selectors } = parseRule(GLOBALS, ".dark");
+      expect(selectors).toContain(":root:not(.dark) .theme-inverse");
+      expect(selectors.at(-1)).toBe(".dark");
+    });
+
+    it("셀렉터 확장은 토큰 표를 바꾸지 않는다 (parseTokens가 두 블록을 그대로 찾는다)", () => {
+      const light = parseTokens(GLOBALS, ":root");
+      const dark = parseTokens(GLOBALS, ".dark");
+      expect(light.background).toBe("0 0% 100%");
+      expect(dark.background).toBe("0 0% 3.9%");
+      expect(Object.keys(light)).toEqual(expect.arrayContaining([...Object.keys(dark), ...NON_COLOR]));
+    });
+  });
+
   describe("두 파일 동기화 (globals.css ↔ log-viewer/styles.css)", () => {
     it("라이트(:root) 토큰 표가 완전히 같다", () => {
       expect(parseTokens(LOG_VIEWER, ":root")).toEqual(parseTokens(GLOBALS, ":root"));

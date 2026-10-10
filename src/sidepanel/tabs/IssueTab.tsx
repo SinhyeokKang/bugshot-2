@@ -48,6 +48,7 @@ import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { IntegrationsCta } from "@/sidepanel/components/IntegrationsCta";
 import { TooltipIconButton } from "@/sidepanel/components/TooltipIconButton";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
+import { useRecordingElapsed } from "@/sidepanel/hooks/useRecordingElapsed";
 import {
   startPicker,
   stopPickerOrResume,
@@ -587,8 +588,7 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
   const color = useEditorStore((s) => s.annotationColor);
   const thickness = useEditorStore((s) => s.annotationThickness);
   const tabId = useBoundTabId();
-  const [elapsed, setElapsed] = useState(0);
-  const maxDuration = videoRecorder.getMaxDuration();
+  const { elapsedSec: elapsed, maxSec: maxDuration } = useRecordingElapsed();
 
   // 툴바 폭이 좁으면 우측 색부터 접는다(최소 3색). footer 실제 폭을 관측.
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -619,14 +619,6 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
     useEditorStore.getState().setAnnotationThickness(k);
     if (tabId && tool) void setAnnotationTool(tabId, tool, color, k);
   };
-
-  useEffect(() => {
-    setElapsed(videoRecorder.getElapsedSec());
-    const id = window.setInterval(() => {
-      setElapsed(videoRecorder.getElapsedSec());
-    }, 500);
-    return () => window.clearInterval(id);
-  }, []);
 
   const timeStr = `${formatMmSs(elapsed)} / ${formatMmSs(maxDuration)}`;
   const progress = Math.min(elapsed / maxDuration, 1);

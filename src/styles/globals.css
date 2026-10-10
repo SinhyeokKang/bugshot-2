@@ -12,6 +12,10 @@
      표만 보면 갈린 게 지저분해 보여 "일관성" 명목으로 한쪽을 밀기 쉬운데, 그러면 의도한 톤이 죽는다.
      (실제로 그렇게 밀었다가 되돌린 이력이 있다.) __tests__/tokens.test.ts가 양방향으로 막는다 —
      라이트 채도>0 / 다크 채도=0. 배경은 docs/DESIGN.md "색상" 절. */
+  /* .theme-inverse는 앱 테마의 반대 토큰을 받는 반전 스코프용 셀렉터다. parseTokens가 셀렉터 + 여는 중괄호
+     문자열로 블록을 찾으므로 각 리스트의 마지막 셀렉터는 :root/.dark로 고정한다(이 주석에 그 문자열을 쓰지 말 것).
+     스코프 안에서 dark: variant 금지. */
+  .dark .theme-inverse,
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -43,6 +47,7 @@
     --mono-leading: 18px;
   }
 
+  :root:not(.dark) .theme-inverse,
   .dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
