@@ -54,7 +54,13 @@ Task 7·8은 같은 배치(B3)다 — 8만 먼저 들어가면 녹화 중 [Clear
 - B3 수정 `cba0df9f`(e2e: system 테마·reduced-motion 자동화, sleep→경과 시간 조건 대기) → `3ce30b8a`(COVERAGE·GOTCHAS). spec 8/8 3회 연속, 게이트 exit 0. 지휘자 diff 확인 후 통과 판정.
 - B3 dev 통합: cherry-pick `05a40cb9`..`18d062dc`(8커밋), `git cherry` 전부 `-`.
 - 지휘자 문서 커밋: `9e40ec38` ARCHITECTURE(3종 폴링 조건·이중 sync), `a8c89b8a` DIRECTORY(신규 3파일). tasks.md 태스크 검증 항목 체크(수동 테스트 목록은 런타임 검증 후).
+- 통합 게이트(HEAD `39874ccf`): typecheck 0 · test 0(438파일·8,607) · sync:agents:check 0.
+- `/push`: 신선도 트라이아지 → `docs(CI)` e2e 개수 갱신(83 spec / 398 테스트). privacy·README·CLAUDE 무변경(새 캡처·전송 없음, README는 기능축 단위라 하위 기능 미추가). push `bbd42817..d06ad960`, CI run https://github.com/SinhyeokKang/bugshot-2/actions/runs/38069430554.
+- 런타임 검증: `/build` 1회(exit 0). `/manual-smoke`·`/guide-shots`는 확장 로드 브라우저 제어 런타임(Aside) 전용이라 이 세션(Claude Code/Orca)에서 실행 불가 — (b) 항목 미검증으로 잔여에 남김.
+- CI(`d06ad960`, run 38069430554): verify·e2e 1~4·e2e-gate 전부 success.
+- B3 워크트리·브랜치 제거(`git cherry` `+` 0, 추적 변경 0, 인계 사본 `.scratch/rll/handoff-b3.md`). 남은 워크트리 0.
 
 ## 잔여
 
-(진행하며 갱신)
+- (b) 런타임 미검증 — Aside 세션 또는 사용자 수동(dist 최신): 탭 녹화(tabCapture) 실경로에서 로그 서브탭 실시간 누적, 화면 녹화 중 다른 탭 이동 후 복귀, 바 [✕] 포커스 링·hover·툴팁·11px 겹침 시각, 펜 켠 채 로그 서브탭 이동 시 툴바 부재 + 페이지 Esc 해제. 단일 출처 `e2e/COVERAGE.md` "녹화 중 로그 확인".
+- 가이드 스크린샷: 바 컷 추가 여부는 `/guide-shots`(Aside) 판단 대상 — 미실행.
