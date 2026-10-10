@@ -198,3 +198,17 @@ describe("ConsoleLogContent — 레벨별 코드블럭 배경", () => {
     expect(codeBlock("L4").className).toContain("bg-muted");
   });
 });
+
+describe("ConsoleLogContent — bottomInset", () => {
+  it("미지정이면 목록 컨테이너에 pb-6이 없다", () => {
+    render(<ConsoleLogContent entries={ENTRIES} />);
+
+    expect(row("e1").parentElement?.className).toBe("overflow-hidden");
+  });
+
+  it("true면 목록 컨테이너에 pb-6이 붙는다", () => {
+    render(<ConsoleLogContent entries={ENTRIES} bottomInset />);
+
+    expect(row("e1").parentElement?.className).toContain("pb-6");
+  });
+});
