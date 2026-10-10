@@ -59,6 +59,8 @@ interface NetworkLogContentProps {
   onScrollComplete?: () => void;
   isMuted?: (absTs: number) => boolean; // 트림 후보(잘려나갈 요청) 흐림 판정 — 좌측 리스트 행만 적용
   onActiveChange?: (id: string | null) => void; // 선택 변경 통지(삽입 다이얼로그 전용, optional)
+  // 하단에 떠 있는 오버레이(녹화 바)가 목록·상세 끝을 덮지 않게 여백을 둔다.
+  bottomInset?: boolean;
 }
 
 export function methodColor(method: string): string {
@@ -158,7 +160,7 @@ function buildCurl(req: NetworkRequest): string {
 
 type DetailTab = "headers" | "request" | "response" | "messages";
 
-export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted, onActiveChange }: NetworkLogContentProps) {
+export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted, onActiveChange, bottomInset }: NetworkLogContentProps) {
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
@@ -341,7 +343,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
       <OriginFilterBar originKeys={originKeys} counts={originCountMap} value={originFilter} onChange={setOriginFilter} flush={flush} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
       <ScrollArea ref={listScrollRef} className="shrink-0 [&>div>div]:!block" style={{ width: listWidth ?? "30%" }}>
-        <div>
+        <div data-testid="network-list-body" className={bottomInset ? "pb-6" : undefined}>
           {filteredRequests.map((req) => (
             <RequestRow
               key={req.id}
@@ -403,23 +405,25 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
               )}
             </div>
             <ScrollArea className="min-h-0 flex-1 [&>div>div]:!block">
-              <TabsContent value="headers" className="mt-0 data-[state=inactive]:hidden">
-                <HeadersPanel req={activeReq} query={debouncedQuery} />
-              </TabsContent>
-              {activeReq.webSocket ? (
-                <TabsContent value="messages" className="mt-0 data-[state=inactive]:hidden">
-                  <MessagesPanel req={activeReq} syncBaseMs={syncBaseMs} onSeek={onSeek} />
+              <div data-testid="network-detail-body" className={bottomInset ? "pb-6" : undefined}>
+                <TabsContent value="headers" className="mt-0 data-[state=inactive]:hidden">
+                  <HeadersPanel req={activeReq} query={debouncedQuery} />
                 </TabsContent>
-              ) : (
-                <>
-                  <TabsContent value="request" className="mt-0 data-[state=inactive]:hidden">
-                    <BodyPanel body={activeReq.requestBody} query={debouncedQuery} />
+                {activeReq.webSocket ? (
+                  <TabsContent value="messages" className="mt-0 data-[state=inactive]:hidden">
+                    <MessagesPanel req={activeReq} syncBaseMs={syncBaseMs} onSeek={onSeek} />
                   </TabsContent>
-                  <TabsContent value="response" className="mt-0 data-[state=inactive]:hidden">
-                    <BodyPanel body={activeReq.responseBody} query={debouncedQuery} />
-                  </TabsContent>
-                </>
-              )}
+                ) : (
+                  <>
+                    <TabsContent value="request" className="mt-0 data-[state=inactive]:hidden">
+                      <BodyPanel body={activeReq.requestBody} query={debouncedQuery} />
+                    </TabsContent>
+                    <TabsContent value="response" className="mt-0 data-[state=inactive]:hidden">
+                      <BodyPanel body={activeReq.responseBody} query={debouncedQuery} />
+                    </TabsContent>
+                  </>
+                )}
+              </div>
             </ScrollArea>
           </Tabs>
         ) : (
