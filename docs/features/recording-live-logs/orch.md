@@ -13,9 +13,9 @@
 
 | 배치 | 태스크 | 소유 파일 | 선행 | 모델 / effort | 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| B1 | 1·2·5 | `sidepanel/hooks/useRecordingElapsed.ts`(+test), `sidepanel/tabs/IssueTab.tsx`(RecordingState만), `i18n/namespaces/issue.ts`, `sidepanel/components/RecordingFloatingBar.tsx`(+test) | 계획 커밋 | Sonnet / high — 기존 effect 이전·마크업이 설계에 박혀 있는 기계적 구현, 소스 스캔 단언만 주의 | typecheck·test·sync:agents:check | 인계 → 리뷰 중 |
-| B2 | 4·6 | `styles/globals.css`, `styles/__tests__/tokens.test.ts`, `sidepanel/components/{Console,Network}LogContent.tsx`(+기존 test) | 계획 커밋 | Sonnet / high — 셀렉터 확장·optional prop. `parseTokens` 순서 의존과 공용 소비처 4곳 무변경이 위험축 | 동일 | 인계 → 리뷰 중 |
-| B3 | 7·8·10·9 + 가이드 | `sidepanel/tabs/{Console,Network}SubTab.tsx`(+신규 test), `sidepanel/tabs/DebugTab.tsx`(+test), `e2e/recording-live-logs.spec.ts`, `docs/DESIGN.md`, `e2e/{GOTCHAS,COVERAGE}.md`, `guide/{ko,en}/video/record.md`·`logs/README.md` | B1·B2 dev 통합 | Opus / high — 서브탭 불변식(hideSubTabs·폴링 deps)·e2e stub PoC 판단 | 동일 + 신규 e2e spec green | 대기 |
+| B1 | 1·2·5 | `sidepanel/hooks/useRecordingElapsed.ts`(+test), `sidepanel/tabs/IssueTab.tsx`(RecordingState만), `i18n/namespaces/issue.ts`, `sidepanel/components/RecordingFloatingBar.tsx`(+test) | 계획 커밋 | Sonnet / high — 기존 effect 이전·마크업이 설계에 박혀 있는 기계적 구현, 소스 스캔 단언만 주의 | typecheck·test·sync:agents:check | dev 통합(`e37967bd`..`fe5b3ca2`), 1라운드 |
+| B2 | 4·6 | `styles/globals.css`, `styles/__tests__/tokens.test.ts`, `sidepanel/components/{Console,Network}LogContent.tsx`(+기존 test) | 계획 커밋 | Sonnet / high — 셀렉터 확장·optional prop. `parseTokens` 순서 의존과 공용 소비처 4곳 무변경이 위험축 | 동일 | dev 통합(`a93f0210`..`abc33041`), 1라운드 |
+| B3 | 7·8·10·9 + 가이드 | `sidepanel/tabs/{Console,Network}SubTab.tsx`(+신규 test), `sidepanel/tabs/DebugTab.tsx`(+test), `e2e/recording-live-logs.spec.ts`, `docs/DESIGN.md`, `e2e/{GOTCHAS,COVERAGE}.md`, `guide/{ko,en}/video/record.md`·`logs/README.md` | B1·B2 dev 통합 | Opus / high — 서브탭 불변식(hideSubTabs·폴링 deps)·e2e stub PoC 판단 | 동일 + 신규 e2e spec green | 구현 중 |
 | 리뷰 | 배치별 | 읽기 전용, `.scratch` 보고 | 각 배치 인계 | Opus / medium — 독립 리뷰 | 계획·인계 대조, 🔴 0 | 대기 |
 
 ## 겹침·순서
@@ -41,6 +41,11 @@ Task 7·8은 같은 배치(B3)다 — 8만 먼저 들어가면 녹화 중 [Clear
 - B2 수정 라운드 1(`.scratch/rll/brief-b2-fix1.md`): 🟡1 + ⚪2(`console-list-body` testid). ⚪1(`codeCollapse.test.ts:resolveMono`도 `:root {` 순서 의존)은 B3의 DESIGN §3 문구로 이관.
 - B1 리뷰 결과: 🔴 0 / 🟡 3(focus 복귀 테스트가 손으로 만든 tabpanel — Radix 실트리 미고정, 치수 계약 클래스 미잠금, 훅 dead 조건) / ⚪ 4. 마크업·i18n 15값·RecordingState 무변경 확인. 리뷰 terminal 닫음.
 - B1 수정 라운드 1(`.scratch/rll/brief-b1-fix1.md`): 🟡 3건 + ⚪1(동기 초기값)·⚪2(focus-before-cancel 단언)·⚪3(스캔 정규식 확장).
+- B2 수정 `405150c4`: 키 단언 순서 무관화 + `console-list-body` testid. 게이트 exit 0(워커). 지휘자가 diff 직접 확인 후 통과 판정(🔴 0 유지, 재리뷰 생략 — 테스트 2줄·testid 1개).
+- B2 dev 통합: cherry-pick `a93f0210`·`8162b874`·`fb75a7da`·`03e7344d`·`abc33041`. `git cherry` 전부 `-`, 추적 변경 0 확인 후 워크트리·브랜치 제거(인계 사본 `.scratch/rll/handoff-b2.md`).
+- B1 수정 `f0f7fe9c`(test) → `31ce9e29`(refactor): 실 Radix Tabs 포커스 복귀 + 포커스 선행 단언, 치수 계약 클래스, 첫 렌더 동기값(`renderToString`), 스캔 정규식 확장, 훅 단순화. 워커 게이트 exit 0(8,582 통과). 지휘자 diff 확인 후 통과 판정.
+- B1 dev 통합: cherry-pick `e37967bd`·`1e3f3e0a`·`dffabb50`·`fe5b3ca2`.
+- 통합 게이트(main 체크아웃, HEAD `fe5b3ca2`): `pnpm typecheck` 0 · `pnpm test` 0 · `pnpm sync:agents:check` 0.
 
 ## 잔여
 
