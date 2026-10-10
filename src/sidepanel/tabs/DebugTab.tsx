@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeftRight, SquarePen, Terminal } from "lucide-react";
 import { useT } from "@/i18n";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
@@ -23,15 +23,18 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
   const consoleCount = useEditorStore((s) => s.consoleLog?.entries.length ?? 0);
   const networkCount = useEditorStore((s) => s.networkLog?.requests.length ?? 0);
   // 작성 플로우(styling/drafting/previewing/done)에선 하위 탭 바를 통째로 숨겨 작성 화면에 집중.
-  // 작성 진입 경로가 모두 issue 서브탭이라 sub는 이때 항상 "issue". 앱 전역 탭은 그대로 유지.
+  // 녹화 완료는 로그 서브탭에서도 일어나므로 아래 layout effect가 sub를 issue로 되돌린다. 앱 전역 탭은 그대로 유지.
   const hideSubTabs =
     phase === "styling" ||
     phase === "drafting" ||
     phase === "previewing" ||
     phase === "done";
-  // 녹화 중엔 바를 노출하되 콘솔/네트워크는 비활성 — 트리거 카운트 배지로 로그 누적만 확인하고,
-  // Clear로 진행 중 버퍼를 지우는 건 막는다. 미지원 페이지에서는 로그가 아예 쌓이지 않으므로 함께 잠근다.
-  const logTabsLocked = phase === "recording" || unsupported;
+  // 미지원 페이지에서는 로그가 아예 쌓이지 않으므로 잠근다. 녹화 중엔 열고, 진행 중 버퍼 Clear는 서브탭 footer가 막는다.
+  const logTabsLocked = unsupported;
+  const recording = phase === "recording";
+  // 녹화 중엔 로그 서브탭에 있어도 세 배지가 함께 오르게 3종을 모두 폴링한다.
+  // phase가 아니라 파생 불리언을 deps에 둬 무관한 phase 전이마다 interval이 재시작되지 않게 한다.
+  const pollAll = sub === "issue" || recording;
 
   const tabIdRef = useRef(tabId);
   tabIdRef.current = tabId;
@@ -43,8 +46,13 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
     if (unsupported) setSub("issue");
   }, [unsupported]);
 
+  // layout effect라 drafting 첫 페인트에 이전 서브탭이 한 프레임 그려지지 않는다.
+  useLayoutEffect(() => {
+    if (hideSubTabs) setSub("issue");
+  }, [hideSubTabs]);
+
   useEffect(() => {
-    if (activeMainTab !== "debug" || sub !== "issue" || unsupported) return;
+    if (activeMainTab !== "debug" || !pollAll || unsupported) return;
     if (tabIdRef.current == null) return;
     const sync = () => {
       if (tabIdRef.current == null) return;
@@ -55,7 +63,7 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
     sync();
     const id = setInterval(sync, 1500);
     return () => clearInterval(id);
-  }, [activeMainTab, sub, unsupported]);
+  }, [activeMainTab, pollAll, unsupported]);
 
   const handleStartFreeform = useCallback(() => {
     if (tabId == null) return;
