@@ -4,6 +4,7 @@ import { openSettings, setScreenLocale } from "./fixtures/settings";
 import type { LocaleMode } from "../src/i18n/locales";
 
 // 녹화 중 로그 확인 — 녹화 중에도 콘솔·네트워크 서브탭이 열리고, 로그 서브탭에 반전 플로팅 바가 뜬다.
+// 반대로 디버그 밖 메인 탭(이슈 목록·연동·설정)은 잠긴다 — 그래서 설정(테마·로케일)은 녹화 시작 전에 바꾼다.
 //
 // 실 tabCapture는 자동화가 불안정해(capture.spec 주석) 화면 녹화 경로를 탄다. 패널 페이지의
 // getDisplayMedia를 canvas.captureStream()으로 stub하면 picker 없이 실제 MediaRecorder 세션이 돈다
@@ -64,6 +65,12 @@ test.describe.serial("recording-live-logs: 녹화 중 로그 서브탭", () => {
   async function seedConsoleLog() {
     await fixture.evaluate(() => console.log("rll-seed"));
     await expect(panel.locator("[data-entry-id]").first()).toBeVisible({ timeout: 15_000 });
+  }
+
+  async function cancelRecording() {
+    await panel.getByTestId("subtab-console").click();
+    await panel.getByTestId("recording-bar-cancel").click();
+    await expect(bar()).toHaveCount(0);
   }
 
   async function closeTrim() {
@@ -164,6 +171,34 @@ test.describe.serial("recording-live-logs: 녹화 중 로그 서브탭", () => {
     await expect(panel.getByTestId("console-write-issue")).toBeDisabled();
   });
 
+  test("녹화 중엔 디버그 밖 메인 탭이 잠겨 이동하지 않고 사유 툴팁이 뜨며, 녹화가 끝나면 풀린다", async () => {
+    await startRecording();
+    for (const id of ["tab-issue-list", "tab-integrations", "tab-settings"]) {
+      const trigger = panel.getByTestId(id);
+      await expect(trigger, id).toHaveAttribute("aria-disabled", "true");
+      // aria-disabled는 Playwright actionability가 막는다(GOTCHAS) — 실제 클릭이 가드에 걸리는지 보려면 force.
+      await trigger.click({ force: true });
+      await expect(trigger, id).not.toHaveAttribute("data-state", "active");
+      await expect(panel.getByTestId("tab-debug"), id).toHaveAttribute("data-state", "active");
+    }
+    await expect(panel.getByTestId("subtab-issue")).toBeVisible();
+
+    // Radix Tooltip은 클릭에 닫히고 포인터가 트리거를 벗어나기 전엔 다시 안 열린다 — 위 force 클릭 뒤라 한 번 뺐다 올린다.
+    const settings = panel.getByTestId("tab-settings");
+    await panel.mouse.move(0, 0);
+    await settings.hover();
+    await expect(settings).toHaveAttribute("aria-describedby", /.+/);
+    await expect(panel.getByRole("tooltip")).toHaveText(/\S/);
+    await panel.mouse.move(0, 0);
+
+    await cancelRecording();
+    for (const id of ["tab-issue-list", "tab-integrations", "tab-settings"]) {
+      await expect(panel.getByTestId(id), id).not.toHaveAttribute("aria-disabled", "true");
+    }
+    await openSettings(panel, "general");
+    await enterDebug(panel);
+  });
+
   test("콘솔 서브탭에서 바의 [완료]를 누르면 트림이 뜨고, 트림을 닫으면 issue 서브탭이다", async () => {
     await startRecording();
     await panel.getByTestId("subtab-console").click();
@@ -207,17 +242,20 @@ test.describe.serial("recording-live-logs: 녹화 중 로그 서브탭", () => {
       await panel.getByTestId("subtab-console").click();
       await expect(bar()).toBeVisible();
       expect(await lum('[data-testid="recording-bar"]')).toBeLessThan(await lum("body"));
+      await cancelRecording();
 
-      // 녹화를 이어간 채 테마만 바꾼다 — DebugTab은 메인 탭 전환에도 마운트가 유지돼 서브탭이 그대로다.
       await setTheme("dark");
-      await enterDebug(panel);
+      await startRecording();
+      await panel.getByTestId("subtab-console").click();
       await expect(bar()).toBeVisible();
       expect(await lum('[data-testid="recording-bar"]')).toBeGreaterThan(await lum("body"));
+      await cancelRecording();
 
-      // system 모드: OS 테마 변경(prefers-color-scheme change → useThemeEffect 구독)에 리로드 없이 뒤집힌다.
+      // system 모드: 녹화 중 OS 테마 변경(prefers-color-scheme change → useThemeEffect 구독)에 리로드 없이 뒤집힌다.
       await setTheme("system");
       await panel.emulateMedia({ colorScheme: "dark" });
-      await enterDebug(panel);
+      await startRecording();
+      await panel.getByTestId("subtab-console").click();
       await expect(panel.locator("html")).toHaveClass(/\bdark\b/);
       expect(await lum('[data-testid="recording-bar"]')).toBeGreaterThan(await lum("body"));
       await panel.emulateMedia({ colorScheme: "light" });
@@ -225,6 +263,8 @@ test.describe.serial("recording-live-logs: 녹화 중 로그 서브탭", () => {
       expect(await lum('[data-testid="recording-bar"]')).toBeLessThan(await lum("body"));
     } finally {
       await panel.emulateMedia({ colorScheme: null });
+      // 녹화가 남아 있으면 설정 탭이 잠겨 복원이 막힌다.
+      await resetToIdle();
       await setTheme(original);
       await enterDebug(panel);
     }
@@ -251,18 +291,19 @@ test.describe.serial("recording-live-logs: 녹화 중 로그 서브탭", () => {
     const originalLocale = (await panel.getByTestId("settings-locale").innerText()).trim();
     try {
       await panel.setViewportSize({ width: 320, height: 800 });
-      await startRecording();
-      await panel.getByTestId("subtab-console").click();
       for (const label of Object.values(LOCALE_LABELS)) {
         await setScreenLocale(panel, label);
-        await enterDebug(panel);
+        await startRecording();
+        await panel.getByTestId("subtab-console").click();
         await expect(bar()).toBeVisible();
         const fit = await bar().evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
         expect(fit.scroll, label).toBeLessThanOrEqual(fit.client);
         const stop = await panel.getByTestId("recording-bar-stop").boundingBox();
         expect(stop!.x + stop!.width, label).toBeLessThanOrEqual(320);
+        await cancelRecording();
       }
     } finally {
+      await resetToIdle();
       await setScreenLocale(panel, originalLocale);
       await enterDebug(panel);
       if (originalViewport) await panel.setViewportSize(originalViewport);

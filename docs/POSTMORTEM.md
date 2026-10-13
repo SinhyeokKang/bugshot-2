@@ -36,6 +36,25 @@
 
 ---
 
+## 2026-10-13 — `TooltipTrigger asChild`로 감싼 `TabsTrigger`는 `data-state`를 빼앗겨 선택돼도 active로 안 보인다
+
+- **영역**: `컴포넌트`
+- **계열**: `라이브러리전제`
+- **그물**: `jsdom`
+- **증상**: (자체 검증에서 커밋 전에 잡힘) 녹화 중 메인 탭 잠금 사유를 툴팁으로 보이려고 이슈 목록·연동·설정 트리거를 늘 `<Tooltip><TooltipTrigger asChild><TabsTrigger/>`로 감쌌더니, **잠기지 않은 평상시에도** 그 세 탭을 눌러 선택해도 선택 스타일(`data-[state=active]:bg-background …`)이 안 먹었다. e2e 약 10개 spec이 `toHaveAttribute("data-state","active")`로 탭 진입을 폴링하므로 전부 타임아웃 날 상태였다. typecheck·유닛은 green이었다.
+- **근본 원인**: `data-state` 하나를 두 Radix 프리미티브가 서로 다른 의미로 쓴다. `TooltipTrigger`는 Slot에 `"data-state": closed|delayed-open|instant-open`을 넘기고, Slot `mergeProps`가 그걸 자식 props로 싣는다. 자식 `TabsTrigger`는 내부에서 `"data-state": isSelected ? "active" : "inactive"`를 **먼저** 쓰고 그 뒤에 `...triggerProps`를 펼친다 — 그래서 바깥에서 들어온 Tooltip 값이 이긴다. `aria-selected`는 별개 속성이라 접근성 트리는 멀쩡해 보이고, 깨지는 건 `data-state`에 걸린 스타일과 셀렉터뿐이라 에러 없이 조용하다. "asChild로 감싸면 트리거 동작만 합쳐진다"는 전제가 틀렸다 — **상태 속성까지 합쳐진다.**
+- **재발 방지**: (1) **자기 `data-state`를 가진 Radix 트리거**(`TabsTrigger`·`AccordionTrigger`·`CollapsibleTrigger`·`ToggleGroupItem` 등)를 `TooltipTrigger`/`PopoverTrigger`/`DialogTrigger asChild`로 상시 감싸지 않는다. 툴팁이 필요하면 **필요한 순간에만 조건부로 감싼다**(잠긴 탭은 active가 될 수 없어 그때의 충돌은 무해). 전수: `grep -rn -A2 "TooltipTrigger asChild" src | grep -E "TabsTrigger|AccordionTrigger|CollapsibleTrigger|ToggleGroupItem"`. (2) 조건부 래핑은 **트리 구조가 바뀌어 트리거가 리마운트된다** — 잠금이 바뀌는 순간 그 버튼에 포커스가 있으면 body로 빠진다. 잠금이 바뀌는 시점에 포커스가 거기 있을 수 없는 자리에서만 쓴다. (3) **jsdom으로 잡힌다** — `<Tabs><Tooltip><TooltipTrigger asChild><TabsTrigger value="a"/>`를 렌더해 선택 후 `data-state`가 `active`인지만 재면 된다. (4) 부수 함정(e2e): Radix Tooltip은 **클릭에 닫히고 포인터가 트리거를 벗어나기 전엔 hover로 다시 안 열린다**. `click({force:true})` 직후 같은 트리거에 `hover()`해도 pointermove가 안 나 툴팁이 `closed`로 남는다 — 한 번 `mouse.move(0,0)`으로 뺐다 올린다(e2e/GOTCHAS.md).
+- **관련**: `src/sidepanel/App.tsx:LockableTabTrigger`(잠겼을 때만 Tooltip), `src/components/ui/tabs.tsx`(`data-[state=active]:` 스타일), Radix `@radix-ui/react-tabs` `TabsTrigger`(prop 스프레드 순서)·`@radix-ui/react-slot` `mergeProps`, 문서 `docs/DESIGN.md` §14 툴팁, e2e `e2e/recording-live-logs.spec.ts`(잠금 케이스)·`e2e/GOTCHAS.md`.
+
+## 2026-10-13 — 탭 전환에 잠금을 걸면 "탭 이동 + 숨은 탭의 자동 동작"을 짝으로 쓰던 경로가 무음으로 반쪽이 된다
+
+- **영역**: `컴포넌트`
+- **그물**: `jsdom`
+- **증상**: (code-review에서 커밋 후 잡힘) 녹화 중 메인 탭 잠금을 넣은 뒤, 녹화 중에 OAuth 만료 안내가 떠서 [재연동]을 누르면 다이얼로그는 닫히는데 아무 일도 안 일어났다. 재연동 intent가 버려져 녹화가 끝나도 다시 묻지 않았다(만료 안내는 refresh가 한 번 더 실패해야 다시 뜬다).
+- **근본 원인**: 잠금 가드(`goTab`)는 "탭을 옮길 수 있나"만 막는데, OAuth 재연동은 **탭 이동과 숨은 탭의 자동 동작을 한 쌍으로** 쓰는 경로였다 — `setReconnectPlatform` + `setTab("integrations")`. 탭 이동만 막히고 intent를 버리면 무음 no-op이 되고, 반대로 intent만 남기면 더 나쁘다. 메인 탭은 언마운트가 아니라 `hidden`으로만 숨겨져 **늘 마운트돼 있어서**, `IntegrationsTab`의 `autoStart={reconnectPlatform === id}`가 가시성을 안 보고 숨은 탭에서 OAuth 창을 띄운다 — 잠금이 막으려던 바로 그 실패 모드다. 또 녹화를 멈추면 **트림 오버레이가 항상** 뜨므로 "녹화 끝 = 안전"도 아니었다(트림 위에서 재연동하면 오버레이 밑에서 탭이 바뀌고 OAuth 창이 열린다).
+- **재발 방지**: (1) 전환 잠금을 추가하면 **모든 전환 진입점**을 전수한다 — `grep -n "setTab(\|navTo(\|goTab(" src/sidepanel/App.tsx`와 `grep -rn "useTabNav" src/sidepanel`. 각 지점이 "이동 + 부수 상태"를 같이 쓰는지 보고, 막혔을 때 부수 상태가 어떻게 되는지(버려짐 / 숨은 탭에서 실행됨)를 따진다. (2) **숨은 탭이 마운트된 채 남는 구조**(`App.tsx`의 `hidden` 래퍼 — 2026-10-04 "숨은 탭에 마운트된 화면도 '열린 화면'으로 집계된다"와 같은 전제)에서는 `autoStart`류 prop이 가시성과 무관하게 돈다 — intent를 미리 심지 않는다. (3) 막힌 동작은 버리지 말고 **안내 자체를 미룬다** — 지금은 `phase === "recording" || replayTrim != null`이면 다이얼로그 `platform`을 null로 내리고 `oauthExpiredPlatform`은 보존한다(controlled `open` 변화는 `onOpenChange`를 안 불러 상태가 남는다).
+- **관련**: `src/sidepanel/App.tsx`(`goTab`·`OAuthExpiredDialog` platform 게이트), `src/sidepanel/tabs/IntegrationsTab.tsx`(`autoStart={reconnectPlatform === id}`), `src/sidepanel/lib/mainTabLock.ts`. 선행 회고: **2026-10-04**(같은 "숨은 탭도 마운트돼 있다" 전제).
+
 ## 2026-10-06 — 번역 키 대칭은 의미의 정확성을 보장하지 않는다
 
 - **영역**: `i18n`
