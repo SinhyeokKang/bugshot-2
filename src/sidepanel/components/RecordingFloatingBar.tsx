@@ -35,7 +35,7 @@ export function RecordingFloatingBar() {
       aria-label={t(labelKey)}
       className={cn(
         "theme-inverse",
-        "absolute inset-x-3 bottom-3 z-10 flex items-center gap-3 rounded-xl p-4",
+        "absolute inset-x-3 bottom-3.5 z-10 flex items-center gap-3 rounded-xl p-3",
         "bg-background/90 text-foreground shadow-lg backdrop-blur-sm",
       )}
     >
@@ -48,13 +48,12 @@ export function RecordingFloatingBar() {
       <div className="ml-auto flex shrink-0 gap-2">
         <TooltipIconButton
           label={t("common.cancel")}
-          className="h-9 w-9"
           testId="recording-bar-cancel"
           onClick={handleCancel}
         >
           <X />
         </TooltipIconButton>
-        <Button onClick={() => videoRecorder.stopRecording()} data-testid="recording-bar-stop">
+        <Button size="sm" onClick={() => videoRecorder.stopRecording()} data-testid="recording-bar-stop">
           {t("issue.recording.barStop")}
         </Button>
       </div>
