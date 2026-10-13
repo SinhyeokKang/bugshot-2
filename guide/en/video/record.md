@@ -40,6 +40,8 @@ You can keep an eye on your logs while you record, too — open the **Console** 
 
 So the logs you're collecting can't be wiped mid-recording, the log tab's **Clear Log** and **Write issue** buttons are locked until the recording ends. Nothing to worry about — they come right back afterward.
 
+While you're recording, you stay on the **Debug** tab — **Issues**, **Integrations**, and **Settings** are off-limits until you're done. That keeps your recording settings from changing midway and stops other tasks from cutting into the recording. Hover a locked tab to see why, and everything unlocks the moment you stop or cancel.
+
 > If screen recording is sharing your **entire screen or the Chrome window**, the side panel ends up in the video too. Opening a log tab while recording means those log contents show in the recording, so take a quick look for anything sensitive.
 
 ## Drawing on screen
