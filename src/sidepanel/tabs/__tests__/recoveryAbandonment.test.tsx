@@ -7,7 +7,7 @@ import type { IssueRecord } from "@/store/issues-store";
 vi.mock("@/i18n", async (original) => ({ ...await original<typeof import("@/i18n")>(), useT: () => (key: string) => key }));
 vi.mock("../statusBadges/SubmittedBadge", () => ({ SubmittedBadge: () => <span>Submitted</span> }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
-it("confirmed non-Slack abandonment removes the actual persistent pointer, row warning and count", async () => {
+it("confirmed non-Slack abandonment removes the actual persistent pointer and inline row warning", async () => {
   vi.resetModules();
   mockWebLocks();
   vi.stubGlobal("indexedDB", new IDBFactory());
@@ -29,7 +29,8 @@ it("confirmed non-Slack abandonment removes the actual persistent pointer, row w
   await db.checkpointSubmission("i", "a", { phase: "created", destination: { platform: "github", key: "#1", url: record.url, locator: { owner: "o", repo: "r", number: "1" } }, results: [] });
   await db.checkpointSubmission("i", "a", { phase: "partial", results: [], submissionFailure: { stage: "body", code: "network" } });
   render(<IssueListTab />);
-  expect(screen.getByTestId("filter-submitted").textContent).toContain("(1)");
+  expect(screen.getByTestId("filter-submitted").textContent).toBe("issueList.filter.submitted");
+  expect(screen.getByTestId("recovery-row-warning").textContent).toContain("recovery.needsAttention");
   const trigger = screen.getByTestId("recovery-detail-open");
   trigger.focus();
   await userEvent.keyboard("{Enter}");
@@ -41,7 +42,7 @@ it("confirmed non-Slack abandonment removes the actual persistent pointer, row w
   await userEvent.click(await screen.findByTestId("recovery-delete-local"));
   await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "recovery.deleteLocal" }));
   await waitFor(() => expect(screen.queryByTestId("recovery-row-warning")).toBeNull());
-  expect(screen.getByTestId("filter-submitted").textContent).not.toContain("(1)");
+  expect(screen.getByTestId("filter-submitted").textContent).not.toBe("issueList.filter.submitted");
   await waitFor(() => expect(screen.queryByTestId("draft-detail-dialog")).toBeNull());
   expect(screen.queryByTestId("detail-submit-open")).toBeNull();
   expect(useIssuesStore.getState().issues[0].submissionRecoveryId).toBeUndefined();
@@ -75,6 +76,6 @@ it("unknown removal updates both mounted row and detail while keeping creation b
   await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "recovery.deleteLocal" }));
   await waitFor(() => expect(screen.getByTestId("recovery-row-warning").textContent).toContain("recovery.localMissing"));
   expect(screen.getAllByText("recovery.localMissing")).toHaveLength(2);
-  expect(screen.getByTestId("filter-submitted").textContent).toContain("(1)");
+  expect(screen.getByTestId("filter-submitted").textContent).toBe("issueList.filter.submitted");
   await expect(withIssueSubmitGuard("i", async () => {})).rejects.toThrow();
 });
