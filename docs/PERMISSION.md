@@ -48,11 +48,11 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 
 `<all_urls>`가 상위집합이라 플랫폼별 REST/OAuth host(`*.atlassian.net`·`api.github.com`·`github.com`(에셋 업로드 정책)+GitHub 발급 S3 업로드 URL·`api.linear.app`·`api.notion.com`·`gitlab.com`·`app.asana.com`·`api.clickup.com`·`api.atlassian.com`·`slack.com`)와 OAuth proxy origin(`VITE_OAUTH_PROXY_URL`)을 **manifest에 따로 나열하지 않는다** — 전부 `<all_urls>`로 동작한다. OAuth authorize endpoint(`auth.atlassian.com`·`app.clickup.com`·`slack.com/oauth/v2/authorize` 등)는 `launchWebAuthFlow`가 Chrome 관리 팝업에서 처리하므로 host_permission 자체가 불요. 어느 플랫폼·proxy로 트래픽이 나가는지(데이터 전송 대상)는 §11과 docs/privacy.ko.md의 전송 표 참조.
 
-`<all_urls>`가 required인 이유: `captureVisibleTab`은 일반 host 패턴(`https://*/*`)을 캡처 권한으로 인정하지 않고 `<all_urls>` 또는 activeTab만 받는다. 30s Replay가 cross-origin 이동 후에도 캡처하려면 `<all_urls>`가 필요한데, activeTab은 cross-document 네비게이션에서 회수돼 프로그램적 재취득이 불가하므로 광역 host 권한을 **설치 시 상시 보유**(required)한다. BYOK LLM·GitLab self-managed·**Jira API Key 모드(Server/DC)**의 임의 origin fetch도 이 권한으로 커버된다 — 셋 다 base URL이 사용자 자유 입력이고, `assertCredentialSafeBase`는 https(+loopback 예외)만 강제할 뿐 호스트를 좁히지 않는다.
+`<all_urls>`가 required인 이유: `captureVisibleTab`은 일반 host 패턴(`https://*/*`)을 캡처 권한으로 인정하지 않고 `<all_urls>` 또는 activeTab만 받는다. 30s Replay가 cross-origin 이동 후에도 캡처하려면 `<all_urls>`가 필요한데, activeTab은 다른 origin으로 이동하면 회수돼 프로그램적 재취득이 불가하므로 광역 host 권한을 **설치 시 상시 보유**(required)한다. BYOK LLM·GitLab self-managed·**Jira API Key 모드(Server/DC)**의 임의 origin fetch도 이 권한으로 커버된다 — 셋 다 base URL이 사용자 자유 입력이고, `assertCredentialSafeBase`는 https(+loopback 예외)만 강제할 뿐 호스트를 좁히지 않는다.
 
 ### web_accessible_resources (빌드가 자동 주입 — manifest.config.ts에 없음)
 
-`manifest.config.ts`에는 이 키가 없지만 **crxjs가 배포 산출물에 넣는다**. `dist/manifest.json`을 열면 content script가 동적으로 import하는 청크 6개(picker·recorder-bridge·recorders-entry 엔트리와 element-label·post-to-runtime·index)가 `matches: ["<all_urls>"]`·`use_dynamic_url: false`로 등재돼 있다.
+`manifest.config.ts`에는 이 키가 없지만 **crxjs가 배포 산출물에 넣는다**. `dist/manifest.json`을 열면 content script 엔트리와 의존 공유 청크가 `matches: ["<all_urls>"]`·`use_dynamic_url: false`로 등재돼 있다. 청크 이름·개수는 빌드 결과에 따라 달라진다.
 
 의미는 **임의 웹페이지가 고정 URL로 이 리소스를 fetch할 수 있다**는 것 — 즉 BugShot 설치 여부가 페이지에서 탐지 가능하다(fingerprinting 표면). `use_dynamic_url: true`면 URL이 세션마다 바뀌어 이를 막지만, content script가 동적 import로 그 청크를 로드하는 구조라 현재는 고정 URL이 필요하다.
 
@@ -78,23 +78,24 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 
 | API | 용도 | 사용 위치 |
 |---|---|---|
-| `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:209` (bg handler — 방어는 3겹이다. ① 큐 진입 **전에** `sender.origin !== chrome-extension://<runtime.id>`면 throw(`messages.ts:217`) — content script의 origin은 페이지 origin이라, 이게 없으면 주입된 content script가 페이로드 tabId로 **남의 탭 화면**을 받아갈 수 있고 아래 활성 탭 확인만으론 안 걸러진다. ② 모든 호출이 `capture-throttle` 직렬 큐 경유. ③ 큐를 통과한 뒤 `captureOwnedTab`이 `tabs.get(tabId)`로 **소유권을 다시 확인**하고 `tab.active`가 아니면 throw한다 — 큐 대기가 최대 ~2.6s라 그동안 사용자가 탭을 바꿨으면 남의 페이지를 찍게 된다). 호출처: `sidepanel/capture.ts:captureElementSnapshot`(요소), `usePickerMessages.ts`(영역·인라인), `sidepanel/scroll-capture.ts`(페이지 전체 타일 루프), `30s-replay/use-30s-replay.ts`(폴링 프레임) |
+| `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:handleMessage`의 `captureVisibleTab` 분기 (bg handler — 방어는 3겹이다. ① 큐 진입 **전에** `sender.origin !== chrome-extension://<runtime.id>`면 throw(같은 분기의 sender origin 가드) — content script의 origin은 페이지 origin이라, 이게 없으면 주입된 content script가 페이로드 tabId로 **남의 탭 화면**을 받아갈 수 있고 아래 활성 탭 확인만으론 안 걸러진다. ② 모든 호출이 `capture-throttle` 직렬 큐 경유. ③ 큐를 통과한 뒤 `captureOwnedTab`이 `tabs.get(tabId)`로 **소유권을 다시 확인**하고 `tab.active`가 아니면 throw한다 — 큐 대기가 최대 ~2.6s라 그동안 사용자가 탭을 바꿨으면 남의 페이지를 찍게 된다). 호출처: `sidepanel/capture.ts:captureElementSnapshot`(요소), `usePickerMessages.ts`(영역·인라인), `sidepanel/scroll-capture.ts`(페이지 전체 타일 루프), `30s-replay/use-30s-replay.ts`(폴링 프레임) |
 | `chrome.tabCapture.getMediaStreamId()` | 수동 영상 녹화 스트림 (실패 시 `getDisplayMedia` 폴백) | `video-recorder.ts:startTabStream` |
 | `chrome.tabs.get() → tab.url` | 탭 URL 읽기 | `tab-bindings.ts`, `picker-control.ts`(`pageKeyOf` 등), `video-capture.ts`, `video-recorder.ts`, `30s-replay/use-30s-replay.ts`, `hooks/useTabSupport.ts`(지원/만료 판정 — 아래 만료 감지 1단계의 URL 판독부), `hooks/useBackgroundRecorder.ts`, `sidepanel/scroll-capture.ts`, `background/capture-throttle.ts`(캡처 직전 소유권 확인), `background/index.ts` |
 | `chrome.scripting.executeScript()` | content script 재주입(picker·recorder-bridge는 `allFrames:true`)·뷰포트 측정 | `picker-control.ts` (`ensureMainWorldRecorders`·`getTopViewport` 등) |
 | `chrome.tabs.create()` / `chrome.tabs.remove()` | ① GitHub 업로드용 비활성 탭 생성·정리(`background/github-upload.ts`) ② 외부 링크 열기 — 등록된 이슈 URL·가이드·스토어 리뷰·플랫폼 토큰 발급 페이지(`IssueTab`·`SettingsFooter`·`SubmitSuccessView`·`IssueRow`) | 권한 불요(확장 기본 제공) |
 | `chrome.tabs.query({})` | **전 창 전 탭 열거** — pending 로그 GC가 "살아있는 탭"을 계산하는 유일한 경로(fail-closed: 조회 실패 시 prune 전체 스킵) | `lib/pending-log-prune.ts`. 응답에 URL이 실려 오지만 `getActiveTabIds()`는 `tab.id`만 소비한다. `activeTab`과 무관하게 `<all_urls>`가 커버한다 |
 | `chrome.runtime.onConnect` (port disconnect) | 사이드패널이 닫히면 port가 끊기는 것을 세션 teardown 신호로 사용 — 레코더 정지(`stopRecorders`) | `background/index.ts` |
-| `chrome.windows.onRemoved` | 창이 닫힐 때 그 창에 속한 탭의 활성화 상태 정리 | `background/tab-bindings.ts` |
+| `chrome.windows.onRemoved` | 닫힌 창의 직전 활성 탭 캐시(`prevActiveTabByWindow`) 제거. 탭 활성화·세션·pending 정리는 `tabs.onRemoved`가 담당 | `background/tab-bindings.ts` |
 | `chrome.i18n.getMessage()` | `public/_locales/<code>/messages.json`을 읽는 **두 소비자 중 런타임 쪽**(SW가 컨텍스트 메뉴 타이틀을 조립 — `setupContextMenu`). 다른 하나는 manifest의 `__MSG_*` 치환(확장 이름·설명·단축키 라벨)이고 둘은 같은 사전을 본다 — 한쪽만 보고 스캐너를 짜면 무음 누락이 생긴다(POSTMORTEM 2026-08-11). 그물: `src/i18n/__tests__/manifest-locales.test.ts` | `background/index.ts` |
 
 ### 만료 조건
 
 - 탭이 **다른 origin**으로 네비게이션
-- 탭이 **같은 origin 다른 페이지**로 네비게이션 (경우에 따라)
-- 확장이 포커스를 잃는 경우 (Chrome 버전에 따라)
+- 탭을 닫음
 
-### 만료 감지 (3중 방어)
+같은 origin 내 이동은 grant를 유지한다([Chrome activeTab 문서](https://developer.chrome.com/docs/extensions/develop/concepts/activeTab)).
+
+### 권한 실패 감지 (정지 캡처 가드와 영상 폴백)
 
 #### 1단계: URL 읽기 실패 (진입 가드)
 
@@ -108,7 +109,7 @@ url-support.ts:classifyTabSupport()
     └── 미지원/응답 없음 → "unsupported"
 ```
 
-- `picker-control.ts:192` — `ensureSupportedTab()`: 모든 캡처 진입점(picker, area, inline, freeform, video)에서 호출
+- `picker-control.ts:ensureSupportedTab()` — picker·area·inline·freeform 진입 가드. 영상은 `video-capture.ts`의 동기 미지원 상태 검사와 스트림 획득 후 `isSupportedUrl(tab.url)` 검사로 별도 처리
 - `tab-bindings.ts:185` — `deactivatePanelIfCrossOrigin()`: URL 판독 불가 시 cross-origin으로 간주하고, 닫을지 유지할지는 **출발지 URL**로 가른다(§ 패널 종료/유지 정책)
 
 #### 2단계: 캡처 시점 에러 매칭 (런타임 가드)
@@ -135,7 +136,7 @@ video-capture.ts:isTabCaptureUnavailable()
 └── "activetab"
 ```
 
-- `video-capture.ts:154` — `isTabCaptureUnavailable()` 정의(호출부 `:65`, `startTabStream` 실패 분기)
+- `video-capture.ts:isTabCaptureUnavailable()` — `startTabStream` 실패가 매칭되면 user activation이 살아 있는 동안 `startScreenCapture(tabId, { preferTab: true })`로 전환해 탭 우선 화면 공유 선택기를 연다. 이 분기는 만료 다이얼로그로 직행하지 않는다
 
 ### 만료 시 동작
 
@@ -151,7 +152,7 @@ video-capture.ts:isTabCaptureUnavailable()
 1. cross-origin 네비게이션 감지 → bg가 `activeTabExpiredDeferred` 메시지 전송 (패널은 유지)
 2. `usePickerMessages`가 플래그 세팅, phase가 idle로 전환될 때 `onPickerPermissionExpired.fire()`
 3. AlertDialog → `window.close()`
-4. idle 복귀 전 캡처 시도 시에는 기존 3중 방어가 즉시 다이얼로그를 띄움
+4. idle 복귀 전 정지 캡처·freeform 진입의 권한 실패는 만료 다이얼로그를 띄운다. 탭 녹화의 스트림 권한 실패는 화면 공유 선택기로 폴백한다
 
 ### 재취득 흐름
 
@@ -181,7 +182,7 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 | Recorder bridge 재주입 | ISOLATED | `picker-control.ts:70` | `recorder-bridge.ts` (sentinel 수신·중계)를 `allFrames:true`로 재주입 |
 | Recorder entry 재주입 | MAIN | `picker-control.ts:ensureMainWorldRecorders` | `recorders-entry.ts` (network/console/action 후크) 재주입 (MAIN world). **정적 엔트리는 `all_frames: true`로 전 프레임 주입**이고, 여기 프로그래매틱 재주입만 `allFrames` 미지정이라 top 한정이다 |
 | 뷰포트 측정 | ISOLATED | `picker-control.ts` | Freeform 진입·iframe 요소 선택 시 top 프레임 `innerWidth/Height` 읽기 (`getTopViewport` — world 미지정 → 기본 ISOLATED) |
-| GitHub 업로드 | MAIN | `background/github-upload.ts:155` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수). 업로드마다 **전용 비활성 탭을 새로 열고 끝나면 닫는다** — 기존 github.com 탭에 붙으면 다른 확장의 MAIN world 후크가 base64 미디어와 `asset_upload_authenticity_token`을 가져갈 수 있다. 사용자가 연 탭이 아니라 `activeTab`이 아닌 `<all_urls>`에 의존 |
+| GitHub 업로드 | MAIN | `background/github-upload.ts:uploadGithubFiles` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수). 업로드마다 **전용 비활성 탭을 새로 열고 끝나면 닫는다** — 기존 github.com 탭에 붙으면 다른 확장의 MAIN world 후크가 base64 미디어와 `asset_upload_authenticity_token`을 가져갈 수 있다. 사용자가 연 탭이 아니라 `activeTab`이 아닌 `<all_urls>`에 의존 |
 
 ### 주입 실패 시
 
@@ -284,7 +285,7 @@ tab-bindings.ts:281 — activateTab() 내부
 
 `deactivatePanelIfCrossOrigin()`이 `tabs.onUpdated` `status:loading` 시점에 호출되어 패널을 닫을지 유지할지 결정한다.
 
-**기준 URL 결정**: 에디터 세션의 `target.url` → 없으면 `activateTab()` 시점에 저장한 활성화 URL(`sidePanel:url:{tabId}`) → 둘 다 없으면 비교 불가로 패널 유지.
+**기준 URL 결정**: 에디터 세션의 `target.url` → 없으면 `activateTab()`에서 저장하고 패널을 유지하는 이동마다 갱신한 최근 URL(`sidePanel:url:{tabId}`) → 둘 다 없으면 비교 불가로 패널 유지.
 
 **분기표** (`<all_urls>`가 required라 광역 권한은 항상 보유 → 호출부가 `broadGranted=true` 고정, cross-origin 행은 **새 URL의 커버 여부** 기준):
 
@@ -326,7 +327,7 @@ usePickerMessages.ts
   → 만료 다이얼로그 → window.close()
 ```
 
-idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타임 가드 / tabCapture 가드)가 즉시 만료 다이얼로그를 띄운다.
+idle 복귀 전 정지 캡처·freeform 진입에서 권한 실패가 감지되면 만료 다이얼로그를 띄운다. 탭 녹화의 스트림 권한 실패는 `startScreenCapture(..., { preferTab: true })`로 폴백한다.
 
 ---
 
@@ -337,7 +338,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 | 키 | 데이터 | 사용처 |
 |---|---|---|
 | `sidePanel:activated` | `number[]` (tab ID 목록) | `tab-bindings.ts:13` — 패널 활성화 탭 추적. **미지원 탭도 들어온다**(`activateTab`이 URL을 보지 않으므로). `onRemoved`가 무조건 정리 |
-| `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:14` — idle 상태 origin 비교 fallback. `chrome://` 등 `tab.url`을 못 읽는 탭에서는 **기록되지 않고**, 그 부재가 `deactivatePanelIfCrossOrigin`의 조기 return으로 이어져 패널이 유지된다 |
+| `sidePanel:url:{tabId}` | `string` (활성화 시 저장하고 패널 유지 이동마다 갱신하는 최근 URL) | `tab-bindings.ts:14` — idle 상태 origin 비교 fallback. `chrome://` 등 `tab.url`을 못 읽는 탭에서는 **기록되지 않고**, 그 부재가 `deactivatePanelIfCrossOrigin`의 조기 return으로 이어져 패널이 유지된다 |
 | `editor:{tabId}` | `EditorSnapshot` 전체 에디터 상태 | `useEditorSessionSync.ts` — 300ms 디바운스 저장·수화 |
 | `pendingPrunedAt` | `number` (timestamp) | `pending-log-prune.ts:89` — 브라우저 세션당 1회 정리 가드 |
 
@@ -345,14 +346,14 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 
 | 키 | 데이터 | 사용처 |
 |---|---|---|
-| `bugshot-settings` | 플랫폼 계정·OAuth 토큰·submit 기본값·titlePrefix | `settings-store.ts` (Zustand persist), `settings-storage.ts` (bg 직접 접근) |
+| `bugshot-settings` | 플랫폼 계정·OAuth 토큰·submit 기본값·titlePrefix·Webhook URL/시크릿/요청 헤더/전송 형식/JSON 템플릿 | `settings-store.ts` (Zustand persist), `settings-storage.ts` (bg 직접 접근) |
 | `bugshot-issues` | `IssueRecord[]` 이슈 기록 | `issues-store.ts` (Zustand persist + 레코드 단위 `merge`), `sidepanel/lib/issues-sync.ts` (`storage.onChanged` 구독 — 다른 사이드패널 인스턴스의 write를 읽어 rehydrate) |
 | `bugshot-app-settings` | 테마·언어(UI/AI 출력/이슈 본문 3축)·이슈 섹션 구성·LLM 설정(**BYOK API 키 포함** — `apiKeyObfuscatingStorage`가 persist 경유로 난독화해 넣는다. 평문은 아니지만 **암호화도 아니다**)·replay 활성화·**파일 첨부 활성화**(`attachmentsEnabled`, 기본 off)·**재현 과정 AI 자동 채움**(`autoReproPrefill`, 기본 on)·녹화 모드(tab/screen)·스타일 편집 뷰 | `settings-ui-store.ts` (Zustand persist) |
 | `bugshot:install-id` | 익명 설치 ID (UUID, 최초 1회 생성) | `background/analytics.ts` — PostHog `distinct_id` |
 
 ### IndexedDB (Chrome 권한 불요 — 저장 데이터 레퍼런스)
 
-스크린샷·영상·사용자 첨부 **blob**, network/console/action 로그, 본문 inline 이미지와 어노테이션 전 원본은 `chrome.storage`가 아니라 IndexedDB(`src/store/blob-db.ts`)에 저장된다. `storage` 권한과 무관하지만(웹 표준 API), 정리(prune) 시 위 `chrome.storage.session`/`local`의 레코드를 역참조해 고아 blob을 지운다. privacy 문서의 "저장하는 정보"와 대조할 때 이 경로를 빠뜨리지 말 것.
+스크린샷·영상·사용자 첨부 **blob**, network/console/action 로그, 본문 inline 이미지와 어노테이션 전 원본은 `chrome.storage`가 아니라 IndexedDB(`src/store/blob-db.ts`)에 저장된다. `storage` 권한과 무관하지만(웹 표준 API), 정리(prune) 시 위 `chrome.storage.session`/`local`의 레코드를 역참조해 고아 blob을 지운다. `submissionRecovery` 저장소에는 제출 복구 기록과 제출용 생성 파일도 저장한다. 만료된 복구 파일은 `expireSubmissionRecovery`가 정리한다. privacy 문서의 "저장하는 정보"와 대조할 때 이 경로를 빠뜨리지 말 것.
 
 ### 페이지 sessionStorage (Chrome 권한 불요 — 저장 데이터 레퍼런스)
 
@@ -362,15 +363,19 @@ pre-arm 게이트 플래그 `__bugshot_recorder_active__`=`"1"`을 **방문 페�
 
 `navigator.clipboard.write`로 **스크린샷 blob과 이슈 본문 HTML이 OS 클립보드로 나간다**(`sidepanel/tabs/PreviewPanel.tsx`의 이미지·본문 복사, `components/NetworkLogContent.tsx`의 Copy as cURL, `log-viewer/App.tsx` — 여기는 확장 밖 웹 페이지 컨텍스트). `clipboardWrite` 권한 없이 동작하는 건 전부 user gesture 경유라서다. 확장이 통제하지 못하는 표면으로 데이터가 나가는 경로이므로 privacy 문서와 대조할 것.
 
+### 로컬 다운로드 (Chrome 권한 불요 — 저장 데이터 레퍼런스)
+
+스크린샷·영상·로그·사용자 첨부·복구 파일은 Blob URL과 `<a download>`로 내려받는다(`downloadCapture.ts`·`downloadAttachment.ts`·`attachmentRecovery.ts`·`buildEditorCapture.ts`). 독립 log-viewer의 JSON·HAR 다운로드도 같은 방식이다. `chrome.downloads` API나 `downloads` 권한은 사용하지 않는다.
+
 ### navigator.userAgent (Chrome 권한 불요 — 전송 데이터 레퍼런스)
 
-`navigator.userAgent`/`userAgentData`로 브라우저·OS 버전을 읽어 **재현 환경 표에 실어 8개 플랫폼으로 제출**한다(`sidepanel/lib/buildEditorCapture.ts`, `lib/osInfo.ts`). 권한은 불요지만 이슈 본문에 실제로 나가는 값이다.
+`navigator.userAgent`/`userAgentData`로 브라우저·OS 버전을 읽어 **재현 환경 표에 실어 8개 플랫폼 또는 Custom Webhook으로 제출**한다(`sidepanel/lib/buildEditorCapture.ts`, `sidepanel/lib/osInfo.ts`). 권한은 불요지만 이슈 본문에 실제로 나가는 값이다.
 
 ### 쓰기 패턴 특이사항
 
 - **session quota 초과 대응** (`useEditorSessionSync.ts`): 이미지 필드를 제거한 "lite" 스냅샷으로 폴백. 3연속 실패 시 저장 중단 + `onSessionSaveExhausted` 발화
 - **bg ↔ sidepanel 동기화** (`main.tsx`): bg가 OAuth 토큰을 `chrome.storage.local`에 직접 쓰면 `onChanged` 리스너가 Zustand 재수화 트리거
-- **세션 외부 삭제 감지** (`useEditorSessionSync.ts:203`): `session` area의 editor 키가 null이 되면(bg에서 `remove` 호출) 세션 만료/리셋 처리
+- **세션 외부 삭제 감지** (`useEditorSessionSync`의 `storage.onChanged`): `session` area의 editor 키가 null이 되면(bg에서 `remove` 호출) 세션 만료/리셋 처리
 
 ---
 
@@ -395,7 +400,7 @@ pre-arm 게이트 플래그 `__bugshot_recorder_active__`=`"1"`을 **방문 페�
 
 ### 토큰 저장
 
-플랫폼 OAuth/PAT 토큰은 `chrome.storage.local`의 `bugshot-settings` 키 아래 `accounts.{platform}.auth`에 저장. **BYOK LLM API 키는 여기가 아니다** — `bugshot-app-settings`의 `llm.apiKey`에 난독화 상태로 들어간다(위 §6).
+플랫폼 OAuth/PAT 토큰은 `chrome.storage.local`의 `bugshot-settings` 키 아래 `accounts.{platform}.auth`에 저장. Custom Webhook URL·시크릿·요청 헤더·전송 형식·JSON 템플릿도 `accounts.webhook`에 평문으로 저장한다. **BYOK LLM API 키는 여기가 아니다** — `bugshot-app-settings`의 `llm.apiKey`에 난독화 상태로 들어간다(위 §6).
 
 bg service worker에서 직접 읽기/쓰기:
 - `settings-storage.ts` — `readStoredAuth()`, `writeStoredOAuthTokens()` 등
@@ -404,7 +409,7 @@ bg service worker에서 직접 읽기/쓰기:
 
 | 플랫폼 | Pre-refresh 임계값 | 401 재시도 | 갱신 중복 방지 |
 |---|---|---|---|
-| Jira | 60초 (`jira-api.ts:82`) | O (`authedFetch`) — **단 4경로는 제외** — agile 3경로(`jiraFetch(…, retryOn401=false)`: board 목록·보드별 sprint·sprint 단건)와 **agile이 아닌 `jira.sprintFieldMeta`**(`messages.ts` 핸들러가 `getSprintFieldMeta(…, false)`. 같은 함수라도 제출 경로(`createIssue`)는 `true`라 호출부가 선택을 강제받는다). 가르는 축은 엔드포인트가 아니라 **"만료 안내를 띄워도 되는 호출인가"**다 — scope 미비 401은 refresh로 안 풀리는 영구 조건이라 재시도가 회전형 refresh token만 소모하고 전역 재인증 안내를 오발화한다 | `refreshInFlight` Promise 중복 제거 |
+| Jira | 60초 (`jira-api.ts:TOKEN_REFRESH_THRESHOLD_MS`) | O (`authedFetch`) — **단 4경로는 제외** — agile 3경로(`jiraFetch(…, retryOn401=false)`: board 목록·보드별 sprint·sprint 단건)와 **agile이 아닌 `jira.sprintFieldMeta`**(`messages.ts` 핸들러가 `getSprintFieldMeta(…, false)`. 같은 함수라도 제출 경로(`createIssue`)는 `true`라 호출부가 선택을 강제받는다). 가르는 축은 엔드포인트가 아니라 **"만료 안내를 띄워도 되는 호출인가"**다 — scope 미비 401은 refresh로 안 풀리는 영구 조건이라 재시도가 회전형 refresh token만 소모하고 전역 재인증 안내를 오발화한다 | `refreshInFlight` Promise 중복 제거 |
 | GitHub | 60초 (`github-api.ts:97` → `background/lib/createRefreshRunner.ts`) | O (`authedFetch`) | `refreshOnceWithLock` 훅 주입 |
 | Linear | 60초 (`linear-api.ts:52`) | O (`authedGraphQL`) | `refreshOnceWithLock` 훅 주입 |
 | Notion | — | 401 시 `OAuthError` throw → 재인증 안내 | — |
@@ -415,8 +420,8 @@ bg service worker에서 직접 읽기/쓰기:
 
 ### OAuth 에러 처리
 
-- `OAuthError` (`oauth/errors.ts` — `oauth.ts`가 re-export): `cancelled`, `platform`, `notConfigured` 필드 포함
-- bg에서 시리얼라이즈: `body.oauthCancelled` 또는 `body.oauthRefreshFailed` 플래그 (`background/oauth.ts:43` `serializeOAuthError` — `background/index.ts`에서 호출)
+- `OAuthError` (`oauth/errors.ts` — `oauth.ts`가 re-export): `cancelled`, `platform`, `notConfigured`, `launchFailed`, `refreshFailed`, `reason` 필드 포함
+- bg의 `background/oauth.ts:serializeOAuthError`가 취소는 상태 코드 없이 `oauthCancelled`, 설정 누락은 400 + `oauthNotConfigured`, 인증 창 실행 실패는 400 + `oauthLaunchFailed`, refresh 실패만 401 + `oauthRefreshFailed`로 직렬화한다. 일반 최초 연결 실패는 400이다. `lib/connectLane.ts`의 `inConnectLane`·`inRefreshLane`이 연결과 갱신을 구분하며, `launchOAuthWebFlow`가 팝업·로드·동시 실행 실패를 분류한다
 - `notConfigured`(env 미설정)는 401이 아니라 **400 + `oauthNotConfigured`**로 직렬화한다 — 401로 내면 연동한 적도 없는 사용자에게 재로그인 프롬프트가 뜬다
 - `onOAuthExpired` 이벤트 (`lib/app-events.ts`): refresh 실패 시 `lib/bg-client.ts`의 `sendBg`가 reject **이전에** 발화 → 재인증 UI 표시
 - 사용자 취소 코드: `access_denied` (전 플랫폼), `user_cancelled_login`/`user_cancelled_authorize` (Jira), `user_denied` (Notion)
@@ -453,7 +458,7 @@ env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화.
 | ClickUp | `ClickupOAuthAuth` (만료·refresh 없음) | `ClickupPatAuth` (`pk_` 토큰) |
 | Slack | `SlackOAuthAuth` (user token, 만료·refresh 없음) | ❌ 없음 (OAuth 전용) |
 
-API Key/PAT 모드는 OAuth 인프라(refresh, proxy, identity API)를 일절 거치지 않는다. (GitLab PAT는 self-managed 인스턴스 host 권한만 런타임 획득.)
+API Key/PAT 모드는 OAuth 인프라(refresh, proxy, identity API)를 일절 거치지 않는다. (GitLab self-managed 호스트도 필수 `<all_urls>`로 커버된다. `requestHostPermission` 호출은 남아 있지만 이미 보유한 권한이다.)
 
 ---
 
@@ -551,7 +556,7 @@ background/index.ts:137 — webNavigation.onCommitted
 | `auth.atlassian.com` | Jira OAuth authorize (launchWebAuthFlow — host_permission 불요) | `oauth.ts` — `launchWebAuthFlow` URL |
 | `api.github.com` | GitHub REST API | `github-api.ts` — repos, issues, users |
 | `github.com` | GitHub 파일 업로드 page injection + 에셋 업로드 정책(`github.com/upload/policies/assets`) | `github-upload.ts` — 전용 비활성 탭을 열어 `executeScript({world:"MAIN"})` |
-| GitHub 발급 S3 업로드 URL | 정책 응답의 동적 `policy.upload_url`로 실제 바이트 PUT (고정 host 아님) | `github-upload.ts` — `policy.upload_url` |
+| GitHub 발급 S3 업로드 URL | 정책 응답의 동적 `policy.upload_url`로 실제 바이트 multipart POST (고정 host 아님) | `github-upload.ts` — `policy.upload_url` |
 | `api.linear.app` | Linear GraphQL + OAuth token | `linear-api.ts`, `linear-oauth.ts` |
 | `linear.app` | Linear OAuth authorize (launchWebAuthFlow라 host_permission 불요) | `linear-oauth.ts` |
 | Linear 발급 업로드 URL | `requestFileUpload`가 반환하는 pre-signed URL로 첨부 바이트 PUT (고정 host 아님) | `linear-api.ts` — `uploadUrl` |
@@ -562,8 +567,9 @@ background/index.ts:137 — webNavigation.onCommitted
 | `api.clickup.com` | ClickUp REST (task 생성·첨부 업로드·본문 갱신) | `clickup-api.ts` |
 | `app.clickup.com` | ClickUp OAuth authorize (`launchWebAuthFlow`라 host_permission 불요. token 교환은 proxy) | `clickup-oauth.ts` |
 | `slack.com` | Slack Web API (메시지 전송·채널/DM·멤버 조회·files 2-step 업로드) + OAuth authorize. files 업로드 2단계의 multipart POST는 Slack이 런타임 반환하는 `upload_url`(`*.slack.com` 등)로 나가고 이것도 `<all_urls>` 커버 | `slack-api.ts`, `slack-oauth.ts` |
-| `in.bug-shot.com` (`VITE_POSTHOG_HOST` — PostHog 관리형 리버스 프록시, CNAME으로 PostHog Cloud 직결. `vite.config.ts`가 define으로 값을 박고, env가 비어도 `resolvePostHogHost` 폴백이 같은 프록시라 **PostHog Cloud로 직행하는 경로가 없다**) | 익명 분석 — 이슈 제출·**플랫폼 연결 시도**(`platform_connect`, 플랫폼·성공/취소/실패 + 사유 분류 동봉)·연동 해제·설치(`extension_installed`, 확장 버전 동봉)·패널 열기(`sidepanel_opened`, `page_supported` 동봉) 집계(`$ip:"0.0.0.0"`·geoip 비활성·person profile 미생성) | `background/analytics.ts` — `/capture/` fetch |
+| `in.bug-shot.com` (`VITE_POSTHOG_HOST` — PostHog 관리형 리버스 프록시, CNAME으로 PostHog Cloud 직결. `vite.config.ts`가 define으로 값을 박고, env가 비어도 `resolvePostHogHost` 폴백이 같은 프록시라 **PostHog Cloud로 직행하는 경로가 없다**) | 익명 분석 — 이슈 제출·**플랫폼 연결 시도**(`platform_connect`, 플랫폼·성공/취소/실패 + 사유 분류 동봉)·연동 해제·설치(`extension_installed`, 확장 버전 동봉)·패널 열기(`sidepanel_opened`, `page_supported` 동봉) 집계. 패널 열기·이슈 제출에만 `ui_locale`·`report_locale_setting`·`report_locale` 동봉(AI 언어 제외)(`$ip:"0.0.0.0"`·geoip 비활성·person profile 미생성) | `background/analytics.ts` — `/capture/` fetch |
 | 플랫폼 아바타·아이콘 CDN | **`fetch`가 아니라 `<img src>` 서브리소스** — GitHub·GitLab(+`secure.gravatar.com`)·Jira·Notion의 사용자 아바타와 Jira 이슈타입 아이콘. 권한은 불요지만 사용자 IP가 그 CDN으로 나간다 | `*/AssigneeCombobox.tsx`·`CcCombobox.tsx`·`jiraFields/{AssigneeField,IssueTypeCombobox}.tsx`·`connect/JiraConnectForm.tsx` |
+| 사용자 지정 Webhook origin | 사용자 지정 주소로 리포트·첨부 직접 전송. HTTPS 기본, 사설망 HTTP 예외 허용. 브라우저 쿠키 미전송(`credentials:omit`), 리다이렉트 거부 | `background/webhook-api.ts`, `lib/webhook-url-policy.ts` |
 | OAuth proxy origin | OAuth proxy (client_secret 은닉) | `oauth.ts`, `github-oauth.ts`, `notion-oauth.ts`, `asana-oauth.ts`, `clickup-oauth.ts`, `slack-oauth.ts` |
 
 ### OAuth Proxy 엔드포인트
@@ -588,6 +594,8 @@ Linear·GitLab은 PKCE 지원으로 proxy 불필요 — 각각 `api.linear.app/o
 `<all_urls>`는 `host_permissions`에 required로 선언돼 **설치 시 부여**된다(과거 optional + 런타임 요청 모델은 폐기 — §1 참조). 따라서 `chrome.permissions.contains`/`remove` 기반의 확인·철회 흐름은 코드에서 제거됐고(`chrome.permissions.request`는 BYOK/GitLab의 `requestHostPermission`으로 **잔존** — 이미 보유라 즉시 grant, 아래 §requestHostPermission 잔존 호출 참조), `BROAD_HOST_ORIGINS` 상수(`src/lib/broad-host-origins.ts`)도 삭제됐다.
 
 ### 사용처
+
+Custom Webhook의 사용자 지정 origin도 `<all_urls>`로 커버된다. `background/webhook-api.ts`가 URL 정책 검사 후 쿠키 없이 직접 전송하며 리다이렉트를 따르지 않는다.
 
 | 위치 | 용도 |
 |---|---|
@@ -615,46 +623,29 @@ required 권한이라 설치 시 "모든 사이트의 데이터 읽기/변경"�
 
 ```
 [설치]
-  │
-  ▼
-[대기] ◄──────────────────────────────────────┐
-  │                                            │
-  │ 사용자 제스처 (아이콘/단축키/메뉴)              │
-  ▼                                            │
-[activeTab 부여]                                │
-  │                                            │
-  │ activateTab() → sidePanel.open()           │
-  │                  + 활성화 URL 저장            │
-  ▼                                            │
-[패널 활성] ── captureVisibleTab ──►            │
-  │            tabCapture                      │
-  │            tabs.get(url)                   │
-  │            scripting.executeScript         │
-  │                                            │
-  │ 네비게이션 발생                              │
-  ▼                                            │
-[origin 비교] (target.url → 없으면 활성화 URL)    │
-  │                                            │
-  ├─ same-origin → [패널 유지]                   │
-  │                                            │
-  ├─ cross-origin + 커버 URL(http/https)         │
-  │   → [패널 유지] (same-origin 취급,            │
-  │      deferred 미발생 — <all_urls> required)   │
-  │                                            │
-  ├─ cross-origin + 비커버 + 미지원 URL + 비보존   │
-  │   → [패널 유지 + 세션 제거]                   │
-  │      (패널이 캡처 불가 안내를 그림)             │
-  │                                            │
-  ├─ cross-origin + 비커버(file:) + 비보존        │
-  │   → 패널 닫기 ─────────────────────────────┘
-  │                                            │
-  └─ cross-origin + 비커버 + 보존                │
-      → [패널 유지 + deferred 플래그]              │
-         │                                      │
-         ├─ 캡처 시도 → 3중 방어 → 즉시 다이얼로그  │
-         │                                      │
-         └─ phase → idle 전환                    │
-            → [만료 다이얼로그] ─ OK ─► close() ──┘
+  ↓
+[대기]
+  │ 사용자 제스처 (아이콘/단축키/메뉴)
+  ↓
+[activeTab 부여]
+  │ activateTab() → sidePanel.open() + URL 저장
+  ↓
+[패널 활성] → captureVisibleTab / tabCapture / tabs.get / scripting.executeScript
+  │ 네비게이션 발생
+  ↓
+[origin 비교] (target.url → 없으면 저장된 최근 URL)
+  ├─ same-origin → [패널 유지]
+  ├─ cross-origin + 커버 URL(http/https 또는 파일 액세스 ON인 file:)
+  │   → [패널 유지] (deferred 미발생)
+  ├─ cross-origin + 미지원 URL + 비보존
+  │   → [패널 유지 + 세션 제거 + 캡처 불가 안내]
+  ├─ cross-origin + 파일 액세스 OFF인 file: + 비보존
+  │   → [패널 닫기]
+  └─ cross-origin + 비커버 + 보존
+      → [패널 유지 + deferred 플래그]
+         ├─ 정지 캡처·freeform 권한 실패 → [만료 다이얼로그]
+         ├─ 탭 스트림 권한 실패 → [화면 공유 선택기로 폴백]
+         └─ phase → idle 전환 → [만료 다이얼로그] → OK → close()
 ```
 
 ### 광역 host 권한 (`<all_urls>`, required) 라이프사이클

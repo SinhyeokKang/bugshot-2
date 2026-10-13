@@ -5,6 +5,20 @@ vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) })
 
 import { submitEventProperties, trackDisconnect, trackSubmit } from "../track-submit";
 import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
+import { languageEventProperties } from "@/lib/analytics-language";
+
+it.each(["success", "failure"] as const)("forwards the language snapshot on %s", (result) => {
+  sendBg.mockResolvedValue({});
+  sendBg.mockClear();
+  const settings = { locale: "ko", bodyLocale: "auto" };
+  const languages = languageEventProperties(settings.locale, settings.bodyLocale);
+  settings.locale = "fr";
+  settings.bodyLocale = "en";
+  trackSubmit("github", "freeform", result, false, null, null, null, null, languages);
+  expect(sendBg.mock.calls[0][0].properties).toMatchObject({
+    ui_locale: "ko", report_locale_setting: "auto", report_locale: "ko",
+  });
+});
 
 // PlatformId 전수여야 한다 — 부분 배열은 합법이라 빠뜨려도 red가 안 난다.
 const PLATFORMS = Object.keys(PLATFORM_TAB_KEYS) as PlatformId[];

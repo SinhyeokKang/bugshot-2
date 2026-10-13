@@ -245,51 +245,52 @@ export function App({ data }: AppProps) {
         />
       </TabsContent>
 
-      {/* h-[68px] 고정(=Button h-9 + py-4): 탭/이슈버튼 유무로 버튼이 안 뜰 때 높이가 줄어 레이아웃이 점프하는 걸 막는다 */}
-      <div className="flex h-[68px] shrink-0 items-center gap-2 border-t border-border bg-muted/50 px-4">
-        {isSafeExternalUrl(data.meta.issueUrl) ? (
-          <Button variant="outline" asChild>
-            <a href={data.meta.issueUrl} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-3.5 w-3.5" />
-              {t("logViewer.footer.issueLink")}
-            </a>
-          </Button>
-        ) : (
-          <div />
-        )}
-        <div className="ml-auto">
-          {activeTab === "console" && hasConsole && (
-            <Button
-              className="gap-1"
-              data-testid="download-console-json"
-              onClick={() => downloadJson(buildConsoleLogJson(data.consoleLog!, data.meta.version), "Console-log.json")}
-            >
-              <Download className="h-4 w-4" />
-              Console-log.json
+      {(activeTab !== "report" || isSafeExternalUrl(data.meta.issueUrl)) && (
+        <div className="flex h-[68px] shrink-0 items-center gap-2 border-t border-border bg-muted/50 px-4">
+          {isSafeExternalUrl(data.meta.issueUrl) ? (
+            <Button variant="outline" asChild>
+              <a href={data.meta.issueUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-3.5 w-3.5" />
+                {t("logViewer.footer.issueLink")}
+              </a>
             </Button>
+          ) : (
+            <div />
           )}
-          {activeTab === "network" && hasNetwork && (
-            <Button
-              className="gap-1"
-              data-testid="download-network-har"
-              onClick={() => downloadJson(buildHar(data.networkLog!, data.meta.version), "Network-log.har")}
-            >
-              <Download className="h-4 w-4" />
-              Network-log.har
-            </Button>
-          )}
-          {activeTab === "action" && hasAction && (
-            <Button
-              className="gap-1"
-              data-testid="download-action-json"
-              onClick={() => downloadJson(buildActionLogJson(data.actionLog!, data.meta.version), "Action-log.json")}
-            >
-              <Download className="h-4 w-4" />
-              Action-log.json
-            </Button>
-          )}
+          <div className="ml-auto">
+            {activeTab === "console" && hasConsole && (
+              <Button
+                className="gap-1"
+                data-testid="download-console-json"
+                onClick={() => downloadJson(buildConsoleLogJson(data.consoleLog!, data.meta.version), "Console-log.json")}
+              >
+                <Download className="h-4 w-4" />
+                Console-log.json
+              </Button>
+            )}
+            {activeTab === "network" && hasNetwork && (
+              <Button
+                className="gap-1"
+                data-testid="download-network-har"
+                onClick={() => downloadJson(buildHar(data.networkLog!, data.meta.version), "Network-log.har")}
+              >
+                <Download className="h-4 w-4" />
+                Network-log.har
+              </Button>
+            )}
+            {activeTab === "action" && hasAction && (
+              <Button
+                className="gap-1"
+                data-testid="download-action-json"
+                onClick={() => downloadJson(buildActionLogJson(data.actionLog!, data.meta.version), "Action-log.json")}
+              >
+                <Download className="h-4 w-4" />
+                Action-log.json
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </Tabs>
   );
 

@@ -1,6 +1,58 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { analyticsEnabled, buildCaptureBody, postCapture, resolveInstallationId, isAllowedEvent, filterProperties, resolvePostHogHost } from "../analytics";
 import { submitEventProperties } from "@/sidepanel/lib/track-submit";
+import { languageEventProperties } from "@/lib/analytics-language";
+import { readPanelLanguageProperties } from "../analytics";
+import { APP_SETTINGS_PERSIST_KEY } from "@/lib/session-keys";
+
+describe("language analytics", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("allows language properties only on panel opens and submissions", () => {
+    const languages = languageEventProperties("ko", "en");
+    for (const event of ["sidepanel_opened", "issue_submitted"]) {
+      expect(filterProperties(event, languages)).toEqual(languages);
+    }
+    for (const event of ["extension_installed", "platform_connect", "platform_disconnected"]) {
+      expect(filterProperties(event, languages)).toEqual({});
+    }
+  });
+
+  it("drops raw language values and accepts auto only for the setting", () => {
+    expect(filterProperties("issue_submitted", {
+      ui_locale: "secret", report_locale_setting: "auto", report_locale: "auto",
+    })).toEqual({ report_locale_setting: "auto" });
+  });
+
+  it("preserves the submitted language snapshot through the allowlist", () => {
+    const sent = submitEventProperties("github", "freeform", "success", false, null, null, null, null,
+      languageEventProperties("ko", "en"));
+    expect(sent).toMatchObject({ ui_locale: "ko", report_locale_setting: "en", report_locale: "en" });
+    expect(filterProperties("issue_submitted", sent)).toEqual(sent);
+  });
+
+  it("reads persisted settings on every panel open", async () => {
+    const get = vi.fn().mockResolvedValueOnce({ [APP_SETTINGS_PERSIST_KEY]: JSON.stringify({ state: { locale: "ko", bodyLocale: "en", aiLanguage: "de" } }) })
+      .mockResolvedValueOnce({ [APP_SETTINGS_PERSIST_KEY]: { state: { locale: "fr", bodyLocale: "auto" } } });
+    vi.stubGlobal("chrome", { storage: { local: { get } } });
+    expect(await readPanelLanguageProperties()).toEqual(languageEventProperties("ko", "en"));
+    expect(await readPanelLanguageProperties()).toEqual(languageEventProperties("fr", "auto"));
+  });
+
+  it("uses browser detection only when settings are absent", async () => {
+    vi.stubGlobal("navigator", { language: "de-DE" });
+    vi.stubGlobal("chrome", { storage: { local: { get: vi.fn().mockResolvedValue({}) } } });
+    expect(await readPanelLanguageProperties()).toEqual(languageEventProperties("de", "auto"));
+  });
+
+  it("omits language on read or parse failure instead of inventing usage", async () => {
+    const get = vi.fn().mockRejectedValueOnce(new Error("read failed"))
+      .mockResolvedValueOnce({ [APP_SETTINGS_PERSIST_KEY]: "invalid json" });
+    vi.stubGlobal("chrome", { storage: { local: { get } } });
+    expect(await readPanelLanguageProperties()).toEqual({});
+    expect(await readPanelLanguageProperties()).toEqual({});
+  });
+});
 
 // env가 비었을 때 어디로 나가느냐가 privacy 문서의 단언(`in.bug-shot.com`으로만 나간다)과
 // 직결된다 — 폴백이 PostHog Cloud 직행이면 문서가 거짓이 되므로 기본값을 못으로 박는다.

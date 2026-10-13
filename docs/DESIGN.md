@@ -2,7 +2,7 @@
 
 bugshot-2의 디자인 시스템·UI 컨벤션 단일 출처. 신규 화면·컴포넌트를 만들 때 여기 패턴을 먼저 본다. 권한·아키텍처는 [ARCHITECTURE.md](./ARCHITECTURE.md), 파일별 역할은 [DIRECTORY.md](./DIRECTORY.md) 참조.
 
-> 이 문서는 코드베이스에서 역추출한 **현재 상태 스냅샷 + 권장 가이드**다. lint/test로 강제되는 규칙은 아니므로 "권장"으로 읽되, 합리적 이유 없이 벗어나지 않는다. 일부는 아직 코드가 따라오지 못한 **개선 후보(⚠)**로 표시한다. 컨벤션을 바꾸면 여기도 함께 갱신한다.
+> 이 문서는 코드베이스에서 역추출한 **현재 상태 스냅샷 + 권장 가이드**다. 권장 가이드이며 토큰 일치·색상 대비 등 일부 규칙은 테스트로 강제한다. 합리적 이유 없이 벗어나지 않는다. 일부는 아직 코드가 따라오지 못한 **개선 후보(⚠)**로 표시한다. 컨벤션을 바꾸면 여기도 함께 갱신한다.
 
 ## 1. 기반 스택
 
@@ -180,7 +180,7 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 - 키보드·역할·포커스 트랩은 **Radix 프리미티브**가 기본 제공한다(shadcn 컴포넌트를 쓰면 따라옴).
 - 포커스 표시는 `focus-visible:ring-2 focus-visible:ring-ring` 컨벤션.
   - ⚠ **현재 `--ring`이 `--border`와 같은 값**이라(`globals.css`) 키보드 포커스 링이 잘 안 보인다. 개선 후보 — 별도 대비색으로 분리하면 좋다. 그 전까진 중요한 인터랙션에 포커스가 보이는지 직접 확인.
-- **아이콘 전용 버튼**(`size="icon"`)은 텍스트가 없으므로 `aria-label`(또는 `sr-only` 텍스트)을 붙인다 — 안 그러면 스크린리더에서 무명 버튼. **툴바 아이콘 버튼의 hover 툴팁은 native `title`이 아니라 `TooltipIconButton`(Radix Tooltip + `aria-label`, §13)을 기본으로 한다** — 캡처 방식 툴바·어노테이션 툴바(이미지·녹화)가 전부 이걸 쓴다. **`title`-only는 현재 0곳이다**(실측 — `size="icon"` 52곳 중 `aria-label`+`title` 병기 43 / `aria-label`만 9). 마지막 하나였던 `OrderedListEditor`의 삭제 버튼이 `aria-label`을 얻으면서 레거시 목록이 공집합이 됐으니, 새 아이콘 버튼은 `TooltipIconButton`을 쓰거나 직접 만들면 `aria-label`을 반드시 붙여 이 상태를 유지한다. **jsdom 접근명 계산은 `title`로 폴백하므로 `getByRole(..., { name })`만으로는 title-only가 통과한다** — 속성 존재를 따로 단언해야 그물이 된다(`OrderedListEditor.test.tsx` 선례).
+- **아이콘 전용 버튼**(`size="icon"`)은 텍스트가 없으므로 `aria-label`(또는 `sr-only` 텍스트)을 붙인다 — 안 그러면 스크린리더에서 무명 버튼. **툴바 아이콘 버튼의 hover 툴팁은 native `title`이 아니라 `TooltipIconButton`(Radix Tooltip + `aria-label`, §13)을 기본으로 한다** — 캡처 방식 툴바·어노테이션 툴바(이미지·녹화)가 전부 이걸 쓴다. **`title`-only는 현재 0곳이다**(실측 — `size="icon"` 51곳 중 `aria-label`+`title` 병기 42 / `aria-label`만 9). 마지막 하나였던 `OrderedListEditor`의 삭제 버튼이 `aria-label`을 얻으면서 레거시 목록이 공집합이 됐으니, 새 아이콘 버튼은 `TooltipIconButton`을 쓰거나 직접 만들면 `aria-label`을 반드시 붙여 이 상태를 유지한다. **jsdom 접근명 계산은 `title`로 폴백하므로 `getByRole(..., { name })`만으로는 title-only가 통과한다** — 속성 존재를 따로 단언해야 그물이 된다(`OrderedListEditor.test.tsx` 선례).
 - 보조 정보용 저대비 텍스트(`text-muted-foreground/70`)는 본문 핵심 정보에 쓰지 않는다.
 - 다이얼로그를 **코드로(프로그램적으로) 열 때**는 `blurActiveElement()`(`App.tsx`)로 포커스를 먼저 떼야 Radix `aria-hidden` 경고를 피한다 — 새 전역 다이얼로그 추가 시 참고.
 
@@ -234,7 +234,7 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
 | 계열 | 자리 | raw인 이유 | 추가 요구 |
 |---|---|---|---|
 | 입력 내 클리어 | 검색창 우측 `X` (`IssueListTab`·`Action/Console/NetworkLogContent`·log-viewer `TimelinePanel`) | `size="icon"`(h-9 w-9)이 필드 안에 안 들어간다 | `aria-label` 필수 |
-| 트리 chevron | `TreeChevronButton.tsx` (JSON·DOM 트리 공용) | 같은 이유(4px 슬롯) | `aria-expanded` 필수, 라벨은 호출부 주입. **새 트리는 이걸 쓴다** |
+| 트리 chevron | `TreeChevronButton.tsx` (JSON·DOM 트리 공용) | 같은 이유(16px(`h-4 w-4`) 슬롯) | `aria-expanded` 필수, 라벨은 호출부 주입. **새 트리는 이걸 쓴다** |
 | sticky 헤더 제목 | `DomTreeDialog`의 선택 요소 제목 (`DialogTrigger` — 누르면 DOM 트리 다이얼로그가 열린다) | `Button variant="ghost"`의 base cva `inline-flex h-9 px-4`가 원본 `block w-full truncate text-2xl`과 충돌해 **`truncate`가 파손된다**(익명 flex item이 되어 하드 클립) — 행 높이 +4px, 텍스트 폭 −32px, hover가 `opacity-70` 전이 대신 면색 블록. override 4종이 원본 className보다 길어진다 | `focus-visible:ring-2 focus-visible:ring-ring` + `title`(잘린 제목 전문) |
 | 트리 행 더보기 | `JsonTreeViewer`의 "n개 더" | `Button variant="link"`도 base의 `h-9 px-4`를 물고 와 트리 행 높이(`py-0.5`)를 깨뜨린다 | `w-full text-left` — 원래 block-level `<div>`라 없으면 클릭 영역이 텍스트 폭으로 좁아진다. `aria-expanded`는 **붙이지 않는다**(disclosure가 아니라 다음 청크 추가라 상태 속성이 거짓말이 된다) |
 | 문자열 인라인 더보기 | `JsonTreeViewer`의 "모두 보기" | 같은 이유 | **`w-full`을 붙이지 않는다** — 원래 인라인 `<span>`이라 붙이면 클릭 영역이 행 전체로 번진다. 위 행과 계열은 같지만 요구가 반대인 지점 |
@@ -263,7 +263,7 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
 - **비활성 탭 콘텐츠 숨김은 두 가지 경우**가 있다:
   - Radix `Tabs`가 콘텐츠까지 감싸는 영역(DebugTab·SettingsTab·IntegrationsTab 등) → `TabsContent` 자신에 **`data-[state=inactive]:hidden`**.
   - App 최상위처럼 `Tabs`가 탭 바만 감싸는 구조 → 콘텐츠 `<div>`를 상태값으로 **수동 `hidden` 토글**(`App.tsx`). Radix data-state가 닿지 않기 때문.
-  - 어느 쪽이든 비활성 탭을 언마운트하지 않고 숨겨 동시 렌더 버그를 피하는 게 의도.
+  - App 최상위는 수동 `hidden`으로 마운트를 유지한다. Radix `TabsContent`는 기본적으로 비활성 자식을 언마운트하며, 상태·스크롤 보존이 필요한 `LogPreviewDialog`·`LogInsertDialog`는 `forceMount`와 `data-[state=inactive]:hidden`을 함께 쓴다.
 - **세그먼트 뷰 토글**(`StyleEditorPanel.tsx` 편집/CSS 스위치): shadcn `Tabs`를 `TabsContent` 없이 `grid grid-cols-2` 세그먼트 바(트리거에 아이콘 Paintbrush/Code2 `h-3.5 w-3.5` + `gap-1.5`)로만 쓰고, 활성 상태를 로컬 state가 아니라 **store 값**(`useSettingsUiStore.styleEditorView`, 값은 그대로 `"form"|"code"`)에서 읽는다. **스왑은 두 뷰가 대칭이다**: 편집(폼) wrapper는 `cn(… styleEditorView !== "form" && "hidden")`, CSS 뷰 wrapper는 `cn(… styleEditorView === "code" ? "flex" : "hidden")`으로 **둘 다 class 토글일 뿐 언마운트하지 않는다**(위 "수동 hidden" 계열 — collapsible 접힘 보존). CSS 뷰는 항상 마운트된 채 `key={elementKey(selection)}`로 **요소가 바뀔 때만 remount**한다(doc는 store에서 재파생해 무손실). ⚠ 그래서 **CodeMirror lazy 청크도 CSS 탭 진입과 무관하게 패널 진입 시 로드된다** — `StyleCssView`의 Suspense가 무조건 렌더되기 때문이고, "CSS 탭을 열 때만 받는다"로 읽지 말 것. class·Text 섹션은 **편집 뷰 전용**(폼 hidden wrapper 안), 변경사항·AI 배너·푸터만 두 뷰 공통이라 토글 wrapper **밖**에 둔다. hidden wrapper가 `Section`의 `:last-child`(`last:border-b-0`, 아래 §합성 컴포넌트) 스코프를 나눠 마지막 섹션의 하단 구분선이 사라지므로 그 wrapper에 **`[&>section:last-child]:border-b`**로 복원한다.
 - `collapsing-tabs.tsx` (`CollapsingTabsList`): ResizeObserver/MutationObserver로 폭을 감시해, 트리거가 넘치면 **모든 탭 라벨을 동시에 숨기고 아이콘+배지만** 남긴다. 측정 중엔 `group-data-[measuring]/tabs:inline`로 라벨을 강제 노출해 자연 폭 계산. 사용처: 메인 탭 바, 서브탭, `ReplayTrimDialog`·`LogPreviewDialog`·`LogInsertDialog`·`SubmitPlatformTabs`, log-viewer `App`.
   - **`forceCollapsed` prop은 그 측정을 건너뛰고 무조건 접는다.** 가로 스크롤 목록에서는 셀 폭이 곧 콘텐츠 폭이라 측정이 영원히 "안 넘침"으로 떨어지기 때문이다. 유일 사용처는 제출 다이얼로그 탭 줄(`SubmitPlatformTabs.tsx` — 값은 `submitTabsLayout.ts`가 계산).
@@ -311,7 +311,7 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
 | `OriginFilterBar.tsx` | 출처별 로그 필터 바 — Console/Network/Action 로그 공용, origin 2개+ 일 때만 노출 |
 | `{Console,Network,Action}LogContent.tsx` + `*LogPreviewDialog.tsx` | 로그 목록·상세 렌더와 그 다이얼로그 셸 — 사이드패널 로그 탭·리플레이 트림·로그 추가 다이얼로그·log-viewer가 공유(§14 로그 행 심각도 규칙의 구현체). `NetworkLogContent`는 `onActiveChange`, `ConsoleLogContent`는 `selectedId`+`onActiveChange`로 선택을 노출한다(미공급 시 표시 전용 — 비침습) |
 | `LogAttachmentCards.tsx` (+ `logCardTypeCounts.ts`) | logs.html 단일 첨부 토글 카드 — 카드 설명 문자열은 `logCardTypeCounts.ts` 단일 출처(`ccOptions.ts`와 같은 등급의 콜로케이션 헬퍼)(Switch + 스위치 영역 hover-suppress — **`IssueRow`와 공유하는 건 이 hover-suppress 로직뿐**이고 카드 골격은 `AttachmentList`와 동일[`Card`+`p-3`, 제목 `text-sm font-medium`]. `IssueRow`는 Card가 아닌 div에 `px-4 py-3`·제목 `text-base`) — 클릭 시 LogPreviewDialog |
-| `IssuePreviewView.tsx` | 이슈 본문 프리뷰 — 제목·재현 환경·섹션 + 마크다운 복사, `media`/`logCards` 슬롯. PreviewPanel과 log-viewer Report 탭 공용(두 표면이 같은 본문 **구조**를 그리도록 강제). **언어 정책은 표면별로 갈리고, log-viewer 쪽은 두 층이다** — PreviewPanel은 화면 언어. log-viewer Report 탭은 **본문(`data.report.sections`)이 export 시점 언어로 박제**되지만 섹션 라벨·UI 문구는 `t("logViewer.report.*")`라 **읽는 사람의 브라우저 언어**로 나온다(log-viewer는 `bodyLocale`을 모르고, 사용자 locale 주입을 의도적으로 안 한다). 같은 컴포넌트가 다른 언어를 렌더할 수 있는 게 의도다 |
+| `IssuePreviewView.tsx` | 이슈 본문 프리뷰 — 제목·재현 환경·섹션 + 마크다운 복사, `media`/`logCards` 슬롯. PreviewPanel과 log-viewer Report 탭 공용(두 표면이 같은 본문 **구조**를 그리도록 강제). **언어 정책은 표면별로 갈리고, log-viewer 쪽은 두 층이다** — PreviewPanel은 화면 언어. log-viewer Report 탭은 **섹션 라벨·환경 제목이 export 시점의 본문 언어로 고정**된다(사용자 지정 라벨·본문 내용은 원문 유지). 복사·빈 값·코드블럭 조작 등 뷰어 UI 문구만 **읽는 사람의 브라우저 언어**를 따르며, `envTitle`이 없는 예전 파일은 환경 제목도 브라우저 언어로 폴백한다. 같은 컴포넌트가 다른 언어를 렌더할 수 있는 게 의도다 |
 | `SubmitSuccessView.tsx` | 제출 완료 화면 — 성공 아이콘 + 이슈 링크 + 후기·확인 버튼. IssueTab(작성)·IssueListTab(목록) 공용 |
 | `AttachmentRecoveryPanel.tsx` | 첨부 복구 상세 — 파일별 상태·다운로드·첨부 재시도. `DraftDetailDialog`·`SubmitSuccessView` 공용(경고 색은 §2 amber) |
 | `RecordingFloatingBar.tsx` | 녹화 중 반전 플로팅 바(§6) — 콘솔·네트워크 서브탭 공용. 진행 중인 세션 상태 전용 |
@@ -319,7 +319,7 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
 | `AnnotationOverlay.tsx` | 이미지 어노테이션 편집 오버레이 — `DraftingPanel`·`TiptapEditor`(인라인 이미지) 공용 |
 | `AttachmentSection.tsx` / `AttachmentList.tsx` | 사용자 파일 첨부 — 편집형(추가·삭제 카드) / 읽기 전용 카드 목록(클릭 시 로컬 재다운로드, `CATEGORY_ICON` 보유). 후자는 PreviewPanel·DraftDetailDialog 공용 |
 | `ImageActions.tsx` | 이미지 위 우상단 오버레이 컨트롤 — §6 관용구(`bg-background/90 backdrop-blur-sm` + 그룹 `rounded-md shadow-md`)를 `TooltipIconButton`·`ButtonGroup`으로 조합. `StyleChangesTable`이 소비한다. **아래 `blockActions` 행이 "수동 동기화" 대상으로 가리키는 React 원본**이라 아이콘·순서를 바꾸면 vanilla 쌍둥이도 함께 고친다 |
-| `LogInsertDialog.tsx` | 본문에 넣을 로그 1건을 고르는 다이얼로그 셸 — `DraftingPanel`·`LogPreviewDialog` 2곳 공용. 탭 전환은 아래 `*LogPreviewDialog` 계열과 같은 `data-[state=inactive]:hidden` 구조(스크롤 위치 보존) |
+| `LogInsertDialog.tsx` | 본문에 넣을 로그 1건을 고르는 다이얼로그 셸 — `DraftingPanel`에서 사용한다. 탭 전환은 아래 `*LogPreviewDialog` 계열과 같은 `data-[state=inactive]:hidden` 구조(스크롤 위치 보존) |
 | `TreeChevronButton.tsx` | JSON 트리·DOM 트리 공용 접기 chevron — raw `<button>` + `h-4 w-4`(§10 예외 항목 참조). 새 트리를 만들면 이걸 쓴다 |
 | `IntegrationsCta.tsx` | 연동 0개일 때 뜨는 amber 유도 배너 — `IssueTab`·`PreviewPanel`·`DraftDetailDialog` 3곳 공용(색은 §2 참조) |
 | `lib/blockActions.ts`(표 헤더의 `components/`가 아니다) + `block-actions.css` | React 밖 DOM(코드블럭 접기·Tiptap 인라인 이미지)의 우상단 아이콘 ButtonGroup primitive. `h-8 w-8`·semantic token·focus/hover·aria-label/title을 shadcn `TooltipIconButton`/`ButtonGroup`과 수동 동기화한다. 원본 버튼 규칙을 바꾸면 vanilla CSS도 함께 대조 |
@@ -371,7 +371,7 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
 3. 간격·radius·그림자·z-index는 §5–7의 관용값 먼저 재사용.
 4. CTA는 `Button`(기본 h-9). 아이콘 버튼은 `h-8 w-8`(헤더/행) 또는 `h-9 w-9`(필드 부착) + `aria-label`.
 5. 스크롤 영역은 `flex min-h-0 flex-1 flex-col` + 내부 overflow. 가로 깨짐은 `min-w-0`.
-6. 비활성 탭 콘텐츠 숨김: Radix 영역이면 `TabsContent`에 `data-[state=inactive]:hidden`, App 최상위형이면 수동 `hidden` 토글.
+6. 비활성 탭 콘텐츠 숨김: Radix 영역이면 `TabsContent`에 `data-[state=inactive]:hidden`을 지정하고 마운트 보존이 필요하면 `forceMount`도 함께 지정한다. App 최상위형이면 수동 `hidden` 토글.
 7. 좁은 폭 리플로우는 컨테이너 쿼리(`@container` + `@[…]:`).
 8. 새 애니메이션엔 `motion-reduce:` 고려, 포커스가 보이는지 확인.
 9. 알림은 `sonner` toast, 외부 className은 `cn()`로 병합.

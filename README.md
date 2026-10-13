@@ -141,7 +141,7 @@ When a still image isn't enough, record the behavior.
 - **Tab recording** — record the current tab, up to 2 minutes, encoded to MP4 (WebM fallback where MP4 isn't supported).
 - **Screen recording** — record any window or the full screen via the system picker, up to 2 minutes. Which of the two the record button starts is a setting (Settings → Issue settings → Recording), not two separate buttons.
 - **Draw while recording** — a mini toolbar (pen, box, or highlighter; up to 5 colors, fewer on a narrow panel; three thicknesses) lets you mark up the page during tab/screen recording. Freehand strokes fade tail-first in draw order over ~3s; a box fades all at once. Either way it's baked into the video.
-- **30s Replay** — an opt-in, always-on buffer that keeps the **last 30 seconds** as MP4. It looks back across page navigations, so you can catch the bug even *after* spotting it — no need to hit record beforehand.
+- **30s Replay** — an opt-in buffer that holds the **last 30 seconds** of frames in memory while the panel is open and idle on the active tab, then encodes them to MP4 when you capture. It looks back across page navigations, so you can catch the bug even *after* spotting it — no need to hit record beforehand.
 - **Trim before you file** — stopping any recording (tab, screen, or 30s Replay) opens a trim screen. Drag the handles to keep just the bug moment, and the attached console, network, and action logs are narrowed to the same range. Leave the handles alone and nothing is re-encoded; if re-encoding fails, the original clip is attached as is.
 
 ### 📋 Logs
@@ -167,14 +167,14 @@ All three logs ride along with every capture except element style editing, and t
 ### 📥 Issue list & drafts
 
 - **Submitted issues** — every report you've filed stays in the *Issues* tab with its platform badge, searchable and filterable by submitted/draft. Refresh to pull the current state back from the tracker, or change the status right from the panel and have it written back. Reports shared to Slack can be **promoted to a tracker issue later**, and the original Slack thread gets a reply with the new issue's URL.
+- **Attachment recovery** — if some attachments fail, check each file's status, retry supported steps, or download the retained original files.
 - **Drafts** — not ready to file? Save the report as a draft, reopen it later, edit any field, and submit when it's ready.
 
 ### 🔗 Integrations
 
 Connect via OAuth or a token. Every **tracker** supports destination selection
-and attachment upload — GitHub and GitLab upload through your signed-in session
-on their own site, and when that session is missing the report falls back to a
-download-and-drag note instead of an inline attachment. Assignee covers every tracker except Notion; label
+and attachment upload. GitHub uploads require a signed-in github.com session;
+GitLab uploads use the PAT or OAuth token from your connected account. Assignee covers every tracker except Notion; label
 selection is GitHub, Linear and GitLab only. **Slack** is a messenger rather than
 a tracker — it sends to a channel or DM instead.
 
@@ -245,12 +245,14 @@ pnpm build
 ```
 
 Then load `dist/` as an unpacked extension. Every key in `.env.example` is
-optional: without the OAuth client IDs — or the proxy URL — the OAuth buttons are hidden and you connect
-platforms with a personal access token instead, and without a PostHog key
-analytics is a no-op. So a build from an empty `.env.local` is fully functional
-*and* makes zero analytics requests.
+optional for building: capture and token-based connections work without OAuth configuration.
+OAuth connections require their client IDs and, where applicable, the proxy URL.
+Slack is OAuth-only, so its connection requires OAuth configuration. Without a
+PostHog key, analytics is a no-op and the build makes zero analytics requests.
 
-Open DevTools on the side panel and compare what you see against the
+Open DevTools on the side panel and inspect BugShot’s service worker from
+`chrome://extensions`. GitHub file uploads run in a dedicated github.com tab;
+inspect that tab for its upload requests. Compare the requests against the
 [transmission table](docs/privacy.en.md#3-external-transmission) — the only
 BugShot-operated endpoint in the whole list is the OAuth token-exchange proxy,
 which relays the code→token swap and never carries capture data.
@@ -317,7 +319,7 @@ rather than papered over: a hostname that resolves to an internal address can't
 be caught statically, since `fetch` re-resolves DNS. The fetched CSS is used
 on-device only.
 
-**Eight tracker integrations behind one adapter seam.** Each platform gets its
+**Eight platform integrations behind one adapter seam.** Each platform gets its
 own auth (OAuth or token), field schema, and upload path, but the report body is
 built once and rendered per target — Markdown, Jira ADF, Notion blocks, Slack
 mrkdwn. A ninth target, the custom webhook, rides the same seam without an auth
@@ -352,9 +354,9 @@ websites"* — the most alarming line in the install dialog, and it's required
 rather than optional. BugShot did ship the optional version first, requesting
 the permission at runtime, and it was dropped because it broke in use:
 `captureVisibleTab` runs on either `activeTab` or a broad host permission, and
-`activeTab` is revoked the moment the page makes a cross-document navigation,
-with no way to re-acquire it programmatically. A recording or a 30-second
-replay would simply die when the bug you were chasing navigated — which is
+`activeTab` is revoked when the page navigates to a different origin,
+with no way to re-acquire it programmatically. A 30-second replay that relies on
+repeated `captureVisibleTab` calls would stop when the bug you were chasing crossed origins — which is
 precisely when you need it.
 
 So the permission is broad. The data path isn't — everything it unlocks happens
