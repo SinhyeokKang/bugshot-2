@@ -115,7 +115,7 @@ export function IssueListTab() {
             <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
               <TabsList className="h-9">
                 <TabsTrigger value="all" data-testid="filter-all">{t("issueList.filter.all")}</TabsTrigger>
-                <TabsTrigger value="submitted" data-testid="filter-submitted">{t("issueList.filter.submitted")}{displayable.some((i) => i.submissionRecoveryId) && <span className="ml-1" aria-label={t("recovery.needsAttention")}>({displayable.filter((i) => i.submissionRecoveryId).length})</span>}</TabsTrigger>
+                <TabsTrigger value="submitted" data-testid="filter-submitted">{t("issueList.filter.submitted")}</TabsTrigger>
                 <TabsTrigger value="draft" data-testid="filter-draft">{t("issueList.filter.draft")}</TabsTrigger>
               </TabsList>
             </Tabs>

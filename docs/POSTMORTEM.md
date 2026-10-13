@@ -36,6 +36,16 @@
 
 ---
 
+## 2026-10-13 — 형제 Radix Tooltip을 연달아 훑은 직후 `getByRole("tooltip")`은 exit 애니메이션 중인 앞 툴팁까지 잡아 strict 위반으로 플레이키하다
+
+- **영역**: `e2e`
+- **계열**: `라이브러리전제`
+- **그물**: `e2e`
+- **증상**: `recording-live-logs.spec.ts`의 잠금 툴팁 케이스가 PR CI(`b5ccf394`)·dev push에선 green이었는데, 머지 후 **트리가 같은** squash 커밋(`0099ee2f`) push 런의 e2e 3번 샤드에서 retry까지 두 번 연속 실패했다. `getByRole('tooltip') resolved to 2 elements` — 두 span 모두 같은 문구("You can't switch tabs while recording")에 id만 달랐다(`radix-:r6b:`/`radix-:r6f:`).
+- **근본 원인**: 잠긴 탭 3개가 각자 독립 `Tooltip` root(Provider `delayDuration={0}`)라, `click({force:true})` 루프가 포인터를 issue-list→integrations→settings로 옮길 때마다 새 툴팁이 즉시 열리고 앞 툴팁은 `data-[state=closed]:animate-out`(~150ms) 동안 Presence가 DOM에 남긴다 — 그 안의 시각 숨김 `role="tooltip"` span도 같이. 루프에서 settings `hover()`까지가 150ms 안에 끝나면 둘이 공존한다. 그리고 **Playwright는 strict mode violation을 재시도 대상이 아닌 즉시 실패로 던진다** — `toHaveText`의 10s 폴링이 "곧 하나로 줄어들" 걸 기다려주지 않아, 겹치는 순간을 한 번만 밟아도 죽는다. 러너 속도에 따라 갈리므로 같은 트리에서 green/red가 교차했다.
+- **재발 방지**: (1) 툴팁 단언은 role 전역 조회가 아니라 **트리거의 `aria-describedby`가 가리키는 id로 스코프**한다 — Radix Tooltip 트리거는 열렸을 때 `aria-describedby`=시각 숨김 `role="tooltip"` span의 id다(id에 `:`가 있어 `#id` 대신 `[id="…"]`). `.first()`/`.last()`는 겹침 순서에 기대는 우회라 쓰지 않는다. 전수: `grep -rn 'getByRole("tooltip")' e2e`. (2) 같은 구조(exit 애니메이션 + 여러 인스턴스)는 Popover·DropdownMenu·Dialog 연속 개폐에도 있다 — 직전에 다른 인스턴스를 닫았다면 role 단독 조회를 의심한다. (3) 타이밍 플레이키는 단발 green으로 못 거른다 — 의심되면 `playwright test <spec> --repeat-each=5 --retries=0`.
+- **관련**: `e2e/recording-live-logs.spec.ts`(잠금 툴팁 케이스), `src/sidepanel/App.tsx:LockableTabTrigger`, `src/components/ui/tooltip.tsx`(`animate-out`), CI run `38347821576`.
+
 ## 2026-10-13 — `TooltipTrigger asChild`로 감싼 `TabsTrigger`는 `data-state`를 빼앗겨 선택돼도 active로 안 보인다
 
 - **영역**: `컴포넌트`

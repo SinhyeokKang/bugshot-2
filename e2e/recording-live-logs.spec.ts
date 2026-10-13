@@ -188,7 +188,9 @@ test.describe.serial("recording-live-logs: 녹화 중 로그 서브탭", () => {
     await panel.mouse.move(0, 0);
     await settings.hover();
     await expect(settings).toHaveAttribute("aria-describedby", /.+/);
-    await expect(panel.getByRole("tooltip")).toHaveText(/\S/);
+    // 루프가 지나온 앞 탭 툴팁이 exit 애니메이션 동안 role=tooltip으로 남는다 — role 전역 조회는 strict 위반으로 플레이키.
+    const tipId = await settings.getAttribute("aria-describedby");
+    await expect(panel.locator(`[id="${tipId}"]`)).toHaveText(/\S/);
     await panel.mouse.move(0, 0);
 
     await cancelRecording();

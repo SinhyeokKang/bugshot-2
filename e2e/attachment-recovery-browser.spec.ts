@@ -328,7 +328,9 @@ test("400px partial record keeps the Draft filter visible and a long recovery ti
   const tabId = await seed(ext, "browser-layout-title", "partial", 1, "light", title);
   const page = await openPanel(ext, tabId);
   await page.setViewportSize({ width: 400, height: 720 });
-  await expect(page.getByTestId("filter-submitted")).toContainText("(1)");
+  await expect(page.getByTestId("filter-submitted")).toHaveText(/\S/);
+  await expect(page.getByTestId("filter-submitted")).not.toContainText(/\(\d+\)/);
+  await expect(page.getByTestId("recovery-row-warning")).toBeVisible();
   const draft = page.getByTestId("filter-draft");
   await expect(draft).toBeInViewport({ ratio: 1 });
   expect(await draft.evaluate((el) => {
