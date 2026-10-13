@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: October 4, 2026
+**Effective date**: October 14, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -112,10 +112,12 @@ The extension collects anonymous aggregate events to improve the product (effect
 | Information | When collected | Purpose |
 |---|---|---|
 | Install (extension_installed, extension version) | On new install | Understanding install scale and version distribution |
-| Side panel opened (sidepanel_opened: whether the page is supported) | When the side panel is opened | Understanding activation level |
+| Side panel opened (sidepanel_opened: whether the page is supported, UI language, report language setting and resolved language) | When the side panel is opened | Understanding activation level and language settings across active installations |
 | Platform connect (platform_connect: platform, success/cancel/failure, failure reason category) | On an OAuth connection attempt | Understanding per-platform popularity and connect success/cancel/failure rates, and telling service outages apart from users abandoning the flow |
 | Platform disconnected (platform_disconnected: platform) | On disconnect | Understanding integration churn |
-| Issue submitted (issue_submitted: platform, capture mode, submission result, whether the clip was trimmed and which capture it came from, and — for Jira — whether the default project was changed, whether the sprint picker was shown, and whether a sprint was actually chosen) | On issue submission | Understanding per-platform usage, capture-method priority, submission success/failure rates, trimming usage (30-second replay vs. regular recording), how often the project is switched at submission time, and how often the sprint field is used when it is offered |
+| Issue submitted (issue_submitted: platform, capture mode, submission result, UI language, report language setting and resolved language, whether the clip was trimmed and which capture it came from, and — for Jira — whether the default project was changed, whether the sprint picker was shown, and whether a sprint was actually chosen) | On issue submission | Understanding per-platform usage, capture-method priority, submission usage and success/failure rates by language, trimming usage (30-second replay vs. regular recording), how often the project is switched at submission time, and how often the sprint field is used when it is offered |
+
+Only side-panel-open and issue-submission events include the UI language (`ui_locale`), report language setting (`report_locale_setting`), and resolved report language (`report_locale`). Language values are limited to supported language codes; the report language setting may also be `auto`, meaning it follows the UI language. Submission events use the language snapshot taken when submission starts. Report language refers to automatically generated section headings, table headers, and other body formatting; we do not analyze the language of user-written content. The AI output language and raw browser language are not transmitted.
 
 These events carry only the classification strings above and never include issue titles, bodies, URLs, or personally identifiable information. Whether the project was switched is likewise a single true/false value; the project key or name is never included. The two sprint values are also plain true/false; the sprint ID, name, and board information are never included. In particular, a connection failure reason is sent as one of a predefined set of categories (auth window closed, authorization denied, configuration missing, network error, token exchange failure, and so on); the raw error message or response body returned by the integration platform is never included. To distinguish the same installation, a random identifier (distinct_id) is generated once on install, stored on the device, and sent with subsequent events. This identifier is merely a random value and is not linked to any personal information such as email, account, or IP. To ensure the actual IP address is not stored, events are sent with the IP value set to `0.0.0.0`, location estimation (GeoIP) is disabled (`$geoip_disable`), and personal profile creation is disabled (`$process_person_profile: false`). There is no separate opt-out (off) setting for this analytics.
 
@@ -141,7 +143,7 @@ The extension transmits data only to the services below.
 |---|---|---|
 | Jira REST API (`*.atlassian.net`, `api.atlassian.com`, the site URL you specify in API token mode, and Jira-issued media/CDN URLs) | Issue body, screenshots, video, debug logs | Creating and attaching to issues, and resolving the uploaded attachment's media ID |
 | GitHub REST API (`api.github.com`) | Issue body, labels, assignees | Creating issues |
-| GitHub (`api.github.com`, `github.com`, and GitHub-issued upload URLs [AWS S3]) | Screenshots, video, debug logs | File upload (the github.com upload path uses **the github.com session you are already signed into**; if no github.com tab is open, a background tab is opened for the duration of the upload and closed afterwards) |
+| GitHub (`api.github.com`, `github.com`, and GitHub-issued upload URLs [AWS S3]) | Screenshots, video, debug logs | File upload (the github.com upload path uses **the github.com session you are already signed into**; a dedicated inactive background tab is opened for each upload and closed afterwards) |
 | Linear GraphQL API (`api.linear.app`; attachments to Linear-issued upload URLs) | Issue body, screenshots, video, debug logs | Creating and attaching to issues |
 | Notion REST API (`api.notion.com`) and Notion-issued file upload URLs | Page body, screenshots, video, debug logs | Creating and attaching to pages |
 | GitLab REST API (`gitlab.com` or a user-specified self-managed instance) | Issue body, labels, assignees, screenshots, video, debug logs | Creating issues and uploading files |
