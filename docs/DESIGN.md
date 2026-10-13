@@ -151,9 +151,9 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 
 **콘텐츠 위에 떠 있는 컨트롤** (캔버스·미디어 등 임의 픽셀 위에 얹히는 오버레이 컨트롤): `bg-background/90 shadow-md backdrop-blur-sm` + `rounded-md`. 불투명 배경(`TrimTimeline`처럼 muted 여백 위에 놓이는 경우)과 달리 배경이 무엇일지 모르므로 반투명 + 블러로 대비를 확보한다. 히트 영역 밖은 `pointer-events-none` 레이어로 통과시켜 아래 콘텐츠 조작을 막지 않는다(선례: `annotation/ZoomControl.tsx`, `AnnotationToolbar` 캔버스 오버레이).
 
-**반전 플로팅 바** — 위 관용구의 파생이다(`RecordingFloatingBar.tsx`). 같은 `bg-background/90 backdrop-blur-sm` 표면에 두 가지만 다르다: 루트에 **반전 스코프 `.theme-inverse`**(§3)를 걸어 앱 테마의 반대 표면으로 띄우고, elevation을 토스트급 3단계(`shadow-lg` + `rounded-xl`)로 올린다. 반전 표면은 바깥 콘텐츠와 대비가 이미 최대라 `ring-*`·`border`를 두지 않는다(스코프의 `--border`가 바 배경과 거의 같아 보이지도 않는다). 위치는 서브탭 `PageShell`(`relative`) 안 `absolute inset-x-3 bottom-3 z-10`이고 DOM은 footer **뒤**에 둔다(읽기 순서 목록 → footer → 바).
+**반전 플로팅 바** — 위 관용구의 파생이다(`RecordingFloatingBar.tsx`). 같은 `bg-background/90 backdrop-blur-sm` 표면에 두 가지만 다르다: 루트에 **반전 스코프 `.theme-inverse`**(§3)를 걸어 앱 테마의 반대 표면으로 띄우고, elevation을 토스트급 3단계(`shadow-lg` + `rounded-xl`)로 올린다. 반전 표면은 바깥 콘텐츠와 대비가 이미 최대라 `ring-*`·`border`를 두지 않는다(스코프의 `--border`가 바 배경과 거의 같아 보이지도 않는다). 위치는 서브탭 `PageShell`(`relative`) 안 `absolute inset-x-3 bottom-3.5 z-10`이고 DOM은 footer **뒤**에 둔다(읽기 순서 목록 → footer → 바).
 - **진행 중인 세션 상태 전용**이다(현재 녹화 중 콘솔·네트워크 서브탭). 일반 안내·확인 UI에 쓰면 "지금 무언가 진행 중"이라는 위계 효과가 사라진다.
-- **높이 관계가 계약이다.** 바 = `p-4`×2 + 버튼 `h-9` = **68px**로 `PageFooter`(`p-4` + `h-9` + `border-t` ≈ 69px)를 완전히 덮고, `bottom-3`(12px) 띄운 만큼 로그 영역에 **11px** 걸친다. 그래서 아래 로그 콘텐츠는 `bottomInset`으로 끝에 `pb-6`(24px = 겹침 11 + 여유 12 + 1)을 받는다(`ConsoleLogContent`·`NetworkLogContent` — 네트워크는 목록과 상세 양쪽). 바 패딩·버튼 size·inset·`PageFooter` 패딩 중 하나를 바꾸면 이 값을 다시 계산한다. [✕]는 `TooltipIconButton`을 `h-9 w-9`로 맞춰 [완료](기본 `h-9`)와 높이를 같게 한다.
+- **높이 관계가 계약이다.** 바 = `p-3`×2 + 버튼 `h-8` = **56px**이고 `bottom-3.5`(14px) 띄워 윗변이 70px에 닿는다 — `PageFooter`(`p-4` + `h-9` + `border-t` ≈ 69px)의 `border-t`까지 덮고 로그 영역에 **1px** 걸친다(`bottom-3`이면 윗변이 68px라 footer 경계선이 바 위에 1px 띠로 남는다). 그래서 아래 로그 콘텐츠는 `bottomInset`으로 끝에 `pb-3.5`(14px = 겹침 1 + 여유 12 + 1)을 받는다(`ConsoleLogContent`·`NetworkLogContent` — 네트워크는 목록과 상세 양쪽). 바 패딩·버튼 size·inset·`PageFooter` 패딩 중 하나를 바꾸면 이 값을 다시 계산한다. [✕]는 `TooltipIconButton` 기본 `h-8 w-8`, [완료]는 `size="sm"`(`h-8`)로 높이를 같게 한다.
 - **바에 덮이는 footer 버튼은 `aria-disabled`가 아니라 `disabled`다**(§14 예외).
 
 ## 7. Z-index 레이어
@@ -194,7 +194,7 @@ shadcn `Button` (`src/components/ui/button.tsx`, cva):
 
 shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 thumb 확장** — `value`/`defaultValue` 배열 길이로 thumb 개수를 파생해 N개 렌더(미지정 시 1), `thumbAriaLabels?: string[]`로 thumb별 aria-label 주입. 추가로 **슬롯 override props** — `trackClassName`/`rangeClassName`/`thumbClassName`(트랙·선택 범위·thumb 비주얼 교체), `thumbContent`(인덱스별 커스텀 핸들 렌더), `onThumbClick`(드래그 아닌 thumb 클릭=seek). 현재 사용처는 `TrimTimeline`의 trim 듀얼 핸들 — 투명 트랙 + outline 핸들(`thumbContent`) + range=`bg-background`로 트림 바를 완전 커스텀.
 
-- **CTA는 `default`(h-9)로 통일** — 대개 `size` 생략(기본값이 h-9).
+- **CTA는 `default`(h-9)로 통일** — 대개 `size` 생략(기본값이 h-9). 예외: 반전 플로팅 바의 [완료]는 바 높이 계약 때문에 `sm`(§6).
 - `xl`은 랜딩/온보딩 같은 특수 CTA 전용.
 - `sm`은 텍스트 포함 보조 버튼(복사·필터 등).
 - 위험 동작(텍스트 버튼): **`variant="destructive-outline"`**로 통일한다 — outline 골격 + idle·hover 모두 빨간 글자(hover 배경만 accent 연회색). `variant="outline" className="text-destructive"`는 hover에서 `text-accent-foreground`에 덮여 빨강이 사라지므로 쓰지 않는다. 빨강 채움 버튼이 필요하면 `variant="destructive"`.
