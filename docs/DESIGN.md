@@ -2,7 +2,7 @@
 
 bugshot-2의 디자인 시스템·UI 컨벤션 단일 출처. 신규 화면·컴포넌트를 만들 때 여기 패턴을 먼저 본다. 권한·아키텍처는 [ARCHITECTURE.md](./ARCHITECTURE.md), 파일별 역할은 [DIRECTORY.md](./DIRECTORY.md) 참조.
 
-> 이 문서는 코드베이스에서 역추출한 **현재 상태 스냅샷 + 권장 가이드**다. lint/test로 강제되는 규칙은 아니므로 "권장"으로 읽되, 합리적 이유 없이 벗어나지 않는다. 일부는 아직 코드가 따라오지 못한 **개선 후보(⚠)**로 표시한다. 컨벤션을 바꾸면 여기도 함께 갱신한다.
+> 이 문서는 코드베이스에서 역추출한 **현재 상태 스냅샷 + 권장 가이드**다. 권장 가이드이며 토큰 일치·색상 대비 등 일부 규칙은 테스트로 강제한다. 합리적 이유 없이 벗어나지 않는다. 일부는 아직 코드가 따라오지 못한 **개선 후보(⚠)**로 표시한다. 컨벤션을 바꾸면 여기도 함께 갱신한다.
 
 ## 1. 기반 스택
 
@@ -234,7 +234,7 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
 | 계열 | 자리 | raw인 이유 | 추가 요구 |
 |---|---|---|---|
 | 입력 내 클리어 | 검색창 우측 `X` (`IssueListTab`·`Action/Console/NetworkLogContent`·log-viewer `TimelinePanel`) | `size="icon"`(h-9 w-9)이 필드 안에 안 들어간다 | `aria-label` 필수 |
-| 트리 chevron | `TreeChevronButton.tsx` (JSON·DOM 트리 공용) | 같은 이유(4px 슬롯) | `aria-expanded` 필수, 라벨은 호출부 주입. **새 트리는 이걸 쓴다** |
+| 트리 chevron | `TreeChevronButton.tsx` (JSON·DOM 트리 공용) | 같은 이유(16px(`h-4 w-4`) 슬롯) | `aria-expanded` 필수, 라벨은 호출부 주입. **새 트리는 이걸 쓴다** |
 | sticky 헤더 제목 | `DomTreeDialog`의 선택 요소 제목 (`DialogTrigger` — 누르면 DOM 트리 다이얼로그가 열린다) | `Button variant="ghost"`의 base cva `inline-flex h-9 px-4`가 원본 `block w-full truncate text-2xl`과 충돌해 **`truncate`가 파손된다**(익명 flex item이 되어 하드 클립) — 행 높이 +4px, 텍스트 폭 −32px, hover가 `opacity-70` 전이 대신 면색 블록. override 4종이 원본 className보다 길어진다 | `focus-visible:ring-2 focus-visible:ring-ring` + `title`(잘린 제목 전문) |
 | 트리 행 더보기 | `JsonTreeViewer`의 "n개 더" | `Button variant="link"`도 base의 `h-9 px-4`를 물고 와 트리 행 높이(`py-0.5`)를 깨뜨린다 | `w-full text-left` — 원래 block-level `<div>`라 없으면 클릭 영역이 텍스트 폭으로 좁아진다. `aria-expanded`는 **붙이지 않는다**(disclosure가 아니라 다음 청크 추가라 상태 속성이 거짓말이 된다) |
 | 문자열 인라인 더보기 | `JsonTreeViewer`의 "모두 보기" | 같은 이유 | **`w-full`을 붙이지 않는다** — 원래 인라인 `<span>`이라 붙이면 클릭 영역이 행 전체로 번진다. 위 행과 계열은 같지만 요구가 반대인 지점 |
@@ -319,7 +319,7 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
 | `AnnotationOverlay.tsx` | 이미지 어노테이션 편집 오버레이 — `DraftingPanel`·`TiptapEditor`(인라인 이미지) 공용 |
 | `AttachmentSection.tsx` / `AttachmentList.tsx` | 사용자 파일 첨부 — 편집형(추가·삭제 카드) / 읽기 전용 카드 목록(클릭 시 로컬 재다운로드, `CATEGORY_ICON` 보유). 후자는 PreviewPanel·DraftDetailDialog 공용 |
 | `ImageActions.tsx` | 이미지 위 우상단 오버레이 컨트롤 — §6 관용구(`bg-background/90 backdrop-blur-sm` + 그룹 `rounded-md shadow-md`)를 `TooltipIconButton`·`ButtonGroup`으로 조합. `StyleChangesTable`이 소비한다. **아래 `blockActions` 행이 "수동 동기화" 대상으로 가리키는 React 원본**이라 아이콘·순서를 바꾸면 vanilla 쌍둥이도 함께 고친다 |
-| `LogInsertDialog.tsx` | 본문에 넣을 로그 1건을 고르는 다이얼로그 셸 — `DraftingPanel`·`LogPreviewDialog` 2곳 공용. 탭 전환은 아래 `*LogPreviewDialog` 계열과 같은 `data-[state=inactive]:hidden` 구조(스크롤 위치 보존) |
+| `LogInsertDialog.tsx` | 본문에 넣을 로그 1건을 고르는 다이얼로그 셸 — `DraftingPanel`에서 사용한다. 탭 전환은 아래 `*LogPreviewDialog` 계열과 같은 `data-[state=inactive]:hidden` 구조(스크롤 위치 보존) |
 | `TreeChevronButton.tsx` | JSON 트리·DOM 트리 공용 접기 chevron — raw `<button>` + `h-4 w-4`(§10 예외 항목 참조). 새 트리를 만들면 이걸 쓴다 |
 | `IntegrationsCta.tsx` | 연동 0개일 때 뜨는 amber 유도 배너 — `IssueTab`·`PreviewPanel`·`DraftDetailDialog` 3곳 공용(색은 §2 참조) |
 | `lib/blockActions.ts`(표 헤더의 `components/`가 아니다) + `block-actions.css` | React 밖 DOM(코드블럭 접기·Tiptap 인라인 이미지)의 우상단 아이콘 ButtonGroup primitive. `h-8 w-8`·semantic token·focus/hover·aria-label/title을 shadcn `TooltipIconButton`/`ButtonGroup`과 수동 동기화한다. 원본 버튼 규칙을 바꾸면 vanilla CSS도 함께 대조 |
