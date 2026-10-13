@@ -117,15 +117,15 @@ describe("RecordingFloatingBar", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it("바 루트·점·취소 버튼의 치수 계약 클래스(높이 68px 계산의 근거)", () => {
+  it("바 루트·점·버튼의 치수 계약 클래스(높이 56px 계산의 근거)", () => {
     render(<RecordingFloatingBar />);
     const bar = screen.getByTestId("recording-bar");
     const root = Array.from(bar.classList);
     for (const c of [
       "theme-inverse",
-      "p-4",
+      "p-3",
       "inset-x-3",
-      "bottom-3",
+      "bottom-3.5",
       "rounded-xl",
       "shadow-lg",
       "bg-background/90",
@@ -134,6 +134,8 @@ describe("RecordingFloatingBar", () => {
     ]) {
       expect(root, c).toContain(c);
     }
+    expect(root).not.toContain("p-4");
+    expect(root).not.toContain("bottom-3");
     expect(root.filter((c) => /^ring/.test(c))).toEqual([]);
 
     const dot = bar.querySelector('[aria-hidden="true"]') as HTMLElement;
@@ -141,10 +143,14 @@ describe("RecordingFloatingBar", () => {
     expect(dot.classList.contains("motion-reduce:animate-none")).toBe(true);
 
     const cancel = screen.getByTestId("recording-bar-cancel");
-    expect(cancel.classList.contains("h-9")).toBe(true);
-    expect(cancel.classList.contains("w-9")).toBe(true);
-    expect(cancel.classList.contains("h-8")).toBe(false);
-    expect(cancel.classList.contains("w-8")).toBe(false);
+    expect(cancel.classList.contains("h-8")).toBe(true);
+    expect(cancel.classList.contains("w-8")).toBe(true);
+    expect(cancel.classList.contains("h-9")).toBe(false);
+    expect(cancel.classList.contains("w-9")).toBe(false);
+
+    const stop = screen.getByTestId("recording-bar-stop");
+    expect(stop.classList.contains("h-8")).toBe(true);
+    expect(stop.classList.contains("h-9")).toBe(false);
   });
 
   it("tabpanel 밖에서 취소해도 throw하지 않고 cancelRecording이 호출된다", async () => {
