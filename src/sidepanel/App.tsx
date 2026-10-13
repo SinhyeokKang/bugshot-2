@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState, type ComponentPropsWithoutRef } from "react";
 import { Blocks, Globe, List, Loader2, Settings, Square, TerminalSquare } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -50,6 +51,7 @@ import { OAuthExpiredDialog } from "./components/OAuthExpiredDialog";
 import { IssueListTab } from "./tabs/IssueListTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 import { TabNavContext } from "./tab-nav";
+import { isMainTabLocked } from "./lib/mainTabLock";
 import { applyReplayTrim, applyRecordingTrim, TrimLogsPersistError } from "./30s-replay/apply-trim";
 import { clearPicker } from "@/sidepanel/picker-control";
 import {
@@ -135,12 +137,21 @@ export default function App() {
   });
   const aiStep = useAiLoadingStep(aiSurface, 3000);
   const replayTrim = useEditorStore((s) => s.replayTrim);
+  const phase = useEditorStore((s) => s.phase);
   const [tab, setTab] = useState("debug");
   const [settingsSub, setSettingsSub] = useState("issue");
-  const navTo = useCallback((next: string, sub?: string) => {
+  const goTab = useCallback((next: string) => {
+    if (isMainTabLocked(next, useEditorStore.getState().phase)) return false;
     setTab(next);
-    if (sub) setSettingsSub(sub);
+    return true;
   }, []);
+  const navTo = useCallback((next: string, sub?: string) => {
+    if (!goTab(next)) return;
+    if (sub) setSettingsSub(sub);
+  }, [goTab]);
+  useLayoutEffect(() => {
+    if (isMainTabLocked(tab, phase)) setTab("debug");
+  }, [tab, phase]);
   const [oauthExpiredPlatform, setOauthExpiredPlatform] = useState<PlatformId | null>(null);
   // 만료 안내가 지목한 재연동 대상. IntegrationsTab이 소비하고 지운다.
   const [reconnectPlatform, setReconnectPlatform] = useState<PlatformId | null>(null);
@@ -290,25 +301,27 @@ export default function App() {
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-0">
         <div className="border-b px-4 py-4">
-          <Tabs value={tab} onValueChange={(v) => setTab(v)}>
+          <Tabs value={tab} onValueChange={goTab}>
+            <TooltipProvider delayDuration={0}>
             <CollapsingTabsList className="grid h-9 w-full grid-cols-4">
               <TabsTrigger value="debug" className="min-w-0 gap-1.5" data-testid="tab-debug">
                 <TerminalSquare className="h-3.5 w-3.5 shrink-0" />
                 <TabLabel>{t("app.tab.debug")}</TabLabel>
               </TabsTrigger>
-              <TabsTrigger value="issue-list" className="min-w-0 gap-1.5" data-testid="tab-issue-list">
+              <LockableTabTrigger value="issue-list" locked={isMainTabLocked("issue-list", phase)} lockedHint={t("app.tab.lockedDuringRecording")} data-testid="tab-issue-list">
                 <List className="h-3.5 w-3.5 shrink-0" />
                 <TabLabel>{t("app.tab.issueList")}</TabLabel>
-              </TabsTrigger>
-              <TabsTrigger value="integrations" className="min-w-0 gap-1.5" data-testid="tab-integrations">
+              </LockableTabTrigger>
+              <LockableTabTrigger value="integrations" locked={isMainTabLocked("integrations", phase)} lockedHint={t("app.tab.lockedDuringRecording")} data-testid="tab-integrations">
                 <Blocks className="h-3.5 w-3.5 shrink-0" />
                 <TabLabel>{t("app.tab.integrations")}</TabLabel>
-              </TabsTrigger>
-              <TabsTrigger value="settings" className="min-w-0 gap-1.5" data-testid="tab-settings">
+              </LockableTabTrigger>
+              <LockableTabTrigger value="settings" locked={isMainTabLocked("settings", phase)} lockedHint={t("app.tab.lockedDuringRecording")} data-testid="tab-settings">
                 <Settings className="h-3.5 w-3.5 shrink-0" />
                 <TabLabel>{t("app.tab.settings")}</TabLabel>
-              </TabsTrigger>
+              </LockableTabTrigger>
             </CollapsingTabsList>
+            </TooltipProvider>
           </Tabs>
         </div>
 
@@ -338,8 +351,8 @@ export default function App() {
         onOpenChange={(v) => !v && setOauthExpiredPlatform(null)}
         onReconnect={(platform) => {
           setOauthExpiredPlatform(null);
-          setReconnectPlatform(platform);
-          setTab("integrations");
+          if (goTab("integrations")) setReconnectPlatform(platform);
+          else toast.warning(t("app.tab.lockedDuringRecording"));
         }}
       />
 
@@ -528,6 +541,34 @@ export default function App() {
     </ReplayProvider>
     </TabSupportProvider>
     </TabNavContext.Provider>
+  );
+}
+
+// 잠금은 disabled가 아니라 aria-disabled + onValueChange 가드다(DESIGN §14) — disabled면 툴팁이 죽어
+// 왜 안 눌리는지 알릴 수 없다. Tooltip은 잠겼을 때만 감싼다: TooltipTrigger의 data-state가 Tabs의
+// data-state(active/inactive)를 덮어써서, 늘 감싸면 선택된 탭이 active로 안 보인다(잠긴 탭은 active가 될 수 없다).
+function LockableTabTrigger({
+  locked,
+  lockedHint,
+  className,
+  ...props
+}: ComponentPropsWithoutRef<typeof TabsTrigger> & { locked: boolean; lockedHint: string }) {
+  const trigger = (
+    <TabsTrigger
+      aria-disabled={locked || undefined}
+      className={cn(
+        "min-w-0 gap-1.5 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:text-inherit",
+        className,
+      )}
+      {...props}
+    />
+  );
+  if (!locked) return trigger;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+      <TooltipContent>{lockedHint}</TooltipContent>
+    </Tooltip>
   );
 }
 
