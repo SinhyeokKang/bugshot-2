@@ -167,14 +167,14 @@ All three logs ride along with every capture except element style editing, and t
 ### 📥 Issue list & drafts
 
 - **Submitted issues** — every report you've filed stays in the *Issues* tab with its platform badge, searchable and filterable by submitted/draft. Refresh to pull the current state back from the tracker, or change the status right from the panel and have it written back. Reports shared to Slack can be **promoted to a tracker issue later**, and the original Slack thread gets a reply with the new issue's URL.
+- **Attachment recovery** — if some attachments fail, check each file's status, retry supported steps, or download the retained original files.
 - **Drafts** — not ready to file? Save the report as a draft, reopen it later, edit any field, and submit when it's ready.
 
 ### 🔗 Integrations
 
 Connect via OAuth or a token. Every **tracker** supports destination selection
-and attachment upload — GitHub and GitLab upload through your signed-in session
-on their own site, and when that session is missing the report falls back to a
-download-and-drag note instead of an inline attachment. Assignee covers every tracker except Notion; label
+and attachment upload. GitHub uploads require a signed-in github.com session;
+GitLab uploads use the PAT or OAuth token from your connected account. Assignee covers every tracker except Notion; label
 selection is GitHub, Linear and GitLab only. **Slack** is a messenger rather than
 a tracker — it sends to a channel or DM instead.
 
@@ -245,10 +245,10 @@ pnpm build
 ```
 
 Then load `dist/` as an unpacked extension. Every key in `.env.example` is
-optional: without the OAuth client IDs — or the proxy URL — the OAuth buttons are hidden and you connect
-platforms with a personal access token instead, and without a PostHog key
-analytics is a no-op. So a build from an empty `.env.local` is fully functional
-*and* makes zero analytics requests.
+optional for building: capture and token-based connections work without OAuth configuration.
+OAuth connections require their client IDs and, where applicable, the proxy URL.
+Slack is OAuth-only, so its connection requires OAuth configuration. Without a
+PostHog key, analytics is a no-op and the build makes zero analytics requests.
 
 Open DevTools on the side panel and compare what you see against the
 [transmission table](docs/privacy.en.md#3-external-transmission) — the only
