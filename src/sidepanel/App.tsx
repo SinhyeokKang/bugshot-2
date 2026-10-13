@@ -346,13 +346,15 @@ export default function App() {
         </div>
       </div>
 
+      {/* 녹화 중엔 재연동(연동 탭 이동 + OAuth 창 autoStart)이 막히므로 안내를 미룬다. 녹화를 멈추면
+          항상 트림 오버레이가 뜨니 그것까지 끝난 뒤에 띄운다 — 트림 중 재연동하면 OAuth 창이 트림 위에 열린다. */}
       <OAuthExpiredDialog
-        platform={oauthExpiredPlatform}
+        platform={phase === "recording" || replayTrim != null ? null : oauthExpiredPlatform}
         onOpenChange={(v) => !v && setOauthExpiredPlatform(null)}
         onReconnect={(platform) => {
           setOauthExpiredPlatform(null);
-          if (goTab("integrations")) setReconnectPlatform(platform);
-          else toast.warning(t("app.tab.lockedDuringRecording"));
+          setReconnectPlatform(platform);
+          goTab("integrations");
         }}
       />
 
