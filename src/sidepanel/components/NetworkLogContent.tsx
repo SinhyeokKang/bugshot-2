@@ -343,7 +343,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
       <OriginFilterBar originKeys={originKeys} counts={originCountMap} value={originFilter} onChange={setOriginFilter} flush={flush} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
       <ScrollArea ref={listScrollRef} className="shrink-0 [&>div>div]:!block" style={{ width: listWidth ?? "30%" }}>
-        <div data-testid="network-list-body" className={bottomInset ? "pb-6" : undefined}>
+        <div data-testid="network-list-body" className={bottomInset ? "pb-3.5" : undefined}>
           {filteredRequests.map((req) => (
             <RequestRow
               key={req.id}
@@ -405,7 +405,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
               )}
             </div>
             <ScrollArea className="min-h-0 flex-1 [&>div>div]:!block">
-              <div data-testid="network-detail-body" className={bottomInset ? "pb-6" : undefined}>
+              <div data-testid="network-detail-body" className={bottomInset ? "pb-3.5" : undefined}>
                 <TabsContent value="headers" className="mt-0 data-[state=inactive]:hidden">
                   <HeadersPanel req={activeReq} query={debouncedQuery} />
                 </TabsContent>

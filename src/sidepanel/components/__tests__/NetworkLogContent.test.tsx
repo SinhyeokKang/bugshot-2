@@ -279,27 +279,27 @@ describe("NetworkLogContent — error 행 배경 3단계", () => {
 });
 
 describe("NetworkLogContent — bottomInset", () => {
-  it("미지정이면 목록·상세 래퍼에 pb-6이 없다", async () => {
+  it("미지정이면 목록·상세 래퍼에 pb-3.5가 없다", async () => {
     render(<NetworkLogContent requests={REQUESTS} />);
-    expect(screen.getByTestId("network-list-body").className).not.toContain("pb-6");
+    expect(screen.getByTestId("network-list-body").className).not.toContain("pb-3.5");
 
     await userEvent.click(row("r1"));
 
-    expect(screen.getByTestId("network-detail-body").className).not.toContain("pb-6");
+    expect(screen.getByTestId("network-detail-body").className).not.toContain("pb-3.5");
   });
 
-  it("true면 목록 래퍼에 pb-6이 붙는다", () => {
+  it("true면 목록 래퍼에 pb-3.5가 붙는다", () => {
     render(<NetworkLogContent requests={REQUESTS} bottomInset />);
 
-    expect(screen.getByTestId("network-list-body").className).toContain("pb-6");
+    expect(screen.getByTestId("network-list-body").className).toContain("pb-3.5");
   });
 
-  it("true면 요청을 열었을 때 상세 래퍼에도 pb-6이 붙는다", async () => {
+  it("true면 요청을 열었을 때 상세 래퍼에도 pb-3.5가 붙는다", async () => {
     render(<NetworkLogContent requests={REQUESTS} bottomInset />);
 
     await userEvent.click(row("r1"));
 
-    expect(screen.getByTestId("network-detail-body").className).toContain("pb-6");
+    expect(screen.getByTestId("network-detail-body").className).toContain("pb-3.5");
   });
 
   it("상세 래퍼 안에서 탭 전환이 동작한다(래퍼가 TabsContent 형제를 감싼다)", async () => {
