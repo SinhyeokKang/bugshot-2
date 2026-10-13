@@ -284,7 +284,7 @@ tab-bindings.ts:281 — activateTab() 내부
 
 `deactivatePanelIfCrossOrigin()`이 `tabs.onUpdated` `status:loading` 시점에 호출되어 패널을 닫을지 유지할지 결정한다.
 
-**기준 URL 결정**: 에디터 세션의 `target.url` → 없으면 `activateTab()` 시점에 저장한 활성화 URL(`sidePanel:url:{tabId}`) → 둘 다 없으면 비교 불가로 패널 유지.
+**기준 URL 결정**: 에디터 세션의 `target.url` → 없으면 `activateTab()`에서 저장하고 패널을 유지하는 이동마다 갱신한 최근 URL(`sidePanel:url:{tabId}`) → 둘 다 없으면 비교 불가로 패널 유지.
 
 **분기표** (`<all_urls>`가 required라 광역 권한은 항상 보유 → 호출부가 `broadGranted=true` 고정, cross-origin 행은 **새 URL의 커버 여부** 기준):
 
@@ -337,7 +337,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 | 키 | 데이터 | 사용처 |
 |---|---|---|
 | `sidePanel:activated` | `number[]` (tab ID 목록) | `tab-bindings.ts:13` — 패널 활성화 탭 추적. **미지원 탭도 들어온다**(`activateTab`이 URL을 보지 않으므로). `onRemoved`가 무조건 정리 |
-| `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:14` — idle 상태 origin 비교 fallback. `chrome://` 등 `tab.url`을 못 읽는 탭에서는 **기록되지 않고**, 그 부재가 `deactivatePanelIfCrossOrigin`의 조기 return으로 이어져 패널이 유지된다 |
+| `sidePanel:url:{tabId}` | `string` (활성화 시 저장하고 패널 유지 이동마다 갱신하는 최근 URL) | `tab-bindings.ts:14` — idle 상태 origin 비교 fallback. `chrome://` 등 `tab.url`을 못 읽는 탭에서는 **기록되지 않고**, 그 부재가 `deactivatePanelIfCrossOrigin`의 조기 return으로 이어져 패널이 유지된다 |
 | `editor:{tabId}` | `EditorSnapshot` 전체 에디터 상태 | `useEditorSessionSync.ts` — 300ms 디바운스 저장·수화 |
 | `pendingPrunedAt` | `number` (timestamp) | `pending-log-prune.ts:89` — 브라우저 세션당 1회 정리 가드 |
 
@@ -352,7 +352,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 
 ### IndexedDB (Chrome 권한 불요 — 저장 데이터 레퍼런스)
 
-스크린샷·영상·사용자 첨부 **blob**, network/console/action 로그, 본문 inline 이미지와 어노테이션 전 원본은 `chrome.storage`가 아니라 IndexedDB(`src/store/blob-db.ts`)에 저장된다. `storage` 권한과 무관하지만(웹 표준 API), 정리(prune) 시 위 `chrome.storage.session`/`local`의 레코드를 역참조해 고아 blob을 지운다. privacy 문서의 "저장하는 정보"와 대조할 때 이 경로를 빠뜨리지 말 것.
+스크린샷·영상·사용자 첨부 **blob**, network/console/action 로그, 본문 inline 이미지와 어노테이션 전 원본은 `chrome.storage`가 아니라 IndexedDB(`src/store/blob-db.ts`)에 저장된다. `storage` 권한과 무관하지만(웹 표준 API), 정리(prune) 시 위 `chrome.storage.session`/`local`의 레코드를 역참조해 고아 blob을 지운다. `submissionRecovery` 저장소에는 제출 복구 기록과 제출용 생성 파일도 저장한다. 만료된 복구 파일은 `expireSubmissionRecovery`가 정리한다. privacy 문서의 "저장하는 정보"와 대조할 때 이 경로를 빠뜨리지 말 것.
 
 ### 페이지 sessionStorage (Chrome 권한 불요 — 저장 데이터 레퍼런스)
 
@@ -453,7 +453,7 @@ env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화.
 | ClickUp | `ClickupOAuthAuth` (만료·refresh 없음) | `ClickupPatAuth` (`pk_` 토큰) |
 | Slack | `SlackOAuthAuth` (user token, 만료·refresh 없음) | ❌ 없음 (OAuth 전용) |
 
-API Key/PAT 모드는 OAuth 인프라(refresh, proxy, identity API)를 일절 거치지 않는다. (GitLab PAT는 self-managed 인스턴스 host 권한만 런타임 획득.)
+API Key/PAT 모드는 OAuth 인프라(refresh, proxy, identity API)를 일절 거치지 않는다. (GitLab self-managed 호스트도 필수 `<all_urls>`로 커버된다. `requestHostPermission` 호출은 남아 있지만 이미 보유한 권한이다.)
 
 ---
 
@@ -551,7 +551,7 @@ background/index.ts:137 — webNavigation.onCommitted
 | `auth.atlassian.com` | Jira OAuth authorize (launchWebAuthFlow — host_permission 불요) | `oauth.ts` — `launchWebAuthFlow` URL |
 | `api.github.com` | GitHub REST API | `github-api.ts` — repos, issues, users |
 | `github.com` | GitHub 파일 업로드 page injection + 에셋 업로드 정책(`github.com/upload/policies/assets`) | `github-upload.ts` — 전용 비활성 탭을 열어 `executeScript({world:"MAIN"})` |
-| GitHub 발급 S3 업로드 URL | 정책 응답의 동적 `policy.upload_url`로 실제 바이트 PUT (고정 host 아님) | `github-upload.ts` — `policy.upload_url` |
+| GitHub 발급 S3 업로드 URL | 정책 응답의 동적 `policy.upload_url`로 실제 바이트 multipart POST (고정 host 아님) | `github-upload.ts` — `policy.upload_url` |
 | `api.linear.app` | Linear GraphQL + OAuth token | `linear-api.ts`, `linear-oauth.ts` |
 | `linear.app` | Linear OAuth authorize (launchWebAuthFlow라 host_permission 불요) | `linear-oauth.ts` |
 | Linear 발급 업로드 URL | `requestFileUpload`가 반환하는 pre-signed URL로 첨부 바이트 PUT (고정 host 아님) | `linear-api.ts` — `uploadUrl` |
@@ -562,8 +562,9 @@ background/index.ts:137 — webNavigation.onCommitted
 | `api.clickup.com` | ClickUp REST (task 생성·첨부 업로드·본문 갱신) | `clickup-api.ts` |
 | `app.clickup.com` | ClickUp OAuth authorize (`launchWebAuthFlow`라 host_permission 불요. token 교환은 proxy) | `clickup-oauth.ts` |
 | `slack.com` | Slack Web API (메시지 전송·채널/DM·멤버 조회·files 2-step 업로드) + OAuth authorize. files 업로드 2단계의 multipart POST는 Slack이 런타임 반환하는 `upload_url`(`*.slack.com` 등)로 나가고 이것도 `<all_urls>` 커버 | `slack-api.ts`, `slack-oauth.ts` |
-| `in.bug-shot.com` (`VITE_POSTHOG_HOST` — PostHog 관리형 리버스 프록시, CNAME으로 PostHog Cloud 직결. `vite.config.ts`가 define으로 값을 박고, env가 비어도 `resolvePostHogHost` 폴백이 같은 프록시라 **PostHog Cloud로 직행하는 경로가 없다**) | 익명 분석 — 이슈 제출·**플랫폼 연결 시도**(`platform_connect`, 플랫폼·성공/취소/실패 + 사유 분류 동봉)·연동 해제·설치(`extension_installed`, 확장 버전 동봉)·패널 열기(`sidepanel_opened`, `page_supported` 동봉) 집계(`$ip:"0.0.0.0"`·geoip 비활성·person profile 미생성) | `background/analytics.ts` — `/capture/` fetch |
+| `in.bug-shot.com` (`VITE_POSTHOG_HOST` — PostHog 관리형 리버스 프록시, CNAME으로 PostHog Cloud 직결. `vite.config.ts`가 define으로 값을 박고, env가 비어도 `resolvePostHogHost` 폴백이 같은 프록시라 **PostHog Cloud로 직행하는 경로가 없다**) | 익명 분석 — 이슈 제출·**플랫폼 연결 시도**(`platform_connect`, 플랫폼·성공/취소/실패 + 사유 분류 동봉)·연동 해제·설치(`extension_installed`, 확장 버전 동봉)·패널 열기(`sidepanel_opened`, `page_supported` 동봉) 집계. 패널 열기·이슈 제출에만 `ui_locale`·`report_locale_setting`·`report_locale` 동봉(AI 언어 제외)(`$ip:"0.0.0.0"`·geoip 비활성·person profile 미생성) | `background/analytics.ts` — `/capture/` fetch |
 | 플랫폼 아바타·아이콘 CDN | **`fetch`가 아니라 `<img src>` 서브리소스** — GitHub·GitLab(+`secure.gravatar.com`)·Jira·Notion의 사용자 아바타와 Jira 이슈타입 아이콘. 권한은 불요지만 사용자 IP가 그 CDN으로 나간다 | `*/AssigneeCombobox.tsx`·`CcCombobox.tsx`·`jiraFields/{AssigneeField,IssueTypeCombobox}.tsx`·`connect/JiraConnectForm.tsx` |
+| 사용자 지정 Webhook origin | 사용자 지정 주소로 리포트·첨부 직접 전송. HTTPS 기본, 사설망 HTTP 예외 허용. 브라우저 쿠키 미전송(`credentials:omit`), 리다이렉트 거부 | `background/webhook-api.ts`, `lib/webhook-url-policy.ts` |
 | OAuth proxy origin | OAuth proxy (client_secret 은닉) | `oauth.ts`, `github-oauth.ts`, `notion-oauth.ts`, `asana-oauth.ts`, `clickup-oauth.ts`, `slack-oauth.ts` |
 
 ### OAuth Proxy 엔드포인트
@@ -588,6 +589,8 @@ Linear·GitLab은 PKCE 지원으로 proxy 불필요 — 각각 `api.linear.app/o
 `<all_urls>`는 `host_permissions`에 required로 선언돼 **설치 시 부여**된다(과거 optional + 런타임 요청 모델은 폐기 — §1 참조). 따라서 `chrome.permissions.contains`/`remove` 기반의 확인·철회 흐름은 코드에서 제거됐고(`chrome.permissions.request`는 BYOK/GitLab의 `requestHostPermission`으로 **잔존** — 이미 보유라 즉시 grant, 아래 §requestHostPermission 잔존 호출 참조), `BROAD_HOST_ORIGINS` 상수(`src/lib/broad-host-origins.ts`)도 삭제됐다.
 
 ### 사용처
+
+Custom Webhook의 사용자 지정 origin도 `<all_urls>`로 커버된다. `background/webhook-api.ts`가 URL 정책 검사 후 쿠키 없이 직접 전송하며 리다이렉트를 따르지 않는다.
 
 | 위치 | 용도 |
 |---|---|
