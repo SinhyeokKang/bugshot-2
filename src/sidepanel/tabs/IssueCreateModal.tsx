@@ -511,8 +511,9 @@ export function IssueCreateModal() {
     return result;
   }
 
-  async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
+  async function handleSubmit(submitPlatform: PlatformId, reportLocale: MarkdownContext["bodyLocale"]): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
+    ctx.bodyLocale = reportLocale;
     // 가드가 pageUrl 정정보다 **앞**이어야 한다 — 차단되는 경우는 정의상 레코드가 이미
     // submitted이고, patchIssue는 스프레드 뒤에 updatedAt을 올리므로 그 write가 병합의 최신
     // 승자가 되어 다른 인스턴스가 기록한 pageUrl을 덮는다(요청은 안 나갔는데 오염만 퍼진다).

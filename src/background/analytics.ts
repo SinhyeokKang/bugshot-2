@@ -1,3 +1,7 @@
+import { LOCALES, detectLocale } from "@/i18n/locales";
+import { languageEventProperties } from "@/lib/analytics-language";
+import { APP_SETTINGS_PERSIST_KEY } from "@/lib/session-keys";
+
 // PostHog 익명 이슈 제출 집계. VITE_POSTHOG_KEY는 store 빌드에서만 vite define으로 값이
 // 박힌다(VITE_POSTHOG_KEY_PROD 승격) → dev/일반/e2e 빌드는 키가 비어 no-op. define 치환이라
 // vi.stubEnv가 안 먹히므로 게이팅·전송 로직은 키·host를 인자로 받는 순수/주입 함수로 분리해 테스트한다.
@@ -40,6 +44,9 @@ const ALLOWED_EVENTS: Record<string, readonly string[]> = {
     "project_overridden",
     "sprint_field_shown",
     "sprint_selected",
+    "ui_locale",
+    "report_locale_setting",
+    "report_locale",
   ],
   // reason에는 ConnectReason 고정 enum만 온다 — 상류 error_description·응답 본문을
   // 이 목록에 얹지 말 것(원문이 나가는 유일한 경로가 된다).
@@ -48,7 +55,7 @@ const ALLOWED_EVENTS: Record<string, readonly string[]> = {
   extension_installed: ["version"],
   // page_supported: 패널이 미지원 페이지에서도 열리게 되면서 이 이벤트가 기계적으로 늘어난다.
   // 이 property 없이는 배포 후 상승이 그 증가분인지 실제 activation 회복인지 가를 수 없다.
-  sidepanel_opened: ["page_supported"],
+  sidepanel_opened: ["page_supported", "ui_locale", "report_locale_setting", "report_locale"],
 };
 
 export function isAllowedEvent(event: string): boolean {
@@ -64,9 +71,28 @@ export function filterProperties(
   const out: Record<string, string> = {};
   for (const key of allowed) {
     const value = properties[key];
+    if (key === "ui_locale" || key === "report_locale" || key === "report_locale_setting") {
+      if (!(LOCALES as readonly string[]).includes(value) && !(key === "report_locale_setting" && value === "auto")) continue;
+    }
     if (typeof value === "string") out[key] = value;
   }
   return out;
+}
+
+export async function readPanelLanguageProperties(): Promise<Record<string, string>> {
+  try {
+    const stored = await chrome.storage.local.get(APP_SETTINGS_PERSIST_KEY);
+    const raw = stored[APP_SETTINGS_PERSIST_KEY];
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    const state = parsed?.state;
+    const locale = state?.locale === undefined
+      ? detectLocale(typeof navigator !== "undefined" ? navigator.language : undefined)
+      : state.locale;
+    return languageEventProperties(locale, state?.bodyLocale);
+  } catch {
+    // A failed read must not count as usage of the default language.
+    return {};
+  }
 }
 
 export function buildCaptureBody(
@@ -149,7 +175,9 @@ export async function captureEvent(
     posthogHost(),
     buildCaptureBody(
       event,
-      filterProperties(event, properties),
+      filterProperties(event, event === "sidepanel_opened"
+        ? { ...properties, ...await readPanelLanguageProperties() }
+        : properties),
       await getInstallationId(),
       key,
     ),

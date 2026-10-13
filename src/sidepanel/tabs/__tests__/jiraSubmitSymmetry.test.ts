@@ -108,9 +108,9 @@ describe("제출 분석 축 대칭", () => {
     expect(fail.slice(5)).toEqual(ok.slice(5));
   });
 
-  it("두 호출 모두 sprint 축 2개를 마지막에 싣는다", () => {
+  it("두 호출 모두 sprint 축 2개 뒤에 언어 스냅샷을 싣는다", () => {
     for (const call of trackSubmitArgs(source(DIALOG))) {
-      expect(call.slice(-2)).toEqual(["sprintFieldShown", "sprintSelected"]);
+      expect(call.slice(-3)).toEqual(["sprintFieldShown", "sprintSelected", "languages"]);
     }
   });
 });

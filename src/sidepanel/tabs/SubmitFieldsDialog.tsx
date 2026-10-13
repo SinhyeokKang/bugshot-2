@@ -13,6 +13,9 @@ import {
 import { Tabs } from "@/components/ui/tabs";
 import { useT } from "@/i18n";
 import { trackSubmit } from "@/sidepanel/lib/track-submit";
+import { languageEventProperties } from "@/lib/analytics-language";
+import type { LocaleMode } from "@/i18n/locales";
+import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
 import type { CaptureMode, EditorIssueFields } from "@/store/editor-store";
 import {
@@ -84,7 +87,7 @@ export interface SubmitFieldsDialogProps {
   slackFields: SlackIssueFieldsValue;
   setSlackFields: (patch: Partial<SlackIssueFieldsValue>) => void;
   onNotionSchemaResolved: (schema: NotionDatabaseSchema | null) => void;
-  onSubmit: (platform: PlatformId) => Promise<NormalizedSubmitResult>;
+  onSubmit: (platform: PlatformId, reportLocale: LocaleMode) => Promise<NormalizedSubmitResult>;
   onSuccess?: (result: NormalizedSubmitResult) => void;
 }
 
@@ -185,6 +188,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
   async function handleSubmit() {
     if (!canSubmit) return;
+    const settings = useSettingsUiStore.getState();
+    const languages = languageEventProperties(settings.locale, settings.bodyLocale);
     // 프로젝트 전환 기능의 채택 측정. Jira 외에는 축이 없어 null로 둔다.
     const projectOverridden =
       platform === "jira"
@@ -206,7 +211,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
     setSubmit({ status: "submitting" });
     let result: NormalizedSubmitResult;
     try {
-      result = await onSubmit(platform);
+      result = await onSubmit(platform, languages.report_locale);
     } catch (err) {
       // 중복 차단은 제출 실패가 아니다 — 요청이 아예 안 나갔으므로 failure로 세지 않는다.
       if (toastSubmitBlocked(err, t)) {
@@ -226,6 +231,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
           projectOverridden,
           sprintFieldShown,
           sprintSelected,
+          languages,
         );
       }
       const ccCount = {
@@ -256,6 +262,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       projectOverridden,
       sprintFieldShown,
       sprintSelected,
+      languages,
     );
     onOpenChange(false);
     onSuccess?.(result);

@@ -15,7 +15,7 @@ import type { EnvironmentRow } from "@/types/environment";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
 import { Loader2, Pencil, RotateCw } from "lucide-react";
 import { useT } from "@/i18n";
-import { resolveBodyLocale } from "@/i18n/locales";
+import type { LocaleMode } from "@/i18n/locales";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -233,7 +233,6 @@ function EditableDraftDetailDialog({
   const sectionConfig = useSettingsUiStore((s) => s.issueSections);
   // 이슈 목록에서 과거 draft를 재제출하는 경로 — MarkdownContext의 세 번째 생산지다.
   // 저장 시점 스냅샷이 아니라 재제출 시점 해석이라 지금 설정한 본문 언어로 다시 빌드된다.
-  const bodyLocale = useSettingsUiStore((s) => resolveBodyLocale(s.bodyLocale, s.locale));
 
   const [fields, setFields] = useState<SubmitFields>({});
   const [submitOpen, setSubmitOpen] = useState(false);
@@ -404,7 +403,7 @@ function EditableDraftDetailDialog({
       hasBufferedStyle);
   const hasScreenshot = isScreenshot && !!issue.snapshot.before;
 
-  async function buildCtxForSubmit(transmitFiles = true) {
+  async function buildCtxForSubmit(bodyLocale: LocaleMode, transmitFiles = true) {
     if (!issue) throw new Error(t("create.requiredMissing"));
     const sel = issue.selectionSnapshot;
     // logsAttached === false면 blob이 있어도 logs.html 미첨부(편집 이슈의 통짜 토글). undefined = 첨부.
@@ -819,7 +818,7 @@ function EditableDraftDetailDialog({
       : { key: "", url: "", recorded: false, attachments: [] };
   }
 
-  async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
+  async function handleSubmit(submitPlatform: PlatformId, reportLocale: LocaleMode): Promise<NormalizedSubmitResult> {
     // 요청이 나가 있는 동안 다른 인스턴스가 이 레코드를 지워도 병합이 드롭하지 않게 잡아둔다
     // — 드롭되면 응답 후 markSubmitted가 무음 no-op이라 티켓 key/url을 잃는다(#240).
     // 이 경로는 currentIssueId를 안 쓴다(대상이 IssueListTab의 React state다).
@@ -833,7 +832,7 @@ function EditableDraftDetailDialog({
     const transmitFiles = submitPlatform !== "webhook" || webhookAccount?.auth.format !== "json";
     const sources = expectedSubmissionSources(issue, { sectionConfig, transmitFiles });
     await assertSubmissionSources(sources);
-    const { ctx, captureFiles } = await buildCtxForSubmit(transmitFiles);
+    const { ctx, captureFiles } = await buildCtxForSubmit(reportLocale, transmitFiles);
     submissionInlineImages = transmitFiles ? await resolveInlineImagesForSections(ctx.sections, sectionConfig) : [];
     const prepared = await prepareSubmissionRecovery({ issue, platform: submitPlatform, files: [
       ...sources,

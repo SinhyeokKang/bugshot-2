@@ -1,6 +1,7 @@
 import { sendBg } from "@/lib/bg-client";
 import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
 import type { CaptureMode } from "@/store/editor-store";
+import type { LanguageEventProperties } from "@/lib/analytics-language";
 
 // 트림된 영상의 출처. replay_trimmed는 원래 30s Replay 전용이었는데 탭/화면 녹화도 이 플래그를
 // 켜기 시작했다 — 지표 의미가 조용히 바뀌지 않게 차원을 하나 더 보낸다.
@@ -18,6 +19,7 @@ export function submitEventProperties(
   // 이 두 축이 유일한 사후 관측 수단이고, 둘은 독립이어야 "떴는데 안 골랐다"가 표현된다.
   sprintFieldShown: boolean | null = null,
   sprintSelected: boolean | null = null,
+  languages?: LanguageEventProperties,
 ): Record<string, string> {
   return {
     platform,
@@ -28,6 +30,7 @@ export function submitEventProperties(
     ...(projectOverridden === null ? {} : { project_overridden: String(projectOverridden) }),
     ...(sprintFieldShown === null ? {} : { sprint_field_shown: String(sprintFieldShown) }),
     ...(sprintSelected === null ? {} : { sprint_selected: String(sprintSelected) }),
+    ...languages,
   };
 }
 
@@ -40,6 +43,7 @@ export function trackSubmit(
   projectOverridden: boolean | null = null,
   sprintFieldShown: boolean | null = null,
   sprintSelected: boolean | null = null,
+  languages?: LanguageEventProperties,
 ): void {
   const classification = typeof result === "string" ? result : result.recovery?.state === "unknown" ? null : "success";
   if (!classification) return;
@@ -55,6 +59,7 @@ export function trackSubmit(
       projectOverridden,
       sprintFieldShown,
       sprintSelected,
+      languages,
     ),
   }).catch(() => {});
 }
