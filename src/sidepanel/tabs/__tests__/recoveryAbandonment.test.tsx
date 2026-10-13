@@ -42,7 +42,7 @@ it("confirmed non-Slack abandonment removes the actual persistent pointer and in
   await userEvent.click(await screen.findByTestId("recovery-delete-local"));
   await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "recovery.deleteLocal" }));
   await waitFor(() => expect(screen.queryByTestId("recovery-row-warning")).toBeNull());
-  expect(screen.getByTestId("filter-submitted").textContent).not.toBe("issueList.filter.submitted");
+  expect(screen.getByTestId("filter-submitted").textContent).toBe("issueList.filter.submitted");
   await waitFor(() => expect(screen.queryByTestId("draft-detail-dialog")).toBeNull());
   expect(screen.queryByTestId("detail-submit-open")).toBeNull();
   expect(useIssuesStore.getState().issues[0].submissionRecoveryId).toBeUndefined();
