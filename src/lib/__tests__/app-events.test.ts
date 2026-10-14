@@ -81,7 +81,7 @@ describe("createEmitter", () => {
   });
 
   // 팩토리가 리스너 집합을 클로저 밖(모듈 스코프)에 두면 모든 emitter가 한 통이 된다.
-  // 그러면 아래 7종이 서로의 리스너를 발화시키므로 이 케이스가 유일한 그물이다.
+  // 그러면 아래 8종이 서로의 리스너를 발화시키므로 이 케이스가 유일한 그물이다.
   it("팩토리가 만든 emitter들은 리스너 집합을 공유하지 않는다", () => {
     const a = createEmitter();
     const b = createEmitter();
@@ -109,8 +109,8 @@ describe("app-events 인스턴스", () => {
     ([name]) => name !== "createEmitter",
   ) as Array<[string, LooseEvent]>;
 
-  it("emitter 7종이 전부 subscribe·fire를 가진 객체다", () => {
-    expect(emitters.map(([n]) => n)).toHaveLength(7);
+  it("emitter 8종이 전부 subscribe·fire를 가진 객체다", () => {
+    expect(emitters.map(([n]) => n)).toHaveLength(8);
     for (const [name, e] of emitters) {
       expect(typeof e?.subscribe, name).toBe("function");
       expect(typeof e?.fire, name).toBe("function");

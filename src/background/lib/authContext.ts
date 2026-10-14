@@ -50,7 +50,7 @@ export function createGrantRefresh<A extends Auth>(
         if (!candidate) await acquireRequestAuth(platform, start);
         throw error;
       }
-      if (!sameOAuthGrant(platform, start, refreshed)) throw new StaleGrantError();
+      if (!sameOAuthGrant(platform, start, refreshed)) throw new StaleGrantError(platform, "replaced");
       if (candidate) {
         candidate.current = refreshed;
         candidates.set(refreshed, candidate);

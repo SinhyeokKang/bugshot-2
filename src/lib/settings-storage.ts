@@ -99,12 +99,12 @@ export async function acquireStoredAuth<A extends { kind: string }>(platform: OA
   const { result } = await transactSettings((state) => {
     const current = state.accounts[platform]?.auth as unknown as Record<string, unknown> | undefined;
     const input = requested as unknown as Record<string, unknown>;
-    if (!current || current.kind !== "oauth") throw new StaleGrantError();
+    if (!current || current.kind !== "oauth") throw new StaleGrantError(platform, "missing");
     if (input.grantId) {
-      if (!sameOAuthGrant(platform, input, current)) throw new StaleGrantError();
+      if (!sameOAuthGrant(platform, input, current)) throw new StaleGrantError(platform, "replaced");
     } else {
       const withoutId = { ...current }; delete withoutId.grantId;
-      if (!sameOAuthGrant(platform, input, withoutId)) throw new StaleGrantError();
+      if (!sameOAuthGrant(platform, input, withoutId)) throw new StaleGrantError(platform, "replaced");
       current.grantId ??= crypto.randomUUID();
     }
     return { ...current } as unknown as A;
@@ -116,10 +116,10 @@ function writer<K extends OAuthAccountKey, A extends OAuthAuthOf<K>>(
   spec: OAuthWriteSpec<K, A>,
 ): (expected: A, refreshed: A) => Promise<void> {
   return async (expected, refreshed) => {
-    if (!sameOAuthGrant(spec.account, expected, refreshed)) throw new StaleGrantError();
+    if (!sameOAuthGrant(spec.account, expected, refreshed)) throw new StaleGrantError(spec.account, "replaced");
     await transactSettings((state) => {
       const cur = state.accounts[spec.account]?.auth;
-      if (!cur || cur.kind !== "oauth" || !sameOAuthGrant(spec.account, expected, cur)) throw new StaleGrantError();
+      if (!cur || cur.kind !== "oauth" || !sameOAuthGrant(spec.account, expected, cur)) throw new StaleGrantError(spec.account, cur ? "replaced" : "missing");
       const target = cur as A;
       for (const field of spec.fields) {
         target[field] = spec.keepIfAbsent?.includes(field) ? refreshed[field] ?? target[field] : refreshed[field];

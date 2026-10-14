@@ -21,7 +21,7 @@ beforeEach(() => {
   vi.stubGlobal("chrome", { storage: { onChanged: { addListener: (fn: any) => listeners.push(fn), removeListener: (fn: any) => { listeners = listeners.filter((x) => x !== fn); } }, local: {
     get: vi.fn(async () => ({ "bugshot-settings": structuredClone(raw) })),
     set: vi.fn(async (items) => { if (failWrite) throw Error("disk"); if ("bugshot-settings.corrupt" in items) backup = structuredClone(items["bugshot-settings.corrupt"]); if (!("bugshot-settings" in items)) return; if (releaseWrite) await new Promise<void>((r) => { releaseWrite = r; }); const oldValue = structuredClone(raw); raw = structuredClone(items["bugshot-settings"]); if (typeof raw === "string") raw = JSON.parse(raw); writes++; const newValue = structuredClone(raw); queueMicrotask(() => listeners.forEach((listener) => listener({ "bugshot-settings": { oldValue, newValue } }, "local"))); }),
-    remove: vi.fn(async (keys: string | string[]) => { if ([keys].flat().includes("bugshot-settings")) raw = undefined; }),
+    remove: vi.fn(async (keys: string | string[]) => { const list = [keys].flat(); if (list.includes("bugshot-settings")) raw = undefined; if (list.includes("bugshot-settings.corrupt")) backup = undefined; }),
   } } });
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -100,13 +100,13 @@ it("missing Web Locks never fall back to overwriting", async () => {
   await a.persist.rehydrate(); expect(writes).toBe(0);
   expect(backup).toBeUndefined(); expect(raw.state.accounts.linear).toBeDefined();
 });
-it.each(["broken", "{not json", { state: { accounts: "broken" } }, { state: {}, version: "future" }, { state: [] }])("panel hydration quarantines a corrupt envelope (%j) instead of locking every later write", async (bad) => {
+it.each(["broken", "{not json", { state: { accounts: "broken" } }, { state: {}, version: "future" }, { state: [] }])("panel hydration discards a corrupt envelope (%j) instead of locking every later write", async (bad) => {
   const { onSettingsReset, onStateSaveFailed } = await import("@/lib/app-events");
   const reset = vi.fn(), failed = vi.fn();
   const offReset = onSettingsReset.subscribe(reset), offFailed = onStateSaveFailed.subscribe(failed);
   raw = structuredClone(bad);
   const a = createSettingsStore(); await a.persist.rehydrate();
-  expect(backup).toEqual(bad);
+  expect(raw).toBeUndefined(); expect(backup).toBeUndefined();
   expect(a.persist.hasHydrated()).toBe(true);
   expect(reset).toHaveBeenCalledTimes(1); expect(failed).not.toHaveBeenCalled();
   a.getState().setTitlePrefix("fresh"); await a.persist.flush();
@@ -132,7 +132,7 @@ it("clearStorage is not blocked by a failed intent queued ahead of it", async ()
   a.getState().setTitlePrefix("after-clear"); await a.persist.flush();
   expect(raw.state.titlePrefix).toBe("after-clear");
 });
-it("background readers stay fail-closed on a corrupt envelope and never quarantine it", async () => {
+it("background readers stay fail-closed on a corrupt envelope and never discard it", async () => {
   const { readStoredLinearAuth } = await import("@/lib/settings-storage");
   const { SettingsCorruptError } = await import("@/lib/settings-envelope");
   raw = "{not json";
@@ -239,4 +239,29 @@ it.each(["read", "lock"])("pending intent survives %s rejection and retries afte
   expect(a.getState().accounts.linear!.auth).toMatchObject({ accessToken: "external" });
   expect(writes).toBe(2);
   off();
+});
+it("clearStorage requested while an intent is in flight still runs after that intent lands", async () => {
+  const a = createSettingsStore(); await a.persist.rehydrate();
+  releaseWrite = () => {};
+  a.getState().setTitlePrefix("in-flight");
+  await vi.waitFor(() => expect(chrome.storage.local.set).toHaveBeenCalledTimes(1));
+  const clearing = a.persist.clearStorage();
+  const release = releaseWrite!; releaseWrite = undefined; release();
+  await clearing; await a.persist.flush();
+  expect(raw).toBeUndefined();
+  expect(a.getState().accounts).toEqual({});
+});
+it("a reset that lands before the panel subscribes is still reported once", async () => {
+  raw = "{not json";
+  const a = createSettingsStore(); await a.persist.rehydrate();
+  expect(a.persist.takeSettingsReset()).toBe(true);
+  expect(a.persist.takeSettingsReset()).toBe(false);
+});
+it("a second panel that waited on the lock does not discard an envelope another panel already replaced", async () => {
+  raw = "{not json";
+  const a = createSettingsStore(); await a.persist.rehydrate();
+  a.getState().setTitlePrefix("written-after-reset"); await a.persist.flush();
+  const { discardCorruptSettingsEnvelope } = await import("@/lib/settings-envelope");
+  await discardCorruptSettingsEnvelope();
+  expect(raw.state.titlePrefix).toBe("written-after-reset");
 });

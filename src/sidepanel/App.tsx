@@ -28,6 +28,7 @@ import { ReplayProvider } from "./30s-replay/replay-context";
 import {
   onBlobSaveFailed,
   onStateSaveFailed,
+  onSettingsReset,
   onOAuthExpired,
   onPickerIframeUnsupported,
   onPickerPermissionExpired,
@@ -159,6 +160,7 @@ export default function App() {
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
   const [blobSaveFailed, setBlobSaveFailed] = useState(false);
   const [stateSaveFailed, setStateSaveFailed] = useState(false);
+  const [settingsReset, setSettingsReset] = useState(false);
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
   const [permissionExpired, setPermissionExpired] = useState(false);
   const [trimBusy, setTrimBusy] = useState(false);
@@ -209,6 +211,17 @@ export default function App() {
       blurActiveElement();
       setStateSaveFailed(true);
     });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const show = () => {
+      if (!useSettingsStore.persist.takeSettingsReset()) return;
+      blurActiveElement();
+      setSettingsReset(true);
+    };
+    const unsub = onSettingsReset.subscribe(show);
+    show();
     return unsub;
   }, []);
 
@@ -416,6 +429,22 @@ export default function App() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setStateSaveFailed(false)}>
+              {t("common.ok")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={settingsReset} onOpenChange={setSettingsReset}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("app.settingsReset.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("app.settingsReset.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setSettingsReset(false)}>
               {t("common.ok")}
             </AlertDialogAction>
           </AlertDialogFooter>
