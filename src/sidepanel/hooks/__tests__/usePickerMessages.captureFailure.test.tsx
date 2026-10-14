@@ -5,10 +5,11 @@ import { captureInactiveMessage } from "@/lib/capture-messages";
 
 const sendBg = vi.fn<(...args: unknown[]) => Promise<string>>();
 const cropImage = vi.fn(async () => "data:image/webp;base64,crop");
+const captureElementSnapshot = vi.fn<(...args: unknown[]) => Promise<null>>(async () => null);
 
 vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 vi.mock("@/sidepanel/capture", () => ({
-  captureElementSnapshot: vi.fn(async () => null),
+  captureElementSnapshot: (...a: unknown[]) => captureElementSnapshot(...a),
   cropImage: () => cropImage(),
 }));
 vi.mock("@/sidepanel/picker-control", async () => {
@@ -79,6 +80,7 @@ beforeEach(() => {
   useEditorStore.setState(useEditorStore.getInitialState(), true);
   listeners = [];
   sendBg.mockReset();
+  captureElementSnapshot.mockClear();
   failed.mockReset();
   off = onCaptureFailed.subscribe(failed);
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -191,5 +193,69 @@ describe("인라인 영역 캡처(captureAndInsertInline) 실패 발화", () => 
 
     await new Promise((r) => setTimeout(r, 0));
     expect(failed).not.toHaveBeenCalled();
+  });
+});
+
+const SELECTED = {
+  type: "picker.selected",
+  sessionId: "s1",
+  source: "pick",
+  payload: {
+    selector: "#a",
+    tagName: "div",
+    classList: [],
+    computedStyles: {},
+    specifiedStyles: {},
+    propSources: {},
+    hasParent: true,
+    hasChild: false,
+    text: "",
+    viewport: { width: 800, height: 600 },
+  },
+};
+
+type SnapshotOpts = { isCurrent?: () => boolean };
+function lastIsCurrent(): () => boolean {
+  const opts = captureElementSnapshot.mock.calls.at(-1)?.[1] as SnapshotOpts | undefined;
+  expect(typeof opts?.isCurrent).toBe("function");
+  return opts!.isCurrent!;
+}
+
+// captureWithPrep이 발화 시점에 묻는 소유 판정 — 호출부의 stale 폐기 가드와 같은 술어여야 한다.
+describe("요소 캡처 호출부가 소유 판정을 넘긴다", () => {
+  it("before 캡처: 선택이 바뀌면 isCurrent가 false", async () => {
+    useEditorStore.setState({
+      phase: "picking",
+      captureMode: "element",
+      target: { tabId: TAB, url: "https://example.com", title: "x" },
+    });
+    renderHook(() => usePickerMessages(TAB));
+
+    deliver(SELECTED);
+    await waitFor(() => expect(captureElementSnapshot).toHaveBeenCalled());
+    const isCurrent = lastIsCurrent();
+
+    expect(isCurrent()).toBe(true);
+    useEditorStore.getState().reset();
+    expect(isCurrent()).toBe(false);
+  });
+
+  it("요소 단일 캡처: picking을 떠나면 isCurrent가 false", async () => {
+    useEditorStore.setState({
+      phase: "picking",
+      captureMode: "screenshot",
+      target: { tabId: TAB, url: "https://example.com", title: "x" },
+    });
+    // 캡처가 끝나면 실패 경로가 곧장 reset한다 — 판정만 보려고 캡처를 대기 상태로 둔다.
+    captureElementSnapshot.mockReturnValueOnce(new Promise(() => {}));
+    renderHook(() => usePickerMessages(TAB));
+
+    deliver(SELECTED);
+    await waitFor(() => expect(captureElementSnapshot).toHaveBeenCalled());
+    const isCurrent = lastIsCurrent();
+
+    expect(isCurrent()).toBe(true);
+    useEditorStore.getState().reset();
+    expect(isCurrent()).toBe(false);
   });
 });

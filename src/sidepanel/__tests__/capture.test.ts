@@ -139,6 +139,33 @@ describe("captureWithPrep 실패 발화 (경로당 한 곳)", () => {
     expect(failed).not.toHaveBeenCalled();
   });
 
+  // 호출부의 stale 폐기 가드는 null을 받은 뒤에야 돈다 — 발화 시점에 소유를 물어야 막힌다.
+  it("isCurrent가 false면(세션·선택이 바뀜) 요소 소실도 발화하지 않는다", async () => {
+    prepareCapture.mockResolvedValue(null);
+
+    await captureElementSnapshot(1, { isCurrent: () => false });
+
+    expect(failed).not.toHaveBeenCalled();
+    expect(endCapture).toHaveBeenCalled();
+  });
+
+  it("isCurrent가 false면 관문 거부도 발화하지 않는다", async () => {
+    prepareCapture.mockResolvedValue(PREP);
+    sendBg.mockRejectedValue(new Error(captureInactiveMessage(1)));
+
+    await expect(captureElementSnapshot(1, { isCurrent: () => false })).resolves.toBeNull();
+
+    expect(failed).not.toHaveBeenCalled();
+  });
+
+  it("isCurrent가 true면 평소대로 발화한다", async () => {
+    prepareCapture.mockResolvedValue(null);
+
+    await captureElementSnapshot(1, { isCurrent: () => true });
+
+    expect(failed).toHaveBeenCalledWith("element-missing");
+  });
+
   it("지연 권한 만료 플래그가 켜져 있으면 발화하지 않는다", async () => {
     setActiveTabExpiryDeferred(true);
     prepareCapture.mockResolvedValue(null);

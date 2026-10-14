@@ -31,6 +31,9 @@ interface CaptureOptions {
   // 넘겨 판정을 파생시킨다. 둘을 함께 넘기면 context가 이긴다(resolveExpandRequest).
   expandContext?: boolean;
   context?: CaptureContext;
+  // 실패 토스트 직전에 묻는 소유 판정. 호출부의 stale 폐기 가드는 null을 받은 뒤에야 돌아
+  // 그 사이 나간 토스트를 막지 못한다.
+  isCurrent?: () => boolean;
 }
 
 export async function captureElementSnapshot(
@@ -75,10 +78,11 @@ async function captureWithPrep(
 ): Promise<CaptureResult | null> {
   const margin = options.margin ?? DEFAULT_MARGIN;
   const frameId = options.frameId ?? 0;
+  const owned = () => options.isCurrent?.() ?? true;
   // 실패 토스트는 이 함수 한 곳에서만 발화한다 — 호출부(before·after·요소 캡처·재캡처)는 null만 본다.
   if (!prep?.rect) {
     await endCapture(tabId, frameId);
-    emitCaptureFailure("element-missing");
+    if (owned()) emitCaptureFailure("element-missing");
     return null;
   }
   const usable = resolveCaptureRect({
@@ -110,7 +114,7 @@ async function captureWithPrep(
   } catch (err) {
     if (!maybeSurfacePermissionExpired(err)) {
       console.error("[bugshot] snapshot failed", err);
-      fireCaptureFailure(err);
+      if (owned()) fireCaptureFailure(err);
     }
     return null;
   } finally {

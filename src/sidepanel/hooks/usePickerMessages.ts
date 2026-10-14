@@ -176,7 +176,11 @@ export function usePickerMessages(myTabId: number | null): void {
             // 먼저 끝난 쪽이 아직 진행 중인 캡처의 잠금을 미리 푼다.
             beforeCaptureInflight += 1;
             useEditorStore.getState().setBeforeCapturePending(true);
-            void captureElementSnapshot(tabId, { frameId, expandContext: true })
+            void captureElementSnapshot(tabId, {
+              frameId,
+              expandContext: true,
+              isCurrent: sameSelection,
+            })
               .then((result) => {
                 const s = useEditorStore.getState();
                 if (!result || !sameSelection() || s.beforeImage) return;
@@ -404,7 +408,11 @@ async function captureElementShot(
   // captureElementSnapshot은 권한 만료/캡처 실패 시 내부에서 안내(다이얼로그·실패 토스트) 후 null
   // 반환 → 빈 drafting 진입 금지. 여기서 다시 발화하면 한 실패에 토스트가 둘이다.
   // 요소 단일 캡처는 스코프 밖 — expandContext를 켜지 않는다(현행 요소 bbox 유지).
-  const shot = await captureElementSnapshot(tabId, { frameId });
+  const isCurrent = () => {
+    const s = useEditorStore.getState();
+    return s.phase === "picking" && s.target?.tabId === tabId;
+  };
+  const shot = await captureElementSnapshot(tabId, { frameId, isCurrent });
   const img = shot?.image ?? null;
   if (!img) {
     // 실패 시에도 전 프레임 정리 — 미정리 시 hover blocker가 페이지 클릭을 계속 삼킨다.
@@ -417,9 +425,8 @@ async function captureElementShot(
     frameId !== 0 ? (await getTopViewport(tabId)) ?? payload.viewport : payload.viewport;
   // 캡처는 background 큐를 거쳐 수백 ms 걸린다 — 그 사이 취소·세션 만료·탭 변경이 있었으면
   // 결과를 버린다(captureAndCrop과 동일 규약). 안 그러면 유령 drafting으로 전이한다.
-  const s = useEditorStore.getState();
-  if (s.phase !== "picking" || s.target?.tabId !== tabId) return;
-  s.onElementShot(
+  if (!isCurrent()) return;
+  useEditorStore.getState().onElementShot(
     { selector: payload.selector, tagName: payload.tagName },
     img,
     viewport,
