@@ -63,7 +63,6 @@ test.describe.serial("hover shield", () => {
   // visibility:hidden). 그 창을 방패가 메우는지를 캡처 준비 메시지로 결정적으로 재현한다 —
   // 커밋 직후의 실제 창은 사이드패널 왕복 타이밍이라 폴링으로는 공허해진다.
   test("캡처 준비 중에는 커서 밑 요소가 hover를 못 받는다", async ({ ext }) => {
-    await fixture.bringToFront();
     await enterDebugAndPick(fixture, panel, "#el1");
 
     // 대조군: 방패가 내려간 평시엔 커서가 요소 위에 있고 hover도 살아 있다. 이게 false면
@@ -104,7 +103,6 @@ test.describe.serial("hover shield", () => {
   // selection-commit 이유가 만료(1.5s)까지 남는다. 사이드패널이 before 캡처를 건너뛰는
   // 실사용 경로(버퍼된 요소 재선택)와 같은 상태다.
   test("커밋 방패가 남은 채로 다시 picking해도 선택이 된다", async () => {
-    await fixture.bringToFront();
     await panel.evaluate(() => {
       const api = chrome.tabs as unknown as {
         sendMessage: (...args: unknown[]) => Promise<unknown>;

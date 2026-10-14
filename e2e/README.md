@@ -26,12 +26,13 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 
 `fixtures/extension.ts`가 기본 창구이고, 계약을 한 곳에 묶어야 하는 stub은 별 파일로 뗀다(`fixtures/clipboard.ts:stubClipboard` — 복사 flavor 계약. GOTCHAS "스텁이 곧 계약" 참조). 새 헬퍼를 추가하면 여기와 `docs/DIRECTORY.md`에 반영한다.
 
-- `ext` worker fixture — `fixtureUrl(page)` / `fixtureHostUrl(host, page)` / `fixtureTabId(urlPattern?)` / `openPanel(tabId)` / `context`.
+- `ext` worker fixture — `fixtureUrl(page)` / `fixtureHostUrl(host, page)` / `fixtureTabId(urlPattern?)` / `openPanel(tabId)` / `evalInExt(fn, arg)` / `context`. `evalInExt`의 eval-host 탭은 기동 직후 미리 연다(spec 도중 새 탭이 활성으로 열려 대상을 가리지 않게).
   - `fixtureHostUrl(host, page)` — 같은 fixture 서버를 임의 호스트명으로 연다. launch args의 `--host-resolver-rules=MAP *.bugshot.test 127.0.0.1` 덕에 `app`/`api`/`auth.bugshot.test`가 하나의 registrable domain으로 묶인다(동족 hostname이 필요한 `api-hosts-env-row` 전용 — GOTCHAS 참조). **`fixtureTabId`엔 패턴을 명시**해야 한다.
 - `fixtures/recovery.ts` — 첨부 복구(1·2단계) 전용. `setup(ext, id, provider, opts)`로 저장 draft+IDB 원본을 앱 부팅 전에 seed하고, `installRpc`(1단계: 고정 응답)/`installRemote`(2단계: 상태 있는 원격 — create가 보낸 본문을 기억해 기존 이슈 읽기·본문 쓰기에 응답, `setRemote`/`setRemoteBody`/`remoteBody`로 흐름 중에 바꾼다)가 `chrome.runtime.sendMessage` 스파이를 건다. `state(panel, id)`는 저장된 이슈·journal·보존 바이트.
 - `enterDebug(panel)` — 디버그 탭 진입(active 폴링).
 - `enterDebugAndPick(fixture, panel, selector)` — 디버그 → element 모드 → 요소 선택 → `repick` 확인까지.
-- `pickElement(fixture, panel, selector, opts?)` — bbox 중심 클릭(double rAF hover). 기본(`expectSelection:true`)은 **repick 노출까지 클릭 재시도**(재arm 레이스로 인한 유실 클릭 방어). repick이 안 뜨는 픽(element-shot 캡처·iframe 미지원)은 `{ expectSelection: false }`로 1회만. `{ frame: "#sel" }`로 **iframe 내부 요소 선택**(frameLocator bbox — 메인 프레임 뷰포트 기준 좌표).
+- `pickElement(fixture, panel, selector, opts?)` — bbox 중심 클릭(double rAF hover). 탭 전환은 제품이 한다(탭 모드 hold): 클릭 전 대상이 앞인지(`waitForTargetFront`), 선택 뒤엔 before가 끝나 패널이 돌아올 때까지(`waitForPanelFront`) 기다린다 — before 진행 중 패널을 일부러 앞에 두는 spec만 `{ returnToPanel: false }`. 기본(`expectSelection:true`)은 **repick 노출까지 클릭 재시도**(재arm 레이스로 인한 유실 클릭 방어). repick이 안 뜨는 픽(element-shot 캡처·iframe 미지원)은 `{ expectSelection: false }`로 1회만. `{ frame: "#sel" }`로 **iframe 내부 요소 선택**(frameLocator bbox — 메인 프레임 뷰포트 기준 좌표).
+- `waitForPanelFront(panel)` / `waitForTargetFront(panel)` — 패널 탭 / 대상 탭(`?tabId=`)이 실제로 활성인지 패널 문서에서 `chrome.tabs`로 폴링한다. 캡처 뒤 패널 자동 복귀를 기다릴 때 `bringToFront` 대신 쓴다(`document.visibilityState`는 Playwright 포커스 에뮬레이션 탓에 못 쓴다 — GOTCHAS "탭 모드 hold").
 - `ensureSectionOpen(panel, toggleTestId, probeLabel)` — 접힌 collapsible Section 펼침(probeLabel prop이 DOM에 없으면 토글 클릭). 접힌 섹션은 자식이 DOM에서 제거됨. 예: Position 섹션(`section-position-toggle`, probe `"position"`/`"z-index"`).
 - `typeStyleValue(panel, label, value)` — ValueCombobox 팝오버 입력.
 - `setQuadLinkedValue(panel, label, value)` — QuadProp(margin/padding) LinkToggle 4면 동일값.

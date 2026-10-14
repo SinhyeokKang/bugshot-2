@@ -5,6 +5,7 @@ import {
   expect,
   test,
   typeStyleValue,
+  waitForPanelFront,
 } from "./fixtures/extension";
 
 const FIXTURE_URL = "http://127.0.0.1/basic.html";
@@ -14,25 +15,20 @@ const FIXTURE_URL = "http://127.0.0.1/basic.html";
 // Konva Stage는 단일 <canvas>라 "그림이 맞나"는 판정 불가 — `img src` 문자열의 **변화 여부**와
 // 액션 버튼 개수로만 판정한다.
 
-// pick 직후 자동 발행되는 before 캡처가 background 직렬 큐를 빠져나올 때까지 fixture를 앞에 둔다.
-// 놓치면 before 기준이 조용히 사라지고 증상이 구현 회귀와 구별되지 않는다.
-async function settleBeforeCapture(fixture: Page): Promise<void> {
-  await fixture.bringToFront();
-  await fixture.waitForTimeout(1500);
-}
-
 // [다음]은 aria-disabled+클릭 가드라 actionability가 막지 않는다 — 부재 단언이 필수.
-// 캡처 관문이 tab.active를 재확인하므로 fixture를 앞에 두고 evaluate 클릭한다.
-async function proceedToDrafting(panel: Page, fixture: Page): Promise<void> {
+// after 캡처 동안 패널이 fixture를 앞으로 가져왔다가 돌아온다(탭 모드 hold) — 재시도 전에 복귀를 기다린다.
+async function proceedToDrafting(panel: Page): Promise<void> {
   const next = panel.getByTestId("next-step");
   const drafting = panel.getByTestId("drafting-panel");
+  // captureVisibleTab quota(~2회/초)는 확장 전역이라 spec 경계를 넘는다 — 버스트 금지,
+  // 1초 이상 간격으로 재시도한다(captureUntilDrafting 관례).
   await expect(async () => {
+    await waitForPanelFront(panel);
     if (!(await drafting.isVisible())) {
       await expect(next).not.toHaveAttribute("aria-disabled", "true");
-      await fixture.bringToFront();
-      await next.evaluate((el) => (el as HTMLElement).click());
+      await next.click();
     }
-    await expect(drafting).toBeVisible({ timeout: 2500 });
+    await expect(drafting).toBeVisible({ timeout: 4000 });
   }).toPass({ intervals: [1000, 1500, 2000, 2500], timeout: 25_000 });
 }
 
@@ -88,12 +84,11 @@ test.describe.serial("diff table 이미지 주석", () => {
     const tabId = await ext.fixtureTabId(FIXTURE_URL);
     panel = await ext.openPanel(tabId);
 
-    await enterDebugAndPick(fixture, panel, "#title", { keepFixtureActive: true });
-    await settleBeforeCapture(fixture);
+    await enterDebugAndPick(fixture, panel, "#title");
     await typeStyleValue(panel, "color", "#ff0000");
     await expect(fixture.locator("#title")).toHaveCSS("color", "rgb(255, 0, 0)");
 
-    await proceedToDrafting(panel, fixture);
+    await proceedToDrafting(panel);
 
     // before가 유실되면 아래 전부가 "주석이 안 붙음"으로 보인다 — 진입 조건을 먼저 못 박는다.
     await expect(panel.getByTestId("snapshot-before")).toBeVisible();

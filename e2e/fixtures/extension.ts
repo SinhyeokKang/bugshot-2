@@ -207,29 +207,21 @@ export const test = base.extend<object, { ext: ExtContext }>({
       };
       const extensionId = new URL((await getSw()).url()).host;
 
-      // chrome.* 평가용 특권 확장 페이지(앱 부팅 없음)를 lazy로 1개 열어 재사용한다.
-      let evalHost: Page | null = null;
-      const getEvalHost = async (): Promise<Page> => {
-        if (!evalHost) {
-          evalHost = await context.newPage();
-          await evalHost.goto(`chrome-extension://${extensionId}/e2e-eval.html`);
-        }
-        return evalHost;
-      };
+      // chrome.* 평가용 특권 확장 페이지(앱 부팅 없음)를 1개 열어 재사용한다. 기동 직후에 미리 연다 —
+      // 새 탭은 활성으로 열리므로, spec 도중(탭 모드 hold로 대상 탭이 앞인 동안) 처음 열면 대상이
+      // 가려져 캡처 관문이 거부한다(GOTCHAS "탭 모드 hold").
+      const evalHost: Page = await context.newPage();
+      await evalHost.goto(`chrome-extension://${extensionId}/e2e-eval.html`);
 
       const ext: ExtContext = {
         context,
         extensionId,
         fixtureUrl: (page) => `http://127.0.0.1:${port}/${page}`,
         fixtureHostUrl: (host, page) => `http://${host}:${port}/${page}`,
-        evalInExt: async (fn, arg) => {
-          const host = await getEvalHost();
-          return host.evaluate(fn, arg as never);
-        },
+        evalInExt: (fn, arg) => evalHost.evaluate(fn, arg as never),
         // 기본 패턴은 fixture 서버 호스트 — chrome match pattern은 포트를 무시한다.
         fixtureTabId: async (urlPattern = "http://127.0.0.1/*") => {
-          const host = await getEvalHost();
-          const tabs = await host.evaluate(
+          const tabs = await evalHost.evaluate(
             (pattern: string) => chrome.tabs.query({ url: pattern }),
             urlPattern,
           );
@@ -258,20 +250,47 @@ export const test = base.extend<object, { ext: ExtContext }>({
 
 export const expect = test.expect;
 
+// 탭 모드 hold: 패널(같은 창의 탭)이 picking·캡처 동안 대상 탭을 스스로 앞으로 가져오고 끝나면
+// 돌아온다. spec은 bringToFront로 그 전환을 앞지르지 말고 이걸로 기다린다 — 캡처 중에 패널을
+// 앞으로 가져오면 대상이 가려져 관문이 거부한다. 판정은 chrome.tabs의 실제 활성 상태로 한다 —
+// Playwright 포커스 에뮬레이션 탓에 document.visibilityState는 뒤에 깔린 탭에서도 "visible"이다.
+// 패널 문서는 숨어 있어도 JS가 돌므로 그쪽에서 자기 탭(getCurrent)과 대상(?tabId=)을 조회한다.
+async function isFront(panel: Page, which: "panel" | "target"): Promise<boolean> {
+  return panel.evaluate(async (w) => {
+    const id =
+      w === "panel"
+        ? (await chrome.tabs.getCurrent())?.id
+        : Number(new URL(location.href).searchParams.get("tabId"));
+    if (id == null || !Number.isFinite(id)) return false;
+    return chrome.tabs.get(id).then((t) => t.active, () => false);
+  }, which);
+}
+
+export async function waitForPanelFront(panel: Page, timeout = 15_000): Promise<void> {
+  await expect.poll(() => isFront(panel, "panel"), { timeout }).toBe(true);
+}
+
+export async function waitForTargetFront(panel: Page, timeout = 15_000): Promise<void> {
+  await expect.poll(() => isFront(panel, "target"), { timeout }).toBe(true);
+}
+
 // picker 선택 — blocker(overlay) 경유 bbox 중심 클릭. hover로 하이라이트를 먼저 유도한다.
 // expectSelection(기본 true): repick이 뜰 때까지 hover+click을 재시도한다. repick 클릭 직후
 // 재arm 레이스(panel은 "repick 숨김"인데 content script picker가 아직 안 붙어 단발 클릭이 유실)로
 // 인한 flaky를 막는다. 선택이 안 되는 픽(iframe 미지원 등)은 expectSelection:false로 1회만.
 // frame: iframe 내부 요소 선택 — frameLocator 경유 bbox(메인 프레임 뷰포트 기준)로 클릭.
 // 첫 mousemove가 top blocker 핸드오프(등록 iframe → pointerEvents:none)를 트리거한다.
+// 탭 전환은 제품이 한다(탭 모드 hold): picking 진입이 fixture를 앞으로 가져오고, before 캡처가
+// 끝나면 패널로 돌아온다. returnToPanel(기본 true)은 그 복귀까지 기다린다 — before가 진행 중인
+// 동안 패널을 일부러 앞에 두는 spec만 false로 끄고 직접 옮긴다.
 export async function pickElement(
   fixture: Page,
   panel: Page,
   selector: string,
-  opts: { expectSelection?: boolean; frame?: string; keepFixtureActive?: boolean } = {},
+  opts: { expectSelection?: boolean; frame?: string; returnToPanel?: boolean } = {},
 ): Promise<void> {
-  const { expectSelection = true, frame, keepFixtureActive = false } = opts;
-  await fixture.bringToFront();
+  const { expectSelection = true, frame, returnToPanel = true } = opts;
+  await waitForTargetFront(panel);
   const target = frame
     ? fixture.frameLocator(frame).locator(selector)
     : fixture.locator(selector);
@@ -288,13 +307,8 @@ export async function pickElement(
     await fixture.mouse.click(cx, cy);
   };
 
-  // keepFixtureActive: 선택이 곧바로 캡처로 이어지는 경로(element shot)에서는 패널을 앞으로
-  // 가져오지 않는다 — bringToFront가 fixture 탭을 비활성으로 만들어 captureVisibleTab이
-  // "no longer the active tab"으로 거부된다. 실제 브라우저에서 사이드패널을 클릭해도 탭은
-  // 활성으로 남으므로, 이 전환은 제품 동작이 아니라 자동화가 만든 부작용이다.
   if (!expectSelection) {
     await clickOnce();
-    if (!keepFixtureActive) await panel.bringToFront();
     return;
   }
 
@@ -304,7 +318,7 @@ export async function pickElement(
     await clickOnce();
     await expect(panel.getByTestId("repick")).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 15000 });
-  if (!keepFixtureActive) await panel.bringToFront();
+  if (returnToPanel) await waitForPanelFront(panel);
 }
 
 // 디버그 탭 진입까지 — 연동 0개여도 debug가 기본 탭이라 보통 클릭 한 번이면 끝난다.
@@ -325,7 +339,7 @@ export async function enterDebugAndPick(
   fixture: Page,
   panel: Page,
   selector: string,
-  opts: { keepFixtureActive?: boolean } = {},
+  opts: { returnToPanel?: boolean } = {},
 ): Promise<void> {
   await enterDebug(panel);
   await panel.getByTestId("mode-element").click();

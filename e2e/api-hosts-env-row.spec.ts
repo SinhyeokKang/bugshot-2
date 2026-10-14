@@ -177,6 +177,9 @@ test("element 모드는 로그가 보존돼 있어도 API Hosts 행을 만들지
   // 취소는 `cancelPicking`(preserveLogs)을 타야 한다 — `mode-screenshot`의 취소는
   // `cancelAreaCapture`→`reset()`이라 networkLog·logsAttach를 통째로 날려 다시 공전한다.
   await panel.getByTestId("mode-element-shot").click();
+  // picking 진입이 fixture를 앞으로 가져온다(탭 모드 hold) — 취소하러 패널로 돌아간다.
+  // 숨은 패널 탭의 클릭은 actionability(rAF)에서 멈춘다.
+  await panel.bringToFront();
   await panel.getByTestId("picking-cancel").click();
   await expect(panel.getByTestId("mode-element")).toBeVisible();
 
