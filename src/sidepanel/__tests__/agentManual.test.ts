@@ -257,8 +257,15 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
       // `addEventListener(`까지 붙인다 — 문자열만 보면 정리 경로의 removeEventListener가
       // 대신 매치돼, 등록을 지워도 green이다(실측).
       expect(recorder).toContain('addEventListener("visibilitychange"');
-      expect(codeOnly(read("src/background/tab-bindings.ts"))).toContain(
-        "stopRecorders(prevTabId)",
+      // 정지는 판정 함수의 결과에만 걸린다(탭 모드 자기 패널 예외). 판정 호출과 그 결과를
+      // stopRecorders로 흘리는 루프, 그리고 onActivated가 그 경로를 실제로 부르는지를 함께 본다 —
+      // 판정 함수 이름만 보면 import 문이 대신 매치된다.
+      const bindings = codeOnly(read("src/background/tab-bindings.ts"));
+      expect(bindings).toMatch(
+        /for \(const (\w+) of recordersToStopOnSwitch\(\{[\s\S]*?\}\)\) \{\s*stopRecorders\(\1\);/,
+      );
+      expect(bindings).toMatch(
+        /onActivated\.addListener\([\s\S]*?resolveTabSwitch\([\s\S]*?stopRecordersOnSwitch\(windowId, prevTabId, tabId\)/,
       );
     });
 
