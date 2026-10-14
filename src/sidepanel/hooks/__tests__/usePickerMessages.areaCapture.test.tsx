@@ -1,29 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, renderHook, waitFor } from "@testing-library/react";
 
-const events: string[] = [];
-const captureElementSnapshot = vi.fn<(...args: unknown[]) => Promise<unknown>>();
 const captureTargetTab = vi.fn(async (_tabId: number, _reason?: string) => "data:image/png;base64,x");
-const holdTarget = vi.fn(async (tabId: number, reason: string) => {
-  events.push(`hold:${tabId}:${reason}`);
-  return async () => {
-    events.push(`release:${reason}`);
-  };
-});
-
-vi.mock("@/sidepanel/tab-mode", () => ({
-  holdTarget: (tabId: number, reason: string) => {
-    // 동기 호출 시점의 phase — styling 전이보다 먼저여야 before 구간이 끊기지 않는다.
-    events.push(`call:${reason}:${phaseNow()}`);
-    return holdTarget(tabId, reason);
-  },
-}));
 vi.mock("@/sidepanel/capture", () => ({
-  captureElementSnapshot: (...a: unknown[]) => captureElementSnapshot(...a),
+  captureElementSnapshot: vi.fn(async () => null),
   captureTargetTab: (tabId: number, reason?: string) => captureTargetTab(tabId, reason),
   cropImage: async () => "data:image/webp;base64,crop",
 }));
-const stopHoverAllFrames = vi.fn(async (_tabId: number) => {});
 vi.mock("@/sidepanel/picker-control", () => ({
   clearPicker: vi.fn(async () => {}),
   collectTokens: vi.fn(async () => []),
@@ -34,7 +17,7 @@ vi.mock("@/sidepanel/picker-control", () => ({
   releaseDetachedSelection: vi.fn(async () => {}),
   restartPickerInFrame: vi.fn(async () => {}),
   resumeBufferedElement: vi.fn(async () => false),
-  stopHoverAllFrames: (tabId: number) => stopHoverAllFrames(tabId),
+  stopHoverAllFrames: vi.fn(async () => {}),
   stopPicker: vi.fn(async () => {}),
 }));
 vi.mock("@/store/blob-db", () => ({
@@ -70,12 +53,8 @@ vi.mock("@/sidepanel/recorder-control", () => ({
   clearActionRecorder: vi.fn(),
 }));
 
-import { useEditorStore, type BufferedElement } from "@/store/editor-store";
+import { useEditorStore } from "@/store/editor-store";
 import { usePickerMessages } from "../usePickerMessages";
-
-function phaseNow() {
-  return useEditorStore.getState().phase;
-}
 
 type Listener = (msg: unknown, sender: chrome.runtime.MessageSender) => void;
 let listeners: Listener[] = [];
@@ -85,24 +64,6 @@ function deliver(msg: unknown) {
   for (const l of listeners) l(msg, { tab: { id: TAB } as chrome.tabs.Tab, frameId: 0 });
 }
 
-const SELECTED = {
-  type: "picker.selected",
-  sessionId: "s1",
-  source: "pick",
-  payload: {
-    selector: "#a",
-    tagName: "div",
-    classList: [],
-    computedStyles: {},
-    specifiedStyles: {},
-    propSources: {},
-    hasParent: true,
-    hasChild: false,
-    text: "",
-    viewport: { width: 800, height: 600 },
-  },
-};
-
 const AREA = {
   type: "picker.areaSelected",
   rect: { x: 0, y: 0, width: 50, height: 50 },
@@ -111,10 +72,7 @@ const AREA = {
 
 beforeEach(() => {
   useEditorStore.setState(useEditorStore.getInitialState(), true);
-  events.length = 0;
   listeners = [];
-  holdTarget.mockClear();
-  captureElementSnapshot.mockReset();
   captureTargetTab.mockClear();
   vi.stubGlobal("chrome", {
     runtime: {
@@ -136,106 +94,6 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
-});
-
-function enterPicking(extra: Partial<ReturnType<typeof useEditorStore.getState>> = {}) {
-  useEditorStore.setState({
-    phase: "picking",
-    captureMode: "element",
-    target: { tabId: TAB, url: "https://example.com", title: "x" },
-    ...extra,
-  });
-}
-
-describe("before 캡처 hold — 요소 선택 수신 ~ before 완료", () => {
-  it("styling 전이 전에 hold를 잡고, before 캡처가 끝난 뒤에야 놓는다", async () => {
-    enterPicking();
-    let finish!: (v: unknown) => void;
-    captureElementSnapshot.mockImplementation(
-      () =>
-        new Promise((r) => {
-          events.push("before:start");
-          finish = r;
-        }),
-    );
-    renderHook(() => usePickerMessages(TAB));
-
-    deliver(SELECTED);
-
-    expect(events[0]).toBe("call:before:picking");
-    await waitFor(() => expect(events).toContain("before:start"));
-    expect(useEditorStore.getState().phase).toBe("styling");
-    expect(events).not.toContain("release:before");
-
-    finish({ image: "data:image/webp;base64,b", context: null });
-    await waitFor(() => expect(events).toContain("release:before"));
-    expect(holdTarget).toHaveBeenCalledWith(TAB, "before");
-    expect(events.filter((e) => e === "release:before")).toHaveLength(1);
-  });
-
-  it("before 캡처가 실패(null)해도 놓는다", async () => {
-    enterPicking();
-    captureElementSnapshot.mockResolvedValue(null);
-    renderHook(() => usePickerMessages(TAB));
-
-    deliver(SELECTED);
-
-    await waitFor(() => expect(events).toContain("release:before"));
-  });
-
-  // 새면 refcount가 0으로 안 돌아와 이후 탭 모드 캡처가 전부 활성화 없이 거부된다.
-  it("hold를 잡은 뒤 동기 단계가 throw해도 놓는다", async () => {
-    enterPicking();
-    // styling 전이 뒤·캡처 발행 전의 동기 호출 — before 진행 카운터를 올리기 전이라 다른 케이스로 새지 않는다.
-    stopHoverAllFrames.mockImplementationOnce(() => {
-      throw new Error("boom");
-    });
-    renderHook(() => usePickerMessages(TAB));
-
-    expect(() => deliver(SELECTED)).toThrow("boom");
-
-    await waitFor(() => expect(events).toContain("release:before"));
-    expect(events.filter((e) => e === "release:before")).toHaveLength(1);
-    expect(captureElementSnapshot).not.toHaveBeenCalled();
-  });
-
-  it("버퍼 재선택(before 생략)이면 before hold를 잡지 않는다", async () => {
-    const buffered: BufferedElement = {
-      selector: "#a",
-      tagName: "div",
-      frameId: 0,
-      selectionSnapshot: {
-        classList: [],
-        specifiedStyles: {},
-        computedStyles: {},
-        text: null,
-        viewport: { width: 800, height: 600 },
-        capturedAt: 0,
-      },
-      styleEdits: useEditorStore.getInitialState().styleEdits,
-      beforeImage: null,
-      afterImage: null,
-    };
-    enterPicking({ bufferedElements: [buffered] });
-    renderHook(() => usePickerMessages(TAB));
-
-    deliver(SELECTED);
-
-    await waitFor(() => expect(useEditorStore.getState().phase).toBe("styling"));
-    expect(holdTarget).not.toHaveBeenCalled();
-    expect(captureElementSnapshot).not.toHaveBeenCalled();
-  });
-
-  it("요소 단일 캡처(screenshot 모드)는 before hold를 잡지 않는다 — 트랜잭션 hold만", async () => {
-    enterPicking({ captureMode: "screenshot" });
-    captureElementSnapshot.mockResolvedValue(null);
-    renderHook(() => usePickerMessages(TAB));
-
-    deliver(SELECTED);
-
-    await waitFor(() => expect(captureElementSnapshot).toHaveBeenCalled());
-    expect(holdTarget).not.toHaveBeenCalled();
-  });
 });
 
 describe("영역·인라인 캡처는 hold된 캡처 요청을 쓴다", () => {

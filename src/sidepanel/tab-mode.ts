@@ -15,7 +15,7 @@ const ACTIVATION_WAIT_MS = 1500;
 let selfTab: Promise<{ id: number } | null> | null = null;
 // 패널 문서는 대상 탭 하나에 바인딩된다(?tabId=) — 그래서 count는 탭별이 아니라 전역 하나다.
 let count = 0;
-// 마지막 release에서 패널로 돌아갈 자격. 우리가 대상을 앞으로 가져왔거나(activate), 사용자가
+// 마지막 release에서 패널로 돌아갈 자격. 패널이 앞일 때 우리가 대상을 앞으로 가져왔거나(activate), 사용자가
 // 직접 대상에 가서 그린 영역 캡처일 때(area) 켜진다. 실제 복원은 그때도 대상이 앞일 때만.
 let returnToPanel = false;
 // 활성화·복원 단계를 직렬화한다 — 늦게 끝난 복원이 새 hold의 활성화를 덮지 않게.
@@ -77,7 +77,8 @@ async function activate(targetTabId: number, reason: HoldReason): Promise<void> 
   const [selfNow, target] = await Promise.all([getTab(self.id), getTab(targetTabId)]);
   if (!selfNow || !target) return;
   if (shouldActivateTarget({ self: selfNow, target })) {
-    returnToPanel = true;
+    // 패널이 앞이 아니었으면(사용자가 제3 탭에 있었으면) 대상만 앞으로 가져오고 패널로 끌어오지 않는다.
+    if (selfNow.active) returnToPanel = true;
     await activateAndConfirm(targetTabId);
   } else if (reason === "area" && target.active && selfNow.windowId === target.windowId) {
     returnToPanel = true;
@@ -99,7 +100,7 @@ export function holdTarget(
   targetTabId: number,
   reason: HoldReason,
 ): Promise<() => Promise<void>> {
-  // count는 동기로 올린다 — before hold가 같은 태스크의 styling 전이(picking release)보다 먼저 잡혀야 한다.
+  // count는 동기로 올린다 — before 캡처의 트랜잭션 hold가 같은 태스크의 styling 전이(picking release)보다 먼저 잡혀야 한다.
   count += 1;
   if (count === 1) enqueue(() => activate(targetTabId, reason));
   let released = false;

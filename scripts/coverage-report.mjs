@@ -55,10 +55,9 @@ const BROWSER_BOUND_EXACT = new Set([
   "src/sidepanel/annotation-control.ts",
   "src/sidepanel/recorder-control.ts",
   "src/sidepanel/tab-nav.ts",
-  // 탭 모드 대상 탭 hold — 셸은 chrome.tabs 활성화 글루, 훅은 그 셸에 phase를 잇는 구독. 판정은
-  // lib/tab-mode.ts(로직 분모)에 있고, 둘 다 단위 테스트는 둔다(설계 지시로 분모에서만 뺀다).
+  // 탭 모드 대상 탭 hold 셸 — chrome.tabs 활성화 글루. 판정은 lib/tab-mode.ts(로직 분모)에 있고
+  // 셸 단위 테스트는 둔다(설계 지시로 분모에서만 뺀다).
   "src/sidepanel/tab-mode.ts",
-  "src/sidepanel/hooks/useTabModeHold.ts",
   "src/sidepanel/lib/video-thumbnail.ts",
   // 재생 기반 구간 재인코딩 — <video>+requestVideoFrameCallback+WebCodecs. 순수 부분은
   // trim-math.ts에 있어 로직 분모에 남는다. mp4-encoder.ts도 미등록인데, WebCodecs를 쓰는

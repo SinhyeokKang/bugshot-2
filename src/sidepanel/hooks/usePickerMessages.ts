@@ -11,7 +11,6 @@ import {
   isActiveTabExpiryDeferred,
   setActiveTabExpiryDeferred,
 } from "@/sidepanel/lib/capture-error";
-import { holdTarget } from "@/sidepanel/tab-mode";
 import { clearPicker, collectTokens, getTopViewport, isCurrentPickerSession, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, releaseDetachedSelection, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
@@ -124,97 +123,83 @@ export function usePickerMessages(myTabId: number | null): void {
           .bufferedElements.some((b) =>
             sameElementKey(b, { selector: msg.payload.selector, frameId }),
           );
+        useEditorStore.getState().onElementSelected({
+          selector: msg.payload.selector,
+          tagName: msg.payload.tagName,
+          classList: msg.payload.classList,
+          computedStyles: msg.payload.computedStyles,
+          specifiedStyles: msg.payload.specifiedStyles,
+          propSources: msg.payload.propSources ?? {},
+          hasParent: msg.payload.hasParent,
+          hasChild: msg.payload.hasChild,
+          text: msg.payload.text,
+          viewport: msg.payload.viewport,
+          capturedAt: Date.now(),
+          frameId,
+          origin,
+        });
         const tabId = useEditorStore.getState().target?.tabId;
-        // 탭 모드 before 구간: styling 전이(picking hold 해제)보다 먼저 잡아야 before 캡처가
-        // 끝나기 전에 패널로 돌아가지 않는다. 버퍼 재선택은 캡처가 없어 잡지 않는다 — 잡으면
-        // styling 중 DOM 트리 이동마다 대상 탭이 괜히 한 번 앞으로 나온다.
-        const beforeHold = tabId && !wasBuffered ? holdTarget(tabId, "before") : null;
-        const releaseBefore = () => void beforeHold?.then((release) => release());
-        // 캡처로 넘기면 그 finally가 놓는다. 그 전에 빠지면(생략·throw) 아래 finally가 놓는다 —
-        // 새면 refcount가 0으로 안 돌아와 이후 탭 모드 캡처가 전부 활성화 없이 거부된다.
-        let beforeHandedOff = false;
-        try {
-          useEditorStore.getState().onElementSelected({
-            selector: msg.payload.selector,
-            tagName: msg.payload.tagName,
-            classList: msg.payload.classList,
-            computedStyles: msg.payload.computedStyles,
-            specifiedStyles: msg.payload.specifiedStyles,
-            propSources: msg.payload.propSources ?? {},
-            hasParent: msg.payload.hasParent,
-            hasChild: msg.payload.hasChild,
-            text: msg.payload.text,
-            viewport: msg.payload.viewport,
-            capturedAt: Date.now(),
-            frameId,
-            origin,
-          });
-          if (tabId) {
-            // 선택 프레임 외 나머지 프레임의 hover 유령(blocker·inspector) 종료.
-            void stopHoverAllFrames(tabId);
-            // 비동기 캡처 중 다른 요소가 선택되면 늦게 도착한 결과가 새 선택을 덮는다 —
-            // 선택 동일성(selector+frameId)을 resolve 시점에 재확인.
-            const selector = msg.payload.selector;
-            const sameSelection = () => {
+        if (tabId) {
+          // 선택 프레임 외 나머지 프레임의 hover 유령(blocker·inspector) 종료.
+          void stopHoverAllFrames(tabId);
+          // 비동기 캡처 중 다른 요소가 선택되면 늦게 도착한 결과가 새 선택을 덮는다 —
+          // 선택 동일성(selector+frameId)을 resolve 시점에 재확인.
+          const selector = msg.payload.selector;
+          const sameSelection = () => {
+            const sel = useEditorStore.getState().selection;
+            return (
+              generation === selectionGeneration &&
+              isCurrentPickerSession(tabId, msg.sessionId) &&
+              !!sel &&
+              sameElementKey(sel, { selector, frameId })
+            );
+          };
+          void collectTokens(tabId, frameId)
+            .then((tokens) => {
+              if (!sameSelection()) return;
+              useEditorStore.getState().setTokens(tokens);
+            })
+            .catch((err) => console.warn("[bugshot] collectTokens failed", err));
+          // iframe 선택의 payload viewport는 iframe 내부 크기 — 환경 메타(이슈 본문
+          // Viewport 줄·draft 저장)는 브라우저 뷰포트여야 하므로 top에서 조회해 교체.
+          if (frameId !== 0) {
+            void getTopViewport(tabId).then((vp) => {
+              if (!vp || !sameSelection()) return;
               const sel = useEditorStore.getState().selection;
-              return (
-                generation === selectionGeneration &&
-                isCurrentPickerSession(tabId, msg.sessionId) &&
-                !!sel &&
-                sameElementKey(sel, { selector, frameId })
-              );
-            };
-            void collectTokens(tabId, frameId)
-              .then((tokens) => {
-                if (!sameSelection()) return;
-                useEditorStore.getState().setTokens(tokens);
-              })
-              .catch((err) => console.warn("[bugshot] collectTokens failed", err));
-            // iframe 선택의 payload viewport는 iframe 내부 크기 — 환경 메타(이슈 본문
-            // Viewport 줄·draft 저장)는 브라우저 뷰포트여야 하므로 top에서 조회해 교체.
-            if (frameId !== 0) {
-              void getTopViewport(tabId).then((vp) => {
-                if (!vp || !sameSelection()) return;
-                const sel = useEditorStore.getState().selection;
-                if (!sel) return;
-                useEditorStore.setState({ selection: { ...sel, viewport: vp } });
-              });
-            }
-            if (!wasBuffered && !useEditorStore.getState().beforeImage) {
-              // DOM 트리 이동을 연타하면 선택마다 캡처가 발행돼 겹친다 — boolean이면
-              // 먼저 끝난 쪽이 아직 진행 중인 캡처의 잠금을 미리 푼다.
-              beforeCaptureInflight += 1;
-              useEditorStore.getState().setBeforeCapturePending(true);
-              beforeHandedOff = true;
-              void captureElementSnapshot(tabId, {
-                frameId,
-                expandContext: true,
-                isCurrent: sameSelection,
-              })
-                .then((result) => {
-                  const s = useEditorStore.getState();
-                  if (!result || !sameSelection() || s.beforeImage) return;
-                  // styling을 이미 떠났으면(diff 0건으로 [다음]을 눌러 진행) 이 before는 짝이
-                  // 없다 — 채택하면 초안에 짝 없는 스냅샷 플래그·blob만 남는다.
-                  if (s.phase !== "styling") return;
-                  s.setBeforeImage(result.image);
-                  s.setCaptureContext(result.context);
-                })
-                // 캡처 실패는 null 반환으로 흐른다(위 `!result`) — 여기는 예기치 못한 throw만.
-                .catch((err) =>
-                  console.warn("[bugshot] before-image capture failed", err),
-                )
-                .finally(() => {
-                  beforeCaptureInflight -= 1;
-                  if (beforeCaptureInflight === 0) {
-                    useEditorStore.getState().setBeforeCapturePending(false);
-                  }
-                  releaseBefore();
-                });
-            }
+              if (!sel) return;
+              useEditorStore.setState({ selection: { ...sel, viewport: vp } });
+            });
           }
-        } finally {
-          if (!beforeHandedOff) releaseBefore();
+          if (!wasBuffered && !useEditorStore.getState().beforeImage) {
+            // DOM 트리 이동을 연타하면 선택마다 캡처가 발행돼 겹친다 — boolean이면
+            // 먼저 끝난 쪽이 아직 진행 중인 캡처의 잠금을 미리 푼다.
+            beforeCaptureInflight += 1;
+            useEditorStore.getState().setBeforeCapturePending(true);
+            void captureElementSnapshot(tabId, {
+              frameId,
+              expandContext: true,
+              isCurrent: sameSelection,
+            })
+              .then((result) => {
+                const s = useEditorStore.getState();
+                if (!result || !sameSelection() || s.beforeImage) return;
+                // styling을 이미 떠났으면(diff 0건으로 [다음]을 눌러 진행) 이 before는 짝이
+                // 없다 — 채택하면 초안에 짝 없는 스냅샷 플래그·blob만 남는다.
+                if (s.phase !== "styling") return;
+                s.setBeforeImage(result.image);
+                s.setCaptureContext(result.context);
+              })
+              // 캡처 실패는 null 반환으로 흐른다(위 `!result`) — 여기는 예기치 못한 throw만.
+              .catch((err) =>
+                console.warn("[bugshot] before-image capture failed", err),
+              )
+              .finally(() => {
+                beforeCaptureInflight -= 1;
+                if (beforeCaptureInflight === 0) {
+                  useEditorStore.getState().setBeforeCapturePending(false);
+                }
+              });
+          }
         }
       } else if (message.type === "picker.selectionUpdated") {
         const msg = message as Extract<PickerMessage, { type: "picker.selectionUpdated" }>;

@@ -23,9 +23,9 @@ export function shouldRestorePanel(a: { target: TabLike | null }): boolean {
 }
 
 // area는 사용자가 직접 대상 탭으로 가서 드래그한 캡처 — 활성화는 안 하지만 끝나면 패널로 돌아온다.
-export type HoldReason = "picking" | "inline" | "before" | "viewport" | "capture" | "area";
+export type HoldReason = "picking" | "inline" | "viewport" | "capture" | "area";
 
-/** 상태 기반 hold. before/viewport/capture/area는 호출부가 명시적으로 잡는다. */
+/** 상태 기반 hold. viewport/capture/area는 호출부가 명시적으로 잡는다. */
 export function targetHoldFromState(s: { phase: EditorPhase; inline: boolean }): {
   picking: boolean;
   inline: boolean;
