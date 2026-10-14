@@ -123,8 +123,13 @@ describe("listTargetCandidates — 대상 탭 후보", () => {
 describe("tabModeGate — 탭 모드에서 쿼리 없이 열렸을 때만 대상 선택", () => {
   const panelBase = "chrome-extension://abc/src/sidepanel/index.html";
 
-  it("getSelfTab 대기 중이면 pending", () => {
-    expect(tabModeGate({ self: undefined, href: `${panelBase}?tabId=7`, panelBase })).toBe("pending");
+  it("쿼리 없음 + getSelfTab 대기 중이면 pending", () => {
+    expect(tabModeGate({ self: undefined, href: panelBase, panelBase })).toBe("pending");
+    expect(tabModeGate({ self: undefined, href: `${panelBase}?tabId=1.5`, panelBase })).toBe("pending");
+  });
+
+  it("정수 쿼리면 getSelfTab을 기다리지 않고 bound — 사이드패널 정상 경로를 새 비동기 게이트 뒤로 세우지 않는다", () => {
+    expect(tabModeGate({ self: undefined, href: `${panelBase}?tabId=7`, panelBase })).toBe("bound");
   });
 
   it("사이드패널(self=null)은 쿼리와 무관하게 sidepanel — 기존 바인딩 경로 그대로", () => {

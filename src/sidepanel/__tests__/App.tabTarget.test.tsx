@@ -119,10 +119,23 @@ describe("App — 탭 모드 대상 선택 게이트", () => {
     expect(screen.getByTestId("tab-mode-agent-hint")).toBeTruthy();
   });
 
-  it("getSelfTab 대기 중에는 아무것도 그리지 않고 훅에도 null을 준다", async () => {
+  // D1 그물 — 사이드패널 정상 경로(?tabId=N)는 getCurrent 왕복을 기다리지 않고 첫 렌더에서 그려지고
+  // 부작용 훅도 첫 렌더부터 그 tabId를 받는다(e2e는 전부 탭 모드라 이걸 못 본다).
+  it("정수 쿼리 + getSelfTab 대기 중: 첫 렌더에서 화면이 그려지고 훅이 그 tabId를 받는다", async () => {
+    selfPending = new Promise(() => {});
+    setHref("?tabId=5");
+    render(<App />);
+    expect(screen.getByTestId("debug-tab-body")).toBeTruthy();
+    for (const spy of [spies.recorder, spies.picker, spies.hold, spies.editorSync]) {
+      expect(lastArg(spy)).toBe(5);
+    }
+    const chromeApi = chrome as unknown as ReturnType<typeof chromeStub>;
+    expect(chromeApi.tabs.connect).toHaveBeenCalledTimes(1);
+  });
+
+  it("쿼리 없음 + getSelfTab 대기 중: 아무것도 그리지 않고 훅에도 null을 준다", async () => {
     let resolve!: (v: { id: number } | null) => void;
     selfPending = new Promise((r) => (resolve = r));
-    setHref("?tabId=5");
     await mounted();
     expect(screen.queryByTestId("tab-target-picker")).toBeNull();
     expect(screen.queryByTestId("debug-tab-body")).toBeNull();
@@ -130,8 +143,7 @@ describe("App — 탭 모드 대상 선택 게이트", () => {
       expect(lastArg(spy)).toBeNull();
     }
     await act(async () => resolve({ id: 9 }));
-    expect(screen.getByTestId("debug-tab-body")).toBeTruthy();
-    expect(lastArg(spies.recorder)).toBe(5);
+    expect(screen.getByTestId("tab-target-picker")).toBeTruthy();
   });
 
   it("탭 모드 + 정수 쿼리: 정상 화면이고 훅이 그 tabId를 받는다", async () => {
