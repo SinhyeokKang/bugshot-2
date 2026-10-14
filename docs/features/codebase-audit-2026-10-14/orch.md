@@ -65,3 +65,4 @@ AUTH가 messages.ts 변경을 필요로 하면 CONNECT 통합 뒤 rebase하고 �
 - 사용자에게 네이티브 세션 기본값 변경 후 재시도 또는 터미널 준비 감지 복구를 요청했다. CLI worker-start에는 launch mode override가 없다. 임의 설정 변경·권한 우회는 하지 않는다.
 - 재개 시 같은 Run/Task에서 마지막 실패 Dispatch를 `--retry-of`로 지정하고 현재 dev에서 워크트리를 준비한다. 새 Run으로 실패 이력을 우회하지 않는다.
 - 워커 브리프는 main 체크아웃 `.scratch/brief-{capture,connect,viewer}.md`에 있다. 감사 구현 권한·소유권·게이트·커밋 제한을 포함한다.
+- 재개(2026-10-14): 사용자 지정 폴더의 전체 배치를 같은 Run으로 재개한다. 재개 dev는 `948a8a0b`. 기존 워크트리는 제거되어 새 워크트리를 현재 dev에서 만든다. CAPTURE 최신 실패는 `ctx_78c857d568a8`이며 총 3회 준비 실패이므로 circuit breaker를 우회하지 않는다. CONNECT·VIEWER는 각 기존 Task의 실패 Dispatch를 지정해 재시도하고, CAPTURE는 공식 복구 응답에 따라 처리한다.
