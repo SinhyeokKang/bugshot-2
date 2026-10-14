@@ -1,3 +1,4 @@
+import { parsePanelTabTarget } from "@/lib/panel-tab-url";
 import { isSupportedUrl } from "@/lib/url-support";
 import type { EditorPhase } from "@/store/editor-store";
 
@@ -43,4 +44,18 @@ export function listTargetCandidates<T extends TabLike>(
     ...eligible.filter((t) => t.windowId === self.windowId),
     ...eligible.filter((t) => t.windowId !== self.windowId),
   ];
+}
+
+export type TabModeGate = "pending" | "sidepanel" | "pick" | "bound";
+
+/** App 렌더 분기. 탭 모드인데 ?tabId=가 정수가 아니면 pick — useBoundTabId는 폴백이 임의 탭을 주고
+ *  `Number.isFinite`라 1.5도 받으므로 판정은 이 파서(정수만)로만 한다. self=undefined는 getSelfTab 대기 중. */
+export function tabModeGate(a: {
+  self: { id: number } | null | undefined;
+  href: string;
+  panelBase: string;
+}): TabModeGate {
+  if (a.self === undefined) return "pending";
+  if (a.self === null) return "sidepanel";
+  return parsePanelTabTarget(a.href, a.panelBase) === null ? "pick" : "bound";
 }

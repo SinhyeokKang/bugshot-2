@@ -37,7 +37,12 @@ import {
   onSessionSaveExhausted,
 } from "@/lib/app-events";
 import type { PlatformId } from "@/types/platform";
+import { PANEL_PATH } from "@/lib/panel-tab-url";
 import { useBoundTabId } from "./hooks/useBoundTabId";
+import { useSelfTab } from "./hooks/useSelfTab";
+import { tabModeGate } from "./lib/tab-mode";
+import { TabModeAgentHint } from "./components/TabModeAgentHint";
+import { TabTargetPicker } from "./components/TabTargetPicker";
 import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { useBackgroundRecorder } from "./hooks/useBackgroundRecorder";
 import { usePickerMessages } from "./hooks/usePickerMessages";
@@ -116,7 +121,16 @@ const AI_OVERLAY_STYLE: Record<
 
 export default function App() {
   const t = useT();
-  const tabId = useBoundTabId();
+  const selfTab = useSelfTab();
+  const boundTabId = useBoundTabId();
+  // 훅이 early return 위에서 도는 탓에, 탭 모드인데 쿼리가 없으면 boundTabId 폴백이 준 임의 탭에 hold·port·레코더가
+  // 붙는다. 대상이 정해지기 전(확인 중·선택 화면)에는 부작용 훅에 null을 준다.
+  const gate = tabModeGate({
+    self: selfTab,
+    href: window.location.href,
+    panelBase: chrome.runtime.getURL(PANEL_PATH),
+  });
+  const tabId = gate === "pending" || gate === "pick" ? null : boundTabId;
   const editorHydrated = useEditorSessionSync(tabId ?? null);
   useBackgroundRecorder(tabId ?? null);
   const replayEnabled = useSettingsUiStore((s) => s.replayEnabled);
@@ -275,6 +289,16 @@ export default function App() {
 
   if (!editorHydrated || !settingsHydrated) return null;
 
+  if (gate === "pending") return null;
+  if (gate === "pick" && selfTab) {
+    return (
+      <div className="flex h-screen flex-col">
+        <TabModeAgentHint />
+        <TabTargetPicker selfTabId={selfTab.id} />
+      </div>
+    );
+  }
+
   if (tabId === undefined) return null;
   if (tabId === null) return <UnsupportedPage />;
 
@@ -349,6 +373,8 @@ export default function App() {
             </TooltipProvider>
           </Tabs>
         </div>
+
+        <TabModeAgentHint />
 
         <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", tab !== "debug" && "hidden")}>
           <DebugTab activeMainTab={tab} />

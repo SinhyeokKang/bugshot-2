@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { useIsTabMode } from "@/sidepanel/hooks/useSelfTab";
 import { recordModeMeta } from "@/sidepanel/lib/recordModeMeta";
 import { formatMmSs } from "@/sidepanel/lib/logRow";
 import { useTabNav } from "@/sidepanel/tab-nav";
@@ -490,6 +491,7 @@ export function CapturingState({
   // disabled는 pointer-events를 죽여 title 툴팁·스피너 대비까지 잃는다 — ReplayButton과 같은
   // aria-disabled 관용구로 시각·툴팁을 유지하고 핸들러에서 가드한다.
   const lockedClass = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
+  const tabMode = useIsTabMode();
   return (
     <PageShell>
       <EmptyShell
@@ -537,6 +539,12 @@ export function CapturingState({
               />
             </div>
           </>
+        ) : null}
+        {/* 영역 드래그는 사용자가 직접 대상 탭에서 한다. 뷰포트·전체 페이지는 누르는 순간 대상이 앞으로 와서 대상이 아니다. */}
+        {tabMode && !busy && !canceling ? (
+          <p data-testid="tab-mode-area-hint" className="mt-2 text-sm text-muted-foreground">
+            {t("issue.tabMode.areaHint")}
+          </p>
         ) : null}
       </EmptyShell>
       {/* 캡처 방식 툴바 — 녹화 중 그리기 툴바와 같은 자리(하단 footer). 영역 선택은 지금 켜져
