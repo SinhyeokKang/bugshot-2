@@ -15,8 +15,9 @@
 | D3 | 배치 분할·모델은 아래 표대로 | 사용자 승인 |
 | D4 | e2e 하네스 전제 반전(우회 정리)은 B2a가 hold 코어와 **같은 배치**에서 처리 | 중간 dev CI red 방지 |
 | D5 | 워커는 `/ship bypass`의 9단계 `/guide`·10단계 `/doc-check`를 **건너뛰고** 문서 영향을 인계에 적는다. 핫스팟 문서(CLAUDE·ARCHITECTURE·DIRECTORY)는 지휘자가 통합 `/push` 때 문서별 커밋, 탭 모드 섹션·DESIGN §14·MANUAL-SMOKE는 B3, 가이드는 C | 병렬 워커의 핫스팟 충돌 방지 |
+| D8 | **Phase C(가이드·README) 전부 드랍** — 에이전트 페이지·FAQ·AUTHORING IA·README 한 줄·`screenshot/capture.md` 실패 토스트 단락 모두 반영하지 않는다. C 워커 커밋(`283b61bf`)은 통합하지 않고 폐기. 에이전트 안내의 정본은 매뉴얼(`#__BUGSHOT_AGENT__`) 한 곳 | 사용자 결정(C 리뷰 후 — 공개 가이드에 확장 ID를 어떻게 적을지 논의 중 "가이드 그냥 적지 말자") |
 | D7 | **탭 모드 전체 페이지 캡처 취소 = 패널 탭으로 돌아가기**(다음 타일에서 중단 → inactive 토스트 1회 + reset). 코드 변경 없이 문서만 정정, Esc 리스너 미추가 | 사용자 결정(B2a 리뷰). Esc 추가는 사이드패널 동작 변경이라 D1 위반 |
-| D6 | **런타임 검증은 ego에 dev 빌드(`dist`)를 마운트해서** 한다 — 스토어판으로 검증 금지. 아래 "런타임 검증 절차" | 사용자 지시 |
+| D6 | **런타임 검증은 ego에 dev 빌드(`dist`)를 마운트해서** 한다 — 스토어판으로 검증 금지. 스토어판은 손대지 않고, 끝나면 dev 빌드를 제거한다. 아래 "런타임 검증 절차" | 사용자 지시(2026-10-15 두 차례) |
 
 ### D2 프로브 결과 (2026-10-15, ego 스토어판, 같은 창)
 
@@ -35,7 +36,7 @@
 | B2a | 8·9 + 13(하네스 우회 정리·S1·S2·로그 유지·재캡처·패널→X·별도 창 e2e) | hold 코어 | `sidepanel/lib/tab-mode.ts`(신규), `sidepanel/tab-mode.ts`(신규), `sidepanel/hooks/useTabModeHold.ts`(신규), `capture.ts`, `usePickerMessages.ts`, `IssueTab.tsx`, `App.tsx`, `scripts/coverage-report.mjs`, `e2e/fixtures/extension.ts`, 우회 spec들, `e2e/GOTCHAS.md` | A1·B1 dev 통합 | Opus / high — 캡처 관문·hold 경쟁·하네스 반전 | dev 통합 (10커밋, 리뷰 1회·수정 1라운드, 🔴0) |
 | B2b | 10 + picker·hint e2e | 대상 선택 화면·안내 | `components/TabTargetPicker.tsx`·`TabModeAgentHint.tsx`(신규, +test), `App.tsx`, `IssueTab.tsx`(영역 안내), `i18n/namespaces/app.ts`·`issue.ts` | B2a | Sonnet / high — UI 다수, 경계는 B2a가 깔아 둠 | dev 통합 (7커밋, 리뷰 1회·수정 1라운드 — 🔴1(D1 사이드패널 대기) 해소) |
 | B3 | 11·12 | 매뉴얼 그물·문서 | `sidepanel/index.html`, `agentManual.test.ts`, `docs/ARCHITECTURE.md`(탭 모드 섹션), `docs/DESIGN.md`(§14), `e2e/MANUAL-SMOKE.md` | B2b | Sonnet / high — 뮤테이션 실측 | dev 통합 (12커밋, 리뷰 1회·수정 1라운드, 🔴0) |
-| C | 14 | 가이드(`/guide`) | `guide/{ko,en}/**`, `guide/AUTHORING.md` | B3 | Sonnet / medium | 대기 |
+| C | 14 | 가이드(`/guide`) | `guide/{ko,en}/**`, `guide/AUTHORING.md` | B3 | Sonnet / medium | **드랍(D8)** — 리뷰 1회 후 미통합 폐기 |
 | R | — | 배치별 독립 리뷰(리포트 전용) | — | 각 배치 인계 | Opus / high | — |
 
 ### 파일 겹침 행렬 (✕ = 겹침)
@@ -64,7 +65,8 @@
 1. 지휘자가 `/build` 1회(`dist` 갱신).
 2. 검증 워커(main 체크아웃)가 ego에 **dev 빌드 `dist`를 unpacked로 마운트**한다.
    - dev ID `dhmffogmoohdjficicjjfolcheklngfm`로 로드됐는지 확인(스토어판 ID `ohakhekagkodklkickemonmifdcbhmig`과 구분).
-   - 검증 동안 **스토어판은 비활성화**(둘이 동시에 켜지면 사이드패널·컨텍스트 메뉴·단축키가 섞인다). 끝나면 원복.
+   - **스토어판은 건드리지 않는다**(비활성화·업데이트·설정 변경 전부 금지 — 사용자 지시). 둘이 함께 켜져 있으므로 패널은 반드시 dev ID URL로 열고, 툴바 아이콘·단축키·컨텍스트 메뉴처럼 어느 확장인지 모호한 진입은 쓰지 않는다.
+   - **검증이 끝나면 dev 빌드를 제거한다**(사용자 지시). 제거 확인까지가 검증 완료다.
    - 로드된 빌드가 최신인지 확인: `chrome.runtime.getManifest().version` + 이번 변경의 식별 가능한 표지(예: 탭 모드 안내 testid 존재). `/build` 후엔 확장 **reload** 필수(stale dist 헛테스트 방지).
    - unpacked 로드에 네이티브 파일 피커가 필요해 자동화가 막히면 사용자에게 1회 요청한다(권한 세탁 금지).
 3. 범위: 각 인계의 런타임 검증 목록 + prd 인수(ego S1 — 별도 창 없이 제출까지) + 사이드패널 정상 모드 무변화(가드레일, 사람이 사이드패널을 열어 확인 — `getCurrent()` undefined 포함).
@@ -82,3 +84,4 @@
 - 2026-10-15 B2a fix1 통합(before hold 제거, area hold·뷰포트 5초 상한·buffer 전환 묶음·제3 탭 포커스 탈취 방지, POSTMORTEM 2건). 지휘자 반영: design.md(before 근거 정정·진입점 표 #1/#4/#6/#7·returnToPanel·HoldReason·D7 취소 문구), tasks.md(:79·:188), DIRECTORY(tab-mode 셸·lib·viewport-capture·useTabModeHold·e2e 헬퍼·spec), CI(86/412), ARCHITECTURE(:513 keepFixtureActive). 탭 모드 섹션·CLAUDE 캡처 줄은 B3. 런타임 이월: 사이드패널 정상 모드 무변화, 전체 페이지 소요 시간, Memory Saver discard, 실 Chrome visibilitychange 재무장, ego 제어권 오판.
 - 2026-10-15 B2b fix1 통합: 정수 쿼리면 getSelfTab 대기 없이 bound(D1). 지휘자 반영: DIRECTORY(TabTargetPicker·TabModeAgentHint·useSelfTab·tabModeGate·spec)·CI(87/415)·design.md:54. 런타임 이월: 실제 사이드패널에서 탭 모드 UI 미노출·시작 지연 없음.
 - 2026-10-15 B3 fix1 통합(매뉴얼 탭 모드 계약 + agentManual 바인딩, ARCHITECTURE 탭 모드 섹션, DESIGN §14, MANUAL-SMOKE S7–S13 사람·ego 블록, CLAUDE 한 줄, POSTMORTEM 1건). 지휘자 반영: COVERAGE 수동 잔여(S8·S12·S13 + S7/S9/S10/S11 링크, 섹션 위치 정정), `/manual-smoke` 스킬 stale(별도 창 강제 삭제), DIRECTORY agentManual, design.md 매뉴얼 절.
+- 2026-10-15 C 인계 → 리뷰 🔴1(확장 ID 안내 실행 불가) → 사용자 결정 D8: C 전부 드랍, 커밋 미통합·워크트리 폐기.

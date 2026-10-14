@@ -152,7 +152,7 @@
 - **검증**:
   - [ ] `pnpm build:e2e && pnpm test:e2e` 전체 green
 
-## Phase C — 가이드
+## Phase C — 가이드 (드랍 — orch.md D8)
 
 ### Task 14: 사용자 가이드
 - **변경 대상**: `guide/{ko,en}/agent-automation.md`(신규), `guide/{ko,en}/SUMMARY.md`, `guide/AUTHORING.md`, `guide/{ko,en}/faq.md`, `guide/{ko,en}/screenshot/capture.md`
