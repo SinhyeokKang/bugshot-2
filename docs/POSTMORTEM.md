@@ -36,6 +36,47 @@
 
 ---
 
+## 2026-10-15 — Playwright 포커스 에뮬레이션 탓에 뒤에 깔린 탭도 `visibilityState==="visible"`이라, 탭 전환 대기가 즉시 통과해 레이스를 숨겼다
+
+- **영역**: `e2e`
+- **계열**: `라이브러리전제`
+- **그물**: `e2e`
+- **증상**: (작성 중 잡음) 탭 모드 hold를 넣고 e2e 하네스를 바꾸면서, "패널이 대상 탭을 앞으로 가져왔다가 돌아온다"를 `page.evaluate(() => document.visibilityState) === "visible"` 폴링으로 기다렸다. S2 spec이 0.6초 만에 끝났고, 이어지는 `tabs.get(fixture).active === false` 단언이 red였다 — 패널은 아직 뒤에 있는데 "패널이 앞"으로 판정된 것이다. 대기가 공허하게 통과해 before 캡처 도중 다음 조작이 끼어드는 레이스가 그대로 숨는다.
+- **근본 원인**:
+  - Playwright는 페이지마다 포커스 에뮬레이션(`Emulation.setFocusEmulationEnabled`)을 켠다. 그래서 같은 창에서 뒤에 깔린 탭의 문서도 `visibilityState`가 `"visible"`이다. 탭이 실제로 앞인지는 문서가 아니라 브라우저(`chrome.tabs`)만 안다.
+  - 같은 이유로 **`visibilitychange`가 e2e에서 오지 않는다**. 패널 복귀 시 레코더를 다시 붙이는 경로(`useBackgroundRecorder`의 visibility 재무장)가 e2e에선 한 번도 돌지 않는다. 덕분에 정지 예외(B1) 이전 코드에서 S1이 red가 됐다. 하지만 그 red는 이 억제에 기댄 것이다.
+  - GOTCHAS의 기존 서술("패널이 hidden이 되면 sync가 밀린다")도 같은 전제 위에 있었다. 문서가 보는 visibility와 브라우저의 탭 활성은 하네스에선 다른 축이다.
+- **재발 방지**:
+  - (1) **e2e에서 "탭이 앞인가"는 `chrome.tabs`의 `active`로만 판정한다.** 헬퍼는 `waitForPanelFront`·`waitForTargetFront`(`e2e/fixtures/extension.ts`)다. 패널 문서에서 `chrome.tabs.getCurrent()`(자기)와 `?tabId=`(대상)를 조회한다 — 패널은 뒤에 있어도 JS가 돈다.
+  - (2) 전수: `grep -rn "visibilityState\|visibilitychange" e2e/`가 대기·판정 조건에 걸려 있으면 의심한다.
+  - (3) **`visibilitychange`에 기대는 제품 동작은 e2e로 못 고정한다.** 그 경로의 그물은 단위(배선 테스트)와 수동이다. e2e red가 이 억제에 기대고 있으면 그 사실을 spec·GOTCHAS에 적는다. 하네스가 바뀌면 그물이 아무 경고 없이 약해진다.
+- **관련**: `e2e/fixtures/extension.ts:isFront`·`waitForPanelFront`·`waitForTargetFront`·`pickElement`, `e2e/ai-usability-tab-mode.spec.ts`(S1·"대상 → 제3 탭" 케이스), `e2e/GOTCHAS.md` "탭 모드 hold의 하네스 전제", 제품 쪽 `src/sidepanel/hooks/useBackgroundRecorder.ts`(visibility 재무장).
+
+---
+
+## 2026-10-15 — refcount hold는 한 번 새면 이후 0→1 전이가 영영 없다 — 방어용 hold를 하나 더 얹자 막는 것 없이 누수 면만 늘었다
+
+- **영역**: `미디어`
+- **계열**: `취소래치`
+- **그물**: `unit`
+- **증상**: (사전 차단 — 리뷰가 잡음)
+  - 탭 모드에서 대상 탭을 앞에 두는 단일 refcount hold(`src/sidepanel/tab-mode.ts`)에 요소 선택 직후의 "before hold"를 따로 얹었다.
+  - 그 해제를 분기 네 곳에 흩어 두는 바람에, styling 전이 뒤 동기 호출이 throw하면 hold가 샜다.
+  - 새면 count가 0으로 돌아오지 않는다. 그러면 그 패널 문서가 살아 있는 동안 모든 탭 모드 캡처가 대상 활성화 없이 진행돼 관문(`captureOwnedTab`)에서 inactive로 거부된다. 패널을 새로 고치기 전엔 회복되지 않는다.
+- **근본 원인**:
+  - before 캡처는 styling 전이와 **같은 동기 블록**에서 발사되고, 그 스냅샷 트랜잭션(`captureElementSnapshot` → `withTargetHold`)이 count를 동기로 올린다. picking 해제는 `useTabModeHold`에서 `.then`으로 한 틱 뒤에 돈다. 그래서 count는 0을 거치지 않는다.
+  - 즉 before hold는 막을 대상이 없는 방어였다. 설계 문서의 "styling 전이와 before 발사 사이에 비동기 구간이 있다"는 근거는 `getTopViewport().then`이 `void`라는 걸 보지 않은 단언이었다.
+  - refcount는 획득 지점마다 "모든 경로에서 정확히 1회 해제"라는 의무가 생긴다. 획득 지점을 늘리면 그 의무를 지는 경로가 늘어난다.
+  - 같은 이유로 **해제가 끝없이 미뤄지는 것도 누수다.** `sendBg`에는 타임아웃이 없다. background가 응답하지 않으면 `withTargetHold`의 `finally`가 오지 않아 count가 영구히 남는다.
+- **재발 방지**:
+  - (1) **hold(락·refcount)를 하나 더 얹기 전에, 기존 hold가 그 구간을 이미 덮는지를 실제 구성요소를 엮은 테스트로 먼저 본다.** `usePickerMessages.tabModeOrder.test.tsx`가 그 형태다(실제 셸 + 실제 캡처 트랜잭션 + 실제 picking 상태 hold, 가짜는 `chrome.tabs`·content뿐). 덮으면 얹지 않는다. 그물의 이빨은 트랜잭션 hold 획득을 한 틱 늦춘 뮤턴트가 red인지로 확인했다.
+  - (2) 그래도 얹어야 하면 해제는 **단일 `finally`**에 둔다. 분기마다 두지 않는다.
+  - (3) 전수: `grep -rn "holdTarget(\|withTargetHold(" src/sidepanel --exclude-dir=__tests__`로 획득 지점을 세고, 각 지점의 해제가 `finally`인지 본다. 해제를 기다리는 `await`(`sendBg` 등)에 상한이 없으면 그 hang도 누수로 센다.
+  - (4) 셸의 직렬화·재확인 가드는 붙잡은 `tabs.get`/`tabs.update`로 "복원이 조회·전환 중일 때 새 hold"를 만들어 고정한다. 가드를 하나씩 지운 뮤턴트가 green으로 살아남았던 자리다.
+- **관련**: `src/sidepanel/tab-mode.ts:holdTarget`·`enqueue`·`restore`, `src/sidepanel/capture.ts:captureElementSnapshot`(트랜잭션 hold), `src/sidepanel/hooks/usePickerMessages.ts`(before hold 제거), `src/sidepanel/hooks/useTabModeHold.ts`, `src/lib/bg-client.ts:sendBg`(무타임아웃 — 범위 밖, 미수정), 그물 `src/sidepanel/__tests__/tab-mode.test.ts`·`src/sidepanel/hooks/__tests__/usePickerMessages.tabModeOrder.test.tsx`.
+
+---
+
 ## 2026-10-15 — 동기 정지를 비동기 조회 뒤로 미루자 늦은 정지가 복귀 후 재무장을 덮었고, 첫 가드는 이벤트 쌍만 봐서 절반만 막았다
 
 - **영역**: `background`
