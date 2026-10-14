@@ -76,16 +76,16 @@
   - [x] 기존 `resolveTabSwitch` 테스트 green
   - [x] `agentManual.test.ts:260`의 `"stopRecorders(prevTabId)"` 리터럴 바인딩을 같은 커밋에서 새 판정 함수 호출 바인딩으로 교체 + 뮤테이션 실측
   - [x] `pnpm typecheck`, `pnpm test`
-  - [ ] (B2a로 이관 + SW getContexts 실측 e2e 포함) e2e "패널 탭 왕복 후 로그 유지"(Task 13) — **변경 전 코드에서 red를 먼저 실측**한다. 지금도 패널 `visibilitychange`가 재무장해 green일 수 있다. red가 안 나면 위 배선 테스트를 그물로 삼고 e2e는 회귀 확인용으로만 둔다.
+  - [x] (B2a로 이관 + SW getContexts 실측 e2e 포함) e2e "패널 탭 왕복 후 로그 유지"(Task 13) → `ai-usability-tab-mode.spec.ts` S1 — B1 이전 `tab-bindings.ts`로 빌드하면 red(왕복 뒤 마커 누락) 실측. e2e에선 패널 복귀 `visibilitychange` 재무장이 안 와서 그물이 된다 — **변경 전 코드에서 red를 먼저 실측**한다. 지금도 패널 `visibilitychange`가 재무장해 green일 수 있다. red가 안 나면 위 배선 테스트를 그물로 삼고 e2e는 회귀 확인용으로만 둔다.
 
 ### Task 8: 탭 모드 순수 판정
 - **변경 대상**: `src/sidepanel/lib/tab-mode.ts`(신규), `src/sidepanel/lib/__tests__/tab-mode.test.ts`(신규)
 - **작업 내용**: `shouldActivateTarget`, `shouldRestorePanel`, `targetHoldFromState`, `listTargetCandidates`를 구현한다.
 - **검증**:
-  - [ ] `shouldActivateTarget`: self null / 다른 창 / 같은 창·target 활성 / 같은 창·target 비활성
-  - [ ] `shouldRestorePanel`: target null(닫힘) / 비활성(제3 탭으로 감) / 활성
-  - [ ] `targetHoldFromState` 표: idle·picking·styling·drafting·capturing × inline true/false. 특히 picking=hold, capturing=no hold(영역은 수동), styling=no hold(before는 명시 hold가 담당).
-  - [ ] `listTargetCandidates`: self 제외, `chrome:`/`chrome-extension:`/웹스토어 제외(`isSupportedUrl` 재사용), 다른 창 포함, 같은 창 먼저 + 그룹 내 순서 유지
+  - [x] `shouldActivateTarget`: self null / 다른 창 / 같은 창·target 활성 / 같은 창·target 비활성
+  - [x] `shouldRestorePanel`: target null(닫힘) / 비활성(제3 탭으로 감) / 활성
+  - [x] `targetHoldFromState` 표: idle·picking·styling·drafting·capturing × inline true/false. 특히 picking=hold, capturing=no hold(영역은 수동), styling=no hold(before는 명시 hold가 담당).
+  - [x] `listTargetCandidates`: self 제외, `chrome:`/`chrome-extension:`/웹스토어 제외(`isSupportedUrl` 재사용), 다른 창 포함, 같은 창 먼저 + 그룹 내 순서 유지
 
 ### Task 9: 셸 + hold 배선
 - **변경 대상**: `src/sidepanel/tab-mode.ts`(신규), `src/sidepanel/__tests__/tab-mode.test.ts`(신규), `src/sidepanel/hooks/useTabModeHold.ts`(신규), `src/sidepanel/capture.ts`, `src/sidepanel/hooks/usePickerMessages.ts`, `src/sidepanel/tabs/IssueTab.tsx`, `src/sidepanel/App.tsx`, `scripts/coverage-report.mjs`
@@ -95,11 +95,11 @@
   - `useTabModeHold`(picking·inline 상태 hold)를 App에 마운트한다.
   - 두 신규 셸을 `BROWSER_BOUND_EXACT`에 등재한다.
 - **검증**:
-  - [ ] 셸 단위(`vi.stubGlobal("chrome")`): 사이드패널(getCurrent undefined) no-op / 같은 창 비활성 T → 1회 활성화 + release 후 1회 복원 / 중첩·병렬 hold 2개 → 활성화 1회, 마지막 release에서만 복원 / release 시점에 T 비활성(제3 탭) → 복원 안 함 / T 닫힘 → 복원 안 함 / 다른 창 → 활성화·복원 없음.
-  - [ ] 순서 단언: 요소 선택 → phase styling 전이 → before 캡처 완료 전까지 복원 호출 없음(훅 또는 셸 레벨 테스트).
-  - [ ] `grep -rn 'type: "captureVisibleTab"' src/sidepanel --exclude-dir=__tests__`의 결과가 `capture.ts`(트랜잭션 내부), `use-30s-replay.ts`, `scroll-capture.ts`(deps)뿐이다.
-  - [ ] `pnpm typecheck`, `pnpm test`, `pnpm test:coverage`의 로직 스코프 비회귀
-  - [ ] e2e S1·S2(Task 13)
+  - [x] 셸 단위(`vi.stubGlobal("chrome")`): 사이드패널(getCurrent undefined) no-op / 같은 창 비활성 T → 1회 활성화 + release 후 1회 복원 / 중첩·병렬 hold 2개 → 활성화 1회, 마지막 release에서만 복원 / release 시점에 T 비활성(제3 탭) → 복원 안 함 / T 닫힘 → 복원 안 함 / 다른 창 → 활성화·복원 없음.
+  - [x] 순서 단언: 요소 선택 → phase styling 전이 → before 캡처 완료 전까지 복원 호출 없음(훅 또는 셸 레벨 테스트).
+  - [x] `grep -rn 'type: "captureVisibleTab"' src/sidepanel --exclude-dir=__tests__`의 결과가 `capture.ts`(트랜잭션 내부), `use-30s-replay.ts`, `scroll-capture.ts`(deps)뿐이다.
+  - [x] `pnpm typecheck`, `pnpm test`, `pnpm test:coverage`의 로직 스코프 비회귀
+  - [x] e2e S1·S2(Task 13)
 
 ### Task 10: 대상 탭 선택 화면 + 탭 모드 안내
 - **변경 대상**: `src/sidepanel/components/TabTargetPicker.tsx`(신규), `src/sidepanel/components/TabModeAgentHint.tsx`(신규), `src/sidepanel/components/__tests__/TabTargetPicker.test.tsx`(신규), `src/sidepanel/App.tsx`, `src/sidepanel/tabs/IssueTab.tsx`, `src/i18n/namespaces/app.ts`, `src/i18n/namespaces/issue.ts`
