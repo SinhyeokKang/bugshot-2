@@ -120,3 +120,13 @@ CTO 최초 ctx_bedb656f6e6d는 agent_readiness/terminal_handle_stale로 실패�
 - AUTH 중간 지적을 수정 라운드로 전달했다: Jira 미디어 GET/HEAD 재시도의 grant 재확인, 같은 후보 grant의 공유 refresh 대기자마다 갱신 결과 전달, Notion 비동기 schema callback의 시작 인증을 accountPatch에 전달. 마지막 항목의 NotionConnectForm·관련 테스트도 AUTH 소유로 포함한다. 모두 기존 승인 계약의 구현 누락이므로 새 제품 결정은 없다. 검수 Dispatch는 grants `ctx_2bad27d9bf75`, settings `ctx_a436e15b7239`다.
 - CONNECT push `023fa08e` CI [38492124085](https://github.com/SinhyeokKang/bugshot-2/actions/runs/38492124085): verify·4개 e2e 샤드·e2e-gate success.
 - CAPTURE/VIEWER 문서 트라이아지: ARCHITECTURE의 복원/제출·빈 첨부·탐색 계약, ko/en 뷰어 가이드, e2e/COVERAGE와 CI 테스트 수, POSTMORTEM 3건 갱신. DIRECTORY는 테스트 디렉터리 단위 설명이라 새 개별 테스트 열거 불필요. CLAUDE/README/PERMISSION/privacy는 기존 동작 복원과 접근성 배선이며 새 수집·저장·전송 목적이 없어 변경 불필요. 평상시 화면은 동일하고 focus는 키보드 상태이므로 스크린샷 교체는 최종 guide-shots에서 판정한다.
+
+### AUTH 통합과 최종 검증
+
+- AUTH 원본 38aeb1b3·b6dd4f2b → dev 0827f5a3·2c45682d. grant별 요청/refresh 격리, 명시적 후보 연결, 공통 설정 transaction과 pending intent, 출발 인증에 묶인 제출 prefill·Notion schema patch를 구현했다.
+- 초기 전문 검수의 Jira 재시도·공유 후보 결과·Notion 늦은 patch 결함을 red로 재현 후 수정했다. 기존 writer 단언, 실제 onChanged·migration 경쟁, stale hydration·pending read/lock 실패, 다섯 제공자의 동시 다른 grant·실패 flight 정리까지 보완했다. 잠금 제거 mutation은 red다.
+- 최종 독립 검수 grants `ctx_66e95d3e0ed7`·settings `ctx_15f550d38bef` 모두 PASS, 잔여 지적 0. 각각 최종 192개 대상 테스트를 독립 실행했다. 소유자 전체 452파일·8731개 통과(기존 2 skip), typecheck/sync exit 0.
+- 테스트 도구 실패도 분리 기록한다: 검수용 .test.ts 복사본이 .scratch에서 수집돼 실패한 실행은 무효이며 복사본을 저장소 밖으로 옮겼다. 기존 editor-store 테스트의 누락 onStateSaveFailed mock은 한 줄 보완을 허용했고, assertion 변경 없이 최종 전체 gate를 통과했다.
+- dev 통합 후 pnpm typecheck / pnpm test / pnpm sync:agents:check 모두 exit 0, 452파일·8731개 통과(2 skip). CAPTURE/VIEWER push `360e08c6` CI [38493044674](https://github.com/SinhyeokKang/bugshot-2/actions/runs/38493044674)도 verify/e2e-gate success다.
+- AUTH 문서 트라이아지: ARCHITECTURE·DIRECTORY·PERMISSION·POSTMORTEM 갱신. CLAUDE는 해당 세부 구현을 직접 서술하지 않아 원본 수정 불필요. privacy ko/en의 로컬 자격증명·연동 설정 저장 설명과 대조했으며 grant 메타·원자적 쓰기는 기존 목적 안이므로 새 수집·외부 전송 문구/시행일 변경 불필요. README·가이드 연결 절차와 권한은 동일하다. e2e 개수는 83파일·400개로 유지한다.
+- 실 제공자 동의·로그인·Chrome identity 리다이렉트는 실제 계정이 없어 미검증이다. 저장·grant·동기화·메시지·prefill 경쟁은 이 한계로 미루지 않고 결정적 테스트로 검증했다. 전체 build 및 가능한 런타임 점검 후 최종 push/정확한 HEAD CI를 확인한다.
