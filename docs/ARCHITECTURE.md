@@ -45,6 +45,8 @@ chrome.action.onClicked.addListener((tab) => {
 
 ## 편집 세션 영속화
 
+캡처 로그는 스냅샷 밖 IndexedDB에 보관한다. screenshot/video/freeform 재개 시 `currentIssueId` 소유 로그를 먼저 읽고 없으면 `pending:${tabId}`로 폴백한다. 복원 중 세션 교체·새 캡처 진입은 취소 래치로 기억하고, 이미 새 값이 들어온 로그는 덮지 않는다. `logsAttach`는 표시용 복원과 독립적으로 유지하며 element에는 복원하지 않는다. 제출은 시작 시점 editor 상태와 `loadSubmissionLogs` 반환값을 합친 로컬 상태로 본문 요약과 logs.html을 함께 생성한다.
+
 - tabId별로 `chrome.storage.session`의 `editor:${tabId}` 키에 저장
 - `useEditorSessionSync(tabId)` 훅이 hydration + debounced save(300ms) 담당 (zustand persist 미들웨어 대신 직접 구현 — tabId-scoped 키가 persist의 "one store, one key" 모델에 맞지 않음)
 - hydration 완료 상태도 tabId-scoped다. `hydratedTabId === tabId` 전에는 App 렌더를 열지 않아 이전 탭의 완료 상태가 새 탭을 통과시키지 않는다.
@@ -466,6 +468,8 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **사용자 파일 첨부**: 캡처물과 별개로 사용자가 로컬 파일을 직접 첨부할 수 있다(`AttachmentSection`/`AttachmentList`, captureMode 무관). 메타는 editor-store `attachments: UserAttachmentMeta[]`, 바이트는 blob-db(`saveAttachmentBlob`). 캡(`attachmentLimits.ts`) — 개수 10개·합계 50MB는 **하드캡**: `takeWithinLimits`가 store 단일 출처로 초과분을 드롭하고 사유(`count`/`total`)만 toast로 안내(대용량 다중 첨부의 base64 메모리 폭발 방지). 플랫폼 단건 한도는 **경고만**(차단 아님) — Notion 5MB·GitLab 10MB(`PLATFORM_FILE_SIZE_LIMIT`, 나머지 null), `checkAttachmentLimits`가 초과 항목을 빨간 테두리로 표시. 제출 시 `buildCaptureFiles`가 `userAttachments`를 captureMode와 무관하게 `attachments`로 합류시켜 8개 플랫폼이 모두 업로드(Slack은 스레드 답글에 2-step 업로드). draft 저장/복원의 blob 키 충돌은 `rekeyAttachmentBlobs`(+`whenAttachmentBlobsReady` in-flight 가드)로 재매핑.
 
+`confirmDraft`는 첨부가 0개여도 `IssueRecord.attachments`를 빈 배열로 갱신한다. 길이 조건은 pending→issue blob rekey에만 적용한다. 마지막 첨부를 삭제한 저장 초안이 삭제 파일을 누락 원본으로 오판하지 않도록 저장 메타와 blob을 함께 검증한다.
+
 **플랫폼별 패키징**:
 - **Jira**: journal에 확정한 `logs.html`을 그대로 첨부하므로 뷰어의 이슈 역링크는 비어 있다. 본문 로그 요약 안내의 `logs.html`은 제출 시 첨부 URL을 모르므로 업로드 후 `injectLogsLink`(`background/lib/adf-logs-link`)가 해당 **평문 text 노드**(`LOGS_LINK_LABEL`)에 link mark를 주입해 클릭 링크화(매칭 노드 없으면 평문 유지).
 - **Linear**: 생산 제출은 journal에 확정한 `logs.html`을 그대로 첨부하므로 뷰어의 이슈 역링크는 비어 있다(준비 파일이 없는 호환 경로만 `injectIssueUrl` 호출). 본문은 업로드 전 빌드돼 `logs.html`이 평문이므로, 업로드로 assetUrl을 얻은 뒤 `buildLinearIssueBody`의 `logsUrl`로 링크 포함 본문을 재생성하고 `linear.updateIssueDescription`(issueUpdate description)으로 본문을 패치(GitLab식 보강, 실패는 격리).
@@ -477,6 +481,8 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 **병합 타임라인 패널**(영상 모드 한정): console/network/action 3종 로그를 절대 ms(`absTs`)로 병합해 영상 아래 단일 리스트로 보여준다 — 좌측 프로그레스바 핀 마커(`markers.ts`)와 **별개 UI**. 순수 정렬·필터 로직은 node-testable 순수 모듈 `timeline-merge.ts`(`buildTimeline` 안정정렬[동일 ts는 `KIND_ORDER` action<network<console tiebreak], `matchesTimelineItem` 타입 필터+검색, `timelineFillClass` 행 면색을 `log-colors`에 위임, `netVerbKey`/`NET_VERB_KEYS` method→i18n 동사 키 닫힌 집합)에 격리하고, 렌더 행 `TimelineRow`(React.memo)는 sidepanel 로그 컴포넌트의 렌더 헬퍼를 재사용해 네트워크 행을 자연어 동사 문장으로 조립한다(경로는 파랑 밑줄 표시일 뿐 링크 이동 아님 — 클릭은 행 activation). playhead는 App state를 안 거치는 **ref-relay**(`timeListener` ref ← `VideoPlayer.onTimeUpdate` → `TimelinePanel`)로 직결해 timeupdate 리렌더를 타임라인 서브트리에 격리하고, `findActiveIndex`로 현재 시각 이하 마지막 행을 하이라이트한다. 행 클릭 = `activateTimelineItem`(seek + `setActiveTab(kind)` + `setScrollToEntryId`)로 마커 클릭 경로를 재사용한다.
 
 **타임라인 마커**: log-viewer는 `trim-markers.ts:buildErrorMarkers`(sidepanel 헬퍼 재사용)로 **console error/warn + network 문제(4xx/error/pending) + action navigate 3타입을 통합**해 프로그레스 바 위에 핀 마커를 생성 — 활성 탭과 무관하게 항상 세 타입을 함께 표시해 영상만 봐도 크로스타입 맥락을 파악한다(과거 활성 탭 타입만 필터하던 방식에서 전환). 마커 variant(error/warn/info/pending/navigate/default)별 색 분류. `ProgressBar` 위에 `absolute` 핀으로 렌더, 호버 시 포탈 툴팁(stacking context clipping 방지). 마커 클릭 → `onMarkerClick` → **해당 마커 타입의 로그 탭으로 전환** 후 그 entry로 스크롤(`useScrollToEntry` 훅 — CSS.escape + 필터 리셋 후 재시도 + `scrollIntoView`). 로그 목록의 **행 클릭·왼쪽 mm:ss 칩 클릭도 영상을 그 로그 시각으로 seek**(`onSeek` 공급 시; 행 기존 동작[network 상세·console 펼치기]과 병행, 칩은 `stopPropagation`으로 단일 발화). `markers.ts:buildMarkers`(활성 탭별 생성)는 buildErrorMarkers의 하위 빌더로 남는다. `VideoPlayer`는 커스텀 플레이어(재생/일시정지/다운로드 + 이슈 제목·키 오버레이).
+
+영상 탐색 막대는 Tab으로 접근하고 방향키로 ±5초, Home/End로 처음·끝을 탐색한다. ARIA 현재·최댓값은 초 단위이며 시간 설명은 현재/전체 재생 시각이다. 유한한 duration이 없으면 탐색하지 않는다. 검은 플레이어 표면의 키보드 포커스는 흰 ring과 검은 offset으로 두 테마에서 구분한다. 영상 다운로드 파일명은 data URL MIME에 따라 `recording.webm` 또는 `recording.mp4`를 사용한다.
 
 **issueUrl 주입**: `buildLogsHtml`이 meta 마지막에 빈 `issueUrl:""`을 예약하고, `injectIssueUrl`은 평문 meta만 치환한다. 생산 제출에서 Jira·Linear·Asana·ClickUp은 journal에 확정한 파일 바이트를 그대로 보내므로 역링크는 비어 있다. Linear·Asana·ClickUp의 주입 코드는 준비 파일이 없는 호환 경로에만 남아 있다. GitLab은 생성 후 재업로드로 보강하며, GitHub·Notion은 생성 전 업로드라 빈 값이다. 뷰어는 빈 역링크를 숨긴다.
 
