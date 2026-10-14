@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-10-14 — 연결 실패 레인은 OAuth 진입점만 감싸면 수동 토큰 검증에서 다시 샌다
+
+- **영역**: `background`, `lib`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: Notion 수동 토큰을 잘못 입력하면 연결 폼 오류와 함께 기존 연결이 만료된 것처럼 전역 재연결 안내가 떴다.
+- **근본 원인**: 새 토큰 검증과 저장된 인증 사용이 같은 Notion API의 401 처리로 들어간다. OAuth 연결 진입점은 `inConnectLane`을 쓰지만 `notion.testToken`은 직접 `getMyself`를 호출하여 `refreshFailed`가 직렬화 경계를 넘어 `sendBg`의 전역 이벤트로 전파됐다. 폼의 catch는 reject 전에 발생한 전역 이벤트를 막지 못한다.
+- **재발 방지**: `rg -n 'testToken|testPat|testApiKey|inConnectLane' src/background`로 신규 자격증명 검증 진입점을 조회하고 저장 인증 사용 경로와 레인을 대조한다. 헬퍼 테스트 외에 실제 메시지 리스너→직렬화→`sendBg`를 통과시켜 신규 토큰의 전역 이벤트 0회와 저장 인증의 전역 이벤트 1회를 함께 단언한다.
+- **관련**: `src/background/messages.ts:notion.testToken`, `src/background/__tests__/notion-connect-messages.test.ts`; 선행 2026-08-19 “기본값을 뒤집는 변경은 반대 방향이 본체”.
+
+---
+
 ## 2026-10-13 — 형제 Radix Tooltip을 연달아 훑은 직후 `getByRole("tooltip")`은 exit 애니메이션 중인 앞 툴팁까지 잡아 strict 위반으로 플레이키하다
 
 - **영역**: `e2e`
