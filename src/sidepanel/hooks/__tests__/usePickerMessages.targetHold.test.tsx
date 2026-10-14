@@ -23,6 +23,7 @@ vi.mock("@/sidepanel/capture", () => ({
   captureTargetTab: (tabId: number, reason?: string) => captureTargetTab(tabId, reason),
   cropImage: async () => "data:image/webp;base64,crop",
 }));
+const stopHoverAllFrames = vi.fn(async (_tabId: number) => {});
 vi.mock("@/sidepanel/picker-control", () => ({
   clearPicker: vi.fn(async () => {}),
   collectTokens: vi.fn(async () => []),
@@ -33,7 +34,7 @@ vi.mock("@/sidepanel/picker-control", () => ({
   releaseDetachedSelection: vi.fn(async () => {}),
   restartPickerInFrame: vi.fn(async () => {}),
   resumeBufferedElement: vi.fn(async () => false),
-  stopHoverAllFrames: vi.fn(async () => {}),
+  stopHoverAllFrames: (tabId: number) => stopHoverAllFrames(tabId),
   stopPicker: vi.fn(async () => {}),
 }));
 vi.mock("@/store/blob-db", () => ({
@@ -180,6 +181,22 @@ describe("before 캡처 hold — 요소 선택 수신 ~ before 완료", () => {
     deliver(SELECTED);
 
     await waitFor(() => expect(events).toContain("release:before"));
+  });
+
+  // 새면 refcount가 0으로 안 돌아와 이후 탭 모드 캡처가 전부 활성화 없이 거부된다.
+  it("hold를 잡은 뒤 동기 단계가 throw해도 놓는다", async () => {
+    enterPicking();
+    // styling 전이 뒤·캡처 발행 전의 동기 호출 — before 진행 카운터를 올리기 전이라 다른 케이스로 새지 않는다.
+    stopHoverAllFrames.mockImplementationOnce(() => {
+      throw new Error("boom");
+    });
+    renderHook(() => usePickerMessages(TAB));
+
+    expect(() => deliver(SELECTED)).toThrow("boom");
+
+    await waitFor(() => expect(events).toContain("release:before"));
+    expect(events.filter((e) => e === "release:before")).toHaveLength(1);
+    expect(captureElementSnapshot).not.toHaveBeenCalled();
   });
 
   it("버퍼 재선택(before 생략)이면 before hold를 잡지 않는다", async () => {

@@ -13,8 +13,11 @@ import {
 const ACTIVATION_WAIT_MS = 1500;
 
 let selfTab: Promise<{ id: number } | null> | null = null;
+// 패널 문서는 대상 탭 하나에 바인딩된다(?tabId=) — 그래서 count는 탭별이 아니라 전역 하나다.
 let count = 0;
-let activatedByUs = false;
+// 마지막 release에서 패널로 돌아갈 자격. 우리가 대상을 앞으로 가져왔거나(activate), 사용자가
+// 직접 대상에 가서 그린 영역 캡처일 때(area) 켜진다. 실제 복원은 그때도 대상이 앞일 때만.
+let returnToPanel = false;
 // 활성화·복원 단계를 직렬화한다 — 늦게 끝난 복원이 새 hold의 활성화를 덮지 않게.
 let chain: Promise<void> = Promise.resolve();
 
@@ -74,20 +77,20 @@ async function activate(targetTabId: number, reason: HoldReason): Promise<void> 
   const [selfNow, target] = await Promise.all([getTab(self.id), getTab(targetTabId)]);
   if (!selfNow || !target) return;
   if (shouldActivateTarget({ self: selfNow, target })) {
-    activatedByUs = true;
+    returnToPanel = true;
     await activateAndConfirm(targetTabId);
   } else if (reason === "area" && target.active && selfNow.windowId === target.windowId) {
-    activatedByUs = true;
+    returnToPanel = true;
   }
 }
 
 async function restore(targetTabId: number): Promise<void> {
-  if (count !== 0 || !activatedByUs) return;
+  if (count !== 0 || !returnToPanel) return;
   const self = await getSelfTab();
   const target = await getTab(targetTabId);
   // 조회하는 사이 새 hold가 왔으면 그 hold가 이어받는다.
   if (count !== 0) return;
-  activatedByUs = false;
+  returnToPanel = false;
   if (!self || !shouldRestorePanel({ target })) return;
   await focusTab(self.id);
 }
