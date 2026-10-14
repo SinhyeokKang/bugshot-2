@@ -98,3 +98,11 @@ CTO 최초 ctx_bedb656f6e6d는 agent_readiness/terminal_handle_stale로 실패�
 - CTO 심각 3/권장 3, QA 심각 4/권장 2를 기술 계약 보완으로 수용했다. 새 제품 결정은 없으며 기존 구현 승인 범위에서 grant 승격·명시적 account/prefill intent·pending/ack/hydration/migration 상태 전이와 테스트 모델을 design/tasks에 명시했다.
 - 파일 겹침 변경: AUTH가 IssueCreateModal/DraftDetailDialog의 grant/prefill 배선도 소유한다. **AUTH는 CAPTURE와 CONNECT 통합 뒤 직렬 착수**한다. VIEWER와는 독립이다.
 - Orca nested depth=1로 하위 전문 에이전트는 실행 불가. CTO·QA 직접 독립 검수는 완료했고 구현 전문 리뷰는 지휘자 소유 별도 Dispatch로 수행한다. 미할당 보조 터미널 5개는 소유 워커가 확인 후 정리했다.
+
+### CONNECT 통합
+
+- 원본 acc17229·298e64b6 → dev 9243a4ab·201d05e9. 신규 토큰 2건 red 후 57개 대상·8629개 전체 테스트 green, typecheck/sync exit 0. 독립 Security/DataFlow/CodeHealth/CTO 지적 0.
+- 첫 전체 테스트의 기존 Jira env 누락은 .env.ci 더미 적용 후 해소했다. 프로덕션 빌드·외부 Notion 호출은 하지 않았다. 추가 런타임 전용 검증 없음.
+- ARCHITECTURE 연결 레인 설명과 POSTMORTEM을 갱신한다. guide/README/privacy/PERMISSION/CI/CLAUDE/DIRECTORY 변경 불필요(기존 동작 복구, 새 파일은 테스트뿐).
+
+- CONNECT 통합 검증: pnpm typecheck / pnpm test / pnpm sync:agents:check 모두 exit 0, 441파일·8629테스트 통과(2 skip). postmortem:check/report exit 0.
