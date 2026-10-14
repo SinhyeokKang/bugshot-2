@@ -212,6 +212,18 @@ describe("resumed capture logs", () => {
     expect(useEditorStore.getState().logsAttach).toBe(false);
   });
 
+  it("keeps newer in-memory logs while restoring other log types", async () => {
+    const db = await import("@/store/blob-db");
+    const saved = { id: "old", startedAt: 0, endedAt: 1, captured: 1, totalSeen: 1, entries: [] };
+    const newer = { ...saved, id: "new" };
+    let resolve!: (log: typeof saved) => void;
+    vi.mocked(db.getConsoleLog).mockImplementation(() => new Promise((r) => { resolve = r; }));
+    await mountIssue("freeform");
+    act(() => useEditorStore.getState().setConsoleLog(newer));
+    await act(async () => { resolve(saved); });
+    expect(useEditorStore.getState().consoleLog).toEqual(newer);
+  });
+
   it.each(["reset", "replacement", "completed capture", "unmount"])("ignores late log restoration after %s", async (transition) => {
     const db = await import("@/store/blob-db");
     const saved = { id: "old", startedAt: 0, endedAt: 1, captured: 1, totalSeen: 1, entries: [] };

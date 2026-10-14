@@ -12,7 +12,7 @@ import { useT } from "@/i18n";
 import { pruneOrphanInlineImages, getAttachmentBlob, dataUrlToBlob } from "@/store/blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
-import { useEditorStore, whenAttachmentBlobsReady } from "@/store/editor-store";
+import { useEditorStore, whenAttachmentBlobsReady, type EditorState } from "@/store/editor-store";
 import { useIssuesStore, withIssueSubmitGuard, type IssueRecord } from "@/store/issues-store";
 import {
   connectedPlatforms,
@@ -157,13 +157,13 @@ export function IssueCreateModal() {
   const patchIssue = useIssuesStore((s) => s.patchIssue);
 
   // ctx·캡처 입력은 buildEditorCapture(단일 출처)에 위임 — 패널 로그 다운로드와 동일한 logs.html 보장.
-  function buildCtx(): MarkdownContext {
-    const ctx = buildEditorMarkdownContext();
+  function buildCtx(state: EditorState = useEditorStore.getState()): MarkdownContext {
+    const ctx = buildEditorMarkdownContext(state);
     if (!ctx) throw new Error(t("create.requiredMissing"));
     return ctx;
   }
 
-  async function buildEditorCaptureFiles(ctx: MarkdownContext): Promise<CaptureFiles> {
+  async function buildEditorCaptureFiles(ctx: MarkdownContext, state: EditorState): Promise<CaptureFiles> {
     // 사용자 첨부: 토글 ON이고 issueId 확정 상태면 IndexedDB에서 Blob 로드.
     const userAttachmentMetas = attachmentsEnabled ? attachments : [];
     let userAttachments: { meta: UserAttachmentMeta; blob: Blob }[] | undefined;
@@ -183,7 +183,7 @@ export function IssueCreateModal() {
     }
     // logs/images/video는 단일 출처와 동일, userAttachments만 제출 경로 고유.
     return buildCaptureFiles({
-      ...buildEditorLogsCaptureInput(ctx),
+      ...buildEditorLogsCaptureInput(ctx, state),
       userAttachments,
     });
   }
@@ -512,7 +512,8 @@ export function IssueCreateModal() {
   }
 
   async function handleSubmit(submitPlatform: PlatformId, reportLocale: MarkdownContext["bodyLocale"]): Promise<NormalizedSubmitResult> {
-    const ctx = buildCtx();
+    const editorState = useEditorStore.getState();
+    let ctx = buildCtx();
     ctx.bodyLocale = reportLocale;
     // 가드가 pageUrl 정정보다 **앞**이어야 한다 — 차단되는 경우는 정의상 레코드가 이미
     // submitted이고, patchIssue는 스프레드 뒤에 updatedAt을 올리므로 그 write가 병합의 최신
@@ -528,9 +529,17 @@ export function IssueCreateModal() {
     const sources = expectedSubmissionSources({ ...record, draft: { ...record.draft, sections: ctx.sections }, attachments }, { sectionConfig, attachmentsEnabled, transmitFiles });
     await whenAttachmentBlobsReady();
     await assertSubmissionSources(sources);
-    await loadSubmissionLogs({ ...record, logsAttached: useEditorStore.getState().logsAttach }, transmitFiles);
+    const logs = await loadSubmissionLogs({ ...record, logsAttached: editorState.logsAttach }, transmitFiles);
+    const captureState = {
+      ...editorState,
+      networkLog: logs.networkLog ?? editorState.networkLog,
+      consoleLog: logs.consoleLog ?? editorState.consoleLog,
+      actionLog: logs.actionLog ?? editorState.actionLog,
+    };
+    ctx = buildCtx(captureState);
+    ctx.bodyLocale = reportLocale;
     const inlineImages = transmitFiles ? await resolveInlineImagesForSections(ctx.sections, sectionConfig) : [];
-    const captureFiles = transmitFiles ? await buildEditorCaptureFiles(ctx) : { images: [], logs: [], attachments: [] };
+    const captureFiles = transmitFiles ? await buildEditorCaptureFiles(ctx, captureState) : { images: [], logs: [], attachments: [] };
     const prepared = await prepareSubmissionRecovery({ issue: record, platform: submitPlatform, files: [
       ...sources,
       ...captureFiles.logs.map((f) => ({ id: "logs", kind: "logs" as const, filename: f.filename, contentType: "text/html", blob: dataUrlToBlob(f.dataUrl) })),

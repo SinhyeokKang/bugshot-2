@@ -20,7 +20,7 @@ beforeEach(async () => {
   vi.stubGlobal("indexedDB", new IDBFactory());
   vi.stubGlobal("IDBKeyRange", IDBKeyRange);
   const persisted: Record<string, unknown> = {};
-  vi.stubGlobal("chrome", { storage: { local: { get: vi.fn(async () => ({ ...persisted })), set: vi.fn(async (values: Record<string, unknown>) => { Object.assign(persisted, values); }) }, session: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) } }, runtime: { sendMessage: vi.fn() } });
+  vi.stubGlobal("chrome", { storage: { local: { get: vi.fn(async () => ({ ...persisted })), set: vi.fn(async (values: Record<string, unknown>) => { Object.assign(persisted, values); }) }, session: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) } }, runtime: { sendMessage: vi.fn(), getManifest: () => ({ version: "1.0.0" }) } });
   db = await import("@/store/blob-db");
   store = await import("@/store/issues-store");
   recovery = await import("../submissionRecovery");
@@ -817,6 +817,7 @@ it.each(["screenshot", "video", "freeform"] as const)("recovered %s logs reach g
   const logs = await recovery.loadSubmissionLogs(record);
   const state = { ...useEditorStore.getState(), ...logs };
   const ctx = buildEditorMarkdownContext(state)!;
+  ctx.bodyLocale = "en";
   const files = await buildCaptureFiles(buildEditorLogsCaptureInput(ctx, state));
   expect(files.logs).toHaveLength(1);
   const html = Buffer.from(files.logs[0].dataUrl.split(",")[1], "base64").toString();
@@ -829,8 +830,14 @@ it.each(["screenshot", "video", "freeform"] as const)("recovered %s logs reach g
   expect(ctx.consoleLogSummary).toBeTruthy();
   expect(ctx.networkLogSummary).toBeTruthy();
   expect(ctx.actionLogCaptured).toBe(1);
-  expect(body).toContain(ctx.consoleLogSummary!);
-  expect(body).toContain(ctx.networkLogSummary!);
+  expect(body).toContain("Console: 1 logs (1 errors, 0 warnings)");
+  expect(body).toContain("Network: 1 requests (1 errors)");
+  expect(body).toContain("User actions: 1");
+  const offCtx = buildEditorMarkdownContext({ ...state, logsAttach: false })!;
+  expect(offCtx.consoleLogSummary).toBeUndefined();
+  expect(offCtx.networkLogSummary).toBeUndefined();
+  expect(offCtx.actionLogCaptured).toBeUndefined();
+  expect(buildIssueMarkdown(offCtx)).not.toContain("logs.html");
   for (const gated of [{ ...state, logsAttach: false }, { ...state, captureMode: "element" as const }]) {
     const input = buildEditorLogsCaptureInput({ ...ctx, captureMode: gated.captureMode }, gated);
     expect((await buildCaptureFiles(input)).logs).toEqual([]);
