@@ -400,7 +400,7 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **logs.html에는 AI 소비 매뉴얼이 비가시로 박힌다** (`sidepanel/lib/aiLogsManual.ts` → `buildLogsHtml`이 `<head>`에 `<script id="__BUGSHOT_AI__" type="text/markdown">`으로 주입). `__BUGSHOT_DATA__`의 위치·gzip+base64 디코드 레시피·필드 소비법을 담아, 사용자가 logs.html을 LLM에 그대로 물릴 수 있게 한다. 함정 셋: 매뉴얼이 `<head>`라 데이터보다 **앞서므로** 레시피는 id 첫 매치가 아니라 base64 문자셋 앵커로 잡아야 하고, 본문에 리터럴 `</script>`·백틱·`${}`를 쓸 수 없으며, `__BUGSHOT_DATA__` 포맷을 바꾸면 매뉴얼을 손으로 맞춰야 한다(`sidepanel/lib/__tests__/aiLogsManual.test.ts`가 최상위 데이터 키·`statusKind` 값·base64 앵커를 잠근다 — 키 목록은 `Record<keyof Omit<LogViewerData,"meta">, true>`라 키가 늘면 컴파일러가 잡는다).
 
-**사이드패널에는 에이전트 조작 매뉴얼이 비가시로 박힌다** (`sidepanel/index.html`의 `<script id="__BUGSHOT_AGENT__" type="text/markdown">`). 위 logs.html 매뉴얼과 같은 계열이지만 셋이 다르다 — ① **읽는 법이 아니라 조작법**이라 가리키는 대상(testid·phase·게이트)이 코드와 함께 움직인다, ② TS 상수를 런타임에 조립하지 않고 **정적 HTML에 직접** 박는다(에이전트가 앱 부팅 전에도, 앱 JS가 죽어도 마크업에서 그대로 읽는다 — 스토어 빌드 실측: 확장 컨텍스트에서 이 경로를 fetch하면 원본 HTML에 블록이 그대로 있다. **웹 페이지에선 fetch가 막힌다** — 이 파일은 `web_accessible_resources` 밖이고 그게 의도다), ③ 소비자가 사용자가 아니라 **에이전트**라 틀린 문장이 무음 오작동이 된다. 범위는 도그푸딩 리포팅 경로 한 줄기(패널 선행 오픈 → 캡처 모드 선택 → 본문 → 제출)로 못 박고, 싣는 기준은 **"에이전트가 스스로 알 수 없는 것만"**이다(좌표 클릭·bbox·마크다운 작성은 뺀다 — 넣으면 노이즈만 는다).
+**사이드패널에는 에이전트 조작 매뉴얼이 비가시로 박힌다** (`sidepanel/index.html`의 `<script id="__BUGSHOT_AGENT__" type="text/markdown">`). 위 logs.html 매뉴얼과 같은 계열이지만 셋이 다르다 — ① **읽는 법이 아니라 조작법**이라 가리키는 대상(testid·phase·게이트)이 코드와 함께 움직인다, ② TS 상수를 런타임에 조립하지 않고 **정적 HTML에 직접** 박는다(에이전트가 앱 부팅 전에도, 앱 JS가 죽어도 마크업에서 그대로 읽는다 — 스토어 빌드 실측: 확장 컨텍스트에서 이 경로를 fetch하면 원본 HTML에 블록이 그대로 있다. **웹 페이지에선 fetch가 막힌다** — 이 파일은 `web_accessible_resources` 밖이고 그게 의도다), ③ 소비자가 사용자가 아니라 **에이전트**라 틀린 문장이 무음 오작동이 된다. 범위는 리포팅 경로 한 줄기(패널 선행 오픈 → 캡처 모드 선택 → 본문 → 제출)로 못 박되, 소비자는 내부 QA 자동화(도그푸딩)와 외부 고객의 에이전트 둘이다 — 그래서 일반 탭으로 연 패널의 계약(같은 창 허용·대상 선택 화면·캡처 핸드오프·한계, 위 "탭 모드" 절)까지 싣고, 싣는 기준은 **"에이전트가 스스로 알 수 없는 것만"**이다(좌표 클릭·bbox·마크다운 작성은 뺀다 — 넣으면 노이즈만 는다).
 
 `sidepanel/__tests__/agentManual.test.ts`가 매뉴얼의 각 주장을 **그 주장이 참인 이유가 되는 소스에 바인딩**한다(게이트를 뒤집으면 red). 문구 매칭으로 두면 매뉴얼이 틀려도 자기 자신과는 늘 일치하기 때문이다. 함정 넷: ① 문구 정규식은 **섹션으로 좁히고** 다단어는 `prose()`(공백 접기)를 거친다 — 전체에 걸면 다른 문단의 같은 단어가 대신 매치되고, raw 텍스트에 걸면 하드랩 리랩만으로 false red가 난다, ② **존재가 아니라 방향·매핑을 재야 한다** — "먼저 열어라"를 "나중에 열어라"로 뒤집거나 두 버튼의 testid를 맞바꿔도 존재 대조는 green이다, ③ 소스 판정은 `codeOnly`(주석 제거) + 호출 형태(`fn(`)로 본다 — 이름만 보면 import 문이, addEventListener는 removeEventListener가 대신 매치된다, ④ JSX는 `openingTags`로 **여는 태그만** 자른다(자식까지 무는 블록 렉싱은 `<ButtonGroup`에서 시작하고 self-closing 리팩터에 false red를 낸다). **`pnpm dev`에선 crxjs가 인라인 script를 전부 제거해 매뉴얼이 사라진다** — 빌드 산출물은 원문 보존이지만, 그물이 소스를 읽으므로 "산출물 소실 ↔ 테스트 green"이 분리돼 있다.
 
@@ -497,6 +497,41 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 **녹화 중 그리기 오버레이 (annotation pen)** (`content/annotation.ts` + 그리기 수학은 `content/annotation-draw.ts` + `sidepanel/annotation-control.ts`): 녹화 화면 위에 자유 곡선을 그려 강조하는 순수 시각 효과 — 어디에도 저장·전송하지 않는다. picker 엔트리(`content_scripts[0]`, ISOLATED) **내부 모듈**이라 별도 content_script를 늘리지 않고(3개 카운트 불변) picker의 주입 보장·메시지 라우팅을 재사용한다. **top frame 한정**(`picker.ts`의 `annotation.*` 케이스가 `window!==window.top`이면 무응답 return — 자식 iframe엔 안 그림). 도구는 **펜·사각형·형광펜** 3종 + 색·두께 — 사이드패널 RecordingState 하단 툴바(konva 에디터와 `ToolbarGroups.tsx` 공유)에서 고르면 `overlayStrokeStyle`(`recording-pen.ts`)이 tool·color·thickness를 strokeWidth/opacity로 계산해 `annotation.setTool{tool,color,strokeWidth,opacity}`(off는 `{tool:null}`인 discriminated union)로 보낸다. shadow host(`__bugshot_annotation_host`) + blocker를 마운트하고, 획은 **획당 단일 styled `<path>`**(선택 도구의 색·두께·투명도를 엘리먼트에 박음 — konva 벡터와 동일, 흰 아웃라인 없음; highlight는 두께 4배+opacity 0.4). pointermove마다 **EMA 스무딩**(`PEN_SMOOTHING_ALPHA=0.35`, shapes.ts와 동일 값·드리프트 가드). 페이드는 **requestAnimationFrame 트레일** — 각 점이 그려진 지 ~3초(`POINT_LIFETIME_MS`) 후 만료돼 `dropExpired`가 매 프레임 앞쪽(먼저 그린) 점부터 잘라 획이 **그린 순서대로 꼬리부터** 사라진다(획 전체 타이머 아님; 백그라운드 탭은 rAF가 멈춰 얼었다 복귀 시 정리). 그리기 상태의 **단일 진실 소스는 editor-store `annotationTool: 'pen'|'rect'|'highlight'|null` + `annotationColor` + `annotationThickness`(모두 비영속)** — `startRecording`의 `...initial`·`onRecordingComplete` 양쪽에서 `annotationTool: null` 리셋. 라이프사이클: 캡처 성공 직후 `showAnnotation(tabId)`(`video-capture.ts`) → 종료/취소 시 `hideAnnotation(localTabId)`(`video-recorder.ts` onstop/cancel, `state=null` 전 캡처본 사용) → **녹화 중 페이지 이동** 시 `useBackgroundRecorder`의 `onTabUpdated`(status=complete) 재주입에 편승해 `showAnnotation` 재전송 + `annotationTool`이 null이 아니면 현재 color·thickness로 `setAnnotationTool` 재적용 → 패널 닫힘(picker port disconnect)의 `handleClear`에서도 `hideAnnotation`. 페이지 **Esc**는 펜 OFF + `postToRuntime({type:"annotation.penOff"})`로 사이드패널 버튼 상태를 역동기화(`usePickerMessages`). **action-recorder 오염 방지**: `isOwnUi`가 picker+annotation host 둘 다 제외(`matchesOwnHost`, MAIN world라 host id 리터럴 동기 복제) — 펜 드래그가 액션 로그에 click/drag로 안 잡히게.
 
 **정리**: `shouldPreserveBackgroundLogs(phase)` = recording/drafting/previewing/done. idle 전환 시 레코더 재주입+새 sentinel. pending IDB는 탭 종료·이슈 저장·고아 정리(`pruneOrphanPendingLogsOncePerSession` — SW 부트 세션당 1회)에서 회수. setSentinel→clear는 sequential await 강제(방향 주의 — 뒤집으면 arm 이전 pre-arm 버퍼가 녹화 구간에 섞인다)(fire-and-forget 시 Chrome 메시지 큐 순서 미보장으로 race).
+
+## 탭 모드 (패널을 일반 탭으로 연 경우)
+
+패널 문서(`src/sidepanel/index.html?tabId=T`)를 사이드패널이 아니라 일반 탭으로 연 상태다. 판정은 `chrome.tabs.getCurrent()`가 Tab을 돌려주는지(`sidepanel/tab-mode.ts:getSelfTab` — id만 1회 캐시, 사이드패널은 `undefined`)로 한다. 소비자는 자동화 에이전트(`__BUGSHOT_AGENT__` 매뉴얼)와 e2e 하네스이고, **사이드패널(사람) 화면·동작은 바뀌지 않는다** — 탭 모드 코드는 전부 `getSelfTab() !== null` 뒤에 있고 예외는 캡처 실패 토스트와 접힌 탭 라벨 sr-only뿐이다. 설계 원본: `docs/features/ai-usability/design.md`.
+
+**정지 예외** (background): 판정은 `lib/panel-tab-url.ts:recordersToStopOnSwitch`, 패널 탭 판정·실행 시점 재판정·조회 실패 폴백은 위 "활성 게이트" 절에 있다. 의미만 요약하면 — 대상 T ↔ T의 자기 패널은 정지하지 않고, T에서 곧장 제3 탭으로 가면 T를 정지하고(기존 계약), **패널 → X는 패널 id만 정지 대상이라 no-op이다**(T는 계속 기록, 별도 창 모드도 같다 — 사이드패널 계약과 동등화하려면 신규 정지 동작이 필요하고 X → T 복귀에 재무장 경로가 없어 비목표). 조회 실패·discard·커밋 전 패널은 panelTarget=null이라 prev 정지로 떨어진다(fail-safe). 판정은 apply 경로 밖에서 fire-and-forget이라 activation 큐 진입 시점은 기존과 같다.
+
+**단일 refcount hold** (`sidepanel/tab-mode.ts` 셸, 순수 판정 `sidepanel/lib/tab-mode.ts`): "T가 앞에 있어야 하는 구간"을 hold 하나가 소유한다. 관문(`captureOwnedTab`)의 `tab.active` 재확인은 그대로이고 hold는 그 앞단 활성화일 뿐이다.
+- count는 전역 하나다(패널 문서는 대상 하나에 바인딩). `holdTarget`이 count를 **동기로** 올리므로 트랜잭션 hold가 picking 상태 hold의 해제(비동기)보다 먼저 잡힌다 — before 캡처용 별도 hold를 두면 누수 면만 늘어 없앴고, 순서는 `usePickerMessages.tabModeOrder.test.tsx`가 고정한다.
+- 활성화는 0→1에서만, `shouldActivateTarget`(같은 창 && T 비활성)일 때만 한다. 별도 창·사이드패널은 no-op. 확정은 `tabs.update` 반환의 `active` 또는 `onActivated`로 하고(상한 1.5s) `tabs.get` 폴링은 쓰지 않는다 — 숨은 패널은 타이머가 1s 단위로 정렬된다. 확정이 안 와도 진행하고 관문이 거부하면 토스트로 드러난다.
+- 복원은 count 0 && `returnToPanel` && T가 여전히 활성(`shouldRestorePanel`)일 때만 패널로 돌아온다. `returnToPanel`은 활성화 시점에 **패널이 앞이었을 때만** 켜진다 — 사용자가 제3 탭에 있었으면 대상만 활성화하고 패널로 끌어오지 않는다(포커스 탈취 금지). area hold는 활성화 없이 `returnToPanel`만 켠다(사용자가 이미 T에서 드래그).
+- 활성화·복원은 promise chain으로 직렬화하고 restore는 조회 뒤 `count !== 0`을 재확인한다 — 늦게 끝난 복원이 새 hold를 가리지 않는다. refcount는 한 번 새면 이후 0→1 전이가 영영 안 일어나므로 해제 지점은 분기마다 두지 않고 단일 `finally`(`withTargetHold`)에 둔다.
+
+| 경로 | hold |
+|---|---|
+| 요소 편집 before · 요소 캡처 | picking 상태 hold(`useTabModeHold`) + `captureElementSnapshot` 본문 전체(prepare→capture→end)의 트랜잭션 hold |
+| after · diff 재캡처 | 트랜잭션 hold (`captureElementSnapshot*`를 거치므로 자동) |
+| buffer 전환 | after 캡처 + `switchAction`(repick 진입)을 **한** `withTargetHold`로 묶음 — 따로 두면 복귀 직후 picking이 T를 다시 끌어와 깜빡인다 |
+| 영역 드래그 | `"area"` (`captureTargetTab(tabId,"area")`) — 활성화 없음, 끝나면 패널 복귀 |
+| 뷰포트 | `"viewport"` (`viewport-capture.ts:runViewportCapture` — 버튼~capturing 이탈. `areaSelected`가 안 오면 **5초 상한**으로 해제해 T만 앞에 남는 걸 막는다) |
+| 인라인 영역 | inline 상태 hold + 트랜잭션 |
+| 전체 페이지 | 바깥 1회 `withTargetHold`(타일마다가 아니다 — 깜빡임과 타일 전후 active 재확인 경쟁) |
+| 30s 리플레이 폴링 | 없음(비목표) |
+
+트랜잭션이 prepare까지 감싸는 이유는 `scrollIntoView` + rAF 2회가 숨은 T에서 돌면 rAF가 안 떠 rect=null이 되기 때문이다(POSTMORTEM 2026-08-01과 같은 형태). DOM 트리 이동(`navigatePicker`·`selectByPath`)은 content 응답과 `picker.selected`의 순서가 보장되지 않아 T가 1회 깜빡일 수 있다 — before 캡처에 T가 필요해 본질적이라 수용했다.
+
+**App 게이트** (`lib/tab-mode.ts:tabModeGate` → `pending | sidepanel | pick | bound`): 정수 `?tabId=`가 있으면 `getSelfTab`을 기다리지 않고 동기로 `bound`다(사이드패널 정상 경로를 새 비동기 게이트 뒤로 세우지 않는다). 쿼리가 없거나 0 이상 정수가 아닐 때만 `getSelfTab` 결과로 갈린다 — 확인 중 `pending`(null 렌더), 사이드패널 `sidepanel`(기존 폴백), 탭 모드 `pick`(`TabTargetPicker`). `useBoundTabId`는 폴백이 임의 탭을 주므로 pending/pick 동안은 App이 부작용 훅(세션 sync·레코더·`useBoundTabState`·리플레이·picker 메시지·`useTabModeHold`·self port)에 **null tabId**를 넘긴다 — 렌더 스냅샷이 아니라 훅에 넘긴 인자를 단언해야 잡힌다(`App.tabTarget.test.tsx`). 선택은 `location.replace(buildPanelUrl(...))` 전체 리로드다 — `useBoundTabId`가 약 20곳에서 따로 질의하고 `popstate`를 듣지 않으며 refcount도 초기화된다. 후보는 `listTargetCandidates`(자기 탭·미지원 URL 제외, 모든 창, 같은 창 먼저)이고 `tabs.onCreated`/`onRemoved`/`onUpdated`(url·title)로 갱신한다. favicon은 제3자 요청·권한 문제가 따라와 쓰지 않는다. 탭 모드 전용 UI(`TabModeAgentHint`·영역 안내 `tab-mode-area-hint`)는 `hooks/useSelfTab.ts:useIsTabMode` 단일 게이트라 확인 중·사이드패널에서 false → **사이드패널 렌더 0**.
+
+**취소 = 패널 탭으로 돌아가기** (orch D7): 전체 페이지 캡처 동안 T가 앞이라 패널의 진행률·취소 버튼이 가려진다. 취소하려면 패널 탭으로 돌아가면 되고, 다음 타일의 `isTabActive` 재확인이 `SCROLL_TAB_INACTIVE_MESSAGE`를 던져 inactive 토스트 1회 + reset으로 끝난다(분류·토스트는 아래 "캡처 실패 표면화"). Esc 리스너는 **없다** — 추가하면 사이드패널의 키 동작이 바뀌어 가드레일에 걸린다.
+
+**알려진 한계 (비목표)**: ① 30s 리플레이는 폴링이 `!tab.active`면 스킵하므로 패널이 앞이면 프레임 0이고, T가 앞이면 숨은 패널의 틱이 throttle된다. ② 한 대상에 패널 하나 — `background/index.ts`의 panel port `onDisconnect`가 `stopRecorders(T)`라 어느 패널이든 닫히면 T 기록이 멈춘다(숨은 패널의 Memory Saver discard도 같은 경로, 재로드 시 마운트 inject가 재무장). ③ 패널 → 제3 탭 전환은 T 정지/계속 어느 쪽도 약속하지 않는다(위 정지 예외).
+
+**e2e 하네스 전제**: e2e는 전부 같은 창 탭 모드라 hold가 T를 앞으로 가져온다 — 캡처 트리거용 `bringToFront` 우회는 걷어냈고 남은 건 영역 드래그·제3 탭 전환·다중 패널·관문 직접 호출뿐이다(사유는 `e2e/GOTCHAS.md`). 앞/뒤 판정은 `visibilityState`가 아니라 `chrome.tabs` active로 한다 — Playwright 포커스 에뮬레이션 때문에 숨은 탭도 visible이라 e2e에서는 패널 복귀 `visibilitychange` 재무장이 오지 않는다(그래서 왕복 뒤 로그 유지 e2e는 정지 예외가 없을 때 red가 되는 그물이다). `getSelfTab()=null`(사이드패널) 경로는 e2e가 한 번도 돌지 않는다 → `e2e/MANUAL-SMOKE.md` 수동 잔여. eval-host 탭은 기동 직후 열고 `fixtureTabId()`를 `openPanel` 전에 호출해 같은 창 제3 탭의 활성화 순서를 고정한다.
+
+매뉴얼의 탭 모드 서술은 전부 소스에 바인딩돼 있다(`agentManual.test.ts`의 "탭 모드 —" describe 5개).
 
 ## 캡처 프레임 커밋 대기 (`content/after-paint.ts`)
 
