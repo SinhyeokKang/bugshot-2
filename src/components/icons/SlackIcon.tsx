@@ -1,13 +1,14 @@
 // Slack 공식 4색 로고. simple-icons가 브랜드 가이드라인 요청으로 마크를 삭제해
 // @icons-pack/react-simple-icons에 SiSlack이 없어, 공식 SVG를 인라인한 커스텀 브랜드 마크.
 // 사이즈는 lucide 아이콘처럼 className(h-_ w-_)으로 제어한다.
-export function SlackIcon({ className }: { className?: string }) {
+export function SlackIcon({ className, "aria-hidden": ariaHidden }: { className?: string; "aria-hidden"?: React.ComponentProps<"svg">["aria-hidden"] }) {
   return (
     <svg
       viewBox="0 0 122.8 122.8"
       className={className}
       role="img"
       aria-label="Slack"
+      aria-hidden={ariaHidden}
     >
       <path
         d="M25.8 77.6c0 7.1-5.8 12.9-12.9 12.9S0 84.7 0 77.6s5.8-12.9 12.9-12.9h12.9v12.9zm6.5 0c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V77.6z"

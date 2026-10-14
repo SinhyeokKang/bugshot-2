@@ -49,7 +49,7 @@ describe("SubmitPlatformTabs", () => {
     // jsdom은 레이아웃이 0이라 자동 측정이 항상 "안 넘침"이다. 여기서 보는 건 그 결과가
     // forceCollapsed로 덮이지 않는다는 것뿐.
     for (const label of screen.getAllByText(/^(Jira|GitHub|Linear|Notion|GitLab|Asana|ClickUp|Slack)$/)) {
-      expect(label.className).not.toContain("hidden");
+      expect((label.getAttribute("class") ?? "").split(/\s+/)).not.toContain("sr-only");
     }
   });
 
@@ -64,7 +64,17 @@ describe("SubmitPlatformTabs", () => {
   // forceCollapsed가 없으면 라벨이 그대로 남아 9개가 옆으로 길게 늘어선다.
   it("9탭이면 라벨을 강제로 접는다", () => {
     renderTabs(ALL);
-    expect(screen.getByText("Jira").className).toContain("hidden");
+    const cls = screen.getByText("Jira").className.split(/\s+/);
+    expect(cls).toContain("sr-only");
+    expect(cls).not.toContain("hidden");
+  });
+
+  // 아이콘의 <title>/aria-label이 sr-only 라벨과 합쳐지면 이름이 "Slack Slack"이 된다.
+  it("접힌 탭의 접근 가능한 이름은 라벨 하나뿐이다", () => {
+    renderTabs(ALL);
+    expect(screen.getByRole("tab", { name: /^Slack$/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /^Jira$/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /^Custom Webhook$/ })).toBeTruthy();
   });
 
   it("9탭 트리거는 줄어들지 않는다", () => {

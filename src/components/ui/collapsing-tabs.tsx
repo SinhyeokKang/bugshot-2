@@ -70,11 +70,12 @@ export function CollapsingTabsList({
   );
 }
 
-// 접힘 상태에서 숨길 라벨. 측정 중에는 group-data로 강제 노출돼 폭이 잡힌다.
+// 접힘 상태에서 시각적으로만 숨길 라벨 — display:none이면 접근성 트리에서도 빠져 탭 이름이
+// 사라지므로 sr-only로 남긴다. 측정 중에는 group-data로 강제 노출돼 폭이 잡힌다.
 export function TabLabel({ children, className }: { children: ReactNode; className?: string }) {
   const collapsed = useContext(CollapsedContext);
   return (
-    <span className={cn(collapsed && "hidden", "group-data-[measuring]/tabs:inline", className)}>
+    <span className={cn(collapsed && "sr-only whitespace-nowrap", "group-data-[measuring]/tabs:not-sr-only", className)}>
       {children}
     </span>
   );
