@@ -36,6 +36,21 @@
 
 ---
 
+## 2026-10-15 — 탭 모드 판정을 위해 App 렌더 게이트에 `getSelfTab()` 대기를 넣자, 판정이 필요 없는 사이드패널 정상 경로(`?tabId=N`)까지 그 뒤로 줄을 섰다
+
+- **영역**: `컴포넌트`
+- **계열**: `미검증단언`
+- **그물**: `jsdom`
+- **증상**: (리뷰에서 잡음) 대상 선택 화면을 넣으면서 App이 `getSelfTab()` 결과가 나올 때까지 `return null`을 하고 부작용 훅(레코더·picker·세션 동기화·port)에도 null tabId를 줬다. `background/tab-bindings.ts`가 항상 `?tabId=`를 붙여 여는 일반 사이드패널도 `getCurrent()` 왕복이 끝날 때까지 빈 화면이었고, `storage.session.get`·레코더 주입·port 연결이 첫 렌더 병렬 시작에서 `getCurrent → 리렌더 → …` 직렬로 바뀌었다. 깜빡임·무음 실패는 관측되지 않았지만 가드레일 D1(사이드패널 변화 0) 위반이고, `getSelfTab`에는 타임아웃이 없어 hang하면 영구 빈 화면이 될 수 있었다.
+- **근본 원인**:
+  - 게이트의 입력 범위를 "모든 문서"로 잡았다. 판정(탭 모드 && 쿼리 없음)이 의미 있는 건 **쿼리가 없을 때뿐**이고, 정수 쿼리가 있으면 사이드패널이든 탭 모드든 결과(`bound`)가 같아 기다릴 이유가 없다.
+  - e2e는 전부 탭 모드라 사이드패널 경로가 한 번도 안 돈다. 그래서 e2e·기존 jsdom 모두 green이었다.
+- **재발 방지**:
+  - (1) **렌더 게이트에 새 비동기 대기를 넣을 때 "이 판정이 의미 있는 입력 범위에서만 기다리는가"를 먼저 묻는다.** 판정과 무관한 입력은 동기 통과시킨다(`tabModeGate`: 정수 쿼리 → `getSelfTab` 전에 `bound`). 대기 게이트는 hang 시 닫힌 채 남지 않는지도 함께 본다(렌더 게이트 boolean 계열).
+  - (2) early return 위에서 도는 훅의 부작용은 **렌더 스냅샷이 아니라 훅에 넘긴 인자**를 단언해야 잡힌다(`App.tabTarget.test.tsx`: 선택 화면·대기 중엔 null, `?tabId=5`+대기 중엔 첫 렌더에서 5).
+  - (3) 사이드패널 렌더 0·무지연은 e2e로 원리적으로 못 본다 — jsdom이 유일한 그물이다(`e2e/GOTCHAS.md`에 명시).
+- **관련**: `src/sidepanel/lib/tab-mode.ts:tabModeGate`, `src/sidepanel/App.tsx`, `src/sidepanel/__tests__/App.tabTarget.test.tsx`.
+
 ## 2026-10-15 — Playwright 포커스 에뮬레이션 탓에 뒤에 깔린 탭도 `visibilityState==="visible"`이라, 탭 전환 대기가 즉시 통과해 레이스를 숨겼다
 
 - **영역**: `e2e`
