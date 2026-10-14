@@ -9,10 +9,10 @@
 - [ ] 동시성 테스트는 읽기/쓰기 순서를 제어하고 최종 저장 토큰과 실제 요청 대상/헤더를 단언한다.
 
 ## CAPTURE — A02·A04
-- [ ] screenshot/video/freeform 확정→세션 재개 시 issue 소유 로그를 복원한다. 늦은 복원이 새 세션을 덮지 않는다.
-- [ ] 복구한 로그가 제출 logs.html과 본문 요약에 포함된다. logsAttach off·element 제외는 유지한다.
-- [ ] 마지막 첨부·일부 첨부 삭제 후 재확정 시 IssueRecord 메타데이터와 blob이 일치한다.
-- [ ] 저장 초안 제출 검증까지 실행하고 삭제한 파일을 MissingSubmissionFilesError로 처리하지 않는다.
+- [x] screenshot/video/freeform 확정→세션 재개 시 issue 소유 로그를 복원한다. 늦은 복원이 새 세션을 덮지 않는다.
+- [x] 복구한 로그가 제출 logs.html과 본문 요약에 포함된다. logsAttach off·element 제외는 유지한다.
+- [x] 마지막 첨부·일부 첨부 삭제 후 재확정 시 IssueRecord 메타데이터와 blob이 일치한다.
+- [x] 저장 초안 제출 검증까지 실행하고 삭제한 파일을 MissingSubmissionFilesError로 처리하지 않는다.
 
 ## CONNECT — A05
 - [x] notion.testToken의 잘못된 신규 토큰은 연결 폼 오류만 발생시킨다.
@@ -20,10 +20,10 @@
 - [x] 메시지 경계 직렬화와 bg-client 소비까지 회귀 검증한다.
 
 ## VIEWER — A06·A07·A08
-- [ ] MP4/WebM의 실제 MIME과 다운로드 파일명이 일치한다. 별도 빌드 import 경계를 유지한다.
-- [ ] 탐색 막대 Tab 접근, 방향키, Home/End, 경계 clamp, aria 값·시간 설명·포커스 표시를 검증한다.
-- [ ] titlePrefix와 Linear priority 표시 라벨을 컨트롤에 연결한다. 라벨 조회·클릭 포커스를 검증한다.
-- [ ] UI 동작은 DOM 또는 e2e로 검증한다. 신규 의존성·전역 디자인 변경은 도입하지 않는다.
+- [x] MP4/WebM의 실제 MIME과 다운로드 파일명이 일치한다. 별도 빌드 import 경계를 유지한다.
+- [x] 탐색 막대 Tab 접근, 방향키, Home/End, 경계 clamp, aria 값·시간 설명·포커스 표시를 검증한다.
+- [x] titlePrefix와 Linear priority 표시 라벨을 컨트롤에 연결한다. 라벨 조회·클릭 포커스를 검증한다.
+- [x] UI 동작은 DOM 또는 e2e로 검증한다. 신규 의존성·전역 디자인 변경은 도입하지 않는다.
 
 ## 공통 완료 조건
 - [ ] 배치별 TDD·자체 검증·독립 리뷰, typecheck/test/sync gate.

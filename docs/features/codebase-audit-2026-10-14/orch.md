@@ -113,3 +113,7 @@ CTO 최초 ctx_bedb656f6e6d는 agent_readiness/terminal_handle_stale로 실패�
 - CAPTURE 4d764fc9·5d1945e1 → dev ed29fdc6·1631a039. 복구 owner/취소·빈 첨부 metadata 회귀와 실제 제출 body/logs.html 출력까지 검증했다. 독립 CTO 최종 PASS, 전체 8644 통과(2 skip), typecheck/sync exit 0.
 - dev 통합 게이트: pnpm typecheck / pnpm test / pnpm sync:agents:check 모두 exit 0. 445파일·8658테스트 통과(2 skip).
 - AUTH 설계 CTO 최종 READY·QA READY. 연결 후보 문맥 및 durable grant 분리 계약까지 승인됐다. CAPTURE/CONNECT 통합 선행 조건을 충족했으므로 현재 dev에서 AUTH A01+A03 구현을 시작한다. 지휘자가 별도 전문 리뷰 Dispatch를 담당하며 nested worker는 만들지 않는다.
+
+- AUTH 구현: task `task_69e2efda9102`, dispatch `ctx_2c1ff996a303`, child `audit-1014-auth`, ready/turn_started 확인. 코드 기준 1631a039, 최신 통합 증거 e488d9d8는 별도 전달했다.
+- CONNECT push `023fa08e` CI [38492124085](https://github.com/SinhyeokKang/bugshot-2/actions/runs/38492124085): verify·4개 e2e 샤드·e2e-gate success.
+- CAPTURE/VIEWER 문서 트라이아지: ARCHITECTURE의 복원/제출·빈 첨부·탐색 계약, ko/en 뷰어 가이드, e2e/COVERAGE와 CI 테스트 수, POSTMORTEM 3건 갱신. DIRECTORY는 테스트 디렉터리 단위 설명이라 새 개별 테스트 열거 불필요. CLAUDE/README/PERMISSION/privacy는 기존 동작 복원과 접근성 배선이며 새 수집·저장·전송 목적이 없어 변경 불필요. 평상시 화면은 동일하고 focus는 키보드 상태이므로 스크린샷 교체는 최종 guide-shots에서 판정한다.
