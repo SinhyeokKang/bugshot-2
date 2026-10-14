@@ -29,7 +29,21 @@ vi.mock("@/lib/bg-client", () => ({
   sendBg: (...a: unknown[]) => sendBg(...a),
 }));
 
-const { captureElementSnapshot, captureElementSnapshotBySelector } = await import("../capture");
+const order: string[] = [];
+vi.mock("../tab-mode", () => ({
+  withTargetHold: async <T,>(tabId: number, run: () => Promise<T>, reason = "capture") => {
+    order.push(`hold:${tabId}:${reason}`);
+    try {
+      return await run();
+    } finally {
+      order.push(`release:${tabId}`);
+    }
+  },
+}));
+
+const { captureElementSnapshot, captureElementSnapshotBySelector, captureTargetTab } = await import(
+  "../capture"
+);
 const { setActiveTabExpiryDeferred } = await import("../lib/capture-error");
 
 const PREP: PrepareCaptureResponse = {
@@ -173,5 +187,63 @@ describe("captureWithPrep 실패 발화 (경로당 한 곳)", () => {
     await captureElementSnapshot(1);
 
     expect(failed).not.toHaveBeenCalled();
+  });
+});
+
+// prepare(scrollIntoView + rAF)와 오버레이 숨김(afterPaint)이 숨은 탭에서 돌면 rect=null·오버레이가 찍힌다
+// (POSTMORTEM 2026-08-01) — 대상 탭 hold는 sendBg 한 줄이 아니라 prepare→capture→end 전체를 감싼다.
+describe("요소 스냅샷 트랜잭션 hold", () => {
+  beforeEach(() => {
+    order.length = 0;
+    prepareCapture.mockReset();
+    prepareCaptureBySelector.mockReset();
+    sendBg.mockReset();
+    endCapture.mockReset();
+    endCapture.mockImplementation(async () => {
+      order.push("end");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("captureElementSnapshot: hold → prepare → capture → end → release", async () => {
+    prepareCapture.mockImplementation(async () => {
+      order.push("prepare");
+      return PREP;
+    });
+    sendBg.mockImplementation(async () => {
+      order.push("capture");
+      throw new Error("stop before crop");
+    });
+
+    await captureElementSnapshot(5);
+
+    expect(order).toEqual(["hold:5:capture", "prepare", "capture", "end", "release:5"]);
+  });
+
+  it("captureElementSnapshotBySelector(재캡처)도 같은 범위를 감싼다", async () => {
+    prepareCaptureBySelector.mockImplementation(async () => {
+      order.push("prepare");
+      return null;
+    });
+
+    await captureElementSnapshotBySelector(5, "#x");
+
+    expect(order).toEqual(["hold:5:capture", "prepare", "end", "release:5"]);
+  });
+
+  it("captureTargetTab: 영역 캡처 요청도 hold 안에서 보낸다", async () => {
+    sendBg.mockImplementation(async () => {
+      order.push("capture");
+      return "data:image/png;base64,x";
+    });
+
+    await expect(captureTargetTab(5, "area")).resolves.toBe("data:image/png;base64,x");
+
+    expect(order).toEqual(["hold:5:area", "capture", "release:5"]);
+    expect(sendBg).toHaveBeenCalledWith({ type: "captureVisibleTab", tabId: 5 });
   });
 });

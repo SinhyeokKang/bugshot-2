@@ -10,6 +10,7 @@ const captureElementSnapshot = vi.fn<(...args: unknown[]) => Promise<null>>(asyn
 vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 vi.mock("@/sidepanel/capture", () => ({
   captureElementSnapshot: (...a: unknown[]) => captureElementSnapshot(...a),
+  captureTargetTab: (tabId: number) => sendBg({ type: "captureVisibleTab", tabId }),
   cropImage: () => cropImage(),
 }));
 vi.mock("@/sidepanel/picker-control", async () => {
