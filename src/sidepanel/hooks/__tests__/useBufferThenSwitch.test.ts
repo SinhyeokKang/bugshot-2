@@ -8,6 +8,18 @@ vi.mock("@/sidepanel/capture", () => ({
   captureElementSnapshot: mockCapture,
 }));
 
+const holdLog = vi.hoisted(() => [] as string[]);
+vi.mock("@/sidepanel/tab-mode", () => ({
+  withTargetHold: async <T,>(tabId: number, run: () => Promise<T>) => {
+    holdLog.push(`hold:${tabId}`);
+    try {
+      return await run();
+    } finally {
+      holdLog.push(`release:${tabId}`);
+    }
+  },
+}));
+
 // 스토어 전체 그래프(IDB·레코더)를 끌어오지 않고 훅의 계약만 본다: after가 찍힌 기준과
 // 커밋 시점 기준이 갈렸을 때 무엇을 버퍼에 넘기는가.
 const state = vi.hoisted(() => ({
@@ -53,6 +65,7 @@ function setup(captureContext: CaptureContext | null) {
 
 beforeEach(() => {
   mockCapture.mockReset();
+  holdLog.length = 0;
 });
 
 describe("useBufferThenSwitch", () => {
@@ -111,5 +124,20 @@ describe("useBufferThenSwitch", () => {
     expect(mockCapture).not.toHaveBeenCalled();
     expect(bufferCurrentElement).not.toHaveBeenCalled();
     expect(switchAction).toHaveBeenCalledOnce();
+  });
+
+  // 탭 모드: 캡처 끝에 패널로 돌아왔다가 picking이 대상을 다시 앞으로 가져오면 한 번 깜빡인다.
+  it("after 캡처와 전환을 한 대상 탭 hold 안에서 실행한다", async () => {
+    setup(DIALOG_CTX);
+    mockCapture.mockImplementation(async () => {
+      holdLog.push("capture");
+      return { image: "data:after", context: DIALOG_CTX };
+    });
+
+    await useBufferThenSwitch()(1, () => {
+      holdLog.push("switch");
+    });
+
+    expect(holdLog).toEqual(["hold:1", "capture", "switch", "release:1"]);
   });
 });

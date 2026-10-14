@@ -4,14 +4,14 @@ import { sameElementKey } from "@/lib/element-key";
 import { originOf, pendingKey } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import type { BgInternalMessage } from "@/types/messages";
-import { sendBg } from "@/lib/bg-client";
 import { onPickerIframeUnsupported, onPickerPermissionExpired } from "@/lib/app-events";
-import { captureElementSnapshot, cropImage } from "@/sidepanel/capture";
+import { captureElementSnapshot, captureTargetTab, cropImage } from "@/sidepanel/capture";
 import {
   fireCaptureFailure,
   isActiveTabExpiryDeferred,
   setActiveTabExpiryDeferred,
 } from "@/sidepanel/lib/capture-error";
+import { holdTarget } from "@/sidepanel/tab-mode";
 import { clearPicker, collectTokens, getTopViewport, isCurrentPickerSession, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, releaseDetachedSelection, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
@@ -124,21 +124,33 @@ export function usePickerMessages(myTabId: number | null): void {
           .bufferedElements.some((b) =>
             sameElementKey(b, { selector: msg.payload.selector, frameId }),
           );
-        useEditorStore.getState().onElementSelected({
-          selector: msg.payload.selector,
-          tagName: msg.payload.tagName,
-          classList: msg.payload.classList,
-          computedStyles: msg.payload.computedStyles,
-          specifiedStyles: msg.payload.specifiedStyles,
-          propSources: msg.payload.propSources ?? {},
-          hasParent: msg.payload.hasParent,
-          hasChild: msg.payload.hasChild,
-          text: msg.payload.text,
-          viewport: msg.payload.viewport,
-          capturedAt: Date.now(),
-          frameId,
-          origin,
-        });
+        // 탭 모드 before 구간: styling 전이(picking hold 해제)보다 먼저 잡아야 before 캡처가
+        // 끝나기 전에 패널로 돌아가지 않는다. 버퍼 재선택은 캡처가 없어 잡지 않는다 — 잡으면
+        // styling 중 DOM 트리 이동마다 대상 탭이 괜히 한 번 앞으로 나온다.
+        const holdTabId = useEditorStore.getState().target?.tabId;
+        const beforeHold = holdTabId && !wasBuffered ? holdTarget(holdTabId, "before") : null;
+        const releaseBefore = () => void beforeHold?.then((release) => release());
+        try {
+          useEditorStore.getState().onElementSelected({
+            selector: msg.payload.selector,
+            tagName: msg.payload.tagName,
+            classList: msg.payload.classList,
+            computedStyles: msg.payload.computedStyles,
+            specifiedStyles: msg.payload.specifiedStyles,
+            propSources: msg.payload.propSources ?? {},
+            hasParent: msg.payload.hasParent,
+            hasChild: msg.payload.hasChild,
+            text: msg.payload.text,
+            viewport: msg.payload.viewport,
+            capturedAt: Date.now(),
+            frameId,
+            origin,
+          });
+        } catch (err) {
+          // 새면 refcount가 0으로 안 돌아와 이후 탭 모드 캡처가 전부 활성화 없이 거부된다.
+          releaseBefore();
+          throw err;
+        }
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
           // 선택 프레임 외 나머지 프레임의 hover 유령(blocker·inspector) 종료.
@@ -199,8 +211,13 @@ export function usePickerMessages(myTabId: number | null): void {
                 if (beforeCaptureInflight === 0) {
                   useEditorStore.getState().setBeforeCapturePending(false);
                 }
+                releaseBefore();
               });
+          } else {
+            releaseBefore();
           }
+        } else {
+          releaseBefore();
         }
       } else if (message.type === "picker.selectionUpdated") {
         const msg = message as Extract<PickerMessage, { type: "picker.selectionUpdated" }>;
@@ -438,7 +455,8 @@ async function captureAndCrop(rect: ViewportRect, viewport: { width: number; hei
   const tabId = useEditorStore.getState().target?.tabId;
   if (!tabId) return;
   try {
-    const dataUrl = await sendBg<string>({ type: "captureVisibleTab", tabId });
+    // 영역 드래그는 사용자가 직접 대상 탭에서 그린다 — 탭 모드면 끝나고 패널로 돌아온다.
+    const dataUrl = await captureTargetTab(tabId, "area");
     const cropped = await cropImage(dataUrl, rect, viewport);
     // 캡처는 background 큐를 거쳐 수백 ms 걸린다 — 그 사이 취소·세션 만료·탭 변경으로 세션이
     // 바뀌었으면 결과를 버린다(target 없는 유령 drafting 방지).
@@ -465,7 +483,7 @@ async function captureAndInsertInline(
   try {
     const tabId = useEditorStore.getState().target?.tabId;
     if (!tabId) return;
-    const dataUrl = await sendBg<string>({ type: "captureVisibleTab", tabId });
+    const dataUrl = await captureTargetTab(tabId);
     const cropped = await cropImage(dataUrl, rect, viewport);
     let blob = dataUrlToBlob(cropped);
     const bitmap = await createImageBitmap(blob);

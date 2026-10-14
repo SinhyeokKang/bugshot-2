@@ -55,13 +55,14 @@ import {
   startAreaCapture,
   startElementShot,
   cancelAreaCapture,
-  captureFullViewport,
   clearPicker,
   maybeSurfacePermissionExpired,
   startFreeformDraft,
 } from "@/sidepanel/picker-control";
 import { runScrollCapture } from "@/sidepanel/scroll-capture";
-import { emitCaptureFailure, fireCaptureFailure } from "@/sidepanel/lib/capture-error";
+import { runViewportCapture } from "@/sidepanel/viewport-capture";
+import { withTargetHold } from "@/sidepanel/tab-mode";
+import { fireCaptureFailure } from "@/sidepanel/lib/capture-error";
 import { startVideoCapture, startScreenCapture } from "@/sidepanel/video-capture";
 import { setAnnotationTool } from "@/sidepanel/annotation-control";
 import {
@@ -130,12 +131,15 @@ export function IssueTab() {
       useEditorStore.getState().phase === "capturing" &&
       useEditorStore.getState().target?.tabId === id;
 
-    void runScrollCapture(id, {
-      signal: controller.signal,
-      onProgress: (done, total) => {
-        if (scrollAbortRef.current === controller) setScrollProgress({ done, total });
-      },
-    })
+    // 타일마다가 아니라 바깥 1회 — 타일마다 handoff하면 탭이 깜빡이고 타일 전후 active 재확인과 경쟁한다.
+    void withTargetHold(id, () =>
+      runScrollCapture(id, {
+        signal: controller.signal,
+        onProgress: (done, total) => {
+          if (scrollAbortRef.current === controller) setScrollProgress({ done, total });
+        },
+      }),
+    )
       .then((result) => {
         // 캡처 중 취소·세션 만료·URL 변경·picker 단절이 있었으면 결과를 버린다(유령 drafting 방지).
         if (!isCurrent()) return;
@@ -166,14 +170,7 @@ export function IssueTab() {
     // content 응답(수 ms)이 아니라 실제 캡처(captureVisibleTab 큐, 수백 ms)가 끝날 때까지 잠근다.
     // 해제는 phase가 capturing을 벗어나는 시점(위 effect) — 연타로 진행 중 캡처를 날리지 않게.
     setViewportBusy(true);
-    void captureFullViewport(id).then((ok) => {
-      // content가 area-select 상태가 아니면(주입 소실·레이스) 갇히지 않게 idle로 되돌리고 알린다.
-      if (!ok && useEditorStore.getState().phase === "capturing") {
-        // reset보다 먼저 — idle 전이가 지연 권한 만료 플래그를 소비하면 토스트까지 이중으로 뜬다.
-        emitCaptureFailure("other");
-        useEditorStore.getState().reset();
-      }
-    });
+    void runViewportCapture(id);
   };
 
   const cancelCapturing = (id: number) => {

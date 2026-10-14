@@ -112,11 +112,21 @@ describe("runViewportCapture — 뷰포트 버튼 ~ crop 완료 hold", () => {
     expect(failed).not.toHaveBeenCalled();
   });
 
-  it("content 송신이 throw해도 hold를 놓는다", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    captureFullViewport.mockRejectedValue(new Error("no receiver"));
-    await runViewportCapture(TAB);
-    expect(release).toHaveBeenCalledTimes(1);
+  it("ok인데 areaSelected가 끝내 안 오면 상한 뒤 hold를 놓는다(phase는 그대로)", async () => {
+    vi.useFakeTimers();
+    try {
+      captureFullViewport.mockResolvedValue(true);
+      await runViewportCapture(TAB);
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(release).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(release).toHaveBeenCalledTimes(1);
+      expect(useEditorStore.getState().phase).toBe("capturing");
+      useEditorStore.getState().reset();
+      expect(release).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("release는 한 번만 — capturing 이탈과 !ok 경로가 겹쳐도", async () => {

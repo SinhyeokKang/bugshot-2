@@ -3,6 +3,7 @@ import { t } from "@/i18n";
 import { useEditorStore } from "@/store/editor-store";
 import { hasStyleChange } from "@/sidepanel/lib/hasStyleChange";
 import { captureElementSnapshot } from "@/sidepanel/capture";
+import { withTargetHold } from "@/sidepanel/tab-mode";
 import { sameCaptureBasis } from "@/sidepanel/lib/capture-basis";
 import { isCssDraftUnapplied } from "@/sidepanel/tabs/styleEditor/cssDraftStatus";
 
@@ -36,7 +37,13 @@ export function useBufferThenSwitch(): (
         toast.error(t("editor.cssDraftUnapplied"));
         return;
       }
-      if (selection && hasStyleChange(selection, styleEdits)) {
+      if (!selection || !hasStyleChange(selection, styleEdits)) {
+        await switchAction();
+        return;
+      }
+      // 탭 모드: after 캡처와 전환(picking 재진입)을 한 hold로 묶는다 — 따로면 캡처 끝에 패널로
+      // 돌아왔다가 picking이 대상 탭을 다시 앞으로 가져와 한 번 깜빡인다.
+      await withTargetHold(tabId, async () => {
         const after = await captureElementSnapshot(tabId, {
           frameId: selection.frameId ?? 0,
           context: captureContext ?? undefined,
@@ -50,8 +57,8 @@ export function useBufferThenSwitch(): (
           stale ? null : after?.image ?? null,
           landed ?? undefined,
         );
-      }
-      await switchAction();
+        await switchAction();
+      });
     } finally {
       switchBusy = false;
     }

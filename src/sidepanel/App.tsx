@@ -41,6 +41,7 @@ import { useBoundTabId } from "./hooks/useBoundTabId";
 import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { useBackgroundRecorder } from "./hooks/useBackgroundRecorder";
 import { usePickerMessages } from "./hooks/usePickerMessages";
+import { useTabModeHold } from "./hooks/useTabModeHold";
 import { useThemeEffect } from "./hooks/useThemeEffect";
 import { useDocumentLangEffect } from "./hooks/useDocumentLangEffect";
 import { useAiLoadingStep } from "./hooks/useAiLoadingStep";
@@ -127,6 +128,7 @@ export default function App() {
   const replay = use30sReplay(tabId ?? null, replayEnabled, unsupported);
   const settingsHydrated = useSettingsHydrated();
   usePickerMessages(tabId ?? null);
+  useTabModeHold(tabId ?? null);
   useThemeEffect();
   useDocumentLangEffect();
 

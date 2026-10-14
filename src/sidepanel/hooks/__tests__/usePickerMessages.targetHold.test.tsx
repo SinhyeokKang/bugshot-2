@@ -58,6 +58,11 @@ vi.mock("@/store/blob-db", () => ({
   deleteAttachmentBlobs: vi.fn().mockResolvedValue(undefined),
   rekeyAttachmentBlobs: vi.fn().mockResolvedValue(undefined),
 }));
+// 인라인 경로를 압축 없이 끝까지 태운다(jsdom엔 OffscreenCanvas가 없다).
+vi.mock("@/sidepanel/lib/compactImage", () => ({
+  shouldCompact: () => false,
+  compactImage: vi.fn(),
+}));
 vi.mock("@/sidepanel/recorder-control", () => ({
   clearNetworkRecorder: vi.fn(),
   clearConsoleRecorder: vi.fn(),
@@ -177,7 +182,7 @@ describe("before 캡처 hold — 요소 선택 수신 ~ before 완료", () => {
     await waitFor(() => expect(events).toContain("release:before"));
   });
 
-  it("버퍼 재선택(before 생략)이면 잡은 hold를 곧바로 놓는다", async () => {
+  it("버퍼 재선택(before 생략)이면 before hold를 잡지 않는다", async () => {
     const buffered: BufferedElement = {
       selector: "#a",
       tagName: "div",
@@ -199,7 +204,8 @@ describe("before 캡처 hold — 요소 선택 수신 ~ before 완료", () => {
 
     deliver(SELECTED);
 
-    await waitFor(() => expect(events).toContain("release:before"));
+    await waitFor(() => expect(useEditorStore.getState().phase).toBe("styling"));
+    expect(holdTarget).not.toHaveBeenCalled();
     expect(captureElementSnapshot).not.toHaveBeenCalled();
   });
 
@@ -235,6 +241,7 @@ describe("영역·인라인 캡처는 hold된 캡처 요청을 쓴다", () => {
       phase: "drafting",
       target: { tabId: TAB, url: "https://example.com", title: "x" },
       inlineCaptureTarget: "section-1",
+      draft: { title: "", sections: {} },
     });
     vi.stubGlobal("createImageBitmap", vi.fn(async () => ({ width: 10, close: () => {} })));
     vi.stubGlobal("crypto", { randomUUID: () => "abcdefgh-1234" });
@@ -242,7 +249,11 @@ describe("영역·인라인 캡처는 hold된 캡처 요청을 쓴다", () => {
 
     deliver(AREA);
 
-    await waitFor(() => expect(useEditorStore.getState().inlineCaptureTarget).toBeNull());
-    expect(captureTargetTab).toHaveBeenCalledWith(TAB, undefined);
+    await waitFor(() =>
+      expect(useEditorStore.getState().draft?.sections["section-1"]).toContain("abcdefgh"),
+    );
+    expect(useEditorStore.getState().inlineCaptureTarget).toBeNull();
+    expect(captureTargetTab).toHaveBeenCalledTimes(1);
+    expect(captureTargetTab.mock.calls[0]?.[1] ?? "capture").toBe("capture");
   });
 });

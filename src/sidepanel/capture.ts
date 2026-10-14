@@ -16,6 +16,8 @@ import {
   prepareCapture,
   prepareCaptureBySelector,
 } from "./picker-control";
+import { withTargetHold } from "./tab-mode";
+import type { HoldReason } from "./lib/tab-mode";
 
 const DEFAULT_MARGIN = 24;
 
@@ -36,18 +38,22 @@ interface CaptureOptions {
   isCurrent?: () => boolean;
 }
 
+// 대상 탭 hold는 prepare→capture→end 전체를 감싼다 — prepare의 scrollIntoView+rAF와 오버레이
+// 숨김(afterPaint)이 숨은 탭에서 돌면 rect=null이거나 오버레이가 찍힌다.
 export async function captureElementSnapshot(
   tabId: number,
   options: CaptureOptions = {},
 ): Promise<CaptureResult | null> {
-  return captureWithPrep(
-    tabId,
-    await prepareCapture(
+  return withTargetHold(tabId, async () =>
+    captureWithPrep(
       tabId,
-      options.frameId ?? 0,
-      resolveExpandRequest(options),
+      await prepareCapture(
+        tabId,
+        options.frameId ?? 0,
+        resolveExpandRequest(options),
+      ),
+      options,
     ),
-    options,
   );
 }
 
@@ -57,17 +63,31 @@ export async function captureElementSnapshotBySelector(
   options: { margin?: number; frameId?: number; context?: CaptureContext } = {},
 ): Promise<CaptureResult | null> {
   const { context, ...rest } = options;
-  return captureWithPrep(
-    tabId,
-    await prepareCaptureBySelector(
+  return withTargetHold(tabId, async () =>
+    captureWithPrep(
       tabId,
-      rest.frameId ?? 0,
-      selector,
-      resolveExpandRequest({ context }),
+      await prepareCaptureBySelector(
+        tabId,
+        rest.frameId ?? 0,
+        selector,
+        resolveExpandRequest({ context }),
+      ),
+      // context를 rest에서 뺀다 — 0×0 폴백(before rect 재사용)은 live 참조로 찍은
+      // before/after 짝에만 성립하는 스코프라 by-selector 재캡처는 현행 동작을 유지한다.
+      rest,
     ),
-    // context를 rest에서 뺀다 — 0×0 폴백(before rect 재사용)은 live 참조로 찍은
-    // before/after 짝에만 성립하는 스코프라 by-selector 재캡처는 현행 동작을 유지한다.
-    rest,
+  );
+}
+
+// 영역·인라인처럼 content가 이미 확정한 화면을 찍는 경로. prepare가 없어 요청 자체만 hold한다.
+export function captureTargetTab(
+  tabId: number,
+  reason: Extract<HoldReason, "capture" | "area"> = "capture",
+): Promise<string> {
+  return withTargetHold(
+    tabId,
+    () => sendBg<string>({ type: "captureVisibleTab", tabId }),
+    reason,
   );
 }
 
