@@ -405,16 +405,18 @@ pre-arm 게이트 플래그 `__bugshot_recorder_active__`=`"1"`을 **방문 페�
 bg service worker에서 직접 읽기/쓰기:
 - `settings-storage.ts` — `readStoredAuth()`, `writeStoredOAuthTokens()` 등
 
+저장 계정 요청은 같은 grant의 인증만 사용한다. 다섯 회전형 제공자의 `grantId`는 연결마다 발급하고 회전 중 유지하며, 기존 인증은 최초 사용 시 원 토큰을 대조해 승격한다. 연결 후보의 프로필 조회·refresh는 기존 저장 계정과 분리하고 최종 연결 때 갱신된 후보를 저장한다. 패널 설정·migration·토큰 갱신은 동일 Web Lock의 최신 봉투 transaction을 공유한다. 계정 교체·해제 및 저장 실패는 현재 계정의 만료 안내로 처리하지 않는다.
+
 ### 토큰 갱신 (Pre-refresh + 401 재시도)
 
 | 플랫폼 | Pre-refresh 임계값 | 401 재시도 | 갱신 중복 방지 |
 |---|---|---|---|
-| Jira | 60초 (`jira-api.ts:TOKEN_REFRESH_THRESHOLD_MS`) | O (`authedFetch`) — **단 4경로는 제외** — agile 3경로(`jiraFetch(…, retryOn401=false)`: board 목록·보드별 sprint·sprint 단건)와 **agile이 아닌 `jira.sprintFieldMeta`**(`messages.ts` 핸들러가 `getSprintFieldMeta(…, false)`. 같은 함수라도 제출 경로(`createIssue`)는 `true`라 호출부가 선택을 강제받는다). 가르는 축은 엔드포인트가 아니라 **"만료 안내를 띄워도 되는 호출인가"**다 — scope 미비 401은 refresh로 안 풀리는 영구 조건이라 재시도가 회전형 refresh token만 소모하고 전역 재인증 안내를 오발화한다 | `refreshInFlight` Promise 중복 제거 |
-| GitHub | 60초 (`github-api.ts:97` → `background/lib/createRefreshRunner.ts`) | O (`authedFetch`) | `refreshOnceWithLock` 훅 주입 |
-| Linear | 60초 (`linear-api.ts:52`) | O (`authedGraphQL`) | `refreshOnceWithLock` 훅 주입 |
+| Jira | 60초 (`jira-api.ts:TOKEN_REFRESH_THRESHOLD_MS`) | O (`authedFetch`) — **단 4경로는 제외** — agile 3경로(`jiraFetch(…, retryOn401=false)`: board 목록·보드별 sprint·sprint 단건)와 **agile이 아닌 `jira.sprintFieldMeta`**(`messages.ts` 핸들러가 `getSprintFieldMeta(…, false)`. 같은 함수라도 제출 경로(`createIssue`)는 `true`라 호출부가 선택을 강제받는다). 가르는 축은 엔드포인트가 아니라 **"만료 안내를 띄워도 되는 호출인가"**다 — scope 미비 401은 refresh로 안 풀리는 영구 조건이라 재시도가 회전형 refresh token만 소모하고 전역 재인증 안내를 오발화한다 | `authContext.ts:createGrantRefresh`의 grant·문맥별 Promise 공유 |
+| GitHub | 60초 (`github-api.ts:97` → `background/lib/createRefreshRunner.ts`) | O (`authedFetch`) | `authContext.ts:createGrantRefresh`의 grant·문맥별 Promise 공유 |
+| Linear | 60초 (`linear-api.ts:52`) | O (`authedGraphQL`) | `authContext.ts:createGrantRefresh`의 grant·문맥별 Promise 공유 |
 | Notion | — | 401 시 `OAuthError` throw → 재인증 안내 | — |
-| GitLab | 60초 (`gitlab-api.ts`) | O (`authedFetch`, OAuth 한정) | `refreshInFlight` 훅 주입 |
-| Asana | 60초 (`asana-api.ts:90` → `background/lib/createRefreshRunner.ts`) | O (`authedFetch`, OAuth 한정) | `refreshInFlight` 훅 주입 |
+| GitLab | 60초 (`gitlab-api.ts`) | O (`authedFetch`, OAuth 한정) | `authContext.ts:createGrantRefresh`의 grant·문맥별 Promise 공유 |
+| Asana | 60초 (`asana-api.ts:90` → `background/lib/createRefreshRunner.ts`) | O (`authedFetch`, OAuth 한정) | `authContext.ts:createGrantRefresh`의 grant·문맥별 Promise 공유 |
 | ClickUp | 없음 (토큰 만료 없음) | X | 없음 — 401은 곧 권한 박탈 → 재연결 (`clickup-api.ts`) |
 | Slack | 없음 (user token 만료 없음) | X | 없음 — `ok:false`(`token_revoked`/`invalid_auth`)는 곧 권한 박탈 → 재연결 (`slack-api.ts`) |
 
