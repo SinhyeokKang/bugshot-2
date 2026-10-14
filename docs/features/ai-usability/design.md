@@ -51,7 +51,7 @@
 - **`src/lib/app-events.ts`**: `onCaptureFailed = createEmitter<[kind: CaptureFailureKind]>()` 추가(순수성 테스트 대상 파일. emitter 수 단언 8→9).
 - **`src/sidepanel/App.tsx`**:
   - `onCaptureFailed` 구독 → `toast.error(t(CAPTURE_FAILURE_KEYS[kind]))`. 사이드패널·탭 모드 공통(가드레일 예외). 기존 이벤트 8개는 전부 AlertDialog로 이어지므로 이건 새 패턴이다 — DESIGN §14에 "차단성 이벤트는 다이얼로그, 비차단 실패는 이벤트 → 토스트" 한 줄을 남긴다.
-  - **early return 단계**(`App.tsx:264-267`, `UnsupportedPage`·self 바인딩 `useEffect`(`:244-262`의 picker/bg port 연결)보다 앞)에서: `getSelfTab()` 결과가 나올 때까지 null 렌더, 탭 모드 && `parsePanelTabTarget(location.href)===null`이면 `TabTargetPicker`를 전체 화면으로 렌더하고 반환. 잔상("캡처할 수 없습니다")·self port·레코더 주입 부작용을 막는다.
+  - **early return 단계**(`App.tsx:264-267`, `UnsupportedPage`·self 바인딩 `useEffect`(`:244-262`의 picker/bg port 연결)보다 앞)에서: 정수 `?tabId=`가 있으면 `getSelfTab()`을 기다리지 않고 그대로 진행(사이드패널 정상 경로 무지연 — B2b 리뷰 D1 정정), 쿼리가 없을 때만 `getSelfTab()` 결과가 나올 때까지 null 렌더 + 부작용 훅에 null tabId, 탭 모드 && `parsePanelTabTarget(location.href)===null`이면 `TabTargetPicker`를 전체 화면으로 렌더하고 반환. 잔상("캡처할 수 없습니다")·self port·레코더 주입 부작용을 막는다.
   - 탭 모드면 탭 바 아래에 `TabModeAgentHint`(picker 화면에도 렌더).
   - `useTabModeHold()` 마운트.
 - **`src/sidepanel/hooks/useBoundTabId.ts`**: 변경 없음. 대상 선택 판정은 "탭 모드 && 쿼리 없음"으로 App이 한다(`boundTabId === selfTabId` 비교는 폴백이 임의 탭을 돌려줄 수 있어 쓰지 않는다). 선택 결과는 `location.replace(buildPanelUrl(base, id))`로 쿼리를 박는다 — `useBoundTabId`가 약 20곳에서 따로 질의하고 `popstate`를 안 들어서 전체 리로드가 맞다. 정수 판정은 `readQuery`(`Number.isFinite`)와 새 파서(정수만)를 맞춘다.
