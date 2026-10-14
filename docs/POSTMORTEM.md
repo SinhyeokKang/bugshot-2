@@ -36,6 +36,42 @@
 
 ---
 
+## 2026-10-15 — fail-closed로 바꾼 설정 봉투는 "손상이 계속되는" 상태를 설계에 두지 않아 복구 경로가 없었다
+
+- **영역**: `store`, `lib`, `i18n`
+- **계열**: `미검증단언`, `취소래치`
+- **그물**: `unit`
+- **증상**:
+  - 다른 패널에서 연결을 끊은 뒤 제출하면 UI 언어와 무관하게 영어 "The connected account changed…"가 떴다. "연결 안 됨"이어야 할 상황을 계정 교체로 안내한 것이다.
+  - 형식이 깨진 `bugshot-settings`가 남으면 연동 탭이 전부 미연결로 보였다. 연결·해제·기본값 변경이 매번 실패했고, 원인과 무관한 "저장 공간 부족" 다이얼로그만 반복됐다. 재설치 말고는 빠져나갈 길이 없었다.
+- **근본 원인**:
+  - 1.7.55가 `readSettingsEnvelope`를 "malformed면 throw, 무잠금 덮어쓰기 금지"로 바꿨다. 이때 설계(audit-auth design)는 **"후속 정상 읽기로 복구된다"만 상정**했고, 손상이 외부에서 고쳐지지 않고 계속 남는 상태는 정의하지 않았다.
+  - 그 위에서 실패한 intent가 큐 머리에 남아 뒤 intent를 막는 규칙(직전 회고의 순서 보장)이 `clearStorage`까지 막았다.
+  - 오류 문구는 lib 계층에 영어 상수로 박혀 있었다. 또 "계정 없음"과 "grant 교체"가 같은 클래스·같은 문구로 묶여 있었다.
+- **재발 방지**:
+  - (1) **fail-closed 전환을 설계할 때 "이 실패가 영구히 지속되면 사용자는 어떻게 빠져나오는가"를 한 줄로 적는다.** 답이 "재설치"면 설계가 덜 끝난 것이다. 파괴적 복구(폐기)는 쓰는 쪽 하나(패널 hydrate)로 한정하고, 읽는 쪽(background reader)은 fail-closed로 남긴다.
+  - (2) **잠금을 기다린 뒤의 파괴적 동작은 잠금 안에서 전제를 다시 검증한다.** 두 패널이 동시에 손상을 보면, 늦은 쪽이 앞 패널이 새로 쓴 정상 봉투를 지운다(`discardCorruptSettingsEnvelope`의 재확인).
+  - (3) **큐 항목을 대체하는 연산은 진행 중 항목의 ack 경로도 같이 본다.** `pending.shift()`를 무조건 하면 방금 대체한 `clearStorage`가 사라진다(`pending[0] === intent`일 때만 shift).
+  - (4) **파괴 직후 래치를 먼저 건다.**
+    - 폐기 후 재조회가 일시 실패하면, 다음 hydrate는 빈 저장소를 정상 값으로 읽어 안내할 기회가 영영 없다.
+    - 모듈 import 시점에 시작하는 hydrate의 이벤트는 App `useEffect` 구독보다 먼저 끝날 수 있다. `createEmitter`는 늦게 온 구독자에게 재발화하지 않으므로 `takeSettingsReset` 1회성 래치로 남긴다.
+  - (5) **"지우지 말고 백업"은 privacy 단언과 대조한다.** 손상 원문에는 토큰이 들어 있다. 백업 키가 연결 해제로도 안 지워지면 privacy의 "해제 시 자격 증명 삭제"가 거짓이 된다. 되살릴 수 없는 데이터는 백업하지 않는다.
+  - (6) **사용자에게 나가는 `Error.message`는 던지는 시점에 `t()`로 만든다.** 영어 리터럴은 `rg 'new \w+Error\("[A-Z]' src/lib src/background`로 전수한다. 사유가 다르면 문구도 달라야 하므로 생성자에 사유를 싣는다.
+- **관련**:
+  - 손댄 파일:
+    - `src/lib/settings-envelope.ts:StaleGrantError`·`SettingsCorruptError`·`discardCorruptSettingsEnvelope`
+    - `src/lib/settings-storage.ts:acquireStoredAuth`·`writer`
+    - `src/background/lib/authContext.ts`
+    - `src/store/settings-adapter.ts:rehydrate`·`flush`·`clearStorage`·`takeSettingsReset`
+    - `src/lib/app-events.ts:onSettingsReset`
+    - `src/sidepanel/App.tsx`(settingsReset 다이얼로그)
+  - 그물:
+    - `src/store/__tests__/settings-transactions.test.ts`
+    - `src/lib/__tests__/settings-storage.test.ts`
+    - `src/background/__tests__/auth-grants.test.ts`
+    - `src/sidepanel/tabs/__tests__/submission-grants.test.tsx`
+  - 선행: **2026-10-14**(설정 봉투 잠금 — 실패 intent·clearStorage를 큐에 남기는 규칙의 원 출처).
+
 ## 2026-10-14 — 토큰 차이와 플랫폼 단위 Promise는 재연결된 grant를 구분하지 못한다
 
 - **영역**: `background`, `어댑터`, `store`
