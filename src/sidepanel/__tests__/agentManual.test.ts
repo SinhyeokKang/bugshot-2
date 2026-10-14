@@ -30,17 +30,19 @@ import { SCROLL_TAB_INACTIVE_MESSAGE } from "@/lib/capture-messages";
 // **그 주장이 참인 이유가 되는 소스**에 바인딩한다 — 게이트를 뒤집으면 red다.
 //
 // 이 파일의 케이스는 전부 뮤테이션으로 실측했다(구현을 되돌려 red를 눈으로 봄).
-// 실측 없이 짠 첫 판본은 축 여섯이 공허했다:
+// 실측 없이 짠 첫 판본은 축 여섯이 공허했고, 뒤에 일곱 번째가 나왔다:
 //   · 문구 정규식을 매뉴얼 전체에 걸어 다른 문단의 같은 단어가 대신 매치
 //   · 섹션 파서가 `m` 플래그 lookahead 탓에 **모든 섹션을 빈 문자열**로 반환
 //   · 단어 **존재**만 봐서 "먼저 열어라"를 "나중에 열어라"로 뒤집어도 통과
 //   · 이름만 매칭해 import 문이 **호출** 대신 매치
 //   · 주석 처리된 testid가 "실재한다"로 통과
 //   · testid 존재만 봐서 두 버튼의 testid를 맞바꿔도 통과(매핑 축 부재)
+//   · 부재 단언("Escape 없음")을 `codeOnly`가 주석을 지우는 줄 모르고 주석 뮤턴트로 실측해 공허하게 통과
+//     (코드로 넣어야 red가 난다)
 // 새 케이스를 추가하면 반드시 같은 실측을 한다.
 //
 // **단방향이 의도다.** "매뉴얼이 말한 것이 소스에서 참인가"만 본다. 역방향(소스에 있는데
-// 매뉴얼에 없다)은 red가 아니다 — 매뉴얼은 도그푸딩 경로 한 줄기만 다루고 UI 전수가 아니다.
+// 매뉴얼에 없다)은 red가 아니다 — 매뉴얼은 리포팅 경로 한 줄기(내부 QA 자동화 + 외부 고객 에이전트)만 다루고 UI 전수가 아니다.
 // 예외는 영상 축으로, 거기선 "제시하지 않았는가"를 파생 목록으로 강제한다.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -756,5 +758,38 @@ describe("탭 모드 — 한계", () => {
     const onDisconnect = balancedAfter(bg, "port.onDisconnect.addListener(", "(", ")");
     expect(onDisconnect).toContain("stopRecorders(tabId)");
     expect(/one panel per target/i.test(prose("Limits of a panel opened as a tab"))).toBe(true);
+  });
+});
+
+describe("탭 모드 — 재무장·선택 화면 기록·실패 토스트 예외", () => {
+  it("패널을 다시 보이게 하면 재무장되지 않는다고 단정하지 않는다 — 같은 창에서는 visibilitychange가 재주입한다", () => {
+    const recorder = codeOnly(read("src/sidepanel/hooks/useBackgroundRecorder.ts"));
+    const onVisible = balancedAfter(recorder, "const onVisible = () => {", "{", "}");
+    expect(onVisible).toContain("void inject()");
+    // 옛 문장은 이 경로가 있는 한 거짓이다. 확실한 복구법(리로드)만 지시한다.
+    expect(/nothing re-arms/i.test(manual)).toBe(false);
+    expect(/does not start again on its own/i.test(manual)).toBe(false);
+    const order = prose("Order contract");
+    expect(/do not count on/i.test(order)).toBe(true);
+    expect(/reload the (target )?page/i.test(order)).toBe(true);
+  });
+
+  it("선택 화면 동안에는 아무것도 기록되지 않는다 — pick gate면 App이 부작용 훅에 null tabId를 준다", () => {
+    expect(tabModeGate({ self: { id: 1 }, href: PANEL_BASE, panelBase: PANEL_BASE })).toBe("pick");
+    const app = codeOnly(read("src/sidepanel/App.tsx"));
+    expect(app).toMatch(/const tabId = gate === "pending" \|\| gate === "pick" \? null : boundTabId/);
+    expect(app).toContain("useBackgroundRecorder(tabId ?? null)");
+    expect(/nothing is recorded until a target is chosen/i.test(prose("Order contract"))).toBe(true);
+  });
+
+  it("실패 토스트의 예외 둘을 말한다 — activeTab 만료는 다이얼로그, after 좌표 불신 스킵은 무토스트", () => {
+    expect(classifyCaptureFailure(new Error("The extensions has not been invoked for activeTab"))).toBeNull();
+    const capture = codeOnly(read("src/sidepanel/capture.ts"));
+    const skipped = balancedAfter(capture, "if (!usable) {", "{", "}");
+    expect(skipped).toContain("return null");
+    expect(skipped).not.toContain("emitCaptureFailure");
+    const before = prose("Before you trigger a capture");
+    expect(/dialog opens instead/i.test(before)).toBe(true);
+    expect(/cannot be trusted/i.test(before)).toBe(true);
   });
 });
