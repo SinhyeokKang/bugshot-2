@@ -56,6 +56,7 @@ AUTH가 messages.ts 변경을 필요로 하면 CONNECT 통합 뒤 rebase하고 �
 ## 진행·검증 증거
 
 - 재개(2026-10-14, 두 폴더 명시 호출): 시작 dev `1aa1243bc2953405400e60b90cbfa9253c9ab412`. 감사 전체와 AUTH 설계 폴더를 함께 범위로 확인했다. 기존 Run을 재바인딩했고, 이전 워커는 모두 failed이며 소유 터미널은 released다. 사용자 재개 지시에 따라 기존 Task와 최신 실패 Dispatch를 유지한 공식 retry를 사용한다. 모델·effort는 사용자 설정 상속, 기존 소유권과 검증 순서 유지.
+- 이번 재개 결과: CONNECT `ctx_2e3f31541a7f`·VIEWER `ctx_9a4bef9706cd`는 `agent_readiness: timeout`, CAPTURE `ctx_c279e8ab58f7`는 `agent_readiness: terminal_handle_stale`로 종료 코드 1. 모두 `mode=terminal`, `reason=user_default`. Task 프롬프트 실행 전 실패했다. 공식 worker-release가 모두 released/closed_agent_terminal 및 archive captured를 반환했다. 세 워크트리의 미커밋 변경과 dev 미통합 커밋이 없음을 확인했다. AUTH 검수·구현·테스트·빌드·push·CI는 미실행이며, 워커 준비 경로 복구 전 동일 조건 재시도를 중단한다.
 
 - 초기 상태: dev clean. 감사 기준 이후 프로덕션 코드 차이 없음.
 - 계획 커밋: `8cb79a36`. AUTH 설계 초안: `77c41393`, [설계 폴더](../codebase-audit-auth-2026-10-14/). `/feature` 형식으로 작성했으며 feature-review CTO·QA는 아직 미실행이다.
