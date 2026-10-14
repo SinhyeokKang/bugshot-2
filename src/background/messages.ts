@@ -1,4 +1,5 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
+import { inConnectLane } from "./lib/connectLane";
 import { getLocale, t, withLocale } from "@/i18n";
 import { resolveBodyLocale, type LocaleMode } from "@/i18n/locales";
 import type { PlatformId } from "@/types/platform";
@@ -486,11 +487,11 @@ export async function handleMessage(
       return trackConnect("notion", () => startNotionOAuth());
 
     case "notion.testToken":
-      return notionGetMyself({
+      return inConnectLane(() => notionGetMyself({
         kind: "apiKey",
         token: message.token,
         botName: "",
-      });
+      }));
 
     case "notion.disconnect":
       return { ok: true };
