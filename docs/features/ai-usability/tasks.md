@@ -64,19 +64,19 @@
 - **변경 대상**: `src/lib/panel-tab-url.ts`(신규), `src/lib/__tests__/panel-tab-url.test.ts`(신규)
 - **작업 내용**: `PANEL_PATH`, `parsePanelTabTarget`, `buildPanelUrl`, `recordersToStopOnSwitch`를 design 시그니처대로 구현한다. 런타임 import는 0이다.
 - **검증**:
-  - [ ] design 표의 다섯 케이스를 전부 단위 테스트로 고정한다(패널→X는 `[prev]` = 패널 id).
-  - [ ] 쿼리가 없거나 정수가 아니거나, 다른 확장 origin이거나, 다른 path이면 null.
-  - [ ] 런타임 import 0 소스 스캔(Task 1과 같은 방식).
+  - [x] design 표의 다섯 케이스를 전부 단위 테스트로 고정한다(패널→X는 `[prev]` = 패널 id).
+  - [x] 쿼리가 없거나 정수가 아니거나, 다른 확장 origin이거나, 다른 path이면 null.
+  - [x] 런타임 import 0 소스 스캔(Task 1과 같은 방식).
 
 ### Task 7: background `onActivated` 배선
 - **변경 대상**: `src/background/tab-bindings.ts`, `src/background/__tests__/tab-bindings.test.ts`, `src/sidepanel/__tests__/agentManual.test.ts`
 - **작업 내용**: `getContexts` 1회로 prev/next panelTarget을 구해 `recordersToStopOnSwitch` 결과만 정지한다. `SIDEPANEL_PATH` → `PANEL_PATH` import.
 - **검증**:
-  - [ ] `vi.stubGlobal("chrome")` 배선 테스트: onActivated(T→T의 패널)에서 `stopRecorders` 미호출, (P→Q)에서 P 정지, `getContexts` reject 시 prev 정지.
-  - [ ] 기존 `resolveTabSwitch` 테스트 green
-  - [ ] `agentManual.test.ts:260`의 `"stopRecorders(prevTabId)"` 리터럴 바인딩을 같은 커밋에서 새 판정 함수 호출 바인딩으로 교체 + 뮤테이션 실측
-  - [ ] `pnpm typecheck`, `pnpm test`
-  - [ ] e2e "패널 탭 왕복 후 로그 유지"(Task 13) — **변경 전 코드에서 red를 먼저 실측**한다. 지금도 패널 `visibilitychange`가 재무장해 green일 수 있다. red가 안 나면 위 배선 테스트를 그물로 삼고 e2e는 회귀 확인용으로만 둔다.
+  - [x] `vi.stubGlobal("chrome")` 배선 테스트: onActivated(T→T의 패널)에서 `stopRecorders` 미호출, (P→Q)에서 P 정지, `getContexts` reject 시 prev 정지.
+  - [x] 기존 `resolveTabSwitch` 테스트 green
+  - [x] `agentManual.test.ts:260`의 `"stopRecorders(prevTabId)"` 리터럴 바인딩을 같은 커밋에서 새 판정 함수 호출 바인딩으로 교체 + 뮤테이션 실측
+  - [x] `pnpm typecheck`, `pnpm test`
+  - [ ] (B2a로 이관 + SW getContexts 실측 e2e 포함) e2e "패널 탭 왕복 후 로그 유지"(Task 13) — **변경 전 코드에서 red를 먼저 실측**한다. 지금도 패널 `visibilitychange`가 재무장해 green일 수 있다. red가 안 나면 위 배선 테스트를 그물로 삼고 e2e는 회귀 확인용으로만 둔다.
 
 ### Task 8: 탭 모드 순수 판정
 - **변경 대상**: `src/sidepanel/lib/tab-mode.ts`(신규), `src/sidepanel/lib/__tests__/tab-mode.test.ts`(신규)

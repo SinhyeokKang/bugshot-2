@@ -30,7 +30,7 @@
 |---|---|---|---|---|---|---|
 | A1 | 1·2·3 + inactive 토스트 e2e | 캡처 실패 분류·토스트 | `src/lib/capture-messages.ts`(신규), `background/capture-throttle.ts`, `sidepanel/scroll-capture.ts`, `lib/app-events.ts`(+test), `sidepanel/lib/capture-error.ts`(+test), `i18n/namespaces/issue.ts`, `sidepanel/capture.ts`, `sidepanel/hooks/usePickerMessages.ts`, `sidepanel/tabs/IssueTab.tsx`, `sidepanel/App.tsx`, e2e 신규 spec | — | Opus / high — 권한 만료 deferred·발화 지점 단일화 불변식 | 대기 |
 | A2 | 4 + Custom Webhook 탭 e2e | 접힌 탭 `sr-only`·아이콘 aria-hidden | `components/ui/collapsing-tabs.tsx`(+test), `sidepanel/tabs/SubmitPlatformTabs*`(+test), `docs/DESIGN.md`(:268만), `e2e/webhook-submit.spec.ts` | — | Sonnet / medium — 기계적 | dev 통합 `3a60eb9e..87345ef0` (리뷰 1회·수정 1라운드, 🔴0) |
-| B1 | 6·7 | background 정지 예외 | `src/lib/panel-tab-url.ts`(신규), `background/tab-bindings.ts`(+test), `sidepanel/__tests__/agentManual.test.ts`(:260 바인딩 교체만) | — | Opus / high — 레코더 정지 불변식 | 대기 |
+| B1 | 6·7 | background 정지 예외 | `src/lib/panel-tab-url.ts`(신규), `background/tab-bindings.ts`(+test), `sidepanel/__tests__/agentManual.test.ts`(:260 바인딩 교체만) | — | Opus / high — 레코더 정지 불변식 | dev 통합 `4155c0e7..2b802c4a` (리뷰 1회·수정 1라운드, 🔴0) |
 | B2a | 8·9 + 13(하네스 우회 정리·S1·S2·로그 유지·재캡처·패널→X·별도 창 e2e) | hold 코어 | `sidepanel/lib/tab-mode.ts`(신규), `sidepanel/tab-mode.ts`(신규), `sidepanel/hooks/useTabModeHold.ts`(신규), `capture.ts`, `usePickerMessages.ts`, `IssueTab.tsx`, `App.tsx`, `scripts/coverage-report.mjs`, `e2e/fixtures/extension.ts`, 우회 spec들, `e2e/GOTCHAS.md` | A1·B1 dev 통합 | Opus / high — 캡처 관문·hold 경쟁·하네스 반전 | 대기 |
 | B2b | 10 + picker·hint e2e | 대상 선택 화면·안내 | `components/TabTargetPicker.tsx`·`TabModeAgentHint.tsx`(신규, +test), `App.tsx`, `IssueTab.tsx`(영역 안내), `i18n/namespaces/app.ts`·`issue.ts` | B2a | Sonnet / high — UI 다수, 경계는 B2a가 깔아 둠 | 대기 |
 | B3 | 11·12 | 매뉴얼 그물·문서 | `sidepanel/index.html`, `agentManual.test.ts`, `docs/ARCHITECTURE.md`(탭 모드 섹션), `docs/DESIGN.md`(§14), `e2e/MANUAL-SMOKE.md` | B2b | Sonnet / high — 뮤테이션 실측 | 대기 |
@@ -73,3 +73,6 @@
 
 - 2026-10-15 인테이크: D1–D6 기록, 프로브 완료.
 - 2026-10-15 1파 착수(A1·A2·B1). A2 리뷰 🔴0·🟡2 → fix1(측정 등가성 e2e `tab-label-measure.spec.ts`, nowrap 제거) → dev 통합. 런타임 이월: 옛 구현 대비 절대 폭 비교, log-viewer 육안. SlackIcon `aria-hidden` prop 추가는 범위 밖이나 리뷰 승인.
+- 2026-10-15 A2 통합분 CI `8087d83e` green(verify·e2e-gate).
+- 2026-10-15 B1 리뷰 🔴0·🟡4 → fix1 발송(실행 시점 재판정 가드 + POSTMORTEM 1건 예외 허용). 이관: 🟡2 SW `getContexts` 쿼리 포함 `documentUrl` 실측 e2e → **B2a 브리프**(`evalInExt`로 — crxjs module SW에선 `worker.evaluate`가 hang, `e2e/fixtures/extension.ts:31-33`). 🟡3 문서(ARCHITECTURE.md:357 자기 패널 예외, PERMISSION.md 의존 API 표에 `runtime.getContexts`) → 지휘자 B1 통합 `/push`. 🟡4 B2a 착수 전 B1 통합 HEAD의 CI e2e 결과를 따로 확인.
+- 2026-10-15 B1 fix1 통합(실행 시점 재판정 가드, POSTMORTEM 1건). 문서: DIRECTORY(panel-tab-url)·ARCHITECTURE(활성 게이트 절 자기 패널 예외)·PERMISSION(getContexts 행·tabs.get url 가려짐) 지휘자 반영. 런타임 이월: Memory Saver discard 시 T→P.
