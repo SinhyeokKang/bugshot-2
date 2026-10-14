@@ -57,6 +57,18 @@
   - (4) 전수: `grep -n "void .*(\|\.then(" src/background/tab-bindings.ts src/background/index.ts`로 리스너에서 띄우는 지연 작업을 찾는다. 각 작업이 실행 시점 상태를 재확인하는지 본다.
 - **관련**: `src/background/tab-bindings.ts:stopRecordersOnSwitch`(실행 시점 가드 `now === prevTabId || targetOf(now) === prevTabId`)·`setupTabBindings`(onActivated에서 `void` 분리 — apply 큐 진입 시점 불변), `src/lib/panel-tab-url.ts:recordersToStopOnSwitch`, 그물 `src/background/__tests__/tab-bindings.test.ts` "조회 중 prev로 되돌아오면…"·"조회 중 자기 패널로 넘어가면…". 설계: `docs/features/ai-usability/design.md` 위험 요소 "onActivated 비동기화". 선행: **2026-08-19** ②(같은 계열 — 지연이 stale 창을 옮긴다).
 
+---
+
+## 2026-10-15 — 실패 알림을 공용 캡처 함수 안에서 발화하면 호출부의 stale 폐기 가드가 그 알림을 막지 못한다
+
+- **영역**: `미디어`
+- **계열**: `취소래치`, `미검증단언`
+- **그물**: `unit`
+- **증상**: (사전 차단 — 커밋 전 code-review가 잡음) 캡처 실패 토스트를 넣으면서, 요소 캡처가 큐에서 기다리는 사이 사용자가 취소하거나 다른 요소를 고르면 이미 떠난 세션에 "요소를 찾지 못해 캡처하지 못했습니다" 토스트가 뜨는 구조가 됐다. 단위 테스트·typecheck는 green이었고, 리뷰어 3명이 독립적으로 같은 지점을 짚었다.
+- **근본 원인**: 이중 토스트를 막으려고 발화를 공용 함수 `captureWithPrep` **한 곳**에 모았다. 그런데 stale 판정(`sameSelection()`·`phase !== "picking"`)은 호출부가 **반환값(null)을 받은 뒤** `.then`에서 한다. 실패 경로는 함수 안에서 이미 발화를 끝내고 null을 돌려주므로, 호출부 가드가 막을 수 있는 건 성공 결과의 채택뿐이다. 설계 문서는 "stale 결과 폐기는 호출부 가드 안에서 발화하지 않는 것으로 처리한다"고 적었지만, 그 가드가 발화보다 **늦게** 돈다는 순서를 확인하지 않았다. "발화 지점 단일화"와 "stale 무발화"는 발화를 호출부가 소유할 때만 동시에 성립한다.
+- **재발 방지**: (1) 공용 함수 안에서 이벤트·토스트를 발화하게 만들 때는, 호출부가 결과를 **버리는 조건**(`grep -n 'sameSelection\|isCurrent\|phase !==' <호출부>`)이 발화보다 앞에 오는지 확인한다. 뒤에 오면 발화 시점에 소유를 물어야 한다. 여기서는 `CaptureOptions.isCurrent?: () => boolean`을 받아 발화 직전에 확인하고, 호출부는 자기 폐기 가드와 **같은 술어**를 넘긴다(요소 단일 캡처는 폐기 가드 자체를 그 술어로 바꿔 공유). (2) 테스트는 "isCurrent가 false면 발화 0"을 공용 함수 단위로, "호출부가 술어를 넘기고 세션이 바뀌면 false가 된다"를 훅 단위로 각각 고정한다. 한쪽만 있으면 배선이 빠져도 green이다. (3) 같은 파일의 catch 발화(영역·인라인·페이지 캡처)는 catch 안에서 이미 소유를 판정할 수 있으니 거기서 막는다 — 비대칭이 리뷰의 단서였다.
+- **관련**: `src/sidepanel/capture.ts:captureWithPrep`(`isCurrent` 게이트), `src/sidepanel/hooks/usePickerMessages.ts`(before 캡처 `isCurrent: sameSelection`, `captureElementShot`의 `isCurrent`), 그물 `src/sidepanel/__tests__/capture.test.ts`·`src/sidepanel/hooks/__tests__/usePickerMessages.captureFailure.test.tsx`, 설계 `docs/features/ai-usability/design.md` 인터페이스 설계 절.
+
 ## 2026-10-15 — fail-closed로 바꾼 설정 봉투는 "손상이 계속되는" 상태를 설계에 두지 않아 복구 경로가 없었다
 
 - **영역**: `store`, `lib`, `i18n`
