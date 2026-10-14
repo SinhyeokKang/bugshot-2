@@ -75,7 +75,7 @@ export function CollapsingTabsList({
 export function TabLabel({ children, className }: { children: ReactNode; className?: string }) {
   const collapsed = useContext(CollapsedContext);
   return (
-    <span className={cn(collapsed && "sr-only whitespace-nowrap", "group-data-[measuring]/tabs:not-sr-only", className)}>
+    <span className={cn(collapsed && "sr-only", "group-data-[measuring]/tabs:not-sr-only", className)}>
       {children}
     </span>
   );

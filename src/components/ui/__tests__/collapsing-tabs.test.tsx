@@ -32,12 +32,12 @@ describe("CollapsingTabsList forceCollapsed", () => {
     for (const name of ["Jira", "GitHub"]) {
       const cls = screen.getByText(name).className.split(/\s+/);
       expect(cls).toContain("sr-only");
-      expect(cls).toContain("whitespace-nowrap");
       expect(cls).toContain("group-data-[measuring]/tabs:not-sr-only");
       expect(cls).not.toContain("hidden");
     }
   });
 
+  // jsdom은 CSS 미로드 — 이 단언은 그물이 아니다. 클래스 단언(위)이 그물이다.
   it("접힌 탭도 접근 가능한 이름을 유지한다", () => {
     render(<Harness forceCollapsed />);
     expect(screen.getByRole("tab", { name: "Jira" })).toBeTruthy();
