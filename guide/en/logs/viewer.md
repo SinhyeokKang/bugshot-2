@@ -50,6 +50,8 @@ Logs from several origins (including iframes embedded in the page) all land on o
 ![Jump to a moment by clicking a marker](../assets/logs-viewer-3.jpg)
 
 - Play the video and follow the logs at that point in time.
+- **Use Tab to focus the video seek bar, then use the arrow keys to move in five-second steps.** Right/Up move forward, Left/Down move backward, Home jumps to the start, and End jumps to the end.
+- Downloading the video preserves its original MP4 or WebM format.
 - **Click a marker and the video jumps to that moment**, switching to that marker's log tab (Console, Network, or Action) — see "what the screen looked like when this error fired" right away.
 - **Clicking a log entry in the list also moves the video to that log's moment** — while skimming the logs, jump straight to the video at any point you're curious about. (Clicking just the time shown on the left of an entry does the same.)
 - Logs and video share one time axis, making it easy to follow the repro from start to finish.
