@@ -15,6 +15,15 @@ function fakeBrowser(tabs: FakeTab[], selfId: number | undefined) {
   const byId = new Map(tabs.map((t) => [t.id, { ...t }]));
   const activated: ((info: { tabId: number; windowId: number }) => void)[] = [];
   let updateReturnsActive = true;
+  // gateNext로 다음 get/update 한 번을 붙잡아 "조회·전환이 진행 중인 순간"을 만든다.
+  const gates: { kind: "get" | "update"; id: number; open: Promise<void>; hit: () => void }[] = [];
+  const passGate = async (kind: "get" | "update", id: number) => {
+    const i = gates.findIndex((g) => g.kind === kind && g.id === id);
+    if (i < 0) return;
+    const [g] = gates.splice(i, 1);
+    g.hit();
+    await g.open;
+  };
   const activate = (id: number) => {
     const tab = byId.get(id);
     if (!tab) return;
@@ -24,11 +33,13 @@ function fakeBrowser(tabs: FakeTab[], selfId: number | undefined) {
   const api = {
     getCurrent: vi.fn(async () => (selfId == null ? undefined : { ...byId.get(selfId)! })),
     get: vi.fn(async (id: number) => {
+      await passGate("get", id);
       const t = byId.get(id);
       if (!t) throw new Error(`No tab with id: ${id}.`);
       return { ...t };
     }),
     update: vi.fn(async (id: number, props: { active?: boolean }) => {
+      await passGate("update", id);
       if (props.active && updateReturnsActive) activate(id);
       const t = byId.get(id);
       return t ? { ...t } : undefined;
@@ -51,6 +62,13 @@ function fakeBrowser(tabs: FakeTab[], selfId: number | undefined) {
       updateReturnsActive = false;
     },
     activatedCount: () => activated.length,
+    gateNext: (kind: "get" | "update", id: number) => {
+      let open!: () => void;
+      let hit!: () => void;
+      const hitP = new Promise<void>((r) => (hit = r));
+      gates.push({ kind, id, open: new Promise<void>((r) => (open = r)), hit });
+      return { open, hit: hitP };
+    },
   };
 }
 
@@ -146,7 +164,7 @@ describe("tab-mode 셸 — 같은 창 탭 모드", () => {
   });
 
   it("중첩 hold(바깥 hold 안에서 안쪽 hold) → 활성화 1회", async () => {
-    const outer = await shell.holdTarget(T, "before");
+    const outer = await shell.holdTarget(T, "picking");
     await shell.withTargetHold(T, async () => {
       expect(b.active(1)).toBe(T);
     });
@@ -156,10 +174,10 @@ describe("tab-mode 셸 — 같은 창 탭 모드", () => {
     expect(updatesTo(b, PANEL)).toBe(1);
   });
 
-  // before 순서: 요소 선택 직후 잡은 hold는 styling 전이(picking release)보다 먼저 count를 올려야 한다.
+  // before 순서: 요소 선택과 같은 태스크에서 잡는 캡처 hold는 picking release보다 먼저 count를 올려야 한다.
   it("hold의 count는 호출 즉시(동기로) 오른다 — 대기 중인 hold가 있으면 다른 release가 복원하지 않는다", async () => {
     const picking = await shell.holdTarget(T, "picking");
-    const before = shell.holdTarget(T, "before"); // await 전
+    const before = shell.holdTarget(T, "capture"); // await 전
     await picking();
     expect(b.active(1)).toBe(T);
     expect(updatesTo(b, PANEL)).toBe(0);
@@ -214,6 +232,49 @@ describe("tab-mode 셸 — 같은 창 탭 모드", () => {
     expect(b.active(1)).toBe(T);
     await releaseSecond();
     expect(b.active(1)).toBe(PANEL);
+  });
+
+  // 복원이 대상 탭을 조회하는 사이 새 hold가 오면 복원을 포기하고 그 hold에 넘긴다(조회 뒤 재확인).
+  it("복원 조회 중에 새 hold가 오면 패널로 돌아가지 않는다", async () => {
+    const first = await shell.holdTarget(T, "capture");
+    const gate = b.gateNext("get", T);
+    const releasing = first();
+    await gate.hit;
+    const second = shell.holdTarget(T, "capture");
+    gate.open();
+    await releasing;
+    const releaseSecond = await second;
+    expect(updatesTo(b, PANEL)).toBe(0);
+    expect(b.active(1)).toBe(T);
+    await releaseSecond();
+    expect(b.active(1)).toBe(PANEL);
+  });
+
+  // 활성화·복원이 직렬이 아니면, 패널로 돌아가는 중에 온 hold가 "대상은 이미 앞"으로 읽고 넘어가
+  // 복원이 끝난 뒤 대상이 가려진 채 캡처가 돈다.
+  it("패널 복원 전환이 끝나기 전에 온 hold는 그 전환 뒤에 대상을 다시 앞으로 가져온다", async () => {
+    const first = await shell.holdTarget(T, "capture");
+    const gate = b.gateNext("update", PANEL);
+    const releasing = first();
+    await gate.hit;
+    const second = shell.holdTarget(T, "capture");
+    gate.open();
+    await releasing;
+    const releaseSecond = await second;
+    expect(b.active(1)).toBe(T);
+    await releaseSecond();
+    expect(b.active(1)).toBe(PANEL);
+  });
+
+  // 패널이 뒤에 있는데(사용자가 제3 탭 X에 있는데) 캡처가 트리거되면 대상은 캡처를 위해
+  // 앞으로 가져오되, 끝나고 패널로 끌어오지는 않는다 — 사용자는 패널에 있지 않았다.
+  it("패널이 앞이 아니었으면 대상을 활성화해도 끝나고 패널로 끌어오지 않는다", async () => {
+    b.activate(X);
+    const release = await shell.holdTarget(T, "capture");
+    expect(b.active(1)).toBe(T);
+    await release();
+    expect(updatesTo(b, PANEL)).toBe(0);
+    expect(b.active(1)).toBe(T);
   });
 
   it("release는 멱등이다", async () => {
