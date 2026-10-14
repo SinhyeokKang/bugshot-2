@@ -321,27 +321,27 @@ async function stopRecordersOnSwitch(
   prevTabId: number,
   nextTabId: number,
 ): Promise<void> {
-  let prevPanelTarget: number | null = null;
-  let nextPanelTarget: number | null = null;
+  let ctxs: chrome.runtime.ExtensionContext[] = [];
+  let panelBase = "";
   try {
-    const ctxs = await chrome.runtime.getContexts({
+    ctxs = await chrome.runtime.getContexts({
       contextTypes: [chrome.runtime.ContextType.TAB],
     });
-    const panelBase = chrome.runtime.getURL(PANEL_PATH);
-    const targetOf = (tabId: number) =>
-      parsePanelTabTarget(ctxs.find((c) => c.tabId === tabId)?.documentUrl, panelBase);
-    prevPanelTarget = targetOf(prevTabId);
-    nextPanelTarget = targetOf(nextTabId);
+    panelBase = chrome.runtime.getURL(PANEL_PATH);
   } catch (err) {
     console.error("[bugshot] getContexts", err);
   }
-  // 조회 사이 prev로 되돌아왔으면 늦은 정지가 복귀 후 재무장을 덮는다.
-  if (prevActiveTabByWindow.get(windowId) === prevTabId) return;
+  const targetOf = (tabId: number) =>
+    parsePanelTabTarget(ctxs.find((c) => c.tabId === tabId)?.documentUrl, panelBase);
+  // 이벤트 쌍이 아니라 실행 시점 상태로 다시 본다 — 조회 사이 prev나 prev의 자기 패널로 넘어갔으면
+  // 늦은 정지가 그 재무장을 덮는다.
+  const now = prevActiveTabByWindow.get(windowId);
+  if (now === prevTabId || (now != null && targetOf(now) === prevTabId)) return;
   for (const id of recordersToStopOnSwitch({
     prevTabId,
     nextTabId,
-    prevPanelTarget,
-    nextPanelTarget,
+    prevPanelTarget: targetOf(prevTabId),
+    nextPanelTarget: targetOf(nextTabId),
   })) {
     stopRecorders(id);
   }
