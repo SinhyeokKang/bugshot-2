@@ -28,7 +28,7 @@ export function useTabModeHold(tabId: number | null): void {
 
     void getSelfTab().then((self) => {
       if (disposed || !self) return;
-      // zustand subscribe는 동기라 before hold(요소 선택 직후)와 같은 태스크 안에서 순서가 맞는다.
+      // picking 해제는 .then으로 한 틱 뒤에 돈다 — 요소 선택과 같은 태스크에서 잡히는 before 캡처 hold가 먼저 count를 올린다.
       unsub = useEditorStore.subscribe(sync);
       sync();
     });
