@@ -65,6 +65,8 @@ mergeSettingsMutation(latest, previous, next): PersistedSettings
 - writer 입력은 expected/start auth와 refreshed auth 둘이다. 최신 durable grant와 비교해 저장하고 다른 grant/삭제를 덮지 않는다. 네트워크는 잠금 밖, 잠금 내부는 unlocked leaf 연산만 사용한다.
 - 확인된 계정 교체/해제는 구 요청을 중단하되 현재 계정의 만료 이벤트로 내리지 않는다. durable read/lock/write 실패도 OAuth 자격 증명 만료와 구별하며 무잠금 overwrite·다른 grant 재시도를 하지 않는다. 실제 현재 grant의 refresh 거부는 기존 만료 이벤트를 유지한다. serialize→bg-client 경계까지 단언한다.
 
+인증 사용 문맥은 저장 계정 요청과 저장 전 연결 후보를 명시적으로 구분한다. durable grant 일치·legacy 승격·교체/해제 중단 규칙은 저장 계정 요청에 적용한다. 신규 OAuth 연결의 프로필 조회는 연결 진입점이 전달한 후보 문맥에서 해당 후보 인증만 사용하며, 저장된 다른 grant나 그 refresh promise를 재사용하지 않는다. 후보의 refresh 결과는 후보 요청 체인과 최종 connect/replace 입력에 전달하고, 연결 확정 전 기존 durable 계정에는 쓰지 않는다. 후보 문맥은 grantId 부재·durable 불일치·계정 미존재로 추론하지 않으며, 명시적인 연결 호출 경계에서만 부여한다.
+
 ### 명시적 mutation과 계정 종속 데이터
 
 previous/next JSON diff만으로 의도를 추측하지 않는다. connect/replace, disconnect(platform), disconnect-all, accountPatch, submissionPrefillPatch, 일반 설정 patch를 구분한다. 기존 동기 액션 API는 가능한 유지하되 계정 종속 비동기 작업은 출발 grant를 전달한다.

@@ -32,3 +32,4 @@ feature-review CTO·QA 검수 후 AUTH 워커 착수. docs/features/codebase-aud
 - [ ] 실패 intent 보존·순서·재시도·외부 rehydrate 재적용·자기 echo·초기 hydration ready를 단언한다.
 - [ ] migration(v1/v2/10/11/current), string/object/null/malformed/unknown 필드, 두 migration과 refresh의 경쟁을 단언한다.
 - [ ] 구 grant 중단·저장 실패는 현재 계정 만료 이벤트를 발생시키지 않고 실제 만료는 유지한다. 실제 URL/헤더/refresh body와 최종 저장값으로 판정한다.
+- [ ] 5종 OAuth 최초 연결 및 기존 A 계정이 있는 상태의 B 재연결에서 저장 전 프로필 조회와 401 refresh를 검증한다. 요청 URL/Authorization/refresh body는 후보 B만 사용하고, 연결 확정 전 durable A는 유지되며, 확정 시 실제 갱신된 후보 인증이 저장된다. 같은 durable 불일치를 가진 이전 저장 계정 요청은 후보로 우회하지 못한다.
