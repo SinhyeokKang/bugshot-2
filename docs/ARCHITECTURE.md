@@ -69,7 +69,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 **로컬 orphan GC는 fail-closed**다. `pending-log-prune`의 활성 탭 조회나 `blob-db`의 session/local 전역 참조 수집이 실패하면 빈 집합으로 간주하지 않고 해당 prune 전체를 건너뛴다. pending prune의 세션 1회 플래그는 **활성 탭 조회(`chrome.tabs.query`)가 성공해 prune이 끝까지 돈 뒤에만** 기록된다 — 그게 throw하면 플래그가 안 서서 다음 기동에 재시도한다. 나머지 둘은 방향이 다르다: **키 수집(`get*Keys`)은 실패해도 throw하지 않고 `[]`를 돌려준다**(그래서 아무것도 안 지우고 지나간다), **개별 delete 실패는 삼키고 플래그는 그대로 기록한다** — 둘 다 실패 방향이 "미삭제"라 무해하고, 전파하면 delete 하나가 실패할 때마다 매 기동 전량 재스캔이 돈다. “살아있는 것 계산 실패 → 아무것도 안 살아있음”으로 해석하면 사용자 로그·미디어·인라인 이미지를 전부 지울 수 있으므로, 새 prune도 같은 실패 정책을 따라야 한다.
 
-**범용 persist 어댑터의 실패 정책은 두 가지다** (`store/chrome-storage.ts`). `chromeLocalStorage`는 앱 UI 설정의 읽기 실패를 null로 낮춰 화면을 열고, `failClosedLocalStorage`는 issues-store의 읽기 실패를 전파해 orphan prune이 살아 있는 데이터를 지우지 못하게 한다. issues-store는 마지막 직렬화 문자열을 기억하는 `issuesStorage`로 한 번 더 감싼다. 계정 설정인 `bugshot-settings`는 이 둘을 사용하지 않고 `store/settings-adapter.ts`의 전용 intent 큐를 쓴다. 저장 실패는 `onStateSaveFailed`로 알리며, 계정 설정은 실패한 intent를 보존하고 초기 hydration 실패에도 화면은 연다(아래 설정 transaction 설명).
+**범용 persist 어댑터의 실패 정책은 두 가지다** (`store/chrome-storage.ts`). `chromeLocalStorage`는 앱 UI 설정의 읽기 실패를 null로 낮춰 화면을 열고, `failClosedLocalStorage`는 issues-store의 읽기 실패를 전파해 orphan prune이 살아 있는 데이터를 지우지 못하게 한다. issues-store는 마지막 직렬화 문자열을 기억하는 `issuesStorage`로 한 번 더 감싼다. 계정 설정인 `bugshot-settings`는 이 둘을 사용하지 않고 `store/settings-adapter.ts`의 전용 intent 큐를 쓴다. 저장 실패는 `onStateSaveFailed`로 알리며, 계정 설정은 실패한 intent를 보존하고 초기 hydration 실패에도 화면은 연다(손상 봉투는 폐기 후 `onSettingsReset`으로 안내 — 아래 설정 transaction 설명).
 
 ### 첨부 복구 journal 저장소
 
@@ -162,7 +162,7 @@ merge 결과는 storage로 되쓰이지 않는다 — zustand는 migrate가 돈 
 
 quota 초과 시 lite 폴백까지 실패하면 **3연속에서 `saveSuspended`를 세우고 세션 저장을 영구 중단**한다(성공 1회로 리셋). 중단 시 `onSessionSaveExhausted`가 발화하고, `pagehide` 경로는 래치를 존중하되 카운트에는 넣지 않는다(종료 시점의 실패로 래치가 앞당겨지지 않게).
 
-저장 실패 알림 채널은 셋이다 — `onStateSaveFailed`(스냅샷) / `onBlobSaveFailed`(blob) / `onSessionSaveExhausted`(위 래치). "패널을 닫았다 열었더니 편집이 사라졌다"는 신고는 대개 이 셋 중 하나가 이미 떴던 경우이므로, 진단은 여기서 시작한다.
+저장 실패 알림 채널은 셋이다 — `onStateSaveFailed`(스냅샷) / `onBlobSaveFailed`(blob) / `onSessionSaveExhausted`(위 래치). "패널을 닫았다 열었더니 편집이 사라졌다"는 신고는 대개 이 셋 중 하나가 이미 떴던 경우이므로, 진단은 여기서 시작한다. 별개로 `onSettingsReset`(손상된 설정 봉투 폐기 — 연결 계정이 통째로 초기화됨)이 있다. "연동이 전부 풀렸다"는 신고는 여기서 본다.
 
 ## 플랫폼 인증
 
@@ -823,15 +823,15 @@ hostname 목록엔 **개수 캡이 없다**(다른 서브시스템과 달리 —
 
 **background는 zustand를 거치지 않고 영속 envelope를 직접 읽는다.** `lib/settings-storage.ts`는 `state.accounts.*.auth`를 읽고 레거시 Jira 구조를 마이그레이션한다. 토큰 writer는 시작 인증과 갱신 인증을 별도로 받고 최신 저장 grant와 비교한 뒤 provider별 토큰 화이트리스트만 바꾼다. GitHub의 optional refreshToken/expiresAt은 응답에서 빠져도 유지한다. 이 쓰기도 패널 설정과 같은 transaction을 탄다. 별도 앱 설정 봉투인 `bugshot-app-settings`는 `i18n/bg-init.ts`가 로케일을 onChanged로 미러링하고, `background/analytics.ts:readPanelLanguageProperties`가 패널 열기 집계의 locale/bodyLocale을 읽는다.
 
-**Grant와 계정 신원은 별개다.** Jira/GitHub/Linear/GitLab/Asana의 새 OAuth 연결에는 `grantId`를 발급하고 회전 중 보존한다. ID 없는 기존 인증은 최초 사용 전에 같은 잠금 안에서 저장 신원·원 토큰을 대조해 canonical ID를 얻는다. 증명할 수 없는 늦은 legacy 요청이나 교체·해제된 grant는 다른 계정 인증을 빌리지 않고 중단한다. 저장 실패·stale 오류는 현재 계정의 OAuth 만료로 분류하지 않는다. 계정 신원 비교는 grantId·발급 시각·회전 토큰과 분리해 같은 계정 재연결의 최근 제출값을 보존한다.
+**Grant와 계정 신원은 별개다.** Jira/GitHub/Linear/GitLab/Asana의 새 OAuth 연결에는 `grantId`를 발급하고 회전 중 보존한다. ID 없는 기존 인증은 최초 사용 전에 같은 잠금 안에서 저장 신원·원 토큰을 대조해 canonical ID를 얻는다. 증명할 수 없는 늦은 legacy 요청이나 교체·해제된 grant는 다른 계정 인증을 빌리지 않고 중단한다. 저장 실패·stale 오류는 현재 계정의 OAuth 만료로 분류하지 않는다. 계정 신원 비교는 grantId·발급 시각·회전 토큰과 분리해 같은 계정 재연결의 최근 제출값을 보존한다. 중단 오류 `StaleGrantError`는 사유를 싣는다 — 저장소에 계정이 없으면 `missing`(`platform.notConnected.title`), 같은 자리에 다른 grant나 OAuth가 아닌 연결이 있으면 `replaced`(`platform.accountChanged.title`)이고, 메시지는 던지는 시점에 현지화한다.
 
 **저장 전 연결 후보는 명시적 문맥이다.** durable 불일치나 grantId 부재로 후보를 추론하지 않는다. 프로필 조회·401 재시도는 후보 인증만 사용하고 기존 저장 계정에는 쓰지 않는다. 공유 refresh에 합류한 후보 대기자도 각 문맥에 갱신 결과를 받아야 한다. Jira의 `jira.myself` 후보 응답도 갱신 auth를 돌려 최종 setAccount가 소모된 토큰을 저장하지 않게 한다.
 
-**설정 transaction과 pending 의도**: `lib/settings-envelope.ts`의 queued exclusive Web Lock `bugshot-settings-write` 아래 최신 raw 읽기→migration→의도 적용→저장을 실행한다. 네트워크는 잠금 밖이다. string/object 봉투, 무관 unknown 필드, 미래 version을 보존하고 malformed/read/lock 실패 시 무잠금 전체 덮어쓰기로 우회하지 않는다. `settings-migrations.ts`는 기존 v1/v2/v10/v11/v12 이관을 소유한다.
+**설정 transaction과 pending 의도**: `lib/settings-envelope.ts`의 queued exclusive Web Lock `bugshot-settings-write` 아래 최신 raw 읽기→migration→의도 적용→저장을 실행한다. 네트워크는 잠금 밖이다. string/object 봉투, 무관 unknown 필드, 미래 version을 보존하고 malformed/read/lock 실패 시 무잠금 전체 덮어쓰기로 우회하지 않는다. 예외는 형식 검증 실패(`SettingsCorruptError`)뿐이다 — 패널 hydrate만 `discardCorruptSettingsEnvelope`로 같은 잠금 안에서 지금도 손상인지 다시 확인한 뒤 봉투를 지우고, 래치(`takeSettingsReset`)를 건 다음 `onSettingsReset`을 발화하고 재조회한다(재조회가 실패해도 안내가 남게 래치가 먼저다). 원문은 백업하지 않는다 — 앱이 되살릴 수 없고 토큰만 무기한 남는다. read/lock 실패는 일시적이라 손상으로 보지 않고, background reader는 fail-closed로 throw한다. `settings-migrations.ts`는 기존 v1/v2/v10/v11/v12 이관을 소유한다.
 
 `settings-mutations.ts`는 connect/replace·disconnect/all·accountPatch·제출 prefill·일반 설정을 구분한다. connect 신원 판정은 최신 durable 계정 기준이며 disconnect-all은 로컬에 없던 계정도 제거한다. defaults는 얕은 교체, 명시적 undefined는 삭제 의미를 유지한다. 두 제출 진입점과 Notion schema callback은 await 전에 출발 인증을 잡아 늦은 결과가 새 연결의 기본값·최근 제출값을 오염시키지 못하게 한다.
 
-`store/settings-adapter.ts`는 변경 의도와 clearStorage를 FIFO로 보관하고 durable 성공 뒤에만 ack한다. 실패 중 새 액션·외부 복원이 오면 wake 세대로 재시도하되 변화 없이 실패를 반복하지 않는다. `sidepanel/lib/settings-sync.ts`가 storage.onChanged를 받아 최신 상태 위에 pending을 다시 적용하고, 오래된 hydration 응답은 generation으로 버린다. 같은 봉투는 다시 쓰지 않아 자기 이벤트가 무한 write로 번지지 않는다. 초기 실패에도 hydration ready를 열지만 기본값으로 저장 계정을 덮지 않는다.
+`store/settings-adapter.ts`는 변경 의도를 FIFO로 보관하고 durable 성공 뒤에만 ack한다. `clearStorage`는 대기 중인 의도를 전부 대체한다 — 남기면 그중 영구 실패가 초기화까지 막는다. 그래서 flush는 `pending[0]`이 아직 진행 중인 그 의도일 때만 shift한다. 실패 중 새 액션·외부 복원이 오면 wake 세대로 재시도하되 변화 없이 실패를 반복하지 않는다. `sidepanel/lib/settings-sync.ts`가 storage.onChanged를 받아 최신 상태 위에 pending을 다시 적용하고, 오래된 hydration 응답은 generation으로 버린다. 같은 봉투는 다시 쓰지 않아 자기 이벤트가 무한 write로 번지지 않는다. 초기 read/lock 실패에도 hydration ready를 열지만 기본값으로 저장 계정을 덮지 않는다(손상 봉투 폐기는 위 예외다).
 
 **키 이름 축은 이제 컴파일러가 잡는다** — 세 persist 키가 전부 상수 단일 출처다(`session-keys.ts`의 `ISSUES_PERSIST_KEY`·`APP_SETTINGS_PERSIST_KEY`, `settings-envelope.ts`의 `SETTINGS_STORAGE_KEY`(`settings-storage.ts` 재노출)). 조용히 깨지는 건 envelope의 **중첩 모양**뿐이다(`state.accounts.*.auth`·`state.locale`) — store 리팩터 시 함께 본다.
 
