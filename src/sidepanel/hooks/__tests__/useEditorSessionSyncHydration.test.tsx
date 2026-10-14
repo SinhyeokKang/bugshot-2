@@ -184,3 +184,50 @@ describe("useEditorSessionSync — livePageUrl 저장 억제", () => {
     expect(set).toHaveBeenCalled();
   });
 });
+
+describe("resumed capture logs", () => {
+  async function mountIssue(captureMode: "screenshot" | "video" | "freeform", logsAttach = true) {
+    const { snapshotFromState } = await import("../useEditorSessionSync");
+    const snap = { ...snapshotFromState(), captureMode, phase: "previewing", currentIssueId: "issue-7", logsAttach,
+      target: { tabId: 7, url: "https://example.com", title: "Example" } };
+    get.mockResolvedValue({ "editor:7": snap });
+    const hook = renderHook(() => useEditorSessionSync(7));
+    await waitFor(() => expect(hook.result.current).toBe(true));
+    return hook;
+  }
+
+  it.each(["screenshot", "video", "freeform"] as const)("restores issue-owned %s logs even with attachment off", async (mode) => {
+    const db = await import("@/store/blob-db");
+    const common = { id: "saved", startedAt: 0, endedAt: 1, captured: 1, totalSeen: 1 };
+    const network = { ...common, requests: [], warnings: [] };
+    const console = { ...common, entries: [] };
+    const action = { ...common, entries: [] };
+    vi.mocked(db.getNetworkLog).mockImplementation(async (key) => key === "issue-7" ? network : null);
+    vi.mocked(db.getConsoleLog).mockImplementation(async (key) => key === "issue-7" ? console : null);
+    vi.mocked(db.getActionLog).mockImplementation(async (key) => key === "issue-7" ? action : null);
+    await mountIssue(mode, false);
+    await waitFor(() => expect(useEditorStore.getState().networkLog).toEqual(network));
+    expect(useEditorStore.getState().consoleLog).toEqual(console);
+    expect(useEditorStore.getState().actionLog).toEqual(action);
+    expect(useEditorStore.getState().logsAttach).toBe(false);
+  });
+
+  it.each(["reset", "replacement", "completed capture", "unmount"])("ignores late log restoration after %s", async (transition) => {
+    const db = await import("@/store/blob-db");
+    const saved = { id: "old", startedAt: 0, endedAt: 1, captured: 1, totalSeen: 1, entries: [] };
+    let resolve!: (log: typeof saved) => void;
+    vi.mocked(db.getConsoleLog).mockImplementation(() => new Promise((r) => { resolve = r; }));
+    const hook = await mountIssue("screenshot");
+    act(() => {
+      if (transition === "reset") useEditorStore.getState().reset();
+      if (transition === "replacement") useEditorStore.setState({ currentIssueId: "other" });
+      if (transition === "completed capture") {
+        useEditorStore.setState({ phase: "capturing" });
+        useEditorStore.setState({ phase: "drafting" });
+      }
+    });
+    if (transition === "unmount") hook.unmount();
+    await act(async () => { resolve(saved); });
+    expect(useEditorStore.getState().consoleLog).toBeNull();
+  });
+});
