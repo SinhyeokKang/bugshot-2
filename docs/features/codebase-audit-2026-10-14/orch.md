@@ -80,3 +80,15 @@ AUTH가 messages.ts 변경을 필요로 하면 CONNECT 통합 뒤 rebase하고 �
 - CAPTURE·CONNECT·VIEWER는 별도 child worktree에서 구현한다. 배치별 커밋 및 테스트 산출물(dist-log-viewer/dist-e2e)이 서로 덮이지 않도록 격리한다.
 - AUTH는 기존 설계에 대한 CTO·QA 독립 검수를 먼저 수행한다. 검수는 현재 체크아웃 읽기 전용이며 보고서는 배치별 .scratch 경로에만 쓴다.
 - 지휘자는 전체 배치의 리뷰·문서·통합·push·정확한 HEAD CI를 담당한다. 상태: 재개 준비 완료, 구현/검수 미착수.
+
+### 현재 머신 Dispatch
+
+| 작업 | Task | Dispatch | 상태 |
+|---|---|---|---|
+| CAPTURE | task_4e289b5d8979 | ctx_f4baaa05287b | ready·turn_started 확인 |
+| CONNECT | task_41c84982077c | ctx_954a0e973061 | ready·turn_started 확인 |
+| VIEWER | task_d839fe41bf00 | ctx_dadb6295048a | ready·turn_started 확인 |
+| AUTH CTO 검수 | task_f3765e723a6c | ctx_e0a5e405716c | ready·turn_started 확인 |
+| AUTH QA 검수 | task_2df121e1fce5 | ctx_1ca23de97039 | ready·turn_started 확인 |
+
+CTO 최초 ctx_bedb656f6e6d는 agent_readiness/terminal_handle_stale로 실패했고 worker-release로 정리했다. 같은 Task의 공식 retry는 성공했다. 모든 모델/effort는 사용자 설정 상속이며 실행 모드는 terminal이다.
