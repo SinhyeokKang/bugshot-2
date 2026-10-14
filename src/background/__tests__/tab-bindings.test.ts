@@ -972,6 +972,20 @@ describe("onActivated — 패널 탭 정지 예외", () => {
     expect(c.stoppedTabs()).toEqual(new Set([X]));
   });
 
+  // 쌍 기준 가드("prev로 돌아왔나")만으로는 T → X → T의 패널을 조회보다 빨리 넘길 때 늦은 T 정지가
+  // 패널의 재무장을 덮는다. 정지 시점의 활성 탭이 prev의 자기 패널이어도 생략해야 한다.
+  it("조회 중 자기 패널로 넘어가면 T를 정지하지 않는다", async () => {
+    const pending: ((v: Ctx[]) => void)[] = [];
+    const c = await setup(() => new Promise<Ctx[]>((r) => pending.push(r)));
+    await c.activate(T);
+    await c.activate(X);
+    await c.activate(PANEL);
+    expect(pending).toHaveLength(2);
+    for (const r of pending) r([panelCtx(PANEL, T)]);
+    await settle();
+    expect(c.stoppedTabs()).toEqual(new Set([X]));
+  });
+
   it("documentUrl에 쿼리가 없는 패널 탭은 패널로 치지 않는다 (prev 정지)", async () => {
     const c = await setup(() =>
       Promise.resolve([{ tabId: PANEL, documentUrl: `${EXT}src/sidepanel/index.html` }]),

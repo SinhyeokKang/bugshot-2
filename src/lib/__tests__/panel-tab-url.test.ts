@@ -15,7 +15,15 @@ const BASE = `chrome-extension://abcdefghijklmnop/${PANEL_PATH}`;
 
 describe("PANEL_PATH", () => {
   it("manifest side_panel.default_path와 같은 경로다", () => {
-    expect(PANEL_PATH).toBe("src/sidepanel/index.html");
+    const manifest = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../..", "manifest.config.ts"),
+      "utf8",
+    );
+    const defaultPath = manifest.match(
+      /side_panel:\s*\{[^}]*?default_path:\s*["']([^"']+)["']/,
+    )?.[1];
+    expect(defaultPath).toBeDefined();
+    expect(PANEL_PATH).toBe(defaultPath);
   });
 });
 
