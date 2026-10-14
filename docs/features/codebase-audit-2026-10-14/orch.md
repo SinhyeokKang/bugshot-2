@@ -106,3 +106,10 @@ CTO 최초 ctx_bedb656f6e6d는 agent_readiness/terminal_handle_stale로 실패�
 - ARCHITECTURE 연결 레인 설명과 POSTMORTEM을 갱신한다. guide/README/privacy/PERMISSION/CI/CLAUDE/DIRECTORY 변경 불필요(기존 동작 복구, 새 파일은 테스트뿐).
 
 - CONNECT 통합 검증: pnpm typecheck / pnpm test / pnpm sync:agents:check 모두 exit 0, 441파일·8629테스트 통과(2 skip). postmortem:check/report exit 0.
+
+### CAPTURE·VIEWER 통합 / AUTH 착수
+
+- VIEWER be0f9437·99dcecaf·ce54628b → dev 5488a849·c49b2b7d·0ca08095. 독립 검수의 어두운 테마 focus 대비 지적을 수정했고 키보드 seek·ARIA·양 테마 대비 e2e 6개를 두 번 통과했다. 마지막 전체 테스트 8633 통과(2 skip), typecheck/sync exit 0. 첫 실행의 기존 SlackConnectForm 타이밍 실패는 코드 변경 없이 재실행해 통과했다.
+- CAPTURE 4d764fc9·5d1945e1 → dev ed29fdc6·1631a039. 복구 owner/취소·빈 첨부 metadata 회귀와 실제 제출 body/logs.html 출력까지 검증했다. 독립 CTO 최종 PASS, 전체 8644 통과(2 skip), typecheck/sync exit 0.
+- dev 통합 게이트: pnpm typecheck / pnpm test / pnpm sync:agents:check 모두 exit 0. 445파일·8658테스트 통과(2 skip).
+- AUTH 설계 CTO 최종 READY·QA READY. 연결 후보 문맥 및 durable grant 분리 계약까지 승인됐다. CAPTURE/CONNECT 통합 선행 조건을 충족했으므로 현재 dev에서 AUTH A01+A03 구현을 시작한다. 지휘자가 별도 전문 리뷰 Dispatch를 담당하며 nested worker는 만들지 않는다.
