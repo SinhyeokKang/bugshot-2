@@ -111,10 +111,10 @@
   - testid: `tab-target-picker`, `tab-target-option-<tabId>`, `tab-mode-agent-hint`, `tab-mode-area-hint`.
   - design "기존 패턴 준수 > UI"의 구성을 따른다.
 - **검증**:
-  - [ ] jsdom `TabTargetPicker.test.tsx`: 후보 렌더(같은 창 먼저)·클릭 시 URL 생성 호출·empty 상태·onCreated 이벤트 후 목록 갱신
-  - [ ] 사이드패널 모드(`getSelfTab`=null)에서 picker·안내·영역 안내가 미렌더(가드레일)
-  - [ ] 쿼리 없이 열 때 picker 이전에 Debug "캡처할 수 없습니다"가 렌더되지 않는다
-  - [ ] `locales.test.ts` green
+  - [x] jsdom `TabTargetPicker.test.tsx`: 후보 렌더(같은 창 먼저)·클릭 시 URL 생성 호출·empty 상태·onCreated 이벤트 후 목록 갱신
+  - [x] 사이드패널 모드(`getSelfTab`=null)에서 picker·안내·영역 안내가 미렌더(가드레일)
+  - [x] 쿼리 없이 열 때 picker 이전에 Debug "캡처할 수 없습니다"가 렌더되지 않는다
+  - [x] `locales.test.ts` green
 
 ### Task 11: 매뉴얼 갱신 + 그물
 - **변경 대상**: `src/sidepanel/index.html`, `src/sidepanel/__tests__/agentManual.test.ts`
