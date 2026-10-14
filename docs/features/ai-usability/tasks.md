@@ -58,7 +58,7 @@
   - background에서 `chrome.runtime.getContexts({contextTypes:["TAB"]})`가 탭 모드 패널의 `tabId`·`documentUrl`(쿼리 포함)을 돌려준다.
   - 사이드패널 문서에서 `chrome.tabs.getCurrent()`가 `undefined`, 탭 모드에서 Tab이다.
 - **검증**:
-  - [ ] 두 결과를 design "위험 요소"에 기록. 하나라도 어긋나면 Task 7 설계를 다시 연다.
+  - [x] 두 결과를 기록. 하나라도 어긋나면 Task 7 설계를 다시 연다. → `orch.md` D2: getContexts로 패널 tabId·쿼리 포함 documentUrl 확보(설계 유지), `tabs.get(panel).url` 가려짐 확인. 사이드패널 `getCurrent()` undefined는 런타임 검증으로 이월.
 
 ### Task 6: 패널 URL·정지 판정 순수 함수
 - **변경 대상**: `src/lib/panel-tab-url.ts`(신규), `src/lib/__tests__/panel-tab-url.test.ts`(신규)
