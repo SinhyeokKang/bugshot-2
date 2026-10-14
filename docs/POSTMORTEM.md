@@ -36,6 +36,27 @@
 
 ---
 
+## 2026-10-15 — 동기 정지를 비동기 조회 뒤로 미루자 늦은 정지가 복귀 후 재무장을 덮었고, 첫 가드는 이벤트 쌍만 봐서 절반만 막았다
+
+- **영역**: `background`
+- **계열**: `미검증단언`, `취소래치`
+- **그물**: `unit`
+- **증상**: (사전 차단 — 리뷰가 잡음)
+  - 탭 모드 정지 예외를 넣으며 `tabs.onActivated`의 `stopRecorders(prev)`를 `runtime.getContexts` 조회 뒤로 미뤘다.
+  - 그러자 조회보다 빠른 T → X → T(또는 T의 패널 탭) 전환에서, 늦게 도착한 T 정지가 복귀 후 재무장(패널 `visibilitychange` → inject)을 덮었다.
+  - 결과적으로 T가 보이는데 레코더는 죽은 상태로 남는다. 사람 손으로는 안 나오는 속도지만, 에이전트·자동화(`tabs.update` 연속 호출)로는 나온다.
+- **근본 원인**:
+  - 동기 정지는 "전환 이벤트 = 정지 시점"이라 쌍만 보면 충분했다. 지연을 끼우면서 정지 시점과 이벤트 시점이 갈렸는데, 판정은 여전히 **이벤트 쌍(prev, next)** 기준이었다.
+  - 설계 문서의 위험 요소는 "제3 탭으로 빨리 넘어가도 판정은 그 전환 쌍 기준이라 정확하다"고 **앞으로 가는 쪽만** 따졌다. 되돌아오는 경쟁은 다루지 않았다(실측 없이 전제한 단언).
+  - 구현 중 넣은 첫 가드도 "지금 활성 탭 === prev"만 봤다. 그래서 prev의 **자기 패널**로 넘어간 경우가 남았다. 쌍 판정표가 "T ↔ T의 패널은 정지 안 함"이라고 말하는 바로 그 상태를 가드가 다시 판정하지 않았다.
+  - 2026-08-19 ②("read를 큐에 태우면 stale read는 사라지는 게 아니라 뒤로 밀린다")와 같은 형태다. 직렬화·지연은 stale 창을 없애지 않고 옮긴다.
+- **재발 방지**:
+  - (1) **동기 부수효과를 `await` 뒤로 미루면, 실행 직전에 "지금 상태"로 판정을 다시 한다.** 이벤트가 실어 온 쌍은 판정 입력이지 실행 허가가 아니다.
+  - (2) **재판정 조건은 원래 판정표의 예외를 그대로 재사용한다.** 판정표가 "X와 Y 사이 전환은 무해"라고 하면, 가드도 "지금이 prev거나 prev와 무해한 짝인가"를 같은 술어(`targetOf(now) === prevTabId`)로 본다. 따로 쓰면 둘이 갈린다.
+  - (3) **늦은 실행 테스트는 pending promise로 조회를 붙잡고 이벤트를 연달아 흘린 뒤 풀어 준다.** `vi.stubGlobal("chrome")` + `setupTabBindings()` + 리스너 직접 호출. 복귀(prev)와 짝(패널) 두 갈래를 각각 케이스로 둔다. 한쪽만 두면 다른 쪽 조건을 지워도 green이다(실측).
+  - (4) 전수: `grep -n "void .*(\|\.then(" src/background/tab-bindings.ts src/background/index.ts`로 리스너에서 띄우는 지연 작업을 찾는다. 각 작업이 실행 시점 상태를 재확인하는지 본다.
+- **관련**: `src/background/tab-bindings.ts:stopRecordersOnSwitch`(실행 시점 가드 `now === prevTabId || targetOf(now) === prevTabId`)·`setupTabBindings`(onActivated에서 `void` 분리 — apply 큐 진입 시점 불변), `src/lib/panel-tab-url.ts:recordersToStopOnSwitch`, 그물 `src/background/__tests__/tab-bindings.test.ts` "조회 중 prev로 되돌아오면…"·"조회 중 자기 패널로 넘어가면…". 설계: `docs/features/ai-usability/design.md` 위험 요소 "onActivated 비동기화". 선행: **2026-08-19** ②(같은 계열 — 지연이 stale 창을 옮긴다).
+
 ## 2026-10-15 — fail-closed로 바꾼 설정 봉투는 "손상이 계속되는" 상태를 설계에 두지 않아 복구 경로가 없었다
 
 - **영역**: `store`, `lib`, `i18n`
