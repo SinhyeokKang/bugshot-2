@@ -63,7 +63,8 @@
   - "Order contract": 같은 창 허용. 대상 ↔ 자기 패널 탭 전환은 기록 유지. 대상에서 곧장 제3 탭으로 가면 정지(기존). 한 대상에 패널 하나.
   - "Panel URL": 쿼리 없으면 대상 선택 화면.
   - "Before you trigger a capture": 같은 창이면 패널이 캡처 동안 대상을 스스로 앞으로 가져온다(에이전트 도구가 이를 사용자 조작으로 오판할 수 있음). 영역 드래그는 직접 대상 탭으로 가서. 별도 창도 여전히 동작한다.
-  - 리플레이 탭 모드 한계(패널이 앞이면 프레임 0, T가 앞이면 throttle).
+  - 리플레이 탭 모드 한계(패널이 앞이면 프레임 0, T가 앞이면 throttle) — 구현은 별도 "Limits of a panel opened as a tab" 섹션에 리플레이 한계·한 대상에 패널 하나를 모았다.
+  - (B3 구현 기준 추가) 선택 화면 동안엔 아무것도 기록되지 않는다(pick → App이 부작용 훅에 null). 패널을 보여 줘도 재무장된다는 약속은 하지 않는다 — 정지됐으면 대상 페이지를 리로드하라고 쓴다(같은 창에선 visibilitychange 재무장이 실제로 일어나지만 결과와 무관하게 참인 문장으로). 후보 testid는 접두사 `tab-target-option-`로 바인딩. 캡처 실패 토스트의 예외 두 개(activeTab 만료 = 다이얼로그, after 좌표 불신 스킵 = 무토스트) 명시. agent hint는 첫 프레임 존재를 주장하지 않는다.
   - 탭 모드 전체 페이지 캡처 중엔 패널의 진행률·취소가 가려진다. 취소하려면 패널 탭으로 돌아간다 — 다음 타일에서 중단되고 실패 토스트가 뜬다(orch.md D7. 캡처 중 Esc 리스너는 없다).
 - **`src/sidepanel/__tests__/agentManual.test.ts`**: `:260`의 `"stopRecorders(prevTabId)"` 리터럴 바인딩을 새 판정 함수 호출 바인딩으로 교체(Task 2와 같은 커밋) + 새 주장 바인딩(테스트 계획).
 - **e2e**: `e2e/fixtures/extension.ts`(`pickElement`의 `keepFixtureActive`·`bringToFront` 우회 재검토), 우회 사용 spec들, `e2e/GOTCHAS.md` 9·15·16·18·46항, `e2e/MANUAL-SMOKE.md`(사이드패널 정상 경로 수동 잔여 등재).

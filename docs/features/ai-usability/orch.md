@@ -34,7 +34,7 @@
 | B1 | 6·7 | background 정지 예외 | `src/lib/panel-tab-url.ts`(신규), `background/tab-bindings.ts`(+test), `sidepanel/__tests__/agentManual.test.ts`(:260 바인딩 교체만) | — | Opus / high — 레코더 정지 불변식 | dev 통합 `4155c0e7..2b802c4a` (리뷰 1회·수정 1라운드, 🔴0) |
 | B2a | 8·9 + 13(하네스 우회 정리·S1·S2·로그 유지·재캡처·패널→X·별도 창 e2e) | hold 코어 | `sidepanel/lib/tab-mode.ts`(신규), `sidepanel/tab-mode.ts`(신규), `sidepanel/hooks/useTabModeHold.ts`(신규), `capture.ts`, `usePickerMessages.ts`, `IssueTab.tsx`, `App.tsx`, `scripts/coverage-report.mjs`, `e2e/fixtures/extension.ts`, 우회 spec들, `e2e/GOTCHAS.md` | A1·B1 dev 통합 | Opus / high — 캡처 관문·hold 경쟁·하네스 반전 | dev 통합 (10커밋, 리뷰 1회·수정 1라운드, 🔴0) |
 | B2b | 10 + picker·hint e2e | 대상 선택 화면·안내 | `components/TabTargetPicker.tsx`·`TabModeAgentHint.tsx`(신규, +test), `App.tsx`, `IssueTab.tsx`(영역 안내), `i18n/namespaces/app.ts`·`issue.ts` | B2a | Sonnet / high — UI 다수, 경계는 B2a가 깔아 둠 | dev 통합 (7커밋, 리뷰 1회·수정 1라운드 — 🔴1(D1 사이드패널 대기) 해소) |
-| B3 | 11·12 | 매뉴얼 그물·문서 | `sidepanel/index.html`, `agentManual.test.ts`, `docs/ARCHITECTURE.md`(탭 모드 섹션), `docs/DESIGN.md`(§14), `e2e/MANUAL-SMOKE.md` | B2b | Sonnet / high — 뮤테이션 실측 | 대기 |
+| B3 | 11·12 | 매뉴얼 그물·문서 | `sidepanel/index.html`, `agentManual.test.ts`, `docs/ARCHITECTURE.md`(탭 모드 섹션), `docs/DESIGN.md`(§14), `e2e/MANUAL-SMOKE.md` | B2b | Sonnet / high — 뮤테이션 실측 | dev 통합 (12커밋, 리뷰 1회·수정 1라운드, 🔴0) |
 | C | 14 | 가이드(`/guide`) | `guide/{ko,en}/**`, `guide/AUTHORING.md` | B3 | Sonnet / medium | 대기 |
 | R | — | 배치별 독립 리뷰(리포트 전용) | — | 각 배치 인계 | Opus / high | — |
 
@@ -81,3 +81,4 @@
 - 2026-10-15 B2a 인계(5커밋, e2e 361 green) → 리뷰 🔴0·🟡6 + D7 → fix1 발송(직렬화·재확인 가드 테스트, before hold 제거 검토, 인라인·취소 경로 e2e, capture-context 래치, COVERAGE stale, useTabModeHold BROWSER_BOUND 해제, 제3 탭 포커스 탈취 방지, POSTMORTEM 2건 예외 허용).
 - 2026-10-15 B2a fix1 통합(before hold 제거, area hold·뷰포트 5초 상한·buffer 전환 묶음·제3 탭 포커스 탈취 방지, POSTMORTEM 2건). 지휘자 반영: design.md(before 근거 정정·진입점 표 #1/#4/#6/#7·returnToPanel·HoldReason·D7 취소 문구), tasks.md(:79·:188), DIRECTORY(tab-mode 셸·lib·viewport-capture·useTabModeHold·e2e 헬퍼·spec), CI(86/412), ARCHITECTURE(:513 keepFixtureActive). 탭 모드 섹션·CLAUDE 캡처 줄은 B3. 런타임 이월: 사이드패널 정상 모드 무변화, 전체 페이지 소요 시간, Memory Saver discard, 실 Chrome visibilitychange 재무장, ego 제어권 오판.
 - 2026-10-15 B2b fix1 통합: 정수 쿼리면 getSelfTab 대기 없이 bound(D1). 지휘자 반영: DIRECTORY(TabTargetPicker·TabModeAgentHint·useSelfTab·tabModeGate·spec)·CI(87/415)·design.md:54. 런타임 이월: 실제 사이드패널에서 탭 모드 UI 미노출·시작 지연 없음.
+- 2026-10-15 B3 fix1 통합(매뉴얼 탭 모드 계약 + agentManual 바인딩, ARCHITECTURE 탭 모드 섹션, DESIGN §14, MANUAL-SMOKE S7–S13 사람·ego 블록, CLAUDE 한 줄, POSTMORTEM 1건). 지휘자 반영: COVERAGE 수동 잔여(S8·S12·S13 + S7/S9/S10/S11 링크, 섹션 위치 정정), `/manual-smoke` 스킬 stale(별도 창 강제 삭제), DIRECTORY agentManual, design.md 매뉴얼 절.

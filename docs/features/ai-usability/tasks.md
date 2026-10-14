@@ -126,8 +126,8 @@
   - 리플레이 한계 문장 → `use-30s-replay.ts`의 `!tab.active` 스킵
   - "한 대상에 패널 하나" → port 해제 시 `stopRecorders` 경로(`background/index.ts:91-107`)
 - **검증**:
-  - [ ] 케이스마다 구현을 되돌려 red를 실측한다(파일 헤더 규칙)
-  - [ ] `pnpm test` green
+  - [x] 케이스마다 구현을 되돌려 red를 실측한다(파일 헤더 규칙)
+  - [x] `pnpm test` green
 
 ### Task 12: 문서
 - **변경 대상**: `docs/ARCHITECTURE.md`, `docs/DIRECTORY.md`, `docs/DESIGN.md`, `e2e/MANUAL-SMOKE.md`, `CLAUDE.md`(필요 시 게이트웨이 한 줄)
@@ -137,7 +137,7 @@
   - DESIGN §14에 "차단성 이벤트는 다이얼로그, 비차단 실패는 이벤트 → 토스트" 한 줄.
   - MANUAL-SMOKE에 사이드패널 정상 모드 캡처 경로 수동 잔여 등재(e2e가 전부 탭 모드라 `getSelfTab()=null` 경로를 안 돈다).
 - **검증**:
-  - [ ] `/push` 문서 신선도 트라이아지 통과
+  - [x] `/push` 문서 신선도 트라이아지 통과
 
 ### Task 13: e2e
 - **변경 대상**: `e2e/ai-usability-tab-mode.spec.ts`(신규), `e2e/fixtures/extension.ts`, 우회 사용 spec, `e2e/GOTCHAS.md`
