@@ -36,6 +36,35 @@
 
 ---
 
+## 2026-10-14 — 포커스 토큰과 그림자 존재만으로 실제 대비를 증명할 수 없다
+
+- **영역**: `디자인`, `컴포넌트`, `미디어`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: 로그 뷰어 탐색 막대에 키보드 포커스를 추가했지만 어두운 테마에서는 포커스 표시가 검은 영상 배경과 거의 구분되지 않았다.
+- **근본 원인**: 의미상 포커스 토큰인 `ring-ring`을 쓰고 그림자가 존재하는지만 검사했다. 실제 다크 토큰은 #262626으로 검은 배경 대비가 1.39:1이었다. 클래스 이름과 CSS 생성 여부는 시인성의 증거가 아니다.
+- **재발 방지**: 고정 검은 미디어 표면에는 흰 ring과 검은 offset을 적용한다. 두 테마에서 실제 computed ring/offset 색의 명도 대비를 계산해 3:1 이상을 단언하고, Tab·방향키·Home/End의 실제 video.currentTime과 ARIA 값까지 검증한다.
+- **관련**: `src/log-viewer/components/ProgressBar.tsx`, `e2e/logview/log-viewer-sync.spec.ts`. 대비 회귀 테스트는 수정 전 red, 수정 후 두 테마 모두 21:1로 green.
+
+## 2026-10-14 — 로그 소유권 이동 뒤 복원과 제출 소비자가 서로 다른 원본을 읽음
+
+- **영역**: `에디터`, `store`
+- **계열**: `드리프트`, `취소래치`
+- **그물**: `jsdom`
+- **증상**: 확정한 screenshot/video/freeform 초안을 패널 재개 후 제출하면 logs.html과 본문 로그 요약이 빠진다.
+- **근본 원인**: 확정이 로그를 pending에서 issue 소유로 옮겼지만 세션 복원은 pending만 읽었고, 제출 직전 복구 함수 반환값도 파일·본문 생성 입력으로 연결되지 않았다. 현재 phase만 보는 취소 검사는 새 캡처가 이미 drafting까지 끝난 경우 이전 복원을 허용했다.
+- **재발 방지**: `rg 'loadSubmissionLogs|buildEditorMarkdownContext|buildEditorLogsCaptureInput|pendingKey' src/sidepanel`로 소유권 생산자부터 실제 소비자까지 대조한다. 헬퍼를 수동 조립한 테스트에 그치지 말고 실제 modal submit의 외부 요청 직전 HTML/body를 검증한다. 비동기 복원은 도착 시점 상태 외에 교체 이력을 래치로 보존한다.
+- **관련**: `useEditorSessionSync.ts`, `IssueCreateModal.tsx:handleSubmit`, `buildEditorCapture.ts`; hydration·submissionRecovery·IssueCreateModalRecovery 테스트. 원본 modal로 되돌린 mutation에서 세 모드의 소비자 회귀가 모두 red.
+
+## 2026-10-14 — 빈 첨부 목록을 저장 생략으로 해석해 삭제한 파일이 메타에 남음
+
+- **영역**: `에디터`, `store`
+- **그물**: `unit`
+- **증상**: 마지막 첨부 삭제 후 재확정한 저장 초안이 이미 삭제한 파일을 MissingSubmissionFilesError로 처리한다.
+- **근본 원인**: blob rekey의 비어 있지 않음 조건을 메타 갱신에도 재사용했고, saveDraft 병합은 미전달 attachments를 유지했다. 빈 배열은 무작업이 아니라 명시적 삭제 상태였다.
+- **재발 방지**: `rg 'attachments.length|attachments:' src/store/editor-store.ts`로 영속 메타 쓰기와 blob 작업의 게이트를 분리해 점검한다. 마지막·일부 삭제 뒤 실제 저장 레코드와 IDB를 조회하고 저장 초안 제출의 source 검증과 recovery prepare까지 실행한다.
+- **관련**: `editor-store.ts:confirmDraft`, `submissionRecovery.test.ts`의 마지막·일부 파일 삭제 회귀.
+
 ## 2026-10-14 — 연결 실패 레인은 OAuth 진입점만 감싸면 수동 토큰 검증에서 다시 샌다
 
 - **영역**: `background`, `lib`
