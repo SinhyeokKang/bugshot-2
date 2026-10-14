@@ -529,7 +529,7 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **알려진 한계 (비목표)**: ① 30s 리플레이는 폴링이 `!tab.active`면 스킵하므로 패널이 앞이면 프레임 0이고, T가 앞이면 숨은 패널의 틱이 throttle된다. ② 한 대상에 패널 하나 — `background/index.ts`의 panel port `onDisconnect`가 `stopRecorders(T)`라 어느 패널이든 닫히면 T 기록이 멈춘다(숨은 패널의 Memory Saver discard도 같은 경로, 재로드 시 마운트 inject가 재무장). ③ 패널 → 제3 탭 전환은 T 정지/계속 어느 쪽도 약속하지 않는다(위 정지 예외).
 
-**e2e 하네스 전제**: e2e는 전부 같은 창 탭 모드라 hold가 T를 앞으로 가져온다 — 캡처 트리거용 `bringToFront` 우회는 걷어냈고 남은 건 영역 드래그·제3 탭 전환·다중 패널·관문 직접 호출뿐이다(사유는 `e2e/GOTCHAS.md`). 앞/뒤 판정은 `visibilityState`가 아니라 `chrome.tabs` active로 한다 — Playwright 포커스 에뮬레이션 때문에 숨은 탭도 visible이라 e2e에서는 패널 복귀 `visibilitychange` 재무장이 오지 않는다(그래서 왕복 뒤 로그 유지 e2e는 정지 예외가 없을 때 red가 되는 그물이다). `getSelfTab()=null`(사이드패널) 경로는 e2e가 한 번도 돌지 않는다 → `e2e/MANUAL-SMOKE.md` 수동 잔여. eval-host 탭은 기동 직후 열고 `fixtureTabId()`를 `openPanel` 전에 호출해 같은 창 제3 탭의 활성화 순서를 고정한다.
+**e2e 하네스 전제**: e2e는 전부 같은 창 탭 모드라 hold가 T를 앞으로 가져온다 — 캡처 트리거용 `bringToFront` 우회는 걷어냈다. 남은 우회는 대표적으로 영역 드래그·제3 탭 전환·다중 패널·관문 직접 호출이다(전수와 사유는 `e2e/GOTCHAS.md`). 앞/뒤 판정은 `visibilityState`가 아니라 `chrome.tabs` active로 한다 — Playwright 포커스 에뮬레이션 때문에 숨은 탭도 visible이라 e2e에서는 패널 복귀 `visibilitychange` 재무장이 오지 않는다(그래서 왕복 뒤 로그 유지 e2e는 정지 예외가 없을 때 red가 되는 그물이다). `getSelfTab()=null`(사이드패널) 경로는 e2e가 한 번도 돌지 않는다 → `e2e/MANUAL-SMOKE.md` 수동 잔여. eval-host 탭은 기동 직후 열고 `fixtureTabId()`를 `openPanel` 전에 호출해 같은 창 제3 탭의 활성화 순서를 고정한다.
 
 매뉴얼의 탭 모드 서술은 전부 소스에 바인딩돼 있다(`agentManual.test.ts`의 "탭 모드 —" describe 5개).
 
