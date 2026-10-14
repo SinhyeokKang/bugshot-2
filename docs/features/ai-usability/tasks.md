@@ -17,17 +17,17 @@
   - `CaptureFailureKind` type과 `onCaptureFailed`를 `app-events.ts`에 추가한다.
   - `classifyCaptureFailure`·`CAPTURE_FAILURE_KEYS`·`fireCaptureFailure`를 `capture-error.ts`에 추가한다.
 - **검증**:
-  - [ ] 분류 고정: `captureOwnedTab` 메시지(`captureInactiveMessage(n)`), scroll `"tab is not active"`, `"tab has no window"` → inactive / quota 메시지 → rate-limit / activeTab 만료 메시지 → null / `scroll capture aborted` → null / 임의 Error → other / 비 Error 값 → other.
-  - [ ] `fireCaptureFailure`: emitter spy로 null 분류 시 미발화, 그 외 1회 발화.
-  - [ ] `capture-messages.ts` 런타임 import 0 소스 스캔(session-keys describe를 본떠 블록 추가 — 공용 헬퍼 없음).
-  - [ ] `app-events.test.ts`의 emitter 수 단언 8→9 갱신 + 순수성 green.
-  - [ ] 기존 `capture-throttle`·`scroll-capture` 테스트 green, `pnpm test`.
+  - [x] 분류 고정: `captureOwnedTab` 메시지(`captureInactiveMessage(n)`), scroll `"tab is not active"`, `"tab has no window"` → inactive / quota 메시지 → rate-limit / activeTab 만료 메시지 → null / `scroll capture aborted` → null / 임의 Error → other / 비 Error 값 → other.
+  - [x] `fireCaptureFailure`: emitter spy로 null 분류 시 미발화, 그 외 1회 발화.
+  - [x] `capture-messages.ts` 런타임 import 0 소스 스캔(session-keys describe를 본떠 블록 추가 — 공용 헬퍼 없음).
+  - [x] `app-events.test.ts`의 emitter 수 단언 8→9 갱신 + 순수성 green.
+  - [x] 기존 `capture-throttle`·`scroll-capture` 테스트 green, `pnpm test`.
 
 ### Task 2: i18n 키 (Phase A분)
 - **변경 대상**: `src/i18n/namespaces/issue.ts`
 - **작업 내용**: `issue.captureFailed.{inactive,rateLimit,elementMissing,other}`를 ko/en/fr/es/de 5개 로케일에 넣는다. ko는 -습니다체.
 - **검증**:
-  - [ ] PostToolUse 훅의 `locales.test.ts` green(대칭·빈 값·placeholder)
+  - [x] PostToolUse 훅의 `locales.test.ts` green(대칭·빈 값·placeholder)
 
 ### Task 3: 실패 지점 배선 + 토스트
 - **변경 대상**: `src/sidepanel/capture.ts`, `src/sidepanel/hooks/usePickerMessages.ts`, `src/sidepanel/tabs/IssueTab.tsx`, `src/sidepanel/App.tsx`
@@ -38,9 +38,9 @@
   - stale 결과(`sameSelection` 불일치)·`signal.aborted` 가드 안에서는 발화하지 않는다.
   - App이 구독해서 `toast.error`를 띄운다. 기존 동작(idle 리셋·after null·permission 다이얼로그)은 바꾸지 않는다.
 - **검증**:
-  - [ ] `pnpm test`
-  - [ ] 경로별 1회 발화를 확인할 수 있는 곳(`captureWithPrep`는 `capture.ts` 단위, 나머지는 훅 테스트 선례가 있으면)에 단언. 없는 경로는 e2e/수동 항목으로 넘긴다.
-  - [ ] e2e: 비활성 탭에서 캡처 시 inactive 토스트(Task 13)
+  - [x] `pnpm test`
+  - [x] 경로별 1회 발화를 확인할 수 있는 곳(`captureWithPrep`는 `capture.ts` 단위, 나머지는 훅 테스트 선례가 있으면)에 단언. 없는 경로는 e2e/수동 항목으로 넘긴다.
+  - [x] e2e: 비활성 탭에서 캡처 시 inactive 토스트(A1이 `e2e/capture-failure-toast.spec.ts`로 선행)
 
 ### Task 4: 접힌 탭 라벨 접근성
 - **변경 대상**: `src/components/ui/collapsing-tabs.tsx`, `src/components/ui/__tests__/collapsing-tabs.test.tsx`, `src/sidepanel/tabs/SubmitPlatformTabs*`, `src/sidepanel/tabs/__tests__/SubmitPlatformTabs.test.tsx`, `docs/DESIGN.md`
