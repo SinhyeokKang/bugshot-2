@@ -7,6 +7,10 @@ import {
   type ScrollPlan,
 } from "@/sidepanel/lib/scroll-capture-plan";
 import { sendBg } from "@/lib/bg-client";
+import {
+  SCROLL_CAPTURE_ABORTED_MESSAGE,
+  SCROLL_TAB_INACTIVE_MESSAGE,
+} from "@/lib/capture-messages";
 
 import type { PageMetrics, PickerMessage, ScrollAck } from "@/types/picker";
 
@@ -69,9 +73,9 @@ export async function runScrollCapture(
     let done = 0;
 
     for (const tile of plan.tiles) {
-      if (opts.signal.aborted) throw new Error("scroll capture aborted");
+      if (opts.signal.aborted) throw new Error(SCROLL_CAPTURE_ABORTED_MESSAGE);
       // captureVisibleTab은 창의 현재 보이는 탭을 찍는다 — 탭이 바뀌면 남의 화면이 섞인다.
-      if (!(await deps.isTabActive(tabId))) throw new Error("tab is not active");
+      if (!(await deps.isTabActive(tabId))) throw new Error(SCROLL_TAB_INACTIVE_MESSAGE);
 
       const ack = await deps.send<ScrollAck>(tabId, {
         type: "picker.scrollCaptureTo",
@@ -87,15 +91,15 @@ export async function runScrollCapture(
       const dataUrl = await deps.captureTab(tabId);
       // 스크롤 ack와 실제 캡처 사이엔 캡처 큐 대기(≥500ms)가 있다 — 그 사이 탭이 바뀌었으면
       // 방금 찍은 건 남의 탭 화면이다. 스티치에 넣지 않고 버린다.
-      if (opts.signal.aborted) throw new Error("scroll capture aborted");
-      if (!(await deps.isTabActive(tabId))) throw new Error("tab is not active");
+      if (opts.signal.aborted) throw new Error(SCROLL_CAPTURE_ABORTED_MESSAGE);
+      if (!(await deps.isTabActive(tabId))) throw new Error(SCROLL_TAB_INACTIVE_MESSAGE);
 
       await stitcher.add({ index: tile.index, actualY: ack.y, dataUrl });
       done += 1;
       opts.onProgress(done, plan.tiles.length);
     }
 
-    if (opts.signal.aborted) throw new Error("scroll capture aborted");
+    if (opts.signal.aborted) throw new Error(SCROLL_CAPTURE_ABORTED_MESSAGE);
 
     // content 워치독 만료는 ack로 안 보인다 — 마지막 타일의 captureTab이 매달렸다 풀리면
     // 이미 원복된 화면이 그 타일의 ack.y 좌표로 스티치되고, 뒤에 남은 타일이 없어 다음

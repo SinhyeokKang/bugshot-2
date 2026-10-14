@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState, type ComponentPropsWithoutRef } from "react";
 import { Blocks, Globe, List, Loader2, Settings, Square, TerminalSquare } from "lucide-react";
 import { toast } from "sonner";
-import { useT } from "@/i18n";
+import { t as translate, useT } from "@/i18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +27,7 @@ import { TabSupportProvider } from "./hooks/tab-support-context";
 import { ReplayProvider } from "./30s-replay/replay-context";
 import {
   onBlobSaveFailed,
+  onCaptureFailed,
   onStateSaveFailed,
   onSettingsReset,
   onOAuthExpired,
@@ -55,6 +56,7 @@ import { TabNavContext } from "./tab-nav";
 import { isMainTabLocked } from "./lib/mainTabLock";
 import { applyReplayTrim, applyRecordingTrim, TrimLogsPersistError } from "./30s-replay/apply-trim";
 import { clearPicker } from "@/sidepanel/picker-control";
+import { CAPTURE_FAILURE_KEYS } from "@/sidepanel/lib/capture-error";
 import {
   deleteNetworkLog,
   deleteConsoleLog,
@@ -237,6 +239,14 @@ export default function App() {
     const unsub = onPickerPermissionExpired.subscribe(() => {
       blurActiveElement();
       setPermissionExpired(true);
+    });
+    return unsub;
+  }, []);
+
+  // 위 이벤트들과 달리 비차단 실패라 다이얼로그가 아니라 토스트로 알린다.
+  useEffect(() => {
+    const unsub = onCaptureFailed.subscribe((kind) => {
+      toast.error(translate(CAPTURE_FAILURE_KEYS[kind]));
     });
     return unsub;
   }, []);

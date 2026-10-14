@@ -61,6 +61,7 @@ import {
   startFreeformDraft,
 } from "@/sidepanel/picker-control";
 import { runScrollCapture } from "@/sidepanel/scroll-capture";
+import { emitCaptureFailure, fireCaptureFailure } from "@/sidepanel/lib/capture-error";
 import { startVideoCapture, startScreenCapture } from "@/sidepanel/video-capture";
 import { setAnnotationTool } from "@/sidepanel/annotation-control";
 import {
@@ -142,13 +143,14 @@ export function IssueTab() {
         if (result.truncated) toast.info(t("issue.capturing.truncated"));
       })
       .catch((err) => {
-        if (!controller.signal.aborted && !maybeSurfacePermissionExpired(err)) {
-          console.error("[bugshot] scroll capture failed", err);
-        }
         const owned =
           scrollAbortRef.current === controller &&
           useEditorStore.getState().phase === "capturing" &&
           useEditorStore.getState().target?.tabId === id;
+        if (!controller.signal.aborted && !maybeSurfacePermissionExpired(err)) {
+          console.error("[bugshot] scroll capture failed", err);
+          if (owned) fireCaptureFailure(err);
+        }
         if (owned) useEditorStore.getState().reset();
       })
       .finally(() => {
@@ -165,8 +167,10 @@ export function IssueTab() {
     // 해제는 phase가 capturing을 벗어나는 시점(위 effect) — 연타로 진행 중 캡처를 날리지 않게.
     setViewportBusy(true);
     void captureFullViewport(id).then((ok) => {
-      // content가 area-select 상태가 아니면(주입 소실·레이스) 조용히 갇히지 않게 idle로 되돌린다.
+      // content가 area-select 상태가 아니면(주입 소실·레이스) 갇히지 않게 idle로 되돌리고 알린다.
       if (!ok && useEditorStore.getState().phase === "capturing") {
+        // reset보다 먼저 — idle 전이가 지연 권한 만료 플래그를 소비하면 토스트까지 이중으로 뜬다.
+        emitCaptureFailure("other");
         useEditorStore.getState().reset();
       }
     });

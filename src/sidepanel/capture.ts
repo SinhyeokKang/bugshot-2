@@ -1,4 +1,5 @@
 import { sendBg } from "@/lib/bg-client";
+import { emitCaptureFailure, fireCaptureFailure } from "@/sidepanel/lib/capture-error";
 import { clampCropRect } from "@/sidepanel/lib/crop-rect";
 import {
   resolveCaptureRect,
@@ -74,8 +75,10 @@ async function captureWithPrep(
 ): Promise<CaptureResult | null> {
   const margin = options.margin ?? DEFAULT_MARGIN;
   const frameId = options.frameId ?? 0;
+  // 실패 토스트는 이 함수 한 곳에서만 발화한다 — 호출부(before·after·요소 캡처·재캡처)는 null만 본다.
   if (!prep?.rect) {
     await endCapture(tabId, frameId);
+    emitCaptureFailure("element-missing");
     return null;
   }
   const usable = resolveCaptureRect({
@@ -107,6 +110,7 @@ async function captureWithPrep(
   } catch (err) {
     if (!maybeSurfacePermissionExpired(err)) {
       console.error("[bugshot] snapshot failed", err);
+      fireCaptureFailure(err);
     }
     return null;
   } finally {

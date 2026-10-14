@@ -90,7 +90,7 @@ describe("captureWithPrep 실패 발화 (경로당 한 곳)", () => {
         frameId: 2,
         context: {
           contextSelector: null,
-          rect: PREP.rect,
+          rect: { x: 10, y: 10, width: 100, height: 40 },
           viewport: PREP.viewport,
           scrollX: 0,
           scrollY: 0,
