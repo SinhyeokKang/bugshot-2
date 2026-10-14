@@ -36,17 +36,17 @@ the active tab of its window. The one exception is the target's own panel tab:
 switching between the target and its panel opened as a tab in the SAME window
 keeps recording. Open the panel BEFORE you start exercising the page. Do not
 leave it until afterwards, and do not go from the target straight to a third tab
-of the same window -- that stops recording on your target, and it does not start
-again on its own.
+of the same window -- that stops recording on your target. Do not count on it
+starting again by itself.
 
 This failure is silent. Open the panel late and the report still submits, with
 nothing in it. A tab that was already recorded once can replay up to a minute of
 buffered logs when it loads again, so a non-empty log is not proof you got the
 order right.
 
-If recording did stop, showing the panel does not bring it back: with the panel
-in its own window it never went hidden, and nothing re-arms on tab focus. Reload
-the target page instead. That load is also what replays the buffer above.
+If recording did stop, do not count on showing the panel to bring it back. Reload
+the target page instead: that load is the sure way to start it again, and it is
+also what replays the buffer above.
 
 Panel URL:
 chrome-extension://EXTENSION_ID/src/sidepanel/index.html?tabId=TARGET_TAB_ID
@@ -59,7 +59,8 @@ tab's id. It lists same-window tabs first, then every other window; the panel's
 own tab and pages BugShot cannot capture are left out, and when nothing is left
 [data-testid="tab-target-empty"] shows instead. The list updates as tabs open,
 close and navigate. Clicking an option reloads the panel with ?tabId=<that id>,
-so pass the query yourself and skip the picker. The picker and the normal screen
+so pass the query yourself and skip the picker. Nothing is recorded until a target
+is chosen. The picker and the normal screen
 both carry a one-line pointer to this manual, [data-testid="tab-mode-agent-hint"],
 which can appear a moment after load.
 
@@ -116,7 +117,9 @@ active tab of its own window when you trigger the capture.
 A capture that fails shows an error toast in the panel
 ([data-sonner-toast][data-type="error"]). It says which of four things happened:
 the target was not active, captures were rate limited, the element could not be
-found, or something else failed. Read the toast before you retry.
+found, or something else failed. Read the toast before you retry. Two cases show
+no toast: when the activeTab permission has expired a dialog opens instead, and an
+after shot is skipped without a message when its position cannot be trusted.
 
 Captures are rate limited to roughly two per second. They queue rather than
 fail, so a burst is slow, not lost; if one does come back rate limited (the toast
