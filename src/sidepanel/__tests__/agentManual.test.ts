@@ -259,14 +259,31 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
       expect(recorder).toContain('addEventListener("visibilitychange"');
       // 정지는 판정 함수의 결과에만 걸린다(탭 모드 자기 패널 예외). 판정 호출과 그 결과를
       // stopRecorders로 흘리는 루프, 그리고 onActivated가 그 경로를 실제로 부르는지를 함께 본다 —
-      // 판정 함수 이름만 보면 import 문이 대신 매치된다.
+      // 판정 함수 이름만 보면 import 문이 대신 매치된다. 파일 전체에 걸면 호출을 다른 리스너로
+      // 옮겨도 green이라(실측) 괄호 균형으로 본문만 자른다 — "다음 표지까지"로 자르면 그 사이에
+      // 끼운 헬퍼·리스너가 범위 안에 든다(실측). 시작 표지가 사라지면 빈 문자열이라 red다.
       const bindings = codeOnly(read("src/background/tab-bindings.ts"));
-      expect(bindings).toMatch(
-        /for \(const (\w+) of recordersToStopOnSwitch\(\{[\s\S]*?\}\)\) \{\s*stopRecorders\(\1\);/,
+      const balanced = (from: number, open: string, close: string): [number, number] => {
+        const i = from < 0 ? -1 : bindings.indexOf(open, from);
+        if (i < 0) return [-1, -1];
+        for (let j = i, depth = 0; j < bindings.length; j++) {
+          if (bindings[j] === open) depth++;
+          else if (bindings[j] === close && --depth === 0) return [i, j + 1];
+        }
+        return [-1, -1];
+      };
+      const [, params] = balanced(bindings.indexOf("async function stopRecordersOnSwitch("), "(", ")");
+      const decide = bindings.slice(...balanced(params, "{", "}"));
+      expect(decide).toMatch(
+        /for \(const (\w+) of recordersToStopOnSwitch\([\s\S]*?\)\) \{\s*stopRecorders\(\1\);/,
       );
-      expect(bindings).toMatch(
-        /onActivated\.addListener\([\s\S]*?resolveTabSwitch\([\s\S]*?stopRecordersOnSwitch\(windowId, prevTabId, tabId\)/,
+      const onActivated = bindings.slice(
+        ...balanced(bindings.indexOf("chrome.tabs.onActivated.addListener("), "(", ")"),
       );
+      const prev = onActivated.match(/const (\w+) = resolveTabSwitch\(/)?.[1] ?? "";
+      expect(prev).not.toBe("");
+      // prev는 두 번째(정지 후보) 자리여야 한다 — 위치를 안 보면 prev/next를 맞바꿔도 green이다(실측).
+      expect(onActivated).toMatch(new RegExp(`stopRecordersOnSwitch\\(\\w+, ${prev}, \\w+\\)`));
     });
 
     it("죽은 레코더의 복구 경로로 리로드를 지시한다", () => {
