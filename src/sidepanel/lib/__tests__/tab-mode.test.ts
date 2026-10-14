@@ -4,6 +4,7 @@ import {
   listTargetCandidates,
   shouldActivateTarget,
   shouldRestorePanel,
+  tabModeGate,
   targetHoldFromState,
 } from "../tab-mode";
 
@@ -116,5 +117,31 @@ describe("listTargetCandidates — 대상 탭 후보", () => {
 
   it("후보가 없으면 빈 배열", () => {
     expect(listTargetCandidates([{ id: 100, windowId: 1, url: "https://a/" }], self)).toEqual([]);
+  });
+});
+
+describe("tabModeGate — 탭 모드에서 쿼리 없이 열렸을 때만 대상 선택", () => {
+  const panelBase = "chrome-extension://abc/src/sidepanel/index.html";
+
+  it("getSelfTab 대기 중이면 pending", () => {
+    expect(tabModeGate({ self: undefined, href: `${panelBase}?tabId=7`, panelBase })).toBe("pending");
+  });
+
+  it("사이드패널(self=null)은 쿼리와 무관하게 sidepanel — 기존 바인딩 경로 그대로", () => {
+    expect(tabModeGate({ self: null, href: panelBase, panelBase })).toBe("sidepanel");
+    expect(tabModeGate({ self: null, href: `${panelBase}?tabId=7`, panelBase })).toBe("sidepanel");
+  });
+
+  it("탭 모드 + 쿼리 없음 → pick", () => {
+    expect(tabModeGate({ self: { id: 9 }, href: panelBase, panelBase })).toBe("pick");
+  });
+
+  it("탭 모드 + 정수 아닌 쿼리 → pick (useBoundTabId는 1.5도 받지만 App 판정은 파서만 본다)", () => {
+    expect(tabModeGate({ self: { id: 9 }, href: `${panelBase}?tabId=1.5`, panelBase })).toBe("pick");
+    expect(tabModeGate({ self: { id: 9 }, href: `${panelBase}?tabId=abc`, panelBase })).toBe("pick");
+  });
+
+  it("탭 모드 + 정수 쿼리 → bound", () => {
+    expect(tabModeGate({ self: { id: 9 }, href: `${panelBase}?tabId=7`, panelBase })).toBe("bound");
   });
 });

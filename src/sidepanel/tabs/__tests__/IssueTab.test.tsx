@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/i18n", () => ({ useT: () => (key: string) => key, t: (key: string) => key }));
@@ -20,6 +20,12 @@ vi.mock("@/store/settings-ui-store", async (importOriginal) => {
     useSettingsUiStore: (sel: (s: { locale: string; recordingMode: string }) => unknown) =>
       sel({ locale: "ko", recordingMode: "tab" }),
   };
+});
+
+let selfTab: { id: number } | null = null;
+vi.mock("@/sidepanel/tab-mode", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/sidepanel/tab-mode")>();
+  return { ...actual, getSelfTab: async () => selfTab };
 });
 
 import { CapturingState, EmptyState } from "../IssueTab";
@@ -45,6 +51,7 @@ function handlers() {
 
 beforeEach(() => {
   accounts = {};
+  selfTab = null;
   vi.stubGlobal("chrome", {
     tabs: { create: vi.fn() },
     storage: {
@@ -192,5 +199,48 @@ describe("CapturingState 진행률 접근성", () => {
     );
 
     expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+});
+
+// 탭 모드에서만 영역 방식 capturing에 "대상 탭으로 가서 드래그" 안내를 보인다. 뷰포트·전체 페이지는
+// 누르는 순간 대상이 앞으로 오므로 대상이 아니다(busy=전체 페이지 진행 중).
+describe("CapturingState — 탭 모드 영역 안내", () => {
+  function capturingHandlers() {
+    return { onCancel: vi.fn(), onViewport: vi.fn(), onFullPage: vi.fn() };
+  }
+  async function renderCapturing(props: { busy: boolean; canceling?: boolean }) {
+    render(
+      <CapturingState
+        {...capturingHandlers()}
+        progress={null}
+        busy={props.busy}
+        canceling={props.canceling ?? false}
+      />,
+    );
+    await act(async () => {});
+  }
+
+  it("탭 모드 + 영역 방식이면 안내가 보인다", async () => {
+    selfTab = { id: 9 };
+    await renderCapturing({ busy: false });
+    expect(screen.getByTestId("tab-mode-area-hint").textContent).toBe("issue.tabMode.areaHint");
+  });
+
+  it("사이드패널에선 렌더하지 않는다 — 가드레일", async () => {
+    selfTab = null;
+    await renderCapturing({ busy: false });
+    expect(screen.queryByTestId("tab-mode-area-hint")).toBeNull();
+  });
+
+  it("전체 페이지 캡처 진행 중(busy)이면 보이지 않는다", async () => {
+    selfTab = { id: 9 };
+    await renderCapturing({ busy: true });
+    expect(screen.queryByTestId("tab-mode-area-hint")).toBeNull();
+  });
+
+  it("취소 중(canceling)이면 보이지 않는다", async () => {
+    selfTab = { id: 9 };
+    await renderCapturing({ busy: false, canceling: true });
+    expect(screen.queryByTestId("tab-mode-area-hint")).toBeNull();
   });
 });
