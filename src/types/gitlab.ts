@@ -10,6 +10,7 @@ export interface GitlabPatAuth {
 
 export interface GitlabOAuthAuth {
   kind: "oauth";
+  grantId?: string;
   accessToken: string;
   refreshToken: string;
   expiresAt: number;

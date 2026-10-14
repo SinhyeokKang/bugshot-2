@@ -1,3 +1,4 @@
+import { acquireRequestAuth } from "./lib/authContext";
 import { t } from "@/i18n";
 import { readErrorBody } from "./lib/readErrorBody";
 import type {
@@ -18,10 +19,8 @@ import type {
 } from "@/types/jira";
 import type { JiraAdfDoc } from "@/types/jira";
 import type { JiraOAuthAuth } from "@/types/jira";
-import { OAuthError, refreshOAuthToken, persistOAuthTokens } from "./oauth";
+import { OAuthError, refreshOAuthToken } from "./oauth";
 import { inRefreshLane } from "./lib/connectLane";
-import { readStoredAuth } from "@/lib/settings-storage";
-import { pickRotatedAuth } from "./lib/rotatedAuth";
 import { assertCredentialSafeBase } from "@/lib/credential-url";
 
 export class JiraError extends Error {
@@ -82,29 +81,12 @@ function resolveUrl(auth: JiraAuth, path: string): string {
 
 const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
 
-let refreshInFlight: Promise<JiraOAuthAuth> | null = null;
-
 function refreshOnce(auth: JiraOAuthAuth): Promise<JiraOAuthAuth> {
-  if (refreshInFlight) return refreshInFlight;
-  // 락을 잡은 직후 저장분을 다시 본다 — 앞선 요청이 이미 회전을 끝냈다면 인자로 받은
-  // refresh token은 소모된 값이라 invalid_grant가 난다(rotatedAuth 참조).
-  // jira는 createRefreshRunner를 안 쓰므로(연결 흐름이 authedFetch를 안 지난다) 여기가
-  // 그 runner의 inRefreshLane 자리다 — 갱신·저장 실패를 지점 열거 없이 한 번에 태깅한다.
-  refreshInFlight = inRefreshLane(async () => {
-    const stored = await readStoredAuth().catch(() => null);
-    const rotated =
-      stored?.kind === "oauth" ? pickRotatedAuth(auth, stored) : null;
-    if (rotated) return rotated;
-    const refreshed = await refreshOAuthToken(auth);
-    await persistOAuthTokens(refreshed);
-    return refreshed;
-  }, "jira").finally(() => {
-    refreshInFlight = null;
-  });
-  return refreshInFlight;
+  return inRefreshLane(() => refreshOAuthToken(auth), "jira");
 }
 
 export async function ensureFreshAuth(auth: JiraAuth): Promise<JiraAuth> {
+  auth = await acquireRequestAuth("jira", auth);
   if (auth.kind !== "oauth") return auth;
   if (auth.expiresAt - Date.now() > TOKEN_REFRESH_THRESHOLD_MS) return auth;
   return refreshOnce(auth);
@@ -123,6 +105,7 @@ async function authedFetch(
     current = await refreshOnce(current);
     res = await doFetch(current, path, init, multipart);
     if (res.status === 401) {
+      await acquireRequestAuth("jira", current);
       // 연결 흐름(fetchSites)은 이 경로를 안 지나므로 순수 refresh 레인이다.
       throw new OAuthError(t("oauth.error.refreshExhausted"), {
         platform: "jira",
@@ -531,13 +514,16 @@ export async function getMediaFileId(
     method: "GET" | "HEAD",
     extra: Record<string, string> = {},
   ): Promise<string | undefined> => {
-    const send = () =>
-      probeMediaRedirect(
+    const send = async () => {
+      current = await acquireRequestAuth("jira", current);
+      return probeMediaRedirect(
         resolveUrl(current, path),
         { Authorization: authHeader(current), ...extra },
         method,
       );
+    };
     let res = await send();
+    if (res?.status === 401) await acquireRequestAuth("jira", current);
     // 갱신하고도 401이면 토큰 문제가 아니다 — authedFetch와 같이 1회로 끊는다(재시도 루프에 refresh가 곱해지지 않게).
     if (res?.status === 401 && current.kind === "oauth" && !refreshed) {
       refreshed = true;

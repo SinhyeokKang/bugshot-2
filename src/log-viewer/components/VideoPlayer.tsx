@@ -67,7 +67,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const handleDownload = useCallback(() => {
       const a = document.createElement("a");
       a.href = src;
-      a.download = "recording.mp4";
+      a.download = /^data:video\/webm[;,]/i.test(src) ? "recording.webm" : "recording.mp4";
       a.click();
     }, [src]);
 

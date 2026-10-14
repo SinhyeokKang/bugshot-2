@@ -8,6 +8,7 @@ export interface JiraApiKeyAuth {
 
 export interface JiraOAuthAuth {
   kind: "oauth";
+  grantId?: string;
   cloudId: string;
   siteUrl: string;
   email: string;

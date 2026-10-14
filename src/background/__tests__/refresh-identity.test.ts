@@ -1,3 +1,4 @@
+import { createAuthCandidate } from "../lib/authContext";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/i18n", () => ({ t: (key: string) => key }));
@@ -110,7 +111,7 @@ describe("refresh는 계정 신원을 그대로 넘긴다 (writer 게이트의 �
       }) as unknown as Response),
     );
 
-    const out = (await run(auth as never)) as unknown as Record<string, unknown>;
+    const out = (await run(createAuthCandidate({ ...auth, grantId: "test-grant" }).current as never)) as unknown as Record<string, unknown>;
 
     expect(out.grantedAt).toBe(GRANTED_AT);
     // 토큰은 갱신되고 신원은 그대로여야 게이트가 이 갱신을 통과시킨다.

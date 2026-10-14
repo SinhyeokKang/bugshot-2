@@ -1,3 +1,4 @@
+import type { JiraCandidateProfile } from "@/types/messages";
 import { useEffect, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { SiJirasoftware as Jira } from "@icons-pack/react-simple-icons";
@@ -151,6 +152,7 @@ export function JiraConnectFlow({
     try {
       const auth: JiraOAuthAuth = {
         kind: "oauth",
+        grantId: crypto.randomUUID(),
         cloudId: site.id,
         siteUrl: site.url,
         email: "",
@@ -158,14 +160,15 @@ export function JiraConnectFlow({
         refreshToken: result.refreshToken,
         expiresAt: result.expiresAt,
       };
-      const me = await sendBg<JiraMyself>({
+      const candidate = await sendBg<JiraCandidateProfile>({
         type: "jira.myself",
+        context: "candidate",
         config: auth,
       });
       const next: JiraAccount = {
         platform: "jira",
         connectedAt: Date.now(),
-        auth: { ...auth, email: me.emailAddress },
+        auth: { ...candidate.auth, email: candidate.profile.emailAddress },
       };
       setAccount("jira", next);
       onConnected();

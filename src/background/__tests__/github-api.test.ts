@@ -1,3 +1,4 @@
+import { createAuthCandidate } from "../lib/authContext";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   buildAuthHeader,
@@ -36,14 +37,14 @@ describe("buildAuthHeader", () => {
 
   it("OAuth는 'Bearer <accessToken>'", () => {
     expect(
-      buildAuthHeader({
+      buildAuthHeader(createAuthCandidate({
         kind: "oauth",
         accessToken: "ATK",
         tokenType: "bearer",
         scope: "repo",
         viewerLogin: "u",
         grantedAt: 1,
-      }),
+      }).current),
     ).toBe("Bearer ATK");
   });
 });
@@ -475,14 +476,14 @@ describe("REST 래퍼 (fetch-mock)", () => {
       mf = mockFetchOnce({ body: [] });
 
       await getRepoLabels(
-        {
+        createAuthCandidate({
           kind: "oauth",
           accessToken: "ATK",
           tokenType: "bearer",
           scope: "repo",
           viewerLogin: "u",
           grantedAt: 1,
-        },
+        }).current,
         "o",
         "r",
       );

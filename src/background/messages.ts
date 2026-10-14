@@ -1,4 +1,7 @@
+import { createAuthCandidate } from "./lib/authContext";
+import type { JiraCandidateProfile } from "@/types/messages";
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
+import { inConnectLane } from "./lib/connectLane";
 import { getLocale, t, withLocale } from "@/i18n";
 import { resolveBodyLocale, type LocaleMode } from "@/i18n/locales";
 import type { PlatformId } from "@/types/platform";
@@ -257,8 +260,16 @@ export async function handleMessage(
     case "oauth.start":
       return trackConnect("jira", () => startOAuthFlow());
 
-    case "jira.myself":
+    case "jira.myself": {
+      if (message.context === "candidate" && message.config.kind === "oauth") {
+        const candidate = createAuthCandidate(message.config);
+        return inConnectLane(async (): Promise<JiraCandidateProfile> => {
+          const profile = await getMyself(message.config);
+          return { profile, auth: candidate.current };
+        });
+      }
       return getMyself(message.config);
+    }
 
     case "jira.listProjects":
       return searchProjects(await loadAuth(), message.query);
@@ -486,11 +497,11 @@ export async function handleMessage(
       return trackConnect("notion", () => startNotionOAuth());
 
     case "notion.testToken":
-      return notionGetMyself({
+      return inConnectLane(() => notionGetMyself({
         kind: "apiKey",
         token: message.token,
         botName: "",
-      });
+      }));
 
     case "notion.disconnect":
       return { ok: true };

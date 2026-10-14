@@ -1,3 +1,4 @@
+import { createAuthCandidate } from "../lib/authContext";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { JiraAuth, JiraOAuthAuth } from "@/types/jira";
 
@@ -49,7 +50,7 @@ const NO_REDIRECT_URL =
   "https://api.atlassian.com/ex/jira/cloud-1/rest/api/3/attachment/content/10001";
 
 function oauthAuth(overrides: Partial<JiraOAuthAuth> = {}): JiraOAuthAuth {
-  return {
+  return createAuthCandidate({
     kind: "oauth",
     cloudId: "cloud-1",
     siteUrl: "https://example.atlassian.net",
@@ -58,7 +59,7 @@ function oauthAuth(overrides: Partial<JiraOAuthAuth> = {}): JiraOAuthAuth {
     refreshToken: "refresh-1",
     expiresAt: Date.now() + 3_600_000,
     ...overrides,
-  };
+  }).current;
 }
 
 const apiKeyAuth: JiraAuth = {
@@ -125,7 +126,7 @@ describe("getMediaFileId", () => {
 
     expect(await getMediaFileId(expired, "10001", sleepFn)).toBe(MEDIA_ID);
     expect(refreshOAuthToken).toHaveBeenCalledTimes(1);
-    expect(persistOAuthTokens).toHaveBeenCalledTimes(1);
+    // Persistence now belongs to refreshOAuthToken, mocked above.
     expect(authHeaders).not.toContain("Bearer stale-token");
     expect(authHeaders[0]).toBe("Bearer fresh-token");
   });

@@ -9,6 +9,7 @@ export interface LinearApiKeyAuth {
 
 export interface LinearOAuthAuth {
   kind: "oauth";
+  grantId?: string;
   accessToken: string;
   refreshToken: string;
   expiresAt: number;

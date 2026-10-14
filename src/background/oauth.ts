@@ -1,3 +1,4 @@
+import { createGrantRefresh } from "./lib/authContext";
 import { t } from "@/i18n";
 import type { TranslationKey } from "@/i18n/ko";
 import type { JiraOAuthAuth, JiraSite } from "@/types/jira";
@@ -261,7 +262,7 @@ async function fetchSites(accessToken: string): Promise<JiraSite[]> {
   }));
 }
 
-export async function refreshOAuthToken(
+async function requestOAuthRefresh(
   auth: JiraOAuthAuth,
 ): Promise<JiraOAuthAuth> {
   assertConfigured();
@@ -297,13 +298,7 @@ export async function refreshOAuthToken(
   };
 }
 
-export async function persistOAuthTokens(auth: JiraOAuthAuth): Promise<void> {
-  try {
-    await writeStoredOAuthTokens(auth);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new OAuthError(t("oauth.error.tokenPersist", { message }), {
-      platform: "jira",
-    });
-  }
+export async function persistOAuthTokens(expected: JiraOAuthAuth, refreshed: JiraOAuthAuth): Promise<void> {
+  await writeStoredOAuthTokens(expected, refreshed);
 }
+export const refreshOAuthToken = createGrantRefresh<JiraOAuthAuth>("jira", requestOAuthRefresh, persistOAuthTokens);

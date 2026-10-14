@@ -20,7 +20,7 @@ beforeEach(async () => {
   vi.stubGlobal("indexedDB", new IDBFactory());
   vi.stubGlobal("IDBKeyRange", IDBKeyRange);
   const persisted: Record<string, unknown> = {};
-  vi.stubGlobal("chrome", { storage: { local: { get: vi.fn(async () => ({ ...persisted })), set: vi.fn(async (values: Record<string, unknown>) => { Object.assign(persisted, values); }) }, session: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) } }, runtime: { sendMessage: vi.fn() } });
+  vi.stubGlobal("chrome", { storage: { local: { get: vi.fn(async () => ({ ...persisted })), set: vi.fn(async (values: Record<string, unknown>) => { Object.assign(persisted, values); }) }, session: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) } }, runtime: { sendMessage: vi.fn(), getManifest: () => ({ version: "1.0.0" }) } });
   db = await import("@/store/blob-db");
   store = await import("@/store/issues-store");
   recovery = await import("../submissionRecovery");
@@ -764,4 +764,82 @@ it("removes a stale uploaded locator when a patch clears it", async () => {
     return { key: "1.2", url: "", attachments: [{ fileId: "logs", delivery: "failed", presentation: "failed", failure: { stage: "upload", code: "unknown" } }] };
   });
   expect(checkpoint).toStrictEqual({ fileId: "logs", upload: "failed", link: "pending", body: "not-applicable" });
+});
+
+it.each([1, 2])("reconfirmed draft with %i attachments forgets removed files before saved submission", async (count) => {
+  const { useEditorStore, whenAttachmentBlobsReady } = await import("@/store/editor-store");
+  useEditorStore.setState(useEditorStore.getInitialState(), true);
+  useEditorStore.getState().startFreeform({ tabId: 7, url: "https://example.com", title: "Example" });
+  useEditorStore.getState().setDraft({ title: "Report", sections: {} });
+  for (let i = 0; i < count; i++) {
+    await useEditorStore.getState().addAttachments([new File([`file-${i}`], `file-${i}.txt`, { type: "text/plain" })]);
+  }
+  expect(useEditorStore.getState().confirmDraft()).toBe(true);
+  await whenAttachmentBlobsReady();
+  const id = useEditorStore.getState().currentIssueId!;
+  const removed = useEditorStore.getState().attachments[0];
+  useEditorStore.getState().backToDraft();
+  useEditorStore.getState().removeAttachment(removed.id);
+  expect(useEditorStore.getState().confirmDraft()).toBe(true);
+  await whenAttachmentBlobsReady();
+  const saved = store.useIssuesStore.getState().issues.find((r) => r.id === id)!;
+  expect(saved.attachments).toHaveLength(count - 1);
+  expect(await db.getAttachmentBlob(id, removed.id)).toBeNull();
+  const sources = recovery.expectedSubmissionSources(saved, { sectionConfig: [], attachmentsEnabled: true });
+  expect(sources).toHaveLength(count - 1);
+  await expect(recovery.assertSubmissionSources(sources)).resolves.toBeUndefined();
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: saved, platform: "github", files: sources });
+  expect(prepared.files).toHaveLength(count - 1);
+});
+
+it.each(["screenshot", "video", "freeform"] as const)("recovered %s logs reach generated HTML and body from a resumed snapshot", async (captureMode) => {
+  vi.stubGlobal("navigator", { userAgent: "Chrome/120.0.0.0", platform: "Linux" });
+  const { useEditorStore } = await import("@/store/editor-store");
+  const { snapshotFromState } = await import("@/sidepanel/hooks/useEditorSessionSync");
+  const { buildEditorMarkdownContext, buildEditorLogsCaptureInput } = await import("../buildEditorCapture");
+  const { buildCaptureFiles } = await import("../buildCaptureFiles");
+  const { buildIssueMarkdown } = await import("../buildIssueMarkdown");
+  const { base64ToGunzip } = await import("@/lib/gzip-base64");
+  const common = { id: "saved", startedAt: 100, endedAt: 200, totalSeen: 1, captured: 1 };
+  const consoleLog = { ...common, entries: [{ id: "c", level: "error" as const, timestamp: 150, args: "restored-error", pageUrl: "https://example.com" }] };
+  const networkLog = { ...common, warnings: [], requests: [{ id: "n", url: "https://example.com/api/restored", method: "GET", status: 500, statusText: "Failed", startTime: 150, durationMs: 10, requestHeaders: {}, responseHeaders: {}, pageUrl: "https://example.com", requestBodySize: 0, responseBodySize: 0, contentType: "text/plain", phase: "complete" as const }] };
+  const actionLog = { ...common, entries: [{ id: "a", kind: "click" as const, timestamp: 160, pageUrl: "https://example.com", target: "restored-button" }] };
+  useEditorStore.setState(useEditorStore.getInitialState(), true);
+  useEditorStore.setState({ captureMode, phase: "drafting", target: { tabId: 7, url: "https://example.com", title: "Example" }, draft: { title: "Resumed report", sections: {} }, logsAttach: true, consoleLog, networkLog, actionLog });
+  expect(useEditorStore.getState().confirmDraft()).toBe(true);
+  const snapshot = snapshotFromState();
+  const record = store.useIssuesStore.getState().issues.find((r) => r.id === snapshot.currentIssueId)!;
+  await vi.waitFor(async () => expect(await db.getActionLog(record.id)).toEqual(actionLog));
+  expect(await db.getConsoleLog("pending:7")).toBeNull();
+  useEditorStore.setState(useEditorStore.getInitialState(), true);
+  useEditorStore.getState().hydrate(snapshot);
+  expect(useEditorStore.getState().consoleLog).toBeNull();
+  const logs = await recovery.loadSubmissionLogs(record);
+  const state = { ...useEditorStore.getState(), ...logs };
+  const ctx = buildEditorMarkdownContext(state)!;
+  ctx.bodyLocale = "en";
+  const files = await buildCaptureFiles(buildEditorLogsCaptureInput(ctx, state));
+  expect(files.logs).toHaveLength(1);
+  const html = Buffer.from(files.logs[0].dataUrl.split(",")[1], "base64").toString();
+  const encoded = html.match(/<script id="__BUGSHOT_DATA__" type="application\/gzip-base64">([\s\S]*?)<\/script>/)![1];
+  const payload = JSON.parse(await base64ToGunzip(encoded));
+  expect(payload.consoleLog.entries[0].args).toBe("restored-error");
+  expect(payload.networkLog.requests[0].url).toBe("https://example.com/api/restored");
+  expect(payload.actionLog.entries[0].target).toBe("restored-button");
+  const body = buildIssueMarkdown(ctx);
+  expect(ctx.consoleLogSummary).toBeTruthy();
+  expect(ctx.networkLogSummary).toBeTruthy();
+  expect(ctx.actionLogCaptured).toBe(1);
+  expect(body).toContain("Console: 1 logs (1 errors, 0 warnings)");
+  expect(body).toContain("Network: 1 requests (1 errors)");
+  expect(body).toContain("User actions: 1");
+  const offCtx = buildEditorMarkdownContext({ ...state, logsAttach: false })!;
+  expect(offCtx.consoleLogSummary).toBeUndefined();
+  expect(offCtx.networkLogSummary).toBeUndefined();
+  expect(offCtx.actionLogCaptured).toBeUndefined();
+  expect(buildIssueMarkdown(offCtx)).not.toContain("logs.html");
+  for (const gated of [{ ...state, logsAttach: false }, { ...state, captureMode: "element" as const }]) {
+    const input = buildEditorLogsCaptureInput({ ...ctx, captureMode: gated.captureMode }, gated);
+    expect((await buildCaptureFiles(input)).logs).toEqual([]);
+  }
 });

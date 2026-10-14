@@ -1,3 +1,4 @@
+import { sameOAuthGrant } from "@/lib/settings-storage";
 import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { SiNotion } from "@icons-pack/react-simple-icons";
@@ -82,11 +83,13 @@ function NotionDefaultsBlock() {
   const reqIdRef = useRef(0);
 
   const databaseId = account?.defaults.databaseId;
+  const authKey = JSON.stringify(account?.auth);
 
   useEffect(() => {
     setSchema(null);
     setError(null);
     if (!databaseId) return;
+    const sourceAuth = account?.auth;
     const myReq = ++reqIdRef.current;
     setLoading(true);
     sendBg<NotionDatabaseSchema>({
@@ -95,9 +98,9 @@ function NotionDefaultsBlock() {
     })
       .then((s) => {
         if (myReq !== reqIdRef.current) return;
-        setSchema(s);
         const cur = useSettingsStore.getState().accounts.notion;
-        if (!cur) return;
+        if (!cur || !sameOAuthGrant("notion", sourceAuth, cur.auth)) return;
+        setSchema(s);
         const reconciled = reconcileNotionFields(
           {
             statusOption: cur.defaults.statusOption,
@@ -114,7 +117,7 @@ function NotionDefaultsBlock() {
                 ? reconciled.selectValues
                 : undefined,
             },
-          });
+          }, sourceAuth);
         }
       })
       .catch((err: unknown) => {
@@ -125,7 +128,8 @@ function NotionDefaultsBlock() {
         if (myReq !== reqIdRef.current) return;
         setLoading(false);
       });
-  }, [databaseId]);
+    return () => { reqIdRef.current++; };
+  }, [databaseId, authKey]);
 
   if (!account) return null;
 

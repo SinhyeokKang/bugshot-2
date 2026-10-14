@@ -1,3 +1,4 @@
+import { createAuthCandidate } from "../lib/authContext";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/i18n", () => ({
@@ -47,7 +48,7 @@ describe("buildLinearAuthHeader", () => {
 
   it("OAuth는 'Bearer <accessToken>'", () => {
     expect(
-      buildLinearAuthHeader({
+      buildLinearAuthHeader(createAuthCandidate({
         kind: "oauth",
         accessToken: "ATK",
         refreshToken: "RTK",
@@ -55,7 +56,7 @@ describe("buildLinearAuthHeader", () => {
         scope: "read,write",
         viewerName: "u",
         grantedAt: 1,
-      }),
+      }).current),
     ).toBe("Bearer ATK");
   });
 });
@@ -273,7 +274,7 @@ describe("linear GraphQL 요청 인코딩", () => {
   it("OAuth auth는 Authorization에 Bearer 접두사가 붙어 나간다", async () => {
     mf = mockFetchOnce({ body: { data: { teams: { nodes: [] } } } });
 
-    await getTeams({
+    await getTeams(createAuthCandidate({
       kind: "oauth",
       accessToken: "ATK",
       refreshToken: "RTK",
@@ -281,7 +282,7 @@ describe("linear GraphQL 요청 인코딩", () => {
       scope: "read,write",
       viewerName: "u",
       grantedAt: 1,
-    });
+    }).current);
 
     expect((mf.callAt(0).init?.headers as Record<string, string>).Authorization).toBe(
       "Bearer ATK",

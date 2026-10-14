@@ -10,6 +10,7 @@ export interface AsanaPatAuth {
 
 export interface AsanaOAuthAuth {
   kind: "oauth";
+  grantId?: string;
   accessToken: string;
   refreshToken: string;
   expiresAt: number;

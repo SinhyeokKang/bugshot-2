@@ -1,10 +1,12 @@
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { create, type StoreApi, type UseBoundStore } from "zustand";
+import { createSettingsAdapter } from "./settings-adapter";
+import { applySettingsIntent, type SettingsIntent } from "@/lib/settings-mutations";
+import { migrateSettings, SETTINGS_STORE_VERSION } from "@/lib/settings-migrations";
+export { migrateV1ToV2, migrateV2ToV3, migrateToV5, migrateToV11, migrateToV12, isV3Shape, SETTINGS_STORE_VERSION } from "@/lib/settings-migrations";
 import type { JiraAuth } from "@/types/jira";
 import type {
   Accounts,
   JiraAccount,
-  JiraLastSubmitFields,
   LastSubmitFieldsByPlatform,
   PlatformId,
 } from "@/types/platform";
@@ -16,25 +18,9 @@ import type { AsanaAccount } from "@/types/asana";
 import type { ClickupAccount } from "@/types/clickup";
 import type { SlackAccount } from "@/types/slack";
 import type { WebhookAccount } from "@/types/webhook";
-import {
-  ACCOUNT_IDENTITY_FIELDS,
-  SETTINGS_STORAGE_KEY,
-  accountIdentityExcluded,
-  sameAuthIdentity,
-} from "@/lib/settings-storage";
-import { chromeLocalStorage } from "./chrome-storage";
 
-// v6: notion 플랫폼 추가 (accounts.notion / lastSubmitFields.notion / lastSubmittedPlatform="notion").
-// v7: gitlab 플랫폼 추가. 새 필드는 모두 optional이라 v6→v7 데이터 마이그레이션 불필요 — 버전 마커만 bump.
-// v8: asana 플랫폼 추가. 동일하게 새 필드 모두 optional이라 버전 마커만 bump.
-// v9: clickup 플랫폼 추가. 새 필드 모두 optional이라 버전 마커만 bump.
-// v10: slack 플랫폼 추가. 동일하게 새 필드 모두 optional이라 버전 마커만 bump.
-// v11: jira 연결 이슈 단일(relatesKey/relatesLabel)→복수(relates[{key,label}]). 직전 제출값 이관(migrateToV11).
-// v12: webhook 플랫폼 추가. 새 필드는 optional이라 이관할 데이터가 없지만, url 없는 webhook
-// 계정은 제출이 불가능한 껍데기라 migrateToV12가 걷어낸다(방어 — 정상 경로로는 안 생긴다).
-export const SETTINGS_STORE_VERSION = 12;
 
-interface SettingsState {
+export interface SettingsState {
   accounts: Accounts;
   lastSubmitFields: LastSubmitFieldsByPlatform;
   lastSubmittedPlatform?: PlatformId;
@@ -44,311 +30,82 @@ interface SettingsState {
   removeAllAccounts: () => void;
   updateJiraAccount: (
     patch: Partial<Omit<JiraAccount, "platform" | "connectedAt">>,
+    expectedAuth?: NonNullable<Accounts["jira"]>["auth"],
   ) => void;
   updateGithubAccount: (
     patch: Partial<Omit<GithubAccount, "platform" | "connectedAt">>,
+    expectedAuth?: NonNullable<Accounts["github"]>["auth"],
   ) => void;
   updateLinearAccount: (
     patch: Partial<Omit<LinearAccount, "platform" | "connectedAt">>,
+    expectedAuth?: NonNullable<Accounts["linear"]>["auth"],
   ) => void;
   updateNotionAccount: (
     patch: Partial<Omit<NotionAccount, "platform" | "connectedAt">>,
+    expectedAuth?: NonNullable<Accounts["notion"]>["auth"],
   ) => void;
   updateGitlabAccount: (
     patch: Partial<Omit<GitlabAccount, "platform" | "connectedAt">>,
+    expectedAuth?: NonNullable<Accounts["gitlab"]>["auth"],
   ) => void;
   updateAsanaAccount: (
     patch: Partial<Omit<AsanaAccount, "platform" | "connectedAt">>,
+    expectedAuth?: NonNullable<Accounts["asana"]>["auth"],
   ) => void;
   updateClickupAccount: (
     patch: Partial<Omit<ClickupAccount, "platform" | "connectedAt">>,
+    expectedAuth?: NonNullable<Accounts["clickup"]>["auth"],
   ) => void;
   updateSlackAccount: (
     patch: Partial<Omit<SlackAccount, "platform" | "connectedAt">>,
+    expectedAuth?: NonNullable<Accounts["slack"]>["auth"],
   ) => void;
   updateWebhookAccount: (
     patch: Partial<Omit<WebhookAccount, "platform" | "connectedAt">>,
+    expectedAuth?: NonNullable<Accounts["webhook"]>["auth"],
   ) => void;
   setLastSubmitFields: <P extends PlatformId>(
     platform: P,
     fields: NonNullable<LastSubmitFieldsByPlatform[P]>,
+    expectedAuth?: Accounts[P] extends infer A ? A extends { auth: infer T } ? T : never : never,
   ) => void;
   setLastSubmittedPlatform: (platform: PlatformId) => void;
   setTitlePrefix: (prefix: string) => void;
 }
 
-interface LegacyV1 {
-  jiraConfig?: {
-    baseUrl?: string;
-    email?: string;
-    apiToken?: string;
-    projectKey?: string;
-    issueTypeId?: string;
-    issueTypeName?: string;
-    titlePrefix?: string;
-  };
-}
-
-interface LegacyV2 {
-  jiraConfig?: {
-    auth?: JiraAuth;
-    projectKey?: string;
-    issueTypeId?: string;
-    issueTypeName?: string;
-    titlePrefix?: string;
-  } | null;
-  lastSubmitFields?: {
-    projectKey?: string;
-    assigneeId?: string;
-    assigneeName?: string;
-    priorityId?: string;
-    priorityName?: string;
-    parentKey?: string;
-    parentLabel?: string;
-    relatesKey?: string;
-    relatesLabel?: string;
-  };
-}
-
-type V3Shape = Pick<SettingsState, "accounts" | "lastSubmitFields">;
-
-export function migrateV1ToV2(legacy: LegacyV1): LegacyV2 {
-  const j = legacy.jiraConfig;
-  if (!j?.baseUrl || !j.email || !j.apiToken) return { jiraConfig: null };
-  return {
-    jiraConfig: {
-      auth: {
-        kind: "apiKey",
-        baseUrl: j.baseUrl,
-        email: j.email,
-        apiToken: j.apiToken,
-      },
-      projectKey: j.projectKey,
-      issueTypeId: j.issueTypeId,
-      issueTypeName: j.issueTypeName,
-      titlePrefix: j.titlePrefix,
-    },
-  };
-}
-
-export function migrateV2ToV3(legacy: LegacyV2): V3Shape {
-  const accounts: Accounts = {};
-  const j = legacy.jiraConfig;
-  if (j?.auth) {
-    accounts.jira = {
-      platform: "jira",
-      connectedAt: Date.now(),
-      auth: j.auth,
-      projectKey: j.projectKey,
-      issueTypeId: j.issueTypeId,
-      issueTypeName: j.issueTypeName,
-      ...(j.titlePrefix ? { titlePrefix: j.titlePrefix } : {}),
-    } as JiraAccount;
+export function createSettingsStore() {
+  const store: UseBoundStore<StoreApi<SettingsState>> = create<SettingsState>()(() => ({
+    accounts: {}, lastSubmitFields: {}, titlePrefix: "",
+    setAccount: (platform, account) => mutate({ kind: "connect", platform, account }),
+    removeAccount: (platform) => mutate({ kind: "disconnect", platform }),
+    removeAllAccounts: () => mutate({ kind: "disconnectAll" }),
+    updateJiraAccount: (patch, expectedAuth) => mutate({ kind: "accountPatch", platform: "jira", patch, expected: expectedAuth ?? store.getState().accounts.jira?.auth }),
+    updateGithubAccount: (patch, expectedAuth) => mutate({ kind: "accountPatch", platform: "github", patch, expected: expectedAuth ?? store.getState().accounts.github?.auth }),
+    updateLinearAccount: (patch, expectedAuth) => mutate({ kind: "accountPatch", platform: "linear", patch, expected: expectedAuth ?? store.getState().accounts.linear?.auth }),
+    updateNotionAccount: (patch, expectedAuth) => mutate({ kind: "accountPatch", platform: "notion", patch, expected: expectedAuth ?? store.getState().accounts.notion?.auth }),
+    updateGitlabAccount: (patch, expectedAuth) => mutate({ kind: "accountPatch", platform: "gitlab", patch, expected: expectedAuth ?? store.getState().accounts.gitlab?.auth }),
+    updateAsanaAccount: (patch, expectedAuth) => mutate({ kind: "accountPatch", platform: "asana", patch, expected: expectedAuth ?? store.getState().accounts.asana?.auth }),
+    updateClickupAccount: (patch, expectedAuth) => mutate({ kind: "accountPatch", platform: "clickup", patch, expected: expectedAuth ?? store.getState().accounts.clickup?.auth }),
+    updateSlackAccount: (patch, expectedAuth) => mutate({ kind: "accountPatch", platform: "slack", patch, expected: expectedAuth ?? store.getState().accounts.slack?.auth }),
+    updateWebhookAccount: (patch, expectedAuth) => mutate({ kind: "accountPatch", platform: "webhook", patch, expected: expectedAuth ?? store.getState().accounts.webhook?.auth }),
+    setLastSubmitFields: (platform, fields, expectedAuth) => mutate({ kind: "prefill", platform, fields, expected: expectedAuth ?? store.getState().accounts[platform]?.auth }),
+    setLastSubmittedPlatform: (platform) => mutate({ kind: "settings", patch: { lastSubmittedPlatform: platform } }),
+    setTitlePrefix: (titlePrefix) => mutate({ kind: "settings", patch: { titlePrefix } }),
+  }));
+  const adapter = createSettingsAdapter((data) => store.setState(data));
+  function mutate(intent: SettingsIntent) {
+    store.setState(applySettingsIntent(store.getState(), intent));
+    adapter.enqueue(intent);
   }
-  const lastSubmitFields: LastSubmitFieldsByPlatform = {};
-  if (legacy.lastSubmitFields && Object.keys(legacy.lastSubmitFields).length) {
-    lastSubmitFields.jira = { ...legacy.lastSubmitFields };
-  }
-  return { accounts, lastSubmitFields };
+  const result = Object.assign(store, { persist: {
+    ...adapter,
+    getOptions: () => ({ version: SETTINGS_STORE_VERSION, migrate: migrateSettings }),
+  } });
+  return result;
 }
 
-function readTitlePrefix(account: unknown): string | undefined {
-  const tp = (account as Record<string, unknown> | undefined)?.titlePrefix;
-  return typeof tp === "string" ? tp : undefined;
-}
-
-export function migrateToV5(state: V3Shape): V3Shape & { titlePrefix: string } {
-  const a = state.accounts;
-  const prefix =
-    readTitlePrefix(a.jira) ?? readTitlePrefix(a.github) ?? readTitlePrefix(a.linear) ?? "";
-  return { ...state, titlePrefix: prefix };
-}
-
-// v11: jira 연결 이슈 단일→복수. 직전 제출값의 relatesKey/relatesLabel을 relates[] 첫 항목으로 이관.
-// v10 데이터는 jira에 옛 relatesKey/relatesLabel을 들고 오므로 입력 타입에서 그 키를 허용한다.
-type JiraLastSubmitPreV11 = JiraLastSubmitFields & {
-  relatesKey?: string;
-  relatesLabel?: string;
-};
-type PreV11Shape = {
-  accounts: V3Shape["accounts"];
-  lastSubmitFields: Omit<V3Shape["lastSubmitFields"], "jira"> & {
-    jira?: JiraLastSubmitPreV11;
-  };
-};
-
-export function migrateToV11(state: PreV11Shape): V3Shape {
-  const lastSubmitFields = state.lastSubmitFields ?? {};
-  const jira = lastSubmitFields.jira;
-  if (!jira?.relatesKey) return { ...state, lastSubmitFields } as V3Shape;
-  const { relatesKey, relatesLabel, ...rest } = jira;
-  return {
-    ...state,
-    lastSubmitFields: {
-      ...lastSubmitFields,
-      jira: { ...rest, relates: [{ key: relatesKey, label: relatesLabel ?? relatesKey }] },
-    },
-  } as V3Shape;
-}
-
-// url 없는 webhook 계정은 제출이 불가능한 껍데기다. 정상 경로로는 생기지 않지만
-// (연결 테스트를 통과해야 저장된다) 그대로 두면 탭만 뜨고 제출이 매번 실패한다.
-export function migrateToV12(state: V3Shape): V3Shape {
-  const accounts = (state.accounts ?? {}) as Record<string, unknown>;
-  const wh = accounts.webhook as { auth?: { url?: unknown } } | undefined;
-  if (!wh) return state;
-  if (typeof wh.auth?.url === "string" && wh.auth.url !== "") return state;
-  const { webhook: _drop, ...rest } = accounts;
-  return { ...state, accounts: rest } as V3Shape;
-}
-
-export function isV3Shape(state: unknown): state is V3Shape {
-  if (!state || typeof state !== "object") return false;
-  return "accounts" in state;
-}
-
-export const useSettingsStore = create<SettingsState>()(
-  persist(
-    (set) => ({
-      accounts: {},
-      lastSubmitFields: {},
-      titlePrefix: "",
-      // **다른** 계정이 들어오면 그 플랫폼의 직전 제출값을 버린다. 남기면 이전 계정의
-      // 목적지(owner/repo·workspace 등)가 새 자격증명에 prefill되고, 그 계정이 그 목적지에
-      // 접근 권한을 가지면 캡처 데이터가 이전 조직으로 나간다. 계정 신원 게이트를 가진 건
-      // Jira(lib/initialJiraFields의 siteId 대조)뿐이라 나머지 7개엔 방어가 없다.
-      // 해제→연결 시절엔 removeAccount가 이걸 지워줘서 드러나지 않던 축이다.
-      //
-      // 반대로 **같은** 계정이면 남긴다 — 토큰 만료 재연동은 계정 변경이 아니고, 거기서
-      // 설정을 초기화하면 만료 복구가 매번 재입력을 강요한다. 신원 판정은 storage writer와
-      // 같은 술어·같은 토큰 축을 쓴다.
-      setAccount: (platform, account) =>
-        set((s) => {
-          const prevAccount = s.accounts[platform] as
-            | Record<string, unknown>
-            | undefined;
-          const nextAccount = account as Record<string, unknown> | undefined;
-          const prev = prevAccount?.auth as Record<string, unknown> | undefined;
-          const next = nextAccount?.auth as Record<string, unknown> | undefined;
-          // 계정 신원은 대개 auth 안에 있지만(cloudId·baseUrl·viewer*) slack만 팀이
-          // 계정 필드다 — 그것까지 봐야 다른 워크스페이스로 재연동한 걸 가른다.
-          const sameAccount =
-            !!prev &&
-            !!next &&
-            sameAuthIdentity(next, prev, accountIdentityExcluded(platform)) &&
-            (ACCOUNT_IDENTITY_FIELDS[platform] ?? []).every(
-              (key) => nextAccount?.[key] === prevAccount?.[key],
-            );
-          const nextFields = { ...s.lastSubmitFields };
-          if (!sameAccount) delete nextFields[platform];
-          return {
-            accounts: { ...s.accounts, [platform]: account },
-            lastSubmitFields: nextFields,
-          };
-        }),
-      removeAccount: (platform) =>
-        set((s) => {
-          const next = { ...s.accounts };
-          delete next[platform];
-          // 연동 해제 시 해당 플랫폼의 prefill(issueType·assignee 등)도 함께 정리.
-          const nextFields = { ...s.lastSubmitFields };
-          delete nextFields[platform];
-          return { accounts: next, lastSubmitFields: nextFields };
-        }),
-      removeAllAccounts: () => set({ accounts: {}, lastSubmitFields: {} }),
-      updateJiraAccount: (patch) =>
-        set((s) => {
-          const cur = s.accounts.jira;
-          if (!cur) return s;
-          return { accounts: { ...s.accounts, jira: { ...cur, ...patch } } };
-        }),
-      updateGithubAccount: (patch) =>
-        set((s) => {
-          const cur = s.accounts.github;
-          if (!cur) return s;
-          return { accounts: { ...s.accounts, github: { ...cur, ...patch } } };
-        }),
-      updateLinearAccount: (patch) =>
-        set((s) => {
-          const cur = s.accounts.linear;
-          if (!cur) return s;
-          return { accounts: { ...s.accounts, linear: { ...cur, ...patch } } };
-        }),
-      updateNotionAccount: (patch) =>
-        set((s) => {
-          const cur = s.accounts.notion;
-          if (!cur) return s;
-          return { accounts: { ...s.accounts, notion: { ...cur, ...patch } } };
-        }),
-      updateGitlabAccount: (patch) =>
-        set((s) => {
-          const cur = s.accounts.gitlab;
-          if (!cur) return s;
-          return { accounts: { ...s.accounts, gitlab: { ...cur, ...patch } } };
-        }),
-      updateAsanaAccount: (patch) =>
-        set((s) => {
-          const cur = s.accounts.asana;
-          if (!cur) return s;
-          return { accounts: { ...s.accounts, asana: { ...cur, ...patch } } };
-        }),
-      updateClickupAccount: (patch) =>
-        set((s) => {
-          const cur = s.accounts.clickup;
-          if (!cur) return s;
-          return { accounts: { ...s.accounts, clickup: { ...cur, ...patch } } };
-        }),
-      updateSlackAccount: (patch) =>
-        set((s) => {
-          const cur = s.accounts.slack;
-          if (!cur) return s;
-          return { accounts: { ...s.accounts, slack: { ...cur, ...patch } } };
-        }),
-      updateWebhookAccount: (patch) =>
-        set((s) => {
-          const cur = s.accounts.webhook;
-          if (!cur) return s;
-          return { accounts: { ...s.accounts, webhook: { ...cur, ...patch } } };
-        }),
-      setLastSubmitFields: (platform, fields) =>
-        set((s) => ({
-          lastSubmitFields: { ...s.lastSubmitFields, [platform]: fields },
-        })),
-      setLastSubmittedPlatform: (platform) =>
-        set({ lastSubmittedPlatform: platform }),
-      setTitlePrefix: (prefix) => set({ titlePrefix: prefix }),
-    }),
-    {
-      name: SETTINGS_STORAGE_KEY,
-      version: SETTINGS_STORE_VERSION,
-      storage: createJSONStorage(() => chromeLocalStorage),
-      migrate: (persistedState, version) => {
-        let state: Record<string, unknown>;
-        if (isV3Shape(persistedState)) {
-          state = persistedState as Record<string, unknown>;
-        } else {
-          let v2: LegacyV2;
-          if (version >= 2) {
-            v2 = (persistedState as LegacyV2) ?? {};
-          } else {
-            v2 = migrateV1ToV2((persistedState as LegacyV1) ?? {});
-          }
-          state = migrateV2ToV3(v2) as Record<string, unknown>;
-        }
-        if (version < 5) {
-          state = migrateToV5(state as V3Shape);
-        }
-        if (version < 11) {
-          state = migrateToV11(state as V3Shape) as Record<string, unknown>;
-        }
-        if (version < 12) {
-          state = migrateToV12(state as V3Shape) as Record<string, unknown>;
-        }
-        return state as unknown as SettingsState;
-      },
-    },
-  ),
-);
+export const useSettingsStore = createSettingsStore();
+void useSettingsStore.persist.rehydrate();
 
 export function isJiraAccountComplete(
   acc: JiraAccount | undefined,

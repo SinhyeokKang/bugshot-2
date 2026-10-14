@@ -46,8 +46,8 @@ export function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
 }
 
 const SAVE_DEBOUNCE_MS = 300;
-// hydrate는 이 세 phase를 idle로 강등하므로, IDB 왕복 뒤 store가 여기 있다면 그 사이
-// 사용자가 **새 캡처를 시작한 것**이다 — 직전 세션의 늦은 복원분으로 덮지 않는다.
+// hydrate는 이 세 phase를 idle로 강등한다. 이후 진입은 새 캡처이므로
+// 이미 drafting까지 끝났어도 이전 IDB 복원이 덮지 않도록 전이를 기억한다.
 const ACTIVE_CAPTURE_PHASES = new Set(["picking", "capturing", "recording"]);
 
 // videoBlob 제외: Blob은 chrome.storage 직렬화 불가 → 로그와 동일하게 IndexedDB(pending:${tabId})에
@@ -118,6 +118,8 @@ export function useEditorSessionSync(tabId: number | null): boolean {
     }
 
     let cancelled = false;
+    let restoredState: EditorState | null = null;
+    let restoreSuperseded = false;
     const key = sessionKey(tabId);
 
     void chrome.storage.session.get(key).then((data) => {
@@ -131,6 +133,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
           snap.phase = "idle";
         }
         useEditorStore.getState().hydrate(migrateLegacyDraft(snap));
+        restoredState = useEditorStore.getState();
         // 패널이 닫힐 때 port disconnect로 페이지 편집이 전부 원복되므로, styling 복원은
         // DOM 재적용 + picker 재바인딩까지 마쳐야 유령 세션이 안 된다(실패 시 sessionExpired).
         if (snap.phase === "styling" && snap.captureMode === "element") {
@@ -140,17 +143,28 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         // 뜨도록. logsAttach는 스냅샷 hydrate 값 유지(부재 시 카드가 사라지는 구 버그 해소).
         // 바깥 .then의 cancelled 확인만으론 부족하다 — 같은 탭에서 새 캡처가 시작되는 경우는
         // cancelled가 서지 않으므로 도착 시점에 세션 세대를 다시 본다.
-        const superseded = (): boolean =>
-          cancelled || ACTIVE_CAPTURE_PHASES.has(useEditorStore.getState().phase);
-        getNetworkLog(pendingKey(tabId)).then((log) => {
-          if (log && !superseded()) useEditorStore.getState().setNetworkLog(log);
-        }).catch(() => {});
-        getConsoleLog(pendingKey(tabId)).then((log) => {
-          if (log && !superseded()) useEditorStore.getState().setConsoleLog(log);
-        }).catch(() => {});
-        getActionLog(pendingKey(tabId)).then((log) => {
-          if (log && !superseded()) useEditorStore.getState().setActionLog(log);
-        }).catch(() => {});
+        const superseded = (): boolean => cancelled || restoreSuperseded;
+        const restoreLog = async <T,>(read: (key: string) => Promise<T | null>) => {
+          const owned = snap.currentIssueId ? await read(snap.currentIssueId) : null;
+          return owned ?? await read(pendingKey(tabId));
+        };
+        if (snap.captureMode !== "element") {
+          restoreLog(getNetworkLog).then((log) => {
+            if (log && !superseded() && useEditorStore.getState().networkLog === restoredState?.networkLog) {
+              useEditorStore.getState().setNetworkLog(log);
+            }
+          }).catch(() => {});
+          restoreLog(getConsoleLog).then((log) => {
+            if (log && !superseded() && useEditorStore.getState().consoleLog === restoredState?.consoleLog) {
+              useEditorStore.getState().setConsoleLog(log);
+            }
+          }).catch(() => {});
+          restoreLog(getActionLog).then((log) => {
+            if (log && !superseded() && useEditorStore.getState().actionLog === restoredState?.actionLog) {
+              useEditorStore.getState().setActionLog(log);
+            }
+          }).catch(() => {});
+        }
         // 영상 blob은 스냅샷 밖(직렬화 불가)이라 IDB에서 복원. drafting은 pending:${tabId}에,
         // confirm 후(previewing/done, 또는 backToDraft로 돌아온 drafting)엔 issueId 키에 있으므로
         // pending → currentIssueId 순으로 조회. 둘 다 없으면 썸네일만 남고 videoBlob은 null.
@@ -178,6 +192,12 @@ export function useEditorSessionSync(tabId: number | null): boolean {
 
     const unsubStore = useEditorStore.subscribe((state, prev) => {
       if (state === prev) return;
+      if (restoredState && (
+        state.target !== restoredState.target ||
+        state.captureMode !== restoredState.captureMode ||
+        state.currentIssueId !== restoredState.currentIssueId ||
+        ACTIVE_CAPTURE_PHASES.has(state.phase)
+      )) restoreSuperseded = true;
 
       if (FROZEN_PHASES.has(prev.phase) && !FROZEN_PHASES.has(state.phase)) {
         const sections = prev.draft?.sections;

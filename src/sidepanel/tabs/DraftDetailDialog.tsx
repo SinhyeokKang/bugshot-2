@@ -1,3 +1,4 @@
+import { acquireStoredAuth } from "@/lib/settings-storage";
 import { AttachmentRecoveryPanel } from "@/sidepanel/components/AttachmentRecoveryPanel";
 import { PageScroll } from "@/sidepanel/components/Section";
 import { retryUiState } from "@/sidepanel/lib/retryUi";
@@ -493,6 +494,7 @@ function EditableDraftDetailDialog({
     ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = jiraAccount?.auth && await acquireStoredAuth("jira", jiraAccount.auth);
     if (!issue) throw new Error(t("create.requiredMissing"));
     // 유효 프로젝트는 이번 제출의 필드값이고 계정 설정은 fallback일 뿐이다 (IssueCreateModal과 동일).
     const projectKey = fields.projectKey ?? jiraAccount?.projectKey;
@@ -531,6 +533,7 @@ function EditableDraftDetailDialog({
         issueTypeId: fields.issueTypeId,
         siteId: jiraSiteId(jiraAccount.auth),
       }),
+      sourceAuth,
     );
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
     return { key: result.key, url: result.url, attachments: result.attachments };
@@ -540,6 +543,7 @@ function EditableDraftDetailDialog({
     ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = ghAccount?.auth && await acquireStoredAuth("github", ghAccount.auth);
     if (!issue) throw new Error(t("create.requiredMissing"));
     if (!ghAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.github") }));
@@ -567,7 +571,7 @@ function EditableDraftDetailDialog({
       githubRepo: ghFields.repo,
       githubLabels: ghFields.label ? [ghFields.label] : undefined,
     });
-    useSettingsStore.getState().setLastSubmitFields("github", githubLastSubmitFields(ghFields));
+    useSettingsStore.getState().setLastSubmitFields("github", githubLastSubmitFields(ghFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("github");
     return result;
   }
@@ -576,6 +580,7 @@ function EditableDraftDetailDialog({
     ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = linearAccount?.auth && await acquireStoredAuth("linear", linearAccount.auth);
     if (!issue) throw new Error(t("create.requiredMissing"));
     if (!linearAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.linear") }));
@@ -602,7 +607,7 @@ function EditableDraftDetailDialog({
       linearTeamKey: linearFields.teamKey,
       linearLabelName: linearFields.labelName,
     });
-    useSettingsStore.getState().setLastSubmitFields("linear", linearLastSubmitFields(linearFields));
+    useSettingsStore.getState().setLastSubmitFields("linear", linearLastSubmitFields(linearFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("linear");
     return result;
   }
@@ -611,6 +616,7 @@ function EditableDraftDetailDialog({
     ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = notionAccount?.auth && await acquireStoredAuth("notion", notionAccount.auth);
     if (!issue) throw new Error(t("create.requiredMissing"));
     if (!notionAccount) {
       throw new Error(
@@ -645,7 +651,7 @@ function EditableDraftDetailDialog({
       notionDatabaseTitle: notionFields.databaseTitle,
       notionStatusOption: notionFields.statusOption,
     });
-    useSettingsStore.getState().setLastSubmitFields("notion", notionLastSubmitFields(notionFields));
+    useSettingsStore.getState().setLastSubmitFields("notion", notionLastSubmitFields(notionFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("notion");
     return result;
   }
@@ -654,6 +660,7 @@ function EditableDraftDetailDialog({
     ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = gitlabAccount?.auth && await acquireStoredAuth("gitlab", gitlabAccount.auth);
     if (!issue) throw new Error(t("create.requiredMissing"));
     if (!gitlabAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.gitlab") }));
@@ -680,7 +687,7 @@ function EditableDraftDetailDialog({
       gitlabIssueIid: Number(result.key.replace(/^#/, "")),
       gitlabLabels: gitlabFields.label ? [gitlabFields.label] : undefined,
     });
-    useSettingsStore.getState().setLastSubmitFields("gitlab", gitlabLastSubmitFields(gitlabFields));
+    useSettingsStore.getState().setLastSubmitFields("gitlab", gitlabLastSubmitFields(gitlabFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
     return result;
   }
@@ -689,6 +696,7 @@ function EditableDraftDetailDialog({
     ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = asanaAccount?.auth && await acquireStoredAuth("asana", asanaAccount.auth);
     if (!issue) throw new Error(t("create.requiredMissing"));
     if (!asanaAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.asana") }));
@@ -713,7 +721,7 @@ function EditableDraftDetailDialog({
       url: result.url,
       asanaTaskGid: result.key,
     });
-    useSettingsStore.getState().setLastSubmitFields("asana", asanaLastSubmitFields(asanaFields));
+    useSettingsStore.getState().setLastSubmitFields("asana", asanaLastSubmitFields(asanaFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("asana");
     return result;
   }
@@ -722,6 +730,7 @@ function EditableDraftDetailDialog({
     ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = clickupAccount?.auth && await acquireStoredAuth("clickup", clickupAccount.auth);
     if (!issue) throw new Error(t("create.requiredMissing"));
     if (!clickupAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.clickup") }));
@@ -748,7 +757,7 @@ function EditableDraftDetailDialog({
       url: result.url,
       clickupTaskId: result.key,
     });
-    useSettingsStore.getState().setLastSubmitFields("clickup", clickupLastSubmitFields(clickupFields));
+    useSettingsStore.getState().setLastSubmitFields("clickup", clickupLastSubmitFields(clickupFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("clickup");
     return result;
   }
@@ -757,6 +766,7 @@ function EditableDraftDetailDialog({
     ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = slackAccount?.auth && await acquireStoredAuth("slack", slackAccount.auth);
     if (!issue) throw new Error(t("create.requiredMissing"));
     if (!slackAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.slack") }));
@@ -777,7 +787,7 @@ function EditableDraftDetailDialog({
       key: result.key,
       url: result.url,
     });
-    useSettingsStore.getState().setLastSubmitFields("slack", slackLastSubmitFields(slackFields));
+    useSettingsStore.getState().setLastSubmitFields("slack", slackLastSubmitFields(slackFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("slack");
     return result;
   }

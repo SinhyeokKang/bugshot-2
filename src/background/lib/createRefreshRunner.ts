@@ -1,3 +1,4 @@
+import { acquireRequestAuth } from "./authContext";
 import { t } from "@/i18n";
 import type { PlatformId } from "@/types/platform";
 import { OAuthError } from "../oauth/errors";
@@ -25,6 +26,7 @@ export function createRefreshRunner<
   let refreshHook: RefreshHook<A> = null;
 
   async function ensureFresh(auth: A): Promise<A> {
+    auth = await acquireRequestAuth(platform, auth);
     if (auth.kind !== "oauth" || !refreshHook) return auth;
     if (auth.expiresAt == null) return auth;
     if (auth.expiresAt - Date.now() > TOKEN_REFRESH_THRESHOLD_MS) return auth;
@@ -41,6 +43,7 @@ export function createRefreshRunner<
       cur = await inRefreshLane(() => refreshHook!(cur), platform);
       res = await doFetch(cur);
       if (res.status === 401) {
+        await acquireRequestAuth(platform, cur);
         // 최초 연결의 getMyself가 401을 받아 여기까지 오면 집계 대상이다. 태깅이 없으면
         // 같은 프로필 조회 레인이 other로 새서 플랫폼별 분포가 어긋난다.
         // refreshFailed는 refresh 레인 기본값이다 — connectLane.ts 헤더 참조.

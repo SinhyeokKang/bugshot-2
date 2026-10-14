@@ -1,4 +1,4 @@
-import { useEditorStore } from "@/store/editor-store";
+import { useEditorStore, type EditorState } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { resolveBodyLocale } from "@/i18n/locales";
 import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
@@ -19,8 +19,7 @@ import { dataUrlToBlob } from "@/store/blob-db";
 
 // 이슈 제출(IssueCreateModal)과 패널 로그 다운로드가 동일한 logs.html을 만들도록 ctx·캡처 입력을
 // 단일 출처로 둔다. editor/settings store에서 직접 읽는다(제출 다이얼로그가 쓰던 buildCtx 이관).
-export function buildEditorMarkdownContext(): MarkdownContext | null {
-  const s = useEditorStore.getState();
+export function buildEditorMarkdownContext(s: EditorState = useEditorStore.getState()): MarkdownContext | null {
   const settings = useSettingsUiStore.getState();
   const sectionConfig = settings.issueSections;
   const {
@@ -140,8 +139,7 @@ export function buildEditorMarkdownContext(): MarkdownContext | null {
 
 // buildCaptureFiles 입력 중 userAttachments를 제외한 부분(logs.html은 userAttachments와 무관) —
 // 제출 첨부와 동일한 logs.html을 보장하는 단일 출처. IssueCreateModal은 여기에 userAttachments만 더한다.
-export function buildEditorLogsCaptureInput(ctx: MarkdownContext): BuildCaptureFilesInput {
-  const s = useEditorStore.getState();
+export function buildEditorLogsCaptureInput(ctx: MarkdownContext, s: EditorState = useEditorStore.getState()): BuildCaptureFilesInput {
   const sectionConfig = useSettingsUiStore.getState().issueSections;
   const {
     captureMode,

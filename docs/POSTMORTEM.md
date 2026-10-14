@@ -36,6 +36,67 @@
 
 ---
 
+## 2026-10-14 — 토큰 차이와 플랫폼 단위 Promise는 재연결된 grant를 구분하지 못한다
+
+- **영역**: `background`, `어댑터`, `store`
+- **계열**: `취소래치`, `미검증단언`
+- **그물**: `unit`
+- **증상**: A로 시작한 요청이 재연결된 B의 토큰을 회전 결과로 채택하거나, 이전 refresh 결과가 새 연결에 섞인다.
+- **근본 원인**: refresh token이 다르다는 사실을 같은 grant의 회전으로 해석했고, 플랫폼마다 하나인 진행 중 Promise도 계정 교체를 구별하지 못했다. 저장 writer만 막아도 읽는 쪽이 B 인증을 사용하면 이미 잘못된 요청이 나간다.
+- **재발 방지**: 신규 연결의 불변 grantId와 계정 신원을 분리하고, legacy는 최초 네트워크 전에 원 토큰을 대조해 승격한다. 저장 전 후보는 명시적 문맥으로만 열고 refresh 결과를 모든 대기자의 최종 연결 입력에 전달한다. 일반 API 외 Jira 미디어 GET/HEAD·지연 재시도도 전수 확인한다. 테스트는 5개 제공자의 실제 URL·Authorization·정확한 refresh body·최종 저장 토큰과 serializer→bg-client의 만료 이벤트를 단언한다. A refresh를 붙잡은 채 B refresh를 완료해도 A가 B를 사용하지 않아야 한다.
+- **관련**: `background/lib/authContext.ts`, `rotatedAuth.ts`, `jira-api.ts:getMediaFileId`, `lib/settings-storage.ts`; `auth-grants.test.ts`, `auth-candidates.test.ts`, `auth-messages.test.ts`, `jira-candidate-connect.test.tsx`.
+
+## 2026-10-14 — 설정 봉투 잠금만으로는 오래된 패널의 전체 저장을 막지 못한다
+
+- **영역**: `store`, `background`, `에디터`
+- **계열**: `취소래치`, `드리프트`
+- **그물**: `unit`
+- **증상**: 한 패널의 설정 변경이 다른 패널·background가 갱신한 토큰을 되돌리거나, 늦은 제출·schema 조회가 새 계정의 최근 선택값·기본값을 바꾼다.
+- **근본 원인**: 여러 realm이 같은 settings 봉투를 각자 읽고 통째로 썼다. 잠금 아래에서도 stale snapshot 전체를 쓰면 갱신 토큰이 사라진다. 비동기 완료 시점에 현재 인증을 붙이면 이전 요청의 결과가 새 계정의 변경 의도로 위장된다. 실패한 저장 도중 들어온 새 의도는 실행 중 Promise만 공유하면 재시도 계기를 잃는다.
+- **재발 방지**: 모든 set/remove/migration/token writer를 같은 queued Web Lock으로 묶고 최신 저장값에 명시적 intent만 적용한다. durable 성공 뒤 ack하며 실패한 앞 intent와 clearStorage는 큐에 남긴다. 새 액션·외부 이벤트의 wake와 hydration generation을 구분하고, 비동기 계정 종속 patch는 await 전에 인증을 잡는다. 독립 store 2개·복제 storage·실제 background writer·실제 onChanged를 묶어 경쟁과 실패 복구를 강제한다. 잠금을 제거한 mutation이 red인지, 자기 이벤트가 유한 write로 끝나는지도 확인한다.
+- **관련**: `lib/settings-envelope.ts`, `settings-mutations.ts`, `store/settings-adapter.ts`, `sidepanel/lib/settings-sync.ts`, 두 제출 컴포넌트와 `NotionConnectForm.tsx`; `settings-transactions.test.ts`, `submission-grants.test.tsx`, `notion-account-grant.test.tsx`.
+
+## 2026-10-14 — 포커스 토큰과 그림자 존재만으로 실제 대비를 증명할 수 없다
+
+- **영역**: `디자인`, `컴포넌트`, `미디어`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: 로그 뷰어 탐색 막대에 키보드 포커스를 추가했지만 어두운 테마에서는 포커스 표시가 검은 영상 배경과 거의 구분되지 않았다.
+- **근본 원인**: 의미상 포커스 토큰인 `ring-ring`을 쓰고 그림자가 존재하는지만 검사했다. 실제 다크 토큰은 #262626으로 검은 배경 대비가 1.39:1이었다. 클래스 이름과 CSS 생성 여부는 시인성의 증거가 아니다.
+- **재발 방지**: 고정 검은 미디어 표면에는 흰 ring과 검은 offset을 적용한다. 두 테마에서 실제 computed ring/offset 색의 명도 대비를 계산해 3:1 이상을 단언하고, Tab·방향키·Home/End의 실제 video.currentTime과 ARIA 값까지 검증한다.
+- **관련**: `src/log-viewer/components/ProgressBar.tsx`, `e2e/logview/log-viewer-sync.spec.ts`. 대비 회귀 테스트는 수정 전 red, 수정 후 두 테마 모두 21:1로 green.
+
+## 2026-10-14 — 로그 소유권 이동 뒤 복원과 제출 소비자가 서로 다른 원본을 읽음
+
+- **영역**: `에디터`, `store`
+- **계열**: `드리프트`, `취소래치`
+- **그물**: `jsdom`
+- **증상**: 확정한 screenshot/video/freeform 초안을 패널 재개 후 제출하면 logs.html과 본문 로그 요약이 빠진다.
+- **근본 원인**: 확정이 로그를 pending에서 issue 소유로 옮겼지만 세션 복원은 pending만 읽었고, 제출 직전 복구 함수 반환값도 파일·본문 생성 입력으로 연결되지 않았다. 현재 phase만 보는 취소 검사는 새 캡처가 이미 drafting까지 끝난 경우 이전 복원을 허용했다.
+- **재발 방지**: `rg 'loadSubmissionLogs|buildEditorMarkdownContext|buildEditorLogsCaptureInput|pendingKey' src/sidepanel`로 소유권 생산자부터 실제 소비자까지 대조한다. 헬퍼를 수동 조립한 테스트에 그치지 말고 실제 modal submit의 외부 요청 직전 HTML/body를 검증한다. 비동기 복원은 도착 시점 상태 외에 교체 이력을 래치로 보존한다.
+- **관련**: `useEditorSessionSync.ts`, `IssueCreateModal.tsx:handleSubmit`, `buildEditorCapture.ts`; hydration·submissionRecovery·IssueCreateModalRecovery 테스트. 원본 modal로 되돌린 mutation에서 세 모드의 소비자 회귀가 모두 red.
+
+## 2026-10-14 — 빈 첨부 목록을 저장 생략으로 해석해 삭제한 파일이 메타에 남음
+
+- **영역**: `에디터`, `store`
+- **그물**: `unit`
+- **증상**: 마지막 첨부 삭제 후 재확정한 저장 초안이 이미 삭제한 파일을 MissingSubmissionFilesError로 처리한다.
+- **근본 원인**: blob rekey의 비어 있지 않음 조건을 메타 갱신에도 재사용했고, saveDraft 병합은 미전달 attachments를 유지했다. 빈 배열은 무작업이 아니라 명시적 삭제 상태였다.
+- **재발 방지**: `rg 'attachments.length|attachments:' src/store/editor-store.ts`로 영속 메타 쓰기와 blob 작업의 게이트를 분리해 점검한다. 마지막·일부 삭제 뒤 실제 저장 레코드와 IDB를 조회하고 저장 초안 제출의 source 검증과 recovery prepare까지 실행한다.
+- **관련**: `editor-store.ts:confirmDraft`, `submissionRecovery.test.ts`의 마지막·일부 파일 삭제 회귀.
+
+## 2026-10-14 — 연결 실패 레인은 OAuth 진입점만 감싸면 수동 토큰 검증에서 다시 샌다
+
+- **영역**: `background`, `lib`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: Notion 수동 토큰을 잘못 입력하면 연결 폼 오류와 함께 기존 연결이 만료된 것처럼 전역 재연결 안내가 떴다.
+- **근본 원인**: 새 토큰 검증과 저장된 인증 사용이 같은 Notion API의 401 처리로 들어간다. OAuth 연결 진입점은 `inConnectLane`을 쓰지만 `notion.testToken`은 직접 `getMyself`를 호출하여 `refreshFailed`가 직렬화 경계를 넘어 `sendBg`의 전역 이벤트로 전파됐다. 폼의 catch는 reject 전에 발생한 전역 이벤트를 막지 못한다.
+- **재발 방지**: `rg -n 'testToken|testPat|testApiKey|inConnectLane' src/background`로 신규 자격증명 검증 진입점을 조회하고 저장 인증 사용 경로와 레인을 대조한다. 헬퍼 테스트 외에 실제 메시지 리스너→직렬화→`sendBg`를 통과시켜 신규 토큰의 전역 이벤트 0회와 저장 인증의 전역 이벤트 1회를 함께 단언한다.
+- **관련**: `src/background/messages.ts:notion.testToken`, `src/background/__tests__/notion-connect-messages.test.ts`; 선행 2026-08-19 “기본값을 뒤집는 변경은 반대 방향이 본체”.
+
+---
+
 ## 2026-10-13 — 형제 Radix Tooltip을 연달아 훑은 직후 `getByRole("tooltip")`은 exit 애니메이션 중인 앞 툴팁까지 잡아 strict 위반으로 플레이키하다
 
 - **영역**: `e2e`

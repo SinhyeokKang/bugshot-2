@@ -1,3 +1,4 @@
+import { createAuthCandidate } from "../authContext";
 import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/i18n", () => ({
@@ -24,17 +25,17 @@ function res(status: number): { status: number } {
 describe("createRefreshRunner — ensureFresh (pre-refresh)", () => {
   it("hook 미등록이면 auth 그대로 반환", async () => {
     const runner = createRefreshRunner<FakeAuth>("github");
-    const auth: FakeAuth = { kind: "oauth", token: "old", expiresAt: SOON() };
+    const auth: FakeAuth = createAuthCandidate({ kind: "oauth", token: "old", expiresAt: SOON() }).current;
     expect(await runner.ensureFresh(auth)).toBe(auth);
   });
 
   it("oauth + 만료 60s 이내면 hook으로 갱신 auth 반환", async () => {
     const runner = createRefreshRunner<FakeAuth>("github");
-    const refreshed: FakeAuth = { kind: "oauth", token: "new", expiresAt: FAR() };
+    const refreshed: FakeAuth = createAuthCandidate({ kind: "oauth", token: "new", expiresAt: FAR() }).current;
     const hook = vi.fn(async () => refreshed);
     runner.setRefreshHook(hook);
 
-    const auth: FakeAuth = { kind: "oauth", token: "old", expiresAt: SOON() };
+    const auth: FakeAuth = createAuthCandidate({ kind: "oauth", token: "old", expiresAt: SOON() }).current;
     expect(await runner.ensureFresh(auth)).toBe(refreshed);
     expect(hook).toHaveBeenCalledWith(auth);
   });
@@ -44,7 +45,7 @@ describe("createRefreshRunner — ensureFresh (pre-refresh)", () => {
     const hook = vi.fn(async (a: FakeAuth) => a);
     runner.setRefreshHook(hook);
 
-    const auth: FakeAuth = { kind: "oauth", token: "ok", expiresAt: FAR() };
+    const auth: FakeAuth = createAuthCandidate({ kind: "oauth", token: "ok", expiresAt: FAR() }).current;
     expect(await runner.ensureFresh(auth)).toBe(auth);
     expect(hook).not.toHaveBeenCalled();
   });
@@ -54,7 +55,7 @@ describe("createRefreshRunner — ensureFresh (pre-refresh)", () => {
     const hook = vi.fn(async (a: FakeAuth) => a);
     runner.setRefreshHook(hook);
 
-    const auth: FakeAuth = { kind: "oauth", token: "no-expiry", expiresAt: null };
+    const auth: FakeAuth = createAuthCandidate({ kind: "oauth", token: "no-expiry", expiresAt: null }).current;
     expect(await runner.ensureFresh(auth)).toBe(auth);
     expect(hook).not.toHaveBeenCalled();
   });
@@ -63,12 +64,12 @@ describe("createRefreshRunner — ensureFresh (pre-refresh)", () => {
 describe("createRefreshRunner — runWithAuthRetry (401 경로)", () => {
   it("401 → hook 갱신 → 갱신 auth로 재요청 성공", async () => {
     const runner = createRefreshRunner<FakeAuth>("github");
-    const refreshed: FakeAuth = { kind: "oauth", token: "new", expiresAt: FAR() };
+    const refreshed: FakeAuth = createAuthCandidate({ kind: "oauth", token: "new", expiresAt: FAR() }).current;
     const hook = vi.fn(async () => refreshed);
     runner.setRefreshHook(hook);
 
     const doFetch = vi.fn(async (a: FakeAuth) => (a.token === "new" ? res(200) : res(401)));
-    const auth: FakeAuth = { kind: "oauth", token: "old", expiresAt: FAR() };
+    const auth: FakeAuth = createAuthCandidate({ kind: "oauth", token: "old", expiresAt: FAR() }).current;
 
     const out = await runner.runWithAuthRetry(auth, doFetch);
     expect(out.status).toBe(200);
@@ -82,7 +83,7 @@ describe("createRefreshRunner — runWithAuthRetry (401 경로)", () => {
     runner.setRefreshHook(async (a) => a);
 
     const doFetch = vi.fn(async () => res(401));
-    const auth: FakeAuth = { kind: "oauth", token: "dead", expiresAt: FAR() };
+    const auth: FakeAuth = createAuthCandidate({ kind: "oauth", token: "dead", expiresAt: FAR() }).current;
 
     const err = await runner.runWithAuthRetry(auth, doFetch).catch((e) => e);
     expect(err).toBeInstanceOf(OAuthError);
@@ -97,7 +98,7 @@ describe("createRefreshRunner — runWithAuthRetry (401 경로)", () => {
     runner.setRefreshHook(hook);
 
     const doFetch = vi.fn(async () => res(401));
-    const auth: FakeAuth = { kind: "manual", token: "pat" };
+    const auth: FakeAuth = createAuthCandidate({ kind: "manual", token: "pat" }).current;
 
     const out = await runner.runWithAuthRetry(auth, doFetch);
     expect(out.status).toBe(401);
@@ -108,7 +109,7 @@ describe("createRefreshRunner — runWithAuthRetry (401 경로)", () => {
   it("hook 미등록 oauth는 401 응답 그대로 반환 (재시도 없음)", async () => {
     const runner = createRefreshRunner<FakeAuth>("github");
     const doFetch = vi.fn(async () => res(401));
-    const auth: FakeAuth = { kind: "oauth", token: "old", expiresAt: FAR() };
+    const auth: FakeAuth = createAuthCandidate({ kind: "oauth", token: "old", expiresAt: FAR() }).current;
 
     const out = await runner.runWithAuthRetry(auth, doFetch);
     expect(out.status).toBe(401);
