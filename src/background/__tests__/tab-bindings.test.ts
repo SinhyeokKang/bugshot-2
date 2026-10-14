@@ -803,3 +803,182 @@ describe("activation 큐 — apply의 read 직렬화", () => {
     expect(c.activatedNow()).toContain(2);
   });
 });
+
+// 탭 모드(패널을 탭으로 연 경우) 정지 예외의 배선. 판정 표는 `lib/__tests__/panel-tab-url.test.ts`가
+// 잠그고, 여기서는 그 표의 입력(getContexts → panelTarget)을 만드는 파생부와 정지 송신을 잠근다
+// (POSTMORTEM 2026-07-27 — 표가 촘촘해도 입력 파생에 테스트가 0이면 무음 무력화된다).
+describe("onActivated — 패널 탭 정지 예외", () => {
+  const EXT = "chrome-extension://abcdefghijklmnop/";
+  const T = 10;
+  const PANEL = 20;
+  const X = 30;
+  const WIN = 1;
+
+  type Ctx = { tabId: number; documentUrl?: string };
+
+  function stubChrome(getContexts: () => Promise<Ctx[]>) {
+    const listeners: Record<string, ((...args: never[]) => unknown)[]> = {};
+    const on = (name: string) => ({
+      addListener: (fn: (...args: never[]) => unknown) => {
+        (listeners[name] ??= []).push(fn);
+      },
+    });
+    const sendMessage = vi.fn((_tabId: number, _msg: { type: string }) => Promise.resolve());
+    const getContextsSpy = vi.fn((_filter: { contextTypes: string[] }) => getContexts());
+
+    vi.stubGlobal("chrome", {
+      action: { onClicked: on("clicked") },
+      tabs: {
+        onActivated: on("activated"),
+        onUpdated: on("updated"),
+        onRemoved: on("removed"),
+        get: vi.fn((id: number) => Promise.resolve({ id })),
+        sendMessage,
+      },
+      windows: { onRemoved: on("winRemoved") },
+      runtime: {
+        ContextType: { TAB: "TAB" },
+        getURL: (path: string) => `${EXT}${path}`,
+        getContexts: getContextsSpy,
+        sendMessage: vi.fn(() => Promise.resolve()),
+      },
+      sidePanel: { setOptions: vi.fn(() => Promise.resolve()), open: vi.fn(() => Promise.resolve()) },
+      storage: {
+        session: {
+          get: vi.fn(() => Promise.resolve({})),
+          set: vi.fn(() => Promise.resolve()),
+          remove: vi.fn(() => Promise.resolve()),
+        },
+      },
+    });
+
+    return {
+      getContexts: getContextsSpy,
+      activate: (tabId: number) =>
+        (listeners["activated"][0] as (i: { tabId: number; windowId: number }) => Promise<void>)({
+          tabId,
+          windowId: WIN,
+        }),
+      /** 레코더 stop 메시지를 받은 탭 id 집합 */
+      stoppedTabs: () =>
+        new Set(
+          sendMessage.mock.calls
+            .filter(([, msg]) => /Recorder\.stop$/.test(msg.type))
+            .map(([id]) => id),
+        ),
+      stopTypesFor: (tabId: number) =>
+        sendMessage.mock.calls
+          .filter(([id, msg]) => id === tabId && /Recorder\.stop$/.test(msg.type))
+          .map(([, msg]) => msg.type)
+          .sort(),
+    };
+  }
+
+  const panelCtx = (panelTabId: number, target: number): Ctx => ({
+    tabId: panelTabId,
+    documentUrl: `${EXT}src/sidepanel/index.html?tabId=${target}`,
+  });
+
+  // prevActiveTabByWindow는 모듈 레벨이라 케이스 사이로 흐른다 — 앞 케이스의 마지막 활성 탭이
+  // 다음 케이스의 prev가 되면 판정 쌍이 달라진다.
+  async function setup(getContexts: () => Promise<Ctx[]>) {
+    const c = stubChrome(getContexts);
+    vi.resetModules();
+    const { setupTabBindings } = await import("../tab-bindings");
+    setupTabBindings();
+    return c;
+  }
+
+  const settle = async () => {
+    for (let i = 0; i < 3; i++) await new Promise((r) => setTimeout(r, 0));
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("T → T의 패널 탭: T를 정지하지 않는다", async () => {
+    const c = await setup(() => Promise.resolve([panelCtx(PANEL, T)]));
+    await c.activate(T);
+    await c.activate(PANEL);
+    await settle();
+    // 판정이 실제로 돌았음을 먼저 고정한다 — 조회 없이 정지를 통째로 빼먹어도 아래 부재 단언은 green이다.
+    expect(c.getContexts).toHaveBeenCalledWith({ contextTypes: ["TAB"] });
+    expect(c.stoppedTabs().size).toBe(0);
+  });
+
+  it("T의 패널 탭 → T: 아무것도 정지하지 않는다", async () => {
+    const c = await setup(() => Promise.resolve([panelCtx(PANEL, T)]));
+    await c.activate(T);
+    await c.activate(PANEL);
+    await c.activate(T);
+    await settle();
+    expect(c.getContexts).toHaveBeenCalledTimes(2);
+    expect(c.stoppedTabs().size).toBe(0);
+  });
+
+  // prd 비목표: 패널 → 제3 탭은 지금처럼 T가 계속 기록한다(정지 대상은 패널 id라 no-op).
+  it("T의 패널 탭 → X: T는 정지하지 않는다 (패널 id만 대상)", async () => {
+    const c = await setup(() => Promise.resolve([panelCtx(PANEL, T)]));
+    await c.activate(T);
+    await c.activate(PANEL);
+    await c.activate(X);
+    await settle();
+    expect(c.stoppedTabs()).toEqual(new Set([PANEL]));
+  });
+
+  it("일반 P → Q: P의 레코더 3종을 정지한다 (기존 동작)", async () => {
+    const c = await setup(() => Promise.resolve([]));
+    await c.activate(T);
+    await c.activate(X);
+    await settle();
+    expect(c.stopTypesFor(T)).toEqual([
+      "actionRecorder.stop",
+      "consoleRecorder.stop",
+      "networkRecorder.stop",
+    ]);
+    expect(c.stoppedTabs()).toEqual(new Set([T]));
+  });
+
+  it("T → 다른 대상의 패널 탭: T를 정지한다 (예외는 자기 패널에만)", async () => {
+    const c = await setup(() => Promise.resolve([panelCtx(PANEL, 99)]));
+    await c.activate(T);
+    await c.activate(PANEL);
+    await settle();
+    expect(c.stoppedTabs()).toEqual(new Set([T]));
+  });
+
+  it("getContexts가 reject하면 prev를 정지한다 (기존 동작으로 떨어진다)", async () => {
+    const c = await setup(() => Promise.reject(new Error("getContexts failed")));
+    await c.activate(T);
+    await c.activate(PANEL);
+    await settle();
+    expect(c.stoppedTabs()).toEqual(new Set([T]));
+  });
+
+  // 정지가 getContexts 뒤로 밀리면서 생긴 창: T → X → T가 조회보다 빠르면, 늦게 도착한 T 정지가
+  // 복귀 후의 재무장(패널 visibilitychange)을 덮어 T가 죽은 채 남는다. 정지 시점에 prev가 그 창의
+  // 활성 탭으로 돌아와 있으면 보내지 않는다.
+  it("조회 중 prev로 되돌아오면 prev를 정지하지 않는다", async () => {
+    const pending: ((v: Ctx[]) => void)[] = [];
+    const c = await setup(() => new Promise<Ctx[]>((r) => pending.push(r)));
+    await c.activate(T);
+    await c.activate(X);
+    await c.activate(T);
+    expect(pending).toHaveLength(2);
+    for (const r of pending) r([]);
+    await settle();
+    expect(c.stoppedTabs()).toEqual(new Set([X]));
+  });
+
+  it("documentUrl에 쿼리가 없는 패널 탭은 패널로 치지 않는다 (prev 정지)", async () => {
+    const c = await setup(() =>
+      Promise.resolve([{ tabId: PANEL, documentUrl: `${EXT}src/sidepanel/index.html` }]),
+    );
+    await c.activate(T);
+    await c.activate(PANEL);
+    await settle();
+    expect(c.stoppedTabs()).toEqual(new Set([T]));
+  });
+});
