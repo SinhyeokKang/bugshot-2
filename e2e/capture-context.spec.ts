@@ -160,24 +160,26 @@ test.describe("element 캡처 컨텍스트 확장", () => {
     const tabId = await ext.fixtureTabId(FIXTURE_URL);
     const panel = await ext.openPanel(tabId);
 
-    // 패널 컨텍스트의 chrome.tabs.sendMessage를 덮어 prepareCapture만 지연시킨다.
-    // pick 이전에 깔아야 before 캡처를 잡는다. 지연을 안 걷으면 후속 캡처까지 느려진다.
-    await panel.evaluate((delayMs) => {
+    // 패널 컨텍스트의 chrome.tabs.sendMessage를 덮어 prepareCapture를 래치로 붙잡는다 — 고정 지연이
+    // 아니라 spec이 fixture를 앞에 되돌린 뒤 직접 놓는다. pick 이전에 깔아야 before 캡처를 잡는다.
+    await panel.evaluate(() => {
       const tabs = chrome.tabs as unknown as {
         sendMessage: (...args: unknown[]) => Promise<unknown>;
       };
       const orig = tabs.sendMessage.bind(chrome.tabs);
-      (window as unknown as { __restoreSend?: () => void }).__restoreSend = () => {
+      const held: (() => void)[] = [];
+      (window as unknown as { __releaseSend?: () => void }).__releaseSend = () => {
         tabs.sendMessage = orig;
+        for (const go of held.splice(0)) go();
       };
       tabs.sendMessage = (...args: unknown[]) => {
         const msg = args[1] as { type?: string } | undefined;
         if (msg?.type !== "picker.prepareCapture") return orig(...args);
         return new Promise((resolve) => {
-          setTimeout(() => resolve(orig(...args)), delayMs);
+          held.push(() => resolve(orig(...args)));
         });
       };
-    }, 6000);
+    });
 
     await assertGatesSatisfied(fixture, "#modal", "#modal-btn");
     // before가 지연된 채 진행 중인 동안 편집해야 잠금을 볼 수 있다 — 패널 복귀를 기다리지 않고
@@ -195,9 +197,9 @@ test.describe("element 캡처 컨텍스트 확장", () => {
     // 패널을 직접 앞으로 옮겼으므로(활성화는 hold 첫 진입에서만) 되돌려 놓는다.
     await fixture.bringToFront();
 
-    // 지연을 걷어야 after 캡처가 제때 돈다.
+    // 래치를 풀어 붙잡힌 before를 보내고, 이후 캡처는 원래 경로로 돌린다.
     await panel.evaluate(() =>
-      (window as unknown as { __restoreSend?: () => void }).__restoreSend?.(),
+      (window as unknown as { __releaseSend?: () => void }).__releaseSend?.(),
     );
 
     // before가 도착하면 잠금이 풀린다.

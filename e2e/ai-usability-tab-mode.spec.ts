@@ -8,6 +8,7 @@ import {
   test,
   typeStyleValue,
   waitForPanelFront,
+  waitForTargetFront,
   type ExtContext,
 } from "./fixtures/extension";
 import { PANEL_PATH, parsePanelTabTarget } from "../src/lib/panel-tab-url";
@@ -239,6 +240,38 @@ test.describe.serial("탭 모드(같은 창) — 대상 탭 hold·레코더 유�
         expect(await countPixels(panel, "snapshot-after", "red", i)).toBe(0);
       }
       await expect(panel.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
+    } finally {
+      await panel.close();
+      await fixture.close();
+    }
+  });
+
+  // 진입점 #8 — 인라인 영역 대기(inline 상태 hold)가 대상을 앞으로 가져오고, 사용자는 그 위에서
+  // 드래그만 한다. 삽입이 끝나면 패널로 돌아온다.
+  test("인라인 영역 캡처 — 대상이 앞으로 오고, 드래그 뒤 이미지가 삽입되고 패널로 돌아온다", async ({
+    ext,
+  }) => {
+    const { fixture, tabId, panel } = await openTabMode(ext);
+    try {
+      await enterDebug(panel);
+      await panel.getByTestId("mode-freeform").click();
+      await expect(panel.getByTestId("drafting-panel")).toBeVisible();
+
+      const inlineImages = panel.locator(".ProseMirror .inline-image");
+      await expect(async () => {
+        await waitForPanelFront(panel);
+        if ((await inlineImages.count()) === 0) {
+          await panel.getByTestId("section-capture-area-description").click();
+          await waitForTargetFront(panel);
+          expect(await isActive(ext, tabId)).toBe(true);
+          await fixture.mouse.move(60, 60);
+          await fixture.mouse.down();
+          await fixture.mouse.move(280, 220, { steps: 10 });
+          await fixture.mouse.up();
+        }
+        await expect(inlineImages).toHaveCount(1, { timeout: 4000 });
+      }).toPass({ intervals: [1000, 1500, 2000, 2500], timeout: 30_000 });
+      await waitForPanelFront(panel);
     } finally {
       await panel.close();
       await fixture.close();
