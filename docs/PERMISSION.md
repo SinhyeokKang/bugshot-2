@@ -322,7 +322,7 @@ tab-bindings.ts → cross-origin + preserved
   → chrome.runtime.sendMessage({ type: "activeTabExpiredDeferred", tabId })
 
 usePickerMessages.ts
-  → 메시지 수신 → deferredActiveTabExpiry 플래그 세팅
+  → 메시지 수신 → setActiveTabExpiryDeferred(true) (sidepanel/lib/capture-error.ts — 이 사이 캡처 실패 토스트는 억제)
   → useEditorStore.subscribe로 phase 감시
   → phase === "idle" 전환 시 → onPickerPermissionExpired.fire()
   → 만료 다이얼로그 → window.close()
