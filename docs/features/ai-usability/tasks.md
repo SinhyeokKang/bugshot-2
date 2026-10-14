@@ -76,7 +76,7 @@
   - [x] 기존 `resolveTabSwitch` 테스트 green
   - [x] `agentManual.test.ts:260`의 `"stopRecorders(prevTabId)"` 리터럴 바인딩을 같은 커밋에서 새 판정 함수 호출 바인딩으로 교체 + 뮤테이션 실측
   - [x] `pnpm typecheck`, `pnpm test`
-  - [x] (B2a로 이관 + SW getContexts 실측 e2e 포함) e2e "패널 탭 왕복 후 로그 유지"(Task 13) → `ai-usability-tab-mode.spec.ts` S1 — B1 이전 `tab-bindings.ts`로 빌드하면 red(왕복 뒤 마커 누락) 실측. e2e에선 패널 복귀 `visibilitychange` 재무장이 안 와서 그물이 된다 — **변경 전 코드에서 red를 먼저 실측**한다. 지금도 패널 `visibilitychange`가 재무장해 green일 수 있다. red가 안 나면 위 배선 테스트를 그물로 삼고 e2e는 회귀 확인용으로만 둔다.
+  - [x] (B2a로 이관 + SW getContexts 실측 e2e 포함) e2e "패널 탭 왕복 후 로그 유지"(Task 13) → `ai-usability-tab-mode.spec.ts` S1 — B1 이전 `tab-bindings.ts`로 빌드하면 red(왕복 뒤 마커 누락) 실측. e2e에선 패널 복귀 `visibilitychange` 재무장이 안 와서 그물이 된다(하네스 의존 — GOTCHAS 55행).
 
 ### Task 8: 탭 모드 순수 판정
 - **변경 대상**: `src/sidepanel/lib/tab-mode.ts`(신규), `src/sidepanel/lib/__tests__/tab-mode.test.ts`(신규)
@@ -185,7 +185,7 @@
   - 제출 모달에서 로케일 en 고정, `getByRole("tab", { name: "Custom Webhook" })`이 클릭 가능하다(`webhook-submit.spec.ts:398-428` 셋업 재사용).
 - **수동 테스트** (Chrome)
   - 사이드패널 정상 모드: 캡처 5종(요소 편집·요소 캡처·영역·뷰포트·전체 페이지)과 인라인 영역 캡처가 기존과 같다. 탭 깜빡임 없음. 탭 모드 UI 미노출(MANUAL-SMOKE 등재).
-  - 탭 모드 전체 페이지 캡처: 대상 탭이 캡처 내내 앞에 있다가 끝나면 패널로 복귀한다. 타일 누락 없음. 소요 시간을 사이드패널과 비교하고 취소 수단(Esc)을 확인한다.
+  - 탭 모드 전체 페이지 캡처: 대상 탭이 캡처 내내 앞에 있다가 끝나면 패널로 복귀한다. 타일 누락 없음. 소요 시간을 사이드패널과 비교한다(취소 = 패널 탭 복귀는 e2e가 고정 — D7).
   - 탭 모드 영역 드래그: 안내 한 줄을 보고 대상 탭으로 가서 드래그하면 캡처 후 패널로 복귀한다.
   - handoff 중 제3 탭으로 이동: 캡처 후 패널로 끌려오지 않는다.
   - 숨은 패널 탭 discard(Memory Saver) 시 동작 기록.

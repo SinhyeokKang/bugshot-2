@@ -37,7 +37,7 @@
   - 실패 발화는 **여기 한 곳**이다: `!prep?.rect` → `onCaptureFailed.fire("element-missing")`, catch → `fireCaptureFailure(err)`. `!usable`(basis downgrade)은 의도된 스킵이라 발화하지 않는다(`StyleChangesTable.tsx:157-165` 주석의 "에러로 오인되지 않게" 의도 유지).
   - `maybeSurfacePermissionExpired` 우선 규칙은 유지한다. 토스트는 그 else 분기에서만, 그리고 deferred 플래그(`activeTabExpiredDeferred`, `usePickerMessages.ts:53-57`)가 꺼져 있을 때만 발화한다.
 - **`src/sidepanel/hooks/usePickerMessages.ts`**:
-  - **before 캡처 hold**: 요소 선택 메시지를 받은 직후, `onElementSelected`(phase→styling) **전에** `holdTarget(tabId, "before")`를 잡고, before 캡처 완료·생략(버퍼 재선택 등) 시 놓는다. styling 전이(`:123`)와 before 캡처 발사(`:175`) 사이에 `getTopViewport().then` 비동기 구간이 있어 phase 술어로는 구간을 메울 수 없다. `beforeCapturePending`은 Next 버튼 busy 표시(`StyleEditorPanel.tsx:201`)에 쓰이므로 전이 시점을 옮기지 않는다(가드레일).
+  - **before 캡처 hold — 두지 않는다(B2a 구현 후 정정)**: 처음엔 styling 전이와 before 발사 사이 비동기 구간을 막으려 명시 hold를 두려 했으나, 실제로는 `getTopViewport().then`이 `void`이고 before 발사가 같은 동기 블록 안이라 `captureElementSnapshot` → `withTargetHold`가 동기로 count를 올린다. picking 상태 hold의 release는 `useTabModeHold`에서 비동기라 count가 0을 거치지 않고, 거쳐도 restore의 재확인이 막는다. 명시 hold는 누수 면만 더해 제거했다(순서 테스트 `usePickerMessages.tabModeOrder.test.tsx`가 고정).
   - `captureAndCrop`(`:429`)·`captureAndInsertInline`(`:452`)을 `withTargetHold`로 감싼다. 영역 드래그는 사용자가 이미 T에 가 있어 활성화는 no-op이고, 끝나면 복원된다.
   - element shot null(`:404`)에서는 **발화하지 않는다**(`captureWithPrep`가 이미 발화 — 이중 토스트 방지).
   - stale 결과 폐기(`sameSelection` 불일치)·`controller.signal.aborted`에서는 발화하지 않는다.
@@ -64,7 +64,7 @@
   - "Panel URL": 쿼리 없으면 대상 선택 화면.
   - "Before you trigger a capture": 같은 창이면 패널이 캡처 동안 대상을 스스로 앞으로 가져온다(에이전트 도구가 이를 사용자 조작으로 오판할 수 있음). 영역 드래그는 직접 대상 탭으로 가서. 별도 창도 여전히 동작한다.
   - 리플레이 탭 모드 한계(패널이 앞이면 프레임 0, T가 앞이면 throttle).
-  - 탭 모드 전체 페이지 캡처 중엔 패널의 진행률·취소가 가려진다(취소는 Esc).
+  - 탭 모드 전체 페이지 캡처 중엔 패널의 진행률·취소가 가려진다. 취소하려면 패널 탭으로 돌아간다 — 다음 타일에서 중단되고 실패 토스트가 뜬다(orch.md D7. 캡처 중 Esc 리스너는 없다).
 - **`src/sidepanel/__tests__/agentManual.test.ts`**: `:260`의 `"stopRecorders(prevTabId)"` 리터럴 바인딩을 새 판정 함수 호출 바인딩으로 교체(Task 2와 같은 커밋) + 새 주장 바인딩(테스트 계획).
 - **e2e**: `e2e/fixtures/extension.ts`(`pickElement`의 `keepFixtureActive`·`bringToFront` 우회 재검토), 우회 사용 spec들, `e2e/GOTCHAS.md` 9·15·16·18·46항, `e2e/MANUAL-SMOKE.md`(사이드패널 정상 경로 수동 잔여 등재).
 - **문서**: `docs/ARCHITECTURE.md`(탭 모드 섹션 신설 + 매뉴얼 범위 "도그푸딩" 한정 서술 갱신), `docs/DIRECTORY.md`(신규 파일), `docs/DESIGN.md`(:268 `group-data-[measuring]/tabs:inline` 서술 갱신, §14 토스트 한 줄), `guide/{ko,en}/agent-automation.md` 신규 + `SUMMARY.md` + `guide/AUTHORING.md` IA(26→27페이지, 패널 URL·매뉴얼 id 노출 예외 근거).
@@ -73,13 +73,13 @@
 
 | # | 경로 | 위치 | hold | 실패 발화 |
 |---|---|---|---|---|
-| 1 | 요소 편집 before | `usePickerMessages.ts:121-192` → `captureElementSnapshot` | "before"(메시지 수신~캡처 완료) + 트랜잭션 | `captureWithPrep` |
+| 1 | 요소 편집 before | `usePickerMessages.ts:121-192` → `captureElementSnapshot` | picking 상태 hold → 트랜잭션(동기로 이어짐) | `captureWithPrep` |
 | 2 | 요소 캡처(element shot) | `usePickerMessages.ts:402` → `captureElementSnapshot` | picking + 트랜잭션 | `captureWithPrep`(호출부 `:404`는 발화 안 함) |
 | 3 | after(Next) | `StyleEditorPanel.tsx:180` | 트랜잭션 | `captureWithPrep` |
-| 4 | buffer 전환 | `useBufferThenSwitch.ts:40` | 트랜잭션 | `captureWithPrep` |
+| 4 | buffer 전환 | `useBufferThenSwitch.ts:40` | after 캡처 + `switchAction`(repick 진입)을 한 `withTargetHold`로 묶음(따로 두면 패널 복귀 후 picking이 대상을 다시 끌어와 깜빡임) | `captureWithPrep` |
 | 5 | diff 재캡처 | `StyleChangesDialog.tsx:98` → `…BySelector` | 트랜잭션 | `captureWithPrep` |
-| 6 | 영역 드래그 | content drag → `captureAndCrop`(`:429`) | 트랜잭션(사용자가 이미 T에) | catch |
-| 7 | 뷰포트 | `IssueTab.tsx:162-173` → `selectFullViewport` → `captureAndCrop` | "viewport"(버튼~crop 완료) | `!ok` + catch |
+| 6 | 영역 드래그 | content drag → `captureAndCrop` → `capture.ts:captureTargetTab(tabId,"area")` | "area"(사용자가 이미 T에 — 활성화는 안 하지만 끝나면 패널로 복귀) | catch |
+| 7 | 뷰포트 | `viewport-capture.ts:runViewportCapture`(IssueTab에서 추출) → `selectFullViewport` → `captureAndCrop` | "viewport"(버튼~crop 완료 또는 capturing 이탈. ok인데 `areaSelected`가 안 오면 5초 상한으로 해제) | `!ok` + catch |
 | 8 | 인라인 영역 | `captureAndInsertInline`(`:452`) | inline 상태 + 트랜잭션 | catch |
 | 9 | 전체 페이지 | `IssueTab.tsx:120-160` → `runScrollCapture` | 트랜잭션(바깥 1회) | catch(취소는 null) |
 | — | 30s 리플레이 폴링 | `use-30s-replay.ts` | 없음 | 없음(비목표) |
@@ -102,12 +102,12 @@
    if count 0→1:
       target = chrome.tabs.get(targetTabId); selfNow = chrome.tabs.get(self.id)   // windowId는 매번 조회
       if shouldActivateTarget({ self: selfNow, target }):        // 같은 창 && target 비활성
-         activatedByUs = true
+         returnToPanel = self.active   // 활성화 시점에 패널이 앞이었을 때만 끝나고 패널로 복귀(제3 탭에서 포커스 탈취 금지)
          await chrome.tabs.update(target, {active:true})          // resolve 값의 active 또는 onActivated로 확정 — 폴링 금지
    release():
       count--
-      if count===0 && activatedByUs:
-         activatedByUs = false
+      if count===0 && returnToPanel:      // area hold는 활성화 없이도 returnToPanel=true
+         returnToPanel = false
          target = chrome.tabs.get(targetTabId)                    // 닫혔으면 복원 안 함
          if shouldRestorePanel({ target }): focusTab(self.id)      // T가 여전히 활성일 때만
 
@@ -120,7 +120,7 @@
 
 - 활성화는 `captureOwnedTab`의 `tab.active` 재확인(큐 대기 후)을 그대로 거친다. 관문을 우회하지 않는다.
 - 활성화 대기는 패널 문서에서 돈다. 활성화 직후 패널은 background 탭이라 setTimeout이 1s 단위로 정렬되므로 `tabs.get` 폴링은 쓰지 않는다. 확정 후 paint 대기는 content의 `afterPaint`가 맡는다(트랜잭션이 prepare까지 감싸므로).
-- 셸 상태(`count`·`activatedByUs`)는 모듈 단일 인스턴스다. phase hold와 캡처 트랜잭션 hold가 같은 count를 공유하므로, 재선택(to-target) 중 늦게 끝난 after 캡처가 패널을 되돌리는 경쟁이 없다.
+- 셸 상태(`count`·`returnToPanel`)는 직렬 chain으로 갱신되고 restore는 조회 뒤 `count !== 0`을 재확인한다. 상태는 모듈 단일 인스턴스다. phase hold와 캡처 트랜잭션 hold가 같은 count를 공유하므로, 재선택(to-target) 중 늦게 끝난 after 캡처가 패널을 되돌리는 경쟁이 없다.
 
 ## 인터페이스 설계
 
@@ -158,7 +158,7 @@ export interface TabLike { id?: number; windowId?: number; active?: boolean; url
 export function shouldActivateTarget(a: { self: TabLike | null; target: TabLike }): boolean;
 /** target 없음(닫힘) → false. target 비활성(사용자가 제3 탭으로 감) → false. */
 export function shouldRestorePanel(a: { target: TabLike | null }): boolean;
-export type HoldReason = "picking" | "inline" | "before" | "viewport" | "capture";
+export type HoldReason = "picking" | "inline" | "area" | "viewport" | "capture";
 /** 상태 기반 hold. before/viewport/capture는 호출부가 명시적으로 잡는다. */
 export function targetHoldFromState(s: { phase: EditorPhase; inline: boolean }): { picking: boolean; inline: boolean };
 /** self 제외, isSupportedUrl 통과, 모든 창, 같은 창 먼저(각 그룹 안에선 원래 순서 유지) */
