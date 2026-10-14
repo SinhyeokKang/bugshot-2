@@ -115,5 +115,6 @@ CTO 최초 ctx_bedb656f6e6d는 agent_readiness/terminal_handle_stale로 실패�
 - AUTH 설계 CTO 최종 READY·QA READY. 연결 후보 문맥 및 durable grant 분리 계약까지 승인됐다. CAPTURE/CONNECT 통합 선행 조건을 충족했으므로 현재 dev에서 AUTH A01+A03 구현을 시작한다. 지휘자가 별도 전문 리뷰 Dispatch를 담당하며 nested worker는 만들지 않는다.
 
 - AUTH 구현: task `task_69e2efda9102`, dispatch `ctx_2c1ff996a303`, child `audit-1014-auth`, ready/turn_started 확인. 코드 기준 1631a039, 최신 통합 증거 e488d9d8는 별도 전달했다.
+- AUTH 소유권 보완: Jira 저장 전 후보 프로필 조회에서 갱신 인증을 최종 연결로 전달해야 하므로 `jira.myself` 요청·응답 타입과 `messages.ts` 해당 핸들러·연결 호출부·테스트의 좁은 변경을 허용한다. 신규 메시지보다 기존 메시지의 명시적 후보 문맥을 우선하며, 연결 중 갱신 결과를 반환해 connect/replace에 실어야 한다. CONNECT의 Notion 오류 레인은 유지한다. 다른 배치는 통합·종료돼 파일 충돌이 없다.
 - CONNECT push `023fa08e` CI [38492124085](https://github.com/SinhyeokKang/bugshot-2/actions/runs/38492124085): verify·4개 e2e 샤드·e2e-gate success.
 - CAPTURE/VIEWER 문서 트라이아지: ARCHITECTURE의 복원/제출·빈 첨부·탐색 계약, ko/en 뷰어 가이드, e2e/COVERAGE와 CI 테스트 수, POSTMORTEM 3건 갱신. DIRECTORY는 테스트 디렉터리 단위 설명이라 새 개별 테스트 열거 불필요. CLAUDE/README/PERMISSION/privacy는 기존 동작 복원과 접근성 배선이며 새 수집·저장·전송 목적이 없어 변경 불필요. 평상시 화면은 동일하고 focus는 키보드 상태이므로 스크린샷 교체는 최종 guide-shots에서 판정한다.
