@@ -56,7 +56,8 @@ vi.mock("@/sidepanel/recorder-control", () => ({
   clearActionRecorder: vi.fn(),
 }));
 
-import { onCaptureFailed } from "@/lib/app-events";
+import { onCaptureFailed, onPickerPermissionExpired } from "@/lib/app-events";
+import { setActiveTabExpiryDeferred } from "@/sidepanel/lib/capture-error";
 import { useEditorStore } from "@/store/editor-store";
 import { usePickerMessages } from "../usePickerMessages";
 
@@ -78,6 +79,8 @@ function deliver(msg: unknown) {
 
 beforeEach(() => {
   useEditorStore.setState(useEditorStore.getInitialState(), true);
+  // 모듈 싱글턴이라 앞 케이스가 켠 지연 플래그가 다음 케이스로 샌다.
+  setActiveTabExpiryDeferred(false);
   listeners = [];
   sendBg.mockReset();
   captureElementSnapshot.mockClear();
@@ -257,5 +260,89 @@ describe("요소 캡처 호출부가 소유 판정을 넘긴다", () => {
     expect(isCurrent()).toBe(true);
     useEditorStore.getState().reset();
     expect(isCurrent()).toBe(false);
+  });
+});
+
+// captureWithPrep이 이미 발화한다(위 capture.test.ts) — 호출부가 null을 받고 또 발화하면 한 실패에 토스트가 둘이다.
+describe("요소 캡처 호출부는 발화하지 않는다", () => {
+  it("요소 단일 캡처 null → 발화 0 + idle 복귀", async () => {
+    useEditorStore.setState({
+      phase: "picking",
+      captureMode: "screenshot",
+      target: { tabId: TAB, url: "https://example.com", title: "x" },
+    });
+    renderHook(() => usePickerMessages(TAB));
+
+    deliver(SELECTED);
+
+    await waitFor(() => expect(useEditorStore.getState().phase).toBe("idle"));
+    expect(captureElementSnapshot).toHaveBeenCalledTimes(1);
+    expect(failed).not.toHaveBeenCalled();
+  });
+
+  it("before 캡처 null → 발화 0 + styling 유지", async () => {
+    useEditorStore.setState({
+      phase: "picking",
+      captureMode: "element",
+      target: { tabId: TAB, url: "https://example.com", title: "x" },
+    });
+    renderHook(() => usePickerMessages(TAB));
+
+    deliver(SELECTED);
+
+    await waitFor(() => expect(captureElementSnapshot).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(useEditorStore.getState().beforeCapturePending).toBe(false));
+    expect(useEditorStore.getState().phase).toBe("styling");
+    expect(useEditorStore.getState().beforeImage).toBeNull();
+    expect(failed).not.toHaveBeenCalled();
+  });
+});
+
+// background는 보존 phase에서 activeTab이 풀리면 다이얼로그를 idle까지 미룬다. 그 사이 실패는
+// 같은 원인이라 토스트를 막고, idle 전이에서 다이얼로그만 한 번 뜬다.
+describe("지연 권한 만료 플래그 배선", () => {
+  const dialog = vi.fn();
+  let offDialog: () => void = () => {};
+
+  beforeEach(() => {
+    dialog.mockReset();
+    offDialog = onPickerPermissionExpired.subscribe(dialog);
+  });
+
+  afterEach(() => offDialog());
+
+  async function failInlineCapture() {
+    useEditorStore.setState({
+      phase: "drafting",
+      target: { tabId: TAB, url: "https://example.com", title: "x" },
+      inlineCaptureTarget: "section-1",
+    });
+    sendBg.mockRejectedValue(new Error(captureInactiveMessage(TAB)));
+    deliver(AREA);
+    await waitFor(() => expect(useEditorStore.getState().inlineCaptureTarget).toBeNull());
+  }
+
+  it("지연 통지 뒤 캡처 실패는 토스트 0, idle 전이에서 다이얼로그 1회", async () => {
+    renderHook(() => usePickerMessages(TAB));
+
+    deliver({ type: "activeTabExpiredDeferred", tabId: TAB });
+    await failInlineCapture();
+    expect(failed).not.toHaveBeenCalled();
+    expect(dialog).not.toHaveBeenCalled();
+
+    useEditorStore.getState().reset();
+    expect(dialog).toHaveBeenCalledTimes(1);
+  });
+
+  it("다른 탭의 지연 통지는 무시한다 — 토스트는 뜨고 다이얼로그는 없다", async () => {
+    renderHook(() => usePickerMessages(TAB));
+
+    deliver({ type: "activeTabExpiredDeferred", tabId: TAB + 1 });
+    await failInlineCapture();
+    expect(failed).toHaveBeenCalledTimes(1);
+    expect(failed).toHaveBeenCalledWith("inactive");
+
+    useEditorStore.getState().reset();
+    expect(dialog).not.toHaveBeenCalled();
   });
 });
