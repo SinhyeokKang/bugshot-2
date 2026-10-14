@@ -71,3 +71,12 @@ AUTH가 messages.ts 변경을 필요로 하면 CONNECT 통합 뒤 rebase하고 �
 - 재개(2026-10-14): 사용자 지정 폴더의 전체 배치를 같은 Run으로 재개한다. 재개 dev는 `948a8a0b`. 기존 워크트리는 제거되어 새 워크트리를 현재 dev에서 만든다. CAPTURE 최신 실패는 `ctx_78c857d568a8`이며 총 3회 준비 실패이므로 circuit breaker를 우회하지 않는다. CONNECT·VIEWER는 각 기존 Task의 실패 Dispatch를 지정해 재시도하고, CAPTURE는 공식 복구 응답에 따라 처리한다.
 - 재개 결과: 같은 Task의 `--retry-of`로 세 시작 요청 모두 접수됐지만 `agent_readiness: timeout`으로 종료 코드 1. CONNECT `ctx_ab20f821e1d7`, VIEWER `ctx_1c2193a8ce93`, CAPTURE `ctx_25c7f617726e`. 모두 `mode=terminal`, `reason=user_default`; 작업 프롬프트는 실행되지 않았다. CONNECT·VIEWER의 출력에는 Codex v0.154.0 입력 화면과 plugin hooks의 `unknown field modules` 경고가 보였으나, 경고가 준비 감지 실패 원인인지는 미확정이다.
 - 실패 응답의 공식 `worker-release`를 실행해 세 터미널 종료 및 출력 아카이브를 확인했다. 세 워크트리 모두 `git status --porcelain`과 `git cherry dev HEAD`가 비어 있음을 확인한 뒤 제거했다. 재개에서도 구현·설계 검수·테스트·빌드·push·CI는 미실행이다. 동일 조건의 추가 재시도는 하지 않는다. Orca 워커 준비 감지 복구가 필요하다.
+
+## 대체 머신 재개 (2026-10-14)
+
+- 사용자: 기존 머신 장애로 현재 머신으로 이동했으며, 새 Run으로 진행을 명시 승인했다. 로컬 dev를 origin/dev `38156c2a`로 hard reset한 뒤 시작한다.
+- 현재 Run: `run_001caa6dc623`. 기존 Run `run_085e5d05abf9`는 현재 런타임에서 run_not_found이며 기존 실패 이력은 위에 보존한다.
+- 배치·소유권·겹침 행렬·검증 게이트는 기존 계획을 유지한다. 모델/effort는 사용자 Codex 설정 상속.
+- CAPTURE·CONNECT·VIEWER는 별도 child worktree에서 구현한다. 배치별 커밋 및 테스트 산출물(dist-log-viewer/dist-e2e)이 서로 덮이지 않도록 격리한다.
+- AUTH는 기존 설계에 대한 CTO·QA 독립 검수를 먼저 수행한다. 검수는 현재 체크아웃 읽기 전용이며 보고서는 배치별 .scratch 경로에만 쓴다.
+- 지휘자는 전체 배치의 리뷰·문서·통합·push·정확한 HEAD CI를 담당한다. 상태: 재개 준비 완료, 구현/검수 미착수.
