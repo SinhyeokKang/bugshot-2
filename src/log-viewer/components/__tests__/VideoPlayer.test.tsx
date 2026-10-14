@@ -39,13 +39,30 @@ describe("VideoPlayer", () => {
     expect(slider.getAttribute("aria-valuetext")).toBe("0:30 / 2:00");
     for (const [key, seconds] of [["ArrowRight", 35], ["ArrowUp", 40], ["ArrowLeft", 35], ["ArrowDown", 30], ["Home", 0], ["ArrowLeft", 0], ["End", 120], ["ArrowRight", 120]] as const) {
       await user.keyboard(`{${key}}`);
-      expect(video.currentTime).toBe(seconds);
+      expect(video.currentTime).toBeCloseTo(seconds);
       fireEvent.timeUpdate(video);
       expect(Number(slider.getAttribute("aria-valuenow"))).toBeCloseTo(seconds);
     }
     expect(slider.getAttribute("aria-valuemax")).toBe("120");
     expect(slider.getAttribute("aria-valuetext")).toBe("2:00 / 2:00");
     expect(slider.className).toContain("focus-visible:ring-2");
+  });
+
+  it.each([NaN, Infinity])("ignores non-finite metadata duration %s", (invalidDuration) => {
+    const video = mount();
+    let duration = invalidDuration;
+    Object.defineProperty(video, "duration", { get: () => duration });
+    const slider = screen.getByRole("slider");
+    fireEvent.loadedMetadata(video);
+    expect(slider.getAttribute("aria-valuemax")).toBe("0");
+    fireEvent.keyDown(slider, { key: "End" });
+    expect(video.currentTime).toBe(0);
+    duration = 120;
+    fireEvent.durationChange(video);
+    duration = invalidDuration;
+    fireEvent.durationChange(video);
+    expect(slider.getAttribute("aria-valuemax")).toBe("120");
+    expect(slider.getAttribute("aria-valuetext")).toBe("0:00 / 2:00");
   });
 
   it("does not seek before duration is available or consume unrelated keys", () => {

@@ -181,7 +181,7 @@ function IssueSettingsContent() {
       <PageScroll>
         <Section title={t("settings.issueCommon")}>
           <div className="space-y-4">
-            <FieldRow label={t("settings.titlePrefix.label")}>
+            <FieldRow label={t("settings.titlePrefix.label")} htmlFor="title-prefix">
               <Input
                 id="title-prefix"
                 placeholder={t("settings.titlePrefix.placeholder")}

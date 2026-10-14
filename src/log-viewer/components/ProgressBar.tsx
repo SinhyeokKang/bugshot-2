@@ -55,6 +55,23 @@ export function ProgressBar({ currentPct, durationSec, markers, onSeek, onMarker
     }
   }, [onSeek, pctFromEvent]);
 
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    if (!Number.isFinite(durationSec) || durationSec <= 0) return;
+    const stepPct = (5 / durationSec) * 100;
+    let nextPct: number;
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowUp": nextPct = currentPct + stepPct; break;
+      case "ArrowLeft":
+      case "ArrowDown": nextPct = currentPct - stepPct; break;
+      case "Home": nextPct = 0; break;
+      case "End": nextPct = 100; break;
+      default: return;
+    }
+    event.preventDefault();
+    onSeek(Math.min(100, Math.max(0, nextPct)));
+  };
+
   return (
     <div className="relative flex-1">
       {/* Marker area */}
@@ -81,12 +98,15 @@ export function ProgressBar({ currentPct, durationSec, markers, onSeek, onMarker
       >
         <div
           ref={barRef}
-          className="relative h-2 rounded-full bg-white/20 backdrop-blur-sm"
+          className="relative h-2 rounded-full bg-white/20 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           role="slider"
+          tabIndex={0}
+          onKeyDown={onKeyDown}
           aria-label={t("logViewer.player.progressBar")}
-          aria-valuenow={Math.round(currentPct)}
+          aria-valuenow={(durationSec * currentPct) / 100}
+          aria-valuetext={`${formatPlayerTime((durationSec * currentPct) / 100)} / ${formatPlayerTime(durationSec)}`}
           aria-valuemin={0}
-          aria-valuemax={100}
+          aria-valuemax={durationSec}
         >
           <div
             className="pointer-events-none h-full rounded-full bg-white/90"

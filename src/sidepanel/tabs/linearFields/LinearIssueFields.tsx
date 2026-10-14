@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { useT } from "@/i18n";
 import type { LinearDefaults } from "@/types/linear";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
@@ -67,6 +68,7 @@ interface Props {
 
 export function LinearIssueFields({ value, onChange }: Props) {
   const t = useT();
+  const priorityId = useId();
 
   const teamValue: TeamValue | null = value.teamId
     ? { teamId: value.teamId, teamName: value.teamName ?? "", teamKey: value.teamKey ?? "" }
@@ -132,8 +134,9 @@ export function LinearIssueFields({ value, onChange }: Props) {
           onChange={(assigneeId, assigneeName) => onChange({ assigneeId, assigneeName })}
         />
       </FieldRow>
-      <FieldRow label={t("linear.field.priority")}>
+      <FieldRow label={t("linear.field.priority")} htmlFor={priorityId}>
         <PrioritySelect
+          id={priorityId}
           value={value.priority}
           onChange={(priority) => onChange({ priority })}
         />

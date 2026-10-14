@@ -16,11 +16,12 @@ const PRIORITIES = [
 ] as const;
 
 interface Props {
+  id: string;
   value: number | undefined;
   onChange: (priority: number | undefined) => void;
 }
 
-export function PrioritySelect({ value, onChange }: Props) {
+export function PrioritySelect({ id, value, onChange }: Props) {
   const t = useT();
   const current = value?.toString() ?? "0";
 
@@ -32,7 +33,7 @@ export function PrioritySelect({ value, onChange }: Props) {
         onChange(n === 0 ? undefined : n);
       }}
     >
-      <SelectTrigger className="w-full">
+      <SelectTrigger id={id} className="w-full">
         <SelectValue placeholder={t("linear.field.priority.select")} />
       </SelectTrigger>
       <SelectContent>
