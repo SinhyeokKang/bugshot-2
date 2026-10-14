@@ -22,10 +22,10 @@
 
 | 배치 | 항목 | 소유 파일 | 선행 | 검증 | 상태 |
 |---|---|---|---|---|---|
-| AUTH | A01·A03 | settings-storage, settings-store, 인증 refresh/OAuth/type, 전용 storage adapter·sync, 관련 테스트 | 인증 설계·검수 | grant 교차 요청 금지, 다중 writer 보존, 전체 게이트 | 설계 대기 |
-| CAPTURE | A02·A04 | editor-store, useEditorSessionSync, IssueCreateModal, buildEditorCapture, 관련 테스트/e2e | 없음 | 재개→전송 로그/요약, 첨부 삭제→저장 초안 제출 | 대기 |
-| CONNECT | A05 | background/messages.ts의 notion.testToken, 연결 레인 회귀 테스트 | 없음 | 신규 토큰 401의 전역 만료 이벤트 없음, 기존 인증 만료 유지 | 대기 |
-| VIEWER | A06–A08 | log-viewer ProgressBar/VideoPlayer, SettingsTab, linearFields/PrioritySelect·LinearIssueFields, 관련 테스트/e2e | 없음 | MIME 파일명, 키보드 seek, 표시 라벨 연결 | 대기 |
+| AUTH | A01·A03 | settings-storage, settings-store, 인증 refresh/OAuth/type, 전용 storage adapter·sync, 관련 테스트 | 인증 설계·검수 | grant 교차 요청 금지, 다중 writer 보존, 전체 게이트 | 설계 초안 완료·검수 미실행 |
+| CAPTURE | A02·A04 | editor-store, useEditorSessionSync, IssueCreateModal, buildEditorCapture, 관련 테스트/e2e | 없음 | 재개→전송 로그/요약, 첨부 삭제→저장 초안 제출 | 워커 시작 실패·미착수 |
+| CONNECT | A05 | background/messages.ts의 notion.testToken, 연결 레인 회귀 테스트 | 없음 | 신규 토큰 401의 전역 만료 이벤트 없음, 기존 인증 만료 유지 | 워커 시작 실패·미착수 |
+| VIEWER | A06–A08 | log-viewer ProgressBar/VideoPlayer, SettingsTab, linearFields/PrioritySelect·LinearIssueFields, 관련 테스트/e2e | 없음 | MIME 파일명, 키보드 seek, 표시 라벨 연결 | 워커 시작 실패·미착수 |
 
 AUTH가 messages.ts 변경을 필요로 하면 CONNECT 통합 뒤 rebase하고 진행한다. i18n·메시지 union·공용 scan 목록을 바꿔야 하면 먼저 지휘자에게 파일 소유권을 요청한다.
 
@@ -56,4 +56,12 @@ AUTH가 messages.ts 변경을 필요로 하면 CONNECT 통합 뒤 rebase하고 �
 ## 진행·검증 증거
 
 - 초기 상태: dev clean. 감사 기준 이후 프로덕션 코드 차이 없음.
-- 구현·리뷰·통합·CI: 미실행.
+- 계획 커밋: `8cb79a36`. AUTH 설계 초안: `77c41393`, [설계 폴더](../codebase-audit-auth-2026-10-14/). `/feature` 형식으로 작성했으며 feature-review CTO·QA는 아직 미실행이다.
+- 2026-10-14 Orca 1.4.224 기본 launch mode가 terminal이며 새 워커 3개 모두 `agent_readiness: timeout`. 작업 프롬프트 미실행.
+- CAPTURE: task `task_ff474320cef2`, 최초 dispatch `ctx_ec9d312f1a44`, 기존 터미널 재사용 retry `ctx_3824b3ea9669`도 동일 timeout.
+- CONNECT: task `task_bc7493c069b2`, dispatch `ctx_889a6e8650c6`, 준비 실패 후 worker-release 완료.
+- VIEWER: task `task_d99e30aa6a25`, dispatch `ctx_cd11ce33100a`, 준비 실패 후 worker-release 완료.
+- 모든 구현 배치 미착수. 프로덕션 수정·테스트·빌드·push·CI 미실행. AUTH 설계는 검수 전 초안이다.
+- 사용자에게 네이티브 세션 기본값 변경 후 재시도 또는 터미널 준비 감지 복구를 요청했다. CLI worker-start에는 launch mode override가 없다. 임의 설정 변경·권한 우회는 하지 않는다.
+- 재개 시 같은 Run/Task에서 마지막 실패 Dispatch를 `--retry-of`로 지정하고 현재 dev에서 워크트리를 준비한다. 새 Run으로 실패 이력을 우회하지 않는다.
+- 워커 브리프는 main 체크아웃 `.scratch/brief-{capture,connect,viewer}.md`에 있다. 감사 구현 권한·소유권·게이트·커밋 제한을 포함한다.
