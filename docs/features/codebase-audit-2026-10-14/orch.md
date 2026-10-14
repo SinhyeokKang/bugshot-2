@@ -130,3 +130,11 @@ CTO 최초 ctx_bedb656f6e6d는 agent_readiness/terminal_handle_stale로 실패�
 - dev 통합 후 pnpm typecheck / pnpm test / pnpm sync:agents:check 모두 exit 0, 452파일·8731개 통과(2 skip). CAPTURE/VIEWER push `360e08c6` CI [38493044674](https://github.com/SinhyeokKang/bugshot-2/actions/runs/38493044674)도 verify/e2e-gate success다.
 - AUTH 문서 트라이아지: ARCHITECTURE·DIRECTORY·PERMISSION·POSTMORTEM 갱신. CLAUDE는 해당 세부 구현을 직접 서술하지 않아 원본 수정 불필요. privacy ko/en의 로컬 자격증명·연동 설정 저장 설명과 대조했으며 grant 메타·원자적 쓰기는 기존 목적 안이므로 새 수집·외부 전송 문구/시행일 변경 불필요. README·가이드 연결 절차와 권한은 동일하다. e2e 개수는 83파일·400개로 유지한다.
 - 실 제공자 동의·로그인·Chrome identity 리다이렉트는 실제 계정이 없어 미검증이다. 저장·grant·동기화·메시지·prefill 경쟁은 이 한계로 미루지 않고 결정적 테스트로 검증했다. 전체 build 및 가능한 런타임 점검 후 최종 push/정확한 HEAD CI를 확인한다.
+
+### 완료 기록
+
+- A01–A08 네 배치를 모두 통합했다. 코드 최종 커밋은 `2c45682d`, 문서 포함 `c80a8a84fcd45776740f35116c5b0fe498c07c85`는 origin/dev와 일치하며 CI [38495887141](https://github.com/SinhyeokKang/bugshot-2/actions/runs/38495887141)의 verify·4개 e2e 샤드·e2e-gate가 모두 success다. 이 완료 기록 커밋도 push 후 해당 SHA의 CI를 별도로 확인하며, 최종 해시·run URL은 세션 완료 보고에 남긴다.
+- 최종 로컬 게이트는 452파일·8731개 테스트 통과(기존 2 skip), typecheck·미러 검사 exit 0이다. `/build`의 `pnpm build`도 exit 0이며 통합 코드로 dist와 dist-log-viewer를 생성했다. 가이드 정적 링크·이미지·ko/en 구조 검사 및 회고 형식 검사도 통과했다.
+- 런타임 검증 task `task_661f2e5776c4` / dispatch `ctx_8d9eadb61d63`는 main 체크아웃에서 수행했다. 브라우저 확장 목록에 활성 스토어판 1.7.51만 있고 이 저장소 dist의 언팩 확장은 없어, `/manual-smoke`의 언팩 확장 전제에 따라 실제 통합본 실행은 **SKIPPED**다. 스토어판의 오류 0을 이번 코드 검증으로 간주하지 않았다. 실제 OAuth 동의·로그인·쿠키·리다이렉트·취소/철회와 약 400px 패널·다크모드·긴 파일명·다국어 화면은 미검증으로 남긴다.
+- `/guide-shots`는 영향 범위 ko/en 이미지 28개의 메타데이터·캡션·소스를 대조하고 4개 기존 이미지를 육안 확인했다. 범위 내 placeholder 0, 확정된 캡션 불일치 0이며 재촬영은 하지 않았다. 소스보다 오래된 이미지 후보는 28개지만 평상시 화면 변경은 확인되지 않았다. 범위 밖 기존 placeholder 6개는 이번 변경과 무관하다. 전체 이미지 픽셀 검증을 통과했다고 주장하지 않는다.
+- 관측한 신규 런타임 결함·발행한 GitHub 이슈는 없다. Ego TaskSpace를 정리했고 검증 워커도 worker_done 인계 확인 후 release했다. 구현 워크트리는 미커밋 변경 0·미통합 커밋 0 확인 후 제거했다. 현재 worktree와 Orca 터미널은 지휘자 dev 하나씩만 남는다. 상세 인계·검수·빌드·런타임 로그는 로컬 `.scratch/audit-20261014/`에 보존했다.

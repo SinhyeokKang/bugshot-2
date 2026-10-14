@@ -28,8 +28,8 @@
 ## 공통 완료 조건
 - [x] 배치별 TDD·자체 검증·독립 리뷰, typecheck/test/sync gate.
 - [x] 지휘자 문서 신선도·회고·가이드 영향 처리.
-- [ ] dev 통합 후 재검증·build·가능한 런타임 검증.
-- [ ] 최종 원격 dev HEAD 일치와 해당 SHA CI verify/e2e-gate 성공.
+- [x] dev 통합 후 재검증·build·가능한 런타임 검증(언팩 확장 부재로 실 런타임은 SKIPPED, orch.md 참조).
+- [x] 원격 dev HEAD 일치와 해당 SHA CI verify/e2e-gate 성공(c80a8a84 검증 완료; 완료 기록 커밋도 push 후 같은 게이트로 확인).
 
 ## 가이드 영향
 기존 동작 복원은 기능 설명 변경이 필요한지 대조한다. 영상 키보드 탐색은 기존 로그 뷰어 안내의 ko/en 동시 갱신 여부를 판정한다. 공용 가이드 수정은 지휘자가 통합 시 수행한다.
