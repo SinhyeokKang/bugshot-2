@@ -146,7 +146,7 @@ describe("연결 실패 레인의 reason 태깅 전수", () => {
     // 예외라 여기 못박는다. jira는 refreshOnce 전체를 감싸 갱신·저장 실패를 함께 덮고,
     // notion은 refresh 함수가 없어 401 지점을 직접 태깅한다.
     it.each([
-      ["jira-api.ts", /inRefreshLane\(async \(\) => \{/, "refreshOnce 전체를 refresh 레인으로"],
+      ["jira-api.ts", /inRefreshLane\(\(\) => refreshOAuthToken\(/, "refreshOnce 전체를 refresh 레인으로"],
       ["notion-api.ts", /refreshFailed: true/, "refresh 함수가 없어 401을 직접 태깅"],
     ])("%s: runner 밖 refresh 레인이 태깅돼 있다", (file, marker, why) => {
       const src = readFileSync(resolve(BG, file), "utf8");

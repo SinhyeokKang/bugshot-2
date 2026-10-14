@@ -1,3 +1,5 @@
+import { createAuthCandidate } from "./lib/authContext";
+import type { JiraCandidateProfile } from "@/types/messages";
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
 import { inConnectLane } from "./lib/connectLane";
 import { getLocale, t, withLocale } from "@/i18n";
@@ -258,8 +260,16 @@ export async function handleMessage(
     case "oauth.start":
       return trackConnect("jira", () => startOAuthFlow());
 
-    case "jira.myself":
+    case "jira.myself": {
+      if (message.context === "candidate" && message.config.kind === "oauth") {
+        const candidate = createAuthCandidate(message.config);
+        return inConnectLane(async (): Promise<JiraCandidateProfile> => {
+          const profile = await getMyself(message.config);
+          return { profile, auth: candidate.current };
+        });
+      }
       return getMyself(message.config);
+    }
 
     case "jira.listProjects":
       return searchProjects(await loadAuth(), message.query);

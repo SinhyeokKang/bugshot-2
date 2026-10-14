@@ -9,6 +9,7 @@ export interface GithubPatAuth {
 
 export interface GithubOAuthAuth {
   kind: "oauth";
+  grantId?: string;
   accessToken: string;
   tokenType: string;
   scope: string;

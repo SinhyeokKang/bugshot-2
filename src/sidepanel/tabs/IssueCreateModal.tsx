@@ -1,3 +1,4 @@
+import { acquireStoredAuth } from "@/lib/settings-storage";
 import { loadSubmissionLogs, expectedSubmissionSources, assertSubmissionSources, prepareSubmissionRecovery, runSubmissionRecovery, withSubmissionProgress, MissingSubmissionFilesError, type SubmissionProgress } from "@/sidepanel/lib/submissionRecovery";
 import type { SubmissionFile } from "@/types/attachment";
 import { useEffect, useMemo, useState } from "react";
@@ -193,6 +194,7 @@ export function IssueCreateModal() {
     inlineImages: InlineImageInput[],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = jiraAccount?.auth && await acquireStoredAuth("jira", jiraAccount.auth);
     // 유효 프로젝트는 이번 제출의 필드값이고 계정 설정은 fallback일 뿐이다 —
     // accounts.jira.projectKey를 제출 payload에 직접 쓰지 않는다.
     const projectKey = issueFields.projectKey ?? jiraAccount?.projectKey;
@@ -230,6 +232,7 @@ export function IssueCreateModal() {
         issueTypeId: issueFields.issueTypeId,
         siteId: jiraSiteId(jiraAccount.auth),
       }),
+      sourceAuth,
     );
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
     return { key: result.key, url: result.url, attachments: result.attachments };
@@ -240,6 +243,7 @@ export function IssueCreateModal() {
     inlineImages: InlineImageInput[],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = ghAccount?.auth && await acquireStoredAuth("github", ghAccount.auth);
     if (!ghAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.github") }));
     }
@@ -265,7 +269,7 @@ export function IssueCreateModal() {
         githubLabels: ghFields.label ? [ghFields.label] : undefined,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("github", githubLastSubmitFields(ghFields));
+    useSettingsStore.getState().setLastSubmitFields("github", githubLastSubmitFields(ghFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("github");
     return result;
   }
@@ -275,6 +279,7 @@ export function IssueCreateModal() {
     inlineImages: InlineImageInput[],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = linearAccount?.auth && await acquireStoredAuth("linear", linearAccount.auth);
     if (!linearAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.linear") }));
     }
@@ -299,7 +304,7 @@ export function IssueCreateModal() {
         linearLabelName: linearFields.labelName,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("linear", linearLastSubmitFields(linearFields));
+    useSettingsStore.getState().setLastSubmitFields("linear", linearLastSubmitFields(linearFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("linear");
     return result;
   }
@@ -309,6 +314,7 @@ export function IssueCreateModal() {
     inlineImages: InlineImageInput[],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = notionAccount?.auth && await acquireStoredAuth("notion", notionAccount.auth);
     if (!notionAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.notion") }));
     }
@@ -337,7 +343,7 @@ export function IssueCreateModal() {
         notionStatusOption: notionFields.statusOption,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("notion", notionLastSubmitFields(notionFields));
+    useSettingsStore.getState().setLastSubmitFields("notion", notionLastSubmitFields(notionFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("notion");
     return result;
   }
@@ -347,6 +353,7 @@ export function IssueCreateModal() {
     inlineImages: InlineImageInput[],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = gitlabAccount?.auth && await acquireStoredAuth("gitlab", gitlabAccount.auth);
     if (!gitlabAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.gitlab") }));
     }
@@ -371,7 +378,7 @@ export function IssueCreateModal() {
         gitlabLabels: gitlabFields.label ? [gitlabFields.label] : undefined,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("gitlab", gitlabLastSubmitFields(gitlabFields));
+    useSettingsStore.getState().setLastSubmitFields("gitlab", gitlabLastSubmitFields(gitlabFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
     return result;
   }
@@ -381,6 +388,7 @@ export function IssueCreateModal() {
     inlineImages: InlineImageInput[],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = asanaAccount?.auth && await acquireStoredAuth("asana", asanaAccount.auth);
     if (!asanaAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.asana") }));
     }
@@ -403,7 +411,7 @@ export function IssueCreateModal() {
         asanaTaskGid: result.key,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("asana", asanaLastSubmitFields(asanaFields));
+    useSettingsStore.getState().setLastSubmitFields("asana", asanaLastSubmitFields(asanaFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("asana");
     return result;
   }
@@ -413,6 +421,7 @@ export function IssueCreateModal() {
     inlineImages: InlineImageInput[],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = clickupAccount?.auth && await acquireStoredAuth("clickup", clickupAccount.auth);
     if (!clickupAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.clickup") }));
     }
@@ -437,7 +446,7 @@ export function IssueCreateModal() {
         clickupTaskId: result.key,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("clickup", clickupLastSubmitFields(clickupFields));
+    useSettingsStore.getState().setLastSubmitFields("clickup", clickupLastSubmitFields(clickupFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("clickup");
     return result;
   }
@@ -447,6 +456,7 @@ export function IssueCreateModal() {
     inlineImages: InlineImageInput[],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
+    const sourceAuth = slackAccount?.auth && await acquireStoredAuth("slack", slackAccount.auth);
     if (!slackAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.slack") }));
     }
@@ -467,7 +477,7 @@ export function IssueCreateModal() {
         url: result.url,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields("slack", slackLastSubmitFields(slackFields));
+    useSettingsStore.getState().setLastSubmitFields("slack", slackLastSubmitFields(slackFields), sourceAuth);
     useSettingsStore.getState().setLastSubmittedPlatform("slack");
     return result;
   }

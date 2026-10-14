@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { createAuthCandidate } from "../lib/authContext";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/i18n", () => ({
   t: (key: string, params?: Record<string, string | number>) => {
@@ -226,7 +227,7 @@ describe("resolveUrl egress 자격증명 게이트", () => {
   it("oauth 인증은 게이트 영향 없이 고정 호스트로 나간다", async () => {
     const f = mockFetch();
     await jiraFetch(
-      {
+      createAuthCandidate({
         kind: "oauth",
         accessToken: "at",
         refreshToken: "rt",
@@ -234,7 +235,7 @@ describe("resolveUrl egress 자격증명 게이트", () => {
         cloudId: "cid",
         siteUrl: "https://x.atlassian.net",
         email: "u@x.com",
-      },
+      }).current,
       "/rest/api/3/myself",
     );
     expect(f.mock.calls[0][0]).toBe(
@@ -245,7 +246,7 @@ describe("resolveUrl egress 자격증명 게이트", () => {
 
 // ── 스프린트 (createmeta 판정 + agile 목록) ────────────────────────────────
 
-const OAUTH_AUTH = {
+const OAUTH_AUTH = createAuthCandidate({
   kind: "oauth",
   accessToken: "at",
   refreshToken: "rt",
@@ -253,7 +254,9 @@ const OAUTH_AUTH = {
   cloudId: "cid",
   siteUrl: "https://x.atlassian.net",
   email: "u@x.com",
-} as const;
+} as const).current;
+
+beforeEach(() => { createAuthCandidate(OAUTH_AUTH); });
 
 const ADF: JiraAdfDoc = { type: "doc", version: 1, content: [] };
 
@@ -439,7 +442,7 @@ describe("스프린트 조회", () => {
       ]);
 
       const err = await getSprintFieldMeta(
-        { ...OAUTH_AUTH, expiresAt: Date.now() + 1_000 },
+        createAuthCandidate({ ...OAUTH_AUTH, expiresAt: Date.now() + 1_000 }).current,
         "FCLXP",
         "10004",
         false,

@@ -1,3 +1,4 @@
+import { createAuthCandidate } from "../lib/authContext";
 import { describe, expect, it, vi } from "vitest";
 
 // chrome.identity는 background 환경 전용이라 모킹 필요. parseCallbackParams는
@@ -133,7 +134,7 @@ describe("refreshGithubToken 설정 누락 분류", () => {
     const spy = vi.spyOn(cfg, "clientId", "get").mockReturnValue("");
 
     try {
-      await refreshGithubToken({
+      await refreshGithubToken(createAuthCandidate({
         kind: "oauth",
         accessToken: "at",
         refreshToken: "rt",
@@ -141,7 +142,7 @@ describe("refreshGithubToken 설정 누락 분류", () => {
         scope: "repo",
         viewerLogin: "u",
         grantedAt: Date.now(),
-      });
+      }).current);
       expect.unreachable("설정 누락이면 throw해야 한다");
     } catch (err) {
       expect(err).toBeInstanceOf(OAuthError);
@@ -155,14 +156,14 @@ describe("refreshGithubToken 설정 누락 분류", () => {
 
   it("refreshToken이 아예 없으면 재인증 안내로 갈린다(설정 누락과 구분)", async () => {
     await expect(
-      refreshGithubToken({
+      refreshGithubToken(createAuthCandidate({
         kind: "oauth",
         accessToken: "at",
         tokenType: "bearer",
         scope: "repo",
         viewerLogin: "u",
         grantedAt: Date.now(),
-      }),
+      }).current),
     ).rejects.toThrow(/refresh token/);
   });
 });
@@ -175,7 +176,7 @@ describe("설정 누락은 401이 아니라 400 레인으로 간다", () => {
     const spy = vi.spyOn(cfg, "proxyUrl", "get").mockReturnValue("");
 
     try {
-      await refreshGithubToken({
+      await refreshGithubToken(createAuthCandidate({
         kind: "oauth",
         accessToken: "at",
         refreshToken: "rt",
@@ -183,7 +184,7 @@ describe("설정 누락은 401이 아니라 400 레인으로 간다", () => {
         scope: "repo",
         viewerLogin: "u",
         grantedAt: Date.now(),
-      });
+      }).current);
       expect.unreachable("설정 누락이면 throw해야 한다");
     } catch (err) {
       const e = err as OAuthError;

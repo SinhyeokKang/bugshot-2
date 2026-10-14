@@ -1,8 +1,8 @@
+import { createAuthCandidate, createGrantRefresh } from "./lib/authContext";
 import { inConnectLane } from "./lib/connectLane";
 import { t } from "@/i18n";
 import type { GithubAuth, GithubOAuthAuth } from "@/types/github";
-import { readStoredGithubAuth, writeStoredGithubOAuthTokens } from "@/lib/settings-storage";
-import { pickRotatedAuth } from "./lib/rotatedAuth";
+import { writeStoredGithubOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setGithubRefreshHook } from "./github-api";
 import { OAuthError, authorizeRejection, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
@@ -91,6 +91,7 @@ export async function startGithubOAuth(): Promise<GithubOAuthAuth> {
   const tokens = await exchangeCodeForTokens(code);
   const auth: GithubOAuthAuth = {
     kind: "oauth",
+    grantId: crypto.randomUUID(),
     accessToken: tokens.access_token,
     tokenType: tokens.token_type,
     scope: tokens.scope,
@@ -102,8 +103,9 @@ export async function startGithubOAuth(): Promise<GithubOAuthAuth> {
     viewerLogin: "",
     grantedAt: Date.now(),
   };
+  const candidate = createAuthCandidate(auth);
   const me = await inConnectLane(() => getMyself(auth));
-  return { ...auth, viewerLogin: me.login, viewerEmail: me.email };
+  return { ...candidate.current, viewerLogin: me.login, viewerEmail: me.email };
 }
 
 async function exchangeCodeForTokens(code: string): Promise<GithubTokenResponse> {
@@ -133,7 +135,7 @@ async function exchangeCodeForTokens(code: string): Promise<GithubTokenResponse>
   return data as GithubTokenResponse;
 }
 
-export async function refreshGithubToken(
+async function requestGithubRefresh(
   auth: GithubAuth,
 ): Promise<GithubAuth> {
   if (auth.kind !== "oauth") return auth;
@@ -180,41 +182,17 @@ export async function refreshGithubToken(
         ? Date.now() + tokens.expires_in * 1000
         : undefined,
   };
-  await persistGithubOAuthTokens(refreshed);
   return refreshed;
 }
 
-export async function persistGithubOAuthTokens(
-  auth: GithubOAuthAuth,
-): Promise<void> {
-  try {
-    await writeStoredGithubOAuthTokens(auth);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new OAuthError(t("oauth.error.tokenPersist", { message }), {
-      platform: "github",
-    });
-  }
+export async function persistGithubOAuthTokens(expected: GithubOAuthAuth, refreshed: GithubOAuthAuth): Promise<void> {
+  await writeStoredGithubOAuthTokens(expected, refreshed);
 }
 
-let refreshInFlight: Promise<GithubAuth> | null = null;
-
-async function refreshOnceWithLock(auth: GithubAuth): Promise<GithubAuth> {
-  if (auth.kind !== "oauth") return auth;
-  if (refreshInFlight) return refreshInFlight;
-  // 락을 잡은 직후 저장분을 다시 본다 — 앞선 요청이 이미 회전을 끝냈다면 인자로 받은
-  // refresh token은 소모된 값이라 invalid_grant가 난다(rotatedAuth 참조).
-  refreshInFlight = (async () => {
-    const stored = await readStoredGithubAuth().catch(() => null);
-    const rotated =
-      stored?.kind === "oauth" ? pickRotatedAuth(auth, stored) : null;
-    return rotated ?? (await refreshGithubToken(auth));
-  })().finally(() => {
-    refreshInFlight = null;
-  });
-  return refreshInFlight;
-}
-
-// 모듈 로드 시점에 github-api의 401 refresh hook을 주입.
-// service worker가 재시작되어도 background 진입 시 다시 등록됨.
-setGithubRefreshHook(refreshOnceWithLock);
+export const refreshGithubToken = createGrantRefresh<GithubAuth>(
+  "github", requestGithubRefresh,
+  async (expected, refreshed) => {
+    if (expected.kind === "oauth" && refreshed.kind === "oauth") await persistGithubOAuthTokens(expected, refreshed);
+  },
+);
+setGithubRefreshHook(refreshGithubToken);

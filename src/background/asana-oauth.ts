@@ -1,3 +1,4 @@
+import { createAuthCandidate, createGrantRefresh } from "./lib/authContext";
 import { inConnectLane } from "./lib/connectLane";
 import { t } from "@/i18n";
 import type { AsanaAuth, AsanaOAuthAuth } from "@/types/asana";
@@ -84,6 +85,7 @@ export async function startAsanaOAuth(): Promise<AsanaOAuthAuth> {
 
   const auth: AsanaOAuthAuth = {
     kind: "oauth",
+    grantId: crypto.randomUUID(),
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token ?? "",
     expiresAt: Date.now() + tokens.expires_in * 1000,
@@ -91,8 +93,9 @@ export async function startAsanaOAuth(): Promise<AsanaOAuthAuth> {
     viewerGid: "",
     viewerName: "",
   };
+  const candidate = createAuthCandidate(auth);
   const me = await inConnectLane(() => getMyself(auth));
-  return { ...auth, viewerGid: me.gid, viewerName: me.name, viewerEmail: me.email };
+  return { ...candidate.current, viewerGid: me.gid, viewerName: me.name, viewerEmail: me.email };
 }
 
 async function exchangeCode(code: string): Promise<AsanaTokenResponse> {
@@ -124,7 +127,7 @@ async function exchangeCode(code: string): Promise<AsanaTokenResponse> {
   return data as AsanaTokenResponse;
 }
 
-export async function refreshAsanaToken(auth: AsanaAuth): Promise<AsanaAuth> {
+async function requestAsanaRefresh(auth: AsanaAuth): Promise<AsanaAuth> {
   if (auth.kind !== "oauth") return auth;
   assertConfigured();
   const res = await fetch(`${OAUTH_CONFIG.asana.proxyUrl}/asana/refresh`, {
@@ -158,32 +161,17 @@ export async function refreshAsanaToken(auth: AsanaAuth): Promise<AsanaAuth> {
     refreshToken: tokens.refresh_token ?? auth.refreshToken,
     expiresAt: Date.now() + tokens.expires_in * 1000,
   };
-  await persistAsanaOAuthTokens(refreshed);
   return refreshed;
 }
 
-export async function persistAsanaOAuthTokens(
-  auth: AsanaOAuthAuth,
-): Promise<void> {
-  try {
-    await writeStoredAsanaOAuthTokens(auth);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new OAuthError(t("oauth.error.tokenPersist", { message }), {
-      platform: "asana",
-    });
-  }
+export async function persistAsanaOAuthTokens(expected: AsanaOAuthAuth, refreshed: AsanaOAuthAuth): Promise<void> {
+  await writeStoredAsanaOAuthTokens(expected, refreshed);
 }
 
-let refreshInFlight: Promise<AsanaAuth> | null = null;
-
-async function refreshOnceWithLock(auth: AsanaAuth): Promise<AsanaAuth> {
-  if (auth.kind !== "oauth") return auth;
-  if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = refreshAsanaToken(auth).finally(() => {
-    refreshInFlight = null;
-  });
-  return refreshInFlight;
-}
-
-setAsanaRefreshHook(refreshOnceWithLock);
+export const refreshAsanaToken = createGrantRefresh<AsanaAuth>(
+  "asana", requestAsanaRefresh,
+  async (expected, refreshed) => {
+    if (expected.kind === "oauth" && refreshed.kind === "oauth") await persistAsanaOAuthTokens(expected, refreshed);
+  },
+);
+setAsanaRefreshHook(refreshAsanaToken);

@@ -1,3 +1,4 @@
+import { createAuthCandidate } from "../lib/authContext";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { refreshOAuthToken, startOAuthFlow } from "../oauth";
 import type { JiraOAuthAuth } from "@/types/jira";
@@ -69,13 +70,13 @@ describe("Atlassian 토큰 요청 — 프록시 client_id 가드 호환", () => 
   });
 
   it("refresh_token 갱신에 client_id를 싣는다", async () => {
-    const auth = {
+    const auth = createAuthCandidate({
       kind: "oauth",
       cloudId: "site-1",
       accessToken: "at",
       refreshToken: "rt",
       expiresAt: 0,
-    } as JiraOAuthAuth;
+    }).current as JiraOAuthAuth;
 
     await refreshOAuthToken(auth);
 
@@ -90,13 +91,13 @@ describe("Atlassian 토큰 요청 — 프록시 client_id 가드 호환", () => 
     const exchange = bodyOf(0);
     fetchMock.mockClear();
 
-    await refreshOAuthToken({
+    await refreshOAuthToken(createAuthCandidate({
       kind: "oauth",
       cloudId: "s",
       accessToken: "a",
       refreshToken: "r",
       expiresAt: 0,
-    } as JiraOAuthAuth);
+    }).current as JiraOAuthAuth);
     const refresh = bodyOf(0);
 
     expect(refresh.client_id).toBe(exchange.client_id);

@@ -96,6 +96,7 @@ vi.mock("@/store/blob-db", () => ({
 }));
 
 vi.mock("@/lib/app-events", () => ({
+  onStateSaveFailed: { fire: vi.fn(), subscribe: vi.fn() },
   onBlobSaveFailed: { fire: vi.fn(), listen: vi.fn() },
 }));
 

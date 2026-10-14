@@ -1,8 +1,8 @@
+import { createAuthCandidate, createGrantRefresh } from "./lib/authContext";
 import { inConnectLane } from "./lib/connectLane";
 import { t } from "@/i18n";
 import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
-import { readStoredGitlabAuth, writeStoredGitlabOAuthTokens } from "@/lib/settings-storage";
-import { pickRotatedAuth } from "./lib/rotatedAuth";
+import { writeStoredGitlabOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setGitlabRefreshHook } from "./gitlab-api";
 import { OAuthError, authorizeRejection, base64url, grantRejection, httpReason, launchOAuthWebFlow } from "./oauth";
 import {
@@ -105,6 +105,7 @@ export async function startGitlabOAuth(): Promise<GitlabOAuthAuth> {
 
   const auth: GitlabOAuthAuth = {
     kind: "oauth",
+    grantId: crypto.randomUUID(),
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token,
     expiresAt: Date.now() + tokens.expires_in * 1000,
@@ -113,8 +114,9 @@ export async function startGitlabOAuth(): Promise<GitlabOAuthAuth> {
     viewerUsername: "",
     grantedAt: Date.now(),
   };
+  const candidate = createAuthCandidate(auth);
   const me = await inConnectLane(() => getMyself(auth));
-  return { ...auth, viewerUsername: me.username, viewerEmail: me.email };
+  return { ...candidate.current, viewerUsername: me.username, viewerEmail: me.email };
 }
 
 async function exchangeCode(
@@ -151,7 +153,7 @@ async function exchangeCode(
   return data as GitlabTokenResponse;
 }
 
-export async function refreshGitlabToken(auth: GitlabAuth): Promise<GitlabAuth> {
+async function requestGitlabRefresh(auth: GitlabAuth): Promise<GitlabAuth> {
   if (auth.kind !== "oauth") return auth;
   assertConfigured();
   const res = await fetch(TOKEN_URL, {
@@ -187,39 +189,17 @@ export async function refreshGitlabToken(auth: GitlabAuth): Promise<GitlabAuth> 
     expiresAt: Date.now() + tokens.expires_in * 1000,
     scope: tokens.scope,
   };
-  await persistGitlabOAuthTokens(refreshed);
   return refreshed;
 }
 
-export async function persistGitlabOAuthTokens(
-  auth: GitlabOAuthAuth,
-): Promise<void> {
-  try {
-    await writeStoredGitlabOAuthTokens(auth);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new OAuthError(t("oauth.error.tokenPersist", { message }), {
-      platform: "gitlab",
-    });
-  }
+export async function persistGitlabOAuthTokens(expected: GitlabOAuthAuth, refreshed: GitlabOAuthAuth): Promise<void> {
+  await writeStoredGitlabOAuthTokens(expected, refreshed);
 }
 
-let refreshInFlight: Promise<GitlabAuth> | null = null;
-
-async function refreshOnceWithLock(auth: GitlabAuth): Promise<GitlabAuth> {
-  if (auth.kind !== "oauth") return auth;
-  if (refreshInFlight) return refreshInFlight;
-  // 락을 잡은 직후 저장분을 다시 본다 — 앞선 요청이 이미 회전을 끝냈다면 인자로 받은
-  // refresh token은 소모된 값이라 invalid_grant가 난다(rotatedAuth 참조).
-  refreshInFlight = (async () => {
-    const stored = await readStoredGitlabAuth().catch(() => null);
-    const rotated =
-      stored?.kind === "oauth" ? pickRotatedAuth(auth, stored) : null;
-    return rotated ?? (await refreshGitlabToken(auth));
-  })().finally(() => {
-    refreshInFlight = null;
-  });
-  return refreshInFlight;
-}
-
-setGitlabRefreshHook(refreshOnceWithLock);
+export const refreshGitlabToken = createGrantRefresh<GitlabAuth>(
+  "gitlab", requestGitlabRefresh,
+  async (expected, refreshed) => {
+    if (expected.kind === "oauth" && refreshed.kind === "oauth") await persistGitlabOAuthTokens(expected, refreshed);
+  },
+);
+setGitlabRefreshHook(refreshGitlabToken);

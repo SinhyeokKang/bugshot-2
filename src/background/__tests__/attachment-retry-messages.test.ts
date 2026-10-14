@@ -61,7 +61,14 @@ const IDENTITY_ROUTES = (user: string): Record<keyof typeof AUTH, Array<[string,
 });
 const identity = (platform: keyof typeof AUTH) => handleMessage({ type: `${platform}.getAccountIdentity`, destination: DESTINATION[platform] } as BgRequest, {}) as Promise<{ identity: string }>;
 
-beforeEach(() => { stored.auth = { ...AUTH }; });
+beforeEach(() => {
+  stored.auth = { ...AUTH };
+  vi.stubGlobal("navigator", { locks: { request: async (_name: string, _opts: object, run: () => unknown) => run() } });
+  vi.stubGlobal("chrome", { storage: { local: {
+    get: async () => ({ "bugshot-settings": { version: 12, state: { accounts: Object.fromEntries(Object.entries(stored.auth).map(([p, auth]) => [p, { auth: structuredClone(auth) }])) } } }),
+    set: async (data: any) => { for (const [p, account] of Object.entries(data["bugshot-settings"].state.accounts)) stored.auth[p] = (account as any).auth; },
+  } } });
+});
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe("message registries", () => {

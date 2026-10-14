@@ -6,6 +6,7 @@ import type {
   JiraIssueSummary,
   JiraIssueType,
   JiraMyself,
+  JiraOAuthAuth,
   JiraPriority,
   JiraProject,
   JiraSite,
@@ -65,6 +66,8 @@ import type { ClickupCreateTaskPayload } from "./clickup";
 import type { SlackPostMessagePayload } from "./slack";
 import type { WebhookAuth, WebhookSubmitPayload } from "./webhook";
 
+export interface JiraCandidateProfile { profile: JiraMyself; auth: JiraOAuthAuth }
+
 export interface OAuthStartResultMsg {
   sites: JiraSite[];
   accessToken: string;
@@ -94,7 +97,7 @@ export type BgRequest =
     }
   | { type: "oauth.start" }
   | { type: "oauth.available" }
-  | { type: "jira.myself"; config: JiraConfigPayload }
+  | { type: "jira.myself"; config: JiraConfigPayload; context?: "candidate" }
   | { type: "jira.listProjects"; query?: string }
   | { type: "jira.listIssueTypes"; projectKey: string }
   | { type: "jira.listPriorities" }
