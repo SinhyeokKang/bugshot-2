@@ -46,10 +46,10 @@
 - **변경 대상**: `src/components/ui/collapsing-tabs.tsx`, `src/components/ui/__tests__/collapsing-tabs.test.tsx`, `src/sidepanel/tabs/SubmitPlatformTabs*`, `src/sidepanel/tabs/__tests__/SubmitPlatformTabs.test.tsx`, `docs/DESIGN.md`
 - **작업 내용**: 접힌 `TabLabel`에 `sr-only` + `whitespace-nowrap`, 측정 중에는 `group-data-[measuring]/tabs:not-sr-only`. `SubmitPlatformTabs` 아이콘을 `aria-hidden`으로. DESIGN.md:268 측정 서술 갱신.
 - **검증**:
-  - [ ] jsdom 클래스 단언: 접힘 시 `sr-only` 존재·`hidden` 부재(`collapsing-tabs.test.tsx:32-33`, `SubmitPlatformTabs.test.tsx:67` 갱신). `getByRole({name})`은 CSS 미로드로 red가 될 수 없으니 그물로 세지 않는다.
-  - [ ] 아이콘 `aria-hidden`으로 이름이 라벨 하나만 남는다(jsdom `getByRole("tab",{name:/^Slack$/})` 류 — 중복 방지 단언은 jsdom에서도 유효).
-  - [ ] 소비처 9곳(log-viewer `App.tsx:163` 포함) 육안 확인 + e2e `webhook-submit.spec.ts:398-428` green
-  - [ ] 수동: 좁은 패널 폭에서 Debug/Settings 탭 접힘 전환이 기존과 같은 폭에서 일어난다.
+  - [x] jsdom 클래스 단언: 접힘 시 `sr-only` 존재·`hidden` 부재(`collapsing-tabs.test.tsx:32-33`, `SubmitPlatformTabs.test.tsx:67` 갱신). `getByRole({name})`은 CSS 미로드로 red가 될 수 없으니 그물로 세지 않는다.
+  - [x] 아이콘 `aria-hidden`으로 이름이 라벨 하나만 남는다(jsdom `getByRole("tab",{name:/^Slack$/})` 류 — 중복 방지 단언은 jsdom에서도 유효).
+  - [x] (e2e분) 소비처 9곳(log-viewer `App.tsx:163` 포함) 육안 확인 + e2e `webhook-submit.spec.ts:398-428` green
+  - [ ] 수동(런타임 검증 이월 — 측정 등가성은 `e2e/tab-label-measure.spec.ts`가 상대 비교로 고정): 좁은 패널 폭에서 Debug/Settings 탭 접힘 전환이 기존과 같은 폭에서 일어난다.
 
 ## Phase B — 탭 모드 본체
 

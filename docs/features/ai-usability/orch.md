@@ -29,7 +29,7 @@
 | 배치 | Task | 범위 요약 | 소유 파일(주요) | 선행 | 모델/effort | 상태 |
 |---|---|---|---|---|---|---|
 | A1 | 1·2·3 + inactive 토스트 e2e | 캡처 실패 분류·토스트 | `src/lib/capture-messages.ts`(신규), `background/capture-throttle.ts`, `sidepanel/scroll-capture.ts`, `lib/app-events.ts`(+test), `sidepanel/lib/capture-error.ts`(+test), `i18n/namespaces/issue.ts`, `sidepanel/capture.ts`, `sidepanel/hooks/usePickerMessages.ts`, `sidepanel/tabs/IssueTab.tsx`, `sidepanel/App.tsx`, e2e 신규 spec | — | Opus / high — 권한 만료 deferred·발화 지점 단일화 불변식 | 대기 |
-| A2 | 4 + Custom Webhook 탭 e2e | 접힌 탭 `sr-only`·아이콘 aria-hidden | `components/ui/collapsing-tabs.tsx`(+test), `sidepanel/tabs/SubmitPlatformTabs*`(+test), `docs/DESIGN.md`(:268만), `e2e/webhook-submit.spec.ts` | — | Sonnet / medium — 기계적 | 대기 |
+| A2 | 4 + Custom Webhook 탭 e2e | 접힌 탭 `sr-only`·아이콘 aria-hidden | `components/ui/collapsing-tabs.tsx`(+test), `sidepanel/tabs/SubmitPlatformTabs*`(+test), `docs/DESIGN.md`(:268만), `e2e/webhook-submit.spec.ts` | — | Sonnet / medium — 기계적 | dev 통합 `3a60eb9e..87345ef0` (리뷰 1회·수정 1라운드, 🔴0) |
 | B1 | 6·7 | background 정지 예외 | `src/lib/panel-tab-url.ts`(신규), `background/tab-bindings.ts`(+test), `sidepanel/__tests__/agentManual.test.ts`(:260 바인딩 교체만) | — | Opus / high — 레코더 정지 불변식 | 대기 |
 | B2a | 8·9 + 13(하네스 우회 정리·S1·S2·로그 유지·재캡처·패널→X·별도 창 e2e) | hold 코어 | `sidepanel/lib/tab-mode.ts`(신규), `sidepanel/tab-mode.ts`(신규), `sidepanel/hooks/useTabModeHold.ts`(신규), `capture.ts`, `usePickerMessages.ts`, `IssueTab.tsx`, `App.tsx`, `scripts/coverage-report.mjs`, `e2e/fixtures/extension.ts`, 우회 spec들, `e2e/GOTCHAS.md` | A1·B1 dev 통합 | Opus / high — 캡처 관문·hold 경쟁·하네스 반전 | 대기 |
 | B2b | 10 + picker·hint e2e | 대상 선택 화면·안내 | `components/TabTargetPicker.tsx`·`TabModeAgentHint.tsx`(신규, +test), `App.tsx`, `IssueTab.tsx`(영역 안내), `i18n/namespaces/app.ts`·`issue.ts` | B2a | Sonnet / high — UI 다수, 경계는 B2a가 깔아 둠 | 대기 |
@@ -72,3 +72,4 @@
 ## 진행 로그
 
 - 2026-10-15 인테이크: D1–D6 기록, 프로브 완료.
+- 2026-10-15 1파 착수(A1·A2·B1). A2 리뷰 🔴0·🟡2 → fix1(측정 등가성 e2e `tab-label-measure.spec.ts`, nowrap 제거) → dev 통합. 런타임 이월: 옛 구현 대비 절대 폭 비교, log-viewer 육안. SlackIcon `aria-hidden` prop 추가는 범위 밖이나 리뷰 승인.
