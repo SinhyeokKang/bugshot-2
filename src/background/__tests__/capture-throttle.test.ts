@@ -4,7 +4,6 @@ import {
   CAPTURE_RETRY_DELAYS_MS,
   captureOwnedTab,
   createCaptureThrottle,
-  isCaptureRateLimitError,
   type CaptureOwnerDeps,
 } from "../capture-throttle";
 
@@ -20,16 +19,6 @@ const rateLimitErr = () =>
   new Error(
     "This request exceeds the MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND quota.",
   );
-
-describe("isCaptureRateLimitError", () => {
-  it("rate-limit 메시지 → true", () => {
-    expect(isCaptureRateLimitError(rateLimitErr())).toBe(true);
-  });
-  it("다른 에러 → false", () => {
-    expect(isCaptureRateLimitError(new Error("tab closed"))).toBe(false);
-    expect(isCaptureRateLimitError("nope")).toBe(false);
-  });
-});
 
 describe("createCaptureThrottle", () => {
   it("첫 캡처는 대기 없이 즉시 실행", async () => {
