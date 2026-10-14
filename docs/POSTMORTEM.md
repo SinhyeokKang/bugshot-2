@@ -36,6 +36,26 @@
 
 ---
 
+## 2026-10-14 — 토큰 차이와 플랫폼 단위 Promise는 재연결된 grant를 구분하지 못한다
+
+- **영역**: `background`, `어댑터`, `store`
+- **계열**: `취소래치`, `미검증단언`
+- **그물**: `unit`
+- **증상**: A로 시작한 요청이 재연결된 B의 토큰을 회전 결과로 채택하거나, 이전 refresh 결과가 새 연결에 섞인다.
+- **근본 원인**: refresh token이 다르다는 사실을 같은 grant의 회전으로 해석했고, 플랫폼마다 하나인 진행 중 Promise도 계정 교체를 구별하지 못했다. 저장 writer만 막아도 읽는 쪽이 B 인증을 사용하면 이미 잘못된 요청이 나간다.
+- **재발 방지**: 신규 연결의 불변 grantId와 계정 신원을 분리하고, legacy는 최초 네트워크 전에 원 토큰을 대조해 승격한다. 저장 전 후보는 명시적 문맥으로만 열고 refresh 결과를 모든 대기자의 최종 연결 입력에 전달한다. 일반 API 외 Jira 미디어 GET/HEAD·지연 재시도도 전수 확인한다. 테스트는 5개 제공자의 실제 URL·Authorization·정확한 refresh body·최종 저장 토큰과 serializer→bg-client의 만료 이벤트를 단언한다. A refresh를 붙잡은 채 B refresh를 완료해도 A가 B를 사용하지 않아야 한다.
+- **관련**: `background/lib/authContext.ts`, `rotatedAuth.ts`, `jira-api.ts:getMediaFileId`, `lib/settings-storage.ts`; `auth-grants.test.ts`, `auth-candidates.test.ts`, `auth-messages.test.ts`, `jira-candidate-connect.test.tsx`.
+
+## 2026-10-14 — 설정 봉투 잠금만으로는 오래된 패널의 전체 저장을 막지 못한다
+
+- **영역**: `store`, `background`, `에디터`
+- **계열**: `취소래치`, `드리프트`
+- **그물**: `unit`
+- **증상**: 한 패널의 설정 변경이 다른 패널·background가 갱신한 토큰을 되돌리거나, 늦은 제출·schema 조회가 새 계정의 최근 선택값·기본값을 바꾼다.
+- **근본 원인**: 여러 realm이 같은 settings 봉투를 각자 읽고 통째로 썼다. 잠금 아래에서도 stale snapshot 전체를 쓰면 갱신 토큰이 사라진다. 비동기 완료 시점에 현재 인증을 붙이면 이전 요청의 결과가 새 계정의 변경 의도로 위장된다. 실패한 저장 도중 들어온 새 의도는 실행 중 Promise만 공유하면 재시도 계기를 잃는다.
+- **재발 방지**: 모든 set/remove/migration/token writer를 같은 queued Web Lock으로 묶고 최신 저장값에 명시적 intent만 적용한다. durable 성공 뒤 ack하며 실패한 앞 intent와 clearStorage는 큐에 남긴다. 새 액션·외부 이벤트의 wake와 hydration generation을 구분하고, 비동기 계정 종속 patch는 await 전에 인증을 잡는다. 독립 store 2개·복제 storage·실제 background writer·실제 onChanged를 묶어 경쟁과 실패 복구를 강제한다. 잠금을 제거한 mutation이 red인지, 자기 이벤트가 유한 write로 끝나는지도 확인한다.
+- **관련**: `lib/settings-envelope.ts`, `settings-mutations.ts`, `store/settings-adapter.ts`, `sidepanel/lib/settings-sync.ts`, 두 제출 컴포넌트와 `NotionConnectForm.tsx`; `settings-transactions.test.ts`, `submission-grants.test.tsx`, `notion-account-grant.test.tsx`.
+
 ## 2026-10-14 — 포커스 토큰과 그림자 존재만으로 실제 대비를 증명할 수 없다
 
 - **영역**: `디자인`, `컴포넌트`, `미디어`
