@@ -92,3 +92,9 @@ AUTH가 messages.ts 변경을 필요로 하면 CONNECT 통합 뒤 rebase하고 �
 | AUTH QA 검수 | task_2df121e1fce5 | ctx_1ca23de97039 | ready·turn_started 확인 |
 
 CTO 최초 ctx_bedb656f6e6d는 agent_readiness/terminal_handle_stale로 실패했고 worker-release로 정리했다. 같은 Task의 공식 retry는 성공했다. 모든 모델/effort는 사용자 설정 상속이며 실행 모드는 terminal이다.
+
+### AUTH 검수 결정
+
+- CTO 심각 3/권장 3, QA 심각 4/권장 2를 기술 계약 보완으로 수용했다. 새 제품 결정은 없으며 기존 구현 승인 범위에서 grant 승격·명시적 account/prefill intent·pending/ack/hydration/migration 상태 전이와 테스트 모델을 design/tasks에 명시했다.
+- 파일 겹침 변경: AUTH가 IssueCreateModal/DraftDetailDialog의 grant/prefill 배선도 소유한다. **AUTH는 CAPTURE와 CONNECT 통합 뒤 직렬 착수**한다. VIEWER와는 독립이다.
+- Orca nested depth=1로 하위 전문 에이전트는 실행 불가. CTO·QA 직접 독립 검수는 완료했고 구현 전문 리뷰는 지휘자 소유 별도 Dispatch로 수행한다. 미할당 보조 터미널 5개는 소유 워커가 확인 후 정리했다.

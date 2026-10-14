@@ -24,3 +24,11 @@ feature-review CTO·QA 검수 후 AUTH 워커 착수. docs/features/codebase-aud
 
 ## 가이드 영향
 기존 연결 동작의 복구이므로 새 사용자 절차 없음. 변경 후 실제 UX와 대조해 최종 판정한다.
+
+## 검수 추가 수용 조건
+- [ ] 5종 신규 grant ID 발급, canonical legacy 승격과 동시/늦은 요청, 동일 시각 재연결, GitHub optional RT 및 Asana 비회전 RT를 검증한다.
+- [ ] connect/replace/disconnect/all/accountPatch/prefillPatch를 최신 durable state에 원자적으로 적용한다. 이전 제출 완료→새 grant prefill 오염을 두 제출 진입점에서 막는다.
+- [ ] 복제 storage mock + 독립 패널 2개 + 실제 background writer로 lock/intent production 배선의 red→green을 입증한다.
+- [ ] 실패 intent 보존·순서·재시도·외부 rehydrate 재적용·자기 echo·초기 hydration ready를 단언한다.
+- [ ] migration(v1/v2/10/11/current), string/object/null/malformed/unknown 필드, 두 migration과 refresh의 경쟁을 단언한다.
+- [ ] 구 grant 중단·저장 실패는 현재 계정 만료 이벤트를 발생시키지 않고 실제 만료는 유지한다. 실제 URL/헤더/refresh body와 최종 저장값으로 판정한다.
