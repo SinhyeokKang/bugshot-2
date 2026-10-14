@@ -132,9 +132,12 @@ describe("tabModeGate — 탭 모드에서 쿼리 없이 열렸을 때만 대상
     expect(tabModeGate({ self: undefined, href: `${panelBase}?tabId=7`, panelBase })).toBe("bound");
   });
 
-  it("사이드패널(self=null)은 쿼리와 무관하게 sidepanel — 기존 바인딩 경로 그대로", () => {
+  it("사이드패널(self=null) + 쿼리 없음 → sidepanel — 기존 바인딩 경로 그대로", () => {
     expect(tabModeGate({ self: null, href: panelBase, panelBase })).toBe("sidepanel");
-    expect(tabModeGate({ self: null, href: `${panelBase}?tabId=7`, panelBase })).toBe("sidepanel");
+  });
+
+  it("정수 쿼리면 self가 null이어도 bound", () => {
+    expect(tabModeGate({ self: null, href: `${panelBase}?tabId=7`, panelBase })).toBe("bound");
   });
 
   it("탭 모드 + 쿼리 없음 → pick", () => {

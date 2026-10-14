@@ -48,14 +48,17 @@ export function listTargetCandidates<T extends TabLike>(
 
 export type TabModeGate = "pending" | "sidepanel" | "pick" | "bound";
 
-/** App 렌더 분기. 탭 모드인데 ?tabId=가 정수가 아니면 pick — useBoundTabId는 폴백이 임의 탭을 주고
- *  `Number.isFinite`라 1.5도 받으므로 판정은 이 파서(정수만)로만 한다. self=undefined는 getSelfTab 대기 중. */
+/** App 렌더 분기. 판정이 의미 있는 건 ?tabId=가 없을 때뿐이다 — 정수 쿼리가 있으면 사이드패널이든 탭 모드든
+ *  결과가 같으므로 getSelfTab을 기다리지 않고 bound(사이드패널 정상 경로를 새 비동기 게이트 뒤로 세우지 않는다).
+ *  쿼리가 정수가 아니면 useBoundTabId는 폴백이 임의 탭을 주고 `Number.isFinite`라 1.5도 받으므로 판정은 이 파서
+ *  (정수만)로만 한다. self=undefined는 getSelfTab 대기 중. */
 export function tabModeGate(a: {
   self: { id: number } | null | undefined;
   href: string;
   panelBase: string;
 }): TabModeGate {
+  if (parsePanelTabTarget(a.href, a.panelBase) !== null) return "bound";
   if (a.self === undefined) return "pending";
   if (a.self === null) return "sidepanel";
-  return parsePanelTabTarget(a.href, a.panelBase) === null ? "pick" : "bound";
+  return "pick";
 }
