@@ -54,9 +54,10 @@ export function createSettingsAdapter(publish: (state: SettingsData) => void) {
         // 두면 이후 모든 intent가 영구 실패한다 — 폐기는 패널 hydrate만, background는 fail-closed.
         if (!(error instanceof SettingsCorruptError)) throw error;
         await discardCorruptSettingsEnvelope();
-        ({ state } = await transactSettings(() => {}));
+        // 지운 직후 래치를 건다 — 이어지는 재조회가 실패해도 다음 hydrate는 null을 정상으로 읽어 안내할 기회가 없다.
         resetPending = true;
         onSettingsReset.fire();
+        ({ state } = await transactSettings(() => {}));
       }
       if (start === generation) rebase(state);
     } catch { onStateSaveFailed.fire(); }

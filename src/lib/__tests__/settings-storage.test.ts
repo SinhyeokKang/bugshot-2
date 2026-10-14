@@ -250,6 +250,13 @@ describe("StaleGrantError — 사유 분류와 던지는 시점 현지화", () =
     expect((err as Error).message).toBe(accountChanged());
   });
 
+  it("같은 자리가 OAuth가 아닌 연결(PAT)로 바뀌었으면 missing이 아니라 replaced", async () => {
+    stored = envelope({ accounts: { github: { auth: { kind: "pat", pat: "p", viewerLogin: "u" } } } });
+    const err = await acquireStoredAuth("github", githubAuth).catch((e: unknown) => e);
+    expect((err as StaleGrantError).reason).toBe("replaced");
+    expect((err as Error).message).toBe(accountChanged());
+  });
+
   it("writer의 grant 불일치도 replaced로 분류", async () => {
     stored = envelope({ accounts: { github: { auth: { ...githubAuth, grantId: "other" } } } });
     const err = await writeStoredGithubOAuthTokens(githubAuth as never, { ...githubAuth, accessToken: "late" } as never).catch((e: unknown) => e);

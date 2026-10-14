@@ -99,7 +99,7 @@ export async function acquireStoredAuth<A extends { kind: string }>(platform: OA
   const { result } = await transactSettings((state) => {
     const current = state.accounts[platform]?.auth as unknown as Record<string, unknown> | undefined;
     const input = requested as unknown as Record<string, unknown>;
-    if (!current || current.kind !== "oauth") throw new StaleGrantError(platform, "missing");
+    if (!current || current.kind !== "oauth") throw new StaleGrantError(platform, current ? "replaced" : "missing");
     if (input.grantId) {
       if (!sameOAuthGrant(platform, input, current)) throw new StaleGrantError(platform, "replaced");
     } else {

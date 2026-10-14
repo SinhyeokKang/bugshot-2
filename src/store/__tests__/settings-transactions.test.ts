@@ -5,7 +5,6 @@ import { writeStoredLinearOAuthTokens } from "@/lib/settings-storage";
 const auth = { kind: "oauth" as const, grantId: "grant-a", accessToken: "old", refreshToken: "r0", expiresAt: 1, scope: "read", viewerName: "me", grantedAt: 1 };
 const account = { platform: "linear" as const, connectedAt: 1, auth, defaults: {} };
 let raw: any;
-let backup: any;
 let writes: number;
 let failWrite: boolean;
 let lockTail: Promise<unknown>;
@@ -14,14 +13,14 @@ let releaseWrite: (() => void) | undefined;
 beforeEach(() => {
   raw = { version: 99, future: "keep", state: { accounts: { linear: account }, lastSubmitFields: {}, titlePrefix: "", future: { x: 1 } } };
   listeners = [];
-  backup = undefined; writes = 0; failWrite = false; lockTail = Promise.resolve(); releaseWrite = undefined;
+  writes = 0; failWrite = false; lockTail = Promise.resolve(); releaseWrite = undefined;
   vi.stubGlobal("navigator", { locks: { request: vi.fn((_name, _opts, run) => {
     const result = lockTail.then(run); lockTail = result.catch(() => {}); return result;
   }) } });
   vi.stubGlobal("chrome", { storage: { onChanged: { addListener: (fn: any) => listeners.push(fn), removeListener: (fn: any) => { listeners = listeners.filter((x) => x !== fn); } }, local: {
     get: vi.fn(async () => ({ "bugshot-settings": structuredClone(raw) })),
-    set: vi.fn(async (items) => { if (failWrite) throw Error("disk"); if ("bugshot-settings.corrupt" in items) backup = structuredClone(items["bugshot-settings.corrupt"]); if (!("bugshot-settings" in items)) return; if (releaseWrite) await new Promise<void>((r) => { releaseWrite = r; }); const oldValue = structuredClone(raw); raw = structuredClone(items["bugshot-settings"]); if (typeof raw === "string") raw = JSON.parse(raw); writes++; const newValue = structuredClone(raw); queueMicrotask(() => listeners.forEach((listener) => listener({ "bugshot-settings": { oldValue, newValue } }, "local"))); }),
-    remove: vi.fn(async (keys: string | string[]) => { const list = [keys].flat(); if (list.includes("bugshot-settings")) raw = undefined; if (list.includes("bugshot-settings.corrupt")) backup = undefined; }),
+    set: vi.fn(async (items) => { if (failWrite) throw Error("disk"); if (releaseWrite) await new Promise<void>((r) => { releaseWrite = r; }); const oldValue = structuredClone(raw); raw = structuredClone(items["bugshot-settings"]); if (typeof raw === "string") raw = JSON.parse(raw); writes++; const newValue = structuredClone(raw); queueMicrotask(() => listeners.forEach((listener) => listener({ "bugshot-settings": { oldValue, newValue } }, "local"))); }),
+    remove: vi.fn(async (keys: string | string[]) => { if ([keys].flat().includes("bugshot-settings")) raw = undefined; }),
   } } });
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -98,7 +97,7 @@ it("missing Web Locks never fall back to overwriting", async () => {
   const a = createSettingsStore();
   vi.stubGlobal("navigator", {});
   await a.persist.rehydrate(); expect(writes).toBe(0);
-  expect(backup).toBeUndefined(); expect(raw.state.accounts.linear).toBeDefined();
+  expect(raw.state.accounts.linear).toBeDefined();
 });
 it.each(["broken", "{not json", { state: { accounts: "broken" } }, { state: {}, version: "future" }, { state: [] }])("panel hydration discards a corrupt envelope (%j) instead of locking every later write", async (bad) => {
   const { onSettingsReset, onStateSaveFailed } = await import("@/lib/app-events");
@@ -106,7 +105,9 @@ it.each(["broken", "{not json", { state: { accounts: "broken" } }, { state: {}, 
   const offReset = onSettingsReset.subscribe(reset), offFailed = onStateSaveFailed.subscribe(failed);
   raw = structuredClone(bad);
   const a = createSettingsStore(); await a.persist.rehydrate();
-  expect(raw).toBeUndefined(); expect(backup).toBeUndefined();
+  expect(raw).toBeUndefined();
+  // 손상 원문(토큰 포함)을 다른 키로 옮겨 남기지 않는다 — 연결 해제가 삭제를 보장하지 못하게 된다.
+  expect(vi.mocked(chrome.storage.local.set).mock.calls.flatMap(([items]) => Object.keys(items as object))).not.toContainEqual(expect.not.stringMatching(/^bugshot-settings$/));
   expect(a.persist.hasHydrated()).toBe(true);
   expect(reset).toHaveBeenCalledTimes(1); expect(failed).not.toHaveBeenCalled();
   a.getState().setTitlePrefix("fresh"); await a.persist.flush();
@@ -119,7 +120,6 @@ it.each(["read", "lock"])("a transient %s failure during hydration is not mistak
   if (failure === "read") vi.mocked(chrome.storage.local.get).mockRejectedValueOnce(Error("read"));
   else vi.mocked(navigator.locks.request).mockRejectedValueOnce(Error("lock"));
   const a = createSettingsStore(); await a.persist.rehydrate();
-  expect(backup).toBeUndefined();
   expect(chrome.storage.local.remove).not.toHaveBeenCalled();
   expect(raw.state.accounts.linear.auth.accessToken).toBe("old");
 });
@@ -137,7 +137,7 @@ it("background readers stay fail-closed on a corrupt envelope and never discard 
   const { SettingsCorruptError } = await import("@/lib/settings-envelope");
   raw = "{not json";
   await expect(readStoredLinearAuth()).rejects.toBeInstanceOf(SettingsCorruptError);
-  expect(raw).toBe("{not json"); expect(backup).toBeUndefined();
+  expect(raw).toBe("{not json"); expect(chrome.storage.local.remove).not.toHaveBeenCalled();
 });
 it("does not resurrect a migrated legacy Jira connection after disconnect", async () => {
   raw = { version: 2, state: { jiraConfig: { auth: { kind: "oauth", accessToken: "old", refreshToken: "r", expiresAt: 1, cloudId: "s", email: "e", siteUrl: "https://s.test" } } } };
@@ -264,4 +264,17 @@ it("a second panel that waited on the lock does not discard an envelope another 
   const { discardCorruptSettingsEnvelope } = await import("@/lib/settings-envelope");
   await discardCorruptSettingsEnvelope();
   expect(raw.state.titlePrefix).toBe("written-after-reset");
+});
+it("a reset is still reported when re-reading after the discard fails transiently", async () => {
+  raw = "{not json";
+  const request = vi.mocked(navigator.locks.request);
+  const real = request.getMockImplementation()!;
+  let calls = 0;
+  request.mockImplementation(((name: string, options: object, run: () => unknown) => {
+    calls++;
+    return calls === 3 ? Promise.reject(Error("lock")) : (real as any)(name, options, run);
+  }) as typeof navigator.locks.request);
+  const a = createSettingsStore(); await a.persist.rehydrate();
+  expect(raw).toBeUndefined();
+  expect(a.persist.takeSettingsReset()).toBe(true);
 });

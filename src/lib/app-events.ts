@@ -37,7 +37,7 @@ export const onBlobSaveFailed = createEmitter();
 // 낳으므로 blob 쪽과 대칭인 이벤트로 올린다.
 export const onStateSaveFailed = createEmitter();
 
-// 손상된 설정 봉투를 백업 키로 격리하고 초기 상태로 다시 시작했다.
+// 손상된 설정 봉투를 폐기하고 초기 상태로 다시 시작했다.
 export const onSettingsReset = createEmitter();
 
 export const onSessionSaveExhausted = createEmitter();
