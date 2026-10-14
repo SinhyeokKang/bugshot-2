@@ -30,7 +30,10 @@ import {
   writeStoredOAuthTokens,
   SETTINGS_STORAGE_KEY,
   sameAuthIdentity,
+  acquireStoredAuth,
 } from "../settings-storage";
+import { SettingsCorruptError, StaleGrantError } from "../settings-envelope";
+import { getLocale, setLocale, t } from "@/i18n";
 
 const jiraAuth = { kind: "oauth", grantId: "g", accessToken: "j", cloudId: "c" };
 const legacyJiraAuth = { kind: "apiToken", baseUrl: "https://x.atlassian.net" };
@@ -74,9 +77,11 @@ describe("readStoredAuth", () => {
     expect(await readStoredAuth()).toEqual(jiraAuth);
   });
 
-  it("깨진 JSON 문자열은 저장 실패", async () => {
+  it("깨진 JSON 문자열은 손상 오류 — 현지화된 문구로 던진다", async () => {
     stored = "{not valid json";
-    await expect(readStoredAuth()).rejects.toThrow("Invalid settings");
+    const err = await readStoredAuth().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SettingsCorruptError);
+    expect((err as Error).message).toBe(t("app.settingsStorage.corrupt"));
   });
 });
 
@@ -222,5 +227,48 @@ describe("token field omission contracts", () => {
     const current = (stored as any).state.accounts[platform].auth;
     expect(current.refreshToken).toBeUndefined(); expect(current.expiresAt).toBeUndefined();
     for (const field of absent) expect(field in current).toBe(false);
+  });
+});
+
+describe("StaleGrantError — 사유 분류와 던지는 시점 현지화", () => {
+  const notConnected = () => t("platform.notConnected.title", { platform: t("platform.tab.github") });
+  const accountChanged = () => t("platform.accountChanged.title", { platform: t("platform.tab.github") });
+
+  it("저장소에 계정이 없으면(다른 패널에서 해제) missing + 연결 안 됨 문구", async () => {
+    stored = envelope({ accounts: {} });
+    const err = await acquireStoredAuth("github", githubAuth).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(StaleGrantError);
+    expect((err as StaleGrantError).reason).toBe("missing");
+    expect((err as Error).message).toBe(notConnected());
+  });
+
+  it("grant가 교체됐으면(재연결) replaced + 계정 변경 문구", async () => {
+    stored = envelope({ accounts: { github: { auth: { ...githubAuth, grantId: "other", accessToken: "B" } } } });
+    const err = await acquireStoredAuth("github", githubAuth).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(StaleGrantError);
+    expect((err as StaleGrantError).reason).toBe("replaced");
+    expect((err as Error).message).toBe(accountChanged());
+  });
+
+  it("writer의 grant 불일치도 replaced로 분류", async () => {
+    stored = envelope({ accounts: { github: { auth: { ...githubAuth, grantId: "other" } } } });
+    const err = await writeStoredGithubOAuthTokens(githubAuth as never, { ...githubAuth, accessToken: "late" } as never).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(StaleGrantError);
+    expect((err as StaleGrantError).reason).toBe("replaced");
+  });
+
+  it("문구는 던지는 시점의 로케일을 따른다 — 영어 하드코딩이 아니다", async () => {
+    const previous = getLocale();
+    try {
+      for (const locale of ["ko", "de"] as const) {
+        setLocale(locale);
+        stored = envelope({ accounts: {} });
+        const err = await acquireStoredAuth("github", githubAuth).catch((e: unknown) => e);
+        expect((err as Error).message).toBe(notConnected());
+        expect((err as Error).message).not.toMatch(/connected account changed/i);
+      }
+    } finally {
+      setLocale(previous);
+    }
   });
 });

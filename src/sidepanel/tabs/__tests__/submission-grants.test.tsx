@@ -103,3 +103,22 @@ it.each(["live", "saved"])("%s submission preserves replacement account prefill 
   expect(raw.state.lastSubmitFields.github).toEqual({ owner: "new-owner", repo: "new-repo" });
   expect(useSettingsStore.getState().lastSubmitFields.github).toEqual(raw.state.lastSubmitFields.github);
 });
+it.each(["live", "saved"])("%s submission after another panel disconnected reports not-connected, not an account change", async (mode) => {
+  const { t } = await import("@/i18n");
+  let raw: any = { version: 12, state: { accounts: { github: account }, lastSubmitFields: {}, titlePrefix: "" } };
+  const tails = new Map<string, Promise<unknown>>();
+  vi.stubGlobal("navigator", { userAgent: "Chrome/130", locks: { request: (_n: string, options: any, run?: () => Promise<any>) => {
+    const fn = run ?? options; const next = (tails.get(_n) ?? Promise.resolve()).then(fn); tails.set(_n, next.catch(() => {})); return next;
+  } } });
+  vi.stubGlobal("chrome", { storage: { local: { get: async () => ({ "bugshot-settings": structuredClone(raw) }), set: async (data: any) => { if (data["bugshot-settings"]) raw = structuredClone(data["bugshot-settings"]); } }, session: { get: async () => ({}) } }, runtime: { getManifest: () => ({ version: "1.0.0" }) } });
+  await useSettingsStore.persist.rehydrate();
+  // 다른 패널이 연결을 해제했지만 이 패널은 아직 rehydrate 전 — 메모리엔 계정이 남아 있다.
+  raw = { version: 12, state: { accounts: {}, lastSubmitFields: {}, titlePrefix: "" } };
+  mocks.loadLogs.mockResolvedValue({ networkLog: null, consoleLog: null, actionLog: null });
+  if (mode === "live") render(<IssueCreateModal />);
+  else render(<DraftDetailDialog issue={issue} open onOpenChange={vi.fn()} />);
+  let error: unknown;
+  await act(async () => { error = await mocks.submit!("github", "en").catch((e: unknown) => e); });
+  expect((error as Error).message).toBe(t("platform.notConnected.title", { platform: t("platform.tab.github") }));
+  expect(mocks.sendBg).not.toHaveBeenCalledWith(expect.objectContaining({ type: "github.submitIssue" }));
+});

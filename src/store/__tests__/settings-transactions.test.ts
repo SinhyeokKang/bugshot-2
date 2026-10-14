@@ -5,6 +5,7 @@ import { writeStoredLinearOAuthTokens } from "@/lib/settings-storage";
 const auth = { kind: "oauth" as const, grantId: "grant-a", accessToken: "old", refreshToken: "r0", expiresAt: 1, scope: "read", viewerName: "me", grantedAt: 1 };
 const account = { platform: "linear" as const, connectedAt: 1, auth, defaults: {} };
 let raw: any;
+let backup: any;
 let writes: number;
 let failWrite: boolean;
 let lockTail: Promise<unknown>;
@@ -13,14 +14,14 @@ let releaseWrite: (() => void) | undefined;
 beforeEach(() => {
   raw = { version: 99, future: "keep", state: { accounts: { linear: account }, lastSubmitFields: {}, titlePrefix: "", future: { x: 1 } } };
   listeners = [];
-  writes = 0; failWrite = false; lockTail = Promise.resolve(); releaseWrite = undefined;
+  backup = undefined; writes = 0; failWrite = false; lockTail = Promise.resolve(); releaseWrite = undefined;
   vi.stubGlobal("navigator", { locks: { request: vi.fn((_name, _opts, run) => {
     const result = lockTail.then(run); lockTail = result.catch(() => {}); return result;
   }) } });
   vi.stubGlobal("chrome", { storage: { onChanged: { addListener: (fn: any) => listeners.push(fn), removeListener: (fn: any) => { listeners = listeners.filter((x) => x !== fn); } }, local: {
     get: vi.fn(async () => ({ "bugshot-settings": structuredClone(raw) })),
-    set: vi.fn(async (items) => { if (failWrite) throw Error("disk"); if (releaseWrite) await new Promise<void>((r) => { releaseWrite = r; }); const oldValue = structuredClone(raw); raw = structuredClone(items["bugshot-settings"]); if (typeof raw === "string") raw = JSON.parse(raw); writes++; const newValue = structuredClone(raw); queueMicrotask(() => listeners.forEach((listener) => listener({ "bugshot-settings": { oldValue, newValue } }, "local"))); }),
-    remove: vi.fn(async () => { raw = undefined; }),
+    set: vi.fn(async (items) => { if (failWrite) throw Error("disk"); if ("bugshot-settings.corrupt" in items) backup = structuredClone(items["bugshot-settings.corrupt"]); if (!("bugshot-settings" in items)) return; if (releaseWrite) await new Promise<void>((r) => { releaseWrite = r; }); const oldValue = structuredClone(raw); raw = structuredClone(items["bugshot-settings"]); if (typeof raw === "string") raw = JSON.parse(raw); writes++; const newValue = structuredClone(raw); queueMicrotask(() => listeners.forEach((listener) => listener({ "bugshot-settings": { oldValue, newValue } }, "local"))); }),
+    remove: vi.fn(async (keys: string | string[]) => { if ([keys].flat().includes("bugshot-settings")) raw = undefined; }),
   } } });
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -93,20 +94,50 @@ it.each([1, 2, 10, 11, 12])("migrates v%s under the same lock with concurrent pa
   if (version < 3) expect(raw.state.accounts.jira.auth.apiToken).toBe("t");
   else { await writeStoredLinearOAuthTokens(auth, { ...auth, accessToken: "rotated" }); expect(raw.state.accounts.linear.auth.accessToken).toBe("rotated"); }
 });
-it("malformed storage and missing Web Locks never fall back to overwriting", async () => {
-  raw = "broken";
-  const a = createSettingsStore(); await a.persist.rehydrate();
-  a.getState().setTitlePrefix("pending"); await a.persist.flush();
-  expect(raw).toBe("broken"); expect(a.persist.hasHydrated()).toBe(true);
-  raw = { version: 12, state: { accounts: { linear: account }, lastSubmitFields: {}, titlePrefix: "" } };
+it("missing Web Locks never fall back to overwriting", async () => {
+  const a = createSettingsStore();
   vi.stubGlobal("navigator", {});
   await a.persist.rehydrate(); expect(writes).toBe(0);
+  expect(backup).toBeUndefined(); expect(raw.state.accounts.linear).toBeDefined();
 });
-it.each([{ state: { accounts: "broken" } }, { state: {}, version: "future" }, { state: [] }])("refuses malformed envelopes before any writer can destroy them", async (bad) => {
-  raw = bad;
+it.each(["broken", "{not json", { state: { accounts: "broken" } }, { state: {}, version: "future" }, { state: [] }])("panel hydration quarantines a corrupt envelope (%j) instead of locking every later write", async (bad) => {
+  const { onSettingsReset, onStateSaveFailed } = await import("@/lib/app-events");
+  const reset = vi.fn(), failed = vi.fn();
+  const offReset = onSettingsReset.subscribe(reset), offFailed = onStateSaveFailed.subscribe(failed);
+  raw = structuredClone(bad);
   const a = createSettingsStore(); await a.persist.rehydrate();
-  a.getState().setTitlePrefix("pending"); await a.persist.flush();
-  expect(raw).toEqual(bad); expect(writes).toBe(0);
+  expect(backup).toEqual(bad);
+  expect(a.persist.hasHydrated()).toBe(true);
+  expect(reset).toHaveBeenCalledTimes(1); expect(failed).not.toHaveBeenCalled();
+  a.getState().setTitlePrefix("fresh"); await a.persist.flush();
+  expect(raw.state.titlePrefix).toBe("fresh");
+  a.getState().setAccount("linear", account); await a.persist.flush();
+  expect(raw.state.accounts.linear.auth.accessToken).toBe("old");
+  offReset(); offFailed();
+});
+it.each(["read", "lock"])("a transient %s failure during hydration is not mistaken for corruption", async (failure) => {
+  if (failure === "read") vi.mocked(chrome.storage.local.get).mockRejectedValueOnce(Error("read"));
+  else vi.mocked(navigator.locks.request).mockRejectedValueOnce(Error("lock"));
+  const a = createSettingsStore(); await a.persist.rehydrate();
+  expect(backup).toBeUndefined();
+  expect(chrome.storage.local.remove).not.toHaveBeenCalled();
+  expect(raw.state.accounts.linear.auth.accessToken).toBe("old");
+});
+it("clearStorage is not blocked by a failed intent queued ahead of it", async () => {
+  const a = createSettingsStore(); await a.persist.rehydrate();
+  raw = "{not json";
+  a.getState().setTitlePrefix("stuck"); await a.persist.flush();
+  await a.persist.clearStorage();
+  expect(raw).toBeUndefined();
+  a.getState().setTitlePrefix("after-clear"); await a.persist.flush();
+  expect(raw.state.titlePrefix).toBe("after-clear");
+});
+it("background readers stay fail-closed on a corrupt envelope and never quarantine it", async () => {
+  const { readStoredLinearAuth } = await import("@/lib/settings-storage");
+  const { SettingsCorruptError } = await import("@/lib/settings-envelope");
+  raw = "{not json";
+  await expect(readStoredLinearAuth()).rejects.toBeInstanceOf(SettingsCorruptError);
+  expect(raw).toBe("{not json"); expect(backup).toBeUndefined();
 });
 it("does not resurrect a migrated legacy Jira connection after disconnect", async () => {
   raw = { version: 2, state: { jiraConfig: { auth: { kind: "oauth", accessToken: "old", refreshToken: "r", expiresAt: 1, cloudId: "s", email: "e", siteUrl: "https://s.test" } } } };
