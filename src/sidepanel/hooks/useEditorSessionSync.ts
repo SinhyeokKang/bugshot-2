@@ -5,6 +5,7 @@ import {
   type EditorDraft,
   type EditorSnapshot,
   type EditorState,
+  settleOrphanElementPhase,
   useEditorStore,
 } from "@/store/editor-store";
 import { onSessionSaveExhausted } from "@/lib/app-events";
@@ -132,6 +133,8 @@ export function useEditorSessionSync(tabId: number | null): boolean {
           if (snap.phase === "picking") snap.bufferedElements = [];
           snap.phase = "idle";
         }
+        // 이미 빈 drafting으로 저장된 세션(#264)을 복구한다 — 아래 styling 재바인딩도 함께 탄다.
+        snap.phase = settleOrphanElementPhase(snap);
         useEditorStore.getState().hydrate(migrateLegacyDraft(snap));
         restoredState = useEditorStore.getState();
         // 패널이 닫힐 때 port disconnect로 페이지 편집이 전부 원복되므로, styling 복원은

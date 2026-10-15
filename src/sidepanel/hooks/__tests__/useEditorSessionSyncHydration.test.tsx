@@ -117,6 +117,32 @@ describe("useEditorSessionSync — hydrate 게이트", () => {
   });
 });
 
+// #264 사용자 덤프 그대로 — 이미 이렇게 저장된 세션은 열 때마다 빈 drafting을 hydrate했다.
+describe("useEditorSessionSync — selection 없는 element drafting 세션 복구 (#264)", () => {
+  it("drafting/element/selection null 세션은 캡처 진입 화면으로 복원된다", async () => {
+    get.mockResolvedValue({
+      "editor:7": {
+        phase: "drafting",
+        captureMode: "element",
+        selection: null,
+        draft: null,
+        beforeImage: null,
+        afterImage: null,
+        bufferedElements: [],
+        styleEdits: { classList: [], cssText: null, inlineStyle: {}, text: "" },
+        captureContext: null,
+        target: { tabId: 7, url: "https://example.com", title: "example" },
+      },
+    });
+    const { result } = renderHook(() => useEditorSessionSync(7));
+    await waitFor(() => expect(result.current).toBe(true));
+
+    const s = useEditorStore.getState();
+    expect(s.phase).toBe("styling");
+    expect(s.selection).toBeNull();
+  });
+});
+
 /* ------------------------------------------------------------------ */
 /*  livePageUrl 전이는 스냅샷 저장을 예약하지 않는다                     */
 /* ------------------------------------------------------------------ */
