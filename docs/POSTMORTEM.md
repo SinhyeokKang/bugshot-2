@@ -36,6 +36,22 @@
 
 ---
 
+## 2026-10-15 — 탭 모드 before 스냅샷에 picker 오버레이가 찍혔는데, 원인은 탭 전환이 아니라 "화면에 있는 문서는 150ms 안에 프레임을 낸다"는 폴백 전제였다
+
+- **영역**: `content`
+- **계열**: `미검증단언`
+- **그물**: `수동`
+- **증상**: (#263, 런타임 검증 중 ego) 탭 모드 요소 편집에서 대상 요소에 ~300ms hover한 뒤 클릭하면 before 스냅샷에 선택 외곽선·margin 박스·`font 16px / 400` 툴팁이 박혔다(2/2). hover 없이 바로 클릭하면 깨끗했고(1/1) after는 항상 깨끗했다. 찍힌 오버레이는 **selected가 아니라 hover 모드 렌더**(박스 모델·인스펙터)였다 — 클릭 이후 프레임이 하나도 합성되지 않은 상태의 화면이다.
+- **근본 원인**: `afterPaint`가 rAF×2를 150ms까지만 기다리고 진행했다. 주석·ARCHITECTURE는 "rAF가 도는 환경이면 두 번째 프레임이 ~32ms에 오므로 폴백은 안 도는 환경에서 얼마나 버릴지만 정한다"고 적었지만, **visible인데 프레임이 늦게 오는 렌더러**(실측: 오버레이 숨김 뒤 첫 프레임 +228ms)를 가정하지 않았다. 폴백이 먼저 끝나 `captureVisibleTab`이 마지막으로 합성된 프레임, 즉 클릭 전 hover 화면을 찍었다. hover가 차이를 만든 건 원인이 아니라 **stale 프레임에 무엇이 그려져 있었나**의 차이다(hover 없이 바로 클릭하면 마지막 프레임에 오버레이가 아직 없다). 의심했던 탭 전환(H1 — picking hold 해제와 before 트랜잭션 hold 사이에 패널이 잠깐 앞으로 오는 경로)은 e2e 계측으로 기각했다: hover 300ms·0ms 3회 모두 `tabs.update`·`onActivated`가 picking 진입 1회 + before 뒤 패널 복귀 1회뿐이고, 숨김(+42~61ms)과 복귀 사이에 패널 활성화가 0이다. refcount 전이는 같은 동기 블록 안의 순서라 throttle 유무와 무관하게 결정적이다.
+- **재발 방지**:
+  - (1) "캡처 전 화면이 바뀌었는가"를 시간 상한으로 판정하지 않는다. visible이면 프레임을 기다리고, 상한은 **프레임이 끝내 안 오는 경우의 안전판**으로만 둔다(`PAINT_WAIT_CAP_MS` 1s). 숨김 전환은 `visibilitychange`로 즉시 놓는다 — 대기 상한을 늘릴 때 같이 넣지 않으면 탭을 떠난 사용자가 상한만큼 기다린다.
+  - (2) **대기를 늘리면 그 대기를 감싸는 바깥 타임아웃을 전수한다.** `grep -rn "afterPaint(" src/content`로 소비처를 뽑고, 각 응답을 기다리는 쪽의 타임아웃이 상한보다 긴지 본다 — iframe 경로는 top realm이 `afterPaint` 뒤에 offset을 보내는데 자식의 `requestFrameOffset`이 500ms였다. 그대로 두면 느린 프레임이 "오버레이 찍힘"에서 "캡처 실패"로 바뀔 뿐이다. 그래서 기본값을 `PAINT_WAIT_CAP_MS + 500`으로 묶고 단위로 고정했다.
+  - (3) 증상이 탭 모드에서 처음 보였다고 탭 모드 회귀로 단정하지 않는다 — 렌더 타이밍 축은 사이드패널에도 같다. 가설이 둘이면 **각각을 기각하는 관측**(여기선 패널 문서의 `onActivated` 로그와 `tabs.update` 래핑 카운트)을 먼저 뽑는다.
+  - (4) e2e는 이 함정을 원리적으로 못 본다 — 대상이 hold로 앞에 있으면 Playwright Chromium은 ~16ms마다 프레임을 내 폴백이 한 번도 안 탄다. 기존 단위 테스트는 오히려 "기본값은 150ms"를 고정하고 있었다. 늦은 프레임 축은 `after-paint.test.ts`의 "visible 문서는 150ms가 지나도…"가 잡고, 실제 렌더러 지연은 수동(hover 후 클릭 3회)뿐이다.
+- **관련**: `src/content/after-paint.ts:afterPaint`·`PAINT_WAIT_CAP_MS`, `src/content/frame-geometry.ts:requestFrameOffset`, 소비처 `src/content/picker.ts:respondAfterPaint`·`respondWithTopRect`·`handlePrepareCaptureBySelector`·`src/content/area-select.ts:settleAfterPaint`·`frame-geometry.ts:installFrameOffsetResponder`, 그물 `src/content/__tests__/after-paint.test.ts`·`frame-geometry.test.ts`. 선행: **2026-08-01**(같은 함수를 도입한 회고 — "대기를 넣었다"와 "그 대기가 문제의 프레임을 덮는다"가 다르다는 교훈의 시간 축 판).
+
+---
+
 ## 2026-10-15 — 접두사형 testid(`tab-target-option-<id>`)를 매뉴얼 그물의 추출 정규식이 못 주워, 존재 대조가 그 id를 무음으로 건너뛰었다
 
 - **영역**: `툴체인`, `컴포넌트`
