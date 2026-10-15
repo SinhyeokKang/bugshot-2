@@ -120,6 +120,11 @@ test("편집한 요소를 지우고 [다음]을 누르면 element-missing 토스
     await pickElement(fixture, panel, "#title");
     await typeStyleValue(panel, "color", "#ff0000");
     await expect(fixture.locator("#title")).toHaveCSS("color", "rgb(255, 0, 0)");
+    // 스타일 적용은 content에 120ms 재수집 타이머(picker.ts handleApplyStyles → scheduleSelectionUpdate)를
+    // 남기고, 그 타이머도 소실을 감지한다. 지우기 전에 끝나지 않으면 styling 단계에서 해제가 먼저 일어나
+    // next-step이 사라진다 — 이 spec이 재려는 건 [다음]의 after 캡처가 소실을 감지하는 경로다. 타이머 완료는
+    // 패널·페이지 어디에도 관측 가능한 표지가 없어(ISOLATED world 내부) 상한 120ms에 여유를 둔 고정 대기로 둔다.
+    await fixture.waitForTimeout(400);
 
     await fixture.evaluate(() => document.querySelector("#title")?.remove());
 
@@ -133,6 +138,8 @@ test("편집한 요소를 지우고 [다음]을 누르면 element-missing 토스
     const text = (await toast.textContent()) ?? "";
     expect(ELEMENT_MISSING_TEXTS.some((t) => text.includes(t)), text).toBe(true);
 
+    // 판별 단언은 mode-element다 — 수정 전엔 빈 drafting이라 진입 화면이 없다. drafting-panel 0은
+    // 수정 전에도 통과한다(DraftingPanel이 null을 그려 testid 자체가 없었다) — 보조 단언일 뿐이다.
     await expect(panel.getByTestId("mode-element")).toBeVisible();
     await expect(panel.getByTestId("drafting-panel")).toHaveCount(0);
 
