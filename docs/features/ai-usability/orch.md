@@ -93,3 +93,4 @@
 - 2026-10-15 사용자 수동 확인(실 사이드패널, dev 빌드): S7 무변화 PASS(캡처 5종·인라인, 탭 깜빡임 0, 탭 모드 UI 0, 지연 체감 없음), #263 hover 후 클릭 PASS → #263 close. S8 토스트는 뜨지만 **#264**: element-missing 후 Next가 `phase=drafting`·`selection=null`·`draft=null` 세션을 남겨 그 탭이 영구 빈 화면(콘솔 에러 0, 다른 탭 정상). F263 워커가 F264로 승계해 수정 중.
 - 2026-10-15 F264(#264) 인계: 원인은 기존 결함(2026-07-31 v1.7.5부터 — 소실 해제 메시지 ↔ Next 확정 경쟁, `DraftingPanel` element+!selection → null 게이트)이 A1 토스트로 드러남. 수정 `settleOrphanElementPhase`(confirmStyles·releaseDetachedSelection·hydrate) + e2e + 회고. D9 확정. 리뷰 진행.
 - 2026-10-15 F264 fix1 통합(hydrate 훅 그물·e2e 120ms 타이머 대기·인계 정정). 문서: ARCHITECTURE(:56 세션 접기·:67 해제)·DIRECTORY·CI(416). 재검증 대기: 사용자 실 사이드패널 — ① 요소 삭제 후 [다음] → 토스트 + 진입 화면, 재오픈해도 진입 화면 ② 기존 빈 화면 탭이 진입 화면으로 복구(다이얼로그 없음).
+- 2026-10-15 사용자 실 사이드패널 재검증: #264 수정 동작 확인 → #264 close.
