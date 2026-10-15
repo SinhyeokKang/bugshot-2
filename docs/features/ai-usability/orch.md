@@ -16,6 +16,7 @@
 | D4 | e2e 하네스 전제 반전(우회 정리)은 B2a가 hold 코어와 **같은 배치**에서 처리 | 중간 dev CI red 방지 |
 | D5 | 워커는 `/ship bypass`의 9단계 `/guide`·10단계 `/doc-check`를 **건너뛰고** 문서 영향을 인계에 적는다. 핫스팟 문서(CLAUDE·ARCHITECTURE·DIRECTORY)는 지휘자가 통합 `/push` 때 문서별 커밋, 탭 모드 섹션·DESIGN §14·MANUAL-SMOKE는 B3, 가이드는 C | 병렬 워커의 핫스팟 충돌 방지 |
 | D8 | **Phase C(가이드·README) 전부 드랍** — 에이전트 페이지·FAQ·AUTHORING IA·README 한 줄·`screenshot/capture.md` 실패 토스트 단락 모두 반영하지 않는다. C 워커 커밋(`283b61bf`)은 통합하지 않고 폐기. 에이전트 안내의 정본은 매뉴얼(`#__BUGSHOT_AGENT__`) 한 곳 | 사용자 결정(C 리뷰 후 — 공개 가이드에 확장 ID를 어떻게 적을지 논의 중 "가이드 그냥 적지 말자") |
+| D9 | **요소 편집 중 대상 요소가 사라진 뒤 [다음] = 실패 토스트 + 캡처 진입 화면 복귀**(그 요소 편집 폐기, 버퍼 요소는 유지). drafting으로 진행하지 않는다 | 사용자 결정(#264 — "의미없잖아") |
 | D7 | **탭 모드 전체 페이지 캡처 취소 = 패널 탭으로 돌아가기**(다음 타일에서 중단 → inactive 토스트 1회 + reset). 코드 변경 없이 문서만 정정, Esc 리스너 미추가 | 사용자 결정(B2a 리뷰). Esc 추가는 사이드패널 동작 변경이라 D1 위반 |
 | D6 | **런타임 검증은 ego에 dev 빌드(`dist`)를 마운트해서** 한다 — 스토어판으로 검증 금지. 스토어판은 손대지 않고, 끝나면 dev 빌드를 제거한다. 아래 "런타임 검증 절차" | 사용자 지시(2026-10-15 두 차례) |
 
@@ -89,3 +90,6 @@
 - 2026-10-15 F263(#263) 통합: H1(탭 모드 hold 깜빡임) 제품 코드상 배제, H2(afterPaint 150ms 폴백) 확정 — visible이면 1s(`PAINT_WAIT_CAP_MS`)까지 프레임 대기, frame-geometry 1.5s. 리뷰 🔴0, fix1(근거 문구 정정). 문서: ARCHITECTURE(:298·:538·:546)·DIRECTORY(:53). 재검증 대기: ego hover 후 클릭 3회 + 클릭→첫 rAF·숨김→첫 rAF 간격 + 패널 onActivated 로그.
 - 2026-10-15 RV2: 사용자 지시로 **이번엔 dev 빌드를 제거하지 않는다**(사용자가 사이드패널 UI를 직접 확인). 제거는 사용자 확인 후.
 - 2026-10-15 RV2 결과: #263 PASS 3/3(hover 300ms 후 클릭, before 깨끗) + 대조군 깨끗, H1을 ego에서도 배제(숨김~캡처 사이 패널 onActivated 0회). **주의: 상한 여유 ~50ms** — hover 후 대상 rAF가 ~1Hz로 떨어져 숨김→첫 rAF 940–954ms(`PAINT_WAIT_CAP_MS` 1000 바로 안쪽). 1Hz 규칙성은 프레임 클록 throttle 정황(ego 환경 의심, 원인 미규명). #263은 사이드패널 정상 모드 사람 확인까지 열어 둠. dev 빌드는 사용자 확인용으로 ego에 유지.
+- 2026-10-15 사용자 수동 확인(실 사이드패널, dev 빌드): S7 무변화 PASS(캡처 5종·인라인, 탭 깜빡임 0, 탭 모드 UI 0, 지연 체감 없음), #263 hover 후 클릭 PASS → #263 close. S8 토스트는 뜨지만 **#264**: element-missing 후 Next가 `phase=drafting`·`selection=null`·`draft=null` 세션을 남겨 그 탭이 영구 빈 화면(콘솔 에러 0, 다른 탭 정상). F263 워커가 F264로 승계해 수정 중.
+- 2026-10-15 F264(#264) 인계: 원인은 기존 결함(2026-07-31 v1.7.5부터 — 소실 해제 메시지 ↔ Next 확정 경쟁, `DraftingPanel` element+!selection → null 게이트)이 A1 토스트로 드러남. 수정 `settleOrphanElementPhase`(confirmStyles·releaseDetachedSelection·hydrate) + e2e + 회고. D9 확정. 리뷰 진행.
+- 2026-10-15 F264 fix1 통합(hydrate 훅 그물·e2e 120ms 타이머 대기·인계 정정). 문서: ARCHITECTURE(:56 세션 접기·:67 해제)·DIRECTORY·CI(416). 재검증 대기: 사용자 실 사이드패널 — ① 요소 삭제 후 [다음] → 토스트 + 진입 화면, 재오픈해도 진입 화면 ② 기존 빈 화면 탭이 진입 화면으로 복구(다이얼로그 없음).
