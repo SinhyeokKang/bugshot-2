@@ -36,6 +36,22 @@
 
 ---
 
+## 2026-10-15 — 요소 소실 해제와 [다음] 확정이 서로를 모른 채 겹쳐 "selection 없는 element drafting"을 만들었고, 그 상태가 세션에 저장돼 탭이 영구히 비었다
+
+- **영역**: `store`, `컴포넌트`
+- **계열**: `취소래치`
+- **그물**: `unit`
+- **증상**: (#264, 실제 사이드패널) 요소 편집에서 스타일을 하나 바꾼 뒤 페이지에서 그 요소를 지우고 [다음]을 누르면, `Couldn't find the element to capture` 토스트가 뜬 직후 패널 본문이 헤더만 남기고 비었다. 패널을 껐다 켜도 **그 탭만** 계속 비었고 다른 탭은 정상이었다. 콘솔 에러는 0건이었다(크래시가 아니라 렌더 게이트의 `return null`). 저장된 세션은 `phase: "drafting"`, `captureMode: "element"`, `selection: null`, `draft: null`, before/after null, styleEdits 빈 값이었다.
+- **근본 원인**: [다음]의 after 캡처가 `picker.prepareCapture`를 보내면 content가 소실을 감지해 `picker.selectionDetached`를 보내고 `rect: null`로 응답한다. 사이드패널에서는 이 두 신호가 각자 다른 전이를 일으킨다. 메시지 쪽은 `releaseDetachedSelection`이 selection·편집·before/after를 비운다(styling에서는 `isCaptureEntryScreen`이 진입 화면을 그리는 설계된 자리다). 응답 쪽은 `handleNext`가 null 결과를 "after 없음"으로 받고 `confirmStyles`로 drafting에 들어간다. 두 전이는 서로를 확인하지 않고, 도착 순서도 왕복(`clearPicker`·`endCapture`)에 달려 정해지지 않는다. 어느 순서로 와도 결과는 같다 — element 모드 drafting인데 selection이 없다. 이 조합을 `DraftingPanel`은 `return null`로, IssueTab은 drafting 분기를 진입 화면 판정보다 먼저 보기 때문에 그대로 빈 화면으로 그린다. 세션 스냅샷은 phase를 그대로 저장하고, hydrate는 `picking`/`capturing`/`recording`만 idle로 강등하므로 이 조합은 복구되지 않았다. **A1(실패 토스트)이 만든 회귀가 아니다** — `handleNext`·`releaseDetachedSelection`·`picker.ts`는 A1 이전(`3000f949`)과 diff 0이고, 해제 경로는 2026-07-31(v1.7.5)부터 있었다. A1은 토스트만 얹어 증상을 눈에 띄게 만들었다.
+- **재발 방지**:
+  - (1) **렌더 게이트가 `return null`하는 상태 조합은 store 전이에서 만들 수 없게 막는다.** 컴포넌트에서만 거르면 그 조합이 영속돼 빈 화면이 굳는다. 규칙은 `settleOrphanElementPhase` 한 곳에 두고 세 진입점이 공유한다 — 확정(`confirmStyles`), 해제(`releaseDetachedSelection`), hydrate. 전수: `grep -n "return null" src/sidepanel/tabs/DraftingPanel.tsx src/sidepanel/tabs/PreviewPanel.tsx`로 게이트 조건을 뽑고, 각 조건을 만드는 store 쓰기(`setState({ selection: null` 등)와 phase 전이가 동시에 일어날 수 있는지 본다.
+  - (2) **같은 요청의 응답과 부수 메시지가 각자 상태를 바꾸면 도착 순서 양쪽을 테스트한다.** `detached-selection-next.test.ts`가 해제→확정과 확정→해제를 둘 다 고정한다. 한쪽만 고치면 다른 순서가 남는다.
+  - (3) **영속 상태의 불변식이 깨질 수 있으면 hydrate에 복구를 둔다.** 고치기 전에 저장된 세션은 코드를 고쳐도 계속 깨진 채 남는다. phase 강등을 하는 같은 자리(`useEditorSessionSync`)에서 정규화한다.
+  - (4) **"에러 0건인 빈 화면"이면 크래시가 아니라 렌더 게이트부터 본다.** 헤더가 남았는지로 층을 가른다 — 헤더까지 비면 App 게이트(`editorHydrated`·`tabModeGate`)이고, 헤더가 남으면 탭 본문 컴포넌트의 `return null`이다.
+- **관련**: `src/store/editor-store.ts:settleOrphanElementPhase`·`confirmStyles`, `src/sidepanel/picker-control.ts:releaseDetachedSelection`, `src/sidepanel/hooks/useEditorSessionSync.ts`(hydrate 정규화), 게이트 `src/sidepanel/tabs/DraftingPanel.tsx`(`captureMode === "element" && !selection`)·`src/sidepanel/tabs/IssueTab.tsx`(drafting 분기가 `isCaptureEntryScreen`보다 먼저), 발신 `src/content/picker.ts:ensureSelectedConnected`·`src/sidepanel/tabs/StyleEditorPanel.tsx:handleNext`, 그물 `src/sidepanel/__tests__/detached-selection-next.test.ts`·`src/store/__tests__/editor-store.test.ts`·`src/sidepanel/hooks/__tests__/useEditorSessionSyncHydration.test.tsx`·`e2e/capture-failure-toast.spec.ts`(세 번째 케이스).
+
+---
+
 ## 2026-10-15 — 탭 모드 before 스냅샷에 picker 오버레이가 찍혔고, 제품의 hold 깜빡임은 배제됐다 — 직접 원인은 "화면에 있는 문서는 150ms 안에 프레임을 낸다"는 폴백 전제였다
 
 - **영역**: `content`
