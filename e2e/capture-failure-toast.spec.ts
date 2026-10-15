@@ -1,9 +1,18 @@
-import { test, expect, enterDebug, waitForTargetFront } from "./fixtures/extension";
+import {
+  test,
+  expect,
+  enterDebug,
+  pickElement,
+  typeStyleValue,
+  waitForPanelFront,
+  waitForTargetFront,
+} from "./fixtures/extension";
 
 import { LOCALES } from "../src/i18n/locales";
 import { issue } from "../src/i18n/namespaces/issue";
 
 const INACTIVE_TEXTS = LOCALES.map((l) => issue[l]["issue.captureFailed.inactive"]);
+const ELEMENT_MISSING_TEXTS = LOCALES.map((l) => issue[l]["issue.captureFailed.elementMissing"]);
 
 // 캡처 실패는 예전엔 무음 idle 리셋이었다. 페이지 캡처는 타일마다 tab.active를 다시 확인하므로
 // 진행 도중 대상 탭이 가려지면 inactive로 끊기고, 그 이유가 토스트로 보여야 한다.
@@ -87,6 +96,52 @@ test("탭 모드 페이지 캡처 도중 패널 탭으로 돌아가면 취소되
     await panel.waitForTimeout(1500);
     expect(await fixtureActive()).toBe(false);
     await expect(toast).toHaveCount(1);
+  } finally {
+    await panel.close();
+    await fixture.close();
+  }
+});
+
+// #264: 편집한 요소를 페이지에서 지우고 [다음]을 누르면 after 캡처의 prepare가 소실을 감지해
+// selection을 해제하고(picker.selectionDetached), 같은 시각 [다음]은 drafting으로 확정한다. 둘이
+// 겹치면 selection 없는 element drafting이 되어 패널이 헤더만 남기고 비었고, 그 상태가 세션에
+// 저장돼 패널을 다시 열어도 같았다. 기대: element-missing 토스트 1회 + 캡처 진입 화면, reload 뒤에도.
+test("편집한 요소를 지우고 [다음]을 누르면 element-missing 토스트 뒤 캡처 진입 화면이고 재오픈해도 같다", async ({
+  ext,
+}) => {
+  const fixture = await ext.context.newPage();
+  await fixture.goto(ext.fixtureUrl("basic.html"));
+  const tabId = await ext.fixtureTabId("http://127.0.0.1/basic.html");
+  const panel = await ext.openPanel(tabId);
+
+  try {
+    await enterDebug(panel);
+    await panel.getByTestId("mode-element").click();
+    await pickElement(fixture, panel, "#title");
+    await typeStyleValue(panel, "color", "#ff0000");
+    await expect(fixture.locator("#title")).toHaveCSS("color", "rgb(255, 0, 0)");
+
+    await fixture.evaluate(() => document.querySelector("#title")?.remove());
+
+    const next = panel.getByTestId("next-step");
+    await expect(next).not.toHaveAttribute("aria-disabled", "true");
+    await next.click();
+    await waitForPanelFront(panel);
+
+    const toast = panel.locator('[data-sonner-toast][data-type="error"]');
+    await expect(toast).toHaveCount(1, { timeout: 15_000 });
+    const text = (await toast.textContent()) ?? "";
+    expect(ELEMENT_MISSING_TEXTS.some((t) => text.includes(t)), text).toBe(true);
+
+    await expect(panel.getByTestId("mode-element")).toBeVisible();
+    await expect(panel.getByTestId("drafting-panel")).toHaveCount(0);
+
+    // 세션 저장(300ms 디바운스)이 끝난 뒤 다시 연다 — 저장된 상태가 빈 drafting이면 여기서 빈다.
+    await panel.waitForTimeout(1000);
+    await panel.reload();
+    await enterDebug(panel);
+    await expect(panel.getByTestId("mode-element")).toBeVisible();
+    await expect(panel.getByTestId("drafting-panel")).toHaveCount(0);
   } finally {
     await panel.close();
     await fixture.close();
