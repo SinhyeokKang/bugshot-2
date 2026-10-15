@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
 import * as appEvents from "@/lib/app-events";
-import { createEmitter, onOAuthExpired } from "@/lib/app-events";
+import { createEmitter, onCaptureFailed, onOAuthExpired } from "@/lib/app-events";
 
 describe("createEmitter", () => {
   it("subscribe한 리스너가 fire 인자를 그대로 받는다", () => {
@@ -81,7 +81,7 @@ describe("createEmitter", () => {
   });
 
   // 팩토리가 리스너 집합을 클로저 밖(모듈 스코프)에 두면 모든 emitter가 한 통이 된다.
-  // 그러면 아래 7종이 서로의 리스너를 발화시키므로 이 케이스가 유일한 그물이다.
+  // 그러면 아래 9종이 서로의 리스너를 발화시키므로 이 케이스가 유일한 그물이다.
   it("팩토리가 만든 emitter들은 리스너 집합을 공유하지 않는다", () => {
     const a = createEmitter();
     const b = createEmitter();
@@ -104,13 +104,13 @@ type LooseEvent = {
 
 describe("app-events 인스턴스", () => {
   // 로스터를 모듈에서 파생한다. 손으로 쓴 리터럴을 세면 삭제 방향만 잡히고(named import
-  // 실패) 추가 방향은 그물이 0이라, 8번째 emitter가 카운트에도 아래 독립성 루프에도 안 걸린다.
+  // 실패) 추가 방향은 그물이 0이라, 9번째 emitter가 카운트에도 아래 독립성 루프에도 안 걸린다.
   const emitters = Object.entries(appEvents).filter(
     ([name]) => name !== "createEmitter",
   ) as Array<[string, LooseEvent]>;
 
-  it("emitter 7종이 전부 subscribe·fire를 가진 객체다", () => {
-    expect(emitters.map(([n]) => n)).toHaveLength(7);
+  it("emitter 9종이 전부 subscribe·fire를 가진 객체다", () => {
+    expect(emitters.map(([n]) => n)).toHaveLength(9);
     for (const [name, e] of emitters) {
       expect(typeof e?.subscribe, name).toBe("function");
       expect(typeof e?.fire, name).toBe("function");
@@ -145,6 +145,16 @@ describe("app-events 인스턴스", () => {
     off();
 
     expect(fn).toHaveBeenCalledWith("github");
+  });
+
+  it("onCaptureFailed는 실패 분류 인자를 전달한다", () => {
+    const fn = vi.fn();
+    const off = onCaptureFailed.subscribe(fn);
+
+    onCaptureFailed.fire("rate-limit");
+    off();
+
+    expect(fn).toHaveBeenCalledWith("rate-limit");
   });
 });
 

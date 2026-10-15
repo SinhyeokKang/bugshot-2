@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 import { runScrollCapture, type ScrollCaptureDeps, type TileShot } from "../scroll-capture";
+import { classifyCaptureFailure } from "../lib/capture-error";
 
 import type { PageMetrics, PickerMessage } from "@/types/picker";
 
@@ -132,10 +133,15 @@ describe("runScrollCapture", () => {
     });
     const { deps, sent } = makeDeps({ captureTab });
 
-    await expect(
-      runScrollCapture(1, { onProgress: vi.fn(), signal: controller.signal, deps }),
-    ).rejects.toThrow();
+    const err = await runScrollCapture(1, {
+      onProgress: vi.fn(),
+      signal: controller.signal,
+      deps,
+    }).catch((e: unknown) => e);
 
+    // 사용자 취소는 실패 토스트 대상이 아니다 — throw 문구와 분류기가 맞물려야 한다.
+    expect(err).toBeInstanceOf(Error);
+    expect(classifyCaptureFailure(err)).toBeNull();
     expect(captureTab).toHaveBeenCalledTimes(1);
     expect(types(sent)).toContain("picker.endScrollCapture");
   });
@@ -143,10 +149,13 @@ describe("runScrollCapture", () => {
   it("탭이 비활성이면 중단한다 (다른 탭 화면 오염 방지)", async () => {
     const { deps, sent } = makeDeps({ isTabActive: vi.fn(async () => false) });
 
-    await expect(
-      runScrollCapture(1, { onProgress: vi.fn(), signal: new AbortController().signal, deps }),
-    ).rejects.toThrow();
+    const err = await runScrollCapture(1, {
+      onProgress: vi.fn(),
+      signal: new AbortController().signal,
+      deps,
+    }).catch((e: unknown) => e);
 
+    expect(classifyCaptureFailure(err)).toBe("inactive");
     expect(deps.captureTab).not.toHaveBeenCalled();
     expect(types(sent)).toContain("picker.endScrollCapture");
   });

@@ -4,8 +4,19 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { locales } from "@/i18n";
+import { buildPanelUrl, parsePanelTabTarget, recordersToStopOnSwitch } from "@/lib/panel-tab-url";
 import { walkSources } from "@/test/sourceFiles";
+import { CAPTURE_FAILURE_KEYS, classifyCaptureFailure } from "../lib/capture-error";
 import { supportsActionLog, supportsConsoleNetworkLog } from "../lib/captureLogSupport";
+import {
+  listTargetCandidates,
+  shouldActivateTarget,
+  shouldRestorePanel,
+  tabModeGate,
+  targetHoldFromState,
+} from "../lib/tab-mode";
+import { SCROLL_TAB_INACTIVE_MESSAGE } from "@/lib/capture-messages";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 에이전트 조작 매뉴얼 ↔ 실제 UI 대조 스캔
@@ -19,17 +30,19 @@ import { supportsActionLog, supportsConsoleNetworkLog } from "../lib/captureLogS
 // **그 주장이 참인 이유가 되는 소스**에 바인딩한다 — 게이트를 뒤집으면 red다.
 //
 // 이 파일의 케이스는 전부 뮤테이션으로 실측했다(구현을 되돌려 red를 눈으로 봄).
-// 실측 없이 짠 첫 판본은 축 여섯이 공허했다:
+// 실측 없이 짠 첫 판본은 축 여섯이 공허했고, 뒤에 일곱 번째가 나왔다:
 //   · 문구 정규식을 매뉴얼 전체에 걸어 다른 문단의 같은 단어가 대신 매치
 //   · 섹션 파서가 `m` 플래그 lookahead 탓에 **모든 섹션을 빈 문자열**로 반환
 //   · 단어 **존재**만 봐서 "먼저 열어라"를 "나중에 열어라"로 뒤집어도 통과
 //   · 이름만 매칭해 import 문이 **호출** 대신 매치
 //   · 주석 처리된 testid가 "실재한다"로 통과
 //   · testid 존재만 봐서 두 버튼의 testid를 맞바꿔도 통과(매핑 축 부재)
+//   · 부재 단언("Escape 없음")을 `codeOnly`가 주석을 지우는 줄 모르고 주석 뮤턴트로 실측해 공허하게 통과
+//     (코드로 넣어야 red가 난다)
 // 새 케이스를 추가하면 반드시 같은 실측을 한다.
 //
 // **단방향이 의도다.** "매뉴얼이 말한 것이 소스에서 참인가"만 본다. 역방향(소스에 있는데
-// 매뉴얼에 없다)은 red가 아니다 — 매뉴얼은 도그푸딩 경로 한 줄기만 다루고 UI 전수가 아니다.
+// 매뉴얼에 없다)은 red가 아니다 — 매뉴얼은 리포팅 경로 한 줄기(내부 QA 자동화 + 외부 고객 에이전트)만 다루고 UI 전수가 아니다.
 // 예외는 영상 축으로, 거기선 "제시하지 않았는가"를 파생 목록으로 강제한다.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -257,9 +270,33 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
       // `addEventListener(`까지 붙인다 — 문자열만 보면 정리 경로의 removeEventListener가
       // 대신 매치돼, 등록을 지워도 green이다(실측).
       expect(recorder).toContain('addEventListener("visibilitychange"');
-      expect(codeOnly(read("src/background/tab-bindings.ts"))).toContain(
-        "stopRecorders(prevTabId)",
+      // 정지는 판정 함수의 결과에만 걸린다(탭 모드 자기 패널 예외). 판정 호출과 그 결과를
+      // stopRecorders로 흘리는 루프, 그리고 onActivated가 그 경로를 실제로 부르는지를 함께 본다 —
+      // 판정 함수 이름만 보면 import 문이 대신 매치된다. 파일 전체에 걸면 호출을 다른 리스너로
+      // 옮겨도 green이라(실측) 괄호 균형으로 본문만 자른다 — "다음 표지까지"로 자르면 그 사이에
+      // 끼운 헬퍼·리스너가 범위 안에 든다(실측). 시작 표지가 사라지면 빈 문자열이라 red다.
+      const bindings = codeOnly(read("src/background/tab-bindings.ts"));
+      const balanced = (from: number, open: string, close: string): [number, number] => {
+        const i = from < 0 ? -1 : bindings.indexOf(open, from);
+        if (i < 0) return [-1, -1];
+        for (let j = i, depth = 0; j < bindings.length; j++) {
+          if (bindings[j] === open) depth++;
+          else if (bindings[j] === close && --depth === 0) return [i, j + 1];
+        }
+        return [-1, -1];
+      };
+      const [, params] = balanced(bindings.indexOf("async function stopRecordersOnSwitch("), "(", ")");
+      const decide = bindings.slice(...balanced(params, "{", "}"));
+      expect(decide).toMatch(
+        /for \(const (\w+) of recordersToStopOnSwitch\([\s\S]*?\)\) \{\s*stopRecorders\(\1\);/,
       );
+      const onActivated = bindings.slice(
+        ...balanced(bindings.indexOf("chrome.tabs.onActivated.addListener("), "(", ")"),
+      );
+      const prev = onActivated.match(/const (\w+) = resolveTabSwitch\(/)?.[1] ?? "";
+      expect(prev).not.toBe("");
+      // prev는 두 번째(정지 후보) 자리여야 한다 — 위치를 안 보면 prev/next를 맞바꿔도 green이다(실측).
+      expect(onActivated).toMatch(new RegExp(`stopRecordersOnSwitch\\(\\w+, ${prev}, \\w+\\)`));
     });
 
     it("죽은 레코더의 복구 경로로 리로드를 지시한다", () => {
@@ -345,6 +382,7 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
       expect(find(/one region/i)).toEqual([
         "mode-screenshot",
         "capture-method-area",
+        "tab-mode-area-hint",
       ]);
       expect(find(/nothing worth showing/i)).toEqual(["mode-freeform"]);
     });
@@ -451,5 +489,307 @@ describe("에이전트 조작 매뉴얼 (__BUGSHOT_AGENT__)", () => {
       expect(editor).toContain("heading: false");
       expect(/headings do not survive/i.test(prose("Writing the report"))).toBe(true);
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 탭 모드(패널을 일반 탭으로 연 경우) 주장 바인딩. 매뉴얼의 각 문장을 그 문장이 참인 이유가 되는
+// 함수의 **실제 호출 결과**나 소스 위치에 건다. 케이스마다 구현을 되돌려 red를 실측했다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 괄호 균형으로 anchor 뒤 첫 `open`~짝 `close` 구간을 자른다. 문자열 리터럴 속 괄호는 구분하지 않으므로
+// 대상 본문에 괄호가 든 문자열이 들어오면 범위가 틀어질 수 있다(현재 0건). anchor가 없으면 "" — red.
+function balancedAfter(src: string, anchor: string, open: string, close: string): string {
+  const a = src.indexOf(anchor);
+  if (a < 0) return "";
+  const i = src.indexOf(open, a + anchor.length - 1);
+  if (i < 0) return "";
+  for (let j = i, depth = 0; j < src.length; j++) {
+    if (src[j] === open) depth++;
+    else if (src[j] === close && --depth === 0) return src.slice(i, j + 1);
+  }
+  return "";
+}
+
+const PANEL_BASE = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/src/sidepanel/index.html";
+
+describe("탭 모드 — 정지 계약 (같은 창 허용 / 제3 탭)", () => {
+  it("대상 ↔ 자기 패널 탭 전환은 기록을 유지한다 — 같은 창 배치를 허용한다고 말한다", () => {
+    // 매뉴얼의 "same window 허용"은 이 함수가 [] 를 돌려주는 것이 근거다. 실제 호출로 잰다 —
+    // 이름만 보면 import 문이 대신 매치된다.
+    const T = 10;
+    const P = 20;
+    expect(
+      recordersToStopOnSwitch({ prevTabId: T, nextTabId: P, prevPanelTarget: null, nextPanelTarget: T }),
+    ).toEqual([]);
+    expect(
+      recordersToStopOnSwitch({ prevTabId: P, nextTabId: T, prevPanelTarget: T, nextPanelTarget: null }),
+    ).toEqual([]);
+
+    const order = prose("Order contract");
+    expect(/keeps recording/i.test(order)).toBe(true);
+    expect(/panel opened as a tab/i.test(order)).toBe(true);
+    expect(/SAME window/.test(order)).toBe(true);
+  });
+
+  it("대상에서 곧장 제3 탭으로 가면 정지한다고 말한다", () => {
+    expect(
+      recordersToStopOnSwitch({ prevTabId: 10, nextTabId: 30, prevPanelTarget: null, nextPanelTarget: null }),
+    ).toEqual([10]);
+    expect(/straight to a third tab/i.test(prose("Order contract"))).toBe(true);
+  });
+
+  it("패널 → 제3 탭은 약속하지 않는다 — T 계속 기록은 비목표라 매뉴얼 문장이 없어야 한다", () => {
+    // 같은 문장 안에 "패널을 떠남"과 "제3 탭"이 함께 있으면 그 전환에 대한 약속으로 읽힌다.
+    for (const heading of ["Order contract", "Before you trigger a capture", "Limits of a panel opened as a tab"]) {
+      const sentences = prose(heading).split(/(?<=[.!?])\s+/);
+      const offenders = sentences.filter(
+        (x) => /third tab/i.test(x) && /(from|leav\w+)\s+(the|this|its|a)\s+(own\s+)?panel/i.test(x),
+      );
+      expect(offenders).toEqual([]);
+    }
+  });
+});
+
+describe("탭 모드 — 대상 선택 화면", () => {
+  const withQuery = (q: string) => `${PANEL_BASE}${q}`;
+  const gate = (href: string, self: { id: number } | null | undefined) =>
+    tabModeGate({ self, href, panelBase: PANEL_BASE });
+
+  it("탭 모드에서 tabId가 없거나 0 이상 정수가 아니면 선택 화면, 정수면 곧장 바인딩한다", () => {
+    expect(gate(PANEL_BASE, { id: 1 })).toBe("pick");
+    for (const bad of ["?tabId=abc", "?tabId=1.5", "?tabId=-1", "?tabId="]) {
+      expect(gate(withQuery(bad), { id: 1 }), bad).toBe("pick");
+    }
+    expect(gate(withQuery("?tabId=0"), { id: 1 })).toBe("bound");
+    expect(gate(withQuery("?tabId=42"), { id: 1 })).toBe("bound");
+    // 정수 쿼리는 self 확인을 기다리지 않는다 — 사이드패널 정상 경로가 새 비동기 게이트 뒤로 서지 않는다.
+    expect(gate(withQuery("?tabId=42"), undefined)).toBe("bound");
+    // 사이드패널(self=null)은 선택 화면을 보지 않는다.
+    expect(gate(PANEL_BASE, null)).toBe("sidepanel");
+
+    const order = prose("Order contract");
+    expect(order).toContain("tab-target-picker");
+    expect(/whole number of 0 or more/i.test(order)).toBe(true);
+    expect(/does not guess a target/i.test(order)).toBe(true);
+  });
+
+  it("App이 선택 gate에서만 TabTargetPicker를 렌더한다", () => {
+    const app = codeOnly(read("src/sidepanel/App.tsx"));
+    expect(app).toMatch(/gate === "pick"[^{]*\{[\s\S]{0,300}<TabTargetPicker\b/);
+  });
+
+  it("'last focused window 활성 탭에 바인딩' 서술을 탭 모드 패널에 하지 않는다", () => {
+    // 쿼리 없는 탭 모드 패널은 폴백이 아니라 선택 화면이다. 옛 문장이 남으면 에이전트가 선택 화면을
+    // 기다리지 않고 임의 탭에 붙는다고 믿는다.
+    expect(/last focused window/i.test(manual)).toBe(false);
+  });
+
+  it("후보 규칙(자기 탭·미지원 URL 제외, 모든 창, 같은 창 먼저)이 매뉴얼과 같다", () => {
+    const self = { id: 1, windowId: 100 };
+    const tabs = [
+      { id: 2, windowId: 200, url: "https://other.example/" },
+      { id: 1, windowId: 100, url: `${PANEL_BASE}?tabId=3` },
+      { id: 3, windowId: 100, url: "https://same.example/" },
+      { id: 4, windowId: 100, url: "chrome://extensions/" },
+      { id: 5, windowId: 200, url: "https://other2.example/" },
+      { id: 6, windowId: 100, url: "https://same2.example/" },
+    ];
+    expect(listTargetCandidates(tabs, self).map((t) => t.id)).toEqual([3, 6, 2, 5]);
+
+    const order = prose("Order contract");
+    expect(/same-window tabs first/i.test(order)).toBe(true);
+    expect(/every other window/i.test(order)).toBe(true);
+  });
+
+  it("후보 testid 접두사와 빈 상태가 소스에 실재하고, 매뉴얼은 접두사 셀렉터로 적는다", () => {
+    // 접두사형은 MANUAL_TESTID_RE가 못 줍는다 — 위 '실재' 대조가 이 id를 건너뛰므로 여기서 직접 본다.
+    const picker = codeOnly(read("src/sidepanel/components/TabTargetPicker.tsx"));
+    expect(picker).toMatch(/data-testid=\{`tab-target-option-\$\{/);
+    expect(manual).toContain('[data-testid^="tab-target-option-"]');
+    expect(sourceTestIds.has("tab-target-picker")).toBe(true);
+    expect(sourceTestIds.has("tab-target-empty")).toBe(true);
+    expect(manualTestIds).toContain("tab-target-empty");
+  });
+
+  it("목록이 탭 생성·제거·갱신에 실시간으로 갱신된다", () => {
+    const picker = codeOnly(read("src/sidepanel/components/TabTargetPicker.tsx"));
+    for (const ev of ["onCreated", "onRemoved", "onUpdated"]) {
+      expect(picker).toContain(`chrome.tabs.${ev}.addListener(`);
+    }
+    expect(/updates as tabs/i.test(prose("Order contract"))).toBe(true);
+  });
+
+  it("선택하면 ?tabId=<id>로 location.replace(리로드)한다", () => {
+    const url = buildPanelUrl(PANEL_BASE, 7);
+    expect(new URL(url).searchParams.get("tabId")).toBe("7");
+    expect(parsePanelTabTarget(url, PANEL_BASE)).toBe(7);
+    expect(codeOnly(read("src/sidepanel/components/TabTargetPicker.tsx"))).toContain(
+      "window.location.replace(",
+    );
+    expect(/reloads the panel with \?tabId=/i.test(prose("Order contract"))).toBe(true);
+  });
+});
+
+describe("탭 모드 — 안내 한 줄 (agent hint)", () => {
+  it("5개 로케일 모두 매뉴얼 id 리터럴을 싣는다", () => {
+    const dicts = Object.entries(locales);
+    expect(dicts.length).toBeGreaterThan(1);
+    for (const [loc, dict] of dicts) {
+      expect(dict["app.tabMode.agentHint"], loc).toContain("#__BUGSHOT_AGENT__");
+    }
+  });
+
+  it("정상 UI와 선택 화면 양쪽에 렌더되고, 탭 모드 게이트가 컴포넌트 안에 있다", () => {
+    const app = codeOnly(read("src/sidepanel/App.tsx"));
+    expect(app.match(/<TabModeAgentHint \/>/g)?.length).toBe(2);
+    const hint = codeOnly(read("src/sidepanel/components/TabModeAgentHint.tsx"));
+    expect(hint).toMatch(/if \(!useIsTabMode\(\)\) return null/);
+    // 첫 프레임 존재는 주장하지 않는다 — 정수 쿼리 진입에서는 다음 틱에 나타난다.
+    expect(/first frame/i.test(manual)).toBe(false);
+  });
+});
+
+describe("탭 모드 — 캡처 핸드오프", () => {
+  it("같은 창에서만 패널이 대상을 앞으로 가져온다 — 별도 창·사이드패널은 건드리지 않는다", () => {
+    const self = { id: 1, windowId: 100 };
+    expect(shouldActivateTarget({ self, target: { id: 2, windowId: 100, active: false } })).toBe(true);
+    expect(shouldActivateTarget({ self, target: { id: 2, windowId: 200, active: false } })).toBe(false);
+    expect(shouldActivateTarget({ self: null, target: { id: 2, windowId: 100, active: false } })).toBe(false);
+    expect(shouldActivateTarget({ self, target: { id: 2, windowId: 100, active: true } })).toBe(false);
+
+    const before = prose("Before you trigger a capture");
+    expect(/brings the target to the front by itself/i.test(before)).toBe(true);
+    expect(/never touches the target/i.test(before)).toBe(true);
+    // 옛 서술 — 같은 창이면 캡처가 통째로 실패한다 — 은 이제 거짓이다.
+    expect(/fails outright/i.test(before)).toBe(false);
+  });
+
+  it("끝나면 패널 탭으로 돌아온다 — 대상이 여전히 앞일 때만", () => {
+    expect(shouldRestorePanel({ target: { active: true } })).toBe(true);
+    expect(shouldRestorePanel({ target: { active: false } })).toBe(false);
+    const shell = codeOnly(read("src/sidepanel/tab-mode.ts"));
+    expect(shell).toContain("shouldRestorePanel(");
+    expect(shell).toContain("focusTab(self.id)");
+    expect(/switches back to its own tab/i.test(prose("Before you trigger a capture"))).toBe(true);
+  });
+
+  it("요소·after·버퍼·뷰포트·전체 페이지·인라인 캡처가 hold로 감싸여 있다", () => {
+    // 매뉴얼은 이 여섯을 '대상을 앞으로 가져오는 캡처'로 열거한다. 호출 단위로 센다 — 이름만 보면 import가 매치.
+    const capture = codeOnly(read("src/sidepanel/capture.ts"));
+    expect(capture.match(/withTargetHold\(/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(codeOnly(read("src/sidepanel/viewport-capture.ts"))).toContain('holdTarget(tabId, "viewport")');
+    expect(codeOnly(read("src/sidepanel/tabs/IssueTab.tsx"))).toContain("withTargetHold(id,");
+    expect(codeOnly(read("src/sidepanel/hooks/useBufferThenSwitch.ts"))).toContain("withTargetHold(tabId,");
+    const before = prose("Before you trigger a capture");
+    for (const kind of ["element", "viewport", "full page", "inline region"]) {
+      expect(before.toLowerCase()).toContain(kind);
+    }
+  });
+
+  it("에이전트 도구가 탭 전환을 사용자 조작으로 오판할 수 있다고 경고한다", () => {
+    expect(/mistake it for (a )?user/i.test(prose("Before you trigger a capture"))).toBe(true);
+  });
+
+  it("영역 드래그는 사용자가 직접 대상 탭으로 간다 — capturing 상태에서는 hold가 없다", () => {
+    expect(targetHoldFromState({ phase: "capturing", inline: false })).toEqual({
+      picking: false,
+      inline: false,
+    });
+    const before = prose("Before you trigger a capture");
+    expect(/region drag/i.test(before)).toBe(true);
+    expect(/does not bring the target forward/i.test(before)).toBe(true);
+    // 표의 영역 행도 같은 사실을 말한다(testid 짝은 '표의 각 행' 케이스가 잰다).
+    const row = section("Choosing a capture")
+      .split("\n")
+      .find((l) => /one region/i.test(l));
+    expect(/drag on the TARGET tab/.test(row ?? "")).toBe(true);
+  });
+
+  it("전체 페이지 캡처 취소는 패널 탭으로 돌아가는 것이다 — 다음 타일에서 중단되고 Esc 리스너는 없다", () => {
+    expect(classifyCaptureFailure(new Error(SCROLL_TAB_INACTIVE_MESSAGE))).toBe("inactive");
+    const scroll = codeOnly(read("src/sidepanel/scroll-capture.ts"));
+    expect(scroll).toContain("throw new Error(SCROLL_TAB_INACTIVE_MESSAGE)");
+    // 취소 수단이 키 입력이라고 쓰면 거짓이다 — 소스에도 매뉴얼에도 없어야 한다.
+    for (const rel of [
+      "src/sidepanel/scroll-capture.ts",
+      "src/content/scroll-capture.ts",
+      "src/sidepanel/tabs/IssueTab.tsx",
+    ]) {
+      expect(codeOnly(read(rel)), rel).not.toContain("Escape");
+    }
+    expect(/\besc(ape)?\b/i.test(manual)).toBe(false);
+
+    const before = prose("Before you trigger a capture");
+    expect(/progress and cancel/i.test(before)).toBe(true);
+    expect(/switch back to the panel tab/i.test(before)).toBe(true);
+    expect(/next tile/i.test(before)).toBe(true);
+  });
+
+  it("캡처 실패는 토스트로 보이고 네 분류를 말한다", () => {
+    expect(Object.keys(CAPTURE_FAILURE_KEYS).sort()).toEqual(
+      ["element-missing", "inactive", "other", "rate-limit"].sort(),
+    );
+    const app = codeOnly(read("src/sidepanel/App.tsx"));
+    expect(app).toContain("onCaptureFailed.subscribe(");
+    expect(app).toContain("toast.error(translate(CAPTURE_FAILURE_KEYS[kind]))");
+
+    const before = prose("Before you trigger a capture");
+    expect(/error toast/i.test(before)).toBe(true);
+    expect(before).toContain('[data-sonner-toast][data-type="error"]');
+    for (const reason of [/not active/i, /rate limited/i, /could not be found/i, /something else/i]) {
+      expect(reason.test(before), String(reason)).toBe(true);
+    }
+  });
+});
+
+describe("탭 모드 — 한계", () => {
+  it("리플레이는 대상이 활성일 때만 프레임을 모은다 — 패널이 앞이면 0, 대상이 앞이면 숨은 패널이 throttle된다", () => {
+    expect(codeOnly(read("src/sidepanel/30s-replay/use-30s-replay.ts"))).toMatch(
+      /cancelled \|\| !tab\.active/,
+    );
+    const limits = prose("Limits of a panel opened as a tab");
+    expect(/no frames/i.test(limits)).toBe(true);
+    expect(/throttled/i.test(limits)).toBe(true);
+  });
+
+  it("한 대상에 패널 하나 — 패널 포트가 끊기면 대상 레코더를 정지한다", () => {
+    const bg = codeOnly(read("src/background/index.ts"));
+    const onDisconnect = balancedAfter(bg, "port.onDisconnect.addListener(", "(", ")");
+    expect(onDisconnect).toContain("stopRecorders(tabId)");
+    expect(/one panel per target/i.test(prose("Limits of a panel opened as a tab"))).toBe(true);
+  });
+});
+
+describe("탭 모드 — 재무장·선택 화면 기록·실패 토스트 예외", () => {
+  it("패널을 다시 보이게 하면 재무장되지 않는다고 단정하지 않는다 — 같은 창에서는 visibilitychange가 재주입한다", () => {
+    const recorder = codeOnly(read("src/sidepanel/hooks/useBackgroundRecorder.ts"));
+    const onVisible = balancedAfter(recorder, "const onVisible = () => {", "{", "}");
+    expect(onVisible).toContain("void inject()");
+    // 옛 문장은 이 경로가 있는 한 거짓이다. 확실한 복구법(리로드)만 지시한다.
+    expect(/nothing re-arms/i.test(manual)).toBe(false);
+    expect(/does not start again on its own/i.test(manual)).toBe(false);
+    const order = prose("Order contract");
+    expect(/do not count on/i.test(order)).toBe(true);
+    expect(/reload the (target )?page/i.test(order)).toBe(true);
+  });
+
+  it("선택 화면 동안에는 아무것도 기록되지 않는다 — pick gate면 App이 부작용 훅에 null tabId를 준다", () => {
+    expect(tabModeGate({ self: { id: 1 }, href: PANEL_BASE, panelBase: PANEL_BASE })).toBe("pick");
+    const app = codeOnly(read("src/sidepanel/App.tsx"));
+    expect(app).toMatch(/const tabId = gate === "pending" \|\| gate === "pick" \? null : boundTabId/);
+    expect(app).toContain("useBackgroundRecorder(tabId ?? null)");
+    expect(/nothing is recorded until a target is chosen/i.test(prose("Order contract"))).toBe(true);
+  });
+
+  it("실패 토스트의 예외 둘을 말한다 — activeTab 만료는 다이얼로그, after 좌표 불신 스킵은 무토스트", () => {
+    expect(classifyCaptureFailure(new Error("The extensions has not been invoked for activeTab"))).toBeNull();
+    const capture = codeOnly(read("src/sidepanel/capture.ts"));
+    const skipped = balancedAfter(capture, "if (!usable) {", "{", "}");
+    expect(skipped).toContain("return null");
+    expect(skipped).not.toContain("emitCaptureFailure");
+    const before = prose("Before you trigger a capture");
+    expect(/dialog opens instead/i.test(before)).toBe(true);
+    expect(/cannot be trusted/i.test(before)).toBe(true);
   });
 });

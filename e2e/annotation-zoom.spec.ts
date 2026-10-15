@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { enterDebug, expect, test } from "./fixtures/extension";
+import { enterDebug, expect, test, waitForPanelFront } from "./fixtures/extension";
 
 // 어노테이션 캔버스 줌·팬. 기존 annotation-overlay.spec은 영역 캡처(240×180)라 fit=1·팬 불가라서
 // 줌 시나리오를 하나도 태울 수 없다 → 스크롤(페이지 전체) 캡처로 진입하는 별도 spec.
@@ -52,21 +52,20 @@ test.describe.serial("annotation zoom", () => {
     panel = await ext.openPanel(tabId);
     await enterDebug(panel);
 
-    // 스크롤 캡처는 타일마다 tab.active를 확인한다 → fixture를 앞에 두고 패널 버튼은 DOM 클릭.
+    // 패널 버튼만 누른다 — 캡처 동안 패널이 fixture를 앞으로 가져왔다가 돌아온다(탭 모드 hold).
     // captureVisibleTab quota 회복을 위해 1초+ 간격 재시도(GOTCHAS).
     const drafting = panel.getByTestId("drafting-panel");
     await expect(async () => {
+      await waitForPanelFront(panel);
       if (!(await drafting.isVisible())) {
-        await panel.bringToFront();
         await panel.getByTestId("mode-screenshot").click();
         const fullPage = panel.getByTestId("capture-method-fullpage");
         await expect(fullPage).toBeVisible();
-        await fixture.bringToFront();
-        await fullPage.evaluate((el) => (el as HTMLElement).click());
+        await fullPage.click();
       }
       await expect(drafting).toBeVisible({ timeout: 4000 });
     }).toPass({ intervals: [1000, 1500, 2000, 2500], timeout: 40_000 });
-    await panel.bringToFront();
+    await waitForPanelFront(panel);
 
     rawWidth = await panel
       .getByTestId("media-preview-img")

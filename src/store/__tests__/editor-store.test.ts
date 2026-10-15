@@ -108,6 +108,7 @@ import {
   mergeSelectionStyles,
   selectAttachedLogs,
   EDITOR_SNAPSHOT_KEYS,
+  settleOrphanElementPhase,
   type CaptureMode,
   type EditorSnapshot,
 } from "../editor-store";
@@ -3416,5 +3417,67 @@ describe("pending 영상 미러링 실패 알림", () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(onBlobSaveFailed.fire).not.toHaveBeenCalled();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  #264 — element 모드는 selection 없이 drafting·previewing에 머물지 않는다 */
+/* ------------------------------------------------------------------ */
+
+// DraftingPanel은 element 모드에서 selection이 없으면 null을 렌더한다 — 그 상태가 세션에
+// 저장되면 그 탭의 패널은 열 때마다 빈 화면이다(#264 덤프: drafting/element/selection null).
+describe("settleOrphanElementPhase", () => {
+  const sel = { selector: ".x" };
+
+  it("element + selection 없음 + drafting이면 styling(캡처 진입 화면)으로 접는다", () => {
+    expect(
+      settleOrphanElementPhase({ phase: "drafting", captureMode: "element", selection: null }),
+    ).toBe("styling");
+  });
+
+  it("previewing도 같은 규칙으로 접는다", () => {
+    expect(
+      settleOrphanElementPhase({ phase: "previewing", captureMode: "element", selection: null }),
+    ).toBe("styling");
+  });
+
+  it("selection이 있으면 그대로 둔다", () => {
+    expect(
+      settleOrphanElementPhase({ phase: "drafting", captureMode: "element", selection: sel }),
+    ).toBe("drafting");
+  });
+
+  it("element 모드가 아니면 selection 유무와 무관하게 그대로 둔다", () => {
+    expect(
+      settleOrphanElementPhase({ phase: "drafting", captureMode: "screenshot", selection: null }),
+    ).toBe("drafting");
+  });
+
+  it("drafting·previewing 밖의 phase는 건드리지 않는다", () => {
+    expect(
+      settleOrphanElementPhase({ phase: "done", captureMode: "element", selection: null }),
+    ).toBe("done");
+  });
+});
+
+describe("confirmStyles — selection이 사라졌으면 drafting으로 넘어가지 않는다 (#264)", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("element + selection 있음이면 drafting", () => {
+    useEditorStore.setState({
+      captureMode: "element",
+      phase: "styling",
+      selection: { selector: ".x" } as never,
+    });
+    useEditorStore.getState().confirmStyles();
+    expect(useEditorStore.getState().phase).toBe("drafting");
+  });
+
+  it("element + selection null(요소 소실로 해제됨)이면 styling에 남는다", () => {
+    useEditorStore.setState({ captureMode: "element", phase: "styling", selection: null });
+    useEditorStore.getState().confirmStyles();
+    expect(useEditorStore.getState().phase).toBe("styling");
   });
 });

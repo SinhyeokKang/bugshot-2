@@ -1,3 +1,4 @@
+import { PANEL_PATH, parsePanelTabTarget, recordersToStopOnSwitch } from "@/lib/panel-tab-url";
 import { FROZEN_PHASES, originOf, pageKeyOf, sessionKey, pendingKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
 import { deleteNetworkLog, deleteConsoleLog, deleteActionLog, deleteVideoBlob } from "@/store/blob-db";
@@ -9,7 +10,6 @@ type SessionSnap = {
   phase?: string;
 };
 
-const SIDEPANEL_PATH = "src/sidepanel/index.html";
 const ACTIVATED_KEY = "sidePanel:activated";
 const ACTIVATION_URL_PREFIX = "sidePanel:url:";
 
@@ -61,7 +61,7 @@ async function applyInner(tabId: number): Promise<void> {
     try {
       await chrome.sidePanel.setOptions({
         tabId,
-        path: `${SIDEPANEL_PATH}?tabId=${tabId}`,
+        path: `${PANEL_PATH}?tabId=${tabId}`,
         enabled: true,
       });
     } catch (err) {
@@ -274,7 +274,7 @@ export function activateTab(tab: chrome.tabs.Tab): void {
   void chrome.sidePanel
     .setOptions({
       tabId,
-      path: `${SIDEPANEL_PATH}?tabId=${tabId}`,
+      path: `${PANEL_PATH}?tabId=${tabId}`,
       enabled: true,
     })
     .catch((err) => console.error("[bugshot] sidePanel.setOptions", err));
@@ -313,12 +313,48 @@ export function stopRecorders(tabId: number): void {
   chrome.tabs.sendMessage(tabId, { type: "actionRecorder.stop" }).catch(() => {});
 }
 
+// 탭 모드(패널을 탭으로 연 경우): 대상 T ↔ T에 바인딩된 자기 패널 탭 사이 전환은 정지하지 않는다.
+// 패널 탭 판정은 getContexts의 documentUrl로 한다 — tabs 권한이 없어 tabs.get(panel).url은 가려진다.
+// 조회 실패면 panelTarget=null → 기존 동작(prev 정지)으로 떨어진다.
+async function stopRecordersOnSwitch(
+  windowId: number,
+  prevTabId: number,
+  nextTabId: number,
+): Promise<void> {
+  let ctxs: chrome.runtime.ExtensionContext[] = [];
+  let panelBase = "";
+  try {
+    ctxs = await chrome.runtime.getContexts({
+      contextTypes: [chrome.runtime.ContextType.TAB],
+    });
+    panelBase = chrome.runtime.getURL(PANEL_PATH);
+  } catch (err) {
+    console.error("[bugshot] getContexts", err);
+  }
+  const targetOf = (tabId: number) =>
+    parsePanelTabTarget(ctxs.find((c) => c.tabId === tabId)?.documentUrl, panelBase);
+  // 이벤트 쌍이 아니라 실행 시점 상태로 다시 본다 — 조회 사이 prev나 prev의 자기 패널로 넘어갔으면
+  // 늦은 정지가 그 재무장을 덮는다.
+  const now = prevActiveTabByWindow.get(windowId);
+  if (now === prevTabId || (now != null && targetOf(now) === prevTabId)) return;
+  for (const id of recordersToStopOnSwitch({
+    prevTabId,
+    nextTabId,
+    prevPanelTarget: targetOf(prevTabId),
+    nextPanelTarget: targetOf(nextTabId),
+  })) {
+    stopRecorders(id);
+  }
+}
+
 export function setupTabBindings(): void {
   chrome.action.onClicked.addListener(activateTab);
 
   chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
+    // resolveTabSwitch는 동기로 둔다 — 연속 전환에서 쌍이 이벤트 순서대로 잡혀야 한다. 정지 판정의
+    // 조회는 apply 경로와 분리해 띄운다(apply 큐 진입 시점을 기존과 같게 유지).
     const prevTabId = resolveTabSwitch(prevActiveTabByWindow, windowId, tabId);
-    if (prevTabId != null) stopRecorders(prevTabId);
+    if (prevTabId != null) void stopRecordersOnSwitch(windowId, prevTabId, tabId);
 
     try {
       await chrome.tabs.get(tabId);

@@ -53,12 +53,14 @@ vi.mock("@/lib/app-events", () => ({
 }));
 
 import { useEditorStore } from "@/store/editor-store";
+import { rebindStylingSession } from "@/sidepanel/picker-control";
 import { useEditorSessionSync } from "../useEditorSessionSync";
 
 let get: ReturnType<typeof vi.fn>;
 let set: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  vi.mocked(rebindStylingSession).mockClear();
   // 스토어는 모듈 싱글턴이라 케이스가 심은 값이 다음 케이스로 샌다(editor-store.test.ts 관용구).
   useEditorStore.setState(useEditorStore.getInitialState(), true);
   get = vi.fn(() => Promise.resolve({}));
@@ -114,6 +116,51 @@ describe("useEditorSessionSync — hydrate 게이트", () => {
     await waitFor(() => expect(result.current).toBe(true));
     expect(useEditorStore.getState().phase).toBe("styling");
     expect(useEditorStore.getState().target?.url).toBe("https://example.com");
+  });
+});
+
+// #264 사용자 덤프 그대로 — 이미 이렇게 저장된 세션은 열 때마다 빈 drafting을 hydrate했다.
+describe("useEditorSessionSync — selection 없는 element drafting 세션 복구 (#264)", () => {
+  it("drafting/element/selection null 세션은 캡처 진입 화면으로 복원된다", async () => {
+    get.mockResolvedValue({
+      "editor:7": {
+        phase: "drafting",
+        captureMode: "element",
+        selection: null,
+        draft: null,
+        beforeImage: null,
+        afterImage: null,
+        bufferedElements: [],
+        styleEdits: { classList: [], cssText: null, inlineStyle: {}, text: "" },
+        captureContext: null,
+        target: { tabId: 7, url: "https://example.com", title: "example" },
+      },
+    });
+    const { result } = renderHook(() => useEditorSessionSync(7));
+    await waitFor(() => expect(result.current).toBe(true));
+
+    const s = useEditorStore.getState();
+    expect(s.phase).toBe("styling");
+    expect(s.selection).toBeNull();
+    // 접힌 phase가 styling 재바인딩 게이트보다 먼저 서야 버퍼 편집이 DOM에 다시 붙는다.
+    expect(rebindStylingSession).toHaveBeenCalledWith(7);
+  });
+
+  it("selection이 있는 element drafting 세션은 그대로 drafting으로 복원된다", async () => {
+    get.mockResolvedValue({
+      "editor:7": {
+        phase: "drafting",
+        captureMode: "element",
+        selection: { selector: "p", tagName: "p" },
+        draft: { title: "t", sections: {} },
+        target: { tabId: 7, url: "https://example.com", title: "example" },
+      },
+    });
+    const { result } = renderHook(() => useEditorSessionSync(7));
+    await waitFor(() => expect(result.current).toBe(true));
+
+    expect(useEditorStore.getState().phase).toBe("drafting");
+    expect(rebindStylingSession).not.toHaveBeenCalled();
   });
 });
 

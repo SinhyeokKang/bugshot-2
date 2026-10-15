@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState, type ComponentPropsWithoutRef } from "react";
 import { Blocks, Globe, List, Loader2, Settings, Square, TerminalSquare } from "lucide-react";
 import { toast } from "sonner";
-import { useT } from "@/i18n";
+import { t as translate, useT } from "@/i18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,7 +27,9 @@ import { TabSupportProvider } from "./hooks/tab-support-context";
 import { ReplayProvider } from "./30s-replay/replay-context";
 import {
   onBlobSaveFailed,
+  onCaptureFailed,
   onStateSaveFailed,
+  onSettingsReset,
   onOAuthExpired,
   onPickerIframeUnsupported,
   onPickerPermissionExpired,
@@ -35,10 +37,16 @@ import {
   onSessionSaveExhausted,
 } from "@/lib/app-events";
 import type { PlatformId } from "@/types/platform";
+import { PANEL_PATH } from "@/lib/panel-tab-url";
 import { useBoundTabId } from "./hooks/useBoundTabId";
+import { useSelfTab } from "./hooks/useSelfTab";
+import { tabModeGate } from "./lib/tab-mode";
+import { TabModeAgentHint } from "./components/TabModeAgentHint";
+import { TabTargetPicker } from "./components/TabTargetPicker";
 import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { useBackgroundRecorder } from "./hooks/useBackgroundRecorder";
 import { usePickerMessages } from "./hooks/usePickerMessages";
+import { useTabModeHold } from "./hooks/useTabModeHold";
 import { useThemeEffect } from "./hooks/useThemeEffect";
 import { useDocumentLangEffect } from "./hooks/useDocumentLangEffect";
 import { useAiLoadingStep } from "./hooks/useAiLoadingStep";
@@ -54,6 +62,7 @@ import { TabNavContext } from "./tab-nav";
 import { isMainTabLocked } from "./lib/mainTabLock";
 import { applyReplayTrim, applyRecordingTrim, TrimLogsPersistError } from "./30s-replay/apply-trim";
 import { clearPicker } from "@/sidepanel/picker-control";
+import { CAPTURE_FAILURE_KEYS } from "@/sidepanel/lib/capture-error";
 import {
   deleteNetworkLog,
   deleteConsoleLog,
@@ -112,7 +121,16 @@ const AI_OVERLAY_STYLE: Record<
 
 export default function App() {
   const t = useT();
-  const tabId = useBoundTabId();
+  const selfTab = useSelfTab();
+  const boundTabId = useBoundTabId();
+  // 훅이 early return 위에서 도는 탓에, 탭 모드인데 쿼리가 없으면 boundTabId 폴백이 준 임의 탭에 hold·port·레코더가
+  // 붙는다. 대상이 정해지기 전(확인 중·선택 화면)에는 부작용 훅에 null을 준다.
+  const gate = tabModeGate({
+    self: selfTab,
+    href: window.location.href,
+    panelBase: chrome.runtime.getURL(PANEL_PATH),
+  });
+  const tabId = gate === "pending" || gate === "pick" ? null : boundTabId;
   const editorHydrated = useEditorSessionSync(tabId ?? null);
   useBackgroundRecorder(tabId ?? null);
   const replayEnabled = useSettingsUiStore((s) => s.replayEnabled);
@@ -124,6 +142,7 @@ export default function App() {
   const replay = use30sReplay(tabId ?? null, replayEnabled, unsupported);
   const settingsHydrated = useSettingsHydrated();
   usePickerMessages(tabId ?? null);
+  useTabModeHold(tabId ?? null);
   useThemeEffect();
   useDocumentLangEffect();
 
@@ -159,6 +178,7 @@ export default function App() {
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
   const [blobSaveFailed, setBlobSaveFailed] = useState(false);
   const [stateSaveFailed, setStateSaveFailed] = useState(false);
+  const [settingsReset, setSettingsReset] = useState(false);
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
   const [permissionExpired, setPermissionExpired] = useState(false);
   const [trimBusy, setTrimBusy] = useState(false);
@@ -213,6 +233,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const show = () => {
+      if (!useSettingsStore.persist.takeSettingsReset()) return;
+      blurActiveElement();
+      setSettingsReset(true);
+    };
+    const unsub = onSettingsReset.subscribe(show);
+    show();
+    return unsub;
+  }, []);
+
+  useEffect(() => {
     const unsub = onSessionSaveExhausted.subscribe(() => {
       blurActiveElement();
       setSessionSaveExhausted(true);
@@ -224,6 +255,14 @@ export default function App() {
     const unsub = onPickerPermissionExpired.subscribe(() => {
       blurActiveElement();
       setPermissionExpired(true);
+    });
+    return unsub;
+  }, []);
+
+  // 위 이벤트들과 달리 비차단 실패라 다이얼로그가 아니라 토스트로 알린다.
+  useEffect(() => {
+    const unsub = onCaptureFailed.subscribe((kind) => {
+      toast.error(translate(CAPTURE_FAILURE_KEYS[kind]));
     });
     return unsub;
   }, []);
@@ -249,6 +288,16 @@ export default function App() {
   }, [tabId]);
 
   if (!editorHydrated || !settingsHydrated) return null;
+
+  if (gate === "pending") return null;
+  if (gate === "pick" && selfTab) {
+    return (
+      <div className="flex h-screen flex-col">
+        <TabModeAgentHint />
+        <TabTargetPicker selfTabId={selfTab.id} />
+      </div>
+    );
+  }
 
   if (tabId === undefined) return null;
   if (tabId === null) return <UnsupportedPage />;
@@ -324,6 +373,8 @@ export default function App() {
             </TooltipProvider>
           </Tabs>
         </div>
+
+        <TabModeAgentHint />
 
         <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", tab !== "debug" && "hidden")}>
           <DebugTab activeMainTab={tab} />
@@ -416,6 +467,22 @@ export default function App() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setStateSaveFailed(false)}>
+              {t("common.ok")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={settingsReset} onOpenChange={setSettingsReset}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("app.settingsReset.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("app.settingsReset.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setSettingsReset(false)}>
               {t("common.ok")}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -9,6 +9,7 @@ import {
   requestFrameOffset,
   setFrameToken,
 } from "../frame-geometry";
+import { PAINT_WAIT_CAP_MS } from "../after-paint";
 
 /* ------------------------------------------------------------------ */
 /*  composeTopRect — iframe 내부 rect를 top-frame 좌표로 변환 (순수)      */
@@ -155,6 +156,27 @@ describe("requestFrameOffset — 자식 측 위조 방어", () => {
     await expect(p).resolves.toBeNull();
   });
 
+  // 부모는 top 오버레이 숨김 프레임을 afterPaint로 기다린 뒤에야 응답한다(#263) — 자식이 그
+  // 상한보다 먼저 포기하면 느린 프레임에서 iframe 캡처가 실패로 떨어진다.
+  it("부모가 페인트 대기 상한(PAINT_WAIT_CAP_MS)을 다 쓰고 보낸 응답도 기본 대기로 수용한다", async () => {
+    vi.useFakeTimers();
+    try {
+      win = makeFakeWindow();
+      vi.stubGlobal("window", win);
+      const p = requestFrameOffset();
+      vi.advanceTimersByTime(PAINT_WAIT_CAP_MS);
+      const offset = { x: 10, y: 20, topViewport: { width: 800, height: 600 } };
+      win.dispatch({
+        source: win.parent,
+        data: { type: "__bugshot_frame_offset_res__", token: sentToken(), offset },
+      });
+
+      await expect(p).resolves.toEqual(offset);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("응답이 없으면 타임아웃 null (hidden 탭 폴백)", async () => {
     await expect(requestFrameOffset(30)).resolves.toBeNull();
   });
@@ -217,6 +239,9 @@ describe("installFrameOffsetResponder — 부모(top) 측 arm 게이트", () => 
     vi.stubGlobal("window", win);
     vi.stubGlobal("document", {
       querySelectorAll: () => [iframeEl],
+      // afterPaint가 대기 중 숨김 전환을 듣는다.
+      addEventListener: () => {},
+      removeEventListener: () => {},
     });
     setFrameToken("session-token");
   });

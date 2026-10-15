@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import { test, expect, enterDebug } from "./fixtures/extension";
+import { test, expect, enterDebug, waitForPanelFront } from "./fixtures/extension";
 
 // capture.spec.ts의 captureUntilDrafting과 같은 이유(captureVisibleTab quota 회복 대기)로
 // 트리거를 1초+ 간격으로 재시도한다. timeout 증액이 아니라 간격을 quota 주기에 맞추는 것.
@@ -21,19 +21,16 @@ test("screenshot 뷰포트 캡처 → drafting 진입", async ({ ext }) => {
   await enterDebug(panel);
 
   // capturing 단계 하단 툴바에서 [뷰포트 캡처] — 드래그 없이 areaSelected가 발화한다.
-  // 아래 스크롤 캡처와 같은 이유로 fixture를 앞으로 보낸 뒤 DOM 클릭한다: background 캡처
-  // 관문이 큐 대기 후 tab.active를 재확인하므로(A-05), 패널이 앞에 있으면 fixture가 비활성이라
-  // 캡처가 거부된다. 실제 제품에선 사이드패널이 탭이 아니라 이 상황 자체가 없다.
+  // 패널 버튼만 누른다: 패널이 캡처 동안 fixture를 앞으로 가져왔다가 돌아온다(탭 모드 hold).
   await captureUntilDrafting(panel, async () => {
-    await panel.bringToFront();
+    await waitForPanelFront(panel);
     await panel.getByTestId("mode-screenshot").click();
     const viewportBtn = panel.getByTestId("capture-method-viewport");
     await expect(viewportBtn).toBeVisible();
     await expect(viewportBtn).not.toHaveAttribute("aria-disabled", "true");
-    await fixture.bringToFront();
-    await viewportBtn.evaluate((el) => (el as HTMLElement).click());
+    await viewportBtn.click();
   });
-  await panel.bringToFront();
+  await waitForPanelFront(panel);
 
   const img = panel.getByTestId("media-preview-img");
   await expect(img).toBeVisible();
@@ -52,18 +49,16 @@ test("screenshot 스크롤 캡처 → 뷰포트보다 세로로 긴 이미지로
 
   // 타일 2장짜리 fixture(뷰포트 1.5배 높이) — 캡처 큐(타일당 ≥500ms)를 최소로 태운다.
   // 스크롤 캡처는 타일마다 tab.active를 확인한다(다른 탭 화면이 섞이는 것 방지). e2e에선
-  // 사이드패널이 탭이라 패널을 앞에 두면 fixture가 비활성이 되므로, fixture를 앞으로 보낸 뒤
-  // 백그라운드 패널의 버튼을 DOM 클릭으로 누른다(실제 제품에선 패널이 탭이 아니라 무관).
+  // 페이지 전체도 패널 버튼만 — 캡처 내내 fixture가 앞에 있다가 끝나면 패널로 돌아온다.
   await captureUntilDrafting(panel, async () => {
-    await panel.bringToFront();
+    await waitForPanelFront(panel);
     await panel.getByTestId("mode-screenshot").click();
     const fullPageBtn = panel.getByTestId("capture-method-fullpage");
     await expect(fullPageBtn).toBeVisible();
     await expect(fullPageBtn).not.toHaveAttribute("aria-disabled", "true");
-    await fixture.bringToFront();
-    await fullPageBtn.evaluate((el) => (el as HTMLElement).click());
+    await fullPageBtn.click();
   });
-  await panel.bringToFront();
+  await waitForPanelFront(panel);
 
   const img = panel.getByTestId("media-preview-img");
   await expect(img).toBeVisible();

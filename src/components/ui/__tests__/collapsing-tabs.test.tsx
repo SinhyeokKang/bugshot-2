@@ -24,13 +24,23 @@ function Harness({ forceCollapsed }: { forceCollapsed?: boolean }) {
 describe("CollapsingTabsList forceCollapsed", () => {
   it("미지정이면 기존 동작 — jsdom 자동 측정 결과대로 라벨이 보인다", () => {
     render(<Harness />);
-    expect(screen.getByText("Jira").className).not.toContain("hidden");
+    expect(screen.getByText("Jira").className.split(/\s+/)).not.toContain("sr-only");
   });
 
   it("true면 자동 측정이 '안 넘침'이어도 모든 라벨을 접는다", () => {
     render(<Harness forceCollapsed />);
-    expect(screen.getByText("Jira").className).toContain("hidden");
-    expect(screen.getByText("GitHub").className).toContain("hidden");
+    for (const name of ["Jira", "GitHub"]) {
+      const cls = screen.getByText(name).className.split(/\s+/);
+      expect(cls).toContain("sr-only");
+      expect(cls).toContain("group-data-[measuring]/tabs:not-sr-only");
+      expect(cls).not.toContain("hidden");
+    }
+  });
+
+  // jsdom은 CSS 미로드 — 이 단언은 그물이 아니다. 클래스 단언(위)이 그물이다.
+  it("접힌 탭도 접근 가능한 이름을 유지한다", () => {
+    render(<Harness forceCollapsed />);
+    expect(screen.getByRole("tab", { name: "Jira" })).toBeTruthy();
   });
 
   it("prop이 DOM으로 새지 않는다 — React unknown-attribute 경고가 없다", () => {

@@ -80,10 +80,11 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 |---|---|---|
 | `chrome.tabs.captureVisibleTab()` | 요소·영역·**화면(뷰포트)**·**페이지 전체(스크롤 타일 N장)**·인라인 이미지·30s Replay 스크린샷 | `background/messages.ts:handleMessage`의 `captureVisibleTab` 분기 (bg handler — 방어는 3겹이다. ① 큐 진입 **전에** `sender.origin !== chrome-extension://<runtime.id>`면 throw(같은 분기의 sender origin 가드) — content script의 origin은 페이지 origin이라, 이게 없으면 주입된 content script가 페이로드 tabId로 **남의 탭 화면**을 받아갈 수 있고 아래 활성 탭 확인만으론 안 걸러진다. ② 모든 호출이 `capture-throttle` 직렬 큐 경유. ③ 큐를 통과한 뒤 `captureOwnedTab`이 `tabs.get(tabId)`로 **소유권을 다시 확인**하고 `tab.active`가 아니면 throw한다 — 큐 대기가 최대 ~2.6s라 그동안 사용자가 탭을 바꿨으면 남의 페이지를 찍게 된다). 호출처: `sidepanel/capture.ts:captureElementSnapshot`(요소), `usePickerMessages.ts`(영역·인라인), `sidepanel/scroll-capture.ts`(페이지 전체 타일 루프), `30s-replay/use-30s-replay.ts`(폴링 프레임) |
 | `chrome.tabCapture.getMediaStreamId()` | 수동 영상 녹화 스트림 (실패 시 `getDisplayMedia` 폴백) | `video-recorder.ts:startTabStream` |
-| `chrome.tabs.get() → tab.url` | 탭 URL 읽기 | `tab-bindings.ts`, `picker-control.ts`(`pageKeyOf` 등), `video-capture.ts`, `video-recorder.ts`, `30s-replay/use-30s-replay.ts`, `hooks/useTabSupport.ts`(지원/만료 판정 — 아래 만료 감지 1단계의 URL 판독부), `hooks/useBackgroundRecorder.ts`, `sidepanel/scroll-capture.ts`, `background/capture-throttle.ts`(캡처 직전 소유권 확인), `background/index.ts` |
+| `chrome.tabs.get() → tab.url` | 탭 URL 읽기(일반 페이지는 `<all_urls>`로 보이지만 **자기 확장 페이지 탭의 `url`·`pendingUrl`·`title`은 `tabs` 권한이 없어 빠진다** — 패널 탭 판정은 `runtime.getContexts`) | `tab-bindings.ts`, `picker-control.ts`(`pageKeyOf` 등), `video-capture.ts`, `video-recorder.ts`, `30s-replay/use-30s-replay.ts`, `hooks/useTabSupport.ts`(지원/만료 판정 — 아래 만료 감지 1단계의 URL 판독부), `hooks/useBackgroundRecorder.ts`, `sidepanel/scroll-capture.ts`, `background/capture-throttle.ts`(캡처 직전 소유권 확인), `background/index.ts` |
 | `chrome.scripting.executeScript()` | content script 재주입(picker·recorder-bridge는 `allFrames:true`)·뷰포트 측정 | `picker-control.ts` (`ensureMainWorldRecorders`·`getTopViewport` 등) |
 | `chrome.tabs.create()` / `chrome.tabs.remove()` | ① GitHub 업로드용 비활성 탭 생성·정리(`background/github-upload.ts`) ② 외부 링크 열기 — 등록된 이슈 URL·가이드·스토어 리뷰·플랫폼 토큰 발급 페이지(`IssueTab`·`SettingsFooter`·`SubmitSuccessView`·`IssueRow`) | 권한 불요(확장 기본 제공) |
 | `chrome.tabs.query({})` | **전 창 전 탭 열거** — pending 로그 GC가 "살아있는 탭"을 계산하는 유일한 경로(fail-closed: 조회 실패 시 prune 전체 스킵) | `lib/pending-log-prune.ts`. 응답에 URL이 실려 오지만 `getActiveTabIds()`는 `tab.id`만 소비한다. `activeTab`과 무관하게 `<all_urls>`가 커버한다 |
+| `chrome.runtime.getContexts({contextTypes:["TAB"]})` | 탭으로 열린 **자기 확장 패널 문서**의 `tabId`·`documentUrl`(`?tabId=` 쿼리 포함) 조회 — 탭 전환 시 "대상 ↔ 자기 패널 탭" 정지 예외 판정. 권한 불요, 자기 확장 컨텍스트만 돌려준다. `tabs.get(panelTabId).url`은 `tabs` 권한이 없어 확장 페이지 URL도 가려지므로 이 API가 유일한 경로다 | `background/tab-bindings.ts:stopRecordersOnSwitch` |
 | `chrome.runtime.onConnect` (port disconnect) | 사이드패널이 닫히면 port가 끊기는 것을 세션 teardown 신호로 사용 — 레코더 정지(`stopRecorders`) | `background/index.ts` |
 | `chrome.windows.onRemoved` | 닫힌 창의 직전 활성 탭 캐시(`prevActiveTabByWindow`) 제거. 탭 활성화·세션·pending 정리는 `tabs.onRemoved`가 담당 | `background/tab-bindings.ts` |
 | `chrome.i18n.getMessage()` | `public/_locales/<code>/messages.json`을 읽는 **두 소비자 중 런타임 쪽**(SW가 컨텍스트 메뉴 타이틀을 조립 — `setupContextMenu`). 다른 하나는 manifest의 `__MSG_*` 치환(확장 이름·설명·단축키 라벨)이고 둘은 같은 사전을 본다 — 한쪽만 보고 스캐너를 짜면 무음 누락이 생긴다(POSTMORTEM 2026-08-11). 그물: `src/i18n/__tests__/manifest-locales.test.ts` | `background/index.ts` |
@@ -321,7 +322,7 @@ tab-bindings.ts → cross-origin + preserved
   → chrome.runtime.sendMessage({ type: "activeTabExpiredDeferred", tabId })
 
 usePickerMessages.ts
-  → 메시지 수신 → deferredActiveTabExpiry 플래그 세팅
+  → 메시지 수신 → setActiveTabExpiryDeferred(true) (sidepanel/lib/capture-error.ts — 이 사이 캡처 실패 토스트는 억제)
   → useEditorStore.subscribe로 phase 감시
   → phase === "idle" 전환 시 → onPickerPermissionExpired.fire()
   → 만료 다이얼로그 → window.close()

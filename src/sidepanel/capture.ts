@@ -1,4 +1,5 @@
 import { sendBg } from "@/lib/bg-client";
+import { emitCaptureFailure, fireCaptureFailure } from "@/sidepanel/lib/capture-error";
 import { clampCropRect } from "@/sidepanel/lib/crop-rect";
 import {
   resolveCaptureRect,
@@ -15,6 +16,8 @@ import {
   prepareCapture,
   prepareCaptureBySelector,
 } from "./picker-control";
+import { withTargetHold } from "./tab-mode";
+import type { HoldReason } from "./lib/tab-mode";
 
 const DEFAULT_MARGIN = 24;
 
@@ -30,20 +33,27 @@ interface CaptureOptions {
   // 넘겨 판정을 파생시킨다. 둘을 함께 넘기면 context가 이긴다(resolveExpandRequest).
   expandContext?: boolean;
   context?: CaptureContext;
+  // 실패 토스트 직전에 묻는 소유 판정. 호출부의 stale 폐기 가드는 null을 받은 뒤에야 돌아
+  // 그 사이 나간 토스트를 막지 못한다.
+  isCurrent?: () => boolean;
 }
 
+// 대상 탭 hold는 prepare→capture→end 전체를 감싼다 — prepare의 scrollIntoView+rAF와 오버레이
+// 숨김(afterPaint)이 숨은 탭에서 돌면 rect=null이거나 오버레이가 찍힌다.
 export async function captureElementSnapshot(
   tabId: number,
   options: CaptureOptions = {},
 ): Promise<CaptureResult | null> {
-  return captureWithPrep(
-    tabId,
-    await prepareCapture(
+  return withTargetHold(tabId, async () =>
+    captureWithPrep(
       tabId,
-      options.frameId ?? 0,
-      resolveExpandRequest(options),
+      await prepareCapture(
+        tabId,
+        options.frameId ?? 0,
+        resolveExpandRequest(options),
+      ),
+      options,
     ),
-    options,
   );
 }
 
@@ -53,17 +63,31 @@ export async function captureElementSnapshotBySelector(
   options: { margin?: number; frameId?: number; context?: CaptureContext } = {},
 ): Promise<CaptureResult | null> {
   const { context, ...rest } = options;
-  return captureWithPrep(
-    tabId,
-    await prepareCaptureBySelector(
+  return withTargetHold(tabId, async () =>
+    captureWithPrep(
       tabId,
-      rest.frameId ?? 0,
-      selector,
-      resolveExpandRequest({ context }),
+      await prepareCaptureBySelector(
+        tabId,
+        rest.frameId ?? 0,
+        selector,
+        resolveExpandRequest({ context }),
+      ),
+      // context를 rest에서 뺀다 — 0×0 폴백(before rect 재사용)은 live 참조로 찍은
+      // before/after 짝에만 성립하는 스코프라 by-selector 재캡처는 현행 동작을 유지한다.
+      rest,
     ),
-    // context를 rest에서 뺀다 — 0×0 폴백(before rect 재사용)은 live 참조로 찍은
-    // before/after 짝에만 성립하는 스코프라 by-selector 재캡처는 현행 동작을 유지한다.
-    rest,
+  );
+}
+
+// 영역·인라인처럼 content가 이미 확정한 화면을 찍는 경로. prepare가 없어 요청 자체만 hold한다.
+export function captureTargetTab(
+  tabId: number,
+  reason: Extract<HoldReason, "capture" | "area"> = "capture",
+): Promise<string> {
+  return withTargetHold(
+    tabId,
+    () => sendBg<string>({ type: "captureVisibleTab", tabId }),
+    reason,
   );
 }
 
@@ -74,8 +98,11 @@ async function captureWithPrep(
 ): Promise<CaptureResult | null> {
   const margin = options.margin ?? DEFAULT_MARGIN;
   const frameId = options.frameId ?? 0;
+  const owned = () => options.isCurrent?.() ?? true;
+  // 실패 토스트는 이 함수 한 곳에서만 발화한다 — 호출부(before·after·요소 캡처·재캡처)는 null만 본다.
   if (!prep?.rect) {
     await endCapture(tabId, frameId);
+    if (owned()) emitCaptureFailure("element-missing");
     return null;
   }
   const usable = resolveCaptureRect({
@@ -107,6 +134,7 @@ async function captureWithPrep(
   } catch (err) {
     if (!maybeSurfacePermissionExpired(err)) {
       console.error("[bugshot] snapshot failed", err);
+      if (owned()) fireCaptureFailure(err);
     }
     return null;
   } finally {

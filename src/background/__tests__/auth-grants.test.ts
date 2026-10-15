@@ -44,7 +44,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 function seed(c: typeof cases[number], auth: unknown = c.auth) { raw = { version: 12, state: { accounts: { [c.platform]: { auth } }, lastSubmitFields: {}, titlePrefix: "" } }; }
 it.each(cases)("$platform: late 401 after reconnect never uses the replacement grant", async (c) => {
   seed(c); first = async () => { seed(c, { ...c.auth, grantId: "gb", accessToken: "B", refreshToken: "RB" }); return new Response("", { status: 401 }); };
-  await expect(c.request(c.auth)).rejects.toThrow("connected account changed");
+  await expect(c.request(c.auth)).rejects.toThrow("platform.accountChanged.title");
   expect(requests).toHaveLength(1);
   expect(requests[0].url).toBe(c.url);
   expect((requests[0].init.headers as any).Authorization).toBe("Bearer A");
@@ -78,7 +78,7 @@ it.each(cases)("$platform: concurrent legacy acquisition returns one canonical g
   const [a,b] = await Promise.all([acquireStoredAuth(c.platform, legacy), acquireStoredAuth(c.platform, legacy)]);
   expect((a as any).grantId).toBeTruthy(); expect(a).toEqual(b);
   await c.request(a);
-  await expect(c.request(legacy)).rejects.toThrow("connected account changed");
+  await expect(c.request(legacy)).rejects.toThrow("platform.accountChanged.title");
 });
 it.each(cases)("$platform: same grant concurrent refresh is deduplicated and late requests reuse rotation", async (c) => {
   seed(c, { ...c.auth, expiresAt: 0 });
@@ -98,7 +98,7 @@ it.each(cases)("$platform: a late refresh failure after replacement is neutral",
     return new Response("", { status: 401 });
   }));
   const error = await c.request(c.auth).catch((e) => e);
-  expect((error as Error).message).toContain("connected account changed");
+  expect((error as Error).message).toContain("platform.accountChanged.title");
   expect((error as { refreshFailed?: boolean }).refreshFailed).not.toBe(true);
   expect(raw.state.accounts[c.platform].auth.accessToken).toBe("B");
 });
@@ -111,7 +111,7 @@ it.each([false, true])("Jira media delayed probes stop after reconnect (already 
     return new Response("", { status: refreshFirst && count++ === 0 ? 401 : 200 });
   }));
   const { getMediaFileId } = await import("../jira-api");
-  await expect(getMediaFileId(c.auth, "attachment", async () => { seed(c, { ...c.auth, grantId: "new", accessToken: "B" }); })).rejects.toThrow("connected account changed");
+  await expect(getMediaFileId(c.auth, "attachment", async () => { seed(c, { ...c.auth, grantId: "new", accessToken: "B" }); })).rejects.toThrow("platform.accountChanged.title");
   expect(requests).toHaveLength(refreshFirst ? 4 : 2);
 });
 it.each([cases[1], cases[4]])("$platform retains an omitted refresh token and reuses the access-token rotation", async (c) => {

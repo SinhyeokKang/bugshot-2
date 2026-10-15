@@ -1,5 +1,9 @@
 import type { PlatformId } from "@/types/platform";
 
+// sidepanel/lib/capture-error가 분류해 발화한다. 여기 type으로 두는 건 이 파일이 sidepanel을
+// import하지 않게 하려는 것이다(아래 순수성 테스트).
+export type CaptureFailureKind = "inactive" | "rate-limit" | "element-missing" | "other";
+
 export interface AppEvent<A extends unknown[] = []> {
   subscribe(fn: (...args: A) => void): () => void;
   fire(...args: A): void;
@@ -37,4 +41,10 @@ export const onBlobSaveFailed = createEmitter();
 // 낳으므로 blob 쪽과 대칭인 이벤트로 올린다.
 export const onStateSaveFailed = createEmitter();
 
+// 손상된 설정 봉투를 폐기하고 초기 상태로 다시 시작했다.
+export const onSettingsReset = createEmitter();
+
 export const onSessionSaveExhausted = createEmitter();
+
+// 비차단 캡처 실패. 다른 이벤트는 다이얼로그로 이어지지만 이건 App이 토스트로 띄운다.
+export const onCaptureFailed = createEmitter<[kind: CaptureFailureKind]>();

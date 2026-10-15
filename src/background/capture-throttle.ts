@@ -3,13 +3,14 @@
 // 터지면 쿼터를 넘는다. 모든 캡처를 한 큐로 직렬화하고 호출 간 최소 간격을 둬 한계 아래로
 // 유지하며, 그래도 걸리면 rate-limit 에러에 한해 백오프 재시도한다.
 
+import {
+  CAPTURE_NO_WINDOW_MESSAGE,
+  captureInactiveMessage,
+  isCaptureRateLimitError,
+} from "@/lib/capture-messages";
+
 export const CAPTURE_MIN_GAP_MS = 500;
 export const CAPTURE_RETRY_DELAYS_MS = [550, 700, 900];
-
-export function isCaptureRateLimitError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND/i.test(msg);
-}
 
 export interface ThrottleDeps {
   now: () => number;
@@ -75,7 +76,7 @@ export async function captureOwnedTab(
   deps: CaptureOwnerDeps = realOwnerDeps,
 ): Promise<string> {
   const tab = await deps.getTab(tabId);
-  if (!tab.windowId) throw new Error("tab has no window");
-  if (!tab.active) throw new Error(`tab ${tabId} is no longer the active tab`);
+  if (!tab.windowId) throw new Error(CAPTURE_NO_WINDOW_MESSAGE);
+  if (!tab.active) throw new Error(captureInactiveMessage(tabId));
   return deps.captureVisibleTab(tab.windowId, opts);
 }

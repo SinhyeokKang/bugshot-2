@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { useIsTabMode } from "@/sidepanel/hooks/useSelfTab";
 import { recordModeMeta } from "@/sidepanel/lib/recordModeMeta";
 import { formatMmSs } from "@/sidepanel/lib/logRow";
 import { useTabNav } from "@/sidepanel/tab-nav";
@@ -55,12 +56,14 @@ import {
   startAreaCapture,
   startElementShot,
   cancelAreaCapture,
-  captureFullViewport,
   clearPicker,
   maybeSurfacePermissionExpired,
   startFreeformDraft,
 } from "@/sidepanel/picker-control";
 import { runScrollCapture } from "@/sidepanel/scroll-capture";
+import { runViewportCapture } from "@/sidepanel/viewport-capture";
+import { withTargetHold } from "@/sidepanel/tab-mode";
+import { fireCaptureFailure } from "@/sidepanel/lib/capture-error";
 import { startVideoCapture, startScreenCapture } from "@/sidepanel/video-capture";
 import { setAnnotationTool } from "@/sidepanel/annotation-control";
 import {
@@ -129,12 +132,15 @@ export function IssueTab() {
       useEditorStore.getState().phase === "capturing" &&
       useEditorStore.getState().target?.tabId === id;
 
-    void runScrollCapture(id, {
-      signal: controller.signal,
-      onProgress: (done, total) => {
-        if (scrollAbortRef.current === controller) setScrollProgress({ done, total });
-      },
-    })
+    // 타일마다가 아니라 바깥 1회 — 타일마다 handoff하면 탭이 깜빡이고 타일 전후 active 재확인과 경쟁한다.
+    void withTargetHold(id, () =>
+      runScrollCapture(id, {
+        signal: controller.signal,
+        onProgress: (done, total) => {
+          if (scrollAbortRef.current === controller) setScrollProgress({ done, total });
+        },
+      }),
+    )
       .then((result) => {
         // 캡처 중 취소·세션 만료·URL 변경·picker 단절이 있었으면 결과를 버린다(유령 drafting 방지).
         if (!isCurrent()) return;
@@ -142,13 +148,14 @@ export function IssueTab() {
         if (result.truncated) toast.info(t("issue.capturing.truncated"));
       })
       .catch((err) => {
-        if (!controller.signal.aborted && !maybeSurfacePermissionExpired(err)) {
-          console.error("[bugshot] scroll capture failed", err);
-        }
         const owned =
           scrollAbortRef.current === controller &&
           useEditorStore.getState().phase === "capturing" &&
           useEditorStore.getState().target?.tabId === id;
+        if (!controller.signal.aborted && !maybeSurfacePermissionExpired(err)) {
+          console.error("[bugshot] scroll capture failed", err);
+          if (owned) fireCaptureFailure(err);
+        }
         if (owned) useEditorStore.getState().reset();
       })
       .finally(() => {
@@ -164,12 +171,7 @@ export function IssueTab() {
     // content 응답(수 ms)이 아니라 실제 캡처(captureVisibleTab 큐, 수백 ms)가 끝날 때까지 잠근다.
     // 해제는 phase가 capturing을 벗어나는 시점(위 effect) — 연타로 진행 중 캡처를 날리지 않게.
     setViewportBusy(true);
-    void captureFullViewport(id).then((ok) => {
-      // content가 area-select 상태가 아니면(주입 소실·레이스) 조용히 갇히지 않게 idle로 되돌린다.
-      if (!ok && useEditorStore.getState().phase === "capturing") {
-        useEditorStore.getState().reset();
-      }
-    });
+    void runViewportCapture(id);
   };
 
   const cancelCapturing = (id: number) => {
@@ -489,6 +491,7 @@ export function CapturingState({
   // disabled는 pointer-events를 죽여 title 툴팁·스피너 대비까지 잃는다 — ReplayButton과 같은
   // aria-disabled 관용구로 시각·툴팁을 유지하고 핸들러에서 가드한다.
   const lockedClass = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
+  const tabMode = useIsTabMode();
   return (
     <PageShell>
       <EmptyShell
@@ -536,6 +539,12 @@ export function CapturingState({
               />
             </div>
           </>
+        ) : null}
+        {/* 영역 드래그는 사용자가 직접 대상 탭에서 한다. 뷰포트·전체 페이지는 누르는 순간 대상이 앞으로 와서 대상이 아니다. */}
+        {tabMode && !busy && !canceling ? (
+          <p data-testid="tab-mode-area-hint" className="mt-2 text-sm text-muted-foreground">
+            {t("issue.tabMode.areaHint")}
+          </p>
         ) : null}
       </EmptyShell>
       {/* 캡처 방식 툴바 — 녹화 중 그리기 툴바와 같은 자리(하단 footer). 영역 선택은 지금 켜져

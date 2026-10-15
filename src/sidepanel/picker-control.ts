@@ -4,7 +4,7 @@ import { clearPicker, tabFrameTokens } from "./picker-clear";
 export { clearPicker };
 import { classifyTabSupport } from "@/lib/url-support";
 import { pageKeyOf } from "@/lib/session-keys";
-import { useEditorStore } from "@/store/editor-store";
+import { settleOrphanElementPhase, useEditorStore } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { onPickerPermissionExpired, onPickerUnavailable } from "@/lib/app-events";
 import { isActiveTabPermissionError } from "./lib/capture-error";
@@ -439,9 +439,11 @@ export async function applyEditsBySelector(
 // 선택 노드만 DOM에서 빠진 경우(SPA 리렌더·key 교체) — 페이지가 바뀐 게 아니므로 버퍼에
 // 쌓아둔 요소별 편집과 캡처는 살리고 현재 선택만 놓는다. sessionExpired는 cross-page 신호라
 // 여기서 세우지 않는다: 세우면 다이얼로그가 뜨고 확인 시 reset이라 버퍼가 통째로 사라진다.
+// [다음]의 after 캡처가 소실을 감지한 경우 확정(confirmStyles)이 먼저 착지했을 수 있다 — phase도 접는다.
 export async function releaseDetachedSelection(tabId: number): Promise<void> {
   await clearPicker(tabId).catch(() => {});
-  useEditorStore.setState({
+  useEditorStore.setState((s) => ({
+    phase: settleOrphanElementPhase({ ...s, selection: null }),
     selection: null,
     styleEdits: { classList: [], inlineStyle: {}, text: "", cssText: null },
     beforeImage: null,
@@ -449,7 +451,7 @@ export async function releaseDetachedSelection(tabId: number): Promise<void> {
     beforeAnnotated: null,
     afterAnnotated: null,
     captureContext: null,
-  });
+  }));
 }
 
 export async function expireStylingSession(tabId: number): Promise<void> {

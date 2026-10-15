@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import {
   enterDebugAndPick,
   expect,
+  waitForPanelFront,
   test,
   typeStyleValue,
 } from "./fixtures/extension";
@@ -83,31 +84,20 @@ async function assertGatesSatisfied(
   expect(gates.areaRatio).toBeLessThanOrEqual(0.4);
 }
 
-// pick 직후 발행되는 **before 캡처**가 background 직렬 큐에서 빠져나올 때까지 fixture를 앞에 둔다.
-// 이걸 안 하면 typeStyleValue가 패널을 앞으로 가져오고, 큐가 그 캡처에 도달했을 때
-// captureOwnedTab의 tab.active 재확인에서 거부된다 — before 기준이 저장되지 않아 after만
-// 요소 bbox로 폴백하고, 증상은 "확장이 안 걸림"으로만 보인다. after 캡처와 달리 before는
-// 재시도 지점이 없어서 여기서 한 번 놓치면 그대로 끝난다.
-// 대기는 timeout 늘리기가 아니라 캡처 큐·quota 주기(~500ms 간격 + 백오프)에 맞춘 간격이다.
-async function settleBeforeCapture(fixture: Page): Promise<void> {
-  await fixture.bringToFront();
-  await fixture.waitForTimeout(1500);
-}
-
 // [다음]은 aria-disabled+클릭 가드라 actionability가 막지 않는다 — 부재 단언이 필수.
-// 캡처 관문(captureOwnedTab)이 tab.active를 재확인하므로 fixture를 앞에 두고 evaluate 클릭한다.
-async function proceedToDrafting(panel: Page, fixture: Page): Promise<void> {
+// after 캡처 동안 패널이 fixture를 앞으로 가져왔다가 돌아온다(탭 모드 hold) — 재시도 전에 복귀를 기다린다.
+async function proceedToDrafting(panel: Page): Promise<void> {
   const next = panel.getByTestId("next-step");
   const drafting = panel.getByTestId("drafting-panel");
   // captureVisibleTab quota(~2회/초)는 확장 전역이라 spec 경계를 넘는다 — 버스트 금지,
   // 1초 이상 간격으로 재시도한다(captureUntilDrafting 관례).
   await expect(async () => {
+    await waitForPanelFront(panel);
     if (!(await drafting.isVisible())) {
       await expect(next).not.toHaveAttribute("aria-disabled", "true");
-      await fixture.bringToFront();
-      await next.evaluate((el) => (el as HTMLElement).click());
+      await next.click();
     }
-    await expect(drafting).toBeVisible({ timeout: 2500 });
+    await expect(drafting).toBeVisible({ timeout: 4000 });
   }).toPass({ intervals: [1000, 1500, 2000, 2500], timeout: 25_000 });
 }
 
@@ -121,12 +111,11 @@ test.describe("element 캡처 컨텍스트 확장", () => {
     const panel = await ext.openPanel(tabId);
 
     await assertGatesSatisfied(fixture, "#modal", "#modal-btn");
-    await enterDebugAndPick(fixture, panel, "#modal-btn", { keepFixtureActive: true });
-    await settleBeforeCapture(fixture);
+    await enterDebugAndPick(fixture, panel, "#modal-btn");
     await typeStyleValue(panel, "color", "#ff0000");
     await expect(fixture.locator("#modal-btn")).toHaveCSS("color", "rgb(255, 0, 0)");
 
-    await proceedToDrafting(panel, fixture);
+    await proceedToDrafting(panel);
 
     // 확장이 걸리면 크롭 기준이 버튼이 아니라 다이얼로그다.
     const { container } = await assertHypothesesSeparable(fixture, "#modal", "#modal-btn");
@@ -147,12 +136,11 @@ test.describe("element 캡처 컨텍스트 확장", () => {
     const tabId = await ext.fixtureTabId(FIXTURE_URL);
     const panel = await ext.openPanel(tabId);
 
-    await enterDebugAndPick(fixture, panel, "#plain-btn", { keepFixtureActive: true });
-    await settleBeforeCapture(fixture);
+    await enterDebugAndPick(fixture, panel, "#plain-btn");
     await typeStyleValue(panel, "color", "#ff0000");
     await expect(fixture.locator("#plain-btn")).toHaveCSS("color", "rgb(255, 0, 0)");
 
-    await proceedToDrafting(panel, fixture);
+    await proceedToDrafting(panel);
 
     // div 체인은 후보가 아니므로 요소 bbox + 사방 마진에 머문다.
     // 대조군은 같은 페이지의 모달 — 확장이 잘못 걸렸다면 그쪽 종횡비가 나온다.
@@ -172,27 +160,32 @@ test.describe("element 캡처 컨텍스트 확장", () => {
     const tabId = await ext.fixtureTabId(FIXTURE_URL);
     const panel = await ext.openPanel(tabId);
 
-    // 패널 컨텍스트의 chrome.tabs.sendMessage를 덮어 prepareCapture만 지연시킨다.
-    // pick 이전에 깔아야 before 캡처를 잡는다. 지연을 안 걷으면 후속 캡처까지 느려진다.
-    await panel.evaluate((delayMs) => {
+    // 패널 컨텍스트의 chrome.tabs.sendMessage를 덮어 prepareCapture를 래치로 붙잡는다 — 고정 지연이
+    // 아니라 spec이 fixture를 앞에 되돌린 뒤 직접 놓는다. pick 이전에 깔아야 before 캡처를 잡는다.
+    await panel.evaluate(() => {
       const tabs = chrome.tabs as unknown as {
         sendMessage: (...args: unknown[]) => Promise<unknown>;
       };
       const orig = tabs.sendMessage.bind(chrome.tabs);
-      (window as unknown as { __restoreSend?: () => void }).__restoreSend = () => {
+      const held: (() => void)[] = [];
+      (window as unknown as { __releaseSend?: () => void }).__releaseSend = () => {
         tabs.sendMessage = orig;
+        for (const go of held.splice(0)) go();
       };
       tabs.sendMessage = (...args: unknown[]) => {
         const msg = args[1] as { type?: string } | undefined;
         if (msg?.type !== "picker.prepareCapture") return orig(...args);
         return new Promise((resolve) => {
-          setTimeout(() => resolve(orig(...args)), delayMs);
+          held.push(() => resolve(orig(...args)));
         });
       };
-    }, 6000);
+    });
 
     await assertGatesSatisfied(fixture, "#modal", "#modal-btn");
-    await enterDebugAndPick(fixture, panel, "#modal-btn", { keepFixtureActive: true });
+    // before가 지연된 채 진행 중인 동안 편집해야 잠금을 볼 수 있다 — 패널 복귀를 기다리지 않고
+    // 직접 앞으로 옮긴다(이 spec만의 인위적 창, GOTCHAS "탭 모드 hold").
+    await enterDebugAndPick(fixture, panel, "#modal-btn", { returnToPanel: false });
+    await panel.bringToFront();
     await typeStyleValue(panel, "color", "#ff0000");
     await expect(fixture.locator("#modal-btn")).toHaveCSS("color", "rgb(255, 0, 0)");
 
@@ -200,20 +193,19 @@ test.describe("element 캡처 컨텍스트 확장", () => {
     const next = panel.getByTestId("next-step");
     await expect(next).toHaveAttribute("aria-disabled", "true");
 
-    // 지연된 before 캡처는 지금부터 발화한다. 그 시점에 fixture 탭이 활성이어야 한다 —
-    // typeStyleValue가 패널을 앞으로 가져왔고, 캡처 관문(captureOwnedTab)은 큐 대기 후
-    // tab.active를 재확인하므로 그대로 두면 캡처가 거부돼 기준이 안 잡힌다(GOTCHAS "tab.active").
+    // 지연된 before 캡처는 지금부터 발화한다. 그 시점에 fixture 탭이 활성이어야 한다 — 위에서
+    // 패널을 직접 앞으로 옮겼으므로(활성화는 hold 첫 진입에서만) 되돌려 놓는다.
     await fixture.bringToFront();
 
-    // 지연을 걷어야 after 캡처가 제때 돈다.
+    // 래치를 풀어 붙잡힌 before를 보내고, 이후 캡처는 원래 경로로 돌린다.
     await panel.evaluate(() =>
-      (window as unknown as { __restoreSend?: () => void }).__restoreSend?.(),
+      (window as unknown as { __releaseSend?: () => void }).__releaseSend?.(),
     );
 
     // before가 도착하면 잠금이 풀린다.
     await expect(next).not.toHaveAttribute("aria-disabled", "true", { timeout: 15_000 });
 
-    await proceedToDrafting(panel, fixture);
+    await proceedToDrafting(panel);
 
     // before가 확정한 기준(다이얼로그)으로 after도 찍힌다.
     const { container } = await assertHypothesesSeparable(fixture, "#modal", "#modal-btn");

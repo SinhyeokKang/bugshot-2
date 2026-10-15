@@ -1,4 +1,4 @@
-import { type ComponentType } from "react";
+import { type ComponentProps, type ComponentType } from "react";
 import { Webhook } from "lucide-react";
 import { SlackIcon } from "@/components/icons/SlackIcon";
 import {
@@ -19,7 +19,7 @@ import { submitTabsLayout } from "./submitTabsLayout";
 
 const PLATFORM_TABS: {
   id: PlatformId;
-  Icon: ComponentType<{ className?: string; color?: string }>;
+  Icon: ComponentType<{ className?: string; color?: string; "aria-hidden"?: ComponentProps<"svg">["aria-hidden"] }>;
   invertOnDark?: boolean;
 }[] = [
   { id: "jira", Icon: SiJirasoftware },
@@ -30,8 +30,8 @@ const PLATFORM_TABS: {
   { id: "asana", Icon: SiAsana },
   { id: "clickup", Icon: SiClickup },
   // lucide 아이콘은 color="default"(브랜드 hex)를 못 받아 투명해진다 → currentColor로 렌더.
-  { id: "slack", Icon: ({ className }) => <SlackIcon className={className} /> },
-  { id: "webhook", Icon: ({ className }) => <Webhook className={className} /> },
+  { id: "slack", Icon: ({ className, "aria-hidden": ariaHidden }) => <SlackIcon className={className} aria-hidden={ariaHidden} /> },
+  { id: "webhook", Icon: ({ className, "aria-hidden": ariaHidden }) => <Webhook className={className} aria-hidden={ariaHidden} /> },
 ];
 
 // Tabs 루트 안에 둔다 — TabsList를 쓰므로 단독으로는 렌더되지 않는다.
@@ -47,7 +47,7 @@ export function SubmitPlatformTabs({ availablePlatforms }: { availablePlatforms:
       <CollapsingTabsList className={layout.listClass} forceCollapsed={layout.forceCollapsed}>
         {tabs.map(({ id, Icon, invertOnDark }) => (
           <TabsTrigger key={id} value={id} className={layout.triggerClass} data-testid={`platform-tab-${id}`}>
-            <Icon className={cn("h-3.5 w-3.5 shrink-0", invertOnDark && "dark:invert")} color="default" />
+            <Icon className={cn("h-3.5 w-3.5 shrink-0", invertOnDark && "dark:invert")} color="default" aria-hidden />
             <TabLabel>{t(PLATFORM_TAB_KEYS[id])}</TabLabel>
           </TabsTrigger>
         ))}

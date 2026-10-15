@@ -26,12 +26,13 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 
 `fixtures/extension.ts`가 기본 창구이고, 계약을 한 곳에 묶어야 하는 stub은 별 파일로 뗀다(`fixtures/clipboard.ts:stubClipboard` — 복사 flavor 계약. GOTCHAS "스텁이 곧 계약" 참조). 새 헬퍼를 추가하면 여기와 `docs/DIRECTORY.md`에 반영한다.
 
-- `ext` worker fixture — `fixtureUrl(page)` / `fixtureHostUrl(host, page)` / `fixtureTabId(urlPattern?)` / `openPanel(tabId)` / `context`.
+- `ext` worker fixture — `fixtureUrl(page)` / `fixtureHostUrl(host, page)` / `fixtureTabId(urlPattern?)` / `openPanel(tabId)` / `evalInExt(fn, arg)` / `context`. `evalInExt`의 eval-host 탭은 기동 직후 미리 연다(spec 도중 새 탭이 활성으로 열려 대상을 가리지 않게).
   - `fixtureHostUrl(host, page)` — 같은 fixture 서버를 임의 호스트명으로 연다. launch args의 `--host-resolver-rules=MAP *.bugshot.test 127.0.0.1` 덕에 `app`/`api`/`auth.bugshot.test`가 하나의 registrable domain으로 묶인다(동족 hostname이 필요한 `api-hosts-env-row` 전용 — GOTCHAS 참조). **`fixtureTabId`엔 패턴을 명시**해야 한다.
 - `fixtures/recovery.ts` — 첨부 복구(1·2단계) 전용. `setup(ext, id, provider, opts)`로 저장 draft+IDB 원본을 앱 부팅 전에 seed하고, `installRpc`(1단계: 고정 응답)/`installRemote`(2단계: 상태 있는 원격 — create가 보낸 본문을 기억해 기존 이슈 읽기·본문 쓰기에 응답, `setRemote`/`setRemoteBody`/`remoteBody`로 흐름 중에 바꾼다)가 `chrome.runtime.sendMessage` 스파이를 건다. `state(panel, id)`는 저장된 이슈·journal·보존 바이트.
 - `enterDebug(panel)` — 디버그 탭 진입(active 폴링).
 - `enterDebugAndPick(fixture, panel, selector)` — 디버그 → element 모드 → 요소 선택 → `repick` 확인까지.
-- `pickElement(fixture, panel, selector, opts?)` — bbox 중심 클릭(double rAF hover). 기본(`expectSelection:true`)은 **repick 노출까지 클릭 재시도**(재arm 레이스로 인한 유실 클릭 방어). repick이 안 뜨는 픽(element-shot 캡처·iframe 미지원)은 `{ expectSelection: false }`로 1회만. `{ frame: "#sel" }`로 **iframe 내부 요소 선택**(frameLocator bbox — 메인 프레임 뷰포트 기준 좌표).
+- `pickElement(fixture, panel, selector, opts?)` — bbox 중심 클릭(double rAF hover). 탭 전환은 제품이 한다(탭 모드 hold): 클릭 전 대상이 앞인지(`waitForTargetFront`), 선택 뒤엔 before가 끝나 패널이 돌아올 때까지(`waitForPanelFront`) 기다린다 — before 진행 중 패널을 일부러 앞에 두는 spec만 `{ returnToPanel: false }`. 기본(`expectSelection:true`)은 **repick 노출까지 클릭 재시도**(재arm 레이스로 인한 유실 클릭 방어). repick이 안 뜨는 픽(element-shot 캡처·iframe 미지원)은 `{ expectSelection: false }`로 1회만. `{ frame: "#sel" }`로 **iframe 내부 요소 선택**(frameLocator bbox — 메인 프레임 뷰포트 기준 좌표).
+- `waitForPanelFront(panel)` / `waitForTargetFront(panel)` — 패널 탭 / 대상 탭(`?tabId=`)이 실제로 활성인지 패널 문서에서 `chrome.tabs`로 폴링한다. 캡처 뒤 패널 자동 복귀를 기다릴 때 `bringToFront` 대신 쓴다(`document.visibilityState`는 Playwright 포커스 에뮬레이션 탓에 못 쓴다 — GOTCHAS "탭 모드 hold").
 - `ensureSectionOpen(panel, toggleTestId, probeLabel)` — 접힌 collapsible Section 펼침(probeLabel prop이 DOM에 없으면 토글 클릭). 접힌 섹션은 자식이 DOM에서 제거됨. 예: Position 섹션(`section-position-toggle`, probe `"position"`/`"z-index"`).
 - `typeStyleValue(panel, label, value)` — ValueCombobox 팝오버 입력.
 - `setQuadLinkedValue(panel, label, value)` — QuadProp(margin/padding) LinkToggle 4면 동일값.
@@ -61,6 +62,7 @@ fixture 페이지(`fixtures/pages/`):
 - **서버 엔드포인트** `/e2e-json*` (정적 파일 아님 — `fixtures/extension.ts` 서버 분기): `application/json` 본문 `{"note":"zqxbodyneedle"}`을 준다. 마커가 URL엔 없고 본문에만 있어 네트워크 로그 **본문 검색**(`network-body-search.spec`)을 판정. allowlist content-type이라 레코더가 string variant로 캡처. 코드블럭으로 직렬화하면 헤더 포함 **5줄**이라 접기 임계값(15) 아래 — `code-block-collapse.spec`의 음성 케이스도 겸한다.
 - **서버 엔드포인트** `/e2e-bigjson*`: 문자열 30개 배열(`{"items":[...]}`) — 코드블럭 직렬화 시 **36줄**로 접기 임계값을 넘는 양성 케이스(`code-block-collapse.spec`). 각 원소는 마커(`e2e-bigjson-NNN`) 뒤에 `x` 120자를 달아 **한 줄이 패널 폭을 넘는다** — 행 번호 열이 가로 스크롤에서 빠지는지 판정하려면 실제 오버플로가 나야 한다(짧으면 그 축이 조용히 공허해진다). 본문 설계 제약(SENSITIVE 키 회피·중첩 대신 배열)은 GOTCHAS 참조.
 - `scroll-capture.html` — 스크롤 캡처용. `#bar`(`position: fixed`) + `#sticky`(`position: sticky`, 자홍 픽셀 판정) 헤더는 첫 타일 이후 숨김 대상. `#tall`은 150vh라 타일 2장 고정(captureVisibleTab quota 최소화).
+- `scroll-capture-long.html` — 캡처 실패 토스트용. 장식 없는 800vh 단일 블록이라 타일 8장(각 ≥500ms)으로, 첫 진행 뒤 탭을 바꿀 여유가 수 초 남는다(`capture-failure-toast.spec`). 줄이면 마지막 타일 뒤에 전환돼 캡처가 성공으로 끝난다.
 - `capture-context.html` — element 캡처 컨텍스트 확장용. `#modal`(`role=dialog` + `aria-modal`, `position:fixed` 60vw×80px — 확장 게이트 G1/G2/G3를 전부 만족하도록 크기를 잡았다) 안의 `#modal-btn`(40×40 정사각 — 크롭 종횡비가 모달과 확실히 갈린다), 그리고 시맨틱 조상이 없는 `.plain-wrap > div > #plain-btn`(폴백 확인용). **`inset:0` 백드롭을 두지 않는다** — 전면 오버레이는 picker 클릭을 가로챈다. 모달 높이를 `vh`/`vw`로 잡으면 창 비율에 따라 크롭이 정사각형이 되거나 버튼이 박스 밖으로 밀려 게이트가 깨진다(GOTCHAS 참조).
 - `api-hosts.html` — 재현 환경 `API Hosts` 자동 행용. `#box`(320×200, element 픽 대상)와 `__fetchApis(port)`(spec이 arm 확인 후 호출 — `api.bugshot.test` 2건 + `auth.bugshot.test` 1건을 `/e2e-json-*` 경로로 요청해 요청 수 내림차순 정렬까지 판정 가능하게 둔다). 로드 시 자동 발사하지 않는 이유는 레코더 fetch 후크의 `capturing` 게이트(websocket.html과 같은 계열).
 - `iframe.html` — top frame + `#frame` iframe(src=basic.html, picker iframe 내부 선택·iframe 로그 캡처용).

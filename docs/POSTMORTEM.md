@@ -36,6 +36,178 @@
 
 ---
 
+## 2026-10-15 — 요소 소실 해제와 [다음] 확정이 서로를 모른 채 겹쳐 "selection 없는 element drafting"을 만들었고, 그 상태가 세션에 저장돼 탭이 영구히 비었다
+
+- **영역**: `store`, `컴포넌트`
+- **계열**: `취소래치`
+- **그물**: `unit`
+- **증상**: (#264, 실제 사이드패널) 요소 편집에서 스타일을 하나 바꾼 뒤 페이지에서 그 요소를 지우고 [다음]을 누르면, `Couldn't find the element to capture` 토스트가 뜬 직후 패널 본문이 헤더만 남기고 비었다. 패널을 껐다 켜도 **그 탭만** 계속 비었고 다른 탭은 정상이었다. 콘솔 에러는 0건이었다(크래시가 아니라 렌더 게이트의 `return null`). 저장된 세션은 `phase: "drafting"`, `captureMode: "element"`, `selection: null`, `draft: null`, before/after null, styleEdits 빈 값이었다.
+- **근본 원인**: [다음]의 after 캡처가 `picker.prepareCapture`를 보내면 content가 소실을 감지해 `picker.selectionDetached`를 보내고 `rect: null`로 응답한다. 사이드패널에서는 이 두 신호가 각자 다른 전이를 일으킨다. 메시지 쪽은 `releaseDetachedSelection`이 selection·편집·before/after를 비운다(styling에서는 `isCaptureEntryScreen`이 진입 화면을 그리는 설계된 자리다). 응답 쪽은 `handleNext`가 null 결과를 "after 없음"으로 받고 `confirmStyles`로 drafting에 들어간다. 두 전이는 서로를 확인하지 않고, 도착 순서도 왕복(`clearPicker`·`endCapture`)에 달려 정해지지 않는다. 어느 순서로 와도 결과는 같다 — element 모드 drafting인데 selection이 없다. 이 조합을 `DraftingPanel`은 `return null`로, IssueTab은 drafting 분기를 진입 화면 판정보다 먼저 보기 때문에 그대로 빈 화면으로 그린다. 세션 스냅샷은 phase를 그대로 저장하고, hydrate는 `picking`/`capturing`/`recording`만 idle로 강등하므로 이 조합은 복구되지 않았다. **A1(실패 토스트)이 만든 회귀가 아니다** — `handleNext`·`releaseDetachedSelection`·`picker.ts`는 A1 이전(`3000f949`)과 diff 0이고, 해제 경로는 2026-07-31(v1.7.5)부터 있었다. A1은 토스트만 얹어 증상을 눈에 띄게 만들었다.
+- **재발 방지**:
+  - (1) **렌더 게이트가 `return null`하는 상태 조합은 store 전이에서 만들 수 없게 막는다.** 컴포넌트에서만 거르면 그 조합이 영속돼 빈 화면이 굳는다. 규칙은 `settleOrphanElementPhase` 한 곳에 두고 세 진입점이 공유한다 — 확정(`confirmStyles`), 해제(`releaseDetachedSelection`), hydrate. 전수: `grep -n "return null" src/sidepanel/tabs/DraftingPanel.tsx src/sidepanel/tabs/PreviewPanel.tsx`로 게이트 조건을 뽑고, 각 조건을 만드는 store 쓰기(`setState({ selection: null` 등)와 phase 전이가 동시에 일어날 수 있는지 본다.
+  - (2) **같은 요청의 응답과 부수 메시지가 각자 상태를 바꾸면 도착 순서 양쪽을 테스트한다.** `detached-selection-next.test.ts`가 해제→확정과 확정→해제를 둘 다 고정한다. 한쪽만 고치면 다른 순서가 남는다.
+  - (3) **영속 상태의 불변식이 깨질 수 있으면 hydrate에 복구를 둔다.** 고치기 전에 저장된 세션은 코드를 고쳐도 계속 깨진 채 남는다. phase 강등을 하는 같은 자리(`useEditorSessionSync`)에서 정규화한다.
+  - (4) **"에러 0건인 빈 화면"이면 크래시가 아니라 렌더 게이트부터 본다.** 헤더가 남았는지로 층을 가른다 — 헤더까지 비면 App 게이트(`editorHydrated`·`tabModeGate`)이고, 헤더가 남으면 탭 본문 컴포넌트의 `return null`이다.
+- **관련**: `src/store/editor-store.ts:settleOrphanElementPhase`·`confirmStyles`, `src/sidepanel/picker-control.ts:releaseDetachedSelection`, `src/sidepanel/hooks/useEditorSessionSync.ts`(hydrate 정규화), 게이트 `src/sidepanel/tabs/DraftingPanel.tsx`(`captureMode === "element" && !selection`)·`src/sidepanel/tabs/IssueTab.tsx`(drafting 분기가 `isCaptureEntryScreen`보다 먼저), 발신 `src/content/picker.ts:ensureSelectedConnected`·`src/sidepanel/tabs/StyleEditorPanel.tsx:handleNext`, 그물 `src/sidepanel/__tests__/detached-selection-next.test.ts`·`src/store/__tests__/editor-store.test.ts`·`src/sidepanel/hooks/__tests__/useEditorSessionSyncHydration.test.tsx`·`e2e/capture-failure-toast.spec.ts`(세 번째 케이스).
+
+---
+
+## 2026-10-15 — 탭 모드 before 스냅샷에 picker 오버레이가 찍혔고, 제품의 hold 깜빡임은 배제됐다 — 직접 원인은 "화면에 있는 문서는 150ms 안에 프레임을 낸다"는 폴백 전제였다
+
+- **영역**: `content`
+- **계열**: `미검증단언`
+- **그물**: `수동`
+- **증상**: (#263, 런타임 검증 중 ego) 탭 모드 요소 편집에서 대상 요소에 ~300ms hover한 뒤 클릭하면 before 스냅샷에 선택 외곽선·margin 박스·`font 16px / 400` 툴팁이 박혔다(2/2). hover 없이 바로 클릭하면 깨끗했고(1/1) after는 항상 깨끗했다. 찍힌 오버레이는 **selected가 아니라 hover 모드 렌더**(박스 모델·인스펙터)였다 — 클릭 이후 프레임이 하나도 합성되지 않은 상태의 화면이다.
+- **근본 원인**: `afterPaint`가 rAF×2를 150ms까지만 기다리고 진행했다. 주석·ARCHITECTURE는 "rAF가 도는 환경이면 두 번째 프레임이 ~32ms에 오므로 폴백은 안 도는 환경에서 얼마나 버릴지만 정한다"고 적었지만, **visible인데 프레임이 늦게 오는 렌더러**(실측: 오버레이 숨김 뒤 첫 프레임 +228ms)를 가정하지 않았다. 폴백이 먼저 끝나 `captureVisibleTab`이 마지막으로 합성된 프레임, 즉 클릭 전 hover 화면을 찍었다. hover가 차이를 만든 건 원인이 아니라 **stale 프레임에 무엇이 그려져 있었나**의 차이다(hover 없이 바로 클릭하면 마지막 프레임에 오버레이가 아직 없다). 의심했던 탭 전환(H1 — picking hold 해제와 before 트랜잭션 hold 사이에 패널이 잠깐 앞으로 오는 경로)은 e2e 계측으로 기각했다: hover 300ms·0ms 3회 모두 `tabs.update`·`onActivated`가 picking 진입 1회 + before 뒤 패널 복귀 1회뿐이고, 숨김(+42~61ms)과 복귀 사이에 패널 활성화가 0이다. refcount 전이는 같은 동기 블록 안의 순서라 throttle 유무와 무관하게 결정적이고(동기 count 증가·restore의 count 재확인), 이 근거로 배제되는 건 **제품 코드의 hold 깜빡임**까지다. ego에서 클릭 직후 rAF가 ~1.45s(raf#120 1982ms → #130 3430ms) 멈춘 원인 자체(ego CDP 입력·스크린샷인지 content 작업인지)는 규명하지 못했다.
+- **재발 방지**:
+  - (1) "캡처 전 화면이 바뀌었는가"를 시간 상한으로 판정하지 않는다. visible이면 프레임을 기다리고, 상한은 **프레임이 끝내 안 오는 경우의 안전판**으로만 둔다(`PAINT_WAIT_CAP_MS` 1s). 1s의 근거는 숨김 이후 꼬리(228ms)를 덮는다는 것까지다 — 같은 실측의 정지 총량(~1.45s)은 덮지 않으므로, 숨김이 클릭 직후 오는 경로에서 같은 정지가 나면 꼬리가 1s를 넘을 수 있다(추정). 그 이상은 런타임 재검증(hover 후 클릭)으로 판정한다. 숨김 전환은 `visibilitychange`로 즉시 놓는다 — 대기 상한을 늘릴 때 같이 넣지 않으면 탭을 떠난 사용자가 상한만큼 기다린다.
+  - (2) **대기를 늘리면 그 대기를 감싸는 바깥 타임아웃을 전수한다.** `grep -rn "afterPaint(" src/content`로 소비처를 뽑고, 각 응답을 기다리는 쪽의 타임아웃이 상한보다 긴지 본다 — iframe 경로는 top realm이 `afterPaint` 뒤에 offset을 보내는데 자식의 `requestFrameOffset`이 500ms였다. 그대로 두면 느린 프레임이 "오버레이 찍힘"에서 "캡처 실패"로 바뀔 뿐이다. 그래서 기본값을 `PAINT_WAIT_CAP_MS + 500`으로 묶고 단위로 고정했다.
+  - (3) 증상이 탭 모드에서 처음 보였다고 탭 모드 회귀로 단정하지 않는다 — 렌더 타이밍 축은 사이드패널에도 같다. 가설이 둘이면 **각각을 기각하는 관측**(여기선 패널 문서의 `onActivated` 로그와 `tabs.update` 래핑 카운트)을 먼저 뽑는다.
+  - (4) e2e는 이 함정을 원리적으로 못 본다 — 대상이 hold로 앞에 있으면 Playwright Chromium은 ~16ms마다 프레임을 내 폴백이 한 번도 안 탄다. 기존 단위 테스트는 오히려 "기본값은 150ms"를 고정하고 있었다. 늦은 프레임 축은 `after-paint.test.ts`의 "visible 문서는 150ms가 지나도…"가 잡고, 실제 렌더러 지연은 수동(hover 후 클릭 3회)뿐이다.
+- **관련**: `src/content/after-paint.ts:afterPaint`·`PAINT_WAIT_CAP_MS`, `src/content/frame-geometry.ts:requestFrameOffset`, 소비처 `src/content/picker.ts:respondAfterPaint`·`respondWithTopRect`·`handlePrepareCaptureBySelector`·`src/content/area-select.ts:settleAfterPaint`·`frame-geometry.ts:installFrameOffsetResponder`, 그물 `src/content/__tests__/after-paint.test.ts`·`frame-geometry.test.ts`. 선행: **2026-08-01**(같은 함수를 도입한 회고 — "대기를 넣었다"와 "그 대기가 문제의 프레임을 덮는다"가 다르다는 교훈의 시간 축 판).
+
+---
+
+## 2026-10-15 — 접두사형 testid(`tab-target-option-<id>`)를 매뉴얼 그물의 추출 정규식이 못 주워, 존재 대조가 그 id를 무음으로 건너뛰었다
+
+- **영역**: `툴체인`, `컴포넌트`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 사용자 노출 증상 없음. 에이전트 매뉴얼이 대상 선택 화면의 후보를 가리키는데, 후보 testid가 템플릿 리터럴(`data-testid={`tab-target-option-${id}`}`)이라 `agentManual.test.ts`의 소스 추출(`(?:data-testid|testId)="…"`)에 안 잡혔다. 매뉴얼은 `[data-testid^="tab-target-option-"]`로 적어 매뉴얼 쪽 추출(`="…"`)에도 안 걸렸다. 양쪽 모두 0건이라 "매뉴얼이 말한 testid는 전부 소스에 실재한다"는 대조가 이 id만 **비교 자체 없이 통과**했고, picker의 접두사를 바꿔도 green이었다(뮤테이션 실측 전 기준).
+- **근본 원인**: 존재 대조의 양쪽 정규식이 리터럴 문자열 속성만 가정했다. 정규식에 안 맞는 표기는 오류가 아니라 "대상 없음"으로 빠지는 구조라(필터가 아니라 추출기) 빠진 항목을 세는 앵커가 없었다. 2026-09-06 (5)의 *"스캔은 만들자마자 그 스캔이 잡아야 할 형태를 손으로 먹여본다"*를 이 파일 헤더가 이미 인용하는데, 새 표기 형태(접두사·템플릿)에는 먹여보지 않았다.
+- **재발 방지**:
+  - (1) 매뉴얼에 새 testid 표기(접두사·템플릿)를 도입하면 같은 커밋에서 **그 표기 전용 케이스**를 둔다 — 소스는 `data-testid={`prefix-${` 리터럴을 직접 보고 매뉴얼은 셀렉터 문자열을 직접 본다(`agentManual.test.ts` "후보 testid 접두사와 빈 상태가…").
+  - (2) 케이스마다 소스 접두사를 바꾸는 뮤턴트로 red를 본다. 주석 뮤턴트는 `codeOnly`가 지워 green이라 **부재 단언은 코드로 넣어야** 실측된다(`Escape` 케이스에서 같은 헛 뮤턴트를 한 번 밟았다).
+  - (3) 정규식 추출이 0건이어도 통과하는 대조에는 "추출 건수 > 0" 앵커를 건다(기존 자기검증 앵커가 이 두 표기에는 안 걸린다).
+- **관련**: `src/sidepanel/__tests__/agentManual.test.ts`(`SOURCE_TESTID_RE`·`MANUAL_TESTID_RE`·접두사 케이스), `src/sidepanel/components/TabTargetPicker.tsx`, `src/sidepanel/index.html`. 선행: **2026-09-06** (5) · **2026-09-09**(그물 열둘이 공허 — 뮤테이션 자기검증) · **2026-08-19**(대상 0건이라 정규식이 망가져도 green).
+
+---
+
+## 2026-10-15 — 탭 모드 판정을 위해 App 렌더 게이트에 `getSelfTab()` 대기를 넣자, 판정이 필요 없는 사이드패널 정상 경로(`?tabId=N`)까지 그 뒤로 줄을 섰다
+
+- **영역**: `컴포넌트`
+- **계열**: `미검증단언`
+- **그물**: `jsdom`
+- **증상**: (리뷰에서 잡음) 대상 선택 화면을 넣으면서 App이 `getSelfTab()` 결과가 나올 때까지 `return null`을 하고 부작용 훅(레코더·picker·세션 동기화·port)에도 null tabId를 줬다. `background/tab-bindings.ts`가 항상 `?tabId=`를 붙여 여는 일반 사이드패널도 `getCurrent()` 왕복이 끝날 때까지 빈 화면이었고, `storage.session.get`·레코더 주입·port 연결이 첫 렌더 병렬 시작에서 `getCurrent → 리렌더 → …` 직렬로 바뀌었다. 깜빡임·무음 실패는 관측되지 않았지만 가드레일 D1(사이드패널 변화 0) 위반이고, `getSelfTab`에는 타임아웃이 없어 hang하면 영구 빈 화면이 될 수 있었다.
+- **근본 원인**:
+  - 게이트의 입력 범위를 "모든 문서"로 잡았다. 판정(탭 모드 && 쿼리 없음)이 의미 있는 건 **쿼리가 없을 때뿐**이고, 정수 쿼리가 있으면 사이드패널이든 탭 모드든 결과(`bound`)가 같아 기다릴 이유가 없다.
+  - e2e는 전부 탭 모드라 사이드패널 경로가 한 번도 안 돈다. 그래서 e2e·기존 jsdom 모두 green이었다.
+- **재발 방지**:
+  - (1) **렌더 게이트에 새 비동기 대기를 넣을 때 "이 판정이 의미 있는 입력 범위에서만 기다리는가"를 먼저 묻는다.** 판정과 무관한 입력은 동기 통과시킨다(`tabModeGate`: 정수 쿼리 → `getSelfTab` 전에 `bound`). 대기 게이트는 hang 시 닫힌 채 남지 않는지도 함께 본다(렌더 게이트 boolean 계열).
+  - (2) early return 위에서 도는 훅의 부작용은 **렌더 스냅샷이 아니라 훅에 넘긴 인자**를 단언해야 잡힌다(`App.tabTarget.test.tsx`: 선택 화면·대기 중엔 null, `?tabId=5`+대기 중엔 첫 렌더에서 5).
+  - (3) 사이드패널 렌더 0·무지연은 e2e로 원리적으로 못 본다 — jsdom이 유일한 그물이다(`e2e/GOTCHAS.md`에 명시).
+- **관련**: `src/sidepanel/lib/tab-mode.ts:tabModeGate`, `src/sidepanel/App.tsx`, `src/sidepanel/__tests__/App.tabTarget.test.tsx`.
+
+## 2026-10-15 — Playwright 포커스 에뮬레이션 탓에 뒤에 깔린 탭도 `visibilityState==="visible"`이라, 탭 전환 대기가 즉시 통과해 레이스를 숨겼다
+
+- **영역**: `e2e`
+- **계열**: `라이브러리전제`
+- **그물**: `e2e`
+- **증상**: (작성 중 잡음) 탭 모드 hold를 넣고 e2e 하네스를 바꾸면서, "패널이 대상 탭을 앞으로 가져왔다가 돌아온다"를 `page.evaluate(() => document.visibilityState) === "visible"` 폴링으로 기다렸다. S2 spec이 0.6초 만에 끝났고, 이어지는 `tabs.get(fixture).active === false` 단언이 red였다 — 패널은 아직 뒤에 있는데 "패널이 앞"으로 판정된 것이다. 대기가 공허하게 통과해 before 캡처 도중 다음 조작이 끼어드는 레이스가 그대로 숨는다.
+- **근본 원인**:
+  - Playwright는 페이지마다 포커스 에뮬레이션(`Emulation.setFocusEmulationEnabled`)을 켠다. 그래서 같은 창에서 뒤에 깔린 탭의 문서도 `visibilityState`가 `"visible"`이다. 탭이 실제로 앞인지는 문서가 아니라 브라우저(`chrome.tabs`)만 안다.
+  - 같은 이유로 **`visibilitychange`가 e2e에서 오지 않는다**. 패널 복귀 시 레코더를 다시 붙이는 경로(`useBackgroundRecorder`의 visibility 재무장)가 e2e에선 한 번도 돌지 않는다. 덕분에 정지 예외(B1) 이전 코드에서 S1이 red가 됐다. 하지만 그 red는 이 억제에 기댄 것이다.
+  - GOTCHAS의 기존 서술("패널이 hidden이 되면 sync가 밀린다")도 같은 전제 위에 있었다. 문서가 보는 visibility와 브라우저의 탭 활성은 하네스에선 다른 축이다.
+- **재발 방지**:
+  - (1) **e2e에서 "탭이 앞인가"는 `chrome.tabs`의 `active`로만 판정한다.** 헬퍼는 `waitForPanelFront`·`waitForTargetFront`(`e2e/fixtures/extension.ts`)다. 패널 문서에서 `chrome.tabs.getCurrent()`(자기)와 `?tabId=`(대상)를 조회한다 — 패널은 뒤에 있어도 JS가 돈다.
+  - (2) 전수: `grep -rn "visibilityState\|visibilitychange" e2e/`가 대기·판정 조건에 걸려 있으면 의심한다.
+  - (3) **`visibilitychange`에 기대는 제품 동작은 e2e로 못 고정한다.** 그 경로의 그물은 단위(배선 테스트)와 수동이다. e2e red가 이 억제에 기대고 있으면 그 사실을 spec·GOTCHAS에 적는다. 하네스가 바뀌면 그물이 아무 경고 없이 약해진다.
+- **관련**: `e2e/fixtures/extension.ts:isFront`·`waitForPanelFront`·`waitForTargetFront`·`pickElement`, `e2e/ai-usability-tab-mode.spec.ts`(S1·"대상 → 제3 탭" 케이스), `e2e/GOTCHAS.md` "탭 모드 hold의 하네스 전제", 제품 쪽 `src/sidepanel/hooks/useBackgroundRecorder.ts`(visibility 재무장).
+
+---
+
+## 2026-10-15 — refcount hold는 한 번 새면 이후 0→1 전이가 영영 없다 — 방어용 hold를 하나 더 얹자 막는 것 없이 누수 면만 늘었다
+
+- **영역**: `미디어`
+- **계열**: `취소래치`
+- **그물**: `unit`
+- **증상**: (사전 차단 — 리뷰가 잡음)
+  - 탭 모드에서 대상 탭을 앞에 두는 단일 refcount hold(`src/sidepanel/tab-mode.ts`)에 요소 선택 직후의 "before hold"를 따로 얹었다.
+  - 그 해제를 분기 네 곳에 흩어 두는 바람에, styling 전이 뒤 동기 호출이 throw하면 hold가 샜다.
+  - 새면 count가 0으로 돌아오지 않는다. 그러면 그 패널 문서가 살아 있는 동안 모든 탭 모드 캡처가 대상 활성화 없이 진행돼 관문(`captureOwnedTab`)에서 inactive로 거부된다. 패널을 새로 고치기 전엔 회복되지 않는다.
+- **근본 원인**:
+  - before 캡처는 styling 전이와 **같은 동기 블록**에서 발사되고, 그 스냅샷 트랜잭션(`captureElementSnapshot` → `withTargetHold`)이 count를 동기로 올린다. picking 해제는 `useTabModeHold`에서 `.then`으로 한 틱 뒤에 돈다. 그래서 count는 0을 거치지 않는다.
+  - 즉 before hold는 막을 대상이 없는 방어였다. 설계 문서의 "styling 전이와 before 발사 사이에 비동기 구간이 있다"는 근거는 `getTopViewport().then`이 `void`라는 걸 보지 않은 단언이었다.
+  - refcount는 획득 지점마다 "모든 경로에서 정확히 1회 해제"라는 의무가 생긴다. 획득 지점을 늘리면 그 의무를 지는 경로가 늘어난다.
+  - 같은 이유로 **해제가 끝없이 미뤄지는 것도 누수다.** `sendBg`에는 타임아웃이 없다. background가 응답하지 않으면 `withTargetHold`의 `finally`가 오지 않아 count가 영구히 남는다.
+- **재발 방지**:
+  - (1) **hold(락·refcount)를 하나 더 얹기 전에, 기존 hold가 그 구간을 이미 덮는지를 실제 구성요소를 엮은 테스트로 먼저 본다.** `usePickerMessages.tabModeOrder.test.tsx`가 그 형태다(실제 셸 + 실제 캡처 트랜잭션 + 실제 picking 상태 hold, 가짜는 `chrome.tabs`·content뿐). 덮으면 얹지 않는다. 그물의 이빨은 트랜잭션 hold 획득을 한 틱 늦춘 뮤턴트가 red인지로 확인했다.
+  - (2) 그래도 얹어야 하면 해제는 **단일 `finally`**에 둔다. 분기마다 두지 않는다.
+  - (3) 전수: `grep -rn "holdTarget(\|withTargetHold(" src/sidepanel --exclude-dir=__tests__`로 획득 지점을 세고, 각 지점의 해제가 `finally`인지 본다. 해제를 기다리는 `await`(`sendBg` 등)에 상한이 없으면 그 hang도 누수로 센다.
+  - (4) 셸의 직렬화·재확인 가드는 붙잡은 `tabs.get`/`tabs.update`로 "복원이 조회·전환 중일 때 새 hold"를 만들어 고정한다. 가드를 하나씩 지운 뮤턴트가 green으로 살아남았던 자리다.
+- **관련**: `src/sidepanel/tab-mode.ts:holdTarget`·`enqueue`·`restore`, `src/sidepanel/capture.ts:captureElementSnapshot`(트랜잭션 hold), `src/sidepanel/hooks/usePickerMessages.ts`(before hold 제거), `src/sidepanel/hooks/useTabModeHold.ts`, `src/lib/bg-client.ts:sendBg`(무타임아웃 — 범위 밖, 미수정), 그물 `src/sidepanel/__tests__/tab-mode.test.ts`·`src/sidepanel/hooks/__tests__/usePickerMessages.tabModeOrder.test.tsx`.
+
+---
+
+## 2026-10-15 — 동기 정지를 비동기 조회 뒤로 미루자 늦은 정지가 복귀 후 재무장을 덮었고, 첫 가드는 이벤트 쌍만 봐서 절반만 막았다
+
+- **영역**: `background`
+- **계열**: `미검증단언`, `취소래치`
+- **그물**: `unit`
+- **증상**: (사전 차단 — 리뷰가 잡음)
+  - 탭 모드 정지 예외를 넣으며 `tabs.onActivated`의 `stopRecorders(prev)`를 `runtime.getContexts` 조회 뒤로 미뤘다.
+  - 그러자 조회보다 빠른 T → X → T(또는 T의 패널 탭) 전환에서, 늦게 도착한 T 정지가 복귀 후 재무장(패널 `visibilitychange` → inject)을 덮었다.
+  - 결과적으로 T가 보이는데 레코더는 죽은 상태로 남는다. 사람 손으로는 안 나오는 속도지만, 에이전트·자동화(`tabs.update` 연속 호출)로는 나온다.
+- **근본 원인**:
+  - 동기 정지는 "전환 이벤트 = 정지 시점"이라 쌍만 보면 충분했다. 지연을 끼우면서 정지 시점과 이벤트 시점이 갈렸는데, 판정은 여전히 **이벤트 쌍(prev, next)** 기준이었다.
+  - 설계 문서의 위험 요소는 "제3 탭으로 빨리 넘어가도 판정은 그 전환 쌍 기준이라 정확하다"고 **앞으로 가는 쪽만** 따졌다. 되돌아오는 경쟁은 다루지 않았다(실측 없이 전제한 단언).
+  - 구현 중 넣은 첫 가드도 "지금 활성 탭 === prev"만 봤다. 그래서 prev의 **자기 패널**로 넘어간 경우가 남았다. 쌍 판정표가 "T ↔ T의 패널은 정지 안 함"이라고 말하는 바로 그 상태를 가드가 다시 판정하지 않았다.
+  - 2026-08-19 ②("read를 큐에 태우면 stale read는 사라지는 게 아니라 뒤로 밀린다")와 같은 형태다. 직렬화·지연은 stale 창을 없애지 않고 옮긴다.
+- **재발 방지**:
+  - (1) **동기 부수효과를 `await` 뒤로 미루면, 실행 직전에 "지금 상태"로 판정을 다시 한다.** 이벤트가 실어 온 쌍은 판정 입력이지 실행 허가가 아니다.
+  - (2) **재판정 조건은 원래 판정표의 예외를 그대로 재사용한다.** 판정표가 "X와 Y 사이 전환은 무해"라고 하면, 가드도 "지금이 prev거나 prev와 무해한 짝인가"를 같은 술어(`targetOf(now) === prevTabId`)로 본다. 따로 쓰면 둘이 갈린다.
+  - (3) **늦은 실행 테스트는 pending promise로 조회를 붙잡고 이벤트를 연달아 흘린 뒤 풀어 준다.** `vi.stubGlobal("chrome")` + `setupTabBindings()` + 리스너 직접 호출. 복귀(prev)와 짝(패널) 두 갈래를 각각 케이스로 둔다. 한쪽만 두면 다른 쪽 조건을 지워도 green이다(실측).
+  - (4) 전수: `grep -n "void .*(\|\.then(" src/background/tab-bindings.ts src/background/index.ts`로 리스너에서 띄우는 지연 작업을 찾는다. 각 작업이 실행 시점 상태를 재확인하는지 본다.
+- **관련**: `src/background/tab-bindings.ts:stopRecordersOnSwitch`(실행 시점 가드 `now === prevTabId || targetOf(now) === prevTabId`)·`setupTabBindings`(onActivated에서 `void` 분리 — apply 큐 진입 시점 불변), `src/lib/panel-tab-url.ts:recordersToStopOnSwitch`, 그물 `src/background/__tests__/tab-bindings.test.ts` "조회 중 prev로 되돌아오면…"·"조회 중 자기 패널로 넘어가면…". 설계: `docs/features/ai-usability/design.md` 위험 요소 "onActivated 비동기화". 선행: **2026-08-19** ②(같은 계열 — 지연이 stale 창을 옮긴다).
+
+---
+
+## 2026-10-15 — 실패 알림을 공용 캡처 함수 안에서 발화하면 호출부의 stale 폐기 가드가 그 알림을 막지 못한다
+
+- **영역**: `미디어`
+- **계열**: `취소래치`, `미검증단언`
+- **그물**: `unit`
+- **증상**: (사전 차단 — 커밋 전 code-review가 잡음) 캡처 실패 토스트를 넣으면서, 요소 캡처가 큐에서 기다리는 사이 사용자가 취소하거나 다른 요소를 고르면 이미 떠난 세션에 "요소를 찾지 못해 캡처하지 못했습니다" 토스트가 뜨는 구조가 됐다. 단위 테스트·typecheck는 green이었고, 리뷰어 3명이 독립적으로 같은 지점을 짚었다.
+- **근본 원인**: 이중 토스트를 막으려고 발화를 공용 함수 `captureWithPrep` **한 곳**에 모았다. 그런데 stale 판정(`sameSelection()`·`phase !== "picking"`)은 호출부가 **반환값(null)을 받은 뒤** `.then`에서 한다. 실패 경로는 함수 안에서 이미 발화를 끝내고 null을 돌려주므로, 호출부 가드가 막을 수 있는 건 성공 결과의 채택뿐이다. 설계 문서는 "stale 결과 폐기는 호출부 가드 안에서 발화하지 않는 것으로 처리한다"고 적었지만, 그 가드가 발화보다 **늦게** 돈다는 순서를 확인하지 않았다. "발화 지점 단일화"와 "stale 무발화"는 발화를 호출부가 소유할 때만 동시에 성립한다.
+- **재발 방지**: (1) 공용 함수 안에서 이벤트·토스트를 발화하게 만들 때는, 호출부가 결과를 **버리는 조건**(`grep -n 'sameSelection\|isCurrent\|phase !==' <호출부>`)이 발화보다 앞에 오는지 확인한다. 뒤에 오면 발화 시점에 소유를 물어야 한다. 여기서는 `CaptureOptions.isCurrent?: () => boolean`을 받아 발화 직전에 확인하고, 호출부는 자기 폐기 가드와 **같은 술어**를 넘긴다(요소 단일 캡처는 폐기 가드 자체를 그 술어로 바꿔 공유). (2) 테스트는 "isCurrent가 false면 발화 0"을 공용 함수 단위로, "호출부가 술어를 넘기고 세션이 바뀌면 false가 된다"를 훅 단위로 각각 고정한다. 한쪽만 있으면 배선이 빠져도 green이다. (3) 같은 파일의 catch 발화(영역·인라인·페이지 캡처)는 catch 안에서 이미 소유를 판정할 수 있으니 거기서 막는다 — 비대칭이 리뷰의 단서였다.
+- **관련**: `src/sidepanel/capture.ts:captureWithPrep`(`isCurrent` 게이트), `src/sidepanel/hooks/usePickerMessages.ts`(before 캡처 `isCurrent: sameSelection`, `captureElementShot`의 `isCurrent`), 그물 `src/sidepanel/__tests__/capture.test.ts`·`src/sidepanel/hooks/__tests__/usePickerMessages.captureFailure.test.tsx`, 설계 `docs/features/ai-usability/design.md` 인터페이스 설계 절.
+
+## 2026-10-15 — fail-closed로 바꾼 설정 봉투는 "손상이 계속되는" 상태를 설계에 두지 않아 복구 경로가 없었다
+
+- **영역**: `store`, `lib`, `i18n`
+- **계열**: `미검증단언`, `취소래치`
+- **그물**: `unit`
+- **증상**:
+  - 다른 패널에서 연결을 끊은 뒤 제출하면 UI 언어와 무관하게 영어 "The connected account changed…"가 떴다. "연결 안 됨"이어야 할 상황을 계정 교체로 안내한 것이다.
+  - 형식이 깨진 `bugshot-settings`가 남으면 연동 탭이 전부 미연결로 보였다. 연결·해제·기본값 변경이 매번 실패했고, 원인과 무관한 "저장 공간 부족" 다이얼로그만 반복됐다. 재설치 말고는 빠져나갈 길이 없었다.
+- **근본 원인**:
+  - 1.7.55가 `readSettingsEnvelope`를 "malformed면 throw, 무잠금 덮어쓰기 금지"로 바꿨다. 이때 설계(audit-auth design)는 **"후속 정상 읽기로 복구된다"만 상정**했고, 손상이 외부에서 고쳐지지 않고 계속 남는 상태는 정의하지 않았다.
+  - 그 위에서 실패한 intent가 큐 머리에 남아 뒤 intent를 막는 규칙(직전 회고의 순서 보장)이 `clearStorage`까지 막았다.
+  - 오류 문구는 lib 계층에 영어 상수로 박혀 있었다. 또 "계정 없음"과 "grant 교체"가 같은 클래스·같은 문구로 묶여 있었다.
+- **재발 방지**:
+  - (1) **fail-closed 전환을 설계할 때 "이 실패가 영구히 지속되면 사용자는 어떻게 빠져나오는가"를 한 줄로 적는다.** 답이 "재설치"면 설계가 덜 끝난 것이다. 파괴적 복구(폐기)는 쓰는 쪽 하나(패널 hydrate)로 한정하고, 읽는 쪽(background reader)은 fail-closed로 남긴다.
+  - (2) **잠금을 기다린 뒤의 파괴적 동작은 잠금 안에서 전제를 다시 검증한다.** 두 패널이 동시에 손상을 보면, 늦은 쪽이 앞 패널이 새로 쓴 정상 봉투를 지운다(`discardCorruptSettingsEnvelope`의 재확인).
+  - (3) **큐 항목을 대체하는 연산은 진행 중 항목의 ack 경로도 같이 본다.** `pending.shift()`를 무조건 하면 방금 대체한 `clearStorage`가 사라진다(`pending[0] === intent`일 때만 shift).
+  - (4) **파괴 직후 래치를 먼저 건다.**
+    - 폐기 후 재조회가 일시 실패하면, 다음 hydrate는 빈 저장소를 정상 값으로 읽어 안내할 기회가 영영 없다.
+    - 모듈 import 시점에 시작하는 hydrate의 이벤트는 App `useEffect` 구독보다 먼저 끝날 수 있다. `createEmitter`는 늦게 온 구독자에게 재발화하지 않으므로 `takeSettingsReset` 1회성 래치로 남긴다.
+  - (5) **"지우지 말고 백업"은 privacy 단언과 대조한다.** 손상 원문에는 토큰이 들어 있다. 백업 키가 연결 해제로도 안 지워지면 privacy의 "해제 시 자격 증명 삭제"가 거짓이 된다. 되살릴 수 없는 데이터는 백업하지 않는다.
+  - (6) **사용자에게 나가는 `Error.message`는 던지는 시점에 `t()`로 만든다.** 영어 리터럴은 `rg 'new \w+Error\("[A-Z]' src/lib src/background`로 전수한다. 사유가 다르면 문구도 달라야 하므로 생성자에 사유를 싣는다.
+- **관련**:
+  - 손댄 파일:
+    - `src/lib/settings-envelope.ts:StaleGrantError`·`SettingsCorruptError`·`discardCorruptSettingsEnvelope`
+    - `src/lib/settings-storage.ts:acquireStoredAuth`·`writer`
+    - `src/background/lib/authContext.ts`
+    - `src/store/settings-adapter.ts:rehydrate`·`flush`·`clearStorage`·`takeSettingsReset`
+    - `src/lib/app-events.ts:onSettingsReset`
+    - `src/sidepanel/App.tsx`(settingsReset 다이얼로그)
+  - 그물:
+    - `src/store/__tests__/settings-transactions.test.ts`
+    - `src/lib/__tests__/settings-storage.test.ts`
+    - `src/background/__tests__/auth-grants.test.ts`
+    - `src/sidepanel/tabs/__tests__/submission-grants.test.tsx`
+  - 선행: **2026-10-14**(설정 봉투 잠금 — 실패 intent·clearStorage를 큐에 남기는 규칙의 원 출처).
+
 ## 2026-10-14 — 토큰 차이와 플랫폼 단위 Promise는 재연결된 grant를 구분하지 못한다
 
 - **영역**: `background`, `어댑터`, `store`

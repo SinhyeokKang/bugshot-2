@@ -1,4 +1,4 @@
-import { afterPaint } from "./after-paint";
+import { afterPaint, PAINT_WAIT_CAP_MS } from "./after-paint";
 
 import type { ViewportRect } from "@/types/picker";
 
@@ -191,7 +191,10 @@ function isValidOffset(value: unknown): value is FrameOffset {
 
 // 자식 측: 부모에 offset 요청 → token 매칭 응답 대기. 타임아웃/중첩 미지원이면 null
 // (호출부는 rect null — 캡처 실패 폴백. prepareCaptureBySelector 500ms 폴백 선례).
-export function requestFrameOffset(timeoutMs = 500): Promise<FrameOffset | null> {
+// 부모는 top 오버레이 숨김 프레임을 afterPaint로 기다린 뒤 응답하므로 그 상한보다 길게 기다린다.
+export function requestFrameOffset(
+  timeoutMs = PAINT_WAIT_CAP_MS + 500,
+): Promise<FrameOffset | null> {
   if (window === window.top) return Promise.resolve(null);
   const token = crypto.randomUUID();
   return new Promise((resolve) => {

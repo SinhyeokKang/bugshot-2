@@ -425,4 +425,27 @@ test.describe.serial("제출 탭 줄 — 9개 연결", () => {
     await triggers.first().click();
     await expect(triggers.first()).toHaveAttribute("aria-selected", "true");
   });
+
+  // 접힌 라벨이 display:none이면 탭 이름이 사라져 role+name 조회가 깨진다 — sr-only로 남아야 한다.
+  test("라벨이 접혀도 role+name으로 탭을 찾아 누를 수 있다", async ({ ext }) => {
+    const { panel } = await openPanelOn(ext);
+    await seed(panel, envelope(allNineAccounts()));
+    await panel.evaluate(
+      async ([appKey]) => {
+        await chrome.storage.local.set({ [appKey]: JSON.stringify({ state: { attachmentsEnabled: true, locale: "en" }, version: 11 }) });
+      },
+      [APP_SETTINGS_KEY] as const,
+    );
+    await panel.reload();
+    await spySendMessage(panel, { ok: true, result: { key: "K", url: "https://x/K" } });
+
+    await openSubmitDialog(panel, "collapsed label e2e");
+
+    const tablist = panel.getByTestId("submit-fields-dialog").getByRole("tablist");
+    const webhook = tablist.getByRole("tab", { name: "Custom Webhook", exact: true });
+    await expect(webhook).toBeVisible();
+    await webhook.click();
+    await expect(webhook).toHaveAttribute("aria-selected", "true");
+    await expect(tablist.getByRole("tab", { name: "Slack", exact: true })).toHaveCount(1);
+  });
 });

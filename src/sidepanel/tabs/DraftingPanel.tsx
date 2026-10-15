@@ -885,6 +885,7 @@ function SectionTextarea({
                 label={t("draft.captureArea")}
                 ariaDisabled={aiLoading}
                 className={lockedClass}
+                testId={`section-capture-area-${section.id}`}
                 onClick={() => {
                   useEditorStore.getState().startInlineCapture(section.id);
                   const tabId = useEditorStore.getState().target?.tabId;

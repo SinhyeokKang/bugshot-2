@@ -43,6 +43,18 @@ export type EditorPhase =
   | "previewing"
   | "done";
 
+// element 모드의 drafting·previewing은 selection 스냅샷으로 그린다 — selection 없이 남으면
+// DraftingPanel이 null을 렌더해 패널이 빈다(#264). 요소 소실 해제와 같은 자리(styling +
+// selection null = 캡처 진입 화면)로 접는다.
+export function settleOrphanElementPhase(s: {
+  phase: EditorPhase;
+  captureMode: CaptureMode;
+  selection: unknown;
+}): EditorPhase {
+  if (s.captureMode !== "element" || s.selection) return s.phase;
+  return s.phase === "drafting" || s.phase === "previewing" ? "styling" : s.phase;
+}
+
 export interface EditorTarget {
   tabId: number;
   url: string;
@@ -853,7 +865,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ),
     })),
 
-  confirmStyles: () => set({ phase: "drafting", aiStylingLoading: false }),
+  confirmStyles: () =>
+    set((s) => ({
+      phase: settleOrphanElementPhase({ ...s, phase: "drafting" }),
+      aiStylingLoading: false,
+    })),
   // 현재 element 편집 초기화 + 복수 element 버퍼 비움(페이지 DOM 원복은 picker.resetAllEdits가 담당).
   resetAllStyleEdits: () =>
     set((s) => ({

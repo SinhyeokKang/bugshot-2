@@ -4,9 +4,13 @@ import { sameElementKey } from "@/lib/element-key";
 import { originOf, pendingKey } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import type { BgInternalMessage } from "@/types/messages";
-import { sendBg } from "@/lib/bg-client";
 import { onPickerIframeUnsupported, onPickerPermissionExpired } from "@/lib/app-events";
-import { captureElementSnapshot, cropImage } from "@/sidepanel/capture";
+import { captureElementSnapshot, captureTargetTab, cropImage } from "@/sidepanel/capture";
+import {
+  fireCaptureFailure,
+  isActiveTabExpiryDeferred,
+  setActiveTabExpiryDeferred,
+} from "@/sidepanel/lib/capture-error";
 import { clearPicker, collectTokens, getTopViewport, isCurrentPickerSession, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, releaseDetachedSelection, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
@@ -25,7 +29,6 @@ import {
   ACTION_MAX_ENTRIES,
 } from "@/sidepanel/lib/log-merge";
 
-let deferredActiveTabExpiry = false;
 let lastLogClearAt = 0;
 // 진행 중인 before 캡처 수. 겹치는 캡처가 서로의 잠금을 조기에 풀지 않도록 카운터로 센다.
 let beforeCaptureInflight = 0;
@@ -51,8 +54,8 @@ export const actionLogPersist = createLogPersistGuard(
 export function usePickerMessages(myTabId: number | null): void {
   useEffect(() => {
     const unsub = useEditorStore.subscribe((state, prev) => {
-      if (state.phase === "idle" && deferredActiveTabExpiry) {
-        deferredActiveTabExpiry = false;
+      if (state.phase === "idle" && isActiveTabExpiryDeferred()) {
+        setActiveTabExpiryDeferred(false);
         onPickerPermissionExpired.fire();
       }
       // freeze는 stop 메시지가 아니라 phase 전이로 일어난다. frozen 후엔 *.data가 가드로 drop되므로,
@@ -172,7 +175,11 @@ export function usePickerMessages(myTabId: number | null): void {
             // 먼저 끝난 쪽이 아직 진행 중인 캡처의 잠금을 미리 푼다.
             beforeCaptureInflight += 1;
             useEditorStore.getState().setBeforeCapturePending(true);
-            void captureElementSnapshot(tabId, { frameId, expandContext: true })
+            void captureElementSnapshot(tabId, {
+              frameId,
+              expandContext: true,
+              isCurrent: sameSelection,
+            })
               .then((result) => {
                 const s = useEditorStore.getState();
                 if (!result || !sameSelection() || s.beforeImage) return;
@@ -265,7 +272,7 @@ export function usePickerMessages(myTabId: number | null): void {
       } else if (message.type === "activeTabExpiredDeferred") {
         const msg = message as Extract<BgInternalMessage, { type: "activeTabExpiredDeferred" }>;
         if (isForeignTabMessage(myTabId, msg.tabId)) return;
-        deferredActiveTabExpiry = true;
+        setActiveTabExpiryDeferred(true);
       } else if (message.type === "frameCommitted") {
         // 캡처 시작 이후 커밋된 iframe에 보유 sentinel 재발행 → dormant 레코더 활성화.
         const msg = message as Extract<BgInternalMessage, { type: "frameCommitted" }>;
@@ -397,9 +404,14 @@ async function captureElementShot(
 ): Promise<void> {
   // styling 분기와 대칭 — 캡처 전 타 프레임 hover 유령(배너·blocker) 종료해 크롭 오염 방지.
   await stopHoverAllFrames(tabId);
-  // captureElementSnapshot은 권한 만료/캡처 실패 시 내부에서 안내 후 null 반환 → 빈 drafting 진입 금지.
+  // captureElementSnapshot은 권한 만료/캡처 실패 시 내부에서 안내(다이얼로그·실패 토스트) 후 null
+  // 반환 → 빈 drafting 진입 금지. 여기서 다시 발화하면 한 실패에 토스트가 둘이다.
   // 요소 단일 캡처는 스코프 밖 — expandContext를 켜지 않는다(현행 요소 bbox 유지).
-  const shot = await captureElementSnapshot(tabId, { frameId });
+  const isCurrent = () => {
+    const s = useEditorStore.getState();
+    return s.phase === "picking" && s.target?.tabId === tabId;
+  };
+  const shot = await captureElementSnapshot(tabId, { frameId, isCurrent });
   const img = shot?.image ?? null;
   if (!img) {
     // 실패 시에도 전 프레임 정리 — 미정리 시 hover blocker가 페이지 클릭을 계속 삼킨다.
@@ -412,9 +424,8 @@ async function captureElementShot(
     frameId !== 0 ? (await getTopViewport(tabId)) ?? payload.viewport : payload.viewport;
   // 캡처는 background 큐를 거쳐 수백 ms 걸린다 — 그 사이 취소·세션 만료·탭 변경이 있었으면
   // 결과를 버린다(captureAndCrop과 동일 규약). 안 그러면 유령 drafting으로 전이한다.
-  const s = useEditorStore.getState();
-  if (s.phase !== "picking" || s.target?.tabId !== tabId) return;
-  s.onElementShot(
+  if (!isCurrent()) return;
+  useEditorStore.getState().onElementShot(
     { selector: payload.selector, tagName: payload.tagName },
     img,
     viewport,
@@ -423,10 +434,11 @@ async function captureElementShot(
 }
 
 async function captureAndCrop(rect: ViewportRect, viewport: { width: number; height: number }): Promise<void> {
+  const tabId = useEditorStore.getState().target?.tabId;
+  if (!tabId) return;
   try {
-    const tabId = useEditorStore.getState().target?.tabId;
-    if (!tabId) return;
-    const dataUrl = await sendBg<string>({ type: "captureVisibleTab", tabId });
+    // 영역 드래그는 사용자가 직접 대상 탭에서 그린다 — 탭 모드면 끝나고 패널로 돌아온다.
+    const dataUrl = await captureTargetTab(tabId, "area");
     const cropped = await cropImage(dataUrl, rect, viewport);
     // 캡처는 background 큐를 거쳐 수백 ms 걸린다 — 그 사이 취소·세션 만료·탭 변경으로 세션이
     // 바뀌었으면 결과를 버린다(target 없는 유령 drafting 방지).
@@ -434,8 +446,12 @@ async function captureAndCrop(rect: ViewportRect, viewport: { width: number; hei
     if (s.phase !== "capturing" || s.target?.tabId !== tabId) return;
     s.onAreaCaptured(cropped, viewport);
   } catch (err) {
+    const s = useEditorStore.getState();
+    const owned = s.phase === "capturing" && s.target?.tabId === tabId;
     if (!maybeSurfacePermissionExpired(err)) {
       console.error("[bugshot] capture and crop failed", err);
+      // 그 사이 세션이 바뀌었으면 사용자가 이미 떠난 캡처다 — 성공 경로의 폐기 규약과 같다.
+      if (owned) fireCaptureFailure(err);
     }
     if (useEditorStore.getState().phase === "capturing") useEditorStore.getState().reset();
   }
@@ -449,7 +465,7 @@ async function captureAndInsertInline(
   try {
     const tabId = useEditorStore.getState().target?.tabId;
     if (!tabId) return;
-    const dataUrl = await sendBg<string>({ type: "captureVisibleTab", tabId });
+    const dataUrl = await captureTargetTab(tabId);
     const cropped = await cropImage(dataUrl, rect, viewport);
     let blob = dataUrlToBlob(cropped);
     const bitmap = await createImageBitmap(blob);
@@ -464,6 +480,7 @@ async function captureAndInsertInline(
   } catch (err) {
     if (!maybeSurfacePermissionExpired(err)) {
       console.error("[bugshot] inline capture failed", err);
+      if (useEditorStore.getState().inlineCaptureTarget === sectionId) fireCaptureFailure(err);
     }
   } finally {
     useEditorStore.getState().cancelInlineCapture();

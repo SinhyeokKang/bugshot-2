@@ -50,6 +50,8 @@ test.describe.serial("picker-guard (중첩·미주입 iframe 거부)", () => {
         if (await dialog().isVisible().catch(() => false)) return; // 늦게 떴으면 성공
         if (attempt >= 3) throw err; // 복구 3회에도 안 뜨면 실제 실패
         if (await panel.getByTestId("picking-cancel").isVisible().catch(() => false)) {
+          // picking 중엔 fixture가 앞이다(탭 모드 hold) — 숨은 패널 클릭은 actionability에서 멈춘다.
+          await panel.bringToFront();
           await panel.getByTestId("picking-cancel").click();
         }
         await expect(panel.getByTestId("mode-element")).toBeVisible();
