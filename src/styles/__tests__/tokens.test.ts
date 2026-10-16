@@ -282,3 +282,15 @@ describe("디자인 토큰 표", () => {
     }
   });
 });
+
+// Pretendard covers only part of the kanji set, so ja text would mix glyph sources.
+describe("ja body font", () => {
+  it(":lang(ja) uses Japanese system fonts without Pretendard", () => {
+    const src = readFileSync(GLOBALS, "utf8");
+    const start = src.indexOf("body:lang(ja)");
+    expect(start).toBeGreaterThan(-1);
+    const block = src.slice(start, src.indexOf("}", start));
+    expect(block).not.toMatch(/Pretendard/);
+    expect(block).toMatch(/"Hiragino Sans"/);
+  });
+});
