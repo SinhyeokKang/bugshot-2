@@ -477,7 +477,7 @@ describe("settings-ui-store", () => {
     });
 
     it("미등록 로케일(다운그레이드 잔재)은 기본 로케일로 되돌린다", () => {
-      expect(migrateSettingsUi({ locale: "ja" as never }, 10).locale).toBe(DEFAULT_LOCALE);
+      expect(migrateSettingsUi({ locale: "tlh" as never }, 10).locale).toBe(DEFAULT_LOCALE);
     });
 
     it("비문자열·누락도 기본 로케일로 정규화한다", () => {
@@ -486,7 +486,7 @@ describe("settings-ui-store", () => {
     });
 
     it("구버전에서 올라올 때도 정규화한다", () => {
-      expect(migrateSettingsUi({ locale: "ja" as never }, 1).locale).toBe(DEFAULT_LOCALE);
+      expect(migrateSettingsUi({ locale: "tlh" as never }, 1).locale).toBe(DEFAULT_LOCALE);
     });
   });
 
@@ -497,7 +497,7 @@ describe("settings-ui-store", () => {
     const current = useSettingsUiStore.getState();
 
     it("미등록 로케일을 기본 로케일로 교정한다", () => {
-      const merged = mergePersistedSettings({ locale: "ja" }, current);
+      const merged = mergePersistedSettings({ locale: "tlh" }, current);
       expect(merged.locale).toBe(DEFAULT_LOCALE);
     });
 

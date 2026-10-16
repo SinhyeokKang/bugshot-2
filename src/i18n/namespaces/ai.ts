@@ -169,4 +169,39 @@ const de = {
   "aiRepro.loading5": "Vollständigkeit prüfen",
 } satisfies Bundle;
 
-export const ai = { ko, en, fr, es, de };
+const ja = {
+  "ai.badge.chromeAI": "Chrome AI",
+  "ai.stop": "停止",
+
+  "aiDraft.title": "AI下書き",
+  "aiDraft.placeholder": "バグを簡単に説明してください...",
+  "aiDraft.generate": "下書きを生成",
+  "aiDraft.disclaimer": "AIは間違えることがあります。生成された下書きを確認してください。",
+  "aiDraft.contextTrimmed": "内容が多いため、一部の情報を省略して作成しました。",
+  "aiDraft.loading1": "ログに目を通しています",
+  "aiDraft.loading2": "状況を把握しています",
+  "aiDraft.loading3": "要点を整理しています",
+  "aiDraft.loading4": "下書きを作成しています",
+  "aiDraft.loading5": "文章を整えています",
+
+  "aiStyling.banner": "スタイルの修正をAIに任せてみましょう",
+  "aiStyling.generate": "AIスタイリング",
+  "aiStyling.title": "AIスタイリング",
+  "aiStyling.placeholder": "変更したい内容を入力してください...",
+  "aiStyling.error": "AIの応答を処理できませんでした",
+  "aiStyling.noChanges": "変更するスタイルが見つかりませんでした",
+  "aiStyling.disclaimer": "AIは間違えることがあります。変更内容をもう一度確認してください。",
+  "aiStyling.loading1": "要素を確認しています",
+  "aiStyling.loading2": "スタイルの候補を考えています",
+  "aiStyling.loading3": "プロパティを調整しています",
+  "aiStyling.loading4": "コードを整えています",
+  "aiStyling.loading5": "結果を確認しています",
+
+  "aiRepro.loading1": "操作ログを取得しています",
+  "aiRepro.loading2": "操作の流れを追っています",
+  "aiRepro.loading3": "再現手順を整理しています",
+  "aiRepro.loading4": "手順を書き出しています",
+  "aiRepro.loading5": "抜け漏れがないか確認しています",
+} satisfies Bundle;
+
+export const ai = { ko, en, fr, es, de, ja };

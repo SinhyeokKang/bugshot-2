@@ -82,6 +82,7 @@ describe("dateLabel", () => {
     fr: "janv.",
     es: "ene",
     de: "Jan",
+    ja: "1月",
   };
 
   it.each(LOCALES)("%s — 해당 로케일 월 표기로 렌더한다", (locale) => {

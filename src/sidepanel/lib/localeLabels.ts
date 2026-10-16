@@ -9,4 +9,5 @@ export const LOCALE_LABELS: Record<LocaleMode, string> = {
   fr: "Français",
   es: "Español",
   de: "Deutsch",
+  ja: "日本語",
 };
