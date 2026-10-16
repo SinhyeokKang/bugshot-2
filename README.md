@@ -153,7 +153,7 @@ Reproduction context, collected for you in the background.
 - **Add a log to the body** — pick one console or network entry and drop it into the issue body as a code block (JSON pretty-printed and highlighted), right where you're describing the symptom. The attachment only opens after a download; this reads in the issue itself.
 - **API hosts in the environment** — hosts from the network log that share a domain with the page are filled into the issue environment automatically, so a reader knows which server to look at without downloading the attachment. It is an ordinary row, so edit or delete it if it is not what you want.
 - **Live inspector in the panel** — console and network logs are readable while you work, not only after export: live counts, type and level filters, URL and body search, request/response headers and payloads in a JSON tree, stack traces, and **Copy as cURL**.
-- **Reproduction environment** — OS, browser version, page URL, the element's selector, viewport `W × H`, and capture time are filled into every report. Labels and values are editable and rows can be added or deleted.
+- **Reproduction environment** — OS, browser version, page URL, the element's selector, viewport `W × H`, and capture time are filled into every report. These automatic metadata rows are read-only. You can add custom rows and edit or delete those rows and the API Hosts row.
 - **Log viewer** — a standalone `logs.html` report with a **video-synced timeline**: click any console/network/action entry to jump to that exact moment in the recording. It also carries a **Report tab** (issue body preview + copy as markdown) and per-tab exports (HAR, console/action JSON).
 
 All three logs ride along with every capture except element style editing, and the whole logs.html bundle can be toggled off with one switch before you submit (also toggleable on already-saved issues).
@@ -166,7 +166,7 @@ All three logs ride along with every capture except element style editing, and t
 
 ### 📥 Issue list & drafts
 
-- **Submitted issues** — every report you've filed stays in the *Issues* tab with its platform badge, searchable and filterable by submitted/draft. Refresh to pull the current state back from the tracker, or change the status right from the panel and have it written back. Reports shared to Slack can be **promoted to a tracker issue later**, and the original Slack thread gets a reply with the new issue's URL.
+- **Submitted issues** — reports you've filed stay in the *Issues* tab with their platform badges, searchable and filterable by submitted/draft. Custom Webhook JSON template sends do not create an issue-history entry. Refresh to pull the current state back from the tracker, or change the status right from the panel and have it written back. Reports shared to Slack can be **promoted to a tracker issue later**, and the original Slack thread gets a reply with the new issue's URL.
 - **Attachment recovery** — if some attachments fail, check each file's status, retry supported steps, or download the retained original files.
 - **Drafts** — not ready to file? Save the report as a draft, reopen it later, edit any field, and submit when it's ready.
 
@@ -324,8 +324,9 @@ own auth (OAuth or token), field schema, and upload path, but the report body is
 built once and rendered per target — Markdown, Jira ADF, Notion blocks, Slack
 mrkdwn. A ninth target, the custom webhook, rides the same seam without an auth
 axis at all — the receiving server is the user's, so there is no token to
-exchange or refresh, and since upload and creation are one request the body goes
-out carrying `cid:` references instead of URLs.
+exchange or refresh. In multipart mode, upload and creation share one request,
+so the body carries `cid:` references instead of URLs. JSON template mode sends
+only the rendered JSON, without file uploads or an issue-history entry.
 
 Much of this can't be unit-tested — DOM measurement, pointer drags, canvas, and
 media APIs need a real browser — so a Playwright suite carries what Vitest
