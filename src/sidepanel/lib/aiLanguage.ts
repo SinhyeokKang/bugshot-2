@@ -33,6 +33,7 @@ const LOCALE_AI_PRESET: Record<LocaleMode, AiLanguagePreset> = {
   fr: "French",
   es: "Spanish",
   de: "German",
+  ja: "Japanese",
 };
 
 export function localeAiPreset(locale: LocaleMode): AiLanguagePreset {

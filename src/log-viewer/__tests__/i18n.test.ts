@@ -208,11 +208,13 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
 });
 
 describe("log viewer i18n — 번역 동작", () => {
-  it("es/de 사전은 실제 로그 검색 라벨을 제공한다", () => {
+  it("es/de/ja 사전은 실제 로그 검색 라벨을 제공한다", () => {
     expect(DICTS.es["networkLog.search"]).toBe("Buscar URL y cuerpo…");
     expect(DICTS.de["networkLog.search"]).toBe("URL und Inhalt suchen…");
     expect(DICTS.es["networkLog.counter.captured"]).toContain("{n}");
     expect(DICTS.de["networkLog.counter.captured"]).toContain("{n}");
+    expect(DICTS.ja["networkLog.search"]).toBe(locales.ja["networkLog.search"]);
+    expect(DICTS.ja["networkLog.counter.captured"]).toContain("{n}");
   });
   it("파라미터 치환", () => {
     const result = t("networkLog.counter.captured" as any, { n: 42 });

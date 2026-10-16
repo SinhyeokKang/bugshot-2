@@ -61,7 +61,7 @@ describe("t — 런타임 번역", () => {
     expect(dateBcp47()).toBe("en-US");
   });
 
-  it.each([["es", "Cancelar", "es-ES"], ["de", "Abbrechen", "de-DE"]] as const)(
+  it.each([["es", "Cancelar", "es-ES"], ["de", "Abbrechen", "de-DE"], ["ja", "キャンセル", "ja-JP"]] as const)(
     "%s UI 번역과 날짜 태그를 출력한다", (locale, cancel, dateTag) => {
       setLocale(locale);
       expect(t("common.cancel")).toBe(cancel);

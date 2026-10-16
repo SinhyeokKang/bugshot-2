@@ -85,7 +85,7 @@ afterEach(() => {
 });
 
 describe("본문 언어 — 실사전 통합 (화면 ko + bodyLocale en)", () => {
-  it.each([["es", "Entorno"], ["de", "Umgebung"]] as const)(
+  it.each([["es", "Entorno"], ["de", "Umgebung"], ["ja", "再現環境"]] as const)(
     "%s 본문 헤딩이 실제 출력으로 나오고 화면 언어는 복원된다", (locale, heading) => {
       for (const builder of BUILDERS) {
         const out = serialize(builder.run(makeCtx(locale)));

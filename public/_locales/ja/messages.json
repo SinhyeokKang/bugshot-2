@@ -1,0 +1,14 @@
+{
+  "EXT_NAME": {
+    "message": "BugShot — 一度で終わるバグ報告"
+  },
+  "EXT_NAME_SHORT": {
+    "message": "BugShot"
+  },
+  "EXT_DESCRIPTION": {
+    "message": "サイドパネルでバグをキャプチャし、QAレポートを作成。スクリーンショット・録画・コンソール/ネットワークログ、ライブCSS編集、Jira・GitHub・Notionへの送信に対応。"
+  },
+  "CMD_TOGGLE_PANEL": {
+    "message": "BugShotサイドパネルを開く"
+  }
+}

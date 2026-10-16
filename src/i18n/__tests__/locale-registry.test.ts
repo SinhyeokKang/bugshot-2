@@ -23,7 +23,7 @@ describe("normalizeLocale", () => {
   // 다운그레이드 경로: 새 로케일을 쓰던 사용자가 구버전 확장으로 롤백되면 persist에
   // 그 코드가 남는다. 정규화가 없으면 locales[locale]이 undefined라 t()가 죽는다.
   it("등록되지 않은 미래 로케일은 기본 로케일로 되돌린다", () => {
-    expect(normalizeLocale("ja")).toBe(DEFAULT_LOCALE);
+    expect(normalizeLocale("tlh")).toBe(DEFAULT_LOCALE);
     // 이 픽스처엔 앞으로도 등록 후보 언어를 쓰지 않는다 (fr 등록 시 여기가 깨졌던 축)
     expect(normalizeLocale("it")).toBe(DEFAULT_LOCALE);
   });
@@ -99,7 +99,7 @@ describe("detectLocale", () => {
   it("등록되지 않은 언어는 기본 로케일로 폴백한다", () => {
     // 이 픽스처엔 앞으로도 등록 후보 언어를 쓰지 않는다
     expect(detectLocale("it-IT")).toBe(DEFAULT_LOCALE);
-    expect(detectLocale("ja")).toBe(DEFAULT_LOCALE);
+    expect(detectLocale("tlh")).toBe(DEFAULT_LOCALE);
     expect(detectLocale("zh-CN")).toBe(DEFAULT_LOCALE);
   });
 
@@ -188,14 +188,15 @@ describe("BCP47", () => {
     expect(BCP47.ko).toBe("ko-KR");
     expect(BCP47.en).toBe("en-US");
   });
-  it("es/de 날짜 태그를 명시한다", () => {
+  it("es/de/ja 날짜 태그를 명시한다", () => {
     expect(BCP47.es).toBe("es-ES");
     expect(BCP47.de).toBe("de-DE");
+    expect(BCP47.ja).toBe("ja-JP");
   });
 });
 
-describe("es/de 등록과 언어 축", () => {
-  it.each([["es-ES", "es"], ["es-MX", "es"], ["de-DE", "de"], ["de-AT", "de"]] as const)(
+describe("es/de/ja 등록과 언어 축", () => {
+  it.each([["es-ES", "es"], ["es-MX", "es"], ["de-DE", "de"], ["de-AT", "de"], ["ja", "ja"], ["ja-JP", "ja"]] as const)(
     "%s 브라우저 태그를 %s로 감지한다", (tag, expected) => {
       expect(detectLocale(tag)).toBe(expected);
       expect(normalizeLocale(expected)).toBe(expected);

@@ -38,12 +38,13 @@ describe("LOCALES 레지스트리 자체", () => {
     expect(LOCALES).toContain(DEFAULT_LOCALE);
   });
 
-  it("현재 ko·en·fr·es·de를 포함한다", () => {
+  it("현재 ko·en·fr·es·de·ja를 포함한다", () => {
     expect(LOCALES).toContain("ko");
     expect(LOCALES).toContain("en");
     expect(LOCALES).toContain("fr");
     expect(LOCALES).toContain("es");
     expect(LOCALES).toContain("de");
+    expect(LOCALES).toContain("ja");
   });
 
   it("중복 등록이 없다", () => {

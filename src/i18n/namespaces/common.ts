@@ -166,4 +166,38 @@ const de = {
   "common.next": "Weiter",
 } satisfies Bundle;
 
-export const common = { ko, en, fr, es, de };
+const ja = {
+  "common.ok": "OK",
+  "common.close": "閉じる",
+  "common.cancel": "キャンセル",
+  "common.back": "戻る",
+  "common.loading": "読み込み中...",
+  "common.empty": "空",
+  "common.actions": "操作",
+  "common.deselect": "選択を解除",
+  "common.untitled": "（タイトルなし）",
+  "common.next": "次へ",
+  "common.done": "完了",
+  "common.reset": "リセット",
+  "common.submit": "送信",
+  "common.save": "保存",
+  "common.verify": "検証",
+  "common.delete": "削除",
+  "common.attach": "添付",
+  "common.detach": "添付を解除",
+  "common.download": "ダウンロード",
+  "common.expand": "展開",
+  "common.collapse": "折りたたむ",
+  "common.clearSearch": "検索をクリア",
+
+  "time.justNow": "たった今",
+  "time.minutesAgo": "{n}分前",
+  "time.hoursAgo": "{n}時間前",
+  "time.daysAgo": "{n}日前",
+
+  "bg.error.network": "外部サーバーに接続できません。ネットワーク接続を確認してください。",
+  "bg.error.communication": "拡張機能の内部通信でエラーが発生しました。ページを再読み込みしてください。",
+  "bg.error.unknown": "不明なエラーが発生しました。",
+} satisfies Bundle;
+
+export const common = { ko, en, fr, es, de, ja };
