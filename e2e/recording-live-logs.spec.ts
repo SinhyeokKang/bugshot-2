@@ -15,7 +15,7 @@ import type { LocaleMode } from "../src/i18n/locales";
 // (GOTCHAS "설정 영속 오염").
 
 const LOCALE_LABELS: Record<LocaleMode, string> = {
-  ko: "한국어", en: "English", fr: "Français", es: "Español", de: "Deutsch",
+  ko: "한국어", en: "English", fr: "Français", es: "Español", de: "Deutsch", ja: "日本語",
 };
 
 const THEME_ICONS = { light: "svg.lucide-sun", dark: "svg.lucide-moon", system: "svg.lucide-monitor" } as const;

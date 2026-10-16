@@ -114,7 +114,7 @@ test.describe.serial("이슈 본문 언어", () => {
     expect(html).toMatch(/<\/(p|h1|h2|h3|li|td)>/);
   });
 
-  for (const [label, heading] of [["Español", "Entorno"], ["Deutsch", "Umgebung"]] as const) {
+  for (const [label, heading] of [["Español", "Entorno"], ["Deutsch", "Umgebung"], ["日本語", "再現環境"]] as const) {
     test(`본문 언어 ${label} → 복사 본문은 번역되고 화면·사용자 문구는 유지된다`, async () => {
       await setBodyLocale(panel, label);
       await expect(async () => {

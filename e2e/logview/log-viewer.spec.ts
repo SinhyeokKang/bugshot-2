@@ -34,6 +34,7 @@ const ACTION_LABELS = {
   fr: { all: "Toutes", click: "Clic", navigation: "Navigation", input: "Saisie", keypress: "Touches", toggle: "Bascule", select: "Sélection" },
   es: { all: "Todos", click: "Clic", navigation: "Navegación", input: "Entrada", keypress: "Teclas", toggle: "Alternar", select: "Selección" },
   de: { all: "Alle", click: "Klick", navigation: "Navigation", input: "Eingabe", keypress: "Tasten", toggle: "Umschalten", select: "Auswahl" },
+  ja: { all: "すべて", click: "クリック", navigation: "ページ移動", input: "入力", keypress: "キー", toggle: "切り替え", select: "選択" },
 } as const;
 
 type Lang = keyof typeof ACTION_LABELS;
@@ -44,11 +45,13 @@ const PLACEHOLDER = {
   fr: { needle: "corps", exact: "Rechercher URL et corps…" },
   es: { needle: "cuerpo", exact: "Buscar URL y cuerpo…" },
   de: { needle: "Inhalt", exact: "URL und Inhalt suchen…" },
+  ja: { needle: "本文", exact: "URL・本文を検索…" },
 } as const;
 
 const STANDALONE_LABELS = {
   es: { report: "Informe", environment: "Entorno", timelineSearch: "Buscar en la línea de tiempo…" },
   de: { report: "Bericht", environment: "Umgebung", timelineSearch: "Zeitleiste durchsuchen…" },
+  ja: { report: "レポート", environment: "再現環境", timelineSearch: "タイムラインを検索…" },
 } as const;
 
 // navigation 유형별 문구. 이 사전은 log-viewer 전용 **복제본**이라 메인 테이블이 갱신돼도
@@ -89,6 +92,13 @@ const NAV_TEXT = {
     "nv-reload": " neu geladen",
     "nv-traverse": "Über den Verlauf zu",
     "nv-legacy": "Zu",
+  },
+  ja: {
+    "nv-back": "に戻る",
+    "nv-forward": "に進む",
+    "nv-reload": "を再読み込み",
+    "nv-traverse": "履歴から",
+    "nv-legacy": "に移動",
   },
 } as const;
 
@@ -164,8 +174,9 @@ labelSuite("en", "en-US");
 labelSuite("fr", "fr-FR");
 labelSuite("es", "es-ES");
 labelSuite("de", "de-DE");
+labelSuite("ja", "ja-JP");
 
-for (const [lang, locale] of [["es", "es-ES"], ["de", "de-DE"]] as const) {
+for (const [lang, locale] of [["es", "es-ES"], ["de", "de-DE"], ["ja", "ja-JP"]] as const) {
   test.describe(`standalone-only labels — ${lang}`, () => {
     test.use({ locale });
 
