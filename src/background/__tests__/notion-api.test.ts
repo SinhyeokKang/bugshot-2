@@ -567,7 +567,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
       mf = mockFetchOnce({
         body: {
           id: "FU1",
-          upload_url: "https://file.notion.so/send/FU1",
+          upload_url: "https://api.notion.com/v1/file_uploads/FU1/send",
           expiry_time: "2026-02-03T04:05:06.000Z",
         },
       });
@@ -582,7 +582,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
       });
       expect(out).toEqual({
         id: "FU1",
-        uploadUrl: "https://file.notion.so/send/FU1",
+        uploadUrl: "https://api.notion.com/v1/file_uploads/FU1/send",
         expiresAt: Date.UTC(2026, 1, 3, 4, 5, 6),
       });
     });
@@ -592,7 +592,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 
       await sendFileUpload(
         AUTH,
-        "https://file.notion.so/send/FU1",
+        "https://api.notion.com/v1/file_uploads/FU1/send",
         "shot.png",
         `data:image/png;base64,${btoa("PNGDATA")}`,
         "image/png",
@@ -600,7 +600,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
 
       const { url, init } = mf!.callAt(0);
       // API base(/v1)를 앞에 붙이면 안 된다 — createFileUpload가 준 절대 URL이다.
-      expect(url).toBe("https://file.notion.so/send/FU1");
+      expect(url).toBe("https://api.notion.com/v1/file_uploads/FU1/send");
       expect(init?.method).toBe("POST");
       expect(headersOf(init).Authorization).toBe("Bearer secret_x");
       expect(headersOf(init)["Notion-Version"]).toBe("2022-06-28");
@@ -616,7 +616,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
     it("sendFileUpload: declaredContentType이 없으면 dataUrl의 mime이 파트 타입", async () => {
       mf = mockFetchOnce({});
 
-      await sendFileUpload(AUTH, "https://file.notion.so/send/FU2", "a.txt", "data:text/plain;base64,aGk=");
+      await sendFileUpload(AUTH, "https://api.notion.com/v1/file_uploads/FU2/send", "a.txt", "data:text/plain;base64,aGk=");
 
       const file = mf!.formDataAt(0).get("file") as File;
       expect(file.type).toBe("text/plain");
@@ -626,16 +626,16 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
     it("uploadFile: 2회 호출로 create→send를 잇고 create 응답의 upload_url을 따라간다", async () => {
       mf = mockFetchRoutes([
         {
-          match: "/v1/file_uploads",
+          match: /\/v1\/file_uploads$/,
           respond: {
             body: {
               id: "FU9",
-              upload_url: "https://file.notion.so/send/FU9",
+              upload_url: "https://api.notion.com/v1/file_uploads/FU9/send",
               expiry_time: "2026-03-04T00:00:00.000Z",
             },
           },
         },
-        { match: "file.notion.so/send/", respond: {} },
+        { match: /\/v1\/file_uploads\/[^/]+\/send$/, respond: {} },
       ]);
 
       const out = await uploadFile(
@@ -650,7 +650,7 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
         filename: "log.json",
         content_type: "application/json",
       });
-      expect(mf!.callAt(1).url).toBe("https://file.notion.so/send/FU9");
+      expect(mf!.callAt(1).url).toBe("https://api.notion.com/v1/file_uploads/FU9/send");
       const file = mf!.formDataAt(1).get("file") as File;
       expect(file.name).toBe("log.json");
       expect(file.type).toBe("application/json");
@@ -661,12 +661,28 @@ describe("notion fetch 경로 (@/test/fetch-mock)", () => {
       });
     });
 
+    it.each([
+      ["다른 host", "https://evil.example/v1/file_uploads/FU4/send"],
+      ["평문 http", "http://api.notion.com/v1/file_uploads/FU4/send"],
+      ["userinfo 끼움", "https://user:pw@api.notion.com/v1/file_uploads/FU4/send"],
+      ["다른 경로", "https://api.notion.com/v1/pages/FU4"],
+      ["host 접미 위장", "https://api.notion.com.evil.example/v1/file_uploads/FU4/send"],
+    ])("sendFileUpload: %s upload_url이면 토큰을 보내지 않고 거부", async (_label, uploadUrl) => {
+      mf = mockFetchOnce({});
+
+      const err = await sendFileUpload(AUTH, uploadUrl, "a.txt", "data:text/plain;base64,aGk=").catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toBe("Invalid Notion upload URL");
+      expect(mf!.fn).not.toHaveBeenCalled();
+    });
+
     it("sendFileUpload 실패는 notionFetch를 안 거치고도 NotionError로 전파", async () => {
       mf = mockFetchOnce({ status: 413, body: { code: "validation_error" } });
 
       const err = await sendFileUpload(
         AUTH,
-        "https://file.notion.so/send/FU3",
+        "https://api.notion.com/v1/file_uploads/FU3/send",
         "big.mp4",
         "data:video/mp4;base64,AAAA",
       ).catch((e: unknown) => e);
