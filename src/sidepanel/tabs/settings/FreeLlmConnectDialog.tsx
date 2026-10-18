@@ -13,7 +13,8 @@ import { AI_STUDIO_KEY_URL, FREE_LLM_PRESETS, fetchOpenRouterFreeVisionModels, O
 import { trackLlmConnect, type LlmConnectResult } from "@/sidepanel/lib/track-llm";
 import { launchOpenRouterAuth } from "@/sidepanel/openrouter-auth";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
-import { LlmModelDialog } from "./LlmConnectDialog";
+import { cn } from "@/lib/utils";
+import { LlmModelDialog, PROVIDER_ICONS } from "./LlmConnectDialog";
 
 export function FreeLlmConnectDialog({ open, onOpenChange }: {
   open: boolean;
@@ -179,7 +180,9 @@ export function FreeLlmConnectDialog({ open, onOpenChange }: {
                   sessionRef.current.baseUrl = preset.baseUrl;
                 }}
               >
-                {FREE_LLM_PRESETS.map((preset) => (
+                {FREE_LLM_PRESETS.map((preset) => {
+                  const brand = PROVIDER_ICONS[preset.id];
+                  return (
                   <ToggleGroupItem
                     key={preset.id} value={preset.id}
                     ref={selected === preset.id ? selectedCardRef : undefined}
@@ -187,20 +190,25 @@ export function FreeLlmConnectDialog({ open, onOpenChange }: {
                     aria-labelledby={`${id}-${preset.id}-title`}
                     aria-describedby={`${id}-${preset.id}-description`}
                     aria-disabled={busy}
-                    className="h-auto w-full flex-col items-start gap-2 whitespace-normal rounded-xl p-4 text-left font-normal text-foreground hover:bg-background hover:border-primary/50 data-[state=on]:border-primary data-[state=on]:bg-background data-[state=on]:ring-1 data-[state=on]:ring-primary aria-disabled:cursor-not-allowed"
+                    className="h-auto w-full flex-row items-start justify-start gap-3 whitespace-normal [&_svg]:size-6 rounded-xl p-4 text-left font-normal text-foreground hover:bg-background hover:border-primary/50 data-[state=on]:border-primary data-[state=on]:bg-background data-[state=on]:ring-1 data-[state=on]:ring-primary aria-disabled:cursor-not-allowed"
                   >
-                    <span id={`${id}-${preset.id}-title`} className="text-sm font-medium">{t(`llm.free.${preset.id}.title`)}</span>
-                    <span id={`${id}-${preset.id}-description`} className="flex flex-col gap-2 text-sm text-foreground/80">
-                      <span>{t(`llm.free.${preset.id}.model`)}</span>
-                      <span>{t(`llm.free.${preset.id}.limit`)}</span>
-                      <span>{t(`llm.free.${preset.id}.privacy`)}</span>
-                      {preset.id === "openrouter" && <>
-                        <span>{t("llm.free.openrouter.signupHint")}</span>
-                        <span>{t("llm.free.openrouter.appNameNote")}</span>
-                      </>}
+                    <span
+                      aria-hidden="true"
+                      data-testid={`free-llm-icon-${preset.id}`}
+                      className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-muted"
+                    >
+                      {brand && <brand.icon className={cn("h-6 w-6", brand.darkInvert && "dark:invert")} />}
+                    </span>
+                    <span className="flex min-w-0 flex-col gap-1">
+                      <span id={`${id}-${preset.id}-title`} className="text-sm font-medium">{t(`llm.free.${preset.id}.title`)}</span>
+                      <span id={`${id}-${preset.id}-description`} className="flex flex-col gap-1 text-sm text-foreground/80">
+                        <span>{t(`llm.free.${preset.id}.summary`)}</span>
+                        <span>{t(`llm.free.${preset.id}.privacy`)}</span>
+                      </span>
                     </span>
                   </ToggleGroupItem>
-                ))}
+                  );
+                })}
               </ToggleGroup>
             ) : (
               <div className="flex flex-col gap-3">

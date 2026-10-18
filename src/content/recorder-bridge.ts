@@ -3,7 +3,7 @@ import { postToRuntime } from "./post-to-runtime";
 
 // 모든 프레임(top + iframe)에 주입되는 ISOLATED world 브리지. 자기 프레임의 MAIN world
 // 레코더와 CustomEvent로 통신하며, sentinel을 받아 활성화하고 data를 사이드패널로 중계한다.
-// picker.ts(top only)와 분리돼 iframe 로그 커버리지를 담당한다.
+// picker.ts와 분리된 레코더 전용 브리지로 iframe 로그 커버리지를 담당한다.
 
 /* ── Network recorder bridge ──────────────────────── */
 
@@ -189,7 +189,7 @@ function registerBridgeListener(): void {
           case "actionRecorder.clear":
             handleActionClear(msg.resupplyEntryNav === true);
             break;
-          // picker.* 등 그 외 메시지는 picker.ts(top only)가 처리 — 무응답으로 흘려 이중 응답 방지.
+          // picker.* 등 그 외 메시지는 같은 프레임의 picker.ts가 처리 — 무응답으로 흘려 이중 응답 방지.
           default:
             return;
         }

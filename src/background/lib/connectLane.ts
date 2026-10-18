@@ -12,7 +12,7 @@ import type { PlatformId } from "@/types/platform";
 // platform을 함께 각인하는 건 사이드패널이 그 값으로 **재연동 대상을 정하기** 때문이다.
 // 401 레인에 platform 없는 에러가 들어오면 만료 안내가 아예 안 뜨고(어느 플랫폼인지 몰라
 // 안내를 띄울 수 없다) 사용자는 제출 실패만 반복한다. `OAuthErrorOptions.platform`을
-// required로 올리는 건 생성 지점 72곳을 건드리므로, 레인의 **단일 통로**인 여기서 채운다 —
+// required로 올리는 건 생성 지점 67곳을 건드리므로, 레인의 **단일 통로**인 여기서 채운다 —
 // 그러면 어느 지점이 platform을 빠뜨려도 이 레인을 지나는 순간 메워진다.
 export function tagRefreshFailure(err: unknown, platform: PlatformId): unknown {
   if (!(err instanceof OAuthError)) return err;

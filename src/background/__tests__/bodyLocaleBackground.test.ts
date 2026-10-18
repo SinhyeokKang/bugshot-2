@@ -188,8 +188,9 @@ describe("background 본문 문자열 게이트", () => {
   // 표 식별 입력으로만 쓰이지만, 본문을 만든 로케일과 어긋나면 Snapshot 행이 조용히 빠진다.
   // 나머지(플랫폼 라벨·에러 문구)는 화면 언어가 정답이다.
   // `attachmentSection`은 플랫폼 접두 키라 접두사만 보면 asana.·clickup. 복제가 새므로
-  // 접미로 잡고, 로그 요약(`logSummary.`)은 아직 background에 없지만 빌더가 쓰는 본문
-  // 네임스페이스라 미리 편입한다 — 여기 없는 네임스페이스는 곧 무음 통과다.
+  // 접미로 잡고, 로그 요약(`logSummary.`)도 빌더가 쓰는 본문 네임스페이스라 편입한다
+  // (background는 logsUrl이 없을 때 `logSummary.logs.lead`로 로그 안내 문단을 찾는다)
+  // — 여기 없는 네임스페이스는 곧 무음 통과다.
   const BODY_KEY = /(^(md|styleTable|logSummary)\.|\.attachmentSection$)/;
 
   interface BgFile {
@@ -225,7 +226,7 @@ describe("background 본문 문자열 게이트", () => {
     expect(scanned.some((f) => f.file.includes("/"))).toBe(true);
   });
 
-  it("본문을 만들거나 대조하는 t() 키는 래핑된 여섯뿐이다", () => {
+  it("본문을 만들거나 대조하는 t() 키는 래핑된 일곱뿐이다", () => {
     expect(bodyKeys).toEqual([
       "logSummary.logs.lead",
       "md.attachmentDropped",

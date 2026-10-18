@@ -320,11 +320,22 @@ export async function sendFileUpload(
   dataUrl: string,
   declaredContentType?: string,
 ): Promise<void> {
+  // upload_url은 응답이 준 절대 URL이라 Bearer 토큰을 싣기 전에 Notion API의 send 경로인지 확인한다.
+  const url = new URL(uploadUrl);
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "api.notion.com" ||
+    url.username ||
+    url.password ||
+    !/^\/v1\/file_uploads\/[^/]+\/send$/.test(url.pathname)
+  ) {
+    throw new Error("Invalid Notion upload URL");
+  }
   const { blob } = dataUrlToBlob(dataUrl);
   const ct = declaredContentType ?? blob.type;
   const form = new FormData();
   form.append("file", new File([blob], filename, { type: ct }));
-  const res = await fetch(uploadUrl, {
+  const res = await fetch(url.href, {
     method: "POST",
     headers: {
       Authorization: buildNotionAuthHeader(auth),

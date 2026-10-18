@@ -69,7 +69,7 @@ function TogetherIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-const PROVIDER_ICONS: Record<
+export const PROVIDER_ICONS: Record<
   string,
   { icon: ComponentType<{ className?: string }>; darkInvert?: boolean }
 > = {

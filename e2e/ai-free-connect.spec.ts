@@ -140,6 +140,19 @@ test.describe.serial("free AI connection", () => {
     await expect(panel.getByTestId("free-llm-next")).toBeDisabled();
   });
 
+  test("renders 40px brand tiles with 24px logos (toggle svg sizing does not win)", async () => {
+    for (const id of ["gemini", "openrouter"]) {
+      const tile = panel.getByTestId(`free-llm-icon-${id}`);
+      await expect(tile).toBeVisible();
+      const tileBox = (await tile.boundingBox())!;
+      expect(Math.abs(tileBox.width - 40)).toBeLessThanOrEqual(1);
+      expect(Math.abs(tileBox.height - 40)).toBeLessThanOrEqual(1);
+      const logoBox = (await tile.locator("svg").boundingBox())!;
+      expect(Math.abs(logoBox.width - 24)).toBeLessThanOrEqual(1);
+      expect(Math.abs(logoBox.height - 24)).toBeLessThanOrEqual(1);
+    }
+  });
+
   test("opens AI Studio in an actual popup and focuses the key input", async ({ ext }) => {
     await panel.getByTestId("free-llm-card-gemini").click();
     const next = panel.getByTestId("free-llm-next");

@@ -235,8 +235,8 @@ function computeStableSelector(el: Element, deps: Partial<LocatorDeps>): string 
       });
       scored.push({ selector, score: scoreSelector(selector, stage as 0 | 1) });
     } catch (err) {
-      // 단계별 개별 catch — 예산 초과·detached는 finder가 던진다. stable의 throw가
-      // compat을 낙태시키면 안 된다.
+      // 단계별 개별 catch — detached 등은 finder가 던진다(예산 초과는 던지지 않고 finder
+      // 자체 nth-of-type fallback을 돌려준다). stable의 throw가 compat을 낙태시키면 안 된다.
       lastError = err;
     }
   }

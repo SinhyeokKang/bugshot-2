@@ -36,6 +36,35 @@
 
 ---
 
+## 2026-10-18 — ToggleGroupItem 안의 24px 로고가 16px로 그려졌다 — Toggle base의 `[&_svg]:size-4`가 svg 자신의 `h-6 w-6`을 이긴다
+
+- **영역**: `컴포넌트`, `디자인`
+- **계열**: `라이브러리전제`
+- **그물**: `e2e`
+- **증상**: (무료 AI 연결 카드 브랜드 타일 추가 중, 자체 검증에서 발견 — 출시 전) 40×40 타일 안 로고에 `h-6 w-6`을 줬는데 실제로는 16px로 렌더됐다. jsdom 테스트는 클래스 문자열만 봐서 green이었다.
+- **근본 원인**: shadcn `toggleVariants` base에 `[&_svg]:size-4`가 있다. 이 유틸은 `.cls svg` 셀렉터라 특이도 (0,1,1)로, svg 자신의 `.h-6`(0,1,0)보다 높다. 자식 svg에 크기 클래스를 아무리 줘도 부모 item의 이 규칙이 이긴다. twMerge는 같은 요소의 클래스끼리만 충돌을 해소하므로, 자식에 준 값은 병합 대상도 아니다.
+- **재발 방지**:
+  - (1) **shadcn primitive(Toggle·Button 등) 안에 아이콘 크기를 바꿀 땐 부모 item에 `[&_svg]:size-N`을 얹어 base를 대체한다**(twMerge가 같은 arbitrary variant를 덮는다). 선례: `App.tsx`의 `[&_svg]:size-3.5`, `FreeLlmConnectDialog`의 `[&_svg]:size-6`. 점검: `grep -n "\[&_svg\]" src/components/ui/*.tsx`로 base에 svg 크기 규칙이 있는 primitive를 확인한다.
+  - (2) **렌더 크기는 jsdom으로 못 잠근다** — 실제 CSS가 계산되지 않아 클래스 단언은 green이다. 크기가 요구사항이면 e2e에서 `boundingBox`로 단언한다(`ai-free-connect.spec.ts`의 타일 40px·로고 24px).
+- **관련**: `src/sidepanel/tabs/settings/FreeLlmConnectDialog.tsx`(provider 카드), `src/components/ui/toggle.tsx`(`toggleVariants`), `e2e/ai-free-connect.spec.ts`
+
+---
+
+## 2026-10-18 — Notion 파일 업로드가 응답이 준 `upload_url`로 host 확인 없이 Bearer 토큰을 보냈다 — Slack에만 있던 가드가 복제되지 않았다
+
+- **영역**: `background`
+- **계열**: `복제본`
+- **그물**: `unit`
+- **증상**: (#270, /doc-check privacy 대조 중 발견, 사용자 피해 보고 없음) `notion-api.ts:sendFileUpload`가 `createFileUpload` 응답의 `upload_url`을 검사 없이 `fetch`하면서 `Authorization: Bearer <Notion 토큰>`을 실었다. 응답이 변조되거나 API가 제3자 URL을 돌려주면 사용자 Notion 토큰이 그 host로 나간다.
+- **근본 원인**: "서버가 돌려준 절대 URL로 자격증명을 보낸다"는 같은 형태가 Slack(`files.getUploadURLExternal` → `upload_url`)과 Notion 두 곳에 있었는데, host 가드(`https:` + `files.slack.com` + userinfo 없음)는 Slack에만 들어갔다. 테스트 fixture도 실제와 다른 `https://file.notion.so/send/...`를 써서 "어떤 URL이 와야 하는가"가 코드 어디에도 고정돼 있지 않았다(실제는 `https://api.notion.com/v1/file_uploads/{id}/send`).
+- **재발 방지**:
+  - (1) **응답에서 받은 URL로 사용자 자격증명을 보내기 전에는 프로토콜·host·userinfo·경로를 검증한다.** 점검: `grep -rn "upload_url\|uploadUrl" src/background/*-api.ts` 후 그 URL로 가는 `fetch`가 `Authorization`을 싣는지 본다. Linear는 서명된 URL에 Linear가 준 헤더만 보내 사용자 토큰이 안 실린다(대상 아님).
+  - (2) **fixture는 공급자 문서의 실제 URL 형태로 쓴다.** 가짜 host fixture는 가드를 추가하는 순간 기존 테스트를 깨뜨려 "가드를 느슨하게 만드는" 압력이 된다.
+  - (3) 거부 테스트는 다른 host·http·userinfo·다른 경로·**host 접미 위장**(`api.notion.com.evil.example`) 5종을 `it.each`로 고정하고, 거부 시 `fetch` 미호출을 단언한다.
+- **관련**: `src/background/notion-api.ts:sendFileUpload`, `src/background/slack-api.ts:sendFileUpload`, `src/background/__tests__/notion-api.test.ts`
+
+---
+
 ## 2026-10-18 — OpenRouter [Deny]는 OAuth `error`가 아니라 파라미터 없는 callback으로 돌아와, 거부가 "연결 실패"로 보였다
 
 - **영역**: `AI`

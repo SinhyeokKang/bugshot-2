@@ -571,7 +571,7 @@ background/index.ts:137 — webNavigation.onCommitted
 | `linear.app` | Linear OAuth authorize (launchWebAuthFlow라 host_permission 불요) | `linear-oauth.ts` |
 | Linear 발급 업로드 URL | `requestFileUpload`가 반환하는 pre-signed URL로 첨부 바이트 PUT (고정 host 아님) | `linear-api.ts` — `uploadUrl` |
 | `api.notion.com` | Notion REST + OAuth authorize (token 교환은 proxy) | `notion-api.ts`, `notion-oauth.ts` |
-| Notion 발급 업로드 URL | `/file_uploads` 응답의 동적 `upload_url`로 스크린샷·영상·logs.html·사용자 첨부 multipart POST | `notion-api.ts` — `sendFileUpload` |
+| Notion 발급 업로드 URL | `/file_uploads` 응답의 동적 `upload_url`로 스크린샷·영상·logs.html·사용자 첨부 multipart POST. Bearer 토큰을 싣기 전에 `https://api.notion.com/v1/file_uploads/{id}/send` 형태(https·host·userinfo 없음·경로)인지 확인하고 아니면 요청 없이 거부 | `notion-api.ts` — `sendFileUpload` |
 | `gitlab.com` | GitLab REST + OAuth token (gitlab.com 한정) | `gitlab-api.ts`, `gitlab-oauth.ts` |
 | `app.asana.com` | Asana REST + OAuth authorize (token 교환은 proxy) | `asana-api.ts`, `asana-oauth.ts` |
 | `api.clickup.com` | ClickUp REST (task 생성·첨부 업로드·본문 갱신) | `clickup-api.ts` |
