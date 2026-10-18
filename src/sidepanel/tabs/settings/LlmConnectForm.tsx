@@ -55,11 +55,14 @@ import {
   detectProviderKind,
   fetchModels,
   GEMINI_MODELS,
+  GEMINI_FREE_MODELS,
   getProviderLabel,
   PROVIDER_PRESETS,
   type ModelEntry,
 } from "@/sidepanel/lib/ai-provider";
 import { PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
+import { fetchOpenRouterFreeVisionModels, OPENROUTER_BASE_URL } from "@/sidepanel/lib/free-llm";
+import { FreeLlmConnectDialog } from "./FreeLlmConnectDialog";
 import { LlmConnectDialog } from "./LlmConnectDialog";
 import { SettingsFooter } from "./SettingsFooter";
 
@@ -73,6 +76,7 @@ export function LlmConnectForm() {
 function LlmOnboarding() {
   const t = useT();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [freeDialogOpen, setFreeDialogOpen] = useState(false);
 
   return (
     <>
@@ -84,12 +88,16 @@ function LlmOnboarding() {
         <p className="mt-1 text-sm text-muted-foreground">
           {t("llm.onboarding.body")}
         </p>
-        <div className="mt-5">
-          <Button onClick={() => setDialogOpen(true)}>
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <Button variant="outline" data-testid="llm-connect-free" onClick={() => setFreeDialogOpen(true)}>
+            {t("llm.free.button")}
+          </Button>
+          <Button data-testid="llm-connect-byok" onClick={() => setDialogOpen(true)}>
             {t("llm.connect")}
           </Button>
         </div>
       </div>
+      <FreeLlmConnectDialog open={freeDialogOpen} onOpenChange={setFreeDialogOpen} />
       <LlmConnectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </>
   );
@@ -155,11 +163,11 @@ function LlmConnected() {
   const geminiPreset = PROVIDER_PRESETS.find((p) => p.id === "gemini");
   const isGemini = geminiPreset && llm.baseUrl === geminiPreset.baseUrl;
 
-  const hardcodedModels: ModelEntry[] | null =
+  const hardcodedModels: readonly ModelEntry[] | null =
     kind === "anthropic"
       ? ANTHROPIC_MODELS
       : isGemini
-        ? GEMINI_MODELS
+        ? (llm.freeTier ? GEMINI_FREE_MODELS : GEMINI_MODELS)
         : null;
 
   const [fetchedModels, setFetchedModels] = useState<ModelEntry[]>([]);
@@ -172,20 +180,22 @@ function LlmConnected() {
     if (hardcodedModels) return;
     setModelsLoading(true);
     try {
-      const list = await fetchModels(llm.baseUrl, llm.apiKey);
+      const list = llm.freeTier && llm.baseUrl === OPENROUTER_BASE_URL
+        ? await fetchOpenRouterFreeVisionModels(llm.apiKey)
+        : await fetchModels(llm.baseUrl, llm.apiKey);
       setFetchedModels(list);
     } catch {
       setFetchedModels([]);
     } finally {
       setModelsLoading(false);
     }
-  }, [llm.baseUrl, llm.apiKey, hardcodedModels]);
+  }, [llm.baseUrl, llm.apiKey, llm.freeTier, hardcodedModels]);
 
   useEffect(() => {
-    if (!hardcodedModels && fetchedModels.length === 0) {
+    if (!hardcodedModels) {
       void loadModels();
     }
-  }, [hardcodedModels, loadModels, fetchedModels.length]);
+  }, [hardcodedModels, loadModels]);
 
   const selectModel = (modelId: string) => {
     setLlm({ ...llm, modelId });

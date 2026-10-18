@@ -168,6 +168,25 @@ describe("free connection session", () => {
     expect(trackLlmConnect).toHaveBeenCalledTimes(1);
     expect(trackLlmConnect).toHaveBeenCalledWith(OPENROUTER_BASE_URL, "free", "success");
   });
+  it("locks model selection and confirmation while the selected model probe is pending", async () => {
+    const pending = deferred<"ok">();
+    vi.mocked(fetchOpenRouterFreeVisionModels).mockResolvedValue([{ id: "vision:free" }, { id: "other:free" }]);
+    vi.mocked(probeOpenRouterModel).mockReturnValue(pending.promise);
+    const user = setup();
+    await choose(user, "openrouter");
+    await pickModel(user);
+    const dialog = screen.getByRole("dialog", { name: "llm.model.select" });
+    const model = within(dialog).getByRole("combobox") as HTMLButtonElement;
+    const confirm = within(dialog).getByRole("button", { name: "common.ok" }) as HTMLButtonElement;
+    expect(model.disabled || model.getAttribute("aria-disabled") === "true").toBe(true);
+    expect(confirm.disabled || confirm.getAttribute("aria-disabled") === "true").toBe(true);
+    await user.click(model);
+    expect(screen.queryByRole("option", { name: "other:free" })).toBeNull();
+    await user.click(confirm);
+    expect(probeOpenRouterModel).toHaveBeenCalledTimes(1);
+    await act(async () => pending.resolve("ok"));
+    expect(useSettingsUiStore.getState().llm?.modelId).toBe("vision:free");
+  });
   it("guards double clicks synchronously and shows the waiting status", async () => {
     const pending = deferred<Awaited<ReturnType<typeof launchOpenRouterAuth>>>();
     vi.mocked(launchOpenRouterAuth).mockReturnValue(pending.promise);
@@ -203,6 +222,7 @@ describe("free connection session", () => {
   });
   it("blocks outside dismissal but permits Escape and tracks untouched cancellation once", async () => {
     const user = setup();
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });
     fireEvent.pointerDown(document.body);
     fireEvent.click(document.body);
     expect(screen.getByRole("dialog")).toBeTruthy();

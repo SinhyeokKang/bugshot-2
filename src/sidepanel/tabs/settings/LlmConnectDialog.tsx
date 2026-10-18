@@ -315,10 +315,12 @@ export function LlmModelDialog({
   pending,
   onSelect,
   onClose,
+  busy = false,
 }: {
   pending: { models: ModelEntry[]; baseUrl: string } | null;
   onSelect: (modelId: string) => void;
   onClose: () => void;
+  busy?: boolean;
 }) {
   const t = useT();
   const [models, setModels] = useState<ModelEntry[]>([]);
@@ -339,13 +341,14 @@ export function LlmModelDialog({
           <DialogTitle className="text-xl">{t("llm.model.select")}</DialogTitle>
         </DialogHeader>
 
-        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <Popover open={popoverOpen && !busy} onOpenChange={(value) => { if (!busy) setPopoverOpen(value); }}>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               role="combobox"
-              aria-expanded={popoverOpen}
-              className="w-full min-w-0 justify-between font-normal"
+              aria-expanded={popoverOpen && !busy}
+              aria-disabled={busy}
+              className="w-full min-w-0 justify-between font-normal aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-background aria-disabled:hover:text-foreground"
             >
               <span
                 className={cn(
@@ -372,6 +375,7 @@ export function LlmModelDialog({
                       key={m.id}
                       value={m.id}
                       onSelect={() => {
+                        if (busy) return;
                         setSelectedModelId(m.id);
                         setPopoverOpen(false);
                       }}
@@ -397,8 +401,12 @@ export function LlmModelDialog({
           </Button>
           <Button
             disabled={!selectedModelId}
-            onClick={() => onSelect(selectedModelId)}
+            aria-disabled={busy}
+            aria-busy={busy}
+            className="aria-disabled:cursor-not-allowed aria-disabled:hover:bg-primary"
+            onClick={() => { if (!busy) onSelect(selectedModelId); }}
           >
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
             {t("common.ok")}
           </Button>
         </DialogFooter>

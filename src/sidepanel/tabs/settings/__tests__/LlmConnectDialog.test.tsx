@@ -2,7 +2,7 @@ import { StrictMode, useState } from "react";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LlmConnectDialog } from "@/sidepanel/tabs/settings/LlmConnectDialog";
+import { LlmConnectDialog, LlmModelDialog } from "@/sidepanel/tabs/settings/LlmConnectDialog";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { trackLlmConnect } from "@/sidepanel/lib/track-llm";
 import { toast } from "sonner";
@@ -130,4 +130,20 @@ describe("BYOK connection session", () => {
     expect(trackLlmConnect).toHaveBeenCalledTimes(1);
     expect(trackLlmConnect).toHaveBeenCalledWith(useSettingsUiStore.getState().llm!.baseUrl, "byok", "success");
   });
+});
+
+ it("keeps the model picker interactive when busy is omitted", async () => {
+  const user = userEvent.setup();
+  const onSelect = vi.fn();
+  render(<LlmModelDialog pending={{ baseUrl, models: [{ id: "test-model" }] }} onSelect={onSelect} onClose={vi.fn()} />);
+  const combo = screen.getByRole("combobox") as HTMLButtonElement;
+  expect(combo.disabled).toBe(false);
+  expect(combo.getAttribute("aria-disabled")).not.toBe("true");
+  await user.click(combo);
+  await user.click(screen.getByRole("option", { name: "test-model" }));
+  const confirm = screen.getByRole("button", { name: "common.ok" }) as HTMLButtonElement;
+  expect(confirm.disabled).toBe(false);
+  expect(confirm.getAttribute("aria-disabled")).not.toBe("true");
+  await user.click(confirm);
+  expect(onSelect).toHaveBeenCalledWith("test-model");
 });
