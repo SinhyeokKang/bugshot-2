@@ -30,7 +30,7 @@
 | `src/sidepanel/lib/ai-provider.ts` | 프리셋·모델 상수·`fetchModels`·`requestHostPermission` | ① `ModelEntry`에 `freeTier?: true` 추가 ② `GEMINI_MODELS`를 스파이크 결과로 갱신하고(`gemini-2.0-flash` 삭제 — 2026-06-01 종료), 무료 티어 모델에 `freeTier: true` 표기, 모듈 상수 `GEMINI_FREE_MODELS = GEMINI_MODELS.filter(m => m.freeTier)` 추가(렌더 안에서 filter하면 `loadModels` useCallback·effect 의존성이 매번 바뀐다) ③ `PROVIDER_PRESETS`의 `id`를 `LlmProviderId`로 타입 고정 ④ `connectProvider(baseUrl, apiKey): Promise<ModelEntry[]>` 추출(URL 검증·`isCredentialSafeUrl`·`requestHostPermission`·kind별 모델 결정 — 지금 `handleConnect` 본문 그대로) ⑤ `presetIdOf(baseUrl): LlmProviderId \| "custom"` 추가(Task 1) ⑥ `connectErrorKey(err): TranslationKey` — 두 다이얼로그가 공유하는 에러→토스트 키 매핑 |
 | `src/sidepanel/tabs/settings/LlmConnectDialog.tsx` | BYOK 연결 다이얼로그 | `handleConnect`가 `connectProvider()`·`connectErrorKey()`를 호출하도록 교체(동작 동일). 집계는 모달이 닫힐 때 1회 `trackLlmConnect(baseUrl, "byok", 결과)`(prd 목표 7 규칙). `LlmModelDialog`를 export해 무료 모달이 재사용한다. |
 | `src/sidepanel/tabs/settings/LlmConnectForm.tsx` | 온보딩/연결 화면 | `LlmOnboarding`: 버튼 영역을 `flex flex-wrap justify-center gap-2`로 바꾼다(SettingsFooter 선례 — Button 기본 `whitespace-nowrap`이라 fr/es/de 360px에서 넘친다). [무료 AI 연결](outline)을 [API 키 연결](primary) 왼쪽에 두고 `FreeLlmConnectDialog`를 마운트한다. `LlmConnected`: `llm.freeTier`일 때 OpenRouter는 `fetchOpenRouterFreeVisionModels`, Gemini는 `GEMINI_FREE_MODELS`를 쓴다. `loadModels` 의존성에 `llm.freeTier`를 추가한다. |
-| `src/store/settings-ui-store.ts` | `LlmConfig` | `freeTier?: true` 추가. 선택 필드라 persist version bump·migration이 없다(없으면 기존 동작). API 키 난독화 경로는 `apiKey`만 건드리므로 무관하다. |
+| `src/store/settings-ui-store.ts` | `LlmConfig`·persist(v11) | `freeTier?: true` 추가. 이 필드는 선택 필드라 migration이 필요 없다(없으면 기존 동작). API 키 난독화 경로는 `apiKey`만 건드리므로 무관하다. **별도로 v12 migration을 추가한다**: `llm.baseUrl`이 Gemini preset이고 `modelId`가 `gemini-2.0-flash`로 시작하면 `gemini-2.5-flash`로 교체한다(2026-06-01 종료 모델 — 사용자 결정). 2.5-flash는 기존 목록에 있던 검증된 ID다. |
 | `src/background/analytics.ts` | `ALLOWED_EVENTS` | `llm_connect: ["provider", "path", "result"]` 추가. `filterProperties`에서 이 이벤트의 값을 enum으로 검사한다: provider ∈ `LLM_PROVIDER_IDS ∪ {custom}`, path ∈ `{free, byok}`, result ∈ `{success, cancelled, failed}`. 목록 밖 값은 키째 뺀다. 지금은 값이 원문 통과라, 이 이벤트에서는 그게 custom base URL 유출 통로가 된다. |
 | `src/i18n/namespaces/settings.ts` | settings 사전 6로케일 | `llm.free.*` 키 추가(아래 목록). ko·en·fr·es·de·ja 동시 갱신. |
 | `scripts/coverage-report.mjs` | 로직 스코프 판정 | `src/sidepanel/openrouter-auth.ts`를 `BROWSER_BOUND_EXACT`에 추가. |
@@ -59,7 +59,10 @@ llm.free.back                    이전
 llm.free.gemini.keyTitle         AI Studio에서 발급한 키를 붙여넣으세요
 llm.free.gemini.reopen           발급 페이지 다시 열기
 llm.free.gemini.keyHelp          열린 창에서 [API 키 만들기]로 키를 만든 뒤 복사해 붙여넣으세요
-llm.free.openrouter.waiting      OpenRouter 창에서 로그인하고 승인하세요
+llm.free.openrouter.waiting      OpenRouter 창에서 로그인하고 승인하세요. 처음 가입하면 안내가 끝난 뒤 창을 닫고 [다음]을 다시 누르세요
+llm.free.openrouter.signupHint   처음 가입하면 OpenRouter 안내가 끝난 뒤 창을 닫고 [다음]을 다시 누르세요
+llm.free.openrouter.appNameNote  승인 화면에 앱 이름이 "An app", 주소가 chromiumapp.org로 표시됩니다. BugShot이 맞습니다
+llm.free.error.modelUnavailable  이 모델은 지금 쓸 수 없습니다. 다른 모델을 골라 주세요
 llm.free.error.openrouter        OpenRouter 연결에 실패했습니다
 llm.free.error.noFreeVisionModel 지금 쓸 수 있는 무료 이미지 모델이 없습니다. Gemini로 연결해 보세요
 ```
@@ -72,7 +75,7 @@ llm.free.error.noFreeVisionModel 지금 쓸 수 있는 무료 이미지 모델�
 LlmOnboarding ─[무료 AI 연결]→ FreeLlmConnectDialog(step="pick")
   │
   ├─ Gemini 선택 + [다음]
-  │    chrome.windows.create({ url: AI_STUDIO_KEY_URL, type:"popup", width:480, height:720 })
+  │    chrome.windows.create({ url: AI_STUDIO_KEY_URL, type:"popup", width:520, height:760 })  // 위치는 Chrome 기본
   │    step="geminiKey" → 키 입력 → [연결]
   │      connectProvider(GEMINI_BASE_URL, key)          // requestHostPermission → fetchModels(검증)
   │      ├ throw → toast(connectErrorKey(err)), hadError=true, step 유지
@@ -81,7 +84,8 @@ LlmOnboarding ─[무료 AI 연결]→ FreeLlmConnectDialog(step="pick")
   │      → setLlm({ baseUrl, apiKey, modelId, freeTier:true }), connected=true
   │
   └─ OpenRouter 선택 + [다음] (busy=true, attempt = ++attemptRef)
-       launchOpenRouterAuth() → runOpenRouterAuth(deps)
+       issuedKeyRef.current 있으면 → 인가 생략, 곧장 ok(key) 분기로
+       없으면 launchOpenRouterAuth() → runOpenRouterAuth(deps)
          createPkcePair() → buildOpenRouterAuthUrl({ callbackUrl: redirectUrl, challenge, state })
          → deps.launch(url)
          → parseOpenRouterCallback(redirect, state) → code
@@ -89,16 +93,20 @@ LlmOnboarding ─[무료 AI 연결]→ FreeLlmConnectDialog(step="pick")
        (도착 시 attempt !== attemptRef.current 이면 결과 전체 무시)
        ├ cancelled → step 유지, 토스트 없음
        ├ throw     → toast(llm.free.error.openrouter), hadError=true
-       └ ok(key)
+       └ ok(key) → issuedKeyRef.current = key   // 모달 수명 동안만 메모리 보관
            fetchOpenRouterFreeVisionModels(key)    // GET /api/v1/models → pickFreeVisionModels
-           ├ throw → toast(llm.free.error.openrouter), hadError=true, key 폐기
-           ├ []    → toast(noFreeVisionModel), hadError=true, key 폐기
-           └ list  → LlmModelDialog → setLlm({ OPENROUTER_BASE_URL, key, modelId, freeTier:true }), connected=true
+           ├ throw → toast(llm.free.error.openrouter), hadError=true
+           ├ []    → toast(noFreeVisionModel), hadError=true
+           └ list  → LlmModelDialog → [확인](modelId)
+                probeOpenRouterModel(key, modelId)   // POST chat/completions, 고정 텍스트 "ping", max_tokens 16
+                ├ "unavailable"(403·404) → toast(modelUnavailable), hadError=true, 다이얼로그 유지
+                └ "ok" | "transient"(429·5xx·네트워크) → setLlm({ OPENROUTER_BASE_URL, key, modelId, freeTier:true }), connected=true
+           모델 다이얼로그 닫기 → step=pick, issuedKeyRef 유지 → 다시 [다음]은 로그인 없이 목록부터
 
 모달 닫힘(onOpenChange(false)) 시 1회
   trackLlmConnect(lastBaseUrl, "free", connected ? "success" : hadError ? "failed" : "cancelled")
   (아무 카드도 안 고르고 닫으면 provider 생략)
-  ++attemptRef → 진행 중이던 OpenRouter 결과 무효화, 상태 전부 리셋
+  ++attemptRef → 진행 중이던 OpenRouter 결과 무효화, issuedKeyRef = null, 상태 전부 리셋
 
 LlmConnected (llm.freeTier)
   OpenRouter → fetchOpenRouterFreeVisionModels(llm.apiKey)
@@ -143,10 +151,14 @@ export interface ProviderPreset {
 // PROVIDER_PRESETS baseUrl과 정확 일치만 프리셋 ID (getProviderLabel과 같은 규칙 — trailing slash 붙으면 custom).
 export function presetIdOf(baseUrl: string): LlmProviderId | "custom";
 // handleConnect 본문 이동. 실패는 throw(URL 오류·insecure·권한 거부는 각자 Error 서브클래스).
+// apiKey는 진입 시 trim한다 — 검증·저장 모두 trim된 값(BYOK의 공백 섞인 키 실패 결함도 함께 고친다).
+// 호출부가 저장할 키를 알 수 있게 반환형에 trim된 키를 싣는다.
 export class LlmInvalidUrlError extends Error {}
 export class LlmInsecureUrlError extends Error {}
 export class LlmPermissionDeniedError extends Error {}
-export function connectProvider(baseUrl: string, apiKey: string): Promise<ModelEntry[]>;
+export function connectProvider(
+  baseUrl: string, apiKey: string,
+): Promise<{ models: ModelEntry[]; apiKey: string }>;
 // 에러→토스트 키 단일 출처. 두 다이얼로그가 공유한다(llmErrorToast 선례).
 // InvalidUrl→llm.error.invalidUrl, Insecure→insecureUrl, PermissionDenied→permission,
 // LlmRedirectError→redirect, 그 외(LlmAuthError 포함)→fetch. toastLlmError로 바꾸지 않는다.
@@ -190,6 +202,10 @@ export interface OpenRouterAuthDeps {
 export type OpenRouterAuthResult = { status: "ok"; key: string } | { status: "cancelled" };
 // PKCE·state 생성 → launch → reject면 isAuthFlowCancelled로 cancelled/throw → 콜백 파싱 → 교환.
 export function runOpenRouterAuth(deps: OpenRouterAuthDeps): Promise<OpenRouterAuthResult>;
+// 선택 모델 1회 프로브. 사용자 콘텐츠 없이 고정 텍스트만 보낸다.
+// 403·404 → "unavailable"(정책 제한, Task 0: inkling "agentic harnesses only"), 429·5xx·네트워크 오류 → "transient"(통과), 2xx → "ok".
+export type ProbeResult = "ok" | "unavailable" | "transient";
+export function probeOpenRouterModel(apiKey: string, modelId: string, fetchImpl?: typeof fetch): Promise<ProbeResult>;
 
 // src/sidepanel/lib/track-llm.ts
 export type LlmConnectPath = "free" | "byok";
@@ -206,7 +222,8 @@ export function launchOpenRouterAuth(): Promise<OpenRouterAuthResult>;
 `FreeLlmConnectDialog`의 형태는 아래와 같다.
 
 - **props**: `{ open: boolean; onOpenChange(v: boolean): void }`로 `LlmConnectDialog`와 같다.
-- **내부 상태**: `step: "pick" | "geminiKey"`, `selected: FreeLlmPresetId | null`, `apiKey`, `busy`, `pendingModels`, 집계용 `connected`·`hadError`.
+- **내부 상태**: `step: "pick" | "geminiKey"`, `selected: FreeLlmPresetId | null`, `apiKey`, `busy`, `pendingModels`, 집계용 `connected`·`hadError`, 그리고 발급 키 `issuedKeyRef`(ref — 렌더에 안 쓰이고 store·storage에 쓰지 않는다).
+- **OpenRouter 카드 문구**: 모델·한도·프라이버시에 더해 `signupHint`·`appNameNote` 두 줄을 넣는다. 카드가 길어지는 건 위 스크롤 영역으로 흡수한다.
 - **바깥 클릭 차단**: 외부 창을 오가는 모달이라 `DialogContent`에 `onInteractOutside={(e) => e.preventDefault()}`를 건다(JiraConnectForm SetupDialog 선례). 닫기는 X·Esc로만 한다.
 - **닫힐 때**: 상태를 전부 리셋한다.
 - **이전 시도 무효화**: 시도마다 증가하는 `attemptRef`(세대 번호)로 결과를 대조해, 닫힌 뒤 또는 재오픈 뒤 도착한 이전 시도의 결과를 무시한다. boolean `cancelledRef`는 재오픈하면 false로 돌아가서 이전 결과를 통과시킨다(`LlmConnectDialog.tsx:124-129`).
@@ -248,4 +265,7 @@ export function launchOpenRouterAuth(): Promise<OpenRouterAuthResult>;
 - **R4. `launchWebAuthFlow`를 패널 문서에서 호출.** 대기 중에 패널 문서가 사라지면(사용자가 탭을 옮겨 패널이 닫힘) Promise가 버려진다. 발급된 키는 사용자 계정에만 남는다. 손실은 "다시 연결" 한 번이라 수용한다.
 - **R5. 무료 한도 문구의 신선도.** "하루 50회" 같은 수치는 provider 정책이라 바뀔 수 있다. 정적 문구로 두고 privacy·가이드와 같은 출처를 갖게 한다. 바뀌면 i18n 6곳과 문서 2곳을 갱신한다.
 - **R6. `connectProvider` 추출 회귀.** BYOK 연결은 지금 테스트가 없다(`tabs/settings/` 테스트 0개). 추출 전에 에러 분기(invalid URL·insecure·권한 거부·redirect·fetch 실패)를 단위 테스트로 먼저 고정하고, `LlmConnectDialog.test.tsx`를 새로 만든다. 추출하면 `cancelledRef` 중간 체크(`LlmConnectDialog.tsx:168`)가 사라져서, 닫힌 뒤에도 네트워크 요청이 1회 더 나갈 수 있다. 이건 허용한다.
-- **R7. 연결 해제 후에도 OpenRouter 키가 살아 있음.** revoke는 비목표다. 카드 문구·privacy·가이드 3곳에 고지한다.
+- **R7. 연결 해제 후에도 OpenRouter 키가 살아 있음.** revoke는 비목표다. 카드 문구·privacy·가이드 3곳에 고지한다. 같은 모달 안의 재시도는 `issuedKeyRef` 재사용으로 키를 새로 만들지 않는다.
+- **R8. 신규 가입 온보딩이 인가로 돌아오지 않음(Task 0 실측).** 온보딩 마지막 화면이 [Go to Dashboard]뿐이다. 그래서 카드(`signupHint`)와 대기 문구(`waiting`)로 "창을 닫고 [다음]을 다시 누르라"를 안내한다. 창을 닫는 것은 cancelled 경로라 추가 코드가 없다. OpenRouter가 온보딩 흐름을 고치면 문구만 걷어낸다.
+- **R9. 필터를 통과해도 부를 수 없는 모델(Task 0 실측 8개 중 정상 3개).** 403(정책 제한)은 선택 직후 프로브로 거른다. 429(상류 혼잡)는 일시적이라 통과시킨다. 그래서 첫 초안이 429로 실패할 수는 있고, 이건 기존 `llm.error.quota` 토스트가 안내한다. 프로브는 고정 텍스트만 보내므로 privacy의 "모델 목록 조회" 항목과 같은 성격(사용자 콘텐츠 없음)으로 고지한다.
+- **R10. 승인 화면 "An app" 표기.** 앱 이름이 표시되지 않아 사용자가 거부할 수 있다. 카드(`appNameNote`)로 미리 알린다.

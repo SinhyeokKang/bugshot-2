@@ -35,12 +35,14 @@
 
 ### Task 2: `ai-provider` 정리 — 연결 로직 추출 + 모델 표기
 - **변경 대상**: `src/sidepanel/lib/ai-provider.ts`, `src/sidepanel/tabs/settings/LlmConnectDialog.tsx`, `src/store/settings-ui-store.ts`
-- **작업 내용**: `ModelEntry.freeTier`, `LlmConfig.freeTier` 추가. Task 0 결과(T0-2)로 `GEMINI_MODELS` 갱신 + `GEMINI_FREE_MODELS` 상수. `connectProvider`와 에러 클래스 3종, `connectErrorKey` 추출. `handleConnect`를 `connectProvider`·`connectErrorKey` 호출로 교체하고, 모달 닫힘 시 1회 `trackLlmConnect(…, "byok", …)`(prd 목표 7 규칙). `LlmModelDialog` export.
+- **작업 내용**: `ModelEntry.freeTier`, `LlmConfig.freeTier` 추가. Task 0 결과(T0-2)로 `GEMINI_MODELS` 갱신 + `GEMINI_FREE_MODELS` 상수. settings-ui persist v12 migration(`gemini-2.0-flash*` → `gemini-2.5-flash`). `connectProvider` 진입 시 키 trim. `connectProvider`와 에러 클래스 3종, `connectErrorKey` 추출. `handleConnect`를 `connectProvider`·`connectErrorKey` 호출로 교체하고, 모달 닫힘 시 1회 `trackLlmConnect(…, "byok", …)`(prd 목표 7 규칙). `LlmModelDialog` export.
 - **검증**:
   - [ ] **추출 전에** `connectProvider` 테스트 작성(red): invalid URL / insecure http 원격 / 권한 거부 / anthropic ping / gemini → `GEMINI_MODELS` / 그 외 → fetched / redirect → `LlmRedirectError`
   - [ ] `connectErrorKey` 표 테스트: InvalidUrl→invalidUrl, Insecure→insecureUrl, PermissionDenied→permission, Redirect→redirect, 그 외(LlmAuthError 포함)→fetch (toastLlmError로 바꾸지 않는다)
   - [ ] `LlmConnectDialog.test.tsx`(jsdom, 신규): 성공 → 닫힘 시 `trackLlmConnect(baseUrl,"byok","success")` 1회 + `setLlm` 인자에 `freeTier` 키 없음 / redirect → `llm.error.redirect` 토스트 + 닫힘 시 `"failed"` / 아무것도 안 하고 닫기 → `"cancelled"`
   - [ ] `GEMINI_FREE_MODELS.length >= 1` (Gemini 경로엔 0개 차단 규칙이 없다)
+  - [ ] `connectProvider`가 `"  key\n"`를 trim해 검증 요청 헤더와 반환 `apiKey` 모두 `"key"`
+  - [ ] `migrateSettingsUi` v12: Gemini preset + `gemini-2.0-flash`/`gemini-2.0-flash-001`/`gemini-2.0-flash-lite` → `gemini-2.5-flash` / Gemini preset + 다른 모델 불변 / 다른 provider의 같은 문자열 불변 / `llm: null` 불변 / persist `version` 12
   - [ ] `settings-ui-store` 테스트: `freeTier` 포함 config가 persist 왕복(난독화 경로 포함)에서 보존, 없는 기존 데이터는 그대로
 
 ### Task 3: 무료 경로 순수 로직
@@ -55,6 +57,7 @@
   - [ ] `isAuthFlowCancelled`: background `LAUNCH_FLOW_ERRORS` cancelled 행 메시지와 대조
   - [ ] `fetchOpenRouterFreeVisionModels`: Bearer 헤더, `redirect:"manual"`, opaqueredirect → `LlmRedirectError`, `data` 누락 → `[]`
   - [ ] `runOpenRouterAuth`(deps 주입): `"The user did not approve access."` reject → cancelled / `"Authorization page could not be loaded."` → throw / state 불일치 → throw / 정상 → key
+  - [ ] `probeOpenRouterModel`: 200 → ok / 403·404 → unavailable / 429·500·네트워크 reject → transient / 요청 body에 고정 텍스트만(사용자 입력 없음)·`max_tokens` 16·Bearer 헤더
   - [ ] `OPENROUTER_BASE_URL` == `PROVIDER_PRESETS` openrouter baseUrl
 
 ### Task 4: OpenRouter 런처 바인딩 (browser-bound)
@@ -79,7 +82,10 @@
   - [ ] OpenRouter cancelled → 토스트 없음, pick 유지
   - [ ] OpenRouter throw → 토스트, step=pick
   - [ ] OpenRouter 0개 모델 → `noFreeVisionModel` 토스트, `setLlm` 미호출
-  - [ ] OpenRouter 모델 다이얼로그 닫기 → 다시 열었을 때 이전 키 없음
+  - [ ] OpenRouter 모델 다이얼로그 닫기 → 같은 모달에서 다시 [다음] 시 `launchOpenRouterAuth` 미호출·목록 재조회 / 모달 닫고 재오픈 후 [다음] → `launchOpenRouterAuth` 호출(키 폐기 확인)
+  - [ ] 모델 선택 후 프로브 unavailable → `modelUnavailable` 토스트, 다이얼로그 유지, `setLlm` 미호출 / transient → `setLlm` 호출
+  - [ ] OpenRouter 카드에 `signupHint`·`appNameNote`, 대기 중 `role="status"`에 `waiting` 문구
+  - [ ] `chrome.windows.create` 인자 `width:520, height:760`, `left`/`top` 없음
   - [ ] `dblClick([다음])` → `launchOpenRouterAuth` 1회 (ref 동기 가드)
   - [ ] 닫힌 뒤 도착한 결과 무시 + 닫기→재오픈 후 이전 시도 결과가 도착해도 무시(step=pick, pendingModels 없음, setLlm 미호출)
   - [ ] 바깥 클릭으로 닫히지 않음, Esc로 닫힘
@@ -96,7 +102,7 @@
 - **변경 대상**: `docs/privacy.ko.md`·`docs/privacy.en.md`, `docs/PERMISSION.md`, `docs/ARCHITECTURE.md`, `docs/DIRECTORY.md`
 - **작업 내용**:
   - privacy:
-    - ① 외부 전송 표에 OpenRouter 키 발급(`openrouter.ai/auth`, `POST /api/v1/auth/keys` — 인가 code·PKCE verifier만, 캡처 데이터 없음)과 모델 목록 조회 추가
+    - ① 외부 전송 표에 OpenRouter 키 발급(`openrouter.ai/auth`, `POST /api/v1/auth/keys` — 인가 code·PKCE verifier만, 캡처 데이터 없음), 모델 목록 조회, 선택 모델 프로브(고정 텍스트 1회, 사용자 콘텐츠 없음) 추가
     - ② LLM 프로바이더 절(:104)에 무료 티어 고지: Gemini 학습 사용 가능성, OpenRouter 무료 모델 로깅, 해제해도 OpenRouter 키는 계정에 남음
     - ③ 익명 집계 표(:114-118)와 요약 행(:162 "익명 집계 이벤트 (설치·…)")에 `llm_connect` 추가: provider는 프리셋 ID 또는 custom, 경로, 결과. base URL·키·모델 ID는 미전송
     - ④ 시행일
@@ -172,7 +178,8 @@ Task 1과 Task 3은 서로 독립이다. Task 2는 Task 1의 `LlmProviderId`·`p
 - 세 모델 모두 `reasoning` 필드를 동반한다. `max_tokens` 40에서는 content가 비었다. 현행 `LLM_MAX_TOKENS = 4096`이면 충분하지만 reasoning 토큰이 예산을 먹는다는 점은 기록해 둔다.
 - **필터만으로는 "부를 수 있는 모델"이 보장되지 않는다** — 403 계열(정책 제한)과 429 계열(상류 혼잡)이 섞인다. → 설계 반영 필요(R9).
 
-### 설계 반영 대기 항목 (feature-review 결과와 함께 처리)
-- **R8 (신규 가입 함정)**: 모달 OpenRouter 카드나 대기 상태에 "처음 가입하면 OpenRouter 안내가 끝난 뒤 창을 닫고 [다음]을 다시 누르세요" 안내를 둔다. 또는 대기 중 [다시 시도]를 노출한다. 결정 필요.
-- **R9 (호출 불가 모델 섞임)**: 모델 선택 직후 1회 프로브(이미지 없는 짧은 요청)로 403을 걸러낼지 결정 필요(무료 일일 한도 1회 소모). 아니면 목록에 그대로 두고 실패를 기존 에러 토스트에 맡긴다.
-- **인가 화면 "An app" 표기**: 신뢰 저하 요인이라 카드 문구에 "OpenRouter 승인 화면에 'An app'으로 표시됩니다"를 넣을지 결정 필요.
+### 설계 반영 (2026-10-18 사용자 결정 — design R8~R10)
+- R8 신규 가입 함정 → 카드 + 대기 문구 안내
+- R9 호출 불가 모델 → 선택 직후 1회 프로브(403·404만 차단)
+- R10 "An app" 표기 → 카드에 미리 고지
+- 그 밖에 결정: 발급 키는 모달 수명 동안 재사용 / 성공 기준에 수치 없음(관찰만) / 키 trim은 `connectProvider` / `gemini-2.0-flash*` persist migration(v12) / AI Studio 팝업은 520×760, 위치는 Chrome 기본
