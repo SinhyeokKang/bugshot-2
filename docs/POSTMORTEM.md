@@ -36,6 +36,21 @@
 
 ---
 
+## 2026-10-18 — OpenRouter [Deny]는 OAuth `error`가 아니라 파라미터 없는 callback으로 돌아와, 거부가 "연결 실패"로 보였다
+
+- **영역**: `AI`
+- **계열**: `미검증단언`
+- **그물**: `수동`
+- **증상**: (#268, 런타임 검증) 무료 AI 연결에서 OpenRouter 승인 화면의 [Deny]를 누르면 "OpenRouter 연결에 실패했습니다." 토스트가 뜨고 집계가 `failed`로 잡혔다. 사용자 입장에서는 그냥 취소였다.
+- **근본 원인**: 설계가 OAuth 2.0 관례를 그대로 전제했다. 거부하면 `?error=access_denied`가 붙어 온다고 본 것이다(orch D5 — 실측 없이 "error가 있으면 cancelled, code·error 둘 다 없으면 throw"로 정했다). 실측해 보니 OpenRouter는 거부 시 **`code`·`error`·`state`가 하나도 없는 bare `https://<id>.chromiumapp.org/`** 로 리다이렉트한다. 그래서 "malformed" 분기에 떨어져 throw됐다. 단위 테스트는 설계 문면대로 쓰여 green이었다.
+- **재발 방지**:
+  - (1) **외부 provider의 OAuth 거부·취소 응답 형태는 표준을 전제하지 말고 실측한 fixture로 테스트한다.** 실측 전이면 그 분기를 런타임 검증 목록에 "미확인"으로 명시한다(이번엔 D5로 남겨 둔 덕에 잡혔다).
+  - (2) **bare callback(파라미터 0개)은 공격 표면이 아니다.** code가 없으면 교환할 것도 없어서 cancelled로 처리해도 안전하다. 반면 `code`가 있는데 `state`가 없거나 다르면 계속 throw한다 — 이 경계를 테스트로 고정했다.
+  - (3) 새 OAuth 연동을 추가할 때는 Deny·창 닫기·성공 세 가지 리다이렉트를 Task 0 스파이크에서 함께 기록한다.
+- **관련**: `src/sidepanel/lib/free-llm.ts:parseOpenRouterCallback`, `src/sidepanel/lib/__tests__/free-llm.test.ts`
+
+---
+
 ## 2026-10-18 — 다이얼로그를 닫았다 다시 열면 boolean 취소 ref가 false로 돌아가, 이전 시도의 비동기 결과가 새 모달에 적용됐다
 
 - **영역**: `컴포넌트`
