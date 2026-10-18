@@ -146,7 +146,7 @@ describe("본문 빌더 withLocale 래핑 게이트", () => {
     expect(entry.source).toMatch(IMPORTS_WITH_LOCALE);
   });
 
-  // 파일 단위로만 보면 진입점이 2개인 파일(buildIssueMarkdown)에 3번째가 추가되고 안 감싸져도
+  // 파일 단위로만 보면 진입점이 여럿인 파일(buildIssueMarkdown)에 하나가 더 추가되고 안 감싸져도
   // green이다. export된 선언 하나하나가, 그것도 **래퍼 안에서** t()를 쓰는지까지 본다.
   it.each(WRAPPED)("%s — export 진입점의 t()가 전부 래퍼 안에 있다", (file) => {
     const entry = all.find((f) => f.file === file)!;

@@ -6,10 +6,12 @@
  *
  * 수집 경로:
  *  - <style> 블록: ownerNode.textContent (sync)
- *  - <link rel=stylesheet>: fetch(href) (async, CORS 실패 시 skip → CSSOM fallback)
+ *  - <link rel=stylesheet>: same-origin은 fetch(href), cross-origin은 background `css.fetchSheets`
+ *    (SSRF 가드 경유) — 실패 시 skip → CSSOM fallback
  *  - adoptedStyleSheets: 각 룰의 cssText 직렬화 (constructable sheet은 explode 없음)
  *
- * 캐시 정책: 픽커 세션 단위. ensureLoaded는 멱등. invalidate + MutationObserver로 재로드.
+ * 캐시 정책: 픽커 세션 단위. ensureLoaded는 멱등. invalidate + MutationObserver(head의
+ * LINK/STYLE 추가·제거만, 200ms 디바운스)로 재로드.
  */
 
 import { sendBg } from "@/lib/bg-client";

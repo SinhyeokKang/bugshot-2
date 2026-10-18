@@ -3,8 +3,8 @@ import { LOCALES, detectLocale } from "@/i18n/locales";
 import { languageEventProperties } from "@/lib/analytics-language";
 import { APP_SETTINGS_PERSIST_KEY } from "@/lib/session-keys";
 
-// PostHog 익명 이슈 제출 집계. VITE_POSTHOG_KEY는 store 빌드에서만 vite define으로 값이
-// 박힌다(VITE_POSTHOG_KEY_PROD 승격) → dev/일반/e2e 빌드는 키가 비어 no-op. define 치환이라
+// PostHog 익명 이슈 제출 집계. VITE_POSTHOG_KEY 자리에 vite define이 값을 박는다 — store 빌드는
+// VITE_POSTHOG_KEY_PROD, 그 외 빌드는 VITE_POSTHOG_KEY(dev) 값이고, 선택된 키가 비면 no-op. define 치환이라
 // vi.stubEnv가 안 먹히므로 게이팅·전송 로직은 키·host를 인자로 받는 순수/주입 함수로 분리해 테스트한다.
 
 export interface PosthogCaptureBody {
