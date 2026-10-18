@@ -48,11 +48,37 @@
 - C 1차 중단(정당): 프로브 대기 중 모델 재선택 시 이전 모델이 저장되는 경합 — 공유 `LlmModelDialog`(A 소유)에 busy 입력이 없다. **D7**: A 워크트리 제거 후라 `LlmModelDialog`의 `busy?: boolean` 추가를 C에 이관(BYOK 동작 불변 + 기존 테스트 green 조건). `e2e/` 내 커버리지 문서도 C 허용, `docs/CI.md`는 지휘자. 재개 브리프 `brief-C-resume1.md`.
 - C 1차 인계: `84f75560`·`a520cda5`·`69524280`·`e74b9564`·`42123bc1`·`d2d60ab4`(e2e 6개 2회 연속 green). Opus 리뷰 🔴0 🟡4 ⚪7 → 수정 라운드 1(`brief-C-fix1.md`): ja 피싱 경계 문구 의미 교정, `guide/AUTHORING.md` 사실 스냅샷(**D8**: C에 이관), 좁은 화면(360×600·de) e2e를 (b)에서 테스트로 이동, BYOK effect 테스트, status live region·닫힘 애니메이션 리셋·hover·privacy 프로브 문구·jsdom 분기 보강. 남긴 ⚪: 닫힘 후 진입 버튼 포커스 미복귀(BYOK와 동일, 회귀 아님, POSTMORTEM 2026-10-04 계열).
 - 지휘자 문서: `38992574` CI.md e2e 88 spec/429, `b28f05c9` ARCHITECTURE busy 잠금.
+- **C 통합 완료**: C 수정 라운드 1 6커밋 포함 12커밋 cherry-pick(`cef2cb66..3d6cc0df`). 통합 게이트 `typecheck=0 test=0 sync=0`(471 파일·9137 통과·2 skip). CI.md e2e 88 spec/430.
+- `/postmortem` 3건(`48680978`): 세대 번호 가드 · 종료된 Gemini 모델 드리프트 · Radix dismiss 지연 리스너 거짓 green. 키 trim은 자명해 제외, `pendingUrl`은 `e2e/GOTCHAS.md`에 이미 기록.
+- `/push`: README en/ko·CLAUDE.md·AGENTS 미러 커밋 후 dev push `10d99f19..e3d468f2`. **CI run 39092898961 (HEAD `e3d468f2`) success** — verify·e2e 1~4·e2e-gate 전부 success. 로컬 HEAD == origin/dev.
 - postmortem 후보(A 인계): BYOK `LlmConnectDialog`의 boolean `cancelledRef`가 재오픈 시 이전 비동기 결과를 통과시키던 기존 결함 — 세대 번호 + 지연 응답 테스트로 고정. 통합 마무리 때 `/postmortem`.
 - B 1차 인계: `2f3e56f5`·`b4a0bf9f`. Opus 리뷰 🔴0 🟡3 → 🟡1·2·⚪3건을 수정 라운드 1로 반환, 🟡3(런처 바인딩 e2e — `launchWebAuthFlow` 스텁 + `context.route`)은 C 브리프로 이관.
 - A 1차 인계: `9183c474`·`efe3426e`. Opus 리뷰 🔴0 🟡2 → 🟡1(입력 유지 테스트)·⚪2건을 수정 라운드 1로 반환. 🟡2(privacy가 `llm_connect` 미반영)는 순서 조건 — C의 privacy 갱신 전 원격 push 금지(이 파이프라인은 C 통합 후 1회 push라 자연 충족). design.md 잔존 불일치(변경 범위 표 `Promise<ModelEntry[]>`, track-llm `provider` required)는 구현 완료 후 삭제할 기획 문서라 정정 생략.
 - **merge 전 필수 권고**: Gemini 3.x 모델 ID 실호출(D4)은 무료 경로가 아니라 **기존 BYOK Gemini 사용자에게 바로 노출**된다(A 리뷰). 런타임 검증 #1을 `/merge` 전 필수로 사용자에게 보고한다.
 - 2026-10-18 A·B 착수. 워크트리 `~/orca/workspaces/bugshot-2/afc-batch-{A,B}`(브랜치 `SinhyeokKang/afc-batch-{A,B}`, base `17c727e6`), Codex `gpt-6-astra` high. 브리프 `.scratch/ai-free-connect/brief-{common,A,B}.md`(main 체크아웃, git 제외).
+
+## 런타임 검증 결과 (2026-10-18, dev 빌드 1.7.57)
+
+ego가 에이전트의 확장 설치를 막아서(사용자 고지) **Playwright headed Chromium + `--load-extension=dist`**(e2e와 같은 방식, 별도 프로필, CDP 9333)로 우회했다. OpenRouter 로그인은 사용자 부재 + 새 프로필이라 불가 → **확장이 만든 실제 인가 URL(state·challenge)을 로그인된 ego에서 열어 승인하고, 받은 일회용 code를 Playwright 인증 창의 callback으로 전달**했다. `launchWebAuthFlow`가 가로채 확장 자신의 verifier로 교환한다. 비밀번호·쿠키는 옮기지 않았다.
+
+| 항목 | 결과 |
+|---|---|
+| 온보딩 버튼 2개·모달 라이트/다크·카드 스크롤 | ✅ (스크린샷 `scratchpad/rt-shots/01~06`) |
+| Gemini 팝업 520×760·키 입력 단계 | ✅ (처음 1400×900은 런처의 `--window-size` 탓 — 제거 후 정상) |
+| OpenRouter 실 인가 → 키 교환 → `:free`+image 8개 목록 → 프로브 `ping` → 저장(`freeTier:true`·키 난독화·v12) | ✅ |
+| 프로브 403(`inkling:free`) → `modelUnavailable` 토스트·다이얼로그 유지 | ✅ |
+| 같은 모달 재[다음] → 인가 생략(발급 키 재사용) | ✅ |
+| 실 AI 초안(무료 vision 모델, `image_url` 2개, 200, 스크린샷 내용 반영) | ✅ |
+| `llm_connect` payload: 카드 미선택 닫기 `{path:free,result:cancelled}`(provider 생략) / 성공 `{provider:openrouter,path:free,result:success}` | ✅ (panel `sendMessage` 가로채기) |
+| R4 대기 중 패널 소멸 → 재열기 재시도 | ✅ 동작. ⚪ 이전 인증 창이 고아로 남는다(창 2개) — 수용, 기록만 |
+| **[Deny]** | ❌ **#268** — 파라미터 없는 bare callback이 온다 → 실패 토스트. D5 해소: `error` 파라미터가 아니다 |
+| OpenRouter 대기 문구 | ❌ **#269** — 스크롤 영역 끝에 렌더돼 400×760에서 안 보임. ⚪ Gemini 키 placeholder `sk-...` |
+| Gemini 무료 키 실호출(모델 ID·이미지) | ⏸ 미검증 — 키 없음. **merge 전 필수 권고 유지** |
+| 인증 창 안 Google SSO 가입 완주 | ⏸ 미검증 — 사용자 부재 |
+| PostHog 실수신 | ⏸ 미검증 — dev 빌드 PostHog 키 없음(no-op). payload까지만 확인 |
+| 가이드 신규 컷(`/guide-shots`) | ⏸ 미수행 |
+
+테스트용 OpenRouter 키 2개(`OAuth: BugShot`)는 검증 후 삭제했다.
 
 ## 런타임 검증 목록 (e2e가 원리적으로 못 보는 축)
 
