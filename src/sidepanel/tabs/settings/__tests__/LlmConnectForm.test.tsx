@@ -44,6 +44,20 @@ describe("LLM onboarding and free model selection", () => {
     expect(fetchModels).not.toHaveBeenCalled();
     expect(screen.getByRole("combobox").textContent).toContain("saved:free");
   });
+  it("loads BYOK models once and does not retry automatically after a failed refresh", async () => {
+    useSettingsUiStore.setState({ llm: { baseUrl: PROVIDER_PRESETS.find((p) => p.id === "openai")!.baseUrl, apiKey: "key", modelId: "saved" } });
+    const user = userEvent.setup();
+    render(<LlmConnectForm />);
+    const refresh = screen.getByRole("button", { name: "llm.model.refresh" });
+    await waitFor(() => expect(refresh.getAttribute("aria-disabled")).toBe("false"));
+    expect(fetchModels).toHaveBeenCalledTimes(1);
+    vi.mocked(fetchModels).mockRejectedValue(new Error("offline"));
+    await user.click(refresh);
+    await waitFor(() => expect(refresh.getAttribute("aria-disabled")).toBe("false"));
+    expect(fetchModels).toHaveBeenCalledTimes(2);
+    expect(fetchOpenRouterFreeVisionModels).not.toHaveBeenCalled();
+    expect(screen.getByRole("combobox").textContent).toContain("saved");
+  });
   it.each([false, true])("offers the correct Gemini list for freeTier=%s", async (freeTier) => {
     useSettingsUiStore.setState({ llm: { baseUrl: PROVIDER_PRESETS.find((p) => p.id === "gemini")!.baseUrl, apiKey: "key", modelId: "saved", ...(freeTier ? { freeTier: true as const } : {}) } });
     const user = userEvent.setup();

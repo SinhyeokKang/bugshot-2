@@ -128,17 +128,21 @@ describe("free connection session", () => {
     expect(trackLlmConnect).toHaveBeenCalledTimes(1);
     expect(trackLlmConnect).toHaveBeenCalledWith(geminiUrl, "free", "success");
   });
-  it.each(["cancelled", "error", "empty"])("handles OpenRouter %s without storing a connection", async (outcome) => {
+  it.each(["cancelled", "error", "empty", "models-error"])("handles OpenRouter %s without storing a connection", async (outcome) => {
     if (outcome === "cancelled") vi.mocked(launchOpenRouterAuth).mockResolvedValue({ status: "cancelled" });
     if (outcome === "error") vi.mocked(launchOpenRouterAuth).mockRejectedValue(new Error("offline"));
     if (outcome === "empty") vi.mocked(fetchOpenRouterFreeVisionModels).mockResolvedValue([]);
+    if (outcome === "models-error") vi.mocked(fetchOpenRouterFreeVisionModels).mockRejectedValue(new Error("offline"));
     const user = setup();
     await choose(user, "openrouter");
     if (outcome === "cancelled") expect(toast.error).not.toHaveBeenCalled();
-    else expect(toast.error).toHaveBeenCalledWith(outcome === "error" ? "llm.free.error.openrouter" : "llm.free.error.noFreeVisionModel");
+    else expect(toast.error).toHaveBeenCalledWith(outcome === "empty" ? "llm.free.error.noFreeVisionModel" : "llm.free.error.openrouter");
     expect(screen.getByTestId("free-llm-next")).toBeTruthy();
     expect(screen.queryByRole("dialog", { name: "llm.model.select" })).toBeNull();
     expect(useSettingsUiStore.getState().llm).toBeNull();
+    await user.keyboard("{Escape}");
+    expect(trackLlmConnect).toHaveBeenCalledTimes(1);
+    expect(trackLlmConnect).toHaveBeenCalledWith(OPENROUTER_BASE_URL, "free", outcome === "cancelled" ? "cancelled" : "failed");
   });
   it("reuses the issued key only until the outer dialog closes", async () => {
     const user = setup();
@@ -186,6 +190,37 @@ describe("free connection session", () => {
     expect(probeOpenRouterModel).toHaveBeenCalledTimes(1);
     await act(async () => pending.resolve("ok"));
     expect(useSettingsUiStore.getState().llm?.modelId).toBe("vision:free");
+  });
+  it("keeps a stable live region and does not announce authorization when reusing a key", async () => {
+    const auth = deferred<Awaited<ReturnType<typeof launchOpenRouterAuth>>>();
+    vi.mocked(launchOpenRouterAuth).mockReturnValueOnce(auth.promise);
+    const user = setup();
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("");
+    await choose(user, "openrouter");
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status.textContent).toBe("llm.free.openrouter.waiting");
+    await act(async () => auth.resolve({ status: "ok", key: "issued-key" }));
+    await closeModel(user);
+    const models = deferred<{ id: string }[]>();
+    vi.mocked(fetchOpenRouterFreeVisionModels).mockReturnValueOnce(models.promise);
+    await user.click(screen.getByTestId("free-llm-next"));
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status.textContent).toBe("");
+    expect(launchOpenRouterAuth).toHaveBeenCalledTimes(1);
+    await act(async () => models.resolve([{ id: "vision:free" }]));
+  });
+  it("starts a fresh card selection and clears the key when reopened", async () => {
+    const user = setup();
+    await choose(user);
+    await user.type(screen.getByTestId("free-llm-gemini-key"), "old-key");
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByText("reopen"));
+    expect((screen.getByTestId("free-llm-next") as HTMLButtonElement).disabled).toBe(true);
+    await choose(user);
+    expect((screen.getByTestId("free-llm-gemini-key") as HTMLInputElement).value).toBe("");
+    expect(trackLlmConnect).toHaveBeenCalledTimes(1);
+    expect(trackLlmConnect).toHaveBeenCalledWith(geminiUrl, "free", "cancelled");
   });
   it("guards double clicks synchronously and shows the waiting status", async () => {
     const pending = deferred<Awaited<ReturnType<typeof launchOpenRouterAuth>>>();

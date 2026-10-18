@@ -132,7 +132,7 @@ describe("BYOK connection session", () => {
   });
 });
 
- it("keeps the model picker interactive when busy is omitted", async () => {
+it("keeps the model picker interactive when busy is omitted", async () => {
   const user = userEvent.setup();
   const onSelect = vi.fn();
   render(<LlmModelDialog pending={{ baseUrl, models: [{ id: "test-model" }] }} onSelect={onSelect} onClose={vi.fn()} />);

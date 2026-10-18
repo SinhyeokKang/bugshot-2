@@ -44,17 +44,18 @@ export function FreeLlmConnectDialog({ open, onOpenChange }: {
     issuedKeyRef.current = null;
     busyRef.current = false;
     trackLlmConnect(session.baseUrl, "free", result ?? (session.hadError ? "failed" : "cancelled"));
-    setStep("pick");
-    setSelected(null);
-    setApiKey("");
     setBusy(false);
     setPendingModels(null);
     focusCardRef.current = false;
   }
 
   useEffect(() => {
-    if (open) sessionRef.current = { active: true, baseUrl: "", hadError: false };
-    else finishSession();
+    if (open) {
+      sessionRef.current = { active: true, baseUrl: "", hadError: false };
+      setStep("pick");
+      setSelected(null);
+      setApiKey("");
+    } else finishSession();
     return () => { ++attemptRef.current; issuedKeyRef.current = null; };
   }, [open]);
 
@@ -186,7 +187,7 @@ export function FreeLlmConnectDialog({ open, onOpenChange }: {
                     aria-labelledby={`${id}-${preset.id}-title`}
                     aria-describedby={`${id}-${preset.id}-description`}
                     aria-disabled={busy}
-                    className="h-auto w-full flex-col items-start gap-2 whitespace-normal rounded-xl p-4 text-left font-normal text-foreground hover:bg-background data-[state=on]:border-primary data-[state=on]:bg-background data-[state=on]:ring-1 data-[state=on]:ring-primary aria-disabled:cursor-not-allowed"
+                    className="h-auto w-full flex-col items-start gap-2 whitespace-normal rounded-xl p-4 text-left font-normal text-foreground hover:bg-background hover:border-primary/50 data-[state=on]:border-primary data-[state=on]:bg-background data-[state=on]:ring-1 data-[state=on]:ring-primary aria-disabled:cursor-not-allowed"
                   >
                     <span id={`${id}-${preset.id}-title`} className="text-sm font-medium">{t(`llm.free.${preset.id}.title`)}</span>
                     <span id={`${id}-${preset.id}-description`} className="flex flex-col gap-2 text-sm text-foreground/80">
@@ -213,7 +214,9 @@ export function FreeLlmConnectDialog({ open, onOpenChange }: {
                 </Button>
               </div>
             )}
-            {busy && selected === "openrouter" && !pendingModels && <p role="status" className="mt-3 text-sm text-muted-foreground">{t("llm.free.openrouter.waiting")}</p>}
+            <p role="status" className="mt-3 text-sm text-muted-foreground">
+              {busy && selected === "openrouter" && !pendingModels && !issuedKeyRef.current ? t("llm.free.openrouter.waiting") : ""}
+            </p>
           </div>
           <DialogFooter className="shrink-0 flex-row flex-wrap justify-end">
             {step === "geminiKey" && <Button variant="outline" data-testid="free-llm-back" onClick={() => {

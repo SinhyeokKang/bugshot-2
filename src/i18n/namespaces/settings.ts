@@ -673,7 +673,7 @@ const ja = {
   "llm.free.gemini.keyHelp": "開いたウィンドウでAPIキーを作成し、コピーしてここに貼り付けてください。",
   "llm.free.openrouter.waiting": "OpenRouterのウィンドウでログインして承認してください。新規登録の場合は案内を完了し、ウィンドウを閉じてもう一度「次へ」を押してください。",
   "llm.free.openrouter.signupHint": "新規登録の場合はOpenRouterの案内を完了し、ウィンドウを閉じてもう一度「次へ」を押してください。",
-  "llm.free.openrouter.appNameNote": "承認画面にはアプリ名が「An app」、アドレスがchromiumapp.orgと表示されます。BugShotの画面です。",
+  "llm.free.openrouter.appNameNote": "承認画面にはアプリ名が「An app」、アドレスがchromiumapp.orgと表示されます。このアプリはBugShotです。",
   "llm.free.error.modelUnavailable": "このモデルは現在利用できません。別のモデルを選んでください。",
   "llm.free.error.openrouter": "OpenRouterに接続できませんでした。",
   "llm.free.error.noFreeVisionModel": "現在利用できる無料の画像モデルがありません。Geminiでの接続をお試しください。",
