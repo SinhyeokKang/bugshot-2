@@ -43,10 +43,16 @@
 
 (배치별 라운드·통합 해시·검증 결과를 여기에 누적)
 
+- B 1차 인계: `2f3e56f5`·`b4a0bf9f`. Opus 리뷰 🔴0 🟡3 → 🟡1·2·⚪3건을 수정 라운드 1로 반환, 🟡3(런처 바인딩 e2e — `launchWebAuthFlow` 스텁 + `context.route`)은 C 브리프로 이관.
+- A 1차 인계: `9183c474`·`efe3426e`. Opus 리뷰 🔴0 🟡2 → 🟡1(입력 유지 테스트)·⚪2건을 수정 라운드 1로 반환. 🟡2(privacy가 `llm_connect` 미반영)는 순서 조건 — C의 privacy 갱신 전 원격 push 금지(이 파이프라인은 C 통합 후 1회 push라 자연 충족). design.md 잔존 불일치(변경 범위 표 `Promise<ModelEntry[]>`, track-llm `provider` required)는 구현 완료 후 삭제할 기획 문서라 정정 생략.
+- **merge 전 필수 권고**: Gemini 3.x 모델 ID 실호출(D4)은 무료 경로가 아니라 **기존 BYOK Gemini 사용자에게 바로 노출**된다(A 리뷰). 런타임 검증 #1을 `/merge` 전 필수로 사용자에게 보고한다.
+- 2026-10-18 A·B 착수. 워크트리 `~/orca/workspaces/bugshot-2/afc-batch-{A,B}`(브랜치 `SinhyeokKang/afc-batch-{A,B}`, base `17c727e6`), Codex `gpt-6-astra` high. 브리프 `.scratch/ai-free-connect/brief-{common,A,B}.md`(main 체크아웃, git 제외).
+
 ## 런타임 검증 목록 (e2e가 원리적으로 못 보는 축)
 
 - Gemini 무료 키 실호출: `/models` ID 표기와 이미지 chat (D4)
-- OpenRouter 실 OAuth: 신규 가입(인증 창 안 Google SSO 포함)·기존 계정·[거부]·창 닫기 (D5)
+- OpenRouter 실 OAuth: 신규 가입(인증 창 안 Google SSO 포함)·기존 계정·[거부]·창 닫기 (D5). [거부]의 실제 `error` 값을 실측한 뒤 "error 파라미터면 무조건 cancelled"를 `access_denied`로 좁힐지 판단(B 리뷰 — `server_error`가 무음 cancelled로 집계될 수 있음)
+- 패널 문서 소멸(대기 중 패널 닫힘) 후 재시도 (R4)
 - 무료 vision 모델로 실 AI 초안 생성(스크린샷 포함)
 - PostHog `llm_connect` 도착·props 3개
 - (배치 인계 문서의 (b) 항목을 여기 합친다)
