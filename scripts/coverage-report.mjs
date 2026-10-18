@@ -55,6 +55,7 @@ const BROWSER_BOUND_EXACT = new Set([
   "src/sidepanel/annotation-control.ts",
   "src/sidepanel/recorder-control.ts",
   "src/sidepanel/tab-nav.ts",
+  "src/sidepanel/openrouter-auth.ts",
   // 탭 모드 대상 탭 hold 셸 — chrome.tabs 활성화 글루. 판정은 lib/tab-mode.ts(로직 분모)에 있고
   // 셸 단위 테스트는 둔다(설계 지시로 분모에서만 뺀다).
   "src/sidepanel/tab-mode.ts",

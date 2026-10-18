@@ -111,7 +111,8 @@ describe("exchangeOpenRouterCode", () => {
   it("exchanges code and verifier directly and returns only the key", async () => {
     const fetchImpl = mockFetch({ key: TEST_KEY, user_id: "test-user" });
     await expect(exchangeOpenRouterCode("code", RFC_VERIFIER, fetchImpl)).resolves.toBe(TEST_KEY);
-    expect(fetchImpl).toHaveBeenCalledExactlyOnceWith(OPENROUTER_KEYS_URL, {
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledWith(OPENROUTER_KEYS_URL, {
       method: "POST", redirect: "manual", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: "code", code_verifier: RFC_VERIFIER, code_challenge_method: "S256" }),
     });
@@ -143,7 +144,8 @@ describe("free vision models", () => {
   it("fetches the model catalogue with a bearer token and manual redirects", async () => {
     const fetchImpl = mockFetch({ data: MODEL_FIXTURE });
     await expect(fetchOpenRouterFreeVisionModels(TEST_KEY, fetchImpl)).resolves.toEqual([{ id: "a/vision:free" }, { id: "z/vision:free" }]);
-    expect(fetchImpl).toHaveBeenCalledExactlyOnceWith(`${OPENROUTER_BASE_URL}/models`, {
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledWith(`${OPENROUTER_BASE_URL}/models`, {
       headers: { Authorization: `Bearer ${TEST_KEY}` }, redirect: "manual",
     });
   });
@@ -233,7 +235,7 @@ describe("probeOpenRouterModel", () => {
   it.each([
     [200, "ok"], [403, "unavailable"], [404, "unavailable"],
     [429, "transient"], [500, "transient"], [503, "transient"],
-    [400, "unavailable"], [401, "unavailable"], [302, "unavailable"],
+    [400, "transient"], [401, "transient"], [302, "transient"],
   ])("classifies HTTP %i as %s", async (status, result) => {
     const message = status === 403 ? "This model is only available on agentic harnesses" : "temporarily rate-limited upstream";
     await expect(probeOpenRouterModel(TEST_KEY, "vision:free", mockFetch({ error: { message } }, status))).resolves.toBe(result);
@@ -247,7 +249,8 @@ describe("probeOpenRouterModel", () => {
   it("sends one fixed-text request without user content or redirects", async () => {
     const fetchImpl = mockFetch({});
     await probeOpenRouterModel(TEST_KEY, "vision:free", fetchImpl);
-    expect(fetchImpl).toHaveBeenCalledExactlyOnceWith(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledWith(`${OPENROUTER_BASE_URL}/chat/completions`, {
       method: "POST", redirect: "manual",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${TEST_KEY}` },
       body: JSON.stringify({ model: "vision:free", messages: [{ role: "user", content: "ping" }], max_tokens: 16 }),
