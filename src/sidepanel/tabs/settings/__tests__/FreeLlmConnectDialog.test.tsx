@@ -94,8 +94,8 @@ describe("free connection session", () => {
       for (const cls of ["size-10", "bg-muted", "rounded-sm"]) expect(tile.classList.contains(cls)).toBe(true);
       expect(tile.querySelector("svg")).toBeTruthy();
     }
-    expect(within(screen.getByTestId("free-llm-icon-openrouter")).getByRole("img", { hidden: true }).getAttribute("class")).toContain("dark:invert");
-    expect(within(screen.getByTestId("free-llm-icon-gemini")).getByRole("img", { hidden: true }).getAttribute("class") ?? "").not.toContain("dark:invert");
+    expect(screen.getByTestId("free-llm-icon-openrouter").querySelector("svg")!.getAttribute("class")).toContain("dark:invert");
+    expect(screen.getByTestId("free-llm-icon-gemini").querySelector("svg")!.getAttribute("class") ?? "").not.toContain("dark:invert");
   });
   it.each([false, true])("opens a Chrome-positioned popup and focuses the key even if popup rejection=%s", async (reject) => {
     if (reject) createWindow.mockRejectedValue(new Error("popup blocked"));
