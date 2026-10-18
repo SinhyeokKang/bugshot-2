@@ -206,7 +206,7 @@ export function FreeLlmConnectDialog({ open, onOpenChange }: {
               <div className="flex flex-col gap-3">
                 <FieldRow label={t("llm.apiKey")} htmlFor={`${id}-key`}>
                   <Input id={`${id}-key`} data-testid="free-llm-gemini-key" type="password" autoFocus
-                    placeholder={t("llm.apiKeyPlaceholder")} value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
+                    placeholder={t("llm.free.gemini.keyPlaceholder")} value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
                   <p className="text-sm text-muted-foreground">{t("llm.free.gemini.keyHelp")}</p>
                 </FieldRow>
                 <Button variant="outline" data-testid="free-llm-reopen" className="h-auto min-h-9 whitespace-normal" onClick={openKeyPage}>
@@ -214,10 +214,10 @@ export function FreeLlmConnectDialog({ open, onOpenChange }: {
                 </Button>
               </div>
             )}
-            <p role="status" className="mt-3 text-sm text-muted-foreground">
-              {busy && selected === "openrouter" && !pendingModels && !issuedKeyRef.current ? t("llm.free.openrouter.waiting") : ""}
-            </p>
           </div>
+          <p role="status" className="shrink-0 text-sm text-muted-foreground">
+            {busy && selected === "openrouter" && !pendingModels && !issuedKeyRef.current ? t("llm.free.openrouter.waiting") : ""}
+          </p>
           <DialogFooter className="shrink-0 flex-row flex-wrap justify-end">
             {step === "geminiKey" && <Button variant="outline" data-testid="free-llm-back" onClick={() => {
               ++attemptRef.current;
