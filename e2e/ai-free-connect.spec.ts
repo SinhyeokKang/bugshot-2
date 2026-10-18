@@ -1,6 +1,6 @@
 import type { Page, Request } from "@playwright/test";
 import { expect, test, type ExtContext } from "./fixtures/extension";
-import { openSettings } from "./fixtures/settings";
+import { openSettings, setScreenLocale } from "./fixtures/settings";
 
 const SETTINGS_KEY = "bugshot-app-settings";
 const STUDIO = "https://aistudio.google.com/**";
@@ -90,6 +90,45 @@ test.describe.serial("free AI connection", () => {
     const byokBox = await byok.boundingBox();
     expect(freeBox!.x).toBeLessThan(byokBox!.x);
     expect(Math.abs(freeBox!.y - byokBox!.y)).toBeLessThan(1);
+  });
+
+  test("keeps German cards scrollable and Next reachable at 360 by 600", async () => {
+    const originalViewport = panel.viewportSize()!;
+    await panel.setViewportSize({ width: 360, height: 600 });
+    try {
+      await setScreenLocale(panel, "Deutsch");
+      await openSettings(panel, "ai");
+      await panel.getByTestId("llm-connect-free").click();
+      const dialog = panel.getByTestId("free-llm-dialog");
+      await expect(dialog).toBeVisible();
+      const next = panel.getByTestId("free-llm-next");
+      await expect(async () => {
+        const box = await next.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box!.x).toBeGreaterThanOrEqual(0);
+        expect(box!.y).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(360);
+        expect(box!.y + box!.height).toBeLessThanOrEqual(600);
+      }).toPass();
+      const scroll = dialog.getByRole("radiogroup").locator("..");
+      expect(await scroll.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+      await scroll.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+      await expect.poll(() => scroll.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+      const lastCard = panel.getByTestId("free-llm-card-openrouter");
+      const cardBox = await lastCard.boundingBox();
+      const scrollBox = await scroll.boundingBox();
+      expect(cardBox!.y + cardBox!.height).toBeLessThanOrEqual(scrollBox!.y + scrollBox!.height + 1);
+      expect(cardBox!.y + cardBox!.height).toBeGreaterThan(scrollBox!.y);
+      await lastCard.click();
+      await expect(lastCard).toHaveAttribute("aria-checked", "true");
+      expect(await panel.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await panel.keyboard.press("Escape");
+      await expect(dialog).toHaveCount(0);
+    } finally {
+      await panel.setViewportSize(originalViewport);
+      await setScreenLocale(panel, "English");
+      await openSettings(panel, "ai");
+    }
   });
 
   test("requires choosing one of two provider cards", async () => {
