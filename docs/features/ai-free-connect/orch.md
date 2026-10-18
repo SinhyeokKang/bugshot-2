@@ -45,6 +45,9 @@
 
 - **A·B 통합 완료** (dev `5c8cc717..45ea252e`): B 3커밋(`5c8cc717`·`bf6a05b6`·`2356ed52`) + A 3커밋(`e67a1ee2`·`a4c2f935`·`45ea252e`). 수정 라운드 1회씩 — fix 커밋은 🔴0 배치의 테스트 보강·한 줄 변경이라 재리뷰 생략, 지휘자가 diff로 지적 반영 확인. 통합 게이트 `typecheck=0 test=0 sync=0`(469 파일·9108 통과·2 skip). 원격 push는 C 통합 후 1회(A 리뷰 🟡2 순서 조건). A 워크트리 제거(인계 사본 `.scratch/ai-free-connect/handoff-A.md`), B는 후속 결함 대비 유지.
 - **C 착수**: 워크트리 `afc-batch-C`(base `45ea252e`), Codex astra high, 브리프 `brief-C.md`(B 리뷰 🟡3 e2e 포함).
+- C 1차 중단(정당): 프로브 대기 중 모델 재선택 시 이전 모델이 저장되는 경합 — 공유 `LlmModelDialog`(A 소유)에 busy 입력이 없다. **D7**: A 워크트리 제거 후라 `LlmModelDialog`의 `busy?: boolean` 추가를 C에 이관(BYOK 동작 불변 + 기존 테스트 green 조건). `e2e/` 내 커버리지 문서도 C 허용, `docs/CI.md`는 지휘자. 재개 브리프 `brief-C-resume1.md`.
+- C 1차 인계: `84f75560`·`a520cda5`·`69524280`·`e74b9564`·`42123bc1`·`d2d60ab4`(e2e 6개 2회 연속 green). Opus 리뷰 🔴0 🟡4 ⚪7 → 수정 라운드 1(`brief-C-fix1.md`): ja 피싱 경계 문구 의미 교정, `guide/AUTHORING.md` 사실 스냅샷(**D8**: C에 이관), 좁은 화면(360×600·de) e2e를 (b)에서 테스트로 이동, BYOK effect 테스트, status live region·닫힘 애니메이션 리셋·hover·privacy 프로브 문구·jsdom 분기 보강. 남긴 ⚪: 닫힘 후 진입 버튼 포커스 미복귀(BYOK와 동일, 회귀 아님, POSTMORTEM 2026-10-04 계열).
+- 지휘자 문서: `38992574` CI.md e2e 88 spec/429, `b28f05c9` ARCHITECTURE busy 잠금.
 - postmortem 후보(A 인계): BYOK `LlmConnectDialog`의 boolean `cancelledRef`가 재오픈 시 이전 비동기 결과를 통과시키던 기존 결함 — 세대 번호 + 지연 응답 테스트로 고정. 통합 마무리 때 `/postmortem`.
 - B 1차 인계: `2f3e56f5`·`b4a0bf9f`. Opus 리뷰 🔴0 🟡3 → 🟡1·2·⚪3건을 수정 라운드 1로 반환, 🟡3(런처 바인딩 e2e — `launchWebAuthFlow` 스텁 + `context.route`)은 C 브리프로 이관.
 - A 1차 인계: `9183c474`·`efe3426e`. Opus 리뷰 🔴0 🟡2 → 🟡1(입력 유지 테스트)·⚪2건을 수정 라운드 1로 반환. 🟡2(privacy가 `llm_connect` 미반영)는 순서 조건 — C의 privacy 갱신 전 원격 push 금지(이 파이프라인은 C 통합 후 1회 push라 자연 충족). design.md 잔존 불일치(변경 범위 표 `Promise<ModelEntry[]>`, track-llm `provider` required)는 구현 완료 후 삭제할 기획 문서라 정정 생략.
