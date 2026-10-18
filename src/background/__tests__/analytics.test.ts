@@ -369,3 +369,29 @@ describe("resolveInstallationId", () => {
     expect(created).toBe(true);
   });
 });
+
+
+describe("llm_connect property guards", () => {
+  it("allows only the three declared properties", () => {
+    expect(isAllowedEvent("llm_connect")).toBe(true);
+    expect(filterProperties("llm_connect", {
+      provider: "custom", path: "byok", result: "success",
+      baseUrl: "https://private.example", apiKey: "secret", modelId: "internal",
+    })).toEqual({ provider: "custom", path: "byok", result: "success" });
+  });
+  it.each(["https://private.example", "arbitrary", "constructor"])("drops an invalid provider: %s", (provider) => {
+    expect(filterProperties("llm_connect", { provider, path: "free", result: "cancelled" }))
+      .toEqual({ path: "free", result: "cancelled" });
+  });
+  it("drops invalid path and result enums", () => {
+    expect(filterProperties("llm_connect", { provider: "gemini", path: "secret", result: "failure" }))
+      .toEqual({ provider: "gemini" });
+  });
+  it("preserves issue submission failure", () => {
+    expect(filterProperties("issue_submitted", { result: "failure" })).toEqual({ result: "failure" });
+  });
+  it("preserves platform cancellation and its reason", () => {
+    const props = { result: "cancelled", reason: "cancelled_window" };
+    expect(filterProperties("platform_connect", props)).toEqual(props);
+  });
+});

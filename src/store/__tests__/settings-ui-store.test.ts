@@ -423,8 +423,8 @@ describe("settings-ui-store", () => {
   // 이슈 본문 언어(bodyLocale)는 화면 언어와 독립된 세 번째 축이다. 기본값 auto는
   // 화면 언어를 따라가므로 기존 사용자의 출력이 한 바이트도 바뀌지 않아야 한다.
   describe("bodyLocale 마이그레이션 (v10→v11)", () => {
-    it("persist version이 11이다", () => {
-      expect(useSettingsUiStore.persist.getOptions().version).toBe(11);
+    it("persist version이 12이다", () => {
+      expect(useSettingsUiStore.persist.getOptions().version).toBe(12);
     });
 
     it("bodyLocale 부재 시 기본값 'auto' 부여 (기존 사용자 동작 변화 0)", () => {
@@ -661,6 +661,16 @@ describe("settings-ui-store", () => {
       expect(JSON.parse(raw!).state.llm.apiKey).toBe("sk-secret-123");
     });
 
+    it.each([true, undefined] as const)("preserves freeTier=%s through persisted obfuscation", async (freeTier) => {
+      const llm: LlmConfig = { baseUrl: "https://openrouter.ai/api/v1", apiKey: "sk-secret-123", modelId: "vision:free", ...(freeTier ? { freeTier } : {}) };
+      await apiKeyObfuscatingStorage.setItem(KEY, JSON.stringify({ version: 12, state: { llm } }));
+      expect(JSON.parse(store[KEY]).state.llm.apiKey).toMatch(/^obf:/);
+      const raw = await apiKeyObfuscatingStorage.getItem(KEY);
+      const parsed = JSON.parse(raw!);
+      const merged = mergePersistedSettings(parsed.state, useSettingsUiStore.getState());
+      expect(merged.llm).toEqual(llm);
+    });
+
     it("apiKey가 없으면 상태를 그대로 통과시킨다", async () => {
       await apiKeyObfuscatingStorage.setItem(
         KEY,
@@ -733,5 +743,24 @@ describe("settings-ui-store", () => {
       await useSettingsUiStore.persist.rehydrate();
       expect(useSettingsUiStore.getState().aiLanguage).toBe("French");
     });
+  });
+});
+
+
+describe("settings v12 Gemini migration", () => {
+  const baseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
+  it.each(["gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.0-flash-lite"])("replaces retired model %s", (modelId) => {
+    const llm = { baseUrl, apiKey: "key", modelId, freeTier: true };
+    const result = migrateSettingsUi({ llm }, 11);
+    expect(result.llm).toEqual({ ...llm, modelId: "gemini-2.5-flash" });
+    expect(migrateSettingsUi(result, 12).llm).toEqual(result.llm);
+  });
+  it.each([
+    { baseUrl, apiKey: "key", modelId: "gemini-2.5-pro" },
+    { baseUrl: "https://custom.example/v1", apiKey: "key", modelId: "gemini-2.0-flash" },
+    { baseUrl: `${baseUrl}/`, apiKey: "key", modelId: "gemini-2.0-flash" },
+    null,
+  ])("preserves unrelated configurations", (llm) => {
+    expect(migrateSettingsUi({ llm }, 11).llm).toEqual(llm);
   });
 });

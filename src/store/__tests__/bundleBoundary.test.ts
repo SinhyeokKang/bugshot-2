@@ -163,3 +163,12 @@ describe("session-keys 런타임 import 0", () => {
     expect(importSpecifiers(source)).toEqual([]);
   });
 });
+
+
+describe("llm-provider-ids runtime import boundary", () => {
+  it("is a shared leaf with no runtime imports", () => {
+    const source = readFileSync(join(process.cwd(), "src/lib/llm-provider-ids.ts"), "utf8");
+    expect(source).toContain("LLM_PROVIDER_IDS");
+    expect(importSpecifiers(source)).toEqual([]);
+  });
+});

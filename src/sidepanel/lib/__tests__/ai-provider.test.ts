@@ -24,6 +24,12 @@ import {
   PROVIDER_PRESETS,
   ANTHROPIC_MODELS,
   GEMINI_MODELS,
+  GEMINI_FREE_MODELS,
+  connectProvider,
+  connectErrorKey,
+  LlmInvalidUrlError,
+  LlmInsecureUrlError,
+  LlmPermissionDeniedError,
 } from "../ai-provider";
 
 describe("PROVIDER_PRESETS", () => {
@@ -1071,4 +1077,89 @@ describe("mapQuotaError", () => {
     const err = new LlmQuotaError();
     expect(() => mapQuotaError(err)).toThrow(LlmQuotaError);
   });
+});
+
+
+describe("connectProvider", () => {
+  const request = vi.fn();
+  const fetchMock = vi.fn();
+  const openai = PROVIDER_PRESETS.find((p) => p.id === "openai")!.baseUrl;
+  beforeEach(() => {
+    request.mockReset().mockResolvedValue(true);
+    fetchMock.mockReset().mockResolvedValue(new Response(JSON.stringify({ data: [{ id: "model" }] })));
+    vi.stubGlobal("chrome", { permissions: { request } });
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("rejects malformed URLs before permission or network requests", async () => {
+    await expect(connectProvider("bad url", "key")).rejects.toBeInstanceOf(LlmInvalidUrlError);
+    expect(request).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("rejects remote plaintext URLs before sending credentials", async () => {
+    await expect(connectProvider("http://example.com/v1", "key")).rejects.toBeInstanceOf(LlmInsecureUrlError);
+    expect(request).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("stops when host permission is denied", async () => {
+    request.mockResolvedValue(false);
+    await expect(connectProvider(openai, "key")).rejects.toBeInstanceOf(LlmPermissionDeniedError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("returns fetched models and trims the key for both validation and storage", async () => {
+    expect(await connectProvider(openai, "  key\n")).toEqual({ models: [{ id: "model" }], apiKey: "key" });
+    expect(fetchMock).toHaveBeenCalledWith(`${openai}/models`, {
+      headers: { Authorization: "Bearer key" }, redirect: "manual",
+    });
+  });
+  it("allows local endpoints without a key", async () => {
+    await expect(connectProvider("http://localhost:1234/v1", " ")).resolves.toMatchObject({ apiKey: "" });
+    expect(fetchMock.mock.calls[0][1].headers).toEqual({});
+  });
+  it("pings Anthropic with a trimmed key and returns its curated models", async () => {
+    const baseUrl = PROVIDER_PRESETS.find((p) => p.id === "anthropic")!.baseUrl;
+    expect(await connectProvider(baseUrl, "  key\n")).toEqual({ models: ANTHROPIC_MODELS, apiKey: "key" });
+    expect(fetchMock).toHaveBeenCalledWith(`${baseUrl}/messages`, expect.objectContaining({
+      headers: expect.objectContaining({ "x-api-key": "key" }), redirect: "manual",
+    }));
+  });
+  it("validates Gemini credentials but returns the curated list", async () => {
+    const baseUrl = PROVIDER_PRESETS.find((p) => p.id === "gemini")!.baseUrl;
+    expect(await connectProvider(baseUrl, "key")).toEqual({ models: GEMINI_MODELS, apiKey: "key" });
+    expect(fetchMock).toHaveBeenCalledWith(`${baseUrl}/models`, expect.anything());
+  });
+  it("preserves redirect failures", async () => {
+    fetchMock.mockResolvedValue({ type: "opaqueredirect", status: 0 });
+    await expect(connectProvider(openai, "key")).rejects.toBeInstanceOf(LlmRedirectError);
+  });
+  it("does not return curated models after failed validation", async () => {
+    fetchMock.mockRejectedValue(new Error("offline"));
+    await expect(connectProvider(PROVIDER_PRESETS.find((p) => p.id === "gemini")!.baseUrl, "key")).rejects.toThrow("offline");
+  });
+});
+
+describe("connectErrorKey", () => {
+  it.each([
+    [LlmInvalidUrlError, "llm.error.invalidUrl"],
+    [LlmInsecureUrlError, "llm.error.insecureUrl"],
+    [LlmPermissionDeniedError, "llm.error.permission"],
+    [LlmRedirectError, "llm.error.redirect"],
+    [LlmAuthError, "llm.error.fetch"],
+    [Error, "llm.error.fetch"],
+  ])("maps %s to the existing connect toast", (ErrorType, key) => {
+    expect(connectErrorKey(new ErrorType())).toBe(key);
+  });
+  it("maps non-Error rejection values to fetch", () => {
+    expect(connectErrorKey(null)).toBe("llm.error.fetch");
+  });
+});
+
+it("provides the approved Gemini list and a nonempty free subset", () => {
+  expect(GEMINI_MODELS.map((m) => m.id)).toEqual([
+    "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-pro",
+  ]);
+  expect(GEMINI_FREE_MODELS.length).toBeGreaterThanOrEqual(1);
+  expect(GEMINI_FREE_MODELS).toEqual(GEMINI_MODELS.filter((m) => m.freeTier));
+  expect(GEMINI_FREE_MODELS.map((m) => m.id)).toEqual(GEMINI_MODELS.slice(0, 4).map((m) => m.id));
 });
