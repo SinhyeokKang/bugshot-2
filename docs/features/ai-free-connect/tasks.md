@@ -106,4 +106,40 @@ Task 1과 Task 3은 서로 독립이다. Task 2는 Task 1의 `LlmProviderId`를 
 
 ## 스파이크 결과
 
-(Task 0 완료 후 기록)
+2026-10-18 실측. dev 확장 ID `dhmffogmoohdjficicjjfolcheklngfm`, ego-browser + curl.
+
+### T0-1. OpenRouter callback — **허용 (전체 범위 진행)**
+- `callback_url=https://<ID>.chromiumapp.org/`로 인가 화면이 정상 렌더된다("You will be sent to https://<ID>.chromiumapp.org"). Authorize를 누르면 `https://<ID>.chromiumapp.org/?code=…&state=…`로 리다이렉트되고, `state`는 보낸 값 그대로 돌아온다.
+- `POST /api/v1/auth/keys` `{code, code_verifier, code_challenge_method:"S256"}` → 200 `{ key, user_id }`. key는 `sk-or-v1-` 접두, 73자다.
+- 발급 키 속성: 라벨이 **`OAuth: <key_label>`** 로 표시되고, 만료 없음, 한도 unlimited다. 인가 화면에서 사용자가 credit limit을 직접 넣을 수 있다.
+- 인가 화면의 앱 이름이 **"An app"** 으로 뜬다(앱 식별 수단이 callback 도메인뿐). 사용자 신뢰에 영향이 있다 → design 위험 요소에 추가.
+- **신규 가입 경로 함정**: 비로그인 상태로 인가 URL을 열면 `/sign-up?redirect_url=<인가 URL>`로 간다. 가입 후 인가 URL 위에 OpenRouter 온보딩이 끼어든다. 순서는 워크스페이스 생성 → **기본 API 키 자동 발급**($100 한도, 6개월 만료) → 결제수단 등록(건너뛰기 가능) → 유입 경로 설문 → "You're all set" 화면이다. 이 마지막 화면에는 **[Go to Dashboard]/[Read the Docs]만 있고 인가 화면으로 돌아가는 버튼이 없다.** 페이지를 새로 고침해야 인가 화면이 나온다. `launchWebAuthFlow` 창에서 사용자가 Dashboard를 누르면 흐름을 잃는다. → 설계 반영 필요(R8).
+- 신규 가입자 계정에는 키가 2개 생긴다(온보딩 기본 키 + BugShot OAuth 키). BugShot은 온보딩 키를 모르고 관여하지도 않는다.
+
+### T0-2. Gemini 모델 목록 — **`gemini-2.0-flash` 종료 확인, 목록 갱신 필요**
+공식 deprecations 페이지 기준.
+- `gemini-2.0-flash`는 **2026-06-01 종료**(후속 `gemini-3.6-flash`). 지금 `GEMINI_MODELS`에 남아 있어서 **기존 BYOK 사용자에게도 해당하는 현행 결함**이다.
+- `gemini-2.5-flash`·`gemini-2.5-pro`는 종료일 미정("until further notice"). Google은 신규 프로젝트에 3.5 Flash-Lite / 3.8 Flash를 권장한다.
+- 공식 pricing 페이지상 무료 티어 가능 모델(채팅): `gemini-3.8-flash`·`gemini-3.6-flash`·`gemini-3.5-flash-lite`·`gemini-3.1-flash-lite`·`gemini-3-flash-preview`·`gemini-2.5-flash`·`gemini-2.5-flash-lite`. 무료 불가: `gemini-4-argon`·`gemini-3.1-pro-preview`. `gemini-2.5-pro`는 같은 페이지 안에서 표기가 엇갈려 **미확정**이다. 무료 티어는 전부 "Used to improve our products: Yes"다.
+- **미수행**: 무료 키로 OpenAI 호환 `/models`·이미지 chat 실호출(키 없음). Task 2 착수 시 또는 수동 테스트 S1에서 확인한다.
+- 갱신안(Task 2): `gemini-3.8-flash`(freeTier)·`gemini-3.6-flash`(freeTier)·`gemini-3.5-flash-lite`(freeTier)·`gemini-2.5-flash`(freeTier)·`gemini-2.5-pro`. `gemini-2.0-flash`는 삭제한다. 실호출로 OpenAI 호환 엔드포인트의 모델 ID 표기를 먼저 확인한다.
+
+### T0-3. OpenRouter `:free`+image 모델 실응답
+`/models` 필터 결과 8개를 단색(빨강) 64px PNG + "무슨 색?" 질문으로 호출했다(`max_tokens` 2000).
+
+| 모델 | 결과 |
+|---|---|
+| `nvidia/nemotron-3.5-super-vl:free` | ✅ "Red" (0.7s) |
+| `dots-studio/dots-3-note-preview:free` | ✅ "Red" (3.4s) |
+| `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | ✅ "Red" (3.9s) |
+| `google/gemma-4-31b-it:free` · `google/gemma-4-26b-a4b-it:free` | ⚠️ 429 upstream rate-limited (일시적, 두 번 시도 모두) |
+| `thinkingmachines/inkling:free` · `inkling-small:free` | ❌ **403 "only available on agentic harnesses"** — 메타데이터로는 구분 불가 |
+| `nvidia/nemotron-3.5-content-safety:free` | ⚠️ 분류기. max_tokens 40에서 빈 응답(재시험 안 함) |
+
+- 세 모델 모두 `reasoning` 필드를 동반한다. `max_tokens` 40에서는 content가 비었다. 현행 `LLM_MAX_TOKENS = 4096`이면 충분하지만 reasoning 토큰이 예산을 먹는다는 점은 기록해 둔다.
+- **필터만으로는 "부를 수 있는 모델"이 보장되지 않는다** — 403 계열(정책 제한)과 429 계열(상류 혼잡)이 섞인다. → 설계 반영 필요(R9).
+
+### 설계 반영 대기 항목 (feature-review 결과와 함께 처리)
+- **R8 (신규 가입 함정)**: 모달 OpenRouter 카드나 대기 상태에 "처음 가입하면 OpenRouter 안내가 끝난 뒤 창을 닫고 [다음]을 다시 누르세요" 안내를 둔다. 또는 대기 중 [다시 시도]를 노출한다. 결정 필요.
+- **R9 (호출 불가 모델 섞임)**: 모델 선택 직후 1회 프로브(이미지 없는 짧은 요청)로 403을 걸러낼지 결정 필요(무료 일일 한도 1회 소모). 아니면 목록에 그대로 두고 실패를 기존 에러 토스트에 맡긴다.
+- **인가 화면 "An app" 표기**: 신뢰 저하 요인이라 카드 문구에 "OpenRouter 승인 화면에 'An app'으로 표시됩니다"를 넣을지 결정 필요.
