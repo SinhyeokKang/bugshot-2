@@ -36,6 +36,20 @@
 
 ---
 
+## 2026-10-18 — ToggleGroupItem 안의 24px 로고가 16px로 그려졌다 — Toggle base의 `[&_svg]:size-4`가 svg 자신의 `h-6 w-6`을 이긴다
+
+- **영역**: `컴포넌트`, `디자인`
+- **계열**: `라이브러리전제`
+- **그물**: `e2e`
+- **증상**: (무료 AI 연결 카드 브랜드 타일 추가 중, 자체 검증에서 발견 — 출시 전) 40×40 타일 안 로고에 `h-6 w-6`을 줬는데 실제로는 16px로 렌더됐다. jsdom 테스트는 클래스 문자열만 봐서 green이었다.
+- **근본 원인**: shadcn `toggleVariants` base에 `[&_svg]:size-4`가 있다. 이 유틸은 `.cls svg` 셀렉터라 특이도 (0,1,1)로, svg 자신의 `.h-6`(0,1,0)보다 높다. 자식 svg에 크기 클래스를 아무리 줘도 부모 item의 이 규칙이 이긴다. twMerge는 같은 요소의 클래스끼리만 충돌을 해소하므로, 자식에 준 값은 병합 대상도 아니다.
+- **재발 방지**:
+  - (1) **shadcn primitive(Toggle·Button 등) 안에 아이콘 크기를 바꿀 땐 부모 item에 `[&_svg]:size-N`을 얹어 base를 대체한다**(twMerge가 같은 arbitrary variant를 덮는다). 선례: `App.tsx`의 `[&_svg]:size-3.5`, `FreeLlmConnectDialog`의 `[&_svg]:size-6`. 점검: `grep -n "\[&_svg\]" src/components/ui/*.tsx`로 base에 svg 크기 규칙이 있는 primitive를 확인한다.
+  - (2) **렌더 크기는 jsdom으로 못 잠근다** — 실제 CSS가 계산되지 않아 클래스 단언은 green이다. 크기가 요구사항이면 e2e에서 `boundingBox`로 단언한다(`ai-free-connect.spec.ts`의 타일 40px·로고 24px).
+- **관련**: `src/sidepanel/tabs/settings/FreeLlmConnectDialog.tsx`(provider 카드), `src/components/ui/toggle.tsx`(`toggleVariants`), `e2e/ai-free-connect.spec.ts`
+
+---
+
 ## 2026-10-18 — Notion 파일 업로드가 응답이 준 `upload_url`로 host 확인 없이 Bearer 토큰을 보냈다 — Slack에만 있던 가드가 복제되지 않았다
 
 - **영역**: `background`
