@@ -43,6 +43,9 @@
 
 (배치별 라운드·통합 해시·검증 결과를 여기에 누적)
 
+- **A·B 통합 완료** (dev `5c8cc717..45ea252e`): B 3커밋(`5c8cc717`·`bf6a05b6`·`2356ed52`) + A 3커밋(`e67a1ee2`·`a4c2f935`·`45ea252e`). 수정 라운드 1회씩 — fix 커밋은 🔴0 배치의 테스트 보강·한 줄 변경이라 재리뷰 생략, 지휘자가 diff로 지적 반영 확인. 통합 게이트 `typecheck=0 test=0 sync=0`(469 파일·9108 통과·2 skip). 원격 push는 C 통합 후 1회(A 리뷰 🟡2 순서 조건). A 워크트리 제거(인계 사본 `.scratch/ai-free-connect/handoff-A.md`), B는 후속 결함 대비 유지.
+- **C 착수**: 워크트리 `afc-batch-C`(base `45ea252e`), Codex astra high, 브리프 `brief-C.md`(B 리뷰 🟡3 e2e 포함).
+- postmortem 후보(A 인계): BYOK `LlmConnectDialog`의 boolean `cancelledRef`가 재오픈 시 이전 비동기 결과를 통과시키던 기존 결함 — 세대 번호 + 지연 응답 테스트로 고정. 통합 마무리 때 `/postmortem`.
 - B 1차 인계: `2f3e56f5`·`b4a0bf9f`. Opus 리뷰 🔴0 🟡3 → 🟡1·2·⚪3건을 수정 라운드 1로 반환, 🟡3(런처 바인딩 e2e — `launchWebAuthFlow` 스텁 + `context.route`)은 C 브리프로 이관.
 - A 1차 인계: `9183c474`·`efe3426e`. Opus 리뷰 🔴0 🟡2 → 🟡1(입력 유지 테스트)·⚪2건을 수정 라운드 1로 반환. 🟡2(privacy가 `llm_connect` 미반영)는 순서 조건 — C의 privacy 갱신 전 원격 push 금지(이 파이프라인은 C 통합 후 1회 push라 자연 충족). design.md 잔존 불일치(변경 범위 표 `Promise<ModelEntry[]>`, track-llm `provider` required)는 구현 완료 후 삭제할 기획 문서라 정정 생략.
 - **merge 전 필수 권고**: Gemini 3.x 모델 ID 실호출(D4)은 무료 경로가 아니라 **기존 BYOK Gemini 사용자에게 바로 노출**된다(A 리뷰). 런타임 검증 #1을 `/merge` 전 필수로 사용자에게 보고한다.
