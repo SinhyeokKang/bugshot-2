@@ -70,15 +70,32 @@ describe("free connection session", () => {
     expect(screen.getByRole("radiogroup")).toBeTruthy();
     for (const id of ["gemini", "openrouter"]) {
       const card = screen.getByTestId(`free-llm-card-${id}`);
-      for (const field of ["model", "limit", "privacy"]) expect(within(card).getByText(`llm.free.${id}.${field}`)).toBeTruthy();
+      const description = card.querySelector(`[id$="-${id}-description"]`)!;
+      expect([...description.children].map((child) => child.textContent)).toEqual([
+        `llm.free.${id}.summary`,
+        `llm.free.${id}.privacy`,
+      ]);
     }
-    expect(screen.getByText("llm.free.openrouter.signupHint")).toBeTruthy();
-    expect(screen.getByText("llm.free.openrouter.appNameNote")).toBeTruthy();
+    expect(screen.queryByText(/llm\.free\.\w+\.(model|limit)$/)).toBeNull();
+    expect(screen.queryByText("llm.free.openrouter.signupHint")).toBeNull();
+    expect(screen.queryByText("llm.free.openrouter.appNameNote")).toBeNull();
     const card = screen.getByTestId("free-llm-card-gemini");
     await user.click(card);
     await user.click(card);
     expect(card.getAttribute("aria-checked")).toBe("true");
     expect((screen.getByTestId("free-llm-next") as HTMLButtonElement).disabled).toBe(false);
+  });
+  it("shows a decorative 40px muted brand tile with an svg logo on each card", () => {
+    setup();
+    for (const id of ["gemini", "openrouter"]) {
+      const card = screen.getByTestId(`free-llm-card-${id}`);
+      const tile = within(card).getByTestId(`free-llm-icon-${id}`);
+      expect(tile.getAttribute("aria-hidden")).toBe("true");
+      for (const cls of ["size-10", "bg-muted", "rounded-sm"]) expect(tile.classList.contains(cls)).toBe(true);
+      expect(tile.querySelector("svg")).toBeTruthy();
+    }
+    expect(within(screen.getByTestId("free-llm-icon-openrouter")).getByRole("img", { hidden: true }).getAttribute("class")).toContain("dark:invert");
+    expect(within(screen.getByTestId("free-llm-icon-gemini")).getByRole("img", { hidden: true }).getAttribute("class") ?? "").not.toContain("dark:invert");
   });
   it.each([false, true])("opens a Chrome-positioned popup and focuses the key even if popup rejection=%s", async (reject) => {
     if (reject) createWindow.mockRejectedValue(new Error("popup blocked"));
