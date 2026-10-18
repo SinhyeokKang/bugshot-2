@@ -95,11 +95,17 @@ describe("parseOpenRouterCallback", () => {
     expect(parseOpenRouterCallback(`${REDIRECT_URL}?code=a%2Bb&state=expected`, "expected")).toEqual({ code: "a+b" });
   });
 
+  it("treats the bare redirect returned by Deny as cancellation", () => {
+    expect(parseOpenRouterCallback(REDIRECT_URL, "expected")).toEqual({ cancelled: true });
+  });
+
   it.each([
     `${REDIRECT_URL}?code=code&state=wrong`,
     `${REDIRECT_URL}?code=code`,
     `${REDIRECT_URL}?state=expected`,
     `${REDIRECT_URL}?code=&state=expected`,
+    `${REDIRECT_URL}?code=`,
+    `${REDIRECT_URL}?state=`,
     "not a URL",
   ])("rejects invalid success callbacks: %s", (url) => {
     expect(() => parseOpenRouterCallback(url, "expected")).toThrow();
@@ -230,6 +236,13 @@ describe("runOpenRouterAuth", () => {
   it.each([undefined, `${REDIRECT_URL}?error=access_denied`])("does not exchange a cancelled callback: %s", async (redirect) => {
     const deps = authDeps();
     deps.launch.mockResolvedValue(redirect);
+    await expect(runOpenRouterAuth(deps)).resolves.toEqual({ status: "cancelled" });
+    expect(deps.fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("propagates a bare Deny redirect as cancellation without exchanging a key", async () => {
+    const deps = authDeps();
+    deps.launch.mockResolvedValue(REDIRECT_URL);
     await expect(runOpenRouterAuth(deps)).resolves.toEqual({ status: "cancelled" });
     expect(deps.fetchImpl).not.toHaveBeenCalled();
   });
