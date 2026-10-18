@@ -188,6 +188,7 @@ export function LlmConnectDialog({
       apiKey: pendingModels.apiKey,
       modelId,
     });
+    sessionRef.current.baseUrl = pendingModels.baseUrl;
     finishSession("success");
     setApiKey("");
     setBaseUrl("");

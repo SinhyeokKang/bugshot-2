@@ -104,5 +104,30 @@ describe("BYOK connection session", () => {
     expect(screen.queryByRole("dialog", { name: "llm.model.select" })).toBeNull();
     expect(useSettingsUiStore.getState().llm).toBeNull();
     expect(trackLlmConnect).toHaveBeenCalledTimes(1);
+    expect((screen.getByRole("button", { name: "platform.connect" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+  it("preserves the selected provider and key when cancelled and reopened", async () => {
+    const user = userEvent.setup();
+    render(<StrictMode><Harness /></StrictMode>);
+    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("option", { name: "OpenAI" }));
+    await user.type(screen.getByPlaceholderText("llm.apiKeyPlaceholder"), "  retained-key  ");
+    await user.click(screen.getByRole("button", { name: "common.close" }));
+    await user.click(screen.getByText("reopen"));
+    expect(screen.getByRole("combobox").textContent).toContain("OpenAI");
+    expect((screen.getByPlaceholderText("llm.apiKeyPlaceholder") as HTMLInputElement).value).toBe("  retained-key  ");
+  });
+  it("tracks the saved provider when the selection changes during connection", async () => {
+    let resolve!: (response: Response) => void;
+    fetchMock.mockReturnValueOnce(new Promise<Response>((done) => { resolve = done; }));
+    const user = await startConnection();
+    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("option", { name: /Gemini/ }));
+    expect(screen.getByRole("combobox").textContent).toContain("Gemini");
+    await act(async () => resolve(new Response(JSON.stringify({ data: [{ id: "test-model" }] }))));
+    await selectModel(user);
+    expect(useSettingsUiStore.getState().llm).toEqual({ baseUrl, apiKey: "key", modelId: "test-model" });
+    expect(trackLlmConnect).toHaveBeenCalledTimes(1);
+    expect(trackLlmConnect).toHaveBeenCalledWith(useSettingsUiStore.getState().llm!.baseUrl, "byok", "success");
   });
 });

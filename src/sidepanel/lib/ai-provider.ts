@@ -365,7 +365,7 @@ export const GEMINI_MODELS: ModelEntry[] = [
   { id: "gemini-2.5-pro" },
 ];
 
-export const GEMINI_FREE_MODELS = GEMINI_MODELS.filter((model) => model.freeTier);
+export const GEMINI_FREE_MODELS: readonly ModelEntry[] = GEMINI_MODELS.filter((model) => model.freeTier);
 
 export function presetIdOf(baseUrl: string): LlmProviderId | "custom" {
   return PROVIDER_PRESETS.find((preset) => preset.baseUrl === baseUrl)?.id ?? "custom";
