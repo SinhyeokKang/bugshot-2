@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
+import { classifyLaunchFlowError } from "@/background/oauth";
+import { launchOpenRouterAuth } from "@/sidepanel/openrouter-auth";
 import { LlmRedirectError, PROVIDER_PRESETS } from "../ai-provider";
 import {
   AI_STUDIO_KEY_URL,
@@ -25,13 +27,14 @@ const TEST_KEY = `sk-or-v1-${"a".repeat(64)}`;
 const RFC_VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
 const RFC_CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
 
-// Task 0 T0-3 response shape; pricing overrides deliberately disagree with the suffix.
+// Task 0 T0-3 IDs/response shape; text-only and missing-architecture cases are synthetic.
+// Pricing overrides deliberately disagree with the suffix.
 const MODEL_FIXTURE = [
-  { id: "z/vision:free", pricing: { prompt: "1", completion: "1", overrides: [{ prompt: "0", completion: "0" }] }, architecture: { input_modalities: ["text", "image"] } },
-  { id: "text/only:free", pricing: { prompt: "0", completion: "0", overrides: [] }, architecture: { input_modalities: ["text"] } },
-  { id: "paid/vision", pricing: { prompt: "0", completion: "0", overrides: [] }, architecture: { input_modalities: ["image"] } },
-  { id: "missing/architecture:free", pricing: { prompt: "0", completion: "0", overrides: [] } },
-  { id: "a/vision:free", pricing: { prompt: "0", completion: "0", overrides: [] }, architecture: { input_modalities: ["image", "text"] } },
+  { id: "thinkingmachines/inkling:free", pricing: { prompt: "1", completion: "1", overrides: [{ prompt: "0", completion: "0" }] }, architecture: { input_modalities: ["text", "image"] } },
+  { id: "dots-studio/dots-3-note-preview:free", pricing: { prompt: "0", completion: "0", overrides: [] }, architecture: { input_modalities: ["text"] } },
+  { id: "openai/gpt-4o", pricing: { prompt: "0", completion: "0", overrides: [] }, architecture: { input_modalities: ["image"] } },
+  { id: "google/gemma-4-31b-it:free", pricing: { prompt: "0", completion: "0", overrides: [] } },
+  { id: "nvidia/nemotron-3.5-super-vl:free", pricing: { prompt: "0", completion: "0", overrides: [] }, architecture: { input_modalities: ["image", "text"] } },
 ];
 
 function mockFetch(body: unknown, status = 200) {
@@ -102,6 +105,15 @@ describe("parseOpenRouterCallback", () => {
     expect(() => parseOpenRouterCallback(url, "expected")).toThrow();
   });
 
+  it("does not expose the code or key when state mismatches", () => {
+    const callback = () => parseOpenRouterCallback(
+      `${REDIRECT_URL}?code=secret-code&state=wrong&key=${TEST_KEY}`, "expected",
+    );
+    expect(callback).toThrow();
+    expect(callback).not.toThrow("secret-code");
+    expect(callback).not.toThrow(TEST_KEY);
+  });
+
   it.each(["access_denied", "", "provider_rejection"])("treats the presence of error=%s as cancellation (orch D5)", (error) => {
     expect(parseOpenRouterCallback(`${REDIRECT_URL}?error=${error}`, "expected")).toEqual({ cancelled: true });
   });
@@ -119,11 +131,17 @@ describe("exchangeOpenRouterCode", () => {
   });
 
   it("rejects non-success responses without exposing the response body", async () => {
-    await expect(exchangeOpenRouterCode("code", "verifier", mockFetch({ key: TEST_KEY }, 400))).rejects.toThrow();
+    const result = exchangeOpenRouterCode("secret-code", "verifier", mockFetch({ key: TEST_KEY, code: "secret-code" }, 400));
+    await expect(result).rejects.toThrow();
+    await expect(result).rejects.not.toThrow(TEST_KEY);
+    await expect(result).rejects.not.toThrow("secret-code");
   });
 
-  it.each([{}, { key: "" }, { key: 123 }, null])("rejects missing or malformed keys: %j", async (body) => {
-    await expect(exchangeOpenRouterCode("code", "verifier", mockFetch(body))).rejects.toThrow();
+  it.each([{ error: TEST_KEY, code: "secret-code" }, { key: "" }, { key: 123 }, null])("rejects missing or malformed keys: %j", async (body) => {
+    const result = exchangeOpenRouterCode("secret-code", "verifier", mockFetch(body));
+    await expect(result).rejects.toThrow();
+    await expect(result).rejects.not.toThrow(TEST_KEY);
+    await expect(result).rejects.not.toThrow("secret-code");
   });
 
   it("rejects opaque redirects", async () => {
@@ -135,7 +153,7 @@ describe("exchangeOpenRouterCode", () => {
 describe("free vision models", () => {
   it("filters by suffix and image modality, ignores prices, sorts without mutating input", () => {
     const original = structuredClone(MODEL_FIXTURE);
-    expect(pickFreeVisionModels(MODEL_FIXTURE)).toEqual([{ id: "a/vision:free" }, { id: "z/vision:free" }]);
+    expect(pickFreeVisionModels(MODEL_FIXTURE)).toEqual([{ id: "nvidia/nemotron-3.5-super-vl:free" }, { id: "thinkingmachines/inkling:free" }]);
     expect(MODEL_FIXTURE).toEqual(original);
     expect(pickFreeVisionModels([])).toEqual([]);
     expect(pickFreeVisionModels([{ id: "no/modalities:free", architecture: {} }])).toEqual([]);
@@ -143,7 +161,7 @@ describe("free vision models", () => {
 
   it("fetches the model catalogue with a bearer token and manual redirects", async () => {
     const fetchImpl = mockFetch({ data: MODEL_FIXTURE });
-    await expect(fetchOpenRouterFreeVisionModels(TEST_KEY, fetchImpl)).resolves.toEqual([{ id: "a/vision:free" }, { id: "z/vision:free" }]);
+    await expect(fetchOpenRouterFreeVisionModels(TEST_KEY, fetchImpl)).resolves.toEqual([{ id: "nvidia/nemotron-3.5-super-vl:free" }, { id: "thinkingmachines/inkling:free" }]);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(fetchImpl).toHaveBeenCalledWith(`${OPENROUTER_BASE_URL}/models`, {
       headers: { Authorization: `Bearer ${TEST_KEY}` }, redirect: "manual",
@@ -165,7 +183,6 @@ describe("free vision models", () => {
 });
 
 describe("isAuthFlowCancelled", () => {
-  // Same messages as background/oauth.ts LAUNCH_FLOW_ERRORS; no background value import.
   it.each([
     ["The user did not approve access.", true],
     ["THE USER DID NOT APPROVE ACCESS.", true],
@@ -176,6 +193,7 @@ describe("isAuthFlowCancelled", () => {
     ["Unknown failure", false],
   ])("classifies %s", (message, expected) => {
     expect(isAuthFlowCancelled(message)).toBe(expected);
+    expect(isAuthFlowCancelled(message)).toBe(classifyLaunchFlowError(message)?.cancelled ?? false);
   });
 });
 
@@ -235,10 +253,15 @@ describe("probeOpenRouterModel", () => {
   it.each([
     [200, "ok"], [403, "unavailable"], [404, "unavailable"],
     [429, "transient"], [500, "transient"], [503, "transient"],
-    [400, "transient"], [401, "transient"], [302, "transient"],
+    [400, "transient"], [401, "transient"],
   ])("classifies HTTP %i as %s", async (status, result) => {
     const message = status === 403 ? "This model is only available on agentic harnesses" : "temporarily rate-limited upstream";
     await expect(probeOpenRouterModel(TEST_KEY, "vision:free", mockFetch({ error: { message } }, status))).resolves.toBe(result);
+  });
+
+  it("treats a manual redirect response as transient", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue({ type: "opaqueredirect", status: 0, ok: false } as Response);
+    await expect(probeOpenRouterModel(TEST_KEY, "vision:free", fetchImpl)).resolves.toBe("transient");
   });
 
   it("allows transient network failures", async () => {
@@ -265,5 +288,26 @@ describe("browser binding coverage boundary", () => {
     const isBrowserBound = runInNewContext(`${rules}\nisBrowserBound`) as (path: string) => boolean;
     expect(isBrowserBound("src/sidepanel/openrouter-auth.ts")).toBe(true);
     expect(isBrowserBound("src/sidepanel/lib/free-llm.ts")).toBe(false);
+  });
+});
+
+describe("launchOpenRouterAuth binding", () => {
+  it("keeps fetch callable as a dependency method", async () => {
+    vi.stubGlobal("chrome", { identity: { getRedirectURL: () => REDIRECT_URL } });
+    vi.stubGlobal("fetch", vi.fn(function (this: unknown) {
+      if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation");
+      return Promise.resolve(Response.json({ key: TEST_KEY }));
+    }));
+    const runAuth = vi.spyOn(await import("../free-llm"), "runOpenRouterAuth")
+      .mockImplementation(async (deps) => {
+        await deps.fetchImpl(OPENROUTER_KEYS_URL);
+        return { status: "ok", key: TEST_KEY };
+      });
+    try {
+      await expect(launchOpenRouterAuth()).resolves.toEqual({ status: "ok", key: TEST_KEY });
+    } finally {
+      runAuth.mockRestore();
+      vi.unstubAllGlobals();
+    }
   });
 });

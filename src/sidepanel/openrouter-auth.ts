@@ -8,6 +8,6 @@ export function launchOpenRouterAuth(): Promise<OpenRouterAuthResult> {
     launch: (url) => chrome.identity.launchWebAuthFlow({ url, interactive: true }),
     redirectUrl: chrome.identity.getRedirectURL(),
     random: (n) => crypto.getRandomValues(new Uint8Array(n)),
-    fetchImpl: fetch,
+    fetchImpl: (...a) => fetch(...a),
   });
 }
