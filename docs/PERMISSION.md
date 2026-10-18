@@ -36,7 +36,7 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 | `storage` | `chrome.storage.session` / `chrome.storage.local` 사용 |
 | `commands` | 키보드 단축키 1개 등록 (`_execute_action` 사이드 패널 토글) |
 | `contextMenus` | 우클릭 컨텍스트 메뉴 등록 |
-| `identity` | `chrome.identity.launchWebAuthFlow()` OAuth 팝업 |
+| `identity` | `chrome.identity.launchWebAuthFlow()` 플랫폼 OAuth·OpenRouter 키 발급 인증 팝업 |
 | `tabCapture` | 탭 미디어 스트림 획득 (수동 영상 녹화) |
 | `webNavigation` | 네비게이션 이벤트 감지 (로그 꼬리 보존 + 커밋된 iframe에 로그 sentinel 재발행) |
 
@@ -349,7 +349,7 @@ idle 복귀 전 정지 캡처·freeform 진입에서 권한 실패가 감지되�
 |---|---|---|
 | `bugshot-settings` | 플랫폼 계정·OAuth 토큰·submit 기본값·titlePrefix·Webhook URL/시크릿/요청 헤더/전송 형식/JSON 템플릿 | `settings-store.ts` (Zustand persist), `settings-storage.ts` (bg 직접 접근) |
 | `bugshot-issues` | `IssueRecord[]` 이슈 기록 | `issues-store.ts` (Zustand persist + 레코드 단위 `merge`), `sidepanel/lib/issues-sync.ts` (`storage.onChanged` 구독 — 다른 사이드패널 인스턴스의 write를 읽어 rehydrate) |
-| `bugshot-app-settings` | 테마·언어(UI/AI 출력/이슈 본문 3축)·이슈 섹션 구성·LLM 설정(**BYOK API 키 포함** — `apiKeyObfuscatingStorage`가 persist 경유로 난독화해 넣는다. 평문은 아니지만 **암호화도 아니다**)·replay 활성화·**파일 첨부 활성화**(`attachmentsEnabled`, 기본 off)·**재현 과정 AI 자동 채움**(`autoReproPrefill`, 기본 on)·녹화 모드(tab/screen)·스타일 편집 뷰 | `settings-ui-store.ts` (Zustand persist) |
+| `bugshot-app-settings` | 테마·언어(UI/AI 출력/이슈 본문 3축)·이슈 섹션 구성·LLM 설정(**BYOK·무료 연결 API 키 포함** — `apiKeyObfuscatingStorage`가 persist 경유로 난독화해 넣는다. 평문은 아니지만 **암호화도 아니다**)·replay 활성화·**파일 첨부 활성화**(`attachmentsEnabled`, 기본 off)·**재현 과정 AI 자동 채움**(`autoReproPrefill`, 기본 on)·녹화 모드(tab/screen)·스타일 편집 뷰 | `settings-ui-store.ts` (Zustand persist) |
 | `bugshot:install-id` | 익명 설치 ID (UUID, 최초 1회 생성) | `background/analytics.ts` — PostHog `distinct_id` |
 
 ### IndexedDB (Chrome 권한 불요 — 저장 데이터 레퍼런스)
@@ -384,6 +384,12 @@ pre-arm 게이트 플래그 `__bugshot_recorder_active__`=`"1"`을 **방문 페�
 
 `chrome.identity.launchWebAuthFlow()`로 OAuth 인증 팝업을 띄운다. `chrome.identity.getRedirectURL()`로 extension의 redirect URI를 생성한다.
 
+### 무료 AI 연결
+
+OpenRouter는 사이드패널의 `openrouter-auth.ts` → `free-llm.ts`에서 `chrome.identity.launchWebAuthFlow()`를 사용한다. `getRedirectURL()`로 받은 콜백 주소와 PKCE S256·state를 인증 페이지에 보내고, 인가 코드·verifier를 `https://openrouter.ai/api/v1/auth/keys`로 직접 교환한다. client secret·OAuth 프록시를 사용하지 않는다. 모델 목록 조회와 선택 모델 확인(`ping`, `max_tokens: 16`)도 필수 `<all_urls>`로 커버되며 사용자 콘텐츠를 보내지 않는다. 발급 키는 모델 선택 전까지 메모리에만 두고 창을 닫으면 폐기한다. 선택 확정 후에는 `bugshot-app-settings`에 난독화 저장하며, 연결 해제는 로컬 설정만 지우고 OpenRouter 계정의 키를 폐기하지 않는다.
+
+Gemini는 `chrome.windows.create({ type: "popup", width: 520, height: 760 })`로 AI Studio 키 발급 페이지를 연다. 위치는 Chrome 기본값을 사용한다. `windows.create` 자체에는 별도 `windows` 권한이 필요하지 않으므로 manifest 권한 추가는 없다. 붙여넣은 키는 공용 `connectProvider`의 모델 목록 조회로 검증한다.
+
 ### 플랫폼별 OAuth 흐름
 
 | 플랫폼 | 인증 URL | 토큰 교환 | PKCE | Proxy 필요 | Refresh | 요청 scope |
@@ -401,7 +407,7 @@ pre-arm 게이트 플래그 `__bugshot_recorder_active__`=`"1"`을 **방문 페�
 
 ### 토큰 저장
 
-플랫폼 OAuth/PAT 토큰은 `chrome.storage.local`의 `bugshot-settings` 키 아래 `accounts.{platform}.auth`에 저장. Custom Webhook URL·시크릿·요청 헤더·전송 형식·JSON 템플릿도 `accounts.webhook`에 평문으로 저장한다. **BYOK LLM API 키는 여기가 아니다** — `bugshot-app-settings`의 `llm.apiKey`에 난독화 상태로 들어간다(위 §6).
+플랫폼 OAuth/PAT 토큰은 `chrome.storage.local`의 `bugshot-settings` 키 아래 `accounts.{platform}.auth`에 저장. Custom Webhook URL·시크릿·요청 헤더·전송 형식·JSON 템플릿도 `accounts.webhook`에 평문으로 저장한다. **BYOK·무료 연결 LLM API 키는 여기가 아니다** — `bugshot-app-settings`의 `llm.apiKey`에 난독화 상태로 들어간다(위 §6).
 
 bg service worker에서 직접 읽기/쓰기:
 - `settings-storage.ts` — `readStoredAuth()`, `writeStoredOAuthTokens()` 등
@@ -552,7 +558,7 @@ background/index.ts:137 — webNavigation.onCommitted
 
 | 호스트 (트래픽 대상) | 사용 기능 | API 호출 위치 |
 |---|---|---|
-| 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM 동봉 프리셋 8종(OpenAI·Anthropic·Gemini·Mistral·Groq·Together·OpenRouter·Ollama(localhost))·사용자 임의 baseUrl·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강) | `picker.ts`, `recorder-bridge.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab·fetchCssSheets), `ai-provider.ts` |
+| 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM 동봉 프리셋 8종(OpenAI·Anthropic·Gemini·Mistral·Groq·Together·OpenRouter·Ollama(localhost))·사용자 임의 baseUrl·GitLab self-managed 임의 origin fetch + 무료 Gemini 모델 조회·OpenRouter 키 교환/모델 조회/선택 모델 확인 + cross-origin stylesheet 원문 fetch(스타일 보강) | `picker.ts`, `recorder-bridge.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab·fetchCssSheets), `ai-provider.ts`, `free-llm.ts`(OpenRouter 키 교환·모델 조회·선택 모델 확인) |
 | `*.atlassian.net` | Jira REST API (API Key 모드). **`*.atlassian.net` 한정이 아니다** — `baseUrl`이 사용자 자유 입력이라 Jira Server/DC 자체호스팅 origin도 대상이고, `assertCredentialSafeBase`가 https(+loopback)만 강제한다 | `jira-api.ts` — `${baseUrl}/rest/api/3/*` + `${baseUrl}/rest/agile/1.0/*`(board·sprint 조회) |
 | `api.atlassian.com` | Jira OAuth API + accessible-resources | `jira-api.ts` — `/ex/jira/{cloudId}/rest/{api/3,agile/1.0}/*`, `oauth.ts` — `/oauth/token/accessible-resources` |
 | Jira 발급 media/CDN URL | 첨부 업로드 후 redirect를 따라 byte-range GET/HEAD로 media ID 판별(고정 host 아님) | `jira-api.ts` — `getMediaFileId` |
@@ -605,7 +611,7 @@ Custom Webhook의 사용자 지정 origin도 `<all_urls>`로 커버된다. `back
 | `picker.ts` / `recorder-bridge.ts` / `recorders-entry.ts` | 모든 페이지에 picker·로그 레코더 content script 주입 (manifest `content_scripts` 3개 — bridge는 ISOLATED에서 sentinel 수신·데이터 중계, entry는 MAIN에서 console/network/action 후크) |
 | `background/messages.ts` (`captureVisibleTab`) | 30s Replay + 스틸 캡처(영역·화면·페이지 전체) — cross-origin 네비게이션 후에도 캡처 유지(activeTab은 회수되므로 광역 권한이 필요) |
 | `tab-bindings.ts` (`deactivatePanelIfCrossOrigin`) | cross-origin 커버 URL(http/https) 이동 시 패널 유지 — `broadGranted=true` 고정(§ 패널 종료/유지 정책 분기표) |
-| `LlmConnectDialog.tsx` (`ai-provider.ts:requestHostPermission` 경유) | BYOK LLM 프로바이더 연결 — 임의 baseUrl origin 요청이 `<all_urls>`에 포섭돼 **즉시 grant**(프롬프트 없음) |
+| `LlmConnectDialog.tsx`·`FreeLlmConnectDialog.tsx` (`ai-provider.ts:requestHostPermission` 경유) | BYOK LLM·무료 Gemini 연결 — 임의 baseUrl origin 요청이 `<all_urls>`에 포섭돼 **즉시 grant**(프롬프트 없음) |
 | `GitlabConnectForm.tsx` | GitLab self-managed 인스턴스 PAT 연결 — `requestHostPermission` 공유, 동일하게 즉시 grant |
 | `content/css-source-cache.ts` | **content(페이지 컨텍스트) stylesheet fetch** — **same-origin 한정**으로 `<link rel=stylesheet>` 원문을 `fetch(href, {credentials:"omit"})`로 직접 읽는다(cross-origin href는 fetch 전에 origin 대조로 스킵하고 아래 background 경로에 위임한다 — CORS가 허용된 cross-origin이라도 이 경로로는 안 읽는다). **`isFetchableSheetUrl` SSRF 가드는 아래 background 경로 전용이라 여기엔 안 걸린다** — 페이지 자신의 권한으로 나가는 요청이라 확장 권한 상승이 없고(브라우저 CORS가 경계), background 경로는 그 경계를 우회하므로 가드가 거기 붙는다 |
 | `background/messages.ts` (`fetchCssSheets`) | cross-origin stylesheet 원문 fetch — content가 보낸 page-controlled href를 CORS 우회로 읽어 스타일 specified 값 보강. http(s) 공개 호스트 한정(SSRF 가드 `lib/ssrf-guard.ts` `isFetchableSheetUrl` — loopback·사설·link-local 차단), `credentials:omit` · `redirect:manual` · CSS content-type(빈 content-type도 거부) · 2MB 캡 · 요청당 시트 50개 캡 |
