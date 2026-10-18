@@ -39,7 +39,7 @@ Slack is a messaging app rather than an issue tracker, so it works a little diff
 - **Title in the channel, details in a thread**: the title posts as a message in the channel, while the details — environment info, style changes, log summary — plus screenshots, video, and log files land as **thread replies** under it. Your channel timeline stays clean with just the one-line title.
 - **Mentions**: pick members to mention and they'll be pinged by `@name` in the message.
 
-> Slack messages don't have an "open/closed" state, so the issue list just shows "Submitted"; click it to jump straight to the message.
+> Slack messages don't have an "open/closed" state, so the issue list just shows "Submitted"; click the card to jump straight to the message.
 
 ### Promote to a real tracker later
 

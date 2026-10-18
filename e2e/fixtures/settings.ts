@@ -4,7 +4,7 @@ import { expect } from "./extension";
 // 설정 탭 진입·화면 언어 결정화 헬퍼 — issue-body-locale.spec에서 승격.
 // 새 spec이 각자 복제하면 클립보드 스텁 3중 복제 함정(GOTCHAS)과 같은 형태가 된다.
 
-export async function openSettings(panel: Page, sub: "issue" | "general") {
+export async function openSettings(panel: Page, sub: "issue" | "general" | "ai") {
   // hydration 전 클릭 유실 — enterDebug와 같은 active 폴링으로 흡수.
   await expect(async () => {
     await panel.getByTestId("tab-settings").click();

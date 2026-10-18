@@ -1,14 +1,47 @@
 # AI LLM Connection
 
-In the **AI Model** sub-tab of Settings, connect the LLM you already use. BugShot runs no AI server of its own — it uses your own key (BYOK — Bring Your Own Key). So it's your key, your model, and you can use it with peace of mind.
+In the **AI Model** sub-tab of Settings, connect free AI through Gemini or OpenRouter, or use **Connect API key** for an LLM you already use. Captures, logs, and report text needed by AI go directly to your chosen service, without passing through a BugShot server.
 
-No key? No problem. If Chrome's built-in AI is available in your browser, the basic AI features just work with it — no setup needed.
+Without a connected LLM, basic AI features still work with Chrome's built-in AI when it is available in your browser — no setup needed.
+
+## Connect free AI
+
+Click **Connect free AI**, choose the Gemini or OpenRouter card, and click **Next**. Read the free usage limits and data-handling notice on the card first.
+
+| Service | Free models and limits | Data handling |
+|---|---|---|
+| Gemini | Flash models with image input, within Google's free limits. Pro models are excluded. | Prompts and screenshots may be used to improve Google products (except in the EEA, UK, and Switzerland). |
+| OpenRouter | Free public models with image input. 50 requests per day, or 1,000 for accounts that have purchased at least $10 in credits. | Model providers may log prompts. |
+
+### Gemini
+
+1. Choose Gemini and click **Next** to open the Google AI Studio key page in a separate window.
+2. Use **Create API key** in that window, then copy the key.
+3. Paste it into BugShot's key field and click **Connect**.
+4. Under **Select model**, choose a free model and click **OK**.
+
+If you close the key page, use **Reopen key page** to open it again. **Back** returns to the cards and clears the key you entered. Cancelling just the model picker returns to the key screen so you can choose again.
+
+### OpenRouter
+
+1. Choose OpenRouter, click **Next**, and sign in and approve access in the window that opens. There's no key to copy manually.
+2. Under **Select model**, choose a free image model and click **OK**. Wait briefly while BugShot checks whether the selected model is available.
+
+> The approval screen shows **An app** and a **chromiumapp.org** address for this BugShot connection. If you're signing up for the first time, finish OpenRouter's onboarding, close that window, and click **Next** in BugShot again.
+
+If the selected model is unavailable, choose another one. If there are no free image models available, connect through Gemini instead. Closing the authorization window cancels the attempt.
+
+The short model-check request during connection may use one request from your free quota. AI Draft, AI Styling, and [Fill steps to reproduce](./issue.md) after recording also use your quota. Automatic reproduction-step filling is on by default; turn it off in **Issue settings** if you prefer.
+
+> Cancelling or using **Disconnect** does not delete keys already issued in your OpenRouter account. Delete unwanted keys directly in OpenRouter.
+
+After connecting through the free path, model changes also show only free models. To use other models, disconnect and reconnect with **Connect API key**.
 
 ## Connect
 
 ![Connecting an AI model](../assets/settings-ai-1.jpg)
 
-Pick a provider and enter your key.
+Already have a key? Click **Connect API key**, then choose your provider and enter the key.
 
 - **Provider** — Choose your LLM from the list. OpenAI, Anthropic, Gemini, Mistral, Groq, Together, OpenRouter, and Ollama are built in, so there's no endpoint URL to hunt down. Not on the list? Pick **Custom** and paste any OpenAI-compatible endpoint — locally hosted models like Ollama connect the same way.
 - **API Key** — The key issued by that service.

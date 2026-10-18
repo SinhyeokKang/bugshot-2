@@ -1,3 +1,4 @@
+import { LLM_PROVIDER_IDS } from "@/lib/llm-provider-ids";
 import { LOCALES, detectLocale } from "@/i18n/locales";
 import { languageEventProperties } from "@/lib/analytics-language";
 import { APP_SETTINGS_PERSIST_KEY } from "@/lib/session-keys";
@@ -51,6 +52,7 @@ const ALLOWED_EVENTS: Record<string, readonly string[]> = {
   // reason에는 ConnectReason 고정 enum만 온다 — 상류 error_description·응답 본문을
   // 이 목록에 얹지 말 것(원문이 나가는 유일한 경로가 된다).
   platform_connect: ["platform", "result", "reason"],
+  llm_connect: ["provider", "path", "result"],
   platform_disconnected: ["platform"],
   extension_installed: ["version"],
   // page_supported: 패널이 미지원 페이지에서도 열리게 되면서 이 이벤트가 기계적으로 늘어난다.
@@ -73,6 +75,11 @@ export function filterProperties(
     const value = properties[key];
     if (key === "ui_locale" || key === "report_locale" || key === "report_locale_setting") {
       if (!(LOCALES as readonly string[]).includes(value) && !(key === "report_locale_setting" && value === "auto")) continue;
+    }
+    if (event === "llm_connect") {
+      if (key === "provider" && value !== "custom" && !(LLM_PROVIDER_IDS as readonly string[]).includes(value)) continue;
+      if (key === "path" && value !== "free" && value !== "byok") continue;
+      if (key === "result" && value !== "success" && value !== "cancelled" && value !== "failed") continue;
     }
     if (typeof value === "string") out[key] = value;
   }

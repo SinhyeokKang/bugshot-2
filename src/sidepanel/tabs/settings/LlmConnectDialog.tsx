@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
-import { isCredentialSafeUrl } from "@/lib/loopback-host";
+import { trackLlmConnect, type LlmConnectResult } from "@/sidepanel/lib/track-llm";
 import {
   Command,
   CommandEmpty,
@@ -37,14 +37,9 @@ import {
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { cn } from "@/lib/utils";
 import {
-  ANTHROPIC_MODELS,
-  detectProviderKind,
-  fetchModels,
-  GEMINI_MODELS,
-  LlmRedirectError,
-  pingAnthropic,
+  connectProvider,
+  connectErrorKey,
   PROVIDER_PRESETS,
-  requestHostPermission,
   type ModelEntry,
 } from "@/sidepanel/lib/ai-provider";
 
@@ -118,15 +113,34 @@ export function LlmConnectDialog({
   const [pendingModels, setPendingModels] = useState<{
     models: ModelEntry[];
     baseUrl: string;
+    apiKey: string;
   } | null>(null);
-  const cancelledRef = useRef(false);
+  const attemptRef = useRef(0);
+  const sessionRef = useRef({ active: false, baseUrl: "", hadError: false });
+
+  function finishSession(result?: LlmConnectResult) {
+    const session = sessionRef.current;
+    if (!session.active) return;
+    session.active = false;
+    ++attemptRef.current;
+    trackLlmConnect(session.baseUrl, "byok", result ?? (session.hadError ? "failed" : "cancelled"));
+    setConnecting(false);
+    setPendingModels(null);
+  }
 
   useEffect(() => {
     if (open) {
-      cancelledRef.current = false;
+      sessionRef.current = { active: true, baseUrl, hadError: false };
+    } else {
+      finishSession();
     }
-    return () => { cancelledRef.current = true; };
+    return () => { ++attemptRef.current; };
   }, [open]);
+
+  function handleOpenChange(value: boolean) {
+    if (!value) finishSession();
+    onOpenChange(value);
+  }
 
   const selectedPreset = PROVIDER_PRESETS.find((p) => p.baseUrl === baseUrl);
   const displayLabel = selectedPreset?.label
@@ -139,65 +153,31 @@ export function LlmConnectDialog({
 
   function selectPreset(preset: (typeof PROVIDER_PRESETS)[number]) {
     setBaseUrl(preset.baseUrl);
+    sessionRef.current.baseUrl = preset.baseUrl;
     setSearch("");
     setPopoverOpen(false);
   }
 
   function selectCustom() {
     setBaseUrl(search.trim());
+    sessionRef.current.baseUrl = search.trim();
     setSearch("");
     setPopoverOpen(false);
   }
 
   async function handleConnect() {
-    let parsed: URL;
-    try {
-      parsed = new URL(baseUrl);
-    } catch {
-      toast.error(t("llm.error.invalidUrl"));
-      return;
-    }
-    // API 키가 헤더로 나가므로 평문 http는 loopback(ollama 등 로컬 엔드포인트)만 허용한다.
-    if (!isCredentialSafeUrl(parsed)) {
-      toast.error(t("llm.error.insecureUrl"));
-      return;
-    }
+    const attempt = ++attemptRef.current;
     setConnecting(true);
     try {
-      const granted = await requestHostPermission(baseUrl);
-      if (cancelledRef.current) return;
-      if (!granted) {
-        toast.error(t("llm.error.permission"));
-        return;
-      }
-
-      const kind = detectProviderKind(baseUrl);
-      let models: ModelEntry[];
-      if (kind === "anthropic") {
-        await pingAnthropic(baseUrl, apiKey);
-        models = ANTHROPIC_MODELS;
-      } else {
-        const geminiPreset = PROVIDER_PRESETS.find((p) => p.id === "gemini");
-        const isGemini = geminiPreset && baseUrl === geminiPreset.baseUrl;
-        if (isGemini) {
-          await fetchModels(baseUrl, apiKey);
-          models = GEMINI_MODELS;
-        } else {
-          models = await fetchModels(baseUrl, apiKey);
-        }
-      }
-
-      if (cancelledRef.current) return;
-      setPendingModels({ models, baseUrl });
+      const result = await connectProvider(baseUrl, apiKey);
+      if (attempt !== attemptRef.current) return;
+      setPendingModels({ ...result, baseUrl });
     } catch (err) {
-      if (cancelledRef.current) return;
-      toast.error(
-        err instanceof LlmRedirectError
-          ? t("llm.error.redirect")
-          : t("llm.error.fetch"),
-      );
+      if (attempt !== attemptRef.current) return;
+      sessionRef.current.hadError = true;
+      toast.error(t(connectErrorKey(err)));
     } finally {
-      if (!cancelledRef.current) setConnecting(false);
+      if (attempt === attemptRef.current) setConnecting(false);
     }
   }
 
@@ -205,10 +185,11 @@ export function LlmConnectDialog({
     if (!pendingModels) return;
     setLlm({
       baseUrl: pendingModels.baseUrl,
-      apiKey,
+      apiKey: pendingModels.apiKey,
       modelId,
     });
-    setPendingModels(null);
+    sessionRef.current.baseUrl = pendingModels.baseUrl;
+    finishSession("success");
     setApiKey("");
     setBaseUrl("");
     onOpenChange(false);
@@ -221,7 +202,7 @@ export function LlmConnectDialog({
       onSelect={handleModelSelect}
       onClose={() => setPendingModels(null)}
     />
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="w-[90vw] max-w-[800px] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl">{t("llm.dialog.title")}</DialogTitle>
@@ -310,7 +291,7 @@ export function LlmConnectDialog({
         </div>
 
         <DialogFooter className="flex-row justify-end">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => handleOpenChange(false)}>
             {t("common.close")}
           </Button>
           <Button onClick={handleConnect} disabled={!canConnect} className="relative">
@@ -330,14 +311,16 @@ export function LlmConnectDialog({
   );
 }
 
-function LlmModelDialog({
+export function LlmModelDialog({
   pending,
   onSelect,
   onClose,
+  busy = false,
 }: {
   pending: { models: ModelEntry[]; baseUrl: string } | null;
   onSelect: (modelId: string) => void;
   onClose: () => void;
+  busy?: boolean;
 }) {
   const t = useT();
   const [models, setModels] = useState<ModelEntry[]>([]);
@@ -353,18 +336,20 @@ function LlmModelDialog({
 
   return (
     <Dialog open={!!pending} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="w-[90vw] max-w-[800px] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+      <DialogContent data-testid="llm-model-dialog" className="w-[90vw] max-w-[800px] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl">{t("llm.model.select")}</DialogTitle>
         </DialogHeader>
 
-        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <Popover open={popoverOpen && !busy} onOpenChange={(value) => { if (!busy) setPopoverOpen(value); }}>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               role="combobox"
-              aria-expanded={popoverOpen}
-              className="w-full min-w-0 justify-between font-normal"
+              data-testid="llm-model-picker"
+              aria-expanded={popoverOpen && !busy}
+              aria-disabled={busy}
+              className="w-full min-w-0 justify-between font-normal aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-background aria-disabled:hover:text-foreground"
             >
               <span
                 className={cn(
@@ -391,6 +376,7 @@ function LlmModelDialog({
                       key={m.id}
                       value={m.id}
                       onSelect={() => {
+                        if (busy) return;
                         setSelectedModelId(m.id);
                         setPopoverOpen(false);
                       }}
@@ -415,9 +401,14 @@ function LlmModelDialog({
             {t("common.close")}
           </Button>
           <Button
+            data-testid="llm-model-confirm"
             disabled={!selectedModelId}
-            onClick={() => onSelect(selectedModelId)}
+            aria-disabled={busy}
+            aria-busy={busy}
+            className="aria-disabled:cursor-not-allowed aria-disabled:hover:bg-primary"
+            onClick={() => { if (!busy) onSelect(selectedModelId); }}
           >
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
             {t("common.ok")}
           </Button>
         </DialogFooter>

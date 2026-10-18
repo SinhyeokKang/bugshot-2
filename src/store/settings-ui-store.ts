@@ -104,6 +104,7 @@ export interface LlmConfig {
   baseUrl: string;
   apiKey: string;
   modelId: string;
+  freeTier?: true;
 }
 
 function browserLanguage(): string | undefined {
@@ -154,6 +155,10 @@ export function migrateSettingsUi(
   }
   if (version < 5 && state.llm && !state.llm.apiKey) {
     state.llm = null;
+  }
+  if (version < 12 && state.llm?.baseUrl === "https://generativelanguage.googleapis.com/v1beta/openai"
+    && state.llm.modelId?.startsWith("gemini-2.0-flash")) {
+    state.llm = { ...state.llm, modelId: "gemini-2.5-flash" };
   }
   state.recordingMode = state.recordingMode ?? "tab";
   state.styleEditorView = state.styleEditorView ?? "form";
@@ -281,8 +286,8 @@ export const useSettingsUiStore = create<SettingsUiState>()(
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: APP_SETTINGS_PERSIST_KEY,
-      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가, v8: autoReproPrefill 추가, v9: issueSections에 media 엔트리 편입, v10: aiLanguage 추가, v11: bodyLocale 추가
-      version: 11,
+      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가, v8: autoReproPrefill 추가, v9: issueSections에 media 엔트리 편입, v10: aiLanguage 추가, v11: bodyLocale 추가, v12: 종료된 Gemini 2.0 Flash 모델 교체
+      version: 12,
       storage: createJSONStorage(() => apiKeyObfuscatingStorage),
       migrate: migrateSettingsUi,
       merge: mergePersistedSettings,

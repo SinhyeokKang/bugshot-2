@@ -62,7 +62,7 @@ export function SettingsTab({ sub, onSubChange }: { sub: string; onSubChange: (v
             <StickyNote className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("settings.tab.issue")}</TabLabel>
           </TabsTrigger>
-          <TabsTrigger value="ai" className="min-w-0 gap-1.5">
+          <TabsTrigger value="ai" className="min-w-0 gap-1.5" data-testid="settings-sub-ai">
             <Sparkles className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("settings.tab.ai")}</TabLabel>
           </TabsTrigger>
