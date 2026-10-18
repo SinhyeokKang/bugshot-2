@@ -681,7 +681,7 @@ trim 적용 여부는 `videoTrimmed`(세션 영속 `EditorSnapshot` 키 — `onR
 - **Gemini는 팝업 창**: 키 발급 API가 없어 발급 페이지를 팝업 창으로 연다. 새 탭으로 열면 탭 스코프 패널이 닫혀 키를 붙여넣을 곳이 사라진다.
 - **OpenRouter는 패널 직행 PKCE**: PKCE(S256)를 **사이드패널에서 직접** `chrome.identity.launchWebAuthFlow`로 돌린다. client secret이 없어 `oauth-proxy`가 필요 없다. 플랫폼 OAuth 레인(`PlatformId`·background)에 끼우지 않는 건 키가 패널 store로 가야 해서다. 조립 로직은 순수 함수 `runOpenRouterAuth(deps)`라 테스트 대상이고, `sidepanel/openrouter-auth.ts`는 chrome API 바인딩만 둔다(`BROWSER_BOUND_EXACT`).
 - **취소 판정**: 정규식은 background `LAUNCH_FLOW_ERRORS`의 복제다. 그래서 테스트가 `classifyLaunchFlowError`와 결과가 같은지 대조한다.
-- **선택 직후 프로브**: `:free`+image 필터를 통과해도 정책상 부를 수 없는 모델이 섞인다(실측 403 "agentic harnesses only"). 모델을 고른 직후 고정 텍스트로 1회 호출해 403·404만 막는다. 429·5xx는 일시적이라 통과시킨다.
+- **선택 직후 프로브**: `:free`+image 필터를 통과해도 정책상 부를 수 없는 모델이 섞인다(실측 403 "agentic harnesses only"). 모델을 고른 직후 고정 텍스트로 1회 호출해 403·404만 막는다. 429·5xx는 일시적이라 통과시킨다. 프로브가 도는 동안 공용 `LlmModelDialog`는 `busy`로 콤보·[확인]을 잠근다. 안 잠그면 대기 중에 다른 모델을 골라도 이전 모델이 저장된다.
 - **키 수명**: 발급 키는 모달이 열려 있는 동안만 메모리에 두고, 같은 모달 안의 재시도에 재사용한다.
 - **세대 번호**: 비동기 결과는 boolean 취소 ref가 아니라 세대 번호로 대조한다. boolean은 재오픈하면 false로 돌아가서 이전 시도의 결과를 통과시킨다. BYOK `LlmConnectDialog`도 같은 방식이다.
 - **집계**: `llm_connect`는 모달을 열고 닫을 때마다 1건이다. success = 저장됨, failed = 오류 토스트가 떴음, cancelled = 그 외.
