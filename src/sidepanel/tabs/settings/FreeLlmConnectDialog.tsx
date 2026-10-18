@@ -154,6 +154,7 @@ export function FreeLlmConnectDialog({ open, onOpenChange }: {
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
+          data-testid="free-llm-dialog"
           className="flex max-h-[80vh] w-[90vw] max-w-[800px] flex-col gap-5 rounded-3xl p-6 sm:rounded-3xl"
           onInteractOutside={(event) => event.preventDefault()}
         >
@@ -224,7 +225,7 @@ export function FreeLlmConnectDialog({ open, onOpenChange }: {
               setStep("pick");
             }}>{t("llm.free.back")}</Button>}
             <Button
-              data-testid={step === "pick" ? "free-llm-next" : undefined}
+              data-testid={step === "pick" ? "free-llm-next" : "free-llm-gemini-connect"}
               disabled={step === "pick" ? !selected : !apiKey.trim()}
               aria-disabled={busy}
               className="aria-disabled:cursor-not-allowed aria-disabled:hover:bg-primary"

@@ -238,7 +238,7 @@ function LlmConnected() {
           }
         >
           <Card>
-            <CardContent className="flex items-center justify-between px-4 py-3">
+            <CardContent data-testid="llm-connected" className="flex items-center justify-between px-4 py-3">
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-base font-medium text-foreground">
                   {hostname}

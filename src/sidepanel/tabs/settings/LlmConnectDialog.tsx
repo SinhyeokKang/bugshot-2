@@ -336,7 +336,7 @@ export function LlmModelDialog({
 
   return (
     <Dialog open={!!pending} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="w-[90vw] max-w-[800px] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+      <DialogContent data-testid="llm-model-dialog" className="w-[90vw] max-w-[800px] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl">{t("llm.model.select")}</DialogTitle>
         </DialogHeader>
@@ -346,6 +346,7 @@ export function LlmModelDialog({
             <Button
               variant="outline"
               role="combobox"
+              data-testid="llm-model-picker"
               aria-expanded={popoverOpen && !busy}
               aria-disabled={busy}
               className="w-full min-w-0 justify-between font-normal aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-background aria-disabled:hover:text-foreground"
@@ -400,6 +401,7 @@ export function LlmModelDialog({
             {t("common.close")}
           </Button>
           <Button
+            data-testid="llm-model-confirm"
             disabled={!selectedModelId}
             aria-disabled={busy}
             aria-busy={busy}
