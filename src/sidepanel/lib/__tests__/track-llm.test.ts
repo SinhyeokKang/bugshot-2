@@ -34,7 +34,8 @@ describe("LLM connection analytics", () => {
   });
   it("sends one capture message without credentials or URLs", () => {
     trackLlmConnect("https://internal.example/v1", "byok", "success");
-    expect(sendBg).toHaveBeenCalledExactlyOnceWith({
+    expect(sendBg).toHaveBeenCalledTimes(1);
+    expect(sendBg).toHaveBeenCalledWith({
       type: "analytics.capture", event: "llm_connect",
       properties: { provider: "custom", path: "byok", result: "success" },
     });

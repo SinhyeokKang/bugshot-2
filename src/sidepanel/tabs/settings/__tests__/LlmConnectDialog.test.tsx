@@ -15,6 +15,8 @@ const baseUrl = "https://api.openai.com/v1";
 const fetchMock = vi.fn();
 function Harness() {
   const [open, setOpen] = useState(true);
+  const llm = useSettingsUiStore((s) => s.llm);
+  if (llm) return <p>connected</p>;
   return <><button onClick={() => setOpen(true)}>reopen</button><LlmConnectDialog open={open} onOpenChange={setOpen} /></>;
 }
 async function startConnection() {
@@ -36,7 +38,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   fetchMock.mockReset().mockImplementation(async () => new Response(JSON.stringify({ data: [{ id: "test-model" }] })));
   vi.stubGlobal("fetch", fetchMock);
-  vi.stubGlobal("chrome", { permissions: { request: vi.fn().mockResolvedValue(true) } });
+  vi.stubGlobal("chrome", {
+    permissions: { request: vi.fn().mockResolvedValue(true) },
+    storage: { local: { get: vi.fn().mockResolvedValue({}), set: vi.fn().mockResolvedValue(undefined) } },
+  });
   useSettingsUiStore.setState({ llm: null });
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -47,7 +52,8 @@ describe("BYOK connection session", () => {
     expect(trackLlmConnect).not.toHaveBeenCalled();
     await selectModel(user);
     expect(useSettingsUiStore.getState().llm).toEqual({ baseUrl, apiKey: "key", modelId: "test-model" });
-    expect(trackLlmConnect).toHaveBeenCalledExactlyOnceWith(baseUrl, "byok", "success");
+    expect(trackLlmConnect).toHaveBeenCalledTimes(1);
+    expect(trackLlmConnect).toHaveBeenCalledWith(baseUrl, "byok", "success");
   });
   it("uses the redirect toast and tracks failed only when closed", async () => {
     fetchMock.mockResolvedValue({ type: "opaqueredirect", status: 0 });
@@ -55,14 +61,16 @@ describe("BYOK connection session", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("llm.error.redirect"));
     expect(trackLlmConnect).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "common.close" }));
-    expect(trackLlmConnect).toHaveBeenCalledExactlyOnceWith(baseUrl, "byok", "failed");
+    expect(trackLlmConnect).toHaveBeenCalledTimes(1);
+    expect(trackLlmConnect).toHaveBeenCalledWith(baseUrl, "byok", "failed");
   });
   it("tracks an untouched close as cancelled, once per open", async () => {
     const user = userEvent.setup();
     render(<StrictMode><Harness /></StrictMode>);
     expect(trackLlmConnect).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "common.close" }));
-    expect(trackLlmConnect).toHaveBeenCalledExactlyOnceWith("", "byok", "cancelled");
+    expect(trackLlmConnect).toHaveBeenCalledTimes(1);
+    expect(trackLlmConnect).toHaveBeenCalledWith("", "byok", "cancelled");
     await user.click(screen.getByText("reopen"));
     await user.keyboard("{Escape}");
     expect(trackLlmConnect).toHaveBeenCalledTimes(2);
@@ -74,7 +82,8 @@ describe("BYOK connection session", () => {
     expect(trackLlmConnect).not.toHaveBeenCalled();
     expect(useSettingsUiStore.getState().llm).toBeNull();
     await user.click(screen.getByRole("button", { name: "common.close" }));
-    expect(trackLlmConnect).toHaveBeenCalledExactlyOnceWith(baseUrl, "byok", "cancelled");
+    expect(trackLlmConnect).toHaveBeenCalledTimes(1);
+    expect(trackLlmConnect).toHaveBeenCalledWith(baseUrl, "byok", "cancelled");
   });
   it("success takes precedence over an earlier error in the same session", async () => {
     fetchMock.mockRejectedValueOnce(new Error("offline"));
@@ -82,7 +91,8 @@ describe("BYOK connection session", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     await user.click(screen.getByRole("button", { name: "platform.connect" }));
     await selectModel(user);
-    expect(trackLlmConnect).toHaveBeenCalledExactlyOnceWith(baseUrl, "byok", "success");
+    expect(trackLlmConnect).toHaveBeenCalledTimes(1);
+    expect(trackLlmConnect).toHaveBeenCalledWith(baseUrl, "byok", "success");
   });
   it("ignores an old request after close and reopen", async () => {
     let resolve!: (response: Response) => void;

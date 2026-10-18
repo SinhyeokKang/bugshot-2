@@ -1,3 +1,6 @@
+import type { TranslationKey } from "@/i18n/ko";
+import type { LlmProviderId } from "@/lib/llm-provider-ids";
+import { isCredentialSafeUrl } from "@/lib/loopback-host";
 import type { LlmConfig } from "@/store/settings-ui-store";
 
 interface LanguageModelInstance {
@@ -149,6 +152,7 @@ export interface AIProvider {
 
 export interface ModelEntry {
   id: string;
+  freeTier?: true;
 }
 
 export class LlmQuotaError extends Error {
@@ -330,7 +334,7 @@ function assertResponseSizeHeader(res: Response): void {
 }
 
 export interface ProviderPreset {
-  id: string;
+  id: LlmProviderId;
   label: string;
   baseUrl: string;
   kind: ProviderKind;
@@ -354,10 +358,18 @@ export const ANTHROPIC_MODELS: ModelEntry[] = [
 ];
 
 export const GEMINI_MODELS: ModelEntry[] = [
-  { id: "gemini-2.5-flash" },
+  { id: "gemini-3.8-flash", freeTier: true },
+  { id: "gemini-3.6-flash", freeTier: true },
+  { id: "gemini-3.5-flash-lite", freeTier: true },
+  { id: "gemini-2.5-flash", freeTier: true },
   { id: "gemini-2.5-pro" },
-  { id: "gemini-2.0-flash" },
 ];
+
+export const GEMINI_FREE_MODELS = GEMINI_MODELS.filter((model) => model.freeTier);
+
+export function presetIdOf(baseUrl: string): LlmProviderId | "custom" {
+  return PROVIDER_PRESETS.find((preset) => preset.baseUrl === baseUrl)?.id ?? "custom";
+}
 
 export function detectProviderKind(baseUrl: string): ProviderKind {
   const preset = PROVIDER_PRESETS.find((p) => p.baseUrl === baseUrl);
@@ -709,4 +721,39 @@ export async function requestHostPermission(
   const url = new URL(baseUrl);
   const origin = `${url.protocol}//${url.host}/*`;
   return chrome.permissions.request({ origins: [origin] });
+}
+
+
+export class LlmInvalidUrlError extends Error {}
+export class LlmInsecureUrlError extends Error {}
+export class LlmPermissionDeniedError extends Error {}
+
+export function connectErrorKey(err: unknown): TranslationKey {
+  if (err instanceof LlmInvalidUrlError) return "llm.error.invalidUrl";
+  if (err instanceof LlmInsecureUrlError) return "llm.error.insecureUrl";
+  if (err instanceof LlmPermissionDeniedError) return "llm.error.permission";
+  if (err instanceof LlmRedirectError) return "llm.error.redirect";
+  return "llm.error.fetch";
+}
+
+export async function connectProvider(
+  baseUrl: string,
+  apiKey: string,
+): Promise<{ models: ModelEntry[]; apiKey: string }> {
+  apiKey = apiKey.trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    throw new LlmInvalidUrlError();
+  }
+  if (!isCredentialSafeUrl(parsed)) throw new LlmInsecureUrlError();
+  if (!await requestHostPermission(baseUrl)) throw new LlmPermissionDeniedError();
+
+  if (detectProviderKind(baseUrl) === "anthropic") {
+    await pingAnthropic(baseUrl, apiKey);
+    return { models: ANTHROPIC_MODELS, apiKey };
+  }
+  const models = await fetchModels(baseUrl, apiKey);
+  return { models: presetIdOf(baseUrl) === "gemini" ? GEMINI_MODELS : models, apiKey };
 }
