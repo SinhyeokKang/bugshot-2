@@ -193,24 +193,40 @@ test.describe.serial("free AI connection", () => {
   test("binds real Chrome redirect, randomness and fetch through the OpenRouter launcher", async ({ ext }) => {
     // Only the external auth window is replaced; the launcher and PKCE/key exchange remain real.
     await panel.addInitScript(() => {
-      const state = window as unknown as { __openRouterAuth: chrome.identity.WebAuthFlowOptions[] };
+      const state = window as unknown as { __openRouterAuth: chrome.identity.WebAuthFlowOptions[]; __completeOpenRouterAuth?: () => void };
       state.__openRouterAuth = [];
       chrome.identity.launchWebAuthFlow = (async (details: chrome.identity.WebAuthFlowOptions) => {
         state.__openRouterAuth.push(details);
         const auth = new URL(details.url);
         const redirect = new URL(chrome.identity.getRedirectURL());
         redirect.search = new URLSearchParams({ code: "x", state: auth.searchParams.get("state")! }).toString();
-        return redirect.href;
+        return new Promise<string>((resolve) => { state.__completeOpenRouterAuth = () => resolve(redirect.href); });
       }) as typeof chrome.identity.launchWebAuthFlow;
     });
     await panel.evaluate((key) => chrome.storage.local.set({ [key]: JSON.stringify({ state: { llm: null, locale: "en" }, version: 12 }) }), SETTINGS_KEY);
     await panel.reload();
+    const originalViewport = panel.viewportSize()!;
+    await panel.setViewportSize({ width: 400, height: 760 });
+    await setScreenLocale(panel, "한국어");
     await openSettings(panel, "ai");
     await panel.getByTestId("llm-connect-free").click();
     await panel.getByTestId("free-llm-card-openrouter").click();
     const next = panel.getByTestId("free-llm-next");
     await expect(next).not.toHaveAttribute("aria-disabled", "true");
     await next.click();
+    const dialog = panel.getByTestId("free-llm-dialog");
+    const status = dialog.getByRole("status");
+    await expect(status).not.toBeEmpty();
+    await expect(status).toBeInViewport({ ratio: 1 });
+    const statusBox = await status.boundingBox();
+    const dialogBox = await dialog.boundingBox();
+    expect(statusBox!.x).toBeGreaterThanOrEqual(Math.max(0, dialogBox!.x));
+    expect(statusBox!.y).toBeGreaterThanOrEqual(Math.max(0, dialogBox!.y));
+    expect(statusBox!.x + statusBox!.width).toBeLessThanOrEqual(Math.min(400, dialogBox!.x + dialogBox!.width));
+    expect(statusBox!.y + statusBox!.height).toBeLessThanOrEqual(Math.min(760, dialogBox!.y + dialogBox!.height));
+    await expect(next).toBeInViewport({ ratio: 1 });
+    await panel.evaluate(() => (window as unknown as { __completeOpenRouterAuth: () => void }).__completeOpenRouterAuth());
+    await panel.setViewportSize(originalViewport);
     await expect(panel.getByTestId("llm-model-dialog")).toBeVisible();
     const calls = await panel.evaluate(() => (window as unknown as { __openRouterAuth: chrome.identity.WebAuthFlowOptions[] }).__openRouterAuth);
     expect(calls).toHaveLength(1);

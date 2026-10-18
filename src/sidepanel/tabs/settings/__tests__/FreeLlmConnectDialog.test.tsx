@@ -88,6 +88,11 @@ describe("free connection session", () => {
     expect(createWindow).toHaveBeenCalledWith({ url: AI_STUDIO_KEY_URL, type: "popup", width: 520, height: 760 });
     expect(document.activeElement).toBe(screen.getByTestId("free-llm-gemini-key"));
   });
+  it("uses the dedicated AI Studio key hint for Gemini", async () => {
+    const user = setup();
+    await choose(user);
+    expect(screen.getByTestId("free-llm-gemini-key").getAttribute("placeholder")).toBe("llm.free.gemini.keyPlaceholder");
+  });
   it("reopens the popup, resets input on back, and restores the chosen card focus", async () => {
     const user = setup();
     await choose(user);
