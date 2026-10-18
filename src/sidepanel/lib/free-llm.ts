@@ -61,6 +61,8 @@ export function parseOpenRouterCallback(
 ): OpenRouterCallback {
   const params = new URL(redirectUrl).searchParams;
   if (params.has("error")) return { cancelled: true };
+  // OpenRouter Deny returns the bare callback URL without OAuth parameters.
+  if (!params.has("code") && !params.has("state")) return { cancelled: true };
   if (params.get("state") !== expectedState) throw new Error("OpenRouter state mismatch");
   const code = params.get("code");
   if (!code) throw new Error("OpenRouter authorization code missing");
