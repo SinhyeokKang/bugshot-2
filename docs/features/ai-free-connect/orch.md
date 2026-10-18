@@ -71,14 +71,16 @@ ego가 에이전트의 확장 설치를 막아서(사용자 고지) **Playwright
 | 실 AI 초안(무료 vision 모델, `image_url` 2개, 200, 스크린샷 내용 반영) | ✅ |
 | `llm_connect` payload: 카드 미선택 닫기 `{path:free,result:cancelled}`(provider 생략) / 성공 `{provider:openrouter,path:free,result:success}` | ✅ (panel `sendMessage` 가로채기) |
 | R4 대기 중 패널 소멸 → 재열기 재시도 | ✅ 동작. ⚪ 이전 인증 창이 고아로 남는다(창 2개) — 수용, 기록만 |
-| **[Deny]** | ❌ **#268** — 파라미터 없는 bare callback이 온다 → 실패 토스트. D5 해소: `error` 파라미터가 아니다 |
-| OpenRouter 대기 문구 | ❌ **#269** — 스크롤 영역 끝에 렌더돼 400×760에서 안 보임. ⚪ Gemini 키 placeholder `sk-...` |
+| **[Deny]** | ❌→✅ **#268** — 파라미터 없는 bare callback이 온다 → 실패 토스트. D5 해소: `error` 파라미터가 아니다. B 수정(`28f5122d`·`874a4f8e`) 후 실 Deny 재확인: 토스트 없음 → 이슈 close |
+| OpenRouter 대기 문구 | ❌→✅ **#269** — 스크롤 영역 끝에 렌더돼 400×760에서 안 보임 + Gemini 키 placeholder `sk-...`. C 수정(`a1e822d2`·`0dc564ae`·`36f0ff1d`·`93265aa5`) 후 재확인: 스크롤 밖 노출(hit-test 통과)·`AIza...` → 이슈 close |
 | Gemini 무료 키 실호출(모델 ID·이미지) | ⏸ 미검증 — 키 없음. **merge 전 필수 권고 유지** |
 | 인증 창 안 Google SSO 가입 완주 | ⏸ 미검증 — 사용자 부재 |
 | PostHog 실수신 | ⏸ 미검증 — dev 빌드 PostHog 키 없음(no-op). payload까지만 확인 |
 | 가이드 신규 컷(`/guide-shots`) | ⏸ 미수행 |
 
-테스트용 OpenRouter 키 2개(`OAuth: BugShot`)는 검증 후 삭제했다.
+테스트용 OpenRouter 키 2개(`OAuth: BugShot`)는 검증 후 삭제했다(재확인 회차의 Deny는 키를 만들지 않는다).
+
+수정 통합 게이트 `typecheck=0 test=0 sync=0`(9142 통과·2 skip). `/postmortem` #268(실측 없이 OAuth `error` 관례를 전제 — `미검증단언`). #269는 자명한 배치 결함이라 회고 제외. 워크트리 A·B·C 전부 제거(인계 사본 `.scratch/ai-free-connect/handoff-{A,B,C}.md`).
 
 ## 런타임 검증 목록 (e2e가 원리적으로 못 보는 축)
 
