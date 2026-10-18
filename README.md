@@ -62,7 +62,7 @@ I didn't want BugShot to become another server that received and stored that
 data. These are the core data paths:
 
 ```text
-Your browser ────────────────────────→ Your tracker or Slack
+Your browser ────────────────────────→ Your tracker, Slack, or webhook server
      │
      ├── when you use AI ────────────→ The LLM endpoint you selected
      │
@@ -100,7 +100,7 @@ neither browser implements that API.
 
 1. **Install** from the [Chrome Web Store](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig).
 2. **Open the panel** — click the toolbar icon, press `Cmd/Ctrl+Shift+E`, or pick **BugShot** from the page's right-click menu.
-3. **Connect a destination** — choose a tracker or Slack in the *Integrations* tab.
+3. **Connect a destination** — choose a tracker, Slack, or a custom webhook in the *Integrations* tab.
 4. **Capture** — edit an element's styles, capture an element or area, take a
    viewport or full-page screenshot, or record the tab or screen. You can also
    start a report without a capture — from the capture screen's footer, or from
@@ -119,7 +119,7 @@ Fix the bug visually before you even describe it.
 - **DOM tree navigation** — can't reach it by hovering? Browse the live DOM tree in a dialog and pick the node directly, or step to its parent or first child — for wrappers and elements buried under an overlay.
 - **Live CSS editing** — edit layout, spacing, sizing, color, typography, borders, and more through structured fields, or switch to a syntax-highlighted CSS code editor — prefilled with the element's current styles (four-side longhands merged into shorthands), with autocomplete and inline color swatches — to edit raw CSS directly (arbitrary properties, `!important`). Changes apply to the live page instantly, so you can dial in the exact fix and see it in place.
 - **Class & text editing** — edit an element's class list or visible text live; those changes are tracked alongside its style diff.
-- **Design token awareness** — resolves `var()` chains and shows the token name (e.g. `--color-primary`) instead of the raw computed value, so the report speaks your design system's language.
+- **Design token awareness** — resolves `var()` chains and shows the token name (e.g. `--color-primary`) instead of the raw computed value, so the report speaks your design system's language. When editing a value, you can pick one of the page's tokens instead of typing a raw value.
 - **Before/after diff** — every change is tracked and rendered as a before → after table in the issue, plus paired before/after screenshots that widen to the enclosing dialog or table row so the fix is recognizable at a glance. Developers see exactly which properties to change. **Both images can be annotated** so you can point at the offending element even when the frame holds several, and removing an annotation restores the shot you originally captured. Edits across multiple elements are stacked and preserved until you submit.
 
 ### 📸 Capture
@@ -162,7 +162,7 @@ All three logs ride along with every capture except element style editing, and t
 
 - **AI draft** — BYOK (Bring Your Own Key) with OpenAI, Anthropic, Gemini, and more — or a local endpoint like Ollama, so the AI step can stay on your machine too; falls back to Chrome Built-in AI when no key is set. No key yet? **Connect free AI** opens Google AI Studio to issue a free Gemini key, or signs you in to OpenRouter and issues a key automatically (free vision models only) — free tiers may use or log prompts, and the dialog says so before you connect. Drafts the title and body from your capture (styles, screenshot, or log summary) in one go. When the AI cites a relevant error log, the actual console/network entry is inserted into the body as a code block — serialized by the app, so log contents can't be hallucinated. With your own remote key, the capture screenshot goes in as an image and the drafting language is yours to pick, set independently of the interface language; Chrome Built-in AI and local endpoints are text-only and follow the interface language.
 - **AI styling** — describe the fix in words and the AI writes the CSS onto the selected element, live on the page.
-- **Repro auto-fill** — **on by default** once you connect an AI: after a recording, the steps-to-reproduce section is written for you from the action log, which means the action log is sent to that AI. Turn it off under Settings → Issue settings → Other.
+- **Repro auto-fill** — **on by default** whenever an AI is available, Chrome Built-in AI included: after a recording, the steps-to-reproduce section is written for you from the action log. With a connected remote AI, that means the action log is sent to it; Chrome Built-in AI processes it on-device. Turn it off under Settings → Issue settings → Other.
 
 ### 📥 Issue list & drafts
 
@@ -176,7 +176,8 @@ Connect via OAuth or a token. Every **tracker** supports destination selection
 and attachment upload. GitHub uploads require a signed-in github.com session;
 GitLab uploads use the PAT or OAuth token from your connected account. Assignee covers every tracker except Notion; label
 selection is GitHub, Linear and GitLab only. **Slack** is a messenger rather than
-a tracker — it sends to a channel or DM instead.
+a tracker — it sends to a channel or DM instead. A **custom webhook** sends the
+report to a server you run, as described in the [webhook contract](docs/webhook-contract.md).
 
 Set defaults once in the *Integrations* tab — destination (project, repo, team,
 workspace, database, channel) plus **assignee**, label, issue type (Jira), and
@@ -188,7 +189,7 @@ submission *to that same destination*, and is dropped when you switch.
 
 | Platform | Auth | Highlights |
 |---|---|---|
-| **Jira** | OAuth 3LO / API Token | project metadata, sprint picker, auto-upload attachments |
+| **Jira** | OAuth 3LO / API Token | project metadata, sprint picker, priority, parent epic, linked issue, auto-upload attachments |
 | **GitHub** | OAuth / PAT | repo, labels, assignees, file upload (needs a signed-in github.com session) |
 | **Linear** | OAuth PKCE / API Key | team, project, labels, priority |
 | **Notion** | OAuth / Internal Token | database picker, status & select properties |
@@ -196,6 +197,7 @@ submission *to that same destination*, and is dropped when you switch.
 | **Asana** | OAuth / PAT | workspace, project, assignee |
 | **ClickUp** | OAuth / API Token | workspace → space → list, assignee |
 | **Slack** | OAuth (user token) | channel/DM, @mentions, title + threaded details & files |
+| **Custom Webhook** | URL + optional Bearer secret | multipart (files + `cid:` references, adds an issue-list row) or JSON template (no media, no history), custom headers, test send |
 
 ### 🌐 Export & i18n
 
@@ -227,6 +229,7 @@ pnpm sync:agents:check # fail if the mirror drifted (CI gate)
 ```
 
 Load the unpacked extension from `dist/` at `chrome://extensions` (developer mode).
+Opening the panel page (`src/sidepanel/index.html`) in a regular tab runs it in tab mode for browser automation agents; their manual is embedded in that page's source (`#__BUGSHOT_AGENT__`).
 The e2e suite lives in `e2e/` — see [`e2e/README.md`](e2e/README.md) for coverage and gotchas.
 Patches are welcome: [`CONTRIBUTING.md`](CONTRIBUTING.md) covers which branch to
 target, what CI checks, and what won't be merged.
@@ -255,7 +258,7 @@ Open DevTools on the side panel and inspect BugShot’s service worker from
 inspect that tab for its upload requests. Compare the requests against the
 [transmission table](docs/privacy.en.md#3-external-transmission) — the only
 BugShot-operated endpoint in the whole list is the OAuth token-exchange proxy,
-which relays the code→token swap and never carries capture data.
+which relays the code→token swap and token refreshes and never carries capture data.
 
 ## Stack
 
@@ -275,8 +278,9 @@ The decisions that shaped the codebase, and what each one cost:
 not "we don't look at it," but nowhere to look. Captures, logs, and report
 bodies are assembled in the extension and POSTed straight to your tracker with
 your own credentials. The one BugShot-operated endpoint is a Cloudflare Worker
-that swaps an OAuth code for a token, because the client secret can't ship in a
-public bundle; Linear and GitLab skip even that via PKCE. The cost is real:
+that swaps an OAuth code for a token (and relays refreshes for Jira, GitHub, and
+Asana), because the client secret can't ship in a public bundle; Linear and
+GitLab skip even that via PKCE. The cost is real:
 no cross-device sync, no team workspace, no server-side processing — features
 that would each require breaking this property, so they don't get built.
 
@@ -338,8 +342,9 @@ Full detail lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (Korean).
 ## Privacy
 
 Every outbound request the extension can make is enumerated here — trackers,
-Slack, your LLM endpoint, the OAuth proxy, and analytics — with the exact data
-each one carries:
+Slack, your webhook server, your LLM endpoint, the OAuth proxy, and analytics,
+plus a few auxiliary requests such as AI key issuance and stylesheet fetches — with
+the exact data each one carries:
 
 - **[External transmission table](docs/privacy.en.md#3-external-transmission)** — every destination, what it receives, and why
 - **[Permissions notice](docs/privacy.en.md#6-permissions-notice)** — why the extension needs `<all_urls>`
