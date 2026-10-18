@@ -36,6 +36,52 @@
 
 ---
 
+## 2026-10-18 — 다이얼로그를 닫았다 다시 열면 boolean 취소 ref가 false로 돌아가, 이전 시도의 비동기 결과가 새 모달에 적용됐다
+
+- **영역**: `컴포넌트`
+- **계열**: `취소래치`
+- **그물**: `jsdom`
+- **증상**: (ai-free-connect 설계 리뷰·구현 중 발견, 사용자 보고 없음) 다음 순서로 동작하면 예전 시도의 결과가 새 모달에 들어온다. ① BYOK `LlmConnectDialog`에서 [연결]을 누른다. ② 응답이 오기 전에 닫는다. ③ 다시 연다. ④ 늦게 도착한 첫 요청의 모델 목록이 새 모달의 모델 선택 다이얼로그로 뜬다. 무료 OpenRouter 경로였다면 몇 분씩 열려 있는 로그인 창에서 승인한 예전 키가 새 모달에 저장될 수 있었다. 같은 계열로, 선택 모델을 프로브하는 동안 다른 모델을 고르고 [확인]하면 화면에는 새 모델이 보이는데 이전 모델이 저장되는 경합도 있었다.
+- **근본 원인**: 늦게 온 결과를 거르는 가드가 `cancelledRef`(boolean)였다. `useEffect([open])`가 열릴 때 `cancelledRef.current = false`로 되돌리므로 **"닫혔다"는 사실이 재오픈 한 번에 지워진다.** 예전 요청의 `await` 재개 시점에는 이미 false라서 통과한다. boolean은 "지금 열려 있나"를 답할 뿐, "이 결과가 지금 세션의 것인가"는 답하지 못한다. 프로브 경합도 같은 축이다. 진행 중 플래그(`busyRef`)가 두 번째 확인만 막았고, 결과가 적용될 대상(선택값)은 UI에서 계속 바뀔 수 있었다.
+- **재발 방지**:
+  - (1) **비동기 결과를 거르는 가드는 boolean이 아니라 세대 번호로 둔다.** 시도마다 `++attemptRef`, 닫기·재오픈·[이전]에서도 `++`. `await` 뒤에는 `attempt !== attemptRef.current`면 결과 전체를 버린다.
+  - (2) **점검 grep**: `grep -rn "cancelledRef.current = false" src/sidepanel`. 열릴 때 false로 되돌리는 boolean 가드는 전부 같은 구멍이다.
+  - (3) **테스트**: "닫기 → 재오픈 → 이전 요청 resolve"를 지연 Promise로 재현하고, step·pendingModels·setLlm 미호출을 단언한다(`FreeLlmConnectDialog.test.tsx`·`LlmConnectDialog.test.tsx`). StrictMode 하네스로 effect 이중 실행에도 가짜 결과가 안 나는지 본다.
+  - (4) **비동기 확인이 도는 동안에는 그 결과가 적용될 입력을 잠근다.** 공용 `LlmModelDialog`에 `busy`를 두어 콤보·[확인]을 막는다. 진행 플래그로 두 번째 실행만 막으면 첫 실행이 바뀐 입력 위에 착지한다.
+- **관련**: `src/sidepanel/tabs/settings/LlmConnectDialog.tsx`(`attemptRef`·`finishSession`·`LlmModelDialog` `busy`), `src/sidepanel/tabs/settings/FreeLlmConnectDialog.tsx`(`attemptRef`·`issuedKeyRef`)
+
+---
+
+## 2026-10-18 — 하드코딩 모델 목록에 공급자가 종료한 `gemini-2.0-flash`가 넉 달 남아, 그 모델을 저장한 BYOK 사용자의 AI 호출이 전부 실패했다
+
+- **영역**: `AI`, `store`
+- **계열**: `드리프트`
+- **그물**: `없음`
+- **증상**: (ai-free-connect Task 0 실측 중 발견, 사용자 보고 없음) BYOK Gemini 연결 시 모델 목록에 `gemini-2.0-flash`가 계속 보였다. 이 모델은 Google이 2026-06-01에 종료했다(공식 deprecations 페이지). 그래서 이 모델을 고른 사용자의 AI 초안·스타일링·재현 단계 자동 채움 호출이 전부 실패한다. 연결 단계에서는 `/models`만 부르고 그 결과를 쓰지 않으니 연결은 성공으로 보였다.
+- **근본 원인**: Gemini 경로는 `fetchModels`를 **검증용으로만** 호출하고, 결과 대신 하드코딩한 `GEMINI_MODELS`를 보여준다. 응답 목록에 비임베딩·TTS 모델이 섞여서다. 하드코딩 목록은 공급자 측 수명주기와 연결된 출처가 없다. 그리고 **저장된 `modelId`는 목록을 고쳐도 그대로 남는다.** 목록만 갱신하면 신규 연결만 낫고 기존 사용자는 계속 깨진다.
+- **재발 방지**:
+  - (1) **외부 공급자 ID를 하드코딩하면 목록 갱신과 persist migration을 한 쌍으로 다룬다.** 이번에는 settings-ui v12가 Gemini preset + `gemini-2.0-flash*`를 `gemini-2.5-flash`로 바꾼다. 대상을 기존에 검증된 ID로 고르는 것이 안전하다.
+  - (2) **하드코딩 목록을 건드리기 전에 공급자 deprecations 페이지를 확인한다.** Gemini는 `ai.google.dev/gemini-api/docs/deprecations`, Anthropic은 models 페이지. `ANTHROPIC_MODELS`·`GEMINI_MODELS`(`src/sidepanel/lib/ai-provider.ts`)가 대상이다.
+  - (3) 코드로는 못 막는다(그물 `없음`). 그래서 **AI 영역을 손댈 때 이 두 상수를 함께 점검하는 것**이 유일한 회로다.
+- **관련**: `src/sidepanel/lib/ai-provider.ts:GEMINI_MODELS`·`GEMINI_FREE_MODELS`, `src/store/settings-ui-store.ts:migrateSettingsUi`(v12)
+
+---
+
+## 2026-10-18 — Radix `onInteractOutside` 테스트가 렌더 직후 `pointerDown`을 보내 거짓 green이었다 — 리스너는 `setTimeout(0)`으로 늦게 붙는다
+
+- **영역**: `컴포넌트`
+- **계열**: `라이브러리전제`
+- **그물**: `jsdom`
+- **증상**: (ai-free-connect 배치 C 자체 리뷰에서 발견) "바깥 클릭으로 모달이 닫히지 않는다" 테스트가 green이었다. 그런데 `onInteractOutside` 차단을 지워도 여전히 green이었다. 무엇을 막는지 검증하지 못하는 테스트였다.
+- **근본 원인**: Radix `DismissableLayer`는 바깥 pointerdown 리스너를 **마운트 후 `setTimeout(0)`으로 지연 설치한다.** 열린 직후의 클릭이 곧바로 닫기로 처리되지 않게 하려는 의도다. 렌더 직후 동기적으로 `pointerDown`을 쏘면 리스너가 아직 없어서, 차단 유무와 무관하게 모달이 열린 채로 남는다.
+- **재발 방지**:
+  - (1) **Radix dismiss 계열(바깥 클릭·포커스 아웃)을 테스트할 때는 리스너 설치를 기다린 뒤 이벤트를 보낸다.** 타이머 1틱 대기 또는 `await act(() => new Promise(r => setTimeout(r, 1)))`.
+  - (2) **"막는다"는 테스트는 막는 코드를 지워 red가 되는지 한 번 확인한다(뮤테이션).** 이번에는 `onInteractOutside`를 제거했을 때 red임을 확인한 뒤 원복했다.
+  - (3) **점검 grep**: `grep -rn "pointerDown" src --include=*.test.tsx`로 Dialog·Popover 바깥 클릭 테스트를 찾아 대기 여부를 점검한다.
+- **관련**: `src/sidepanel/tabs/settings/__tests__/FreeLlmConnectDialog.test.tsx`(outside-click 케이스)
+
+---
+
 ## 2026-10-15 — 요소 소실 해제와 [다음] 확정이 서로를 모른 채 겹쳐 "selection 없는 element drafting"을 만들었고, 그 상태가 세션에 저장돼 탭이 영구히 비었다
 
 - **영역**: `store`, `컴포넌트`
