@@ -176,6 +176,14 @@ describe("IssueTypeField — 목록 로드 전 라벨", () => {
     await waitFor(() => expect(trigger().textContent).toContain("Task"));
   });
 
+  // 라벨만 고치고 store를 안 채우면 이름 없는 채로 다시 lastSubmit에 저장돼 매 세션 선조회가 반복된다.
+  it("이름 없이 값만 있으면 목록을 받은 뒤 이름을 함께 되써 쌍을 복구한다", async () => {
+    const onChange = vi.fn();
+    render(<Harness projectKey="WEB" value="10002" onChange={onChange} />);
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith("10002", "Task"));
+  });
+
   it("이름이 있으면 콤보를 열기 전엔 목록을 조회하지 않는다", () => {
     render(<Harness projectKey="WEB" value="10002" fallbackLabel="Task" />);
 
@@ -190,8 +198,7 @@ describe("IssueTypeField — 목록 로드 전 라벨", () => {
     await screen.findByRole("option", { name: /Task/ });
     await user.keyboard("{Escape}");
 
-    expect(trigger().textContent).toContain("Task");
-    expect(trigger().textContent).not.toContain("Old Task");
+    expect(trigger().textContent).toBe("Task");
   });
 
   it("목록에서 고르면 id와 이름을 함께 넘긴다", async () => {

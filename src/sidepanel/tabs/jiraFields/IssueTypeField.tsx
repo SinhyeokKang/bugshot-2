@@ -90,6 +90,12 @@ export function IssueTypeField({
     if (!value && defaultId) onChange(defaultId, defaultName);
   }, [value, defaultId, defaultName, onChange]);
 
+  // 이름 없이 복원된 값은 목록이 오면 이름을 되써 넣는다 — 안 그러면 이름 없는 채로 다시 저장된다.
+  const selectedName = value && !fallbackLabel ? selected?.name : undefined;
+  useEffect(() => {
+    if (value && selectedName) onChange(value, selectedName);
+  }, [value, selectedName, onChange]);
+
   return (
     <FieldCombobox
       open={open}
@@ -99,7 +105,8 @@ export function IssueTypeField({
       placeholder={t("field.issueType.select")}
       searchPlaceholder={t("field.issueType.search")}
       emptyMessage={t("field.issueType.empty")}
-      label={selected?.name ?? (effectiveValue ? fallbackName : undefined)}
+      label={selected?.name}
+      fallbackLabel={effectiveValue ? fallbackName : undefined}
       testId="jira-issue-type-combobox"
     >
       {items.map((it) => (
