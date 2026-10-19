@@ -48,17 +48,20 @@ function trigger() {
 function Harness({
   projectKey,
   value,
+  valueName,
   onChange = vi.fn(),
 }: {
   projectKey?: string;
   value?: string;
-  onChange?: (id: string, hierarchyLevel?: number) => void;
+  valueName?: string;
+  onChange?: (id: string, name?: string, hierarchyLevel?: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <IssueTypeField
       projectKey={projectKey}
       value={value}
+      valueName={valueName}
       open={open}
       onOpenChange={setOpen}
       onChange={onChange}
@@ -95,7 +98,8 @@ describe("IssueTypeField — 계정 기본 이슈타입 자동 주입 가드", (
     const onChange = vi.fn();
     render(<Harness projectKey="WEB" onChange={onChange} />);
 
-    expect(onChange).toHaveBeenCalledWith("10001");
+    // 이름도 쌍으로 넘긴다 — 라벨이 목록 로드 전에도 값과 같은 타입을 가리켜야 한다.
+    expect(onChange).toHaveBeenCalledWith("10001", "Bug");
   });
 
   it("계정 기본 프로젝트에서는 트리거에 계정 기본 이슈타입명이 보인다", () => {
@@ -146,6 +150,47 @@ describe("IssueTypeField — 계정 기본 이슈타입 자동 주입 가드", (
     const option = await screen.findByRole("option", { name: /Task/ });
 
     expect(option.querySelector(".opacity-100")).not.toBeNull();
+  });
+});
+
+// 목록은 콤보를 열어야 받는다. 그 전의 라벨은 값과 쌍으로 저장된 이름이어야 한다 — 계정 기본
+// 이슈타입명으로 폴백하면 직전 제출값(다른 id)이 복원됐을 때 화면은 기본 타입, 제출은 직전 타입으로
+// 갈린다(리포트: "작업"으로 보였는데 "버그"로 제출됨).
+describe("IssueTypeField — 목록 로드 전 라벨", () => {
+  it("값이 계정 기본과 다르면 계정 기본 이슈타입명을 보이지 않고 저장된 이름을 보인다", () => {
+    render(<Harness projectKey="WEB" value="10002" valueName="Task" />);
+
+    expect(trigger().textContent).toContain("Task");
+    expect(trigger().textContent).not.toContain("Bug");
+  });
+
+  it("값이 계정 기본과 다르고 이름이 없으면(업데이트 이전 레코드) 계정 기본 이슈타입명을 빌려오지 않는다", () => {
+    render(<Harness projectKey="WEB" value="10002" />);
+
+    expect(trigger().textContent).not.toContain("Bug");
+  });
+
+  it("목록을 받으면 저장된 이름보다 목록의 이름이 이긴다", async () => {
+    const user = userEvent.setup();
+    render(<Harness projectKey="WEB" value="10002" valueName="Old Task" />);
+
+    await user.click(trigger());
+    await screen.findByRole("option", { name: /Task/ });
+    await user.keyboard("{Escape}");
+
+    expect(trigger().textContent).toContain("Task");
+    expect(trigger().textContent).not.toContain("Old Task");
+  });
+
+  it("목록에서 고르면 id와 이름을 함께 넘긴다", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<Harness projectKey="WEB" value="10001" onChange={onChange} />);
+
+    await user.click(trigger());
+    await user.click(await screen.findByRole("option", { name: /Task/ }));
+
+    expect(onChange).toHaveBeenLastCalledWith("10002", "Task", undefined);
   });
 });
 

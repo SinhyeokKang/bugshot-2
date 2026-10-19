@@ -117,6 +117,17 @@ describe("jira", () => {
       cc: fields.cc,
     });
   });
+
+  it("lastSubmitFields는 이슈타입 이름을 id와 함께 싣는다", () => {
+    const out = jiraLastSubmitFields({
+      fields: { ...fields, issueTypeName: "Task" },
+      projectKey: "BUG",
+      issueTypeId: "10002",
+      siteId: "site-1",
+    });
+    expect(out.issueTypeId).toBe("10002");
+    expect(out.issueTypeName).toBe("Task");
+  });
 });
 
 describe("github", () => {
