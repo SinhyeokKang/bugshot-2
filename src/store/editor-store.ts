@@ -143,6 +143,7 @@ export interface EditorDraft {
 export interface EditorIssueFields {
   projectKey?: string;
   issueTypeId?: string;
+  issueTypeName?: string;
   assigneeId?: string;
   assigneeName?: string;
   priorityId?: string;
@@ -923,6 +924,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
               ...(restorable ? init : { projectKey: init.projectKey }),
               ...s.issueFields,
             };
+        // 이슈타입 id·이름은 쌍이라 세션이 id를 쥐고 있으면 이름도 세션 것만 쓴다.
+        if (s.issueFields.issueTypeId) merged.issueTypeName = s.issueFields.issueTypeName;
         // 담당자는 게이트와 무관하게 비어 있을 때만 채우되, 우선순위는 init을 따른다
         // (직전 제출값 우선 · Connect 기본값 fallback). 여기서 account만 보면 기본 담당자가
         // 직전 담당자를 가로채 *다른 사람*이 붙는다 — POSTMORTEM 2026-06-30과 같은 계열.

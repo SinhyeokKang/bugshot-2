@@ -1784,6 +1784,22 @@ describe("confirmDraft jira — 기본 담당자 prefill", () => {
     expect(useEditorStore.getState().issueFields.projectKey).toBe("API");
   });
 
+  // 이슈타입 id·이름은 한 타입을 가리키는 쌍이다 — 세션 id에 직전 제출 이름이 붙으면 라벨과
+  // 제출값이 다른 타입을 가리킨다.
+  it("세션에 이슈타입 id만 있으면 직전 제출의 이슈타입 이름을 붙이지 않는다", () => {
+    seedJira(
+      { projectKey: "ENG", issueTypeId: "10002", issueTypeName: "Task" },
+      { projectKey: "ENG" },
+    );
+    useEditorStore.setState({ issueFields: { projectKey: "ENG", issueTypeId: "10001" } });
+
+    useEditorStore.getState().confirmDraft();
+
+    const fields = useEditorStore.getState().issueFields;
+    expect(fields.issueTypeId).toBe("10001");
+    expect(fields.issueTypeName).toBeUndefined();
+  });
+
   it("직전 제출이 없으면 계정 기본 프로젝트로 연다", () => {
     seedJira({}, { projectKey: "ENG" });
     useEditorStore.getState().confirmDraft();

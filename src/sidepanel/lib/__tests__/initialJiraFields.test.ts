@@ -178,3 +178,33 @@ describe("initialJiraFields — 계정 기본값 폴백은 기본 프로젝트 �
     expect(out.assigneeId).toBe("lastUser");
   });
 });
+
+// 이슈타입은 id·이름이 한 타입을 가리키는 쌍이다(담당자와 같은 규칙). 이름을 계정 기본에서 따로
+// 빌려오면 라벨은 기본 타입, 값은 직전 타입으로 갈린다.
+describe("initialJiraFields — 이슈타입 이름 쌍", () => {
+  const ACCOUNT_WITH_NAME = { ...ACCOUNT, issueTypeName: "Bug" };
+
+  it("직전 제출 이슈타입의 이름을 id와 함께 복원한다", () => {
+    const out = initialJiraFields(
+      { projectKey: "ENG", issueTypeId: "10002", issueTypeName: "Task" },
+      ACCOUNT_WITH_NAME,
+    );
+    expect(out.issueTypeId).toBe("10002");
+    expect(out.issueTypeName).toBe("Task");
+  });
+
+  it("계정 기본 이슈타입으로 폴백하면 계정 기본 이름을 쌍으로 쓴다", () => {
+    const out = initialJiraFields(undefined, ACCOUNT_WITH_NAME);
+    expect(out.issueTypeId).toBe("10001");
+    expect(out.issueTypeName).toBe("Bug");
+  });
+
+  it("직전 제출에 이름이 없어도(업데이트 이전 레코드) 계정 기본 이름을 섞지 않는다", () => {
+    const out = initialJiraFields(
+      { projectKey: "ENG", issueTypeId: "10002" },
+      ACCOUNT_WITH_NAME,
+    );
+    expect(out.issueTypeId).toBe("10002");
+    expect(out.issueTypeName).toBeUndefined();
+  });
+});

@@ -100,6 +100,7 @@ export function jiraLastSubmitFields(input: {
   return {
     projectKey: input.projectKey,
     issueTypeId: input.issueTypeId,
+    issueTypeName: fields.issueTypeName,
     siteId: input.siteId,
     assigneeId: fields.assigneeId,
     assigneeName: fields.assigneeName,

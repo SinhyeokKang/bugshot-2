@@ -9,6 +9,7 @@ import type { JiraLastSubmitFields } from "@/types/platform";
 export interface JiraAccountDefaults {
   projectKey?: string;
   issueTypeId?: string;
+  issueTypeName?: string;
   assigneeId?: string;
   assigneeName?: string;
 }
@@ -36,10 +37,14 @@ export function initialJiraFields(
   // 담당자 id·표시명은 한 사람을 가리키는 쌍이라 소스를 통째로 고른다 — 따로 fallback하면 다른
   // 사람 이름이 붙는다.
   const assigneeSrc = src.assigneeId ? src : isDefaultProject ? account : undefined;
+  // 이슈타입 id·이름도 같은 이유로 소스를 통째로 고른다 — 이름만 계정 기본에서 빌려오면 라벨과
+  // 제출값이 다른 타입을 가리킨다.
+  const issueTypeSrc = src.issueTypeId ? src : isDefaultProject ? account : undefined;
   return {
     ...src,
     projectKey,
-    issueTypeId: src.issueTypeId ?? (isDefaultProject ? account?.issueTypeId : undefined),
+    issueTypeId: issueTypeSrc?.issueTypeId,
+    issueTypeName: issueTypeSrc?.issueTypeName,
     assigneeId: assigneeSrc?.assigneeId,
     assigneeName: assigneeSrc?.assigneeName,
   };

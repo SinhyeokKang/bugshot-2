@@ -138,6 +138,7 @@ import {
 type SubmitFields = {
   projectKey?: string;
   issueTypeId?: string;
+  issueTypeName?: string;
   assigneeId?: string;
   assigneeName?: string;
   priorityId?: string;
@@ -521,7 +522,7 @@ function EditableDraftDetailDialog({
       key: result.key,
       url: result.url,
       jiraSiteId: jiraSiteId(jiraAccount.auth),
-      issueTypeName: jiraAccount.issueTypeName,
+      issueTypeName: fields.issueTypeName,
       priorityName: fields.priorityName,
       assigneeName: fields.assigneeName,
     });

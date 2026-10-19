@@ -36,6 +36,23 @@
 
 ---
 
+## 2026-10-19 — Jira 이슈타입 콤보가 "작업"을 보여주고 "버그"로 제출했다 — 라벨과 값이 서로 다른 출처에서 왔다
+
+- **영역**: `컴포넌트`, `store`
+- **계열**: `드리프트`
+- **그물**: `jsdom`
+- **증상**: (사용자 리포트) Jira 제출 다이얼로그의 이슈타입이 콤보를 열기 전에는 "작업"으로 보였는데 실제 이슈는 "버그"로 생성됐다. 연동 탭 기본 이슈타입과 직전 제출 이슈타입이 다를 때만 재현되고, 콤보를 한 번 열면 라벨이 실제 값으로 바뀌어 증상이 사라진다.
+- **근본 원인**: 값(`issueTypeId`)은 `initialJiraFields`가 **직전 제출값 우선**으로 복원하는데, 라벨은 목록(콤보를 열어야 받음)이 오기 전까지 `IssueTypeField`가 **계정 기본 이름**(`jiraAccount.issueTypeName`)으로 채웠다. 대체 이름을 고를 때 "값이 그 기본 id인가"를 확인하지 않아, 두 출처가 갈리면 화면과 제출이 서로 다른 타입을 가리켰다. 담당자는 이미 id·이름을 한 쌍으로 저장·복원하는데(POSTMORTEM 2026-06-30 계열), 이슈타입만 id 단독 필드였다. `markSubmitted`도 같은 이유로 계정 기본 이름을 기록했다(표시되는 곳이 없어 무증상).
+- **재발 방지**:
+  - (1) **id로 고르고 이름으로 보여주는 필드는 id·이름을 한 쌍으로 저장·복원한다** — 이름을 다른 출처(계정 기본·캐시 목록)에서 빌리면 id가 그 출처의 것일 때만 쓴다. 점검: `grep -rn "fallbackLabel\|defaultName\|\.issueTypeName\|Name: jiraAccount" src/sidepanel/tabs/jiraFields src/sidepanel/tabs/*Modal.tsx src/sidepanel/tabs/DraftDetailDialog.tsx`.
+  - (2) 이름 없이 id만 남은 구 스냅샷은 목록을 미리 받아 이름을 **store에 되써** 넣는다. 라벨만 고치면 이름 없는 채로 다시 저장돼 매번 선조회가 반복된다.
+  - (3) 그물: `IssueTypeField.test.tsx`("목록 로드 전 라벨") + `e2e/jira-project-sticky.spec.ts`(같은 프로젝트·다른 이슈타입 두 벌, 콤보를 열지 않은 채 라벨과 payload `issueTypeId`를 함께 단언 — 뮤테이션으로 red 확인).
+  - (4) **e2e 뮤테이션 검증은 `build:e2e` 종료 코드부터 확인한다** — 뮤테이션이 미사용 변수를 남겨 `tsc`가 죽어도 이전 `dist-e2e`가 그대로 남아 spec이 **무음 green**이 된다(이번에 한 번 그렇게 오판할 뻔했다).
+  - (5) 가짜 토큰을 seed한 spec에서 제출 클릭이 간헐적으로 60초 멈추면 GOTCHAS "스파이를 `addInitScript`로"부터 본다. `jira.sprintFieldMeta`처럼 spy 목록에 없는 메시지가 실제 SW로 나가 401 → 전역 인증 만료 다이얼로그가 클릭을 가로챘다.
+- **관련**: `src/sidepanel/tabs/jiraFields/IssueTypeField.tsx`(`fallbackLabel`·`needsList`·이름 되쓰기), `src/sidepanel/lib/initialJiraFields.ts`(`issueTypeSrc`), `src/store/editor-store.ts:confirmDraft`, `src/sidepanel/lib/submitAdapters.ts:jiraLastSubmitFields`, `src/sidepanel/tabs/IssueCreateModal.tsx`·`DraftDetailDialog.tsx`(`markSubmitted`), `e2e/jira-project-sticky.spec.ts`
+
+---
+
 ## 2026-10-18 — ToggleGroupItem 안의 24px 로고가 16px로 그려졌다 — Toggle base의 `[&_svg]:size-4`가 svg 자신의 `h-6 w-6`을 이긴다
 
 - **영역**: `컴포넌트`, `디자인`

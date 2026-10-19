@@ -219,7 +219,7 @@ export function IssueCreateModal() {
         key: result.key,
         url: result.url,
         jiraSiteId: jiraSiteId(jiraAccount.auth),
-        issueTypeName: jiraAccount.issueTypeName,
+        issueTypeName: issueFields.issueTypeName,
         priorityName: issueFields.priorityName,
         assigneeName: issueFields.assigneeName,
       });
