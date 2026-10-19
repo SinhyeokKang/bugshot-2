@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildAiDraftSchema,
   buildAiDraftSessionPrompt,
+  buildAiDraftTurns,
   getDraftFewShot,
   parseAiDraftResponse,
   type AiDraftSessionContext,
@@ -1113,5 +1114,101 @@ describe("title 길이 상한 — 지시와 파서가 한 상수를 쓴다", () 
     const long = "가".repeat(MAX_TITLE_LENGTH + 20);
     const parsed = parseAiDraftResponse(JSON.stringify({ title: long }), []);
     expect(parsed?.title).toHaveLength(MAX_TITLE_LENGTH);
+  });
+});
+
+// 액션 요약은 최근 20개를 시간 오름차순으로 든다 — 앞에서 자르면 버그 직전 동작이 빠진다.
+describe("액션 로그 캡 — 최근 동작 우선", () => {
+  const actions = Array.from({ length: 20 }, (_, i) => `Clicked: step-${i}`);
+
+  it.each([
+    ["compact", NANO_CAPABILITIES, 5],
+    ["rich", BYOK_CAPABILITIES, 20],
+  ] as const)("%s: 마지막 캡 개수만큼 싣고 시간순 유지", (_label, caps, cap) => {
+    const { system, user } = buildAiDraftTurns({
+      ...SESSION_BASE,
+      caps,
+      captureMode: "video",
+      actionLogSummary: actions,
+    });
+    const text = `${system}\n${user}`;
+    expect(text).toContain("step-19");
+    expect(text).toContain(`step-${20 - cap}`);
+    if (cap < 20) expect(text).not.toContain(`step-${19 - cap}\n`);
+    expect(text.indexOf(`step-${20 - cap}`)).toBeLessThan(text.indexOf("step-19"));
+  });
+
+  it("compact: 앞쪽(오래된) 동작은 빠진다", () => {
+    const { system, user } = buildAiDraftTurns({
+      ...SESSION_BASE,
+      caps: NANO_CAPABILITIES,
+      captureMode: "video",
+      actionLogSummary: actions,
+    });
+    expect(`${system}\n${user}`).not.toMatch(/step-0\b/);
+  });
+});
+
+// compact은 컨텍스트를 user 턴에 실어 사용자 진술과 인접시킨다. system에 두면
+// few-shot 예시가 컨텍스트와 진술 사이를 끊어 나노가 로그를 무시하고 입력 한 줄로 쓴다.
+describe("compact 턴 분리 — 컨텍스트는 user 턴", () => {
+  const COMPACT: AiDraftSessionContext = {
+    ...SESSION_BASE,
+    caps: NANO_CAPABILITIES,
+    captureMode: "video",
+    userPrompt: "쿠폰 적용하면 총액이 안 바뀜",
+    networkLogSummary: {
+      captured: 3,
+      errors: [{ id: "n-1", method: "POST", path: "/api/coupon", status: 500, statusText: "" }],
+    },
+    actionLogSummary: ["Clicked: ApplyCoupon"],
+  };
+
+  it("system엔 페이지·로그 컨텍스트가 없다", () => {
+    const { system } = buildAiDraftTurns(COMPACT);
+    expect(system).not.toContain("https://example.com/page");
+    expect(system).not.toContain("/api/coupon");
+    expect(system).not.toContain("ApplyCoupon");
+    expect(system).not.toContain("쿠폰 적용하면");
+  });
+
+  it("user 턴은 Page로 시작해 컨텍스트를 싣고 Reporter 진술로 끝난다", () => {
+    const { user } = buildAiDraftTurns(COMPACT);
+    expect(user.startsWith("Page: https://example.com/page")).toBe(true);
+    expect(user).toContain("/api/coupon");
+    expect(user).toContain("ApplyCoupon");
+    expect(user.trimEnd().endsWith("Reporter says: 쿠폰 적용하면 총액이 안 바뀜")).toBe(true);
+  });
+
+  it("진술이 비면 Reporter 줄을 싣지 않는다 (element 빈 입력)", () => {
+    const { user } = buildAiDraftTurns({ ...COMPACT, captureMode: "element", userPrompt: "" });
+    expect(user).not.toContain("Reporter says");
+  });
+
+  it("element 모드에서도 진술은 한 번만 실린다", () => {
+    const { system, user } = buildAiDraftTurns({ ...COMPACT, captureMode: "element" });
+    const text = `${system}\n${user}`;
+    expect(text.split("쿠폰 적용하면 총액이 안 바뀜")).toHaveLength(2);
+    expect(text).not.toContain("User says");
+  });
+
+  it("근거 규칙이 Reporter 진술도 사실로 인정한다", () => {
+    const { system } = buildAiDraftTurns(COMPACT);
+    expect(system).toMatch(/reporter/i);
+  });
+
+  it("few-shot 예시 user 턴도 같은 형태 (Page 시작 · Reporter 진술 끝)", () => {
+    for (const ctx of [COMPACT, { ...COMPACT, networkLogSummary: undefined }]) {
+      const example = getDraftFewShot(ctx)![0].user;
+      expect(example.startsWith("Page: ")).toBe(true);
+      expect(example.trimEnd().split("\n").at(-1)).toMatch(/^Reporter says: /);
+    }
+  });
+
+  it("rich는 기존 구조 유지 — user 턴은 진술 그대로", () => {
+    const ctx = { ...COMPACT, caps: BYOK_CAPABILITIES };
+    const { system, user } = buildAiDraftTurns(ctx);
+    expect(system).toBe(buildAiDraftSessionPrompt(ctx));
+    expect(user).toBe("쿠폰 적용하면 총액이 안 바뀜");
   });
 });

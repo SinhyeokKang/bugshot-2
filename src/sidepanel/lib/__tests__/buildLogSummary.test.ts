@@ -145,13 +145,37 @@ describe("buildNetworkLogSummary", () => {
     expect(buildNetworkLogSummary(log).errors).toHaveLength(0);
   });
 
-  it("같은 method+path+status는 1개로 dedup (첫 발생 id 고정)", () => {
+  // 최신 우선 캡과 같은 축 — 반복 에러는 버그 시점에 가까운 마지막 발생을 대표로 둔다.
+  it("같은 method+path+status는 1개로 dedup (마지막 발생 id)", () => {
     const requests = Array.from({ length: 5 }, (_, i) =>
       makeRequest({ id: `d${i}`, url: "https://example.com/api/pay", method: "POST", status: 500, statusText: "Internal Server Error" }),
     );
     const summary = buildNetworkLogSummary(makeNetworkLog({ captured: 5, requests }));
     expect(summary.errors).toHaveLength(1);
-    expect(summary.errors[0].id).toBe("d0");
+    expect(summary.errors[0].id).toBe("d4");
+  });
+
+  // 회귀: 로그는 시간 오름차순이라 앞에서 캡을 채우면 페이지 로드 잡음만 남고
+  // 버그 시점(가장 최근) 에러가 후보·본문에서 사라진다.
+  it("캡은 가장 최근 고유 에러를 남기고 시간 오름차순으로 반환", () => {
+    const requests = Array.from({ length: 8 }, (_, i) =>
+      makeRequest({ id: `e${i}`, url: `https://example.com/err${i}`, status: 500, statusText: "Error" }),
+    );
+    const summary = buildNetworkLogSummary(makeNetworkLog({ captured: 8, requests }));
+    expect(summary.errors.map((e) => e.id)).toEqual(["e3", "e4", "e5", "e6", "e7"]);
+    expect(summary.errorCount).toBe(8);
+  });
+
+  it("초반 에러가 마지막에 재발하면 최근 위치로 집계된다", () => {
+    const requests = [
+      makeRequest({ id: "early", url: "https://example.com/api/pay", status: 500 }),
+      ...Array.from({ length: 5 }, (_, i) =>
+        makeRequest({ id: `m${i}`, url: `https://example.com/mid${i}`, status: 500 }),
+      ),
+      makeRequest({ id: "late", url: "https://example.com/api/pay", status: 500 }),
+    ];
+    const summary = buildNetworkLogSummary(makeNetworkLog({ captured: 7, requests }));
+    expect(summary.errors.map((e) => e.id)).toEqual(["m1", "m2", "m3", "m4", "late"]);
   });
 
   it("status가 다르면 같은 엔드포인트라도 별개 에러", () => {
@@ -251,6 +275,16 @@ describe("buildConsoleLogSummary", () => {
     );
     const log = makeConsoleLog({ captured: 8, entries });
     expect(buildConsoleLogSummary(log).topErrors).toHaveLength(5);
+  });
+
+  it("topErrors는 가장 최근 고유 에러를 시간 오름차순으로 남긴다", () => {
+    const entries = Array.from({ length: 8 }, (_, i) =>
+      makeEntry({ id: `c${i}`, level: "error", args: `error ${i}` }),
+    );
+    const log = makeConsoleLog({ captured: 8, entries });
+    expect(buildConsoleLogSummary(log).topErrors.map((e) => e.id)).toEqual([
+      "c3", "c4", "c5", "c6", "c7",
+    ]);
   });
 });
 
