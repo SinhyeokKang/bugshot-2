@@ -180,7 +180,7 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
   // console/network와 별도 게이트로 둔다: 매트릭스가 갈라져도 compact(동일 구조)와 어긋나지 않게.
   if (supportsActionLog(ctx.captureMode) && ctx.actionLogSummary && ctx.actionLogSummary.length > 0) {
     lines.push("- User actions (rephrase these into concise user-facing reproduction steps — do not copy the raw entries verbatim):");
-    for (const a of ctx.actionLogSummary.slice(0, caps.actions)) {
+    for (const a of ctx.actionLogSummary.slice(-caps.actions)) {
       lines.push(`  ${a}`);
     }
   }

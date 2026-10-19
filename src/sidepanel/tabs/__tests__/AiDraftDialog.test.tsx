@@ -175,7 +175,8 @@ describe("AiDraftDialog 취소 레인", () => {
     useEditorStore.getState().aiCancel!();
     await submit("turn B");
     await waitFor(() => expect(second.calls.length).toBe(1));
-    expect(second.calls[0].input).toBe("turn B");
+    // compact은 컨텍스트가 user 턴에 실린다 — 진술 줄로 run을 식별한다.
+    expect(second.calls[0].input).toMatch(/Reporter says: turn B$/);
 
     // B를 정상 종료시켜 두면 sessionRef에는 B의 세션이 남는다.
     second.pending[0].resolve(VALID_RESPONSE);

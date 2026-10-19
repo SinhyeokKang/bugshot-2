@@ -19,7 +19,7 @@ import {
 import { useSettingsStore } from "@/store/settings-store";
 import {
   buildAiDraftSchema,
-  buildAiDraftSessionPrompt,
+  buildAiDraftTurns,
   getDraftFewShot,
   parseAiDraftResponse,
   type AiDraftSessionContext,
@@ -187,25 +187,28 @@ export function AiDraftDialog({
           ).map((img) => img.dataUrl)
         : [];
 
+      // 예산은 두 턴 합산 — compact은 컨텍스트가 user 턴에 실린다(rich user 턴 = msg).
+      const buildTurnsText = (c: AiDraftSessionContext) => {
+        const t = buildAiDraftTurns(c);
+        return t.system + t.user;
+      };
       let fitted = fitDraftContext(
         ctx,
-        buildAiDraftSessionPrompt,
-        Math.max(0, capabilities.contextBudgetChars - msg.length),
+        buildTurnsText,
+        capabilities.contextBudgetChars,
       );
       let fewShot = getDraftFewShot(fitted.ctx);
       fitted = fitDraftContext(
         ctx,
-        buildAiDraftSessionPrompt,
-        Math.max(
-          0,
-          capabilities.contextBudgetChars - msg.length - fewShotChars(fewShot),
-        ),
+        buildTurnsText,
+        Math.max(0, capabilities.contextBudgetChars - fewShotChars(fewShot)),
       );
       fewShot = getDraftFewShot(fitted.ctx);
+      const turns = buildAiDraftTurns(fitted.ctx);
       if (
         isTextOverBudget(
-          fitted.prompt.length + fewShotChars(fewShot),
-          msg,
+          turns.system.length + fewShotChars(fewShot),
+          turns.user,
           capabilities.contextBudgetChars,
         )
       ) {
@@ -221,7 +224,7 @@ export function AiDraftDialog({
 
       const { systemPrompt, images, droppedImages } = buildAiDraftRequest({
         caps: capabilities,
-        systemPrompt: fitted.prompt,
+        systemPrompt: turns.system,
         modeImages: getModeImages(
           store,
           captureMode,
@@ -252,12 +255,12 @@ export function AiDraftDialog({
       );
       // 이하 세션은 run-local로 잡는다 — ref를 다시 읽으면 늦게 재개한 이 run이
       // 그 사이 시작된 새 run의 세션에 자기 turn을 실어보낸다.
-      if (await isPromptOverBudget(createdSession, msg, responseSchema)) {
+      if (await isPromptOverBudget(createdSession, turns.user, responseSchema)) {
         throw new AiContextOverflowError();
       }
       if (!aiRun.isActive(run)) return;
       const raw = await createdSession
-        .prompt(msg, {
+        .prompt(turns.user, {
           responseSchema,
           images,
           signal: run.signal,

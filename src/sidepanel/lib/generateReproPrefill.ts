@@ -10,7 +10,7 @@ import {
 } from "./ai-provider";
 import {
   buildAiDraftSchema,
-  buildAiDraftSessionPrompt,
+  buildAiDraftTurns,
   getDraftFewShot,
   stripLineNumbering,
   type AiDraftSessionContext,
@@ -50,13 +50,16 @@ export async function generateReproStepsWithAI(
     actionLogSummary: input.actionLogSummary,
     enabledSections: [{ id: "stepsToReproduce" }],
   };
-  const systemPrompt = buildAiDraftSessionPrompt(ctx);
+  // compact은 액션 컨텍스트가 user 턴에 실린다 — 요청 문장을 그 뒤에 붙여 "above"가 성립한다.
+  const turns = buildAiDraftTurns(ctx);
+  const systemPrompt = turns.system;
+  const message = [turns.user, REQUEST_MESSAGE].filter(Boolean).join("\n");
   const schema = buildAiDraftSchema(["stepsToReproduce"]);
   const fewShot = getDraftFewShot(ctx);
   if (
     isTextOverBudget(
       systemPrompt.length + fewShotChars(fewShot),
-      REQUEST_MESSAGE,
+      message,
       input.capabilities.contextBudgetChars,
     )
   ) {
@@ -68,7 +71,7 @@ export async function generateReproStepsWithAI(
     fewShot,
   );
   try {
-    const raw = await session.prompt(REQUEST_MESSAGE, {
+    const raw = await session.prompt(message, {
       responseSchema: schema,
       signal: input.signal,
     });

@@ -315,7 +315,7 @@ describe("요약 항목의 원본 id 동행", () => {
     ]);
   });
 
-  it("first-line dedup 시 id는 첫 발생 항목으로 고정", () => {
+  it("first-line dedup 시 id는 마지막 발생 항목", () => {
     const log = makeConsoleLog({
       captured: 3,
       entries: [
@@ -325,7 +325,7 @@ describe("요약 항목의 원본 id 동행", () => {
       ],
     });
     expect(buildConsoleLogSummary(log).topErrors.map((e) => e.id)).toEqual([
-      "cl-1",
+      "cl-2",
       "cl-3",
     ]);
   });

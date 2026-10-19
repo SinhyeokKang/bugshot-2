@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { buildRichDraftPrompt } from "../draftRich";
-import { buildCompactDraftPrompt } from "../draftCompact";
+import { buildCompactDraftSystem, buildCompactDraftUser } from "../draftCompact";
+
+// compact은 system·user 두 턴으로 나간다 — 불변식은 모델이 보는 전체 텍스트로 잰다.
+function buildCompactDraftPrompt(c: Parameters<typeof buildCompactDraftSystem>[0]): string {
+  return `${buildCompactDraftSystem(c)}\n${buildCompactDraftUser(c)}`;
+}
 import { BYOK_CAPABILITIES, NANO_CAPABILITIES } from "../../ai-provider";
 import type { AiDraftSessionContext } from "../../buildAiDraftPrompt";
 import type { NetworkRequest } from "@/types/network";
@@ -103,7 +108,7 @@ describe("buildCompactDraftPrompt — compact 불변식", () => {
 
   it("사실 범위를 컨텍스트로 제한하는 지시가 있다 (환각 억제)", () => {
     expect(buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES }))).toContain(
-      "Use only facts stated in the context.",
+      "Use only facts stated in the page context and the reporter's message.",
     );
   });
 

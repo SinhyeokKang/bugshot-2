@@ -134,6 +134,12 @@ const SESSION_BASE: AiDraftSessionContext = {
   ],
 };
 
+// 모델이 실제로 보는 텍스트(system + user 턴). compact은 컨텍스트가 user 턴에 실린다.
+function promptText(ctx: AiDraftSessionContext): string {
+  const { system, user } = buildAiDraftTurns(ctx);
+  return `${system}\n${user}`;
+}
+
 describe("buildAiDraftSessionPrompt", () => {
   it("screenshot 모드: URL, 페이지 제목, 이미지 참조 지시 포함", () => {
     const prompt = buildAiDraftSessionPrompt(SESSION_BASE);
@@ -660,7 +666,7 @@ describe("buildAiDraftSessionPrompt — compact 계약", () => {
   });
 
   it("compact 캡이 적용됨 (diffs 8 / tokens 5)", () => {
-    const prompt = buildAiDraftSessionPrompt({
+    const prompt = promptText({
       ...COMPACT_BASE,
       captureMode: "element",
       selector: "div",
@@ -682,7 +688,7 @@ describe("buildAiDraftSessionPrompt — compact 계약", () => {
   });
 
   it("compact 복수 요소는 selector를 유지하고 diff cap 8을 전체 합계에 적용", () => {
-    const prompt = buildAiDraftSessionPrompt({
+    const prompt = promptText({
       ...COMPACT_BASE,
       captureMode: "element",
       styleElements: [
@@ -748,28 +754,51 @@ describe("getDraftFewShot", () => {
   });
 });
 
-describe("compact 사용자 입력 이중 계상 방지", () => {
+describe("compact 제보자 진술 — user 턴에 한 번만", () => {
   const COMPACT: AiDraftSessionContext = {
     ...SESSION_BASE,
     caps: NANO_CAPABILITIES,
     userPrompt: "버튼이 안 눌립니다",
   };
 
-  // 같은 텍스트가 user turn으로도 나가므로, system prompt에 또 실으면
-  // 창이 가장 좁은 tier에서 같은 문장을 두 번 계상한다.
-  it("element 외 모드에서는 userPrompt를 system prompt에 싣지 않는다", () => {
-    for (const captureMode of ["screenshot", "video", "freeform"] as const) {
+  // 진술은 user 턴에 싣는다 — system에도 실으면 창이 가장 좁은 tier에서 두 번 계상한다.
+  it("어느 모드에서도 system prompt에 싣지 않는다", () => {
+    for (const captureMode of ["screenshot", "video", "freeform", "element"] as const) {
       const prompt = buildAiDraftSessionPrompt({ ...COMPACT, captureMode });
       expect(prompt).not.toContain("버튼이 안 눌립니다");
     }
   });
 
-  it("element 모드에서는 싣는다 (빈 입력 제출이 허용되는 유일한 모드)", () => {
-    const prompt = buildAiDraftSessionPrompt({
+  it("element 모드에서도 user 턴에 실린다 (빈 입력 제출이 허용되는 유일한 모드)", () => {
+    const prompt = promptText({
       ...COMPACT,
       captureMode: "element",
     });
     expect(prompt).toContain("버튼이 안 눌립니다");
+  });
+
+  // element 외 모드는 진술을 원문 그대로 보냈다 — 넘치면 예산 게이트가 오류로 알린다.
+  // 조용히 자르면 사용자가 모르는 채 진술 뒷부분이 사라진다.
+  it("element 외 모드는 긴 진술을 자르지 않는다", () => {
+    const long = "가".repeat(700) + "끝";
+    const { user } = buildAiDraftTurns({ ...COMPACT, captureMode: "video", userPrompt: long });
+    expect(user).toContain("끝");
+  });
+
+  it("element 모드는 기존 상한(600자)을 유지한다", () => {
+    const long = "가".repeat(700) + "끝";
+    const { user } = buildAiDraftTurns({ ...COMPACT, captureMode: "element", userPrompt: long });
+    expect(user).not.toContain("끝");
+  });
+
+  // 진술은 사용자가 직접 친 텍스트라 개행 접기(페이지 문자열 인젝션 방어) 대상이 아니다.
+  it("진술의 줄바꿈은 보존된다", () => {
+    const { user } = buildAiDraftTurns({
+      ...COMPACT,
+      captureMode: "video",
+      userPrompt: "1. 쿠폰 입력\n2. 적용 클릭",
+    });
+    expect(user).toContain("Reporter says: 1. 쿠폰 입력\n2. 적용 클릭");
   });
 });
 
@@ -789,8 +818,8 @@ describe("로그 컨텍스트 포함 규칙 — capture-support 매트릭스 정
     "%s 모드: compact와 rich의 로그 포함 여부가 일치",
     (captureMode) => {
       const base = { ...SESSION_BASE, ...LOG_CTX, captureMode };
-      const rich = buildAiDraftSessionPrompt({ ...base, caps: BYOK_CAPABILITIES });
-      const compact = buildAiDraftSessionPrompt({ ...base, caps: NANO_CAPABILITIES });
+      const rich = promptText({ ...base, caps: BYOK_CAPABILITIES });
+      const compact = promptText({ ...base, caps: NANO_CAPABILITIES });
       expect(compact.includes("/api/x")).toBe(rich.includes("/api/x"));
       expect(compact.includes("TypeError: boom")).toBe(rich.includes("TypeError: boom"));
       expect(compact.includes("SubmitOrderBtn")).toBe(rich.includes("SubmitOrderBtn"));
@@ -804,7 +833,7 @@ describe("로그 컨텍스트 포함 규칙 — capture-support 매트릭스 정
     ["rich", BYOK_CAPABILITIES],
   ] as const)("%s: console/network는 screenshot·freeform·video에 실린다", (_n, caps) => {
     for (const captureMode of ["screenshot", "freeform", "video"] as const) {
-      const prompt = buildAiDraftSessionPrompt({ ...SESSION_BASE, ...LOG_CTX, caps, captureMode });
+      const prompt = promptText({ ...SESSION_BASE, ...LOG_CTX, caps, captureMode });
       expect(prompt).toContain("/api/x");
       expect(prompt).toContain("TypeError: boom");
     }
@@ -816,7 +845,7 @@ describe("로그 컨텍스트 포함 규칙 — capture-support 매트릭스 정
     ["rich", BYOK_CAPABILITIES],
   ] as const)("%s: action 로그는 screenshot·freeform·video에 실린다", (_n, caps) => {
     for (const captureMode of ["screenshot", "freeform", "video"] as const) {
-      const prompt = buildAiDraftSessionPrompt({ ...SESSION_BASE, ...LOG_CTX, caps, captureMode });
+      const prompt = promptText({ ...SESSION_BASE, ...LOG_CTX, caps, captureMode });
       expect(prompt).toContain("SubmitOrderBtn");
     }
   });
@@ -825,7 +854,7 @@ describe("로그 컨텍스트 포함 규칙 — capture-support 매트릭스 정
     ["compact", NANO_CAPABILITIES],
     ["rich", BYOK_CAPABILITIES],
   ] as const)("%s: element 모드는 로그를 싣지 않는다", (_n, caps) => {
-    const prompt = buildAiDraftSessionPrompt({
+    const prompt = promptText({
       ...SESSION_BASE,
       ...LOG_CTX,
       caps,
@@ -846,7 +875,7 @@ describe("프롬프트 인젝션 — 페이지 문자열의 개행 무력화", (
     ["compact", NANO_CAPABILITIES],
     ["rich", BYOK_CAPABILITIES],
   ] as const)("%s: action log의 개행이 새 줄을 만들지 않는다", (_name, caps) => {
-    const prompt = buildAiDraftSessionPrompt({
+    const prompt = promptText({
       ...SESSION_BASE,
       caps,
       captureMode: "video",
@@ -860,7 +889,7 @@ describe("프롬프트 인젝션 — 페이지 문자열의 개행 무력화", (
     ["compact", NANO_CAPABILITIES],
     ["rich", BYOK_CAPABILITIES],
   ] as const)("%s: 콘솔 에러 메시지의 개행도 무력화", (_name, caps) => {
-    const prompt = buildAiDraftSessionPrompt({
+    const prompt = promptText({
       ...SESSION_BASE,
       caps,
       captureMode: "freeform",
@@ -873,7 +902,7 @@ describe("프롬프트 인젝션 — 페이지 문자열의 개행 무력화", (
     ["compact", NANO_CAPABILITIES],
     ["rich", BYOK_CAPABILITIES],
   ] as const)("%s: 디자인 토큰 값의 개행도 무력화", (_name, caps) => {
-    const prompt = buildAiDraftSessionPrompt({
+    const prompt = promptText({
       ...SESSION_BASE,
       caps,
       captureMode: "element",
@@ -967,7 +996,7 @@ describe("프롬프트 로그 후보 태그 — rich/compact", () => {
   });
 
   it("compact: [n1] 태그 인쇄 (statusText 없이)", () => {
-    const prompt = buildAiDraftSessionPrompt({
+    const prompt = promptText({
       ...SESSION_BASE,
       ...LOGREF_CTX,
       caps: NANO_CAPABILITIES,
@@ -1041,7 +1070,7 @@ describe("프롬프트 로그 후보 태그 — rich/compact", () => {
   // 지시·few-shot도 같은 판정을 따라야 한다. 후보 줄 자체는 에러 컨텍스트로 남는다.
   it("description 비활성: 후보 줄은 남고 logRefs 지시만 없음 (rich·compact)", () => {
     for (const caps of [BYOK_CAPABILITIES, NANO_CAPABILITIES]) {
-      const prompt = buildAiDraftSessionPrompt({
+      const prompt = promptText({
         ...SESSION_BASE,
         ...LOGREF_CTX,
         caps,
