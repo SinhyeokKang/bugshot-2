@@ -42,8 +42,11 @@ function envelope(lastJira?: Record<string, unknown>) {
 }
 
 // 프로젝트별 이슈타입이 갈려야 "전환 후 B의 목록이 온다"를 판정할 수 있다.
+// 패널이 부팅되기 전에 심는다(GOTCHAS "스파이를 addInitScript로") — 앞 spec이 남긴 제출 이슈의
+// 상태 뱃지 조회가 spy를 못 타면 가짜 토큰 401로 전역 인증 만료 다이얼로그가 클릭을 가로챈다.
+// 호출 뒤 reload해야 적용된다.
 async function spySendMessage(panel: Page) {
-  await panel.evaluate((jiraUrl) => {
+  await panel.addInitScript((jiraUrl) => {
     const w = window as unknown as { __jiraSubmits?: unknown[] };
     w.__jiraSubmits = [];
     const orig = chrome.runtime.sendMessage.bind(chrome.runtime);
@@ -67,7 +70,22 @@ async function spySendMessage(panel: Page) {
           result:
             msg.projectKey === "API"
               ? [{ id: "20001", name: "Defect" }]
-              : [{ id: "10001", name: "Bug" }],
+              : [
+                  { id: "10001", name: "Bug" },
+                  { id: "10002", name: "Task" },
+                ],
+        });
+        return;
+      }
+      // 스프린트 판정·상태 뱃지 조회도 진짜 background로 나가면 401 → 인증 만료 다이얼로그.
+      if (msg?.type === "jira.sprintFieldMeta") {
+        cb?.({ ok: true, result: null });
+        return;
+      }
+      if (msg?.type === "jira.getIssueStatus") {
+        cb?.({
+          ok: true,
+          result: { name: "To Do", categoryKey: "new", issueTypeName: "Task" },
         });
         return;
       }
@@ -131,8 +149,8 @@ test.describe.serial("Jira 프로젝트 sticky 복원", () => {
         envelope({ projectKey: "API", issueTypeId: "20001", siteId: "cloud-1" }),
       ] as const,
     );
-    await panel.reload();
     await spySendMessage(panel);
+    await panel.reload();
   });
 
   test.afterAll(async () => {
@@ -152,3 +170,72 @@ test.describe.serial("Jira 프로젝트 sticky 복원", () => {
     await expect(panel.getByTestId("jira-issue-type-combobox")).not.toContainText("Bug");
   });
 });
+
+// 같은 프로젝트에서 직전 제출 이슈타입이 계정 기본과 다른 경우. 목록은 콤보를 열어야 받는데, 그 전의
+// 라벨이 계정 기본 이름으로 폴백하면 화면은 "Bug", 제출은 직전 타입으로 갈린다(사용자 리포트).
+// 콤보를 열지 않은 채로 라벨과 제출 payload를 함께 판정해야 그 어긋남이 잡힌다.
+async function awaitDurableSubmission(panel: Page) {
+  await expect.poll(() => panel.evaluate(async () => {
+    const raw = (await chrome.storage.local.get("bugshot-issues"))["bugshot-issues"];
+    const record = JSON.parse(raw ?? "{}").state?.issues?.find((i: { key: string }) => i.key === "API-1");
+    return { status: record?.status, recovery: !!record?.submissionRecoveryId };
+  })).toEqual({ status: "submitted", recovery: false });
+}
+
+function submittedIssueTypeIds(panel: Page) {
+  return panel.evaluate(() =>
+    ((window as unknown as { __jiraSubmits?: { issueTypeId?: string }[] }).__jiraSubmits ?? []).map(
+      (p) => p.issueTypeId,
+    ),
+  );
+}
+
+for (const [label, lastJira] of [
+  ["이름과 함께 저장된 직전 제출", { projectKey: "WEB", issueTypeId: "10002", issueTypeName: "Task", siteId: "cloud-1" }],
+  // 업데이트 이전 스냅샷 — 이름이 없어 라벨을 댈 데가 목록뿐이다.
+  ["이름 없는 구 스냅샷", { projectKey: "WEB", issueTypeId: "10002", siteId: "cloud-1" }],
+] as const) {
+  test.describe.serial(`Jira 이슈타입 sticky (${label})`, () => {
+    let fixture: Page;
+    let panel: Page;
+
+    test.beforeAll(async ({ ext }) => {
+      fixture = await ext.context.newPage();
+      await fixture.goto(ext.fixtureUrl("basic.html"));
+      panel = await ext.openPanel(await ext.fixtureTabId());
+      await panel.evaluate(
+        ([key, val]) => chrome.storage.local.set({ [key]: val }),
+        [SETTINGS_KEY, envelope(lastJira)] as const,
+      );
+      await spySendMessage(panel);
+      await panel.reload();
+      // 앞 describe의 패널 뒤에 열린 탭이라 rAF가 throttle돼 클릭 actionability가 멈춘다(GOTCHAS).
+      await panel.bringToFront();
+    });
+
+    test.afterAll(async () => {
+      await panel.evaluate(
+        (keys) => chrome.storage.local.remove(keys),
+        [SETTINGS_KEY, "bugshot-issues"],
+      );
+      await panel.close();
+      await fixture.close();
+    });
+
+    test("콤보를 열지 않아도 직전 이슈타입 이름이 보이고 그 타입으로 제출된다", async () => {
+      await openSubmitDialog(panel, `Jira issue type sticky e2e (${label})`);
+
+      const combo = panel.getByTestId("jira-issue-type-combobox");
+      await expect(combo).toContainText("Task");
+      await expect(combo).not.toContainText("Bug");
+      await expect(combo).toHaveAttribute("aria-expanded", "false");
+
+      const confirm = panel.getByTestId("submit-issue-confirm");
+      await expect(confirm).toBeEnabled();
+      await confirm.click();
+
+      await expect.poll(() => submittedIssueTypeIds(panel)).toEqual(["10002"]);
+      await awaitDurableSubmission(panel);
+    });
+  });
+}
