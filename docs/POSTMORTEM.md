@@ -36,6 +36,26 @@
 
 ---
 
+## 2026-10-19 — 나노 AI 초안이 버그 맥락을 못 읽었다 — 캡이 오래된 로그를 남기고 few-shot이 컨텍스트와 진술을 갈라놨다
+
+- **영역**: `AI`, `lib`
+- **계열**: `복제본`, `미검증단언`
+- **그물**: `unit`
+- **증상**: (사용자 리포트) BYOK 미연결 폴백(Chrome 나노, compact 경로)의 AI 초안이 "버그 맥락 자체를 이해 못 한다". 리포트 내용과 무관한 에러나 동작을 근거로 쓰거나, 사용자 진술만 받아 적는다.
+- **근본 원인**: 두 층이 겹쳤다.
+  - ① **캡이 앞에서 잘렸다.** 로그는 시간 오름차순이다(`log-merge.ts`가 정렬). 그런데 `buildNetworkLogSummary`·`buildConsoleLogSummary`는 앞에서부터 고유 에러 5개를 채우면 멈췄고, compact `actionLogSummary.slice(0, 5)`는 요약이 이미 남긴 최근 20개 중 **가장 오래된 5개**를 골랐다. 그래서 세션이 길수록 페이지 로드 잡음만 실리고 버그 시점 로그는 빠졌다. 같은 `slice(0, cap)` 모양이 rich에도 복제돼 있었는데, rich는 cap(20)이 요약 크기와 같아 우연히 무증상이었다.
+  - ② **세션 순서가 컨텍스트와 진술을 갈랐다.** 순서는 [system: 컨텍스트] → [few-shot 예시] → [실제 진술]이었다. 예시는 무관한 checkout 시나리오이고, 예시 user 턴엔 진술 한 줄뿐이라 "컨텍스트를 무시하고 진술만 보고 쓴다"를 가르쳤다. 근거 지시 `facts stated in the context below`도 user 턴에 있는 진술을 근거에서 빼는 것처럼 읽혔다.
+  - 리뷰 중 ③도 나왔다. 턴을 나누면서 근거 지시가 진술이 없는 런(재현 단계 자동채움, element 빈 입력)에서도 reporter를 지목했다. POSTMORTEM 2026-07-30의 dangling 지시가 재발한 형태다.
+- **재발 방지**:
+  - (1) **시간순 배열을 캡할 때는 어느 쪽을 버리는지 테스트로 고정한다.** `grep -rn "slice(0, caps\.\|slice(0, cap\|length >= MAX_\|length < MAX_" src/sidepanel/lib`로 전수를 뽑고, 각 입력이 시간 오름차순인지, 그렇다면 최근 쪽을 남겨야 하는지 묻는다. 테스트는 "개수"가 아니라 "어느 id가 남는가"를 단언해야 한다. 기존 `최대 5개까지만 수집` 테스트는 개수만 봐서 이 결함을 통과시켰다.
+  - (2) **요약 → 후보 → 프롬프트처럼 캡이 여러 단계로 겹치면 단계마다 방향을 맞춘다.** 한 단계만 최신 우선이면 다음 단계의 `slice(0, n)`이 다시 오래된 쪽을 고른다.
+  - (3) **소형 모델 few-shot의 user 턴은 실제 입력과 같은 형태여야 한다**(Page → 컨텍스트 → `Reporter says:`). 그물은 `buildAiDraftPrompt.test.ts`의 "few-shot 예시 user 턴도 같은 형태"다. 같은 빌더를 쓰는 재현 단계 자동채움(`generateReproPrefill`)도 user 턴을 바꿨는지 함께 확인한다. 바꾸지 않으면 액션 로그가 모델에 닿지 않는다.
+  - (4) 지시가 무언가를 지목하면 **인쇄 조건과 같은 식으로 게이트**한다(2026-07-30 재발 방지 (1)과 같다). 이번 형태는 `ctx.userPrompt?.trim()`이었다.
+  - (5) 프롬프트 구조 변경은 렌더한 실물을 눈으로 확인한다. 임시 probe 테스트로 system/user를 출력해 봤고, ①은 그렇게 처음 보였다.
+- **관련**: `src/sidepanel/lib/buildLogSummary.ts:buildNetworkLogSummary`·`buildConsoleLogSummary`(역순 수집 + reverse), `src/sidepanel/lib/prompts/logCandidates.ts:selectLogCandidates`(`slice(-cap)`), `src/sidepanel/lib/prompts/draftCompact.ts:buildCompactDraftSystem`·`buildCompactDraftUser`·`COMPACT_DRAFT_FEW_SHOT*`, `src/sidepanel/lib/buildAiDraftPrompt.ts:buildAiDraftTurns`, `src/sidepanel/tabs/AiDraftDialog.tsx`(두 턴 합산 예산), `src/sidepanel/lib/generateReproPrefill.ts`(`turns.user` + 요청 문장), 그물 `buildLogSummary.test.ts`·`logCandidates.test.ts`·`buildAiDraftPrompt.test.ts`·`generateReproPrefill.test.ts`
+
+---
+
 ## 2026-10-19 — Jira 이슈타입 콤보가 "작업"을 보여주고 "버그"로 제출했다 — 라벨과 값이 서로 다른 출처에서 왔다
 
 - **영역**: `컴포넌트`, `store`

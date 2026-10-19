@@ -39,10 +39,12 @@ export interface ConsoleLogSummary {
 export function buildNetworkLogSummary(log: NetworkLog): NetworkLogSummary {
   // dedup(method+path+status)은 캡보다 앞선다 — console과 대칭. 캡 뒤로 밀면 동일요청
   // 반복이 캡을 채워 그 뒤의 distinct 에러가 후보·본문에서 사라진다.
+  // 로그는 시간 오름차순이다 — 역순으로 모아야 캡이 버그 시점(최근) 에러를 남긴다.
   const seen = new Set<string>();
   const errors: NetworkLogSummaryError[] = [];
   let errorCount = 0;
-  for (const r of log.requests) {
+  for (let i = log.requests.length - 1; i >= 0; i--) {
+    const r = log.requests[i];
     if (!(r.phase === "error" || r.status >= 400)) continue;
     errorCount++;
     const path = networkLogPath(r.url);
@@ -53,7 +55,7 @@ export function buildNetworkLogSummary(log: NetworkLog): NetworkLogSummary {
       errors.push({ id: r.id, method: r.method, path, status: r.status, statusText: r.statusText });
     }
   }
-  return { captured: log.captured, errorCount, errors };
+  return { captured: log.captured, errorCount, errors: errors.reverse() };
 }
 
 // 본문 빌더 8개가 "에러 N건"을 인쇄할 때 쓰는 단일 출처. errors[]는 dedup+cap된 표시용
@@ -69,7 +71,8 @@ export function buildConsoleLogSummary(log: ConsoleLog): ConsoleLogSummary {
   const warnCount = log.entries.filter((e) => e.level === "warn").length;
   const seen = new Set<string>();
   const topErrors: ConsoleLogSummaryError[] = [];
-  for (const e of log.entries) {
+  for (let i = log.entries.length - 1; i >= 0; i--) {
+    const e = log.entries[i];
     if (e.level !== "error") continue;
     const msg = firstLine(e.args);
     if (seen.has(msg)) continue;
@@ -77,7 +80,7 @@ export function buildConsoleLogSummary(log: ConsoleLog): ConsoleLogSummary {
     topErrors.push({ id: e.id, message: msg });
     if (topErrors.length >= MAX_ERRORS) break;
   }
-  return { captured: log.captured, errorCount, warnCount, topErrors };
+  return { captured: log.captured, errorCount, warnCount, topErrors: topErrors.reverse() };
 }
 
 // 이 함수는 로케일 무관 영어 고정이 기존 규칙이라 i18n을 끌어오지 않는다.

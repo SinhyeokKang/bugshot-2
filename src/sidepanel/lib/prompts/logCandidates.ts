@@ -51,12 +51,13 @@ export function selectLogCandidates(ctx: AiDraftSessionContext): LogCandidates {
   const caps = PROMPT_CAPS[ctx.caps.promptStyle];
 
   // dedup은 buildNetworkLogSummary(캡 앞)가 이미 했다 — 여기선 console과 대칭으로 캡·ref만.
+  // 요약은 시간 오름차순이라 뒤쪽(버그 시점)을 남긴다.
   const network = (ctx.networkLogSummary?.errors ?? [])
-    .slice(0, caps.networkErrors)
+    .slice(-caps.networkErrors)
     .map((e, i) => ({ ...e, ref: `n${i + 1}` }));
 
   const consoleCands = (ctx.consoleLogSummary?.topErrors ?? [])
-    .slice(0, caps.consoleErrors)
+    .slice(-caps.consoleErrors)
     .map((e, i) => ({ ...e, ref: `c${i + 1}` }));
 
   // 매칭 200 후보는 rich 전용 + full requests가 배선됐을 때만. 에러 후보 id는 excludeIds로

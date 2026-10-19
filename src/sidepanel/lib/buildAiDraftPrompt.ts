@@ -13,7 +13,8 @@ import type { AiLanguage } from "./aiLanguage";
 import { extractJson } from "./extractJson";
 import { MAX_TITLE_LENGTH } from "./prompts/caps";
 import {
-  buildCompactDraftPrompt,
+  buildCompactDraftSystem,
+  buildCompactDraftUser,
   COMPACT_DRAFT_FEW_SHOT,
   COMPACT_DRAFT_FEW_SHOT_LOGREFS,
 } from "./prompts/draftCompact";
@@ -144,14 +145,26 @@ export interface AiDraftSessionContext {
   existingDraft?: { title: string; sections: Record<string, string> };
 }
 
+export interface AiDraftTurns {
+  system: string;
+  user: string;
+}
+
 // Record로 분기해야 PromptStyle에 값이 늘 때 컴파일 에러가 난다. 삼항은 새 style을
 // 조용히 rich로 흘려보낸다 — 창이 가장 좁은 프로바이더가 가장 큰 본문을 받는 방향이다.
+// compact은 컨텍스트를 user 턴에 실어 진술과 인접시킨다(draftCompact 주석 참조).
 const DRAFT_BUILDERS: Record<
   PromptStyle,
-  (ctx: AiDraftSessionContext) => string
+  (ctx: AiDraftSessionContext) => AiDraftTurns
 > = {
-  compact: buildCompactDraftPrompt,
-  rich: buildRichDraftPrompt,
+  compact: (ctx) => ({
+    system: buildCompactDraftSystem(ctx),
+    user: buildCompactDraftUser(ctx),
+  }),
+  rich: (ctx) => ({
+    system: buildRichDraftPrompt(ctx),
+    user: ctx.userPrompt?.trim() ?? "",
+  }),
 };
 
 // compact은 예시로 출력 형태를 잡는다. rich는 규칙 문장으로 충분하다.
@@ -168,8 +181,12 @@ const DRAFT_FEW_SHOT: Record<
   rich: undefined,
 };
 
-export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
+export function buildAiDraftTurns(ctx: AiDraftSessionContext): AiDraftTurns {
   return DRAFT_BUILDERS[ctx.caps.promptStyle](ctx);
+}
+
+export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
+  return buildAiDraftTurns(ctx).system;
 }
 
 export function getDraftFewShot(

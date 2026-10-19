@@ -92,6 +92,18 @@ describe("generateReproStepsWithAI", () => {
     expect(opts.responseSchema).toEqual(buildAiDraftSchema(["stepsToReproduce"]));
   });
 
+  // compact은 컨텍스트를 user 턴에 싣는다 — 요청 문장만 보내면 액션 로그가 모델에 안 닿는다.
+  it("compact: 액션 로그가 user 턴에 실리고 요청 문장이 그 뒤에 온다", async () => {
+    const { createSession, calls, promptCalls } = makeCreateSession(
+      async () => '{"title":"T","stepsToReproduce":"s"}',
+    );
+    await generateReproStepsWithAI(baseInput(createSession));
+    const input = promptCalls[0].input;
+    expect(input).toContain("Clicked: Submit");
+    expect(input.indexOf("Clicked: Submit")).toBeLessThan(input.indexOf("Write the reproduction steps"));
+    expect(calls[0].systemPrompt).not.toContain("Clicked: Submit");
+  });
+
   it("provider가 LlmQuotaError를 던지면 그대로 전파한다", async () => {
     const { createSession } = makeCreateSession(async () => {
       throw new LlmQuotaError();

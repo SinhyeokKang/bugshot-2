@@ -104,6 +104,17 @@ describe("selectLogCandidates — 캡·게이트", () => {
     expect(c.console).toHaveLength(5);
   });
 
+  // 요약은 시간 오름차순이라 앞에서 자르면 버그 시점 에러가 빠진다.
+  it("compact 캡은 요약의 최근 쪽을 남긴다 (시간순 유지)", () => {
+    const c = selectLogCandidates(withLogs(5, 5, { caps: NANO_CAPABILITIES }));
+    expect(c.network.map((x) => x.path)).toEqual(["/api/e2", "/api/e3", "/api/e4"]);
+    expect(c.console.map((x) => x.message)).toEqual([
+      "TypeError: boom 2",
+      "TypeError: boom 3",
+      "TypeError: boom 4",
+    ]);
+  });
+
   it("ref는 필터·캡 통과 후 부여 — 연속·유일 (n1.., c1..)", () => {
     const c = selectLogCandidates(withLogs(5, 5, { caps: NANO_CAPABILITIES }));
     expect(c.network.map((x) => x.ref)).toEqual(["n1", "n2", "n3"]);
