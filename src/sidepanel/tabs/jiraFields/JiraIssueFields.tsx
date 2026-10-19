@@ -52,10 +52,10 @@ export function JiraIssueFields({
   }, [projectKey, fields.issueTypeId, accountProjectKey]);
 
   const handleIssueTypeChange = useCallback(
-    (id: string, hierarchyLevel?: number) => {
+    (id: string, name?: string, hierarchyLevel?: number) => {
       const epic = hierarchyLevel != null && hierarchyLevel >= 1;
       setIsEpicType(epic);
-      const patch: Partial<EditorIssueFields> = { issueTypeId: id };
+      const patch: Partial<EditorIssueFields> = { issueTypeId: id, issueTypeName: name };
       if (epic) {
         const conflict = resolveEpicParentConflict(fields, hierarchyLevel);
         if (conflict) Object.assign(patch, conflict);
@@ -162,6 +162,7 @@ export function JiraIssueFields({
       <FieldRow label={t("create.issueType")} required>
         <IssueTypeField
           value={fields.issueTypeId}
+          fallbackLabel={fields.issueTypeName}
           projectKey={projectKey}
           open={issueTypeOpen}
           onOpenChange={setIssueTypeOpen}

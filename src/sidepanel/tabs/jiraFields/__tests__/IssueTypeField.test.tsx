@@ -48,12 +48,12 @@ function trigger() {
 function Harness({
   projectKey,
   value,
-  valueName,
+  fallbackLabel,
   onChange = vi.fn(),
 }: {
   projectKey?: string;
   value?: string;
-  valueName?: string;
+  fallbackLabel?: string;
   onChange?: (id: string, name?: string, hierarchyLevel?: number) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -61,7 +61,7 @@ function Harness({
     <IssueTypeField
       projectKey={projectKey}
       value={value}
-      valueName={valueName}
+      fallbackLabel={fallbackLabel}
       open={open}
       onOpenChange={setOpen}
       onChange={onChange}
@@ -158,7 +158,7 @@ describe("IssueTypeField — 계정 기본 이슈타입 자동 주입 가드", (
 // 갈린다(리포트: "작업"으로 보였는데 "버그"로 제출됨).
 describe("IssueTypeField — 목록 로드 전 라벨", () => {
   it("값이 계정 기본과 다르면 계정 기본 이슈타입명을 보이지 않고 저장된 이름을 보인다", () => {
-    render(<Harness projectKey="WEB" value="10002" valueName="Task" />);
+    render(<Harness projectKey="WEB" value="10002" fallbackLabel="Task" />);
 
     expect(trigger().textContent).toContain("Task");
     expect(trigger().textContent).not.toContain("Bug");
@@ -170,9 +170,21 @@ describe("IssueTypeField — 목록 로드 전 라벨", () => {
     expect(trigger().textContent).not.toContain("Bug");
   });
 
+  it("이름 없이 값만 있으면 콤보를 열지 않아도 목록을 받아 실제 이름을 보인다", async () => {
+    render(<Harness projectKey="WEB" value="10002" />);
+
+    await waitFor(() => expect(trigger().textContent).toContain("Task"));
+  });
+
+  it("이름이 있으면 콤보를 열기 전엔 목록을 조회하지 않는다", () => {
+    render(<Harness projectKey="WEB" value="10002" fallbackLabel="Task" />);
+
+    expect(sendBg).not.toHaveBeenCalled();
+  });
+
   it("목록을 받으면 저장된 이름보다 목록의 이름이 이긴다", async () => {
     const user = userEvent.setup();
-    render(<Harness projectKey="WEB" value="10002" valueName="Old Task" />);
+    render(<Harness projectKey="WEB" value="10002" fallbackLabel="Old Task" />);
 
     await user.click(trigger());
     await screen.findByRole("option", { name: /Task/ });

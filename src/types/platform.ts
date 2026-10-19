@@ -66,6 +66,7 @@ export interface Accounts {
 export interface JiraLastSubmitFields {
   projectKey?: string;
   issueTypeId?: string;
+  issueTypeName?: string;
   // jiraSiteId(auth). 직전 제출값이 다른 사이트의 것일 때 복원을 막는 판별자.
   siteId?: string;
   assigneeId?: string;

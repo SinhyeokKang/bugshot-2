@@ -10,6 +10,7 @@ import { resolveProjectChange } from "../project-change";
 // 스프린트는 보드에, 보드는 프로젝트에 묶이므로 프로젝트 스코프다.
 const CLEARED = [
   "issueTypeId",
+  "issueTypeName",
   "assigneeId",
   "assigneeName",
   "parentKey",
@@ -20,7 +21,7 @@ const CLEARED = [
 ] as const;
 
 describe("resolveProjectChange", () => {
-  it("다른 프로젝트로 바꾸면 프로젝트 스코프 8개를 undefined로 비운다", () => {
+  it("다른 프로젝트로 바꾸면 프로젝트 스코프 9개를 undefined로 비운다", () => {
     const patch = resolveProjectChange({ projectKey: "WEB" }, "API");
 
     expect(patch.projectKey).toBe("API");
