@@ -45,7 +45,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 ## 편집 세션 영속화
 
-캡처 로그는 스냅샷 밖 IndexedDB에 보관한다. screenshot/video/freeform 재개 시 `currentIssueId` 소유 로그를 먼저 읽고 없으면 `pending:${tabId}`로 폴백한다(영상 blob은 **반대 순서** — `pending:${tabId}` 먼저, 없으면 `currentIssueId`. drafting은 pending 키에, confirm 후엔 issueId 키에 있어서다). 복원 중 세션 교체·새 캡처 진입은 취소 래치로 기억하고, 이미 새 값이 들어온 로그는 덮지 않는다. `logsAttach`는 표시용 복원과 독립적으로 유지하며 element에는 복원하지 않는다. 제출은 시작 시점 editor 상태와 `loadSubmissionLogs` 반환값을 합친 로컬 상태로 본문 요약과 logs.html을 함께 생성한다.
+캡처 로그는 스냅샷 밖 IndexedDB에 보관한다. screenshot/video/freeform 재개 시 `currentIssueId` 소유 로그를 먼저 읽고 없으면 `pending:${tabId}`로 폴백한다(영상 blob은 **반대 순서** — `pending:${tabId}` 먼저, 없으면 `currentIssueId`. drafting은 pending 키에, confirm 후엔 issueId 키에 있어서다). `confirmDraft`의 영상과 `persistAttachedLogs`의 로그는 각각 issue 소유 저장이 `true`로 성공한 경우에만 해당 pending 원본을 지운다. 저장이 `false`이면 실패한 issue 메타데이터는 비우고 기존 오류 안내를 띄우되 같은 탭 세션 복원을 위한 pending 원본은 보존한다. 다른 로그의 성공·정리는 독립적이다. 복원 중 세션 교체·새 캡처 진입은 취소 래치로 기억하고, 이미 새 값이 들어온 로그는 덮지 않는다. `logsAttach`는 표시용 복원과 독립적으로 유지하며 element에는 복원하지 않는다. 제출은 시작 시점 editor 상태와 `loadSubmissionLogs` 반환값을 합친 로컬 상태로 본문 요약과 logs.html을 함께 생성한다.
 
 - tabId별로 `chrome.storage.session`의 `editor:${tabId}` 키에 저장
 - `useEditorSessionSync(tabId)` 훅이 hydration + debounced save(300ms) 담당 (zustand persist 미들웨어 대신 직접 구현 — tabId-scoped 키가 persist의 "one store, one key" 모델에 맞지 않음)
