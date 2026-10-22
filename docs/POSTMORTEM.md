@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-10-22 — 초안 저장 실패 뒤 pending 원본까지 지웠다 — 완료된 Promise가 성공한 저장은 아니다
+
+- **영역**: `store`, `미디어`
+- **계열**: `fail-open`, `복제본`
+- **그물**: `unit`
+- **증상**: 초안 확정 중 IndexedDB 저장이 실패하면 영상·로그의 pending 원본까지 지워져 같은 탭 세션 복원도 데이터를 되찾지 못한다.
+- **근본 원인**: blob 저장 API는 reject 대신 `false`로 실패를 알린다. 호출부는 실패한 issue 메타데이터를 비우면서도 await 뒤 pending 삭제를 무조건 실행했다. 영상과 네트워크·콘솔·액션 로그 네 경로에 같은 패턴이 있었다.
+- **재발 방지**: `save(VideoBlob|NetworkLog|ConsoleLog|ActionLog)` 뒤 `delete*`를 전수 확인하고 자산별 저장 성공 뒤에만 원본을 정리한다. `editor-store.test.ts`에서 세 캡처 모드×세 로그 종류의 실패 시 pending 삭제 0회·성공한 형제 로그 정리·실패 안내를 함께 단언하고 영상 성공/실패도 분리한다. 복원 소비자의 로그 issue→pending·영상 pending→issue 순서도 함께 대조한다.
+- **관련**: `src/store/editor-store.ts:persistAttachedLogs`·`confirmDraft`, `src/store/__tests__/editor-store.test.ts`, `src/sidepanel/hooks/useEditorSessionSync.ts`
+
+---
+
 ## 2026-10-19 — 나노 AI 초안이 버그 맥락을 못 읽었다 — 캡이 오래된 로그를 남기고 few-shot이 컨텍스트와 진술을 갈라놨다
 
 - **영역**: `AI`, `lib`
