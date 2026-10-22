@@ -92,6 +92,14 @@ function blurActiveElement() {
 }
 
 export default function App() {
+  return <>
+    {/* Subscribe before startup effects emit notices, even while the panel is gated. */}
+    <Toaster position="top-center" offset={24} />
+    <AppContent />
+  </>;
+}
+
+function AppContent() {
   const t = useT();
   const debugTabRef = useRef<HTMLButtonElement>(null);
   const selfTab = useSelfTab();
@@ -207,6 +215,13 @@ export default function App() {
 
   useEffect(() => {
     const show = () => {
+      if (useSettingsUiStore.persist.takeSettingsReset()) {
+        toast.error(translate("app.appSettingsReset.title"), {
+          description: translate("app.appSettingsReset.body"),
+          duration: Infinity,
+          closeButton: true,
+        });
+      }
       if (!useSettingsStore.persist.takeSettingsReset()) return;
       blurActiveElement();
       setSettingsReset(true);
@@ -555,7 +570,6 @@ export default function App() {
         </Suspense>
       )}
     </div>
-    <Toaster position="top-center" offset={24} />
     </ReplayProvider>
     </TabSupportProvider>
     </TabNavContext.Provider>
