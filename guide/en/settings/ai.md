@@ -62,6 +62,8 @@ BugShot picks the AI for you, in this order — you rarely have to think about i
 
 Once AI is ready, two features become available.
 
+While AI is working, editing behind the loading screen is paused. You can reach **Stop** with the keyboard, and editing becomes available again when the task finishes, is stopped, or fails.
+
 ### AI Styling
 
 While inspecting an element, change styles with plain language like "make the button rounder" or "add more spacing." See [Styling](../element/styling.md) for the full walkthrough.
