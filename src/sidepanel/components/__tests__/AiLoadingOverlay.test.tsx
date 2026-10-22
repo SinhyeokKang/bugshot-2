@@ -52,4 +52,21 @@ describe("AiLoadingOverlay", () => {
     await waitFor(() => expect(document.activeElement).toBe(fallback));
     fallback.remove();
   });
+  it("does not restore focus into a closing dialog after a fast request", async () => {
+    const closingDialog = document.createElement("div");
+    closingDialog.setAttribute("role", "dialog");
+    const input = document.createElement("textarea");
+    closingDialog.append(input);
+    document.body.append(closingDialog);
+    input.focus();
+    const fallback = document.createElement("button");
+    document.body.append(fallback);
+    const { unmount } = render(<AiLoadingOverlay surface="draft" step={0} onCancel={vi.fn()} fallbackFocusRef={{ current: fallback }} />);
+    closingDialog.setAttribute("data-state", "closed");
+    unmount();
+    await waitFor(() => expect(document.activeElement).toBe(fallback));
+    closingDialog.remove();
+    fallback.remove();
+  });
+
 });
