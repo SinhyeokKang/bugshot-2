@@ -18,7 +18,7 @@
 
 | 배치 | 항목 | 소유 파일 | 선행 | 상태 |
 |---|---|---|---|---|
-| A settings | 1 | settings-ui-store, 새 app-settings 저장/동기화 leaf, main.tsx 및 해당 테스트, 설정 복구 안내 i18n, App 초기화 안내 effect | App effect만 C 통합 뒤 | 리뷰 수정 중 |
+| A settings | 1 | settings-ui-store, 새 app-settings 저장/동기화 leaf, main.tsx 및 해당 테스트, 설정 복구 안내 i18n, App 초기화 안내 effect | App effect만 C 통합 뒤 | dev 통합 완료 |
 | B blobs | 2 | editor-store, blob 저장 회귀 테스트 | 없음 | dev 통합 완료 |
 | C overlay | 3 | App.tsx, AI overlay 접근성 컴포넌트/테스트, 관련 e2e | 없음 | dev 통합 완료 |
 | D1 native-cancel | 6 | ai-provider Chrome signal 경로, generateReproPrefill, 관련 테스트 | 없음 | dev 통합 완료 |
@@ -61,3 +61,5 @@ A/B/C 최초 소유 파일은 서로 겹치지 않아 병렬 실행했다. A 리
 - D1 리뷰 `ctx_3e5551b708ca`: red0, post-prompt abort 가드를 우회하는 늦은 성공 응답 회귀 테스트 공백 및 문서·주석 stale 2건. 테스트 보강과 주석 수정은 소유 워커, 공통 문서는 지휘자에게 배정. 리뷰 워커 해제 완료.
 - A App 안내 최종 리뷰 `ctx_dabe17806bdf`: 초기 hydration/대상 선택 게이트에서 Toaster가 없는 동안 래치를 소비해 안내가 유실되는 P2 발견. 실제 렌더 안내까지 단언하는 회귀와 수정 요청. 리뷰 워커 해제 완료.
 - D1 완료: 원본 `1f535898`·`93594f6e`·`704d5407`·`8eb2b3cc` → dev `a8f531b1`·`84657f0e`·`22c8d5e7`·`8795cb78`. 최초 red7→green180, 전체 471 files·9193 passed·2 skipped(exit0), 리뷰 보강 mutation red1→최종 targeted181, typecheck/sync exit0. native prompt signal 전달·late-create cleanup·멱등 destroy 검증. create 자체 즉시 중단 및 실제 모델 연산 중단은 미검증. 리뷰 yellow는 회귀 보강과 문서/주석 정합으로 해소. worker 해제, tracked clean/git cherry `+`0 확인.
+- A 완료: 원본 `73257206`·`ab9cada8`·`f8dc5d69`·`2a4668e5`·`89787c02` → dev `2661c022`·`b3dc93fd`·`0d5e9794`·`cd4c3f73`·`1c72c606`. 최초9/복구5/동일 reorder1/실 알림2 red→green. 최종 전체 473 files·9218 passed·2 skipped(exit0), typecheck/sync/i18n21 exit0. store 재리뷰100, App 최종 재리뷰11 및 실제 Sonner StrictMode 보조 하네스 통과. Toaster를 AppContent보다 앞서 상시 마운트해 초기 안내 유실 해결. 실제 Chrome 다중 창/픽셀 및 문서 reload 후 알림 재생은 검증 범위 밖. worker 해제, tracked clean/git cherry `+`0 확인.
+- A/B/C/D1 통합본 root typecheck/sync exit0, `pnpm test --maxWorkers=2 --minWorkers=1` exit0: 473 files·9227 passed·2 skipped(81.97s). D2는 한국어 정책 답변 대기이며 아직 구현·최종 push·CI·확장 빌드를 실행하지 않았다.
