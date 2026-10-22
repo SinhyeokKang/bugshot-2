@@ -18,9 +18,9 @@
 
 | 배치 | 항목 | 소유 파일 | 선행 | 상태 |
 |---|---|---|---|---|
-| A settings | 1 | settings-ui-store, 새 app-settings 저장/동기화 leaf, main.tsx 및 해당 테스트 | 없음 | 준비 |
-| B blobs | 2 | editor-store, blob 저장 회귀 테스트 | 없음 | 준비 |
-| C overlay | 3 | App.tsx, AI overlay 접근성 컴포넌트/테스트, 관련 e2e | 없음 | 준비 |
+| A settings | 1 | settings-ui-store, 새 app-settings 저장/동기화 leaf, main.tsx 및 해당 테스트 | 없음 | 구현 중 |
+| B blobs | 2 | editor-store, blob 저장 회귀 테스트 | 없음 | 구현·독립 리뷰 중 |
+| C overlay | 3 | App.tsx, AI overlay 접근성 컴포넌트/테스트, 관련 e2e | 없음 | 구현 중 |
 | D chrome-ai | 4–6 | useAI, ai-provider, compact prompt, 재현 생성, AI 설정 UI, i18n ai 사전 및 테스트/e2e | A·C 통합, 언어 결정 | 대기 |
 
 ## 겹침·순서
@@ -32,3 +32,13 @@ A/B/C 소유 파일은 서로 겹치지 않으며 병렬 실행한다. D는 UI�
 - 워커 게이트: `pnpm typecheck`, `pnpm test`, `pnpm sync:agents:check` 종료 코드. 파이프 필터 금지.
 - 회귀를 고정한 테스트, 독립 리뷰, 수정 라운드, 커밋, 문서·런타임 검증, CI 증거를 아래 누적한다.
 - 실제 Nano 다운로드·언어 출력은 mock으로 증명하지 않는다. 가능한 실제 Chrome 환경을 확인하고 미검증이면 명시한다.
+
+## Orca 실행 기록
+
+- Run: `run_ae89d710757f`.
+- A: `task_8b772bc54360` / `ctx_9ba0b5175607`, `audit-settings`.
+- B: `task_c32ddc597a2a` / `ctx_44a718f51d77`, `audit-blobs`.
+- C: `task_257c401ef8d4` / `ctx_9591d2200e05`, `audit-overlay`.
+- 시작 영수증은 전부 Codex, model/effort null(사용자 기본 설정 상속), ready/input_accepted/turn_started 확인.
+- D PRD·설계는 `4c8bded4`. CPO/CDO/CTO/QA 독립 읽기 전용 검수 진행 중.
+- B 테스트 커밋 `15e71dd4` 보고 후 독립 DataFlow/CodeHealth/CTO 리뷰를 별도 Orca 워커에 배정했다. 전체 게이트와 병행한다.
