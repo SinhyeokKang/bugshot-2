@@ -43,7 +43,6 @@ vi.mock("../tabs/IssueListTab", () => ({ IssueListTab: () => null }));
 vi.mock("../tabs/SettingsTab", () => ({ SettingsTab: () => null }));
 vi.mock("../tabs/ReplayTrimDialog", () => ({ default: () => null }));
 vi.mock("../components/OAuthExpiredDialog", () => ({ OAuthExpiredDialog: () => null }));
-vi.mock("@/components/ui/sonner", () => ({ Toaster: () => null }));
 vi.mock("@/sidepanel/picker-control", () => ({ clearPicker: async () => {} }));
 
 const chromeStub = () => ({
@@ -77,6 +76,8 @@ function setHref(search: string) {
 
 beforeEach(() => {
   vi.stubGlobal("chrome", chromeStub());
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  spies.editorSync.mockReturnValue(true);
   selfTab = { id: 9 };
   selfPending = null;
   boundTabId = 5;
@@ -85,7 +86,8 @@ beforeEach(() => {
   setHref("");
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await act(async () => { toast.dismiss(); });
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -188,5 +190,23 @@ describe("App — app settings reset notice", () => {
     expect(notice).toHaveBeenCalledWith(t("app.appSettingsReset.title"), expect.objectContaining({ description: t("app.appSettingsReset.body") }));
     await act(async () => onSettingsReset.fire());
     expect(notice).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe("App — visible reset notice across startup gates", () => {
+  it.each(["hydration", "target"])("renders the actual notice while the %s gate is unresolved", async (gate) => {
+    let pending = true;
+    vi.spyOn(useSettingsUiStore.persist, "takeSettingsReset").mockImplementation(() => {
+      const result = pending; pending = false; return result;
+    });
+    if (gate === "hydration") { setHref("?tabId=5"); spies.editorSync.mockReturnValue(false); }
+    const view = render(<App />);
+    expect(await screen.findByText(t("app.appSettingsReset.title"))).toBeTruthy();
+    expect(screen.getByText(t("app.appSettingsReset.body"))).toBeTruthy();
+    spies.editorSync.mockReturnValue(true);
+    setHref("?tabId=5");
+    view.rerender(<App />);
+    expect(await screen.findByText(t("app.appSettingsReset.title"))).toBeTruthy();
   });
 });
