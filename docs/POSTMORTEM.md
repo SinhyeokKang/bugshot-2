@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-10-22 — 준비 상태 재확인이 진행 중 재현 결과를 버렸다
+
+- **영역**: `AI`, `컴포넌트`
+- **계열**: `취소래치`
+- **그물**: `jsdom`
+- **증상**: 재현 단계를 생성하는 동안 언어 전환이나 상태 재조회가 checking으로 바뀌고 AI 응답이 먼저 끝나면, 성공했는데 본문은 비고 다시 시도하지 않는다.
+- **근본 원인**: 신규 작업의 가용성 게이트를 기존 resumable 작업 readoption보다 먼저 검사했다. effect cleanup이 detach한 뒤 checking에서 이어받지 못한 응답은 isActive에서 버려지고, once 래치는 남았다. 초기 테스트는 availability를 먼저 resolve해 안전한 순서만 검증했다.
+- **재발 방지**: 기본 편집/캡처 게이트를 유지하되 이미 시작한 작업의 readoption을 신규 작업 가용성 검사보다 먼저 한다. 실제 useAI→useReproPrefill 경계에서 prompt/availability 양쪽 완료 순서를 검증하고, 명시 중단·언마운트 후 미적용 및 즉시 응답도 함께 고정한다.
+- **관련**: `src/sidepanel/hooks/useReproPrefill.ts`, `src/sidepanel/hooks/__tests__/useAI.test.tsx`
+
+---
+
 ## 2026-10-22 — Chrome AI 세션은 영어인데 프롬프트는 한국어를 요구했다
 
 - **영역**: `AI`, `i18n`
@@ -55,7 +67,7 @@
 - **그물**: `unit`
 - **증상**: 모델을 다운로드할 수 있는 환경에서도 AI를 켤 경로가 없었다. 준비 상태를 단순히 available로 취급하면 자동 재현 생성이 사용자 클릭 없이 모델 설치를 시작할 수 있다.
 - **근본 원인**: 가용성 조회·사용자 activation이 필요한 준비·일반 생성의 경계를 구분하지 않았다. 추가 구현 중에는 동기 throw가 async IIFE의 finally보다 늦게 Promise 참조에 대입돼 재시도를 막았고, 세대 무효화가 아직 실행 중인 native 준비 작업의 소유권까지 버려 중복 create를 허용했다.
-- **재발 방지**: 조회는 설치 없이 상태만 읽고, 명시적 클릭에서 첫 await 전에 준비 create를 호출한다. 임시 세션 정리 후와 일반 생성 직전에 각각 새로 조회한다. probe는 대입 후 실행되게 예약하고, 세대 가드와 실제 작업의 in-flight 소유권을 분리한다. sync throw→재시도, 언어/BYOK 왕복→native create 1회, 늦은 세션 destroy, 준비 완료 후 unavailable, 모델 삭제 뒤 자동 생성의 create 0회를 회귀 테스트로 고정한다.
+- **재발 방지**: 조회는 설치 없이 상태만 읽고, 명시적 클릭에서 첫 await 전에 준비 create를 호출한다. 임시 세션 정리 후와 일반 생성 직전에 각각 새로 조회한다. probe는 대입 후 실행되게 예약하고, 세대 가드와 실제 작업의 in-flight 소유권을 분리하고, 준비 소유권은 언어별이 아닌 문서 전체가 공유한다. sync throw→재시도, 언어/BYOK 왕복→native create 1회, 늦은 세션 destroy, 준비 완료 후 unavailable, 모델 삭제 뒤 자동 생성의 create 0회를 회귀 테스트로 고정한다.
 - **관련**: `src/sidepanel/lib/chrome-ai.ts:createChromeAIController`, `src/sidepanel/hooks/useAI.ts`, `src/sidepanel/lib/__tests__/chrome-ai.test.ts`, `e2e/chrome-ai-readiness.spec.ts`
 
 ---
