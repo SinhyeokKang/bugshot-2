@@ -21,11 +21,14 @@
 | A settings | 1 | settings-ui-store, 새 app-settings 저장/동기화 leaf, main.tsx 및 해당 테스트, 설정 복구 안내 i18n, App 초기화 안내 effect | App effect만 C 통합 뒤 | 리뷰 수정 중 |
 | B blobs | 2 | editor-store, blob 저장 회귀 테스트 | 없음 | 구현·독립 리뷰 중 |
 | C overlay | 3 | App.tsx, AI overlay 접근성 컴포넌트/테스트, 관련 e2e | 없음 | 구현 중 |
-| D chrome-ai | 4–6 | useAI, ai-provider, compact prompt, 재현 생성, AI 설정 UI, i18n ai 사전 및 테스트/e2e | A·C 통합, 언어 결정 | 대기 |
+| D1 native-cancel | 6 | ai-provider Chrome signal 경로, generateReproPrefill, 관련 테스트 | 없음 | 배정 준비 |
+| D2 chrome-ai | 4–5 | useAI, ai-provider 언어/readiness, compact prompt, AI 설정 UI, i18n ai 사전 및 테스트/e2e | A·C·D1 통합, 언어 결정 | 대기 |
 
 ## 겹침·순서
 
 A/B/C 최초 소유 파일은 서로 겹치지 않아 병렬 실행했다. A 리뷰에서 추가된 App 초기화 안내 effect는 C 통합 후 rebase 신호를 받고 수정한다. A 설정 복구 안내 i18n도 D보다 먼저 통합한다. D는 UI와 settings 소비처를 건드리므로 A/C 뒤에 실행한다. 모든 배치에서 CLAUDE.md·AGENTS.md·스킬·ARCHITECTURE·DIRECTORY·POSTMORTEM·coverage baseline·계획 문서는 편집 금지이며 필요한 갱신 내용을 인계한다. 예기치 않은 파일 겹침은 수정 전에 지휘자에게 보고한다.
+
+한국어 정책 응답을 기다리는 동안 독립 작업을 진행하기 위해 D를 D1(취소)과 D2(언어·준비 UI)로 직렬 분리한다. D1은 A/B/C와 파일이 겹치지 않는다. D2는 D1을 포함한 최신 dev에서 출발한다. D1도 동일한 Codex 기본 모델·effort를 상속한다.
 
 ## 검증·통합 기록
 
