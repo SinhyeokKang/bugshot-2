@@ -58,3 +58,5 @@ A/B/C 최초 소유 파일은 서로 겹치지 않아 병렬 실행했다. A 리
 - C 완료: `5745fafd`·`0afef393`·`0eb777a8`·`88f3ca92` → dev `a206e0a6`·`6e9a58b8`·`843d8ff6`·`7c25e38b`. typecheck/sync exit0, 전체 472 files·9189 passed·2 skipped(exit0), draft/styling e2e 5개 2회 연속 exit0. 빠른 종료는 jsdom red→green, 실제 video-triggered repro·실 모델·픽셀/스크린리더는 미검증. A에게 C 통합 후 rebase/App effect 편집 신호 전달.
 - C worker-release 결과는 `retained / user_takeover`다. 사용자 인계된 터미널·worktree를 닫거나 제거하지 않는다. B worker/worktree는 완료 증거 보존 후 정리했다.
 - B 통합 직후 root typecheck/sync exit0. 전체 통합 게이트는 A·C·D1/D2 반영 뒤 실행한다.
+- D1 리뷰 `ctx_3e5551b708ca`: red0, post-prompt abort 가드를 우회하는 늦은 성공 응답 회귀 테스트 공백 및 문서·주석 stale 2건. 테스트 보강과 주석 수정은 소유 워커, 공통 문서는 지휘자에게 배정. 리뷰 워커 해제 완료.
+- A App 안내 최종 리뷰 `ctx_dabe17806bdf`: 초기 hydration/대상 선택 게이트에서 Toaster가 없는 동안 래치를 소비해 안내가 유실되는 P2 발견. 실제 렌더 안내까지 단언하는 회귀와 수정 요청. 리뷰 워커 해제 완료.
