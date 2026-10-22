@@ -1,12 +1,8 @@
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import type { StateStorage } from "zustand/middleware";
+import { create, type StoreApi, type UseBoundStore } from "zustand";
+import { createAppSettingsAdapter, type AppSettingsIntent } from "./app-settings-adapter";
 import type { TranslationKey } from "@/i18n/ko";
 import type { RecordingSource } from "./editor-store";
-import { obfuscateApiKey, deobfuscateApiKey } from "@/lib/key-obfuscation";
-import { APP_SETTINGS_PERSIST_KEY } from "@/lib/session-keys";
 import { normalizeAiLanguage, type AiLanguage } from "@/sidepanel/lib/aiLanguage";
-import { chromeLocalStorage } from "./chrome-storage";
 import {
   detectLocale,
   normalizeBodyLocale,
@@ -142,6 +138,10 @@ interface SettingsUiState {
   setStyleEditorView: (view: StyleEditorView) => void;
 }
 
+export type SettingsUiData = {
+  [K in keyof SettingsUiState as SettingsUiState[K] extends (...args: never[]) => unknown ? never : K]: SettingsUiState[K];
+};
+
 export function migrateSettingsUi(
   persisted: unknown,
   version: number,
@@ -176,12 +176,11 @@ export function migrateSettingsUi(
   return state as SettingsUiState;
 }
 
-// migrate는 버전이 다를 때만 돈다 — 동일 버전에서 외부 오염된 값도 교정하도록 rehydrate마다
-// 재정규화한다. persist 옵션 안 익명 함수로 두면 테스트가 닿지 못해 이 방어가 무검증으로 남는다.
+// 동일 버전에서 외부 오염된 값도 교정하도록 모든 durable read에서 재정규화한다.
 export function mergePersistedSettings(
   persisted: unknown,
-  current: SettingsUiState,
-): SettingsUiState {
+  current: SettingsUiData,
+): SettingsUiData {
   const p = (persisted ?? {}) as Partial<SettingsUiState>;
   return {
     ...current,
@@ -194,103 +193,91 @@ export function mergePersistedSettings(
   };
 }
 
-export const apiKeyObfuscatingStorage: StateStorage = {
-  async getItem(name) {
-    const raw = await chromeLocalStorage.getItem(name);
-    if (!raw) return null;
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed.state?.llm?.apiKey) {
-        parsed.state.llm.apiKey = deobfuscateApiKey(parsed.state.llm.apiKey);
-      }
-      return JSON.stringify(parsed);
-    } catch {
-      return raw;
-    }
-  },
-  async setItem(name, value) {
-    try {
-      const parsed = JSON.parse(value);
-      if (parsed.state?.llm?.apiKey) {
-        parsed.state.llm.apiKey = obfuscateApiKey(parsed.state.llm.apiKey);
-      }
-      return chromeLocalStorage.setItem(name, JSON.stringify(parsed));
-    } catch {
-      return chromeLocalStorage.setItem(name, value);
-    }
-  },
-  async removeItem(name) {
-    return chromeLocalStorage.removeItem(name);
-  },
-};
-
-export const useSettingsUiStore = create<SettingsUiState>()(
-  persist(
-    (set) => ({
-      theme: "light",
-      locale: detectLocale(browserLanguage()),
-      aiLanguage: "auto",
-      bodyLocale: "auto",
-      issueSections: DEFAULT_ISSUE_SECTIONS,
-      llm: null,
-      replayEnabled: false,
-      attachmentsEnabled: false,
-      autoReproPrefill: true,
-      recordingMode: "tab",
-      styleEditorView: "form",
-      setTheme: (theme) => set({ theme }),
-      setLocale: (locale) => set({ locale }),
-      setAiLanguage: (aiLanguage) => set({ aiLanguage }),
-      setBodyLocale: (bodyLocale) => set({ bodyLocale }),
-      setIssueEnabled: (id, enabled) => {
-        // 미디어 카드엔 사용 여부 스위치가 없다(위치만 관장) — 오염 유입 차단.
-        if (id === "media") return;
-        set((s) => ({
-          issueSections: s.issueSections.map((sec) =>
-            sec.id === id ? { ...sec, enabled } : sec,
-          ),
-        }));
-      },
-      // arrayMove는 @dnd-kit이 아니라 여기 인라인 — 이 스토어는 background service worker
-      // 번들에 포함되므로 UI DnD 라이브러리를 그래프에 끌어들이면 안 된다.
-      reorderIssueSections: (from, to) =>
-        set((s) => {
-          const list = s.issueSections;
-          const valid = (i: number) => Number.isInteger(i) && i >= 0 && i < list.length;
-          if (from === to || !valid(from) || !valid(to)) return {};
-          const next = [...list];
-          const [moved] = next.splice(from, 1);
-          next.splice(to, 0, moved);
-          return { issueSections: next };
-        }),
-      // 순서만 기본값으로. 사용 여부(enabled)는 사용자 것이라 건드리지 않는다.
-      resetIssueSectionOrder: () =>
-        set((s) => {
-          const order = DEFAULT_ISSUE_SECTIONS.map((d) => d.id);
-          const rank = (id: IssueSectionId) => {
-            const i = order.indexOf(id);
-            return i === -1 ? order.length : i; // 기본 배열에 없는 항목은 말미 보존
-          };
-          return {
-            issueSections: [...s.issueSections].sort((a, b) => rank(a.id) - rank(b.id)),
-          };
-        }),
-      resetIssueSections: () => set({ issueSections: DEFAULT_ISSUE_SECTIONS }),
-      setLlm: (config) => set({ llm: config }),
-      setReplayEnabled: (enabled) => set({ replayEnabled: enabled }),
-      setAttachmentsEnabled: (enabled) => set({ attachmentsEnabled: enabled }),
-      setAutoReproPrefill: (enabled) => set({ autoReproPrefill: enabled }),
-      setRecordingMode: (recordingMode) => set({ recordingMode }),
-      setStyleEditorView: (styleEditorView) => set({ styleEditorView }),
-    }),
-    {
-      // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
-      name: APP_SETTINGS_PERSIST_KEY,
-      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가, v8: autoReproPrefill 추가, v9: issueSections에 media 엔트리 편입, v10: aiLanguage 추가, v11: bodyLocale 추가, v12: 종료된 Gemini 2.0 Flash 모델 교체
-      version: 12,
-      storage: createJSONStorage(() => apiKeyObfuscatingStorage),
-      migrate: migrateSettingsUi,
-      merge: mergePersistedSettings,
+export function createSettingsUiStore() {
+  const defaults: SettingsUiData = {
+    theme: "light",
+    locale: detectLocale(browserLanguage()),
+    aiLanguage: "auto",
+    bodyLocale: "auto",
+    issueSections: DEFAULT_ISSUE_SECTIONS,
+    llm: null,
+    replayEnabled: false,
+    attachmentsEnabled: false,
+    autoReproPrefill: true,
+    recordingMode: "tab",
+    styleEditorView: "form",
+  };
+  const store: UseBoundStore<StoreApi<SettingsUiState>> = create<SettingsUiState>()(() => ({
+    ...defaults,
+    setTheme: (theme) => set({ theme }),
+    setLocale: (locale) => set({ locale }),
+    setAiLanguage: (aiLanguage) => set({ aiLanguage }),
+    setBodyLocale: (bodyLocale) => set({ bodyLocale }),
+    setIssueEnabled: (id, enabled) => {
+      // 미디어 카드엔 사용 여부 스위치가 없다(위치만 관장) — 오염 유입 차단.
+      if (id === "media") return;
+      set((s) => ({
+        issueSections: s.issueSections.map((sec) =>
+          sec.id === id ? { ...sec, enabled } : sec,
+        ),
+      }));
     },
-  ),
-);
+    // arrayMove는 @dnd-kit이 아니라 여기 인라인 — 이 스토어는 background service worker
+    // 번들에 포함되므로 UI DnD 라이브러리를 그래프에 끌어들이면 안 된다.
+    reorderIssueSections: (from, to) => {
+      const sections = store.getState().issueSections;
+      const valid = (i: number) => Number.isInteger(i) && i >= 0 && i < sections.length;
+      if (from === to || !valid(from) || !valid(to)) return;
+      const sourceId = sections[from].id, targetId = sections[to].id;
+      set((s) => {
+        const source = s.issueSections.findIndex((section) => section.id === sourceId);
+        const target = s.issueSections.findIndex((section) => section.id === targetId);
+        if (source < 0 || target < 0 || source === target) return {};
+        const next = [...s.issueSections];
+        const [moved] = next.splice(source, 1);
+        const anchor = next.findIndex((section) => section.id === targetId);
+        next.splice(anchor + (from < to ? 1 : 0), 0, moved);
+        return { issueSections: next };
+      });
+    },
+    // 순서만 기본값으로. 사용 여부(enabled)는 사용자 것이라 건드리지 않는다.
+    resetIssueSectionOrder: () =>
+      set((s) => {
+        const order = DEFAULT_ISSUE_SECTIONS.map((d) => d.id);
+        const rank = (id: IssueSectionId) => {
+          const i = order.indexOf(id);
+          return i === -1 ? order.length : i; // 기본 배열에 없는 항목은 말미 보존
+        };
+        return {
+          issueSections: [...s.issueSections].sort((a, b) => rank(a.id) - rank(b.id)),
+        };
+      }),
+    resetIssueSections: () => set({ issueSections: DEFAULT_ISSUE_SECTIONS }),
+    setLlm: (config) => set({ llm: config }),
+    setReplayEnabled: (enabled) => set({ replayEnabled: enabled }),
+    setAttachmentsEnabled: (enabled) => set({ attachmentsEnabled: enabled }),
+    setAutoReproPrefill: (enabled) => set({ autoReproPrefill: enabled }),
+    setRecordingMode: (recordingMode) => set({ recordingMode }),
+    setStyleEditorView: (styleEditorView) => set({ styleEditorView }),
+  }));
+  const adapter = createAppSettingsAdapter(
+    (persisted, version) => mergePersistedSettings(
+      version < 12 && persisted != null ? migrateSettingsUi(persisted, version) : persisted,
+      defaults,
+    ),
+    (data) => store.setState(data),
+  );
+  function set(change: Partial<SettingsUiData> | AppSettingsIntent) {
+    const patch = typeof change === "function" ? undefined : structuredClone(change);
+    const intent: AppSettingsIntent = typeof change === "function" ? change : () => patch!;
+    store.setState(intent(store.getState()));
+    adapter.enqueue(intent);
+  }
+  return Object.assign(store, { persist: {
+    ...adapter,
+    getOptions: () => ({ version: 12, migrate: migrateSettingsUi }),
+  } });
+}
+
+export const useSettingsUiStore = createSettingsUiStore();
+void useSettingsUiStore.persist.rehydrate();

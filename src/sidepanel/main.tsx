@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { installAppSettingsSync } from "./lib/app-settings-sync";
 import { installSettingsSync } from "./lib/settings-sync";
 import { installIssuesSync } from "./lib/issues-sync";
 import { resolveOsInfo } from "./lib/osInfo";
@@ -30,6 +31,7 @@ HTMLCanvasElement.prototype.getContext = function (
 } as typeof HTMLCanvasElement.prototype.getContext;
 
 installSettingsSync();
+installAppSettingsSync();
 
 // 크로스 인스턴스 issue 목록 동기화(#240). 규칙·불변식은 issues-sync.ts / issues-store.ts.
 installIssuesSync();
