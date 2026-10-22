@@ -66,6 +66,10 @@ const chromeStub = () => ({
 });
 
 import App from "../App";
+import { toast } from "sonner";
+import { t } from "@/i18n";
+import { onSettingsReset } from "@/lib/app-events";
+import { useSettingsUiStore } from "@/store/settings-ui-store";
 
 function setHref(search: string) {
   window.history.replaceState(null, "", `/src/sidepanel/index.html${search}`);
@@ -83,6 +87,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -163,5 +168,25 @@ describe("App — 탭 모드 대상 선택 게이트", () => {
     expect(screen.queryByTestId("tab-mode-agent-hint")).toBeNull();
     expect(screen.getByTestId("debug-tab-body")).toBeTruthy();
     expect(lastArg(spies.recorder)).toBe(5);
+  });
+});
+
+
+describe("App — app settings reset notice", () => {
+  it.each(["before", "after"])("shows the app-specific notice once when recovery happens %s subscription", async (when) => {
+    let pending = when === "before";
+    vi.spyOn(useSettingsUiStore.persist, "takeSettingsReset").mockImplementation(() => {
+      const result = pending; pending = false; return result;
+    });
+    const notice = vi.spyOn(toast, "error").mockImplementation(() => "notice");
+    setHref("?tabId=5");
+    await mounted();
+    if (when === "after") {
+      pending = true;
+      await act(async () => onSettingsReset.fire());
+    }
+    expect(notice).toHaveBeenCalledWith(t("app.appSettingsReset.title"), expect.objectContaining({ description: t("app.appSettingsReset.body") }));
+    await act(async () => onSettingsReset.fire());
+    expect(notice).toHaveBeenCalledTimes(1);
   });
 });

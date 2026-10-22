@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  apiKeyObfuscatingStorage,
+  createSettingsUiStore,
   DEFAULT_ISSUE_SECTIONS,
   mergePersistedSettings,
   migrateSettingsUi,
@@ -617,96 +617,18 @@ describe("settings-ui-store", () => {
     });
   });
 
-  // API 키가 chrome.storage에 평문으로 남으면 코어 밸류(Privacy)가 깨진다 — 저장 래퍼의 왕복을 고정한다.
-  describe("apiKeyObfuscatingStorage", () => {
-    const KEY = "bugshot-settings-ui";
-    let store: Record<string, string>;
-
-    beforeEach(() => {
-      store = {};
-      vi.stubGlobal("chrome", {
-        storage: {
-          local: {
-            get: async (name: string) => ({ [name]: store[name] }),
-            set: async (obj: Record<string, string>) => {
-              Object.assign(store, obj);
-            },
-            remove: async (name: string) => {
-              delete store[name];
-            },
-          },
-        },
-      });
-    });
-
-    afterEach(() => {
-      vi.unstubAllGlobals();
-    });
-
-    it("setItem은 apiKey를 난독화해 저장한다 (평문 미노출)", async () => {
-      await apiKeyObfuscatingStorage.setItem(
-        KEY,
-        JSON.stringify({ state: { llm: { apiKey: "sk-secret-123" } } }),
-      );
-      expect(store[KEY]).not.toContain("sk-secret-123");
-      expect(JSON.parse(store[KEY]).state.llm.apiKey).toMatch(/^obf:/);
-    });
-
-    it("getItem은 난독화된 apiKey를 평문으로 되돌린다 (왕복)", async () => {
-      await apiKeyObfuscatingStorage.setItem(
-        KEY,
-        JSON.stringify({ state: { llm: { apiKey: "sk-secret-123" } } }),
-      );
-      const raw = await apiKeyObfuscatingStorage.getItem(KEY);
-      expect(JSON.parse(raw!).state.llm.apiKey).toBe("sk-secret-123");
-    });
-
-    it.each([true, undefined] as const)("preserves freeTier=%s through persisted obfuscation", async (freeTier) => {
-      const llm: LlmConfig = { baseUrl: "https://openrouter.ai/api/v1", apiKey: "sk-secret-123", modelId: "vision:free", ...(freeTier ? { freeTier } : {}) };
-      await apiKeyObfuscatingStorage.setItem(KEY, JSON.stringify({ version: 12, state: { llm } }));
-      expect(JSON.parse(store[KEY]).state.llm.apiKey).toMatch(/^obf:/);
-      const raw = await apiKeyObfuscatingStorage.getItem(KEY);
-      const parsed = JSON.parse(raw!);
-      const merged = mergePersistedSettings(parsed.state, useSettingsUiStore.getState());
-      expect(merged.llm).toEqual(llm);
-    });
-
-    it("apiKey가 없으면 상태를 그대로 통과시킨다", async () => {
-      await apiKeyObfuscatingStorage.setItem(
-        KEY,
-        JSON.stringify({ state: { llm: null, theme: "dark" } }),
-      );
-      const raw = await apiKeyObfuscatingStorage.getItem(KEY);
-      expect(JSON.parse(raw!).state).toEqual({ llm: null, theme: "dark" });
-    });
-
-    it("저장된 값이 JSON이 아니면 원문 그대로 읽는다", async () => {
-      store[KEY] = "not-json";
-      expect(await apiKeyObfuscatingStorage.getItem(KEY)).toBe("not-json");
-    });
-
-    it("값이 없으면 null을 반환한다", async () => {
-      expect(await apiKeyObfuscatingStorage.getItem(KEY)).toBeNull();
-    });
-
-    // v4 이전 사용자의 키는 obf: 접두사 없이 평문으로 저장돼 있다 — 그대로 읽혀야 한다.
-    it("접두사 없는 legacy 평문 키는 그대로 읽는다", async () => {
-      store[KEY] = JSON.stringify({ state: { llm: { apiKey: "sk-legacy" } } });
-      const raw = await apiKeyObfuscatingStorage.getItem(KEY);
-      expect(JSON.parse(raw!).state.llm.apiKey).toBe("sk-legacy");
-    });
-
-  });
-
   // migrate는 버전이 다를 때만 돈다 — 동일 버전에서 외부 오염된 값은 rehydrate의 merge가 잡는다.
   // aiLanguage는 프롬프트 지시문으로 나가므로 그 재정규화가 실제로 도는지 고정한다.
   describe("rehydrate 재정규화 (merge)", () => {
     // persist 이름과 같아야 한다 — 다른 키면 rehydrate가 빈 저장소를 읽어 단언이 공허해진다.
     const PERSIST_KEY = "bugshot-app-settings";
     let store: Record<string, string>;
+    let settings: ReturnType<typeof createSettingsUiStore>;
 
     beforeEach(() => {
       store = {};
+      settings = createSettingsUiStore();
+      vi.stubGlobal("navigator", { locks: { request: async (_name: string, _options: unknown, run: () => Promise<unknown>) => run() } });
       vi.stubGlobal("chrome", {
         storage: {
           local: {
@@ -731,17 +653,17 @@ describe("settings-ui-store", () => {
     };
 
     it("오염된 aiLanguage를 auto로 되돌린다", async () => {
-      useSettingsUiStore.getState().setAiLanguage("French"); // 기본값과 달라야 단언이 공허하지 않다
+      settings.setState({ aiLanguage: "French" }); // 기본값과 달라야 단언이 공허하지 않다
       persisted("Klingon");
-      await useSettingsUiStore.persist.rehydrate();
-      expect(useSettingsUiStore.getState().aiLanguage).toBe("auto");
+      await settings.persist.rehydrate();
+      expect(settings.getState().aiLanguage).toBe("auto");
     });
 
     it("유효한 aiLanguage는 보존한다", async () => {
-      useSettingsUiStore.getState().setAiLanguage("auto");
+      settings.setState({ aiLanguage: "auto" });
       persisted("French");
-      await useSettingsUiStore.persist.rehydrate();
-      expect(useSettingsUiStore.getState().aiLanguage).toBe("French");
+      await settings.persist.rehydrate();
+      expect(settings.getState().aiLanguage).toBe("French");
     });
   });
 });

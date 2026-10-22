@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createSettingsUiStore } from "../settings-ui-store";
 import { APP_SETTINGS_PERSIST_KEY as KEY } from "@/lib/session-keys";
 import { obfuscateApiKey } from "@/lib/key-obfuscation";
-import { onStateSaveFailed } from "@/lib/app-events";
+import { onSettingsReset, onStateSaveFailed } from "@/lib/app-events";
 
 let raw: any;
 let writes: number;
@@ -93,11 +93,10 @@ it("late hydration preserves pending local intent and a newer durable result", a
   expect(chrome.storage.local.get).toBe(original);
 });
 
-it.each(["read", "lock", "corrupt"])("%s failure never overwrites durable state with defaults", async (failure) => {
+it.each(["read", "lock"])("%s failure never overwrites durable state with defaults", async (failure) => {
   const a = createSettingsUiStore();
   if (failure === "read") vi.mocked(chrome.storage.local.get).mockRejectedValue(Error("read"));
   if (failure === "lock") vi.mocked(navigator.locks.request).mockRejectedValue(Error("lock"));
-  if (failure === "corrupt") raw = "{broken";
   const before = raw;
   await a.persist.rehydrate();
   expect(a.persist.hasHydrated()).toBe(true);
@@ -121,4 +120,87 @@ it("section edits apply against the latest sections instead of a stale array", a
   await Promise.all([a.persist.flush(), b.persist.flush()]);
   expect(envelope().state.issueSections.find((s: any) => s.id === "notes").enabled).toBe(true);
   expect(envelope().state.issueSections.find((s: any) => s.id === "description").enabled).toBe(false);
+});
+
+it.each([true, undefined] as const)("persists new credentials with freeTier=%s without plaintext and reads them back", async (freeTier) => {
+  raw = undefined;
+  const a = createSettingsUiStore(); await a.persist.rehydrate();
+  expect(writes).toBe(0);
+  const config = { ...llm, ...(freeTier ? { freeTier } : {}) };
+  a.getState().setLlm(config); await a.persist.flush();
+  expect(raw).not.toContain("secret");
+  expect(envelope().state.llm.apiKey).toMatch(/^obf:/);
+  const b = createSettingsUiStore(); await b.persist.rehydrate();
+  expect(b.getState().llm).toEqual(config);
+});
+
+
+it.each(["{broken", { state: [] }, { state: { llm: { apiKey: "obf:!" } } }])("recovers corrupt app settings and retains the reset notice for late subscribers (%j)", async (corrupt) => {
+  raw = corrupt;
+  const reset = vi.fn(), off = onSettingsReset.subscribe(reset);
+  const a = createSettingsUiStore(); await a.persist.rehydrate();
+  expect(chrome.storage.local.remove).toHaveBeenCalledWith(KEY);
+  expect(a.persist.takeSettingsReset()).toBe(true);
+  expect(a.persist.takeSettingsReset()).toBe(false);
+  expect(reset).toHaveBeenCalledTimes(1);
+  a.getState().setTheme("dark"); await a.persist.flush();
+  expect(envelope().state).toMatchObject({ theme: "dark", llm: null });
+  off();
+});
+
+it("corruption recovery rechecks under the lock and never deletes a repaired envelope", async () => {
+  const good = raw;
+  let reads = 0;
+  vi.mocked(chrome.storage.local.get).mockImplementation(async () => ({ [KEY]: ++reads === 1 ? "{broken" : good }));
+  const a = createSettingsUiStore(); await a.persist.rehydrate();
+  expect(chrome.storage.local.remove).not.toHaveBeenCalled();
+  expect(a.getState().llm).toEqual(llm);
+  expect(a.persist.takeSettingsReset()).toBe(false);
+});
+
+it("a stale section reorder moves the selected ID, not whoever occupies its old index", async () => {
+  const a = createSettingsUiStore(), b = createSettingsUiStore();
+  await Promise.all([a.persist.rehydrate(), b.persist.rehydrate()]);
+  a.getState().reorderIssueSections(0, 4); await a.persist.flush();
+  b.getState().reorderIssueSections(1, 2); await b.persist.flush();
+  await a.persist.rehydrate();
+  const expected = ["media", "stepsToReproduce", "expectedResult", "notes", "description"];
+  expect(envelope().state.issueSections.map((s: any) => s.id)).toEqual(expected);
+  expect(a.getState().issueSections.map((s) => s.id)).toEqual(expected);
+  expect(b.getState().issueSections.map((s) => s.id)).toEqual(expected);
+});
+
+it("retains the reset notice after removal even when the subsequent read fails", async () => {
+  raw = "{broken";
+  const remove = chrome.storage.local.remove;
+  vi.mocked(chrome.storage.local.remove).mockImplementation(async () => {
+    raw = undefined;
+    vi.mocked(chrome.storage.local.get).mockRejectedValueOnce(Error("read after removal"));
+  });
+  const a = createSettingsUiStore(); await a.persist.rehydrate();
+  expect(remove).toHaveBeenCalledOnce();
+  expect(a.persist.hasHydrated()).toBe(true);
+  expect(a.persist.takeSettingsReset()).toBe(true);
+  a.getState().setTheme("dark"); await a.persist.flush();
+  expect(envelope().state.theme).toBe("dark");
+});
+
+it("corruption recovery retains pending user intent without backing up credentials", async () => {
+  raw = "{broken";
+  const a = createSettingsUiStore();
+  a.getState().setTheme("dark"); await a.persist.flush();
+  expect(raw).toBe("{broken");
+  await a.persist.rehydrate();
+  expect(a.getState().theme).toBe("dark");
+  expect(envelope().state.theme).toBe("dark");
+  expect(chrome.storage.local.set).toHaveBeenCalledTimes(1);
+  expect(Object.keys(vi.mocked(chrome.storage.local.set).mock.calls[0][0])).toEqual([KEY]);
+});
+
+it("stale identical moves preserve the requested side of the target section", async () => {
+  const a = createSettingsUiStore(), b = createSettingsUiStore();
+  await Promise.all([a.persist.rehydrate(), b.persist.rehydrate()]);
+  a.getState().reorderIssueSections(1, 2); await a.persist.flush();
+  b.getState().reorderIssueSections(1, 2); await b.persist.flush();
+  expect(envelope().state.issueSections.map((s: any) => s.id)).toEqual(["description", "media", "stepsToReproduce", "expectedResult", "notes"]);
 });
