@@ -23,13 +23,15 @@ function normalizeAvailability(value: string): ChromeAIAvailability {
   return value === "available" || value === "downloadable" || value === "downloading" ? value : "unavailable";
 }
 
+// Model preparation belongs to the document, not a locale or hook subscriber.
+let preparation: Promise<void> | null = null;
+
 export function createChromeAIController(locale: LocaleMode) {
   const options = chromeAILanguageOptions(locale);
   const initial = (): ChromeAIState => ({ availability: options ? "checking" : "unavailable", progress: null, error: false, unsupportedLanguage: !options });
   let state = initial();
   let generation = 0;
   let probe: Promise<ChromeAIState> | null = null;
-  let preparation: Promise<void> | null = null;
   const listeners = new Set<() => void>();
   const publish = (next: ChromeAIState) => {
     state = next;
