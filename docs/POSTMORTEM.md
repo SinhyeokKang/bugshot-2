@@ -36,6 +36,30 @@
 
 ---
 
+## 2026-10-22 — 다른 패널의 테마 변경이 해제한 AI 키를 되살렸다 — 전체 스냅샷 저장은 동시 변경 의도가 아니다
+
+- **영역**: `store`, `AI`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 한 패널에서 AI 연결을 해제한 뒤 다른 패널에서 테마를 바꾸면 낡은 LLM 설정·키가 다시 저장된다.
+- **근본 원인**: 각 Zustand persist 인스턴스가 hydrate 당시 전체 설정을 재직렬화했다. storage 이벤트만 추가해도 이미 진행 중인 stale 쓰기를 막지 못한다. 재정렬 역시 낡은 배열 인덱스를 최신 배열에 적용하면 다른 섹션을 움직인다.
+- **재발 방지**: 공유 Web Lock 안에서 최신 저장값에 명시적 변경 의도만 적용한다. 실패한 의도는 성공 전까지 큐에 두고 hydration 결과 위에 재병합한다. 재정렬은 source/target ID와 앞·뒤 방향을 고정한다. 독립 store 2개를 사용해 최종 저장 payload와 양쪽 소비자 상태를 함께 단언한다. 손상 복구는 I/O 실패와 구분해 잠금 안 재검사 후 삭제한다.
+- **관련**: `src/store/settings-ui-store.ts:createSettingsUiStore`, `src/store/app-settings-adapter.ts:createAppSettingsAdapter`, `src/sidepanel/lib/app-settings-sync.ts`, `src/store/__tests__/app-settings-adapter.test.ts`
+
+---
+
+## 2026-10-22 — 설정 초기화 알림이 초기 로딩에서 사라졌다 — 발행 성공이 화면 표시를 증명하지 않는다
+
+- **영역**: `컴포넌트`, `store`
+- **계열**: `라이브러리전제`
+- **그물**: `jsdom`
+- **증상**: 저장 설정 손상은 복구했지만 패널 hydration이나 대상 선택이 끝나기 전 발생한 초기화 안내가 표시되지 않는다.
+- **근본 원인**: App effect가 래치를 소비해 toast를 발행했지만 early return에는 Toaster가 없었다. Sonner는 구독 이전 알림을 재생하지 않는다. toast 함수 호출 mock은 성공해 실제 표시 유실을 놓쳤다.
+- **재발 방지**: 단일 Toaster를 gated AppContent보다 먼저 상시 마운트한다. 실제 Sonner를 렌더한 테스트에서 초기 hydration·대상 선택 중 제목/본문 표시와 게이트 전환 뒤 유지까지 단언한다. 함수 호출 단언만으로 알림 전달을 검증하지 않는다.
+- **관련**: `src/sidepanel/App.tsx:App`·`AppContent`, `src/sidepanel/__tests__/App.tabTarget.test.tsx`
+
+---
+
 ## 2026-10-22 — Chrome AI 중단이 추론에 전달되지 않았다 — 상위 취소 가드와 native 신호는 별개다
 
 - **영역**: `AI`, `lib`
