@@ -1,5 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState, type ComponentPropsWithoutRef } from "react";
-import { Blocks, Globe, List, Loader2, Settings, Square, TerminalSquare } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentPropsWithoutRef } from "react";
+import { Blocks, Globe, List, Loader2, Settings, TerminalSquare } from "lucide-react";
 import { toast } from "sonner";
 import { t as translate, useT } from "@/i18n";
 import {
@@ -50,9 +50,8 @@ import { useTabModeHold } from "./hooks/useTabModeHold";
 import { useThemeEffect } from "./hooks/useThemeEffect";
 import { useDocumentLangEffect } from "./hooks/useDocumentLangEffect";
 import { useAiLoadingStep } from "./hooks/useAiLoadingStep";
-import { aiLoadingSurface, aiLoadingPhraseKey, type AiLoadingSurface } from "./lib/aiLoadingPhrases";
-import { AiLoadingText } from "./components/AiLoadingText";
-import { Button } from "@/components/ui/button";
+import { aiLoadingSurface } from "./lib/aiLoadingPhrases";
+import { AiLoadingOverlay } from "./components/AiLoadingOverlay";
 import { DebugTab } from "./tabs/DebugTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { OAuthExpiredDialog } from "./components/OAuthExpiredDialog";
@@ -92,35 +91,17 @@ function blurActiveElement() {
   }
 }
 
-const AI_OVERLAY_STYLE: Record<
-  AiLoadingSurface,
-  { tint: string; ripple: string; text: string; button: string }
-> = {
-  styling: {
-    tint: "bg-teal-500/5",
-    ripple: "bg-[radial-gradient(circle,transparent_0%,rgba(45,212,191,0.1)_46%,transparent_141%)]",
-    text: "text-teal-700 dark:text-teal-300",
-    button:
-      "bg-teal-500/20 text-teal-700 hover:bg-teal-500/30 hover:text-teal-800 dark:bg-teal-400/20 dark:text-teal-300 dark:hover:bg-teal-400/30 dark:hover:text-teal-200",
-  },
-  draft: {
-    tint: "bg-purple-500/5",
-    ripple: "bg-[radial-gradient(circle,transparent_0%,rgba(192,132,252,0.1)_46%,transparent_141%)]",
-    text: "text-purple-700 dark:text-purple-300",
-    button:
-      "bg-purple-500/20 text-purple-700 hover:bg-purple-500/30 hover:text-purple-800 dark:bg-purple-400/20 dark:text-purple-300 dark:hover:bg-purple-400/30 dark:hover:text-purple-200",
-  },
-  repro: {
-    tint: "bg-amber-500/5",
-    ripple: "bg-[radial-gradient(circle,transparent_0%,rgba(251,191,36,0.1)_46%,transparent_141%)]",
-    text: "text-amber-700 dark:text-amber-300",
-    button:
-      "bg-amber-500/20 text-amber-700 hover:bg-amber-500/30 hover:text-amber-800 dark:bg-amber-400/20 dark:text-amber-300 dark:hover:bg-amber-400/30 dark:hover:text-amber-200",
-  },
-};
-
 export default function App() {
+  return <>
+    {/* Subscribe before startup effects emit notices, even while the panel is gated. */}
+    <Toaster position="top-center" offset={24} />
+    <AppContent />
+  </>;
+}
+
+function AppContent() {
   const t = useT();
+  const debugTabRef = useRef<HTMLButtonElement>(null);
   const selfTab = useSelfTab();
   const boundTabId = useBoundTabId();
   // 훅이 early return 위에서 도는 탓에, 탭 모드인데 쿼리가 없으면 boundTabId 폴백이 준 임의 탭에 hold·port·레코더가
@@ -234,6 +215,13 @@ export default function App() {
 
   useEffect(() => {
     const show = () => {
+      if (useSettingsUiStore.persist.takeSettingsReset()) {
+        toast.error(translate("app.appSettingsReset.title"), {
+          description: translate("app.appSettingsReset.body"),
+          duration: Infinity,
+          closeButton: true,
+        });
+      }
       if (!useSettingsStore.persist.takeSettingsReset()) return;
       blurActiveElement();
       setSettingsReset(true);
@@ -317,43 +305,19 @@ export default function App() {
     >
     <div className="relative flex h-screen flex-col">
       {aiSurface && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center overflow-hidden backdrop-blur-[2px]">
-          <div className={cn("absolute inset-0", AI_OVERLAY_STYLE[aiSurface].tint)} />
-          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <div
-              key={aiStep}
-              className={cn(
-                "h-[240vh] w-[240vh] animate-ai-ripple rounded-full blur-3xl motion-reduce:animate-none",
-                AI_OVERLAY_STYLE[aiSurface].ripple,
-              )}
-            />
-          </div>
-          <div className="relative z-10 flex animate-text-breathe items-center justify-center px-6 motion-reduce:animate-none">
-            <AiLoadingText
-              text={t(aiLoadingPhraseKey(aiSurface, aiStep))}
-              className={cn("text-xl font-semibold", AI_OVERLAY_STYLE[aiSurface].text)}
-            />
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => useEditorStore.getState().aiCancel?.()}
-            className={cn(
-              "absolute bottom-8 left-1/2 z-10 -translate-x-1/2 gap-1.5 rounded-full shadow-sm [&_svg]:size-3.5",
-              AI_OVERLAY_STYLE[aiSurface].button,
-            )}
-          >
-            <Square className="fill-current" />
-            {t("ai.stop")}
-          </Button>
-        </div>
+        <AiLoadingOverlay
+          surface={aiSurface}
+          step={aiStep}
+          onCancel={() => useEditorStore.getState().aiCancel?.()}
+          fallbackFocusRef={debugTabRef}
+        />
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-0">
         <div className="border-b px-4 py-4">
           <Tabs value={tab} onValueChange={goTab}>
             <TooltipProvider delayDuration={0}>
             <CollapsingTabsList className="grid h-9 w-full grid-cols-4">
-              <TabsTrigger value="debug" className="min-w-0 gap-1.5" data-testid="tab-debug">
+              <TabsTrigger ref={debugTabRef} value="debug" className="min-w-0 gap-1.5" data-testid="tab-debug">
                 <TerminalSquare className="h-3.5 w-3.5 shrink-0" />
                 <TabLabel>{t("app.tab.debug")}</TabLabel>
               </TabsTrigger>
@@ -393,7 +357,7 @@ export default function App() {
         </div>
 
         <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", tab !== "settings" && "hidden")}>
-          <SettingsTab sub={settingsSub} onSubChange={setSettingsSub} />
+          <SettingsTab active={tab === "settings"} sub={settingsSub} onSubChange={setSettingsSub} />
         </div>
       </div>
 
@@ -606,7 +570,6 @@ export default function App() {
         </Suspense>
       )}
     </div>
-    <Toaster position="top-center" offset={24} />
     </ReplayProvider>
     </TabSupportProvider>
     </TabNavContext.Provider>

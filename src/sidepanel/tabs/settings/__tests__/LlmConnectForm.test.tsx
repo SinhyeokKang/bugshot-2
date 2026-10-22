@@ -7,7 +7,11 @@ import { fetchModels, GEMINI_FREE_MODELS, GEMINI_MODELS, PROVIDER_PRESETS } from
 import { fetchOpenRouterFreeVisionModels, OPENROUTER_BASE_URL } from "@/sidepanel/lib/free-llm";
 
 vi.mock("@/i18n", () => ({ useT: () => (key: string) => key, t: (key: string) => key }));
-vi.mock("@/sidepanel/hooks/useAI", () => ({ useAI: () => ({ capabilities: { promptStyle: "compact" } }) }));
+const chromeAI = vi.hoisted(() => ({
+  state: { availability: "unavailable", progress: null, error: false, unsupportedLanguage: false },
+  refresh: vi.fn(), prepare: vi.fn(),
+}));
+vi.mock("@/sidepanel/hooks/useAI", () => ({ useAI: () => ({ capabilities: { promptStyle: "compact" }, chromeAI: chromeAI.state, refreshChromeAI: chromeAI.refresh, prepareChromeAI: chromeAI.prepare }) }));
 vi.mock("@/sidepanel/lib/ai-provider", async (original) => ({ ...await original<object>(), fetchModels: vi.fn() }));
 vi.mock("@/sidepanel/lib/free-llm", async (original) => ({ ...await original<object>(), fetchOpenRouterFreeVisionModels: vi.fn() }));
 

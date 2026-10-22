@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import {
-  CHROME_AI_LANG_OPTIONS,
   createAnthropicProvider,
   createChromeAIProvider,
   createOpenAICompatibleProvider,
@@ -11,45 +10,29 @@ import {
   type ProviderCapabilities,
 } from "@/sidepanel/lib/ai-provider";
 
+import { getChromeAIController, setChromeAIContext, type ChromeAIState } from "@/sidepanel/lib/chrome-ai";
+
 type AIStatus = "checking" | "available" | "unavailable";
 
 export function useAI(): {
   status: AIStatus;
+  chromeAI: ChromeAIState;
+  refreshChromeAI: () => Promise<ChromeAIState>;
+  prepareChromeAI: () => Promise<void>;
   providerLabel: string | null;
   capabilities: ProviderCapabilities;
   generate: AIProvider["generate"];
   createSession: AIProvider["createSession"];
 } {
   const llm = useSettingsUiStore((s) => s.llm);
-  const [chromeAIStatus, setChromeAIStatus] = useState<AIStatus>("checking");
+  const locale = useSettingsUiStore((s) => s.locale);
+  const controller = useMemo(() => getChromeAIController(locale), [locale]);
+  const chromeAI = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
 
   useEffect(() => {
-    if (llm?.modelId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        if (!globalThis.LanguageModel) {
-          setChromeAIStatus("unavailable");
-          return;
-        }
-        const availability = await globalThis.LanguageModel.availability(
-          CHROME_AI_LANG_OPTIONS,
-        );
-        if (!cancelled) {
-          setChromeAIStatus(
-            availability === "available" || availability === "readily"
-              ? "available"
-              : "unavailable",
-          );
-        }
-      } catch {
-        if (!cancelled) setChromeAIStatus("unavailable");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [llm?.modelId]);
+    setChromeAIContext(locale, !!llm?.modelId);
+    if (!llm?.modelId) void controller.refresh();
+  }, [locale, llm?.modelId, controller]);
 
   const provider = useMemo<AIProvider>(() => {
     if (llm?.modelId) {
@@ -58,14 +41,17 @@ export function useAI(): {
         ? createAnthropicProvider(llm)
         : createOpenAICompatibleProvider(llm);
     }
-    return createChromeAIProvider();
-  }, [llm]);
+    return createChromeAIProvider(locale);
+  }, [llm, locale]);
 
-  const status: AIStatus = llm?.modelId ? "available" : chromeAIStatus;
+  const status: AIStatus = llm?.modelId ? "available" : chromeAI.availability === "available" ? "available" : chromeAI.availability === "checking" ? "checking" : "unavailable";
   const providerLabel = llm?.modelId ? getProviderLabel(llm.baseUrl) : null;
 
   return {
     status,
+    chromeAI,
+    refreshChromeAI: controller.refresh,
+    prepareChromeAI: controller.prepare,
     providerLabel,
     capabilities: provider.capabilities,
     generate: provider.generate,

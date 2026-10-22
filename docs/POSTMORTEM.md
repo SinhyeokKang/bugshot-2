@@ -36,6 +36,114 @@
 
 ---
 
+## 2026-10-22 — 재연결 문구를 비동기 준비 완료 신호로 오인했다
+
+- **영역**: `컴포넌트`, `툴체인`
+- **계열**: `미검증단언`
+- **그물**: `jsdom`
+- **증상**: 병합 전 전체 커버리지 검사에서 Jira 재연결 버튼 활성 테스트가 간헐적으로 실패했다. 단독 실행은 통과했다.
+- **근본 원인**: 연결된 계정의 재연결 문구는 최초 렌더부터 존재하지만 버튼 활성화는 비동기 oauth.available 응답 뒤에 일어난다. 문구를 기다리는 waitFor는 그 응답을 기다린다는 보장이 없다.
+- **재발 방지**: 비동기로 바뀌는 disabled 상태 자체를 waitFor에서 검증한다. 다른 정적 문구의 존재를 준비 완료 신호로 사용하지 않는다.
+- **관련**: `src/sidepanel/tabs/connect/__tests__/JiraConnectFlow.test.tsx`
+
+---
+
+## 2026-10-22 — 준비 상태 재확인이 진행 중 재현 결과를 버렸다
+
+- **영역**: `AI`, `컴포넌트`
+- **계열**: `취소래치`
+- **그물**: `jsdom`
+- **증상**: 재현 단계를 생성하는 동안 언어 전환이나 상태 재조회가 checking으로 바뀌고 AI 응답이 먼저 끝나면, 성공했는데 본문은 비고 다시 시도하지 않는다.
+- **근본 원인**: 신규 작업의 가용성 게이트를 기존 resumable 작업 readoption보다 먼저 검사했다. effect cleanup이 detach한 뒤 checking에서 이어받지 못한 응답은 isActive에서 버려지고, once 래치는 남았다. 초기 테스트는 availability를 먼저 resolve해 안전한 순서만 검증했다.
+- **재발 방지**: 기본 편집/캡처 게이트를 유지하되 이미 시작한 작업의 readoption을 신규 작업 가용성 검사보다 먼저 한다. 실제 useAI→useReproPrefill 경계에서 prompt/availability 양쪽 완료 순서를 검증하고, 명시 중단·언마운트 후 미적용 및 즉시 응답도 함께 고정한다.
+- **관련**: `src/sidepanel/hooks/useReproPrefill.ts`, `src/sidepanel/hooks/__tests__/useAI.test.tsx`
+
+---
+
+## 2026-10-22 — Chrome AI 세션은 영어인데 프롬프트는 한국어를 요구했다
+
+- **영역**: `AI`, `i18n`
+- **계열**: `드리프트`, `미검증단언`
+- **그물**: `unit`
+- **증상**: 화면 언어로 결과를 요청하면서 native 세션은 영어 출력을 선언하고 assistant 예시도 영어였다. 지원하지 않는 한국어를 사용할 수 있는 것처럼 노출했다.
+- **근본 원인**: provider의 언어 옵션과 compact 프롬프트·few-shot이 서로 다른 출처였고, API 지원 언어와 UI 번역 언어를 같은 것으로 취급했다.
+- **재발 방지**: Chrome 지원 언어 판정과 native 옵션을 한 함수로 모으고 capability의 유효 출력 언어를 초안·재현·스타일 설명·assistant 예시에 전달한다. 한국어 요청은 영어 대체 없이 미지원 안내로 막는다. Chrome 변경이 Ollama compact나 rich의 독립 언어 설정에 새지 않는 테스트를 함께 둔다.
+- **관련**: `src/sidepanel/lib/chrome-ai.ts:chromeAILanguageOptions`, `src/sidepanel/lib/ai-provider.ts:createChromeAIProvider`, `src/sidepanel/lib/__tests__/chrome-ai-language.test.ts`
+
+---
+
+## 2026-10-22 — 다운로드 가능 상태를 사용 불가로 접었다 — 조회와 준비는 다른 동작이다
+
+- **영역**: `AI`, `lib`
+- **계열**: `라이브러리전제`, `취소래치`
+- **그물**: `unit`
+- **증상**: 모델을 다운로드할 수 있는 환경에서도 AI를 켤 경로가 없었다. 준비 상태를 단순히 available로 취급하면 자동 재현 생성이 사용자 클릭 없이 모델 설치를 시작할 수 있다.
+- **근본 원인**: 가용성 조회·사용자 activation이 필요한 준비·일반 생성의 경계를 구분하지 않았다. 추가 구현 중에는 동기 throw가 async IIFE의 finally보다 늦게 Promise 참조에 대입돼 재시도를 막았고, 세대 무효화가 아직 실행 중인 native 준비 작업의 소유권까지 버려 중복 create를 허용했다.
+- **재발 방지**: 조회는 설치 없이 상태만 읽고, 명시적 클릭에서 첫 await 전에 준비 create를 호출한다. 임시 세션 정리 후와 일반 생성 직전에 각각 새로 조회한다. probe는 대입 후 실행되게 예약하고, 세대 가드와 실제 작업의 in-flight 소유권을 분리하고, 준비 소유권은 언어별이 아닌 문서 전체가 공유한다. sync throw→재시도, 언어/BYOK 왕복→native create 1회, 늦은 세션 destroy, 준비 완료 후 unavailable, 모델 삭제 뒤 자동 생성의 create 0회를 회귀 테스트로 고정한다.
+- **관련**: `src/sidepanel/lib/chrome-ai.ts:createChromeAIController`, `src/sidepanel/hooks/useAI.ts`, `src/sidepanel/lib/__tests__/chrome-ai.test.ts`, `e2e/chrome-ai-readiness.spec.ts`
+
+---
+
+## 2026-10-22 — 다른 패널의 테마 변경이 해제한 AI 키를 되살렸다 — 전체 스냅샷 저장은 동시 변경 의도가 아니다
+
+- **영역**: `store`, `AI`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 한 패널에서 AI 연결을 해제한 뒤 다른 패널에서 테마를 바꾸면 낡은 LLM 설정·키가 다시 저장된다.
+- **근본 원인**: 각 Zustand persist 인스턴스가 hydrate 당시 전체 설정을 재직렬화했다. storage 이벤트만 추가해도 이미 진행 중인 stale 쓰기를 막지 못한다. 재정렬 역시 낡은 배열 인덱스를 최신 배열에 적용하면 다른 섹션을 움직인다.
+- **재발 방지**: 공유 Web Lock 안에서 최신 저장값에 명시적 변경 의도만 적용한다. 실패한 의도는 성공 전까지 큐에 두고 hydration 결과 위에 재병합한다. 재정렬은 source/target ID와 앞·뒤 방향을 고정한다. 독립 store 2개를 사용해 최종 저장 payload와 양쪽 소비자 상태를 함께 단언한다. 손상 복구는 I/O 실패와 구분해 잠금 안 재검사 후 삭제한다.
+- **관련**: `src/store/settings-ui-store.ts:createSettingsUiStore`, `src/store/app-settings-adapter.ts:createAppSettingsAdapter`, `src/sidepanel/lib/app-settings-sync.ts`, `src/store/__tests__/app-settings-adapter.test.ts`
+
+---
+
+## 2026-10-22 — 설정 초기화 알림이 초기 로딩에서 사라졌다 — 발행 성공이 화면 표시를 증명하지 않는다
+
+- **영역**: `컴포넌트`, `store`
+- **계열**: `라이브러리전제`
+- **그물**: `jsdom`
+- **증상**: 저장 설정 손상은 복구했지만 패널 hydration이나 대상 선택이 끝나기 전 발생한 초기화 안내가 표시되지 않는다.
+- **근본 원인**: App effect가 래치를 소비해 toast를 발행했지만 early return에는 Toaster가 없었다. Sonner는 구독 이전 알림을 재생하지 않는다. toast 함수 호출 mock은 성공해 실제 표시 유실을 놓쳤다.
+- **재발 방지**: 단일 Toaster를 gated AppContent보다 먼저 상시 마운트한다. 실제 Sonner를 렌더한 테스트에서 초기 hydration·대상 선택 중 제목/본문 표시와 게이트 전환 뒤 유지까지 단언한다. 함수 호출 단언만으로 알림 전달을 검증하지 않는다.
+- **관련**: `src/sidepanel/App.tsx:App`·`AppContent`, `src/sidepanel/__tests__/App.tabTarget.test.tsx`
+
+---
+
+## 2026-10-22 — Chrome AI 중단이 추론에 전달되지 않았다 — 상위 취소 가드와 native 신호는 별개다
+
+- **영역**: `AI`, `lib`
+- **계열**: `취소래치`
+- **그물**: `unit`
+- **증상**: 중단을 눌러 로딩 화면이 닫혀도 로컬 모델 호출은 계속 진행되고, 세션 생성 대기 중 취소는 생성 완료 뒤에도 추론을 시작할 수 있었다.
+- **근본 원인**: 상위 run의 signal과 결과 적용 가드는 있었지만 Chrome native prompt 옵션에 signal이 빠졌다. create await 이후 취소 재검사도 없었고 재현 생성 헬퍼는 세션 정리를 finally에만 맡겼다.
+- **재발 방지**: 실제 provider→native mock 경계에서 signal 전달·중간 abort·사전 취소 시 호출 0·늦은 create 시 prompt 0과 destroy 1을 함께 검증한다. 취소를 무시하고 유효 JSON을 반환하는 mock도 두어 post-prompt 가드 제거 시 red인지 확인한다. resumable detach/readopt는 명시적 사용자 취소와 달라 cleanup에 무조건 abort를 넣지 않는다.
+- **관련**: `src/sidepanel/lib/ai-provider.ts:createChromeAIProvider`, `src/sidepanel/lib/generateReproPrefill.ts:generateReproStepsWithAI`, 각 동명 테스트 및 `useAiRun`·`useReproPrefill` 테스트
+
+---
+
+## 2026-10-22 — AI 로딩 화면 뒤에서 키보드가 편집했다 — 시각적 덮개와 모달은 별개다
+
+- **영역**: `AI`, `컴포넌트`
+- **계열**: `라이브러리전제`
+- **그물**: `e2e`
+- **증상**: AI 생성 중 화면은 가려져도 Tab으로 배경 제목·본문을 바꿀 수 있어 나중에 도착한 결과가 사용자 편집을 덮었다. 모달 전환 후에는 즉시 종료 시 포커스가 사라지는 경계가 리뷰에서 드러났다.
+- **근본 원인**: 일반 div 오버레이에는 포커스 격리가 없었다. 복귀 대상을 `isConnected`만으로 판정하면 닫힘 애니메이션 중인 Dialog 입력창도 유효해 보이지만 곧 DOM에서 제거된다.
+- **재발 방지**: AI 세 표면은 공용 Radix modal로 격리한다. 포커스 복귀 시 `[role=dialog][data-state=closed]` 조상을 제외하고 안정된 탭 버튼으로 폴백한다. jsdom에서 닫히는 Dialog가 아직 연결된 순간을 결정적으로 재현하고 e2e에서는 실제 Tab·Shift+Tab·좌표 클릭 뒤 원문 유지와 완료/중단/실패 후 실제 타이핑을 단언한다. 즉시 mock 응답만으로 300ms 경계를 검증했다고 보지 않는다.
+- **관련**: `src/sidepanel/components/AiLoadingOverlay.tsx`, `src/sidepanel/App.tsx`, `src/sidepanel/components/__tests__/AiLoadingOverlay.test.tsx`, `e2e/ai-loading-overlay.spec.ts`
+
+---
+
+## 2026-10-22 — 초안 저장 실패 뒤 pending 원본까지 지웠다 — 완료된 Promise가 성공한 저장은 아니다
+
+- **영역**: `store`, `미디어`
+- **계열**: `fail-open`, `복제본`
+- **그물**: `unit`
+- **증상**: 초안 확정 중 IndexedDB 저장이 실패하면 영상·로그의 pending 원본까지 지워져 같은 탭 세션 복원도 데이터를 되찾지 못한다.
+- **근본 원인**: blob 저장 API는 reject 대신 `false`로 실패를 알린다. 호출부는 실패한 issue 메타데이터를 비우면서도 await 뒤 pending 삭제를 무조건 실행했다. 영상과 네트워크·콘솔·액션 로그 네 경로에 같은 패턴이 있었다.
+- **재발 방지**: `save(VideoBlob|NetworkLog|ConsoleLog|ActionLog)` 뒤 `delete*`를 전수 확인하고 자산별 저장 성공 뒤에만 원본을 정리한다. `editor-store.test.ts`에서 세 캡처 모드×세 로그 종류의 실패 시 pending 삭제 0회·성공한 형제 로그 정리·실패 안내를 함께 단언하고 영상 성공/실패도 분리한다. 복원 소비자의 로그 issue→pending·영상 pending→issue 순서도 함께 대조한다.
+- **관련**: `src/store/editor-store.ts:persistAttachedLogs`·`confirmDraft`, `src/store/__tests__/editor-store.test.ts`, `src/sidepanel/hooks/useEditorSessionSync.ts`
+
+---
+
 ## 2026-10-19 — 나노 AI 초안이 버그 맥락을 못 읽었다 — 캡이 오래된 로그를 남기고 few-shot이 컨텍스트와 진술을 갈라놨다
 
 - **영역**: `AI`, `lib`

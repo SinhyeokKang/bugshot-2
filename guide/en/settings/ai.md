@@ -2,7 +2,7 @@
 
 In the **AI Model** sub-tab of Settings, connect free AI through Gemini or OpenRouter, or use **Connect API key** for an LLM you already use. Captures, logs, and report text needed by AI go directly to your chosen service, without passing through a BugShot server.
 
-Without a connected LLM, basic AI features still work with Chrome's built-in AI when it is available in your browser — no setup needed.
+Without a connected LLM, basic AI features work with Chrome's built-in AI when its model is ready and supports your display language. For Korean output, connect an LLM that supports Korean. BugShot does not substitute English output.
 
 ## Connect free AI
 
@@ -53,14 +53,22 @@ Once you connect, a screen follows for picking the model — choose the one you 
 BugShot picks the AI for you, in this order — you rarely have to think about it.
 
 1. **If you've connected an LLM**, it runs on that model. The AI banner shows the provider name (e.g. OpenAI) as a badge.
-2. **If you haven't**, it falls back to Chrome's built-in AI automatically. The badge then reads **Chrome AI**, and no key or setup is needed.
+2. **If you haven't**, it uses Chrome's built-in AI when ready. The badge reads **Chrome AI**. If the model is missing, prepare it as described below.
 3. **If Chrome's built-in AI isn't available either**, the AI features simply don't appear. In that case, just connect an LLM above.
 
 > Chrome's built-in AI may not be offered depending on your browser version and device. For something more reliable, connecting your own LLM is the safer bet.
 
+The **Chrome built-in AI** card shows its readiness. If a download is available, click **Prepare model** to start. Chrome manages the download; progress is shown when available. BugShot checks readiness again after preparation. If it fails, retry or use **Check again**. Opening Settings or automatically filling reproduction steps does not start a download.
+
+Chrome's built-in AI currently supports English, Japanese, Spanish, German, and French. With a Korean display language, BugShot asks you to connect an external AI provider that supports Korean output. Choose one through **Connect free AI** or **Connect API key**. BugShot does not automatically send content to an external service.
+
+> If you see **App settings were reset**, saved preferences could not be read, so app settings and the AI connection were reset. Choose your preferences again in Settings and reconnect AI. This is separate from an integration-account settings reset.
+
 ## Two features it turns on
 
 Once AI is ready, two features become available.
+
+While AI is working, editing behind the loading screen is paused. You can reach **Stop** with the keyboard, and editing becomes available again when the task finishes, is stopped, or fails.
 
 ### AI Styling
 
@@ -95,4 +103,4 @@ You can pick from English, 한국어, 日本語, 中文(简体), Español, Fran�
 
 This applies to **AI Draft** and to [Fill steps to reproduce](./issue.md). AI Styling isn't affected — it changes style values, not prose.
 
-> This option only shows up when you're running on an **LLM you connected** above. On Chrome's built-in AI, or a model running on your own machine (connected over a localhost address), it stays hidden and the AI follows your display language instead. If you don't see it, check which AI is running first.
+> This option only shows up when you're running on an **LLM you connected** above. On Chrome's built-in AI, or a model running on your own machine (connected over a localhost address), it stays hidden and the AI follows your display language instead. If Chrome does not support that language, BugShot shows external AI connection guidance instead of generating. If you don't see it, check which AI is running first.

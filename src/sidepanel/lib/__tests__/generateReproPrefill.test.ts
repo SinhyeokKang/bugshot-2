@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { generateReproStepsWithAI } from "../generateReproPrefill";
 import {
   AiContextOverflowError,
   LlmQuotaError,
   LlmAuthError,
   LlmEmptyResponseError,
+  createChromeAIProvider,
   NANO_CAPABILITIES,
   BYOK_CAPABILITIES,
 } from "../ai-provider";
@@ -213,5 +214,65 @@ describe("generateReproStepsWithAI — 출력 언어", () => {
     );
     await generateReproStepsWithAI(richInput(createSession, { locale: "ko" }));
     expect(calls[0].systemPrompt).toContain("Write a bug report in Korean");
+  });
+});
+
+
+describe("repro prefill native cancellation boundary", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("does not create a session for an already cancelled request", async () => {
+    const create = vi.fn();
+    vi.stubGlobal("LanguageModel", { create });
+    const controller = new AbortController();
+    controller.abort();
+    await expect(generateReproStepsWithAI({ ...baseInput(createChromeAIProvider().createSession), signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("destroys a session arriving after cancellation without starting inference", async () => {
+    const native = { prompt: vi.fn(), destroy: vi.fn() };
+    let resolve!: (value: typeof native) => void;
+    vi.stubGlobal("LanguageModel", { availability: vi.fn().mockResolvedValue("available"), create: vi.fn(() => new Promise((done) => { resolve = done; })) });
+    const controller = new AbortController();
+    const pending = generateReproStepsWithAI({ ...baseInput(createChromeAIProvider().createSession), signal: controller.signal });
+    await vi.waitFor(() => expect(resolve).toBeTypeOf("function"));
+    controller.abort();
+    resolve(native);
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(native.prompt).not.toHaveBeenCalled();
+    expect(native.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a late valid native result even if inference ignores cancellation", async () => {
+    const controller = new AbortController();
+    let finish!: (value: string) => void;
+    const native = {
+      prompt: vi.fn(() => new Promise<string>((resolve) => { finish = resolve; })),
+      destroy: vi.fn(),
+    };
+    vi.stubGlobal("LanguageModel", { availability: vi.fn().mockResolvedValue("available"), create: vi.fn().mockResolvedValue(native) });
+    const pending = generateReproStepsWithAI({ ...baseInput(createChromeAIProvider().createSession), signal: controller.signal });
+    await vi.waitFor(() => expect(native.prompt).toHaveBeenCalledTimes(1));
+    controller.abort();
+    finish('{"stepsToReproduce":"This cancelled result must not be applied"}');
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(native.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes the real signal to native inference and finally cleans up after abort", async () => {
+    const controller = new AbortController();
+    const native = {
+      prompt: vi.fn(async (_input, options) => {
+        expect(options.signal).toBe(controller.signal);
+        controller.abort();
+        options.signal.throwIfAborted();
+        return '{}';
+      }),
+      destroy: vi.fn(),
+    };
+    vi.stubGlobal("LanguageModel", { availability: vi.fn().mockResolvedValue("available"), create: vi.fn().mockResolvedValue(native) });
+    await expect(generateReproStepsWithAI({ ...baseInput(createChromeAIProvider().createSession), signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+    expect(native.destroy).toHaveBeenCalledTimes(1);
   });
 });

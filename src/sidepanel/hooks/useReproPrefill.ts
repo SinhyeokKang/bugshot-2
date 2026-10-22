@@ -94,13 +94,14 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     if (!hasActionLog) return;
     if (!draftReady) return;
     if (!stepsEmpty) return;
-    if (aiStatus !== "available") return; // AI 가용 시에만 자동 채움(checking 보류·unavailable 미발화).
     // done 래치 후 게이트가 다시 열린 재실행(게이트 왕복·StrictMode 이중 마운트)은 직전 요청을 이어받는다 — 취소된 채 두면 AI 호출만 소진하고 영구히 안 채워진다.
     if (doneRef.current) {
       const prev = aiRun.readopt(); // 사용자가 중단한 요청은 null로 돌아온다.
       if (!prev) return;
       return () => aiRun.detach(prev);
     }
+    // Readiness gates new work only; a recheck must not discard owned inference.
+    if (aiStatus !== "available") return;
 
     setReproPrefillDone(true); // 이하 결과 무관하게 세션 1회(공백·실패여도 재시도 안 함).
     doneRef.current = true; // 리렌더 전에 래치 — store 왕복을 기다리면 이중 실행이 재발화한다.
@@ -117,9 +118,9 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
       });
     };
 
-    // begin()이 로딩을 켜고 canceller를 슬롯에 등록한다. BYOK 요청은 abort하고
-    // Chrome 세션 결과는 폐기 — done은 이미 래치돼 재발화 없으므로
-    // 사용자 명시 중단 = 영구 포기(reproPrefillDone "결과무관 1회" 설계와 일치).
+    // begin() registers cancellation for BYOK requests and native Chrome prompts.
+    // Late-created sessions are cleaned up without prompting; the done latch means
+    // explicit cancellation is permanent (reproPrefillDone is once per session).
     void (async () => {
       try {
         const steps = await generateReproStepsWithAI({

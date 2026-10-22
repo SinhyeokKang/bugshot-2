@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: October 18, 2026
+**Effective date**: October 22, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -105,7 +105,7 @@ The LLM API key is stored obfuscated. You choose the provider yourself; presets 
 
 Free AI connection opens the Gemini key-issuance page on Google-operated AI Studio in a separate popup, or issues an OpenRouter key after you sign in and approve access. BugShot does not read the contents of the AI Studio popup. **On Gemini’s free tier, submitted prompts and screenshots may be used to improve Google products (except in the EEA, UK, and Switzerland). Providers of free OpenRouter models may log prompts.** An issued OpenRouter key stays in memory until you confirm a model and is discarded when you close the connection dialog. Confirmed keys are stored obfuscated on your device like other LLM keys. Cancelling or disconnecting does not delete a key already issued in your OpenRouter account; manage or delete it directly in OpenRouter. The selected-model check sends the fixed text `ping` once each time you select a model (`max_tokens: 16`) and may consume free usage quota.
 
-On browsers that support Chrome's built-in AI (Prompt API), drafts and CSS change suggestions can be generated with the on-device model without any external API call. In that case, data never leaves your device and no separate API key is required.
+On browsers that support Chrome's built-in AI (Prompt API), drafts and CSS change suggestions can be generated with the on-device model. Data used for inference stays on your device, and no separate API key is required. If the model is not ready, clicking Prepare model in AI settings lets Chrome download and manage it. This download requires a network connection but does not transmit captures, logs, or report text. Availability checks and automatic reproduction-step filling do not start model downloads.
 
 ### Anonymous Usage Analytics
 

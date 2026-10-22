@@ -13,6 +13,7 @@ import type { AiLanguage } from "./aiLanguage";
 import { extractJson } from "./extractJson";
 import { MAX_TITLE_LENGTH } from "./prompts/caps";
 import {
+  localizeCompactDraftExamples,
   buildCompactDraftSystem,
   buildCompactDraftUser,
   COMPACT_DRAFT_FEW_SHOT,
@@ -194,7 +195,6 @@ export function getDraftFewShot(
 ): FewShotExample[] | undefined {
   const entry = DRAFT_FEW_SHOT[ctx.caps.promptStyle];
   if (!entry) return undefined;
-  return canRequestLogRefs(ctx, selectLogCandidates(ctx))
-    ? entry.logRefs
-    : entry.base;
+  const examples = canRequestLogRefs(ctx, selectLogCandidates(ctx)) ? entry.logRefs : entry.base;
+  return localizeCompactDraftExamples(examples, ctx.caps.outputLanguage);
 }

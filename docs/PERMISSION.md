@@ -350,7 +350,7 @@ idle 복귀 전 정지 캡처·freeform 진입에서 권한 실패가 감지되�
 |---|---|---|
 | `bugshot-settings` | 플랫폼 계정·OAuth 토큰·submit 기본값·titlePrefix·Webhook URL/시크릿/요청 헤더/전송 형식/JSON 템플릿 | `settings-store.ts` (Zustand persist), `settings-storage.ts` (bg 직접 접근) |
 | `bugshot-issues` | `IssueRecord[]` 이슈 기록 | `issues-store.ts` (Zustand persist + 레코드 단위 `merge`), `sidepanel/lib/issues-sync.ts` (`storage.onChanged` 구독 — 다른 사이드패널 인스턴스의 write를 읽어 rehydrate) |
-| `bugshot-app-settings` | 테마·언어(UI/AI 출력/이슈 본문 3축)·이슈 섹션 구성·LLM 설정(**BYOK·무료 연결 API 키 포함** — `apiKeyObfuscatingStorage`가 persist 경유로 난독화해 넣는다. 평문은 아니지만 **암호화도 아니다**)·replay 활성화·**파일 첨부 활성화**(`attachmentsEnabled`, 기본 off)·**재현 과정 AI 자동 채움**(`autoReproPrefill`, 기본 on)·녹화 모드(tab/screen)·스타일 편집 뷰 | `settings-ui-store.ts` (Zustand persist) |
+| `bugshot-app-settings` | 테마·언어(UI/AI 출력/이슈 본문 3축)·이슈 섹션 구성·LLM 설정(**BYOK·무료 연결 API 키 포함** — `app-settings-adapter`가 Web Lock 안에서 최신 설정에 변경 의도를 병합하고 API 키를 난독화해 넣는다. 평문은 아니지만 **암호화도 아니다**)·replay 활성화·**파일 첨부 활성화**(`attachmentsEnabled`, 기본 off)·**재현 과정 AI 자동 채움**(`autoReproPrefill`, 기본 on)·녹화 모드(tab/screen)·스타일 편집 뷰 | `settings-ui-store.ts` + `app-settings-adapter.ts` |
 | `bugshot:install-id` | 익명 설치 ID (UUID, 최초 1회 생성) | `background/analytics.ts` — PostHog `distinct_id` |
 
 ### IndexedDB (Chrome 권한 불요 — 저장 데이터 레퍼런스)
@@ -384,6 +384,10 @@ pre-arm 게이트 플래그 `__bugshot_recorder_active__`=`"1"`을 **방문 페�
 ## 7. identity
 
 `chrome.identity.launchWebAuthFlow()`로 OAuth 인증 팝업을 띄운다. `chrome.identity.getRedirectURL()`로 extension의 redirect URI를 생성한다.
+
+### Chrome 내장 AI 모델 준비
+
+`LanguageModel.availability()`는 설치 상태를 조회하고, AI 설정의 명시적 **모델 준비** 클릭에서 `LanguageModel.create({ monitor })`를 호출하면 Chrome이 모델 다운로드를 관리한다. 확장의 `chrome.downloads` API·`downloads` 권한은 쓰지 않으며 캡처 데이터를 외부로 보내지 않는다. Chrome 지원 환경과 사용자 activation이 필요하고, 상태 조회·자동 재현 생성에서는 모델 다운로드를 시작하지 않는다.
 
 ### 무료 AI 연결
 

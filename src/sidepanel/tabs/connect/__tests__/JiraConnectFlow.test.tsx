@@ -64,7 +64,9 @@ describe("JiraConnectFlow — 재연동 진입점", () => {
         "platform.reconnect",
       ),
     );
-    expect(screen.getByRole("button")).not.toHaveProperty("disabled", true);
+    await waitFor(() =>
+      expect(screen.getByRole("button")).not.toHaveProperty("disabled", true),
+    );
   });
 
   it("연결된 상태에서도 oauth.available 조회 중에는 disabled다", () => {

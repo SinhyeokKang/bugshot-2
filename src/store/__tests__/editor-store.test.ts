@@ -112,7 +112,7 @@ import {
   type CaptureMode,
   type EditorSnapshot,
 } from "../editor-store";
-import { dataUrlToBlob, saveVideoBlob } from "../blob-db";
+import { dataUrlToBlob, saveVideoBlob, deleteVideoBlob, saveActionLog } from "../blob-db";
 
 /* ------------------------------------------------------------------ */
 /*  Fixtures                                                           */
@@ -3495,5 +3495,83 @@ describe("confirmStyles — selection이 사라졌으면 drafting으로 넘어�
     useEditorStore.setState({ captureMode: "element", phase: "styling", selection: null });
     useEditorStore.getState().confirmStyles();
     expect(useEditorStore.getState().phase).toBe("styling");
+  });
+});
+
+
+describe("confirmDraft — preserve pending assets until destination save succeeds", () => {
+  const logCases = [
+    { key: "networkLogBlobKey", save: mockSaveNetworkLog, remove: mockDeleteNetworkLog, log: fakeNetworkLog },
+    { key: "consoleLogBlobKey", save: mockSaveConsoleLog, remove: mockDeleteConsoleLog, log: fakeConsoleLog },
+    { key: "actionLogBlobKey", save: vi.mocked(saveActionLog), remove: mockDeleteActionLog, log: fakeActionLog },
+  ];
+
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    vi.clearAllMocks();
+    for (const { save } of logCases) save.mockResolvedValue(true);
+    vi.mocked(saveVideoBlob).mockResolvedValue(true);
+    useEditorStore.setState({
+      phase: "drafting",
+      targetPlatform: "github",
+      target,
+      draft: { title: "Bug", sections: {} },
+      logsAttach: true,
+      networkLog: fakeNetworkLog,
+      consoleLog: fakeConsoleLog,
+      actionLog: fakeActionLog,
+    });
+  });
+
+  afterEach(() => {
+    for (const { save } of logCases) save.mockResolvedValue(true);
+    vi.mocked(saveVideoBlob).mockResolvedValue(true);
+  });
+
+  describe.each(["freeform", "screenshot", "video"] as const)("%s", (captureMode) => {
+    it.each(logCases)("keeps $key pending on false while cleaning successful siblings", async (failedLog) => {
+      useEditorStore.setState({ captureMode });
+      failedLog.save.mockResolvedValueOnce(false);
+
+      expect(useEditorStore.getState().confirmDraft()).toBe(true);
+      // Failure notification is emitted after all log saves have settled.
+      await vi.waitFor(() => expect(onBlobSaveFailed.fire).toHaveBeenCalledTimes(1));
+
+      const issueId = mockSaveDraft.mock.calls[0][0].id;
+      expect(mockPatchIssue).toHaveBeenCalledWith(issueId, { [failedLog.key]: undefined });
+      for (const log of logCases) {
+        expect(log.save).toHaveBeenCalledWith(issueId, log.log);
+        if (log === failedLog) {
+          // No delete means the existing pending bytes remain available to session restore.
+          expect(log.remove).not.toHaveBeenCalled();
+        } else {
+          expect(log.remove).toHaveBeenCalledWith(`pending:${target.tabId}`);
+        }
+      }
+    });
+  });
+
+  it.each([false, true])("video save=%s preserves failed bytes and cleans only successful assets", async (saved) => {
+    const videoBlob = new Blob(["recorded video"], { type: "video/webm" });
+    useEditorStore.setState({ captureMode: "video", videoBlob });
+    vi.mocked(saveVideoBlob).mockResolvedValueOnce(saved);
+
+    useEditorStore.getState().confirmDraft();
+    await vi.waitFor(() => expect(mockDeleteActionLog).toHaveBeenCalled());
+
+    const issueId = mockSaveDraft.mock.calls[0][0].id;
+    expect(saveVideoBlob).toHaveBeenCalledWith(issueId, videoBlob);
+    if (saved) {
+      expect(deleteVideoBlob).toHaveBeenCalledWith(`pending:${target.tabId}`);
+      expect(mockPatchIssue).not.toHaveBeenCalledWith(issueId, { captureMode: undefined });
+      expect(onBlobSaveFailed.fire).not.toHaveBeenCalled();
+    } else {
+      expect(deleteVideoBlob).not.toHaveBeenCalled();
+      expect(mockPatchIssue).toHaveBeenCalledWith(issueId, { captureMode: undefined });
+      expect(onBlobSaveFailed.fire).toHaveBeenCalledTimes(1);
+    }
+    for (const log of logCases) {
+      expect(log.remove).toHaveBeenCalledWith(`pending:${target.tabId}`);
+    }
   });
 });
