@@ -563,22 +563,25 @@ async function persistAttachedLogs(
     if (!await saveNetworkLog(issueId, logs.networkLog)) {
       useIssuesStore.getState().patchIssue(issueId, { networkLogBlobKey: undefined });
       failed = true;
+    } else {
+      deleteNetworkLog(pendingKey(targetTabId)).catch(() => {});
     }
-    deleteNetworkLog(pendingKey(targetTabId)).catch(() => {});
   }
   if (logs.consoleLog) {
     if (!await saveConsoleLog(issueId, logs.consoleLog)) {
       useIssuesStore.getState().patchIssue(issueId, { consoleLogBlobKey: undefined });
       failed = true;
+    } else {
+      deleteConsoleLog(pendingKey(targetTabId)).catch(() => {});
     }
-    deleteConsoleLog(pendingKey(targetTabId)).catch(() => {});
   }
   if (logs.actionLog) {
     if (!await saveActionLog(issueId, logs.actionLog)) {
       useIssuesStore.getState().patchIssue(issueId, { actionLogBlobKey: undefined });
       failed = true;
+    } else {
+      deleteActionLog(pendingKey(targetTabId)).catch(() => {});
     }
-    deleteActionLog(pendingKey(targetTabId)).catch(() => {});
   }
   return failed;
 }
@@ -1001,8 +1004,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           if (!await saveVideoBlob(id, state.videoBlob)) {
             useIssuesStore.getState().patchIssue(id, { captureMode: undefined });
             failed = true;
+          } else {
+            deleteVideoBlob(pendingKey(targetTabId)).catch(() => {});
           }
-          deleteVideoBlob(pendingKey(targetTabId)).catch(() => {});
         }
         if (state.videoThumbnail) {
           if (!await saveImageBlob(id, "before", dataUrlToBlob(state.videoThumbnail))) {
