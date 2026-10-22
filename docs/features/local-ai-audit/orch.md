@@ -81,3 +81,11 @@ D2 dispatch: `ctx_0d3ab13d3046`, task `task_fbdfacee79c7`, terminal `term_d6b44d
 원본 `fefd81ca e2741164 09bd7f64 8fa943d2 a60d6068 013aa71c e61e907c` → dev `855b0111 d509977f e2c28c35 1c9e41b5 180e7786 930aac58 8be4f689`. CTO `ctx_53122df5703c`가 기존 P2 두 건 해소·신규 차단0을 확인했다. 최종 전체476 files/9254 passed/2 skipped·typecheck/sync exit0, 최종 제품 빌드의 native mock e2e5건 2회(6.7s/5.2s). 모든 D2 검수/구현 터미널은 인계 확인 후 release했다. UI 확대400×400/125%에서 CTA4개 접근·완전 노출은 통과했지만 기존 min-width 제약 가로 스크롤 잔여가 있어 overflow 없음으로 보고하지 않는다. 실제 모델 설치·출력·추론 취소는 mock 검증과 분리한다.
 
 통합 root 게이트: typecheck/sync exit0, 전체476 files/9254 passed/2 skipped(115.40s). E2E 목록은90 specs/443 tests. D2 child는 tracked 변경0·git cherry의 +0 확인 후 제거했으며, 인계/리뷰/확대 스크린샷은 root .scratch에 보존했다. 사용자 takeover의 C child는 유지한다.
+
+### 최종 빌드·런타임·push 신선도
+
+- `pnpm build` exit0, `pnpm check:prearm` exit0. log-viewer `dist-log-viewer/index.html` 586247 bytes, 2026-10-22 10:54:00 KST. 확장 dist는 10:54 빌드이며 이후 제품 소스 변경은 없다.
+- 런타임 검증 `ctx_03f828b7b1e4`: Chrome154에 FROM_STORE BugShot1.7.61만 존재하고 현재 dist의 UNPACKED 확장이 없어 실제 모델 설치·출력·추론 취소, 실제 영상 발화, 최종 픽셀/스크린리더 확인은 미검증이다. TaskSpace를 정리하고 보고 확인 후 release했다. mock/e2e와 native 결과를 구분한다.
+- guide-shots: 기존 settings-ai-1 ko/en은 연결된 Gemini 화면으로 새 onboarding과 다른 분기여서 유지한다. 신규 준비 카드의 실제 이미지 촬영은 미완이며, 기존6 placeholder는 범위 밖이라 유지한다.
+- push 신선도: CLAUDE/AGENTS·ARCHITECTURE·DIRECTORY·DESIGN·README ko/en·PERMISSION·privacy ko/en·CI·guide ko/en/AUTHORING·e2e COVERAGE/GOTCHAS·POSTMORTEM 반영. guide27페이지/언어의 트리·헤딩·링크·이미지 검사 통과, 미러 최신, diff check 통과. 권한 추가/새 외부 AI endpoint 없음.
+- 원격 dev push 및 동일 HEAD의 verify/e2e-gate 결과는 최종 실행 보고에서 확인한다. main 머지·배포는 범위 밖이다. 정리 후 사용자 takeover의 C worktree만 이 작업 관련 잔여로 유지한다.
