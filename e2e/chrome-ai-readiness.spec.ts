@@ -167,3 +167,24 @@ test("short zoomed German onboarding keeps every action reachable by keyboard", 
     await expect(panel.getByRole("dialog")).toBeVisible();
   } finally { await close(); }
 });
+
+test("a language change keeps one native preparation and probes the new language on completion", async ({ ext }) => {
+  const { panel, close } = await setup(ext);
+  try {
+    await panel.getByTestId("chrome-ai-prepare").click();
+    await setScreenLocale(panel, "日本語");
+    await openSettings(panel, "ai");
+    await expect(panel.getByTestId("chrome-ai-status")).toHaveText("Chrome AI の利用状況を確認しています。");
+    await expect(panel.getByTestId("chrome-ai-prepare")).toHaveCount(0);
+    await expect(panel.getByTestId("llm-connect-byok")).toBeEnabled();
+    expect((await native(panel)).creates).toHaveLength(1);
+    await panel.evaluate(() => (window as unknown as { __chromeAI: NativeState }).__chromeAI.progress(0.9));
+    await expect(panel.getByRole("progressbar")).toHaveCount(0);
+    await panel.evaluate(() => (window as unknown as { __chromeAI: NativeState }).__chromeAI.complete());
+    await expect(panel.getByTestId("chrome-ai-status")).toHaveText("Chrome AI を利用できます。");
+    const calls = await native(panel);
+    expect(calls.creates).toHaveLength(1);
+    expect(calls.destroyed).toBe(1);
+    expect(calls.probes.at(-1)).toEqual({ expectedInputs: [{ type: "text", languages: ["en", "ja"] }], expectedOutputs: [{ type: "text", languages: ["ja"] }] });
+  } finally { await close(); }
+});
