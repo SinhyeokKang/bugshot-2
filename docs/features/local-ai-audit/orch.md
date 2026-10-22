@@ -69,3 +69,9 @@ A/B/C 최초 소유 파일은 서로 겹치지 않아 병렬 실행했다. A 리
 사용자: “한국어로 출력을 받아야하는 경우, 그렇게 출력이 되어야 함”. 영어 대체 성공은 금지하며, Chrome이 지원하지 않는 요청 언어는 생성·다운로드를 막고 외부 AI 연결을 안내한다. 정책 질문은 해소됐으며 기존 전체 수정 승인으로 D2를 재개한다. D1 취소 수정과 A/C 통합을 유지한다. 지휘자는 계획·문서, D2 워커는 제품 코드·테스트를 소유한다.
 
 D2 dispatch: `ctx_0d3ab13d3046`, task `task_fbdfacee79c7`, terminal `term_d6b44dd4-2893-46fa-ac6a-8583a5edf784`. 시작 `c6d1d885`. 현재 체크아웃 배치로 잘못 시작했으나 제품 수정 전에 워커가 별도 child `/Users/sinhyeokkang/orca/workspaces/bugshot-2/audit-chrome-ai-d2` (`SinhyeokKang/audit-chrome-ai-d2`)를 생성해 수정 위치를 바로잡았다. 기존 root env는 보존한다. Codex 기본 설정 상속; worker-read 관측 모델 `gpt-6-astra`, effort 미노출.
+
+### D2 검증 1차
+
+- 구현 `e2741164`, 선행 red `fefd81ca`. 전체 476 files/9251 passed/2 skipped, typecheck/sync/i18n21 exit0. 관련 366건 통과.
+- UI/security `ctx_c7545e4cdf05`, dataflow/codehealth `ctx_73e2840122bf` 독립 검수. dataflow 검수는 보고 확인 후 release. 두 관점 모두 지원 언어 en→ja 전환 중 native 준비가 중복되는 P2를 발견했다. dataflow는 readiness checking 중 native 재현 응답이 먼저 끝나면 결과가 버려지는 역순 완료 P2도 발견했다. 구현 워커에 red→green 회귀 수정 요청.
+- 브라우저 mock은 다운로드→진행→준비→초안 생성, 실패/재시도/탭 재진입, ko/ja 안내를 통과했다. 확대400px의 기존 min-width/scrollbar와 테스트 단언 범위는 UI 검수로 재확인 중이다. 실제 모델을 검증했다고 주장하지 않는다.
