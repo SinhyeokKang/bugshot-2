@@ -233,9 +233,10 @@ describe("repro prefill native cancellation boundary", () => {
   it("destroys a session arriving after cancellation without starting inference", async () => {
     const native = { prompt: vi.fn(), destroy: vi.fn() };
     let resolve!: (value: typeof native) => void;
-    vi.stubGlobal("LanguageModel", { create: vi.fn(() => new Promise((done) => { resolve = done; })) });
+    vi.stubGlobal("LanguageModel", { availability: vi.fn().mockResolvedValue("available"), create: vi.fn(() => new Promise((done) => { resolve = done; })) });
     const controller = new AbortController();
     const pending = generateReproStepsWithAI({ ...baseInput(createChromeAIProvider().createSession), signal: controller.signal });
+    await vi.waitFor(() => expect(resolve).toBeTypeOf("function"));
     controller.abort();
     resolve(native);
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
@@ -250,7 +251,7 @@ describe("repro prefill native cancellation boundary", () => {
       prompt: vi.fn(() => new Promise<string>((resolve) => { finish = resolve; })),
       destroy: vi.fn(),
     };
-    vi.stubGlobal("LanguageModel", { create: vi.fn().mockResolvedValue(native) });
+    vi.stubGlobal("LanguageModel", { availability: vi.fn().mockResolvedValue("available"), create: vi.fn().mockResolvedValue(native) });
     const pending = generateReproStepsWithAI({ ...baseInput(createChromeAIProvider().createSession), signal: controller.signal });
     await vi.waitFor(() => expect(native.prompt).toHaveBeenCalledTimes(1));
     controller.abort();
@@ -270,7 +271,7 @@ describe("repro prefill native cancellation boundary", () => {
       }),
       destroy: vi.fn(),
     };
-    vi.stubGlobal("LanguageModel", { create: vi.fn().mockResolvedValue(native) });
+    vi.stubGlobal("LanguageModel", { availability: vi.fn().mockResolvedValue("available"), create: vi.fn().mockResolvedValue(native) });
     await expect(generateReproStepsWithAI({ ...baseInput(createChromeAIProvider().createSession), signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
     expect(native.destroy).toHaveBeenCalledTimes(1);
   });

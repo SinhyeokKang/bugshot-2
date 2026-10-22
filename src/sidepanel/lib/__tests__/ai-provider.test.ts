@@ -4,7 +4,6 @@ import {
   byokCapabilities,
   BYOK_CAPABILITIES,
   LOCAL_BYOK_CAPABILITIES,
-  CHROME_AI_LANG_OPTIONS,
   createAnthropicProvider,
   createChromeAIProvider,
   createOpenAICompatibleProvider,
@@ -831,6 +830,7 @@ describe("ProviderCapabilities", () => {
   it("Chrome 빌트인 AI → compact / 이미지 불가 / 절삭 예산 10,000자", () => {
     const caps = createChromeAIProvider().capabilities;
     expect(caps).toEqual({
+      outputLanguage: "English",
       promptStyle: "compact",
       supportsImages: false,
       contextBudgetChars: 10_000,
@@ -920,7 +920,7 @@ function stubLanguageModel(sessionOverrides: Record<string, unknown> = {}) {
     ...sessionOverrides,
   };
   const create = vi.fn().mockResolvedValue(nativeSession);
-  vi.stubGlobal("LanguageModel", { create, availability: vi.fn() });
+  vi.stubGlobal("LanguageModel", { create, availability: vi.fn().mockResolvedValue("available") });
   return { create, nativeSession };
 }
 
@@ -939,14 +939,14 @@ describe("createChromeAIProvider — createSession", () => {
     expect(opts.initialPrompts[0]).toEqual({ role: "system", content: "SYS" });
   });
 
-  it("CHROME_AI_LANG_OPTIONS를 함께 전달", async () => {
+  it("입력·출력 언어 옵션을 함께 전달", async () => {
     const { create } = stubLanguageModel();
 
     await createChromeAIProvider().createSession("SYS");
 
     const opts = create.mock.calls[0][0];
-    expect(opts.outputLanguage).toBe(CHROME_AI_LANG_OPTIONS.outputLanguage);
-    expect(opts.expectedOutputs).toEqual(CHROME_AI_LANG_OPTIONS.expectedOutputs);
+    expect(opts.expectedInputs).toEqual([{ type: "text", languages: ["en"] }]);
+    expect(opts.expectedOutputs).toEqual([{ type: "text", languages: ["en"] }]);
   });
 
   it("few-shot이 system 뒤에 user/assistant 쌍으로 이어짐", async () => {
@@ -1205,6 +1205,7 @@ describe("Chrome native cancellation", () => {
     create.mockImplementation(() => new Promise((done) => { resolve = done; }));
     const active = new AbortController();
     const pending = createChromeAIProvider().generate({ prompt: "input", signal: active.signal });
+    await vi.waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     active.abort();
     resolve(nativeSession);
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });

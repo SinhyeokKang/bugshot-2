@@ -23,6 +23,19 @@ export const COMPACT_STYLING_FEW_SHOT: FewShotExample[] = [
   },
 ];
 
+const CHROME_EXPLANATIONS: Partial<Record<NonNullable<AiStylingContext["caps"]["outputLanguage"]>, string>> = {
+  Japanese: "背景を青に変更しました。",
+  French: "Le fond a été changé en bleu.",
+  Spanish: "Se cambió el fondo a azul.",
+  German: "Der Hintergrund wurde auf Blau geändert.",
+};
+
+export function compactStylingExamples(ctx: AiStylingContext): FewShotExample[] {
+  const explanation = ctx.caps.outputLanguage && CHROME_EXPLANATIONS[ctx.caps.outputLanguage];
+  if (!explanation) return COMPACT_STYLING_FEW_SHOT;
+  return [{ user: COMPACT_STYLING_FEW_SHOT[0].user, assistant: JSON.stringify({ explanation, inlineStyle: { "background-color": "#2563eb" } }) }];
+}
+
 export function buildCompactStylingPrompt(ctx: AiStylingContext): string {
   const caps = PROMPT_CAPS.compact;
   const lines: string[] = [];
@@ -56,7 +69,9 @@ export function buildCompactStylingPrompt(ctx: AiStylingContext): string {
     "",
   );
   lines.push("Use var(--token) when a token matches the value you want.");
-  lines.push("explanation: one sentence on what you changed (Korean if the user writes Korean).");
+  lines.push(ctx.caps.outputLanguage
+    ? `explanation: one sentence on what you changed. Write explanation in ${ctx.caps.outputLanguage}.`
+    : "explanation: one sentence on what you changed (Korean if the user writes Korean).");
   lines.push("inlineStyle: CSS properties in kebab-case.");
 
   return lines.map(oneLine).join("\n");

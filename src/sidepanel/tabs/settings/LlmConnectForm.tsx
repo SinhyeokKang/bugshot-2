@@ -66,21 +66,27 @@ import { FreeLlmConnectDialog } from "./FreeLlmConnectDialog";
 import { LlmConnectDialog } from "./LlmConnectDialog";
 import { SettingsFooter } from "./SettingsFooter";
 
-export function LlmConnectForm() {
+export function LlmConnectForm({ active = true }: { active?: boolean }) {
   const llm = useSettingsUiStore((s) => s.llm);
 
-  if (!llm) return <LlmOnboarding />;
+  if (!llm) return <LlmOnboarding active={active} />;
   return <LlmConnected />;
 }
 
-function LlmOnboarding() {
+function LlmOnboarding({ active }: { active: boolean }) {
+  const { chromeAI, refreshChromeAI, prepareChromeAI } = useAI();
+  useEffect(() => {
+    if (active) void refreshChromeAI();
+  }, [active, refreshChromeAI]);
   const t = useT();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [freeDialogOpen, setFreeDialogOpen] = useState(false);
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
+      <PageShell>
+      <PageScroll>
+      <div className="flex flex-col items-center px-4 py-5 text-center">
         <div className="mb-3 rounded-full bg-muted p-3">
           <Bot className="h-6 w-6 text-muted-foreground" />
         </div>
@@ -97,6 +103,38 @@ function LlmOnboarding() {
           </Button>
         </div>
       </div>
+      <Section title={t("ai.chrome.title")}>
+        <Card>
+          <CardContent className="space-y-3 p-4" data-testid="chrome-ai-readiness">
+            <p role="status" className="text-sm" data-testid="chrome-ai-status">
+              {chromeAI.unsupportedLanguage ? t("ai.chrome.unsupportedLanguage")
+                : chromeAI.error ? t("ai.chrome.error")
+                : t(`ai.chrome.${chromeAI.availability}`)}
+            </p>
+            {chromeAI.availability === "downloading" && (
+              <div role="progressbar" aria-label={t("ai.chrome.downloading")}
+                aria-valuemin={0} aria-valuemax={100}
+                aria-valuenow={chromeAI.progress === null ? undefined : Math.round(chromeAI.progress * 100)}
+                className="h-2 overflow-hidden rounded-full bg-muted">
+                <div className={cn("h-full bg-primary", chromeAI.progress === null && "w-1/3 animate-pulse motion-reduce:animate-none")}
+                  style={chromeAI.progress === null ? undefined : { width: `${chromeAI.progress * 100}%` }} />
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {!chromeAI.unsupportedLanguage && (chromeAI.availability === "downloadable" || chromeAI.availability === "downloading") && (
+                <Button data-testid="chrome-ai-prepare" onClick={() => { void prepareChromeAI(); }}>
+                  {t("ai.chrome.prepare")}
+                </Button>
+              )}
+              <Button variant="outline" data-testid="chrome-ai-refresh" onClick={() => { void refreshChromeAI(); }} disabled={chromeAI.availability === "checking"}>
+                {t("ai.chrome.refresh")}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </Section>
+      </PageScroll>
+      </PageShell>
       <FreeLlmConnectDialog open={freeDialogOpen} onOpenChange={setFreeDialogOpen} />
       <LlmConnectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildCompactStylingPrompt } from "../prompts/stylingCompact";
-import { buildAiDraftTurns } from "../buildAiDraftPrompt";
+import { getDraftFewShot, buildAiDraftTurns } from "../buildAiDraftPrompt";
+import { getStylingFewShot } from "../buildAiStylingPrompt";
 import { NANO_CAPABILITIES, LOCAL_BYOK_CAPABILITIES } from "../ai-provider";
 
 describe("Chrome compact language contract", () => {
@@ -10,6 +11,13 @@ describe("Chrome compact language contract", () => {
     const styling = buildCompactStylingPrompt({ caps, tagName: "button", selector: "button", classList: [], specifiedStyles: {}, tokens: [] });
     expect(styling).toContain("Write explanation in Japanese.");
     expect(styling).not.toContain("Korean if");
+  });
+  it("aligns Chrome Japanese assistant examples with declared output language", () => {
+    const caps = { ...NANO_CAPABILITIES, outputLanguage: "Japanese" as const };
+    const draft = getDraftFewShot({ caps, locale: "ja", captureMode: "video", url: "https://example.com", pageTitle: "Test", enabledSections: [] });
+    expect(JSON.parse(draft![0].assistant).title).toContain("送信");
+    const styling = getStylingFewShot({ caps, tagName: "button", selector: "button", classList: [], specifiedStyles: {}, tokens: [] });
+    expect(JSON.parse(styling![0].assistant).explanation).toContain("背景");
   });
   it("keeps Ollama compact locale and user language behavior", () => {
     expect(buildAiDraftTurns({ caps: LOCAL_BYOK_CAPABILITIES, locale: "ko", captureMode: "video", url: "https://example.com", pageTitle: "Test", enabledSections: [] }).system).toContain("Write in Korean.");

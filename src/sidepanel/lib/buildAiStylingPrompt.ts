@@ -9,7 +9,7 @@ import { PROMPT_CAPS } from "./prompts/caps";
 import { selectStyles } from "./prompts/context";
 import {
   buildCompactStylingPrompt,
-  COMPACT_STYLING_FEW_SHOT,
+  compactStylingExamples,
 } from "./prompts/stylingCompact";
 import { buildRichStylingPrompt } from "./prompts/stylingRich";
 
@@ -104,9 +104,9 @@ const STYLING_BUILDERS: Record<
 };
 
 // compact 본문은 거절방지를 few-shot으로 대체한다. rich는 필요 없다.
-const STYLING_FEW_SHOT: Record<PromptStyle, FewShotExample[] | undefined> = {
-  compact: COMPACT_STYLING_FEW_SHOT,
-  rich: undefined,
+const STYLING_FEW_SHOT: Record<PromptStyle, (ctx: AiStylingContext) => FewShotExample[] | undefined> = {
+  compact: compactStylingExamples,
+  rich: () => undefined,
 };
 
 export function buildAiStylingSystemPrompt(ctx: AiStylingContext): string {
@@ -116,7 +116,7 @@ export function buildAiStylingSystemPrompt(ctx: AiStylingContext): string {
 export function getStylingFewShot(
   ctx: AiStylingContext,
 ): FewShotExample[] | undefined {
-  return STYLING_FEW_SHOT[ctx.caps.promptStyle];
+  return STYLING_FEW_SHOT[ctx.caps.promptStyle](ctx);
 }
 
 // 시스템 프롬프트에 실제로 실린 스타일 맵 — 멀티턴 delta의 기준선.

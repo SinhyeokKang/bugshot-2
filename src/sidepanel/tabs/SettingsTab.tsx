@@ -47,7 +47,7 @@ import { LlmConnectForm } from "./settings/LlmConnectForm";
 import { LOCALE_LABELS } from "@/sidepanel/lib/localeLabels";
 import { LOCALES, resolveBodyLocale, type BodyLocale } from "@/i18n/locales";
 
-export function SettingsTab({ sub, onSubChange }: { sub: string; onSubChange: (v: string) => void }) {
+export function SettingsTab({ sub, onSubChange, active = true }: { active?: boolean; sub: string; onSubChange: (v: string) => void }) {
   const t = useT();
 
   return (
@@ -84,7 +84,7 @@ export function SettingsTab({ sub, onSubChange }: { sub: string; onSubChange: (v
         value="ai"
         className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
       >
-        <LlmConnectForm />
+        <LlmConnectForm active={active && sub === "ai"} />
       </TabsContent>
 
       <TabsContent

@@ -357,7 +357,7 @@ function AppContent() {
         </div>
 
         <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", tab !== "settings" && "hidden")}>
-          <SettingsTab sub={settingsSub} onSubChange={setSettingsSub} />
+          <SettingsTab active={tab === "settings"} sub={settingsSub} onSubChange={setSettingsSub} />
         </div>
       </div>
 

@@ -1,3 +1,6 @@
+import type { LocaleMode } from "@/i18n/locales";
+import { localeAiPreset, type AiLanguagePreset } from "./aiLanguage";
+import { chromeAILanguageOptions, requireChromeAIReady } from "./chrome-ai";
 import type { TranslationKey } from "@/i18n/ko";
 import type { LlmProviderId } from "@/lib/llm-provider-ids";
 import { isCredentialSafeUrl } from "@/lib/loopback-host";
@@ -25,8 +28,8 @@ interface LanguageModelInstance {
   ): Promise<number>;
 }
 
-interface LanguageModelLangOptions {
-  outputLanguage?: string;
+export interface LanguageModelLangOptions {
+  expectedInputs?: { type: string; languages: string[] }[];
   expectedOutputs?: { type: string; languages: string[] }[];
 }
 
@@ -41,19 +44,14 @@ declare global {
     create(
       options?: LanguageModelLangOptions & {
         initialPrompts?: LanguageModelInitialPrompt[];
+        signal?: AbortSignal;
+        monitor?: (monitor: { addEventListener(type: "downloadprogress", listener: (event: { loaded: number }) => void): void }) => void;
       },
     ): Promise<LanguageModelInstance>;
   }
   // eslint-disable-next-line no-var
   var LanguageModel: LanguageModel | undefined;
 }
-
-// Chrome Built-in AI 출력 언어 옵션 단일 출처. 잘못 명시하면 "No output language
-// was specified" 경고가 뜬다. availability와 create에 동일 옵션을 넘겨야 한다.
-export const CHROME_AI_LANG_OPTIONS: LanguageModelLangOptions = {
-  outputLanguage: "en",
-  expectedOutputs: [{ type: "text", languages: ["en"] }],
-};
 
 export type ProviderKind = "openai" | "anthropic";
 
@@ -63,6 +61,8 @@ export type PromptStyle = "compact" | "rich";
 
 export interface ProviderCapabilities {
   readonly promptStyle: PromptStyle;
+  // Present only for Chrome; compact BYOK keeps its existing language policy.
+  readonly outputLanguage?: AiLanguagePreset;
   readonly supportsImages: boolean;
   readonly contextBudgetChars: number;
 }
@@ -439,16 +439,18 @@ function wrapChromeSession(native: LanguageModelInstance): AISession {
   };
 }
 
-export function createChromeAIProvider(): AIProvider {
+export function createChromeAIProvider(locale: LocaleMode = "en"): AIProvider {
   return {
-    capabilities: NANO_CAPABILITIES,
+    capabilities: { ...NANO_CAPABILITIES, outputLanguage: localeAiPreset(locale) },
 
     async generate({ systemPrompt, prompt, responseSchema, signal }) {
       signal?.throwIfAborted();
+      await requireChromeAIReady(locale);
       if (!globalThis.LanguageModel) throw new Error("Chrome AI unavailable");
+      signal?.throwIfAborted();
       const session = await globalThis.LanguageModel.create({
         initialPrompts: buildInitialPrompts(systemPrompt ?? ""),
-        ...CHROME_AI_LANG_OPTIONS,
+        ...chromeAILanguageOptions(locale)!,
       }).catch(mapQuotaError);
       try {
         // Creation may finish after the run was cancelled. Always release the
@@ -468,10 +470,11 @@ export function createChromeAIProvider(): AIProvider {
     },
 
     async createSession(systemPrompt, fewShot) {
+      await requireChromeAIReady(locale);
       if (!globalThis.LanguageModel) throw new Error("Chrome AI unavailable");
       const native = await globalThis.LanguageModel.create({
         initialPrompts: buildInitialPrompts(systemPrompt, fewShot),
-        ...CHROME_AI_LANG_OPTIONS,
+        ...chromeAILanguageOptions(locale)!,
       }).catch(mapQuotaError);
       return wrapChromeSession(native);
     },

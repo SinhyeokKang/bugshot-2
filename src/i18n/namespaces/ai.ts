@@ -1,4 +1,14 @@
 const ko = {
+  "ai.chrome.title": "Chrome 내장 AI",
+  "ai.chrome.checking": "Chrome AI 상태를 확인하고 있어요.",
+  "ai.chrome.unavailable": "이 환경에서는 Chrome AI를 사용할 수 없어요. 외부 AI를 연결해 주세요.",
+  "ai.chrome.downloadable": "브라우저 모델을 다운로드하면 이 기기에서 AI를 사용할 수 있어요.",
+  "ai.chrome.downloading": "브라우저 모델을 준비하고 있어요.",
+  "ai.chrome.available": "Chrome AI를 사용할 수 있어요.",
+  "ai.chrome.unsupportedLanguage": "Chrome AI는 현재 화면 언어로 출력할 수 없어요. 해당 언어를 지원하는 외부 AI를 연결해 주세요.",
+  "ai.chrome.error": "Chrome AI 준비에 실패했어요. 다시 시도하거나 외부 AI를 연결해 주세요.",
+  "ai.chrome.prepare": "모델 준비",
+  "ai.chrome.refresh": "다시 확인",
   "ai.badge.chromeAI": "Chrome AI",
   "ai.stop": "중단",
 
@@ -36,6 +46,16 @@ const ko = {
 type Bundle = Record<keyof typeof ko, string>;
 
 const en = {
+  "ai.chrome.title": "Chrome built-in AI",
+  "ai.chrome.checking": "Checking Chrome AI availability.",
+  "ai.chrome.unavailable": "Chrome AI is unavailable on this device. Connect an external AI provider.",
+  "ai.chrome.downloadable": "Download the browser model to use AI on this device.",
+  "ai.chrome.downloading": "Preparing the browser model.",
+  "ai.chrome.available": "Chrome AI is ready.",
+  "ai.chrome.unsupportedLanguage": "Chrome AI cannot output in the current display language. Connect an external AI provider that supports it.",
+  "ai.chrome.error": "Chrome AI preparation failed. Retry or connect an external AI provider.",
+  "ai.chrome.prepare": "Prepare model",
+  "ai.chrome.refresh": "Check again",
   "ai.badge.chromeAI": "Chrome AI",
   "ai.stop": "Stop",
 
@@ -71,6 +91,16 @@ const en = {
 } satisfies Bundle;
 
 const fr = {
+  "ai.chrome.title": "IA intégrée à Chrome",
+  "ai.chrome.checking": "Vérification de la disponibilité de Chrome AI.",
+  "ai.chrome.unavailable": "Chrome AI est indisponible sur cet appareil. Connectez un fournisseur d’IA externe.",
+  "ai.chrome.downloadable": "Téléchargez le modèle du navigateur pour utiliser l’IA sur cet appareil.",
+  "ai.chrome.downloading": "Préparation du modèle du navigateur.",
+  "ai.chrome.available": "Chrome AI est prêt.",
+  "ai.chrome.unsupportedLanguage": "Chrome AI ne peut pas répondre dans la langue d’affichage actuelle. Connectez un fournisseur d’IA externe compatible.",
+  "ai.chrome.error": "La préparation de Chrome AI a échoué. Réessayez ou connectez un fournisseur d’IA externe.",
+  "ai.chrome.prepare": "Préparer le modèle",
+  "ai.chrome.refresh": "Revérifier",
   "ai.badge.chromeAI": "Chrome AI",
   "ai.stop": "Arrêter",
 
@@ -106,6 +136,16 @@ const fr = {
 } satisfies Bundle;
 
 const es = {
+  "ai.chrome.title": "IA integrada de Chrome",
+  "ai.chrome.checking": "Comprobando la disponibilidad de Chrome AI.",
+  "ai.chrome.unavailable": "Chrome AI no está disponible en este dispositivo. Conecta un proveedor de IA externo.",
+  "ai.chrome.downloadable": "Descarga el modelo del navegador para usar IA en este dispositivo.",
+  "ai.chrome.downloading": "Preparando el modelo del navegador.",
+  "ai.chrome.available": "Chrome AI está listo.",
+  "ai.chrome.unsupportedLanguage": "Chrome AI no puede responder en el idioma actual de la interfaz. Conecta un proveedor de IA externo compatible.",
+  "ai.chrome.error": "No se pudo preparar Chrome AI. Reintenta o conecta un proveedor de IA externo.",
+  "ai.chrome.prepare": "Preparar modelo",
+  "ai.chrome.refresh": "Volver a comprobar",
   "aiRepro.loading1": "Volviendo sobre tus acciones",
   "aiRepro.loading2": "Siguiendo el flujo",
   "aiRepro.loading3": "Ordenando los pasos de reproducción",
@@ -138,6 +178,16 @@ const es = {
 } satisfies Bundle;
 
 const de = {
+  "ai.chrome.title": "In Chrome integrierte KI",
+  "ai.chrome.checking": "Verfügbarkeit von Chrome AI wird geprüft.",
+  "ai.chrome.unavailable": "Chrome AI ist auf diesem Gerät nicht verfügbar. Verbinde einen externen KI-Anbieter.",
+  "ai.chrome.downloadable": "Lade das Browsermodell herunter, um KI auf diesem Gerät zu nutzen.",
+  "ai.chrome.downloading": "Browsermodell wird vorbereitet.",
+  "ai.chrome.available": "Chrome AI ist bereit.",
+  "ai.chrome.unsupportedLanguage": "Chrome AI kann nicht in der aktuellen Anzeigesprache antworten. Verbinde einen externen KI-Anbieter, der sie unterstützt.",
+  "ai.chrome.error": "Chrome AI konnte nicht vorbereitet werden. Versuche es erneut oder verbinde einen externen KI-Anbieter.",
+  "ai.chrome.prepare": "Modell vorbereiten",
+  "ai.chrome.refresh": "Erneut prüfen",
   "aiStyling.banner": "Lassen Sie die KI das Styling übernehmen",
   "aiStyling.generate": "KI-Styling",
   "aiStyling.title": "KI-Styling",
@@ -170,6 +220,16 @@ const de = {
 } satisfies Bundle;
 
 const ja = {
+  "ai.chrome.title": "Chrome 内蔵 AI",
+  "ai.chrome.checking": "Chrome AI の利用状況を確認しています。",
+  "ai.chrome.unavailable": "このデバイスでは Chrome AI を利用できません。外部 AI を接続してください。",
+  "ai.chrome.downloadable": "ブラウザのモデルをダウンロードすると、このデバイスで AI を利用できます。",
+  "ai.chrome.downloading": "ブラウザのモデルを準備しています。",
+  "ai.chrome.available": "Chrome AI を利用できます。",
+  "ai.chrome.unsupportedLanguage": "Chrome AI は現在の表示言語で出力できません。この言語に対応する外部 AI を接続してください。",
+  "ai.chrome.error": "Chrome AI の準備に失敗しました。再試行するか、外部 AI を接続してください。",
+  "ai.chrome.prepare": "モデルを準備",
+  "ai.chrome.refresh": "再確認",
   "ai.badge.chromeAI": "Chrome AI",
   "ai.stop": "停止",
 

@@ -32,7 +32,7 @@ describe("Chrome readiness", () => {
   it("deduplicates probes and prepares synchronously before user activation is lost", async () => {
     const { api, session } = mockAPI();
     const probe = deferred<string>();
-    api.availability.mockReturnValue(probe.promise);
+    api.availability.mockReturnValueOnce(probe.promise).mockResolvedValue("available");
     const controller = createChromeAIController("ja");
     const first = controller.refresh();
     expect(controller.refresh()).toBe(first);
@@ -70,8 +70,44 @@ describe("Chrome readiness", () => {
     await preparing;
     expect(controller.getSnapshot().availability).toBe("checking");
     expect(session.destroy).toHaveBeenCalledTimes(1);
+    api.availability.mockResolvedValue("available");
     await controller.prepare();
     expect(controller.getSnapshot().availability).toBe("available");
+  });
+  it("rechecks after successful preparation instead of trusting session creation", async () => {
+    const { api, session } = mockAPI();
+    api.availability.mockResolvedValue("unavailable");
+    const controller = createChromeAIController("en");
+    await controller.prepare();
+    expect(session.destroy).toHaveBeenCalledTimes(1);
+    expect(api.availability).toHaveBeenCalledTimes(1);
+    expect(controller.getSnapshot().availability).toBe("unavailable");
+  });
+  it("retries a synchronous availability exception", async () => {
+    const { api } = mockAPI();
+    api.availability.mockImplementationOnce(() => { throw new Error("sync failure"); });
+    const controller = createChromeAIController("en");
+    await controller.refresh();
+    expect(controller.getSnapshot().error).toBe(true);
+    await controller.refresh();
+    expect(api.availability).toHaveBeenCalledTimes(2);
+    expect(controller.getSnapshot().availability).toBe("downloadable");
+  });
+  it("keeps one native preparation across invalidation and refreshes only after it settles", async () => {
+    const { api, session } = mockAPI();
+    const late = deferred<typeof session>();
+    api.create.mockReturnValue(late.promise);
+    const controller = createChromeAIController("en");
+    const pending = controller.prepare();
+    controller.invalidate();
+    expect(controller.prepare()).toBe(pending);
+    const refresh = controller.refresh();
+    expect(api.create).toHaveBeenCalledTimes(1);
+    api.availability.mockResolvedValue("unavailable");
+    late.resolve(session);
+    await refresh;
+    expect(controller.getSnapshot().availability).toBe("unavailable");
+    expect(session.destroy).toHaveBeenCalledTimes(1);
   });
   it("handles missing API and rejected probes without staying checking", async () => {
     vi.stubGlobal("LanguageModel", undefined);

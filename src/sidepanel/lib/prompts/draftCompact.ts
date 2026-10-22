@@ -1,6 +1,6 @@
 import type { TextSectionId } from "@/store/settings-ui-store";
 import { localeValue, type LocaleTable } from "@/i18n/locales";
-import { localeAiPreset } from "@/sidepanel/lib/aiLanguage";
+import { localeAiPreset, type AiLanguagePreset } from "@/sidepanel/lib/aiLanguage";
 import type { FewShotExample } from "../ai-provider";
 import type { AiDraftSessionContext } from "@/sidepanel/lib/buildAiDraftPrompt";
 import { resolveAiDraftStyleElements } from "./draftStyleElements";
@@ -53,10 +53,28 @@ export const COMPACT_DRAFT_FEW_SHOT_LOGREFS: FewShotExample[] = [
   },
 ];
 
+// Chrome's assistant examples must use the same language as expectedOutputs.
+const CHROME_EXAMPLES: Partial<Record<AiLanguagePreset, [string, string, string, string]>> = {
+  Japanese: ["決済画面の送信ボタンが反応しない", "決済画面で送信をクリックしても反応しません。", "決済画面を開く\n送信をクリックする", "注文が送信される。"],
+  French: ["Le bouton Envoyer ne répond pas au paiement", "Cliquer sur Envoyer sur la page de paiement ne produit aucune réponse.", "Ouvrir la page de paiement\nCliquer sur Envoyer", "La commande est envoyée."],
+  Spanish: ["El botón Enviar no responde en el pago", "Al hacer clic en Enviar en la página de pago no ocurre nada.", "Abrir la página de pago\nHacer clic en Enviar", "Se envía el pedido."],
+  German: ["Die Schaltfläche Senden reagiert beim Bezahlen nicht", "Ein Klick auf Senden auf der Bezahlseite löst keine Reaktion aus.", "Bezahlseite öffnen\nAuf Senden klicken", "Die Bestellung wird abgeschickt."],
+};
+
+export function localizeCompactDraftExamples(examples: FewShotExample[], language?: AiLanguagePreset): FewShotExample[] {
+  const translated = language && CHROME_EXAMPLES[language];
+  if (!translated) return examples;
+  const [title, description, stepsToReproduce, expectedResult] = translated;
+  return examples.map((example) => ({
+    user: example.user,
+    assistant: JSON.stringify({ ...JSON.parse(example.assistant), title, description, stepsToReproduce, expectedResult }),
+  }));
+}
+
 // 컨텍스트는 system이 아니라 user 턴에 싣는다(buildCompactDraftUser) — system에 두면
 // few-shot 예시가 컨텍스트와 진술 사이를 끊는다.
 export function buildCompactDraftSystem(ctx: AiDraftSessionContext): string {
-  const lang = localeAiPreset(ctx.locale);
+  const lang = ctx.caps.outputLanguage ?? localeAiPreset(ctx.locale);
   const desc = localeValue(SECTION_DESC, ctx.locale);
   const cand = selectLogCandidates(ctx);
   const hasLogRefs = canRequestLogRefs(ctx, cand);
