@@ -22,7 +22,7 @@
 | B blobs | 2 | editor-store, blob 저장 회귀 테스트 | 없음 | dev 통합 완료 |
 | C overlay | 3 | App.tsx, AI overlay 접근성 컴포넌트/테스트, 관련 e2e | 없음 | dev 통합 완료 |
 | D1 native-cancel | 6 | ai-provider Chrome signal 경로, generateReproPrefill, 관련 테스트 | 없음 | dev 통합 완료 |
-| D2 chrome-ai | 4–5 | useAI, ai-provider 언어/readiness, compact prompt, AI 설정 UI, i18n ai 사전 및 테스트/e2e | A·C·D1 통합, 언어 결정 완료 | 구현 중 |
+| D2 chrome-ai | 4–5 | useAI, ai-provider 언어/readiness, compact prompt, AI 설정 UI, i18n ai 사전 및 테스트/e2e | A·C·D1 통합, 언어 결정 완료 | dev 통합 완료 |
 
 ## 겹침·순서
 
@@ -75,3 +75,9 @@ D2 dispatch: `ctx_0d3ab13d3046`, task `task_fbdfacee79c7`, terminal `term_d6b44d
 - 구현 `e2741164`, 선행 red `fefd81ca`. 전체 476 files/9251 passed/2 skipped, typecheck/sync/i18n21 exit0. 관련 366건 통과.
 - UI/security `ctx_c7545e4cdf05`, dataflow/codehealth `ctx_73e2840122bf` 독립 검수. dataflow 검수는 보고 확인 후 release. 두 관점 모두 지원 언어 en→ja 전환 중 native 준비가 중복되는 P2를 발견했다. dataflow는 readiness checking 중 native 재현 응답이 먼저 끝나면 결과가 버려지는 역순 완료 P2도 발견했다. 구현 워커에 red→green 회귀 수정 요청.
 - 브라우저 mock은 다운로드→진행→준비→초안 생성, 실패/재시도/탭 재진입, ko/ja 안내를 통과했다. 확대400px의 기존 min-width/scrollbar와 테스트 단언 범위는 UI 검수로 재확인 중이다. 실제 모델을 검증했다고 주장하지 않는다.
+
+### D2 최종 통합
+
+원본 `fefd81ca e2741164 09bd7f64 8fa943d2 a60d6068 013aa71c e61e907c` → dev `855b0111 d509977f e2c28c35 1c9e41b5 180e7786 930aac58 8be4f689`. CTO `ctx_53122df5703c`가 기존 P2 두 건 해소·신규 차단0을 확인했다. 최종 전체476 files/9254 passed/2 skipped·typecheck/sync exit0, 최종 제품 빌드의 native mock e2e5건 2회(6.7s/5.2s). 모든 D2 검수/구현 터미널은 인계 확인 후 release했다. UI 확대400×400/125%에서 CTA4개 접근·완전 노출은 통과했지만 기존 min-width 제약 가로 스크롤 잔여가 있어 overflow 없음으로 보고하지 않는다. 실제 모델 설치·출력·추론 취소는 mock 검증과 분리한다.
+
+통합 root 게이트: typecheck/sync exit0, 전체476 files/9254 passed/2 skipped(115.40s). E2E 목록은90 specs/443 tests. D2 child는 tracked 변경0·git cherry의 +0 확인 후 제거했으며, 인계/리뷰/확대 스크린샷은 root .scratch에 보존했다. 사용자 takeover의 C child는 유지한다.
