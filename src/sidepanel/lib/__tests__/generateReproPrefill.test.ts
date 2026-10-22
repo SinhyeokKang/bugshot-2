@@ -243,6 +243,22 @@ describe("repro prefill native cancellation boundary", () => {
     expect(native.destroy).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects a late valid native result even if inference ignores cancellation", async () => {
+    const controller = new AbortController();
+    let finish!: (value: string) => void;
+    const native = {
+      prompt: vi.fn(() => new Promise<string>((resolve) => { finish = resolve; })),
+      destroy: vi.fn(),
+    };
+    vi.stubGlobal("LanguageModel", { create: vi.fn().mockResolvedValue(native) });
+    const pending = generateReproStepsWithAI({ ...baseInput(createChromeAIProvider().createSession), signal: controller.signal });
+    await vi.waitFor(() => expect(native.prompt).toHaveBeenCalledTimes(1));
+    controller.abort();
+    finish('{"stepsToReproduce":"This cancelled result must not be applied"}');
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(native.destroy).toHaveBeenCalledTimes(1);
+  });
+
   it("passes the real signal to native inference and finally cleans up after abort", async () => {
     const controller = new AbortController();
     const native = {
