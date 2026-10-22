@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-10-22 — Chrome AI 중단이 추론에 전달되지 않았다 — 상위 취소 가드와 native 신호는 별개다
+
+- **영역**: `AI`, `lib`
+- **계열**: `취소래치`
+- **그물**: `unit`
+- **증상**: 중단을 눌러 로딩 화면이 닫혀도 로컬 모델 호출은 계속 진행되고, 세션 생성 대기 중 취소는 생성 완료 뒤에도 추론을 시작할 수 있었다.
+- **근본 원인**: 상위 run의 signal과 결과 적용 가드는 있었지만 Chrome native prompt 옵션에 signal이 빠졌다. create await 이후 취소 재검사도 없었고 재현 생성 헬퍼는 세션 정리를 finally에만 맡겼다.
+- **재발 방지**: 실제 provider→native mock 경계에서 signal 전달·중간 abort·사전 취소 시 호출 0·늦은 create 시 prompt 0과 destroy 1을 함께 검증한다. 취소를 무시하고 유효 JSON을 반환하는 mock도 두어 post-prompt 가드 제거 시 red인지 확인한다. resumable detach/readopt는 명시적 사용자 취소와 달라 cleanup에 무조건 abort를 넣지 않는다.
+- **관련**: `src/sidepanel/lib/ai-provider.ts:createChromeAIProvider`, `src/sidepanel/lib/generateReproPrefill.ts:generateReproStepsWithAI`, 각 동명 테스트 및 `useAiRun`·`useReproPrefill` 테스트
+
+---
+
 ## 2026-10-22 — AI 로딩 화면 뒤에서 키보드가 편집했다 — 시각적 덮개와 모달은 별개다
 
 - **영역**: `AI`, `컴포넌트`
