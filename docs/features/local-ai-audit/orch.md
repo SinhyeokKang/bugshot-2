@@ -11,7 +11,7 @@
 
 - 사용자: 6건 전부 수정, orchestrate 수행 승인. dev push·CI 확인까지이며 main은 건드리지 않는다.
 - C: AI 생성 동안 배경을 실제로 비활성화하는 최소 수정으로 편집 유실을 방지한다.
-- D: 한국어에서 영어 폴백+안내 또는 로컬 AI 비활성화 여부를 질문했다. 답변 전 언어 관련 구현은 보류한다.
+- D: 한국어 출력이 필요한 요청은 한국어여야 한다는 사용자 답변으로 확정. 영어 폴백 금지, Chrome 미지원 언어는 생성·다운로드를 막고 외부 AI 연결 안내.
 - 모델·effort: 사용자 모델 지정이 없어 Orca의 설정된 Codex 모델·effort를 상속한다(현재 CLI coordinator-loop 규칙). 시작 영수증의 실제 값을 기록한다.
 
 ## 배치·소유권
@@ -22,7 +22,7 @@
 | B blobs | 2 | editor-store, blob 저장 회귀 테스트 | 없음 | dev 통합 완료 |
 | C overlay | 3 | App.tsx, AI overlay 접근성 컴포넌트/테스트, 관련 e2e | 없음 | dev 통합 완료 |
 | D1 native-cancel | 6 | ai-provider Chrome signal 경로, generateReproPrefill, 관련 테스트 | 없음 | dev 통합 완료 |
-| D2 chrome-ai | 4–5 | useAI, ai-provider 언어/readiness, compact prompt, AI 설정 UI, i18n ai 사전 및 테스트/e2e | A·C·D1 통합, 언어 결정 | 대기 |
+| D2 chrome-ai | 4–5 | useAI, ai-provider 언어/readiness, compact prompt, AI 설정 UI, i18n ai 사전 및 테스트/e2e | A·C·D1 통합, 언어 결정 완료 | 구현 중 |
 
 ## 겹침·순서
 
