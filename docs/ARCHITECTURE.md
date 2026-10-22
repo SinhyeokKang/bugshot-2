@@ -678,9 +678,9 @@ trim 적용 여부는 `videoTrimmed`(세션 영속 `EditorSnapshot` 키 — `onR
 **프로바이더 추상화** (`src/sidepanel/lib/ai-provider.ts`): `AIProvider` 인터페이스 = `generate`(단발) + `createSession`(멀티턴 — `messages` 누적). 구현 3종:
 - **OpenAI-compatible** (`createOpenAICompatibleProvider`): `/chat/completions`. 프리셋은 `PROVIDER_PRESETS` **8종**(OpenAI·Anthropic·Gemini·Mistral·Groq·Together·OpenRouter·Ollama)이 한 배열에 있고 `kind`로 openai/anthropic 라우팅(`detectProviderKind`) + 임의 baseUrl. `responseSchema`면 `response_format: json_object`.
 - **Anthropic** (`createAnthropicProvider`): `/messages`, `anthropic-dangerous-direct-browser-access` 헤더. JSON 스키마는 system에 인라인. 이미지는 base64 `source`(OpenAI는 `image_url`).
-- **Chrome Built-in AI** (`createChromeAIProvider`): 온디바이스 `LanguageModel`(Prompt API). `CHROME_AI_LANG_OPTIONS`로 출력 언어 고정. 이미지·외부 전송 없음.
+- **Chrome Built-in AI** (`createChromeAIProvider`): 온디바이스 `LanguageModel`(Prompt API). `chrome-ai.ts:chromeAILanguageOptions`가 영어 시스템 입력과 UI 로케일의 입력·출력 언어를 선언한다. en/ja/es/de/fr를 지원하며 ko는 외부 AI 연결 안내로 막고 영어 대체를 하지 않는다. Chrome compact의 초안·재현·스타일 설명과 assistant 예시도 같은 출력 언어를 사용한다. Ollama compact의 기존 언어 동작은 유지한다. 이미지·외부 전송 없음.
 
-**프로바이더 선택·폴백** (`useAI`): `settingsUi.llm.modelId`가 있으면 BYOK(baseUrl로 `detectProviderKind` → anthropic/openai), 없으면 Chrome AI로 폴백. Chrome AI는 `availability()`로 가용성 확인 후 status 노출. 둘 다 불가면 AI UI 미노출.
+**프로바이더 선택·폴백** (`useAI`): `settingsUi.llm.modelId`가 있으면 BYOK(baseUrl로 `detectProviderKind` → anthropic/openai), 없으면 Chrome AI로 폴백. Chrome AI는 `chrome-ai.ts`의 언어별 공유 컨트롤러를 `useSyncExternalStore`로 구독한다. checking/unavailable/downloadable/downloading/available 상태 중 available일 때만 생성 UI를 연다. 설정의 **모델 준비** 클릭은 첫 await 전에 native create를 호출하며 실제 진행률 또는 불확정 진행을 표시한다. 준비용 세션은 완료 후 destroy하고 같은 옵션으로 availability를 다시 조회한다. 일반 생성 직전에도 새로 조회하므로 모델이 제거된 뒤 자동 재현 생성이 다운로드를 시작하지 않는다. 설정은 hidden 마운트를 유지하므로 App → SettingsTab → LlmConnectForm의 active prop으로 재진입을 감지한다. 상태는 영속화하지 않으며, 언어/BYOK 변경은 세대 가드로 늦은 결과를 버리고 아직 실행 중인 준비 작업의 소유권은 완료까지 유지한다. 둘 다 불가면 AI 생성 UI 미노출이며 설정 카드에서 미지원 사유와 연결 경로를 안내한다.
 
 **무료 연결 경로** (`FreeLlmConnectDialog` + `sidepanel/lib/free-llm.ts`): 연결 전 화면의 [무료 AI 연결]은 Gemini(AI Studio 무료 티어)와 OpenRouter(무료 모델) 프리셋 2개를 연다.
 - **저장 형식**: 결과는 BYOK와 같은 `LlmConfig`에 `freeTier: true` 하나를 얹은 것이다. 그래서 이후 호출·capability 경로는 그대로다. `freeTier`는 연결 후 모델 목록을 거르는 데만 쓴다(Gemini `GEMINI_FREE_MODELS`, OpenRouter `:free`+image).
