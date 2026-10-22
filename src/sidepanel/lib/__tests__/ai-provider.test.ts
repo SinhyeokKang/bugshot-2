@@ -1163,3 +1163,65 @@ it("provides the approved Gemini list and a nonempty free subset", () => {
   expect(GEMINI_FREE_MODELS).toEqual(GEMINI_MODELS.filter((m) => m.freeTier));
   expect(GEMINI_FREE_MODELS.map((m) => m.id)).toEqual(GEMINI_MODELS.slice(0, 4).map((m) => m.id));
 });
+
+describe("Chrome native cancellation", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([false, true])("forwards the run signal with schema=%s and aborts native inference", async (withSchema) => {
+    const controller = new AbortController();
+    const schema = withSchema ? { type: "object" } : undefined;
+    const prompt = vi.fn((_input, options) => new Promise<string>((_resolve, reject) => {
+      options?.signal?.addEventListener("abort", () => reject(options.signal.reason), { once: true });
+    }));
+    stubLanguageModel({ prompt });
+    const session = await createChromeAIProvider().createSession("SYS");
+    const pending = session.prompt("input", { signal: controller.signal, responseSchema: schema });
+    expect(prompt).toHaveBeenCalledWith("input", expect.objectContaining({ signal: controller.signal }));
+    if (schema) expect(prompt.mock.calls[0][1].responseConstraint).toEqual(schema);
+    const rejected = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    controller.abort();
+    await rejected;
+  });
+
+  it("does not prompt an already aborted session request and destroys only once", async () => {
+    const { nativeSession } = stubLanguageModel();
+    const session = await createChromeAIProvider().createSession("SYS");
+    const controller = new AbortController();
+    controller.abort();
+    await expect(async () => session.prompt("input", { signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+    session.destroy();
+    session.destroy();
+    expect(nativeSession.prompt).not.toHaveBeenCalled();
+    expect(nativeSession.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("generate skips creation when cancelled and destroys a late-created session without prompting", async () => {
+    const { create, nativeSession } = stubLanguageModel();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(createChromeAIProvider().generate({ prompt: "input", signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+    expect(create).not.toHaveBeenCalled();
+    let resolve!: (value: typeof nativeSession) => void;
+    create.mockImplementation(() => new Promise((done) => { resolve = done; }));
+    const active = new AbortController();
+    const pending = createChromeAIProvider().generate({ prompt: "input", signal: active.signal });
+    active.abort();
+    resolve(nativeSession);
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(nativeSession.prompt).not.toHaveBeenCalled();
+    expect(nativeSession.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("generate forwards cancellation and cleans up after native rejection", async () => {
+    const controller = new AbortController();
+    const prompt = vi.fn(async (_input, options) => {
+      expect(options?.signal).toBe(controller.signal);
+      controller.abort();
+      options.signal.throwIfAborted();
+      return "unused";
+    });
+    const { nativeSession } = stubLanguageModel({ prompt });
+    await expect(createChromeAIProvider().generate({ prompt: "input", responseSchema: { type: "object" }, signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+    expect(nativeSession.destroy).toHaveBeenCalledTimes(1);
+  });
+});
