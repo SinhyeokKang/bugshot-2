@@ -40,6 +40,7 @@ const REQUEST_MESSAGE = "Write the reproduction steps from the actions above.";
 export async function generateReproStepsWithAI(
   input: ReproPrefillInput,
 ): Promise<string> {
+  input.signal?.throwIfAborted();
   const ctx: AiDraftSessionContext = {
     caps: input.capabilities,
     captureMode: input.captureMode,
@@ -71,10 +72,12 @@ export async function generateReproStepsWithAI(
     fewShot,
   );
   try {
+    input.signal?.throwIfAborted();
     const raw = await session.prompt(message, {
       responseSchema: schema,
       signal: input.signal,
     });
+    input.signal?.throwIfAborted();
     const steps = parseSteps(raw);
     if (!steps) {
       // raw는 액션 로그 파생이라 사용자 입력이 섞일 수 있다 — 본문은 남기지 않는다.

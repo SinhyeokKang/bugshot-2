@@ -6,7 +6,7 @@ import type { LlmConfig } from "@/store/settings-ui-store";
 interface LanguageModelInstance {
   prompt(
     input: string,
-    options?: { responseConstraint?: unknown },
+    options?: { responseConstraint?: unknown; signal?: AbortSignal },
   ): Promise<string>;
   destroy(): void;
   // 신명칭. 구명칭(inputUsage/inputQuota/measureInputUsage)은 확장에서 deprecated라
@@ -402,19 +402,24 @@ function buildInitialPrompts(
 
 function wrapChromeSession(native: LanguageModelInstance): AISession {
   const measure = native.measureContextUsage ?? native.measureInputUsage;
+  let destroyed = false;
   return {
     prompt: (input, options) => {
       options?.signal?.throwIfAborted();
       return native
         .prompt(
           input,
-          options?.responseSchema
-            ? { responseConstraint: options.responseSchema }
+          options?.responseSchema || options?.signal
+            ? { responseConstraint: options.responseSchema, signal: options.signal }
             : undefined,
         )
         .catch(mapQuotaError);
     },
-    destroy: () => native.destroy(),
+    destroy: () => {
+      if (destroyed) return;
+      destroyed = true;
+      native.destroy();
+    },
     get contextUsage() {
       return native.contextUsage ?? native.inputUsage;
     },
@@ -446,10 +451,15 @@ export function createChromeAIProvider(): AIProvider {
         ...CHROME_AI_LANG_OPTIONS,
       }).catch(mapQuotaError);
       try {
+        // Creation may finish after the run was cancelled. Always release the
+        // late session in finally, without starting a new inference.
+        signal?.throwIfAborted();
         return await session
           .prompt(
             prompt,
-            responseSchema ? { responseConstraint: responseSchema } : undefined,
+            responseSchema || signal
+              ? { responseConstraint: responseSchema, signal }
+              : undefined,
           )
           .catch(mapQuotaError);
       } finally {
