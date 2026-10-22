@@ -67,7 +67,7 @@ UI 컴포넌트는 직접 스타일링하기보다 shadcn/ui를 우선 쓰고, �
 
 - `darkMode: ["class"]` — `<html>`에 `.dark` 클래스 토글.
 - 토글 로직: `src/sidepanel/hooks/useThemeEffect.ts`. theme(`light`|`dark`|`system`)을 `useSettingsUiStore`에서 읽어 `classList.toggle("dark", …)`, `system`이면 `matchMedia("(prefers-color-scheme: dark)")` 변화를 구독.
-- 영속: `src/store/settings-ui-store.ts` (Zustand persist). key 리터럴은 스토어가 아니라 `src/lib/session-keys.ts`의 `APP_SETTINGS_PERSIST_KEY`(`bugshot-app-settings`)에 있다 — background가 같은 봉투를 직독하므로 두 벌을 두지 않는다.
+- 영속: `src/store/settings-ui-store.ts` + `app-settings-adapter.ts` (최신 저장값에 변경 의도를 적용하는 Web Lock transaction). key 리터럴은 스토어가 아니라 `src/lib/session-keys.ts`의 `APP_SETTINGS_PERSIST_KEY`(`bugshot-app-settings`)에 있다 — background가 같은 봉투를 직독하므로 두 벌을 두지 않는다.
 - semantic 토큰을 쓰면 다크가 자동 대응되므로 `dark:` variant는 raw 색·invert 등 토큰으로 안 되는 경우에만.
 - **반전 스코프(`.theme-inverse`)**: 이 클래스를 단 요소 아래는 **앱 테마의 반대 토큰**을 받는다(앱 라이트 → 다크 토큰, 앱 다크 → 라이트 토큰). JS 없이 `globals.css`의 셀렉터 리스트만으로 만든다 — 라이트 블록이 `.dark .theme-inverse, :root`, 다크 블록이 `:root:not(.dark) .theme-inverse, .dark`라 스코프 요소에 토큰이 **직접 선언**돼 `<html>`에서 상속된 값을 이긴다. 반전이 `<html>.dark` 하나에 묶이므로 `system` 모드의 OS 테마 변경도 기존 `useThemeEffect` 경로를 그대로 탄다. 현재 소비처는 `RecordingFloatingBar` 하나(§6 반전 플로팅 바).
   - ⚠ **스코프 안에서 `dark:` variant 금지.** Tailwind class 전략은 *어떤* 조상이든 `.dark`면 매칭되므로, 앱이 다크일 때 라이트 토큰을 받은 스코프 안에서도 `dark:`가 켜져 반전이 깨진다. 스코프에 넣는 자식 컴포넌트(`Button`·`TooltipIconButton`)도 `dark:` 0건이어야 한다 — 타입으로 못 잡아 `RecordingFloatingBar.test.tsx`의 소스 스캔이 바와 두 자식을 함께 잠근다. 툴팁처럼 portal로 스코프 밖에 렌더되는 건 앱 테마를 따른다(의도).
