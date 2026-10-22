@@ -36,6 +36,30 @@
 
 ---
 
+## 2026-10-22 — Chrome AI 세션은 영어인데 프롬프트는 한국어를 요구했다
+
+- **영역**: `AI`, `i18n`
+- **계열**: `드리프트`, `미검증단언`
+- **그물**: `unit`
+- **증상**: 화면 언어로 결과를 요청하면서 native 세션은 영어 출력을 선언하고 assistant 예시도 영어였다. 지원하지 않는 한국어를 사용할 수 있는 것처럼 노출했다.
+- **근본 원인**: provider의 언어 옵션과 compact 프롬프트·few-shot이 서로 다른 출처였고, API 지원 언어와 UI 번역 언어를 같은 것으로 취급했다.
+- **재발 방지**: Chrome 지원 언어 판정과 native 옵션을 한 함수로 모으고 capability의 유효 출력 언어를 초안·재현·스타일 설명·assistant 예시에 전달한다. 한국어 요청은 영어 대체 없이 미지원 안내로 막는다. Chrome 변경이 Ollama compact나 rich의 독립 언어 설정에 새지 않는 테스트를 함께 둔다.
+- **관련**: `src/sidepanel/lib/chrome-ai.ts:chromeAILanguageOptions`, `src/sidepanel/lib/ai-provider.ts:createChromeAIProvider`, `src/sidepanel/lib/__tests__/chrome-ai-language.test.ts`
+
+---
+
+## 2026-10-22 — 다운로드 가능 상태를 사용 불가로 접었다 — 조회와 준비는 다른 동작이다
+
+- **영역**: `AI`, `lib`
+- **계열**: `라이브러리전제`, `취소래치`
+- **그물**: `unit`
+- **증상**: 모델을 다운로드할 수 있는 환경에서도 AI를 켤 경로가 없었다. 준비 상태를 단순히 available로 취급하면 자동 재현 생성이 사용자 클릭 없이 모델 설치를 시작할 수 있다.
+- **근본 원인**: 가용성 조회·사용자 activation이 필요한 준비·일반 생성의 경계를 구분하지 않았다. 추가 구현 중에는 동기 throw가 async IIFE의 finally보다 늦게 Promise 참조에 대입돼 재시도를 막았고, 세대 무효화가 아직 실행 중인 native 준비 작업의 소유권까지 버려 중복 create를 허용했다.
+- **재발 방지**: 조회는 설치 없이 상태만 읽고, 명시적 클릭에서 첫 await 전에 준비 create를 호출한다. 임시 세션 정리 후와 일반 생성 직전에 각각 새로 조회한다. probe는 대입 후 실행되게 예약하고, 세대 가드와 실제 작업의 in-flight 소유권을 분리한다. sync throw→재시도, 언어/BYOK 왕복→native create 1회, 늦은 세션 destroy, 준비 완료 후 unavailable, 모델 삭제 뒤 자동 생성의 create 0회를 회귀 테스트로 고정한다.
+- **관련**: `src/sidepanel/lib/chrome-ai.ts:createChromeAIController`, `src/sidepanel/hooks/useAI.ts`, `src/sidepanel/lib/__tests__/chrome-ai.test.ts`, `e2e/chrome-ai-readiness.spec.ts`
+
+---
+
 ## 2026-10-22 — 다른 패널의 테마 변경이 해제한 AI 키를 되살렸다 — 전체 스냅샷 저장은 동시 변경 의도가 아니다
 
 - **영역**: `store`, `AI`
