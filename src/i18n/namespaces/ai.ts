@@ -14,7 +14,7 @@ const ko = {
 
   "aiDraft.title": "AI 초안 작성",
   "aiDraft.placeholder": "버그를 간단히 설명해주세요...",
-  "aiDraft.generate": "초안 작성",
+  "aiDraft.generate": "초안 생성",
   "aiDraft.disclaimer": "AI는 실수할 수 있습니다. 생성된 초안을 확인해주세요.",
   "aiDraft.contextTrimmed": "내용이 많아 일부 참고 정보를 빼고 작성했습니다.",
   "aiDraft.loading1": "로그를 훑어보는 중이에요",
