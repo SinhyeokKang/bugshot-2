@@ -117,9 +117,9 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
       });
     };
 
-    // begin()이 로딩을 켜고 canceller를 슬롯에 등록한다. BYOK 요청은 abort하고
-    // Chrome 세션 결과는 폐기 — done은 이미 래치돼 재발화 없으므로
-    // 사용자 명시 중단 = 영구 포기(reproPrefillDone "결과무관 1회" 설계와 일치).
+    // begin() registers cancellation for BYOK requests and native Chrome prompts.
+    // Late-created sessions are cleaned up without prompting; the done latch means
+    // explicit cancellation is permanent (reproPrefillDone is once per session).
     void (async () => {
       try {
         const steps = await generateReproStepsWithAI({
