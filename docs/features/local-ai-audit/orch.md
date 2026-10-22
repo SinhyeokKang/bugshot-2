@@ -42,3 +42,5 @@ A/B/C 소유 파일은 서로 겹치지 않으며 병렬 실행한다. D는 UI�
 - 시작 영수증은 전부 Codex, model/effort null(사용자 기본 설정 상속), ready/input_accepted/turn_started 확인.
 - D PRD·설계는 `4c8bded4`. CPO/CDO/CTO/QA 독립 읽기 전용 검수 진행 중.
 - B 테스트 커밋 `15e71dd4` 보고 후 독립 DataFlow/CodeHealth/CTO 리뷰를 별도 Orca 워커에 배정했다. 전체 게이트와 병행한다.
+- D 설계 검수 완료: CPO(스타일링 언어 계약), CDO(짧은 높이 스크롤·hidden 탭 재활성 조회), QA(세 표면 focus 종료·실 useAI/repro 통합·Chrome mock fixture), CTO(모델 제거 후 일반 생성의 사전 availability 재확인) 권장을 계획에 반영했다. 기존 승인된 수정 범위의 구체화이며 새 제품 결정은 한국어 정책 한 건뿐이다.
+- B 독립 리뷰 `ctx_adb8336ab4cf`: red/yellow 0, 로그 issue→pending·영상 pending→issue 복원 소비자 확인. 리뷰 워커 해제 완료.
