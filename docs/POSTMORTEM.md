@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-10-22 — AI 로딩 화면 뒤에서 키보드가 편집했다 — 시각적 덮개와 모달은 별개다
+
+- **영역**: `AI`, `컴포넌트`
+- **계열**: `라이브러리전제`
+- **그물**: `e2e`
+- **증상**: AI 생성 중 화면은 가려져도 Tab으로 배경 제목·본문을 바꿀 수 있어 나중에 도착한 결과가 사용자 편집을 덮었다. 모달 전환 후에는 즉시 종료 시 포커스가 사라지는 경계가 리뷰에서 드러났다.
+- **근본 원인**: 일반 div 오버레이에는 포커스 격리가 없었다. 복귀 대상을 `isConnected`만으로 판정하면 닫힘 애니메이션 중인 Dialog 입력창도 유효해 보이지만 곧 DOM에서 제거된다.
+- **재발 방지**: AI 세 표면은 공용 Radix modal로 격리한다. 포커스 복귀 시 `[role=dialog][data-state=closed]` 조상을 제외하고 안정된 탭 버튼으로 폴백한다. jsdom에서 닫히는 Dialog가 아직 연결된 순간을 결정적으로 재현하고 e2e에서는 실제 Tab·Shift+Tab·좌표 클릭 뒤 원문 유지와 완료/중단/실패 후 실제 타이핑을 단언한다. 즉시 mock 응답만으로 300ms 경계를 검증했다고 보지 않는다.
+- **관련**: `src/sidepanel/components/AiLoadingOverlay.tsx`, `src/sidepanel/App.tsx`, `src/sidepanel/components/__tests__/AiLoadingOverlay.test.tsx`, `e2e/ai-loading-overlay.spec.ts`
+
+---
+
 ## 2026-10-22 — 초안 저장 실패 뒤 pending 원본까지 지웠다 — 완료된 Promise가 성공한 저장은 아니다
 
 - **영역**: `store`, `미디어`
