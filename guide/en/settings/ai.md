@@ -58,6 +58,8 @@ BugShot picks the AI for you, in this order — you rarely have to think about i
 
 > Chrome's built-in AI may not be offered depending on your browser version and device. For something more reliable, connecting your own LLM is the safer bet.
 
+> If you see **App settings were reset**, saved preferences could not be read, so app settings and the AI connection were reset. Choose your preferences again in Settings and reconnect AI. This is separate from an integration-account settings reset.
+
 ## Two features it turns on
 
 Once AI is ready, two features become available.
