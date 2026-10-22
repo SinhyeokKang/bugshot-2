@@ -151,6 +151,22 @@ describe("real useAI to repro native integration", () => {
     expect(native.destroy).toHaveBeenCalledTimes(1);
     expect(api.create).toHaveBeenCalledTimes(1);
   });
+  it("keeps a successful response when inference settles before a readiness recheck", async () => {
+    const { api, native, response } = nativeAPI();
+    const { result, applied, setLoading } = reproHarness();
+    await waitFor(() => expect(native.prompt).toHaveBeenCalledTimes(1));
+    const probe = deferred<string>();
+    api.availability.mockReturnValueOnce(probe.promise);
+    act(() => { settings.setState({ locale: "ja" }); });
+    expect(result.current.ai.status).toBe("checking");
+    await act(async () => { response.resolve('{"stepsToReproduce":"Keep this result"}'); });
+    await act(async () => { probe.resolve("available"); });
+    expect(applied).toHaveBeenCalledTimes(1);
+    expect(result.current.draft.sections.stepsToReproduce).toBe("Keep this result");
+    expect(setLoading).toHaveBeenLastCalledWith(false);
+    expect(native.destroy).toHaveBeenCalledTimes(1);
+    expect(api.create).toHaveBeenCalledTimes(1);
+  });
   it("never applies an explicitly cancelled late native response", async () => {
     const { native, response } = nativeAPI();
     const { applied, setLoading, cancel } = reproHarness();
