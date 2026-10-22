@@ -20,7 +20,7 @@
 |---|---|---|---|---|
 | A settings | 1 | settings-ui-store, 새 app-settings 저장/동기화 leaf, main.tsx 및 해당 테스트, 설정 복구 안내 i18n, App 초기화 안내 effect | App effect만 C 통합 뒤 | 리뷰 수정 중 |
 | B blobs | 2 | editor-store, blob 저장 회귀 테스트 | 없음 | dev 통합 완료 |
-| C overlay | 3 | App.tsx, AI overlay 접근성 컴포넌트/테스트, 관련 e2e | 없음 | 구현 중 |
+| C overlay | 3 | App.tsx, AI overlay 접근성 컴포넌트/테스트, 관련 e2e | 없음 | dev 통합 완료 |
 | D1 native-cancel | 6 | ai-provider Chrome signal 경로, generateReproPrefill, 관련 테스트 | 없음 | 배정 준비 |
 | D2 chrome-ai | 4–5 | useAI, ai-provider 언어/readiness, compact prompt, AI 설정 UI, i18n ai 사전 및 테스트/e2e | A·C·D1 통합, 언어 결정 | 대기 |
 
@@ -55,3 +55,6 @@ A/B/C 최초 소유 파일은 서로 겹치지 않아 병렬 실행했다. A 리
 - 런타임 사전 확인: Ego Chrome 154에 스토어판 BugShot 1.7.61만 ENABLED(`FROM_STORE`), 개발판 없음. 새 탭에서 LanguageModel 함수는 존재하지만 availability 조회는 15초 timeout이어서 모델 준비/언어 지원을 확인했다고 보지 않는다. 조회만 했으며 모델 생성·다운로드는 실행하지 않았다. 사전 확인용 공간은 정리했다.
 - B 완료: 원본 `15e71dd4`·`eb872fe7` → dev `886d6707`·`1fd0f382`. targeted 10 red→225 green, typecheck/sync exit0, 제한 전체 테스트 471 files·9196 passed·2 skipped(exit0). 초기 dummy env 누락과 병렬 timeout 실패 뒤 제한 재검증. 독립 리뷰 red/yellow0. 실 Chrome quota 고갈은 미실행이며 같은 탭 복원 소비자 대조와 false-save 계약 테스트가 수용 근거다. worker 해제, tracked clean 및 git cherry `+` 0 확인.
 - D1: `task_6fcb80efad4d` / `ctx_aa49abdb2517`, `audit-native-cancel`. Codex 기본 모델·effort 상속, ready/input_accepted/turn_started 확인.
+- C 완료: `5745fafd`·`0afef393`·`0eb777a8`·`88f3ca92` → dev `a206e0a6`·`6e9a58b8`·`843d8ff6`·`7c25e38b`. typecheck/sync exit0, 전체 472 files·9189 passed·2 skipped(exit0), draft/styling e2e 5개 2회 연속 exit0. 빠른 종료는 jsdom red→green, 실제 video-triggered repro·실 모델·픽셀/스크린리더는 미검증. A에게 C 통합 후 rebase/App effect 편집 신호 전달.
+- C worker-release 결과는 `retained / user_takeover`다. 사용자 인계된 터미널·worktree를 닫거나 제거하지 않는다. B worker/worktree는 완료 증거 보존 후 정리했다.
+- B 통합 직후 root typecheck/sync exit0. 전체 통합 게이트는 A·C·D1/D2 반영 뒤 실행한다.
