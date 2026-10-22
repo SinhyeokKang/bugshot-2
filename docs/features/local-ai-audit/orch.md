@@ -18,14 +18,14 @@
 
 | 배치 | 항목 | 소유 파일 | 선행 | 상태 |
 |---|---|---|---|---|
-| A settings | 1 | settings-ui-store, 새 app-settings 저장/동기화 leaf, main.tsx 및 해당 테스트 | 없음 | 구현 중 |
+| A settings | 1 | settings-ui-store, 새 app-settings 저장/동기화 leaf, main.tsx 및 해당 테스트, 설정 복구 안내 i18n, App 초기화 안내 effect | App effect만 C 통합 뒤 | 리뷰 수정 중 |
 | B blobs | 2 | editor-store, blob 저장 회귀 테스트 | 없음 | 구현·독립 리뷰 중 |
 | C overlay | 3 | App.tsx, AI overlay 접근성 컴포넌트/테스트, 관련 e2e | 없음 | 구현 중 |
 | D chrome-ai | 4–6 | useAI, ai-provider, compact prompt, 재현 생성, AI 설정 UI, i18n ai 사전 및 테스트/e2e | A·C 통합, 언어 결정 | 대기 |
 
 ## 겹침·순서
 
-A/B/C 소유 파일은 서로 겹치지 않으며 병렬 실행한다. D는 UI와 settings 소비처를 건드리므로 A/C 뒤에 실행한다. 모든 배치에서 CLAUDE.md·AGENTS.md·스킬·ARCHITECTURE·DIRECTORY·POSTMORTEM·coverage baseline·계획 문서는 편집 금지이며 필요한 갱신 내용을 인계한다. i18n은 D만 소유한다. 예기치 않은 파일 겹침은 수정 전에 지휘자에게 보고한다.
+A/B/C 최초 소유 파일은 서로 겹치지 않아 병렬 실행했다. A 리뷰에서 추가된 App 초기화 안내 effect는 C 통합 후 rebase 신호를 받고 수정한다. A 설정 복구 안내 i18n도 D보다 먼저 통합한다. D는 UI와 settings 소비처를 건드리므로 A/C 뒤에 실행한다. 모든 배치에서 CLAUDE.md·AGENTS.md·스킬·ARCHITECTURE·DIRECTORY·POSTMORTEM·coverage baseline·계획 문서는 편집 금지이며 필요한 갱신 내용을 인계한다. 예기치 않은 파일 겹침은 수정 전에 지휘자에게 보고한다.
 
 ## 검증·통합 기록
 
@@ -44,3 +44,6 @@ A/B/C 소유 파일은 서로 겹치지 않으며 병렬 실행한다. D는 UI�
 - B 테스트 커밋 `15e71dd4` 보고 후 독립 DataFlow/CodeHealth/CTO 리뷰를 별도 Orca 워커에 배정했다. 전체 게이트와 병행한다.
 - D 설계 검수 완료: CPO(스타일링 언어 계약), CDO(짧은 높이 스크롤·hidden 탭 재활성 조회), QA(세 표면 focus 종료·실 useAI/repro 통합·Chrome mock fixture), CTO(모델 제거 후 일반 생성의 사전 availability 재확인) 권장을 계획에 반영했다. 기존 승인된 수정 범위의 구체화이며 새 제품 결정은 한국어 정책 한 건뿐이다.
 - B 독립 리뷰 `ctx_adb8336ab4cf`: red/yellow 0, 로그 issue→pending·영상 pending→issue 복원 소비자 확인. 리뷰 워커 해제 완료.
+- A 독립 리뷰 `ctx_6cf8abd15028`: 손상된 저장값 때문에 모든 후속 저장이 실패하는 문제, 동시 reorder 시 오래된 인덱스로 다른 섹션을 이동하는 문제를 발견해 소유 워커에 수정 요청. 리뷰 워커 해제 완료.
+- C 독립 리뷰 `ctx_693483ce5890`: 닫히는 Dialog 애니메이션 중 AI가 즉시 종료되면 곧 제거될 입력창으로 포커스를 복원하는 문제 발견. 회귀 테스트 `0afef393` red→green 보고 후 재리뷰 배정. 첫 리뷰 워커 해제 완료.
+- 병렬 전체 테스트의 자원 경합과 timeout 보고에 따라 후속 실행은 `pnpm test --maxWorkers=2`로 제한한다. 실패 결과는 보존하며 제한 실행의 종료 코드로 검증한다.
