@@ -19,7 +19,7 @@
 | 배치 | 항목 | 소유 파일 | 선행 | 상태 |
 |---|---|---|---|---|
 | A settings | 1 | settings-ui-store, 새 app-settings 저장/동기화 leaf, main.tsx 및 해당 테스트, 설정 복구 안내 i18n, App 초기화 안내 effect | App effect만 C 통합 뒤 | 리뷰 수정 중 |
-| B blobs | 2 | editor-store, blob 저장 회귀 테스트 | 없음 | 구현·독립 리뷰 중 |
+| B blobs | 2 | editor-store, blob 저장 회귀 테스트 | 없음 | dev 통합 완료 |
 | C overlay | 3 | App.tsx, AI overlay 접근성 컴포넌트/테스트, 관련 e2e | 없음 | 구현 중 |
 | D1 native-cancel | 6 | ai-provider Chrome signal 경로, generateReproPrefill, 관련 테스트 | 없음 | 배정 준비 |
 | D2 chrome-ai | 4–5 | useAI, ai-provider 언어/readiness, compact prompt, AI 설정 UI, i18n ai 사전 및 테스트/e2e | A·C·D1 통합, 언어 결정 | 대기 |
@@ -53,3 +53,5 @@ A/B/C 최초 소유 파일은 서로 겹치지 않아 병렬 실행했다. A 리
 - C 재리뷰 `ctx_88a98b47a152`: 이전 P2 해결·red 0. draft e2e 이외 표면의 브라우저 증거와 빠른 응답 타이밍의 한계를 구분하도록 요청했고 styling e2e를 보강한다. 리뷰 워커 해제 완료.
 - A 재리뷰 `ctx_eb23404e1797`: adapter 손상 복구·reorder 수정본 검수 중. App 안내 effect는 C 통합 대기 중이라는 선행 조건을 명시했다.
 - 런타임 사전 확인: Ego Chrome 154에 스토어판 BugShot 1.7.61만 ENABLED(`FROM_STORE`), 개발판 없음. 새 탭에서 LanguageModel 함수는 존재하지만 availability 조회는 15초 timeout이어서 모델 준비/언어 지원을 확인했다고 보지 않는다. 조회만 했으며 모델 생성·다운로드는 실행하지 않았다. 사전 확인용 공간은 정리했다.
+- B 완료: 원본 `15e71dd4`·`eb872fe7` → dev `886d6707`·`1fd0f382`. targeted 10 red→225 green, typecheck/sync exit0, 제한 전체 테스트 471 files·9196 passed·2 skipped(exit0). 초기 dummy env 누락과 병렬 timeout 실패 뒤 제한 재검증. 독립 리뷰 red/yellow0. 실 Chrome quota 고갈은 미실행이며 같은 탭 복원 소비자 대조와 false-save 계약 테스트가 수용 근거다. worker 해제, tracked clean 및 git cherry `+` 0 확인.
+- D1: `task_6fcb80efad4d` / `ctx_aa49abdb2517`, `audit-native-cancel`. Codex 기본 모델·effort 상속, ready/input_accepted/turn_started 확인.
