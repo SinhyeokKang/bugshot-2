@@ -63,3 +63,7 @@ A/B/C 최초 소유 파일은 서로 겹치지 않아 병렬 실행했다. A 리
 - D1 완료: 원본 `1f535898`·`93594f6e`·`704d5407`·`8eb2b3cc` → dev `a8f531b1`·`84657f0e`·`22c8d5e7`·`8795cb78`. 최초 red7→green180, 전체 471 files·9193 passed·2 skipped(exit0), 리뷰 보강 mutation red1→최종 targeted181, typecheck/sync exit0. native prompt signal 전달·late-create cleanup·멱등 destroy 검증. create 자체 즉시 중단 및 실제 모델 연산 중단은 미검증. 리뷰 yellow는 회귀 보강과 문서/주석 정합으로 해소. worker 해제, tracked clean/git cherry `+`0 확인.
 - A 완료: 원본 `73257206`·`ab9cada8`·`f8dc5d69`·`2a4668e5`·`89787c02` → dev `2661c022`·`b3dc93fd`·`0d5e9794`·`cd4c3f73`·`1c72c606`. 최초9/복구5/동일 reorder1/실 알림2 red→green. 최종 전체 473 files·9218 passed·2 skipped(exit0), typecheck/sync/i18n21 exit0. store 재리뷰100, App 최종 재리뷰11 및 실제 Sonner StrictMode 보조 하네스 통과. Toaster를 AppContent보다 앞서 상시 마운트해 초기 안내 유실 해결. 실제 Chrome 다중 창/픽셀 및 문서 reload 후 알림 재생은 검증 범위 밖. worker 해제, tracked clean/git cherry `+`0 확인.
 - A/B/C/D1 통합본 root typecheck/sync exit0, `pnpm test --maxWorkers=2 --minWorkers=1` exit0: 473 files·9227 passed·2 skipped(81.97s). D2는 한국어 정책 답변 대기이며 아직 구현·최종 push·CI·확장 빌드를 실행하지 않았다.
+
+## D2 재개 — 한국어 출력 요구 확정
+
+사용자: “한국어로 출력을 받아야하는 경우, 그렇게 출력이 되어야 함”. 영어 대체 성공은 금지하며, Chrome이 지원하지 않는 요청 언어는 생성·다운로드를 막고 외부 AI 연결을 안내한다. 정책 질문은 해소됐으며 기존 전체 수정 승인으로 D2를 재개한다. D1 취소 수정과 A/C 통합을 유지한다. 지휘자는 계획·문서, D2 워커는 제품 코드·테스트를 소유한다.

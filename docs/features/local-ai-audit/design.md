@@ -27,7 +27,7 @@ interface ChromeAIState {
 // prepare(): 사용자 클릭에서만 create 호출; 공유된 진행 중 Promise 재사용.
 ```
 
-availability/create는 동일한 expectedInputs/expectedOutputs 설정을 사용한다. 시스템은 영어이며 지원되는 UI 입력·출력 언어를 선언한다. 한국어 처리의 최종 정책은 prd의 사용자 결정 후 반영한다. 언어별 상태가 다른 경우 이전 언어의 available을 재사용하지 않는다. obsolete probe가 최신 상태를 덮지 않도록 generation을 사용한다.
+availability/create는 동일한 expectedInputs/expectedOutputs 설정을 사용한다. 시스템은 영어이며 지원되는 UI 입력·출력 언어를 선언한다. 한국어가 요청되면 영어 폴백을 금지한다. Chrome 미지원 언어는 생성과 다운로드를 막고 외부 AI 연결 안내를 표시한다. compact의 UI 로케일과 rich의 aiLanguage 계약을 유지한다. 언어별 상태가 다른 경우 이전 언어의 available을 재사용하지 않는다. obsolete probe가 최신 상태를 덮지 않도록 generation을 사용한다.
 
 일반 생성용 createSession/generate는 create 직전 동일 옵션으로 availability를 재확인한다. available/readily가 아니면 native create 없이 준비 상태를 갱신하고 사용자가 설정에서 준비하도록 안내한다. 오래된 available 캐시 뒤 모델이 제거된 경우 자동 재현 effect가 다운로드용 create를 호출하지 않는 회귀 테스트를 둔다. prepare 클릭 경로만 이 가드를 건너 모델을 준비한다.
 
