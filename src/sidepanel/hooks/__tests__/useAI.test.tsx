@@ -90,6 +90,27 @@ describe("shared Chrome useAI boundary", () => {
     expect(result.current.chromeAI.unsupportedLanguage).toBe(true);
     expect(native.destroy).toHaveBeenCalledTimes(1);
   });
+  it("shares the actual preparation across supported locale changes", async () => {
+    const { api, native } = nativeAPI();
+    const download = deferred<typeof native>();
+    api.availability.mockResolvedValue("downloadable");
+    api.create.mockReturnValue(download.promise);
+    const { result } = renderHook(() => useAI());
+    await waitFor(() => expect(result.current.chromeAI.availability).toBe("downloadable"));
+    let first!: Promise<void>;
+    act(() => { first = result.current.prepareChromeAI(); });
+    act(() => { settings.setState({ locale: "ja" }); });
+    let second!: Promise<void>;
+    act(() => { second = result.current.prepareChromeAI(); });
+    // Always settle the native operation, even while testing the broken path.
+    const count = api.create.mock.calls.length;
+    api.availability.mockResolvedValue("available");
+    await act(async () => { download.resolve(native); await Promise.all([first, second]); });
+    expect(count).toBe(1);
+    await waitFor(() => expect(result.current.status).toBe("available"));
+    expect(api.availability.mock.calls.at(-1)?.[0].expectedOutputs).toEqual([{ type: "text", languages: ["ja"] }]);
+    expect(native.destroy).toHaveBeenCalledTimes(1);
+  });
   it("discards an old probe after language change", async () => {
     const { api } = nativeAPI();
     const old = deferred<string>();
@@ -104,6 +125,15 @@ describe("shared Chrome useAI boundary", () => {
 });
 
 describe("real useAI to repro native integration", () => {
+  it("applies an immediate native response after its fresh readiness check", async () => {
+    const { native } = nativeAPI();
+    native.prompt.mockResolvedValue('{"stepsToReproduce":"Immediate"}');
+    const { result, applied, setLoading } = reproHarness();
+    await waitFor(() => expect(result.current.draft.sections.stepsToReproduce).toBe("Immediate"));
+    expect(applied).toHaveBeenCalledTimes(1);
+    expect(setLoading).toHaveBeenLastCalledWith(false);
+    expect(native.destroy).toHaveBeenCalledTimes(1);
+  });
   it("readopts one deferred inference after locale/checking/available transitions", async () => {
     const { api, native, response } = nativeAPI();
     const { result, applied, setLoading } = reproHarness();
