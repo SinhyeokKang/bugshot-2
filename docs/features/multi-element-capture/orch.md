@@ -24,8 +24,8 @@
 |---|---|---|---|---|---|---|
 | A core | Task 1–3 | types/element-shot.ts, lib/elementShots.ts·elementShotBudget.ts, editor/issues/blob stores, picker-control, usePickerMessages, useEditorSessionSync, liteSnapshot, useIssueImages, background tab-bindings/index, 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 저장 불변식 집중 | typecheck/test/sync, 독립 리뷰 | 통합 완료 |
 | B viewer | Task 6 중 로그 뷰어 계약 | types/log-viewer.ts, log-viewer/**, lib/buildLogsHtml.ts 및 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 하위호환 | typecheck/test/sync, 독립 리뷰 | 통합 완료 |
-| C flow | Task 4–6 나머지 및 노출 e2e | DraftingPanel/IssueTab/PreviewPanel/DraftDetailDialog/AiDraftDialog, ElementShotMedia, buildEditorCapture/buildMarkdownContext/buildReportData/buildCaptureFiles, submissionRecovery/uploadPayload/submissionAdapter/submitTo*, i18n, 해당 테스트와 e2e. A/B 계약 소비에 필요한 변경은 선행 통합 후만 | A+B 통합 | Codex 사용자 기본값 상속 / 동일; UI부터 복구까지 | typecheck/test/sync, e2e 연속 통과, 독립 리뷰 | 실행 중 |
-| D validation | Task 7 | e2e 보강, guide ko/en 및 assets 계획, 가이드 문서 | C 통합 | Codex 사용자 기본값 상속 / 동일; 출력 검증 | e2e/가이드 대칭, 독립 리뷰 | 예정 |
+| C flow | Task 4–6 나머지 및 노출 e2e | DraftingPanel/IssueTab/PreviewPanel/DraftDetailDialog/AiDraftDialog, ElementShotMedia, buildEditorCapture/buildMarkdownContext/buildReportData/buildCaptureFiles, submissionRecovery/uploadPayload/submissionAdapter/submitTo*, i18n, 해당 테스트와 e2e. A/B 계약 소비에 필요한 변경은 선행 통합 후만 | A+B 통합 | Codex 사용자 기본값 상속 / 동일; UI부터 복구까지 | typecheck/test/sync, e2e 연속 통과, 독립 리뷰 | 통합 완료 |
+| D validation | Task 7 | e2e 보강, guide ko/en 및 assets 계획, 가이드 문서 | C 통합 | Codex 사용자 기본값 상속 / 동일; 출력 검증 | e2e/가이드 대칭, 독립 리뷰 | 착수 준비 |
 | R runtime | 모든 인계의 비결정적 항목 | 주 체크아웃 dist에서 read-only 검증, guide-shots 자산만 | A–D 통합 + build | Codex 사용자 기본값 상속 / 동일 | 수동 픽셀·iframe·좁은 패널, 이슈 라우팅 | 예정 |
 
 핫스팟 소유: stores/background는 A→C 순차, UI i18n은 C, log-viewer 사전은 B→C 순차. 메시지 union 신설 없음. bundleBoundary/locale wrapper/coverage 목록은 필요 시 담당 배치가 정확한 이유를 인계한다. ARCHITECTURE/DIRECTORY/DESIGN/POSTMORTEM은 워커 제안만 받고 지휘자가 통합 시 문서별 커밋한다. 워커는 원본 계획과 orch.md를 수정하지 않는다.
@@ -115,3 +115,5 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - C fix1 task `task_278c1ed3cd21`, dispatch `ctx_4fce6c407157`, 동일 mec-flow. 시작 응답의 unobserved는 실제 terminal 작업으로 live 확인했다. 지휘자는 검증된 기존 C 계약에 맞춰 ARCHITECTURE/DIRECTORY/DESIGN/README/PERMISSION/privacy ko/en을 갱신하고 회고 2건을 기록했다(형식 검사 exit 0; 컴포넌트×라이브러리전제 20건·어댑터×미검증단언 15건 반복 축). 이 문서들은 아직 원격으로 push하지 않으며 C 수정·재리뷰·통합과 D 가이드 완료 뒤 신선도를 다시 확인한다.
 
 - C fix1 `8ef2e9e3`·`ddaa9b84`·`3fcbae2a`·`5371d96b`: 저장 Blob URL 다운로드와 상세 로그 다운로드를 연결하고 실제 bytes/MIME/순번명·세 HTML 출력의 이미지 동등성·누락 오류를 검증했다. 전체 9357 pass/2 skip, typecheck/mirror exit 0, e2e 6/6 연속 2회. 인계 보존 및 fix terminal release 후 독립 재리뷰로 이동한다.
+
+- C 재리뷰 task `task_48cde033659e`, dispatch `ctx_819ea375793b`: red0/yellow0. 전체 17 commits를 dev `635eda56`..`29e6711f`로 통합했다. 리뷰 terminal release와 인계 보존 뒤 mec-flow tracked clean·git cherry +0을 확인하고 워크트리를 제거했다. typecheck/mirror exit 0, 통합 전체 테스트 진행. D는 최신 dev에서 검증 항목 근거 매핑·가이드·필요 e2e 보강을 담당하며 C 전체 문서/가이드가 일치한 뒤 push한다. e2e 목록은 92 files/453 tests(`pnpm test:e2e --list`, exit0).
