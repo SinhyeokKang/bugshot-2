@@ -91,3 +91,10 @@ it("preserves all old bytes if a later image write fails", async () => {
   expect(await (await getImageBlob("shots", previous.elementShots![0].imageSlot))?.text()).toBe("a");
   expect(await (await getImageBlob("shots", previous.elementShots![1].imageSlot))?.text()).toBe("b");
 });
+it("prepares ancillary blobs inside the issue operation lock", async () => {
+  const prepare = vi.fn(async () => {
+    await expect(saveElementShotDraft(record, [shot("b")])).rejects.toThrow();
+  });
+  await saveElementShotDraft(record, [shot("a")], () => true, prepare);
+  expect(prepare).toHaveBeenCalledTimes(1);
+});

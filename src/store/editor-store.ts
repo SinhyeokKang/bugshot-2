@@ -1066,27 +1066,29 @@ export const useEditorStore = create<EditorState>((commit, get) => {
     commit({ elementShotSaving: true });
     const base = get();
     const id = state.currentIssueId ?? newId("issue");
+    const targetTabId = state.target.tabId;
     try {
       await saveEditorSession(sessionKey(state.target.tabId), () => editorSnapshot(get()));
       if (get() !== base) return false;
       const logs = selectAttachedLogs(state);
-      const writes = [
-        logs.networkLog ? saveNetworkLog(id, logs.networkLog) : true,
-        logs.consoleLog ? saveConsoleLog(id, logs.consoleLog) : true,
-        logs.actionLog ? saveActionLog(id, logs.actionLog) : true,
-      ];
-      if ((await Promise.all(writes)).some(ok => !ok) || get() !== base) throw new Error("Element draft save interrupted");
-      for (const attachment of state.attachments) {
-        const blob = await getAttachmentBlob(pendingKey(state.target.tabId), attachment.id)
-          ?? await getAttachmentBlob(id, attachment.id);
-        if (!blob || !await saveAttachmentBlob(id, attachment.id, blob)) throw new Error("Missing attachment");
-      }
       await saveElementShotDraft({
         id, status: "draft", platform: state.targetPlatform, captureMode: "screenshot",
         title: state.draft.title, draft: { ...state.draft }, createdAt: Date.now(), updatedAt: Date.now(),
         pageUrl: selectPageUrl(state), pageTitle: state.target.title, snapshot: { before: true, after: false },
         apiHostsDerived: state.apiHostsDerived, attachments: state.attachments, ...logBlobKeys(id, logs),
-      }, state.elementShots, () => get() === base);
+      }, state.elementShots, () => get() === base, async () => {
+        const writes = [
+          logs.networkLog ? saveNetworkLog(id, logs.networkLog) : true,
+          logs.consoleLog ? saveConsoleLog(id, logs.consoleLog) : true,
+          logs.actionLog ? saveActionLog(id, logs.actionLog) : true,
+        ];
+        if ((await Promise.all(writes)).some(ok => !ok) || get() !== base) throw new Error("Element draft save interrupted");
+        for (const attachment of state.attachments) {
+          const blob = await getAttachmentBlob(pendingKey(targetTabId), attachment.id)
+            ?? await getAttachmentBlob(id, attachment.id);
+          if (!blob || !await saveAttachmentBlob(id, attachment.id, blob)) throw new Error("Missing attachment");
+        }
+      });
       if (get() !== base) return false;
       commit({ currentIssueId: id, phase: "previewing" });
       await saveEditorSession(sessionKey(state.target.tabId), () => editorSnapshot(get())).catch(() => onSessionSaveExhausted.fire());

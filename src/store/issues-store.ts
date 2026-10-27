@@ -818,6 +818,7 @@ export async function saveElementShotDraft(
   record: IssueRecord,
   shots: readonly ElementShot[],
   isCurrent: () => boolean = () => true,
+  prepareAncillary?: () => Promise<void>,
 ): Promise<void> {
   if (!shots.length || shots.some(shot => !elementShotImage(shot))) throw new Error("Missing element capture image");
   await withIssueOperationLock(record.id, async () => navigator.locks.request("bugshot-element-shot-drafts", { mode: "exclusive" }, async (lock) => {
@@ -830,6 +831,8 @@ export async function saveElementShotDraft(
     const old = persisted.find(issue => issue.id === record.id);
     if (old && (old.status !== "draft" || old.submissionRecoveryId)) throw new IssueAlreadySubmittedError(old.key);
     if (await readSubmissionRecovery(record.id)) throw new IssueAlreadySubmittedError();
+    if (!isCurrent()) throw new Error("Stale element capture save");
+    await prepareAncillary?.();
     const revision = crypto.randomUUID();
     const saved: SavedElementShot[] = [];
     for (const shot of shots) {
