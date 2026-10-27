@@ -109,3 +109,5 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - C continuation `b836e2ed`: 9개 실제 어댑터 순서/본문 참조, aggregate 및 create-request 전송 예산, 실패 슬롯 재첨부·Slack 원본 보존 테스트 추가. 중간 전체 게이트 487 files/9338 pass/2 skip, typecheck/mirror exit 0. 브라우저 핵심 4건 통과 후 확장 시나리오에서 injection 실패 AlertDialog 닫힘 뒤 포커스 유실을 재현했다. e2e-write 수정 경계를 지켜 일시 중단하고 지휘자가 C 구현 단계 복귀를 승인했다. 최소 수정·회귀 테스트 뒤 e2e-write로 돌아가 연속 통과해야 하며 아직 C 통합 승인은 아니다.
 
 - C 구현 완료 인계 `5b609ed5`(13 commits): 최종 487 files/9352 pass/2 skip, typecheck/mirror exit 0, 최종 build:e2e 뒤 6/6 두 번 연속 통과. 추가 자체 검토의 Jira prepared MIME 확장자 회귀도 red→green 수정했다. 인계 보존 및 구현 terminal release. 독립 리뷰가 ceecf86c 이후 전체 C diff·출력/용량/복구/포커스·결정적 테스트 누락을 판정하며 통합은 그 뒤다.
+
+- C 독립 리뷰 task `task_79d7d54d48ce`, dispatch `ctx_3eb32c595845`: red 1/yellow 1. 저장 상세 blob URL을 data URL 전용 downloader에 넘겨 실패하며, 승인 설계의 상세 logs.html 다운로드 action이 누락됐다. C fix1이 실제 다운로드 bytes/MIME/파일명과 live/saved/submitted HTML 동등성을 테스트하고 수정한다. 독립 리뷰 terminal release 완료.
