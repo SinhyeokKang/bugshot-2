@@ -59,3 +59,24 @@ it.each([{ ok: false, error: "unknown_error" }, { error: "channel_not_found" }, 
   })).rejects.not.toMatchObject({ name: "SubmissionCreationRejectedError" });
   vi.unstubAllGlobals();
 });
+
+
+describe("element capture transport admission", () => {
+  const capture: SubmissionFile = { id: "capture:shot-a", kind: "capture", filename: "screenshot-1.jpg", contentType: "image/jpeg", dataUrl: "data:image/jpeg;base64,QUFB" };
+  it("counts transformed capture, embedded logs, inline and user bytes together before creation", () => {
+    const large = "data:application/octet-stream;base64," + "A".repeat(18 * 1024 * 1024);
+    const submissionFiles: SubmissionFile[] = [capture,
+      { id: "logs", kind: "logs", filename: "logs.zip", contentType: "application/zip", dataUrl: large },
+      { id: "inline:i", kind: "inline", filename: "inline-i.jpg", contentType: "image/jpeg", dataUrl: large },
+      { id: "user:u", kind: "user", filename: "screenshot-1.jpg", contentType: "application/octet-stream", dataUrl: large },
+    ];
+    expect(() => bindSubmissionFiles({ submissionFiles })).toThrow();
+  });
+  it("counts frozen bytes once and keeps ordered IDs when user filenames collide", () => {
+    const other = { ...capture, id: "capture:shot-b", filename: "screenshot-2.jpg" };
+    const result = bindSubmissionFiles({ submissionFiles: [capture, other, { ...capture, id: "user:u", kind: "user" as const }], images: [] });
+    expect(result.images?.map(f => [f.fileId, f.filename, f.dataUrl])).toEqual([
+      [capture.id, capture.filename, capture.dataUrl], [other.id, other.filename, other.dataUrl],
+    ]);
+  });
+});
