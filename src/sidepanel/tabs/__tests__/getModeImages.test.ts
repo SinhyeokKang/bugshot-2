@@ -205,3 +205,10 @@ describe("getModeImages — element 주석본(annotated ?? raw)", () => {
     ).toBeUndefined();
   });
 });
+
+it("passes annotated ordered element shots to the existing AI budget", () => {
+  expect(getModeImages({ ...EMPTY, elementShots: [
+    { id: "a", selector: "A", tagName: "DIV", viewport: { width: 1, height: 1 }, capturedAt: 1, raw: "A", annotated: null },
+    { id: "b", selector: "A", tagName: "DIV", viewport: { width: 1, height: 1 }, capturedAt: 2, raw: "B", annotated: "edited" },
+  ] }, "screenshot")).toEqual(["A", "edited"]);
+});

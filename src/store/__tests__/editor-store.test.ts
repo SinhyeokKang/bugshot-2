@@ -940,7 +940,7 @@ describe("onElementShot — 요소 선택 → drafting", () => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);
   });
 
-  it("screenshotRaw·viewport·shotSelector 세팅 + phase='drafting' + selection은 null 유지", () => {
+  it("publishes the first shot as an array and clears legacy media atomically", () => {
     useEditorStore.getState().startElementShot(target);
     useEditorStore
       .getState()
@@ -951,9 +951,14 @@ describe("onElementShot — 요소 선택 → drafting", () => {
       );
 
     const s = useEditorStore.getState();
-    expect(s.screenshotRaw).toBe("data:image/png;base64,X");
-    expect(s.screenshotViewport).toEqual({ width: 800, height: 600 });
-    expect(s.shotSelector).toEqual({ selector: "button.cta", tagName: "button" });
+    expect(s.elementShots).toEqual([expect.objectContaining({
+      id: expect.any(String), raw: "data:image/png;base64,X", annotated: null,
+      viewport: { width: 800, height: 600 }, selector: "button.cta", tagName: "button",
+    })]);
+    expect(s.elementShots![0].id).not.toBe("legacy");
+    expect(s.screenshotRaw).toBeNull();
+    expect(s.screenshotViewport).toBeNull();
+    expect(s.shotSelector).toBeNull();
     expect(s.phase).toBe("drafting");
     expect(s.selection).toBeNull();
   });
