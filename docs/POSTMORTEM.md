@@ -36,6 +36,30 @@
 
 ---
 
+## 2026-10-27 — 피커 복귀 포커스가 뒤늦게 닫힌 안내창에 덮였다
+
+- **영역**: `컴포넌트`, `e2e`
+- **계열**: `라이브러리전제`, `취소래치`
+- **그물**: `e2e`
+- **증상**: 다중 캡처 브라우저 검증에서 추가 피커 주입 실패 안내를 닫은 뒤 요소 추가 버튼의 포커스가 사라졌다.
+- **근본 원인**: 새 작성 화면의 복귀 effect 뒤에 전역 AlertDialog가 포커스를 가져가고, 닫힐 때 사라진 이전 대상을 복원했다. 언마운트된 추가 핸들러가 공유 복귀 ref를 지우는 경합도 있었다.
+- **재발 방지**: 복귀 ref는 살아 있는 화면만 정리하며 안내창 종료는 현재 screenshot 배열 drafting에만 포커스를 돌린다. 실패를 주입하고 실제 안내창을 닫은 뒤 최종 포커스·스크롤을 단언한다. 모달이 뜨기 전 잠깐의 포커스를 성공으로 세지 않는다.
+- **관련**: `src/sidepanel/App.tsx`, `src/sidepanel/tabs/DraftingPanel.tsx`, `e2e/multi-element-capture.spec.ts`
+
+---
+
+## 2026-10-27 — 배열 입력을 지원해도 말단 본문은 첫 이미지만 처리했다
+
+- **영역**: `어댑터`, `background`, `미디어`
+- **계열**: `미검증단언`, `드리프트`
+- **그물**: `unit`
+- **증상**: 다중 캡처 회귀 테스트에서 Notion은 첫 장만 업로드하고 Linear·ClickUp은 첫 장만 본문에 넣었다. Jira에서는 준비된 JPEG·PNG 파일의 본문 자리표시자가 남았다.
+- **근본 원인**: 공용 images 배열과 파일 생성 지원을 말단 빌더 순회까지 보장하는 것으로 오인했다. Jira 파서는 WebP만 인식했지만 prepared 파일명은 실제 MIME에 맞게 바뀌었다.
+- **재발 방지**: 9개 실제 어댑터에 A/B/A의 서로 다른 논리 ID·바이트와 동명 사용자 첨부를 주고 전송 파일과 본문 참조를 함께 단언한다. Jira는 최종 MIME 파일명으로 background 슬롯 확장과 실패 슬롯 재첨부까지 검증한다.
+- **관련**: `src/sidepanel/lib/__tests__/multiElementSubmission.test.ts`, `src/background/__tests__/jiraRetryScope.test.ts`, `src/lib/adf-sentinels.ts`, `src/sidepanel/lib/buildNotionIssueBody.ts`, `src/sidepanel/lib/buildLinearIssueBody.ts`, `src/sidepanel/lib/buildClickupIssueBody.ts`
+
+---
+
 ## 2026-10-27 — 저장 단계별 성공을 전체 확정 성공으로 오인했다
 
 - **영역**: `store`, `에디터`
