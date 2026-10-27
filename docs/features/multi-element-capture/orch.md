@@ -131,3 +131,6 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 
 - 사용자 UI 브리프 후 남은 always-visible 차이를 확인했다. D에 기존 StyleChangesTable 이미지 카드의 hover/focus 조건부 노출·카드 포커스·주석 제거/삭제 후 복귀까지 적용하도록 명시했다. 새 스타일·액션 행 없이 기존 ImageActions를 재사용한다.
 - P task `task_7551c0bab074`/dispatch `ctx_b8a63469e01d`: `824df929`·`5dc97c01`, 두 인스턴스 회귀 red→green 및 관련267개/typecheck/mirror 통과. 전체 테스트의 Jira OAuth env 누락 1건은 CI 더미 적용 후 해당71개 통과. terminal release 후 독립 리뷰 `ctx_0dc1aaf1a88e`로 전달했다.
+
+- P 독립 리뷰 `ctx_0dc1aaf1a88e`: red0/yellow0, dev `84cae118`·`ef69f523` 통합. 인계/리뷰 보존, tracked clean·git cherry +0 확인 후 terminal 및 mec-session 정리 완료. ARCHITECTURE/POSTMORTEM 저장 계약 반영.
+- D 최종 `30d384d1`까지 5 commits 인계: 기존 ImageActions + hover/focus 패턴, 가이드8페이지, 브라우저 회귀 보강. 최종 관련44개/typecheck/가이드 정적 검사 통과. 구현 terminal release 뒤 독립 리뷰 `ctx_b392a2374a4f` 진행. 전체59기준의 근거표에서 실제 PASS만 tasks 체크했으며 부분 매트릭스·최종 CI·실 화면/스크린샷은 자동 완료 처리하지 않는다.
