@@ -374,7 +374,12 @@ function AppContent() {
       />
 
       <AlertDialog open={pickerUnavailable} onOpenChange={setPickerUnavailable}>
-        <AlertDialogContent data-testid="picker-unavailable-dialog">
+        <AlertDialogContent data-testid="picker-unavailable-dialog" onCloseAutoFocus={(event) => {
+          const state = useEditorStore.getState();
+          if (state.phase !== "drafting" || state.captureMode !== "screenshot" || !state.elementShots) return;
+          const add = document.querySelector<HTMLButtonElement>('[data-testid="drafting-panel"] [data-testid="element-shot-add"]');
+          if (add) { event.preventDefault(); add.focus({ preventScroll: true }); }
+        }}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("app.pickerUnavailable.title")}</AlertDialogTitle>
             <AlertDialogDescription>
