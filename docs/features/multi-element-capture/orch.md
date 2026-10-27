@@ -83,3 +83,6 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - E 재푸시 `f4d2011f`: CI https://github.com/SinhyeokKang/bugshot-2/actions/runs/40438659040.
 
 - A 독립 리뷰 `ctx_2ec332cc078d`: red 3/yellow 0. 지연 confirm이 교체된 탭 상태를 이전 키에 저장, 전체 memory ID 보호로 다른 패널에서 삭제한 이슈 부활, rollback updatedAt이 메모리에 반영되지 않아 후속 write로 취소 버전 재선택 가능. A 수정 라운드1에 실제 저장값·병합 회귀 테스트와 함께 반환. 리뷰 터미널 release 완료.
+
+- A fix1: task `task_dcc44dd4bf09`, dispatch `ctx_67f98e701ac7`, 동일 mec-core에서 수정 중. 독립 재리뷰를 거쳐야 통합 가능.
+- E 재푸시 `f4d2011f`의 CI 40438659040 최종 success: verify 및 e2e 4샤드/e2e-gate 모두 green. 이는 중간 통합 커밋의 결과이며 전체 기능 완료 증거는 아니다.
