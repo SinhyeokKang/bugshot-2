@@ -100,3 +100,5 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - C 시작: task `task_0fec19836284`, dispatch `ctx_b82ab261d7f8`, mec-flow, base `ceecf86c`, handle `term_e6dbde96-6661-41fc-a779-97659305c0d9`. A/B 최종 계약과 수정 불변식, append frame/hold 실제 경계 검증 의무를 브리프에 전달했다.
 
 - A/B 통합 커밋 `ceecf86c`의 CI 40440826117 최종 success: verify 및 e2e 4샤드/e2e-gate green. C 이후 최종 SHA CI는 별도 확인한다.
+
+- C 원 워커 context 약 82%에서 안전한 중간 커밋/인계 후 같은 task·worktree를 fresh continuation으로 넘기도록 지시. 미완 attempt는 성공 처리하지 않으며 전체 C 검증 전 dev 통합 금지. 기존 자료와 남은 9개 어댑터·최종 요청 크기·append token/hold·e2e를 계속 수행한다.
