@@ -113,3 +113,5 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - C 독립 리뷰 task `task_79d7d54d48ce`, dispatch `ctx_3eb32c595845`: red 1/yellow 1. 저장 상세 blob URL을 data URL 전용 downloader에 넘겨 실패하며, 승인 설계의 상세 logs.html 다운로드 action이 누락됐다. C fix1이 실제 다운로드 bytes/MIME/파일명과 live/saved/submitted HTML 동등성을 테스트하고 수정한다. 독립 리뷰 terminal release 완료.
 
 - C fix1 task `task_278c1ed3cd21`, dispatch `ctx_4fce6c407157`, 동일 mec-flow. 시작 응답의 unobserved는 실제 terminal 작업으로 live 확인했다. 지휘자는 검증된 기존 C 계약에 맞춰 ARCHITECTURE/DIRECTORY/DESIGN/README/PERMISSION/privacy ko/en을 갱신하고 회고 2건을 기록했다(형식 검사 exit 0; 컴포넌트×라이브러리전제 20건·어댑터×미검증단언 15건 반복 축). 이 문서들은 아직 원격으로 push하지 않으며 C 수정·재리뷰·통합과 D 가이드 완료 뒤 신선도를 다시 확인한다.
+
+- C fix1 `8ef2e9e3`·`ddaa9b84`·`3fcbae2a`·`5371d96b`: 저장 Blob URL 다운로드와 상세 로그 다운로드를 연결하고 실제 bytes/MIME/순번명·세 HTML 출력의 이미지 동등성·누락 오류를 검증했다. 전체 9357 pass/2 skip, typecheck/mirror exit 0, e2e 6/6 연속 2회. 인계 보존 및 fix terminal release 후 독립 재리뷰로 이동한다.
