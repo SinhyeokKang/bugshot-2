@@ -33,7 +33,7 @@ export function ImageViewer({ src, stacked = false, issueTitle, issueKey, issueU
         />
       </div>
 
-      <IssueTitleOverlay issueTitle={issueTitle} issueKey={issueKey} issueUrl={issueUrl} />
+      {!stacked && <IssueTitleOverlay issueTitle={issueTitle} issueKey={issueKey} issueUrl={issueUrl} />}
     </div>
   );
 }

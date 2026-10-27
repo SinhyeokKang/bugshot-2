@@ -17,6 +17,7 @@ import type { TimelineMarker } from "./markers";
 import { buildErrorMarkers } from "@/sidepanel/30s-replay/trim-markers";
 import { VideoPlayer, type VideoPlayerHandle } from "./components/VideoPlayer";
 import { TimelinePanel } from "./components/TimelinePanel";
+import { IssueTitleOverlay } from "./components/IssueTitleOverlay";
 import { ImageViewer } from "./components/ImageViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -353,18 +354,26 @@ export function App({ data }: AppProps) {
                   issueUrl={data.meta.issueUrl}
                 />
               ) : (
-                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-black">
-                  {screenshots.map((screenshot, index) => (
-                    <ImageViewer
-                      key={index}
-                      src={screenshot.dataUrl}
-                      stacked
-                      issueTitle={data.meta.issueTitle}
-                      issueKey={data.meta.issueKey}
-                      issueUrl={data.meta.issueUrl}
-                    />
-                  ))}
-                </div>
+                <>
+                  <IssueTitleOverlay
+                    variant="static"
+                    issueTitle={data.meta.issueTitle}
+                    issueKey={data.meta.issueKey}
+                    issueUrl={data.meta.issueUrl}
+                  />
+                  <div data-testid="screenshot-list" className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-black">
+                    {screenshots.map((screenshot, index) => (
+                      <ImageViewer
+                        key={index}
+                        src={screenshot.dataUrl}
+                        stacked
+                        issueTitle={data.meta.issueTitle}
+                        issueKey={data.meta.issueKey}
+                        issueUrl={data.meta.issueUrl}
+                      />
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}

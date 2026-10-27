@@ -46,6 +46,10 @@ test.describe("static capture geometry", () => {
         const first = await page.locator("img").first().boundingBox();
         return h!.y + h!.height <= first!.y;
       }).toBe(true);
+      const headerBox = await header.boundingBox();
+      const linkBox = await header.getByRole("link").boundingBox();
+      expect(linkBox!.y).toBeGreaterThanOrEqual(headerBox!.y);
+      expect(linkBox!.y + linkBox!.height).toBeLessThanOrEqual(headerBox!.y + headerBox!.height);
       const metrics = await list.evaluate((el) => ({
         width: el.clientWidth, height: el.clientHeight, scrollHeight: el.scrollHeight,
         rows: [...el.querySelectorAll("img")].map((img) => ({ width: img.getBoundingClientRect().width, height: img.getBoundingClientRect().height, ratio: img.naturalHeight / img.naturalWidth })),

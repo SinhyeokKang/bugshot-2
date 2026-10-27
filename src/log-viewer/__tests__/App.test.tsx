@@ -24,7 +24,7 @@ describe("static screenshot media", () => {
   it("shares one issue heading and link across stacked captures", () => {
     const root = view({ screenshots, meta: { ...base.meta, issueTitle: "Short captures", issueKey: "BUG-12", issueUrl: "https://example.com/BUG-12" } });
     expect(root.querySelectorAll("h1")).toHaveLength(1);
-    expect(root.querySelectorAll('a[href="https://example.com/BUG-12"]')).toHaveLength(1);
+    expect(root.querySelector("h1")!.parentElement!.querySelectorAll('a[href="https://example.com/BUG-12"]')).toHaveLength(1);
   });
   it("reads legacy reports without the optional array", () => {
     expect(images(view())).toEqual([legacy.dataUrl]);

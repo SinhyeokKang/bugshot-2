@@ -46,6 +46,7 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 
 logview project 전용(`logview/fixtures.ts` — 확장 fixture와 별개, 일반 Playwright `test`):
 
+- `logview/multi-image.spec.ts` — 디코드 가능한 canvas PNG로 복수 이미지 크기·스크롤·헤더 경계를 실측한다. 단일 이미지와 실제 영상/타임라인 회귀도 포함한다(상세는 COVERAGE.md).
 - `openViewer(page, data)` — `dist-log-viewer/index.html`에 `Partial<LogViewerData>`를 평문 JSON으로 주입해 `setContent`로 연다(미지정 필드는 null/기본 meta).
 - `makeLongUrlActionLog()` / `LONG_NAV_URL` — 개행 기회가 없는 273자 URL navigation 1건. **길이가 픽스처의 전부**라 줄이면 행이 안 접혀 판정이 공허해진다. `TINY_PNG`(1×1 PNG dataUrl — `screenshot`으로 주면 좌우 분할이라 로그 패널이 495px로 좁아진다)와 짝으로 쓴다. 넓은 단일 패널에선 버그가 재현되지 않는다(GOTCHAS "거꾸로 넘치지 않는다를 재는 축" 참조).
 - `makeActionLog()` / `makeConsoleLog()` / `makeNetworkLog()` / `makeReport()` — 합성 로그·리포트 빌더(전 kind/level/contentType + 2 origin + 본문 검색 마커, Report는 env 2행+paragraph/orderedList). `ORIGIN_A`/`ORIGIN_B`(필터용 2 origin), `NET_BODY_NEEDLE`(URL엔 없고 응답 본문에만 있는 마커), `REPORT_COPY_MARKDOWN`(copy payload 검증값).
