@@ -74,7 +74,7 @@ describe("element capture transport admission", () => {
   });
   it("counts frozen bytes once and keeps ordered IDs when user filenames collide", () => {
     const other = { ...capture, id: "capture:shot-b", filename: "screenshot-2.jpg" };
-    const result = bindSubmissionFiles({ submissionFiles: [capture, other, { ...capture, id: "user:u", kind: "user" as const }], images: [] });
+    const result = bindSubmissionFiles({ submissionFiles: [capture, other, { ...capture, id: "user:u", kind: "user" as const }], images: [] as { fileId?: string; filename: string; dataUrl: string }[] });
     expect(result.images?.map(f => [f.fileId, f.filename, f.dataUrl])).toEqual([
       [capture.id, capture.filename, capture.dataUrl], [other.id, other.filename, other.dataUrl],
     ]);
