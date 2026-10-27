@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-10-27 — 저장된 편집 snapshot을 로그 패널의 생존 증거로 썼다
+
+- **영역**: `background`, `store`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 원격 CI에서 새 idle 로그 패널을 연 뒤 대상 페이지를 새로고침해도 이전 로그가 남았다. 다중 캡처의 저장·재열기 검증은 통과했다.
+- **근본 원인**: 비영속 로그 갱신의 불필요한 snapshot 저장을 제거하자 새 로그 전용 패널에는 editor 키가 생성되지 않았다. background onCommitted는 이 키의 존재를 logClear 발송 전제로 사용해 살아 있는 패널의 초기화를 생략했다.
+- **재발 방지**: 네비게이션 정책과 저장 레코드 존재를 분리한다. 빈 session storage를 둔 실제 background 이벤트 핸들러에서 reload/cross-origin 발송·same-origin 보존을 검증하고 수신부의 탭 격리·녹화/작성/미리보기/완료 단계 보존을 함께 고정한다.
+- **관련**: `src/background/index.ts`, `src/background/__tests__/navigation-log-clear.test.ts`, `src/sidepanel/hooks/__tests__/usePickerMessages.captureFailure.test.tsx`
+
+---
+
 ## 2026-10-27 — 관찰 패널의 완료된 타이머를 미저장 편집으로 오인했다
 
 - **영역**: `store`, `컴포넌트`
