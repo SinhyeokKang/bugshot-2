@@ -36,6 +36,6 @@ export function shotImagePlaceholder(filename: string): string {
 }
 
 export function parseShotPlaceholder(text: string): string | null {
-  const match = /^__BUGSHOT_SHOT:(screenshot-[1-9]\d*\.webp)__$/.exec(text);
+  const match = /^__BUGSHOT_SHOT:(screenshot-[1-9]\d*\.(?:webp|jpg|png|gif))__$/.exec(text);
   return match?.[1] ?? null;
 }
