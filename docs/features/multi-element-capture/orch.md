@@ -126,3 +126,5 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - 요소 추가는 텍스트 버튼 대신 상단 DOM 네비의 repick과 동일한 default 32px Crosshair 아이콘 버튼을 사용한다. 미디어 액션의 가장 왼쪽 위치·접근명·포커스 ref는 유지한다.
 - 이미지 우상단 삭제는 기존 인라인 이미지/StyleChangesTable 패턴을 재사용한다. React 공용 ImageActions를 최소 확장해 사용하며 별도 액션 행·중복 스타일 구현을 제거한다. D 소유권에 DraftingPanel/ElementShotMedia/ImageActions와 관련 테스트의 이 작은 수정을 추가했다.
 - D task `task_13b692686e6b`, dispatch `ctx_fe9e36696641`, mec-validation. 지시 이전 실행한 추가 e2e에서 같은 대상 탭의 관찰 패널 종료가 오래된 편집 세션을 덮어 preview/submit 바이트 불일치를 재현했다. red 시나리오는 유지하고 별도 저장 경계 수정으로 라우팅하며 로컬 e2e 재실행은 금지한다.
+
+- P narrow persistence 배치를 D와 병렬 배정한다. 소유는 session-sync/persistence/editor-store의 좁은 저장 경계와 unit/jsdom 테스트이며 D의 UI·가이드·e2e 파일과 겹치지 않는다. 두 인스턴스 stale pagehide 가설을 결정적 테스트로 확인하고 최소 수정하며 브라우저 확인은 원격 CI만 사용한다.
