@@ -80,3 +80,13 @@ describe("element capture transport admission", () => {
     ]);
   });
 });
+
+
+it("checks the serialized creation request before marking creation attempted", async () => {
+  const { submitCreationRequest } = await import("../submissionAdapter");
+  const beforeCreate = vi.fn();
+  await expect(submitCreationRequest({ submissionFiles: [{ ...files[0], id: "capture:shot-a" }], progress: { beforeCreate } as never }, {
+    type: "github.submitIssue", payload: { owner: "o", repo: "r", title: "t", body: "😀".repeat(14 * 1024 * 1024) },
+  })).rejects.toThrow();
+  expect(beforeCreate).not.toHaveBeenCalled();
+});
