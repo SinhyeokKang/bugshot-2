@@ -102,3 +102,6 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - A/B 통합 커밋 `ceecf86c`의 CI 40440826117 최종 success: verify 및 e2e 4샤드/e2e-gate green. C 이후 최종 SHA CI는 별도 확인한다.
 
 - C 원 워커 context 약 82%에서 안전한 중간 커밋/인계 후 같은 task·worktree를 fresh continuation으로 넘기도록 지시. 미완 attempt는 성공 처리하지 않으며 전체 C 검증 전 dev 통합 금지. 기존 자료와 남은 9개 어댑터·최종 요청 크기·append token/hold·e2e를 계속 수행한다.
+
+- C checkpoint `8d700b6d` (+test-first `a3b855af`, `2559dad5`, `cb988b2a`): 486 files/9317 pass/2 skip, typecheck/mirror/locale pass. 배열 활성화는 작업본에서 ON이나 최종 예산·9개 어댑터/retry·e2e 미완이므로 미통합. append 실제 token/hold 실패 경계 테스트 추가. injection 실패 시 복귀 ref 정리 경합 후보는 continuation이 재현/수정한다.
+- 원 C dispatch는 미완 checkpoint로 failed settlement 후 release. 같은 task retry dispatch `ctx_4e500ada5669`, handle `term_8f72b2d3-d3f7-4661-a632-b1803da4dc93`, 동일 mec-flow에서 이어받음. 시작 응답 turn_start_unobserved는 실제 terminal 작업/읽기 관측으로 live 확인했으며 중복 재시작하지 않았다.
