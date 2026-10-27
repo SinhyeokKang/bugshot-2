@@ -36,6 +36,30 @@
 
 ---
 
+## 2026-10-27 — 저장 단계별 성공을 전체 확정 성공으로 오인했다
+
+- **영역**: `store`, `에디터`
+- **계열**: `취소래치`, `미검증단언`
+- **그물**: `jsdom`
+- **증상**: 다중 캡처 독립 리뷰에서 탭 전환 중 잘못된 세션 저장, 삭제한 이슈 부활, 취소 리비전 재선택, 마지막 세션 저장 실패 후 중복 초안 생성 경로를 발견했다. 실제 사용자 관측이 아니라 회귀 테스트로 재현한 결함이다.
+- **근본 원인**: 지연 reader 밖에서만 소유권을 검사했고, durable 존재 권위의 예외를 메모리 전체에 주었으며, rollback 시각은 storage에만 반영했다. 마지막 세션 저장 rejection을 삼켜 성공으로 바꿨지만 busy 전이에서 debounce는 이미 취소돼 있었다.
+- **재발 방지**: 지연 reader 내부 소유권, merge protectedIds의 실제 소유자·수명, rollback의 storage/memory/후속 write/다른 인스턴스 승자를 함께 검증한다. ID를 미디어 저장 전에 drafting에 영속화하고 최종 세션 저장을 성공 계약에 포함한다. 실제 session-sync·스토어·IDB·복사형 storage 경계로 일시/지속 실패와 재열기·재시도의 ID·이미지를 단언한다.
+- **관련**: `src/store/editor-store.ts:confirmElementShotDraft`, `src/store/issues-store.ts:saveElementShotDraft`, `src/sidepanel/hooks/__tests__/useEditorSessionSyncConfirmation.test.tsx`, `src/store/__tests__/element-shot-draft.test.ts`
+
+---
+
+## 2026-10-27 — 복구 정리가 일반 초안의 버전 이미지 참조를 놓쳤다
+
+- **영역**: `store`, `미디어`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 다중 캡처 자체 검증에서 recovery 만료 정리가 정상 초안의 버전 이미지 슬롯을 지우는 경로를 발견하고 회귀 테스트로 재현했다.
+- **근본 원인**: journal 참조만 보호하고 일반 저장 레코드의 SavedElementShot.imageSlot 참조는 고려하지 않았다.
+- **재발 방지**: 삭제·만료·GC 경로에서 저장 레코드와 journal 참조를 함께 수집하고 조회 실패 시 삭제하지 않는다. 저장된 버전 슬롯과 만료 journal이 같은 원본을 가리키는 조합을 단언한다.
+- **관련**: `src/store/blob-db.ts`, `src/store/__tests__/blob-db-recovery.test.ts`
+
+---
+
 ## 2026-10-27 — optimistic 설정 UI를 저장 완료로 읽었다
 
 - **영역**: `e2e`, `store`
