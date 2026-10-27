@@ -105,3 +105,5 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 
 - C checkpoint `8d700b6d` (+test-first `a3b855af`, `2559dad5`, `cb988b2a`): 486 files/9317 pass/2 skip, typecheck/mirror/locale pass. 배열 활성화는 작업본에서 ON이나 최종 예산·9개 어댑터/retry·e2e 미완이므로 미통합. append 실제 token/hold 실패 경계 테스트 추가. injection 실패 시 복귀 ref 정리 경합 후보는 continuation이 재현/수정한다.
 - 원 C dispatch는 미완 checkpoint로 failed settlement 후 release. 같은 task retry dispatch `ctx_4e500ada5669`, handle `term_8f72b2d3-d3f7-4661-a632-b1803da4dc93`, 동일 mec-flow에서 이어받음. 시작 응답 turn_start_unobserved는 실제 terminal 작업/읽기 관측으로 live 확인했으며 중복 재시작하지 않았다.
+
+- C continuation `b836e2ed`: 9개 실제 어댑터 순서/본문 참조, aggregate 및 create-request 전송 예산, 실패 슬롯 재첨부·Slack 원본 보존 테스트 추가. 중간 전체 게이트 487 files/9338 pass/2 skip, typecheck/mirror exit 0. 브라우저 핵심 4건 통과 후 확장 시나리오에서 injection 실패 AlertDialog 닫힘 뒤 포커스 유실을 재현했다. e2e-write 수정 경계를 지켜 일시 중단하고 지휘자가 C 구현 단계 복귀를 승인했다. 최소 수정·회귀 테스트 뒤 e2e-write로 돌아가 연속 통과해야 하며 아직 C 통합 승인은 아니다.
