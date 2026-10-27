@@ -71,6 +71,16 @@ chrome.action.onClicked.addListener((tab) => {
 
 **범용 persist 어댑터의 실패 정책은 두 가지다** (`store/chrome-storage.ts`). `chromeLocalStorage`는 앱 UI 설정의 읽기 실패를 null로 낮춰 화면을 열고, `failClosedLocalStorage`는 issues-store의 읽기 실패를 전파해 orphan prune이 살아 있는 데이터를 지우지 못하게 한다. issues-store는 마지막 직렬화 문자열을 기억하는 `issuesStorage`로 한 번 더 감싼다. 계정 설정인 `bugshot-settings`는 이 둘을 사용하지 않고 `store/settings-adapter.ts`의 전용 intent 큐를 쓴다. 저장 실패는 `onStateSaveFailed`로 알리며, 계정 설정은 실패한 intent를 보존하고 초기 hydration 실패에도 화면은 연다(손상 봉투는 폐기 후 `onSettingsReset`으로 안내 — 아래 설정 transaction 설명).
 
+### 다중 요소 스크린샷 저장 기반
+
+`ElementShot[]`는 selector와 독립적인 논리 ID, 원본·주석 이미지, viewport·capturedAt을 보유한다. 같은 요소도 별도 ID로 누적하며 `annotated ?? raw`로 표시 이미지를 고른다. `elementShotPick.requestId`가 추가 피커 결과를 소유한다. append-picking은 기존 자료가 있으면 background 정리에서 보존하고 hydrate 시 drafting으로 복귀하며 요청을 폐기한다. 추가 시작은 원래 페이지의 `pageKeyOf`를 확인하고 picking 스냅샷 저장을 마친 뒤 주입한다. 현재 기반 API는 준비돼 있으며 최초 캡처·레거시 배열 활성화와 소비처 전환은 feature의 C 통합 단계에서 함께 수행한다.
+
+`editorSessionPersistence`의 키별 큐를 명시 저장·debounce·pagehide가 공유한다. 추가·주석 후보는 현재 본문을 담은 기준 스냅샷, 세션 잔여 용량 검사, 후보 저장, 소유 재확인 순으로 처리하며 성공 뒤에만 메모리에 공개한다. 요소 스크린샷은 레거시 단일 데이터도 이미지 없는 lite로 덮지 않는다. `elementShotBudget`은 이미지와 logs.html 재임베드의 보수적 예산을 계산하지만 사용자 첨부·인라인 이미지까지 포함한 최종 요청 검사는 제출 소비처의 책임이다. 취소/reset은 현재 유효 스냅샷 복구를 마치고 잠금을 해제한다. 지연 reader는 큐 실행 시점에 소유권을 확인해 새 탭의 상태를 이전 키에 저장하지 않는다.
+
+`confirmElementShotDraft()`는 기존 동기 `confirmDraft()`와 별개의 비동기 API다. 새 이슈 ID를 drafting 세션에 먼저 영속화하고, issue operation lock과 media writer lock 안에서 부가 원본·이미지·메타를 저장한다. 최종 preview 스냅샷 저장과 소유 재확인이 성공해야 메모리 phase를 바꾸고 true를 반환한다. 실패하면 drafting과 같은 ID를 유지해 재열기·재시도가 중복 초안을 만들지 않는다. debounce나 자동 재시도를 성공 보장으로 삼지 않는다.
+
+저장 배열의 `imageSlot`은 `shot-${id}-v-${revision}` 불변 슬롯이다. 바이트가 바뀐 이미지만 새 슬롯을 쓰며 전체 메타와 `elementShotsRevision`을 durable 저장한 뒤 메모리에 공개한다. 이슈 병합은 durable 존재 권위를 유지하고 제출 중 ID와 write 중 새로 만든 로컬 ID만 유한하게 보호한다. 취소 롤백은 증가한 updatedAt을 storage와 memory에 함께 반영한 뒤 대기 쓰기를 재개한다. 슬롯 정리는 저장 레코드와 recovery journal의 참조를 모두 보호하며 참조 조회 실패는 삭제 권한이 아니다. `useIssueImages`는 revision과 실제 슬롯 목록으로 재조회하고 늦은 이전 로드를 버리며 object URL을 해제한다.
+
 ### 첨부 복구 journal 저장소
 
 `blob-db.ts`의 IndexedDB v9는 기존 8개 store를 유지하고 `submissionRecovery`를 추가한다. `attempt:<issueId>` 메타와 `file:<attemptId>:<fileId>` 생성물 Blob을 같은 트랜잭션에서 저장한다. 원본은 복제하지 않고 기존 store/key를 참조하며, begin은 같은 트랜잭션에서 원본 존재와 중복 시도를 확인한다. 복구 API는 오류를 throw한다(기존 Blob getter/setter의 null/false 규약과 구분). blocked 업그레이드는 다른 패널을 닫으라는 오류를 반환하고, versionchange에는 연결을 닫는다. phase 전이는 `RECOVERY_TRANSITIONS`가 고정한다 — prepared→creating, creating→created|unknown, unknown→created, created→partial|complete, partial→partial|complete, complete는 종단. 목적지 URL과 업로드 href는 `safeDestinationUrl`을 통과해야 저장된다(http(s)만, userinfo·서명/토큰 쿼리 `x-amz-*`·`x-goog-*`·`signature`·`token`·`access_token`·`api_key` 등 거부 — GitLab 프로젝트 상대 업로드 경로만 예외). 서명 URL·자격증명이 journal에 남지 않게 하려는 것이다.
