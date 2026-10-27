@@ -10,6 +10,10 @@ Download the `logs.html` attached to the issue and open it in a browser. It's a 
 
 The receiver gets the file attached to the issue, but **the person filing the bug can grab it ahead of time too.** In the issue draft or preview screen, the **Download** button on the right of the **Log attachments** section pulls down the very same `logs.html` that gets attached — handy for checking it before you submit, or for sharing just the file without filing an issue at all.
 
+For multiple element captures, the left pane shows **the remaining images stacked in selection order**. Annotated images include their annotations; scroll down to see the rest. Older single-screenshot reports still open with one image. Static images have no playback or timeline.
+
+Saved draft details also offer **Download** in the log section, creating `logs.html` from the saved body, logs, and images. **Turning off log attachment also disables HTML download.** If a required local source is missing, you see **Local file unavailable** and no incomplete HTML is downloaded.
+
 ## Timeline markers
 
 ![Timeline markers](../assets/logs-viewer-2.jpg)

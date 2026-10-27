@@ -8,7 +8,9 @@ Draw on the captured image to mark where the bug is and what it is. Point with a
 
 - **Add annotation** — Start annotating on top of the captured image.
 - **Edit annotation** — Reopen what you've drawn and adjust it.
-- **Remove annotation** — Clear what you've drawn.
+- **Remove annotation** — Clear the annotations and restore the original.
+
+For multiple element captures, click **the pencil icon at the top-right of the image you want to change**. Its label is **Add annotation** for an unannotated image and **Edit annotation** otherwise. Applying or removing annotations affects only that image; the others stay intact. Each image's **Download** saves the displayed annotated version, or the original if it has no annotations. Preview and saved draft details display the same images.
 
 ## Tools
 
