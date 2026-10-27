@@ -56,7 +56,7 @@ import {
   useEditorStore,
 } from "@/store/editor-store";
 import {
-  isLivePageUrlOnlyChange,
+  hasSameEditorSnapshot,
   migrateLegacyDraft,
   snapshotFromState,
 } from "../useEditorSessionSync";
@@ -106,23 +106,23 @@ describe("migrateLegacyDraft — 주석 필드 역방향 호환", () => {
 });
 
 /* ------------------------------------------------------------------ */
-/*  isLivePageUrlOnlyChange — 네비게이션마다 스냅샷 저장 예약 방지        */
+/*  hasSameEditorSnapshot — 네비게이션마다 스냅샷 저장 예약 방지        */
 /* ------------------------------------------------------------------ */
 
 // livePageUrl은 비영속이라 그 전이만으로는 저장할 게 없다. 걸러내지 않으면 탭 이동마다
 // screenshot/video drafting 스냅샷(수 MB data URL)이 통째로 재직렬화된다.
-describe("isLivePageUrlOnlyChange", () => {
+describe("hasSameEditorSnapshot", () => {
   const base = () => useEditorStore.getInitialState();
 
   it("livePageUrl만 달라지면 true", () => {
     const prev = { ...base(), livePageUrl: "https://a.com" };
     const next = { ...prev, livePageUrl: "https://b.com" };
-    expect(isLivePageUrlOnlyChange(prev, next)).toBe(true);
+    expect(hasSameEditorSnapshot(prev, next)).toBe(true);
   });
 
-  it("livePageUrl이 그대로면 false", () => {
+  it("영속 상태가 그대로면 true", () => {
     const prev = { ...base(), livePageUrl: "https://a.com" };
-    expect(isLivePageUrlOnlyChange(prev, { ...prev })).toBe(false);
+    expect(hasSameEditorSnapshot(prev, { ...prev })).toBe(true);
   });
 
   // 같은 전이에 영속 키가 함께 바뀌었으면 저장해야 한다 — 여기서 true를 내면
@@ -130,7 +130,7 @@ describe("isLivePageUrlOnlyChange", () => {
   it("영속 키가 함께 바뀌면 false", () => {
     const prev = { ...base(), livePageUrl: "https://a.com" };
     const next = { ...prev, livePageUrl: "https://b.com", phase: "drafting" as const };
-    expect(isLivePageUrlOnlyChange(prev, next)).toBe(false);
+    expect(hasSameEditorSnapshot(prev, next)).toBe(false);
   });
 
   it("영속 키가 참조로 교체돼도 잡는다 (draft 객체)", () => {
@@ -140,6 +140,6 @@ describe("isLivePageUrlOnlyChange", () => {
       livePageUrl: "https://b.com",
       draft: { title: "T", sections: {} },
     };
-    expect(isLivePageUrlOnlyChange(prev, next)).toBe(false);
+    expect(hasSameEditorSnapshot(prev, next)).toBe(false);
   });
 });

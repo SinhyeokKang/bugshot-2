@@ -168,7 +168,7 @@ describe("useEditorSessionSync — selection 없는 element drafting 세션 복�
 /*  livePageUrl 전이는 스냅샷 저장을 예약하지 않는다                     */
 /* ------------------------------------------------------------------ */
 
-// `isLivePageUrlOnlyChange`의 순수 케이스는 계약만 고정한다 — 그 함수가 **존재하는 이유**
+// `hasSameEditorSnapshot`의 순수 케이스는 계약만 고정한다 — 그 함수가 **존재하는 이유**
 // (네비게이션마다 수 MB data URL 스냅샷 재직렬화)는 구독자를 실제로 돌려야 검증된다.
 // early return을 지우면 여기가 red다.
 describe("useEditorSessionSync — livePageUrl 저장 억제", () => {
