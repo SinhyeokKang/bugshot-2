@@ -1,5 +1,5 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreationRequest, type SubmissionAdapterInput } from "./submissionAdapter";
 import { buildAdfBodyReplacements } from "./attachmentBodyPatch";
 import { jiraBodyFilename } from "./uploadPayload";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder, parseShotPlaceholder } from "@/lib/adf-sentinels";
@@ -77,7 +77,7 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
   const attachments = await annotateAttachmentDimensions(rawAttachments);
 
   const description = buildIssueAdf(input.ctx, inlineImages.map((i) => i.refId), input.cc);
-  const result = await submitCreation(input.progress, () => sendBg<{ key: string; url: string; siteId: string; description?: JiraAdfDoc }>({
+  const result = await submitCreationRequest<{ key: string; url: string; siteId: string; description?: JiraAdfDoc }>(input, {
     type: "jira.createIssue",
     payload: {
       bodyLocale: input.ctx.bodyLocale,
@@ -91,7 +91,7 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
       sprintId: input.sprintId,
     },
 
-  }));
+  });
   await input.progress?.created({ platform: "jira", key: result.key, url: result.url, locator: { issueKey: result.key, siteId: result.siteId } });
   // The background builds the safe ADF actually written; only that is a valid patch base.
   if (result.description) await input.progress?.bodyWritten(JSON.stringify(result.description));

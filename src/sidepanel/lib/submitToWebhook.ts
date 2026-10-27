@@ -1,5 +1,4 @@
-import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
-import { sendBg } from "@/lib/bg-client";
+import { bindSubmissionFiles, deliveryResults, submitCreationRequest, type SubmissionAdapterInput } from "./submissionAdapter";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import type { WebhookAuth, WebhookSubmitResult } from "@/types/webhook";
 import { buildMarkdownIssueBody } from "./buildMarkdownIssueBody";
@@ -96,12 +95,12 @@ export async function submitToWebhook(
       input.auth.template,
       templateVars(input.ctx, body, sections, files),
     );
-    await submitCreation(input.progress, () => sendBg<WebhookSubmitResult>({
+    await submitCreationRequest<WebhookSubmitResult>(input, {
       type: "webhook.submit",
       mode: "json",
       auth: input.auth,
       body: rendered,
-    }));
+    });
     // 제3자 훅은 식별자를 돌려주지 않는 게 정상이라(Discord의 204) 행을 만들 근거가 없다.
     return { recorded: false };
   }
@@ -143,7 +142,7 @@ export async function submitToWebhook(
   // "업로드는 성공했는데 생성이 실패"가 구조적으로 불가능하다 — POSTMORTEM 2026-06-30
   // 분류의 (d) atomic 군(Jira와 같다). 호출부는 이 함수가 resolve한 뒤에만 markSubmitted로
   // 원본을 파괴하고, 실패는 전부 throw로 나가 draft·blob이 보존된다.
-  const result = await submitCreation(input.progress, () => sendBg<WebhookSubmitResult>({
+  const result = await submitCreationRequest<WebhookSubmitResult>(input, {
     type: "webhook.submit",
     mode: "multipart",
     auth: input.auth,
@@ -153,7 +152,7 @@ export async function submitToWebhook(
       filename: f.displayName ?? f.filename,
       dataUrl: f.dataUrl,
     })),
-  }));
+  });
 
   // background가 계약 위반이면 이미 throw했다. 그래도 캐스트 대신 확인하는 건, 그 가드가
   // 사라졌을 때 여기서 key·url 없는 행이 조용히 만들어지지 않게 하려는 것이다.

@@ -37,6 +37,7 @@ const WRAPPED = [
 
 // 감싸면 안 되거나 감쌀 진입점이 없는 파일 — 이유를 함께 박아 다음 사람이 판단을 복원할 수 있게 한다.
 const EXEMPT: Record<string, string> = {
+  "submissionAdapter.ts": "Transport admission error toast follows the UI locale; it does not emit issue body text",
   "formatTimestamp.ts": "표시 헬퍼 — 호출자(감싸진 빌더 / 화면 미리보기)의 로케일을 그대로 따른다",
   "issueBodyShared.ts": "빌더 내부 헬퍼 — 진입점이 아니라 감싸진 구간 안에서만 불린다",
   "markdownToAdf.ts": "빌더 내부 변환기 — 진입점이 아니라 감싸진 구간 안에서만 불린다",

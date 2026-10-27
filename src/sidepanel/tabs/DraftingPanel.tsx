@@ -209,7 +209,7 @@ export function DraftingPanel({ shotReturn }: {
     setAppendBusy(true);
     const result = await startAdditionalElementShot(tabId);
     if (result === "page-changed") toast.info(t("draft.elementShot.pageChanged"));
-    if (result !== "started") {
+    if (result !== "started" && addRef.current) {
       if (shotReturn) shotReturn.current = null;
       addRef.current?.focus({ preventScroll: true });
       setAppendBusy(false);

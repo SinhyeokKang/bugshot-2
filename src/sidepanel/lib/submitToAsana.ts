@@ -1,5 +1,5 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreation, uploadCheckpoints, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreationRequest, uploadCheckpoints, type SubmissionAdapterInput } from "./submissionAdapter";
 import { bodySlotToken, buildBodyReplacements } from "./attachmentBodyPatch";
 import { failedStageState } from "./attachmentCheckpoints";
 import type { AsanaUploadFileResult } from "@/types/messages";
@@ -170,7 +170,7 @@ export async function submitToAsana(
   const htmlNotes = cc.length > 0 ? injectAsanaCc(baseHtml, cc) : baseHtml;
 
   // Asana attachment는 parent task gid가 필수 → createTask 먼저, 그다음 첨부 (Jira 패턴).
-  const task = await submitCreation(input.progress, () => sendBg<AsanaCreateTaskResult>({
+  const task = await submitCreationRequest<AsanaCreateTaskResult>(input, {
     type: "asana.submitIssue",
     payload: {
       workspaceGid: input.workspaceGid,
@@ -179,7 +179,7 @@ export async function submitToAsana(
       htmlNotes,
       assigneeGid: input.assigneeGid,
     },
-  }));
+  });
   await input.progress?.created({ platform: "asana", key: task.gid, url: task.permalinkUrl, locator: { taskGid: task.gid } });
   await input.progress?.bodyWritten(htmlNotes);
 

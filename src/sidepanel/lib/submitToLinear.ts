@@ -1,5 +1,5 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreationRequest, type SubmissionAdapterInput } from "./submissionAdapter";
 import { bodySlotToken, buildBodyReplacements } from "./attachmentBodyPatch";
 import { failedStageState } from "./attachmentCheckpoints";
 import {
@@ -109,7 +109,7 @@ export async function submitToLinear(
     cc: input.cc?.map((u) => u.name),
   });
 
-  const result = await submitCreation(input.progress, () => sendBg<LinearCreateIssueResult>({
+  const result = await submitCreationRequest<LinearCreateIssueResult>(input, {
     type: "linear.submitIssue",
     payload: {
       teamId: input.teamId,
@@ -121,7 +121,7 @@ export async function submitToLinear(
       priority: input.priority,
       subscriberIds: input.cc?.length ? input.cc.map((u) => u.id) : undefined,
     },
-  }));
+  });
   await input.progress?.created({ platform: "linear", key: result.identifier, url: result.url, locator: { issueId: result.id } });
   await progress?.bodyWritten(body, ...(input.submissionFiles ?? []).filter((f) => ["capture", "video", "inline"].includes(f.kind)).map((f) => ({ fileId: f.id, body: "done" as const })));
 

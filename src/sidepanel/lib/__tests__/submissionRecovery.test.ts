@@ -856,3 +856,25 @@ it("maps stable shot IDs to version slots while filenames follow remaining order
   ]);
   await expect(recovery.assertSubmissionSources(files)).rejects.toThrow();
 });
+
+it("preserves every immutable element image after Slack completion for ordered promotion", async () => {
+  const record: IssueRecord = { ...issue(), captureMode: "screenshot", elementShots: ["a", "b", "a-again"].map((id, i) => ({
+    id, selector: i === 1 ? "#b" : "#a", tagName: "DIV", viewport: { width: 100, height: 80 }, capturedAt: i + 1,
+    imageSlot: `shot-${id}-v-saved` as const, hasImage: true,
+  })) };
+  store.useIssuesStore.setState({ issues: [record] });
+  for (const shot of record.elementShots!) await db.saveImageBlob("i", shot.imageSlot, new Blob([`pixels-${shot.id}`], { type: "image/webp" }));
+  const files = recovery.expectedSubmissionSources(record, { sectionConfig: [] });
+  const prepared = await recovery.prepareSubmissionRecovery({ issue: record, platform: "slack", files });
+  await recovery.runSubmissionRecovery(prepared, async progress => {
+    await progress.beforeCreate();
+    await progress.created({ platform: "slack", key: "1", url: "https://slack.com/archives/C1/p1", locator: { channelId: "C1", ts: "1" } });
+    return { key: "1", url: "https://slack.com/archives/C1/p1", attachments: prepared.files.map(file => ({ fileId: file.id, delivery: "attached" as const, presentation: "complete" as const })) };
+  });
+  const saved = store.useIssuesStore.getState().issues[0];
+  expect(saved.slackPreserved).toBe(true);
+  expect(saved.elementShots).toEqual(record.elementShots);
+  const promoted = await recovery.prepareSubmissionRecovery({ issue: saved, platform: "github", files: recovery.expectedSubmissionSources(saved, { sectionConfig: [] }) });
+  expect(promoted.files).toEqual(prepared.files);
+  for (const shot of record.elementShots!) expect(await (await db.getImageBlob("i", shot.imageSlot))?.text()).toBe(`pixels-${shot.id}`);
+});

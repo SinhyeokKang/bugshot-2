@@ -895,3 +895,23 @@ describe("planAttachmentRetry", () => {
     expect(runner.attachmentRetryBlocker(slotless)).toBe("legacy");
   });
 });
+
+it("retries only the second ordered shot and leaves successful duplicate-selector captures in place", async () => {
+  const shots: SeedFile[] = ["a", "b", "a-again"].map((id, i) => ({
+    id: `capture:shot-${id}`, kind: "capture", filename: `screenshot-${i + 1}.webp`, contentType: "image/webp", bytes: `pixels-${id}`,
+  }));
+  const hrefs = shots.map(f => `https://files.example/${f.filename}`);
+  const render = (second: string | undefined) => shots.map((f, i) => i === 1 && !second ? "(second missing)" : `![${f.filename}](${i === 1 ? second : hrefs[i]})`).join("\n");
+  const lastWritten = render(undefined);
+  const bodyPlan: AttachmentBodyPlan = { format: "markdown", lastWritten, replacements: patch.buildBodyReplacements({
+    format: "markdown", base: lastWritten, pending: [shots[1].id], render: success => render(success.has(shots[1].id) ? patch.bodySlotToken(shots[1].id) : undefined),
+  }) };
+  await seed({ files: shots, checkpoints: [done(shots[0].id, hrefs[0]), cp(shots[1].id), done(shots[2].id, hrefs[2])], bodyPlan });
+  const remote = { body: lastWritten };
+  rpc(github(remote, { "github.uploadFiles": msg => msg.files.map((f: { fileId: string; filename: string }) => ({ ...f, ok: true, href: hrefs[1] })) }));
+  expect((await runner.retryAttachments("i")).status).toBe("complete");
+  expect(sent("github.uploadFiles")).toHaveLength(1);
+  expect(sent("github.uploadFiles")[0].files).toEqual([expect.objectContaining({ fileId: shots[1].id, filename: shots[1].filename, dataUrl: `data:image/webp;base64,${Buffer.from("pixels-b").toString("base64")}` })]);
+  expect(remote.body).toBe(render(hrefs[1]));
+  expect(types().filter(type => CREATE_TYPES.test(type))).toEqual([]);
+});

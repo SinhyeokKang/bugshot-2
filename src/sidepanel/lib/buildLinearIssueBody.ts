@@ -83,9 +83,8 @@ function buildLinearIssueBodyInner(
       lines.push("");
     } else if (isScreenshot) {
       lines.push(`## ${t("md.section.media")}`, "");
-      const img = images[0];
-      if (img?.assetUrl) {
-        lines.push(`![${img.filename}](${img.assetUrl})`);
+      for (const img of images) {
+        if (img.assetUrl) lines.push(`![${img.filename}](${img.assetUrl})`);
       }
       lines.push("");
     } else {
