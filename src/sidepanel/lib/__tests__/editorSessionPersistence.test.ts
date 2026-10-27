@@ -6,7 +6,7 @@ it("serializes explicit and deferred writes and reads deferred state at executio
   let release!: () => void;
   const order: string[] = [];
   const first = enqueueEditorSessionWrite("a", async () => { await new Promise<void>(r => { release = r; }); order.push("candidate"); });
-  await Promise.resolve();
+  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
   let latest = "old";
   vi.stubGlobal("chrome", { storage: { session: { set: vi.fn(async (x) => { order.push(x.a.phase); }) } } });
   const second = saveEditorSession("a", () => ({ phase: latest } as EditorSnapshot));

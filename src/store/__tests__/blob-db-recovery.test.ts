@@ -698,3 +698,13 @@ describe("retry snapshot storage", () => {
     await expect(db.initializeAttachmentRetry("issue", "attempt", snapshot())).rejects.toThrow();
   });
 });
+
+it("keeps versioned shot bytes referenced by a saved draft when a journal expires", async () => {
+  await db.saveImageBlobRaw("issue", "shot-a-v-1", new Blob(["kept"]));
+  const m = meta();
+  m.files = [{ id: "capture:shot-a", kind: "capture", filename: "screenshot-1.webp", contentType: "image/webp", source: { kind: "original", store: "images", key: "issue:shot-a-v-1" } }];
+  await db.beginSubmissionRecovery(m, new Map());
+  vi.stubGlobal("chrome", { storage: { session: { get: async () => ({}) }, local: { get: async () => ({ "bugshot-issues": JSON.stringify({ state: { issues: [{ id: "issue", elementShots: [{ imageSlot: "shot-a-v-1" }] }] } }) }) } } });
+  await db.expireSubmissionRecovery("issue", "attempt", m.expiresAt);
+  expect(await (await db.getImageBlob("issue", "shot-a-v-1"))?.text()).toBe("kept");
+});

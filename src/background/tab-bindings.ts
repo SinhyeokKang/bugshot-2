@@ -8,6 +8,9 @@ type SessionSnap = {
   target?: { url?: string };
   captureMode?: string;
   phase?: string;
+  elementShotPick?: { kind?: string } | null;
+  elementShots?: unknown[] | null;
+  shotSelector?: unknown;
 };
 
 const ACTIVATED_KEY = "sidePanel:activated";
@@ -84,11 +87,13 @@ async function applyInner(tabId: number): Promise<void> {
 }
 
 export function shouldPreserveSession(
-  snap: { captureMode?: string; phase?: string } | undefined,
+  snap: SessionSnap | undefined,
 ): boolean {
   if (!snap) return false;
   const mode = snap.captureMode;
   const phase = snap.phase ?? "";
+  if (mode === "screenshot" && phase === "picking" && snap.elementShotPick?.kind === "append"
+    && (snap.elementShots != null ? snap.elementShots.length > 0 : !!snap.shotSelector)) return true;
   if (mode === "video") return true;
   if (mode === "screenshot" || mode === "element" || mode === "freeform")
     return FROZEN_PHASES.has(phase);

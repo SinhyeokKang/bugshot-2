@@ -290,3 +290,32 @@ describe("resumed capture logs", () => {
     expect(useEditorStore.getState().consoleLog).toBeNull();
   });
 });
+
+it("restores append picking as drafting and invalidates the old request", async () => {
+  const target = { tabId: 1, url: "https://example.com", title: "page" };
+  const shot = { id: "a", selector: "A", tagName: "DIV", raw: "raw", annotated: "ann", viewport: { width: 1, height: 2 }, capturedAt: 1 };
+  get.mockResolvedValue({ "editor:1": { ...useEditorStore.getInitialState(), phase: "picking", captureMode: "screenshot", target, draft: { title: "kept", sections: {} }, elementShots: [shot], elementShotPick: { requestId: "old", kind: "append" } } });
+  const { result } = renderHook(() => useEditorSessionSync(1));
+  await waitFor(() => expect(result.current).toBe(true));
+  expect(useEditorStore.getState().phase).toBe("drafting");
+  expect(useEditorStore.getState().elementShotPick).toBeNull();
+  expect(useEditorStore.getState().elementShots).toEqual([shot]);
+  expect(await useEditorStore.getState().appendElementShot("old", { ...shot, id: "b" })).toBe(false);
+});
+
+
+it("does not schedule a second failing write after an explicit annotation failure", async () => {
+  Object.assign(chrome.storage.session, { getBytesInUse: vi.fn(async () => 0), QUOTA_BYTES: 10 * 1024 * 1024 });
+  const { result } = renderHook(() => useEditorSessionSync(7));
+  await waitFor(() => expect(result.current).toBe(true));
+  act(() => {
+    useEditorStore.getState().startElementShot({ tabId: 7, url: "https://example.com", title: "page" });
+    useEditorStore.getState().onElementShot({ selector: "A", tagName: "DIV" }, "raw", { width: 1, height: 2 });
+    useEditorStore.getState().normalizeElementShots();
+  });
+  set.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("quota"));
+  await act(async () => { expect(await useEditorStore.getState().setElementShotAnnotation("legacy", "edited")).toBe(false); });
+  await new Promise(resolve => setTimeout(resolve, 350));
+  expect(set).toHaveBeenCalledTimes(2);
+  expect(useEditorStore.getState().elementShots?.[0].annotated).toBeNull();
+});

@@ -8,6 +8,7 @@ import type { ConsoleLog } from "@/types/console";
 
 const {
   mockSaveDraft,
+  mockSaveElementShotDraft,
   mockPatchDraftSnapshot,
   mockPatchIssue,
   mockSaveImageBlob,
@@ -21,6 +22,7 @@ const {
   mockDeleteActionLog,
 } = vi.hoisted(() => ({
   mockSaveDraft: vi.fn(),
+  mockSaveElementShotDraft: vi.fn().mockResolvedValue(undefined),
   mockPatchDraftSnapshot: vi.fn(),
   mockPatchIssue: vi.fn(),
   mockSaveImageBlob: vi.fn().mockResolvedValue(true),
@@ -51,6 +53,7 @@ const mockDeleteAttachmentBlob = vi.hoisted(() => vi.fn().mockResolvedValue(unde
 const mockDeleteAttachmentBlobs = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock("@/store/issues-store", () => ({
+  saveElementShotDraft: mockSaveElementShotDraft,
   useIssuesStore: {
     getState: () => ({
       saveDraft: mockSaveDraft,
@@ -96,6 +99,7 @@ vi.mock("@/store/blob-db", () => ({
 }));
 
 vi.mock("@/lib/app-events", () => ({
+  onSessionSaveExhausted: { fire: vi.fn() },
   onStateSaveFailed: { fire: vi.fn(), subscribe: vi.fn() },
   onBlobSaveFailed: { fire: vi.fn(), listen: vi.fn() },
 }));
@@ -3603,7 +3607,7 @@ describe("durable element shot candidates", () => {
     expect(useEditorStore.getState().elementShots?.map(s => s.id)).toEqual(["b"]);
   });
   it("keeps the previous image and durable snapshot when annotation quota changes", async () => {
-    const { set, persisted } = setup();
+    const { set } = setup();
     useEditorStore.getState().normalizeElementShots();
     set.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("quota"));
     expect(await useEditorStore.getState().setElementShotAnnotation("legacy", "edited")).toBe(false);
@@ -3619,4 +3623,42 @@ describe("durable element shot candidates", () => {
     expect(useEditorStore.getState().phase).toBe("drafting");
     expect(await useEditorStore.getState().appendElementShot(request!, makeShot("b"))).toBe(false);
   });
+  it("rolls back a candidate that finishes after reset and blocks edits while writing", async () => {
+    const { set, persisted } = setup();
+    useEditorStore.getState().normalizeElementShots();
+    let release!: () => void;
+    set.mockImplementationOnce(async values => { Object.assign(persisted, structuredClone(values)); });
+    set.mockImplementationOnce(async values => {
+      await new Promise<void>(resolve => { release = resolve; });
+      Object.assign(persisted, structuredClone(values));
+    });
+    const saving = useEditorStore.getState().setElementShotAnnotation("legacy", "edited");
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    useEditorStore.getState().setDraft({ title: "blocked", sections: {} });
+    expect(useEditorStore.getState().draft?.title).toBe("keep");
+    useEditorStore.getState().reset();
+    release();
+    expect(await saving).toBe(false);
+    expect(persisted["editor:7"]).toMatchObject({ phase: "idle", elementShots: null });
+    expect(useEditorStore.getState().elementShotSaving).toBe(false);
+  });
+
+  it("waits for durable media metadata before entering preview and stays drafting on failure", async () => {
+    setup();
+    useEditorStore.getState().setTargetPlatform("github");
+    useEditorStore.getState().normalizeElementShots();
+    let release!: () => void;
+    mockSaveElementShotDraft.mockImplementationOnce(() => new Promise<void>(resolve => { release = resolve; }));
+    const saving = useEditorStore.getState().confirmElementShotDraft();
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    expect(useEditorStore.getState().phase).toBe("drafting");
+    release();
+    expect(await saving).toBe(true);
+    expect(useEditorStore.getState().phase).toBe("previewing");
+    useEditorStore.getState().backToDraft();
+    mockSaveElementShotDraft.mockRejectedValueOnce(new Error("metadata failure"));
+    expect(await useEditorStore.getState().confirmElementShotDraft()).toBe(false);
+    expect(useEditorStore.getState().phase).toBe("drafting");
+  });
+
 });

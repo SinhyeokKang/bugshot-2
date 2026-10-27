@@ -996,3 +996,10 @@ describe("onActivated — 패널 탭 정지 예외", () => {
     expect(c.stoppedTabs()).toEqual(new Set([T]));
   });
 });
+
+it("preserves append picking with existing captures but not initial picking", () => {
+  expect(shouldPreserveSession({ captureMode: "screenshot", phase: "picking", elementShotPick: { kind: "append" }, elementShots: [{}] })).toBe(true);
+  expect(shouldPreserveSession({ captureMode: "screenshot", phase: "picking", elementShotPick: { kind: "append" }, shotSelector: { selector: "A" } })).toBe(true);
+  expect(shouldPreserveSession({ captureMode: "screenshot", phase: "picking", elementShotPick: { kind: "initial" }, elementShots: [{}] })).toBe(false);
+  expect(shouldPreserveSession({ captureMode: "screenshot", phase: "picking", elementShotPick: { kind: "append" }, elementShots: [] })).toBe(false);
+});

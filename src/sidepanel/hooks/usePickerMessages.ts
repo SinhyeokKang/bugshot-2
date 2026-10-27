@@ -96,6 +96,8 @@ export function usePickerMessages(myTabId: number | null): void {
         );
       };
 
+      if (useEditorStore.getState().elementShotPick?.kind === "append"
+        && ["logClear", "networkRecorder.data", "consoleRecorder.data", "actionRecorder.data"].includes(message.type)) return;
       if (message.type === "picker.selected") {
         const msg = message as Extract<PickerMessage, { type: "picker.selected" }>;
         if (myTabId == null || !isCurrentPickerSession(myTabId, msg.sessionId)) return;
@@ -402,35 +404,45 @@ async function captureElementShot(
   payload: { selector: string; tagName: string; viewport: { width: number; height: number } },
   frameId: number,
 ): Promise<void> {
-  // styling 분기와 대칭 — 캡처 전 타 프레임 hover 유령(배너·blocker) 종료해 크롭 오염 방지.
-  await stopHoverAllFrames(tabId);
-  // captureElementSnapshot은 권한 만료/캡처 실패 시 내부에서 안내(다이얼로그·실패 토스트) 후 null
-  // 반환 → 빈 drafting 진입 금지. 여기서 다시 발화하면 한 실패에 토스트가 둘이다.
-  // 요소 단일 캡처는 스코프 밖 — expandContext를 켜지 않는다(현행 요소 bbox 유지).
+  const initial = useEditorStore.getState();
+  const pick = initial.elementShotPick;
+  const target = initial.target;
   const isCurrent = () => {
     const s = useEditorStore.getState();
-    return s.phase === "picking" && s.target?.tabId === tabId;
+    return s.phase === "picking" && s.target === target && s.target?.tabId === tabId && s.elementShotPick === pick;
   };
-  const shot = await captureElementSnapshot(tabId, { frameId, isCurrent });
-  const img = shot?.image ?? null;
-  if (!img) {
-    // 실패 시에도 전 프레임 정리 — 미정리 시 hover blocker가 페이지 클릭을 계속 삼킨다.
-    void clearPicker(tabId);
-    useEditorStore.getState().reset();
-    return;
-  }
-  // iframe 요소 샷의 payload viewport도 iframe 내부 크기 — 기록 메타는 브라우저 뷰포트로.
-  const viewport =
-    frameId !== 0 ? (await getTopViewport(tabId)) ?? payload.viewport : payload.viewport;
-  // 캡처는 background 큐를 거쳐 수백 ms 걸린다 — 그 사이 취소·세션 만료·탭 변경이 있었으면
-  // 결과를 버린다(captureAndCrop과 동일 규약). 안 그러면 유령 drafting으로 전이한다.
   if (!isCurrent()) return;
-  useEditorStore.getState().onElementShot(
-    { selector: payload.selector, tagName: payload.tagName },
-    img,
-    viewport,
-  );
-  void clearPicker(tabId);
+  try {
+    await stopHoverAllFrames(tabId);
+    if (!isCurrent()) return;
+    const shot = await captureElementSnapshot(tabId, { frameId, isCurrent });
+    if (!isCurrent()) return;
+    if (!shot?.image) {
+      void clearPicker(tabId);
+      useEditorStore.getState().cancelPicking();
+      return;
+    }
+    const viewport = frameId !== 0 ? (await getTopViewport(tabId)) ?? payload.viewport : payload.viewport;
+    if (!isCurrent()) return;
+    if (pick?.kind === "append") {
+      const accepted = await useEditorStore.getState().appendElementShot(pick.requestId, {
+        id: crypto.randomUUID(), selector: payload.selector, tagName: payload.tagName,
+        viewport, capturedAt: Date.now(), raw: shot.image, annotated: null,
+      });
+      if (!accepted && !isCurrent()) return;
+      // Clear only the request that owned this capture; no await before invalidation.
+      void clearPicker(tabId);
+      if (!accepted) useEditorStore.getState().cancelElementShotPick(pick.requestId);
+    } else {
+      useEditorStore.getState().onElementShot({ selector: payload.selector, tagName: payload.tagName }, shot.image, viewport);
+      void clearPicker(tabId);
+    }
+  } catch (error) {
+    if (!isCurrent()) return;
+    void clearPicker(tabId);
+    useEditorStore.getState().cancelPicking();
+    if (!maybeSurfacePermissionExpired(error)) fireCaptureFailure(error);
+  }
 }
 
 async function captureAndCrop(rect: ViewportRect, viewport: { width: number; height: number }): Promise<void> {

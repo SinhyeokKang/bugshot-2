@@ -1,3 +1,9 @@
+import type { ElementShot, ElementShotPick } from "@/types/element-shot";
+import { resolveElementShots, elementShotImage } from "@/sidepanel/lib/elementShots";
+import { elementShotBudget } from "@/sidepanel/lib/elementShotBudget";
+import { enqueueEditorSessionWrite, saveEditorSession } from "@/sidepanel/lib/editorSessionPersistence";
+import { pageKeyOf, sessionKey } from "@/lib/session-keys";
+import { onSessionSaveExhausted } from "@/lib/app-events";
 import { create } from "zustand";
 import { sameElementKey } from "@/lib/element-key";
 import type { CaptureContext, Token } from "@/types/picker";
@@ -8,10 +14,10 @@ import type { PlatformId } from "@/types/platform";
 import type { EnvironmentRow } from "@/types/environment";
 import type { AttachmentResult, UserAttachmentMeta } from "@/types/attachment";
 import { onBlobSaveFailed } from "@/lib/app-events";
-import { useIssuesStore, type IssueRecord } from "./issues-store";
+import { saveElementShotDraft, useIssuesStore, type IssueRecord } from "./issues-store";
 import { jiraSiteId, useSettingsStore } from "./settings-store";
 import { initialJiraFields } from "@/sidepanel/lib/initialJiraFields";
-import { saveVideoBlob, deleteVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
+import { saveVideoBlob, deleteVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, getAttachmentBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
 import { takeWithinLimits, type TakeWithinLimitsResult } from "@/sidepanel/lib/attachmentLimits";
 import { DEFAULT_COLOR, DEFAULT_THICKNESS, type ThicknessKey } from "@/sidepanel/lib/annotationDefaults";
 import type { RecordingPenTool } from "@/sidepanel/components/annotation/recording-pen";
@@ -168,6 +174,15 @@ export interface EditorState {
   livePageUrl: string | null;
   selection: EditorSelection | null;
   shotSelector: ShotSelector | null;
+  elementShots: ElementShot[] | null;
+  elementShotPick: ElementShotPick | null;
+  elementShotSaving: boolean;
+  normalizeElementShots: () => void;
+  startAdditionalElementShot: () => Promise<string | null>;
+  cancelElementShotPick: (requestId: string) => void;
+  appendElementShot: (requestId: string, shot: ElementShot) => Promise<boolean>;
+  removeElementShot: (id: string) => void;
+  setElementShotAnnotation: (id: string, image: string | null) => Promise<boolean>;
   styleEdits: EditorStyleEdits;
   tokens: Token[];
   beforeImage: string | null;
@@ -300,6 +315,7 @@ export interface EditorState {
   // 초안 저장 후 previewing으로 전환. 초안이 실제로 저장됐으면 true, draft/selection
   // 미설정으로 미저장 전환이면 false (호출부 성공 토스트 게이트).
   confirmDraft: () => boolean;
+  confirmElementShotDraft: () => Promise<boolean>;
   backToDraft: () => void;
   setIssueFields: (patch: Partial<EditorIssueFields>) => void;
   setNetworkLog: (log: NetworkLog) => void;
@@ -334,6 +350,8 @@ export const EDITOR_SNAPSHOT_KEYS = [
   "target",
   "selection",
   "shotSelector",
+  "elementShots",
+  "elementShotPick",
   "styleEdits",
   "tokens",
   "beforeImage",
@@ -388,6 +406,9 @@ const initial = {
   target: null,
   selection: null,
   shotSelector: null as ShotSelector | null,
+  elementShots: null as ElementShot[] | null,
+  elementShotPick: null as ElementShotPick | null,
+  elementShotSaving: false,
   styleEdits: {
     classList: [] as string[],
     inlineStyle: {} as Record<string, string>,
@@ -586,7 +607,100 @@ async function persistAttachedLogs(
   return failed;
 }
 
-export const useEditorStore = create<EditorState>((set, get) => ({
+function editorSnapshot(state: EditorState): EditorSnapshot {
+  return Object.fromEntries(EDITOR_SNAPSHOT_KEYS.map(key => [key, state[key]])) as EditorSnapshot;
+}
+
+let elementShotWriteActive = false;
+async function commitElementShotCandidate(patch: Partial<EditorSnapshot>): Promise<boolean> {
+  const start = useEditorStore.getState();
+  if (elementShotWriteActive || !start.target) return false;
+  elementShotWriteActive = true;
+  useEditorStore.setState({ elementShotSaving: true });
+  const base = useEditorStore.getState();
+  const key = sessionKey(start.target.tabId);
+  const baseline = editorSnapshot(base);
+  const candidate = { ...baseline, ...patch };
+  const restoreLatest = async () => {
+    const latest = useEditorStore.getState();
+    const recovery = latest.target && latest.target.tabId !== start.target!.tabId
+      ? { ...baseline, phase: "drafting", elementShotPick: null }
+      : editorSnapshot(latest);
+    await chrome.storage.session.set({ [key]: recovery });
+  };
+  try {
+    return await enqueueEditorSessionWrite(key, async () => {
+      if (useEditorStore.getState() !== base) return false;
+      // Commit the current body before attempting the larger media candidate.
+      await chrome.storage.session.set({ [key]: baseline });
+      const [total, own] = await Promise.all([
+        chrome.storage.session.getBytesInUse(null), chrome.storage.session.getBytesInUse(key),
+      ]);
+      if (!elementShotBudget({ snapshot: candidate, key,
+        quotaBytes: chrome.storage.session.QUOTA_BYTES, otherBytes: Math.max(0, total - own),
+        images: resolveElementShots(candidate).map(elementShotImage).filter((v): v is string => v !== null),
+      }).ok) throw new Error("Element capture storage budget exceeded");
+      if (useEditorStore.getState() === base) await chrome.storage.session.set({ [key]: candidate });
+      if (useEditorStore.getState() !== base) {
+        await restoreLatest();
+        return false;
+      }
+      useEditorStore.setState(patch);
+      return true;
+    });
+  } catch {
+    if (useEditorStore.getState() !== base) await enqueueEditorSessionWrite(key, restoreLatest).catch(() => {});
+    onSessionSaveExhausted.fire();
+    return false;
+  } finally {
+    elementShotWriteActive = false;
+    useEditorStore.setState({ elementShotSaving: false });
+  }
+}
+
+function restoreDraftIssueFields(state: EditorState): void {
+    if (state.targetPlatform === "jira") {
+      const { lastSubmitFields, accounts } = useSettingsStore.getState();
+      const jiraAccount = accounts.jira;
+      // 세션 중 사용자가 이미 고른 값이 있으면 직전 제출값 전체를 덮어 복원하지 않는다(기존 게이트).
+      const restorable = !state.issueFields.assigneeId && !state.issueFields.priorityId;
+      const init = initialJiraFields(
+        lastSubmitFields.jira,
+        jiraAccount,
+        jiraAccount?.auth ? jiraSiteId(jiraAccount.auth) : undefined,
+      );
+      useEditorStore.setState((s) => {
+        // 세션에 projectKey 없이 issueTypeId만 있으면 프로젝트가 필드로 승격되기 전의 스냅샷이다
+        // — 그 이슈타입은 계정 기본 프로젝트의 것이라, 직전 제출 프로젝트를 얹으면 짝이 어긋나
+        // 제출이 400으로 죽는다. 복원을 통째로 건너뛰고 JiraIssueFields 백필이 계정 기본
+        // 프로젝트를 채우게 둔다.
+        const preUpgradeSession = !s.issueFields.projectKey && !!s.issueFields.issueTypeId;
+        // 게이트 조건은 담당자·우선순위이지 프로젝트가 아니다 — projectKey는 게이트와 무관하게
+        // init을 밑에 깔아 sticky를 살린다(세션에서 이미 고른 값이 있으면 그쪽이 이긴다).
+        const merged = preUpgradeSession
+          ? { ...s.issueFields }
+          : {
+              ...(restorable ? init : { projectKey: init.projectKey }),
+              ...s.issueFields,
+            };
+        // 이슈타입 id·이름은 쌍이라 세션이 id를 쥐고 있으면 이름도 세션 것만 쓴다.
+        if (s.issueFields.issueTypeId) merged.issueTypeName = s.issueFields.issueTypeName;
+        // 담당자는 게이트와 무관하게 비어 있을 때만 채우되, 우선순위는 init을 따른다
+        // (직전 제출값 우선 · Connect 기본값 fallback). 여기서 account만 보면 기본 담당자가
+        // 직전 담당자를 가로채 *다른 사람*이 붙는다 — POSTMORTEM 2026-06-30과 같은 계열.
+        // 프로젝트가 갈리면 다른 프로젝트의 담당자를 심는 셈이라 정합 조건도 함께 건다.
+        if (!merged.assigneeId && init.assigneeId && merged.projectKey === init.projectKey) {
+          merged.assigneeId = init.assigneeId;
+          merged.assigneeName = init.assigneeName;
+        }
+        return { issueFields: merged };
+      });
+    }
+}
+
+export const useEditorStore = create<EditorState>((commit, get) => {
+  const set: typeof commit = (patch) => { if (!elementShotWriteActive) commit(patch); };
+  return ({
   // `initial`에 넣지 않는다 — 세션 축이 아니라 **탭 축**의 사실이라 reset·start*가 지우면
   // 안 된다. 발행자가 훅 하나뿐이라(App useEffect) store가 되돌리면 다음 네비게이션까지
   // 복구 수단이 없다.
@@ -626,7 +740,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...preserveLogs(state),
       ...preserveBuffer(state),
     })),
-  cancelPicking: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
+  cancelPicking: () => {
+    const pick = get().elementShotPick;
+    if (pick?.kind === "append") { get().cancelElementShotPick(pick.requestId); return; }
+    set((state) => ({ ...initial, ...preserveLogs(state) }));
+  },
 
   startCapturing: (target) =>
     set((prev) => ({
@@ -646,6 +764,48 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...preserveLogs(state),
       logsAttach: true,
     })),
+  normalizeElementShots: () => {
+    const state = get();
+    if (elementShotWriteActive || state.captureMode !== "screenshot" || state.elementShots || !state.shotSelector) return;
+    set({ elementShots: resolveElementShots(state), shotSelector: null, screenshotRaw: null,
+      screenshotAnnotated: null, screenshotViewport: null, screenshotCapturedAt: null });
+  },
+  startAdditionalElementShot: async () => {
+    const state = get();
+    if (elementShotWriteActive || state.phase !== "drafting" || state.captureMode !== "screenshot" || !state.target || !resolveElementShots(state).length) return null;
+    try {
+      const tab = await chrome.tabs.get(state.target.tabId);
+      if (get() !== state || !pageKeyOf(tab.url) || pageKeyOf(tab.url) !== pageKeyOf(state.target.url)) return null;
+      const requestId = crypto.randomUUID();
+      return await commitElementShotCandidate({ phase: "picking", elementShotPick: { requestId, kind: "append" } }) ? requestId : null;
+    } catch { return null; }
+  },
+  cancelElementShotPick: (requestId) => {
+    if (get().elementShotPick?.requestId !== requestId) return;
+    commit({ phase: "drafting", elementShotPick: null });
+  },
+  appendElementShot: async (requestId, shot) => {
+    const state = get();
+    if (state.phase !== "picking" || state.elementShotPick?.kind !== "append" || state.elementShotPick.requestId !== requestId || !elementShotImage(shot)) return false;
+    try {
+      const tab = await chrome.tabs.get(state.target!.tabId);
+      if (get() !== state || !pageKeyOf(tab.url) || pageKeyOf(tab.url) !== pageKeyOf(state.target!.url)) return false;
+    } catch { return false; }
+    const shots = resolveElementShots(state);
+    if (shots.some(s => s.id === shot.id)) return false;
+    return commitElementShotCandidate({ elementShots: [...shots, shot], phase: "drafting", elementShotPick: null,
+      shotSelector: null, screenshotRaw: null, screenshotAnnotated: null, screenshotViewport: null, screenshotCapturedAt: null });
+  },
+  removeElementShot: (id) => {
+    const shots = get().elementShots;
+    if (elementShotWriteActive || get().phase !== "drafting" || !shots || shots.length <= 1) return;
+    set({ elementShots: shots.filter(s => s.id !== id) });
+  },
+  setElementShotAnnotation: async (id, image) => {
+    const state = get();
+    if (state.phase !== "drafting" || !state.elementShots?.some(s => s.id === id)) return false;
+    return commitElementShotCandidate({ elementShots: state.elementShots.map(s => s.id === id ? { ...s, annotated: image } : s) });
+  },
   startElementShot: (target) =>
     set((prev) => ({
       ...initial,
@@ -654,9 +814,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       target,
       ...preserveLogs(prev),
       logsAttach: true,
+      elementShotPick: { requestId: crypto.randomUUID(), kind: "initial" },
     })),
   onElementShot: (shot, image, viewport) =>
     set({
+      elementShotPick: null,
       phase: "drafting",
       screenshotRaw: image,
       screenshotViewport: viewport,
@@ -894,52 +1056,61 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   backToStyling: () =>
     set({ phase: "styling", afterImage: null, afterAnnotated: null, aiStylingLoading: false }),
 
-  setDraft: (draft) => set({ draft }),
+  setDraft: (draft) => { if (!elementShotWriteActive) set({ draft }); },
 
+  confirmElementShotDraft: async () => {
+    const state = get();
+    if (elementShotWriteActive || state.phase !== "drafting" || !state.elementShots?.length || !state.draft || !state.target) return false;
+    restoreDraftIssueFields(state);
+    elementShotWriteActive = true;
+    commit({ elementShotSaving: true });
+    const base = get();
+    const id = state.currentIssueId ?? newId("issue");
+    try {
+      await saveEditorSession(sessionKey(state.target.tabId), () => editorSnapshot(get()));
+      if (get() !== base) return false;
+      const logs = selectAttachedLogs(state);
+      const writes = [
+        logs.networkLog ? saveNetworkLog(id, logs.networkLog) : true,
+        logs.consoleLog ? saveConsoleLog(id, logs.consoleLog) : true,
+        logs.actionLog ? saveActionLog(id, logs.actionLog) : true,
+      ];
+      if ((await Promise.all(writes)).some(ok => !ok) || get() !== base) throw new Error("Element draft save interrupted");
+      for (const attachment of state.attachments) {
+        const blob = await getAttachmentBlob(pendingKey(state.target.tabId), attachment.id)
+          ?? await getAttachmentBlob(id, attachment.id);
+        if (!blob || !await saveAttachmentBlob(id, attachment.id, blob)) throw new Error("Missing attachment");
+      }
+      await saveElementShotDraft({
+        id, status: "draft", platform: state.targetPlatform, captureMode: "screenshot",
+        title: state.draft.title, draft: { ...state.draft }, createdAt: Date.now(), updatedAt: Date.now(),
+        pageUrl: selectPageUrl(state), pageTitle: state.target.title, snapshot: { before: true, after: false },
+        apiHostsDerived: state.apiHostsDerived, attachments: state.attachments, ...logBlobKeys(id, logs),
+      }, state.elementShots, () => get() === base);
+      if (get() !== base) return false;
+      commit({ currentIssueId: id, phase: "previewing" });
+      await saveEditorSession(sessionKey(state.target.tabId), () => editorSnapshot(get())).catch(() => onSessionSaveExhausted.fire());
+      return get().currentIssueId === id && get().phase === "previewing";
+    } catch {
+      if (get() !== base && (!get().target || get().target?.tabId === state.target.tabId)) {
+        await saveEditorSession(sessionKey(state.target.tabId), () => editorSnapshot(get())).catch(() => {});
+      }
+      onBlobSaveFailed.fire();
+      return false;
+    } finally {
+      elementShotWriteActive = false;
+      commit({ elementShotSaving: false });
+    }
+  },
   confirmDraft: () => {
     const state = get();
+    if (state.elementShots) return false;
     const { draft, target } = state;
     if (!draft || !target) {
       set({ phase: "previewing" });
       return false;
     }
-    if (state.targetPlatform === "jira") {
-      const { lastSubmitFields, accounts } = useSettingsStore.getState();
-      const jiraAccount = accounts.jira;
-      // 세션 중 사용자가 이미 고른 값이 있으면 직전 제출값 전체를 덮어 복원하지 않는다(기존 게이트).
-      const restorable = !state.issueFields.assigneeId && !state.issueFields.priorityId;
-      const init = initialJiraFields(
-        lastSubmitFields.jira,
-        jiraAccount,
-        jiraAccount?.auth ? jiraSiteId(jiraAccount.auth) : undefined,
-      );
-      set((s) => {
-        // 세션에 projectKey 없이 issueTypeId만 있으면 프로젝트가 필드로 승격되기 전의 스냅샷이다
-        // — 그 이슈타입은 계정 기본 프로젝트의 것이라, 직전 제출 프로젝트를 얹으면 짝이 어긋나
-        // 제출이 400으로 죽는다. 복원을 통째로 건너뛰고 JiraIssueFields 백필이 계정 기본
-        // 프로젝트를 채우게 둔다.
-        const preUpgradeSession = !s.issueFields.projectKey && !!s.issueFields.issueTypeId;
-        // 게이트 조건은 담당자·우선순위이지 프로젝트가 아니다 — projectKey는 게이트와 무관하게
-        // init을 밑에 깔아 sticky를 살린다(세션에서 이미 고른 값이 있으면 그쪽이 이긴다).
-        const merged = preUpgradeSession
-          ? { ...s.issueFields }
-          : {
-              ...(restorable ? init : { projectKey: init.projectKey }),
-              ...s.issueFields,
-            };
-        // 이슈타입 id·이름은 쌍이라 세션이 id를 쥐고 있으면 이름도 세션 것만 쓴다.
-        if (s.issueFields.issueTypeId) merged.issueTypeName = s.issueFields.issueTypeName;
-        // 담당자는 게이트와 무관하게 비어 있을 때만 채우되, 우선순위는 init을 따른다
-        // (직전 제출값 우선 · Connect 기본값 fallback). 여기서 account만 보면 기본 담당자가
-        // 직전 담당자를 가로채 *다른 사람*이 붙는다 — POSTMORTEM 2026-06-30과 같은 계열.
-        // 프로젝트가 갈리면 다른 프로젝트의 담당자를 심는 셈이라 정합 조건도 함께 건다.
-        if (!merged.assigneeId && init.assigneeId && merged.projectKey === init.projectKey) {
-          merged.assigneeId = init.assigneeId;
-          merged.assigneeName = init.assigneeName;
-        }
-        return { issueFields: merged };
-      });
-    }
+    restoreDraftIssueFields(state);
     const id = state.currentIssueId ?? newId("issue");
     // 4분기 공통 필드. saveDraft가 병합이라 키를 조건부로 빼면 직전 세션 값이 되살아나므로
     // 분기는 고유 필드만 스프레드로 얹는다 — 빼는 게 아니라 덮는 방향으로만 갈린다.
@@ -1176,6 +1347,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setApiHostsDismissed: (dismissed) => set({ apiHostsDismissed: dismissed }),
   setApiHostsDerived: (derived) => set({ apiHostsDerived: derived }),
   clearNetworkLog: (tabId) => {
+    if (elementShotWriteActive) return;
     set({ networkLog: null });
     if (tabId != null) {
       deleteNetworkLog(pendingKey(tabId)).catch(() => {});
@@ -1183,6 +1355,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
   clearConsoleLog: (tabId) => {
+    if (elementShotWriteActive) return;
     set({ consoleLog: null });
     if (tabId != null) {
       deleteConsoleLog(pendingKey(tabId)).catch(() => {});
@@ -1190,6 +1363,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
   clearActionLog: (tabId) => {
+    if (elementShotWriteActive) return;
     set({ actionLog: null });
     if (tabId != null) {
       deleteActionLog(pendingKey(tabId)).catch(() => {});
@@ -1199,6 +1373,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   // 파일 선택 즉시 Blob을 pending:${tabId}에 저장하고 메타만 state에 둔다(임의 크기라 session 불가).
   addAttachments: async (files) => {
+    if (elementShotWriteActive) return { acceptCount: 0, droppedCount: files.length };
     const tabId = get().target?.tabId;
     if (tabId == null) return { acceptCount: 0, droppedCount: 0 };
     const owner = pendingKey(tabId);
@@ -1227,6 +1402,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return result;
   },
   removeAttachment: (id) => {
+    if (elementShotWriteActive) return;
     const tabId = get().target?.tabId;
     const issueId = get().currentIssueId;
     set((s) => ({ attachments: s.attachments.filter((a) => a.id !== id) }));
@@ -1250,10 +1426,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // 다음 버그를 보게 된다. 저장 draft 재제출 경로(DraftDetailDialog)는 이미 이렇게 한다.
     const tabId = get().target?.tabId;
     if (tabId != null) void clearPicker(tabId).catch(() => {});
-    set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, beforeAnnotated: null, afterAnnotated: null, captureContext: null, bufferedElements: [], screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null, attachments: [] });
+    set({ phase: "done", submitResult: result, elementShots: null, elementShotPick: null, beforeImage: null, afterImage: null, beforeAnnotated: null, afterAnnotated: null, captureContext: null, bufferedElements: [], screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null, attachments: [] });
   },
 
-  reset: () => set({ ...initial }),
+  reset: () => commit({ ...initial }),
 
-  hydrate: (snapshot) => set(snapshot),
-}));
+  hydrate: (snapshot) => commit({ ...snapshot,
+    elementShots: snapshot.elementShots ?? null,
+    elementShotPick: null,
+    phase: snapshot.phase === "picking" && snapshot.elementShotPick?.kind === "append" && resolveElementShots(snapshot).length ? "drafting" : snapshot.phase,
+  }),
+});
+});

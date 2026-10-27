@@ -13,7 +13,8 @@ import { cancelAreaSelect, clearPicker, rebindStylingSession } from "@/sidepanel
 import { getNetworkLog, getConsoleLog, getActionLog, getVideoBlob, pruneOrphanInlineImages } from "@/store/blob-db";
 import { extractInlineRefs } from "@/sidepanel/lib/resolveInlineImages";
 import { deriveLogsAttach } from "@/sidepanel/hooks/deriveLogsAttach";
-import { toLiteSnapshot } from "@/sidepanel/lib/liteSnapshot";
+import { saveEditorSession } from "@/sidepanel/lib/editorSessionPersistence";
+import { resolveElementShots } from "@/sidepanel/lib/elementShots";
 
 export function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
   let next = {
@@ -74,6 +75,8 @@ export function snapshotFromState(): EditorSnapshot {
     target: s.target,
     selection: s.selection,
     shotSelector: s.shotSelector,
+    elementShots: s.elementShots,
+    elementShotPick: s.elementShotPick,
     styleEdits: s.styleEdits,
     tokens: s.tokens,
     beforeImage: s.beforeImage,
@@ -131,7 +134,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
           // picking 중 닫힌 세션의 버퍼는 DOM 편집이 이미 원복돼 ghost가 된다 — idle
           // 강등과 함께 폐기(남기면 startPicking의 preserveBuffer로 다음 세션에 합류).
           if (snap.phase === "picking") snap.bufferedElements = [];
-          snap.phase = "idle";
+          snap.phase = snap.elementShotPick?.kind === "append" && resolveElementShots(snap).length ? "drafting" : "idle";
         }
         // 이미 빈 drafting으로 저장된 세션(#264)을 복구한다 — 아래 styling 재바인딩도 함께 탄다.
         snap.phase = settleOrphanElementPhase(snap);
@@ -212,6 +215,16 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         }
       }
 
+      if (prev.elementShotSaving && !state.elementShotSaving) {
+        saveSuspended.current = false;
+        saveFailCount.current = 0;
+        return; // Explicit media operations already persisted their final snapshot.
+      }
+      if (state.elementShotSaving) {
+        if (saveTimer.current != null) window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+        return;
+      }
       if (state.sessionExpired) return;
       // livePageUrl은 비영속이라 이 전이는 스냅샷을 못 바꾼다. 그냥 두면 네비게이션마다
       // 저장이 예약돼 screenshot/video drafting에서 수 MB data URL이 매번 재직렬화된다.
@@ -223,21 +236,16 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       saveTimer.current = window.setTimeout(() => {
         if (useEditorStore.getState().sessionExpired) return;
         if (saveSuspended.current) return;
-        const snap = snapshotFromState();
-        void chrome.storage.session
-          .set({ [key]: snap })
-          .then(() => { saveFailCount.current = 0; })
-          .catch(() => {
-            void chrome.storage.session.set({ [key]: toLiteSnapshot(snap) })
-              .then(() => { saveFailCount.current = 0; })
-              .catch(() => {
-                saveFailCount.current++;
-                if (saveFailCount.current >= 3) {
-                  saveSuspended.current = true;
-                  onSessionSaveExhausted.fire();
-                }
-              });
-          });
+        void saveEditorSession(key, () => {
+          const state = useEditorStore.getState();
+          return state.elementShotSaving || state.sessionExpired || (state.target && state.target.tabId !== tabId) ? null : snapshotFromState();
+        }).then(() => { saveFailCount.current = 0; }).catch(() => {
+          saveFailCount.current++;
+          if (resolveElementShots(snapshotFromState()).length || saveFailCount.current >= 3) {
+            saveSuspended.current = true;
+            onSessionSaveExhausted.fire();
+          }
+        });
       }, SAVE_DEBOUNCE_MS);
     });
 
@@ -249,7 +257,12 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       const change = changes[key];
       if (!change) return;
       if (change.newValue == null) {
-        const { phase, captureMode } = useEditorStore.getState();
+        const { phase, captureMode, elementShotPick } = useEditorStore.getState();
+        if (elementShotPick?.kind === "append") {
+          useEditorStore.getState().cancelElementShotPick(elementShotPick.requestId);
+          void clearPicker(tabId).catch(() => {});
+          return;
+        }
         const needsExpiry = captureMode === "element" && phase === "styling";
         if (needsExpiry) {
           if (saveTimer.current != null) {
@@ -288,6 +301,11 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       if (!prevKey || prevKey === newKey) return;
 
       const { phase, captureMode } = state;
+      if (state.elementShotPick?.kind === "append") {
+        state.cancelElementShotPick(state.elementShotPick.requestId);
+        void clearPicker(tabId).catch(() => {});
+        return;
+      }
 
       const needsExpiry = captureMode === "element" && phase === "styling";
       if (needsExpiry) {
@@ -329,10 +347,10 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       if (useEditorStore.getState().sessionExpired) return;
       if (saveSuspended.current) return;
       // debounce 경로와 같은 lite 폴백 — 쿼터 초과 시 통째 유실되던 마지막 꼬리를 살린다.
-      const snap = snapshotFromState();
-      void chrome.storage.session.set({ [key]: snap }).catch(() => {
-        void chrome.storage.session.set({ [key]: toLiteSnapshot(snap) }).catch(() => {});
-      });
+      void saveEditorSession(key, () => {
+        const state = useEditorStore.getState();
+        return state.elementShotSaving || state.sessionExpired || (state.target && state.target.tabId !== tabId) ? null : snapshotFromState();
+      }).catch(() => { onSessionSaveExhausted.fire(); });
     };
     window.addEventListener("pagehide", flushPendingSave);
 

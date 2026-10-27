@@ -5,7 +5,7 @@ import { captureInactiveMessage } from "@/lib/capture-messages";
 
 const sendBg = vi.fn<(...args: unknown[]) => Promise<string>>();
 const cropImage = vi.fn(async () => "data:image/webp;base64,crop");
-const captureElementSnapshot = vi.fn<(...args: unknown[]) => Promise<null>>(async () => null);
+const captureElementSnapshot = vi.fn<(...args: unknown[]) => Promise<{ image: string } | null>>(async () => null);
 
 vi.mock("@/lib/bg-client", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 vi.mock("@/sidepanel/capture", () => ({
@@ -345,5 +345,52 @@ describe("지연 권한 만료 플래그 배선", () => {
 
     useEditorStore.getState().reset();
     expect(dialog).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("append picker with the real editor store", () => {
+  async function startAppend() {
+    Object.assign(chrome.storage.session, { getBytesInUse: vi.fn(async () => 0), QUOTA_BYTES: 10 * 1024 * 1024 });
+    Object.assign(chrome, { tabs: { get: vi.fn(async () => ({ url: "https://example.com" })) } });
+    useEditorStore.getState().startElementShot({ tabId: TAB, url: "https://example.com", title: "page" });
+    useEditorStore.getState().onElementShot({ selector: "A", tagName: "DIV" }, "raw", { width: 800, height: 600 });
+    useEditorStore.getState().setDraft({ title: "keep", sections: { description: "body" } });
+    return useEditorStore.getState().startAdditionalElementShot();
+  }
+  it("commits one appended image despite duplicate messages and preserves the body", async () => {
+    await startAppend();
+    captureElementSnapshot.mockResolvedValueOnce({ image: "new" });
+    renderHook(() => usePickerMessages(TAB));
+    deliver(SELECTED);
+    deliver(SELECTED);
+    await waitFor(() => expect(useEditorStore.getState().elementShots).toHaveLength(2));
+    expect(useEditorStore.getState().elementShots?.map(s => s.raw)).toEqual(["raw", "new"]);
+    expect(useEditorStore.getState().draft?.title).toBe("keep");
+    expect(captureElementSnapshot).toHaveBeenCalledTimes(1);
+  });
+  it("an old failure cannot reset a replacement picker on the same tab", async () => {
+    const first = await startAppend();
+    let resolve!: (value: null) => void;
+    captureElementSnapshot.mockReturnValueOnce(new Promise(r => { resolve = r; }));
+    renderHook(() => usePickerMessages(TAB));
+    deliver(SELECTED);
+    await waitFor(() => expect(captureElementSnapshot).toHaveBeenCalled());
+    useEditorStore.getState().cancelElementShotPick(first!);
+    const next = await useEditorStore.getState().startAdditionalElementShot();
+    resolve(null);
+    await new Promise(r => setTimeout(r, 0));
+    expect(useEditorStore.getState().elementShotPick?.requestId).toBe(next);
+    expect(useEditorStore.getState().phase).toBe("picking");
+    expect(failed).not.toHaveBeenCalled();
+  });
+  it("ESC and navigation log clearing preserve the existing report", async () => {
+    await startAppend();
+    renderHook(() => usePickerMessages(TAB));
+    deliver({ type: "logClear", tabId: TAB });
+    deliver({ type: "picker.cancelled", sessionId: "s1" });
+    expect(useEditorStore.getState().phase).toBe("drafting");
+    expect(useEditorStore.getState().screenshotRaw).toBe("raw");
+    expect(useEditorStore.getState().draft?.title).toBe("keep");
   });
 });

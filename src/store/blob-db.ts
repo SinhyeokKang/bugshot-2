@@ -143,6 +143,7 @@ export async function clearVideoBlobs(): Promise<void> {
 // before/after = 현재(마지막) element. b${n}-before/after = 복수 element 버퍼의 n번째.
 export type ImageSlot =
   | "before"
+  | `shot-${string}-v-${string}`
   | "after"
   | `b${number}-before`
   | `b${number}-after`;
@@ -200,6 +201,23 @@ export async function deleteImageBlobs(issueId: string): Promise<void> {
   } catch (e) {
     console.warn("[blob-db] deleteImageBlobs failed:", e);
   }
+}
+
+// The caller holds the issue operation lock. Read durable references before deleting;
+// failed reads must reject rather than turn into an empty reference set.
+async function collectActiveElementShotKeys(excludedIssueIds: string[] = []): Promise<Set<string>> {
+  const local = await chrome.storage.local.get(ISSUES_PERSIST_KEY);
+  const raw = local[ISSUES_PERSIST_KEY];
+  const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+  if (parsed != null && !Array.isArray(parsed?.state?.issues)) throw new Error("Invalid issues storage");
+  const records = (parsed?.state?.issues ?? []) as Array<{ id: string; elementShots?: Array<{ imageSlot: string }> }>;
+  return new Set(records.filter(record => !excludedIssueIds.includes(record.id))
+    .flatMap(record => (record.elementShots ?? []).map(shot => `${record.id}:${shot.imageSlot}`)));
+}
+
+export async function pruneElementShotBlobs(issueId: string): Promise<void> {
+  const referenced = await collectActiveElementShotKeys();
+  await deleteUnprotectedKeys(STORE_IMAGES, key => key.startsWith(`${issueId}:shot-`) && !referenced.has(key));
 }
 
 export async function getImageBlobKeys(): Promise<string[]> {
@@ -957,6 +975,7 @@ export async function deleteSubmissionRecovery(issueId: string, attemptId: strin
 export async function deleteOriginalKeys(issueId: string, attemptId: string, sources: RecoverySource[]): Promise<void> {
   const requested = structuredClone(sources);
   const inlineRefs = await collectAllActiveInlineRefs([issueId]);
+  const shotRefs = await collectActiveElementShotKeys();
   await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES], "readwrite", async (tx) => {
     const current = await requireAttempt(tx.objectStore(STORE_RECOVERY), issueId, attemptId);
     if (current.phase !== "partial" && current.phase !== "complete") throw new Error("Recovery is not finalized");
@@ -967,7 +986,7 @@ export async function deleteOriginalKeys(issueId: string, attemptId: string, sou
       if (!files.length || files.some((file) => !current.results.some((r) => r.fileId === file.id && r.delivery === "attached" && r.presentation !== "failed" && !r.failure))) {
         throw new Error("Cannot delete incomplete recovery source");
       }
-      if ((source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
+      if ((source.store === STORE_IMAGES && shotRefs.has(source.key)) || (source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
         || retained.some((meta) => protectsSource(meta, source.store, source.key))) continue;
       tx.objectStore(source.store).delete(source.key);
     }
@@ -977,12 +996,13 @@ export async function deleteOriginalKeys(issueId: string, attemptId: string, sou
 export async function purgeRecoveryForIssues(issueIds: string[]): Promise<void> {
   if (!issueIds.length) return;
   const inlineRefs = await collectAllActiveInlineRefs(issueIds);
+  const shotRefs = await collectActiveElementShotKeys(issueIds);
   await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES], "readwrite", async (tx) => {
     const all = await recoveriesIn(tx);
     const retained = all.filter((meta) => !issueIds.includes(meta.issueId));
     for (const meta of all.filter((meta) => issueIds.includes(meta.issueId))) {
       for (const source of meta.files.flatMap(originalRecoverySources)) {
-        if (source.kind === "original" && !(source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
+        if (source.kind === "original" && !(source.store === STORE_IMAGES && shotRefs.has(source.key)) && !(source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
           && !retained.some((other) => protectsSource(other, source.store, source.key))) tx.objectStore(source.store).delete(source.key);
       }
       deleteJournal(tx.objectStore(STORE_RECOVERY), meta);
@@ -1029,12 +1049,13 @@ function originalRecoverySources(file: SubmissionRecoveryMeta["files"][number]):
 export async function expireSubmissionRecovery(issueId: string, attemptId: string, now = Date.now()): Promise<void> {
   const expiredIds = (await listSubmissionRecoveries()).filter((meta) => meta.expiresAt <= now).map((meta) => meta.issueId);
   const inlineRefs = await collectAllActiveInlineRefs(expiredIds);
+  const shotRefs = await collectActiveElementShotKeys();
   await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES], "readwrite", async (tx) => {
     const current = await requireAttempt(tx.objectStore(STORE_RECOVERY), issueId, attemptId);
     if (current.expiresAt > now) return;
     const retained = (await recoveriesIn(tx)).filter((meta) => meta.issueId !== issueId && meta.expiresAt > now);
     for (const source of current.files.flatMap(originalRecoverySources)) {
-      if (!(source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
+      if (!(source.store === STORE_IMAGES && shotRefs.has(source.key)) && !(source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
         && !retained.some((other) => protectsSource(other, source.store, source.key))) tx.objectStore(source.store).delete(source.key);
     }
     for (const { source } of current.files) if (source.kind === "generated") tx.objectStore(STORE_RECOVERY).delete(source.key);
@@ -1044,6 +1065,7 @@ export async function expireSubmissionRecovery(issueId: string, attemptId: strin
 
 export async function removeSubmissionRecoveryFiles(issueId: string, attemptId: string): Promise<void> {
   const inlineRefs = await collectAllActiveInlineRefs([issueId]);
+  const shotRefs = await collectActiveElementShotKeys();
   const local = await chrome.storage.local.get(ISSUES_PERSIST_KEY);
   const raw = local[ISSUES_PERSIST_KEY];
   const persisted = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -1057,7 +1079,7 @@ export async function removeSubmissionRecoveryFiles(issueId: string, attemptId: 
       for (const source of current.files.flatMap(originalRecoverySources)) {
         // Non-inline originals belong to their issue key; never delete another owner's bytes.
         if (source.store !== STORE_INLINE_IMAGES && source.key !== issueId && !source.key.startsWith(`${issueId}:`)) continue;
-        if ((source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
+        if ((source.store === STORE_IMAGES && shotRefs.has(source.key)) || (source.store === STORE_INLINE_IMAGES && inlineRefs.has(source.key))
           || retained.some((other) => protectsSource(other, source.store, source.key))) continue;
         tx.objectStore(source.store).delete(source.key);
       }
@@ -1069,6 +1091,7 @@ export async function removeSubmissionRecoveryFiles(issueId: string, attemptId: 
 
 export async function cleanupSubmissionOriginals(issueId: string, attemptId: string): Promise<void> {
   const inlineRefs = await collectAllActiveInlineRefs([issueId]);
+  const shotRefs = await collectActiveElementShotKeys();
   await recoveryTransaction([STORE_RECOVERY, ...ORIGINAL_STORES, STORE_NETWORK, STORE_CONSOLE, STORE_ACTION], "readwrite", async (tx) => {
     const current = await requireAttempt(tx.objectStore(STORE_RECOVERY), issueId, attemptId);
     if (current.phase !== "partial" && current.phase !== "complete") throw new Error("Recovery is not finalized");
@@ -1086,6 +1109,7 @@ export async function cleanupSubmissionOriginals(issueId: string, attemptId: str
       for (const key of keys) {
         if (typeof key !== "string" || !(referenced.includes(key) || (storeName !== STORE_INLINE_IMAGES && (key === issueId || key.startsWith(`${issueId}:`))))) continue;
         if (incomplete.some((s) => s.store === storeName && s.key === key)
+          || (storeName === STORE_IMAGES && shotRefs.has(key))
           || (storeName === STORE_INLINE_IMAGES && inlineRefs.has(key))
           || retained.some((meta) => protectsSource(meta, storeName, key))) continue;
         store.delete(key);

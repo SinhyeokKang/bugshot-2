@@ -22,6 +22,9 @@ const POLICED =
 // 지금 0건이고 이 판정 밖이다). 새 승격 경로를 뚫으면 이 목록에 등재한다 — 아래 "목록이
 // 장부가 되지 않는다"가 죽은 항목을 red로 잡는다.
 const ALLOWED = [
+  "@/sidepanel/lib/elementShots",
+  "@/sidepanel/lib/elementShotBudget",
+  "@/sidepanel/lib/editorSessionPersistence",
   "@/sidepanel/picker-clear",
   "@/sidepanel/recorder-control",
   "@/sidepanel/lib/aiLanguage",
