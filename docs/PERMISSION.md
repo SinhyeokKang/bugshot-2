@@ -43,12 +43,14 @@ BugShot이 사용자로부터 취득하는 Chrome 권한, 각 권한을 사용�
 ### host_permissions (설치 시 부여)
 
 ```
-<all_urls>   — 유일 항목. 모든 페이지 picker·로그 레코더 주입 + captureVisibleTab(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강, SSRF 가드) + 8개 플랫폼 REST/OAuth host + OAuth proxy origin fetch까지 전부 커버
+<all_urls>   — 유일 항목. 모든 페이지 picker·로그 레코더 주입 + captureVisibleTab(영역·화면·페이지 전체·요소 캡처 + 30s Replay) + BYOK LLM·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강, SSRF 가드) + 8개 플랫폼 REST/OAuth host + OAuth proxy origin fetch까지 전부 커버
 ```
 
 `<all_urls>`가 상위집합이라 플랫폼별 REST/OAuth host(`*.atlassian.net`·`api.github.com`·`github.com`(에셋 업로드 정책)+GitHub 발급 S3 업로드 URL·`api.linear.app`·`api.notion.com`·`gitlab.com`·`app.asana.com`·`api.clickup.com`·`api.atlassian.com`·`slack.com`)와 OAuth proxy origin(`VITE_OAUTH_PROXY_URL`)을 **manifest에 따로 나열하지 않는다** — 전부 `<all_urls>`로 동작한다. OAuth authorize endpoint(`auth.atlassian.com`·`app.clickup.com`·`slack.com/oauth/v2/authorize` 등)는 `launchWebAuthFlow`가 Chrome 관리 팝업에서 처리하므로 host_permission 자체가 불요. 어느 플랫폼·proxy로 트래픽이 나가는지(데이터 전송 대상)는 §11과 docs/privacy.ko.md의 전송 표 참조.
 
 `<all_urls>`가 required인 이유: `captureVisibleTab`은 일반 host 패턴(`https://*/*`)을 캡처 권한으로 인정하지 않고 `<all_urls>` 또는 activeTab만 받는다. 30s Replay가 cross-origin 이동 후에도 캡처하려면 `<all_urls>`가 필요한데, activeTab은 다른 origin으로 이동하면 회수돼 프로그램적 재취득이 불가하므로 광역 host 권한을 **설치 시 상시 보유**(required)한다. BYOK LLM·GitLab self-managed·**Jira API Key 모드(Server/DC)**의 임의 origin fetch도 이 권한으로 커버된다 — 셋 다 base URL이 사용자 자유 입력이고, `assertCredentialSafeBase`는 https(+loopback 예외)만 강제할 뿐 호스트를 좁히지 않는다.
+
+요소 캡처 작성 화면의 **요소 추가**는 원래 페이지와 일치하는지 확인한 뒤 기존 picker 주입·`captureVisibleTab` 관문을 다시 사용한다. 추가 권한이나 새 호스트는 요청하지 않으며, 취소·주입/캡처 실패 시 기존 편집 자료를 보존한다.
 
 ### web_accessible_resources (빌드가 자동 주입 — manifest.config.ts에 없음)
 
@@ -614,7 +616,7 @@ Custom Webhook의 사용자 지정 origin도 `<all_urls>`로 커버된다. `back
 | 위치 | 용도 |
 |---|---|
 | `picker.ts` / `recorder-bridge.ts` / `recorders-entry.ts` | 모든 페이지에 picker·로그 레코더 content script 주입 (manifest `content_scripts` 3개 — bridge는 ISOLATED에서 sentinel 수신·데이터 중계, entry는 MAIN에서 console/network/action 후크) |
-| `background/messages.ts` (`captureVisibleTab`) | 30s Replay + 스틸 캡처(영역·화면·페이지 전체) — cross-origin 네비게이션 후에도 캡처 유지(activeTab은 회수되므로 광역 권한이 필요) |
+| `background/messages.ts` (`captureVisibleTab`) | 30s Replay + 스틸 캡처(영역·화면·페이지 전체·요소, 작성 중 추가 요소 캡처 포함) — cross-origin 네비게이션 후에도 캡처 유지(activeTab은 회수되므로 광역 권한이 필요) |
 | `tab-bindings.ts` (`deactivatePanelIfCrossOrigin`) | cross-origin 커버 URL(http/https) 이동 시 패널 유지 — `broadGranted=true` 고정(§ 패널 종료/유지 정책 분기표) |
 | `LlmConnectDialog.tsx`·`FreeLlmConnectDialog.tsx` (`ai-provider.ts:requestHostPermission` 경유) | BYOK LLM·무료 Gemini 연결 — 임의 baseUrl origin 요청이 `<all_urls>`에 포섭돼 **즉시 grant**(프롬프트 없음) |
 | `GitlabConnectForm.tsx` | GitLab self-managed 인스턴스 PAT 연결 — `requestHostPermission` 공유, 동일하게 즉시 grant |
