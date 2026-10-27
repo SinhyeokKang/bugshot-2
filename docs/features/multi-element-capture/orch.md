@@ -134,3 +134,11 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 
 - P 독립 리뷰 `ctx_0dc1aaf1a88e`: red0/yellow0, dev `84cae118`·`ef69f523` 통합. 인계/리뷰 보존, tracked clean·git cherry +0 확인 후 terminal 및 mec-session 정리 완료. ARCHITECTURE/POSTMORTEM 저장 계약 반영.
 - D 최종 `30d384d1`까지 5 commits 인계: 기존 ImageActions + hover/focus 패턴, 가이드8페이지, 브라우저 회귀 보강. 최종 관련44개/typecheck/가이드 정적 검사 통과. 구현 terminal release 뒤 독립 리뷰 `ctx_b392a2374a4f` 진행. 전체59기준의 근거표에서 실제 PASS만 tasks 체크했으며 부분 매트릭스·최종 CI·실 화면/스크린샷은 자동 완료 처리하지 않는다.
+
+- D 독립 리뷰 red0/yellow1: 주석 제거 콜백만 검사하던 테스트를 실제 store·화면 raw·다른 shot 보존·확정 snapshot으로 보강(`c065ba44`→dev `c348e2a9`). 지휘자가 실제 diff와6개/typecheck 통과를 대조해 해당 yellow를 닫았다. D 본문5개 커밋은 `26ea80e5`..`dc7eceaa`로 통합했다. 최종 소스는 기존 ImageActions·DOM repick 아이콘·이미지 카드 hover/focus 패턴을 공유한다.
+- 최종 생산 빌드 `dc7eceaa` 성공: log-viewer 573.41kB(587425bytes), 확장 빌드 exit0. 이후 변경은 테스트·문서뿐이다. 타입 검사와 미러 exit0.
+- R `ctx_e61daaed2bea` 읽기 전용 종료/release: 실제 브라우저 관측0. manual-smoke는 해당 스킬의 Codex 즉시중단 규칙, guide-shots는 능력 미충족 시 탐지까지만 규칙에 따라 실행/촬영하지 않았다. 32에셋 placeholder0, 메타데이터후보32는 시각결함 판정이 아니다. `screenshot-issue-2` ko/en은 새 흐름 예시 후보이며 기존 일반 단일 캡처 자체는 유효하다. ko `issue-5` 프레임에는 미디어가 없어 D의 단일 이미지 stale 주장을 정정한다. 캡처 픽셀·실 iframe·사이드패널 포커스·좁은 다크모드 시각 확인과 새 가이드 예시는 잔여다.
+- D/P/R 인계와 리뷰를 보존했다. 구현·리뷰·검증 터미널은 모두 release, D도 tracked clean·git cherry +0 확인 후 정리했다. 부분 검증 매트릭스는 미체크 상태로 보존하며 원격 CI가 광범위 동작 회귀를 담당한다.
+
+- 최종 통합 게이트: `pnpm test` exit0, 487 files/9366 pass/2 skip. `pnpm typecheck`·`pnpm sync:agents:check`·diff check exit0. 사용자 지시 뒤 로컬 e2e/build:e2e 실행0.
+- push 신선도 트라이아지 완료: ARCHITECTURE/DIRECTORY/DESIGN·README ko/en·PERMISSION·privacy ko/en·CI(92spec/456tests)·guide8페이지와 e2e 문서를 해당 diff에 맞췄다. manifest/scripts/의존성/워크플로우 변경 없음. 가이드 IA·AUTHORING 기준 불변. 원본 CLAUDE/스킬 및 미러 소스는 수정하지 않았다. 다음 게이트는 이 커밋을 포함한 원격 dev HEAD의 verify/e2e-gate이며 이전 green으로 대체하지 않는다.
