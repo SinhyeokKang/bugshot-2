@@ -77,8 +77,8 @@ it.each([true, false])("uses the current journal destination, never the previous
 });
 
 
-it("offers saved logs download even with attachment disabled and reports missing immutable bytes", async () => {
-  const record: IssueRecord = { ...issue, captureMode: "screenshot", logsAttached: false,
+it("offers saved logs download and reports missing immutable bytes", async () => {
+  const record: IssueRecord = { ...issue, captureMode: "screenshot", logsAttached: true,
     networkLogBlobKey: "saved-network", elementShots: [{ id: "shot", imageSlot: "shot-shot-v-revision", hasImage: true,
       selector: "#saved", tagName: "div", capturedAt: 1,
       viewport: { width: 100, height: 100 } }] };

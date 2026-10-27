@@ -1,7 +1,8 @@
+import { toast } from "sonner";
 import { Download, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
-import { downloadImageDataUrl } from "@/sidepanel/lib/downloadCapture";
+import { downloadImageUrl } from "@/sidepanel/lib/downloadCapture";
 
 export interface ElementShotMediaItem {
   id: string;
@@ -29,7 +30,7 @@ export function ElementShotMedia({ items, busy, onEdit, onReset, onDelete }: {
           data-testid="annotation-remove" onClick={() => { if (!busy) onReset(item.id); }}><RotateCcw /></Button>}
         <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" aria-label={t("common.download")}
           aria-disabled={busy || !item.url} data-testid="download-media"
-          onClick={() => { if (!busy && item.url) downloadImageDataUrl(item.url, `screenshot-${index + 1}`); }}><Download /></Button>
+          onClick={() => { if (!busy && item.url) void downloadImageUrl(item.url, `screenshot-${index + 1}`).catch(() => toast.error(t("recovery.localMissing"))); }}><Download /></Button>
         {onDelete && items.length > 1 && <Button size="icon" variant="outline" className="h-8 w-8 shrink-0"
           aria-label={t("common.delete")} aria-disabled={busy} data-testid="element-shot-delete"
           onClick={(event) => {

@@ -16,9 +16,9 @@ import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, getActionLog,
 import type { UserAttachmentMeta } from "@/types/attachment";
 import type { EnvironmentRow } from "@/types/environment";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
-import { Loader2, Pencil, RotateCw } from "lucide-react";
+import { Download, Loader2, Pencil, RotateCw } from "lucide-react";
 import { useT } from "@/i18n";
-import type { LocaleMode } from "@/i18n/locales";
+import { resolveBodyLocale, type LocaleMode } from "@/i18n/locales";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -93,6 +93,7 @@ import {
 } from "@/sidepanel/lib/applyDraftFieldEdit";
 import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
 import { AttachmentList } from "@/sidepanel/components/AttachmentList";
+import { triggerDownload } from "@/sidepanel/lib/downloadCapture";
 import { downloadAttachment } from "@/sidepanel/lib/downloadAttachment";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { LogPreviewDialog } from "@/sidepanel/components/LogPreviewDialog";
@@ -407,7 +408,20 @@ function EditableDraftDetailDialog({
       hasBufferedStyle);
   const hasScreenshot = isScreenshot && !!issue.snapshot.before;
 
-  async function buildCtxForSubmit(bodyLocale: LocaleMode, transmitFiles = true) {
+  async function handleDownloadLogs() {
+    if (issue?.logsAttached === false) return;
+    try {
+      const settings = useSettingsUiStore.getState();
+      const { captureFiles } = await buildCtxForSubmit(resolveBodyLocale(settings.bodyLocale, settings.locale), true, true);
+      const logs = captureFiles.logs[0];
+      if (!logs) throw new MissingSubmissionFilesError(["logs"]);
+      triggerDownload(dataUrlToBlob(logs.dataUrl), logs.filename);
+    } catch {
+      toast.error(t("recovery.localMissing"));
+    }
+  }
+
+  async function buildCtxForSubmit(bodyLocale: LocaleMode, transmitFiles = true, downloadLogs = false) {
     if (!issue) throw new Error(t("create.requiredMissing"));
     const sel = issue.selectionSnapshot;
     // logsAttached === false면 blob이 있어도 logs.html 미첨부(편집 이슈의 통짜 토글). undefined = 첨부.
@@ -449,7 +463,7 @@ function EditableDraftDetailDialog({
 
     // 사용자 첨부: 확정 draft라 blob은 issueId 키. 메타 순서대로 로드(없으면 제외).
     let userAttachments: { meta: UserAttachmentMeta; blob: Blob }[] | undefined;
-    if (transmitFiles && issue.attachments?.length) {
+    if (transmitFiles && !downloadLogs && issue.attachments?.length) {
       const loaded = await Promise.all(
         issue.attachments.map(async (meta) => {
           const blob = await getAttachmentBlob(issue.id, meta.id);
@@ -466,6 +480,10 @@ function EditableDraftDetailDialog({
     const beforeBlob = transmitFiles && !issue.elementShots && (isScreenshot || legacyNoDiff) && issue.snapshot.before
       ? await getImageBlob(issue.id, "before")
       : null;
+    if (downloadLogs && ((isVideo && !videoBlob) ||
+        (!issue.elementShots && (isScreenshot || legacyNoDiff) && issue.snapshot.before && !beforeBlob))) {
+      throw new MissingSubmissionFilesError(["capture"]);
+    }
     const beforeDataUrl = beforeBlob ? await blobToDataUrl(beforeBlob) : null;
     const elementShotImages = transmitFiles && isScreenshot && issue.elementShots
       ? await Promise.all(issue.elementShots.map(async shot => {
@@ -971,6 +989,7 @@ function EditableDraftDetailDialog({
                   consoleLogData={consoleLogData}
                   actionLogData={actionLogData}
                   onLogClick={() => setLogDialogOpen(true)}
+                  onDownloadLogs={() => void handleDownloadLogs()}
                   onToggleLogsAttach={(on) => patchIssue(issue.id, { logsAttached: on })}
                   editable={canEditDraftFields(issue)}
                   onEditSection={(sec) =>
@@ -1138,6 +1157,7 @@ function DraftDetailSections({
   consoleLogData,
   actionLogData,
   onLogClick,
+  onDownloadLogs,
   onToggleLogsAttach,
   editable,
   onEditSection,
@@ -1154,6 +1174,7 @@ function DraftDetailSections({
   consoleLogData: ConsoleLog | null;
   actionLogData: ActionLog | null;
   onLogClick: () => void;
+  onDownloadLogs: () => void;
   onToggleLogsAttach: (on: boolean) => void;
   editable: boolean;
   onEditSection: (section: TextIssueSection) => void;
@@ -1211,7 +1232,11 @@ function DraftDetailSections({
     showActionCard
   );
   const logCardsBlock = showLogCards ? (
-    <FieldSection key="__logCards" label={t("section.logs")}>
+    <FieldSection key="__logCards" label={t("section.logs")} action={
+      <Button size="icon" variant="outline" className="h-8 w-8 shrink-0"
+        title={t("common.download")} aria-label={t("common.download")}
+        data-testid="download-logs" aria-disabled={issue.logsAttached === false} onClick={onDownloadLogs}><Download /></Button>
+    }>
       <LogAttachmentCards
         networkLog={networkLogData}
         consoleLog={consoleLogData}
