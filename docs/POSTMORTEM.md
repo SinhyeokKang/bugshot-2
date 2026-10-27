@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-10-27 — 관찰 패널의 완료된 타이머를 미저장 편집으로 오인했다
+
+- **영역**: `store`, `컴포넌트`
+- **계열**: `미검증단언`
+- **그물**: `jsdom`
+- **증상**: 같은 대상 탭의 두 패널 중 관찰 패널을 닫고 주 패널을 다시 열면 주석 이미지가 이전 버전으로 돌아갔다. 저장 상세와 제출 이미지에는 새 버전이 남아 있었다.
+- **근본 원인**: hydrate와 비영속 로그 알림이 저장을 예약했고 debounce가 끝나도 타이머 참조를 비우지 않았다. pagehide는 이미 완료된 타이머를 pending 편집으로 판단해 관찰 패널의 오래된 session을 다시 저장했다. 문서별 큐는 공유 storage의 인스턴스 간 소유권을 보장하지 않는다.
+- **재발 방지**: 읽기는 저장 예약에서 제외하고 snapshot 키 변경만 자동 저장한다. 완료된 타이머 참조를 비운다. 독립된 두 store/hook 인스턴스가 실제 저장소를 공유하는 테스트에서 debounce 전·후 종료와 재열기 이미지 바이트를 단언하며 진짜 pending 편집의 종료 flush도 보존한다.
+- **관련**: `src/sidepanel/hooks/useEditorSessionSync.ts`, `src/sidepanel/hooks/__tests__/useEditorSessionSyncConfirmation.test.tsx`, `src/sidepanel/hooks/__tests__/useEditorSessionSyncHydration.test.tsx`
+
+---
+
 ## 2026-10-27 — 표시 가능한 Blob URL을 다운로드 가능한 data URL로 오인했다
 
 - **영역**: `컴포넌트`, `미디어`
