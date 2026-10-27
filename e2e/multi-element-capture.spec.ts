@@ -57,18 +57,23 @@ test.describe.serial("ordered element captures", () => {
 
   test("A → B → A appends new IDs and preserves the title", async () => {
     ids = await readIds();
+    const addControl = panel.getByTestId("element-shot-add");
+    await expect(addControl).toHaveText("");
+    await expect(addControl).toHaveAttribute("aria-label", /.+/);
+    await expect(addControl.locator("svg.lucide-crosshair")).toHaveCount(1);
     await expect.poll(() => items().first().getByTestId("media-preview-img").evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true);
     const geometry = await items().first().evaluate(node => {
-      const image = node.querySelector("img")!.getBoundingClientRect();
+      const frame = node.getBoundingClientRect();
       return [...node.querySelectorAll("button")].map(button => {
         const box = button.getBoundingClientRect();
-        return { width: box.width, height: box.height, bottom: box.bottom, imageTop: image.top };
+        return { width: box.width, height: box.height, bottom: box.bottom, frameBottom: frame.bottom, top: box.top, frameTop: frame.top };
       });
     });
     for (const box of geometry) {
       expect(box.width).toBeGreaterThanOrEqual(32);
       expect(box.height).toBeGreaterThanOrEqual(32);
-      expect(box.bottom).toBeLessThanOrEqual(box.imageTop);
+      expect(box.bottom).toBeLessThanOrEqual(box.frameBottom);
+      expect(box.top).toBeGreaterThanOrEqual(box.frameTop);
     }
     await expect(items().getByTestId("element-shot-delete")).toHaveCount(0);
     for (const selector of ["#card", "#title"]) {
@@ -81,8 +86,9 @@ test.describe.serial("ordered element captures", () => {
       ids = await readIds();
       expect(ids.slice(0, -1)).toEqual(previous);
       expect(previous).not.toContain(ids.at(-1));
-      await expect(items().last().getByTestId("annotation-edit")).toBeFocused();
+      await expect(items().last().getByRole("button").first()).toBeFocused();
       await expect(panel.getByTestId("draft-title")).toHaveValue("Ordered captures remain intact");
+      await expect(panel.locator('[contenteditable="true"]').first()).toContainText("Stored report body survives downloads.");
     }
     const snapshot = await panel.evaluate(async (id) => (await chrome.storage.session.get(`editor:${id}`))[`editor:${id}`], tabId);
     expect(snapshot.elementShots.map((shot: { id: string }) => shot.id)).toEqual(ids);
@@ -140,6 +146,63 @@ test.describe.serial("ordered element captures", () => {
     await expect(panel.getByTestId("drafting-panel")).toBeVisible();
     expect(await readIds()).toEqual(ids);
     await expect(panel.getByTestId("draft-title")).toHaveValue("Ordered captures remain intact");
+    await expect(panel.locator('[contenteditable="true"]').first()).toContainText("Stored report body survives downloads.");
+  });
+
+  test("ESC and navigation while the append panel closes preserve the original draft", async ({ ext }) => {
+    await panel.getByTestId("element-shot-add").click();
+    await expect(panel.getByTestId("picking-cancel")).toBeVisible();
+    await fixture.keyboard.press("Escape");
+    await waitForPanelFront(panel);
+    await expect(panel.getByTestId("drafting-panel")).toBeVisible();
+    expect(await readIds()).toEqual(ids);
+    await expect(panel.getByTestId("element-shot-add")).toBeFocused();
+    const before = await panel.evaluate(async id => (await chrome.storage.session.get(`editor:${id}`))[`editor:${id}`], tabId);
+    await panel.getByTestId("element-shot-add").click();
+    await expect.poll(() => panel.evaluate(async id => (await chrome.storage.session.get(`editor:${id}`))[`editor:${id}`]?.elementShotPick?.kind, tabId)).toBe("append");
+    await Promise.all([panel.close(), fixture.goto(ext.fixtureUrl("second.html"))]);
+    panel = await ext.openPanel(tabId);
+    await panel.bringToFront();
+    await enterDebug(panel);
+    await expect(items()).toHaveCount(3);
+    expect(await readIds()).toEqual(ids);
+    await expect(panel.getByTestId("draft-title")).toHaveValue("Ordered captures remain intact");
+    await expect(panel.locator('[contenteditable="true"]').first()).toContainText("Stored report body survives downloads.");
+    const restored = await panel.evaluate(async id => (await chrome.storage.session.get(`editor:${id}`))[`editor:${id}`], tabId);
+    expect(restored.elementShots).toEqual(before.elementShots);
+    expect(restored.target.url).toBe(before.target.url);
+    await fixture.goto(ext.fixtureUrl("basic.html"));
+    await panel.bringToFront();
+  });
+
+  test("a candidate write rejected after admission preserves image bytes across reopen", async () => {
+    const before = await items().getByTestId("media-preview-img").evaluateAll(nodes => nodes.map(node => (node as HTMLImageElement).src));
+    await panel.evaluate((id) => {
+      const set = chrome.storage.session.set.bind(chrome.storage.session);
+      (window as unknown as { __candidateRefused: boolean }).__candidateRefused = false;
+      chrome.storage.session.set = (async (values: Record<string, { elementShots?: unknown[] }>) => {
+        if (values[`editor:${id}`]?.elementShots?.length === 4) {
+          (window as unknown as { __candidateRefused: boolean }).__candidateRefused = true;
+          throw new Error("injected quota race after admission");
+        }
+        return set(values);
+      }) as typeof chrome.storage.session.set;
+    }, tabId);
+    await panel.getByTestId("element-shot-add").click();
+    await pickElement(fixture, panel, "#card", { expectSelection: false });
+    await expect.poll(() => panel.evaluate(() => (window as unknown as { __candidateRefused: boolean }).__candidateRefused)).toBe(true);
+    await expect(panel.getByTestId("drafting-panel")).toBeVisible();
+    await expect(panel.getByRole("alertdialog")).toBeVisible();
+    await panel.getByRole("alertdialog").getByRole("button").click();
+    expect(await readIds()).toEqual(ids);
+    await panel.reload();
+    await panel.bringToFront();
+    await enterDebug(panel);
+    await expect(items()).toHaveCount(3);
+    expect(await readIds()).toEqual(ids);
+    expect(await items().getByTestId("media-preview-img").evaluateAll(nodes => nodes.map(node => (node as HTMLImageElement).src))).toEqual(before);
+    await expect(panel.getByTestId("draft-title")).toHaveValue("Ordered captures remain intact");
+    await expect(panel.locator('[contenteditable="true"]').first()).toContainText("Stored report body survives downloads.");
   });
 
   test("annotation changes only its ID; deleting B retains A and A, then forbids final deletion", async () => {
@@ -162,7 +225,7 @@ test.describe.serial("ordered element captures", () => {
     await items().nth(1).getByTestId("element-shot-delete").click();
     await expect(items()).toHaveCount(2);
     expect(await readIds()).toEqual([ids[0], ids[2]]);
-    await expect(items().last().getByTestId("annotation-edit")).toBeFocused();
+    await expect(items().last().getByRole("button").first()).toBeFocused();
     ids = [ids[0], ids[2]];
     // Save/reopen keeps the ordered immutable media, including the annotation.
     const before = await items().getByTestId("media-preview-img").evaluateAll(nodes => nodes.map(node => (node as HTMLImageElement).src));
@@ -186,6 +249,7 @@ test.describe.serial("ordered element captures", () => {
     await expect(panel.getByTestId("drafting-panel")).toBeVisible();
     await expect(items()).toHaveCount(1);
     await expect(panel.getByTestId("draft-title")).toHaveValue("Ordered captures remain intact");
+    await expect(panel.locator('[contenteditable="true"]').first()).toContainText("Stored report body survives downloads.");
     await fixture.goto(ext.fixtureUrl("basic.html"));
     await panel.bringToFront();
     await panel.getByTestId("element-shot-add").click();
@@ -218,6 +282,47 @@ test.describe.serial("ordered element captures", () => {
     const dom = panel.locator('[data-testid="env-row"][data-env-label="DOM"]');
     await expect(dom).toContainText("title");
     await expect(dom).toContainText("card");
+  });
+
+  test("an open saved detail reloads an annotation saved with the same issue and shot IDs", async ({ ext }) => {
+    const observer = await ext.openPanel(tabId);
+    try {
+      await observer.bringToFront();
+      await observer.getByTestId("tab-issue-list").click();
+      await observer.getByTestId("issue-row").filter({ hasText: "Ordered captures remain intact" }).click();
+      const detail = observer.getByTestId("draft-detail-dialog");
+      const saved = detail.getByTestId("element-shot-item");
+      await expect(saved).toHaveCount(2);
+      const oldIds = await saved.evaluateAll(nodes => nodes.map(node => (node as HTMLElement).dataset.shotId));
+      const oldSrc = await saved.nth(1).getByTestId("media-preview-img").getAttribute("src");
+      await expect(saved.nth(1).getByTestId("media-preview-img")).toHaveAttribute("src", /^blob:/);
+      await panel.bringToFront();
+      await panel.getByTestId("back-to-draft").click();
+      await items().nth(1).getByTestId("annotation-edit").click();
+      const overlay = panel.getByTestId("annotation-overlay");
+      await expect(overlay).toBeVisible();
+      await panel.getByTestId("annotation-tool-rect").click();
+      const box = await overlay.locator("canvas").first().boundingBox();
+      if (!box) throw new Error("Missing annotation canvas");
+      await panel.mouse.move(box.x + box.width * .2, box.y + box.height * .2);
+      await panel.mouse.down();
+      await panel.mouse.move(box.x + box.width * .6, box.y + box.height * .6, { steps: 5 });
+      await panel.mouse.up();
+      await panel.getByTestId("annotation-done").click();
+      await expect(overlay).toBeHidden();
+      const annotated = await items().nth(1).getByTestId("media-preview-img").getAttribute("src");
+      await expect(panel.getByTestId("to-preview")).not.toHaveAttribute("aria-disabled", "true");
+      await panel.getByTestId("to-preview").click();
+      await expect(panel.getByTestId("back-to-draft")).toBeVisible();
+      await observer.bringToFront();
+      await expect(saved.nth(1).getByTestId("media-preview-img")).not.toHaveAttribute("src", oldSrc!);
+      expect(await saved.evaluateAll(nodes => nodes.map(node => (node as HTMLElement).dataset.shotId))).toEqual(oldIds);
+      const downloaded = await downloadBytes(observer, saved.nth(1).getByTestId("download-media"));
+      expect(downloaded.bytes).toEqual(Buffer.from(annotated!.split(",")[1], "base64"));
+    } finally {
+      await observer.close();
+      await panel.bringToFront();
+    }
   });
 
   test("live preview and saved draft resubmit transmit identical ordered capture bytes", async () => {
