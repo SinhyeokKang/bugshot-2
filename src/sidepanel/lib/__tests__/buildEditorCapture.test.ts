@@ -532,3 +532,16 @@ describe("buildEditorMarkdownContext — ctx.url (재현 환경 Page)", () => {
   });
 
 });
+
+it("uses all ordered selectors and first remaining metadata for element shots", () => {
+  const elementShots = ["A", "B", "A"].map((selector, i) => ({
+    id: String(i), selector, tagName: "DIV", raw: `raw-${i}`, annotated: i === 1 ? "annotated" : null,
+    viewport: { width: 100 + i, height: 200 }, capturedAt: 10 + i,
+  }));
+  editorState.current = baseState({ captureMode: "screenshot", elementShots });
+  const ctx = buildEditorMarkdownContext()!;
+  expect(ctx.selector).toBe("A, B, A");
+  expect(ctx.viewport).toEqual(elementShots[0].viewport);
+  expect(ctx.capturedAt).toBe(10);
+  expect(buildEditorLogsCaptureInput(ctx).elementShotImages).toEqual(["raw-0", "annotated", "raw-2"]);
+});

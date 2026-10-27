@@ -843,3 +843,16 @@ it.each(["screenshot", "video", "freeform"] as const)("recovered %s logs reach g
     expect((await buildCaptureFiles(input)).logs).toEqual([]);
   }
 });
+
+it("maps stable shot IDs to version slots while filenames follow remaining order", async () => {
+  const record: IssueRecord = { ...issue(), captureMode: "screenshot", elementShots: ["last", "first"].map(id => ({
+    id, selector: "same", tagName: "DIV", viewport: { width: 100, height: 100 }, capturedAt: 1,
+    imageSlot: `shot-${id}-v-new`, hasImage: true,
+  })) };
+  const files = recovery.expectedSubmissionSources(record, { sectionConfig: [] });
+  expect(files.map(f => [f.id, f.filename, f.source?.key])).toEqual([
+    ["capture:shot-last", "screenshot-1.webp", "i:shot-last-v-new"],
+    ["capture:shot-first", "screenshot-2.webp", "i:shot-first-v-new"],
+  ]);
+  await expect(recovery.assertSubmissionSources(files)).rejects.toThrow();
+});
