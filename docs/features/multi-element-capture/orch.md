@@ -81,3 +81,5 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 
 - A 구현 인계: 7 commits `b3ea58ec`..`e7eca951`, 482 files/9293 pass/2 skip, 최종 typecheck/mirror exit 0. 마지막 ancillary 준비를 issue lock 안으로 옮기고 callback narrowing 타입 오류를 고쳤다. 구현 터미널 release 완료. 독립 리뷰 task `task_880c41a0a1ce`, dispatch `ctx_2ec332cc078d`가 원 base `02729442` 대비 전체 검토 중.
 - E 재푸시 `f4d2011f`: CI https://github.com/SinhyeokKang/bugshot-2/actions/runs/40438659040.
+
+- A 독립 리뷰 `ctx_2ec332cc078d`: red 3/yellow 0. 지연 confirm이 교체된 탭 상태를 이전 키에 저장, 전체 memory ID 보호로 다른 패널에서 삭제한 이슈 부활, rollback updatedAt이 메모리에 반영되지 않아 후속 write로 취소 버전 재선택 가능. A 수정 라운드1에 실제 저장값·병합 회귀 테스트와 함께 반환. 리뷰 터미널 release 완료.
