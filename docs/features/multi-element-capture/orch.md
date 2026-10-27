@@ -23,7 +23,7 @@
 | 배치 | 계획 항목 | 소유 파일 | 선행 | 모델/effort | 검증 | 상태 |
 |---|---|---|---|---|---|---|
 | A core | Task 1–3 | types/element-shot.ts, lib/elementShots.ts·elementShotBudget.ts, editor/issues/blob stores, picker-control, usePickerMessages, useEditorSessionSync, liteSnapshot, useIssueImages, background tab-bindings/index, 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 저장 불변식 집중 | typecheck/test/sync, 독립 리뷰 | 실행 중 |
-| B viewer | Task 6 중 로그 뷰어 계약 | types/log-viewer.ts, log-viewer/**, lib/buildLogsHtml.ts 및 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 하위호환 | typecheck/test/sync, 독립 리뷰 | 실행 중 |
+| B viewer | Task 6 중 로그 뷰어 계약 | types/log-viewer.ts, log-viewer/**, lib/buildLogsHtml.ts 및 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 하위호환 | typecheck/test/sync, 독립 리뷰 | 통합 완료 |
 | C flow | Task 4–6 나머지 및 노출 e2e | DraftingPanel/IssueTab/PreviewPanel/DraftDetailDialog/AiDraftDialog, ElementShotMedia, buildEditorCapture/buildMarkdownContext/buildReportData/buildCaptureFiles, submissionRecovery/uploadPayload/submissionAdapter/submitTo*, i18n, 해당 테스트와 e2e. A/B 계약 소비에 필요한 변경은 선행 통합 후만 | A+B 통합 | Codex 사용자 기본값 상속 / 동일; UI부터 복구까지 | typecheck/test/sync, e2e 연속 통과, 독립 리뷰 | 예정 |
 | D validation | Task 7 | e2e 보강, guide ko/en 및 assets 계획, 가이드 문서 | C 통합 | Codex 사용자 기본값 상속 / 동일; 출력 검증 | e2e/가이드 대칭, 독립 리뷰 | 예정 |
 | R runtime | 모든 인계의 비결정적 항목 | 주 체크아웃 dist에서 read-only 검증, guide-shots 자산만 | A–D 통합 + build | Codex 사용자 기본값 상속 / 동일 | 수동 픽셀·iframe·좁은 패널, 이슈 라우팅 | 예정 |
@@ -63,3 +63,9 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - B 구현 1차: `2ec78d17`, `5ae277be`, `e3f053f8`; 477 test files / 9261 pass / 2 skip, typecheck·mirror exit 0. 최초 Jira config_missing는 .env.ci 적용 후 해소.
 - B 독립 리뷰 `ctx_6542ca1fd095`: red 0 / yellow 2 — 낮은 이미지 overlay 침범, 결정적 목록 기하 검증 누락. 동일 viewer 워크트리 수정 라운드에 e2e/logview 소유를 추가했다. 원 구현·리뷰 터미널은 settlement 확인 후 release 완료.
 - C task `task_0fec19836284` (A/B 의존), D task `task_13b692686e6b` (C 의존). 시작은 선행 리뷰·dev 통합 완료 후 지휘자가 명시 수행한다.
+
+- B 수정/재리뷰: `96313de9`, `86d1e0eb`; 독립 `ctx_b26223be9765` red 0/yellow 0. 최초 start 응답 outcome_unknown은 live 확인 후 재시작 없이 기다려 정상 settlement; 리뷰 터미널 release 완료.
+- B 통합: `9d7e2b90`, `4516def8`, `c66213f8`, `b543e77b`, `3b02e300`. 지휘자 통합 게이트 typecheck/test/sync exit 0, 477 files / 9262 pass / 2 skip. 워커 브라우저 4/4 두 번 연속 통과, build:e2e exit 0.
+- B 계약: buildLogsHtml 마지막 optional screenshots 배열(명시 빈 배열 포함)이 legacy screenshot보다 우선하며 legacy bytes를 중복 싣지 않는다. 단일 contain·다중 세로 목록·영상 우선. C가 최초로 live/saved/submission 소비처를 연결한다.
+- B 문서 트라이아지: DIRECTORY/ARCHITECTURE/CI/POSTMORTEM 갱신. 현재 기존 생산 호출은 배열 미전달이므로 README/guide의 기존 동작 설명은 유지; 사용자 다중 캡처 가이드는 C 이후 D 소유. 신규 수집·저장·전송 호출/권한 변경 없음. 전체 기능 privacy 검토는 A/C 통합 시 수행.
+- B 회고 형식 검사 exit 0; 컴포넌트×미검증단언 25건, e2e×미검증단언 16건 반복 축. 실제 디코딩·기하 단언으로 보강.
