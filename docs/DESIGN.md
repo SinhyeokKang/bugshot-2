@@ -326,7 +326,7 @@ shadcn `Button`을 쓰지 않고 raw `<button>`을 쓰는 자리 중 **감사에
 | `annotation/ToolbarGroups.tsx` | 어노테이션 도구 그룹(색·도구·굵기) — `IssueTab`(녹화 그리기)·`AnnotationToolbar`(이미지) 공용 |
 | `AnnotationOverlay.tsx` | 이미지 어노테이션 편집 오버레이 — `DraftingPanel`·`TiptapEditor`(인라인 이미지) 공용 |
 | `AttachmentSection.tsx` / `AttachmentList.tsx` | 사용자 파일 첨부 — 편집형(추가·삭제 카드) / 읽기 전용 카드 목록(클릭 시 로컬 재다운로드, `CATEGORY_ICON` 보유). 후자는 PreviewPanel·DraftDetailDialog 공용 |
-| `ElementShotMedia.tsx` | 요소 캡처를 ID별로 세로 배치한다. 자연 비율 이미지 우상단에 공용 `ImageActions`를 배치한다. 편집·초기화·다운로드·삭제는 기존 `TooltipIconButton`·`ButtonGroup`의 32px 액션과 표면을 공유하며 마지막 이미지 삭제는 숨긴다. 별도 액션 행은 없다. 미디어 섹션 헤더의 첫 액션은 DOM 네비게이션과 동일한 `default` variant의 `Crosshair` 아이콘 버튼이다. |
+| `ElementShotMedia.tsx` | 요소 캡처를 ID별로 세로 배치한다. 자연 비율 이미지 우상단에 공용 `ImageActions`를 배치하며 기존 diff 이미지 카드의 hover/focus 노출·포커스 복귀 패턴을 따른다. 편집·초기화·다운로드·삭제는 기존 `TooltipIconButton`·`ButtonGroup`의 32px 액션과 표면을 공유하며 마지막 이미지 삭제는 숨긴다. 별도 액션 행은 없다. 미디어 섹션 헤더의 첫 액션은 DOM 네비게이션과 동일한 `default` variant의 `Crosshair` 아이콘 버튼이다. |
 | `ImageActions.tsx` | 이미지 위 우상단 오버레이 컨트롤 — §6 관용구(`bg-background/90 backdrop-blur-sm` + 그룹 `rounded-md shadow-md`)를 `TooltipIconButton`·`ButtonGroup`으로 조합. `StyleChangesTable`이 소비한다. **아래 `blockActions` 행이 "수동 동기화" 대상으로 가리키는 React 원본**이라 아이콘·순서를 바꾸면 vanilla 쌍둥이도 함께 고친다 |
 | `LogInsertDialog.tsx` | 본문에 넣을 로그 1건을 고르는 다이얼로그 셸 — `DraftingPanel`에서 사용한다. 탭 전환은 아래 `*LogPreviewDialog` 계열과 같은 `data-[state=inactive]:hidden` 구조(스크롤 위치 보존) |
 | `TreeChevronButton.tsx` | JSON 트리·DOM 트리 공용 접기 chevron — raw `<button>` + `h-4 w-4`(§10 예외 항목 참조). 새 트리를 만들면 이걸 쓴다 |
