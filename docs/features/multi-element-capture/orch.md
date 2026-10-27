@@ -144,3 +144,6 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - push 신선도 트라이아지 완료: ARCHITECTURE/DIRECTORY/DESIGN·README ko/en·PERMISSION·privacy ko/en·CI(92spec/456tests)·guide8페이지와 e2e 문서를 해당 diff에 맞췄다. manifest/scripts/의존성/워크플로우 변경 없음. 가이드 IA·AUTHORING 기준 불변. 원본 CLAUDE/스킬 및 미러 소스는 수정하지 않았다. 다음 게이트는 이 커밋을 포함한 원격 dev HEAD의 verify/e2e-gate이며 이전 green으로 대체하지 않는다.
 
 - 원격 `4e87f141` CI 40449031959: verify·e2e2/4 green, e2e3는 기존 logs-cross-page reload clear에서 이전 marker1개가 남아 최초/재시도 실패. multi-element-capture9개는 모두 green(최종 hover/focus·관찰 패널 종료 후 parity 포함). CI2에 로그 초기화/session/fixture 원인만 좁게 배정하며 로컬 e2e 금지는 유지한다.
+
+- CI2 `ctx_641f31003463`: `598a619e` → dev `64fcf617`. 실제 background 핸들러의 빈 session 저장소 reload/cross-origin2건 red→green, 수신부 탭/보존 phase 검증 추가. 스냅샷 존재를 logClear 발송 전제에서 제거했다. CI 로그의 same-origin은 두 번 모두 pass이며 serial retry 재실행이었다(초기 브리프의 별도 실패 추정을 정정). 독립 리뷰 `ctx_1862ba99ca3a` red0/yellow0; 기록된 storage 텔레메트리로 직접 입증한 것은 아니며 원격 재검증을 남긴다.
+- CI2 통합 전체 테스트 exit0:488 files/9376 pass/2 skip, typecheck/mirror/diff check exit0. 관련 ARCHITECTURE/POSTMORTEM만 갱신, 기존 동작 복원이라 guide/privacy/권한/CI 구성 및 e2e 수 변경 없음. 인계 보존 후 양 terminal release·tracked clean·git cherry +0 확인 및 worktree 제거 완료. 새 HEAD 원격 CI를 최종 게이트로 사용한다.
