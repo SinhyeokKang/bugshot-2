@@ -98,3 +98,5 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 
 - A/B 통합 최종 로컬 게이트: 484 files/9306 pass/2 skip. `ceecf86c` push 및 CI https://github.com/SinhyeokKang/bugshot-2/actions/runs/40440826117 시작. A 워크트리 tracked clean·git cherry +0 확인, 인계/최종 리뷰 보존 후 제거 완료.
 - C 시작: task `task_0fec19836284`, dispatch `ctx_b82ab261d7f8`, mec-flow, base `ceecf86c`, handle `term_e6dbde96-6661-41fc-a779-97659305c0d9`. A/B 최종 계약과 수정 불변식, append frame/hold 실제 경계 검증 의무를 브리프에 전달했다.
+
+- A/B 통합 커밋 `ceecf86c`의 CI 40440826117 최종 success: verify 및 e2e 4샤드/e2e-gate green. C 이후 최종 SHA CI는 별도 확인한다.
