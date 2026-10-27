@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { enterDebug, expect, test } from "./fixtures/extension";
+import { enterDebug, expect, test, type ExtContext } from "./fixtures/extension";
 
 // 재현 단계 자동 채움 — 스크립트 판정 가능한 주변부만 커버한다.
 // 핵심(video drafting 진입 시 액션 로그로 stepsToReproduce AI 자동 채움 + 패널 전체
@@ -8,6 +8,16 @@ import { enterDebug, expect, test } from "./fixtures/extension";
 // 여기서는 ① opt-out 토글(기본 ON·영속)과 ② 전체 초기화 버튼만 검증한다.
 
 const SW = '[id="setting-auto-repro-prefill"]';
+
+async function persistedAutoReproPrefill(ext: ExtContext) {
+  return ext.evalInExt(async () => {
+    const raw = (await chrome.storage.local.get("bugshot-app-settings"))[
+      "bugshot-app-settings"
+    ];
+    const envelope = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return envelope?.state?.autoReproPrefill;
+  });
+}
 
 async function gotoSettings(panel: Page) {
   // hydration 전 클릭 유실을 active 폴링으로 흡수(attachments/settings-sections 패턴).
@@ -33,13 +43,14 @@ test.describe.serial("재현 단계 자동 채움", () => {
     panel = await ext.openPanel(tabId);
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ ext }) => {
     // 기본값(ON)으로 복원 — 설정은 chrome.storage 영속이라 후행 spec 오염 방지.
     await gotoSettings(panel);
     const sw = panel.locator(SW);
     await expect(sw).toBeVisible();
     if ((await sw.getAttribute("data-state")) !== "checked") await sw.click();
     await expect(sw).toHaveAttribute("data-state", "checked");
+    await expect.poll(() => persistedAutoReproPrefill(ext)).toBe(true);
     await panel.close();
     await fixture.close();
   });
@@ -68,7 +79,7 @@ test.describe.serial("재현 단계 자동 채움", () => {
     await expect(reset).toBeDisabled();
   });
 
-  test("AI 설정 — 재현 과정 채우기 토글 기본 ON, opt-out 영속", async ({
+  test("AI 설정 — 재현 과정 채우기 토글 기본 ON, 저장 완료된 opt-out 영속", async ({
     ext,
   }) => {
     await gotoSettings(panel);
@@ -80,14 +91,18 @@ test.describe.serial("재현 단계 자동 채움", () => {
     // opt-out → unchecked.
     await sw.click();
     await expect(sw).toHaveAttribute("data-state", "unchecked");
+    // UI는 optimistic이다. 쓰기 잠금 안의 저장이 끝나기 전에 문서를 닫으면
+    // pending 의도가 사라지므로 실제 저장값으로 재열기 전제를 확인한다.
+    await expect.poll(() => persistedAutoReproPrefill(ext)).toBe(false);
 
-    // 패널 재열기 → 영속(chrome.storage.local rehydrate)돼 여전히 unchecked.
+    // 저장 완료 후 패널 재열기 → chrome.storage.local에서 복원돼 unchecked.
     await panel.close();
     panel = await ext.openPanel(tabId);
     await gotoSettings(panel);
     const sw2 = panel.locator(SW);
     await expect(sw2).toBeVisible();
     await expect(sw2).toHaveAttribute("data-state", "unchecked");
+    await expect.poll(() => persistedAutoReproPrefill(ext)).toBe(false);
   });
 
   test("본문 설정에서 재현 과정 섹션을 끄면 채우기 토글은 ON/OFF 상태를 유지한 채 비활성", async () => {
