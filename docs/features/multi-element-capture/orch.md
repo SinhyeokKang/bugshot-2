@@ -22,7 +22,7 @@
 
 | 배치 | 계획 항목 | 소유 파일 | 선행 | 모델/effort | 검증 | 상태 |
 |---|---|---|---|---|---|---|
-| A core | Task 1–3 | types/element-shot.ts, lib/elementShots.ts·elementShotBudget.ts, editor/issues/blob stores, picker-control, usePickerMessages, useEditorSessionSync, liteSnapshot, useIssueImages, background tab-bindings/index, 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 저장 불변식 집중 | typecheck/test/sync, 독립 리뷰 | 독립 리뷰 중 |
+| A core | Task 1–3 | types/element-shot.ts, lib/elementShots.ts·elementShotBudget.ts, editor/issues/blob stores, picker-control, usePickerMessages, useEditorSessionSync, liteSnapshot, useIssueImages, background tab-bindings/index, 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 저장 불변식 집중 | typecheck/test/sync, 독립 리뷰 | 통합 완료 |
 | B viewer | Task 6 중 로그 뷰어 계약 | types/log-viewer.ts, log-viewer/**, lib/buildLogsHtml.ts 및 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 하위호환 | typecheck/test/sync, 독립 리뷰 | 통합 완료 |
 | C flow | Task 4–6 나머지 및 노출 e2e | DraftingPanel/IssueTab/PreviewPanel/DraftDetailDialog/AiDraftDialog, ElementShotMedia, buildEditorCapture/buildMarkdownContext/buildReportData/buildCaptureFiles, submissionRecovery/uploadPayload/submissionAdapter/submitTo*, i18n, 해당 테스트와 e2e. A/B 계약 소비에 필요한 변경은 선행 통합 후만 | A+B 통합 | Codex 사용자 기본값 상속 / 동일; UI부터 복구까지 | typecheck/test/sync, e2e 연속 통과, 독립 리뷰 | 예정 |
 | D validation | Task 7 | e2e 보강, guide ko/en 및 assets 계획, 가이드 문서 | C 통합 | Codex 사용자 기본값 상속 / 동일; 출력 검증 | e2e/가이드 대칭, 독립 리뷰 | 예정 |
@@ -92,3 +92,6 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - A 재리뷰2 `ctx_cd535d041dba`: 기존 red 3건 해소, 신규 red 1건. issue 저장 이후 마지막 세션 저장 실패를 catch로 삼키면 preview 성공·재열기 null issue ID·재시도 중복 초안으로 이어짐. 마지막 저장도 성공 계약에 포함하고 재열기/재시도 동일 ID를 실제 저장값으로 검증하는 수정 라운드2에 반환. 리뷰 터미널 release 완료.
 
 - A fix2: task `task_eef2056b5f43`, dispatch `ctx_41ddf9fb5f32`; `71bfbe45` red tests + `cae374ad` fix. stable ID를 drafting에 먼저 저장하고 최종 snapshot 성공 전 preview/true 금지. 실제 sync+storage+IDB 기반 일시/지속 실패 재열기 회귀 통과. 483 files/9298 pass/2 skip, typecheck/mirror exit 0. fix 터미널 release; 재리뷰3 task `task_46d0d7902142`, dispatch `ctx_6500aa35feee`.
+
+- A 재리뷰3 `ctx_6500aa35feee`: red0/yellow0. 총 11 commits를 dev `e1673127`..`e9a545b8`로 통합. typecheck/test/mirror exit 0. 최종 reviewer release 완료.
+- A 문서 신선도: ARCHITECTURE에 준비된 API·활성화 경계·비손실 세션·불변 슬롯·롤백/존재 권위·최종 확정 계약, DIRECTORY 신규 모듈, POSTMORTEM 2건 반영. privacy ko/en 저장 섹션 대조: session 편집 미디어와 IDB 스크린샷·복구 저장을 이미 공개하며 아직 새 사용자 추가 캡처 진입점이 없어 이번 기반 단계는 문구 변경 불필요. C 활성화 시 다중 캡처 동작을 다시 검토한다. README/guide/DESIGN은 C/D의 노출 UI 통합에서 갱신, 신규 e2e 수 변경 없음.
