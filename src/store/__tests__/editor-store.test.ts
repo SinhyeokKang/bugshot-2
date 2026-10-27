@@ -3575,3 +3575,48 @@ describe("confirmDraft — preserve pending assets until destination save succee
     }
   });
 });
+
+describe("durable element shot candidates", () => {
+  const image = "data:image/webp;base64,YQ==";
+  const makeShot = (id: string) => ({ id, selector: "A", tagName: "DIV", raw: image, annotated: null, viewport: { width: 100, height: 100 }, capturedAt: 1 });
+  const setup = () => {
+    useEditorStore.getState().reset();
+    useEditorStore.getState().startElementShot({ tabId: 7, url: "https://example.com/a", title: "A" });
+    useEditorStore.getState().onElementShot({ selector: "A", tagName: "DIV" }, image, { width: 100, height: 100 });
+    useEditorStore.getState().setDraft({ title: "keep", sections: { description: "body" } });
+    const persisted: Record<string, unknown> = {};
+    const set = vi.fn(async (values) => { Object.assign(persisted, structuredClone(values)); });
+    vi.stubGlobal("chrome", { storage: { session: { set, getBytesInUse: vi.fn().mockResolvedValue(0), QUOTA_BYTES: 10 * 1024 * 1024 } }, tabs: { get: vi.fn().mockResolvedValue({ url: "https://example.com/a" }) } });
+    return { persisted, set };
+  };
+  it("durably enters append, preserves the draft, rejects late results and the last deletion", async () => {
+    setup();
+    const request = await useEditorStore.getState().startAdditionalElementShot();
+    expect(request).toBeTruthy();
+    expect(useEditorStore.getState().draft?.title).toBe("keep");
+    expect(await useEditorStore.getState().appendElementShot(request!, makeShot("b"))).toBe(true);
+    expect(useEditorStore.getState().elementShots?.map(s => s.id)).toEqual(["legacy", "b"]);
+    expect(useEditorStore.getState().screenshotRaw).toBeNull();
+    expect(await useEditorStore.getState().appendElementShot(request!, makeShot("c"))).toBe(false);
+    useEditorStore.getState().removeElementShot("legacy");
+    useEditorStore.getState().removeElementShot("b");
+    expect(useEditorStore.getState().elementShots?.map(s => s.id)).toEqual(["b"]);
+  });
+  it("keeps the previous image and durable snapshot when annotation quota changes", async () => {
+    const { set, persisted } = setup();
+    useEditorStore.getState().normalizeElementShots();
+    set.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("quota"));
+    expect(await useEditorStore.getState().setElementShotAnnotation("legacy", "edited")).toBe(false);
+    expect(useEditorStore.getState().elementShots?.[0].annotated).toBeNull();
+    expect(set).toHaveBeenCalledTimes(2);
+  });
+  it("rejects navigation and restores drafting after cancellation", async () => {
+    setup();
+    vi.mocked(chrome.tabs.get).mockResolvedValueOnce({ url: "https://example.com/other" } as chrome.tabs.Tab);
+    expect(await useEditorStore.getState().startAdditionalElementShot()).toBeNull();
+    const request = await useEditorStore.getState().startAdditionalElementShot();
+    useEditorStore.getState().cancelElementShotPick(request!);
+    expect(useEditorStore.getState().phase).toBe("drafting");
+    expect(await useEditorStore.getState().appendElementShot(request!, makeShot("b"))).toBe(false);
+  });
+});
