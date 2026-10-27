@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-10-27 — 표시 가능한 Blob URL을 다운로드 가능한 data URL로 오인했다
+
+- **영역**: `컴포넌트`, `미디어`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: 다중 캡처 독립 리뷰에서 저장 상세 이미지는 표시되지만 다운로드는 Invalid data URL로 실패했다. 승인 설계의 상세 logs.html 다운로드도 빠져 있었다.
+- **근본 원인**: `useIssueImages`의 blob URL을 data URL 전용 파서에 넘겼다. UI 테스트는 다운로드 모듈을 mock하고 버튼을 누르지 않았으며, 빌더 인자·제출 payload 검증을 다운로드 동작 검증으로 간주했다.
+- **재발 방지**: URL 스킴과 다운로드 입력 계약을 맞추고 실제 저장 슬롯에서 나온 이미지의 bytes/MIME/순번 파일명을 다운로드 이벤트로 확인한다. live/saved/submitted logs.html 압축 payload를 디코딩해 주석본 순서와 legacy 중복 부재를 비교하며 원본 유실 시 오류와 다운로드 0을 함께 단언한다.
+- **관련**: `src/sidepanel/components/ElementShotMedia.tsx`, `src/sidepanel/lib/downloadCapture.ts:downloadImageUrl`, `src/sidepanel/tabs/DraftDetailDialog.tsx`, `e2e/multi-element-capture.spec.ts`
+
+---
+
 ## 2026-10-27 — 피커 복귀 포커스가 뒤늦게 닫힌 안내창에 덮였다
 
 - **영역**: `컴포넌트`, `e2e`
