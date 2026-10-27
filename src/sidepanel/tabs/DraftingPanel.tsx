@@ -3,7 +3,7 @@ import type { ElementShot } from "@/types/element-shot";
 import { ElementShotMedia } from "@/sidepanel/components/ElementShotMedia";
 import { elementShotImage, joinElementShotSelectors } from "@/sidepanel/lib/elementShots";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Download, FileCode, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Camera, Crosshair, Download, FileCode, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -343,9 +343,10 @@ export function DraftingPanel({ shotReturn }: {
       onOpenChange={elementShots ? setMediaOpen : undefined}
       action={
         elementShots ? (
-          <Button ref={addRef} variant="default" data-testid="element-shot-add"
+          <Button ref={addRef} type="button" size="icon" variant="default" className="h-8 w-8 shrink-0"
+            title={t("draft.elementShot.add")} aria-label={t("draft.elementShot.add")} data-testid="element-shot-add"
             aria-disabled={appendBusy || elementShotSaving}
-            onClick={() => void addShot()}><Plus />{t("draft.elementShot.add")}</Button>
+            onClick={() => void addShot()}><Crosshair /></Button>
         ) : screenshotImage ? (
           <>
             {screenshotAnnotated ? (
