@@ -73,6 +73,15 @@ describe.each(Object.entries(runners))("%s ordered element capture transport", (
       for (const file of captures) expect(body).toContain(`![${file.filename}]`);
     }
   });
+  it("keeps user filename collisions separate from ordered capture identities", async () => {
+    const user: SubmissionFile = { ...captures[0], id: "user:collision", kind: "user", dataUrl: "data:image/jpeg;base64,VVNFUg==" };
+    await run([...captures, user]);
+    const sent = sendBg.mock.calls.map(([req]) => req).flatMap(req => req.type === "jira.uploadAttachment" ? [req.attachment]
+      : req.type.endsWith("uploadFiles") || req.type === "clickup.uploadFile" || req.type === "webhook.submit" ? req.files ?? []
+      : req.dataUrl ? [req] : []);
+    expect(sent.map(f => f.dataUrl)).toEqual([...captures, user].map(f => f.dataUrl));
+    if (platform !== "webhook") expect(sent.map(f => f.fileId)).toEqual([...captures, user].map(f => f.id));
+  });
   it("rejects combined attachment bytes before any upload or create RPC", async () => {
     const dataUrl = "data:application/octet-stream;base64," + "A".repeat(27 * 1024 * 1024);
     const files: SubmissionFile[] = [...captures,

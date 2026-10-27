@@ -41,3 +41,14 @@ it("renders named capture slots independently and preserves retry scope", () => 
   expect(JSON.stringify(content[1])).toContain("second");
   expect(content[2]).toEqual(one);
 });
+
+it.each(["jpg", "png", "gif"])("renders a prepared %s capture with its final filename", (extension) => {
+  const filename = `screenshot-2.${extension}`;
+  const content = buildJiraDescriptionContent({
+    description: doc([paragraph(shotImagePlaceholder(filename))]),
+    uploadMap: new Map([[filename, { kind: "media", mediaId: "final-format" }]]),
+    bodyLocale: "en", only: new Set([0]),
+  });
+  expect((content[0] as { type: string }).type).toBe("mediaSingle");
+  expect(JSON.stringify(content)).toContain("final-format");
+});
