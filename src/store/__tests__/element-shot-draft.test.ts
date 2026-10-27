@@ -2,7 +2,7 @@ import "fake-indexeddb/auto";
 import { IDBObjectStore } from "fake-indexeddb";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mockWebLocks } from "@/test/web-locks";
-import { saveElementShotDraft, useIssuesStore, type IssueRecord } from "../issues-store";
+import { saveElementShotDraft, mergeIssueLists, useIssuesStore, type IssueRecord } from "../issues-store";
 import { getImageBlob } from "../blob-db";
 const shot = (id: string, text = id) => ({ id, selector: "A", tagName: "DIV", viewport: { width: 1, height: 2 }, capturedAt: 1, raw: `data:image/webp;base64,${btoa(text)}`, annotated: null });
 const record: IssueRecord = { id: "shots", status: "draft", title: "title", createdAt: 1, updatedAt: 1, pageUrl: "https://example.com", platform: "github", captureMode: "screenshot", draft: { title: "title", sections: {} }, snapshot: { before: true, after: false } };
@@ -57,7 +57,7 @@ it("restores durable metadata when the editor is replaced during its commit", as
   let current = true;
   vi.mocked(chrome.storage.local.set).mockImplementationOnce(async values => { Object.assign(local, values); current = false; });
   await expect(saveElementShotDraft(record, [shot("a", "stale")], () => current)).rejects.toThrow("Stale");
-  expect(useIssuesStore.getState().issues[0]).toBe(previous);
+  expect(useIssuesStore.getState().issues[0]).toMatchObject({ ...previous, updatedAt: expect.any(Number) });
   expect(JSON.parse(String(local["bugshot-issues"])).state.issues[0].elementShotsRevision).toBe(previous.elementShotsRevision);
 });
 it("retains an unrelated draft edited during a media metadata commit", async () => {
@@ -97,4 +97,42 @@ it("prepares ancillary blobs inside the issue operation lock", async () => {
   });
   await saveElementShotDraft(record, [shot("a")], () => true, prepare);
   expect(prepare).toHaveBeenCalledTimes(1);
+});
+
+it("does not resurrect an unrelated record already deleted from durable storage", async () => {
+  await saveElementShotDraft(record, [shot("a")]);
+  const saved = useIssuesStore.getState().issues[0];
+  useIssuesStore.setState({ issues: [saved, { ...record, id: "deleted" }] });
+  local["bugshot-issues"] = JSON.stringify({ state: { issues: [saved] }, version: 5 });
+  await saveElementShotDraft(record, [shot("a", "edited")]);
+  expect(useIssuesStore.getState().issues.map(issue => issue.id)).toEqual(["shots"]);
+  expect(JSON.parse(String(local["bugshot-issues"])).state.issues.map((issue: IssueRecord) => issue.id)).toEqual(["shots"]);
+});
+
+it("retains the rollback timestamp through queued and subsequent unrelated writes", async () => {
+  await saveElementShotDraft(record, [shot("a")]);
+  const previous = useIssuesStore.getState().issues[0];
+  let candidate!: IssueRecord;
+  let release!: () => void;
+  let current = true;
+  vi.mocked(chrome.storage.local.set).mockImplementationOnce(async values => {
+    Object.assign(local, values);
+    candidate = JSON.parse(String(local["bugshot-issues"])).state.issues[0];
+    await new Promise<void>(resolve => { release = resolve; });
+  });
+  const saving = saveElementShotDraft(record, [shot("a", "canceled")], () => current);
+  const rejected = expect(saving).rejects.toThrow("Stale");
+  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  useIssuesStore.getState().saveDraft({ ...record, id: "other", title: "concurrent edit" });
+  current = false;
+  release();
+  await rejected;
+  useIssuesStore.getState().patchIssue("other", { title: "later edit" });
+  await vi.waitFor(() => expect(JSON.parse(String(local["bugshot-issues"])).state.issues.find((issue: IssueRecord) => issue.id === "other")?.title).toBe("later edit"));
+  const stored: IssueRecord[] = JSON.parse(String(local["bugshot-issues"])).state.issues;
+  const restored = stored.find(issue => issue.id === record.id)!;
+  expect(restored.elementShotsRevision).toBe(previous.elementShotsRevision);
+  expect(restored.updatedAt).toBeGreaterThan(candidate.updatedAt);
+  expect(useIssuesStore.getState().issues.find(issue => issue.id === record.id)?.updatedAt).toBe(restored.updatedAt);
+  expect(mergeIssueLists(stored, [candidate]).find(issue => issue.id === record.id)?.elementShotsRevision).toBe(previous.elementShotsRevision);
 });

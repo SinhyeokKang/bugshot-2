@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { enqueueEditorSessionWrite, saveEditorSession } from "@/sidepanel/lib/editorSessionPersistence";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 
@@ -3641,6 +3642,30 @@ describe("durable element shot candidates", () => {
     expect(await saving).toBe(false);
     expect(persisted["editor:7"]).toMatchObject({ phase: "idle", elementShots: null });
     expect(useEditorStore.getState().elementShotSaving).toBe(false);
+  });
+
+  it("does not serialize a hydrated replacement tab into a queued confirmation key", async () => {
+    const { persisted } = setup();
+    useEditorStore.getState().normalizeElementShots();
+    const snapshot = () => Object.fromEntries(EDITOR_SNAPSHOT_KEYS.map(key => [key, useEditorStore.getState()[key]])) as EditorSnapshot;
+    const original = snapshot();
+    await saveEditorSession("editor:7", () => original);
+    const replacement: EditorSnapshot = { ...original, target: { tabId: 8, url: "https://example.com/b", title: "B" },
+      draft: { title: "other tab", sections: { description: "other body" } }, elementShots: [makeShot("other")] };
+    await saveEditorSession("editor:8", () => replacement);
+    let release!: () => void;
+    const held = enqueueEditorSessionWrite("editor:7", () => new Promise<void>(resolve => { release = resolve; }));
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    const saving = useEditorStore.getState().confirmElementShotDraft();
+    useEditorStore.getState().hydrate(replacement);
+    release();
+    await held;
+    expect(await saving).toBe(false);
+    expect(persisted["editor:7"]).toEqual(original);
+    expect(persisted["editor:8"]).toEqual(replacement);
+    useEditorStore.getState().hydrate(persisted["editor:7"] as EditorSnapshot);
+    expect(useEditorStore.getState().draft).toEqual(original.draft);
+    expect(useEditorStore.getState().elementShots).toEqual(original.elementShots);
   });
 
   it("waits for durable media metadata before entering preview and stays drafting on failure", async () => {
