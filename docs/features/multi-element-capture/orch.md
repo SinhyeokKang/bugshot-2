@@ -22,7 +22,7 @@
 
 | 배치 | 계획 항목 | 소유 파일 | 선행 | 모델/effort | 검증 | 상태 |
 |---|---|---|---|---|---|---|
-| A core | Task 1–3 | types/element-shot.ts, lib/elementShots.ts·elementShotBudget.ts, editor/issues/blob stores, picker-control, usePickerMessages, useEditorSessionSync, liteSnapshot, useIssueImages, background tab-bindings/index, 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 저장 불변식 집중 | typecheck/test/sync, 독립 리뷰 | 실행 중 |
+| A core | Task 1–3 | types/element-shot.ts, lib/elementShots.ts·elementShotBudget.ts, editor/issues/blob stores, picker-control, usePickerMessages, useEditorSessionSync, liteSnapshot, useIssueImages, background tab-bindings/index, 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 저장 불변식 집중 | typecheck/test/sync, 독립 리뷰 | 독립 리뷰 중 |
 | B viewer | Task 6 중 로그 뷰어 계약 | types/log-viewer.ts, log-viewer/**, lib/buildLogsHtml.ts 및 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 하위호환 | typecheck/test/sync, 독립 리뷰 | 통합 완료 |
 | C flow | Task 4–6 나머지 및 노출 e2e | DraftingPanel/IssueTab/PreviewPanel/DraftDetailDialog/AiDraftDialog, ElementShotMedia, buildEditorCapture/buildMarkdownContext/buildReportData/buildCaptureFiles, submissionRecovery/uploadPayload/submissionAdapter/submitTo*, i18n, 해당 테스트와 e2e. A/B 계약 소비에 필요한 변경은 선행 통합 후만 | A+B 통합 | Codex 사용자 기본값 상속 / 동일; UI부터 복구까지 | typecheck/test/sync, e2e 연속 통과, 독립 리뷰 | 예정 |
 | D validation | Task 7 | e2e 보강, guide ko/en 및 assets 계획, 가이드 문서 | C 통합 | Codex 사용자 기본값 상속 / 동일; 출력 검증 | e2e/가이드 대칭, 독립 리뷰 | 예정 |
@@ -78,3 +78,6 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - E 완료: `670de692` → dev `59f5b95b`; reviewer `ctx_9b2c3230f327` (task `task_ce8f66ecd5b3`) red 0/yellow 0. e2e 3/3 두 번, 477 files/9262 pass/2 skip, typecheck/mirror exit 0. GOTCHAS/COVERAGE/POSTMORTEM 반영. 인계 보존, tracked clean·git cherry + 0 후 mec-ci 제거 및 모든 E 터미널 release 완료.
 
 - E 통합 게이트: typecheck/test/mirror exit 0, 477 files/9262 pass/2 skip. push 문서 트라이아지: 테스트 한 파일과 대응 문서만, 기존 91 spec/447 tests 유지; 추가 제품·권한·privacy·가이드 변경 없음.
+
+- A 구현 인계: 7 commits `b3ea58ec`..`e7eca951`, 482 files/9293 pass/2 skip, 최종 typecheck/mirror exit 0. 마지막 ancillary 준비를 issue lock 안으로 옮기고 callback narrowing 타입 오류를 고쳤다. 구현 터미널 release 완료. 독립 리뷰 task `task_880c41a0a1ce`, dispatch `ctx_2ec332cc078d`가 원 base `02729442` 대비 전체 검토 중.
+- E 재푸시 `f4d2011f`: CI https://github.com/SinhyeokKang/bugshot-2/actions/runs/40438659040.
