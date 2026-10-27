@@ -74,3 +74,7 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - B 워크트리: tracked clean·git cherry에 + 0 확인, 인계 보존 후 Orca 제거 완료.
 
 - E: task `task_4c35930429e4`, dispatch `ctx_9597f8c1ce43`, mec-ci. 진단: 기존 설정 UI는 optimistic이며 Web Lock read/write 완료 전 close하면 쓰기가 취소될 수 있다. 기존 테스트가 durable 저장 완료를 기다리지 않아 CI에서 실패. 변경 범위는 해당 spec의 실제 저장값 확인 후 close 및 cleanup 저장 확인으로 유지한다. 즉시 닫기 중 pending 설정 유실은 기존 제품 한계로 별도 기록하고 고쳤다고 주장하지 않는다; 생산 설정 저장소 재설계는 이번 범위 밖이다. 독립 리뷰가 계약과 단언을 확인한다.
+
+- E 완료: `670de692` → dev `59f5b95b`; reviewer `ctx_9b2c3230f327` (task `task_ce8f66ecd5b3`) red 0/yellow 0. e2e 3/3 두 번, 477 files/9262 pass/2 skip, typecheck/mirror exit 0. GOTCHAS/COVERAGE/POSTMORTEM 반영. 인계 보존, tracked clean·git cherry + 0 후 mec-ci 제거 및 모든 E 터미널 release 완료.
+
+- E 통합 게이트: typecheck/test/mirror exit 0, 477 files/9262 pass/2 skip. push 문서 트라이아지: 테스트 한 파일과 대응 문서만, 기존 91 spec/447 tests 유지; 추가 제품·권한·privacy·가이드 변경 없음.
