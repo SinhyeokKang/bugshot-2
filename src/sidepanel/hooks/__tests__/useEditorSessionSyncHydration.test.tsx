@@ -319,3 +319,30 @@ it("does not schedule a second failing write after an explicit annotation failur
   expect(set).toHaveBeenCalledTimes(2);
   expect(useEditorStore.getState().elementShots?.[0].annotated).toBeNull();
 });
+
+it.each([0, 400])("flushes only pending local edits on pagehide (elapsed=%s)", async elapsed => {
+  const hook = renderHook(() => useEditorSessionSync(7));
+  await waitFor(() => expect(hook.result.current).toBe(true));
+  vi.useFakeTimers();
+  act(() => useEditorStore.setState({ draft: { title: "Edited", sections: {} } }));
+  await act(async () => { await vi.advanceTimersByTimeAsync(elapsed); });
+  await act(async () => { window.dispatchEvent(new Event("pagehide")); });
+  hook.unmount();
+  await act(async () => {});
+  vi.useRealTimers();
+  expect(set).toHaveBeenCalledTimes(1);
+  expect(set.mock.calls[0][0]["editor:7"].draft.title).toBe("Edited");
+});
+
+it("does not acquire session write ownership for log and UI-only updates", async () => {
+  const hook = renderHook(() => useEditorSessionSync(7));
+  await waitFor(() => expect(hook.result.current).toBe(true));
+  act(() => {
+    useEditorStore.getState().setConsoleLog({ id: "restored", startedAt: 0, endedAt: 1, captured: 0, totalSeen: 0, entries: [] });
+    useEditorStore.setState({ livePageUrl: "https://example.com/new", videoBlob: new Blob() });
+  });
+  await act(async () => { window.dispatchEvent(new Event("pagehide")); });
+  hook.unmount();
+  await act(async () => {});
+  expect(set).not.toHaveBeenCalled();
+});

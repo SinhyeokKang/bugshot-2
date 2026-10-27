@@ -20,7 +20,7 @@ beforeEach(() => {
   const listeners = { addListener: vi.fn(), removeListener: vi.fn() };
   vi.stubGlobal("chrome", {
     storage: {
-      session: { get: vi.fn(async () => structuredClone(session)), set: vi.fn(async values => { Object.assign(session, structuredClone(values)); }) },
+      session: { QUOTA_BYTES: 10 * 1024 * 1024, getBytesInUse: vi.fn(async () => 0), get: vi.fn(async () => structuredClone(session)), set: vi.fn(async values => { Object.assign(session, structuredClone(values)); }) },
       local: { get: vi.fn(async () => structuredClone(local)), set: vi.fn(async values => { Object.assign(local, structuredClone(values)); }) },
       onChanged: listeners,
     },
@@ -38,7 +38,7 @@ beforeEach(() => {
   });
   session["editor:7"] = structuredClone(snapshotFromState());
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.doUnmock("react"); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it.each([false, true])("keeps durable identity and images after final session failure (persistent=%s)", async persistent => {
   const mounted = renderHook(() => useEditorSessionSync(7));
@@ -88,4 +88,45 @@ it.each([false, true])("keeps durable identity and images after final session fa
   expect(storedIssues()[0].elementShots).toEqual(saved.elementShots);
   expect(session["editor:7"]).toMatchObject({ phase: "previewing", currentIssueId: saved.id });
   for (const item of saved.elementShots!) expect(await (await getImageBlob(saved.id, item.imageSlot))?.text()).toBe(item.id);
+});
+
+it.each([0, 400])("closing a same-target observer preserves newer confirmed bytes (delay=%s)", async delay => {
+  // Separate module instances model two extension documents sharing Chrome storage.
+  const React = await import("react");
+  vi.resetModules();
+  vi.doMock("react", () => React);
+  const observerStore = (await import("@/store/editor-store")).useEditorStore;
+  const observerSync = (await import("../useEditorSessionSync")).useEditorSessionSync;
+  const primary = renderHook(() => useEditorSessionSync(7));
+  await waitFor(() => expect(primary.result.current).toBe(true));
+  await act(async () => { expect(await useEditorStore.getState().confirmElementShotDraft()).toBe(true); });
+  const issueId = useEditorStore.getState().currentIssueId;
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const observer = renderHook(() => observerSync(7));
+  await act(async () => {});
+  expect(observer.result.current).toBe(true);
+  expect(observerStore.getState().currentIssueId).toBe(issueId);
+  await act(async () => { await vi.advanceTimersByTimeAsync(delay); });
+  await act(async () => {
+    useEditorStore.setState({ phase: "drafting" });
+    expect(await useEditorStore.getState().setElementShotAnnotation("b", `data:image/webp;base64,${btoa("new annotation")}`)).toBe(true);
+    expect(await useEditorStore.getState().confirmElementShotDraft()).toBe(true);
+  });
+  const latest = structuredClone(session["editor:7"]);
+  expect(latest.elementShots?.[1].annotated).toContain(btoa("new annotation"));
+  expect(observerStore.getState().elementShots?.[1].annotated).toBeNull();
+  await act(async () => { window.dispatchEvent(new Event("pagehide")); });
+  observer.unmount();
+  await act(async () => {});
+  expect(session["editor:7"]).toEqual(latest);
+  primary.unmount();
+  useEditorStore.setState(useEditorStore.getInitialState(), true);
+  const reopened = renderHook(() => useEditorSessionSync(7));
+  await act(async () => {});
+  expect(reopened.result.current).toBe(true);
+  expect(useEditorStore.getState().elementShots).toEqual(latest.elementShots);
+  expect(useEditorStore.getState().currentIssueId).toBe(issueId);
+  reopened.unmount();
+  vi.useRealTimers();
+  vi.doUnmock("react");
 });
