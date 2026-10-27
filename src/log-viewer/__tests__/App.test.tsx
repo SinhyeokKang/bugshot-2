@@ -21,6 +21,11 @@ describe("static screenshot media", () => {
   it("renders ordered repeated captures and ignores the legacy fallback", () => {
     expect(images(view({ screenshots }))).toEqual(screenshots.map((shot) => shot.dataUrl));
   });
+  it("shares one issue heading and link across stacked captures", () => {
+    const root = view({ screenshots, meta: { ...base.meta, issueTitle: "Short captures", issueKey: "BUG-12", issueUrl: "https://example.com/BUG-12" } });
+    expect(root.querySelectorAll("h1")).toHaveLength(1);
+    expect(root.querySelectorAll('a[href="https://example.com/BUG-12"]')).toHaveLength(1);
+  });
   it("reads legacy reports without the optional array", () => {
     expect(images(view())).toEqual([legacy.dataUrl]);
   });
