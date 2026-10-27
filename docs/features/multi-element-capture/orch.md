@@ -69,3 +69,6 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - B 계약: buildLogsHtml 마지막 optional screenshots 배열(명시 빈 배열 포함)이 legacy screenshot보다 우선하며 legacy bytes를 중복 싣지 않는다. 단일 contain·다중 세로 목록·영상 우선. C가 최초로 live/saved/submission 소비처를 연결한다.
 - B 문서 트라이아지: DIRECTORY/ARCHITECTURE/CI/POSTMORTEM 갱신. 현재 기존 생산 호출은 배열 미전달이므로 README/guide의 기존 동작 설명은 유지; 사용자 다중 캡처 가이드는 C 이후 D 소유. 신규 수집·저장·전송 호출/권한 변경 없음. 전체 기능 privacy 검토는 A/C 통합 시 수행.
 - B 회고 형식 검사 exit 0; 컴포넌트×미검증단언 25건, e2e×미검증단언 16건 반복 축. 실제 디코딩·기하 단언으로 보강.
+
+- B 중간 push `8642988f`: CI https://github.com/SinhyeokKang/bugshot-2/actions/runs/40437114059 verify 성공, e2e 3번 실패. 실패는 기존 `repro-prefill.spec.ts:90`의 opt-out 재열기 영속 단언(checked로 복귀), 재시도도 동일. B viewer 파일과 직접 겹치지 않아 CI 보수 배치 E를 새 워커에 배정한다. 소유권은 해당 e2e spec과 관련 독립 테스트로 한정하며, 생산 저장소/fixture 변경 필요 시 A/C와 겹침 검토 후 허용한다. 독립 리뷰와 동일 게이트를 거친다.
+- B 워크트리: tracked clean·git cherry에 + 0 확인, 인계 보존 후 Orca 제거 완료.
