@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { ElementShotMedia } from "../ElementShotMedia";
 vi.mock("@/i18n", () => ({ useT: () => (key: string) => key }));
-vi.mock("@/sidepanel/lib/downloadCapture", () => ({ downloadImageDataUrl: vi.fn() }));
+vi.mock("@/sidepanel/lib/downloadCapture", () => ({ downloadImageUrl: vi.fn().mockResolvedValue(undefined) }));
 afterEach(cleanup);
 
 it("renders duplicate images in order, routes actions by ID and moves focus after deletion", () => {
@@ -37,4 +37,16 @@ it("blocks every media mutation while an acknowledged save is pending", () => {
   expect(edit).not.toHaveBeenCalled();
   expect(reset).not.toHaveBeenCalled();
   expect(remove).not.toHaveBeenCalled();
+});
+
+it("resets only the selected image and preserves the shared action ordering", () => {
+  const reset = vi.fn();
+  render(<ElementShotMedia items={[{ id: "a", url: "a" }, { id: "b", url: "b", annotated: true }]}
+    onEdit={vi.fn()} onReset={reset} onDelete={vi.fn()} />);
+  fireEvent.click(screen.getByTestId("annotation-remove"));
+  expect(reset).toHaveBeenCalledTimes(1);
+  expect(reset).toHaveBeenCalledWith("b");
+  const second = screen.getAllByTestId("element-shot-item")[1];
+  expect([...second.querySelectorAll("button")].map(button => button.dataset.testid))
+    .toEqual(["annotation-remove", "annotation-edit", "download-media", "element-shot-delete"]);
 });
