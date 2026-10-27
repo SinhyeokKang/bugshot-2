@@ -49,7 +49,7 @@ it.each([false, true])("keeps durable identity and images after final session fa
   let rejected = false;
   const storedIssues = (): IssueRecord[] => JSON.parse(String(local["bugshot-issues"])).state.issues;
   vi.mocked(chrome.storage.session.set).mockImplementation(async values => {
-    const next = values["editor:7"] as EditorSnapshot;
+    const next = (values as Record<string, EditorSnapshot>)["editor:7"];
     if (next?.phase === "previewing" || (persistent && rejected)) {
       expect(storedIssues()).toHaveLength(1);
       rejected = true;

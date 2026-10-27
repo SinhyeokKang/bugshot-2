@@ -1063,12 +1063,15 @@ export const useEditorStore = create<EditorState>((commit, get) => {
     if (elementShotWriteActive || state.phase !== "drafting" || !state.elementShots?.length || !state.draft || !state.target) return false;
     restoreDraftIssueFields(state);
     elementShotWriteActive = true;
-    commit({ elementShotSaving: true });
-    const base = get();
     const id = state.currentIssueId ?? newId("issue");
+    // Persist the retry identity before creating any durable issue or image references.
+    commit({ elementShotSaving: true, currentIssueId: id });
+    const base = get();
     const targetTabId = state.target.tabId;
+    let savingSession = true;
     try {
       await saveEditorSession(sessionKey(targetTabId), () => get() === base ? editorSnapshot(base) : null);
+      savingSession = false;
       if (get() !== base) return false;
       const logs = selectAttachedLogs(state);
       await saveElementShotDraft({
@@ -1090,16 +1093,19 @@ export const useEditorStore = create<EditorState>((commit, get) => {
         }
       });
       if (get() !== base) return false;
-      commit({ currentIssueId: id, phase: "previewing" });
-      const preview = get();
-      await saveEditorSession(sessionKey(targetTabId), () => get() === preview ? editorSnapshot(preview) : null).catch(() => onSessionSaveExhausted.fire());
-      return get().currentIssueId === id && get().phase === "previewing";
+      savingSession = true;
+      await saveEditorSession(sessionKey(targetTabId), () => get() === base ? { ...editorSnapshot(base), phase: "previewing" } : null);
+      savingSession = false;
+      if (get() !== base) return false;
+      commit({ phase: "previewing" });
+      return true;
     } catch {
       if (get() !== base && (!get().target || get().target?.tabId === state.target.tabId)) {
         const rollback = get();
         await saveEditorSession(sessionKey(targetTabId), () => get() === rollback ? editorSnapshot(rollback) : null).catch(() => {});
       }
-      onBlobSaveFailed.fire();
+      if (savingSession) onSessionSaveExhausted.fire();
+      else onBlobSaveFailed.fire();
       return false;
     } finally {
       elementShotWriteActive = false;
