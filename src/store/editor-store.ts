@@ -1068,7 +1068,7 @@ export const useEditorStore = create<EditorState>((commit, get) => {
     const id = state.currentIssueId ?? newId("issue");
     const targetTabId = state.target.tabId;
     try {
-      await saveEditorSession(sessionKey(state.target.tabId), () => editorSnapshot(get()));
+      await saveEditorSession(sessionKey(targetTabId), () => get() === base ? editorSnapshot(base) : null);
       if (get() !== base) return false;
       const logs = selectAttachedLogs(state);
       await saveElementShotDraft({
@@ -1091,11 +1091,13 @@ export const useEditorStore = create<EditorState>((commit, get) => {
       });
       if (get() !== base) return false;
       commit({ currentIssueId: id, phase: "previewing" });
-      await saveEditorSession(sessionKey(state.target.tabId), () => editorSnapshot(get())).catch(() => onSessionSaveExhausted.fire());
+      const preview = get();
+      await saveEditorSession(sessionKey(targetTabId), () => get() === preview ? editorSnapshot(preview) : null).catch(() => onSessionSaveExhausted.fire());
       return get().currentIssueId === id && get().phase === "previewing";
     } catch {
       if (get() !== base && (!get().target || get().target?.tabId === state.target.tabId)) {
-        await saveEditorSession(sessionKey(state.target.tabId), () => editorSnapshot(get())).catch(() => {});
+        const rollback = get();
+        await saveEditorSession(sessionKey(targetTabId), () => get() === rollback ? editorSnapshot(rollback) : null).catch(() => {});
       }
       onBlobSaveFailed.fire();
       return false;

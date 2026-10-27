@@ -124,6 +124,7 @@ export async function persistIssuesMutation(run: () => void): Promise<void> {
 
 let publishingDurableShots = false;
 let durableShotWrite: Promise<void> | null = null;
+let draftsCreatedDuringShotWrite: Set<string> | null = null;
 
 const issuesStorage: StateStorage = {
   ...failClosedLocalStorage,
@@ -684,6 +685,7 @@ export const useIssuesStore = create<IssuesState>()(
           // 그래서 쓰기 자체를 건너뛴다. 정상 재확정은 기존 레코드가 draft라 여기 안 걸린다
           // (confirmDraft는 phase "drafting" 전용이고, 로컬 제출은 phase를 done으로 옮긴다).
           if (existing?.status === "submitted") return s;
+          if (!existing) draftsCreatedDuringShotWrite?.add(record.id);
           const next: IssueRecord = {
             ...existing,
             ...record,
@@ -862,11 +864,13 @@ export async function saveElementShotDraft(
     if (latestEnvelope != null && !Array.isArray(latestEnvelope?.state?.issues)) throw new Error("Invalid issues storage");
     if (!isCurrent()) throw new Error("Stale element capture save");
     const current = useIssuesStore.getState().issues;
-    const merged = mergeIssueLists(latestEnvelope?.state?.issues ?? [], current, new Set(current.map(issue => issue.id)));
+    const merged = mergeIssueLists(latestEnvelope?.state?.issues ?? [], current, submittingIds);
     const issues = [next, ...merged.filter(issue => issue.id !== record.id)];
     const value = JSON.stringify({ state: { issues }, version: ISSUES_STORE_VERSION });
     let finishWrite!: () => void;
     durableShotWrite = new Promise<void>(resolve => { finishWrite = resolve; });
+    const createdDuringWrite = new Set<string>();
+    draftsCreatedDuringShotWrite = createdDuringWrite;
     try {
     pendingOwnWrites.add(value);
     try { await chrome.storage.local.set({ [ISSUES_PERSIST_KEY]: value }); }
@@ -881,16 +885,27 @@ export async function saveElementShotDraft(
       const rollback = JSON.stringify({ state: { issues: restored }, version: ISSUES_STORE_VERSION });
       pendingOwnWrites.add(rollback);
       await chrome.storage.local.set({ [ISSUES_PERSIST_KEY]: rollback });
+      publishingDurableShots = true;
+      try {
+        const now = useIssuesStore.getState().issues;
+        const combined = mergeIssueLists(restored, now, new Set([...submittingIds, ...createdDuringWrite]));
+        // The rollback fence must reach memory before queued writers serialize it again.
+        useIssuesStore.setState({ issues: [
+          ...restored.filter(issue => issue.id === record.id),
+          ...combined.filter(issue => issue.id !== record.id),
+        ] });
+      } finally { publishingDurableShots = false; }
       throw new Error("Stale element capture save");
     }
     publishingDurableShots = true;
     try {
       const now = useIssuesStore.getState().issues;
-      const combined = mergeIssueLists(issues, now, new Set(now.map(issue => issue.id)));
+      const combined = mergeIssueLists(issues, now, new Set([...submittingIds, ...createdDuringWrite]));
       useIssuesStore.setState({ issues: [next, ...combined.filter(issue => issue.id !== record.id)] });
     } finally { publishingDurableShots = false; }
     } finally {
       durableShotWrite = null;
+      draftsCreatedDuringShotWrite = null;
       finishWrite();
     }
     // New slots left by failed attempts are also reclaimed here; journal references win.
