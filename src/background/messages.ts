@@ -6,7 +6,7 @@ import { getLocale, t, withLocale } from "@/i18n";
 import { resolveBodyLocale, type LocaleMode } from "@/i18n/locales";
 import type { PlatformId } from "@/types/platform";
 import { dataUrlToBlob } from "@/store/blob-db";
-import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
+import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder, parseShotPlaceholder } from "@/lib/adf-sentinels";
 import { adfMediaNode, adfMediaSingle, adfVideoMediaSingle, type MediaSource } from "./lib/adf-media";
 import { injectLogsLink } from "./lib/adf-logs-link";
 import { injectSnapshotRows } from "./injectSnapshotRows";
@@ -941,6 +941,15 @@ export function buildJiraDescriptionContent(input: {
   // 이 realm의 마지막 관문이고, 통과시키면 사전 조회가 undefined라 t()가 죽는다.
   return withLocale(resolveBodyLocale(input.bodyLocale, getLocale()), () => {
     const content: unknown[] = [...description.content];
+    content.forEach((node, index) => {
+      const paragraph = node as { type?: string; content?: { text?: string }[] };
+      const filename = paragraph.type === "paragraph" ? parseShotPlaceholder(paragraph.content?.[0]?.text ?? "") : null;
+      if (!inScope(index) || !filename) return;
+      const file = uploadMap.get(filename);
+      content[index] = file ? adfMediaSingle(adfMediaNode(mediaSrc(file), file)) : {
+        type: "paragraph", content: [{ type: "text", text: t("md.attachmentDropped") }],
+      };
+    });
     const screenshotFile = uploadMap.get("screenshot.webp");
     const mediaPlaceholderIdx = content.findIndex(
       (n, idx) => {

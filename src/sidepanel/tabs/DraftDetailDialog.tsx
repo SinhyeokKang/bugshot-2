@@ -1,3 +1,5 @@
+import { ElementShotMedia, type ElementShotMediaItem } from "@/sidepanel/components/ElementShotMedia";
+import { joinElementShotSelectors } from "@/sidepanel/lib/elementShots";
 import { acquireStoredAuth } from "@/lib/settings-storage";
 import { AttachmentRecoveryPanel } from "@/sidepanel/components/AttachmentRecoveryPanel";
 import { PageScroll } from "@/sidepanel/components/Section";
@@ -340,7 +342,7 @@ function EditableDraftDetailDialog({
   const isScreenshot = issue?.captureMode === "screenshot";
   const isVideo = issue?.captureMode === "video";
   const isFreeform = issue?.captureMode === "freeform";
-  const { beforeUrl } = useIssueImages(issue?.id ?? null, issue?.snapshot);
+  const { beforeUrl, elementShotUrls } = useIssueImages(issue?.id ?? null, issue?.snapshot, issue?.elementShots, issue?.elementShotsRevision);
   const styleElements = useDraftStyleElements(
     issue ?? null,
     open && !isScreenshot && !isVideo && !isFreeform,
@@ -429,14 +431,14 @@ function EditableDraftDetailDialog({
       sections: issue.draft.sections,
       sectionConfig,
       url: issue.pageUrl,
-      selector: issue.selector ?? "",
-      tagName: issue.tagName ?? "",
+      selector: issue.elementShots ? joinElementShotSelectors(issue.elementShots) : issue.selector ?? "",
+      tagName: issue.elementShots?.[0]?.tagName ?? issue.tagName ?? "",
       classListBefore: sel?.classList ?? [],
       classListAfter: issue.styleEdits?.classList ?? [],
       specifiedStyles: sel?.specifiedStyles ?? {},
       tokens: issue.tokensSnapshot ?? [],
       viewport: isFreeform ? (issue.viewport ?? null) : (issue.viewport ?? sel?.viewport ?? { width: 0, height: 0 }),
-      capturedAt: sel?.capturedAt ?? issue.createdAt,
+      capturedAt: issue.elementShots?.[0]?.capturedAt ?? sel?.capturedAt ?? issue.createdAt,
       diffs,
       styleElements: isElement ? styleElementsForSubmit : undefined,
       environment: submitEnvironmentRows(issue),
@@ -461,13 +463,19 @@ function EditableDraftDetailDialog({
     }
 
     const videoBlob = transmitFiles && isVideo ? await getVideoBlob(issue.id) : null;
-    const beforeBlob = transmitFiles && (isScreenshot || legacyNoDiff) && issue.snapshot.before
+    const beforeBlob = transmitFiles && !issue.elementShots && (isScreenshot || legacyNoDiff) && issue.snapshot.before
       ? await getImageBlob(issue.id, "before")
       : null;
     const beforeDataUrl = beforeBlob ? await blobToDataUrl(beforeBlob) : null;
+    const elementShotImages = transmitFiles && isScreenshot && issue.elementShots
+      ? await Promise.all(issue.elementShots.map(async shot => {
+        const blob = await getImageBlob(issue.id, shot.imageSlot);
+        return blob ? blobToDataUrl(blob) : null;
+      })) : undefined;
     const captureFiles = await buildCaptureFiles({
       captureMode: legacyNoDiff ? "screenshot" : (issue.captureMode ?? "element"),
       videoBlob,
+      elementShotImages,
       screenshotImage: isScreenshot || legacyNoDiff ? beforeDataUrl : null,
       beforeImages: isElement ? styleElementsForSubmit.map((e) => e.beforeImage ?? null) : undefined,
       afterImages: isElement ? styleElementsForSubmit.map((e) => e.afterImage ?? null) : undefined,
@@ -954,6 +962,7 @@ function EditableDraftDetailDialog({
                   issue={issue}
                   sectionConfig={sectionConfig}
                   beforeUrl={beforeUrl}
+                  elementShotUrls={issue.elementShots ? elementShotUrls : undefined}
                   styleElements={styleElements}
                   isVideo={isVideo}
                   hasScreenshot={hasScreenshot}
@@ -1120,6 +1129,7 @@ function DraftDetailSections({
   issue,
   sectionConfig,
   beforeUrl,
+  elementShotUrls,
   styleElements,
   isVideo,
   hasScreenshot,
@@ -1135,6 +1145,7 @@ function DraftDetailSections({
   issue: IssueRecord;
   sectionConfig: IssueSection[];
   beforeUrl: string | null;
+  elementShotUrls?: ElementShotMediaItem[];
   styleElements: StyleElementContext[];
   isVideo: boolean;
   hasScreenshot: boolean;
@@ -1155,6 +1166,10 @@ function DraftDetailSections({
     isVideo && issue.snapshot.before ? (
       <FieldSection key="__media" label={t("section.media")}>
         <DraftVideoPreview issue={issue} thumbnailUrl={beforeUrl} />
+      </FieldSection>
+    ) : elementShotUrls ? (
+      <FieldSection key="__media" label={t("section.media")}>
+        <ElementShotMedia items={elementShotUrls} />
       </FieldSection>
     ) : hasScreenshot && beforeUrl ? (
       <FieldSection key="__media" label={t("section.media")}>
@@ -1273,18 +1288,18 @@ function EnvBlock({ issue }: { issue: IssueRecord }) {
     after: null,
     buffered: [],
   });
-  const domLabel = joinStyleSelectors(styleElements, issue.selector);
+  const domLabel = issue.elementShots ? joinElementShotSelectors(issue.elementShots) : joinStyleSelectors(styleElements, issue.selector);
   const rows: { label: string; value: string }[] = [
     ...(os ? [{ label: "OS", value: os }] : []),
     ...(browser ? [{ label: "Browser", value: browser }] : []),
     { label: "Page", value: issue.pageUrl || "-" },
     ...(domLabel ? [{ label: "DOM", value: domLabel }] : []),
   ];
-  const vp = issue.viewport ?? issue.selectionSnapshot?.viewport;
+  const vp = issue.elementShots?.[0]?.viewport ?? issue.viewport ?? issue.selectionSnapshot?.viewport;
   if (vp) {
     rows.push({ label: "Viewport", value: `${vp.width}×${vp.height}` });
   }
-  rows.push({ label: "Captured", value: formatTimestamp(issue.createdAt) });
+  rows.push({ label: "Captured", value: formatTimestamp(issue.elementShots?.[0]?.capturedAt ?? issue.createdAt) });
   rows.push(...filterEnvironmentRows(submitEnvironmentRows(issue)));
 
   return (

@@ -314,7 +314,7 @@ it("does not schedule a second failing write after an explicit annotation failur
     useEditorStore.getState().normalizeElementShots();
   });
   set.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("quota"));
-  await act(async () => { expect(await useEditorStore.getState().setElementShotAnnotation("legacy", "edited")).toBe(false); });
+  await act(async () => { expect(await useEditorStore.getState().setElementShotAnnotation(useEditorStore.getState().elementShots![0].id, "edited")).toBe(false); });
   await new Promise(resolve => setTimeout(resolve, 350));
   expect(set).toHaveBeenCalledTimes(2);
   expect(useEditorStore.getState().elementShots?.[0].annotated).toBeNull();

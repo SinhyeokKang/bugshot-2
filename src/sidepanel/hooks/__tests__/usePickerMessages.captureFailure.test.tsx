@@ -390,7 +390,7 @@ describe("append picker with the real editor store", () => {
     deliver({ type: "logClear", tabId: TAB });
     deliver({ type: "picker.cancelled", sessionId: "s1" });
     expect(useEditorStore.getState().phase).toBe("drafting");
-    expect(useEditorStore.getState().screenshotRaw).toBe("raw");
+    expect(useEditorStore.getState().elementShots?.[0].raw).toBe("raw");
     expect(useEditorStore.getState().draft?.title).toBe("keep");
   });
 });

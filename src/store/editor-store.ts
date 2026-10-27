@@ -820,10 +820,12 @@ export const useEditorStore = create<EditorState>((commit, get) => {
     set({
       elementShotPick: null,
       phase: "drafting",
-      screenshotRaw: image,
-      screenshotViewport: viewport,
-      screenshotCapturedAt: Date.now(),
-      shotSelector: shot,
+      elementShots: [{ id: crypto.randomUUID(), ...shot, raw: image, annotated: null, viewport, capturedAt: Date.now() }],
+      screenshotRaw: null,
+      screenshotAnnotated: null,
+      screenshotViewport: null,
+      screenshotCapturedAt: null,
+      shotSelector: null,
     }),
   startRecording: (target, source) => set({ ...initial, captureMode: "video", recordingSource: source, phase: "recording", target }),
   // trim은 drafting 전이와 원자적이어야 한다(replayTrim 선언부 참조). reproPrefillDone·
@@ -1442,7 +1444,10 @@ export const useEditorStore = create<EditorState>((commit, get) => {
   reset: () => commit({ ...initial }),
 
   hydrate: (snapshot) => commit({ ...snapshot,
-    elementShots: snapshot.elementShots ?? null,
+    elementShots: snapshot.captureMode === "screenshot" && (snapshot.elementShots || snapshot.shotSelector)
+      ? resolveElementShots(snapshot) : null,
+    ...(snapshot.captureMode === "screenshot" && (snapshot.elementShots || snapshot.shotSelector)
+      ? { shotSelector: null, screenshotRaw: null, screenshotAnnotated: null, screenshotViewport: null, screenshotCapturedAt: null } : {}),
     elementShotPick: null,
     phase: snapshot.phase === "picking" && snapshot.elementShotPick?.kind === "append" && resolveElementShots(snapshot).length ? "drafting" : snapshot.phase,
   }),

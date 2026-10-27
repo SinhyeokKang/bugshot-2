@@ -3592,7 +3592,8 @@ describe("durable element shot candidates", () => {
   const setup = () => {
     useEditorStore.getState().reset();
     useEditorStore.getState().startElementShot({ tabId: 7, url: "https://example.com/a", title: "A" });
-    useEditorStore.getState().onElementShot({ selector: "A", tagName: "DIV" }, image, { width: 100, height: 100 });
+    useEditorStore.setState({ phase: "drafting", elementShots: null, shotSelector: { selector: "A", tagName: "DIV" },
+      screenshotRaw: image, screenshotViewport: { width: 100, height: 100 }, screenshotCapturedAt: 1 });
     useEditorStore.getState().setDraft({ title: "keep", sections: { description: "body" } });
     const persisted: Record<string, unknown> = {};
     const set = vi.fn(async (values) => { Object.assign(persisted, structuredClone(values)); });

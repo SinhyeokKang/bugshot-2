@@ -22,8 +22,10 @@ export function bindSubmissionFiles<T extends FilesInput>(input: T): T {
   const byKind = (kind: SubmissionFile["kind"]) => input.submissionFiles!.filter((f) => f.kind === kind);
   const bind = (old: FileInput[] | undefined, kind: SubmissionFile["kind"]) => byKind(kind).map((f, i) => ({ ...old?.[i], filename: kind === "user" ? old?.[i]?.filename ?? f.filename : f.filename, dataUrl: f.dataUrl, contentType: f.contentType, fileId: f.id }));
   const renames = new Map((input.images ?? []).map((f, i) => [f.filename, byKind("capture")[i]?.filename ?? f.filename]));
-  const ctx = input.ctx && [...renames].some(([before, after]) => before !== after)
-    ? { ...input.ctx, styleElements: resolveStyleElements(input.ctx).map((e) => ({ ...e, beforeFilename: e.beforeFilename ? renames.get(e.beforeFilename) ?? e.beforeFilename : undefined, afterFilename: e.afterFilename ? renames.get(e.afterFilename) ?? e.afterFilename : undefined })) } : input.ctx;
+  const originalCtx = input.ctx && input.submissionFiles.some(f => f.id.startsWith("capture:shot-"))
+    ? { ...input.ctx, elementShotFilenames: byKind("capture").map(f => f.filename) } : input.ctx;
+  const ctx = originalCtx && [...renames].some(([before, after]) => before !== after)
+    ? { ...originalCtx, styleElements: resolveStyleElements(originalCtx).map((e) => ({ ...e, beforeFilename: e.beforeFilename ? renames.get(e.beforeFilename) ?? e.beforeFilename : undefined, afterFilename: e.afterFilename ? renames.get(e.afterFilename) ?? e.afterFilename : undefined })) } : originalCtx;
   return { ...input, ...(ctx ? { ctx } : {}), images: bind(input.images, "capture"), video: bind(input.video ? [input.video] : [], "video")[0], logs: bind(input.logs, "logs"), attachments: bind(input.attachments, "user"), inlineImages: byKind("inline").map((f) => ({ refId: f.id.slice("inline:".length), dataUrl: f.dataUrl, filename: f.filename, fileId: f.id, contentType: f.contentType })) };
 }
 export interface DeliveryResponse {

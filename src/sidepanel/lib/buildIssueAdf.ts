@@ -1,6 +1,6 @@
 import { t, withLocale } from "@/i18n";
 import { bodyBlocks } from "./bodyBlocks";
-import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
+import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder, shotImagePlaceholder } from "@/lib/adf-sentinels";
 import { LOGS_LINK_LABEL } from "@/background/lib/adf-logs-link";
 import { ccAdfParagraph } from "./ccMention";
 import type { StyleDiffSegment } from "./classDiff";
@@ -83,7 +83,9 @@ function buildIssueAdfInner(
       content.push(paragraph([textNode(VIDEO_PLACEHOLDER)]));
     } else if (isScreenshot) {
       content.push(heading(2, t("md.section.media")));
-      content.push(paragraph([textNode(IMAGE_PLACEHOLDER)]));
+      if (ctx.elementShotFilenames) {
+        for (const filename of ctx.elementShotFilenames) content.push(paragraph([textNode(shotImagePlaceholder(filename))]));
+      } else content.push(paragraph([textNode(IMAGE_PLACEHOLDER)]));
     } else {
       // element 모드: styleElements마다 heading + 텍스트 table(이미지 셀 없음). before/after
       // Snapshot 행은 messages.ts 제출 후처리가 업로드 후 i번째 table에 splice(A-4b).

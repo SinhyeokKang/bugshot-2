@@ -1,3 +1,5 @@
+import { elementShotImage, joinElementShotSelectors } from "@/sidepanel/lib/elementShots";
+import type { ElementShot } from "@/types/element-shot";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
@@ -142,8 +144,8 @@ export function AiDraftDialog({
         // page-url-scan: AI 초안 프롬프트 컨텍스트 — 재현 환경 Page 행이 아니다.
         url: store.target?.url ?? "",
         pageTitle: store.target?.title ?? "",
-        selector: isElement ? store.selection?.selector : store.shotSelector?.selector,
-        tagName: isElement ? store.selection?.tagName : store.shotSelector?.tagName,
+        selector: isElement ? store.selection?.selector : (store.elementShots ? joinElementShotSelectors(store.elementShots) : store.shotSelector?.selector),
+        tagName: isElement ? store.selection?.tagName : (store.elementShots?.[0]?.tagName ?? store.shotSelector?.tagName),
         styleElements:
           isElement && elementStyleElements?.length
             ? elementStyleElements
@@ -383,11 +385,12 @@ export function getModeImages(
     | "afterImage"
     | "beforeAnnotated"
     | "afterAnnotated"
-  >,
+  > & { elementShots?: ElementShot[] | null },
   captureMode: CaptureMode,
   styleElements?: AiDraftStyleElement[],
 ): string[] | undefined {
   if (captureMode === "screenshot") {
+    if (store.elementShots) return store.elementShots.map(elementShotImage).filter((image): image is string => !!image);
     const img = store.screenshotAnnotated ?? store.screenshotRaw;
     return img ? [img] : undefined;
   }
