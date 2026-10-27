@@ -142,3 +142,5 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 
 - 최종 통합 게이트: `pnpm test` exit0, 487 files/9366 pass/2 skip. `pnpm typecheck`·`pnpm sync:agents:check`·diff check exit0. 사용자 지시 뒤 로컬 e2e/build:e2e 실행0.
 - push 신선도 트라이아지 완료: ARCHITECTURE/DIRECTORY/DESIGN·README ko/en·PERMISSION·privacy ko/en·CI(92spec/456tests)·guide8페이지와 e2e 문서를 해당 diff에 맞췄다. manifest/scripts/의존성/워크플로우 변경 없음. 가이드 IA·AUTHORING 기준 불변. 원본 CLAUDE/스킬 및 미러 소스는 수정하지 않았다. 다음 게이트는 이 커밋을 포함한 원격 dev HEAD의 verify/e2e-gate이며 이전 green으로 대체하지 않는다.
+
+- 원격 `4e87f141` CI 40449031959: verify·e2e2/4 green, e2e3는 기존 logs-cross-page reload clear에서 이전 marker1개가 남아 최초/재시도 실패. multi-element-capture9개는 모두 green(최종 hover/focus·관찰 패널 종료 후 parity 포함). CI2에 로그 초기화/session/fixture 원인만 좁게 배정하며 로컬 e2e 금지는 유지한다.
