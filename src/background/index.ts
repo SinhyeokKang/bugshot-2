@@ -167,11 +167,9 @@ chrome.webNavigation.onCommitted.addListener((details) => {
     .catch(() => {});
   const urlPromise = navUrlPromise.get(details.tabId);
   navUrlPromise.delete(details.tabId);
-  void Promise.all([
-    urlPromise ?? Promise.resolve(""),
-    chrome.storage.session.get(key),
-  ]).then(([prev, stored]) => {
-    if (stored[key] == null) return;
+  // Idle log-only panels need not have a persisted editor snapshot. Let the
+  // receiving panel enforce tab scope and preserve recording/frozen logs.
+  void (urlPromise ?? Promise.resolve("")).then((prev) => {
     if (!shouldClearLogs(prev, details.url, details.transitionType)) return;
     chrome.runtime
       .sendMessage({ type: "logClear", tabId: details.tabId } satisfies BgInternalMessage)

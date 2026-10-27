@@ -394,3 +394,30 @@ describe("append picker with the real editor store", () => {
     expect(useEditorStore.getState().draft?.title).toBe("keep");
   });
 });
+
+describe("navigation logClear broadcast scope", () => {
+  const log = { id: "before-reload", startedAt: 0, endedAt: 1, captured: 0, totalSeen: 0, entries: [] };
+
+  beforeEach(async () => {
+    const db = await import("@/store/blob-db");
+    const recorders = await import("@/sidepanel/recorder-control");
+    for (const fn of [db.deleteNetworkLog, db.deleteConsoleLog, db.deleteActionLog,
+      recorders.clearNetworkRecorder, recorders.clearConsoleRecorder, recorders.clearActionRecorder]) {
+      vi.mocked(fn).mockResolvedValue(undefined);
+    }
+  });
+
+  it.each(["idle", "recording", "drafting", "previewing", "done"] as const)("enforces the %s phase policy without a stored snapshot", (phase) => {
+    useEditorStore.setState({ phase, consoleLog: log });
+    renderHook(() => usePickerMessages(TAB));
+    for (const listener of listeners) listener({ type: "logClear", tabId: TAB }, {});
+    expect(useEditorStore.getState().consoleLog).toEqual(phase === "idle" ? null : log);
+  });
+
+  it("ignores a different tab's background broadcast", () => {
+    useEditorStore.setState({ phase: "idle", consoleLog: log });
+    renderHook(() => usePickerMessages(TAB));
+    for (const listener of listeners) listener({ type: "logClear", tabId: TAB + 1 }, {});
+    expect(useEditorStore.getState().consoleLog).toEqual(log);
+  });
+});
