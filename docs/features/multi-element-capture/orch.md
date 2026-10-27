@@ -128,3 +128,6 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - D task `task_13b692686e6b`, dispatch `ctx_fe9e36696641`, mec-validation. 지시 이전 실행한 추가 e2e에서 같은 대상 탭의 관찰 패널 종료가 오래된 편집 세션을 덮어 preview/submit 바이트 불일치를 재현했다. red 시나리오는 유지하고 별도 저장 경계 수정으로 라우팅하며 로컬 e2e 재실행은 금지한다.
 
 - P narrow persistence 배치를 D와 병렬 배정한다. 소유는 session-sync/persistence/editor-store의 좁은 저장 경계와 unit/jsdom 테스트이며 D의 UI·가이드·e2e 파일과 겹치지 않는다. 두 인스턴스 stale pagehide 가설을 결정적 테스트로 확인하고 최소 수정하며 브라우저 확인은 원격 CI만 사용한다.
+
+- 사용자 UI 브리프 후 남은 always-visible 차이를 확인했다. D에 기존 StyleChangesTable 이미지 카드의 hover/focus 조건부 노출·카드 포커스·주석 제거/삭제 후 복귀까지 적용하도록 명시했다. 새 스타일·액션 행 없이 기존 ImageActions를 재사용한다.
+- P task `task_7551c0bab074`/dispatch `ctx_b8a63469e01d`: `824df929`·`5dc97c01`, 두 인스턴스 회귀 red→green 및 관련267개/typecheck/mirror 통과. 전체 테스트의 Jira OAuth env 누락 1건은 CI 더미 적용 후 해당71개 통과. terminal release 후 독립 리뷰 `ctx_0dc1aaf1a88e`로 전달했다.
