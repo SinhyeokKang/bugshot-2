@@ -24,7 +24,7 @@
 |---|---|---|---|---|---|---|
 | A core | Task 1–3 | types/element-shot.ts, lib/elementShots.ts·elementShotBudget.ts, editor/issues/blob stores, picker-control, usePickerMessages, useEditorSessionSync, liteSnapshot, useIssueImages, background tab-bindings/index, 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 저장 불변식 집중 | typecheck/test/sync, 독립 리뷰 | 통합 완료 |
 | B viewer | Task 6 중 로그 뷰어 계약 | types/log-viewer.ts, log-viewer/**, lib/buildLogsHtml.ts 및 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 하위호환 | typecheck/test/sync, 독립 리뷰 | 통합 완료 |
-| C flow | Task 4–6 나머지 및 노출 e2e | DraftingPanel/IssueTab/PreviewPanel/DraftDetailDialog/AiDraftDialog, ElementShotMedia, buildEditorCapture/buildMarkdownContext/buildReportData/buildCaptureFiles, submissionRecovery/uploadPayload/submissionAdapter/submitTo*, i18n, 해당 테스트와 e2e. A/B 계약 소비에 필요한 변경은 선행 통합 후만 | A+B 통합 | Codex 사용자 기본값 상속 / 동일; UI부터 복구까지 | typecheck/test/sync, e2e 연속 통과, 독립 리뷰 | 예정 |
+| C flow | Task 4–6 나머지 및 노출 e2e | DraftingPanel/IssueTab/PreviewPanel/DraftDetailDialog/AiDraftDialog, ElementShotMedia, buildEditorCapture/buildMarkdownContext/buildReportData/buildCaptureFiles, submissionRecovery/uploadPayload/submissionAdapter/submitTo*, i18n, 해당 테스트와 e2e. A/B 계약 소비에 필요한 변경은 선행 통합 후만 | A+B 통합 | Codex 사용자 기본값 상속 / 동일; UI부터 복구까지 | typecheck/test/sync, e2e 연속 통과, 독립 리뷰 | 실행 중 |
 | D validation | Task 7 | e2e 보강, guide ko/en 및 assets 계획, 가이드 문서 | C 통합 | Codex 사용자 기본값 상속 / 동일; 출력 검증 | e2e/가이드 대칭, 독립 리뷰 | 예정 |
 | R runtime | 모든 인계의 비결정적 항목 | 주 체크아웃 dist에서 read-only 검증, guide-shots 자산만 | A–D 통합 + build | Codex 사용자 기본값 상속 / 동일 | 수동 픽셀·iframe·좁은 패널, 이슈 라우팅 | 예정 |
 
@@ -95,3 +95,6 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 
 - A 재리뷰3 `ctx_6500aa35feee`: red0/yellow0. 총 11 commits를 dev `e1673127`..`e9a545b8`로 통합. typecheck/test/mirror exit 0. 최종 reviewer release 완료.
 - A 문서 신선도: ARCHITECTURE에 준비된 API·활성화 경계·비손실 세션·불변 슬롯·롤백/존재 권위·최종 확정 계약, DIRECTORY 신규 모듈, POSTMORTEM 2건 반영. privacy ko/en 저장 섹션 대조: session 편집 미디어와 IDB 스크린샷·복구 저장을 이미 공개하며 아직 새 사용자 추가 캡처 진입점이 없어 이번 기반 단계는 문구 변경 불필요. C 활성화 시 다중 캡처 동작을 다시 검토한다. README/guide/DESIGN은 C/D의 노출 UI 통합에서 갱신, 신규 e2e 수 변경 없음.
+
+- A/B 통합 최종 로컬 게이트: 484 files/9306 pass/2 skip. `ceecf86c` push 및 CI https://github.com/SinhyeokKang/bugshot-2/actions/runs/40440826117 시작. A 워크트리 tracked clean·git cherry +0 확인, 인계/최종 리뷰 보존 후 제거 완료.
+- C 시작: task `task_0fec19836284`, dispatch `ctx_b82ab261d7f8`, mec-flow, base `ceecf86c`, handle `term_e6dbde96-6661-41fc-a779-97659305c0d9`. A/B 최종 계약과 수정 불변식, append frame/hold 실제 경계 검증 의무를 브리프에 전달했다.
