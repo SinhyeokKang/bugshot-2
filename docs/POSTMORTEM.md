@@ -36,6 +36,18 @@
 
 ---
 
+## 2026-10-27 — optimistic 설정 UI를 저장 완료로 읽었다
+
+- **영역**: `e2e`, `store`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: CI의 repro-prefill 영속 테스트에서 OFF 확인 후 패널을 닫았다 열면 ON으로 돌아와 두 시도 모두 실패했다.
+- **근본 원인**: 동기 화면 갱신과 Web Lock 내부의 비동기 저장 완료가 다른 시점이다. 테스트는 화면만 확인하고 writer 문서를 닫았다. 실제 쓰기 잠금을 보류한 진단에서 UI OFF·저장값 없음·재열기 ON을 재현했다. CI의 정확한 스케줄은 로그만으로 확정할 수 없다.
+- **재발 방지**: 저장 완료 후 복원 계약을 명시하고 닫기 전 durable false, 재열기 후 UI OFF와 durable false, 정리 후 durable true를 단언한다. `panel.close`·`panel.reload` 직전에 화면 상태만 보는 spec을 점검한다. 생산 코드는 변경하지 않았으며 저장 대기 중 즉시 종료의 유실은 별도 제품 한계로 남는다.
+- **관련**: `e2e/repro-prefill.spec.ts`, `src/store/settings-ui-store.ts`, `src/store/app-settings-adapter.ts`, `e2e/fixtures/extension.ts`
+
+---
+
 ## 2026-10-27 — 단일 이미지 오버레이를 세로 목록에 그대로 재사용했다
 
 - **영역**: `컴포넌트`, `e2e`
