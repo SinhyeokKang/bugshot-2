@@ -111,3 +111,5 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - C 구현 완료 인계 `5b609ed5`(13 commits): 최종 487 files/9352 pass/2 skip, typecheck/mirror exit 0, 최종 build:e2e 뒤 6/6 두 번 연속 통과. 추가 자체 검토의 Jira prepared MIME 확장자 회귀도 red→green 수정했다. 인계 보존 및 구현 terminal release. 독립 리뷰가 ceecf86c 이후 전체 C diff·출력/용량/복구/포커스·결정적 테스트 누락을 판정하며 통합은 그 뒤다.
 
 - C 독립 리뷰 task `task_79d7d54d48ce`, dispatch `ctx_3eb32c595845`: red 1/yellow 1. 저장 상세 blob URL을 data URL 전용 downloader에 넘겨 실패하며, 승인 설계의 상세 logs.html 다운로드 action이 누락됐다. C fix1이 실제 다운로드 bytes/MIME/파일명과 live/saved/submitted HTML 동등성을 테스트하고 수정한다. 독립 리뷰 terminal release 완료.
+
+- C fix1 task `task_278c1ed3cd21`, dispatch `ctx_4fce6c407157`, 동일 mec-flow. 시작 응답의 unobserved는 실제 terminal 작업으로 live 확인했다. 지휘자는 검증된 기존 C 계약에 맞춰 ARCHITECTURE/DIRECTORY/DESIGN/README/PERMISSION/privacy ko/en을 갱신하고 회고 2건을 기록했다(형식 검사 exit 0; 컴포넌트×라이브러리전제 20건·어댑터×미검증단언 15건 반복 축). 이 문서들은 아직 원격으로 push하지 않으며 C 수정·재리뷰·통합과 D 가이드 완료 뒤 신선도를 다시 확인한다.
