@@ -1,5 +1,5 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreation, uploadCheckpoints, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreationRequest, uploadCheckpoints, type SubmissionAdapterInput } from "./submissionAdapter";
 import { bodySlotToken, buildBodyReplacements } from "./attachmentBodyPatch";
 import { failedStageState } from "./attachmentCheckpoints";
 import type { UploadFileResult } from "@/types/messages";
@@ -82,7 +82,7 @@ export async function submitToClickup(
     }).body;
 
   const body1 = buildBody(input.ctx);
-  const task = await submitCreation(input.progress, () => sendBg<ClickupCreateTaskResult>({
+  const task = await submitCreationRequest<ClickupCreateTaskResult>(input, {
     type: "clickup.submitIssue",
     payload: {
       listId: input.listId,
@@ -90,7 +90,7 @@ export async function submitToClickup(
       markdownContent: body1,
       assignees: input.assigneeId ? [input.assigneeId] : undefined,
     },
-  }));
+  });
   await input.progress?.created({ platform: "clickup", key: task.id, url: task.url, locator: { taskId: task.id } });
   await input.progress?.bodyWritten(body1);
 

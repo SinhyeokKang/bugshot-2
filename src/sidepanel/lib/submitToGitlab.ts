@@ -1,5 +1,5 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreation, uploadCheckpoints, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreationRequest, uploadCheckpoints, type SubmissionAdapterInput } from "./submissionAdapter";
 import { bodySlotToken, buildBodyReplacements } from "./attachmentBodyPatch";
 import type { UploadFileResult } from "@/types/messages";
 import { buildGitlabIssueBody } from "./buildGitlabIssueBody";
@@ -64,7 +64,7 @@ export async function submitToGitlab(
   }).body;
   const body = render(prepared);
 
-  const result = await submitCreation(input.progress, () => sendBg<GitlabCreateIssueResult>({
+  const result = await submitCreationRequest<GitlabCreateIssueResult>(input, {
     type: "gitlab.submitIssue",
     payload: {
       projectId: input.projectId,
@@ -73,7 +73,7 @@ export async function submitToGitlab(
       labels: input.label ? [input.label] : undefined,
       assigneeIds: input.assigneeId ? [input.assigneeId] : undefined,
     },
-  }));
+  });
   await input.progress?.created({ platform: "gitlab", key: `#${result.iid}`, url: result.url, locator: { projectId: String(input.projectId), iid: String(result.iid) } });
   await input.progress?.bodyWritten(body, ...uploads.filter((u) => u.upload === "done").map((u) => ({ fileId: u.fileId, body: "done" as const })));
 

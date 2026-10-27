@@ -1,5 +1,5 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, submitCreationRequest, type SubmissionAdapterInput } from "./submissionAdapter";
 import { failedStageState } from "./attachmentCheckpoints";
 import { buildNotionIssueBody } from "./buildNotionIssueBody";
 import type { MarkdownContext } from "./buildIssueMarkdown";
@@ -164,7 +164,7 @@ export async function submitToNotion(
     });
   }
 
-  const result = await submitCreation(input.progress, () => sendBg<NotionCreatePageResult>({
+  const result = await submitCreationRequest<NotionCreatePageResult>(input, {
     type: "notion.submitPage",
     payload: {
       bodyLocale: input.ctx.bodyLocale,
@@ -176,7 +176,7 @@ export async function submitToNotion(
       blocks,
       attachments: uploaded,
     },
-  }));
+  });
   await input.progress?.created({ platform: "notion", key: result.pageId.replace(/-/g, "").slice(0, 8), url: result.url, locator: { pageId: result.pageId } });
   // Files cut by the 100-block limit stay link=pending; retry appends them to this page.
   const linked = uploaded.filter((u) => u.fileId && result.attachedFileIds?.includes(u.fileId)).map((u) => ({ fileId: u.fileId!, link: "done" as const }));

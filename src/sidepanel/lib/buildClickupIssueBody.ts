@@ -112,10 +112,13 @@ function buildClickupIssueBodyInner(
       lines.push(videoUrl);
       attached.push(video.filename);
       lines.push("");
-    } else if (!isVideo && !isFreeform && images[0]?.url) {
+    } else if (!isVideo && !isFreeform && images.some(img => img.url)) {
       lines.push(`## ${t("md.section.media")}`, "");
-      lines.push(`![${images[0].filename}](${images[0].url})`);
-      attached.push(images[0].filename);
+      for (const img of images) {
+        if (!img.url) continue;
+        lines.push(`![${img.filename}](${img.url})`);
+        attached.push(img.filename);
+      }
       lines.push("");
     }
 

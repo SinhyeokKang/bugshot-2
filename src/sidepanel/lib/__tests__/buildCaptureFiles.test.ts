@@ -564,3 +564,20 @@ describe("buildCaptureFiles — report 임베드 (logs.html)", () => {
     expect(buildLogsHtmlSpy).not.toHaveBeenCalled();
   });
 });
+
+describe("ordered element capture output", () => {
+  it("keeps duplicate captures and passes only the ordered array to logs", async () => {
+    const images = ["data:A", "data:B", "data:A"];
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot", screenshotImage: "data:legacy",
+      elementShotImages: images, networkLog,
+    });
+    expect(out.images).toEqual(images.map((dataUrl, i) => ({ filename: `screenshot-${i + 1}.webp`, dataUrl })));
+    const call = buildLogsHtmlSpy.mock.calls.at(-1)!;
+    expect(call[4]).toBeNull();
+    expect(call[9]).toEqual(images.map(dataUrl => ({ dataUrl })));
+  });
+  it("does not silently omit a missing array image", async () => {
+    await expect(buildCaptureFiles({ captureMode: "screenshot", elementShotImages: ["data:A", null] })).rejects.toThrow();
+  });
+});

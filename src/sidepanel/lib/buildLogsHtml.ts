@@ -16,6 +16,7 @@ export async function buildLogsHtml(
   issueUrl?: string,
   issueTitle?: string,
   report: LogViewerReport | null = null,
+  screenshots?: LogViewerData["screenshots"],
 ): Promise<string> {
   // 무거운 로그·이미지·report는 gzip+base64로 압축(무손실). meta는 작고, 제출 후 injectIssueUrl이
   // issueUrl/issueKey 마커를 문자열 치환하므로 평문 별도 태그로 분리한다(압축 blob은 안 건드림).
@@ -24,7 +25,8 @@ export async function buildLogsHtml(
     consoleLog,
     actionLog,
     video,
-    screenshot,
+    screenshot: screenshots === undefined ? screenshot : null,
+    ...(screenshots === undefined ? {} : { screenshots }),
     report,
   };
   const meta: LogViewerData["meta"] = {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMAGE_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
+import { IMAGE_PLACEHOLDER, inlineImagePlaceholder, shotImagePlaceholder } from "@/lib/adf-sentinels";
 import { buildJiraDescriptionContent } from "../messages";
 
 // A retry sends the latest remote description with only our slot nodes restored to placeholders;
@@ -27,4 +27,28 @@ describe("buildJiraDescriptionContent limited to retry slots", () => {
     const content = buildJiraDescriptionContent({ description: doc([paragraph(IMAGE_PLACEHOLDER), paragraph(IMAGE_PLACEHOLDER)]), uploadMap: new Map([["screenshot.webp", media]]), bodyLocale: "en" });
     expect((content[0] as { type: string }).type).toBe("mediaSingle");
   });
+});
+
+it("renders named capture slots independently and preserves retry scope", () => {
+  const one = paragraph(shotImagePlaceholder("screenshot-1.webp"));
+  const two = paragraph(shotImagePlaceholder("screenshot-2.webp"));
+  const content = buildJiraDescriptionContent({
+    description: doc([one, two, one]),
+    uploadMap: new Map([["screenshot-2.webp", { kind: "media", mediaId: "second" }]]),
+    bodyLocale: "en", only: new Set([0, 1]),
+  });
+  expect(JSON.stringify(content[0])).not.toContain("__BUGSHOT");
+  expect(JSON.stringify(content[1])).toContain("second");
+  expect(content[2]).toEqual(one);
+});
+
+it.each(["jpg", "png", "gif"])("renders a prepared %s capture with its final filename", (extension) => {
+  const filename = `screenshot-2.${extension}`;
+  const content = buildJiraDescriptionContent({
+    description: doc([paragraph(shotImagePlaceholder(filename))]),
+    uploadMap: new Map([[filename, { kind: "media", mediaId: "final-format" }]]),
+    bodyLocale: "en", only: new Set([0]),
+  });
+  expect((content[0] as { type: string }).type).toBe("mediaSingle");
+  expect(JSON.stringify(content)).toContain("final-format");
 });

@@ -1,5 +1,9 @@
+import { LoadingDialog } from "@/sidepanel/components/LoadingDialog";
+import type { ElementShot } from "@/types/element-shot";
+import { ElementShotMedia } from "@/sidepanel/components/ElementShotMedia";
+import { elementShotImage, joinElementShotSelectors } from "@/sidepanel/lib/elementShots";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Download, FileCode, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Camera, Crosshair, Download, FileCode, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -21,7 +25,7 @@ import { useAI } from "@/sidepanel/hooks/useAI";
 import { useReproPrefill } from "@/sidepanel/hooks/useReproPrefill";
 import { getAiCancel } from "@/sidepanel/lib/aiCancelSlot";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
-import { cancelAreaSelect, clearPicker, startInlineAreaCapture } from "@/sidepanel/picker-control";
+import { cancelAreaSelect, clearPicker, startInlineAreaCapture, startAdditionalElementShot } from "@/sidepanel/picker-control";
 import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { AttachmentSection } from "@/sidepanel/components/AttachmentSection";
@@ -66,7 +70,14 @@ const lockedClass = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 const LazyTiptapEditor = lazy(() => import("../components/TiptapEditor"));
 const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
 
-export function DraftingPanel() {
+export interface ElementShotReturnState {
+  ids: string[];
+  scrollTop: number;
+  open: boolean;
+}
+export function DraftingPanel({ shotReturn }: {
+  shotReturn?: React.MutableRefObject<ElementShotReturnState | null>;
+}) {
   const t = useT();
   const tabId = useBoundTabId();
   const captureMode = useEditorStore((s) => s.captureMode);
@@ -78,6 +89,12 @@ export function DraftingPanel() {
   const beforeAnnotated = useEditorStore((s) => s.beforeAnnotated);
   const afterAnnotated = useEditorStore((s) => s.afterAnnotated);
   const bufferedElements = useEditorStore((s) => s.bufferedElements);
+  const elementShots = useEditorStore((s) => s.elementShots);
+  const elementShotSaving = useEditorStore((s) => s.elementShotSaving);
+  const [annotatingShot, setAnnotatingShot] = useState<{ shot: ElementShot; target: typeof target } | null>(null);
+  const [mediaOpen, setMediaOpen] = useState(shotReturn?.current?.open ?? true);
+  const addRef = useRef<HTMLButtonElement>(null);
+  const [appendBusy, setAppendBusy] = useState(false);
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const videoBlob = useEditorStore((s) => s.videoBlob);
@@ -164,16 +181,56 @@ export function DraftingPanel() {
   };
 
   useEffect(() => {
+    const saved = shotReturn?.current;
+    if (!saved || !elementShots || !draft) return;
+    const added = elementShots.length > saved.ids.length && elementShots.find(shot => !saved.ids.includes(shot.id));
+    if (added && !mediaOpen) { setMediaOpen(true); return; }
+    let actionFrame = 0;
+    const frame = requestAnimationFrame(() => {
+      const panel = addRef.current?.closest('[data-testid="drafting-panel"]');
+      if (added) {
+        const item = Array.from(panel?.querySelectorAll<HTMLElement>('[data-shot-id]') ?? [])
+          .find(node => node.dataset.shotId === added.id);
+        item?.scrollIntoView({ block: "nearest" });
+        item?.focus({ preventScroll: true });
+        actionFrame = requestAnimationFrame(() => {
+          if (document.activeElement === item) item?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+        });
+      } else {
+        const scroll = panel?.querySelector<HTMLElement>(".overflow-y-auto");
+        if (scroll) scroll.scrollTop = saved.scrollTop;
+        addRef.current?.focus({ preventScroll: true });
+      }
+      if (shotReturn) shotReturn.current = null;
+    });
+    return () => { cancelAnimationFrame(frame); cancelAnimationFrame(actionFrame); };
+  }, [draft, elementShots, mediaOpen, shotReturn]);
+
+  const addShot = async () => {
+    if (appendBusy || elementShotSaving || !tabId || !elementShots) return;
+    const scroll = addRef.current?.closest('[data-testid="drafting-panel"]')?.querySelector<HTMLElement>(".overflow-y-auto");
+    if (shotReturn) shotReturn.current = { ids: elementShots.map(shot => shot.id), scrollTop: scroll?.scrollTop ?? 0, open: mediaOpen };
+    setAppendBusy(true);
+    const result = await startAdditionalElementShot(tabId);
+    if (result === "page-changed") toast.info(t("draft.elementShot.pageChanged"));
+    if (result !== "started" && addRef.current) {
+      if (shotReturn) shotReturn.current = null;
+      addRef.current?.focus({ preventScroll: true });
+      setAppendBusy(false);
+    }
+  };
+
+  useEffect(() => {
     if (draft) return;
     if (captureMode === "element" && !selection) return;
-    if (captureMode === "screenshot" && !screenshotImage) return;
+    if (captureMode === "screenshot" && !elementShots && !screenshotImage) return;
     if (captureMode === "video" && !videoThumbnail && !videoBlob) return;
     setDraft({
       title: defaultTitle(titlePrefix),
       sections: {},
       environment: [],
     });
-  }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage, videoThumbnail, videoBlob]);
+  }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage, videoThumbnail, videoBlob, elementShots]);
 
   const { aiFilled: reproPrefillAiFilled } = useReproPrefill({
     captureMode,
@@ -200,7 +257,7 @@ export function DraftingPanel() {
 
   if (!draft) return null;
   if (captureMode === "element" && !selection) return null;
-  if (captureMode === "screenshot" && !screenshotImage) return null;
+  if (captureMode === "screenshot" && !elementShots && !screenshotImage) return null;
   if (captureMode === "video" && !videoThumbnail && !videoBlob) return null;
 
   const titleMissing = !draft.title.trim();
@@ -286,8 +343,15 @@ export function DraftingPanel() {
       testId="draft-media-block"
       title={t("section.media")}
       collapsible
+      open={elementShots ? mediaOpen : undefined}
+      onOpenChange={elementShots ? setMediaOpen : undefined}
       action={
-        screenshotImage ? (
+        elementShots ? (
+          <Button ref={addRef} type="button" size="icon" variant="default" className="h-8 w-8 shrink-0"
+            title={t("draft.elementShot.add")} aria-label={t("draft.elementShot.add")} data-testid="element-shot-add"
+            aria-disabled={appendBusy || elementShotSaving}
+            onClick={() => void addShot()}><Crosshair /></Button>
+        ) : screenshotImage ? (
           <>
             {screenshotAnnotated ? (
               <Button
@@ -328,7 +392,16 @@ export function DraftingPanel() {
         ) : undefined
       }
     >
-      {screenshotImage ? (
+      {elementShots ? <ElementShotMedia
+        items={elementShots.map(shot => ({ id: shot.id, url: elementShotImage(shot), annotated: !!shot.annotated }))}
+        busy={elementShotSaving}
+        onEdit={id => {
+          const shot = elementShots.find(item => item.id === id);
+          if (shot && elementShotImage(shot)) setAnnotatingShot({ shot, target });
+        }}
+        onReset={id => { void useEditorStore.getState().setElementShotAnnotation(id, null); }}
+        onDelete={id => useEditorStore.getState().removeElementShot(id)}
+      /> : screenshotImage ? (
         <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
           <img
             src={screenshotImage}
@@ -504,12 +577,14 @@ export function DraftingPanel() {
                   </Button>
                 ) : null}
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
+                    if (elementShotSaving) return;
                     setAnnotating(false);
                     setAnnotatingDiff(null);
-                    if (confirmDraft()) toast.success(t("draft.saved"));
+                    const saved = elementShots ? await useEditorStore.getState().confirmElementShotDraft() : confirmDraft();
+                    if (saved) toast.success(t("draft.saved"));
                   }}
-                  disabled={titleMissing || aiDraftLoading || reproPrefillLoading}
+                  disabled={titleMissing || aiDraftLoading || reproPrefillLoading || elementShotSaving}
                   data-testid="to-preview"
                 >
                   {t("draft.preview")}
@@ -519,6 +594,8 @@ export function DraftingPanel() {
           </PageFooter>
         </>
       )}
+      <LoadingDialog open={elementShotSaving} icon={<Loader2 className="h-6 w-6 animate-spin motion-reduce:animate-none" />}
+        title={t("draft.elementShot.saving")} description={t("draft.elementShot.savingDescription")} />
       <LogPreviewDialog
         open={logDialogOpen}
         onOpenChange={setLogDialogOpen}
@@ -536,6 +613,19 @@ export function DraftingPanel() {
         createSession={createSession}
         elementStyleElements={isElementMode ? styleElements : undefined}
       />
+      {annotatingShot && elementShotImage(annotatingShot.shot) ? (
+        <Suspense fallback={<div className="absolute inset-0 z-50 bg-background" />}>
+          <AnnotationOverlay imageUrl={elementShotImage(annotatingShot.shot)!}
+            onComplete={async url => {
+              const state = useEditorStore.getState();
+              if (state.target === annotatingShot.target && state.elementShots?.includes(annotatingShot.shot)) {
+                await state.setElementShotAnnotation(annotatingShot.shot.id, url);
+              }
+              setAnnotatingShot(null);
+            }}
+            onCancel={() => setAnnotatingShot(null)} />
+        </Suspense>
+      ) : null}
       {annotating && screenshotRaw ? (
         <Suspense
           fallback={
@@ -585,6 +675,7 @@ function ReproEnvironmentSection() {
   const selection = useEditorStore((s) => s.selection);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const bufferedElements = useEditorStore((s) => s.bufferedElements);
+  const elementShots = useEditorStore((s) => s.elementShots);
   const shotSelector = useEditorStore((s) => s.shotSelector);
   const videoViewport = useEditorStore((s) => s.videoViewport);
   const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
@@ -667,19 +758,19 @@ function ReproEnvironmentSection() {
   const vp =
     captureMode === "element" ? selection?.viewport ?? null
     : captureMode === "video" ? videoViewport
-    : captureMode === "screenshot" ? screenshotViewport
+    : captureMode === "screenshot" ? elementShots?.[0]?.viewport ?? screenshotViewport
     : freeformViewport;
   const capturedAt =
     captureMode === "element" ? selection?.capturedAt ?? null
     : captureMode === "video" ? videoCapturedAt
-    : captureMode === "screenshot" ? screenshotCapturedAt
+    : captureMode === "screenshot" ? elementShots?.[0]?.capturedAt ?? screenshotCapturedAt
     : freeformCapturedAt;
 
   const readonlyRows = deriveReadonlyEnvRows({
     os: getOsInfo(),
     browser: parseChromeVersion(navigator.userAgent),
     url: pageUrl,
-    selector: captureMode === "element" ? joinStyleSelectors(styleElements, selection?.selector) : shotSelector?.selector ?? null,
+    selector: captureMode === "element" ? joinStyleSelectors(styleElements, selection?.selector) : elementShots ? joinElementShotSelectors(elementShots) : shotSelector?.selector ?? null,
     viewport: vp ? { w: vp.width, h: vp.height } : null,
     capturedAt,
   });

@@ -126,7 +126,7 @@ Fix the bug visually before you even describe it.
 
 Grab exactly what's on screen and mark it up.
 
-- **Element capture** — click an element to crop just that element as a clean screenshot; its DOM selector is added to the issue environment automatically.
+- **Element capture** — click an element to crop it, then use **Add element** while drafting to capture more from the same page. Images and DOM selectors stay in selection order, including repeated selections; annotate, download or delete each image individually.
 - **Works inside iframes** — the picker reaches one level into embedded frames, cross-origin ones included.
 - **Area capture** — drag any region of the screen to capture a precise slice.
 - **Screen capture** — grab the whole visible viewport in one click, no dragging.

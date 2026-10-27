@@ -75,3 +75,18 @@ it.each([true, false])("uses the current journal destination, never the previous
   if (created) expect((await screen.findByRole("link", { name: "recovery.openIssue" })).getAttribute("href")).toBe("https://github.com/o/r/issues/2");
   else { await screen.findByText("recovery.unknownBody"); expect(screen.queryByRole("link", { name: "recovery.openIssue" })).toBeNull(); }
 });
+
+
+it("offers saved logs download and reports missing immutable bytes", async () => {
+  const record: IssueRecord = { ...issue, captureMode: "screenshot", logsAttached: true,
+    networkLogBlobKey: "saved-network", elementShots: [{ id: "shot", imageSlot: "shot-shot-v-revision", hasImage: true,
+      selector: "#saved", tagName: "div", capturedAt: 1,
+      viewport: { width: 100, height: 100 } }] };
+  vi.spyOn(recoveryDb, "getNetworkLog").mockResolvedValue({ id: "saved-network", startedAt: 1, endedAt: 2, captured: 1, totalSeen: 1, requests: [], warnings: [] });
+  vi.spyOn(recoveryDb, "getImageBlob").mockResolvedValue(null);
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  render(<DraftDetailDialog issue={record} open onOpenChange={vi.fn()} />);
+  await userEvent.click(await screen.findByTestId("download-logs"));
+  await waitFor(() => expect(toast.error).toHaveBeenCalledWith("recovery.localMissing"));
+  expect(click).not.toHaveBeenCalled();
+});

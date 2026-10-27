@@ -28,6 +28,7 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 
 - `ext` worker fixture — `fixtureUrl(page)` / `fixtureHostUrl(host, page)` / `fixtureTabId(urlPattern?)` / `openPanel(tabId)` / `evalInExt(fn, arg)` / `context`. `evalInExt`의 eval-host 탭은 기동 직후 미리 연다(spec 도중 새 탭이 활성으로 열려 대상을 가리지 않게).
   - `fixtureHostUrl(host, page)` — 같은 fixture 서버를 임의 호스트명으로 연다. launch args의 `--host-resolver-rules=MAP *.bugshot.test 127.0.0.1` 덕에 `app`/`api`/`auth.bugshot.test`가 하나의 registrable domain으로 묶인다(동족 hostname이 필요한 `api-hosts-env-row` 전용 — GOTCHAS 참조). **`fixtureTabId`엔 패턴을 명시**해야 한다.
+- `multi-element-capture.spec.ts` — 최초·추가 캡처부터 저장 초안 재제출까지의 배열 계약. ESC·추가 중 navigation/닫기·후보 저장 quota 실패 후 복원·열린 상세의 같은 ID 주석 갱신도 검증한다. 실제 picker와 IDB를 사용하고 외부 제출은 RPC 경계에서 거절 응답으로 격리한다. 저장 이미지 다운로드의 실제 파일 바이트·MIME별 순번 파일명, live/saved/submitted logs.html의 gzip 디코딩 이미지 순서·주석본·레거시 중복 부재와 본문/로그를 비교한다. 저장 슬롯 유실은 다운로드 없이 오류로 끝나는지 확인한다(상세는 COVERAGE.md).
 - `fixtures/settings.ts` — `openSettings(panel, "issue" | "ai" | "general")`와 `setScreenLocale(panel, label)`. AI 연결 플로우도 실제 설정 서브탭을 거친다.
 - `fixtures/recovery.ts` — 첨부 복구(1·2단계) 전용. `setup(ext, id, provider, opts)`로 저장 draft+IDB 원본을 앱 부팅 전에 seed하고, `installRpc`(1단계: 고정 응답)/`installRemote`(2단계: 상태 있는 원격 — create가 보낸 본문을 기억해 기존 이슈 읽기·본문 쓰기에 응답, `setRemote`/`setRemoteBody`/`remoteBody`로 흐름 중에 바꾼다)가 `chrome.runtime.sendMessage` 스파이를 건다. `state(panel, id)`는 저장된 이슈·journal·보존 바이트.
 - `enterDebug(panel)` — 디버그 탭 진입(active 폴링).
@@ -46,6 +47,7 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 
 logview project 전용(`logview/fixtures.ts` — 확장 fixture와 별개, 일반 Playwright `test`):
 
+- `logview/multi-image.spec.ts` — 디코드 가능한 canvas PNG로 복수 이미지 크기·스크롤·헤더 경계를 실측한다. 단일 이미지와 실제 영상/타임라인 회귀도 포함한다(상세는 COVERAGE.md).
 - `openViewer(page, data)` — `dist-log-viewer/index.html`에 `Partial<LogViewerData>`를 평문 JSON으로 주입해 `setContent`로 연다(미지정 필드는 null/기본 meta).
 - `makeLongUrlActionLog()` / `LONG_NAV_URL` — 개행 기회가 없는 273자 URL navigation 1건. **길이가 픽스처의 전부**라 줄이면 행이 안 접혀 판정이 공허해진다. `TINY_PNG`(1×1 PNG dataUrl — `screenshot`으로 주면 좌우 분할이라 로그 패널이 495px로 좁아진다)와 짝으로 쓴다. 넓은 단일 패널에선 버그가 재현되지 않는다(GOTCHAS "거꾸로 넘치지 않는다를 재는 축" 참조).
 - `makeActionLog()` / `makeConsoleLog()` / `makeNetworkLog()` / `makeReport()` — 합성 로그·리포트 빌더(전 kind/level/contentType + 2 origin + 본문 검색 마커, Report는 env 2행+paragraph/orderedList). `ORIGIN_A`/`ORIGIN_B`(필터용 2 origin), `NET_BODY_NEEDLE`(URL엔 없고 응답 본문에만 있는 마커), `REPORT_COPY_MARKDOWN`(copy payload 검증값).

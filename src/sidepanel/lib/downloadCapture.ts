@@ -28,3 +28,12 @@ export function downloadImageDataUrl(dataUrl: string, base = "screenshot"): void
 export function downloadVideoBlob(blob: Blob): void {
   triggerDownload(blob, recordingFilename(blob.type));
 }
+
+// Saved blob URLs and live data URLs share the same MIME-aware download path.
+export async function downloadImageUrl(url: string, base = "screenshot"): Promise<void> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Image unavailable");
+  const blob = await response.blob();
+  if (!blob.size) throw new Error("Image unavailable");
+  triggerDownload(blob, `${base}.${imageExtFromDataUrl(`data:${blob.type};`)}`);
+}

@@ -1,3 +1,5 @@
+import { ElementShotMedia } from "@/sidepanel/components/ElementShotMedia";
+import { elementShotImage, joinElementShotSelectors } from "@/sidepanel/lib/elementShots";
 import { useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { formatTimestamp } from "@/sidepanel/lib/formatTimestamp";
@@ -57,6 +59,7 @@ export function PreviewPanel() {
   const afterImage = useEditorStore((s) => s.afterImage);
   const beforeAnnotated = useEditorStore((s) => s.beforeAnnotated);
   const afterAnnotated = useEditorStore((s) => s.afterAnnotated);
+  const elementShots = useEditorStore((s) => s.elementShots);
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
@@ -150,11 +153,11 @@ export function PreviewPanel() {
   } else {
     // 요소 캡처(element-shot)는 captureMode="screenshot"이라 위 element 분기로 안 들어온다 —
     // shotSelector가 있으면 DOM 행을 넣어 drafting·제출 본문과 동일하게 표시한다.
-    if (shotSelector) {
-      envRows.push({ label: "DOM", value: shotSelector.selector });
+    if (elementShots || shotSelector) {
+      envRows.push({ label: "DOM", value: elementShots ? joinElementShotSelectors(elementShots) : shotSelector!.selector });
     }
-    const vp = isVideoMode ? videoViewport : isFreeformMode ? freeformViewport : screenshotViewport;
-    const cap = isVideoMode ? videoCapturedAt : isFreeformMode ? freeformCapturedAt : screenshotCapturedAt;
+    const vp = isVideoMode ? videoViewport : isFreeformMode ? freeformViewport : elementShots?.[0]?.viewport ?? screenshotViewport;
+    const cap = isVideoMode ? videoCapturedAt : isFreeformMode ? freeformCapturedAt : elementShots?.[0]?.capturedAt ?? screenshotCapturedAt;
     if (vp) envRows.push({ label: "Viewport", value: `${vp.width}×${vp.height}` });
     if (cap) envRows.push({ label: "Captured", value: formatTimestamp(cap) });
   }
@@ -220,7 +223,7 @@ export function PreviewPanel() {
       testId="preview-media-block"
       title={t("section.media")}
       action={
-        screenshotImage ? (
+        !elementShots && screenshotImage ? (
           <Button
             size="icon"
             variant="outline"
@@ -235,7 +238,7 @@ export function PreviewPanel() {
         ) : undefined
       }
     >
-      {screenshotImage ? (
+      {elementShots ? <ElementShotMedia items={elementShots.map(shot => ({ id: shot.id, url: elementShotImage(shot) }))} /> : screenshotImage ? (
         <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
           <img
             src={screenshotImage}
@@ -369,10 +372,10 @@ export function PreviewPanel() {
         browser,
         url: pageUrl,
         environment: draft.environment ?? [],
-        viewport: screenshotViewport ?? { width: 0, height: 0 },
-        capturedAt: screenshotCapturedAt ?? Date.now(),
-        selector: shotSelector?.selector,
-        tagName: shotSelector?.tagName,
+        viewport: elementShots?.[0]?.viewport ?? screenshotViewport ?? { width: 0, height: 0 },
+        capturedAt: elementShots?.[0]?.capturedAt ?? screenshotCapturedAt ?? Date.now(),
+        selector: elementShots ? joinElementShotSelectors(elementShots) : shotSelector?.selector,
+        tagName: elementShots?.[0]?.tagName ?? shotSelector?.tagName,
         networkLogSummary: attachedNetwork ? buildNetworkLogSummary(attachedNetwork) : undefined,
         consoleLogSummary: attachedConsole ? buildConsoleLogSummary(attachedConsole) : undefined,
         actionLogCaptured: attachedAction ? attachedAction.captured : undefined,

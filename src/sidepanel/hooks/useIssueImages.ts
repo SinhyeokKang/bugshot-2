@@ -1,84 +1,50 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { IssueSnapshot } from "@/store/issues-store";
+import type { SavedElementShot } from "@/types/element-shot";
 import { getImageBlob } from "@/store/blob-db";
 
 interface IssueImages {
   beforeUrl: string | null;
   afterUrl: string | null;
+  elementShotUrls: { id: string; url: string | null }[];
   loading: boolean;
 }
 
 export function useIssueImages(
   issueId: string | null,
   snapshot: IssueSnapshot | undefined,
+  elementShots?: readonly SavedElementShot[],
+  elementShotsRevision?: string,
 ): IssueImages {
-  const [beforeUrl, setBeforeUrl] = useState<string | null>(null);
-  const [afterUrl, setAfterUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const prevUrlsRef = useRef<string[]>([]);
-
+  const [images, setImages] = useState<IssueImages>({ beforeUrl: null, afterUrl: null, elementShotUrls: [], loading: false });
+  const slots = elementShots === undefined ? undefined : JSON.stringify(elementShots.map(({ id, imageSlot, hasImage }) => ({ id, imageSlot, hasImage })));
   useEffect(() => {
-    const staleUrls = prevUrlsRef.current;
-    prevUrlsRef.current = [];
-
-    if (!issueId || !snapshot) {
-      staleUrls.forEach((u) => URL.revokeObjectURL(u));
-      setBeforeUrl(null);
-      setAfterUrl(null);
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
-    setLoading(true);
-    setBeforeUrl(null);
-    setAfterUrl(null);
-
-    const newUrls: string[] = [];
-    const promises: Promise<void>[] = [];
-
-    if (snapshot.before) {
-      promises.push(
-        getImageBlob(issueId, "before").then((blob) => {
-          if (cancelled || !blob) return;
-          const url = URL.createObjectURL(blob);
-          newUrls.push(url);
-          setBeforeUrl(url);
-        }),
-      );
-    }
-
-    if (snapshot.after) {
-      promises.push(
-        getImageBlob(issueId, "after").then((blob) => {
-          if (cancelled || !blob) return;
-          const url = URL.createObjectURL(blob);
-          newUrls.push(url);
-          setAfterUrl(url);
-        }),
-      );
-    }
-
-    void Promise.all(promises).finally(() => {
-      staleUrls.forEach((u) => URL.revokeObjectURL(u));
-      if (cancelled) {
-        newUrls.forEach((u) => URL.revokeObjectURL(u));
+    const urls: string[] = [];
+    const empty = { beforeUrl: null, afterUrl: null, elementShotUrls: [] };
+    setImages({ ...empty, loading: !!issueId && !!snapshot });
+    if (!issueId || !snapshot) return;
+    const read = async (slot: Parameters<typeof getImageBlob>[1]): Promise<string | null> => {
+      const blob = await getImageBlob(issueId, slot);
+      if (cancelled || !blob) return null;
+      const url = URL.createObjectURL(blob);
+      urls.push(url);
+      return url;
+    };
+    void (async () => {
+      if (slots !== undefined) {
+        const shots = JSON.parse(slots) as SavedElementShot[];
+        const elementShotUrls = await Promise.all(shots.map(async shot => ({ id: shot.id, url: shot.hasImage ? await read(shot.imageSlot) : null })));
+        if (!cancelled) setImages({ ...empty, elementShotUrls, loading: false });
       } else {
-        prevUrlsRef.current = newUrls;
-        setLoading(false);
+        const [beforeUrl, afterUrl] = await Promise.all([snapshot.before ? read("before") : null, snapshot.after ? read("after") : null]);
+        if (!cancelled) setImages({ beforeUrl, afterUrl, elementShotUrls: [], loading: false });
       }
-    });
-
+    })().catch(() => { if (!cancelled) setImages({ ...empty, loading: false }); });
     return () => {
       cancelled = true;
+      urls.forEach(url => URL.revokeObjectURL(url));
     };
-  }, [issueId, snapshot?.before, snapshot?.after]);
-
-  useEffect(() => {
-    return () => {
-      prevUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-    };
-  }, []);
-
-  return { beforeUrl, afterUrl, loading };
+  }, [issueId, snapshot?.before, snapshot?.after, slots, elementShotsRevision]);
+  return images;
 }

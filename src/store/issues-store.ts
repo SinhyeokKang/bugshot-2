@@ -1,3 +1,5 @@
+import type { ElementShot, SavedElementShot } from "@/types/element-shot";
+import { elementShotImage, joinElementShotSelectors } from "@/sidepanel/lib/elementShots";
 import { create } from "zustand";
 import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
 import type { PlatformId } from "@/types/platform";
@@ -23,6 +25,8 @@ import {
   deleteAttachmentBlobs,
   getAttachmentBlobKeys,
   saveImageBlobRaw,
+  getImageBlob,
+  pruneElementShotBlobs,
   dataUrlToBlob,
 } from "./blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
@@ -42,6 +46,8 @@ export function stripSubmitted(
     draft: { title: "", sections: {}, environment: [] },
     styleEdits: undefined,
     bufferedElements: undefined,
+    elementShots: undefined,
+    elementShotsRevision: undefined,
     selectionSnapshot: undefined,
     tokensSnapshot: undefined,
     selector: undefined,
@@ -116,21 +122,31 @@ export async function persistIssuesMutation(run: () => void): Promise<void> {
   await write;
 }
 
+let publishingDurableShots = false;
+let durableShotWrite: Promise<void> | null = null;
+let draftsCreatedDuringShotWrite: Set<string> | null = null;
+
 const issuesStorage: StateStorage = {
   ...failClosedLocalStorage,
   async setItem(name, value) {
-    pendingOwnWrites.add(value);
-    if (pendingOwnWrites.size > PENDING_OWN_WRITES_CAP) {
-      pendingOwnWrites.delete(pendingOwnWrites.values().next().value as string);
-    }
-    if (durableWriteObserver) {
-      const write = (async () => { await chrome.storage.local.set({ [name]: value }); })();
-      durableWriteObserver(write);
-      // Zustand does not return this Promise from an action. The observer owns rejection.
+    if (publishingDurableShots) return;
+    const observer = durableWriteObserver;
+    const write = (async () => {
+      if (durableShotWrite) {
+        await durableShotWrite;
+        value = JSON.stringify({ state: { issues: useIssuesStore.getState().issues }, version: ISSUES_STORE_VERSION });
+      }
+      pendingOwnWrites.add(value);
+      if (pendingOwnWrites.size > PENDING_OWN_WRITES_CAP) {
+        pendingOwnWrites.delete(pendingOwnWrites.values().next().value as string);
+      }
+      if (observer) await chrome.storage.local.set({ [name]: value });
+      else await failClosedLocalStorage.setItem(name, value);
+    })();
+    if (observer) {
+      observer(write);
       await write.catch(() => { pendingOwnWrites.delete(value); });
-    } else {
-      await failClosedLocalStorage.setItem(name, value);
-    }
+    } else await write;
   },
 };
 
@@ -368,7 +384,11 @@ async function pruneOrphanBlobs(): Promise<void> {
   for (const key of imageBlobKeys) {
     if (isPendingKey(key)) continue;
     const issueId = key.split(":")[0];
-    if (!currentIds.has(issueId) && !prunedImageIds.has(issueId)) {
+    if (key.startsWith(`${issueId}:shot-`)) {
+      if (prunedImageIds.has(issueId)) continue;
+      prunedImageIds.add(issueId);
+      deletions.push(withIssueOperationLock(issueId, () => pruneElementShotBlobs(issueId)).catch(() => {}));
+    } else if (!currentIds.has(issueId) && !prunedImageIds.has(issueId)) {
       prunedImageIds.add(issueId);
       deletions.push(deleteImageBlobs(issueId));
     }
@@ -491,6 +511,8 @@ export interface IssueRecord {
   tokensSnapshot?: IssueTokenSnapshot[];
   // 복수 element 버퍼(현재 element 앞에 편집한 것들). 단일/구 초안은 undefined.
   bufferedElements?: IssueBufferedElement[];
+  elementShots?: SavedElementShot[];
+  elementShotsRevision?: string;
 
   networkLogBlobKey?: string;
   consoleLogBlobKey?: string;
@@ -663,6 +685,7 @@ export const useIssuesStore = create<IssuesState>()(
           // 그래서 쓰기 자체를 건너뛴다. 정상 재확정은 기존 레코드가 draft라 여기 안 걸린다
           // (confirmDraft는 phase "drafting" 전용이고, 로컬 제출은 phase를 done으로 옮긴다).
           if (existing?.status === "submitted") return s;
+          if (!existing) draftsCreatedDuringShotWrite?.add(record.id);
           const next: IssueRecord = {
             ...existing,
             ...record,
@@ -791,3 +814,101 @@ export const useIssuesStore = create<IssuesState>()(
     },
   ),
 );
+
+
+export async function saveElementShotDraft(
+  record: IssueRecord,
+  shots: readonly ElementShot[],
+  isCurrent: () => boolean = () => true,
+  prepareAncillary?: () => Promise<void>,
+): Promise<void> {
+  if (!shots.length || shots.some(shot => !elementShotImage(shot))) throw new Error("Missing element capture image");
+  await withIssueOperationLock(record.id, async () => navigator.locks.request("bugshot-element-shot-drafts", { mode: "exclusive" }, async (lock) => {
+    if (!lock) throw new Error("Element draft storage is busy");
+    const local = await chrome.storage.local.get(ISSUES_PERSIST_KEY);
+    const raw = local[ISSUES_PERSIST_KEY];
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (parsed != null && !Array.isArray(parsed?.state?.issues)) throw new Error("Invalid issues storage");
+    const persisted = (parsed?.state?.issues ?? []) as IssueRecord[];
+    const old = persisted.find(issue => issue.id === record.id);
+    if (old && (old.status !== "draft" || old.submissionRecoveryId)) throw new IssueAlreadySubmittedError(old.key);
+    if (await readSubmissionRecovery(record.id)) throw new IssueAlreadySubmittedError();
+    if (!isCurrent()) throw new Error("Stale element capture save");
+    await prepareAncillary?.();
+    const revision = crypto.randomUUID();
+    const saved: SavedElementShot[] = [];
+    for (const shot of shots) {
+      if (!isCurrent()) throw new Error("Stale element capture save");
+      const blob = dataUrlToBlob(elementShotImage(shot)!);
+      const previous = old?.elementShots?.find(item => item.id === shot.id);
+      const previousBlob = previous?.hasImage ? await getImageBlob(record.id, previous.imageSlot) : null;
+      let unchanged = false;
+      if (previousBlob && previousBlob.type === blob.type && previousBlob.size === blob.size) {
+        const [a, b] = await Promise.all([previousBlob.arrayBuffer(), blob.arrayBuffer()]);
+        const bytes = new Uint8Array(b);
+        unchanged = new Uint8Array(a).every((byte, index) => byte === bytes[index]);
+      }
+      const imageSlot: SavedElementShot["imageSlot"] = unchanged ? previous!.imageSlot : `shot-${shot.id}-v-${revision}`;
+      if (!unchanged) await saveImageBlobRaw(record.id, imageSlot, blob);
+      const { raw: _raw, annotated: _annotated, ...meta } = shot;
+      saved.push({ ...meta, imageSlot, hasImage: true });
+    }
+    if (!isCurrent()) throw new Error("Stale element capture save");
+    const next: IssueRecord = { ...old, ...record, createdAt: old?.createdAt ?? record.createdAt,
+      updatedAt: Math.max(Date.now(), (old?.updatedAt ?? 0) + 1),
+      elementShots: saved, elementShotsRevision: revision, selector: joinElementShotSelectors(shots),
+      tagName: shots[0].tagName, viewport: shots[0].viewport, snapshot: { before: true, after: false } };
+    const latestData = await chrome.storage.local.get(ISSUES_PERSIST_KEY);
+    const latestRaw = latestData[ISSUES_PERSIST_KEY];
+    const latestEnvelope = typeof latestRaw === "string" ? JSON.parse(latestRaw) : latestRaw;
+    if (latestEnvelope != null && !Array.isArray(latestEnvelope?.state?.issues)) throw new Error("Invalid issues storage");
+    if (!isCurrent()) throw new Error("Stale element capture save");
+    const current = useIssuesStore.getState().issues;
+    const merged = mergeIssueLists(latestEnvelope?.state?.issues ?? [], current, submittingIds);
+    const issues = [next, ...merged.filter(issue => issue.id !== record.id)];
+    const value = JSON.stringify({ state: { issues }, version: ISSUES_STORE_VERSION });
+    let finishWrite!: () => void;
+    durableShotWrite = new Promise<void>(resolve => { finishWrite = resolve; });
+    const createdDuringWrite = new Set<string>();
+    draftsCreatedDuringShotWrite = createdDuringWrite;
+    try {
+    pendingOwnWrites.add(value);
+    try { await chrome.storage.local.set({ [ISSUES_PERSIST_KEY]: value }); }
+    catch (error) { pendingOwnWrites.delete(value); throw error; }
+    if (!isCurrent()) {
+      const latestStored = await chrome.storage.local.get(ISSUES_PERSIST_KEY);
+      const latestRaw = latestStored[ISSUES_PERSIST_KEY];
+      const latest = typeof latestRaw === "string" ? JSON.parse(latestRaw) : latestRaw;
+      if (!Array.isArray(latest?.state?.issues)) throw new Error("Invalid issues storage");
+      const restored = (latest.state.issues as IssueRecord[]).filter(issue => issue.id !== record.id);
+      if (old) restored.unshift({ ...old, updatedAt: Math.max(Date.now(), next.updatedAt + 1) });
+      const rollback = JSON.stringify({ state: { issues: restored }, version: ISSUES_STORE_VERSION });
+      pendingOwnWrites.add(rollback);
+      await chrome.storage.local.set({ [ISSUES_PERSIST_KEY]: rollback });
+      publishingDurableShots = true;
+      try {
+        const now = useIssuesStore.getState().issues;
+        const combined = mergeIssueLists(restored, now, new Set([...submittingIds, ...createdDuringWrite]));
+        // The rollback fence must reach memory before queued writers serialize it again.
+        useIssuesStore.setState({ issues: [
+          ...restored.filter(issue => issue.id === record.id),
+          ...combined.filter(issue => issue.id !== record.id),
+        ] });
+      } finally { publishingDurableShots = false; }
+      throw new Error("Stale element capture save");
+    }
+    publishingDurableShots = true;
+    try {
+      const now = useIssuesStore.getState().issues;
+      const combined = mergeIssueLists(issues, now, new Set([...submittingIds, ...createdDuringWrite]));
+      useIssuesStore.setState({ issues: [next, ...combined.filter(issue => issue.id !== record.id)] });
+    } finally { publishingDurableShots = false; }
+    } finally {
+      durableShotWrite = null;
+      draftsCreatedDuringShotWrite = null;
+      finishWrite();
+    }
+    // New slots left by failed attempts are also reclaimed here; journal references win.
+    await pruneElementShotBlobs(record.id).catch(() => {});
+  }));
+}

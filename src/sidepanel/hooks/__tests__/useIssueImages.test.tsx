@@ -1,0 +1,35 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { useIssueImages } from "../useIssueImages";
+import { getImageBlob } from "@/store/blob-db";
+vi.mock("@/store/blob-db", () => ({ getImageBlob: vi.fn() }));
+afterEach(() => vi.restoreAllMocks());
+it("reloads same shot IDs on revision and releases replaced and unmounted URLs", async () => {
+  let counter = 0;
+  URL.createObjectURL = vi.fn(() => `blob:${++counter}`);
+  URL.revokeObjectURL = vi.fn();
+  vi.mocked(getImageBlob).mockResolvedValue(new Blob(["image"]));
+  const meta = (version: string) => [{ id: "a", selector: "A", tagName: "DIV", capturedAt: 1, viewport: { width: 1, height: 1 }, imageSlot: `shot-a-v-${version}` as const, hasImage: true }];
+  const { result, rerender, unmount } = renderHook(({ version }) => useIssueImages("id", { before: true, after: false }, meta(version), version), { initialProps: { version: "1" } });
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(result.current.elementShotUrls).toEqual([{ id: "a", url: "blob:1" }]);
+  expect(getImageBlob).not.toHaveBeenCalledWith("id", "before");
+  rerender({ version: "2" });
+  await waitFor(() => expect(result.current.elementShotUrls[0]?.url).toBe("blob:2"));
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:1");
+  unmount();
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:2");
+});
+it("ignores a stale image load and keeps missing-image positions", async () => {
+  let release!: (value: Blob | null) => void;
+  URL.createObjectURL = vi.fn(() => "blob:new");
+  URL.revokeObjectURL = vi.fn();
+  vi.mocked(getImageBlob).mockImplementationOnce(() => new Promise(resolve => { release = resolve; })).mockResolvedValue(null);
+  const meta = [{ id: "a", selector: "A", tagName: "DIV", capturedAt: 1, viewport: { width: 1, height: 1 }, imageSlot: "shot-a-v-1" as const, hasImage: true }];
+  const { result, rerender } = renderHook(({ revision }) => useIssueImages("id", { before: true, after: false }, meta, revision), { initialProps: { revision: "1" } });
+  rerender({ revision: "2" });
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  await act(async () => { release(new Blob(["old"])); });
+  expect(result.current.elementShotUrls).toEqual([{ id: "a", url: null }]);
+  expect(URL.createObjectURL).not.toHaveBeenCalled();
+});

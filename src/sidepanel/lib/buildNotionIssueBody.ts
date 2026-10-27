@@ -172,8 +172,7 @@ function buildNotionIssueBodyInner(
       }
     } else if (isScreenshot) {
       blocks.push({ type: "heading_2", text: t("md.section.media") });
-      const img = images[0];
-      if (img) {
+      for (const img of images) {
         const cat = categorize(img, "image");
         const placeholder = nextPlaceholder("screenshot");
         if (cat === "image") {

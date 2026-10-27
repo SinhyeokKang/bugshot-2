@@ -33,6 +33,7 @@ export interface MergeCurrentSelection {
 }
 
 export interface MarkdownContext {
+  elementShotFilenames?: string[];
   // 이미 해석된 값 — "auto"가 여기까지 오지 않는다. required라 생산지 누락을 컴파일러가 잡는다.
   bodyLocale: LocaleMode;
   os?: string | null;

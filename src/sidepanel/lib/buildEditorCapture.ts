@@ -1,3 +1,4 @@
+import { elementShotImage, joinElementShotSelectors } from "./elementShots";
 import { useEditorStore, type EditorState } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { resolveBodyLocale } from "@/i18n/locales";
@@ -99,14 +100,14 @@ export function buildEditorMarkdownContext(s: EditorState = useEditorStore.getSt
       ...common,
       ...logSummaries,
       captureMode: "screenshot",
-      selector: s.shotSelector?.selector ?? "",
-      tagName: s.shotSelector?.tagName ?? "",
+      selector: s.elementShots ? joinElementShotSelectors(s.elementShots) : s.shotSelector?.selector ?? "",
+      tagName: s.elementShots?.[0]?.tagName ?? s.shotSelector?.tagName ?? "",
       classListBefore: [],
       classListAfter: [],
       specifiedStyles: {},
       tokens: [],
-      viewport: s.screenshotViewport ?? { width: 0, height: 0 },
-      capturedAt: s.screenshotCapturedAt ?? Date.now(),
+      viewport: s.elementShots?.[0]?.viewport ?? s.screenshotViewport ?? { width: 0, height: 0 },
+      capturedAt: s.elementShots?.[0]?.capturedAt ?? s.screenshotCapturedAt ?? Date.now(),
       diffs: [],
     };
   }
@@ -164,6 +165,7 @@ export function buildEditorLogsCaptureInput(ctx: MarkdownContext, s: EditorState
   return {
     captureMode,
     videoBlob,
+    elementShotImages: captureMode === "screenshot" ? s.elementShots?.map(elementShotImage) : undefined,
     screenshotImage: captureMode === "screenshot" ? (screenshotAnnotated ?? screenshotRaw) : null,
     // 접는 지점은 소비처다 — 제출 파일(before-{i}.webp)이 주석본이 되는 곳이 여기.
     beforeImages: isElement

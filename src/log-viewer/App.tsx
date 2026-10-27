@@ -17,6 +17,7 @@ import type { TimelineMarker } from "./markers";
 import { buildErrorMarkers } from "@/sidepanel/30s-replay/trim-markers";
 import { VideoPlayer, type VideoPlayerHandle } from "./components/VideoPlayer";
 import { TimelinePanel } from "./components/TimelinePanel";
+import { IssueTitleOverlay } from "./components/IssueTitleOverlay";
 import { ImageViewer } from "./components/ImageViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -87,7 +88,7 @@ export function App({ data }: AppProps) {
   }, [data]);
 
   const video = data?.video ?? null;
-  const screenshot = data?.screenshot ?? null;
+  const screenshots = data?.screenshots ?? (data?.screenshot ? [data.screenshot] : []);
   const playerRef = useRef<VideoPlayerHandle>(null);
   const [videoError, setVideoError] = useState(false);
   const [videoDurationSec, setVideoDurationSec] = useState(0);
@@ -294,7 +295,7 @@ export function App({ data }: AppProps) {
     </Tabs>
   );
 
-  if (!video && !screenshot) {
+  if (!video && screenshots.length === 0) {
     return (
       <div className="flex h-screen flex-col bg-muted p-1.5">
         <div className={CARD}>{tabsPanel}</div>
@@ -345,12 +346,35 @@ export function App({ data }: AppProps) {
             )
           ) : (
             <div className={CARD}>
-              <ImageViewer
-                src={screenshot!.dataUrl}
-                issueTitle={data.meta.issueTitle}
-                issueKey={data.meta.issueKey}
-                issueUrl={data.meta.issueUrl}
-              />
+              {screenshots.length === 1 ? (
+                <ImageViewer
+                  src={screenshots[0].dataUrl}
+                  issueTitle={data.meta.issueTitle}
+                  issueKey={data.meta.issueKey}
+                  issueUrl={data.meta.issueUrl}
+                />
+              ) : (
+                <>
+                  <IssueTitleOverlay
+                    variant="static"
+                    issueTitle={data.meta.issueTitle}
+                    issueKey={data.meta.issueKey}
+                    issueUrl={data.meta.issueUrl}
+                  />
+                  <div data-testid="screenshot-list" className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-black">
+                    {screenshots.map((screenshot, index) => (
+                      <ImageViewer
+                        key={index}
+                        src={screenshot.dataUrl}
+                        stacked
+                        issueTitle={data.meta.issueTitle}
+                        issueKey={data.meta.issueKey}
+                        issueUrl={data.meta.issueUrl}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </ResizablePanel>

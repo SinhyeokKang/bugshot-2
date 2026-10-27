@@ -1,6 +1,6 @@
 # Write an Issue (screenshot mode)
 
-When you finish annotating and click **Done**, the issue draft opens. Just fill it in top to bottom.
+Capture element opens the issue draft after your first selection. Add more images or annotate them in the draft, then fill in the details below.
 
 ## 1. Title
 
@@ -20,7 +20,18 @@ When the capture ships logs along with it, you may see one more row: **`API Host
 
 ![Annotated screenshot attached](../assets/screenshot-issue-2.jpg)
 
-The media in screenshot mode is the **annotated screenshot**. The image you marked up with arrows and boxes is attached to the issue as-is. The **Download** button on the right of the Media section also lets you save this screenshot as an image file.
+Screenshots are attached **with your annotations**, if you added any. Area, screen, and page captures remain a single image, available separately through **Download** on the Media header.
+
+With **Capture element**, images stack vertically in selection order. Use the **Add element** crosshair icon, the leftmost action on the Media header, to capture another element in the same tab. A successful addition brings the new image into view; cancellation or failure returns you to your previous position.
+
+Hover an image or use Tab to focus its card to reveal these controls at the top-right:
+
+- **Add annotation / Edit annotation** — Edit only this image. The label changes when annotations are present.
+- **Remove annotation** — Appears only for an annotated image and restores its original.
+- **Download** — Save the displayed image with an ordered filename such as `screenshot-1` or `screenshot-2`.
+- **Delete** — Immediately remove this image and its matching `DOM` value, without a confirmation dialog. The last remaining image has no Delete button.
+
+Deleting the first image updates the viewport and capture time to those of the next image. Preview and saved draft details keep the remaining images and `DOM` values in the same order. Saved draft details also offer **Download** for each image.
 
 ## 4. Body sections
 
@@ -62,6 +73,8 @@ In screenshot mode, AI reads the **annotated screenshot** you attached along wit
 If relevant logs were captured, AI does one more thing — it picks the ones directly tied to the bug and drops the **actual log, verbatim, as a code block right under the description**. It's not just error logs — even a **normal-looking 200 response that fits what went wrong** (say, an empty list or a missing field) can be picked as the culprit and pasted in. The log text never comes from the AI itself, so there's no made-up stack trace to worry about. If nothing's relevant, nothing gets added — that's normal. Log blocks you inserted yourself survive a regenerate, and you can always delete a block you don't need.
 
 > AI slips up now and then, so give the generated draft a quick look. The banner only shows when an AI is connected — see [AI LLM Connection](../settings/ai.md) for how.
+
+Multiple element captures are passed to AI in selection order, with their annotations. If image or size limits omit any, you will see a notice; your saved images stay intact.
 
 ## 5. Log attachments
 

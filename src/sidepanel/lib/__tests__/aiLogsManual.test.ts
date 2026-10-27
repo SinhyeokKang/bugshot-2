@@ -55,6 +55,7 @@ describe("AI_LOGS_MANUAL", () => {
       actionLog: true,
       video: true,
       screenshot: true,
+      screenshots: true,
     };
     for (const key of Object.keys(ALL_KEYS)) {
       expect(AI_LOGS_MANUAL).toContain(key);

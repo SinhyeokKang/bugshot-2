@@ -74,3 +74,21 @@ describe("ImageActions", () => {
     expect(screen.getByRole("group")).toBeTruthy();
   });
 });
+
+it("keeps shared reset/annotate order, appends download/delete and guards disabled actions", async () => {
+  const callbacks = { reset: vi.fn(), annotate: vi.fn(), download: vi.fn(), delete: vi.fn() };
+  const { rerender } = render(<ImageActions onReset={callbacks.reset} onAnnotate={callbacks.annotate}
+    onDownload={callbacks.download} onDelete={callbacks.delete} ariaDisabled
+    testIds={{ reset: "reset", annotate: "annotate", download: "download", delete: "delete" }} />);
+  expect(screen.getAllByRole("button").map(button => button.dataset.testid)).toEqual(["reset", "annotate", "download", "delete"]);
+  for (const id of Object.keys(callbacks)) {
+    screen.getByTestId(id).click();
+    expect(callbacks[id as keyof typeof callbacks]).not.toHaveBeenCalled();
+  }
+  rerender(<ImageActions onDownload={callbacks.download} onDelete={callbacks.delete} downloadDisabled />);
+  expect(screen.getAllByRole("button")).toHaveLength(2);
+  screen.getByTestId("download-media").click();
+  expect(callbacks.download).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByTestId("image-delete"));
+  expect(callbacks.delete).toHaveBeenCalledTimes(1);
+});

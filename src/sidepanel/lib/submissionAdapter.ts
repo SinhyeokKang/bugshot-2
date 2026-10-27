@@ -1,3 +1,8 @@
+import { sendBg } from "@/lib/bg-client";
+import type { BgRequest } from "@/types/messages";
+import { t } from "@/i18n";
+import { MESSAGE_BYTES_LIMIT } from "./recordingBudget";
+import { serializedBytes } from "./elementShotBudget";
 import { resolveStyleElements, type MarkdownContext } from "./buildIssueMarkdown";
 import type { AttachmentBodyPlan, AttachmentCheckpointPatch, AttachmentResult, SubmissionFile, UploadedAttachment } from "@/types/attachment";
 import type { SubmissionProgress } from "./submissionRecovery";
@@ -22,9 +27,20 @@ export function bindSubmissionFiles<T extends FilesInput>(input: T): T {
   const byKind = (kind: SubmissionFile["kind"]) => input.submissionFiles!.filter((f) => f.kind === kind);
   const bind = (old: FileInput[] | undefined, kind: SubmissionFile["kind"]) => byKind(kind).map((f, i) => ({ ...old?.[i], filename: kind === "user" ? old?.[i]?.filename ?? f.filename : f.filename, dataUrl: f.dataUrl, contentType: f.contentType, fileId: f.id }));
   const renames = new Map((input.images ?? []).map((f, i) => [f.filename, byKind("capture")[i]?.filename ?? f.filename]));
-  const ctx = input.ctx && [...renames].some(([before, after]) => before !== after)
-    ? { ...input.ctx, styleElements: resolveStyleElements(input.ctx).map((e) => ({ ...e, beforeFilename: e.beforeFilename ? renames.get(e.beforeFilename) ?? e.beforeFilename : undefined, afterFilename: e.afterFilename ? renames.get(e.afterFilename) ?? e.afterFilename : undefined })) } : input.ctx;
-  return { ...input, ...(ctx ? { ctx } : {}), images: bind(input.images, "capture"), video: bind(input.video ? [input.video] : [], "video")[0], logs: bind(input.logs, "logs"), attachments: bind(input.attachments, "user"), inlineImages: byKind("inline").map((f) => ({ refId: f.id.slice("inline:".length), dataUrl: f.dataUrl, filename: f.filename, fileId: f.id, contentType: f.contentType })) };
+  const originalCtx = input.ctx && input.submissionFiles.some(f => f.id.startsWith("capture:shot-"))
+    ? { ...input.ctx, elementShotFilenames: byKind("capture").map(f => f.filename) } : input.ctx;
+  const ctx = originalCtx && [...renames].some(([before, after]) => before !== after)
+    ? { ...originalCtx, styleElements: resolveStyleElements(originalCtx).map((e) => ({ ...e, beforeFilename: e.beforeFilename ? renames.get(e.beforeFilename) ?? e.beforeFilename : undefined, afterFilename: e.afterFilename ? renames.get(e.afterFilename) ?? e.afterFilename : undefined })) } : originalCtx;
+  const bound = { ...input, ...(ctx ? { ctx } : {}), images: bind(input.images, "capture"), video: bind(input.video ? [input.video] : [], "video")[0], logs: bind(input.logs, "logs"), attachments: bind(input.attachments, "user"), inlineImages: byKind("inline").map((f) => ({ refId: f.id.slice("inline:".length), dataUrl: f.dataUrl, filename: f.filename, fileId: f.id, contentType: f.contentType })) };
+  if (input.submissionFiles.some(f => f.id.startsWith("capture:shot-"))) {
+    // Frozen files include conversions and base64 logs. Count them once with body/inline/user data;
+    // reserve 20% for RPC envelopes and returned remote locators.
+    const { submissionFiles: _files, progress: _progress, ...transport } = bound;
+    if (serializedBytes(transport) > MESSAGE_BYTES_LIMIT * 0.8) {
+      throw new Error(t("recovery.reason.size-limit"));
+    }
+  }
+  return bound;
 }
 export interface DeliveryResponse {
   fileId?: string;
@@ -88,4 +104,13 @@ export async function recordBodySlots(
   let replacements: AttachmentBodyPlan["replacements"];
   try { replacements = await compute(); } catch { return; }
   await progress.bodySlots(lastWritten, replacements);
+}
+
+
+export function submitCreationRequest<T>(input: SubmissionAdapterInput, request: BgRequest): Promise<T> {
+  if (input.submissionFiles?.some(f => f.id.startsWith("capture:shot-"))
+    && serializedBytes(request) > MESSAGE_BYTES_LIMIT * 0.8) {
+    return Promise.reject(new Error(t("recovery.reason.size-limit")));
+  }
+  return submitCreation(input.progress, () => sendBg<T>(request));
 }

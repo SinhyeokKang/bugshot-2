@@ -78,11 +78,12 @@ import * as videoRecorder from "@/sidepanel/video-recorder";
 import { PageFooter, PageShell } from "@/sidepanel/components/Section";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
 import { useUnsupportedTab } from "@/sidepanel/hooks/tab-support-context";
-import { DraftingPanel } from "./DraftingPanel";
+import { DraftingPanel, type ElementShotReturnState } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
 
 export function IssueTab() {
+  const shotReturn = useRef<ElementShotReturnState | null>(null);
   const phase = useEditorStore((s) => s.phase);
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
@@ -226,7 +227,7 @@ export function IssueTab() {
     if (trimming) return null;
     return (
       <>
-        <DraftingPanel />
+        <DraftingPanel shotReturn={shotReturn} />
         <SessionExpiredDialog
           open={sessionExpired}
           onConfirm={() => reset()}

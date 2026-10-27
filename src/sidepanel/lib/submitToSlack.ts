@@ -1,5 +1,5 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, submitCreation, type DeliveryResponse, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, submitCreationRequest, type DeliveryResponse, type SubmissionAdapterInput } from "./submissionAdapter";
 import { buildSlackBody } from "./buildSlackBody";
 import { splitSlackText } from "./splitSlackText";
 import { escapeMrkdwn } from "./markdownToMrkdwn";
@@ -54,10 +54,10 @@ export async function submitToSlack(
   const safeTitle = escapeMrkdwn(input.ctx.title.trim());
   const parentText = mentionLine ? `*${safeTitle}*\n${mentionLine}` : `*${safeTitle}*`;
 
-  const parent = await submitCreation(input.progress, () => sendBg<SlackPostResult>({
+  const parent = await submitCreationRequest<SlackPostResult>(input, {
     type: "slack.postMessage",
     payload: { channelId: input.channelId, text: parentText },
-  }));
+  });
   await input.progress?.created({ platform: "slack", key: parent.ts, locator: { channelId: input.channelId, ts: parent.ts } });
 
   // 상세 본문은 스레드 답글로 — 채널 타임라인은 제목만 남는다.

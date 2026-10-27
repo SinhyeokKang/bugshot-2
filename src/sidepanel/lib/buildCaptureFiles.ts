@@ -1,3 +1,4 @@
+import { MissingSubmissionFilesError } from "@/types/attachment";
 import type { ConsoleLog } from "@/types/console";
 import type { NetworkLog } from "@/types/network";
 import type { ActionLog } from "@/types/action";
@@ -39,6 +40,7 @@ export interface BuildCaptureFilesInput {
   captureMode: CaptureMode;
   videoBlob?: Blob | null;
   screenshotImage?: string | null;
+  elementShotImages?: (string | null)[];
   // element 모드: element별 before/after 배열. 항목별 before-${i}.webp / after-${i}.webp.
   beforeImages?: (string | null)[];
   afterImages?: (string | null)[];
@@ -59,6 +61,10 @@ export interface BuildCaptureFilesInput {
 export async function buildCaptureFiles(
   input: BuildCaptureFilesInput,
 ): Promise<CaptureFiles> {
+  if (input.captureMode === "screenshot" && input.elementShotImages &&
+      (!input.elementShotImages.length || input.elementShotImages.some(image => !image))) {
+    throw new MissingSubmissionFilesError(["capture"]);
+  }
   const result: CaptureFiles = { images: [], logs: [], attachments: [] };
 
   // 영상 dataUrl은 인라인 recording.mp4(본문 첨부)와 logs.html 임베드 양쪽에서 쓰므로 한 번만 변환해 재사용.
@@ -89,7 +95,7 @@ export async function buildCaptureFiles(
           : null;
       // screenshot 모드 & 이미지 존재 시에만 좌측 패널용 정적 이미지 임베드(모드 배타라 video와 동시 비존재).
       const screenshotEmbed: LogViewerData["screenshot"] =
-        input.captureMode === "screenshot" && input.screenshotImage
+        input.captureMode === "screenshot" && !input.elementShotImages && input.screenshotImage
           ? { dataUrl: input.screenshotImage }
           : null;
       const report = input.report ? await buildReportData(input.report) : null;
@@ -104,6 +110,7 @@ export async function buildCaptureFiles(
         undefined,
         input.issueTitle,
         report,
+        input.captureMode === "screenshot" ? input.elementShotImages?.map(dataUrl => ({ dataUrl: dataUrl! })) : undefined,
       );
       const htmlBlob = new Blob([html], { type: "text/html" });
       result.logs.push({
@@ -114,7 +121,11 @@ export async function buildCaptureFiles(
   }
 
   if (input.captureMode === "screenshot") {
-    if (input.screenshotImage) {
+    if (input.elementShotImages) {
+      result.images.push(...input.elementShotImages.map((dataUrl, index) => ({
+        filename: `screenshot-${index + 1}.webp`, dataUrl: dataUrl!,
+      })));
+    } else if (input.screenshotImage) {
       result.images.push({
         filename: "screenshot.webp",
         dataUrl: input.screenshotImage,

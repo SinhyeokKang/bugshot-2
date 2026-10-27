@@ -1,4 +1,8 @@
 const ko = {
+  "draft.elementShot.saving": "캡처 저장 중",
+  "draft.elementShot.savingDescription": "이미지와 작성 내용을 저장하고 있어요.",
+  "draft.elementShot.add": "요소 추가",
+  "draft.elementShot.pageChanged": "원래 페이지로 돌아온 뒤 요소를 추가하세요.",
   "editor.resetChanges": "변경사항 초기화",
   "editor.resetChanges.body": "{count}건의 변경사항을 초기화할까요? 모든 스타일이 원래 값으로 돌아갑니다.",
   "editor.changesDialog.trigger": "변경사항 보기",
@@ -169,6 +173,10 @@ const ko = {
 type Bundle = Record<keyof typeof ko, string>;
 
 const en = {
+  "draft.elementShot.saving": "Saving captures",
+  "draft.elementShot.savingDescription": "Saving your images and report.",
+  "draft.elementShot.add": "Add element",
+  "draft.elementShot.pageChanged": "Return to the original page to add an element.",
   "editor.resetChanges": "Reset changes",
   "editor.resetChanges.body": "Reset {count} change(s)? All styles will revert to original values.",
   "editor.changesDialog.trigger": "Review changes",
@@ -337,6 +345,10 @@ const en = {
 } satisfies Bundle;
 
 const fr = {
+  "draft.elementShot.saving": "Enregistrement des captures",
+  "draft.elementShot.savingDescription": "Enregistrement de vos images et du rapport.",
+  "draft.elementShot.add": "Ajouter un élément",
+  "draft.elementShot.pageChanged": "Revenez à la page d’origine pour ajouter un élément.",
   "editor.resetChanges": "Réinitialiser les modifications",
   "editor.resetChanges.body": "Réinitialiser {count} modification(s) ? Tous les styles reviendront aux valeurs d’origine.",
   "editor.changesDialog.trigger": "Examiner les modifications",
@@ -505,6 +517,10 @@ const fr = {
 } satisfies Bundle;
 
 const es = {
+  "draft.elementShot.saving": "Guardando capturas",
+  "draft.elementShot.savingDescription": "Guardando tus imágenes y el informe.",
+  "draft.elementShot.add": "Añadir elemento",
+  "draft.elementShot.pageChanged": "Vuelve a la página original para añadir un elemento.",
   "editor.section.container": "Contenedor",
   "editor.section.border": "Borde",
   "editor.section.size": "Tamaño",
@@ -661,6 +677,10 @@ const es = {
 } satisfies Bundle;
 
 const de = {
+  "draft.elementShot.saving": "Aufnahmen werden gespeichert",
+  "draft.elementShot.savingDescription": "Ihre Bilder und der Bericht werden gespeichert.",
+  "draft.elementShot.add": "Element hinzufügen",
+  "draft.elementShot.pageChanged": "Kehren Sie zur ursprünglichen Seite zurück, um ein Element hinzuzufügen.",
   "editor.resetChanges": "Änderungen zurücksetzen",
   "editor.resetChanges.body": "{count} Änderung(en) zurücksetzen? Alle Stile werden auf die ursprünglichen Werte zurückgesetzt.",
   "editor.changesDialog.trigger": "Änderungen prüfen",
@@ -817,6 +837,10 @@ const de = {
 } satisfies Bundle;
 
 const ja = {
+  "draft.elementShot.saving": "キャプチャを保存中",
+  "draft.elementShot.savingDescription": "画像とレポートを保存しています。",
+  "draft.elementShot.add": "要素を追加",
+  "draft.elementShot.pageChanged": "元のページに戻ってから要素を追加してください。",
   "editor.resetChanges": "変更をリセット",
   "editor.resetChanges.body": "{count}件の変更をリセットしますか？すべてのスタイルが元の値に戻ります。",
   "editor.changesDialog.trigger": "変更を確認",

@@ -1,3 +1,4 @@
+import { elementShotManifest } from "./elementShots";
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
 import { ISSUES_PERSIST_KEY } from "@/lib/session-keys";
 import { sendBg } from "@/lib/bg-client";
@@ -455,7 +456,14 @@ export function expectedSubmissionSources(issue: IssueRecord, options: {
   const files: SubmissionFileIntent[] = [];
   const image = (id: string, filename: string, key: string) => files.push({ id, kind: "capture", filename, contentType: "image/webp", source: { kind: "original", store: "images", key } });
   if (issue.captureMode === "video") files.push({ id: "video", kind: "video", filename: "recording.mp4", contentType: "video/mp4", source: { kind: "original", store: "blobs", key: issue.id } });
-  else if (issue.captureMode === "screenshot") image("capture:screenshot", "screenshot.webp", `${issue.id}:before`);
+  else if (issue.captureMode === "screenshot") {
+    if (issue.elementShots) {
+      if (!issue.elementShots.length) throw new MissingSubmissionFilesError(["capture"]);
+      for (const shot of elementShotManifest(issue.elementShots)) {
+        image(shot.id, shot.filename, `${issue.id}:${shot.imageSlot}`);
+      }
+    } else image("capture:screenshot", "screenshot.webp", `${issue.id}:before`);
+  }
   else if (issue.captureMode !== "freeform") {
     const elements = resolveDraftStyleElements(issue, {
       before: issue.snapshot.before ? `${issue.id}:before` : null,

@@ -1,8 +1,8 @@
 import { safeAttachmentFailure } from "@/lib/attachment-failure";
-import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreation, type SubmissionAdapterInput } from "./submissionAdapter";
+import { bindSubmissionFiles, deliveryResults, recordBodySlots, submitCreationRequest, type SubmissionAdapterInput } from "./submissionAdapter";
 import { buildAdfBodyReplacements } from "./attachmentBodyPatch";
 import { jiraBodyFilename } from "./uploadPayload";
-import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
+import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder, parseShotPlaceholder } from "@/lib/adf-sentinels";
 import { LOGS_LINK_LABEL } from "@/background/lib/adf-logs-link";
 import { failedStageState } from "./attachmentCheckpoints";
 import type { JiraAdfDoc } from "@/types/jira";
@@ -37,13 +37,14 @@ export interface JiraSubmitInput extends SubmissionAdapterInput {
 }
 
 // Top-level template nodes a file renders into: placeholders, the i-th style table, the logs line.
-function jiraBodySlots(template: JiraAdfDoc, fileIds: readonly string[]): Array<{ index: number; fileIds: string[] }> {
-  const has = (id: string) => fileIds.includes(id);
+function jiraBodySlots(template: JiraAdfDoc, files: readonly import("@/types/attachment").SubmissionFile[]): Array<{ index: number; fileIds: string[] }> {
+  const has = (id: string) => files.some(file => file.id === id);
   let table = 0;
   return template.content.flatMap((node, index) => {
     const n = node as { type?: string; content?: Array<{ type?: string; text?: string }> };
     const text = n.type === "paragraph" ? n.content?.[0]?.text : undefined;
     const ids = n.type === "table" ? [`capture:before-${table}`, `capture:after-${table++}`]
+      : text && parseShotPlaceholder(text) ? files.filter(file => file.kind === "capture" && file.filename === parseShotPlaceholder(text)).map(file => file.id)
       : text === IMAGE_PLACEHOLDER ? ["capture:screenshot"]
       : text === VIDEO_PLACEHOLDER ? ["video"]
       : text && parseInlinePlaceholder(text) ? [`inline:${parseInlinePlaceholder(text)}`]
@@ -76,7 +77,7 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
   const attachments = await annotateAttachmentDimensions(rawAttachments);
 
   const description = buildIssueAdf(input.ctx, inlineImages.map((i) => i.refId), input.cc);
-  const result = await submitCreation(input.progress, () => sendBg<{ key: string; url: string; siteId: string; description?: JiraAdfDoc }>({
+  const result = await submitCreationRequest<{ key: string; url: string; siteId: string; description?: JiraAdfDoc }>(input, {
     type: "jira.createIssue",
     payload: {
       bodyLocale: input.ctx.bodyLocale,
@@ -90,7 +91,7 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
       sprintId: input.sprintId,
     },
 
-  }));
+  });
   await input.progress?.created({ platform: "jira", key: result.key, url: result.url, locator: { issueKey: result.key, siteId: result.siteId } });
   // The background builds the safe ADF actually written; only that is a valid patch base.
   if (result.description) await input.progress?.bodyWritten(JSON.stringify(result.description));
@@ -136,7 +137,7 @@ export async function submitToJira(input: JiraSubmitInput): Promise<NormalizedSu
   // A slot also names files already in the body that share its node (a style table's pair).
   if (lastWritten) await recordBodySlots(input.progress, JSON.stringify(lastWritten), pending, () => buildAdfBodyReplacements({
     written: lastWritten, template: description, pending,
-    slots: jiraBodySlots(description, placed.map((f) => f.id)).filter((slot) => slot.fileIds.some((id) => pending.includes(id))),
+    slots: jiraBodySlots(description, placed).filter((slot) => slot.fileIds.some((id) => pending.includes(id))),
   }));
   return { key: result.key, url: result.url,
     attachments: deliveryResults(input.submissionFiles ?? [], responses, bodyFailed),

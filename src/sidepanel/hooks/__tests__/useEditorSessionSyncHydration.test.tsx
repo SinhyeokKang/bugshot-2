@@ -168,7 +168,7 @@ describe("useEditorSessionSync — selection 없는 element drafting 세션 복�
 /*  livePageUrl 전이는 스냅샷 저장을 예약하지 않는다                     */
 /* ------------------------------------------------------------------ */
 
-// `isLivePageUrlOnlyChange`의 순수 케이스는 계약만 고정한다 — 그 함수가 **존재하는 이유**
+// `hasSameEditorSnapshot`의 순수 케이스는 계약만 고정한다 — 그 함수가 **존재하는 이유**
 // (네비게이션마다 수 MB data URL 스냅샷 재직렬화)는 구독자를 실제로 돌려야 검증된다.
 // early return을 지우면 여기가 red다.
 describe("useEditorSessionSync — livePageUrl 저장 억제", () => {
@@ -289,4 +289,60 @@ describe("resumed capture logs", () => {
     await act(async () => { resolve(saved); });
     expect(useEditorStore.getState().consoleLog).toBeNull();
   });
+});
+
+it("restores append picking as drafting and invalidates the old request", async () => {
+  const target = { tabId: 1, url: "https://example.com", title: "page" };
+  const shot = { id: "a", selector: "A", tagName: "DIV", raw: "raw", annotated: "ann", viewport: { width: 1, height: 2 }, capturedAt: 1 };
+  get.mockResolvedValue({ "editor:1": { ...useEditorStore.getInitialState(), phase: "picking", captureMode: "screenshot", target, draft: { title: "kept", sections: {} }, elementShots: [shot], elementShotPick: { requestId: "old", kind: "append" } } });
+  const { result } = renderHook(() => useEditorSessionSync(1));
+  await waitFor(() => expect(result.current).toBe(true));
+  expect(useEditorStore.getState().phase).toBe("drafting");
+  expect(useEditorStore.getState().elementShotPick).toBeNull();
+  expect(useEditorStore.getState().elementShots).toEqual([shot]);
+  expect(await useEditorStore.getState().appendElementShot("old", { ...shot, id: "b" })).toBe(false);
+});
+
+
+it("does not schedule a second failing write after an explicit annotation failure", async () => {
+  Object.assign(chrome.storage.session, { getBytesInUse: vi.fn(async () => 0), QUOTA_BYTES: 10 * 1024 * 1024 });
+  const { result } = renderHook(() => useEditorSessionSync(7));
+  await waitFor(() => expect(result.current).toBe(true));
+  act(() => {
+    useEditorStore.getState().startElementShot({ tabId: 7, url: "https://example.com", title: "page" });
+    useEditorStore.getState().onElementShot({ selector: "A", tagName: "DIV" }, "raw", { width: 1, height: 2 });
+    useEditorStore.getState().normalizeElementShots();
+  });
+  set.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("quota"));
+  await act(async () => { expect(await useEditorStore.getState().setElementShotAnnotation(useEditorStore.getState().elementShots![0].id, "edited")).toBe(false); });
+  await new Promise(resolve => setTimeout(resolve, 350));
+  expect(set).toHaveBeenCalledTimes(2);
+  expect(useEditorStore.getState().elementShots?.[0].annotated).toBeNull();
+});
+
+it.each([0, 400])("flushes only pending local edits on pagehide (elapsed=%s)", async elapsed => {
+  const hook = renderHook(() => useEditorSessionSync(7));
+  await waitFor(() => expect(hook.result.current).toBe(true));
+  vi.useFakeTimers();
+  act(() => useEditorStore.setState({ draft: { title: "Edited", sections: {} } }));
+  await act(async () => { await vi.advanceTimersByTimeAsync(elapsed); });
+  await act(async () => { window.dispatchEvent(new Event("pagehide")); });
+  hook.unmount();
+  await act(async () => {});
+  vi.useRealTimers();
+  expect(set).toHaveBeenCalledTimes(1);
+  expect(set.mock.calls[0][0]["editor:7"].draft.title).toBe("Edited");
+});
+
+it("does not acquire session write ownership for log and UI-only updates", async () => {
+  const hook = renderHook(() => useEditorSessionSync(7));
+  await waitFor(() => expect(hook.result.current).toBe(true));
+  act(() => {
+    useEditorStore.getState().setConsoleLog({ id: "restored", startedAt: 0, endedAt: 1, captured: 0, totalSeen: 0, entries: [] });
+    useEditorStore.setState({ livePageUrl: "https://example.com/new", videoBlob: new Blob() });
+  });
+  await act(async () => { window.dispatchEvent(new Event("pagehide")); });
+  hook.unmount();
+  await act(async () => {});
+  expect(set).not.toHaveBeenCalled();
 });

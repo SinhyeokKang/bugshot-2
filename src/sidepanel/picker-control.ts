@@ -240,8 +240,8 @@ export async function startPicker(tabId: number): Promise<void> {
 
 export async function stopPicker(tabId: number): Promise<void> {
   tabFrameTokens.delete(tabId);
-  await sendToTabAllFrames(tabId, { type: "picker.clear" });
   useEditorStore.getState().cancelPicking();
+  await sendToTabAllFrames(tabId, { type: "picker.clear" });
 }
 
 // repick 취소(페이지 ESC·패널 취소·iframe 차단)용 복귀: 버퍼의 마지막 요소를 재선택해
@@ -608,6 +608,40 @@ export async function startAreaCapture(tabId: number): Promise<void> {
       console.error("[bugshot] area capture start failed", err);
     }
     useEditorStore.getState().reset();
+  }
+}
+
+export async function startAdditionalElementShot(tabId: number): Promise<"started" | "page-changed" | "failed"> {
+  const state = useEditorStore.getState();
+  if (state.target?.tabId !== tabId || state.phase !== "drafting") return "failed";
+  let tab: chrome.tabs.Tab;
+  try { tab = await chrome.tabs.get(tabId); } catch { onPickerUnavailable.fire(); return "failed"; }
+  if (useEditorStore.getState() !== state) return "failed";
+  if (!pageKeyOf(tab.url) || pageKeyOf(tab.url) !== pageKeyOf(state.target.url)) return "page-changed";
+  if (!(await ensureSupportedTab(tab))) return "failed";
+  const requestId = await useEditorStore.getState().startAdditionalElementShot();
+  if (!requestId) return "failed";
+  const owned = () => useEditorStore.getState().elementShotPick?.requestId === requestId;
+  try {
+    await ensureContentScript(tabId);
+    if (!owned()) return "failed";
+    const current = await chrome.tabs.get(tabId);
+    if (!owned()) return "failed";
+    if (pageKeyOf(current.url) !== pageKeyOf(state.target.url)) {
+      useEditorStore.getState().cancelElementShotPick(requestId);
+      return "page-changed";
+    }
+    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
+      type: "picker.start", frameToken: newFrameToken(tabId), theme: currentTheme(),
+    });
+    return owned() ? "started" : "failed";
+  } catch {
+    if (owned()) {
+      void clearPicker(tabId);
+      useEditorStore.getState().cancelElementShotPick(requestId);
+      onPickerUnavailable.fire();
+    }
+    return "failed";
   }
 }
 

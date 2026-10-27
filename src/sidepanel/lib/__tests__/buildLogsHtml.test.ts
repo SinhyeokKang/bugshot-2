@@ -231,6 +231,25 @@ describe("buildLogsHtml", () => {
     expect(data.video).toBeNull();
   });
 
+  it("embeds ordered screenshots once and clears the legacy image", async () => {
+    const screenshots = [{ dataUrl: "data:image/webp;base64,A" }, { dataUrl: "data:image/webp;base64,B" }, { dataUrl: "data:image/webp;base64,A" }];
+    const data = await extractData(await buildLogsHtml(
+      null, null, null, null, screenshots[0], "https://example.com",
+      undefined, undefined, null, screenshots,
+    ));
+    expect(data.screenshots).toEqual(screenshots);
+    expect(data.screenshot).toBeNull();
+  });
+
+  it("preserves an explicit empty array without resurrecting the legacy image", async () => {
+    const data = await extractData(await buildLogsHtml(
+      null, null, null, null, { dataUrl: "legacy" }, "https://example.com",
+      undefined, undefined, null, [],
+    ));
+    expect(data.screenshots).toEqual([]);
+    expect(data.screenshot).toBeNull();
+  });
+
   it("issueUrl 미지정 → meta.issueUrl 빈 자리(주입 marker)", async () => {
     const data = await extractData(
       await buildLogsHtml(networkLog, consoleLog, null, null, null, "https://example.com"),

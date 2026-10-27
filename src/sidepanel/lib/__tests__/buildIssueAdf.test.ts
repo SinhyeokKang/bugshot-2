@@ -595,3 +595,10 @@ describe("buildIssueAdf — 네트워크 에러 건수", () => {
     expect(JSON.stringify(doc)).toContain("logSummary.network.line n=7 errors=3");
   });
 });
+
+it("emits separate filename-addressed placeholders for ordered element shots", () => {
+  const doc = buildIssueAdf(makeCtx({ captureMode: "screenshot", elementShotFilenames: ["screenshot-1.webp", "screenshot-2.webp"] }));
+  expect(JSON.stringify(doc)).toContain("__BUGSHOT_SHOT:screenshot-1.webp__");
+  expect(JSON.stringify(doc)).toContain("__BUGSHOT_SHOT:screenshot-2.webp__");
+  expect(JSON.stringify(doc)).not.toContain("__BUGSHOT_IMAGE__");
+});

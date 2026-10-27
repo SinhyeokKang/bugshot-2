@@ -23,8 +23,19 @@ export function adfHasSentinel(content: unknown[]): boolean {
     if (!text) return false;
     return (
       text === IMAGE_PLACEHOLDER ||
+      parseShotPlaceholder(text) !== null ||
       text === VIDEO_PLACEHOLDER ||
       parseInlinePlaceholder(text) !== null
     );
   });
+}
+
+
+export function shotImagePlaceholder(filename: string): string {
+  return `__BUGSHOT_SHOT:${filename}__`;
+}
+
+export function parseShotPlaceholder(text: string): string | null {
+  const match = /^__BUGSHOT_SHOT:(screenshot-[1-9]\d*\.(?:webp|jpg|png|gif))__$/.exec(text);
+  return match?.[1] ?? null;
 }

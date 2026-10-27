@@ -36,6 +36,114 @@
 
 ---
 
+## 2026-10-27 — 저장된 편집 snapshot을 로그 패널의 생존 증거로 썼다
+
+- **영역**: `background`, `store`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 원격 CI에서 새 idle 로그 패널을 연 뒤 대상 페이지를 새로고침해도 이전 로그가 남았다. 다중 캡처의 저장·재열기 검증은 통과했다.
+- **근본 원인**: 비영속 로그 갱신의 불필요한 snapshot 저장을 제거하자 새 로그 전용 패널에는 editor 키가 생성되지 않았다. background onCommitted는 이 키의 존재를 logClear 발송 전제로 사용해 살아 있는 패널의 초기화를 생략했다.
+- **재발 방지**: 네비게이션 정책과 저장 레코드 존재를 분리한다. 빈 session storage를 둔 실제 background 이벤트 핸들러에서 reload/cross-origin 발송·same-origin 보존을 검증하고 수신부의 탭 격리·녹화/작성/미리보기/완료 단계 보존을 함께 고정한다.
+- **관련**: `src/background/index.ts`, `src/background/__tests__/navigation-log-clear.test.ts`, `src/sidepanel/hooks/__tests__/usePickerMessages.captureFailure.test.tsx`
+
+---
+
+## 2026-10-27 — 관찰 패널의 완료된 타이머를 미저장 편집으로 오인했다
+
+- **영역**: `store`, `컴포넌트`
+- **계열**: `미검증단언`
+- **그물**: `jsdom`
+- **증상**: 같은 대상 탭의 두 패널 중 관찰 패널을 닫고 주 패널을 다시 열면 주석 이미지가 이전 버전으로 돌아갔다. 저장 상세와 제출 이미지에는 새 버전이 남아 있었다.
+- **근본 원인**: hydrate와 비영속 로그 알림이 저장을 예약했고 debounce가 끝나도 타이머 참조를 비우지 않았다. pagehide는 이미 완료된 타이머를 pending 편집으로 판단해 관찰 패널의 오래된 session을 다시 저장했다. 문서별 큐는 공유 storage의 인스턴스 간 소유권을 보장하지 않는다.
+- **재발 방지**: 읽기는 저장 예약에서 제외하고 snapshot 키 변경만 자동 저장한다. 완료된 타이머 참조를 비운다. 독립된 두 store/hook 인스턴스가 실제 저장소를 공유하는 테스트에서 debounce 전·후 종료와 재열기 이미지 바이트를 단언하며 진짜 pending 편집의 종료 flush도 보존한다.
+- **관련**: `src/sidepanel/hooks/useEditorSessionSync.ts`, `src/sidepanel/hooks/__tests__/useEditorSessionSyncConfirmation.test.tsx`, `src/sidepanel/hooks/__tests__/useEditorSessionSyncHydration.test.tsx`
+
+---
+
+## 2026-10-27 — 표시 가능한 Blob URL을 다운로드 가능한 data URL로 오인했다
+
+- **영역**: `컴포넌트`, `미디어`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: 다중 캡처 독립 리뷰에서 저장 상세 이미지는 표시되지만 다운로드는 Invalid data URL로 실패했다. 승인 설계의 상세 logs.html 다운로드도 빠져 있었다.
+- **근본 원인**: `useIssueImages`의 blob URL을 data URL 전용 파서에 넘겼다. UI 테스트는 다운로드 모듈을 mock하고 버튼을 누르지 않았으며, 빌더 인자·제출 payload 검증을 다운로드 동작 검증으로 간주했다.
+- **재발 방지**: URL 스킴과 다운로드 입력 계약을 맞추고 실제 저장 슬롯에서 나온 이미지의 bytes/MIME/순번 파일명을 다운로드 이벤트로 확인한다. live/saved/submitted logs.html 압축 payload를 디코딩해 주석본 순서와 legacy 중복 부재를 비교하며 원본 유실 시 오류와 다운로드 0을 함께 단언한다.
+- **관련**: `src/sidepanel/components/ElementShotMedia.tsx`, `src/sidepanel/lib/downloadCapture.ts:downloadImageUrl`, `src/sidepanel/tabs/DraftDetailDialog.tsx`, `e2e/multi-element-capture.spec.ts`
+
+---
+
+## 2026-10-27 — 피커 복귀 포커스가 뒤늦게 닫힌 안내창에 덮였다
+
+- **영역**: `컴포넌트`, `e2e`
+- **계열**: `라이브러리전제`, `취소래치`
+- **그물**: `e2e`
+- **증상**: 다중 캡처 브라우저 검증에서 추가 피커 주입 실패 안내를 닫은 뒤 요소 추가 버튼의 포커스가 사라졌다.
+- **근본 원인**: 새 작성 화면의 복귀 effect 뒤에 전역 AlertDialog가 포커스를 가져가고, 닫힐 때 사라진 이전 대상을 복원했다. 언마운트된 추가 핸들러가 공유 복귀 ref를 지우는 경합도 있었다.
+- **재발 방지**: 복귀 ref는 살아 있는 화면만 정리하며 안내창 종료는 현재 screenshot 배열 drafting에만 포커스를 돌린다. 실패를 주입하고 실제 안내창을 닫은 뒤 최종 포커스·스크롤을 단언한다. 모달이 뜨기 전 잠깐의 포커스를 성공으로 세지 않는다.
+- **관련**: `src/sidepanel/App.tsx`, `src/sidepanel/tabs/DraftingPanel.tsx`, `e2e/multi-element-capture.spec.ts`
+
+---
+
+## 2026-10-27 — 배열 입력을 지원해도 말단 본문은 첫 이미지만 처리했다
+
+- **영역**: `어댑터`, `background`, `미디어`
+- **계열**: `미검증단언`, `드리프트`
+- **그물**: `unit`
+- **증상**: 다중 캡처 회귀 테스트에서 Notion은 첫 장만 업로드하고 Linear·ClickUp은 첫 장만 본문에 넣었다. Jira에서는 준비된 JPEG·PNG 파일의 본문 자리표시자가 남았다.
+- **근본 원인**: 공용 images 배열과 파일 생성 지원을 말단 빌더 순회까지 보장하는 것으로 오인했다. Jira 파서는 WebP만 인식했지만 prepared 파일명은 실제 MIME에 맞게 바뀌었다.
+- **재발 방지**: 9개 실제 어댑터에 A/B/A의 서로 다른 논리 ID·바이트와 동명 사용자 첨부를 주고 전송 파일과 본문 참조를 함께 단언한다. Jira는 최종 MIME 파일명으로 background 슬롯 확장과 실패 슬롯 재첨부까지 검증한다.
+- **관련**: `src/sidepanel/lib/__tests__/multiElementSubmission.test.ts`, `src/background/__tests__/jiraRetryScope.test.ts`, `src/lib/adf-sentinels.ts`, `src/sidepanel/lib/buildNotionIssueBody.ts`, `src/sidepanel/lib/buildLinearIssueBody.ts`, `src/sidepanel/lib/buildClickupIssueBody.ts`
+
+---
+
+## 2026-10-27 — 저장 단계별 성공을 전체 확정 성공으로 오인했다
+
+- **영역**: `store`, `에디터`
+- **계열**: `취소래치`, `미검증단언`
+- **그물**: `jsdom`
+- **증상**: 다중 캡처 독립 리뷰에서 탭 전환 중 잘못된 세션 저장, 삭제한 이슈 부활, 취소 리비전 재선택, 마지막 세션 저장 실패 후 중복 초안 생성 경로를 발견했다. 실제 사용자 관측이 아니라 회귀 테스트로 재현한 결함이다.
+- **근본 원인**: 지연 reader 밖에서만 소유권을 검사했고, durable 존재 권위의 예외를 메모리 전체에 주었으며, rollback 시각은 storage에만 반영했다. 마지막 세션 저장 rejection을 삼켜 성공으로 바꿨지만 busy 전이에서 debounce는 이미 취소돼 있었다.
+- **재발 방지**: 지연 reader 내부 소유권, merge protectedIds의 실제 소유자·수명, rollback의 storage/memory/후속 write/다른 인스턴스 승자를 함께 검증한다. ID를 미디어 저장 전에 drafting에 영속화하고 최종 세션 저장을 성공 계약에 포함한다. 실제 session-sync·스토어·IDB·복사형 storage 경계로 일시/지속 실패와 재열기·재시도의 ID·이미지를 단언한다.
+- **관련**: `src/store/editor-store.ts:confirmElementShotDraft`, `src/store/issues-store.ts:saveElementShotDraft`, `src/sidepanel/hooks/__tests__/useEditorSessionSyncConfirmation.test.tsx`, `src/store/__tests__/element-shot-draft.test.ts`
+
+---
+
+## 2026-10-27 — 복구 정리가 일반 초안의 버전 이미지 참조를 놓쳤다
+
+- **영역**: `store`, `미디어`
+- **계열**: `미검증단언`
+- **그물**: `unit`
+- **증상**: 다중 캡처 자체 검증에서 recovery 만료 정리가 정상 초안의 버전 이미지 슬롯을 지우는 경로를 발견하고 회귀 테스트로 재현했다.
+- **근본 원인**: journal 참조만 보호하고 일반 저장 레코드의 SavedElementShot.imageSlot 참조는 고려하지 않았다.
+- **재발 방지**: 삭제·만료·GC 경로에서 저장 레코드와 journal 참조를 함께 수집하고 조회 실패 시 삭제하지 않는다. 저장된 버전 슬롯과 만료 journal이 같은 원본을 가리키는 조합을 단언한다.
+- **관련**: `src/store/blob-db.ts`, `src/store/__tests__/blob-db-recovery.test.ts`
+
+---
+
+## 2026-10-27 — optimistic 설정 UI를 저장 완료로 읽었다
+
+- **영역**: `e2e`, `store`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
+- **증상**: CI의 repro-prefill 영속 테스트에서 OFF 확인 후 패널을 닫았다 열면 ON으로 돌아와 두 시도 모두 실패했다.
+- **근본 원인**: 동기 화면 갱신과 Web Lock 내부의 비동기 저장 완료가 다른 시점이다. 테스트는 화면만 확인하고 writer 문서를 닫았다. 실제 쓰기 잠금을 보류한 진단에서 UI OFF·저장값 없음·재열기 ON을 재현했다. CI의 정확한 스케줄은 로그만으로 확정할 수 없다.
+- **재발 방지**: 저장 완료 후 복원 계약을 명시하고 닫기 전 durable false, 재열기 후 UI OFF와 durable false, 정리 후 durable true를 단언한다. `panel.close`·`panel.reload` 직전에 화면 상태만 보는 spec을 점검한다. 생산 코드는 변경하지 않았으며 저장 대기 중 즉시 종료의 유실은 별도 제품 한계로 남는다.
+- **관련**: `e2e/repro-prefill.spec.ts`, `src/store/settings-ui-store.ts`, `src/store/app-settings-adapter.ts`, `e2e/fixtures/extension.ts`
+
+---
+
+## 2026-10-27 — 단일 이미지 오버레이를 세로 목록에 그대로 재사용했다
+
+- **영역**: `컴포넌트`, `e2e`
+- **계열**: `미검증단언`
+- **그물**: `시각`
+- **증상**: 다중 캡처 독립 리뷰에서 높이가 작은 이미지의 제목·링크 오버레이가 인접 이미지 영역으로 넘어가는 결함을 발견했다. 실사이트 사용자 관측이 아니라 구현 리뷰와 브라우저 회귀 테스트로 확인한 사례다.
+- **근본 원인**: 전체 패널 높이를 쓰던 단일 이미지의 absolute 오버레이를 자연 높이의 목록 항목에도 재사용했다. 이미지 개수·src만 단언하는 jsdom 테스트는 배치 기하를 검증하지 못했다.
+- **재발 방지**: 다중 이미지는 목록 밖 공통 제목을 사용한다. `e2e/logview/multi-image.spec.ts`에서 실제 디코딩된 짧은·긴·넓은 이미지의 제목 경계, 종횡비, 마지막 항목 도달, 창 및 패널 크기 변경을 검증한다. 단일 이미지·영상의 기존 오버레이도 함께 검사한다.
+- **관련**: `src/log-viewer/App.tsx`, `src/log-viewer/components/ImageViewer.tsx`, `src/log-viewer/components/IssueTitleOverlay.tsx`, `e2e/logview/multi-image.spec.ts`
+
+---
+
 ## 2026-10-22 — 재연결 문구를 비동기 준비 완료 신호로 오인했다
 
 - **영역**: `컴포넌트`, `툴체인`

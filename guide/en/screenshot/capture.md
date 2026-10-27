@@ -1,6 +1,6 @@
 # Capture methods
 
-There are two ways to grab an image of a bug: **Screenshot**, where you pick what part of the screen to capture, and **Capture element**, where you click a single element and it crops just that element. Either way the rest of the flow (annotate → write the issue) is identical, so start with whichever feels easier.
+There are two ways to grab an image of a bug: **Screenshot**, where you pick what part of the screen to capture, and **Capture element**, where you click a single element and it crops just that element. Capture element opens the issue draft after the first selection and lets you add more elements to the same report.
 
 ## Screenshot
 
@@ -34,10 +34,16 @@ In the **Debug** tab, click **Capture element** and a crosshair appears over the
 
 > **Capture element** doesn't change any styles. To pick an element and compare styles before/after, use [Inspect & Style](../element/README.md) instead.
 
-As a bonus, the captured element's DOM selector is recorded on the issue's **Environment** as a `DOM` line, so the reader knows exactly which element on the screen it was.
+The first capture opens the issue draft. Click the **Add element** crosshair icon on the right of the Media section, then pick one more element in the same tab. Its image appears at the bottom, with your existing title and body intact. Capturing the same element again creates a separate image, so you can show its changing states in order.
+
+The **Environment** section lists the captured DOM selectors in selection order on the `DOM` row. Deleting an image removes only its matching value.
+
+Use **Cancel** or **Esc** during an additional selection to return with your existing material intact. Closing and reopening the panel also restores the draft; restart any unfinished selection when you are ready. If the target tab has moved to another page, return to the original page before clicking the **Add element** crosshair icon. Elements from another tab cannot be added to this report.
+
+> The **Add element** crosshair icon is available only for reports started with Capture element, not area, screen, or page captures. If storage is full or capture fails, the addition is refused and your existing images and report remain intact.
 
 ## Output
 
-Area, screen and element captures give you exactly what's on screen right now (viewport-based); page capture gives you the full page, scrolling and all, as a single image. Once capture is done, you move on to annotation naturally.
+Area, screen and element captures give you exactly what's on screen right now (viewport-based); page capture gives you the full page, scrolling and all, as a single image. Each element selection adds a separate image. Annotate the images you need from the draft, then finish your issue.
 
 > See [Annotation](annotation.md) for how to draw on it.

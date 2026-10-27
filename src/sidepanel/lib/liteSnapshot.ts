@@ -3,6 +3,7 @@ import type { EditorSnapshot } from "@/store/editor-store";
 // 이미지·영상 썸네일을 뺀 경량 스냅샷. session storage 쿼터 초과 시의 2차 시도용.
 // 이미지 계열을 한 곳이라도 빠뜨리면(특히 주석본) 2차 시도도 초과해 lite가 목적을 잃는다.
 export function toLiteSnapshot(snap: EditorSnapshot): EditorSnapshot {
+  if (snap.captureMode === "screenshot" && (snap.elementShots || snap.shotSelector)) return snap;
   return {
     ...snap,
     beforeImage: null,
