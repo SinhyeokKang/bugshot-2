@@ -31,6 +31,8 @@ export interface LogViewerData {
     thumbnail?: string; // <video poster>
   } | null;
   screenshot: { dataUrl: string } | null; // 시간축 없는 정적 이미지(좌측 패널)
+  // Present arrays (including empty) take precedence over the legacy screenshot.
+  screenshots?: { dataUrl: string }[];
   // report는 heavy(gzip) blob에 직렬화된다 — injectIssueUrl이 치환하는 평문 meta 태그와
   // 분리돼 있어 report 본문의 빈 문자열 필드가 issueUrl 마커와 충돌하지 않는다.
   report: LogViewerReport | null;

@@ -1,5 +1,4 @@
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { App } from "../App";
 import type { LogViewerData } from "@/types/log-viewer";
@@ -12,9 +11,7 @@ const base: LogViewerData = {
   meta: { version: "1", createdAt: "2026-01-01", pageUrl: "https://example.com" },
 };
 function view(overrides: Partial<LogViewerData> = {}) {
-  const root = document.createElement("div");
-  root.innerHTML = renderToStaticMarkup(<App data={{ ...base, ...overrides }} />);
-  return root;
+  return render(<App data={{ ...base, ...overrides }} />).container;
 }
 function images(root: HTMLElement) {
   return [...root.querySelectorAll("img")].map((image) => image.getAttribute("src"));
@@ -30,7 +27,7 @@ describe("static screenshot media", () => {
   it("does not resurrect legacy media for an explicit empty array", () => {
     const root = view({ screenshots: [] });
     expect(images(root)).toEqual([]);
-    expect(root.querySelector("[data-panel-group]" )).toBeNull();
+    expect(root.querySelector("[data-panel-group]")).toBeNull();
   });
   it("keeps logs-only reports free of media panels", () => {
     const root = view({ screenshot: null });

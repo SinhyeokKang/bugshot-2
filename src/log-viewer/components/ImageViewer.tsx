@@ -4,30 +4,31 @@ import { IssueTitleOverlay } from "./IssueTitleOverlay";
 
 interface ImageViewerProps {
   src: string;
+  stacked?: boolean;
   issueTitle?: string;
   issueKey?: string;
   issueUrl?: string;
 }
 
-export function ImageViewer({ src, issueTitle, issueKey, issueUrl }: ImageViewerProps) {
+export function ImageViewer({ src, stacked = false, issueTitle, issueKey, issueUrl }: ImageViewerProps) {
   const [error, setError] = useState(false);
 
   if (error) {
     return (
-      <div className="flex h-full items-center justify-center bg-black">
+      <div className={stacked ? "flex min-h-32 items-center justify-center bg-black" : "flex h-full items-center justify-center bg-black"}>
         <span className="text-sm text-muted-foreground">{t("logViewer.image.error")}</span>
       </div>
     );
   }
 
   return (
-    <div className="group relative h-full">
+    <div className={stacked ? "group relative" : "group relative h-full"}>
       {/* Image area */}
       <div className="flex h-full items-center justify-center bg-black">
         <img
           src={src}
           alt={issueTitle ?? ""}
-          className="h-full w-full object-contain"
+          className={stacked ? "h-auto w-full object-contain" : "h-full w-full object-contain"}
           onError={() => setError(true)}
         />
       </div>
