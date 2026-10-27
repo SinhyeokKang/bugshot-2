@@ -88,3 +88,5 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - E 재푸시 `f4d2011f`의 CI 40438659040 최종 success: verify 및 e2e 4샤드/e2e-gate 모두 green. 이는 중간 통합 커밋의 결과이며 전체 기능 완료 증거는 아니다.
 
 - A fix1 인계: `770c9d25`(정확히 3개 red) + `b43b8973`(수정), 전체 482 files/9296 pass/2 skip 및 typecheck/mirror exit 0. fix 터미널 release. 재리뷰 task `task_a4886c83c69f`, dispatch `ctx_cd535d041dba`. append frame-token/hold 조합은 기존 mock 테스트만으로 입증되지 않으므로 C 활성화 배치의 실제 경계 검증으로 명시 배정한다(실 픽셀·포커스 잔여와 구분).
+
+- A 재리뷰2 `ctx_cd535d041dba`: 기존 red 3건 해소, 신규 red 1건. issue 저장 이후 마지막 세션 저장 실패를 catch로 삼키면 preview 성공·재열기 null issue ID·재시도 중복 초안으로 이어짐. 마지막 저장도 성공 계약에 포함하고 재열기/재시도 동일 ID를 실제 저장값으로 검증하는 수정 라운드2에 반환. 리뷰 터미널 release 완료.
