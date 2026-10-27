@@ -55,3 +55,11 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 - A: task `task_f2b629ea3550`, dispatch `ctx_40412b8a5db7`, worktree `/Users/sinhyeokkang/orca/workspaces/bugshot-2/mec-core`, handle `term_240e9fb1-edaa-48a5-ac34-edc5ee8d6e37`.
 - B: task `task_800c7a5b5766`, dispatch `ctx_9e149baaebcd`, worktree `/Users/sinhyeokkang/orca/workspaces/bugshot-2/mec-viewer`, handle `term_727a8884-f903-440d-92c9-0c311c1a0446`.
 - Runtime 사전 제약: manual-smoke 스킬은 Codex에서 Aside 특권 브라우저 능력 부재 시 실행 불가, guide-shots는 stale 탐지만 허용한다. 최종 단계에서 허용된 범위와 미검증을 분리해 보고하며 e2e 결과로 실사이트 관측을 대체하지 않는다.
+
+- B 경계 확장 승인: `sidepanel/lib/aiLogsManual.ts`와 exhaustive schema 테스트는 screenshots 계약 동반 수정으로 B 소유. 프롬프트 생성 동작 변경 없음.
+- Orca nested depth 1 제한으로 구현 워커의 하위 리뷰 생성이 거부됨(effectsApplied=false). 권한/설정을 바꾸지 않고 지휘자 깊이에서 독립 리뷰를 생성한다. 구현 워커 자체 검토와 독립 리뷰를 별도로 기록한다.
+- A API 결정: 기존 confirmDraft boolean 소비처 회귀를 피하려고 배열 전용 `confirmElementShotDraft(): Promise<boolean>`를 제공하며 C가 적절한 분기를 await한다. 최종 배열 단일 출처 규칙은 유지한다.
+
+- B 구현 1차: `2ec78d17`, `5ae277be`, `e3f053f8`; 477 test files / 9261 pass / 2 skip, typecheck·mirror exit 0. 최초 Jira config_missing는 .env.ci 적용 후 해소.
+- B 독립 리뷰 `ctx_6542ca1fd095`: red 0 / yellow 2 — 낮은 이미지 overlay 침범, 결정적 목록 기하 검증 누락. 동일 viewer 워크트리 수정 라운드에 e2e/logview 소유를 추가했다. 원 구현·리뷰 터미널은 settlement 확인 후 release 완료.
+- C task `task_0fec19836284` (A/B 의존), D task `task_13b692686e6b` (C 의존). 시작은 선행 리뷰·dev 통합 완료 후 지휘자가 명시 수행한다.
