@@ -22,8 +22,8 @@
 
 | 배치 | 계획 항목 | 소유 파일 | 선행 | 모델/effort | 검증 | 상태 |
 |---|---|---|---|---|---|---|
-| A core | Task 1–3 | types/element-shot.ts, lib/elementShots.ts·elementShotBudget.ts, editor/issues/blob stores, picker-control, usePickerMessages, useEditorSessionSync, liteSnapshot, useIssueImages, background tab-bindings/index, 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 저장 불변식 집중 | typecheck/test/sync, 독립 리뷰 | 예정 |
-| B viewer | Task 6 중 로그 뷰어 계약 | types/log-viewer.ts, log-viewer/**, lib/buildLogsHtml.ts 및 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 하위호환 | typecheck/test/sync, 독립 리뷰 | 예정 |
+| A core | Task 1–3 | types/element-shot.ts, lib/elementShots.ts·elementShotBudget.ts, editor/issues/blob stores, picker-control, usePickerMessages, useEditorSessionSync, liteSnapshot, useIssueImages, background tab-bindings/index, 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 저장 불변식 집중 | typecheck/test/sync, 독립 리뷰 | 실행 중 |
+| B viewer | Task 6 중 로그 뷰어 계약 | types/log-viewer.ts, log-viewer/**, lib/buildLogsHtml.ts 및 해당 테스트 | 없음 | Codex 사용자 기본값 상속 / 동일; 하위호환 | typecheck/test/sync, 독립 리뷰 | 실행 중 |
 | C flow | Task 4–6 나머지 및 노출 e2e | DraftingPanel/IssueTab/PreviewPanel/DraftDetailDialog/AiDraftDialog, ElementShotMedia, buildEditorCapture/buildMarkdownContext/buildReportData/buildCaptureFiles, submissionRecovery/uploadPayload/submissionAdapter/submitTo*, i18n, 해당 테스트와 e2e. A/B 계약 소비에 필요한 변경은 선행 통합 후만 | A+B 통합 | Codex 사용자 기본값 상속 / 동일; UI부터 복구까지 | typecheck/test/sync, e2e 연속 통과, 독립 리뷰 | 예정 |
 | D validation | Task 7 | e2e 보강, guide ko/en 및 assets 계획, 가이드 문서 | C 통합 | Codex 사용자 기본값 상속 / 동일; 출력 검증 | e2e/가이드 대칭, 독립 리뷰 | 예정 |
 | R runtime | 모든 인계의 비결정적 항목 | 주 체크아웃 dist에서 read-only 검증, guide-shots 자산만 | A–D 통합 + build | Codex 사용자 기본값 상속 / 동일 | 수동 픽셀·iframe·좁은 패널, 이슈 라우팅 | 예정 |
@@ -50,3 +50,8 @@ A/B 완료→독립 리뷰→수정→통합 게이트→C→리뷰/통합→D�
 
 - 인테이크: dev, 추적 변경 없음, 설계 커밋 2개는 아직 origin/dev보다 앞섬.
 - Run/Dispatch, 리뷰 라운드, 통합 해시, 게이트·CI·런타임 결과는 진행 시 이 절에 기록한다.
+
+- Run: `run_73eb56bede49`; coordinator `term_0c57b1ff-ecc8-4b5c-8629-a93a46f95f50`.
+- A: task `task_f2b629ea3550`, dispatch `ctx_40412b8a5db7`, worktree `/Users/sinhyeokkang/orca/workspaces/bugshot-2/mec-core`, handle `term_240e9fb1-edaa-48a5-ac34-edc5ee8d6e37`.
+- B: task `task_800c7a5b5766`, dispatch `ctx_9e149baaebcd`, worktree `/Users/sinhyeokkang/orca/workspaces/bugshot-2/mec-viewer`, handle `term_727a8884-f903-440d-92c9-0c311c1a0446`.
+- Runtime 사전 제약: manual-smoke 스킬은 Codex에서 Aside 특권 브라우저 능력 부재 시 실행 불가, guide-shots는 stale 탐지만 허용한다. 최종 단계에서 허용된 범위와 미검증을 분리해 보고하며 e2e 결과로 실사이트 관측을 대체하지 않는다.
