@@ -185,13 +185,17 @@ export function DraftingPanel({ shotReturn }: {
     if (!saved || !elementShots || !draft) return;
     const added = elementShots.length > saved.ids.length && elementShots.find(shot => !saved.ids.includes(shot.id));
     if (added && !mediaOpen) { setMediaOpen(true); return; }
+    let actionFrame = 0;
     const frame = requestAnimationFrame(() => {
       const panel = addRef.current?.closest('[data-testid="drafting-panel"]');
       if (added) {
         const item = Array.from(panel?.querySelectorAll<HTMLElement>('[data-shot-id]') ?? [])
           .find(node => node.dataset.shotId === added.id);
         item?.scrollIntoView({ block: "nearest" });
-        item?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+        item?.focus({ preventScroll: true });
+        actionFrame = requestAnimationFrame(() => {
+          if (document.activeElement === item) item?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+        });
       } else {
         const scroll = panel?.querySelector<HTMLElement>(".overflow-y-auto");
         if (scroll) scroll.scrollTop = saved.scrollTop;
@@ -199,7 +203,7 @@ export function DraftingPanel({ shotReturn }: {
       }
       if (shotReturn) shotReturn.current = null;
     });
-    return () => cancelAnimationFrame(frame);
+    return () => { cancelAnimationFrame(frame); cancelAnimationFrame(actionFrame); };
   }, [draft, elementShots, mediaOpen, shotReturn]);
 
   const addShot = async () => {

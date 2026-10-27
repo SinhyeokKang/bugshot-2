@@ -62,6 +62,8 @@ test.describe.serial("ordered element captures", () => {
     await expect(addControl).toHaveAttribute("aria-label", /.+/);
     await expect(addControl.locator("svg.lucide-crosshair")).toHaveCount(1);
     await expect.poll(() => items().first().getByTestId("media-preview-img").evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true);
+    await items().first().focus();
+    await expect(items().first().getByTestId("annotation-edit")).toBeVisible();
     const geometry = await items().first().evaluate(node => {
       const frame = node.getBoundingClientRect();
       return [...node.querySelectorAll("button")].map(button => {
@@ -207,6 +209,7 @@ test.describe.serial("ordered element captures", () => {
 
   test("annotation changes only its ID; deleting B retains A and A, then forbids final deletion", async () => {
     const original = await items().getByTestId("media-preview-img").evaluateAll(nodes => nodes.map(node => (node as HTMLImageElement).src));
+    await items().nth(2).focus();
     await items().nth(2).getByTestId("annotation-edit").click();
     const overlay = panel.getByTestId("annotation-overlay");
     await expect(overlay).toBeVisible();
@@ -222,10 +225,11 @@ test.describe.serial("ordered element captures", () => {
     await expect(overlay).toBeHidden();
     await expect(items().nth(2).getByTestId("media-preview-img")).not.toHaveAttribute("src", original[2]);
     for (const i of [0, 1]) await expect(items().nth(i).getByTestId("media-preview-img")).toHaveAttribute("src", original[i]);
+    await items().nth(1).focus();
     await items().nth(1).getByTestId("element-shot-delete").click();
     await expect(items()).toHaveCount(2);
     expect(await readIds()).toEqual([ids[0], ids[2]]);
-    await expect(items().last().getByRole("button").first()).toBeFocused();
+    await expect(items().last()).toBeFocused();
     ids = [ids[0], ids[2]];
     // Save/reopen keeps the ordered immutable media, including the annotation.
     const before = await items().getByTestId("media-preview-img").evaluateAll(nodes => nodes.map(node => (node as HTMLImageElement).src));
@@ -236,6 +240,7 @@ test.describe.serial("ordered element captures", () => {
     await expect(items()).toHaveCount(2);
     expect(await readIds()).toEqual(ids);
     expect(await items().getByTestId("media-preview-img").evaluateAll(nodes => nodes.map(node => (node as HTMLImageElement).src))).toEqual(before);
+    await items().first().focus();
     await items().first().getByTestId("element-shot-delete").click();
     await expect(items()).toHaveCount(1);
     expect(await readIds()).toEqual([ids[1]]);
@@ -298,6 +303,7 @@ test.describe.serial("ordered element captures", () => {
       await expect(saved.nth(1).getByTestId("media-preview-img")).toHaveAttribute("src", /^blob:/);
       await panel.bringToFront();
       await panel.getByTestId("back-to-draft").click();
+      await items().nth(1).focus();
       await items().nth(1).getByTestId("annotation-edit").click();
       const overlay = panel.getByTestId("annotation-overlay");
       await expect(overlay).toBeVisible();
@@ -317,6 +323,7 @@ test.describe.serial("ordered element captures", () => {
       await observer.bringToFront();
       await expect(saved.nth(1).getByTestId("media-preview-img")).not.toHaveAttribute("src", oldSrc!);
       expect(await saved.evaluateAll(nodes => nodes.map(node => (node as HTMLElement).dataset.shotId))).toEqual(oldIds);
+      await saved.nth(1).focus();
       const downloaded = await downloadBytes(observer, saved.nth(1).getByTestId("download-media"));
       expect(downloaded.bytes).toEqual(Buffer.from(annotated!.split(",")[1], "base64"));
     } finally {
@@ -381,6 +388,7 @@ test.describe.serial("ordered element captures", () => {
         const blob = await (await fetch(node.src)).blob();
         return { type: blob.type, bytes: Array.from(new Uint8Array(await blob.arrayBuffer())) };
       });
+      await savedImages.nth(index).focus();
       const downloaded = await downloadBytes(panel, savedImages.nth(index).getByTestId("download-media"));
       const mime = previewBytes[index].split(";")[0].slice(5);
       expect(source.type).toBe(mime);

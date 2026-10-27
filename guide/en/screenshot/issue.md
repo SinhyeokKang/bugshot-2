@@ -24,7 +24,7 @@ Screenshots are attached **with your annotations**, if you added any. Area, scre
 
 With **Capture element**, images stack vertically in selection order. Use the **Add element** crosshair icon, the leftmost action on the Media header, to capture another element in the same tab. A successful addition brings the new image into view; cancellation or failure returns you to your previous position.
 
-Each image keeps its controls visible at the top-right, without hovering:
+Hover an image or use Tab to focus its card to reveal these controls at the top-right:
 
 - **Add annotation / Edit annotation** — Edit only this image. The label changes when annotations are present.
 - **Remove annotation** — Appears only for an annotated image and restores its original.
